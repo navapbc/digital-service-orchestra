@@ -12,6 +12,26 @@ Your job is to **stop the bleeding**, understand what actually went wrong, and p
 
 > **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
+## Config Resolution (reads project workflow-config.yaml)
+
+At activation, load project commands via read-config.sh before executing any steps:
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
+LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
+```
+
+Resolution order:
+1. `workflow-config.yaml` at `${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml` (plugin-level override)
+2. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
+3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make lint`, `make test`)
+4. Skip with warning if neither config nor make target found
+
+Resolved commands used in this skill:
+- `TEST_CMD` — replaces `make test` in Step 1 (damage assessment) and Step 6 (EXECUTE)
+- `LINT_CMD` — replaces `make lint` in Step 6 (EXECUTE)
+
 ## Mindset
 
 - **Assume nothing the previous developer did was correct.** Their mental model was wrong — that's why each fix caused new errors.

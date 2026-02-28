@@ -10,6 +10,32 @@ Automate the full lifecycle of a beads epic: task analysis, batched sub-agent ex
 
 > **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
+## Config Resolution (reads project workflow-config.yaml)
+
+At activation, load project commands via read-config.sh before executing any steps:
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
+LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
+VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)
+VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)
+E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)
+```
+
+Resolution order:
+1. `workflow-config.yaml` at `${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml` (plugin-level override)
+2. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
+3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make test`, `make lint`)
+4. Skip with warning if neither config nor make target found
+
+Resolved commands used in this skill:
+- `TEST_CMD` — replaces `make test-unit-only` in post-batch and remediation validation
+- `LINT_CMD` — replaces `make lint` in validation steps
+- `VALIDATE_CMD` — replaces `scripts/validate.sh --ci` call in Phase 1
+- `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
+- `E2E_CMD` — replaces `make test-e2e` in post-batch checks
+
 ## Usage
 
 ```

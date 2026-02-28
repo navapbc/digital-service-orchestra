@@ -10,6 +10,28 @@ Use Test-Driven Development to ensure bug fixes are correct and prevent regressi
 
 > **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
+## Config Resolution (reads project workflow-config.yaml)
+
+At activation, load project commands via read-config.sh before executing any steps:
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
+LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
+FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)
+```
+
+Resolution order:
+1. `workflow-config.yaml` at `${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml` (plugin-level override)
+2. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
+3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make test`, `make lint`, `make format-check`)
+4. Skip with warning if neither config nor make target found
+
+Resolved commands used in this skill:
+- `TEST_CMD` — replaces `make test` in RED, GREEN, REFACTOR, and VALIDATE steps
+- `LINT_CMD` — replaces `make lint` in VALIDATE step
+- `FORMAT_CHECK_CMD` — replaces `make format-check` in VALIDATE step
+
 ## The Red-Green-Refactor Cycle
 
 ```
