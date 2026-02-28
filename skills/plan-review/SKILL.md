@@ -134,7 +134,7 @@ After the review completes (pass or revise-then-fix), write the marker:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKTREE_NAME=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR="/tmp/workflow-artifacts-${WORKTREE_NAME}"
 mkdir -p "$ARTIFACTS_DIR"
 
 cat > "$ARTIFACTS_DIR/plan-review-status" << EOF

@@ -45,7 +45,7 @@ For any score below 4, you MUST identify the specific document or file and the
 specific issue. Findings must include: the file path, the problem (quoted or
 paraphrased), and a concrete remediation. Examples:
 - `freshness`: "Archive the resolved KNOWN-ISSUES entry for 'DB migration error' to the RESOLVED section"
-- `completeness`: "Create a beads task for FIXME in `app/src/agents/enrichment.py:42`"
+- `completeness`: "Create a beads task for FIXME in `src/services/enrichment.py:42`"
 - `navigability`: "Add a table of contents to CLAUDE.md (currently 200+ lines with no TOC)" or "Add relative link to `.claude/docs/TESTING-MIGRATION.md` where CLAUDE.md mentions 'real-DB round-trip test'"
 
 Score `null` for `completeness` if the TODO/FIXME count was not collected during

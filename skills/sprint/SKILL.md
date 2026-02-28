@@ -819,7 +819,7 @@ After the commit completes, push: `git push`
 > IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/commit` Skill tool
 > here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that
 > may not return control. If you find yourself waiting for user input after pushing, you are
-> experiencing a known control-flow regression (lockpick-doc-to-logic-tpci). Type "continue"
+> experiencing a known control-flow regression (project-specific-bug-id). Type "continue"
 > mentally and proceed directly to Step 11.
 
 ### Step 11: Context Compaction Check (/sprint)
