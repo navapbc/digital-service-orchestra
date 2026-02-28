@@ -16,10 +16,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/deps.sh"
 
+# Pathspec exclusions for non-reviewable files (binary, snapshots, images, docs)
+EXCLUDE_PATHSPECS=(
+    ':!.beads/'
+    ':!app/tests/e2e/snapshots/'
+    ':!app/tests/unit/templates/snapshots/*.html'
+    ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
+    ':!*.pdf' ':!*.docx'
+)
+
+# Grep pattern to filter untracked non-reviewable files
+NON_REVIEWABLE_PATTERN='^\.beads/|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
+
 {
-    git diff HEAD -- ':!.beads/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-    git diff --cached HEAD -- ':!.beads/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-    git ls-files --others --exclude-standard 2>/dev/null | { grep -v '^\.beads/' || true; } | { grep -v '^app/tests/e2e/snapshots/.*\.png$' || true; } | { grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true; } | while IFS= read -r f; do
+    git diff HEAD -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+    git diff --cached HEAD -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+    git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$NON_REVIEWABLE_PATTERN" || true; } | while IFS= read -r f; do
         echo "untracked: $f"
         cat "$f" 2>/dev/null || true
     done

@@ -15,23 +15,26 @@ git branch --show-current
 git log --oneline -5
 ```
 
-## Step 0.5: Check for Docs-Only Changes
+## Step 0.5: Check for Non-Reviewable-Only Changes
 
-Check if all changed files are documentation or beads tracking (no code changes):
+Check if all changed files are non-reviewable (documentation, beads tracking, snapshots, images, binary docs):
 
 ```bash
 CHANGED_FILES=$(git diff HEAD --name-only)
-DOCS_ONLY=true
+SKIP_REVIEW=true
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
-    if [[ "$file" != *.md ]] && [[ "$file" != .beads/* ]]; then
-        DOCS_ONLY=false
-        break
-    fi
+    case "$file" in
+        *.md|.beads/*) ;;  # docs/beads
+        app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;  # snapshots
+        *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;  # images
+        *.pdf|*.docx) ;;  # binary documents
+        *) SKIP_REVIEW=false; break ;;
+    esac
 done <<< "$CHANGED_FILES"
 ```
 
-**If `DOCS_ONLY` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
+**If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage). The review gate (`review-gate.sh`) will also exempt these file types, so Step 5 (Review Gate) will pass automatically.
 
 **Otherwise**: Continue to Step 1.
 
@@ -49,6 +52,19 @@ cd app && make test-unit-only
 ```
 
 If tests fail, fix the code and restart from Step 1. Do NOT proceed with a failing test suite.
+
+## Step 1.5: Changed Integration/E2E Tests
+
+If any integration or e2e test files changed, run only those files now. This prevents broken tests from being committed when the full suite is excluded from the standard commit gate.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+"$REPO_ROOT/scripts/run-changed-tests.sh"
+```
+
+- **Integration tests fail**: DB is not running. Start it with `make db-start` and re-run. Fix the test if it is broken.
+- **E2E tests fail**: App is not running. Start it with `make start` and re-run. Fix the test if it is broken.
+- **No changed integration/e2e files**: Script exits silently. Continue to Step 2.
 
 ## Step 2: Format
 

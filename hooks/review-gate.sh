@@ -66,9 +66,15 @@ if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_BEADS" ]]; then
     exit 0
 fi
 
-# Exempt: commits that only touch snapshot baseline files (visual regression baselines)
+# Exempt: commits that only touch non-reviewable binary/snapshot files
+# Includes: snapshot baselines, visual regression baselines, images, PDFs, DOCX
 # Filters from STAGED_NON_BEADS so exemptions compose (beads + snapshots = exempt)
-STAGED_NON_SNAPSHOTS=$(echo "$STAGED_NON_BEADS" | grep -v -E '^app/tests/e2e/snapshots/.*\.png$' | grep -v -E '^app/tests/unit/templates/snapshots/.*\.html$' || true)
+STAGED_NON_SNAPSHOTS=$(echo "$STAGED_NON_BEADS" \
+    | grep -v -E '^app/tests/e2e/snapshots/' \
+    | grep -v -E '^app/tests/unit/templates/snapshots/.*\.html$' \
+    | grep -v -E '\.(png|jpg|jpeg|gif|svg|ico|webp)$' \
+    | grep -v -E '\.(pdf|docx)$' \
+    || true)
 if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_SNAPSHOTS" ]]; then
     exit 0
 fi
