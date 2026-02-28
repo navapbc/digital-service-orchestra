@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lockpick/lockpick-workflow/workflow-config-schema.json",
+  "title": "workflow-config",
+  "description": "Schema for workflow-config.yaml — configures commands and stack for the lockpick-workflow plugin",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Config schema version (semver). Current supported version: 1.0.0",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "examples": ["1.0.0"]
+    },
+    "stack": {
+      "type": "string",
+      "description": "Override auto-detected project stack. When omitted, detect-stack.sh infers from marker files.",
+      "enum": [
+        "python-poetry",
+        "node-npm",
+        "rust-cargo",
+        "golang",
+        "convention-based"
+      ]
+    },
+    "commands": {
+      "type": "object",
+      "description": "Shell commands for each workflow step. All keys are optional; omitted keys fall back to stack defaults or skip with a warning.",
+      "additionalProperties": false,
+      "properties": {
+        "test": {
+          "type": "string",
+          "description": "Full test suite command (e.g. 'make test', 'cargo test', 'npm test')",
+          "minLength": 1,
+          "examples": ["make test", "cargo test", "npm test", "go test ./..."]
+        },
+        "lint": {
+          "type": "string",
+          "description": "Linter command (e.g. 'make lint', 'npm run lint')",
+          "minLength": 1,
+          "examples": ["make lint", "npm run lint", "cargo clippy"]
+        },
+        "format": {
+          "type": "string",
+          "description": "Auto-formatter command — modifies files in place",
+          "minLength": 1,
+          "examples": ["make format", "npm run format", "cargo fmt"]
+        },
+        "format_check": {
+          "type": "string",
+          "description": "Formatting check command — fails if files need reformatting, does not modify files",
+          "minLength": 1,
+          "examples": ["make format-check", "npm run format:check", "cargo fmt --check"]
+        },
+        "validate": {
+          "type": "string",
+          "description": "Full validation gate command — typically runs lint + format-check + tests together",
+          "minLength": 1,
+          "examples": ["make validate", "./scripts/validate.sh --ci"]
+        },
+        "test_unit": {
+          "type": "string",
+          "description": "Unit tests only — faster feedback loop, no integration or E2E",
+          "minLength": 1,
+          "examples": ["make test-unit-only", "npm run test:unit", "cargo test --lib"]
+        },
+        "test_e2e": {
+          "type": "string",
+          "description": "End-to-end test command — typically slower, may require external services",
+          "minLength": 1,
+          "examples": ["make test-e2e", "npm run test:e2e", "playwright test"]
+        },
+        "test_visual": {
+          "type": "string",
+          "description": "Visual regression test command — compares screenshots against baselines",
+          "minLength": 1,
+          "examples": ["make test-visual", "npm run test:visual"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+# workflow-config.yaml — lockpick-workflow plugin configuration
+#
+# This file is optional. When present it is read by read-config.sh and used
+# by all parameterizable skills (sprint, tdd-workflow, review-protocol, etc.).
+#
+# Schema reference: docs/workflow-config-schema.json
+# Supported version: 1.0.0
+
+# Required: config schema version (semver).
+# Increment the minor version when new keys are added.
+version: "1.0.0"
+
+# Optional: explicitly declare the project stack.
+# When omitted, detect-stack.sh auto-detects from marker files:
+#   pyproject.toml   → python-poetry
+#   package.json     → node-npm
+#   Cargo.toml       → rust-cargo
+#   go.mod           → golang
+#   Makefile         → convention-based (fallback)
+#
+# Valid values: python-poetry | node-npm | rust-cargo | golang | convention-based
+stack: python-poetry
+
+commands:
+  # Full test suite — runs unit + integration + any slow tests.
+  # Used by: sprint (post-batch gate), tdd-workflow (green phase)
+  test: "make test"
+
+  # Linter — must exit 0 for clean code, non-zero for violations.
+  # Used by: review-protocol (pre-commit gate), sprint (lint gate)
+  lint: "make lint"
+
+  # Auto-formatter — rewrites files in place.
+  # Used by: commit workflow (PostToolUse hook on .py edits)
+  format: "make format"
+
+  # Formatting check — exits non-zero if any file needs reformatting.
+  # Does NOT modify files. Preferred over `format` in CI.
+  # Used by: sprint (format gate), validate command
+  format_check: "make format-check"
+
+  # Full validation gate — runs lint + format_check + full tests.
+  # This is what /sprint calls before starting an epic.
+  # Used by: sprint (--ci mode), validate.sh wrapper
+  validate: "./scripts/validate.sh --ci"
+
+  # Unit tests only — fast feedback, no external services required.
+  # Used by: tdd-workflow (TDD inner loop), review-protocol (pre-commit)
+  test_unit: "make test-unit-only"
+
+  # End-to-end tests — may require a running server or external services.
+  # Run in CI; avoid locally unless debugging E2E failures.
+  # Used by: sprint (CI gate), post-deploy smoke checks
+  test_e2e: "make test-e2e"
+
+  # Visual regression tests — PIL-based screenshot comparison.
+  # Run after UI template or CSS changes.
+  # Used by: sprint (UI change detection), commit workflow (UI gate)
+  test_visual: "make test-visual"
