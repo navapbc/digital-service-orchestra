@@ -40,6 +40,12 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"validation-gate.sh\",\"line\":%s}\n" "$(
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
+# Read configured validate command for error messages.
+# Falls back to 'validate.sh --ci' when no config is present.
+SCRIPTS_DIR="$HOOK_DIR/../scripts"
+VALIDATE_CMD=$("$SCRIPTS_DIR/read-config.sh" commands.validate 2>/dev/null || echo 'validate.sh --ci')
+VALIDATE_CMD=${VALIDATE_CMD:-'validate.sh --ci'}
+
 # Read hook input from stdin
 INPUT=$(cat)
 
@@ -84,7 +90,7 @@ is_new_work_command() {
 
 # Helper: emit hard-block message for new-work commands in failed state
 block_new_work() {
-    echo "BLOCKED: Fix validation failures before sprint/epic discovery. Re-run validate.sh --ci first." >&2
+    echo "BLOCKED: Fix validation failures before sprint/epic discovery. Re-run $VALIDATE_CMD first." >&2
     exit 2
 }
 
@@ -202,11 +208,11 @@ fi
 if [[ "$VALIDATION_STATUS" == "failed" ]]; then
     if [[ "$TOOL_NAME" == "Bash" ]]; then
         # Non-exempt Bash command while validation failed → WARNING ONLY
-        echo "WARNING: Validation failures exist. Fix before starting new work (validate.sh --ci)." >&2
+        echo "WARNING: Validation failures exist. Fix before starting new work ($VALIDATE_CMD)." >&2
         exit 0
     else
         # Edit/Write while validation failed → WARNING ONLY (needed for fixing code)
-        echo "WARNING: validate.sh reported failures. Fix before starting new work." >&2
+        echo "WARNING: $VALIDATE_CMD reported failures. Fix before starting new work." >&2
         exit 0
     fi
 fi
