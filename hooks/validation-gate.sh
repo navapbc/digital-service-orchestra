@@ -16,7 +16,7 @@
 # starting new work on an unhealthy codebase. General edits are always allowed
 # so agents can fix bugs, write docs, or do research without running validation.
 #
-# State file location: /tmp/lockpick-test-artifacts-<worktree-name>/status
+# State file location: /tmp/workflow-plugin-<hash>/status (portable, see get_artifacts_dir in lib/deps.sh)
 # Expected content: "passed" or "failed" (first line)
 #
 # Exempt Bash commands:
@@ -57,8 +57,7 @@ if [[ -z "$REPO_ROOT" ]]; then
     exit 0
 fi
 
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 
 # Read validation state (empty string if file doesn't exist)

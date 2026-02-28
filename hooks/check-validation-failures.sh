@@ -75,8 +75,7 @@ fi
 
 # Determine artifacts dir for log file references
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-WORKTREE_NAME=$(basename "${REPO_ROOT:-.}")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
 

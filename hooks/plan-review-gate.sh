@@ -31,8 +31,7 @@ if [[ -z "$REPO_ROOT" ]]; then
     exit 0
 fi
 
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE_FILE="$ARTIFACTS_DIR/plan-review-status"
 
 # If no plan review has been recorded, block

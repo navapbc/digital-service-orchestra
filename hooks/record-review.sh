@@ -21,7 +21,7 @@
 #             functionality, testing_coverage (each 1-5 or "N/A")
 #   - summary: non-empty string
 #
-# Writes review state to: /tmp/lockpick-test-artifacts-<worktree>/review-status
+# Writes review state to: /tmp/workflow-plugin-<hash>/review-status
 # Format:
 #   Line 1: "passed" or "failed"
 #   Line 2: timestamp=<ISO8601>
@@ -33,6 +33,10 @@
 # The review_hash proves that structured review data was provided.
 
 set -euo pipefail
+
+# Source shared dependency library (provides get_artifacts_dir, hash_stdin, etc.)
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HOOK_DIR/lib/deps.sh"
 
 # Pre-flight: python3 and shasum are required (integrity-critical hook).
 # This hook hard-fails without shasum rather than cascading to weaker hashes,
@@ -190,8 +194,7 @@ if [[ -z "$REPO_ROOT" ]]; then
     exit 1
 fi
 
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 
 # --- Cross-validate reviewer findings file (written by code-reviewer sub-agent) ---

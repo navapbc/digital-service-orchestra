@@ -49,8 +49,7 @@ if [[ -z "$REPO_ROOT" ]]; then
     exit 0
 fi
 
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 
 if [[ ! -f "$VALIDATION_STATE_FILE" ]]; then

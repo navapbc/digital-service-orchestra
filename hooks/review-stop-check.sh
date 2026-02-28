@@ -21,6 +21,10 @@
 HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"review-stop-check.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
 
+# Source shared dependency library (provides get_artifacts_dir)
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HOOK_DIR/lib/deps.sh"
+
 # Determine repo root
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [[ -z "$REPO_ROOT" ]]; then
@@ -39,8 +43,7 @@ fi
 
 # Early exit: if review is current and passed, skip the REMINDER entirely.
 # This avoids noisy output on every Stop when the agent has already reviewed.
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE_FILE="$ARTIFACTS_DIR/review-status"
 
 if [[ -f "$REVIEW_STATE_FILE" ]]; then
