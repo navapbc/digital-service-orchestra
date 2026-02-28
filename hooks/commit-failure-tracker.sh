@@ -16,6 +16,47 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"commit-failure-tracker.sh\",\"line\":%s}
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
+# Read config-driven issue tracker commands (with fallback defaults)
+# Config file resolution: CLAUDE_PLUGIN_ROOT/workflow-config.yaml when available.
+SEARCH_CMD='bd search'
+CREATE_CMD='bd q'
+_CFG_FILE=""
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml" ]]; then
+    _CFG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml"
+fi
+if [[ -n "$_CFG_FILE" ]] && command -v python3 &>/dev/null; then
+    _SEARCH=$( python3 - "$_CFG_FILE" "issue_tracker.search_cmd" <<'PYEOF' 2>/dev/null
+import sys, yaml
+try:
+    with open(sys.argv[1]) as f:
+        data = yaml.safe_load(f) or {}
+    keys = sys.argv[2].split(".")
+    val = data
+    for k in keys:
+        if not isinstance(val, dict): sys.exit(0)
+        val = val.get(k)
+    if val and isinstance(val, str): print(val, end="")
+except Exception: pass
+PYEOF
+    ) || true
+    [[ -n "$_SEARCH" ]] && SEARCH_CMD="$_SEARCH"
+    _CREATE=$( python3 - "$_CFG_FILE" "issue_tracker.create_cmd" <<'PYEOF' 2>/dev/null
+import sys, yaml
+try:
+    with open(sys.argv[1]) as f:
+        data = yaml.safe_load(f) or {}
+    keys = sys.argv[2].split(".")
+    val = data
+    for k in keys:
+        if not isinstance(val, dict): sys.exit(0)
+        val = val.get(k)
+    if val and isinstance(val, str): print(val, end="")
+except Exception: pass
+PYEOF
+    ) || true
+    [[ -n "$_CREATE" ]] && CREATE_CMD="$_CREATE"
+fi
+
 # This hook is non-blocking (warnings only) — skip entirely without jq
 check_tool jq || exit 0
 
@@ -75,7 +116,7 @@ fi
 declare -a UNTRACKED=()
 for category in "${FAILED_CATEGORIES[@]}"; do
     # Simple substring search — if any open issue mentions the category, it's tracked
-    RESULT=$(bd search "$category failure" --status=open --quiet 2>/dev/null | grep -vE "^Found [0-9]+ issues|^No issues found" | head -1 || echo "")
+    RESULT=$($SEARCH_CMD "$category failure" --status=open --quiet 2>/dev/null | grep -vE "^Found [0-9]+ issues|^No issues found" | head -1 || echo "")
     if [[ -z "$RESULT" ]]; then
         UNTRACKED+=("$category")
     fi
@@ -94,7 +135,8 @@ for category in "${UNTRACKED[@]}"; do
 done
 echo "" >&2
 echo "Issues should have been auto-created by check-validation-failures.sh." >&2
-echo "Create manually if needed: bd q \"Fix <check> failure\" -t bug -p 1" >&2
+echo "Search: $SEARCH_CMD \"<check> failure\" --status=open" >&2
+echo "Create manually if needed: $CREATE_CMD \"Fix <check> failure\" -t bug -p 1" >&2
 echo "" >&2
 
 # Never block
