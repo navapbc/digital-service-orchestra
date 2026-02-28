@@ -24,6 +24,30 @@
         "convention-based"
       ]
     },
+    "format": {
+      "type": "object",
+      "description": "Auto-format hook configuration. Controls which files are processed by the auto-format PostToolUse hook.",
+      "additionalProperties": false,
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "description": "File extensions to process (e.g. ['.py', '.ts']). Defaults to ['.py'] when absent.",
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[a-z0-9]+$"
+          },
+          "examples": [[".py"], [".ts", ".tsx"], [".py", ".ts"]]
+        },
+        "source_dirs": {
+          "type": "array",
+          "description": "Directories to restrict processing to. Paths relative to repo root or absolute. Defaults to ['app/src', 'app/tests'] when absent.",
+          "items": {
+            "type": "string"
+          },
+          "examples": [["app/src", "app/tests"], ["src", "tests"]]
+        }
+      }
+    },
     "commands": {
       "type": "object",
       "description": "Shell commands for each workflow step. All keys are optional; omitted keys fall back to stack defaults or skip with a warning.",

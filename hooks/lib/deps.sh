@@ -12,6 +12,7 @@
 #   hash_file <path>            — hash a file using hash_stdin
 #   try_start_docker            — start Docker Desktop (macOS) or systemd (Linux), wait ≤30s
 #   try_find_python <version>   — search for Python matching <version> (e.g., "3.13")
+#   get_artifacts_dir           — returns portable /tmp/workflow-plugin-<hash>/ state dir (with one-time migration from old lockpick path)
 
 # Guard: only load once
 [[ "${_DEPS_LOADED:-}" == "1" ]] && return 0
@@ -235,6 +236,49 @@ try_start_docker() {
 #
 # Usage: PYTHON=$(try_find_python 3.13)
 #        [[ -n "$PYTHON" ]] && echo "Found: $PYTHON"
+# --- get_artifacts_dir ---
+# Returns the portable state directory path for this repo.
+#
+# New path: /tmp/workflow-plugin-<16-char-hash-of-REPO_ROOT>/
+#
+# Backward-compat: if old /tmp/lockpick-test-artifacts-<worktree>/ exists
+# and the new path has no state files, performs a one-time atomic migration
+# by copying files from the old directory to the new directory.
+#
+# The migration is guarded by an atomic mkdir lock to be safe under concurrent
+# invocations. Old directories are left in place (OS temp cleanup handles them).
+#
+# Usage: ARTIFACTS_DIR=$(get_artifacts_dir)
+get_artifacts_dir() {
+    local repo_root=${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}
+    [[ -z "$repo_root" ]] && echo "/tmp/workflow-plugin-unknown" && return 0
+
+    local hash_suffix
+    hash_suffix=$(echo -n "$repo_root" | hash_stdin | head -c 16)
+    local new_dir="/tmp/workflow-plugin-${hash_suffix}"
+    mkdir -p "$new_dir"
+
+    # One-time backward-compat migration from old lockpick path
+    local worktree_name
+    worktree_name=$(basename "$repo_root")
+    local old_dir="/tmp/lockpick-test-artifacts-${worktree_name}"
+    local lock_dir="/tmp/workflow-plugin-migration-${hash_suffix}.lock"
+
+    if [[ -d "$old_dir" ]] && [[ -z "$(ls -A "$new_dir" 2>/dev/null)" ]]; then
+        # Atomic lock using mkdir (atomic on Linux/macOS)
+        if mkdir "$lock_dir" 2>/dev/null; then
+            # We hold the lock — re-check new_dir is still empty before migrating
+            if [[ -z "$(ls -A "$new_dir" 2>/dev/null)" ]]; then
+                cp -r "$old_dir"/. "$new_dir"/ 2>/dev/null || true
+            fi
+            rmdir "$lock_dir" 2>/dev/null || true
+        fi
+        # If lock failed, another process is migrating — new_dir will be populated shortly
+    fi
+
+    echo "$new_dir"
+}
+
 try_find_python() {
     local version="$1"
     local major="${version%%.*}"

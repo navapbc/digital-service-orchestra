@@ -21,6 +21,17 @@ version: "1.0.0"
 # Valid values: python-poetry | node-npm | rust-cargo | golang | convention-based
 stack: python-poetry
 
+format:
+  # File extensions to process with the auto-format hook.
+  # Defaults to ['.py'] when absent.
+  # Used by: auto-format.sh (PostToolUse hook)
+  extensions: ['.py']
+
+  # Directories to restrict auto-format processing to.
+  # Defaults to ['app/src', 'app/tests'] when absent.
+  # Used by: auto-format.sh (PostToolUse hook)
+  source_dirs: ['app/src', 'app/tests']
+
 commands:
   # Full test suite — runs unit + integration + any slow tests.
   # Used by: sprint (post-batch gate), tdd-workflow (green phase)

@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # .claude/hooks/auto-format.sh
-# PostToolUse hook: auto-format .py files after Edit/Write tool calls.
+# PostToolUse hook: auto-format source files after Edit/Write tool calls.
 #
-# Replicates 'make format' (ruff import sort + ruff format) on the specific
-# file just edited. Skips non-.py files and files outside app/src/ or app/tests/.
+# By default, processes .py files under app/src/ and app/tests/.
+# When CLAUDE_PLUGIN_ROOT is set and workflow-config.yaml is present, reads:
+#   format.extensions  — list of file extensions to process (default: ['.py'])
+#   format.source_dirs — directories to restrict processing to (default: app/src, app/tests)
+#   commands.format    — project-wide format command (used to derive single-file command)
+#
 # Always exits 0 (non-blocking).
 #
 # Bug workaround (#20334): PostToolUse hooks with specific matchers fire for
@@ -11,6 +15,7 @@
 # always emit at least one byte of stdout to avoid the empty-stdout hook error.
 
 # Guarantee exit 0 and non-empty stdout on any unexpected failure.
+# _HOOK_HAS_OUTPUT=1 suppresses the {} fallback for intentional early exits.
 _HOOK_HAS_OUTPUT=""
 trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
 trap 'exit 0' ERR
@@ -19,36 +24,168 @@ trap 'exit 0' ERR
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
+SCRIPTS_DIR="$HOOK_DIR/../scripts"
+
 INPUT=$(cat)
 
 # Only act on Edit or Write tool calls
 TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
 if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
-    exit 0
+    _HOOK_HAS_OUTPUT=1; exit 0
 fi
 
 FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')
 if [[ -z "$FILE_PATH" ]]; then
-    exit 0
+    _HOOK_HAS_OUTPUT=1; exit 0
 fi
 
-# Only process .py files
-[[ "$FILE_PATH" == *.py ]] || exit 0
+# Skip files that do not exist (e.g. intermediate edits or paths never created)
+if [[ ! -f "$FILE_PATH" ]]; then
+    _HOOK_HAS_OUTPUT=1; exit 0
+fi
 
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { _HOOK_HAS_OUTPUT=1; exit 0; }
 APP_DIR="$REPO_ROOT/app"
 
-# Only process files under app/src/ or app/tests/
-[[ "$FILE_PATH" == "$APP_DIR/src/"* || "$FILE_PATH" == "$APP_DIR/tests/"* ]] || exit 0
+# ── Read config (when CLAUDE_PLUGIN_ROOT is set) ────────────────────────────
+# format.extensions — list of extensions to process (fallback: .py)
+# format.source_dirs — directories to restrict to (fallback: app/src, app/tests)
+# commands.format   — project-wide format command (used to derive single-file command)
 
+CONFIG_FILE=""
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml" ]]; then
+    CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml"
+fi
+
+# Read format.extensions list from config using inline Python (read-config.sh
+# only handles scalars; extensions is a YAML list).
+CONFIGURED_EXTS=()
+if [[ -n "$CONFIG_FILE" ]] && command -v python3 &>/dev/null; then
+    _RAW_EXTS=$(python3 - "$CONFIG_FILE" "format.extensions" <<'PYEOF' 2>/dev/null
+import sys, yaml
+try:
+    with open(sys.argv[1]) as f:
+        data = yaml.safe_load(f) or {}
+    keys = sys.argv[2].split(".")
+    val = data
+    for k in keys:
+        if not isinstance(val, dict): sys.exit(0)
+        val = val.get(k)
+    if isinstance(val, list):
+        print(" ".join(str(v) for v in val if v))
+    elif isinstance(val, str):
+        print(val)
+except Exception:
+    pass
+PYEOF
+) || true
+    if [[ -n "$_RAW_EXTS" ]]; then
+        read -ra CONFIGURED_EXTS <<< "$_RAW_EXTS"
+    fi
+fi
+
+# Fallback to .py when no config or key absent
+if [[ ${#CONFIGURED_EXTS[@]} -eq 0 ]]; then
+    CONFIGURED_EXTS=('.py')
+fi
+
+# Read format.source_dirs from config (also a list)
+CONFIGURED_DIRS=()
+if [[ -n "$CONFIG_FILE" ]] && command -v python3 &>/dev/null; then
+    _RAW_DIRS=$(python3 - "$CONFIG_FILE" "format.source_dirs" <<'PYEOF' 2>/dev/null
+import sys, yaml
+try:
+    with open(sys.argv[1]) as f:
+        data = yaml.safe_load(f) or {}
+    keys = sys.argv[2].split(".")
+    val = data
+    for k in keys:
+        if not isinstance(val, dict): sys.exit(0)
+        val = val.get(k)
+    if isinstance(val, list):
+        print("\n".join(str(v) for v in val if v))
+    elif isinstance(val, str):
+        print(val)
+except Exception:
+    pass
+PYEOF
+) || true
+    if [[ -n "$_RAW_DIRS" ]]; then
+        while IFS= read -r dir; do
+            CONFIGURED_DIRS+=("$dir")
+        done <<< "$_RAW_DIRS"
+    fi
+fi
+
+# ── Check extension ──────────────────────────────────────────────────────────
+_EXT_MATCHED=0
+for ext in "${CONFIGURED_EXTS[@]}"; do
+    if [[ "$FILE_PATH" == *"$ext" ]]; then
+        _EXT_MATCHED=1
+        break
+    fi
+done
+if [[ "$_EXT_MATCHED" -eq 0 ]]; then
+    _HOOK_HAS_OUTPUT=1; exit 0
+fi
+
+# ── Check source directory restriction ──────────────────────────────────────
+if [[ ${#CONFIGURED_DIRS[@]} -gt 0 ]]; then
+    # Config-provided source dirs (relative to REPO_ROOT or absolute)
+    _DIR_MATCHED=0
+    for src_dir in "${CONFIGURED_DIRS[@]}"; do
+        # Resolve relative paths against REPO_ROOT
+        if [[ "$src_dir" == /* ]]; then
+            _abs_dir="$src_dir"
+        else
+            _abs_dir="$REPO_ROOT/$src_dir"
+        fi
+        if [[ "$FILE_PATH" == "$_abs_dir/"* ]]; then
+            _DIR_MATCHED=1
+            break
+        fi
+    done
+    if [[ "$_DIR_MATCHED" -eq 0 ]]; then
+        _HOOK_HAS_OUTPUT=1; exit 0
+    fi
+else
+    # Default: only process files under app/src/ or app/tests/
+    if [[ "$FILE_PATH" != "$APP_DIR/src/"* && "$FILE_PATH" != "$APP_DIR/tests/"* ]]; then
+        _HOOK_HAS_OUTPUT=1; exit 0
+    fi
+fi
+
+# Derive relative path from APP_DIR for .py files (legacy ruff invocation)
 REL_PATH="${FILE_PATH#"$APP_DIR/"}"
 
-# Format using ruff (import sort + format), single-file targeted.
-# Suppress output — chatty messages from ruff would clutter the agent's context.
+# ── Format the file ──────────────────────────────────────────────────────────
+# For .py files: use ruff (import sort + format), single-file targeted.
+# For other extensions configured via format.extensions: attempt the project
+# format command if available, otherwise skip silently.
+#
+# Suppress output — chatty messages would clutter the agent's context.
 # Syntax errors mid-edit are expected (file may be incomplete); don't alarm on those.
-if ! (cd "$APP_DIR" && poetry run ruff check --select I --fix "$REL_PATH" && poetry run ruff format "$REL_PATH") >/dev/null 2>&1; then
-    _HOOK_HAS_OUTPUT=1
-    echo "auto-format: failed on $REL_PATH — run 'make format' manually if needed"
+
+if [[ "$FILE_PATH" == *.py ]]; then
+    if ! (cd "$APP_DIR" && poetry run ruff check --select I --fix "$REL_PATH" && poetry run ruff format "$REL_PATH") >/dev/null 2>&1; then
+        _HOOK_HAS_OUTPUT=1
+        echo "auto-format: failed on $REL_PATH — run 'make format' manually if needed"
+    fi
+else
+    # Non-.py extension: read commands.format from config and attempt single-file format
+    FORMAT_CMD=""
+    if [[ -n "$CONFIG_FILE" ]]; then
+        FORMAT_CMD=$("$SCRIPTS_DIR/read-config.sh" commands.format "$CONFIG_FILE" 2>/dev/null || echo '')
+    fi
+    # Only attempt if a format command is configured
+    if [[ -n "$FORMAT_CMD" ]]; then
+        if ! eval "$FORMAT_CMD" >/dev/null 2>&1; then
+            _HOOK_HAS_OUTPUT=1
+            echo "auto-format: failed on $FILE_PATH — run format manually if needed"
+        fi
+    else
+        _HOOK_HAS_OUTPUT=1
+    fi
 fi
 
 exit 0
