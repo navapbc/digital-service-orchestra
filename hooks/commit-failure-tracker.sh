@@ -17,43 +17,20 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
 # Read config-driven issue tracker commands (with fallback defaults)
-# Config file resolution: CLAUDE_PLUGIN_ROOT/workflow-config.yaml when available.
+# Resolve read-config.sh: try HOOK_DIR/../scripts (lockpick-workflow/hooks/ path),
+# then HOOK_DIR/../../lockpick-workflow/scripts (.claude/hooks/ path).
 SEARCH_CMD='bd search'
 CREATE_CMD='bd q'
-_CFG_FILE=""
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml" ]]; then
-    _CFG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml"
+_READ_CONFIG=""
+if [[ -f "$HOOK_DIR/../scripts/read-config.sh" ]]; then
+    _READ_CONFIG="$HOOK_DIR/../scripts/read-config.sh"
+elif [[ -f "$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh" ]]; then
+    _READ_CONFIG="$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh"
 fi
-if [[ -n "$_CFG_FILE" ]] && command -v python3 &>/dev/null; then
-    _SEARCH=$( python3 - "$_CFG_FILE" "issue_tracker.search_cmd" <<'PYEOF' 2>/dev/null
-import sys, yaml
-try:
-    with open(sys.argv[1]) as f:
-        data = yaml.safe_load(f) or {}
-    keys = sys.argv[2].split(".")
-    val = data
-    for k in keys:
-        if not isinstance(val, dict): sys.exit(0)
-        val = val.get(k)
-    if val and isinstance(val, str): print(val, end="")
-except Exception: pass
-PYEOF
-    ) || true
+if [[ -n "$_READ_CONFIG" ]]; then
+    _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
     [[ -n "$_SEARCH" ]] && SEARCH_CMD="$_SEARCH"
-    _CREATE=$( python3 - "$_CFG_FILE" "issue_tracker.create_cmd" <<'PYEOF' 2>/dev/null
-import sys, yaml
-try:
-    with open(sys.argv[1]) as f:
-        data = yaml.safe_load(f) or {}
-    keys = sys.argv[2].split(".")
-    val = data
-    for k in keys:
-        if not isinstance(val, dict): sys.exit(0)
-        val = val.get(k)
-    if val and isinstance(val, str): print(val, end="")
-except Exception: pass
-PYEOF
-    ) || true
+    _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
     [[ -n "$_CREATE" ]] && CREATE_CMD="$_CREATE"
 fi
 
