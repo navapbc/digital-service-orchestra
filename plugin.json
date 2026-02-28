@@ -1,0 +1,7 @@
+{
+  "name": "lockpick-workflow",
+  "version": "0.1.0",
+  "description": "Workflow infrastructure plugin for Claude Code projects",
+  "skills": "skills/",
+  "hooks": "hooks.json"
+}
