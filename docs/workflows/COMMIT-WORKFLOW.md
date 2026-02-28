@@ -2,6 +2,18 @@
 
 Create a git commit with mandatory test, format, lint, and review gates.
 
+## Config Reference (from workflow-config.yaml)
+
+Replace commands below with values from your `workflow-config.yaml`:
+
+- `commands.test_unit` (default: `make test-unit-only`)
+- `commands.lint` (default: `make lint-ruff`)
+- `commands.type_check` (default: `make lint-mypy`)
+- `commands.format` (default: `make format-modified`)
+- `commands.validate` (default: `validate.sh --ci`)
+
+The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
+
 ---
 
 ## Step 0: Gather Context
