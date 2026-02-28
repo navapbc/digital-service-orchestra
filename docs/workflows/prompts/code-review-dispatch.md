@@ -115,8 +115,9 @@ Evaluating `# REVIEW-DEFENSE:` comments:
 Run these exact commands:
 
   REPO_ROOT=$(git rev-parse --show-toplevel)
-  WORKTREE=$(basename "$REPO_ROOT")
-  FINDINGS_FILE="/tmp/lockpick-test-artifacts-${WORKTREE}/reviewer-findings.json"
+  source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+  ARTIFACTS_DIR=$(get_artifacts_dir)
+  FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
   mkdir -p "$(dirname "$FINDINGS_FILE")"
   cat > "$FINDINGS_FILE" <<'FINDINGS_EOF'
   <your complete JSON here>
@@ -125,7 +126,7 @@ Run these exact commands:
 
 Then validate the output schema (schema-hash: 3314cd1b5bfce28c):
 
-  "$REPO_ROOT/scripts/validate-review-output.sh" code-review-dispatch "$FINDINGS_FILE"
+  "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" code-review-dispatch "$FINDINGS_FILE"
 
 - If `SCHEMA_VALID: no` is printed, fix the JSON and re-run until the validator exits 0.
 - Do NOT return the fixed format until the validator passes.

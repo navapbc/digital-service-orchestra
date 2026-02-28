@@ -85,11 +85,12 @@ After aggregating all reviewer outputs into the combined JSON (`subject`, `revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-REVIEW_OUT="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")/preplanning-review-output.json"
+source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+REVIEW_OUT="$(get_artifacts_dir)/preplanning-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"$REPO_ROOT/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller preplanning
+"${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller preplanning
 ```
 
 **Caller schema hash**: `dba581aa06265af0` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.

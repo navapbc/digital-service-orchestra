@@ -2,6 +2,18 @@
 
 Review the current code diff using a `superpowers:code-reviewer` sub-agent for deep analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
 
+## Config Reference (from workflow-config.yaml)
+
+Replace commands below with values from your `workflow-config.yaml`:
+
+- `commands.lint` (default: `make lint-ruff`)
+- `commands.type_check` (default: `make lint-mypy`)
+- `commands.test_unit` (default: `make test-unit-only`)
+
+The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
+
+---
+
 **CRITICAL**: Steps 0-5 are mandatory and sequential. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md rule #15 regardless of how "simple" the changes appear.
 
 **This workflow reviews CODE (diffs, commits). To review a PLAN or DESIGN, use `/plan-review` instead.** See CLAUDE.md "Always Do These" rule 10 for the review routing table.
@@ -15,8 +27,8 @@ Capture the diff NOW and save it to a hash-stamped temp file. Sub-agents read th
 1. **Capture the diff hash** for later verification:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   WORKTREE=$(basename "$REPO_ROOT")
-   ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE}"
+   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+   ARTIFACTS_DIR=$(get_artifacts_dir)
    mkdir -p "$ARTIFACTS_DIR"
    DIFF_HASH=$("$REPO_ROOT/.claude/hooks/compute-diff-hash.sh")
    DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
@@ -131,8 +143,10 @@ Task tool:
 2. Extract `REVIEW_RESULT` (passed/failed), `FINDING_COUNT`, and `FILES` for constructing `feedback` and `files_targeted`.
 3. If the review failed and you need finding details, read `reviewer-findings.json` from disk:
    ```bash
-   WORKTREE=$(basename "$(git rev-parse --show-toplevel)")
-   FINDINGS_FILE="/tmp/lockpick-test-artifacts-${WORKTREE}/reviewer-findings.json"
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+   ARTIFACTS_DIR=$(get_artifacts_dir)
+   FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
    cat "$FINDINGS_FILE" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'[{f[\"severity\"]}] {f[\"category\"]}: {f[\"description\"]}') for f in d['findings'] if f['severity'] in ('critical','important')]"
    ```
 

@@ -141,16 +141,17 @@ After the sub-agent returns:
 2. Run the schema validator (schema-hash: 3053fa9a43e12b79):
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   REVIEW_OUT="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")/review-protocol-output.json"
+   source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+   REVIEW_OUT="$(get_artifacts_dir)/review-protocol-output.json"
    cat > "$REVIEW_OUT" <<'EOF'
    <sub-agent JSON output>
    EOF
 
    # Base schema check (always)
-   "$REPO_ROOT/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT"
+   "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT"
 
    # Per-caller check (when caller_id is provided)
-   # "$REPO_ROOT/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
+   # "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
    ```
 3. If `SCHEMA_VALID: no` — retry the sub-agent once with an explicit format correction prompt; do not proceed with invalid output
 4. If `SCHEMA_VALID: yes` — proceed to Stage 3

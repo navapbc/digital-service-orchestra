@@ -794,7 +794,7 @@ the full MCP verification below.
 
 ### Step 7: Formal Code Review (/sprint)
 
-Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. This produces a formal review state file with diff hash and scores at `/tmp/lockpick-test-artifacts-{worktree}/review-status`. (Note: the commit workflow's review gate finds this state file and skips re-review.)
+Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. This produces a formal review state file with diff hash and scores at `$(get_artifacts_dir)/review-status` (computed by `get_artifacts_dir()` in `hooks/lib/deps.sh`). (Note: the commit workflow's review gate finds this state file and skips re-review.)
 
 **Snapshot exclusion**: When generating the diff files for review (Steps 0 and 2 of REVIEW-WORKFLOW.md), exclude snapshot baseline files from the diff so reviewers focus on code changes:
 ```bash

@@ -109,8 +109,8 @@ After Steps 1-3 all pass, write a validation state file so the review workflow c
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-WORKTREE=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE}"
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 echo "passed" > "$ARTIFACTS_DIR/validation-status"
 ```
@@ -131,8 +131,9 @@ Check whether a current, passing review already exists for this exact diff state
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-REVIEW_STATE="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}/review-status"
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+ARTIFACTS_DIR=$(get_artifacts_dir)
+REVIEW_STATE="$ARTIFACTS_DIR/review-status"
 CURRENT_HASH=$("$REPO_ROOT/.claude/hooks/compute-diff-hash.sh")
 ```
 
