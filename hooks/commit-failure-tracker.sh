@@ -70,6 +70,18 @@ fi
 ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 
+# Backward-compat: also check old-style artifacts path for test environments that
+# write validation state to /tmp/lockpick-test-artifacts-<worktree>/status.
+_OLD_ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")"
+if [[ ! -f "$VALIDATION_STATE_FILE" ]] && [[ -f "$_OLD_ARTIFACTS_DIR/status" ]]; then
+    VALIDATION_STATE_FILE="$_OLD_ARTIFACTS_DIR/status"
+elif [[ -f "$VALIDATION_STATE_FILE" ]] && [[ -f "$_OLD_ARTIFACTS_DIR/status" ]]; then
+    _OLD_STATUS=$(head -n 1 "$_OLD_ARTIFACTS_DIR/status" 2>/dev/null || echo "")
+    if [[ "$_OLD_STATUS" == "failed" ]]; then
+        VALIDATION_STATE_FILE="$_OLD_ARTIFACTS_DIR/status"
+    fi
+fi
+
 if [[ ! -f "$VALIDATION_STATE_FILE" ]]; then
     exit 0
 fi
