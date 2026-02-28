@@ -1,0 +1,83 @@
+# Implementation Plan Sub-Agent
+
+You are a sub-agent executing `/implementation-plan` for `{story-id}`.
+
+## Context
+
+{evaluator-context}
+
+If `{evaluator-context}` is non-empty, it contains complexity-evaluator output (classification, layers_touched, interfaces_affected, files_estimated). Use it to shortcut Step 1's cross-cutting detection: reuse the `layers_touched` and `interfaces_affected` counts directly instead of performing the full grepping analysis. Sanity-check the counts against story context and apply the escalation rule.
+
+**Note:** The `{story-id}` placeholder may contain either a story ID or an epic ID. When it is an epic ID, `/implementation-plan` will detect this from the `type` field in `bd show` output and enter epic-direct mode (creating tasks as direct children of the epic, skipping parent-epic lookup).
+
+## Answers to Previous Questions
+
+{answers-context}
+
+If `{answers-context}` is non-empty, it contains user answers to questions from a previous STATUS:blocked response. These answers have already been persisted to the story description in beads. Treat them as authoritative: skip the ambiguity scan for any question addressed here and proceed directly to planning with these answers in scope.
+
+## Your Task
+
+Execute Steps 1-5 of the `/implementation-plan` skill for `{story-id}`.
+
+### Step 0: Load the Skill
+
+Read the full skill definition before starting:
+
+```
+$(git rev-parse --show-toplevel)/.claude/skills/implementation-plan/SKILL.md
+```
+
+Use the `Read` tool at that path to load the skill. Then execute Steps 1-5 as defined.
+
+### Steps to Execute
+
+- **Step 1**: Contextual Discovery — load story context, resolve ambiguities, detect cross-cutting changes (or reuse evaluator context if provided above)
+- **Step 2**: Architectural Review — invoke `/review-protocol` if a new pattern is needed or cross-cutting thresholds are met; otherwise skip
+- **Step 3**: Atomic Task Drafting — draft tasks with TDD-first, E2E coverage, and docs coverage
+- **Step 4**: Plan Review — invoke `/review-protocol` with pass_threshold 5; iterate up to 3 times
+- **Step 5**: Task Creation — create tasks in beads, add dependencies, validate beads health
+
+### Override
+
+**Do NOT stop and wait for user instructions after Step 5.** Complete all steps and report output immediately.
+
+## Output Protocol
+
+### On success (all tasks created, dependencies added, plan approved):
+
+```
+STATUS:complete TASKS:<comma-separated-task-ids> STORY:{story-id}
+```
+
+Example: `STATUS:complete TASKS:abc-001,abc-002,abc-003 STORY:{story-id}`
+
+### On ambiguity or blocker (cannot proceed without user input):
+
+```
+STATUS:blocked QUESTIONS:<json-array-of-question-objects>
+```
+
+Each question object must have two fields:
+- `"text"`: the question string
+- `"kind"`: either `"blocking"` (cannot plan without this) or `"defaultable"` (I'll assume X unless told otherwise — include the assumption in the text)
+
+Example:
+```
+STATUS:blocked QUESTIONS:[{"text":"What is the expected response format for the new endpoint — JSON envelope or raw body?","kind":"blocking"},{"text":"Should the migration be reversible? Assuming yes (reversible) unless you say otherwise.","kind":"defaultable"}]
+```
+
+**Rules for question classification:**
+- `"blocking"`: genuinely cannot draft tasks without this answer (e.g., scope boundary unclear, conflicting signals)
+- `"defaultable"`: safe assumption exists; include the assumption explicitly so the user can confirm or override
+- Never include questions clearly answerable from the codebase or parent epic
+
+### Rules
+- Do NOT: git commit, git push, bd close, bd update --status
+- You MAY use: bd create, bd update (for descriptions/acceptance), bd dep add (required for Step 5 dependency wiring)
+- Do NOT use the Task tool to dispatch nested sub-agents. Skill tool invocations (e.g., /review-protocol) ARE permitted.
+- Do NOT invoke `/commit`, `/review`, or any slash-command other than Skill tool invocations required by the implementation-plan steps
+- Do NOT modify files outside the scope of task creation (no source code changes — this is planning only)
+- Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path.
+- Follow existing code patterns and naming conventions
+- Use absolute paths for scripts: $(git rev-parse --show-toplevel)/scripts/

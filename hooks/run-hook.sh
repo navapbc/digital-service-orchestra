@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# lockpick-workflow/hooks/run-hook.sh
+# Parse-error resilient wrapper for hook scripts.
+# All hooks in hooks.json should be invoked through this wrapper.
+#
+# Usage: run-hook.sh <hook-script> [args...]
+#
+# How it works:
+#   1. Syntax-checks the target hook with `bash -n`
+#   2. If syntax is valid: runs it, passes through exit code and stderr
+#   3. If syntax is broken: logs the error, exits 0 (fail-open)
+#
+# This ensures a broken hook degrades to no enforcement rather than
+# bricking the session with a parse error that bypasses ERR traps.
+#
+# CLAUDE_PLUGIN_ROOT: When running as a plugin, Claude Code sets
+# CLAUDE_PLUGIN_ROOT to the plugin installation directory. This fallback
+# guard resolves it from the script's location when running standalone
+# (e.g., in tests or CI without Claude Code).
+
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
+    CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+fi
+
+HOOK="$1"
+shift
+
+if [[ -z "$HOOK" || ! -f "$HOOK" ]]; then
+    # No hook specified or file doesn't exist — fail-open
+    exit 0
+fi
+
+SYNTAX_ERR_LOG=$(mktemp /tmp/claude-hook-syntax-err.XXXXXX)
+trap 'rm -f "$SYNTAX_ERR_LOG"' EXIT
+
+if ! bash -n "$HOOK" 2>"$SYNTAX_ERR_LOG"; then
+    # Parse error detected — log it and fail-open
+    HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    SYNTAX_ERR=$(cat "$SYNTAX_ERR_LOG" 2>/dev/null || echo "unknown")
+    printf '{"ts":"%s","hook":"%s","error":"syntax","detail":"%s"}\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "$(basename "$HOOK")" \
+        "$(echo "$SYNTAX_ERR" | tr '"' "'" | tr '\n' ' ')" \
+        >> "$HOOK_ERROR_LOG" 2>/dev/null
+    exit 0
+fi
+
+exec "$HOOK" "$@"

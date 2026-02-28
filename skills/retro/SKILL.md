@@ -1,0 +1,168 @@
+---
+name: retro
+description: Use when performing periodic project health reviews, optimizing development workflow, cleaning up worktrees, auditing test quality, or identifying technical debt and maintenance needs
+user-invocable: true
+---
+
+# Development Retrospective
+
+Proactive project health assessment focused on maintainability, workflow efficiency, and technical debt. Analyzes metrics, identifies improvements, and creates a structured remediation plan.
+
+> **Worktree Compatible**: All commands use dynamic path resolution. Set `REPO_ROOT=$(git rev-parse --show-toplevel)` once at start.
+
+**Supports dryrun mode.** Use `/dryrun /retro` to preview without changes.
+
+## Usage
+
+```
+/retro    # Run full retrospective assessment
+```
+
+## Phases
+
+```
+Flow: P1 (Health Assessment) → P2 (Codebase Review) → P3 (Findings Report)
+  → [user approves scope] P4 (Epic Creation) → P5 (Quick Wins) → Complete
+  → [user declines] End
+```
+
+---
+
+## Phase 1: Health Assessment (/retro)
+
+Run the data-collection script to gather all metrics in one pass:
+
+```bash
+$(git rev-parse --show-toplevel)/scripts/retro-gather.sh
+```
+
+Use `--quick` to skip slow checks (dependency freshness, plugin versions) when session usage is high.
+
+The script outputs structured sections (`=== SECTION_NAME ===`) covering:
+cleanup, validation, beads health/stats/open/blocked/orphaned, worktree staleness,
+outdated dependencies, session usage, hook error logs, timeout logs, plugin versions,
+test metrics, code metrics, and known issues counts.
+
+### Post-Collection Analysis
+
+After reviewing the script output:
+
+1. **Error log triage**: For each unique error pattern in `HOOK_ERROR_LOG`, propose a beads bug. Use AskUserQuestion to confirm which warrant creation. **After triage**, truncate the logs.
+2. **Plugin updates**: For any outdated plugins, never recommend `@latest` tags — always recommend specific pinned versions. Add as P3 cleanup items.
+3. **Report** the structured health inventory (validation status, beads health, worktree count, dependency freshness, session usage, error triage summary, plugin versions).
+
+---
+
+## Phase 2: Codebase Review (/retro)
+
+Gather codebase metrics, then invoke `/review-protocol` for structured assessment.
+
+### Data Collection
+
+The `retro-gather.sh` output (from Phase 1) already includes `TEST_METRICS`, `CODE_METRICS`, and `KNOWN_ISSUES` sections. Use those as the raw data baseline.
+
+For the review, additionally check (not covered by the script):
+1. **Test quality**: Identify files with no assertions, excessive mocking (10+ mocks per test), generic names (`test_1`, `test_basic`).
+2. **Documentation**: Check README/CLAUDE.md for deprecated references.
+3. **Code quality**: Deep nesting (4+ levels), duplicate patterns, complex functions (>50 lines).
+4. **Naming**: Module (snake_case), class (PascalCase), function (snake_case), constant (UPPER_CASE) consistency.
+5. **Architecture**: Service/model/route separation, circular imports, layering compliance.
+6. **Review defenses**: Count `# REVIEW-DEFENSE:` comments (`grep -rn "REVIEW-DEFENSE:" src/`). Flag any that reference resolved issues, deleted ADRs, or code patterns that have since been refactored. Stale defenses are comment noise.
+
+### Structured Review
+
+Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer configuration, launch instructions, and aggregation rules.
+
+Invoke `/review-protocol` with:
+
+- **subject**: "Codebase Health Assessment"
+- **artifact**: The collected metrics from the data collection step above
+- **pass_threshold**: 4
+- **start_stage**: 2 (data collection above serves as Stage 1)
+- **perspectives**: Load from the following reviewer files:
+
+| Perspective | Reviewer File |
+|-------------|---------------|
+| Test Quality | [docs/reviewers/test-quality.md](docs/reviewers/test-quality.md) |
+| Documentation | [docs/reviewers/documentation.md](docs/reviewers/documentation.md) |
+| Code Quality | [docs/reviewers/code-quality.md](docs/reviewers/code-quality.md) |
+| Naming Conventions | [docs/reviewers/naming-conventions.md](docs/reviewers/naming-conventions.md) |
+| Architecture | [docs/reviewers/architecture.md](docs/reviewers/architecture.md) |
+
+### Output
+
+Report the `/review-protocol` JSON output, categorized by perspective. Include raw counts and top offenders from data collection alongside the structured scores.
+
+---
+
+## Phase 3: Findings Report (/retro)
+
+Present consolidated findings for user scope confirmation.
+
+### Categorization
+
+Group findings into three priority tiers:
+
+- **Critical (P0-P1)**: Test/CI failures, beads health < 3, blocked issues, circular dependencies
+- **Improvement (P2)**: Outdated deps, code smells, test quality issues, beads health 3-4, stale worktrees
+- **Cleanup (P3-P4)**: KNOWN-ISSUES archival, TODO/FIXME comments, naming issues, doc updates, outdated plugins
+
+### User Confirmation
+
+Use AskUserQuestion to present findings by tier with estimated effort, then ask which categories to include in the remediation epic. Options: All, Critical + Improvement only, Critical only, Cancel.
+
+---
+
+## Phase 4: Epic Creation (/retro)
+
+Create a beads epic with remediation tasks based on user-confirmed scope.
+
+### Steps
+
+1. **Create epic**: `bd epic create --title="Retro: {YYYY-MM-DD} - {key-findings-summary}"` with description documenting assessment date, health score, top 3 findings, and target outcome.
+
+2. **Create child tasks**: For each finding in scope, create a task with appropriate type/priority. Each task description must include: Issue (what), Location (file paths), Acceptance Criteria (checkboxes), and Context (why it matters).
+
+3. **Add dependencies** where task order matters (e.g., worktree cleanup before orphan resolution).
+
+4. **Validate beads health**: Run `validate-beads.sh`. Fix any issues before proceeding.
+
+5. **Report**: Epic ID/title, task counts by priority, dependency graph, ready tasks, recommended starting point.
+
+---
+
+## Phase 5: Quick Wins (Optional) (/retro)
+
+Fix trivial items immediately. Skip entirely if session usage is high.
+
+### Eligible Items
+
+Only items completable in <5 minutes with zero risk:
+- Archiving resolved KNOWN-ISSUES entries (move to RESOLVED section, preserve content)
+- Removing stale worktrees (after standard safety checks per CLAUDE.md)
+- Removing trailing whitespace
+- Updating outdated documentation references (if replacement is clear)
+- Removing stale `# REVIEW-DEFENSE:` comments where the defended pattern has been refactored or the referenced artifact no longer exists
+
+Any item requiring tests or validation is NOT a quick win.
+
+### Execution
+
+Ask user: "X trivial items can be fixed now (Est: Y minutes). Fix them immediately?"
+
+If yes: execute sequentially, one commit per fix, close corresponding task after each. If no: leave all tasks in epic.
+
+---
+
+## Guardrails
+
+1. **Discovery, not implementation** — identify and plan, don't fix everything in one session
+2. **No closing existing issues** — only close tasks created during this retro (and only if fixed during Quick Wins)
+3. **No scope creep** — new issues discovered during Quick Wins get added to the epic, not acted on
+4. **User confirmation required** — Phase 4 requires explicit approval before creating any tasks
+5. **Preserve history** — when archiving docs, move to archive section (never delete)
+6. **Session limits respected** — skip Phase 5 if session usage is high
+
+## Output
+
+At the end of the retro, report: epic ID/title, findings summary (critical/improvement/cleanup counts), tasks created (ready/blocked counts), quick wins completed (if Phase 5 ran), current and target health scores, and next steps (`bd show`, `bd ready`, `/sprint`).
