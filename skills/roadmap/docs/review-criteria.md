@@ -68,3 +68,23 @@ Per `/review-protocol`'s revision protocol:
 2. Resolve conflicts before revising.
 3. Modify the milestone's Context narrative and/or Success Criteria based on findings.
 4. Re-run the fidelity check until all dimensions score 4 or above, or escalate to the user.
+
+## Validation
+
+After aggregating all reviewer outputs into the combined JSON (`subject`, `reviews[]`, `conflicts[]`), validate the output before using scores or findings. This ensures every required perspective, dimension, and reviewer-specific field is present and correctly typed.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REVIEW_OUT="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")/roadmap-review-output.json"
+cat > "$REVIEW_OUT" <<'EOF'
+<assembled review JSON>
+EOF
+"$REPO_ROOT/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller roadmap
+```
+
+**Caller schema hash**: `f4e5f5a355e4c145` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
+
+If `SCHEMA_VALID: no` is printed:
+1. Read the listed errors — they identify exactly which perspective, dimension, or finding field is missing or wrong.
+2. Fix the output (re-request from the reviewer sub-agent if needed, correcting the format prompt).
+3. Re-run validation until `SCHEMA_VALID: yes` before proceeding to score aggregation or revision cycles.

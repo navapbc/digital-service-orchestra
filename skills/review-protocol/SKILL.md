@@ -20,6 +20,7 @@ Callers configure the review by providing:
 | `pass_threshold` | No | Minimum dimension score to pass. Default: 4 |
 | `start_stage` | No | `1` (default), `2`, or `3`. Use `2` to skip mental pre-review when caller already self-validated |
 | `max_revision_cycles` | No | Default: 3 |
+| `caller_id` | No | If the caller has a registered schema (see `scripts/validate-review-output.sh --list-callers`), pass the caller ID here to enable per-caller validation of perspectives, dimensions, and reviewer-specific finding fields. Known IDs: `roadmap`, `design-wireframe`, `implementation-plan`, `retro`, `design-review`, `dev-onboarding`, `preplanning`. |
 
 ### Perspective Definition
 
@@ -136,9 +137,30 @@ model: "{opus or sonnet per detection above}"
 ### Parse and Validate
 
 After the sub-agent returns:
-1. Parse the JSON output
-2. Validate it has all required fields per `REVIEW-SCHEMA.md`
-3. If parsing fails, retry once with explicit format correction prompt
+1. Save the JSON output to a temp file
+2. Run the schema validator (schema-hash: 3053fa9a43e12b79):
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   REVIEW_OUT="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")/review-protocol-output.json"
+   cat > "$REVIEW_OUT" <<'EOF'
+   <sub-agent JSON output>
+   EOF
+
+   # Base schema check (always)
+   "$REPO_ROOT/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT"
+
+   # Per-caller check (when caller_id is provided)
+   # "$REPO_ROOT/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
+   ```
+3. If `SCHEMA_VALID: no` — retry the sub-agent once with an explicit format correction prompt; do not proceed with invalid output
+4. If `SCHEMA_VALID: yes` — proceed to Stage 3
+
+**When `caller_id` is provided**, pass `--caller <caller_id>` to the validator. This additionally checks that:
+- All expected perspectives are present (or marked `not_applicable`)
+- Each perspective's `dimensions` map contains the required dimension keys
+- Each finding contains the reviewer-specific fields required by that perspective (e.g., `wcag_criterion` for Accessibility, `owasp_category` for Security)
+- Enum-typed fields use valid values (e.g., `complexity_estimate` must be `"low"`, `"medium"`, or `"high"`)
+- Conditional fields are checked only when the finding's `dimension` matches (e.g., `stale_location` is only required for `freshness` findings)
 
 ---
 

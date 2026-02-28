@@ -84,3 +84,23 @@ Per `/review-protocol`'s revision protocol:
 3. Modify the specific task(s) each finding targets (split, merge, reorder, or add).
 4. Document each revision in the review log.
 5. Re-submit the full revised plan for the next review cycle.
+
+## Validation
+
+After aggregating all reviewer outputs into the combined JSON (`subject`, `reviews[]`, `conflicts[]`), validate the output before using scores or findings. This ensures every required perspective, dimension, and reviewer-specific field is present and correctly typed.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REVIEW_OUT="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")/implementation-plan-review-output.json"
+cat > "$REVIEW_OUT" <<'EOF'
+<assembled review JSON>
+EOF
+"$REPO_ROOT/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller implementation-plan
+```
+
+**Caller schema hash**: `88bcd1ab2b1d0108` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
+
+If `SCHEMA_VALID: no` is printed:
+1. Read the listed errors — they identify exactly which perspective, dimension, or finding field is missing or wrong.
+2. Fix the output (re-request from the reviewer sub-agent if needed, correcting the format prompt).
+3. Re-run validation until `SCHEMA_VALID: yes` before proceeding to score aggregation or revision cycles.

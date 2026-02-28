@@ -16,6 +16,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/deps.sh"
 
+# Anchor all git pathspec exclusions and file operations to the repo root,
+# regardless of the caller's CWD. Without this, pathspecs like ':!app/.beads/'
+# resolve relative to CWD, producing different hashes when called from app/.
+cd "$(git rev-parse --show-toplevel)"
+
 # Pathspec exclusions for non-reviewable files (binary, snapshots, images, docs)
 EXCLUDE_PATHSPECS=(
     ':!.beads/'

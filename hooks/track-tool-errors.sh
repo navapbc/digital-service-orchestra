@@ -91,7 +91,12 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # --- Update counter file ---
 COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[],"bugs_created":{}}')
 
-NEXT_ID=$(echo "$COUNTER_DATA" | jq '.errors | length + 1')
+# Guard against malformed JSON or missing .errors field before any jq pipeline
+if ! echo "$COUNTER_DATA" | jq -e '.errors' >/dev/null 2>&1; then
+    COUNTER_DATA='{"index":{},"errors":[],"bugs_created":{}}'
+fi
+
+NEXT_ID=$(echo "$COUNTER_DATA" | jq '.errors | length + 1' 2>/dev/null || echo 1)
 
 # Append error detail
 COUNTER_DATA=$(echo "$COUNTER_DATA" | jq \

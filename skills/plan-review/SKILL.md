@@ -112,7 +112,20 @@ model: opus (design) or sonnet (implementation_plan)
 
 ### Step 2: Process Results
 
-Parse the sub-agent's output:
+First, validate the sub-agent's output schema (schema-hash: 9dba6875b85b7bc3):
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+PLAN_OUT="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")/plan-review-output.txt"
+cat > "$PLAN_OUT" <<'EOF'
+<sub-agent output>
+EOF
+"$REPO_ROOT/scripts/validate-review-output.sh" plan-review "$PLAN_OUT"
+```
+
+If `SCHEMA_VALID: no` — send a correction prompt to the sub-agent requesting the exact format; do not proceed until validation passes.
+
+Then parse the validated output:
 
 1. **If VERDICT is PASS** (all scores >= 4):
    - Write the marker file (see below)
@@ -134,7 +147,7 @@ After the review completes (pass or revise-then-fix), write the marker:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKTREE_NAME=$(basename "$REPO_ROOT")
-ARTIFACTS_DIR="/tmp/workflow-artifacts-${WORKTREE_NAME}"
+ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
 mkdir -p "$ARTIFACTS_DIR"
 
 cat > "$ARTIFACTS_DIR/plan-review-status" << EOF

@@ -25,6 +25,7 @@ SKIP_REVIEW=true
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     case "$file" in
+        .claude/hookify.*.local.md) SKIP_REVIEW=false; break ;;  # hookify rules require review (must precede *.md)
         *.md|.beads/*) ;;  # docs/beads
         app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;  # snapshots
         *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;  # images

@@ -1,0 +1,86 @@
+---
+name: design-review
+description: Use when reviewing proposed designs (code, wireframes, screenshots) against an established DESIGN_NOTES.md, or when enforcing design system compliance before merging UI changes
+user-invocable: true
+---
+
+# The Enforcer: Design System & HCD QA
+
+Role: **Strict Design QA Lead.** Your only goal is to review proposed designs (code snippets, wireframe descriptions, or screenshots) against the project's established constraints.
+
+**Audience note:** Write feedback for a junior engineer who lacks significant design experience. Provide context, examples, and explanations that help them understand *why* something matters, not just *what* to change.
+
+## Usage
+
+```
+/design-review               # Review current UI changes against DESIGN_NOTES.md
+/design-review <file-or-path> # Review a specific file or component
+```
+
+**Supports dryrun mode.** Use `/dryrun /design-review` to preview without changes.
+
+## Prerequisites
+
+Before reviewing, you MUST have:
+
+1. The project's `DESIGN_NOTES.md` content in your context. Search for it in the project root. If it does not exist, tell the user to run `/design-onboarding` first.
+2. A description or code of the *Proposed Design* to review. If none is provided, check `git diff` for UI-related changes.
+
+---
+
+## The Review
+
+Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer
+roster, launch instructions, score aggregation rules, and conflict detection patterns.
+
+Invoke `/review-protocol` with:
+
+- **subject**: "Design Review: {file or component being reviewed}"
+- **artifact**: The proposed design (code, wireframe description, or diff) plus the relevant sections of DESIGN_NOTES.md
+- **pass_threshold**: 4
+- **start_stage**: 1 (include mental pre-review)
+- **perspectives**: (defined in reviewer files — see `docs/review-criteria.md`)
+- **caller_id**: `"design-review"` (enables per-caller validation: perspectives, dimensions, and reviewer-specific finding fields)
+
+| Perspective | Reviewer File | Source |
+|-------------|---------------|--------|
+| North Star Alignment | [docs/reviewers/north-star-alignment.md](docs/reviewers/north-star-alignment.md) | DESIGN_NOTES.md |
+| Usability (HCD) | [docs/reviewers/usability-hcd.md](docs/reviewers/usability-hcd.md) | Nielsen's Heuristics + WCAG + HCD QA Criteria |
+| Visual Design | [docs/reviewers/visual-design.md](docs/reviewers/visual-design.md) | HCD QA Criteria |
+| Component Reuse | [docs/reviewers/component-reuse.md](docs/reviewers/component-reuse.md) | HCD QA Criteria |
+| Form & Input Design | [docs/reviewers/form-input-design.md](docs/reviewers/form-input-design.md) | HCD QA Criteria |
+| Tech Compliance | [docs/reviewers/tech-compliance.md](docs/reviewers/tech-compliance.md) | DESIGN_NOTES.md |
+
+---
+
+## Output Format: The Report Card
+
+After the review completes, render the `/review-protocol` JSON output as a human-readable report card:
+
+### Design Score: [min of all dimension scores] / 5
+
+*(1 = Critical Failure, 3 = Passable but needs work, 5 = Design System Perfection)*
+
+### Critical Violations (Must Fix)
+
+For each finding with `severity: "critical"`:
+* **[Dimension]:** [description]
+    * *Fix:* [suggestion]
+
+### UX & Accessibility Risks
+
+For each finding with `severity: "major"`:
+* **[Dimension]:** [description]
+    * *Suggestion:* [suggestion]
+
+### Alignment Wins
+
+List dimensions that scored 4 or 5, noting what the design got right.
+
+### Conflicts
+
+If the review output contains conflicts, present each with both perspectives and ask the user to choose a direction before proceeding.
+
+### Refined Code / Spec (Optional)
+
+If the input was code and any dimension scored below 4, rewrite it to satisfy a score of 5. If input was a description, list the specific component props/styles needed.

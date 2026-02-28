@@ -61,4 +61,4 @@ label `"Naming Conventions"` and these dimensions:
 ```
 
 Include the domain-specific field `"convention_violated"` in each finding, stating
-the rule broken (e.g., `"convention_violated": "module names must use snake_case (Python convention); found PascalCase in 'src/services/RuleGeneration.py'"`).
+the rule broken (e.g., `"convention_violated": "module names must use snake_case (Python convention); found PascalCase in 'app/src/agents/RegoGeneration.py'"`).
