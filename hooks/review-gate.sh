@@ -85,7 +85,7 @@ fi
 # Filters from STAGED_NON_SNAPSHOTS so all exemptions compose
 STAGED_NON_DOCS=$(echo "$STAGED_NON_SNAPSHOTS" | grep -v -E '^(\.claude/session-logs/|\.claude/docs/|docs/)' || true)
 # Re-include any "docs" files that are actually skills, hooks, or agent guidance
-STAGED_AGENT_FILES=$(echo "$STAGED_ALL" | grep -E '^(\.claude/skills/|\.claude/workflows/|\.claude/hooks/|\.claude/hookify\.|CLAUDE\.md)' || true)
+STAGED_AGENT_FILES=$(echo "$STAGED_ALL" | grep -E '^(\.claude/skills/|\.claude/workflows/|\.claude/hooks/|\.claude/hookify\.|lockpick-workflow/skills/|lockpick-workflow/hooks/|lockpick-workflow/docs/workflows/|CLAUDE\.md)' || true)
 if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_DOCS" && -z "$STAGED_AGENT_FILES" ]]; then
     exit 0
 fi
@@ -119,7 +119,7 @@ fi
 RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
 
 # Compute current diff hash using shared utility
-CURRENT_HASH=$("$REPO_ROOT/.claude/hooks/compute-diff-hash.sh")
+CURRENT_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
 
 if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
     REVIEW_TS=$(grep '^timestamp=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)

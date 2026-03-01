@@ -50,7 +50,7 @@ if [[ -f "$REVIEW_STATE_FILE" ]]; then
     REVIEW_STATUS=$(head -n 1 "$REVIEW_STATE_FILE" 2>/dev/null || echo "")
     if [[ "$REVIEW_STATUS" == "passed" ]]; then
         RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-        CURRENT_HASH=$("$REPO_ROOT/.claude/hooks/compute-diff-hash.sh")
+        CURRENT_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
         if [[ "$RECORDED_HASH" == "$CURRENT_HASH" ]]; then
             # Review is current and passed — exit silently
             exit 0
