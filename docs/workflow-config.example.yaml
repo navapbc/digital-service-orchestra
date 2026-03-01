@@ -32,6 +32,18 @@ format:
   # Used by: auto-format.sh (PostToolUse hook)
   source_dirs: ['app/src', 'app/tests']
 
+ci:
+  # Display names of CI jobs used to calibrate adaptive polling in ci-status.sh --wait.
+  # All values must match the `name:` field in your CI workflow file exactly.
+  # All keys are optional — defaults are shown as the example values below.
+  #
+  # fast_gate_job: job checked first on any failure (early exit if it failed)
+  # fast_fail_job: job whose timeout ends the fast-fail polling phase (30s interval)
+  # test_ceil_job: job whose timeout ends the test polling phase (60s interval)
+  fast_gate_job: "Fast Gate"
+  fast_fail_job: "Fast Gate"
+  test_ceil_job: "Unit Tests"
+
 commands:
   # Full test suite — runs unit + integration + any slow tests.
   # Used by: sprint (post-batch gate), tdd-workflow (green phase)

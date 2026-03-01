@@ -48,6 +48,31 @@
         }
       }
     },
+    "ci": {
+      "type": "object",
+      "description": "CI polling configuration for ci-status.sh --wait adaptive backoff.",
+      "additionalProperties": false,
+      "properties": {
+        "fast_gate_job": {
+          "type": "string",
+          "description": "Display name of the fast-gate CI job (checked first on any failure for early exit). Defaults to 'Fast Gate'.",
+          "minLength": 1,
+          "examples": ["Fast Gate", "Lint & Format"]
+        },
+        "fast_fail_job": {
+          "type": "string",
+          "description": "Display name of the job whose timeout-minutes defines the end of the fast-fail polling phase. Defaults to the fast_gate_job value.",
+          "minLength": 1,
+          "examples": ["Fast Gate", "Security Scan"]
+        },
+        "test_ceil_job": {
+          "type": "string",
+          "description": "Display name of the job whose timeout-minutes defines the end of the test polling phase. Defaults to 'Unit Tests'.",
+          "minLength": 1,
+          "examples": ["Unit Tests", "Test"]
+        }
+      }
+    },
     "commands": {
       "type": "object",
       "description": "Shell commands for each workflow step. All keys are optional; omitted keys fall back to stack defaults or skip with a warning.",

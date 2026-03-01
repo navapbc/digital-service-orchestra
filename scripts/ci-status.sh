@@ -73,9 +73,10 @@ if [ -n "$CHECK_JOBS_RUN_ID" ]; then
 fi
 
 # Auto-detect: in a worktree, default to main branch
+# (SCRIPT_DIR is set unconditionally below; define REPO_ROOT here for .git check)
 if [ -z "$BRANCH" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    REPO_ROOT="$(cd "$SCRIPT_DIR/.." && git rev-parse --show-toplevel 2>/dev/null || echo "$SCRIPT_DIR/..")"
+    _autodetect_script_dir="$(cd "$(dirname "$0")" && pwd)"
+    REPO_ROOT="$(cd "$_autodetect_script_dir/.." && git rev-parse --show-toplevel 2>/dev/null || echo "$_autodetect_script_dir/..")"
     if [ -f "$REPO_ROOT/.git" ]; then
         # .git is a file → this is a worktree
         BRANCH="main"
@@ -87,6 +88,18 @@ GH_BRANCH_FLAG=""
 if [ -n "$BRANCH" ]; then
     GH_BRANCH_FLAG="--branch $BRANCH"
 fi
+
+# SCRIPT_DIR is used both for worktree detection above and for config reading below.
+# Set it unconditionally here so it is always available regardless of BRANCH state.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Read CI job names from workflow-config.yaml (via read-config.sh).
+# Falls back to sensible defaults so the script works without a config file.
+_cfg() { "$SCRIPT_DIR/read-config.sh" "$1" 2>/dev/null; }
+_val=$(_cfg ci.fast_gate_job); FAST_GATE_JOB="${_val:-Fast Gate}"
+_val=$(_cfg ci.fast_fail_job); FAST_FAIL_JOB="${_val:-$FAST_GATE_JOB}"
+_val=$(_cfg ci.test_ceil_job); TEST_CEIL_JOB="${_val:-Unit Tests}"
+unset -f _cfg; unset _val
 
 # Get latest CI workflow run — includes startedAt/createdAt for elapsed calculation
 get_status() {
@@ -114,7 +127,64 @@ to_epoch() {
     echo "$result"
 }
 
+# Resolve a python3 interpreter that has PyYAML installed.
+# Uses the same probe order as read-config.sh: CLAUDE_PLUGIN_PYTHON env var,
+# project venvs (app/.venv, .venv), then system python3.
+# Prints the path on success; empty string if none found.
+_find_python_with_yaml() {
+    local repo_root
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    local candidate
+    for candidate in \
+        "${CLAUDE_PLUGIN_PYTHON:-}" \
+        "${repo_root:+$repo_root/app/.venv/bin/python3}" \
+        "${repo_root:+$repo_root/.venv/bin/python3}" \
+        "python3"; do
+        [[ -z "$candidate" ]] && continue
+        [[ "$candidate" != "python3" ]] && [[ ! -f "$candidate" ]] && continue
+        if "$candidate" -c "import yaml" 2>/dev/null; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+}
+
+# Extract timeout-minutes for a named job from ci.yml.
+# Matches by the job's `name:` display value (not the YAML key).
+# Returns empty string if the job is not found or PyYAML is unavailable.
+# Emits a warning to stderr if the named job is not found in the YAML.
+get_job_timeout_min() {
+    local yaml="$1"
+    local job_name="$2"
+    local python
+    python=$(_find_python_with_yaml)
+    if [[ -z "$python" ]]; then
+        echo "Warning: no python3 with PyYAML found; cannot read CI job timeouts from $yaml" >&2
+        return 0
+    fi
+    "$python" - "$yaml" "$job_name" <<'PYEOF'
+import sys
+try:
+    import yaml as _yaml
+    with open(sys.argv[1]) as f:
+        data = _yaml.safe_load(f)
+    for job in (data or {}).get("jobs", {}).values():
+        if job.get("name") == sys.argv[2]:
+            t = job.get("timeout-minutes")
+            if t is not None:
+                print(t)
+            sys.exit(0)
+    print(f"Warning: CI job '{sys.argv[2]}' not found in {sys.argv[1]}", file=sys.stderr)
+except FileNotFoundError:
+    pass  # ci.yml absent — parse_phase_ceilings uses hardcoded fallback
+except Exception as e:
+    print(f"Warning: error parsing {sys.argv[1]}: {e}", file=sys.stderr)
+PYEOF
+}
+
 # Parse phase ceilings from ci.yml timeout-minutes values.
+# FAST_FAIL_SEC and TEST_CEIL_SEC are derived from the job names configured
+# in workflow-config.yaml (ci.fast_fail_job and ci.test_ceil_job).
 # Sets globals: DEAD_ZONE_SEC, FAST_FAIL_SEC, TEST_CEIL_SEC, CEILING_SEC
 parse_phase_ceilings() {
     local yaml=""
@@ -132,29 +202,31 @@ parse_phase_ceilings() {
         fi
     done
 
+    DEAD_ZONE_SEC=45
+
     if [ -z "$yaml" ]; then
         # Fallback: hardcoded values matching current ci.yml
-        DEAD_ZONE_SEC=45
         FAST_FAIL_SEC=180    # 3 min
-        TEST_CEIL_SEC=900    # 15 min (unit test timeout)
+        TEST_CEIL_SEC=900    # 15 min
         CEILING_SEC=1320     # 22 min (E2E 20min + 2min buffer)
         return
     fi
 
-    # Extract all timeout-minutes values
-    local all_timeouts
+    # Absolute ceiling: max timeout-minutes across all jobs + 2min buffer
+    local all_timeouts max_timeout
     all_timeouts=$(grep 'timeout-minutes:' "$yaml" | awk '{print $2}' | grep -E '^[0-9]+$')
-
-    local max_timeout
     max_timeout=$(echo "$all_timeouts" | sort -rn | head -1)
+    CEILING_SEC=$(( max_timeout * 60 + 120 ))
 
-    # security-scan has the smallest no-dep job timeout (5min) → fast-fail boundary
-    # unit test job (15min) → test window ceiling
-    # E2E (20min) → the max_timeout that sets the absolute ceiling
-    DEAD_ZONE_SEC=45
-    FAST_FAIL_SEC=180    # 3 min: all no-dep jobs (fast-gate ~1-2min, security-scan ~1-2min)
-    TEST_CEIL_SEC=900    # 15 min: unit/integration timeouts from ci.yml
-    CEILING_SEC=$(( max_timeout * 60 + 120 ))  # max timeout + 2min runner teardown buffer
+    # Fast-fail phase end: timeout of the configured fast_fail_job
+    local ff_min
+    ff_min=$(get_job_timeout_min "$yaml" "$FAST_FAIL_JOB")
+    FAST_FAIL_SEC=$(( ${ff_min:-3} * 60 ))   # fallback 3 min if job not found
+
+    # Test phase end: timeout of the configured test_ceil_job
+    local tc_min
+    tc_min=$(get_job_timeout_min "$yaml" "$TEST_CEIL_JOB")
+    TEST_CEIL_SEC=$(( ${tc_min:-15} * 60 ))  # fallback 15 min if job not found
 }
 
 # Return the sleep interval (seconds) appropriate for the elapsed time into this run.
@@ -211,15 +283,17 @@ check_regression() {
     return 0
 }
 
-# On failure, check whether fast-gate specifically failed (→ downstream jobs won't run).
+# On failure, check whether the fast-gate job specifically failed (→ downstream jobs
+# won't run). Uses the job name from workflow-config.yaml (ci.fast_gate_job).
 # Prints a diagnostic line and returns 0 if fast-gate failed, 1 otherwise.
 check_fast_gate_failed() {
     local run_id="$1"
     local fg_conclusion
     fg_conclusion=$(gh run view "$run_id" --json jobs \
-        --jq '.jobs[] | select(.name == "Fast Gate") | .conclusion' 2>/dev/null || echo "")
+        --jq --arg name "$FAST_GATE_JOB" \
+        '.jobs[] | select(.name == $name) | .conclusion' 2>/dev/null || echo "")
     if [ "$fg_conclusion" = "failure" ]; then
-        echo "  fast-gate failed — downstream jobs were cancelled"
+        echo "  $FAST_GATE_JOB failed — downstream jobs were cancelled"
         return 0
     fi
     return 1
