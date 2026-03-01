@@ -31,13 +31,8 @@ Beads ID: {id}
    TASKS_CREATED: beads-042, beads-043 (or "none", or "error: <reason>")
 
 ### Rules
+Read and follow `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format). Key points:
 - DO write checkpoint notes after each substep: `bd update {id} --notes="CHECKPOINT N/6: ..."`
-- Do NOT: git commit, git push, bd close, bd update --status, bd dep
+- Do NOT: git commit, git push, bd close, bd update --status, bd dep, slash-commands, nested Task calls
 - You MAY run: bd create --parent=<parent-id> (for discovered work only)
-- Do NOT invoke `/commit`, `/review`, or any slash-command — you are a sub-agent, not an orchestrator
-- Do NOT dispatch nested Task tool calls or code-review sub-agents
-- The "Task Completion Workflow" in CLAUDE.md does NOT apply to sub-agents — your task ends at step 9 (Report output)
-- Do NOT modify files outside the scope of this task
-- Do NOT modify files outside your working directory (e.g., if working in a worktree, never write to the main repo path)
-- Follow existing code patterns and naming conventions
-- Use absolute paths for scripts: $(git rev-parse --show-toplevel)/scripts/
+- Your task ends at step 9 (Report output) — the orchestrator handles commits and issue lifecycle
