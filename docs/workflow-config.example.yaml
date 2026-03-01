@@ -53,7 +53,7 @@ commands:
   # Full validation gate — runs lint + format_check + full tests.
   # This is what /sprint calls before starting an epic.
   # Used by: sprint (--ci mode), validate.sh wrapper
-  validate: "./scripts/validate.sh --ci"
+  validate: "./lockpick-workflow/scripts/validate.sh --ci"
 
   # Unit tests only — fast feedback, no external services required.
   # Used by: tdd-workflow (TDD inner loop), review-protocol (pre-commit)

@@ -51,7 +51,7 @@ Use the detected stack to populate sensible command defaults:
 | `convention-based` | `make test` | `make lint` | `make format` | — |
 
 Additional defaults for `python-poetry`:
-- `validate`: `$(git rev-parse --show-toplevel)/scripts/validate.sh --ci`
+- `validate`: `$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/validate.sh --ci`
 
 ### Step 3: Check for Existing Config
 
@@ -122,7 +122,7 @@ commands:
   lint: make lint
   format: make format
   format_check: make format-check
-  validate: $(git rev-parse --show-toplevel)/scripts/validate.sh --ci
+  validate: $(git rev-parse --show-toplevel)/lockpick-workflow/scripts/validate.sh --ci
 ```
 
 ### node-npm

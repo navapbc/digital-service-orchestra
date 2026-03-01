@@ -134,7 +134,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
 ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE="$ARTIFACTS_DIR/review-status"
-CURRENT_HASH=$("$REPO_ROOT/.claude/hooks/compute-diff-hash.sh")
+CURRENT_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
 ```
 
 Read the review state file:

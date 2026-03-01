@@ -30,7 +30,7 @@ Capture the diff NOW and save it to a hash-stamped temp file. Sub-agents read th
    source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
    ARTIFACTS_DIR=$(get_artifacts_dir)
    mkdir -p "$ARTIFACTS_DIR"
-   DIFF_HASH=$("$REPO_ROOT/.claude/hooks/compute-diff-hash.sh")
+   DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
    DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
    ```
 
@@ -102,7 +102,7 @@ If **none** match -> `model="sonnet"`.
 
 Launch a `superpowers:code-reviewer` sub-agent using the Task tool. This agent type has Bash access, which is required to write `reviewer-findings.json` and compute its hash.
 
-Read the prompt template at `$REPO_ROOT/.claude/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
+Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
 - `{working_directory}`: current working directory
 - `{diff_stat}`: content of the stat file from Step 0/2
 - `{diff_file_path}`: the `DIFF_FILE` path from Step 0/2
@@ -166,7 +166,7 @@ Construct the JSON and pipe it into `record-review.sh` with `--expected-hash` fr
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-cat <<'REVIEW_EOF' | "$REPO_ROOT/.claude/hooks/record-review.sh" \
+cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
   --expected-hash "<DIFF_HASH from Step 0/2>" \
   --reviewer-hash "<REVIEWER_HASH from sub-agent>"
 {
@@ -213,7 +213,7 @@ DISPATCH_TIME=$(date +%s)
 ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE}"
 ```
 
-Read `$REPO_ROOT/.claude/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
+Read `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
 - `{findings_file}`: `/tmp/lockpick-test-artifacts-${WORKTREE}/reviewer-findings.json`
 - `{diff_file}`: the `DIFF_FILE` path from Step 0/2
 - `{repo_root}`: `REPO_ROOT` value

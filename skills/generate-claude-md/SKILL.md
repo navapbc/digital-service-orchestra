@@ -68,7 +68,7 @@ The Quick Reference table in the rendered output maps each workflow action to th
 
 | Action | Command | When Run |
 |--------|---------|----------|
-| Validate all | `./scripts/validate.sh --ci` | Runs automatically at start of `/sprint` |
+| Validate all | `./lockpick-workflow/scripts/validate.sh --ci` | Runs automatically at start of `/sprint` |
 | Format code | `make format` | Only if auto-format hook reports failure |
 | Run tests | `make test` | Before pushing, CI |
 | Lint | `make lint` | After creating classes |

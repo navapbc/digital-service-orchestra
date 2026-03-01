@@ -15,8 +15,8 @@
 #   When running in a worktree, it reports the worktree name in output.
 #
 # Usage:
-#   ./scripts/validate.sh           # Run all checks in parallel
-#   ./scripts/validate.sh --ci      # Also check CI status + smart E2E skip
+#   ./lockpick-workflow/scripts/validate.sh           # Run all checks in parallel
+#   ./lockpick-workflow/scripts/validate.sh --ci      # Also check CI status + smart E2E skip
 #
 # CI STATUS BEHAVIOR (with --ci flag):
 #   - If CI is "completed:success": Reports PASS
@@ -60,7 +60,7 @@
 #     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 30)
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
 #
-#   Example: VALIDATE_TIMEOUT_TESTS=900 ./scripts/validate.sh
+#   Example: VALIDATE_TIMEOUT_TESTS=900 ./lockpick-workflow/scripts/validate.sh
 
 set -e
 
@@ -263,7 +263,7 @@ for arg in "$@"; do
     case $arg in
         --ci) CHECK_CI=1 ;;
         --help)
-            echo "Usage: ./scripts/validate.sh [--ci]"
+            echo "Usage: ./lockpick-workflow/scripts/validate.sh [--ci]"
             echo "  --ci     Include CI status check + smart E2E skip"
             echo ""
             echo "E2E tests are skipped locally when --ci is used and CI is passing for main."

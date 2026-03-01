@@ -166,7 +166,7 @@ Run `validate.sh --ci` to populate the validation state file. This allows sub-ag
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/validate.sh --ci
+$REPO_ROOT/lockpick-workflow/scripts/validate.sh --ci
 ```
 
 **Bash timeout**: Use `timeout: 960000` (16 minutes). The smart CI wait in validate.sh can poll for up to 15 minutes when it detects fix commits for a failing CI run.

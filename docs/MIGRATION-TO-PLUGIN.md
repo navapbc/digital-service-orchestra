@@ -118,7 +118,7 @@ commands:
   lint: "make lint"
   format: "make format"
   format_check: "make format-check"
-  validate: "./scripts/validate.sh --ci"
+  validate: "./lockpick-workflow/scripts/validate.sh --ci"
   test_unit: "make test-unit-only"
   test_e2e: "make test-e2e"
   test_visual: "make test-visual"

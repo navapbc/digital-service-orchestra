@@ -103,11 +103,11 @@ ESCALATION_REASON: Fix attempt produced failing tests/lint. Original findings re
 **Step 5 — Run re-review sub-agent**
 
 Launch a `superpowers:code-reviewer` sub-agent (model: {cached_model}) using the SAME prompt
-template from `{repo_root}/.claude/workflows/prompts/code-review-dispatch.md`, but:
+template from `{repo_root}/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md`, but:
 
 1. Capture a FRESH diff hash and diff file (the fixes changed the code):
    ```bash
-   NEW_DIFF_HASH=$("{repo_root}/.claude/hooks/compute-diff-hash.sh")
+   NEW_DIFF_HASH=$("{repo_root}/lockpick-workflow/hooks/compute-diff-hash.sh")
    NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
    NEW_DIFF_FILE="/tmp/lockpick-test-artifacts-{worktree}/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
    NEW_STAT_FILE="/tmp/lockpick-test-artifacts-{worktree}/review-stat-${NEW_DIFF_HASH_SHORT}.txt"
@@ -133,7 +133,7 @@ Parse the re-review sub-agent's output:
 Call `record-review.sh` with the NEW diff hash and the re-review's REVIEWER_HASH:
 
 ```bash
-cat <<'REVIEW_EOF' | "{repo_root}/.claude/hooks/record-review.sh" \
+cat <<'REVIEW_EOF' | "{repo_root}/lockpick-workflow/hooks/record-review.sh" \
   --expected-hash "<NEW_DIFF_HASH>" \
   --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
 {
