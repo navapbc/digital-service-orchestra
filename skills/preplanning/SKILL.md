@@ -400,7 +400,7 @@ Next Steps:
 Does this plan fully capture your vision and the necessary technical safeguards? Should we adjust any priorities before I finalize this in Beads?
 ```
 
-Wait for user approval. If changes requested, iterate on the plan.
+Wait for user approval. If changes requested, iterate on the plan. Once the user explicitly approves (e.g., "looks good", "approved", "proceed"), immediately continue to Step 5a, Step 6, and Step 7 without pausing for additional input — approval is the signal to proceed, not a stopping point.
 
 ### Step 5a: Write Planning Context File (/preplanning)
 
