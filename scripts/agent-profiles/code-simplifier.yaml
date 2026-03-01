@@ -1,0 +1,35 @@
+agent_type: "code-simplifier:code-simplifier"
+model:
+  default: "sonnet"
+  complex: "sonnet"
+base_priority: 3
+category: null
+
+keywords:
+  strong:                # weight: 3 per match
+    - refactor
+    - simplify
+    - cleanup
+    - dead code
+    - consolidate
+  moderate:              # weight: 2 per match
+    - rename
+    - extract
+    - reorganize
+    - reduce complexity
+    - duplication
+  weak:                  # weight: 1 per match
+    - tidy
+    - polish
+    - streamline
+
+negative:                # weight: -3 per match
+  - "fix:"
+  - "bug:"
+  - new feature
+  - add endpoint
+
+min_score: 3
+
+# Domain-agnostic: refactors anywhere.
+file_patterns: []

@@ -1,0 +1,80 @@
+# Test cases for classify-task.sh --test
+# Each case is scored against all profiles; expected_agent is verified against winner.
+
+- title: "Add JWT auth to upload endpoint"
+  description: "Implement token validation middleware for the file upload API route"
+  blocks: 0
+  expected_agent: "backend-api-security:backend-security-coder"
+  expected_complexity: "low"
+
+- title: "Investigate why gap analysis produces duplicates"
+  description: "Trace the gap_analysis pipeline stage to understand duplicate entity extraction"
+  blocks: 0
+  expected_agent: "feature-dev:code-explorer"
+  expected_complexity: "low"
+
+- title: "Refactor document processor to remove dead mock paths"
+  description: "Clean up unused conditional branches and simplify the factory pattern"
+  blocks: 0
+  expected_agent: "code-simplifier:code-simplifier"
+  expected_complexity: "low"
+
+- title: "Fix broken database migration endpoint error handling"
+  description: "The POST /api/migrate endpoint crashes when alembic detects conflicting heads. Add proper error handling and return 409."
+  blocks: 0
+  expected_agent: "debugging-toolkit:debugger"
+  expected_complexity: "low"
+
+- title: "Write tests for the enrichment pipeline stage"
+  description: "Add unit tests covering the enrichment agent's prompt construction, LLM response parsing, and error recovery paths"
+  blocks: 0
+  expected_agent: "unit-testing:test-automator"
+  expected_complexity: "low"
+
+- title: "Add bulk document upload endpoint"
+  description: "Create POST /api/documents/bulk that accepts multipart file uploads, validates file types, stores in S3, and creates job records. Requires changes to src/routes/, src/services/, and src/models/."
+  blocks: 3
+  expected_agent: "backend-development:backend-architect"
+  expected_complexity: "high"
+
+- title: "Create database migration for review comments table"
+  description: "Add alembic migration creating review_comments table with foreign keys to jobs and users. Add SQLAlchemy model."
+  blocks: 1
+  expected_agent: "database-design:database-architect"
+  expected_complexity: "low"
+
+- title: "Create hookify rule for preventing force-push"
+  description: "Write a new hookify rule in .claude/hooks that detects git push --force commands and blocks them with a warning"
+  blocks: 0
+  expected_agent: "general-purpose"
+  expected_complexity: "low"
+
+- title: "Add pagination to job listing API"
+  description: "Implement cursor-based pagination for GET /api/jobs endpoint with configurable page size"
+  blocks: 0
+  expected_agent: "backend-development:backend-architect"
+  expected_complexity: "low"
+
+- title: "Implement RBAC middleware for admin routes"
+  description: "Add role-based access control checking in src/middleware/auth.py for admin blueprint routes in src/routes/admin.py. Validate JWT claims against required roles. Update tests in tests/unit/auth/."
+  blocks: 2
+  expected_agent: "backend-api-security:backend-security-coder"
+  expected_complexity: "high"
+
+- title: "No keywords match this generic task"
+  description: "Do something vague and unspecific"
+  blocks: 0
+  expected_agent: "general-purpose"
+  expected_complexity: "low"
+
+- title: "Split test_pipeline.py (3468 lines) into 6 files"
+  description: "The test_pipeline.py file has grown to 3468 lines and is hard to navigate. Split it into 6 focused test files, each under 500 lines. Maintain all existing test coverage and ensure no tests fail after the split."
+  blocks: 0
+  expected_agent: "unit-testing:test-automator"
+  expected_complexity: "low"
+
+- title: "Reorganize test_document_processor.py into focused modules"
+  description: "Split the monolithic test file into separate files by concern: pipeline integration, chunking logic, error handling. Each output file must be under 500 lines."
+  blocks: 0
+  expected_agent: "unit-testing:test-automator"
+  expected_complexity: "low"

@@ -1,0 +1,40 @@
+agent_type: "unit-testing:test-automator"
+model:
+  default: "sonnet"
+  complex: "sonnet"
+base_priority: 4
+category: null
+
+keywords:
+  strong:                # weight: 3 per match
+    - write tests
+    - add tests
+    - test coverage
+    - "test:"
+    - split test_
+    - split test file
+    - reorganize test_
+    - reorganize test file
+    - extract test class
+    - extract test module
+  moderate:              # weight: 2 per match
+    - test for
+    - spec for
+    - assertion
+    - fixture
+    - mock
+  weak:                  # weight: 1 per match
+    - pytest
+    - unittest
+    - coverage
+
+negative:                # weight: -3 per match
+  - "fix:"
+  - "bug:"
+  - migration
+  - deployment
+
+min_score: 3
+
+file_patterns:
+  - "tests/"

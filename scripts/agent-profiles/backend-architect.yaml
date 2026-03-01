@@ -1,0 +1,47 @@
+agent_type: "backend-development:backend-architect"
+model:
+  default: "sonnet"
+  complex: "opus"
+base_priority: 6
+category: null
+
+keywords:
+  strong:                # weight: 3 per match
+    - endpoint
+    - route
+    - blueprint
+    - api
+    - REST
+    - middleware
+  moderate:              # weight: 2 per match
+    - request
+    - response
+    - flask
+    - service
+    - handler
+    - controller
+  weak:                  # weight: 1 per match
+    - http
+    - status code
+    - url
+    - path
+
+negative:                # weight: -3 per match
+  - template
+  - CSS
+  - migration
+  - schema
+  - test coverage
+  - auth
+  - JWT
+  - RBAC
+
+min_score: 3
+
+# Directories this agent typically works in (for mismatch detection).
+# Empty list = domain-agnostic agent, skip mismatch checks.
+file_patterns:
+  - "src/routes/"
+  - "src/api/"
+  - "src/services/"
+  - "src/adapters/"

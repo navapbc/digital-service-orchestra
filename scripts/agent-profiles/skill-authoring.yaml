@@ -1,0 +1,34 @@
+agent_type: "general-purpose"
+model:
+  default: "sonnet"
+  complex: "opus"
+base_priority: 1
+category: "skill-guided"
+
+keywords:
+  strong:                # weight: 3 per match
+    - skill
+    - hook
+    - workflow
+    - CLAUDE.md
+    - plugin
+  moderate:              # weight: 2 per match
+    - prompt template
+    - agent profile
+    - settings.json
+    - ".claude/"
+  weak:                  # weight: 1 per match
+    - configuration
+    - rule
+
+negative:                # weight: -3 per match
+  - endpoint
+  - migration
+  - "fix:"
+  - "bug:"
+
+min_score: 3
+
+file_patterns:
+  - ".claude/"
+  - "scripts/"

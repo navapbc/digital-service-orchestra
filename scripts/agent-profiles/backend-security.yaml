@@ -1,0 +1,48 @@
+agent_type: "backend-api-security:backend-security-coder"
+model:
+  default: "sonnet"
+  complex: "sonnet"
+base_priority: 8
+category: null
+
+keywords:
+  strong:                # weight: 3 per match
+    - auth
+    - authentication
+    - authorization
+    - RBAC
+    - JWT
+    - OAuth
+    - CSRF
+    - XSS
+    - injection
+  moderate:              # weight: 2 per match
+    - security
+    - permission
+    - access control
+    - sanitize
+    - validate input
+    - validation
+    - role
+    - claims
+  weak:                  # weight: 1 per match
+    - middleware
+    - header
+    - token
+    - secret
+    - credential
+
+negative:                # weight: -3 per match
+  - template
+  - CSS
+  - migration
+  - schema
+  - refactor
+
+min_score: 3
+
+file_patterns:
+  - "src/api/"
+  - "src/services/"
+  - "src/adapters/"
+  - "src/util/"

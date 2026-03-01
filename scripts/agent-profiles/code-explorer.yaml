@@ -1,0 +1,35 @@
+agent_type: "feature-dev:code-explorer"
+model:
+  default: "sonnet"
+  complex: "sonnet"
+base_priority: 2
+category: null
+
+keywords:
+  strong:                # weight: 3 per match
+    - investigate
+    - trace
+    - analyze
+    - explore
+    - understand
+  moderate:              # weight: 2 per match
+    - how does
+    - map out
+    - document flow
+    - execution path
+    - architecture
+  weak:                  # weight: 1 per match
+    - research
+    - discover
+    - inventory
+
+negative:                # weight: -3 per match
+  - implement
+  - create
+  - add endpoint
+  - write tests
+
+min_score: 3
+
+# Domain-agnostic: reads anything during investigation.
+file_patterns: []

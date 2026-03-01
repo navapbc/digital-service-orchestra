@@ -1,0 +1,40 @@
+agent_type: "debugging-toolkit:debugger"
+model:
+  default: "sonnet"
+  complex: "sonnet"
+base_priority: 7
+category: null
+
+keywords:
+  strong:                # weight: 3 per match
+    - "fix:"
+    - "bug:"
+    - broken
+    - regression
+    - crash
+    - fix broken
+  moderate:              # weight: 2 per match
+    - error handling
+    - fails when
+    - traceback
+    - exception
+    - stack trace
+    - error
+    - fix
+  weak:                  # weight: 1 per match
+    - unexpected
+    - incorrect
+    - wrong
+
+negative:                # weight: -3 per match
+  - write tests
+  - add tests
+  - refactor
+  - cleanup
+  - split test
+  - reorganize test
+
+min_score: 3
+
+# Domain-agnostic: debugs anywhere.
+file_patterns: []

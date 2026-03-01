@@ -1,0 +1,39 @@
+agent_type: "database-design:database-architect"
+model:
+  default: "sonnet"
+  complex: "opus"
+base_priority: 5
+category: "db-dependent"
+
+keywords:
+  strong:                # weight: 3 per match
+    - database
+    - migration
+    - schema
+    - alembic
+    - SQL
+  moderate:              # weight: 2 per match
+    - model
+    - table
+    - column
+    - db_session
+    - create_all
+    - foreign key
+  weak:                  # weight: 1 per match
+    - query
+    - index
+    - constraint
+    - relationship
+
+negative:                # weight: -3 per match
+  - template
+  - CSS
+  - refactor
+  - cleanup
+
+min_score: 3
+
+file_patterns:
+  - "src/db/"
+  - "src/models/"
+  - "migrations/"
