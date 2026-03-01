@@ -48,7 +48,7 @@ git log main..$BRANCH --oneline
 **If unmerged commits exist**: run the merge script. It handles beads sync, merge, and push internally. Do NOT prompt for confirmation — proceed directly.
 
 ```bash
-"$REPO_ROOT/scripts/sprintend-merge.sh"
+"$REPO_ROOT/scripts/merge-to-main.sh"
 ```
 
 If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.beads/` files): invoke `/resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.

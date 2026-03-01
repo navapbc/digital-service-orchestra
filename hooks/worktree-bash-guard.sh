@@ -8,7 +8,7 @@
 # How it works:
 #   - If not in a worktree, allows everything (exit 0)
 #   - If in a worktree, checks if the Bash command includes a `cd` to the main repo
-#   - Safe patterns (sprintend-merge.sh, resolve-conflicts.sh, bd commands): allowed
+#   - Safe patterns (merge-to-main.sh, resolve-conflicts.sh, bd commands): allowed
 #   - Read-only git/bd commands that reference main repo path: allowed
 #   - cd into main repo + write operations: BLOCKED
 #
@@ -65,9 +65,9 @@ if [[ "$COMMAND" != *"$MAIN_REPO_ROOT"* ]]; then
 fi
 
 # --- Allow-list: safe scripts that legitimately operate on both repos ---
-# sprintend-merge.sh: orchestrates worktree→main merge (authorized to cd into main)
+# merge-to-main.sh: orchestrates worktree→main merge (authorized to cd into main)
 # resolve-conflicts.sh: conflict resolution (may need to cd into main)
-if [[ "$COMMAND" == *"sprintend-merge.sh"* ]] || \
+if [[ "$COMMAND" == *"merge-to-main.sh"* ]] || \
    [[ "$COMMAND" == *"resolve-conflicts.sh"* ]]; then
     exit 0
 fi
@@ -100,8 +100,8 @@ if echo "$COMMAND" | grep -qE "cd[[:space:]]+(\"$MAIN_REPO_ROOT\"|'$MAIN_REPO_RO
     echo "  Main repo:   $MAIN_REPO_ROOT" >&2
     echo "  Worktree:    $WORKTREE_ROOT" >&2
     echo "" >&2
-    echo "Work on the worktree branch instead — merge to main via sprintend-merge.sh." >&2
-    echo "If you need to run sprintend-merge.sh or resolve-conflicts.sh, those are allow-listed." >&2
+    echo "Work on the worktree branch instead — merge to main via merge-to-main.sh." >&2
+    echo "If you need to run merge-to-main.sh or resolve-conflicts.sh, those are allow-listed." >&2
     exit 2
 fi
 

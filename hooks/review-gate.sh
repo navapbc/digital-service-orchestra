@@ -12,7 +12,7 @@
 # Exempt cases:
 #   - Commits with "WIP" or "wip" in the message (work-in-progress)
 #   - Commits from the pre-compact-checkpoint hook (emergency saves)
-#   - Merge commits (sprintend-merge.sh merges already-reviewed work)
+#   - Merge commits (merge-to-main.sh merges already-reviewed work)
 
 # HARD GATE — exit 2 blocks the tool call when review is missing/stale/failed
 HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
@@ -30,7 +30,7 @@ if [[ "$TOOL_NAME" != "Bash" ]]; then
     exit 0
 fi
 
-# Only act on git commit commands (sprintend-merge.sh is exempt — it merges
+# Only act on git commit commands (merge-to-main.sh is exempt — it merges
 # already-reviewed commits, not new unreviewed code)
 # Check first line only to avoid matching "commit" in heredoc content.
 # Unanchored so "git add && git commit -m ..." is caught.
@@ -46,7 +46,7 @@ if [[ "$COMMAND" =~ [Ww][Ii][Pp] ]]; then
     exit 0
 fi
 
-# Exempt: git merge commands (sprintend-merge.sh merges already-reviewed work)
+# Exempt: git merge commands (merge-to-main.sh merges already-reviewed work)
 # NOTE: --no-edit is NOT exempt. git commit --amend --no-edit with staged code
 # files would bypass review; legitimate uses (beads-only amend, merge conflict
 # resolution of .beads/ files) are caught by the .beads/-only exemption below.

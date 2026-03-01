@@ -161,10 +161,10 @@ After committing, report the SHA and **immediately return control to the caller*
 
 ## After Commit: Merging to Main
 
-If you need to merge the worktree branch to main and push, use `sprintend-merge.sh` instead of manual `git merge` + `git push`. It handles beads sync, merge, and push in a single step, avoiding the review-gate and pre-push hook issues that arise from beads file changes on main.
+If you need to merge the worktree branch to main and push, use `merge-to-main.sh` instead of manual `git merge` + `git push`. It handles beads sync, merge, and push in a single step, avoiding the review-gate and pre-push hook issues that arise from beads file changes on main.
 
 ```bash
-"$REPO_ROOT/scripts/sprintend-merge.sh"
+"$REPO_ROOT/scripts/merge-to-main.sh"
 ```
 
 Do NOT manually `cd` to the main repo and run `git merge` / `git commit` / `git push` — the review gate hook runs in the worktree context and will block commits on main that aren't beads-only.

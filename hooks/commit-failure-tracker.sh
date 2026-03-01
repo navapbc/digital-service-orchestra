@@ -50,7 +50,7 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || ec
 FIRST_LINE=$(echo "$COMMAND" | head -1)
 if ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+commit([[:space:]]|$) ]] && \
    ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+-[^[:space:]]+.*[[:space:]]commit([[:space:]]|$) ]] && \
-   [[ "$FIRST_LINE" != *"sprintend-merge"* ]]; then
+   [[ "$FIRST_LINE" != *"merge-to-main"* ]]; then
     exit 0
 fi
 
