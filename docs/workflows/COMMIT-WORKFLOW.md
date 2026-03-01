@@ -157,7 +157,7 @@ Files are already staged from Step 4. The diff stat summary is already in contex
 
 Create a single git commit following the repository's commit message conventions visible in the recent commits from Step 0.
 
-After committing, report the SHA and return control to the caller.
+After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation.
 
 ## After Commit: Merging to Main
 

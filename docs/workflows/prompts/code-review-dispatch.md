@@ -70,13 +70,17 @@ The JSON MUST have EXACTLY three top-level keys: "scores", "findings", "summary"
 Do NOT add any other top-level keys (no "schema_version", "review_result", "id", "review_date").
 The "scores" object MUST contain ALL five dimensions listed below.
 
+**SCORE SCALE: INTEGER 1–5 ONLY. NOT 0–10. NOT 0–100. NOT any other scale.**
+Valid numeric score values: 1, 2, 3, 4, 5. Any value outside this range (e.g. 6, 7, 8, 9, 10)
+will be rejected by the validator and force a re-dispatch.
+
 {
   "scores": {
-    "build_lint": <1-5 or "N/A">,
-    "object_oriented_design": <1-5 or "N/A">,
-    "readability": <1-5 or "N/A">,
-    "functionality": <1-5 or "N/A">,
-    "testing_coverage": <1-5 or "N/A">
+    "build_lint": <integer 1-5 or "N/A">,
+    "object_oriented_design": <integer 1-5 or "N/A">,
+    "readability": <integer 1-5 or "N/A">,
+    "functionality": <integer 1-5 or "N/A">,
+    "testing_coverage": <integer 1-5 or "N/A">
   },
   "findings": [
     {
@@ -91,7 +95,7 @@ The "scores" object MUST contain ALL five dimensions listed below.
 
 === END SCHEMA ===
 
-Scoring rules:
+Scoring rules (all scores use the 1–5 scale — maximum is 5, not 10):
 - Critical finding -> score 1-2 (always fails)
 - Important finding -> score 3-4 (judgment: 3 if significant, 4 if minor impact)
 - Minor only or no findings -> score 4-5
@@ -110,26 +114,20 @@ Evaluating `# REVIEW-DEFENSE:` comments:
 2. If you agree: lower severity or remove finding; note acceptance in description.
 3. If you disagree: maintain severity; explain why the defense is insufficient.
 
-**Step 3 — Write findings to disk and validate schema (REQUIRED before returning)**
+**Step 3 — Write findings to disk (REQUIRED before returning)**
 
-Run these exact commands:
+Pipe your complete JSON into `write-reviewer-findings.sh`. This script validates the
+schema first and only writes the file if validation passes — you cannot obtain a valid
+hash without passing schema validation. If it exits non-zero, fix the JSON and retry.
 
   REPO_ROOT=$(git rev-parse --show-toplevel)
-  source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
-  ARTIFACTS_DIR=$(get_artifacts_dir)
-  FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
-  mkdir -p "$(dirname "$FINDINGS_FILE")"
-  cat > "$FINDINGS_FILE" <<'FINDINGS_EOF'
+  REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/write-reviewer-findings.sh"
   <your complete JSON here>
   FINDINGS_EOF
-  shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}'
+  )
 
-Then validate the output schema (schema-hash: 3314cd1b5bfce28c):
-
-  "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" code-review-dispatch "$FINDINGS_FILE"
-
-- If `SCHEMA_VALID: no` is printed, fix the JSON and re-run until the validator exits 0.
-- Do NOT return the fixed format until the validator passes.
+- Exit 0: `$REVIEWER_HASH` contains the SHA-256 hash. Use it in Step 4.
+- Exit non-zero: validation failed. Errors are printed to stderr. Fix the JSON and retry.
 
 **Step 4 — Return the fixed format (nothing else)**
 
