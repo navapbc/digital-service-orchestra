@@ -52,6 +52,17 @@ GIT_DIFF_STAT=$(git diff --stat 2>/dev/null || echo "(no diff)")
 # Git status short
 GIT_STATUS=$(git status --short 2>/dev/null || echo "(no status)")
 
+# --- Capture debug-everything phase state (if active) ---
+WORKTREE_NAME=$(basename "$REPO_ROOT")
+DEBUG_STATE_FILE="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}/debug-phase-state.txt"
+DEBUG_PHASE_STATE=""
+if [[ -f "$DEBUG_STATE_FILE" ]]; then
+    DEBUG_PHASE_STATE=$(cat "$DEBUG_STATE_FILE" 2>/dev/null || echo "(unreadable)")
+fi
+
+# --- Last 3 fix commits ---
+RECENT_FIXES=$(git log --oneline -3 2>/dev/null || echo "(none)")
+
 # --- Auto-save uncommitted work ---
 git add -A 2>/dev/null || true
 git commit -m "$CHECKPOINT_LABEL" --no-verify 2>/dev/null || true
@@ -67,7 +78,9 @@ cat <<CHECKPOINT
 Tasks: ${ACTIVE_TASKS:-None}
 Changes: ${GIT_STATUS}
 Checkpoint: ${CHECKPOINT_LABEL}
-Next: See CLAUDE.md "Session recovery" section for steps.
+Debug phase: ${DEBUG_PHASE_STATE:-Not running}
+Recent fixes: ${RECENT_FIXES}
+Next: Run 'bd list --status=in_progress' then 'bd show <id>' to find CHECKPOINT notes.
 CHECKPOINT
 
 exit 0
