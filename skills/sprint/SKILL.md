@@ -82,6 +82,8 @@ Call `TodoWrite` with the following items before doing any other work. This show
 
 Mark each item `in_progress` when starting it and `completed` when done. This list is replaced entirely when the batch loop begins (Phase 3).
 
+> **IMPORTANT**: Use ONLY `TodoWrite`/`TodoRead` for this checklist — do NOT use `TaskCreate`. The `TaskCreate` tool creates independent spinner tasks that persist across `TodoWrite` calls and will NOT be cleared when Phase 3 replaces the checklist. If you accidentally created `TaskCreate` tasks for pre-loop tracking, complete them via `TaskUpdate(status='completed')` before Phase 3 begins.
+
 ### Parse Arguments
 
 - `<epic-id>`: The beads epic to execute
