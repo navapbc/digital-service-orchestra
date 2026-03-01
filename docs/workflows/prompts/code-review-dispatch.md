@@ -1,6 +1,6 @@
 # Code Review Sub-Agent Dispatch Prompt
 
-Template for the `superpowers:code-reviewer` sub-agent launched in REVIEW-WORKFLOW.md Step 4.
+Template for the `general-purpose` sub-agent launched in REVIEW-WORKFLOW.md Step 4.
 
 ## Placeholders
 

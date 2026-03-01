@@ -1,6 +1,6 @@
 # Code Review Workflow
 
-Review the current code diff using a `superpowers:code-reviewer` sub-agent for deep analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
+Review the current code diff using a `general-purpose` sub-agent for deep analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
 
 ## Config Reference (from workflow-config.yaml)
 
@@ -105,7 +105,7 @@ If **none** match -> `model="sonnet"`.
 
 **You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
 
-Launch a `superpowers:code-reviewer` sub-agent using the Task tool. This agent type has Bash access, which is required to write `reviewer-findings.json` and compute its hash.
+Launch a `general-purpose` sub-agent using the Task tool. This agent type has full tool access, which is required to write `reviewer-findings.json` and compute its hash.
 
 Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
 - `{working_directory}`: current working directory
@@ -128,7 +128,7 @@ If no beads issue is associated with the current work, set `{beads_context}` to 
 
 ```
 Task tool:
-  subagent_type: "superpowers:code-reviewer"
+  subagent_type: "general-purpose"
   model: "{opus or sonnet from Step 3}"
   description: "Review code changes"
   prompt: <filled template from code-review-dispatch.md>
@@ -228,7 +228,7 @@ Read `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/review-fix-dispatch.md
 
 ```
 Task tool:
-  subagent_type: "superpowers:code-reviewer"
+  subagent_type: "general-purpose"
   model: "{cached_model}"
   description: "Resolve review findings"
   prompt: <filled template from review-fix-dispatch.md>

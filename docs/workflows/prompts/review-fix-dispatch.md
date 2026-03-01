@@ -102,7 +102,7 @@ ESCALATION_REASON: Fix attempt produced failing tests/lint. Original findings re
 
 **Step 5 — Run re-review sub-agent**
 
-Launch a `superpowers:code-reviewer` sub-agent (model: {cached_model}) using the SAME prompt
+Launch a `general-purpose` sub-agent (model: {cached_model}) using the SAME prompt
 template from `{repo_root}/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md`, but:
 
 1. Capture a FRESH diff hash and diff file (the fixes changed the code):
