@@ -6,6 +6,7 @@ Review the current code diff using a `superpowers:code-reviewer` sub-agent for d
 
 Replace commands below with values from your `workflow-config.yaml`:
 
+- `commands.format` (default: `make format`)
 - `commands.lint` (default: `make lint-ruff`)
 - `commands.type_check` (default: `make lint-mypy`)
 - `commands.test_unit` (default: `make test-unit-only`)
@@ -69,9 +70,13 @@ If the file is missing, stale (>60s), or shows "failed", execute Step 1 as norma
 
 Run these checks in order. The code is sound before the review sub-agent sees it.
 
-1. **Lint check**: `cd app && make lint-ruff 2>&1 | tail -3` (on success, only summary needed; re-run with full output on failure)
-2. **Type check**: `cd app && make lint-mypy 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
-3. **Unit tests**: `cd app && make test-unit-only 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
+1. **Format**: `cd app && make format` — run first so lint/type checks see the final formatted state.
+   - After format, check if any files were changed: `git diff --name-only`
+   - If format changed files, re-stage them: `git add -u`
+   - This keeps the staged diff in sync with the formatted state.
+2. **Lint check**: `cd app && make lint-ruff 2>&1 | tail -3` (on success, only summary needed; re-run with full output on failure)
+3. **Type check**: `cd app && make lint-mypy 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
+4. **Unit tests**: `cd app && make test-unit-only 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
 
 If Docker is not available, use `python3 -m py_compile` on changed Python files as a lint fallback.
 
@@ -178,7 +183,7 @@ cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
     "testing_coverage": "N/A"
   },
   "feedback": {
-    "build_lint": "<lint result from Step 1>",
+    "build_lint": "<lint result from Step 1 (or 'passed' if skipped)>",
     "object_oriented_design": "<feedback from code-reviewer or null>",
     "readability": "<feedback from code-reviewer or null>",
     "functionality": "<feedback from code-reviewer or null>",
@@ -190,7 +195,7 @@ cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
 REVIEW_EOF
 ```
 
-If build/lint failed (Step 1), set `build_lint: "N/A"`, all others `"N/A"`, and summary: `"BLOCKED: Build/lint checks failed."`.
+If format/lint/tests failed (Step 1), set `build_lint: "N/A"`, all others `"N/A"`, and summary: `"BLOCKED: Build/lint checks failed."`.
 
 `record-review.sh` validates JSON structure, summary, `files_targeted` overlap with actual diff, `--expected-hash` match, reads scores from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, cross-validates findings against scores, and writes the review state file that the commit gate checks. If it rejects the input, fix and retry.
 
