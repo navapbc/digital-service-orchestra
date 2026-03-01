@@ -72,23 +72,23 @@ if [[ "$COMMAND" == *"sprintend-merge.sh"* ]] || \
     exit 0
 fi
 
-# --- Allow-list: read-only patterns ---
-# These reference the main repo path but only read from it.
-# e.g., cat, head, tail, ls, find, git log, git diff, git show, git rev-parse
-READONLY_PATTERNS=(
-    "^[[:space:]]*(cat|head|tail|less|more|ls|find|stat|wc|diff|file) "
-    "git[[:space:]]+(log|diff|show|status|rev-parse|branch|tag|ls-files|describe|remote|fetch|symbolic-ref|for-each-ref)"
-    "bd[[:space:]]"
-    "lockpick-workflow/scripts/(validate|ci-status|orphaned-tasks)"
-)
-for pattern in "${READONLY_PATTERNS[@]}"; do
-    # Check if the command portion after cd to main repo is read-only
-    # Extract the part of the command that runs in or references main repo context
-    CMD_AFTER_CD=$(echo "$COMMAND" | sed -n "s|.*cd[[:space:]]*['\"]\\?$MAIN_REPO_ROOT['\"]\\?[[:space:]]*&&[[:space:]]*||p")
-    if [[ -n "$CMD_AFTER_CD" ]] && echo "$CMD_AFTER_CD" | grep -qE "$pattern"; then
+# --- Allow-list: bd (beads) commands are always safe ---
+# bd uses .beads redirect so it doesn't need to write to the main repo directly.
+# Allow `cd MAIN_REPO && bd ...` patterns.
+if echo "$COMMAND" | grep -qE "bd[[:space:]]+(close|create|update|list|show|dep|search|ready|blocked|stats|q)[[:space:]]"; then
+    exit 0
+fi
+
+# --- Allow-list: read-only patterns after cd to main repo ---
+# Commands that cd to the main repo but only read (cat, git log, etc.)
+CMD_AFTER_CD=$(echo "$COMMAND" | sed -n "s|.*cd[[:space:]]*['\"]\\?${MAIN_REPO_ROOT}['\"]\\?[[:space:]]*&&[[:space:]]*||p")
+if [[ -n "$CMD_AFTER_CD" ]]; then
+    if echo "$CMD_AFTER_CD" | grep -qE "^[[:space:]]*(cat|head|tail|less|more|ls|find|stat|wc|file) " || \
+       echo "$CMD_AFTER_CD" | grep -qE "git[[:space:]]+(log|diff|show|status|rev-parse|branch|tag|ls-files|describe|remote|fetch|symbolic-ref|for-each-ref)" || \
+       echo "$CMD_AFTER_CD" | grep -qE "lockpick-workflow/scripts/(validate|ci-status|orphaned-tasks)"; then
         exit 0
     fi
-done
+fi
 
 # --- Check if the command actually cd's into the main repo ---
 # Pattern: "cd /path/to/main/repo" possibly followed by && or ;
