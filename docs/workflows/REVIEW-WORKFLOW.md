@@ -204,67 +204,50 @@ Review failed. Enter the Autonomous Resolution Loop. Critical findings always fa
 
 #### Autonomous Resolution Loop
 
-The orchestrator gets up to **2 autonomous resolution attempts** before escalating to the user. Each attempt is a full cycle: triage findings → act → re-review.
+Dispatch a resolution sub-agent to handle triage, fixes, defenses, and re-review. All resolution work happens inside the sub-agent — not the orchestrator.
 
-**Re-review optimization:** On re-review, skip Step 3 (Determine Model) — the model determination is cached from the initial review since the changed file list does not change between attempts. Re-run from Step 0 with the cached model.
+**Before dispatching**, record the current time for freshness verification:
 
-**For each finding, the orchestrator chooses ONE action:**
+```bash
+DISPATCH_TIME=$(date +%s)
+ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE}"
+```
 
-| Action | When | What to do |
-|--------|------|------------|
-| **Fix** | The finding is correct and fixable. Prefer Fix for structural findings (types, tests, error handling). | Fix the code, write/update tests as needed. |
-| **Defend** | The finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). | Add a `# REVIEW-DEFENSE: <explanation>` comment near the flagged code explaining the design rationale. Must reference verifiable artifacts. |
-| **Defer** | The finding is pre-existing or out of scope. | Create a beads tracking issue (`bd create --title="Fix: <finding>" --type=bug --priority=<0-4 based on severity>`). A Deferred finding is NOT resolved for the current review. |
-
-**Defer semantics:** Defer is a documentation/tracking mechanism, not a resolution mechanism. If after applying all Fix and Defend actions, only Deferred findings remain unresolved, the review will still fail. On attempt 2, if the only remaining findings were already Deferred in attempt 1, skip directly to user escalation (do not waste the attempt).
-
-**Loop flow:**
-
-1. Triage all findings into Fix, Defend, or Defer buckets
-2. If ALL findings were Deferred, escalate to user immediately (defer alone cannot pass)
-3. Apply all Fix and Defend actions
-4. **Validate fixes:** Run format, lint, type check, and unit tests on fixed code.
-   - **Auto-fixable failures** (format only): run `make format`, re-stage, and continue within the same attempt. This does not consume the attempt.
-   - **Substantive failures** (tests, type errors, lint errors): the attempt is exhausted — revert the failed changes (`git checkout -- <affected files>`) and proceed to the next attempt or escalate.
-5. Re-run review from Step 0 with cached model (skip Step 3)
-6. **Exclude known-Deferred findings from pass/fail:** If a finding was Deferred in the previous attempt and the finding's target file was NOT modified in this attempt, exclude it from the pass/fail determination. The reviewer will still report it, but it does not block the loop.
-7. If review passes → done
-8. If review fails again:
-   - **Attempt 1 exhausted**: Detect new findings introduced by fixes: compare finding `(category, file)` tuples between the initial review and the re-review. Any finding in the re-review that did not appear in the initial review was introduced by the fix — prefer escalation over another fix attempt. Run oscillation-check (`/oscillation-check` with iteration=2) only if the new findings target files modified in attempt 1. If CLEAR (or oscillation-check skipped), proceed to attempt 2. If OSCILLATION, escalate to user.
-   - **Attempt 2 exhausted**: Escalate to user with the structured escalation format (see below). The user decides: override, fix differently, or defer.
-
-**Escalation message format:**
-
-When escalating to the user, use this structure to minimize cognitive load:
+Read `$REPO_ROOT/.claude/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
+- `{findings_file}`: `/tmp/lockpick-test-artifacts-${WORKTREE}/reviewer-findings.json`
+- `{diff_file}`: the `DIFF_FILE` path from Step 0/2
+- `{repo_root}`: `REPO_ROOT` value
+- `{worktree}`: `WORKTREE` value
+- `{beads_issues}`: beads issue IDs associated with the current work (for `bd create` defers), or empty string
+- `{cached_model}`: model determined in Step 3 (`opus` or `sonnet`)
 
 ```
-## Review Escalation (attempt N/2 exhausted)
+Task tool:
+  subagent_type: "superpowers:code-reviewer"
+  model: "{cached_model}"
+  description: "Resolve review findings"
+  prompt: <filled template from review-fix-dispatch.md>
+```
+
+**After sub-agent returns**, interpret the compact output:
+
+| `RESOLUTION_RESULT` | Action |
+|---------------------|--------|
+| `PASS` | Verify freshness: `FILE_MTIME=$(stat -f %m "$ARTIFACTS_DIR/review-status" 2>/dev/null \|\| echo 0)` — if `FILE_MTIME > DISPATCH_TIME`, review is recorded; proceed to commit. If not: escalate — "ERROR: record-review.sh was not called by the resolution sub-agent." |
+| `FAIL` | Use `REMAINING_CRITICAL` and `ESCALATION_REASON` from sub-agent output to escalate to user. Do NOT re-read `reviewer-findings.json` into orchestrator context. |
+| `ESCALATE` | Present `ESCALATION_REASON` to user in the escalation format below. |
+
+**Escalation message format** (when sub-agent returns FAIL or ESCALATE):
+
+```
+## Review Escalation
 
 ### Remaining Findings
-1. [severity] category: <description> -- ACTION TAKEN in attempt N (e.g., "FIXED in attempt 1, reviewer still flagged")
-2. [severity] category: <description> -- DEFENDED in attempt 1, reviewer still flagged
-3. [severity] category: <description> -- DEFERRED (tracking issue beads-XXX)
+<REMAINING_CRITICAL from sub-agent>
 
 ### Recommendation
-<1-2 sentences: what the orchestrator thinks the best path forward is>
+<ESCALATION_REASON from sub-agent>
 
 ### Actions Needed
 For each finding, reply: fix (I'll try a different approach), override (accept as-is), or defer (skip for now).
 ```
-
-**Defense comment convention:**
-
-All defense comments MUST use the `# REVIEW-DEFENSE:` prefix so they can be found and cleaned up:
-
-```python
-# REVIEW-DEFENSE: Using dict instead of dataclass here because the schema
-# varies per document type — a fixed dataclass would require constant
-# modification. See ADR-007 for the flexibility vs. type-safety tradeoff.
-config: dict[str, Any] = field(default_factory=dict)
-```
-
-Bad (not visible to reviewer, does not address the concern):
-- Adding a comment in a separate ADR file the reviewer doesn't read
-- Logging a disagreement in beads notes
-- Adding `# noqa` or `# type: ignore` without explanation
-- Unverifiable claims: `# REVIEW-DEFENSE: This is faster` (faster than what? measured how?)

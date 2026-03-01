@@ -78,6 +78,10 @@ elif echo "$ERROR_LOWER" | grep -q "ruff\|mypy\|format-check"; then
     CATEGORY="lint_failure"
 elif echo "$ERROR_LOWER" | grep -q "syntax error"; then
     CATEGORY="syntax_error"
+elif echo "$ERROR_LOWER" | grep -q "lock.*blocked\|blocked.*lock"; then
+    CATEGORY="lock_blocked"
+elif echo "$ERROR_LOWER" | grep -q "validate.*beads\|beads.*valid"; then
+    CATEGORY="validate_beads_warning"
 elif echo "$ERROR_LOWER" | grep -q "non-zero\|exit code"; then
     CATEGORY="command_exit_nonzero"
 else

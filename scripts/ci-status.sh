@@ -15,6 +15,7 @@ WAIT_MODE=0
 ID_ONLY=0
 SKIP_REGRESSION=0
 BRANCH=""
+CHECK_JOBS_RUN_ID=""
 
 for arg in "$@"; do
     case $arg in
@@ -27,12 +28,16 @@ for arg in "$@"; do
         --branch=*)
             BRANCH="${arg#--branch=}"
             ;;
+        --check-jobs=*)
+            CHECK_JOBS_RUN_ID="${arg#--check-jobs=}"
+            ;;
         --help)
             echo "Usage: ./scripts/ci-status.sh [--wait] [--id] [--branch <name>] [--skip-regression-check]"
             echo "  --wait                    Wait for CI to complete (polls every 30s)"
             echo "  --id                      Return only the run ID"
             echo "  --branch <name>           Check CI for a specific branch (default: auto-detect)"
             echo "  --skip-regression-check   Skip baseline comparison (default: check regression)"
+            echo "  --check-jobs=<run-id>     Print one line per job: '<conclusion> <name>'"
             echo ""
             echo "In a worktree, defaults to checking main branch CI."
             echo "Regression check compares current CI against the baseline saved by validate.sh."
@@ -47,6 +52,12 @@ for arg in "$@"; do
     esac
     prev_arg="$arg"
 done
+
+# --check-jobs: print one line per job for a given run ID
+if [ -n "$CHECK_JOBS_RUN_ID" ]; then
+    gh run view "$CHECK_JOBS_RUN_ID" --json jobs --jq '.jobs[] | "\(.conclusion) \(.name)"'
+    exit 0
+fi
 
 # Auto-detect: in a worktree, default to main branch
 if [ -z "$BRANCH" ]; then
