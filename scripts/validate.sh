@@ -253,9 +253,12 @@ run_with_timeout() {
         # Command finished - get its exit code
         wait "$cmd_pid" 2>/dev/null || exit_code=$?
 
-        # Kill the sleep since we don't need it anymore
+        # Kill the sleep since we don't need it anymore.
+        # SIGTERM + SIGKILL ensures the process is dead before wait — avoids
+        # a hang if SIGTERM delivery is delayed (observed on macOS).
         kill -TERM "$sleep_pid" 2>/dev/null || true
-        # Reap it silently so the shell doesn't print "Terminated: 15 sleep ..." noise
+        kill -KILL "$sleep_pid" 2>/dev/null || true
+        # Reap it silently so the shell doesn't print job termination noise
         wait "$sleep_pid" 2>/dev/null || true
     fi
 
