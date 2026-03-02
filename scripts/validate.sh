@@ -95,6 +95,7 @@ LOGFILE="$ARTIFACTS_DIR/validation-$$.log"
 TIMEOUT_LOG="${VALIDATE_TIMEOUT_LOG:-$ARTIFACTS_DIR/validation-timeouts.log}"
 FAILED=0
 CHECK_CI=0
+VERBOSE=0    # Set to 1 with --verbose to stream check output in real-time
 CI_PASSED=0  # Set to 1 when CI check passes (used for E2E skip logic)
 E2E_RAN=0    # Set to 1 when E2E tests are actually executed
 E2E_FAILED=0 # Set to 1 when E2E tests fail
@@ -265,9 +266,11 @@ run_with_timeout() {
 for arg in "$@"; do
     case $arg in
         --ci) CHECK_CI=1 ;;
+        --verbose) VERBOSE=1 ;;
         --help)
-            echo "Usage: ./lockpick-workflow/scripts/validate.sh [--ci]"
-            echo "  --ci     Include CI status check + smart E2E skip"
+            echo "Usage: ./lockpick-workflow/scripts/validate.sh [--ci] [--verbose]"
+            echo "  --ci       Include CI status check + smart E2E skip"
+            echo "  --verbose  Stream check output in real-time (prefixed by check name)"
             echo ""
             echo "E2E tests are skipped locally when --ci is used and CI is passing for main."
             echo "E2E tests are also skipped when CI completed with failure (fix CI first)."
@@ -325,12 +328,27 @@ fi
 CHECK_DIR=$(mktemp -d)
 trap "rm -rf '$CHECK_DIR'; cleanup" EXIT
 
-# Run a make-based check in a subshell, storing exit code + log
+# Run a make-based check in a subshell, storing exit code + log.
+# When VERBOSE=1, also streams output to stdout with the check name as a prefix
+# so the user sees real-time progress while checks run in parallel.
 run_check() {
     local name="$1" timeout="$2"
     shift 2
     local rc=0
-    run_with_timeout "$timeout" "$name" "$@" > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
+    if [ "$VERBOSE" -eq 1 ]; then
+        # tee writes output to both the log file and stdout simultaneously.
+        # sed prefixes each line with [name] to distinguish interleaved output
+        # from parallel checks. set +e/set -e brackets the pipeline so PIPESTATUS[0]
+        # (exit code of run_with_timeout) is captured even on failure.
+        set +e
+        run_with_timeout "$timeout" "$name" "$@" 2>&1 \
+            | tee "$CHECK_DIR/${name}.log" \
+            | sed "s/^/[${name}] /"
+        rc="${PIPESTATUS[0]}"
+        set -e
+    else
+        run_with_timeout "$timeout" "$name" "$@" > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
+    fi
     echo "$rc" > "$CHECK_DIR/${name}.rc"
 }
 
