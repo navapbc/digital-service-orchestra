@@ -167,7 +167,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 $REPO_ROOT/lockpick-workflow/scripts/validate.sh --ci
 ```
 
-**Bash timeout**: Use `timeout: 960000` (16 minutes). The smart CI wait in validate.sh can poll for up to 15 minutes when it detects fix commits for a failing CI run.
+**Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
 
 **If validation fails**: Run `/debug-everything` to fix all failures before continuing with the sprint. Do NOT proceed to the Preplanning Gate until validation passes.
 
@@ -462,6 +462,13 @@ If no ready tasks exist:
 > (Batch 1, Batch 2, etc.). This replaces the previous batch's checklist. If you are
 > starting Batch N and the checklist still shows Batch N-1 items, call TodoWrite immediately
 > before doing any other Phase 3 work.
+>
+> **IMPORTANT**: Use ONLY `TodoWrite` for batch checklist management — do NOT use `TaskCreate`
+> alongside it. `TaskCreate` tasks persist independently across `TodoWrite` calls and are NOT
+> cleared when `TodoWrite` replaces the checklist. If you previously created `TaskCreate` tasks
+> for batch tracking, complete them via `TaskUpdate(status='completed')` before calling
+> `TodoWrite` for the new batch. At the START of EACH new batch, call `TodoWrite` to replace
+> the ENTIRE checklist with the new batch's tasks.
 
 Call `TodoWrite` to replace any existing checklist with the current batch's items. Replace `N` with the current batch number (1, 2, 3...). Calling `TodoWrite` replaces the previous list entirely — no accumulation across batches.
 
@@ -916,7 +923,22 @@ Before running `/validate-work`, verify CI has passed on the final batch's commi
 
 #### Step 0.5a: Wait for CI Containing the Final Commit
 
-**Critical**: Do NOT use `ci-status.sh --wait` alone — it returns the latest CI run, which may predate your push. Poll until a completed run **contains** your commit (exact SHA match or ancestor check for the case where another push supersedes yours and GitHub cancels your run).
+**Worktree branch detection (run first)**:
+
+```bash
+CURRENT_BRANCH=$(git branch --show-current)
+if echo "$CURRENT_BRANCH" | grep -qE '^worktree-[0-9]{8}-[0-9]{6}$'; then
+    echo "Worktree branch detected ($CURRENT_BRANCH) — CI does not run on ephemeral branches."
+    echo "Checking main branch CI instead."
+    POLL_BRANCH="main"
+else
+    POLL_BRANCH="$CURRENT_BRANCH"
+fi
+```
+
+If `POLL_BRANCH` is `main` (worktree branch detected): poll `gh run list --branch=main --limit=5` for the most recent completed run. If it is passing, consider CI satisfied and proceed to Step 0.5b. Log: "Worktree branch detected — CI does not run on ephemeral branches. Checking main branch CI instead."
+
+**Critical** (non-worktree branches): Do NOT use `ci-status.sh --wait` alone — it returns the latest CI run, which may predate your push. Poll until a completed run **contains** your commit (exact SHA match or ancestor check for the case where another push supersedes yours and GitHub cancels your run).
 
 ```bash
 HEAD_SHA=$(git rev-parse HEAD)
