@@ -23,7 +23,7 @@
 #   - If CI is "completed:failure": Reports FAIL
 #   - If CI is "pending"/"queued" and previous completed run succeeded: Reports PASS (assumes still good)
 #   - If CI is "pending"/"queued" and previous completed run failed:
-#       - If new commits contain "fix": waits for CI (polls at 8m, 10m, 15m after start)
+#       - If new commits contain "fix": waits for CI (polls every 30s, up to VALIDATE_TIMEOUT_CI_WAIT seconds)
 #       - If new commits are unrelated: Reports FAIL immediately
 #
 # E2E TEST BEHAVIOR:
@@ -58,6 +58,7 @@
 #     VALIDATE_TIMEOUT_TESTS   - Test suite timeout (default: 600)
 #     VALIDATE_TIMEOUT_E2E     - E2E test timeout (default: 900)
 #     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 30)
+#     VALIDATE_TIMEOUT_CI_WAIT - Max total seconds to wait for CI to complete when fix commits detected (default: 600)
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
 #
 #   Example: VALIDATE_TIMEOUT_TESTS=900 ./lockpick-workflow/scripts/validate.sh
@@ -108,6 +109,7 @@ TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
 TIMEOUT_TESTS="${VALIDATE_TIMEOUT_TESTS:-600}"  # 10 minutes default - test suite is large
 TIMEOUT_E2E="${VALIDATE_TIMEOUT_E2E:-900}"      # 15 minutes for E2E tests (local is ~2-3x slower than CI ~180s)
 TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-30}"
+TIMEOUT_CI_WAIT="${VALIDATE_TIMEOUT_CI_WAIT:-600}"  # 10 min max total wait for CI to complete
 
 # Track sleep PIDs for cleanup at script exit
 CLEANUP_PIDS=()
@@ -456,35 +458,19 @@ check_ci() {
         return
     fi
 
-    # Step 4: Commits appear to fix the failure — wait with smart polling
-    # Calculate when to check based on CI run start time
-    # Average CI run is ~8 minutes; check at 8m, 10m, 15m after start
+    # Step 4: Commits appear to fix the failure — wait with adaptive polling
+    # Poll every 30s from now until CI completes or VALIDATE_TIMEOUT_CI_WAIT seconds elapse
     echo "waiting (fix commits detected)" > "$CHECK_DIR/ci.waiting"
 
-    # Convert CI run createdAt to epoch for timing calculations
-    local ci_start_epoch
-    if command -v gdate &>/dev/null; then
-        ci_start_epoch=$(gdate -d "$latest_created" +%s 2>/dev/null || date +%s)
-    elif date -d "2000-01-01" +%s &>/dev/null 2>&1; then
-        ci_start_epoch=$(date -d "$latest_created" +%s 2>/dev/null || date +%s)
-    else
-        # macOS date fallback: parse ISO 8601 manually
-        # Strip fractional seconds (e.g. 2026-03-02T01:23:17.3255614Z -> 2026-03-02T01:23:17Z)
-        ci_start_epoch=$(echo "$latest_created" | sed 's/\.[^Z]*Z/Z/' | xargs -I{} date -jf "%Y-%m-%dT%H:%M:%SZ" {} +%s 2>/dev/null || date +%s)
-    fi
+    # Adaptive 30s polling loop — poll until CI completes or VALIDATE_TIMEOUT_CI_WAIT elapses
+    local poll_interval=30
+    local wait_start_epoch
+    wait_start_epoch=$(date +%s)
+    local deadline_epoch=$((wait_start_epoch + TIMEOUT_CI_WAIT))
 
-    # Poll at 8, 10, and 15 minutes after CI started
-    local check_offsets=(480 600 900)  # seconds after CI start
-    for offset in "${check_offsets[@]}"; do
-        local target_epoch=$((ci_start_epoch + offset))
+    while true; do
         local now_epoch
         now_epoch=$(date +%s)
-        local sleep_secs=$((target_epoch - now_epoch))
-
-        # If target time is in the past, check immediately
-        if [ $sleep_secs -gt 0 ]; then
-            sleep "$sleep_secs"
-        fi
 
         # Poll CI status
         local ci_result
@@ -497,27 +483,39 @@ check_ci() {
             ) || echo "TIMEOUT_OR_ERROR"
         )
 
-        if [ "$ci_result" = "TIMEOUT_OR_ERROR" ]; then
-            continue  # Try next check point
-        fi
+        if [ "$ci_result" != "TIMEOUT_OR_ERROR" ]; then
+            local status_part conclusion
+            status_part=$(echo "$ci_result" | cut -d: -f1)
+            conclusion=$(echo "$ci_result" | cut -d: -f2)
 
-        local status_part conclusion
-        status_part=$(echo "$ci_result" | cut -d: -f1)
-        conclusion=$(echo "$ci_result" | cut -d: -f2)
-
-        if [ "$status_part" = "completed" ]; then
-            echo "$ci_result" > "$CHECK_DIR/ci.result"
-            if [ "$conclusion" = "success" ]; then
-                echo "0" > "$CHECK_DIR/ci.rc"
-            else
-                echo "1" > "$CHECK_DIR/ci.rc"
+            if [ "$status_part" = "completed" ]; then
+                echo "$ci_result" > "$CHECK_DIR/ci.result"
+                if [ "$conclusion" = "success" ]; then
+                    echo "0" > "$CHECK_DIR/ci.rc"
+                else
+                    echo "1" > "$CHECK_DIR/ci.rc"
+                fi
+                echo "true" > "$CHECK_DIR/ci.waited_for_fix"
+                return
             fi
-            echo "true" > "$CHECK_DIR/ci.waited_for_fix"
-            return
         fi
+
+        # Check if we've exceeded the wait deadline before sleeping again
+        now_epoch=$(date +%s)
+        if [ "$now_epoch" -ge "$deadline_epoch" ]; then
+            break
+        fi
+
+        # Sleep for poll_interval, but don't overshoot the deadline
+        local remaining=$((deadline_epoch - now_epoch))
+        local sleep_secs=$poll_interval
+        if [ "$remaining" -lt "$sleep_secs" ]; then
+            sleep_secs=$remaining
+        fi
+        sleep "$sleep_secs"
     done
 
-    # Exhausted all check points — CI still running after 15 minutes
+    # Exhausted wait timeout — CI still running after VALIDATE_TIMEOUT_CI_WAIT seconds
     echo "in_progress:timeout" > "$CHECK_DIR/ci.result"
     echo "1" > "$CHECK_DIR/ci.rc"
     echo "true" > "$CHECK_DIR/ci.pending_with_failure"
