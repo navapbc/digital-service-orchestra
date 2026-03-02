@@ -255,6 +255,8 @@ run_with_timeout() {
 
         # Kill the sleep since we don't need it anymore
         kill -TERM "$sleep_pid" 2>/dev/null || true
+        # Reap it silently so the shell doesn't print "Terminated: 15 sleep ..." noise
+        wait "$sleep_pid" 2>/dev/null || true
     fi
 
     # Remove sleep_pid from cleanup array (it's handled)
