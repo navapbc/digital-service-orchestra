@@ -88,9 +88,13 @@ is_new_work_command() {
     return 1
 }
 
-# Helper: emit hard-block message for new-work commands in failed state
+# Helper: emit hard-block message for new-work commands in not_run or failed state
 block_new_work() {
-    echo "BLOCKED: Fix validation failures before sprint/epic discovery. Re-run $VALIDATE_CMD first." >&2
+    if [[ -z "$VALIDATION_STATUS" ]]; then
+        echo "BLOCKED: Validation has not been run yet. Run $VALIDATE_CMD first to check project health." >&2
+    else
+        echo "BLOCKED: Fix validation failures before sprint/epic discovery. Re-run $VALIDATE_CMD first." >&2
+    fi
     exit 2
 }
 
