@@ -795,11 +795,17 @@ Read and execute `$REPO_ROOT/.claude/workflows/COMMIT-WORKFLOW.md`. The review g
 in Step 5 of the commit workflow will find the review state file from Step 7 is already
 current, so review is skipped (no double review).
 
-After the commit completes, push: `git push`
+After the commit completes, merge to main using `merge-to-main.sh` (handles beads sync, merge, and push in one step — avoids review-gate and pre-push hook issues from beads file changes on main):
+
+```bash
+"$REPO_ROOT/scripts/merge-to-main.sh"
+```
+
+Do NOT use `git push` directly — it only pushes the worktree branch and does not merge to main.
 
 **After completion, continue with Step 11 below.** Do not stop here.
 
-> **CONTROL FLOW WARNING**: After the commit workflow and `git push` complete, continue
+> **CONTROL FLOW WARNING**: After the commit workflow and `merge-to-main.sh` complete, continue
 > IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/commit` Skill tool
 > here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that
 > may not return control. If you find yourself waiting for user input after pushing, you are
