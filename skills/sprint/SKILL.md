@@ -1043,11 +1043,24 @@ cd $(git rev-parse --show-toplevel)/app && make test-e2e
 
 ### Step 1: Run /validate-work (/sprint)
 
-Run the `/validate-work` skill for comprehensive project health verification:
+Before invoking `/validate-work`, gather the changed files so the staging test sub-agent can apply tiered behavior (skipping browser automation for backend-only changes):
+
+```bash
+CHANGED_FILES=$(git diff --name-only main...HEAD 2>/dev/null || git diff --name-only HEAD~1..HEAD 2>/dev/null || echo "")
+echo "$CHANGED_FILES"
+```
+
+Invoke the `/validate-work` skill. Immediately after the `/validate-work` invocation, append the following context block verbatim — substitute the actual file list from the `$CHANGED_FILES` output above (one file per line). This block is forwarded by `/validate-work` to the staging test sub-agent (Sub-Agent 5) for tiered test selection:
 
 ```
-/validate-work
+### Sprint Change Scope
+CHANGED_FILES:
+app/src/agents/enrichment.py
+app/src/api/status/status_routes.py
+scripts/validate.sh
 ```
+
+(Replace the example files above with the actual output of `git diff --name-only main...HEAD`.)
 
 This checks all 5 domains in parallel: local checks (format, lint, types, tests, DB), CI status, beads health, staging deployment, and staging browser tests.
 
