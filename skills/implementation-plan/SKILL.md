@@ -21,11 +21,7 @@ LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
 FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)
 ```
 
-Resolution order:
-1. `workflow-config.yaml` at `${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml` (plugin-level override)
-2. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
-3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make test-unit-only`, `make lint`, `make format-check`)
-4. Skip with warning if neither config nor make target found
+Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test-unit-only` in acceptance criteria templates generated during Step 3 (Task Drafting)

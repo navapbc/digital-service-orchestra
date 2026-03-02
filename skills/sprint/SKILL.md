@@ -23,11 +23,7 @@ VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)
 E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)
 ```
 
-Resolution order:
-1. `workflow-config.yaml` at `${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml` (plugin-level override)
-2. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
-3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make test`, `make lint`)
-4. Skip with warning if neither config nor make target found
+Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test-unit-only` in post-batch and remediation validation
@@ -740,59 +736,16 @@ If the check fails:
 
 ### Step 6: Visual Verification (UI tasks only) (/sprint)
 
-If any task in the batch modified templates, CSS, or frontend code, perform visual
-verification using the tiered approach from `/playwright-debug`. MCP browser
-interaction is **optional** — gated on whether deterministic tests catch the issue.
-
-#### Gate: Run Visual Regression First
+If any task in the batch modified templates, CSS, or frontend code:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd $REPO_ROOT/app && make test-visual 2>&1
 ```
 
-**If `make test-visual` passes**: Visual regression baselines confirm the UI matches
-expectations. Skip MCP visual verification entirely. Log: "Visual regression tests
-pass — MCP visual verification skipped."
-
-**If `make test-visual` fails**: The diff output identifies exactly which pages/elements
-changed. Use the `/playwright-debug` Tier 2 approach for targeted investigation:
-
-1. **Read the visual regression diff** to identify which elements changed.
-2. **Use a single `browser_run_code` call** to verify the specific elements flagged
-   by the diff (check visibility, position, computed styles) — do NOT navigate +
-   screenshot + hover + click as separate calls.
-3. **Only escalate to full MCP (Tier 3)** if `browser_run_code` evidence is
-   inconclusive after 3 calls. See `/playwright-debug` for the full 3-tier process.
-
-**If `make test-visual` is not available** (no baselines exist yet): Fall back to
-the full MCP verification below.
-
-#### Fallback: Full MCP Verification (only when visual regression unavailable)
-
-1. **Verify the local environment.** Run `$REPO_ROOT/scripts/check-local-env.sh`.
-   If it fails, start the app (e.g., `USE_MOCK_LLM=true make dev`) and re-run.
-   Never skip Playwright validation without user approval.
-
-2. **Navigate** to the affected page using `browser_navigate`.
-
-3. **Take a screenshot** (`browser_take_screenshot`, filename: `.claude/screenshots/<page-name>.png`)
-   and **read it** with the Read tool to visually confirm:
-   - New UI elements are visible and correctly positioned
-   - Interactive behaviors work (hover -> tooltip visible, click -> state change, etc.)
-   - Layout is not broken (no overflow, no missing content, no misalignment)
-
-4. **For interactive features** (tooltips, dropdowns, modals): trigger the
-   interaction (`browser_hover`, `browser_click`) and take a second screenshot
-   showing the active state. Confirm the feature is visually rendered, not just
-   present in the DOM.
-
-5. If visual verification fails (element not visible, wrong position, broken
-   layout), treat it as a sub-agent failure — revert the task to open and log
-   the visual issue.
-
-6. Save screenshots to the design directory if one exists for this story,
-   otherwise to `.claude/screenshots/` (gitignored).
+- **Pass** → Log: "Visual regression tests pass — MCP visual verification skipped."
+- **Fail** → Use `/playwright-debug` starting at the Visual Regression Gate (Tier 2 targeted investigation of flagged elements). If verification fails, revert the task to open.
+- **No baselines** → Use `/playwright-debug` full 3-tier process. Verify local env first: `$REPO_ROOT/scripts/check-local-env.sh`. Never skip Playwright validation without user approval.
 
 ### Step 7: Formal Code Review (/sprint)
 

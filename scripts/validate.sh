@@ -693,20 +693,28 @@ if [ $CHECK_CI -eq 1 ]; then
     elif [ "$CI_PASSED" = "1" ]; then
         echo "  e2e:     SKIP (CI passing for main)"
     else
-        # CI not passing — run E2E locally
-        E2E_RAN=1
-        if run_with_timeout "$TIMEOUT_E2E" "test-e2e" make test-e2e >> "$LOGFILE" 2>&1; then
-            echo "  e2e:     PASS"
+        # CI not passing — only run E2E locally if CI result is still uncertain
+        # (pending/in_progress). If CI definitively completed with failure, skip
+        # E2E to avoid a 15-minute hang: CI already ran E2E, fix CI first.
+        e2e_ci_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "")
+        if [[ "$e2e_ci_result" == completed:* ]]; then
+            echo "  e2e:     SKIP (CI completed with failure — fix CI first)"
         else
-            EXIT_CODE=$?
-            E2E_FAILED=1
-            if [ $EXIT_CODE -eq 124 ]; then
-                echo "  e2e:     TIMEOUT (${TIMEOUT_E2E}s) - run 'cd app && make test-e2e' to debug"
+            # CI still running/pending — run E2E locally to catch issues early
+            E2E_RAN=1
+            if run_with_timeout "$TIMEOUT_E2E" "test-e2e" make test-e2e >> "$LOGFILE" 2>&1; then
+                echo "  e2e:     PASS"
             else
-                echo "  e2e:     FAIL"
+                EXIT_CODE=$?
+                E2E_FAILED=1
+                if [ $EXIT_CODE -eq 124 ]; then
+                    echo "  e2e:     TIMEOUT (${TIMEOUT_E2E}s) - run 'cd app && make test-e2e' to debug"
+                else
+                    echo "  e2e:     FAIL"
+                fi
+                FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}e2e"
+                FAILED=1
             fi
-            FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}e2e"
-            FAILED=1
         fi
     fi
 fi
