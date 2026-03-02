@@ -770,8 +770,7 @@ git diff HEAD --stat -- ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/temp
 - **Important issues found** → fix directly (small changes) or re-run the sub-agent
   with feedback. Re-execute REVIEW-WORKFLOW.md after the fix.
 - **Minor issues only** → proceed (note them in beads but don't block)
-- **Review uses autonomous resolution per batch.** The review workflow handles up to 2 fix/defend attempts automatically before escalating. If issues persist after escalation, report
-  to user and proceed to commit (CI and Phase 7 validation provide additional gates).
+- **Review uses autonomous resolution per batch.** The review workflow handles up to 2 fix/defend attempts automatically before escalating. The resolution loop is split: a resolution sub-agent applies fixes (returns `FIXES_APPLIED`), then the orchestrator dispatches a separate re-review sub-agent. This avoids two-level nesting (orchestrator → resolution → re-review) which causes `[Tool result missing due to internal error]`. See REVIEW-WORKFLOW.md Autonomous Resolution Loop. If issues persist after escalation, report to user and proceed to commit (CI and Phase 7 validation provide additional gates).
 
 ### Step 8: Update Beads Notes (/sprint)
 

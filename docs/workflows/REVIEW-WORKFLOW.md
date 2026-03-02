@@ -210,7 +210,15 @@ Review failed. Enter the Autonomous Resolution Loop. Critical findings always fa
 
 #### Autonomous Resolution Loop
 
-Dispatch a resolution sub-agent to handle triage, fixes, defenses, and re-review. All resolution work happens inside the sub-agent — not the orchestrator.
+**Architecture**: The resolution loop is split across two levels to avoid nested sub-agent nesting
+that causes `[Tool result missing due to internal error]`:
+
+1. **Resolution sub-agent** (fix only): reads findings, applies fixes/defenses/defers, validates.
+   Returns `FIXES_APPLIED` when local validation passes. Does NOT dispatch a re-review sub-agent.
+2. **Orchestrator** (re-review): after the resolution sub-agent returns `FIXES_APPLIED`, dispatches
+   a re-review sub-agent, interprets results, and calls `record-review.sh`.
+
+This design keeps nesting at one level (orchestrator → sub-agent) for both the fix and re-review steps.
 
 **Before dispatching**, record the current time for freshness verification:
 
@@ -235,15 +243,73 @@ Task tool:
   prompt: <filled template from review-fix-dispatch.md>
 ```
 
-**After sub-agent returns**, interpret the compact output:
+**After resolution sub-agent returns**, interpret the compact output:
 
 | `RESOLUTION_RESULT` | Action |
 |---------------------|--------|
-| `PASS` | Verify freshness: `FILE_MTIME=$(stat -f %m "$ARTIFACTS_DIR/review-status" 2>/dev/null \|\| echo 0)` — if `FILE_MTIME > DISPATCH_TIME`, review is recorded; proceed to commit. If not: escalate — "ERROR: record-review.sh was not called by the resolution sub-agent." |
+| `FIXES_APPLIED` | Fixes passed local validation. Orchestrator dispatches re-review sub-agent (see below). |
 | `FAIL` | Use `REMAINING_CRITICAL` and `ESCALATION_REASON` from sub-agent output to escalate to user. Do NOT re-read `reviewer-findings.json` into orchestrator context. |
 | `ESCALATE` | Present `ESCALATION_REASON` to user in the escalation format below. |
 
-**Escalation message format** (when sub-agent returns FAIL or ESCALATE):
+**When `RESOLUTION_RESULT: FIXES_APPLIED`** — orchestrator dispatches re-review sub-agent:
+
+1. Capture a fresh diff hash and diff file (the resolution sub-agent changed the code):
+   ```bash
+   NEW_DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
+   NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
+   NEW_DIFF_FILE="$ARTIFACTS_DIR/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
+   NEW_STAT_FILE="$ARTIFACTS_DIR/review-stat-${NEW_DIFF_HASH_SHORT}.txt"
+   { git diff --staged; git diff; } > "$NEW_DIFF_FILE"
+   [ -s "$NEW_DIFF_FILE" ] || git diff HEAD~1 > "$NEW_DIFF_FILE"
+   git diff HEAD --stat > "$NEW_STAT_FILE"
+   ```
+
+2. Dispatch the re-review sub-agent using the same `code-review-dispatch.md` template:
+   ```
+   Task tool:
+     subagent_type: "general-purpose"
+     model: "{cached_model}"
+     description: "Re-review after fixes"
+     prompt: <filled code-review-dispatch.md with NEW_DIFF_HASH, NEW_DIFF_FILE, NEW_STAT_FILE>
+   ```
+
+3. Parse re-review sub-agent output: extract `REVIEW_RESULT`, `MIN_SCORE`, `REVIEWER_HASH`.
+
+4. **If re-review passes** (MIN_SCORE ≥ 4 and no critical findings):
+   Call `record-review.sh` with the NEW diff hash and re-review's REVIEWER_HASH:
+   ```bash
+   cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
+     --expected-hash "<NEW_DIFF_HASH>" \
+     --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
+   {
+     "scores": {
+       "build_lint": "N/A",
+       "object_oriented_design": "N/A",
+       "readability": "N/A",
+       "functionality": "N/A",
+       "testing_coverage": "N/A"
+     },
+     "feedback": {
+       "build_lint": "Validation passed after fixes",
+       "object_oriented_design": null,
+       "readability": null,
+       "functionality": null,
+       "testing_coverage": null,
+       "files_targeted": [<FILES_MODIFIED from resolution sub-agent>]
+     },
+     "summary": "<2-3 sentence summary of what was fixed/defended/deferred>"
+   }
+   REVIEW_EOF
+   ```
+   Then proceed to commit.
+
+5. **If re-review fails** (first attempt): dispatch a second resolution sub-agent (second fix cycle).
+   Run `/oscillation-check` (iteration=2) only if new findings appeared not in the original review —
+   if OSCILLATION detected, skip second attempt and escalate immediately.
+
+6. **If re-review fails** (second attempt, or oscillation detected): escalate to user.
+
+**Escalation message format** (when sub-agent returns FAIL or ESCALATE, or re-review fails twice):
 
 ```
 ## Review Escalation

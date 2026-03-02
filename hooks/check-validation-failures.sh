@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # .claude/hooks/check-validation-failures.sh
-# PostToolUse hook: auto-create beads tracking issues for validate.sh failures.
+# PostToolUse hook: auto-create tracking issues for validate.sh failures.
 #
 # Fires after every Bash tool call. When the command was validate.sh and
 # produced FAIL lines, this hook:
 #   1. Parses failed check names from the output
-#   2. Searches beads for existing open issues matching each failure
+#   2. Searches .tickets/ for existing open issues matching each failure
 #   3. Auto-creates tracking issues for any untracked failures
 #   4. Reports what it created (or found) back to the agent
 #
@@ -79,7 +79,10 @@ ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
 
-# Check beads for existing open issues and auto-create missing ones.
+# Check .tickets/ for existing open issues and auto-create missing ones.
+# TICKETS_DIR env var overrides ticket storage location (consistent with tk CLI).
+TICKETS_DIR="${TICKETS_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)/.tickets}"
+
 declare -a CREATED=()
 declare -a ALREADY_TRACKED=()
 declare -a FAILED_TO_CREATE=()
@@ -152,7 +155,8 @@ for category in "${FAILED_CATEGORIES[@]}"; do
     IFS=';' read -ra TERMS <<< "$(search_terms_for "$category")"
     FOUND=""
     for term in "${TERMS[@]}"; do
-        RESULT=$(bd search "$term" --status=open --quiet 2>/dev/null | grep -vE "^Found [0-9]+ issues|^No issues found" | head -1 || echo "")
+        RESULT=$(grep -rl "$term" "$TICKETS_DIR" 2>/dev/null | \
+            xargs grep -El 'status: open|status: in_progress' 2>/dev/null | head -1 || echo "")
         if [[ -n "$RESULT" ]]; then
             FOUND="$RESULT"
             break
@@ -176,7 +180,7 @@ EODESC
     extract_error_context "$category" "$LOGFILE" >> "$DESC_TMPFILE"
     echo '```' >> "$DESC_TMPFILE"
 
-    ISSUE_ID=$(bd create --title="Fix $category failure" --type=bug --priority=1 --description="$(cat "$DESC_TMPFILE")" 2>/dev/null | grep -o 'beads-[0-9]*' | head -1 || echo "")
+    ISSUE_ID=$(tk create "Fix $category failure" -t bug -p 1 -d "$(cat "$DESC_TMPFILE")" 2>/dev/null || echo "")
     if [[ -n "$ISSUE_ID" ]]; then
         CREATED+=("$category ($ISSUE_ID)")
     else
@@ -204,7 +208,7 @@ fi
 
 if [[ ${#FAILED_TO_CREATE[@]} -gt 0 ]]; then
     FAILED_CSV=$(IFS=', '; echo "${FAILED_TO_CREATE[*]}")
-    PARTS+=("WARNING could not create issues for: $FAILED_CSV — run: bd q \"Fix <check> failure\" -t bug -p 1")
+    PARTS+=("WARNING could not create issues for: $FAILED_CSV — run: tk create \"Fix <check> failure\" -t bug -p 1")
 fi
 
 if [[ ${#PARTS[@]} -gt 0 ]]; then

@@ -15,6 +15,13 @@ Sub-agents must NOT:
 - Add `# type: ignore`, `# noqa`, `@pytest.mark.skip`, or any suppression comments
 - Follow the "Task Completion Workflow" in CLAUDE.md — that applies to orchestrators only
 
+**Resolution sub-agents** (launched via `review-fix-dispatch.md`) have an additional prohibition:
+- MUST NOT dispatch a nested re-review Task tool call. Two levels of nesting
+  (orchestrator → resolution → re-review) cause `[Tool result missing due to internal error]`.
+  Resolution sub-agents apply fixes only and return `RESOLUTION_RESULT: FIXES_APPLIED`.
+  The orchestrator dispatches re-review sub-agents after the resolution agent returns.
+  See CLAUDE.md Never Do These rule 23.
+
 ## Required Actions
 
 Sub-agents MUST:

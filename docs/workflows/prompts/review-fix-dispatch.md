@@ -2,6 +2,16 @@
 
 Template for the resolution sub-agent launched from REVIEW-WORKFLOW.md's Autonomous Resolution Loop.
 
+## NESTING PROHIBITION
+
+**This sub-agent MUST NOT dispatch nested Task tool calls (sub-agents).**
+
+The orchestrator → resolution sub-agent → re-review sub-agent chain (two levels of nesting) causes
+`[Tool result missing due to internal error]` failures. The resolution sub-agent applies fixes only.
+The orchestrator dispatches all re-review sub-agents after this agent returns.
+
+See CLAUDE.md Never Do These rule 23 and SUB-AGENT-BOUNDARIES.md for the full prohibition.
+
 ## Placeholders
 
 - `{findings_file}`: Path to reviewer-findings.json on disk
@@ -15,18 +25,26 @@ Template for the resolution sub-agent launched from REVIEW-WORKFLOW.md's Autonom
 
 ```
 You are a review resolution agent. Your job is to fix, defend, or defer findings from a code review,
-then run a re-review, record the result, and return a compact summary. Read this entire prompt before
-taking any action.
+then validate your fixes and return a compact summary. Read this entire prompt before taking any action.
+
+=== NESTING PROHIBITION ===
+
+You MUST NOT dispatch nested Task tool calls (sub-agents). Two levels of nesting
+(orchestrator → resolution → re-review) cause [Tool result missing due to internal error] failures.
+The orchestrator handles all re-review dispatching after you return. Your role ends at Step 4.
+Do NOT attempt Step 5 (re-review sub-agent) — the orchestrator performs re-review.
 
 === MANDATORY OUTPUT CONTRACT ===
 
 Your final message MUST be ONLY these lines — no prose, no JSON, no explanation:
 
-RESOLUTION_RESULT: PASS|FAIL|ESCALATE
+RESOLUTION_RESULT: FIXES_APPLIED|FAIL|ESCALATE
 FILES_MODIFIED: [comma-separated list, or "none"]
 FINDINGS_ADDRESSED: N fixed, M defended, K deferred
 REMAINING_CRITICAL: [descriptions if FAIL or ESCALATE, else "none"]
 ESCALATION_REASON: [reason if ESCALATE, else "none"]
+
+Note: FIXES_APPLIED means fixes passed local validation. The orchestrator dispatches re-review.
 
 === CONTEXT ===
 
@@ -79,7 +97,7 @@ For each Defend finding: add `# REVIEW-DEFENSE: <explanation>` inline in the rel
 
 **Step 4 — Validate fixes**
 
-Run in order. Capture test output to a file to avoid bloating context before the re-review sub-agent launch in Step 5:
+Run in order. Capture test output to a file to keep context small:
 
 ```bash
 cd {repo_root}/app
@@ -105,98 +123,30 @@ REMAINING_CRITICAL: Validation failed after fix attempt — <error summary>
 ESCALATION_REASON: Fix attempt produced failing tests/lint. Original findings remain.
 ```
 
-**Step 5 — Run re-review sub-agent**
+**Step 5 — STOP. Return your result to the orchestrator.**
 
-Launch a `general-purpose` sub-agent (model: {cached_model}) using the SAME prompt
-template from `{repo_root}/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md`, but:
+Do NOT dispatch a re-review sub-agent. The orchestrator handles re-review dispatching after you return.
+Dispatching a nested re-review sub-agent from within this agent creates two levels of nesting
+(orchestrator → resolution → re-review) which causes `[Tool result missing due to internal error]`.
 
-1. Capture a FRESH diff hash and diff file (the fixes changed the code):
-   ```bash
-   NEW_DIFF_HASH=$("{repo_root}/lockpick-workflow/hooks/compute-diff-hash.sh")
-   NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
-   NEW_DIFF_FILE="/tmp/lockpick-test-artifacts-{worktree}/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
-   NEW_STAT_FILE="/tmp/lockpick-test-artifacts-{worktree}/review-stat-${NEW_DIFF_HASH_SHORT}.txt"
-   { git diff --staged; git diff; } > "$NEW_DIFF_FILE"
-   [ -s "$NEW_DIFF_FILE" ] || git diff HEAD~1 > "$NEW_DIFF_FILE"
-   git diff HEAD --stat > "$NEW_STAT_FILE"
-   ```
-2. Pass the new `NEW_DIFF_HASH`, `NEW_DIFF_FILE`, `NEW_STAT_FILE` into the dispatch template.
-3. Pass `{beads_issues}` as beads context.
+After validation passes in Step 4, return:
 
-The re-review sub-agent returns `REVIEWER_HASH=<hash>` — **save this hash**. You MUST use the
-re-review sub-agent's REVIEWER_HASH (not the original review's hash) when calling record-review.sh.
-
-**Step 6 — Interpret re-review result**
-
-Parse the re-review sub-agent's output:
-- Extract `REVIEW_RESULT`, `MIN_SCORE`, `FINDING_COUNT`, `REVIEWER_HASH`
-- For any finding that was Deferred in Step 2: if its target file was NOT modified in Step 3,
-  exclude it from pass/fail determination (it was pre-existing).
-
-**If re-review passes** (MIN_SCORE ≥ 4 and no critical findings after exclusions):
-
-Call `record-review.sh` with the NEW diff hash and the re-review's REVIEWER_HASH:
-
-```bash
-cat <<'REVIEW_EOF' | "{repo_root}/lockpick-workflow/hooks/record-review.sh" \
-  --expected-hash "<NEW_DIFF_HASH>" \
-  --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
-{
-  "scores": {
-    "build_lint": "N/A",
-    "object_oriented_design": "N/A",
-    "readability": "N/A",
-    "functionality": "N/A",
-    "testing_coverage": "N/A"
-  },
-  "feedback": {
-    "build_lint": "Validation passed after fixes",
-    "object_oriented_design": null,
-    "readability": null,
-    "functionality": null,
-    "testing_coverage": null,
-    "files_targeted": [<list of files you modified>]
-  },
-  "summary": "<2-3 sentence summary of what was fixed/defended/deferred>"
-}
-REVIEW_EOF
 ```
-
-Then return:
-```
-RESOLUTION_RESULT: PASS
-FILES_MODIFIED: <list>
+RESOLUTION_RESULT: FIXES_APPLIED
+FILES_MODIFIED: <comma-separated list of files you modified>
 FINDINGS_ADDRESSED: N fixed, M defended, K deferred
 REMAINING_CRITICAL: none
 ESCALATION_REASON: none
 ```
 
-**If re-review fails** (first attempt):
-
-On second attempt: return to Step 3 for a second fix cycle on the remaining findings.
-Run oscillation-check (`/oscillation-check` with iteration=2) only if new findings appeared
-that were not in the original review (findings in re-review not in original). If OSCILLATION,
-skip the second attempt and escalate immediately.
-
-**If re-review fails** (second attempt, or oscillation detected):
-
-Return:
-```
-RESOLUTION_RESULT: ESCALATE
-FILES_MODIFIED: <list>
-FINDINGS_ADDRESSED: N fixed, M defended, K deferred
-REMAINING_CRITICAL: <list remaining unresolved critical/important findings>
-ESCALATION_REASON: <2-3 sentences: what was tried, what still fails, recommended action>
-```
-
-Do NOT call record-review.sh on failure.
+The orchestrator will then dispatch a re-review sub-agent with the updated diff and handle
+`record-review.sh` after the re-review returns.
 
 === INTEGRITY REQUIREMENTS ===
 
-1. You MUST use the **re-review sub-agent's REVIEWER_HASH** when calling record-review.sh.
-   Using the original review's REVIEWER_HASH would register stale findings as passing.
-2. You MUST call record-review.sh before returning RESOLUTION_RESULT: PASS.
-   The orchestrator verifies the review-status file's modification time after you return.
-3. You MUST NOT fabricate scores or write reviewer-findings.json yourself.
-   The re-review sub-agent writes it; you relay the hash.
+1. You MUST NOT dispatch nested Task tool calls (sub-agents). See NESTING PROHIBITION above.
+2. You MUST return `RESOLUTION_RESULT: FIXES_APPLIED` after successful validation in Step 4.
+   The orchestrator uses this to know fixes are ready for re-review.
+3. You MUST NOT call record-review.sh. The orchestrator calls it after re-review completes.
+4. You MUST NOT fabricate scores or write reviewer-findings.json yourself.
 ```

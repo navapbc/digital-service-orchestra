@@ -68,13 +68,11 @@ while IFS= read -r line; do
         # Create bug if not already created for this hook
         MARKER="$BUGS_DIR/${HOOK_NAME}.bug"
         if [[ ! -f "$MARKER" ]]; then
-            if command -v bd &>/dev/null; then
-                BD_OUTPUT=$(bd create \
-                    --title="Fix recurring hook errors: ${HOOK_NAME} (${COUNT} in 24h)" \
-                    --type=bug --priority=2 \
-                    --description="The hook '${HOOK_NAME}' has logged ${COUNT} errors in the last 24 hours (threshold: ${THRESHOLD}). Review ~/.claude/hook-error-log.jsonl for details. This bug was auto-created by session-safety-check.sh." \
-                    2>&1 || echo "")
-                BUG_ID=$(echo "$BD_OUTPUT" | sed -n 's/.*Created issue: \([^ ]*\).*/\1/p' | head -1)
+            if command -v tk &>/dev/null; then
+                BUG_ID=$(tk create "Fix recurring hook errors: ${HOOK_NAME} (${COUNT} in 24h)" \
+                    -t bug -p 2 \
+                    -d "The hook '${HOOK_NAME}' has logged ${COUNT} errors in the last 24 hours (threshold: ${THRESHOLD}). Review ~/.claude/hook-error-log.jsonl for details. This bug was auto-created by session-safety-check.sh." \
+                    2>/dev/null || echo '')
                 if [[ -n "$BUG_ID" ]]; then
                     echo "$BUG_ID" > "$MARKER"
                 fi
