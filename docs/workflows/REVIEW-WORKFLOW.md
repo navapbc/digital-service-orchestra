@@ -97,6 +97,7 @@ Scan changed files (`git diff HEAD --name-only`) for high-blast-radius patterns:
 - `scripts/**`
 - `.pre-commit-config.yaml`
 - `Makefile`
+- `app/src/app.py`
 
 If **any** changed file matches one of the patterns above -> `model="opus"`.
 If **none** match -> `model="sonnet"`.
