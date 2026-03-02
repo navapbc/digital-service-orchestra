@@ -23,11 +23,7 @@ VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)
 E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)
 ```
 
-Resolution order:
-1. `workflow-config.yaml` at `${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml` (plugin-level override)
-2. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
-3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make test`, `make lint`)
-4. Skip with warning if neither config nor make target found
+Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test-unit-only` in post-batch and remediation validation

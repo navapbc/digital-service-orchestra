@@ -22,11 +22,7 @@ TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
 ```
 
-Resolution order:
-1. `workflow-config.yaml` at `${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml` (plugin-level override)
-2. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
-3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make lint`, `make test`)
-4. Skip with warning if neither config nor make target found
+Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test` in Step 1 (damage assessment) and Step 6 (EXECUTE)
