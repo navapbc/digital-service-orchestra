@@ -469,7 +469,8 @@ check_ci() {
         ci_start_epoch=$(date -d "$latest_created" +%s 2>/dev/null || date +%s)
     else
         # macOS date fallback: parse ISO 8601 manually
-        ci_start_epoch=$(date -jf "%Y-%m-%dT%H:%M:%SZ" "$latest_created" +%s 2>/dev/null || date +%s)
+        # Strip fractional seconds (e.g. 2026-03-02T01:23:17.3255614Z -> 2026-03-02T01:23:17Z)
+        ci_start_epoch=$(echo "$latest_created" | sed 's/\.[^Z]*Z/Z/' | xargs -I{} date -jf "%Y-%m-%dT%H:%M:%SZ" {} +%s 2>/dev/null || date +%s)
     fi
 
     # Poll at 8, 10, and 15 minutes after CI started
