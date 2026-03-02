@@ -95,7 +95,8 @@ LOGFILE="$ARTIFACTS_DIR/validation-$$.log"
 TIMEOUT_LOG="${VALIDATE_TIMEOUT_LOG:-$ARTIFACTS_DIR/validation-timeouts.log}"
 FAILED=0
 CHECK_CI=0
-VERBOSE=0    # Set to 1 with --verbose to stream check output in real-time
+VERBOSE=0    # Set to 1 when --verbose is passed (exported so subshells see it)
+export VERBOSE
 CI_PASSED=0  # Set to 1 when CI check passes (used for E2E skip logic)
 E2E_RAN=0    # Set to 1 when E2E tests are actually executed
 E2E_FAILED=0 # Set to 1 when E2E tests fail
@@ -269,8 +270,9 @@ for arg in "$@"; do
         --verbose) VERBOSE=1 ;;
         --help)
             echo "Usage: ./lockpick-workflow/scripts/validate.sh [--ci] [--verbose]"
-            echo "  --ci       Include CI status check + smart E2E skip"
-            echo "  --verbose  Stream check output in real-time (prefixed by check name)"
+            echo "  --ci      Include CI status check + smart E2E skip"
+            echo "  --verbose Print real-time dot-notation progress as each check runs"
+            echo "            (suppresses batch summary output)"
             echo ""
             echo "E2E tests are skipped locally when --ci is used and CI is passing for main."
             echo "E2E tests are also skipped when CI completed with failure (fix CI first)."
@@ -328,35 +330,57 @@ fi
 CHECK_DIR=$(mktemp -d)
 trap "rm -rf '$CHECK_DIR'; cleanup" EXIT
 
-# Run a make-based check in a subshell, storing exit code + log.
-# When VERBOSE=1, also streams output to stdout with the check name as a prefix
-# so the user sees real-time progress while checks run in parallel.
+# Verbose print helper: serializes output lines using a lock file to prevent
+# interleaving from parallel subshells. Uses flock if available, otherwise
+# falls back to an atomic temp-file rename trick.
+# Usage: verbose_print "name" "state"   e.g. verbose_print "format" "running"
+VERBOSE_LOCK_FILE="$CHECK_DIR/verbose.lock"
+verbose_print() {
+    local name="$1" state="$2"
+    local line="... ${name}: ${state}"
+    if command -v flock &>/dev/null; then
+        # flock is available (macOS Homebrew or Linux) — use it for atomicity
+        (
+            flock -x 9
+            printf '%s\n' "$line"
+        ) 9>"$VERBOSE_LOCK_FILE"
+    else
+        # Fallback: write to a temp file and move atomically (best-effort)
+        local tmp
+        tmp=$(mktemp "$CHECK_DIR/verbose.tmp.XXXXXX")
+        printf '%s\n' "$line" > "$tmp"
+        cat "$tmp"
+        rm -f "$tmp"
+    fi
+}
+
+# Run a make-based check in a subshell, storing exit code + log
 run_check() {
     local name="$1" timeout="$2"
     shift 2
     local rc=0
-    if [ "$VERBOSE" -eq 1 ]; then
-        # tee writes output to both the log file and stdout simultaneously.
-        # sed prefixes each line with [name] to distinguish interleaved output
-        # from parallel checks. set +e/set -e brackets the pipeline so PIPESTATUS[0]
-        # (exit code of run_with_timeout) is captured even on failure.
-        set +e
-        run_with_timeout "$timeout" "$name" "$@" 2>&1 \
-            | tee "$CHECK_DIR/${name}.log" \
-            | sed "s/^/[${name}] /"
-        rc="${PIPESTATUS[0]}"
-        set -e
-    else
-        run_with_timeout "$timeout" "$name" "$@" > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
-    fi
+    [ "$VERBOSE" = "1" ] && verbose_print "$name" "running"
+    run_with_timeout "$timeout" "$name" "$@" > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
     echo "$rc" > "$CHECK_DIR/${name}.rc"
+    if [ "$VERBOSE" = "1" ]; then
+        if [ "$rc" = "0" ]; then
+            verbose_print "$name" "PASS"
+        elif [ "$rc" = "124" ]; then
+            verbose_print "$name" "FAIL (timeout ${timeout}s)"
+        else
+            verbose_print "$name" "FAIL"
+        fi
+    fi
 }
 
 # Migration heads check (file-based, no DB required)
 check_migrations() {
     local migration_dir="$APP_DIR/src/db/migrations/versions"
+    [ "$VERBOSE" = "1" ] && verbose_print "migrate" "running"
+
     if [ ! -d "$migration_dir" ]; then
         echo "skip" > "$CHECK_DIR/migrate.rc"
+        [ "$VERBOSE" = "1" ] && verbose_print "migrate" "PASS (skipped)"
         return 0
     fi
 
@@ -374,9 +398,11 @@ check_migrations() {
     if [ "$head_count" -le 1 ]; then
         echo "0" > "$CHECK_DIR/migrate.rc"
         echo "1 head" > "$CHECK_DIR/migrate.info"
+        [ "$VERBOSE" = "1" ] && verbose_print "migrate" "PASS"
     else
         echo "1" > "$CHECK_DIR/migrate.rc"
         echo "$head_count heads:$heads" > "$CHECK_DIR/migrate.info"
+        [ "$VERBOSE" = "1" ] && verbose_print "migrate" "FAIL ($head_count heads)"
     fi
 }
 
@@ -388,11 +414,14 @@ check_migrations() {
 #     - commits appear to fix the failure → wait (poll at 8m, 10m, 15m)
 #     - commits unrelated to failure → FAIL immediately
 check_ci() {
+    [ "$VERBOSE" = "1" ] && verbose_print "ci" "running"
+
     # jq is required for CI status parsing (complex array/object expressions).
     # Without it, skip with a warning rather than producing garbage output.
     if ! command -v jq &>/dev/null; then
         echo "skip" > "$CHECK_DIR/ci.rc"
         echo "WARNING: jq not installed — CI status check skipped" > "$CHECK_DIR/ci.log"
+        [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (skipped: jq not installed)"
         return
     fi
     cd "$REPO_ROOT"
@@ -413,6 +442,7 @@ check_ci() {
     if [ "$ci_json" = "TIMEOUT_OR_ERROR" ]; then
         echo "TIMEOUT_OR_ERROR" > "$CHECK_DIR/ci.result"
         echo "error" > "$CHECK_DIR/ci.rc"
+        [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (timeout/error)"
         return
     fi
 
@@ -433,8 +463,10 @@ check_ci() {
         echo "completed:$latest_conclusion" > "$CHECK_DIR/ci.result"
         if [ "$latest_conclusion" = "success" ]; then
             echo "0" > "$CHECK_DIR/ci.rc"
+            [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS"
         else
             echo "1" > "$CHECK_DIR/ci.rc"
+            [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL ($latest_conclusion)"
         fi
         return
     fi
@@ -445,6 +477,7 @@ check_ci() {
         echo "completed:success" > "$CHECK_DIR/ci.result"
         echo "0" > "$CHECK_DIR/ci.rc"
         echo "true" > "$CHECK_DIR/ci.skipped_wait"
+        [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (pending, previous run passed)"
         return
     fi
 
@@ -481,6 +514,7 @@ check_ci() {
         echo "1" > "$CHECK_DIR/ci.rc"
         echo "true" > "$CHECK_DIR/ci.pending_with_failure"
         echo "$failed_jobs" > "$CHECK_DIR/ci.failed_jobs"
+        [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (pending, unrelated to previous failure)"
         return
     fi
 
@@ -518,8 +552,10 @@ check_ci() {
                 echo "$ci_result" > "$CHECK_DIR/ci.result"
                 if [ "$conclusion" = "success" ]; then
                     echo "0" > "$CHECK_DIR/ci.rc"
+                    [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (fix commits verified)"
                 else
                     echo "1" > "$CHECK_DIR/ci.rc"
+                    [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (fix commits, CI still failed)"
                 fi
                 echo "true" > "$CHECK_DIR/ci.waited_for_fix"
                 return
@@ -546,6 +582,7 @@ check_ci() {
     echo "1" > "$CHECK_DIR/ci.rc"
     echo "true" > "$CHECK_DIR/ci.pending_with_failure"
     echo "$failed_jobs" > "$CHECK_DIR/ci.failed_jobs"
+    [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (waited for fix, CI still running)"
 }
 
 # Launch all independent checks in parallel
@@ -619,24 +656,59 @@ report_check() {
     fi
 }
 
-report_check "format" "format" "$TIMEOUT_FORMAT"
-report_check "ruff" "ruff" "$TIMEOUT_RUFF"
-report_check "mypy" "mypy" "$TIMEOUT_MYPY"
-report_check "tests" "tests" "$TIMEOUT_TESTS"
+# tally_check: accumulate FAILED/FAILED_CHECKS without printing (used in verbose mode)
+# Dot-notation output was already printed in real-time by run_check/check_migrations/check_ci.
+tally_check() {
+    local label="$1" name="$2"
+    local rc_file="$CHECK_DIR/${name}.rc"
+
+    if [ ! -f "$rc_file" ]; then
+        return 0
+    fi
+
+    local rc
+    rc=$(cat "$rc_file")
+
+    if [ "$rc" != "0" ]; then
+        cat "$CHECK_DIR/${name}.log" >> "$LOGFILE" 2>/dev/null || true
+        FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}$label"
+        FAILED=1
+    fi
+}
+
+if [ "$VERBOSE" = "0" ]; then
+    report_check "format" "format" "$TIMEOUT_FORMAT"
+    report_check "ruff" "ruff" "$TIMEOUT_RUFF"
+    report_check "mypy" "mypy" "$TIMEOUT_MYPY"
+    report_check "tests" "tests" "$TIMEOUT_TESTS"
+else
+    tally_check "format" "format"
+    tally_check "ruff" "ruff"
+    tally_check "mypy" "mypy"
+    tally_check "tests" "tests"
+fi
 
 # Migration result
 if [ -f "$CHECK_DIR/migrate.rc" ]; then
     migrate_rc=$(cat "$CHECK_DIR/migrate.rc")
     migrate_info=$(cat "$CHECK_DIR/migrate.info" 2>/dev/null || echo "")
-    if [ "$migrate_rc" = "0" ]; then
-        echo "  migrate: PASS ($migrate_info)"
-    elif [ "$migrate_rc" = "skip" ]; then
-        echo "  migrate: SKIP (no migrations directory)"
+    if [ "$VERBOSE" = "0" ]; then
+        if [ "$migrate_rc" = "0" ]; then
+            echo "  migrate: PASS ($migrate_info)"
+        elif [ "$migrate_rc" = "skip" ]; then
+            echo "  migrate: SKIP (no migrations directory)"
+        else
+            echo "  migrate: FAIL ($migrate_info)"
+            echo "  -> Run 'make db-migrate-merge-heads' to merge, then commit the merge migration"
+            FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}migrate"
+            FAILED=1
+        fi
     else
-        echo "  migrate: FAIL ($migrate_info)"
-        echo "  -> Run 'make db-migrate-merge-heads' to merge, then commit the merge migration"
-        FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}migrate"
-        FAILED=1
+        # Verbose: tally only (dot-notation was already printed by check_migrations)
+        if [ "$migrate_rc" != "0" ] && [ "$migrate_rc" != "skip" ]; then
+            FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}migrate"
+            FAILED=1
+        fi
     fi
 fi
 
@@ -649,7 +721,7 @@ if [ $CHECK_CI -eq 1 ]; then
         ci_rc=$(cat "$CHECK_DIR/ci.rc")
         # Handle jq-missing skip
         if [ "$ci_rc" = "skip" ]; then
-            echo "  ${CI_LABEL}:     SKIP (jq not installed — install jq to enable CI and E2E checks)"
+            [ "$VERBOSE" = "0" ] && echo "  ${CI_LABEL}:     SKIP (jq not installed — install jq to enable CI and E2E checks)"
         else
             ci_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "unknown")
             skipped_wait=$(cat "$CHECK_DIR/ci.skipped_wait" 2>/dev/null || echo "")
@@ -658,47 +730,51 @@ if [ $CHECK_CI -eq 1 ]; then
             failed_jobs=$(cat "$CHECK_DIR/ci.failed_jobs" 2>/dev/null || echo "")
 
             if [ "$ci_rc" = "0" ]; then
-                if [ "$skipped_wait" = "true" ]; then
-                    echo "  ${CI_LABEL}:     PASS (pending, previous run passed)"
-                elif [ "$waited_for_fix" = "true" ]; then
-                    echo "  ${CI_LABEL}:     PASS (fix commits verified — CI passed)"
-                else
-                    echo "  ${CI_LABEL}:     PASS ($ci_result)"
+                if [ "$VERBOSE" = "0" ]; then
+                    if [ "$skipped_wait" = "true" ]; then
+                        echo "  ${CI_LABEL}:     PASS (pending, previous run passed)"
+                    elif [ "$waited_for_fix" = "true" ]; then
+                        echo "  ${CI_LABEL}:     PASS (fix commits verified — CI passed)"
+                    else
+                        echo "  ${CI_LABEL}:     PASS ($ci_result)"
+                    fi
                 fi
                 CI_PASSED=1
                 echo "success" > "$ARTIFACTS_DIR/ci-baseline"
             elif [ "$pending_with_failure" = "true" ]; then
-                detail=""
-                if [ -n "$failed_jobs" ]; then
-                    detail=" (failed: $failed_jobs)"
+                if [ "$VERBOSE" = "0" ]; then
+                    detail=""
+                    if [ -n "$failed_jobs" ]; then
+                        detail=" (failed: $failed_jobs)"
+                    fi
+                    if [ "$ci_result" = "in_progress:timeout" ]; then
+                        echo "  ${CI_LABEL}:     FAIL (waited for fix, CI still running after 15m)${detail}"
+                    else
+                        echo "  ${CI_LABEL}:     FAIL (pending, unrelated to previous failure)${detail}"
+                    fi
+                    echo "  ${CI_LABEL}:     Run 'ci-status.sh --wait' to wait for completion"
                 fi
-                if [ "$ci_result" = "in_progress:timeout" ]; then
-                    echo "  ${CI_LABEL}:     FAIL (waited for fix, CI still running after 15m)${detail}"
-                else
-                    echo "  ${CI_LABEL}:     FAIL (pending, unrelated to previous failure)${detail}"
-                fi
-                echo "  ${CI_LABEL}:     Run 'ci-status.sh --wait' to wait for completion"
                 echo "failure" > "$ARTIFACTS_DIR/ci-baseline"
                 FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}ci"
                 FAILED=1
             elif [ "$waited_for_fix" = "true" ]; then
-                echo "  ${CI_LABEL}:     FAIL (fix commits detected, but CI still failed)"
+                [ "$VERBOSE" = "0" ] && echo "  ${CI_LABEL}:     FAIL (fix commits detected, but CI still failed)"
                 echo "failure" > "$ARTIFACTS_DIR/ci-baseline"
                 FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}ci"
                 FAILED=1
             elif [ "$ci_rc" = "error" ]; then
-                echo "  ${CI_LABEL}:     TIMEOUT/ERROR - run 'gh run list --workflow=CI --limit 1' to debug"
+                [ "$VERBOSE" = "0" ] && echo "  ${CI_LABEL}:     TIMEOUT/ERROR - run 'gh run list --workflow=CI --limit 1' to debug"
                 FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}ci"
                 FAILED=1
             else
-                echo "  ${CI_LABEL}:     FAIL ($ci_result)"
+                [ "$VERBOSE" = "0" ] && echo "  ${CI_LABEL}:     FAIL ($ci_result)"
                 echo "failure" > "$ARTIFACTS_DIR/ci-baseline"
                 FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}ci"
                 FAILED=1
             fi
         fi
     else
-        echo "  ${CI_LABEL}:     ERROR (no result)"
+        [ "$VERBOSE" = "0" ] && echo "  ${CI_LABEL}:     ERROR (no result)"
         FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}ci"
         FAILED=1
     fi
@@ -708,40 +784,66 @@ if [ $CHECK_CI -eq 1 ]; then
     if [ -n "$CI" ]; then
         # In CI environment: always run E2E tests
         E2E_RAN=1
+        [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"
         if run_with_timeout "$TIMEOUT_E2E" "test-e2e" make test-e2e >> "$LOGFILE" 2>&1; then
-            echo "  e2e:     PASS"
+            if [ "$VERBOSE" = "0" ]; then
+                echo "  e2e:     PASS"
+            else
+                verbose_print "e2e" "PASS"
+            fi
         else
             EXIT_CODE=$?
             E2E_FAILED=1
-            if [ $EXIT_CODE -eq 124 ]; then
-                echo "  e2e:     TIMEOUT (${TIMEOUT_E2E}s) - run 'cd app && make test-e2e' to debug"
+            if [ "$VERBOSE" = "0" ]; then
+                if [ $EXIT_CODE -eq 124 ]; then
+                    echo "  e2e:     TIMEOUT (${TIMEOUT_E2E}s) - run 'cd app && make test-e2e' to debug"
+                else
+                    echo "  e2e:     FAIL"
+                fi
             else
-                echo "  e2e:     FAIL"
+                if [ $EXIT_CODE -eq 124 ]; then
+                    verbose_print "e2e" "FAIL (timeout ${TIMEOUT_E2E}s)"
+                else
+                    verbose_print "e2e" "FAIL"
+                fi
             fi
             FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}e2e"
             FAILED=1
         fi
     elif [ "$CI_PASSED" = "1" ]; then
-        echo "  e2e:     SKIP (CI passing for main)"
+        [ "$VERBOSE" = "0" ] && echo "  e2e:     SKIP (CI passing for main)"
     else
         # CI not passing — only run E2E locally if CI result is still uncertain
         # (pending/in_progress). If CI definitively completed with failure, skip
         # E2E to avoid a 15-minute hang: CI already ran E2E, fix CI first.
         e2e_ci_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "")
         if [[ "$e2e_ci_result" == completed:* ]]; then
-            echo "  e2e:     SKIP (CI completed with failure — fix CI first)"
+            [ "$VERBOSE" = "0" ] && echo "  e2e:     SKIP (CI completed with failure — fix CI first)"
         else
             # CI still running/pending — run E2E locally to catch issues early
             E2E_RAN=1
+            [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"
             if run_with_timeout "$TIMEOUT_E2E" "test-e2e" make test-e2e >> "$LOGFILE" 2>&1; then
-                echo "  e2e:     PASS"
+                if [ "$VERBOSE" = "0" ]; then
+                    echo "  e2e:     PASS"
+                else
+                    verbose_print "e2e" "PASS"
+                fi
             else
                 EXIT_CODE=$?
                 E2E_FAILED=1
-                if [ $EXIT_CODE -eq 124 ]; then
-                    echo "  e2e:     TIMEOUT (${TIMEOUT_E2E}s) - run 'cd app && make test-e2e' to debug"
+                if [ "$VERBOSE" = "0" ]; then
+                    if [ $EXIT_CODE -eq 124 ]; then
+                        echo "  e2e:     TIMEOUT (${TIMEOUT_E2E}s) - run 'cd app && make test-e2e' to debug"
+                    else
+                        echo "  e2e:     FAIL"
+                    fi
                 else
-                    echo "  e2e:     FAIL"
+                    if [ $EXIT_CODE -eq 124 ]; then
+                        verbose_print "e2e" "FAIL (timeout ${TIMEOUT_E2E}s)"
+                    else
+                        verbose_print "e2e" "FAIL"
+                    fi
                 fi
                 FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}e2e"
                 FAILED=1
