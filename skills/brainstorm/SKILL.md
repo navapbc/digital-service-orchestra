@@ -161,6 +161,8 @@ EOF
 - Re-run only the failing reviewer
 - Repeat until all dimensions pass, or escalate to user if conflicting guidance
 
+**Watch for the "current vs. future state" anti-pattern**: If a reviewer scores a dimension low and the finding references existing files, components, or behaviors in the current codebase (e.g., "this file already exists at path X"), the reviewer may be evaluating present state rather than the spec's intended future state. Before iterating on the spec, verify whether the low score reflects a genuine spec gap or a reviewer anchor on the status quo. If the existing artifact will be changed or replaced by this epic, the finding is invalid — re-run that reviewer with an explicit reminder to evaluate the spec as written, not the current codebase.
+
 **Conflict detection**: If two reviewers give contradictory guidance on the same spec element, escalate to the user immediately — do not resolve conflicts autonomously.
 
 ### Step 4: Present Spec for Approval

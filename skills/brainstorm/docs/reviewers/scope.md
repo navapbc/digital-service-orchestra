@@ -32,6 +32,8 @@ You will receive:
 
 ## Instructions
 
+**Evaluate the spec as written — not the current state of the codebase.** If this milestone modifies or migrates existing components, assume those components will change as described. Do not treat a milestone as redundant simply because related code already exists in the project; evaluate whether the spec's scope is coherently bounded relative to other milestones in the roadmap.
+
 Evaluate the milestone spec on all three dimensions. For each, assign an integer score of
 1-5 or `null` (N/A).
 

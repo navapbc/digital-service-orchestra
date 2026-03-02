@@ -31,6 +31,8 @@ You will receive:
 
 ## Instructions
 
+**Evaluate the spec as written — not the current state of the codebase.** If this milestone modifies or migrates existing components, assume those components will change as described. Do not penalize a spec because the capability it proposes already partially exists; evaluate whether the spec clearly describes the intended future state and how success will be validated after the change.
+
 Evaluate the milestone spec on all two dimensions. For each, assign an integer score of
 1-5 or `null` (N/A).
 
