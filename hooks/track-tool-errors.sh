@@ -6,7 +6,7 @@
 #   1. Categorizes the error via pattern matching
 #   2. Appends a detail entry to the error counter JSON
 #   3. Increments the category count in the index
-#   4. Creates a beads bug if any category reaches 50 occurrences
+#   4. Creates a tk ticket if any category reaches 50 occurrences
 #
 # Counter file: ~/.claude/tool-error-counter.json
 # Template: .claude/docs/TOOL-ERROR-TEMPLATE.md
@@ -134,14 +134,11 @@ BUG_EXISTS=$(echo "$COUNTER_DATA" | jq -r --arg cat "$CATEGORY" '.bugs_created[$
 
 if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" && "$BUG_EXISTS" == "none" ]]; then
     BUG_ID=""
-    if command -v bd &>/dev/null; then
-        # Create a beads bug for the recurring error
-        BD_OUTPUT=$(bd create \
-            --title="Investigate recurring tool error: $CATEGORY ($CURRENT_COUNT occurrences)" \
-            --type=bug --priority=2 \
-            --description="The '$CATEGORY' tool error has been observed $CURRENT_COUNT times across sessions. Recent example: $TOOL_NAME failed with: $ERROR_MSG. Review full log: $COUNTER_FILE" \
-            2>&1 || echo "")
-        BUG_ID=$(echo "$BD_OUTPUT" | sed -n 's/.*Created issue: \([^ ]*\).*/\1/p' | head -1)
+    if command -v tk &>/dev/null; then
+        BUG_ID=$(tk create "Investigate recurring tool error: $CATEGORY ($CURRENT_COUNT occurrences)" \
+            -t bug -p 2 \
+            -d "The '$CATEGORY' tool error has been observed $CURRENT_COUNT times across sessions. Recent example: $TOOL_NAME failed with: $ERROR_MSG. Review full log: $COUNTER_FILE" \
+            2>/dev/null || echo '')
     fi
 
     if [[ -n "$BUG_ID" ]]; then
@@ -161,7 +158,7 @@ if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" && "$BUG_EXISTS" == "none" ]]; then
         echo "Bug created: $BUG_ID — investigate root cause before continuing."
     else
         echo "Failed to create bug automatically. Create one manually:"
-        echo "  bd q \"Investigate recurring tool error: $CATEGORY\" -t bug -p 2"
+        echo "  tk create \"Investigate recurring tool error: $CATEGORY\" -t bug -p 2"
     fi
 fi
 

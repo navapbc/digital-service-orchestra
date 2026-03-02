@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # .claude/hooks/commit-failure-tracker.sh
 # PreToolUse hook (Bash matcher): at git commit time, warn if validation
-# failures exist without corresponding open beads issues.
+# failures exist without corresponding open tracking issues.
 #
 # This is a lightweight safety net. The primary issue creation happens in
 # check-validation-failures.sh (PostToolUse) at validation time. This hook
@@ -19,17 +19,24 @@ source "$HOOK_DIR/lib/deps.sh"
 # Read config-driven issue tracker commands (with fallback defaults)
 # Resolve read-config.sh: try HOOK_DIR/../scripts (lockpick-workflow/hooks/ path),
 # then HOOK_DIR/../../lockpick-workflow/scripts (.claude/hooks/ path).
-SEARCH_CMD='bd search'
-CREATE_CMD='bd q'
+# Capture whether caller supplied env vars BEFORE applying defaults.
+_SEARCH_CMD_FROM_ENV="${SEARCH_CMD:-}"
+_CREATE_CMD_FROM_ENV="${CREATE_CMD:-}"
+SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
+CREATE_CMD="${CREATE_CMD:-tk create}"
 _READ_CONFIG=""
 if [[ -f "$HOOK_DIR/../scripts/read-config.sh" ]]; then
     _READ_CONFIG="$HOOK_DIR/../scripts/read-config.sh"
 elif [[ -f "$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh" ]]; then
     _READ_CONFIG="$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh"
 fi
-if [[ -n "$_READ_CONFIG" ]]; then
+# Only apply config overrides when the caller did NOT supply the env var.
+# Caller-supplied env vars (e.g. test mocks) take precedence over config.
+if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_SEARCH_CMD_FROM_ENV" ]]; then
     _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
     [[ -n "$_SEARCH" ]] && SEARCH_CMD="$_SEARCH"
+fi
+if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_CREATE_CMD_FROM_ENV" ]]; then
     _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
     [[ -n "$_CREATE" ]] && CREATE_CMD="$_CREATE"
 fi
@@ -104,8 +111,8 @@ fi
 # Quick check: do open issues exist for each category?
 declare -a UNTRACKED=()
 for category in "${FAILED_CATEGORIES[@]}"; do
-    # Simple substring search — if any open issue mentions the category, it's tracked
-    RESULT=$($SEARCH_CMD "$category failure" --status=open --quiet 2>/dev/null | grep -vE "^Found [0-9]+ issues|^No issues found" | head -1 || echo "")
+    # Substring search in .tickets/ files — if any ticket file mentions the category, it's tracked
+    RESULT=$($SEARCH_CMD "$category failure" "$(git rev-parse --show-toplevel)/.tickets" 2>/dev/null | head -1 || echo "")
     if [[ -z "$RESULT" ]]; then
         UNTRACKED+=("$category")
     fi
@@ -124,8 +131,8 @@ for category in "${UNTRACKED[@]}"; do
 done
 echo "" >&2
 echo "Issues should have been auto-created by check-validation-failures.sh." >&2
-echo "Search: $SEARCH_CMD \"<check> failure\" --status=open" >&2
-echo "Create manually if needed: $CREATE_CMD \"Fix <check> failure\" -t bug -p 1" >&2
+echo "Search: $SEARCH_CMD '<check> failure' $(git rev-parse --show-toplevel)/.tickets" >&2
+echo "Create manually if needed: tk create \"Fix <check> failure\" -t bug -p 1" >&2
 echo "" >&2
 
 # Never block

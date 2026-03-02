@@ -2,7 +2,7 @@
 # .claude/hooks/pre-compact-checkpoint.sh
 # PreCompact hook: auto-save work state before context compaction.
 #
-# Captures mechanical state (git diff, active beads tasks)
+# Captures mechanical state (git diff, active tasks)
 # and outputs structured markdown that gets injected into post-compaction
 # context for session recovery.
 #
@@ -38,12 +38,12 @@ fi
 
 # --- Capture mechanical state ---
 
-# Active beads tasks
+# Active tasks
 ACTIVE_TASKS=""
-if command -v bd &>/dev/null; then
-    ACTIVE_TASKS=$(bd list --status=in_progress --quiet 2>/dev/null || echo "(bd unavailable)")
+if command -v tk &>/dev/null; then
+    ACTIVE_TASKS=$(tk ready 2>/dev/null || echo "(tk unavailable)")
 else
-    ACTIVE_TASKS="(bd not installed)"
+    ACTIVE_TASKS="(tk not installed)"
 fi
 
 # Git diff stat
@@ -67,11 +67,6 @@ RECENT_FIXES=$(git log --oneline -3 2>/dev/null || echo "(none)")
 git add -A 2>/dev/null || true
 git commit -m "$CHECKPOINT_LABEL" --no-verify 2>/dev/null || true
 
-# Sync beads if available
-if command -v bd &>/dev/null; then
-    bd sync --quiet 2>/dev/null || true
-fi
-
 # --- Output structured markdown (injected into post-compaction context) ---
 cat <<CHECKPOINT
 # Recovery State
@@ -80,7 +75,7 @@ Changes: ${GIT_STATUS}
 Checkpoint: ${CHECKPOINT_LABEL}
 Debug phase: ${DEBUG_PHASE_STATE:-Not running}
 Recent fixes: ${RECENT_FIXES}
-Next: Run 'bd list --status=in_progress' then 'bd show <id>' to find CHECKPOINT notes.
+Next: Run 'tk list' then 'tk show <id>' to find CHECKPOINT notes.
 CHECKPOINT
 
 exit 0
