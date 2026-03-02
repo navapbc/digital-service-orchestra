@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# classify-task.sh — Classify beads tasks for /sprint batch planning.
+# classify-task.sh — Classify tasks for /sprint batch planning.
 #
 # Uses weighted profile scoring via classify-task.py to select the best
 # sub-agent type, model, and priority for each task.
@@ -43,10 +43,17 @@ task_ids=()
 
 if [ "$1" = "--from-epic" ]; then
     epic_id="${2:?Missing epic ID}"
+    # Use tk ready to list open/in-progress tickets, then filter by parent field
+    # (tk ready does not support --parent, so we filter via file-based grep)
     while IFS= read -r tid; do
         [ -n "$tid" ] && task_ids+=("$tid")
-    done < <(bd ready --parent="$epic_id" --json 2>/dev/null \
-        | "$PYTHON" -c "import sys,json; [print(t['id']) for t in json.load(sys.stdin)]" 2>/dev/null || true)
+    done < <(tk ready 2>/dev/null | awk '{print $1}' \
+        | while read -r id; do
+            ticket_file="$(git rev-parse --show-toplevel)/.tickets/$id.md"
+            if [ -f "$ticket_file" ] && grep -q "parent: $epic_id" "$ticket_file" 2>/dev/null; then
+                echo "$id"
+            fi
+          done || true)
 
     if [ ${#task_ids[@]} -eq 0 ]; then
         echo "[]"
@@ -56,17 +63,23 @@ else
     task_ids=("$@")
 fi
 
-# --- Collect task JSON via bd show ---
-# bd show --json returns a JSON array (e.g. [{...}]) even for a single issue.
-# Unwrap to the first element so the outer tasks_json array contains plain objects.
+# --- Collect task JSON via tk show ---
+# tk show returns markdown output which we parse into a JSON object.
 tasks_json="["
 first=true
 for task_id in "${task_ids[@]}"; do
-    raw=$(bd show "$task_id" --json 2>/dev/null || echo "")
+    raw=$(tk show "$task_id" 2>/dev/null || echo "")
     if [ -z "$raw" ]; then
         entry="{\"id\":\"$task_id\",\"error\":\"Task not found\"}"
     else
-        entry=$("$PYTHON" -c "import sys,json; d=json.loads(sys.stdin.read()); print(json.dumps(d[0] if isinstance(d,list) else d))" <<< "$raw" 2>/dev/null || echo "{\"id\":\"$task_id\",\"error\":\"Parse error\"}")
+        entry=$( echo "$raw" | "$PYTHON" -c "
+import sys, re, json
+content = sys.stdin.read()
+# Extract title from first # heading
+title_match = re.search(r'^# (.+)', content, re.MULTILINE)
+obj = {'id': sys.argv[1], 'title': title_match.group(1) if title_match else '', 'raw': content}
+print(json.dumps(obj))
+" "$task_id" 2>/dev/null || echo "{\"id\":\"$task_id\",\"error\":\"Parse error\"}" )
     fi
 
     if $first; then
