@@ -79,18 +79,23 @@ For each Defend finding: add `# REVIEW-DEFENSE: <explanation>` inline in the rel
 
 **Step 4 — Validate fixes**
 
-Run in order:
+Run in order. Capture test output to a file to avoid bloating context before the re-review sub-agent launch in Step 5:
 
 ```bash
 cd {repo_root}/app
-make format-modified 2>&1
+make format-modified 2>&1 | tail -3
 make lint-ruff 2>&1 | tail -3
 make lint-mypy 2>&1 | tail -5
-make test-unit-only 2>&1 | tail -5
+# Capture to file — avoids 5K-20K tokens of test output in context
+TEST_LOG=$(mktemp)
+make test-unit-only > "$TEST_LOG" 2>&1
+TEST_EXIT=$?
+tail -5 "$TEST_LOG"
+rm -f "$TEST_LOG"
 ```
 
 - **Format failures only**: run `make format`, re-stage, continue within this attempt.
-- **Lint/type/test failures**: revert changed files (`git checkout -- <files>`), report:
+- **Lint/type/test failures** (`TEST_EXIT != 0`): revert changed files (`git checkout -- <files>`), report:
 
 ```
 RESOLUTION_RESULT: FAIL
