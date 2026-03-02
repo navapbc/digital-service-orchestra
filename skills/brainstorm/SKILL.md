@@ -234,16 +234,25 @@ $(git rev-parse --show-toplevel)/scripts/validate-beads.sh --quick --terse
 
 Fix any issues before finalizing.
 
-### Step 4: Report and Hand Off
+### Step 4: Invoke Preplanning
+
+After the epic is created and beads health passes, immediately invoke `/preplanning` on the new epic — do NOT wait for user input:
+
+```
+Skill tool:
+  skill: "preplanning"
+  args: "<epic-id>"
+```
+
+`/preplanning` will decompose the epic into user stories and present a story map for user approval before anything is created in beads. Control returns here only if `/preplanning` escalates (e.g., requires user clarification).
+
+Report the epic creation and preplanning handoff:
 
 ```
 === Brainstorm Complete ===
 
 Epic created: <epic-id> — "<title>"
-
-Next steps:
-- /preplanning <epic-id>  — decompose into user stories (recommended for complex epics)
-- /sprint <epic-id>       — begin implementation (auto-triggers preplanning if needed)
+Handing off to /preplanning for story decomposition…
 ```
 
 ---
@@ -270,4 +279,4 @@ Next steps:
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Beads Integration | Create the epic | `bd epic create`, set deps, validate health, hand off |
+| 3: Beads Integration | Create the epic, invoke preplanning | `bd epic create`, set deps, validate health, `/preplanning <epic-id>` |
