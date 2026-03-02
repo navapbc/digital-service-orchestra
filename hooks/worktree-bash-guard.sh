@@ -96,12 +96,16 @@ if echo "$COMMAND" | grep -qE "cd[[:space:]]+(\"$MAIN_REPO_ROOT\"|'$MAIN_REPO_RO
     echo "BLOCKED: Bash command cd's into the main repo from a worktree session." >&2
     echo "" >&2
     echo "CLAUDE.md rule 11: \"Never edit main repo files from a worktree session.\"" >&2
-    echo "  Command contains: cd $MAIN_REPO_ROOT" >&2
-    echo "  Main repo:   $MAIN_REPO_ROOT" >&2
-    echo "  Worktree:    $WORKTREE_ROOT" >&2
+    echo "  Command:   cd $MAIN_REPO_ROOT ..." >&2
+    echo "  Main repo: $MAIN_REPO_ROOT" >&2
+    echo "  Worktree:  $WORKTREE_ROOT" >&2
     echo "" >&2
-    echo "Work on the worktree branch instead — merge to main via merge-to-main.sh." >&2
-    echo "If you need to run merge-to-main.sh or resolve-conflicts.sh, those are allow-listed." >&2
+    echo "HOW TO FIX:" >&2
+    echo "  • Run the same command from the worktree root (current working directory)." >&2
+    echo "  • Use REPO_ROOT=\$(git rev-parse --show-toplevel) instead of a hardcoded path." >&2
+    echo "  • bd commands work from any directory — drop 'cd MAIN_REPO && bd ...' prefix." >&2
+    echo "  • To merge worktree changes to main: \$REPO_ROOT/scripts/merge-to-main.sh (allow-listed)." >&2
+    echo "  • To read a main-repo file: use the Read tool with the absolute path." >&2
     exit 2
 fi
 
