@@ -60,29 +60,29 @@ CATEGORY=""
 INPUT_SUMMARY=""
 
 ERROR_LOWER=$(echo "$ERROR_MSG" | tr '[:upper:]' '[:lower:]')
-if echo "$ERROR_LOWER" | grep -q "file not found\|no such file"; then
+if echo "$ERROR_LOWER" | grep -qE "file not found|no such file"; then
     CATEGORY="file_not_found"
 elif echo "$ERROR_LOWER" | grep -q "permission denied"; then
     CATEGORY="permission_denied"
 elif echo "$ERROR_LOWER" | grep -q "command not found"; then
     CATEGORY="command_not_found"
-elif echo "$ERROR_LOWER" | grep -q "old_string.*not unique\|not found uniquely\|is not unique in the file"; then
+elif echo "$ERROR_LOWER" | grep -qE "old_string.*not unique|not found uniquely|is not unique in the file"; then
     CATEGORY="edit_string_not_unique"
 elif echo "$ERROR_LOWER" | grep -q "not found"; then
     CATEGORY="edit_string_not_found"
-elif echo "$ERROR_LOWER" | grep -q "timed out\|timedout\|deadline exceeded\|timeout exceeded"; then
+elif echo "$ERROR_LOWER" | grep -qE "timed out|timedout|deadline exceeded|timeout exceeded"; then
     CATEGORY="timeout"
-elif echo "$ERROR_LOWER" | grep -q "failed.*passed\|passed.*failed\|pytest\|test session starts"; then
+elif echo "$ERROR_LOWER" | grep -qE "failed.*passed|passed.*failed|pytest|test session starts"; then
     CATEGORY="test_failure"
-elif echo "$ERROR_LOWER" | grep -q "ruff\|mypy\|format-check"; then
+elif echo "$ERROR_LOWER" | grep -qE "ruff|mypy|format-check"; then
     CATEGORY="lint_failure"
 elif echo "$ERROR_LOWER" | grep -q "syntax error"; then
     CATEGORY="syntax_error"
-elif echo "$ERROR_LOWER" | grep -q "lock.*blocked\|blocked.*lock"; then
+elif echo "$ERROR_LOWER" | grep -qE "lock.*blocked|blocked.*lock"; then
     CATEGORY="lock_blocked"
-elif echo "$ERROR_LOWER" | grep -q "validate.*beads\|beads.*valid"; then
+elif echo "$ERROR_LOWER" | grep -qE "validate.*beads|beads.*valid"; then
     CATEGORY="validate_beads_warning"
-elif echo "$ERROR_LOWER" | grep -q "non-zero\|exit code"; then
+elif echo "$ERROR_LOWER" | grep -qE "non-zero|exit code"; then
     CATEGORY="command_exit_nonzero"
 else
     # Generic: tool_name + first 3 words of error

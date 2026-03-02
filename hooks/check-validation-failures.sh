@@ -116,7 +116,7 @@ extract_error_context() {
 
     case "$category" in
         format)
-            context=$(grep -i "would reformat\|reformatted\|format-check" "$logfile" 2>/dev/null | head -30) ;;
+            context=$(grep -iE "would reformat|reformatted|format-check" "$logfile" 2>/dev/null | head -30) ;;
         ruff)
             context=$(grep -E "^[^ ]+:[0-9]+:[0-9]+: [A-Z]+[0-9]+ " "$logfile" 2>/dev/null | head -30) ;;
         mypy)
@@ -129,7 +129,7 @@ extract_error_context() {
                 context=$(tail -30 "$logfile" 2>/dev/null)
             fi ;;
         migrate)
-            context=$(grep -A 5 -i "migration\|alembic\|heads\|multiple head" "$logfile" 2>/dev/null | head -30) ;;
+            context=$(grep -A 5 -iE "migration|alembic|heads|multiple head" "$logfile" 2>/dev/null | head -30) ;;
         ci|ci*)
             context="CI failure detected. Run: gh run list --workflow=CI --limit 3" ;;
         docker)
