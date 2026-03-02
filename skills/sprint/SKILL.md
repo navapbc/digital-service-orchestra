@@ -430,13 +430,7 @@ After all stories have been decomposed, proceed to task classification below wit
 
 ### Classify Tasks
 
-Run the classification script to assign priority classes and sub-agent types:
-
-```bash
-$(git rev-parse --show-toplevel)/scripts/classify-task.sh --from-epic <epic-id>
-```
-
-This outputs JSON with `priority` (1-4), `class`, `subagent` type, `model`, `complexity`, `reason`, and `scores` for each ready task. Use these assignments for batch planning (Phase 3) and sub-agent launch (Phase 5).
+Classification is performed automatically by `sprint-next-batch.sh` in Phase 3. Each `TASK:` line in its output already includes `model`, `subagent`, and `class` fields — no separate classification step is needed here. Proceed directly to building the dependency graph below.
 
 ### Build Dependency Graph
 
