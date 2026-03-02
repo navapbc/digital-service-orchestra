@@ -29,6 +29,7 @@
 # E2E TEST BEHAVIOR:
 #   - In CI environment ($CI=true): Always runs E2E tests
 #   - Locally with --ci flag: Skips E2E if CI is passing for main
+#   - Locally with --ci flag: Skips E2E if CI completed with failure (fix CI first)
 #   - Locally without --ci: E2E tests are not run
 #   - If E2E tests are run and fail, the state file records "e2e_failed=true"
 #     so that push-blocking hooks can prevent pushing broken E2E code.
@@ -269,11 +270,18 @@ for arg in "$@"; do
             echo "  --ci     Include CI status check + smart E2E skip"
             echo ""
             echo "E2E tests are skipped locally when --ci is used and CI is passing for main."
+            echo "E2E tests are also skipped when CI completed with failure (fix CI first)."
             echo "In CI environment (\$CI set), E2E tests always run."
             echo ""
             echo "CI wait behavior:"
             echo "  - Pending CI with previous success: assumes still good (no wait)"
-            echo "  - Pending CI with previous failure: waits up to 20 min"
+            echo "  - Pending CI with previous failure + fix commits: polls every 30s,"
+            echo "    up to VALIDATE_TIMEOUT_CI_WAIT seconds (default: 600s / 10 min)"
+            echo "  - Pending CI with previous failure + unrelated commits: FAIL immediately"
+            echo "  - Completed CI with failure: FAIL immediately; E2E skip (fix CI first)"
+            echo ""
+            echo "Environment variables:"
+            echo "  VALIDATE_TIMEOUT_CI_WAIT  Max seconds to wait for CI after fix commits (default: 600)"
             echo ""
             echo "Timeouts (in seconds):"
             echo "  format: $TIMEOUT_FORMAT, ruff: $TIMEOUT_RUFF, mypy: $TIMEOUT_MYPY"
