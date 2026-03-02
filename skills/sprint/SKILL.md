@@ -754,7 +754,10 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this 
 **Snapshot exclusion**: When generating the diff files for review (Steps 0 and 2 of REVIEW-WORKFLOW.md), exclude snapshot baseline files from the diff so reviewers focus on code changes:
 ```bash
 { git diff --staged -- ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html'; git diff -- ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html'; } > "$DIFF_FILE"
-[ -s "$DIFF_FILE" ] || git diff HEAD~1 -- ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' > "$DIFF_FILE"
+# Guard: if diff is empty after exclusion (snapshot-only batch), fall back to full diff
+# so verify-review-diff.sh doesn't reject the empty file. The reviewer ignores binary PNGs.
+[ -s "$DIFF_FILE" ] || { git diff --staged; git diff; } > "$DIFF_FILE"
+[ -s "$DIFF_FILE" ] || git diff HEAD~1 > "$DIFF_FILE"
 git diff HEAD --stat -- ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' > "$STAT_FILE"
 ```
 
