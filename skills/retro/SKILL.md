@@ -41,7 +41,8 @@ Use `--quick` to skip slow checks (dependency freshness, plugin versions) when s
 The script outputs structured sections (`=== SECTION_NAME ===`) covering:
 cleanup, validation, beads health/stats/open/blocked/orphaned, worktree staleness,
 outdated dependencies, session usage, hook error logs, timeout logs, plugin versions,
-test metrics, code metrics, and known issues counts.
+test metrics, code metrics (including TODO-family comment scan), known issues counts,
+and CI shift-left data (recent run outcomes, failure rate, failed job names).
 
 ### Post-Collection Analysis
 
@@ -68,6 +69,18 @@ For the review, additionally check (not covered by the script):
 4. **Naming**: Module (snake_case), class (PascalCase), function (snake_case), constant (UPPER_CASE) consistency.
 5. **Architecture**: Service/model/route separation, circular imports, layering compliance.
 6. **Review defenses**: Count `# REVIEW-DEFENSE:` comments (`grep -rn "REVIEW-DEFENSE:" src/`). Flag any that reference resolved issues, deleted ADRs, or code patterns that have since been refactored. Stale defenses are comment noise.
+7. **TODO-family comment triage**: The `CODE_METRICS` section from `retro-gather.sh` includes per-pattern counts and up to 25 sample matches for: `TODO`, `FIXME`, `HACK`, `XXX`, `NOCOMMIT`, `TEMP`, `KLUDGE`, `WORKAROUND`, `BUG`, `REVISIT`, `DEPRECATED`. For each match, evaluate whether it is: (a) a genuine deferred task → create a P3 beads task during Phase 4; (b) a historical note that is now resolved → candidate for Quick Wins removal; (c) a defense comment that belongs as `# REVIEW-DEFENSE:` → refactor during Phase 4. Do not flag matches where the comment is a legitimate in-progress annotation with a linked issue ID.
+8. **Shift-left CI analysis**: Using the `CI_SHIFT_LEFT` section from `retro-gather.sh`, categorize each failed CI job into one of: `unit`, `lint`, `type-check`, `integration`, `e2e`, `build`, `other`. Then for each failure category, identify the **earliest gate** that could catch it and the **gap** preventing it from being caught there:
+
+   | Failure category | Earliest possible gate | Common gaps |
+   |-----------------|----------------------|-------------|
+   | `lint` / `type-check` | pre-commit hook | hook not installed; mypy/ruff not in pre-commit config |
+   | `unit` | local `make test-unit-only` | missing test for the changed function; assertion not covering the failure path |
+   | `integration` | local `make test-integration` | no unit mock that would have caught the contract mismatch |
+   | `e2e` | local `make test-e2e` or unit mock | no unit/integration coverage for the failing user flow |
+   | `build` | `make format-check` or `poetry lock` pre-push | missing lock-file update gate |
+
+   For each identified gap, produce a finding: `{ "category": "<failure-type>", "gate": "<earliest>", "gap": "<what is missing>", "recommendation": "<specific test or hook to add>" }`. If the CI run history is empty or all runs pass, report "No recent CI failures — shift-left baseline is healthy."
 
 ### Structured Review
 
@@ -103,9 +116,9 @@ Present consolidated findings for user scope confirmation.
 
 Group findings into three priority tiers:
 
-- **Critical (P0-P1)**: Test/CI failures, beads health < 3, blocked issues, circular dependencies
-- **Improvement (P2)**: Outdated deps, code smells, test quality issues, beads health 3-4, stale worktrees
-- **Cleanup (P3-P4)**: KNOWN-ISSUES archival, TODO/FIXME comments, naming issues, doc updates, outdated plugins
+- **Critical (P0-P1)**: Test/CI failures, beads health < 3, blocked issues, circular dependencies; shift-left gaps where a recurring CI failure has no earlier detection gate at all
+- **Improvement (P2)**: Outdated deps, code smells, test quality issues, beads health 3-4, stale worktrees; shift-left gaps where a test exists but doesn't cover the failure path (missing assertion, wrong mock boundary)
+- **Cleanup (P3-P4)**: KNOWN-ISSUES archival, TODO/FIXME/HACK comments (deferred tasks), naming issues, doc updates, outdated plugins; shift-left findings where the gap is a pre-commit hook or lock-file update step
 
 ### User Confirmation
 
