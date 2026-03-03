@@ -3,7 +3,7 @@
 # Shared utility: computes a SHA-256 hash of the current working tree diff.
 #
 # Includes staged changes, unstaged changes, and untracked file contents.
-# Excludes .beads/ files (issue tracker metadata shouldn't affect code hashes).
+# Excludes .beads/ and .tickets/ files (issue tracker metadata shouldn't affect code hashes).
 #
 # Usage:
 #   HASH=$(.claude/hooks/compute-diff-hash.sh)
@@ -24,6 +24,7 @@ cd "$(git rev-parse --show-toplevel)"
 # Pathspec exclusions for non-reviewable files (binary, snapshots, images, docs)
 EXCLUDE_PATHSPECS=(
     ':!.beads/'
+    ':!.tickets/'
     ':!app/tests/e2e/snapshots/'
     ':!app/tests/unit/templates/snapshots/*.html'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
@@ -31,7 +32,7 @@ EXCLUDE_PATHSPECS=(
 )
 
 # Grep pattern to filter untracked non-reviewable files
-NON_REVIEWABLE_PATTERN='^\.beads/|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
+NON_REVIEWABLE_PATTERN='^\.beads/|^\.tickets/|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
 
 {
     git diff HEAD -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true

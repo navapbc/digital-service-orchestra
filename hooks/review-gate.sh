@@ -59,17 +59,17 @@ if [[ "$COMMAND" =~ pre-compact ]] || [[ "$COMMAND" =~ checkpoint ]]; then
     exit 0
 fi
 
-# Exempt: commits that only touch .beads/ files (issue tracker metadata)
+# Exempt: commits that only touch issue tracker metadata (.beads/ or .tickets/)
 STAGED_ALL=$(git diff --cached --name-only 2>/dev/null || true)
-STAGED_NON_BEADS=$(echo "$STAGED_ALL" | grep -v '^\.beads/' || true)
-if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_BEADS" ]]; then
+STAGED_NON_TRACKER=$(echo "$STAGED_ALL" | grep -v '^\.beads/' | grep -v '^\.tickets/' || true)
+if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_TRACKER" ]]; then
     exit 0
 fi
 
 # Exempt: commits that only touch non-reviewable binary/snapshot files
 # Includes: snapshot baselines, visual regression baselines, images, PDFs, DOCX
-# Filters from STAGED_NON_BEADS so exemptions compose (beads + snapshots = exempt)
-STAGED_NON_SNAPSHOTS=$(echo "$STAGED_NON_BEADS" \
+# Filters from STAGED_NON_TRACKER so exemptions compose (tracker + snapshots = exempt)
+STAGED_NON_SNAPSHOTS=$(echo "$STAGED_NON_TRACKER" \
     | grep -v -E '^app/tests/e2e/snapshots/' \
     | grep -v -E '^app/tests/unit/templates/snapshots/.*\.html$' \
     | grep -v -E '\.(png|jpg|jpeg|gif|svg|ico|webp)$' \
