@@ -41,7 +41,7 @@ Before asking any questions, silently scan for context:
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cat "$REPO_ROOT/PRD.md" 2>/dev/null || cat "$REPO_ROOT/docs/PRD.md" 2>/dev/null
 cat "$REPO_ROOT/DESIGN_NOTES.md" 2>/dev/null
-tk ready -T epic
+tk ready  # then filter to epics via: grep -l '^type: epic' .tickets/*.md
 ```
 
 If a PRD or DESIGN_NOTES.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.

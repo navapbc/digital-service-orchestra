@@ -43,7 +43,7 @@ This skill implements a four-phase process to transform epics into implementable
 ### Step 1: Select and Load Epic (/preplanning)
 
 If `<epic-id>` was not provided:
-1. Run `tk ready -T epic` to get all open epics with resolved deps
+1. Run `tk ready` then filter results to epics only (cross-reference with `grep -l '^type: epic' .tickets/*.md`)
 2. If no open epics exist, report and exit
 3. Present epics to the user (if more than 5, show first 5 with option to see more)
 4. Get user selection

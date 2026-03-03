@@ -101,6 +101,13 @@ if not isinstance(scores, dict):
 
 # Require all 5 score dimensions
 required = ['build_lint', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
+
+# Normalize string digits to int so both "4" and 4 are accepted
+for key in scores:
+    val = scores[key]
+    if isinstance(val, str) and val.isdigit():
+        scores[key] = int(val)
+
 for key in required:
     if key not in scores:
         print(f'ERROR: missing score dimension: {key}')
@@ -230,6 +237,13 @@ with open(os.environ['FINDINGS_PATH']) as f:
 
 scores = data.get('scores', {})
 required = ['build_lint', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
+
+# Normalize string digits to int so both "4" and 4 are accepted
+for key in scores:
+    val = scores[key]
+    if isinstance(val, str) and val.isdigit():
+        scores[key] = int(val)
+
 for key in required:
     if key not in scores:
         print(f'ERROR: reviewer missing score dimension: {key}')

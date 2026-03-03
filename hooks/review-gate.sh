@@ -36,8 +36,13 @@ fi
 # Unanchored so "git add && git commit -m ..." is caught.
 COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
 FIRST_LINE=$(echo "$COMMAND" | head -1)
-if ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+commit([[:space:]]|$) ]] && \
-   ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+-[^[:space:]]+.*[[:space:]]commit([[:space:]]|$) ]]; then
+# Strip quoted strings before pattern matching to avoid false positives when
+# "git commit" appears inside a string argument (e.g., tk add-note id "fix git commit bug").
+# This removes single-quoted ('...') and double-quoted ("...") substrings,
+# leaving only the unquoted command tokens for the regex to inspect.
+FIRST_LINE_UNQUOTED=$(echo "$FIRST_LINE" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
+if ! [[ "$FIRST_LINE_UNQUOTED" =~ (^|[[:space:]|&;])git[[:space:]]+commit([[:space:]]|$) ]] && \
+   ! [[ "$FIRST_LINE_UNQUOTED" =~ (^|[[:space:]|&;])git[[:space:]]+-[^[:space:]]+.*[[:space:]]commit([[:space:]]|$) ]]; then
     exit 0
 fi
 
@@ -57,6 +62,19 @@ fi
 # Exempt: pre-compact checkpoint (emergency save)
 if [[ "$COMMAND" =~ pre-compact ]] || [[ "$COMMAND" =~ checkpoint ]]; then
     exit 0
+fi
+
+# If the command contains "git add" before "git commit", execute the add portion
+# now so that git diff --cached reflects what will actually be committed.
+# The hook fires before the command runs, so a combined "git add && git commit"
+# would otherwise show the pre-add staged state and defeat the tracker-only exemption.
+# Running git add here is safe: the commit hasn't happened, and if the gate blocks,
+# the files remain staged but no commit is made.
+if [[ "$FIRST_LINE" =~ git[[:space:]]+add[[:space:]] ]]; then
+    GIT_ADD_CMD=$(echo "$FIRST_LINE" | sed 's/&&[[:space:]]*git[[:space:]].*commit.*//')
+    if [[ -n "$GIT_ADD_CMD" ]]; then
+        eval "$GIT_ADD_CMD" 2>/dev/null || true
+    fi
 fi
 
 # Exempt: commits that only touch issue tracker metadata (.beads/ or .tickets/)
