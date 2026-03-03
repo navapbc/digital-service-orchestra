@@ -102,6 +102,11 @@ Scoring rules (all scores use the 1–5 scale — maximum is 5, not 10):
 - Dimension not relevant -> "N/A"
 - Multiple severities in same dimension -> worst wins
 
+**IMPORTANT — minor-only enforcement**: If ALL findings in a dimension are
+severity=`minor`, that dimension's score MUST be 4 or 5. Score 3 is reserved
+for `important` findings. `write-reviewer-findings.sh` will reject your JSON
+with a validation error if you score a minor-only dimension below 4.
+
 Category mapping (each finding's `category` must be exactly one of these):
 - `build_lint` -- build failures, lint violations, format issues
 - `object_oriented_design` -- classes, encapsulation, SOLID, design patterns

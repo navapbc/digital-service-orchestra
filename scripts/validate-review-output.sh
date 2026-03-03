@@ -8,7 +8,7 @@
 #   validate-review-output.sh --list-callers
 #
 # Prompt IDs and their schema hashes:
-#   code-review-dispatch   3314cd1b5bfce28c   (reviewer-findings.json schema)
+#   code-review-dispatch   6c0b61af0ff149ee   (reviewer-findings.json schema)
 #   review-protocol        3053fa9a43e12b79   (REVIEW-SCHEMA.md base structure)
 #   plan-review            9dba6875b85b7bc3   (structured text verdict format)
 #
@@ -45,7 +45,7 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 
 # --- Prompt-level schema hashes ---
-HASH_CODE_REVIEW_DISPATCH="3314cd1b5bfce28c"
+HASH_CODE_REVIEW_DISPATCH="6c0b61af0ff149ee"
 HASH_REVIEW_PROTOCOL="3053fa9a43e12b79"
 HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
@@ -253,6 +253,26 @@ else:
             score = (scores or {}).get(cat)
             if isinstance(score, (int, float)) and score > 2:
                 errors.append(f"{prefix}: severity='critical' but scores[{cat}]={score} (critical requires score 1-2)")
+
+# Validate score-severity consistency: if all findings in a dimension are
+# severity=minor, that dimension's score must be 4 or 5 (scoring rules state
+# 'Minor only or no findings -> score 4-5'; score 3 is reserved for important).
+if isinstance(findings, list) and isinstance(scores, dict):
+    from collections import defaultdict
+    dim_severities: dict = defaultdict(set)
+    for finding in findings:
+        cat = finding.get("category")
+        sev = finding.get("severity")
+        if cat and sev:
+            dim_severities[cat].add(sev)
+    for dim, sevs in dim_severities.items():
+        score = scores.get(dim)
+        if isinstance(score, (int, float)) and score < 4 and sevs == {"minor"}:
+            errors.append(
+                f"score '{dim}'={score} violates scoring rules: all findings in "
+                f"this dimension are severity='minor', which requires score 4-5 "
+                f"(score 3 is reserved for important findings)"
+            )
 
 # Validate summary
 summary = data.get("summary")
