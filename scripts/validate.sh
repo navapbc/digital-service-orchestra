@@ -128,7 +128,7 @@ cleanup() {
 # Set up trap to clean up on exit
 trap cleanup EXIT
 
-# Create a beads bug automatically when a command times out
+# Create a tk bug automatically when a command times out
 # This ensures timeout issues are tracked and investigated
 # Uses deduplication to avoid creating duplicate issues
 create_timeout_issue() {
@@ -136,35 +136,52 @@ create_timeout_issue() {
     local timeout_secs="$2"
     local context="${3:-Triggered from validate.sh}"
 
-    # Check if bd command is available
-    if ! command -v bd &>/dev/null; then
-        echo "WARNING: bd not available, cannot create timeout issue" >&2
+    local tk_cmd
+    tk_cmd="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tk"
+
+    # Check if tk command is available
+    if [ ! -x "$tk_cmd" ]; then
+        echo "WARNING: tk not available, cannot create timeout issue" >&2
         return 1
     fi
 
-    # Search for existing open issues about this command's timeout
-    # Our timeout issues all start with "Investigate timeout:" so search for that
-    # Then grep for the specific command name
-    local existing
-    existing=$(bd search "Investigate" --status=open --limit=20 --quiet 2>/dev/null | grep -i "timeout.*$cmd_name" | head -1 || true)
+    local tickets_dir
+    tickets_dir="$(git rev-parse --show-toplevel 2>/dev/null)/.tickets"
 
-    if [ -n "$existing" ]; then
-        # Extract issue ID (first word on the line)
-        local issue_id
-        issue_id=$(echo "$existing" | awk '{print $1}')
-        if [ -n "$issue_id" ]; then
-            echo "Existing timeout issue found: $issue_id (adding comment instead of duplicate)"
-            bd comments add "$issue_id" "Timeout occurred again at $(date '+%Y-%m-%d %H:%M:%S') - ${cmd_name} exceeded ${timeout_secs}s" --quiet 2>/dev/null || true
-            return 0
-        fi
+    # Search for existing open issues about this command's timeout by scanning
+    # ticket files for the title pattern. Scope frontmatter parsing to avoid
+    # matching body content that might contain the search string.
+    local existing_id=""
+    if [ -d "$tickets_dir" ]; then
+        while IFS= read -r -d '' ticket_file; do
+            # Check if ticket is open (status in frontmatter)
+            local status
+            status=$(awk '/^---$/{n++; next} n==1 && /^status:/{print; exit}' "$ticket_file" 2>/dev/null)
+            if [[ "$status" != *"open"* ]]; then
+                continue
+            fi
+            # Check if title contains the timeout pattern for this command
+            local title_line
+            title_line=$(grep -m1 "^# Investigate timeout:.*${cmd_name}" "$ticket_file" 2>/dev/null || true)
+            if [ -n "$title_line" ]; then
+                existing_id=$(awk '/^---$/{n++; next} n==1 && /^id:/{sub(/^id: */, ""); print; exit}' "$ticket_file" 2>/dev/null)
+                break
+            fi
+        done < <(find "$tickets_dir" -maxdepth 1 -name "*.md" -print0 2>/dev/null)
+    fi
+
+    if [ -n "$existing_id" ]; then
+        echo "Existing timeout issue found: $existing_id (adding note instead of duplicate)"
+        "$tk_cmd" add-note "$existing_id" "Timeout occurred again at $(date '+%Y-%m-%d %H:%M:%S') - ${cmd_name} exceeded ${timeout_secs}s" 2>/dev/null || true
+        return 0
     fi
 
     # Build issue title
     local title="Investigate timeout: ${cmd_name} exceeded ${timeout_secs}s"
 
-    # Create the issue (quiet mode to minimize output)
+    # Create the issue
     local issue_id
-    issue_id=$(bd q "$title" -t bug -p 1 2>/dev/null || true)
+    issue_id=$("$tk_cmd" create "$title" -t bug -p 1 2>/dev/null || true)
 
     if [ -n "$issue_id" ]; then
         echo "Created timeout investigation issue: $issue_id"

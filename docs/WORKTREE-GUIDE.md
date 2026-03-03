@@ -8,7 +8,7 @@
 
 ## Overview
 
-Git worktrees allow you to check out multiple branches of the same repository simultaneously, each in its own directory. This project uses `bd worktree` (beads built-in worktree management) which handles both git worktree creation and beads database sharing automatically.
+Git worktrees allow you to check out multiple branches of the same repository simultaneously, each in its own directory. This project uses `git worktree` commands (and the `scripts/worktree-create.sh` helper) to manage parallel development environments.
 
 ### When to Use Worktrees
 
@@ -36,13 +36,13 @@ This creates a timestamped worktree at `../lockpick-worktrees/worktree-YYYYMMDD-
 
 Worktrees are created **outside** the main repo to prevent Claude Code from double-loading CLAUDE.md (it walks parent directories and would load the parent repo's copy too).
 
-### Manual Setup (via `bd worktree create`)
+### Manual Setup (via `git worktree add`)
 
 If you need to manually create a worktree with a specific name:
 
 ```bash
-# From the main repo root — create worktree OUTSIDE the repo
-bd worktree create ../lockpick-worktrees/feature-auth
+# From the main repo root — create worktree OUTSIDE the repo on a new branch
+git worktree add ../lockpick-worktrees/feature-auth -b feature-auth
 
 # Set up the dev environment in the new worktree (REQUIRED: Python 3.13)
 cd ../lockpick-worktrees/feature-auth/app
@@ -56,38 +56,36 @@ cd ..
 claude
 ```
 
-The `bd worktree create` command handles git worktree creation and beads database sharing in one step.
-
 ### Python Version Requirement
 
 **CRITICAL**: This project requires Python 3.13 due to dependency constraints (pydantic-core 2.27.1 max version). The `claude-safe` wrapper automatically configures the correct Python version. For manual worktree setup, you MUST explicitly pin Python 3.13 before running `poetry install`.
 
 ---
 
-## How Beads Redirect Works
+## How Git Worktrees Work
 
-When you run `bd worktree create`, it:
+When you run `git worktree add`, git:
 
-1. Creates a git worktree in the specified directory
-2. Places a `.beads/redirect` file in the new worktree pointing to the main repo's `.beads/` directory
+1. Creates a new working directory in the specified path
+2. Places a `.git` file in the new worktree pointing to the main repo's `.git/` directory
 
 This means:
 
-- **All worktrees share the same beads database** -- no sync needed between worktrees
-- `bd` commands (create issues, close tasks, sync, etc.) work normally from any worktree
-- Changes made to issues in one worktree are immediately visible in all others
-- Only the main repo contains the actual `.beads/` data; worktrees contain a redirect pointer
+- **All worktrees share the same git object store** — commits made in one worktree are immediately visible in all others via `git fetch`/`git log`
+- **Ticket commands (`tk ...`) work normally from any worktree** — `tk` reads from `.tickets/` which is git-tracked and shared
+- **Each worktree has its own branch** — changes staged or committed in one worktree do not affect others
+- Only the main repo contains the actual `.git/` database; worktrees contain a pointer file
 
 ```
 /Users/joeoakhart/lockpick-doc-to-logic/       ← main repo
-  .beads/              <-- actual beads database lives here
-    issues.jsonl
+  .git/              <-- actual git database lives here
+    objects/
+    refs/
     ...
 
 /Users/joeoakhart/lockpick-worktrees/          ← worktree parent (outside repo)
   feature-auth/
-    .beads/
-      redirect         <-- points to ../../lockpick-doc-to-logic/.beads/
+    .git             <-- file (not directory) pointing to main repo's .git/worktrees/feature-auth/
 ```
 
 ---
@@ -97,11 +95,11 @@ This means:
 ### Creating Worktrees
 
 ```bash
-# Basic: creates worktree outside the repo (recommended)
-bd worktree create ../lockpick-worktrees/feature-auth
+# Basic: creates worktree outside the repo on a new branch (recommended)
+git worktree add ../lockpick-worktrees/feature-auth -b feature-auth
 
-# With a specific branch name
-bd worktree create ../lockpick-worktrees/feature-auth --branch auth-redesign
+# With an existing branch
+git worktree add ../lockpick-worktrees/feature-auth feature-auth
 
 # claude-safe does this automatically with timestamped names
 claude-safe
@@ -110,33 +108,38 @@ claude-safe
 ### Listing Worktrees
 
 ```bash
-bd worktree list
+git worktree list
 ```
 
-Shows all worktrees with their name, path, branch, and beads state (redirect/shared/none).
+Shows all worktrees with their path, HEAD commit, and branch.
 
 ### Inspecting the Current Worktree
 
 ```bash
-bd worktree info
-```
+# Show all worktrees (includes path and branch for each)
+git worktree list
 
-Shows details about the worktree you are currently in, including redirect status.
+# Show only the current worktree's path
+git rev-parse --show-toplevel
+```
 
 ### Removing Worktrees
 
 ```bash
-# Safe removal (checks for uncommitted changes and unpushed commits)
-bd worktree remove feature-auth
+# Safe removal (git checks for unmerged work)
+git worktree remove feature-auth
 
 # Force removal (skip safety checks)
-bd worktree remove feature-auth --force
+git worktree remove feature-auth --force
 ```
 
-The safe removal will warn you about:
-- Uncommitted changes
-- Unpushed commits
-- Stashes associated with the worktree
+Before removing, verify there are no uncommitted changes or unpushed commits:
+
+```bash
+cd /path/to/worktree
+git status
+git log @{u}.. --oneline  # commits not pushed to remote
+```
 
 ---
 
@@ -233,7 +236,7 @@ This is rarely needed, as the automatic port assignment prevents conflicts in mo
 
 | Resource | Shared or Isolated | Notes |
 |----------|-------------------|-------|
-| `.beads/` database | Shared (via redirect) | Automatic via `bd worktree create` |
+| `.tickets/` database | Shared (git-tracked) | `tk` commands read from the same `.tickets/` directory in the git object store |
 | `CLAUDE.md`, `.claude/` | Git-tracked | Same content on the same branch |
 | `app/.venv/` | Isolated | Each worktree needs `poetry install --no-root` |
 | Docker full-stack (`docker compose up`) | Isolated | Use different ports per worktree |
@@ -430,11 +433,11 @@ fi
 | `poetry install` fails with "requires Python <3.14" | Same as above: Pin Python 3.13 explicitly before running `poetry install` |
 | Port conflict on Docker startup (full-stack) | **Should not happen** - automatic port assignment prevents this. If it occurs, check that you're running `make test` (not raw `docker compose up`), which ensures ports are set. Manual override: `DB_PORT=<port> APP_PORT=<port> docker compose up` |
 | Port conflict with persistent DB (`make db-start`) | The persistent DB is shared (one instance for all worktrees). If another worktree already started it, just use the existing instance. Or stop it first: `make db-stop` |
-| Beads commands fail in worktree | Run `bd worktree info` to verify redirect is configured |
+| `tk` commands fail in worktree | Verify `.tickets/` is accessible: `ls $(git rev-parse --show-toplevel)/.tickets/` — it should be present as a git-tracked directory |
 | Pre-commit hooks not working | Re-run `.venv/bin/pre-commit install --config ../.pre-commit-config.yaml` from `app/` |
-| Disk space running low | Each worktree with venv takes ~500MB+; remove unused worktrees with `bd worktree remove` |
+| Disk space running low | Each worktree with venv takes ~500MB+; remove unused worktrees with `git worktree remove <name>` |
 | "Not a git repository" error | Ensure you are inside the worktree directory, not a parent |
-| Worktree branch already checked out | Each branch can only be checked out in one worktree at a time; use `--branch` to specify a new branch name |
+| Worktree branch already checked out | Each branch can only be checked out in one worktree at a time; use `-b <new-branch>` to create a new branch: `git worktree add ../lockpick-worktrees/feature-auth -b feature-auth` |
 | `make db-start` fails: container name conflict | The persistent DB uses a fixed container name; only one instance can run. Stop the existing one first with `make db-stop`, or share the existing DB across worktrees |
 | `validate.sh` reports multiple migration heads | Two worktrees created migrations from the same base. Run `make db-migrate-merge-heads` to create a merge migration. See "Database Migration Conflicts" section above |
 
@@ -447,8 +450,8 @@ This shows the full flow from creation to cleanup.
 ### 1. Create the Worktree
 
 ```bash
-# From main repo root — creates worktree outside repo
-bd worktree create ../lockpick-worktrees/feature-auth --branch feature-auth-redesign
+# From main repo root — creates worktree outside repo on a new branch
+git worktree add ../lockpick-worktrees/feature-auth -b feature-auth-redesign
 ```
 
 **Branch naming tip**: Use dash-separated names (e.g., `feature-auth-redesign`) rather than slash-separated names (e.g., `feature/auth-redesign`) to ensure CI triggers on direct pushes. CI patterns like `feature-*` match dashes but not slashes. Slash-separated branches still trigger CI via pull requests to `main`.
@@ -499,8 +502,8 @@ $(git rev-parse --show-toplevel)/scripts/ci-status.sh --wait
 # Switch back to the main repo
 cd /path/to/lockpick-doc-to-logic
 
-# Remove the worktree (safe -- checks for uncommitted work)
-bd worktree remove feature-auth
+# Remove the worktree (git checks for unmerged work)
+git worktree remove feature-auth
 
 # Pull the merged changes
 git pull
