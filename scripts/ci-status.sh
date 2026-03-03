@@ -9,16 +9,13 @@
 #   ./scripts/ci-status.sh --branch main  # Check CI for a specific branch
 #   ./scripts/ci-status.sh --wait --skip-regression-check  # Wait without regression check
 #
-# --wait uses adaptive polling calibrated from ci.yml timeouts:
+# --wait uses SHA-anchored polling at a flat 30s interval:
+#   - Resolves the HEAD SHA of the tracked branch to find the exact CI run
+#   - Waits up to 90s for the run to appear (runner startup delay)
+#   - Skips polling during the 45s dead zone (no CI signal possible yet)
+#   - Polls via `gh run view <id>` — tracks the specific run, not latest-by-branch
+#   - Hard ceiling derived from ci.yml timeout-minutes; exits 1 on timeout
 #
-#   Phase 0 | DEAD ZONE    | 0 – 45s      | skip (runner startup, no signal possible)
-#   Phase 1 | FAST-FAIL    | 45s – 3min   | 30s interval (fast-gate / security-scan)
-#   Phase 2 | TEST WINDOW  | 3min – 15min | 60s interval (unit / integration / mypy)
-#   Phase 3 | E2E WINDOW   | 15min – ceil | 90s interval (E2E / multiworker)
-#   Phase 4 | CEILING      | > ceil       | hard timeout error
-#
-# Polling starts from the run's startedAt, not from script invocation time.
-# This means --wait called mid-run immediately jumps to the correct phase.
 # On any failure, fast-gate status is checked first; if fast-gate failed,
 # the script exits immediately without waiting for downstream job draining.
 
@@ -106,6 +103,30 @@ get_status() {
     gh run list --workflow=CI $GH_BRANCH_FLAG --limit 1 \
         --json databaseId,status,conclusion,name,startedAt,createdAt \
         --jq '.[0]'
+}
+
+# Find CI run for a specific HEAD commit SHA.
+# Fetches the last 5 runs and returns the first one whose headSha matches.
+# Retries for up to 90s to allow for runner startup delay after a push.
+# Prints JSON on success; returns 1 if not found after timeout.
+find_run_for_sha() {
+    local target_sha="$1"
+    local deadline=$(( $(date +%s) + 90 ))
+    while true; do
+        local run_json
+        run_json=$(gh run list --workflow=CI $GH_BRANCH_FLAG --limit 5 \
+            --json databaseId,status,conclusion,name,startedAt,createdAt,headSha \
+            --jq --arg sha "$target_sha" \
+            'map(select(.headSha == $sha)) | .[0] // empty' 2>/dev/null || echo "")
+        if [ -n "$run_json" ]; then
+            echo "$run_json"
+            return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            return 1
+        fi
+        sleep 10
+    done
 }
 
 # Convert ISO-8601 timestamp to epoch seconds (cross-platform: GNU and macOS date).
@@ -229,28 +250,6 @@ parse_phase_ceilings() {
     TEST_CEIL_SEC=$(( ${tc_min:-15} * 60 ))  # fallback 15 min if job not found
 }
 
-# Return the sleep interval (seconds) appropriate for the elapsed time into this run.
-sleep_for_elapsed() {
-    local elapsed=$1
-    if   [ "$elapsed" -lt "$DEAD_ZONE_SEC"  ]; then echo $(( DEAD_ZONE_SEC - elapsed ))
-    elif [ "$elapsed" -lt "$FAST_FAIL_SEC"  ]; then echo 30
-    elif [ "$elapsed" -lt "$TEST_CEIL_SEC"  ]; then echo 60
-    elif [ "$elapsed" -lt "$CEILING_SEC"    ]; then echo 90
-    else echo 0  # past ceiling
-    fi
-}
-
-# Return a short label for the current phase (for phase-transition logging)
-phase_for_elapsed() {
-    local elapsed=$1
-    if   [ "$elapsed" -lt "$DEAD_ZONE_SEC" ]; then echo "dead-zone"
-    elif [ "$elapsed" -lt "$FAST_FAIL_SEC" ]; then echo "fast-fail"
-    elif [ "$elapsed" -lt "$TEST_CEIL_SEC" ]; then echo "test"
-    elif [ "$elapsed" -lt "$CEILING_SEC"   ]; then echo "e2e"
-    else echo "ceiling"
-    fi
-}
-
 # Regression check: compare current CI against session baseline from validate.sh
 # Returns: 0 = ok, 1 = you caused a regression, 2 = pre-existing failure
 check_regression() {
@@ -316,13 +315,34 @@ if [ -n "$BRANCH" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Wait mode: adaptive polling calibrated to the run's own startedAt timestamp
+# Wait mode: SHA-anchored polling at flat 30s intervals
 # ---------------------------------------------------------------------------
 if [ $WAIT_MODE -eq 1 ]; then
     parse_phase_ceilings
 
-    # Fetch initial status (includes startedAt for elapsed calculation)
-    STATUS_JSON=$(get_status)
+    # Resolve the HEAD SHA of the tracked branch for deterministic run discovery.
+    # Prefer the remote branch SHA so we track the exact pushed commit.
+    TARGET_SHA=""
+    if [ -n "$BRANCH" ]; then
+        TARGET_SHA=$(git ls-remote origin "$BRANCH" 2>/dev/null | awk '{print $1}' | head -1 || echo "")
+    fi
+    if [ -z "$TARGET_SHA" ]; then
+        TARGET_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+    fi
+
+    # Find the CI run for this SHA, waiting up to 90s for it to appear.
+    STATUS_JSON=""
+    if [ -n "$TARGET_SHA" ]; then
+        echo "Looking for CI run for commit ${TARGET_SHA:0:8}..."
+        STATUS_JSON=$(find_run_for_sha "$TARGET_SHA" || echo "")
+        if [ -z "$STATUS_JSON" ]; then
+            echo "Warning: no run found for SHA ${TARGET_SHA:0:8} after 90s — falling back to latest run"
+        fi
+    fi
+    if [ -z "$STATUS_JSON" ]; then
+        STATUS_JSON=$(get_status)
+    fi
+
     STATUS=$(echo "$STATUS_JSON" | jq -r '.status')
     CONCLUSION=$(echo "$STATUS_JSON" | jq -r '.conclusion')
     NAME=$(echo "$STATUS_JSON" | jq -r '.name')
@@ -334,26 +354,7 @@ if [ $WAIT_MODE -eq 1 ]; then
         if [ "$CONCLUSION" = "success" ]; then
             exit 0
         elif [ "$CONCLUSION" = "cancelled" ]; then
-            # Cancelled run is not a test failure — look for a subsequent completed run
-            local next_json next_status next_conclusion next_name next_id
-            next_json=$(gh run list --workflow=CI $GH_BRANCH_FLAG --limit 2 \
-                --json databaseId,status,conclusion,name \
-                --jq '.[1] // empty' 2>/dev/null || echo "")
-            if [ -n "$next_json" ]; then
-                next_status=$(echo "$next_json" | jq -r '.status')
-                next_conclusion=$(echo "$next_json" | jq -r '.conclusion')
-                next_name=$(echo "$next_json" | jq -r '.name')
-                next_id=$(echo "$next_json" | jq -r '.databaseId')
-                if [ "$next_status" = "completed" ] && [ "$next_conclusion" = "success" ]; then
-                    echo "  (run $RUN_ID was cancelled; previous run $next_id passed)"
-                    exit 0
-                elif [ "$next_status" = "completed" ] && [ -n "$next_conclusion" ] && [ "$next_conclusion" != "null" ] && [ "$next_conclusion" != "cancelled" ]; then
-                    echo "  (run $RUN_ID was cancelled; previous run $next_id: $next_conclusion)"
-                    check_regression "$next_conclusion" || true
-                    exit 1
-                fi
-            fi
-            echo "  (run $RUN_ID was cancelled — not a test failure; no subsequent completed run found)"
+            echo "  (run $RUN_ID was cancelled — not a test failure)"
             exit 0
         else
             check_fast_gate_failed "$RUN_ID" || true
@@ -364,7 +365,7 @@ if [ $WAIT_MODE -eq 1 ]; then
 
     # Determine how long this run has already been running.
     # If the timestamp is missing or unparseable, treat the run as just started
-    # (conservative: may over-wait in phase 0, never false-timeout).
+    # (conservative: may over-wait in dead zone, never false-timeout).
     STARTED_AT=$(echo "$STATUS_JSON" | jq -r '.startedAt // .createdAt')
     STARTED_EPOCH=""
     if [ -n "$STARTED_AT" ] && [ "$STARTED_AT" != "null" ]; then
@@ -375,9 +376,15 @@ if [ $WAIT_MODE -eq 1 ]; then
     fi
 
     ELAPSED=$(( $(date +%s) - STARTED_EPOCH ))
-    CURRENT_PHASE=$(phase_for_elapsed "$ELAPSED")
 
-    echo "Waiting for CI${BRANCH_LABEL} to complete... [run: $RUN_ID, elapsed: ${ELAPSED}s, phase: $CURRENT_PHASE]"
+    # Wait out the dead zone before first poll (no CI signal possible during runner startup)
+    if [ "$ELAPSED" -lt "$DEAD_ZONE_SEC" ]; then
+        WAIT_SECS=$(( DEAD_ZONE_SEC - ELAPSED ))
+        echo "Waiting for CI${BRANCH_LABEL}... [run: $RUN_ID, dead zone — first poll in ${WAIT_SECS}s]"
+        sleep "$WAIT_SECS"
+    else
+        echo "Waiting for CI${BRANCH_LABEL}... [run: $RUN_ID, elapsed: ${ELAPSED}s]"
+    fi
 
     while true; do
         ELAPSED=$(( $(date +%s) - STARTED_EPOCH ))
@@ -388,21 +395,14 @@ if [ $WAIT_MODE -eq 1 ]; then
             exit 1
         fi
 
-        SLEEP_SEC=$(sleep_for_elapsed "$ELAPSED")
-        NEW_PHASE=$(phase_for_elapsed "$ELAPSED")
-
-        # Log only on phase transitions to suppress noise
-        if [ "$NEW_PHASE" != "$CURRENT_PHASE" ]; then
-            echo "  [$(date +%H:%M:%S)] phase: $NEW_PHASE (next poll in ${SLEEP_SEC}s)"
-            CURRENT_PHASE="$NEW_PHASE"
-        fi
-
-        sleep "$SLEEP_SEC"
-
-        STATUS_JSON=$(get_status)
-        STATUS=$(echo "$STATUS_JSON" | jq -r '.status')
-        CONCLUSION=$(echo "$STATUS_JSON" | jq -r '.conclusion')
-        NAME=$(echo "$STATUS_JSON" | jq -r '.name')
+        # Poll the specific run by ID — avoids returning a different run from the branch
+        RUN_JSON=$(gh run view "$RUN_ID" \
+            --json status,conclusion,name \
+            --jq '{status: .status, conclusion: .conclusion, name: .name}' \
+            2>/dev/null || echo "")
+        STATUS=$(echo "$RUN_JSON" | jq -r '.status // empty')
+        CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion // empty')
+        NAME=$(echo "$RUN_JSON" | jq -r '.name // empty')
 
         if [ "$STATUS" = "completed" ]; then
             ELAPSED=$(( $(date +%s) - STARTED_EPOCH ))
@@ -418,6 +418,8 @@ if [ $WAIT_MODE -eq 1 ]; then
                 exit 1
             fi
         fi
+
+        sleep 30
     done
 fi
 
