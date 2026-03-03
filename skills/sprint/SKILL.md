@@ -130,11 +130,11 @@ Mark each item `in_progress` when starting it and `completed` when done. This li
 
 ### Context Efficiency Rules
 
-**Status checks**: Use `$REPO_ROOT/scripts/bd-summary.sh <id>` or `tk ready` for orchestrator status checks (is it done? what's blocking?). Reserve full `tk show <id>` only when sub-agents need to read their complete task context.
+**Status checks**: Use `$REPO_ROOT/scripts/issue-summary.sh <id>` or `tk ready` for orchestrator status checks (is it done? what's blocking?). Reserve full `tk show <id>` only when sub-agents need to read their complete task context.
 
 **Ticket-as-prompt**: Sub-agents read their own task context via `tk show` instead of receiving it inline. Before dispatch, run the quality gate:
 ```bash
-$REPO_ROOT/scripts/bd-quality-check.sh <id>
+$REPO_ROOT/scripts/issue-quality-check.sh <id>
 ```
 - **Exit 0** (quality pass): Use the ticket-as-prompt template (`task-execution.md`) — sub-agent reads its own context
 - **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `tk show <id>` and includes output in the Task prompt
@@ -143,7 +143,7 @@ $REPO_ROOT/scripts/bd-quality-check.sh <id>
 - Concrete file paths (`src/`, `tests/`)
 - Acceptance criteria with keywords: "must", "should", "Given/When/Then"
 - At least 5 lines of description
-This ensures `bd-quality-check.sh` passes and sub-agents can self-serve their ticket context.
+This ensures `issue-quality-check.sh` passes and sub-agents can self-serve their ticket context.
 
 ### If `--resume` Flag
 
@@ -598,7 +598,7 @@ For each task, launch a Task with the appropriate `subagent_type` (use `general-
 **Quality gate (ticket-as-prompt)**: Before dispatch, run the quality check:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/bd-quality-check.sh <task-id>
+$REPO_ROOT/scripts/issue-quality-check.sh <task-id>
 ```
 
 - **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$REPO_ROOT/.claude/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `tk show`.
