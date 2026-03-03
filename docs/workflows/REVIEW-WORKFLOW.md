@@ -113,17 +113,17 @@ Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts
 - `{diff_stat}`: content of the stat file from Step 0/2
 - `{diff_file_path}`: the `DIFF_FILE` path from Step 0/2
 - `{repo_root}`: `REPO_ROOT` value
-- `{beads_context}`: Beads issue context (see below)
+- `{issue_context}`: Issue context (see below)
 
-**Resolving `{beads_context}`**: If a beads issue ID is known for the current work (e.g., passed from `/sprint`, present in the task prompt, or tracked by the orchestrator), populate this placeholder with:
+**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/sprint`, present in the task prompt, or tracked by the orchestrator), populate this placeholder with:
 
 ```
-=== BEADS ISSUE CONTEXT ===
-This change is for beads issue {issue_id}.
+=== ISSUE CONTEXT ===
+This change is for issue {issue_id}.
 To view full issue details, run: tk show {issue_id}
 ```
 
-If no beads issue is associated with the current work, set `{beads_context}` to an empty string.
+If no issue is associated with the current work, set `{issue_context}` to an empty string.
 
 **If you have already read `code-review-dispatch.md` earlier in this conversation and have not compacted since, use the version in context.**
 
@@ -161,7 +161,7 @@ Task tool:
 The orchestrator's role is reduced to relaying — not translating — the sub-agent's review. Scores come exclusively from the reviewer's temp file (`reviewer-findings.json`), not from the orchestrator's JSON.
 
 - **R1 - No score relay**: Set ALL scores to `"N/A"` in the orchestrator's JSON. `record-review.sh` reads actual scores from the reviewer's temp file. The orchestrator does NOT determine pass/fail.
-- **R2 - No dismissal**: "Pre-existing", "not a runtime bug", "trivial/cosmetic" are not valid grounds for dismissing findings. Create tracking beads issues for pre-existing problems instead.
+- **R2 - No dismissal**: "Pre-existing", "not a runtime bug", "trivial/cosmetic" are not valid grounds for dismissing findings. Create tracking issues for pre-existing problems instead.
 - **R3 - Critical/important resolution**: Any critical or important finding triggers the Autonomous Resolution Loop (see "After Review").
 - **R4 - Verbatim severity**: The summary must reference the reviewer's severity levels exactly as stated. Do not downgrade or rephrase severity.
 - **R5 - Defense mechanism**: To dispute a finding without user involvement, the orchestrator MUST add a **code-visible defense** — an inline comment with the `# REVIEW-DEFENSE:` prefix, a docstring addition, or a type annotation that explains the design rationale to the reviewer. The orchestrator MUST NOT silently dismiss findings, override scores, or add comments that merely suppress warnings without explanation. Defense comments must reference verifiable artifacts (existing code, tests, ADRs, or documented patterns) — not unverifiable claims like "for performance reasons." The defense must be substantive enough that a human reading the code would understand the tradeoff. **Structural findings** (type annotations, test coverage gaps, missing error handling) should prefer Fix over Defend — the reviewer scores these based on code patterns, and a comment is unlikely to change the score.
@@ -232,7 +232,7 @@ Read `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/review-fix-dispatch.md
 - `{diff_file}`: the `DIFF_FILE` path from Step 0/2
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
-- `{beads_issues}`: beads issue IDs associated with the current work (for `tk create` defers), or empty string
+- `{issue_ids}`: issue IDs associated with the current work (for `tk create` defers), or empty string
 - `{cached_model}`: model determined in Step 3 (`opus` or `sonnet`)
 
 ```

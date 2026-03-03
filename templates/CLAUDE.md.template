@@ -33,11 +33,11 @@
 
 1. **Never close tasks before CI passes** — fix if you broke it; create tracking issue if pre-existing.
 2. **Never use `--no-verify`** without human approval.
-3. **Never skip beads validation after creating issues or adding deps** — run `validate-beads.sh --quick --terse`.
+3. **Never skip issue validation after creating issues or adding deps** — run `validate-issues.sh --quick --terse`.
 4. **Never create more than 5 sub-agents at a time** — batch into groups of 5.
 5. **Never launch new sub-agent batch without committing previous batch's results** — #1 cause of lost work.
 6. **Never assume sub-agent success without checking Task tool result**.
-7. **Never leave beads issues `in_progress` without progress notes**.
+7. **Never leave issues `in_progress` without progress notes**.
 8. **Never skip `git push` between sub-agent batches**.
 9. **Never continue fixing after 5 cascading failures** — run `/fix-cascade-recovery`.
 10. **Never add a risky dependency without user approval**.

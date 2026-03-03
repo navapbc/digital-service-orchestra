@@ -8,8 +8,8 @@
 # How it works:
 #   - If not in a worktree, allows everything (exit 0)
 #   - If in a worktree, checks if the Bash command includes a `cd` to the main repo
-#   - Safe patterns (merge-to-main.sh, resolve-conflicts.sh, bd commands): allowed
-#   - Read-only git/bd commands that reference main repo path: allowed
+#   - Safe patterns (merge-to-main.sh, resolve-conflicts.sh): allowed
+#   - Read-only git/tk commands that reference main repo path: allowed
 #   - cd into main repo + write operations: BLOCKED
 #
 # Note: Edit/Write tools are separately guarded by worktree-edit-guard.sh.
@@ -72,13 +72,6 @@ if [[ "$COMMAND" == *"merge-to-main.sh"* ]] || \
     exit 0
 fi
 
-# --- Allow-list: bd (beads) commands are always safe ---
-# bd uses .beads redirect so it doesn't need to write to the main repo directly.
-# Allow `cd MAIN_REPO && bd ...` patterns.
-if echo "$COMMAND" | grep -qE "bd[[:space:]]+(close|create|update|list|show|dep|search|ready|blocked|stats|q)[[:space:]]"; then
-    exit 0
-fi
-
 # --- Allow-list: read-only patterns after cd to main repo ---
 # Commands that cd to the main repo but only read (cat, git log, etc.)
 CMD_AFTER_CD=$(echo "$COMMAND" | sed -n "s|.*cd[[:space:]]*['\"]\\?${MAIN_REPO_ROOT}['\"]\\?[[:space:]]*&&[[:space:]]*||p")
@@ -103,7 +96,7 @@ if echo "$COMMAND" | grep -qE "cd[[:space:]]+(\"$MAIN_REPO_ROOT\"|'$MAIN_REPO_RO
     echo "HOW TO FIX:" >&2
     echo "  • Run the same command from the worktree root (current working directory)." >&2
     echo "  • Use REPO_ROOT=\$(git rev-parse --show-toplevel) instead of a hardcoded path." >&2
-    echo "  • bd commands work from any directory — drop 'cd MAIN_REPO && bd ...' prefix." >&2
+    echo "  • tk commands work from any directory — drop 'cd MAIN_REPO && tk ...' prefix." >&2
     echo "  • To merge worktree changes to main: \$REPO_ROOT/scripts/merge-to-main.sh (allow-listed)." >&2
     echo "  • To read a main-repo file: use the Read tool with the absolute path." >&2
     exit 2

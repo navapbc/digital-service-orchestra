@@ -18,7 +18,7 @@ See CLAUDE.md Never Do These rule 23 and SUB-AGENT-BOUNDARIES.md for the full pr
 - `{diff_file}`: Path to the diff file captured in Step 0 of REVIEW-WORKFLOW.md
 - `{repo_root}`: Repository root path
 - `{worktree}`: Worktree name (basename of repo root)
-- `{beads_issues}`: Beads issue IDs associated with this work (for `tk create` defers), or empty string
+- `{issue_ids}`: Issue IDs associated with this work (for `tk create` defers), or empty string
 - `{cached_model}`: Model from Step 3 of REVIEW-WORKFLOW.md (`opus` or `sonnet`)
 
 ## Prompt Template
@@ -52,7 +52,7 @@ REPO_ROOT: {repo_root}
 WORKTREE: {worktree}
 FINDINGS_FILE: {findings_file}
 DIFF_FILE: {diff_file}
-BEADS_ISSUES: {beads_issues}
+ISSUE_IDS: {issue_ids}
 MODEL: {cached_model}
 
 === PROCEDURE (follow in order) ===

@@ -8,7 +8,7 @@ Template for the `general-purpose` sub-agent launched in REVIEW-WORKFLOW.md Step
 - `{diff_stat}`: Output of `git diff HEAD --stat` (file summary)
 - `{diff_file_path}`: Path to the diff file on disk (hash-stamped)
 - `{repo_root}`: Repository root path
-- `{beads_context}`: (Optional) Beads issue context block, or empty string if no issue is associated
+- `{issue_context}`: (Optional) Issue context block, or empty string if no issue is associated
 
 ## Prompt Template
 
@@ -34,7 +34,7 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
 - Do NOT return your findings as prose or as inline JSON in your reply.
 - Do NOT skip writing reviewer-findings.json.
 
-{beads_context}
+{issue_context}
 
 === PROCEDURE (follow in order) ===
 

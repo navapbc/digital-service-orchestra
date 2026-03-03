@@ -79,7 +79,7 @@ FILES_MODIFIED: path1, path2
 FILES_CREATED: path3 or none
 TESTS: N passed, N failed
 AC_RESULTS: criterion1: pass/fail (if acceptance criteria present)
-TASKS_CREATED: beads-id1, beads-id2 (or "none", or "error: reason")
+TASKS_CREATED: tk-id1, tk-id2 (or "none", or "error: reason")
 ```
 
 ## Recovery
