@@ -22,14 +22,13 @@
 # Exempt Bash commands:
 #   - validate.sh / ci-status.sh / agent-batch-lifecycle.sh
 #   - read-only commands (pwd, ls, cat, head, tail, grep, find, tree, wc, file, stat, which, type)
-#   - git, gh, bd, poetry, make (format|lint|test|db-*), docker, lsof
+#   - git, gh, tk, poetry, make (format|lint|test|db-*), docker, lsof
 #   - Compound commands if they contain validate.sh/ci-status.sh, or if ALL sub-commands are exempt
 #
 # New-work Bash patterns (blocked when state=not_run or failed):
-#   - bd list --type=epic (sprint discovery)
-#   - bd epic (epic management)
-#   - bd ready (without --parent; sprint task discovery)
-#   - bd children <args> (sprint task analysis)
+#   - tk ready (without --parent; sprint task discovery)
+#   - tk children <args> (sprint task analysis)
+#   - sprint-list-epics (sprint epic discovery)
 #   - sprint (sprint invocation, as first token only)
 
 # Log unexpected errors to JSONL and exit cleanly (never surface to user)
@@ -80,10 +79,9 @@ is_new_work_command() {
     local cmd="$1"
     # Trim leading whitespace
     cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    [[ "$cmd" =~ ^bd[[:space:]]+list.*--type[=[:space:]]+epic($|[[:space:]]) ]] && return 0
-    [[ "$cmd" =~ ^bd[[:space:]]+epic($|[[:space:]]) ]] && return 0
-    [[ "$cmd" =~ ^bd[[:space:]]+ready($|[[:space:]]) ]] && ! [[ "$cmd" =~ --parent ]] && return 0
-    [[ "$cmd" =~ ^bd[[:space:]]+children[[:space:]]+ ]] && return 0
+    [[ "$cmd" =~ ^tk[[:space:]]+ready($|[[:space:]]) ]] && ! [[ "$cmd" =~ --parent ]] && return 0
+    [[ "$cmd" =~ ^tk[[:space:]]+children[[:space:]]+ ]] && return 0
+    [[ "$cmd" =~ sprint-list-epics($|[[:space:]]) ]] && return 0
     [[ "$cmd" =~ ^sprint($|[[:space:]]) ]] && return 0
     return 1
 }
@@ -113,7 +111,7 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
         fi
         # Allow compound commands where all executables are read-only/exempt
         # Extract individual commands, strip shell keywords and variable assignments
-        EXEMPT_PATTERN='^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd|lsof|docker|gh|git|bd|echo|printf|test|true|false|make|poetry|record-review\.sh)($|[[:space:]])'
+        EXEMPT_PATTERN='^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd|lsof|docker|gh|git|tk|echo|printf|test|true|false|make|poetry|record-review\.sh)($|[[:space:]])'
         ALL_EXEMPT=true
         HAS_NEW_WORK=false
         while IFS= read -r subcmd; do
@@ -152,7 +150,7 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
             fi
         fi
         # Pipe-only: exempt if the first command is a read-only tool
-        if [[ "$COMMAND" =~ ^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd|lsof|docker|gh|git|bd)($|[[:space:]]) ]]; then
+        if [[ "$COMMAND" =~ ^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd|lsof|docker|gh|git|tk)($|[[:space:]]) ]]; then
             exit 0
         fi
         if [[ "$COMMAND" =~ (^|[[:space:]/])validate\.sh($|[[:space:]]) ]] || [[ "$COMMAND" =~ (^|[[:space:]/])ci-status\.sh($|[[:space:]]) ]] || [[ "$COMMAND" =~ (^|[[:space:]/])agent-batch-lifecycle\.sh($|[[:space:]]) ]]; then
@@ -164,8 +162,8 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
         # Pipe with non-exempt left-hand command — fall through to state check
     else
         # --- New-work guard for simple commands ---
-        # Check BEFORE exemptions so that "bd list --type=epic" is caught
-        # even though "bd" is normally exempt. Blocks in both not_run and failed states.
+        # Check BEFORE exemptions so that "tk ready" is caught
+        # even though "tk" is normally exempt. Blocks in both not_run and failed states.
         if [[ "$VALIDATION_STATUS" != "passed" ]] && is_new_work_command "$COMMAND"; then
             block_new_work
         fi
@@ -188,7 +186,7 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
            [[ "$COMMAND" =~ (^|[[:space:]/])agent-batch-lifecycle\.sh($|[[:space:]]) ]] || \
            [[ "$COMMAND" =~ ^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd)($|[[:space:]]) ]] || \
            [[ "$COMMAND" =~ ^git($|[[:space:]]) ]] || \
-           [[ "$COMMAND" =~ ^bd($|[[:space:]]) ]] || \
+           [[ "$COMMAND" =~ ^tk($|[[:space:]]) ]] || \
            [[ "$COMMAND" =~ ^make[[:space:]]+(format|lint|test|db-) ]] || \
            [[ "$COMMAND" =~ ^poetry($|[[:space:]]) ]] || \
            [[ "$COMMAND" =~ ^docker($|[[:space:]]) ]] || \

@@ -120,7 +120,7 @@ Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts
 ```
 === BEADS ISSUE CONTEXT ===
 This change is for beads issue {issue_id}.
-To view full issue details, run: bd show {issue_id}
+To view full issue details, run: tk show {issue_id}
 ```
 
 If no beads issue is associated with the current work, set `{beads_context}` to an empty string.
@@ -232,7 +232,7 @@ Read `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/review-fix-dispatch.md
 - `{diff_file}`: the `DIFF_FILE` path from Step 0/2
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
-- `{beads_issues}`: beads issue IDs associated with the current work (for `bd create` defers), or empty string
+- `{beads_issues}`: beads issue IDs associated with the current work (for `tk create` defers), or empty string
 - `{cached_model}`: model determined in Step 3 (`opus` or `sonnet`)
 
 ```

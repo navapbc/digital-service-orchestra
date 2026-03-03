@@ -214,7 +214,7 @@ parse_phase_ceilings() {
 
     # Absolute ceiling: max timeout-minutes across all jobs + 2min buffer
     local all_timeouts max_timeout
-    all_timeouts=$(grep 'timeout-minutes:' "$yaml" | awk '{print $2}' | grep -E '^[0-9]+$')
+    all_timeouts=$(grep 'timeout-minutes:' "$yaml" | awk '{print $2}' | grep -E '^[0-9]+$' || true)
     max_timeout=$(echo "$all_timeouts" | sort -rn | head -1)
     CEILING_SEC=$(( max_timeout * 60 + 120 ))
 

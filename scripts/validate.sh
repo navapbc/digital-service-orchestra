@@ -632,7 +632,7 @@ report_check() {
         if [ "$name" = "tests" ] && [ -f "$CHECK_DIR/${name}.log" ]; then
             local summary
             # Match both verbose ("= N failed ... =") and quiet ("N failed, ...") pytest summaries
-            summary=$(grep -E '(^=+ .*(failed|error|passed)|^[0-9]+ (failed|passed))' "$CHECK_DIR/${name}.log" | tail -1)
+            summary=$(grep -E '(^=+ .*(failed|error|passed)|^[0-9]+ (failed|passed))' "$CHECK_DIR/${name}.log" | tail -1 || true)
             if [ -n "$summary" ]; then
                 local n_failed n_errors
                 n_failed=$(echo "$summary" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")

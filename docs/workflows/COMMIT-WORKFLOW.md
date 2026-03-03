@@ -141,7 +141,7 @@ Read the review state file:
 
 ```bash
 REVIEW_STATUS=$(head -n 1 "$REVIEW_STATE" 2>/dev/null || echo "missing")
-RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE" 2>/dev/null | head -1 | cut -d= -f2-)
+RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE" 2>/dev/null | head -1 | cut -d= -f2- || true)
 ```
 
 **If** `REVIEW_STATUS` is `passed` AND `RECORDED_HASH` equals `CURRENT_HASH`:

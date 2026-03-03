@@ -73,7 +73,7 @@ New categories are created by Haiku when existing ones don't fit. Always use sna
 
 ## Bug Creation Threshold
 
-When any category reaches **10** occurrences, a beads bug is automatically created via `bd create`.
+When any category reaches **10** occurrences, a beads bug is automatically created via `tk create`.
 The bug ID is recorded in `bugs_created` to prevent duplicates. Only one bug per category.
 
 ## Manual Operations

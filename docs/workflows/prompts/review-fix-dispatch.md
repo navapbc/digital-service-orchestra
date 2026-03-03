@@ -18,7 +18,7 @@ See CLAUDE.md Never Do These rule 23 and SUB-AGENT-BOUNDARIES.md for the full pr
 - `{diff_file}`: Path to the diff file captured in Step 0 of REVIEW-WORKFLOW.md
 - `{repo_root}`: Repository root path
 - `{worktree}`: Worktree name (basename of repo root)
-- `{beads_issues}`: Beads issue IDs associated with this work (for `bd create` defers), or empty string
+- `{beads_issues}`: Beads issue IDs associated with this work (for `tk create` defers), or empty string
 - `{cached_model}`: Model from Step 3 of REVIEW-WORKFLOW.md (`opus` or `sonnet`)
 
 ## Prompt Template
@@ -79,7 +79,7 @@ For EACH finding, assign ONE action:
 |--------|------|------------|
 | **Fix** | Finding is correct and fixable. Prefer Fix for structural findings (types, tests, error handling). | Fix the code, write/update tests as needed. |
 | **Defend** | Finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). NEVER for minor findings. | Add a `# REVIEW-DEFENSE: <explanation>` comment near the flagged code. Must reference verifiable artifacts (code, tests, ADRs). |
-| **Defer** | Finding is pre-existing, out of scope, or minor severity. | Create a beads issue: `bd create --title="Fix: <finding>" --type=bug --priority=<P>`. Then note it in FINDINGS_ADDRESSED. |
+| **Defer** | Finding is pre-existing, out of scope, or minor severity. | Create a ticket: `tk create "Fix: <finding>" -t bug -p <P>`. Then note it in FINDINGS_ADDRESSED. |
 
 If ALL findings are Deferred, return immediately:
 ```

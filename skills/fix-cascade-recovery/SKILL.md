@@ -97,7 +97,7 @@ Read systematically. Do not skim. Do not jump to the error line.
 4. **Read the interface contracts** — are types correct? Are return values what callers expect?
 5. **Search KNOWN-ISSUES.md** for similar patterns:
    ```bash
-   grep -i "<keyword>" $(git rev-parse --show-toplevel)/.claude/docs/KNOWN-ISSUES.md
+   grep -i "<keyword>" $(git rev-parse --show-toplevel)/.claude/docs/KNOWN-ISSUES.md || true
    ```
 
 ### Step 4: DIAGNOSE — Identify the Root Cause (/fix-cascade-recovery)

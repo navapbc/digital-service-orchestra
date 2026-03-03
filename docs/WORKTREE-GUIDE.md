@@ -470,11 +470,11 @@ cd /Users/joeoakhart/lockpick-worktrees/feature-auth
 claude
 ```
 
-Work normally -- write code, run tests, commit. Beads commands work as usual:
+Work normally -- write code, run tests, commit. Ticket commands work as usual:
 
 ```bash
-bd ready -q --limit 3
-bd update <id> --status=in_progress
+tk ready
+tk status <id> in_progress
 # ... do the work ...
 make lint && make test
 git add <files> && git commit -m "feat: auth redesign"

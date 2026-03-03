@@ -6,7 +6,7 @@ Rules for all sub-agents dispatched by orchestrators (`/sprint`, `/debug-everyth
 
 Sub-agents must NOT:
 - `git commit`, `git push` — orchestrator handles all commits
-- `bd close`, `bd dep`, `bd update --status` — orchestrator manages issue lifecycle
+- `tk close`, `tk dep`, `tk status <id> <status>` — orchestrator manages issue lifecycle
 - Invoke `/commit`, `/review`, or any slash-command — sub-agents are workers, not orchestrators
 - Dispatch nested Task tool calls or code-review sub-agents
 - Modify files outside the scope of their assigned task
@@ -28,7 +28,7 @@ Sub-agents MUST:
 - Run `pwd` first to confirm working directory
 - Write code + tests (TDD: tests before implementation when possible)
 - Run `make format-check && make lint && make test-unit-only` from `app/` as final validation
-- Write checkpoint notes: `bd update {id} --notes="CHECKPOINT N/6: ..."`
+- Write checkpoint notes: `tk add-note {id} "CHECKPOINT N/6: ..."`
 - Use absolute paths for scripts: `$(git rev-parse --show-toplevel)/scripts/`
 - Follow existing code patterns and naming conventions
 - Read code before modifying it
@@ -36,8 +36,8 @@ Sub-agents MUST:
 ## Permitted Actions
 
 Sub-agents MAY:
-- `bd create --parent=<parent-id>` for genuinely out-of-scope discovered work only
-- `bd update <id> --notes="..."` for checkpoint progress notes
+- `tk create "..." --parent <parent-id>` for genuinely out-of-scope discovered work only
+- `tk add-note <id> "..."` for checkpoint progress notes
 - Read any file in the repo to understand context
 
 ## Worktree Sessions
@@ -59,7 +59,7 @@ Escalation on failure: haiku -> sonnet -> opus.
 
 ## Checkpoint Protocol
 
-Sub-agents write progress via `bd update {id} --notes="CHECKPOINT N/6: ..."`:
+Sub-agents write progress via `tk add-note {id} "CHECKPOINT N/6: ..."`:
 
 | Checkpoint | Meaning |
 |-----------|---------|
