@@ -463,8 +463,10 @@ check_ci() {
     prev_id=$(echo "$ci_json" | jq -r '.[1].databaseId // ""' 2>/dev/null)
     prev_sha=$(echo "$ci_json" | jq -r '.[1].headSha // ""' 2>/dev/null)
 
-    # If latest run is completed, report directly
-    if [ "$latest_status" = "completed" ]; then
+    # If latest run is completed, report directly.
+    # A "cancelled" conclusion means the run was manually stopped — not a test failure.
+    # Fall through to the previous run's result to determine the true CI health.
+    if [ "$latest_status" = "completed" ] && [ "$latest_conclusion" != "cancelled" ]; then
         echo "completed:$latest_conclusion" > "$CHECK_DIR/ci.result"
         if [ "$latest_conclusion" = "success" ]; then
             echo "0" > "$CHECK_DIR/ci.rc"
@@ -474,6 +476,29 @@ check_ci() {
             [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL ($latest_conclusion)"
         fi
         return
+    fi
+
+    # Latest run was cancelled — treat it like a pending run and check the previous result
+    if [ "$latest_status" = "completed" ] && [ "$latest_conclusion" = "cancelled" ]; then
+        if [ "$prev_conclusion" = "success" ]; then
+            echo "completed:success" > "$CHECK_DIR/ci.result"
+            echo "0" > "$CHECK_DIR/ci.rc"
+            echo "true" > "$CHECK_DIR/ci.skipped_wait"
+            echo "true" > "$CHECK_DIR/ci.was_cancelled"
+            [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (latest run cancelled; previous run passed)"
+            return
+        elif [ -n "$prev_conclusion" ] && [ "$prev_conclusion" != "null" ] && [ "$prev_conclusion" != "cancelled" ]; then
+            # Previous run failed — treat as if CI is pending with a previous failure
+            # (fall through to the pending+failure path below)
+            latest_status="in_progress"
+        else
+            # No usable previous run — report cancelled as non-failure
+            echo "completed:cancelled" > "$CHECK_DIR/ci.result"
+            echo "0" > "$CHECK_DIR/ci.rc"
+            echo "true" > "$CHECK_DIR/ci.was_cancelled"
+            [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (run was cancelled, no prior run to compare)"
+            return
+        fi
     fi
 
     # Latest is pending/in_progress — check previous completed run
@@ -730,13 +755,18 @@ if [ $CHECK_CI -eq 1 ]; then
         else
             ci_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "unknown")
             skipped_wait=$(cat "$CHECK_DIR/ci.skipped_wait" 2>/dev/null || echo "")
+            was_cancelled=$(cat "$CHECK_DIR/ci.was_cancelled" 2>/dev/null || echo "")
             pending_with_failure=$(cat "$CHECK_DIR/ci.pending_with_failure" 2>/dev/null || echo "")
             waited_for_fix=$(cat "$CHECK_DIR/ci.waited_for_fix" 2>/dev/null || echo "")
             failed_jobs=$(cat "$CHECK_DIR/ci.failed_jobs" 2>/dev/null || echo "")
 
             if [ "$ci_rc" = "0" ]; then
                 if [ "$VERBOSE" = "0" ]; then
-                    if [ "$skipped_wait" = "true" ]; then
+                    if [ "$was_cancelled" = "true" ] && [ "$skipped_wait" = "true" ]; then
+                        echo "  ${CI_LABEL}:     PASS (run cancelled; previous run passed)"
+                    elif [ "$was_cancelled" = "true" ]; then
+                        echo "  ${CI_LABEL}:     PASS (run cancelled — not a test failure)"
+                    elif [ "$skipped_wait" = "true" ]; then
                         echo "  ${CI_LABEL}:     PASS (pending, previous run passed)"
                     elif [ "$waited_for_fix" = "true" ]; then
                         echo "  ${CI_LABEL}:     PASS (fix commits verified — CI passed)"

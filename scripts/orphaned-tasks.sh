@@ -63,7 +63,10 @@ for fname in sorted(os.listdir(tickets_dir)):
             # Append raw text for later parsing
             list_items.append(line.strip())
             continue
-        # End of list when we hit a new top-level key or blank line
+        # Blank lines within a block list are valid YAML — skip them
+        if in_list and line.strip() == "":
+            continue
+        # End of list when we hit a new top-level key
         if in_list:
             fields[current_key] = list_items
             in_list = False

@@ -271,6 +271,11 @@ check_regression() {
     local baseline
     baseline=$(cat "$baseline_file")
 
+    # A cancelled run is not a test failure — skip regression analysis for it
+    if [ "$current_conclusion" = "cancelled" ]; then
+        return 0
+    fi
+
     if [ "$current_conclusion" != "success" ]; then
         if [ "$baseline" = "success" ]; then
             echo "REGRESSION: CI was green at session start and is now failing — you caused this."
@@ -328,6 +333,28 @@ if [ $WAIT_MODE -eq 1 ]; then
         echo "CI${BRANCH_LABEL}: $CONCLUSION ($NAME) [run: $RUN_ID]"
         if [ "$CONCLUSION" = "success" ]; then
             exit 0
+        elif [ "$CONCLUSION" = "cancelled" ]; then
+            # Cancelled run is not a test failure — look for a subsequent completed run
+            local next_json next_status next_conclusion next_name next_id
+            next_json=$(gh run list --workflow=CI $GH_BRANCH_FLAG --limit 2 \
+                --json databaseId,status,conclusion,name \
+                --jq '.[1] // empty' 2>/dev/null || echo "")
+            if [ -n "$next_json" ]; then
+                next_status=$(echo "$next_json" | jq -r '.status')
+                next_conclusion=$(echo "$next_json" | jq -r '.conclusion')
+                next_name=$(echo "$next_json" | jq -r '.name')
+                next_id=$(echo "$next_json" | jq -r '.databaseId')
+                if [ "$next_status" = "completed" ] && [ "$next_conclusion" = "success" ]; then
+                    echo "  (run $RUN_ID was cancelled; previous run $next_id passed)"
+                    exit 0
+                elif [ "$next_status" = "completed" ] && [ -n "$next_conclusion" ] && [ "$next_conclusion" != "null" ] && [ "$next_conclusion" != "cancelled" ]; then
+                    echo "  (run $RUN_ID was cancelled; previous run $next_id: $next_conclusion)"
+                    check_regression "$next_conclusion" || true
+                    exit 1
+                fi
+            fi
+            echo "  (run $RUN_ID was cancelled — not a test failure; no subsequent completed run found)"
+            exit 0
         else
             check_fast_gate_failed "$RUN_ID" || true
             check_regression "$CONCLUSION" || true
@@ -382,6 +409,9 @@ if [ $WAIT_MODE -eq 1 ]; then
             echo "CI${BRANCH_LABEL}: $CONCLUSION ($NAME) [run: $RUN_ID, elapsed: ${ELAPSED}s]"
             if [ "$CONCLUSION" = "success" ]; then
                 exit 0
+            elif [ "$CONCLUSION" = "cancelled" ]; then
+                echo "  (run $RUN_ID was cancelled — not a test failure)"
+                exit 0
             else
                 check_fast_gate_failed "$RUN_ID" || true
                 check_regression "$CONCLUSION" || true
@@ -403,6 +433,9 @@ RUN_ID=$(echo "$STATUS_JSON" | jq -r '.databaseId')
 if [ "$STATUS" = "completed" ]; then
     echo "CI${BRANCH_LABEL}: $CONCLUSION ($NAME) [run: $RUN_ID]"
     if [ "$CONCLUSION" = "success" ]; then
+        exit 0
+    elif [ "$CONCLUSION" = "cancelled" ]; then
+        echo "  (run $RUN_ID was cancelled — not a test failure)"
         exit 0
     else
         check_regression "$CONCLUSION" || true
