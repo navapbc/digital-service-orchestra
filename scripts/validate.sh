@@ -579,14 +579,15 @@ check_ci() {
         local now_epoch
         now_epoch=$(date +%s)
 
-        # Poll CI status
+        # Poll CI status via run ID (anchored to the specific run we identified above,
+        # not the latest run — prevents tracking a different run that starts mid-wait)
         local ci_result
         ci_result=$(
             (
                 run_with_timeout "$TIMEOUT_CI" "ci-status" \
-                    gh run list --workflow=CI $gh_branch_flag --limit 1 \
+                    gh run view "$latest_id" \
                     --json status,conclusion \
-                    --jq '.[0] | "\(.status):\(.conclusion)"' 2>/dev/null
+                    --jq '"\(.status):\(.conclusion)"' 2>/dev/null
             ) || echo "TIMEOUT_OR_ERROR"
         )
 
