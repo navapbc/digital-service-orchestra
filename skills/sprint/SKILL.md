@@ -123,38 +123,38 @@ Mark each item `in_progress` when starting it and `completed` when done. This li
 
 ### Validate Epic
 
-1. Run `bd show <epic-id>` — confirm it is type `epic` and status is `open` or `in_progress`
-2. Run `bd epic status <epic-id>` — if 100% complete, skip to Phase 7 (validation)
-3. Mark epic in-progress: `bd update <epic-id> --status=in_progress`
+1. Run `tk show <epic-id>` — confirm it is type `epic` and status is `open` or `in_progress`
+2. Run `tk dep tree <epic-id>` — if 100% complete, skip to Phase 7 (validation)
+3. Mark epic in-progress: `tk status <epic-id> in_progress`
 4. Mark the **Select and validate epic** todo item `completed`.
 
 ### Context Efficiency Rules
 
-**Status checks**: Use `$REPO_ROOT/scripts/bd-summary.sh <id>` or `bd list --status=open --parent=<epic-id>` for orchestrator status checks (is it done? what's blocking?). Reserve full `bd show <id>` only when sub-agents need to read their complete task context.
+**Status checks**: Use `$REPO_ROOT/scripts/bd-summary.sh <id>` or `tk ready` for orchestrator status checks (is it done? what's blocking?). Reserve full `tk show <id>` only when sub-agents need to read their complete task context.
 
-**Bead-as-prompt**: Sub-agents read their own task context via `bd show` instead of receiving it inline. Before dispatch, run the quality gate:
+**Ticket-as-prompt**: Sub-agents read their own task context via `tk show` instead of receiving it inline. Before dispatch, run the quality gate:
 ```bash
 $REPO_ROOT/scripts/bd-quality-check.sh <id>
 ```
-- **Exit 0** (quality pass): Use the bead-as-prompt template (`task-execution.md`) — sub-agent reads its own context
-- **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `bd show <id>` and includes output in the Task prompt
+- **Exit 0** (quality pass): Use the ticket-as-prompt template (`task-execution.md`) — sub-agent reads its own context
+- **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `tk show <id>` and includes output in the Task prompt
 
 **Writing quality beads**: When creating tasks for sub-agent execution, include:
 - Concrete file paths (`src/`, `tests/`)
 - Acceptance criteria with keywords: "must", "should", "Given/When/Then"
 - At least 5 lines of description
-This ensures `bd-quality-check.sh` passes and sub-agents can self-serve their context.
+This ensures `bd-quality-check.sh` passes and sub-agents can self-serve their ticket context.
 
 ### If `--resume` Flag
 
-1. Run `bd list --status=in_progress --parent=<epic-id>` for interrupted tasks
-2. For each in-progress task, run `bd show <id>` and parse its notes for CHECKPOINT lines
+1. Run `tk ready` and filter for in-progress tasks under `<epic-id>` for interrupted tasks
+2. For each in-progress task, run `tk show <id>` and parse its notes for CHECKPOINT lines
 3. Apply checkpoint resume rules:
-   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `bd close <id>`
+   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `tk close <id>`
    - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
    - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
-   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `bd update <id> --status=open` for full re-execution
-   - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `bd update <id> --status=open`
+   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `tk status <id> open` for full re-execution
+   - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `tk status <id> open`
 4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
 5. Proceed to Phase 3
 
@@ -178,7 +178,7 @@ After the epic is validated and counters are initialized, check whether the epic
 #### Step 1: Check for Existing Children (/sprint)
 
 ```bash
-bd children <epic-id>
+tk dep tree <epic-id>
 ```
 
 Count the number of child tasks returned.
@@ -281,9 +281,9 @@ The epic needs structural decomposition into stories. This is the current behavi
 
 ### Gather Tasks
 
-1. `bd children <epic-id>` — get all child tasks
-2. `bd ready --parent=<epic-id>` — get unblocked tasks ready to work
-3. `bd show <id>` for each ready task to read full descriptions
+1. `tk dep tree <epic-id>` — get all child tasks
+2. `tk ready` (filtered by parent) — get unblocked tasks ready to work
+3. `tk show <id>` for each ready task to read full descriptions
 
 ### Implementation Planning Gate
 
@@ -297,8 +297,8 @@ Log: `"Skipping Implementation Planning Gate — epic was routed as <epic_routin
 
 #### Step 1: Identify Stories Needing Implementation Planning (/sprint)
 
-For each ready task from `bd ready --parent=<epic-id>`:
-1. Run `bd children <task-id>` to check if the story already has child implementation tasks
+For each ready task from `tk ready` (filtered by parent):
+1. Run `tk dep tree <task-id>` to check if the story already has child implementation tasks
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
 
@@ -321,7 +321,7 @@ Before dispatching any `/implementation-plan` sub-agents, group the stories that
 **Step A: Collect intra-sprint dependency edges**
 
 For each story in the needs-planning list:
-1. Run `bd show <story-id>` and read the `DEPENDS ON` field
+1. Run `tk show <story-id>` and read the `DEPENDS ON` field
 2. For each dependency listed, check whether it is also in the needs-planning list
 3. Record the edge only if both the story and its blocker are in the needs-planning list (ignore cross-sprint or already-completed dependencies)
 
@@ -365,13 +365,13 @@ d. For each sub-agent result, **parse STATUS:**
    - On `STATUS:blocked QUESTIONS:<json-array>`:
      - **Add to blocked-stories list** — do not ask the user inline; collect all `STATUS:blocked` results from this layer batch and present them together after the full layer batch completes (see step d-collect below)
    - **Fallback — if no STATUS line in sub-agent output:**
-     - Run `bd children <story-id>` to check whether tasks were created
-     - If children exist → treat as success; log a warning: `"WARNING: sub-agent returned no STATUS line for story <id>, but bd children shows tasks — continuing"`; proceed to post-dispatch validation
+     - Run `tk dep tree <story-id>` to check whether tasks were created
+     - If children exist → treat as success; log a warning: `"WARNING: sub-agent returned no STATUS line for story <id>, but tk dep tree shows tasks — continuing"`; proceed to post-dispatch validation
      - If no children → retry the sub-agent dispatch once (same prompt, same parameters)
-     - If retry also produces no children → revert story to open (`bd update <story-id> --status=open`); log: `"ERROR: /implementation-plan sub-agent failed for story <id> after retry — story reverted to open"`; skip to next story
+     - If retry also produces no children → revert story to open (`tk status <story-id> open`); log: `"ERROR: /implementation-plan sub-agent failed for story <id> after retry — story reverted to open"`; skip to next story
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
    - **Parse the QUESTIONS field**: Extract the JSON array from the `STATUS:blocked` line. If parsing fails (malformed JSON) or the array is empty (`[]`), treat as a sub-agent failure:
-     - Revert the story to open: `bd update <story-id> --status=open`
+     - Revert the story to open: `tk status <story-id> open`
      - Log: `"ERROR: /implementation-plan returned STATUS:blocked with no parseable questions for story <story-id> — story reverted to open"`
      - Remove story from blocked-stories list
    - **Present all remaining blocked stories' questions to the user at once** — separate by `kind` field:
@@ -390,10 +390,11 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
      ```
      If all questions are one kind, omit the empty section header.
    - **Collect user responses**: Wait for the user to reply. Accept free-text response.
-   - **Persist answers to story description**: Append a `## Clarifications` section to the story description in beads so the answers survive compaction:
+   - **Persist answers to story description**: Append a `## Clarifications` section to the story description in the tickets system so the answers survive compaction:
      ```bash
-     EXISTING=$(bd show <story-id> | awk '/^DESCRIPTION/{flag=1;next}/^[A-Z]/{flag=0}flag')
-     bd update <story-id> -d "${EXISTING}
+     # Append clarifications to the ticket file directly
+     TICKET_FILE=$(find .tickets/ -name "*<story-id>*" -print -quit)
+     cat >> "$TICKET_FILE" << 'CLARIFICATIONS'
 
      ---
      ## Clarifications (from sprint orchestrator)
@@ -403,7 +404,8 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
 
      Q2: <question 2 text>
      A2: <user answer 2>
-     ..."
+     ...
+CLARIFICATIONS
      ```
    - **Re-dispatch the sub-agent**: Call the Task tool again with the same `impl-plan-dispatch.md` prompt template, filling:
      - `{story-id}` → same story ID
@@ -416,13 +418,13 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
        Q: <question 2 text>
        A: <user answer 2>
        ```
-   - **If the re-dispatched sub-agent returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`bd update <story-id> --status=open`), log `"ERROR: /implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
+   - **If the re-dispatched sub-agent returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`tk status <story-id> open`), log `"ERROR: /implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
 e. **Post-layer-batch beads validation** — after all stories in the layer are resolved (complete, blocked-and-resolved, or failed), run:
    ```bash
    $(git rev-parse --show-toplevel)/scripts/validate-beads.sh --quick --terse
    ```
    Log any warnings but do not block on non-critical results
-f. Re-run `bd ready --parent=<epic-id>` to pick up newly created implementation tasks before processing the next layer
+f. Re-run `tk ready` (filtered by parent) to pick up newly created implementation tasks before processing the next layer
 
 #### Step 3: Continue to Classification (/sprint)
 
@@ -442,7 +444,7 @@ Output a textual dependency graph showing:
 ### Exit Condition
 
 If no ready tasks exist:
-1. Run `bd blocked --parent=<epic-id>` to identify blocking chain
+1. Run `tk blocked` to identify blocking chain
 2. Report which tasks are blocked and by what
 3. Exit with recommendation
 
@@ -469,7 +471,7 @@ Call `TodoWrite` to replace any existing checklist with the current batch's item
 ```
 [ ] Batch N — Plan (sprint-next-batch.sh)
 [ ] Batch N — Pre-batch checks (session usage, git clean, db status)
-[ ] Batch N — Claim tasks (bd update in_progress)
+[ ] Batch N — Claim tasks (tk status in_progress)
 [ ] Batch N — Launch sub-agents
 [ ] Batch N — Verify sub-agent results + acceptance criteria
 [ ] Batch N — Integrate discovered tasks
@@ -503,7 +505,7 @@ $REPO_ROOT/scripts/sprint-next-batch.sh <epic-id> --limit=<max_agents>
 #### Output format
 
 Each `TASK:` line is tab-separated with all fields the orchestrator needs to launch
-the sub-agent — **no further `bd show` or `classify-task.sh` calls required**:
+the sub-agent — **no further `tk show` or `classify-task.sh` calls required**:
 
 ```
 TASK: <id>  P<beads-priority>  <issue-type>  <model>  <subagent-type>  <class>  <title>  [story:<id>]
@@ -527,7 +529,7 @@ Use `--json` for machine-readable output with full detail including file lists.
 - **Story-level blocking**: Blocked story → all child tasks deferred, regardless of
   their own dependency state (3-tier propagation: epic → story → task).
 - **File overlap**: Higher classify-priority task wins; lower-priority task defers to
-  the next cycle. No `bd dep add` is needed — the task reappears as ready naturally.
+  the next cycle. No `tk dep` is needed — the task reappears as ready naturally.
 - **Classification**: Each TASK line includes `model`, `subagent`, and `class` from
   `classify-task.py` — sorted by classify priority (interface-contract first, then
   fan-out-blocker, then independent, then db-dependent), then beads priority.
@@ -537,7 +539,7 @@ Use `--json` for machine-readable output with full detail including file lists.
 
 #### Exit condition
 
-If `BATCH_SIZE: 0`, run `bd blocked --parent=<epic-id>` to surface the blocking
+If `BATCH_SIZE: 0`, run `tk blocked` to surface the blocking
 chain, report to the user, and exit.
 
 ### Dry-Run Mode
@@ -580,7 +582,7 @@ single-task batch. Log: `"Session usage >90%, limiting to 1 sub-agent."`
 
 For each task in the batch:
 ```bash
-bd update <id> --status=in_progress
+tk status <id> in_progress
 ```
 
 ---
@@ -593,14 +595,14 @@ Launch up to `max_agents` sub-agents (1 or 5, determined in Phase 4) via the Tas
 
 For each task, launch a Task with the appropriate `subagent_type` (use `general-purpose` for most code tasks, or a specialized type if the task clearly matches one).
 
-**Quality gate (bead-as-prompt)**: Before dispatch, run the quality check:
+**Quality gate (ticket-as-prompt)**: Before dispatch, run the quality check:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 $REPO_ROOT/scripts/bd-quality-check.sh <task-id>
 ```
 
-- **Exit 0 (quality pass)**: Use the bead-as-prompt template — read `$REPO_ROOT/.claude/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `bd show`.
-- **Exit 1 (too sparse)**: Fall back — run `bd show <id>`, then include the full description inline in the prompt alongside the template instructions.
+- **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$REPO_ROOT/.claude/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `tk show`.
+- **Exit 1 (too sparse)**: Fall back — run `tk show <id>`, then include the full description inline in the prompt alongside the template instructions.
 
 **Acceptance criteria gate**: After the quality gate, run:
 ```bash
@@ -609,7 +611,7 @@ $REPO_ROOT/scripts/check-acceptance-criteria.sh <task-id>
 
 - **Exit 0**: Proceed with dispatch — task has structured AC block
 - **Exit 1**: Do NOT dispatch. Read `.claude/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`, compose an
-  appropriate acceptance criteria block for the task, and add it via `bd update <id> --acceptance="- [ ] criterion 1\n- [ ] criterion 2"`.
+  appropriate acceptance criteria block for the task, and add it by editing `.tickets/<id>.md` directly to insert an `## ACCEPTANCE CRITERIA` section.
   Re-run the check. If criteria cannot be determined (ambiguous task type), halt and ask the user.
 
 ### Subagent Type and Model Selection
@@ -649,9 +651,9 @@ For each sub-agent, check the Task tool result:
 For each sub-agent result, check the `TASKS_CREATED` line:
 - If `none` → skip
 - If `error: <reason>` → log the error, no action needed
-- If task IDs listed (e.g., `beads-042, beads-043`):
-  1. Run `bd show <id>` for each created task to review title and description
-  2. Wire dependencies via `bd dep add` if the new task blocks or is blocked by existing work
+- If task IDs listed (e.g., `ticket-042, ticket-043`):
+  1. Run `tk show <id>` for each created task to review title and description
+  2. Wire dependencies via `tk dep` if the new task blocks or is blocked by existing work
   3. Log: "Sub-agent for <task-id> discovered N new tasks: <ids>"
 
 After processing all sub-agents in the batch, if any tasks were created:
@@ -670,7 +672,7 @@ Universal criteria (test, lint, format) are already verified by Step 4
 (validate-phase.sh post-batch). Do not re-run per task.
 
 **Per-task structural criteria**:
-For each task in the batch, extract the `ACCEPTANCE CRITERIA` block from `bd show <id>` output
+For each task in the batch, extract the `ACCEPTANCE CRITERIA` block from `tk show <id>` output
 and run each task-specific (non-universal) `Verify:` command:
 
 1. File existence: `test -f {file}` — exit 0 = pass
@@ -778,15 +780,15 @@ For each task in the batch, write checkpoint-format notes for crash recovery:
 
 | Outcome | Command |
 |---------|---------|
-| Success | `bd update <id> --notes="CHECKPOINT 6/6: Done ✓ — Files: <files created/modified>. Tests: pass."` |
-| Failure | `bd update <id> --notes="CHECKPOINT <N>/6: Failed — <error summary>. Files modified: <files>. Resume from: <what remains>."` |
+| Success | `tk add-note <id> "CHECKPOINT 6/6: Done ✓ — Files: <files created/modified>. Tests: pass."` |
+| Failure | `tk add-note <id> "CHECKPOINT <N>/6: Failed — <error summary>. Files modified: <files>. Resume from: <what remains>."` |
 
 The checkpoint number on failure should reflect the last successfully completed substep (e.g., if tests passed but implementation failed, use `CHECKPOINT 4/6`).
 
 ### Step 9: Handle Failures (/sprint)
 
 For tasks that failed:
-- Revert to open: `bd update <id> --status=open`
+- Revert to open: `tk status <id> open`
 - Record the failure reason in notes (already done in Step 8)
 
 ### Step 10: Commit & Push (/sprint)
@@ -867,7 +869,7 @@ Decision: Involuntary compaction detected? → Yes: P9 (Graceful Shutdown)
 **Distinguishing involuntary from voluntary compaction**: After a voluntary compact (Step 7b), the file `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` exists. Delete it and continue to Phase 3. If you see recovery state injected into context but no intent file exists, the compaction was involuntary (Claude Code triggered it automatically while the session was in the middle of work) — go to Phase 9.
 
 - If **involuntary** context compaction has occurred (no intent file) → Phase 9 (graceful shutdown)
-- If more ready tasks exist (`bd ready --parent=<epic-id>`) → return to Phase 3
+- If more ready tasks exist (`tk ready` filtered by parent) → return to Phase 3
 - If no more ready tasks and some tasks are still blocked → report blocking chain, Phase 9
 - If all tasks are closed → Phase 7 (validation)
 
@@ -1124,8 +1126,7 @@ If it returns CLEAR: proceed to create tasks normally.
 For each item in the validation agent's FAIL/REMEDIATION output:
 
 ```bash
-bd q "Fix: {issue description}" -t bug -p 1
-bd update <new-id> --parent=<epic-id>
+tk create "Fix: {issue description}" -t bug -p 1 --parent=<epic-id>
 ```
 
 ### Step 2: Validate Beads Health (/sprint)
@@ -1159,7 +1160,7 @@ Phase 9 delegates all completion and shutdown logic to `/end-session`, which han
 
 1. Close the epic:
    ```bash
-   bd close <epic-id> --reason="All tasks complete, validation score 5/5"
+   tk close <epic-id>
    ```
 2. Set sprint context for `/end-session` report:
    - Epic ID and title
@@ -1177,7 +1178,7 @@ Phase 9 delegates all completion and shutdown logic to `/end-session`, which han
    ```
 4. Update ALL in-progress tasks with checkpoint-format progress notes:
    ```bash
-   bd update <id> --notes="CHECKPOINT <N>/6: SESSION_END — Progress: <summary>. Next: <what remains>."
+   tk add-note <id> "CHECKPOINT <N>/6: SESSION_END — Progress: <summary>. Next: <what remains>."
    ```
    Use the highest checkpoint number actually reached (e.g., `CHECKPOINT 3/6` if tests were written but implementation not started). This enables `/sprint --resume` to recover from the correct substep.
 5. Set sprint context for `/end-session` report:
@@ -1192,10 +1193,10 @@ Phase 9 delegates all completion and shutdown logic to `/end-session`, which han
 
 | Phase | Purpose | Key Commands |
 |-------|---------|-------------|
-| 1 | Select epic | `sprint-list-epics.sh --all`, `bd show`, `bd epic status` |
-| 1b | Preplanning gate | `bd children`, `/preplanning` (if 0 children or ambiguous) |
-| 2 | Analyze tasks | `bd children`, `bd ready`, `bd show` |
-| 2b | Implementation planning gate | `bd children <story>`, `/implementation-plan` (if story has 0 impl tasks) |
+| 1 | Select epic | `sprint-list-epics.sh --all`, `tk show`, `tk dep tree` |
+| 1b | Preplanning gate | `tk dep tree`, `/preplanning` (if 0 children or ambiguous) |
+| 2 | Analyze tasks | `tk dep tree`, `tk ready`, `tk show` |
+| 2b | Implementation planning gate | `tk dep tree <story>`, `/implementation-plan` (if story has 0 impl tasks) |
 | 3 | Plan batches | Priority classification, batch sizing |
 | 4 | Pre-batch checks | Session usage check, counter files, git status, db-status |
 | 5 | Launch agents | Task tool with structured prompts |

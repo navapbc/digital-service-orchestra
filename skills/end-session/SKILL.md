@@ -17,9 +17,9 @@ All steps run from the worktree directory — no `cd` needed.
 Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command is only for ephemeral worktree sessions."
 
 ### 2. Close Completed Issues
-1. Run `bd list --status=in_progress` and `git log main..HEAD --oneline`
+1. Run `tk ready` (lists open/in_progress tasks with resolved deps) and `git log main..HEAD --oneline`
 2. Cross-reference: which issues were completed based on commits?
-3. Ask user which to close. Close confirmed: `bd close <ids> --quiet`
+3. Ask user which to close. Close confirmed: `tk close <id>` for each
 4. **Skip if no in-progress issues** — this is common when called after `/debug-everything` or `/sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
 ### 3. Commit Local Changes
@@ -31,7 +31,7 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 1. `git diff main -- app/tests/e2e/snapshots/ --stat` — if empty, skip this step.
 2. Run `$REPO_ROOT/scripts/verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
-4. **Exit 2** → baseline changes with no design manifests. Debug using `/playwright-debug` (Playwright MCP authorized). If regression confirmed: `bd q "Visual regression: <details>" -t bug -p 1`, run `validate-beads.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/design-wireframe` or create manifest retroactively.
+4. **Exit 2** → baseline changes with no design manifests. Debug using `/playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-beads.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/design-wireframe` or create manifest retroactively.
 
 ### 4. Sync Beads and Merge to Main
 
@@ -51,7 +51,7 @@ git log main..$BRANCH --oneline
 "$REPO_ROOT/scripts/merge-to-main.sh"
 ```
 
-If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.beads/` files): invoke `/resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
+If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
 
 ### 5. Verify Clean Worktree State
 

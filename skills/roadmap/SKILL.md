@@ -59,10 +59,10 @@ $(git rev-parse --show-toplevel)/scripts/check-onboarding.sh --json
 
    If a `PRD.md` exists, open the dialogue with: *"I've read your PRD. Here's what I see as the core vision: [summary]. Let me probe deeper on a few areas..."* Then proceed to the exploratory dialogue with informed follow-ups rather than starting from scratch.
 
-2. **Review Existing State**: Check what's already in Beads to establish current state:
+2. **Review Existing State**: Check what's already in the ticket system to establish current state:
    ```bash
-   bd list --type=epic
-   bd list --status=open
+   tk ready
+   tk blocked
    ```
 
 3. **Exploratory Dialogue**: Initiate a brainstorming session with the user.
@@ -198,14 +198,14 @@ AVOID/LATER (Low Impact, High Effort):
    - Are Success Criteria specific and testable?
    - Are dependencies clearly documented?
 
-2. **Beads Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**.
+2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**.
 
    ```bash
    # Create epic
-   bd epic create "Phase 1: Authentication System" -p 1
+   tk create "Phase 1: Authentication System" -t epic -p 1
 
    # Update epic with full description
-   bd update <epic-id> --notes="
+   tk add-note <epic-id> "
    ## Context
    [Why this matters, user need, business goal]
 
@@ -222,10 +222,10 @@ AVOID/LATER (Low Impact, High Effort):
    "
    ```
 
-3. **Set Dependencies**: Link epics formally within Beads for "Critical Enabler" relationships.
+3. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.
 
    ```bash
-   bd dep add <blocked-epic-id> <blocking-epic-id>
+   tk dep <blocked-epic-id> <blocking-epic-id>
    ```
 
 4. **Constraint**: Do NOT create child tasks. Maintain the high-level strategic structure. Child tasks will be created later during sprint planning.
@@ -297,7 +297,7 @@ Do NOT proceed until user responds.
 | 2 | Milestone Architecture | Draft epics, define success criteria, agent alignment test |
 | 3 | Visual Prioritization | Score value/effort, identify enablers, quadrant matrix |
 | 4 | Lightweight Pre-Mortem | Identify risks for top 3-4 epics, build mitigations |
-| 5 | Execution & Beads Integration | Create epics in Beads, set dependencies, validate health |
+| 5 | Execution & Ticket Integration | Create epics in ticket system, set dependencies, validate health |
 
 ## Example Interaction Flow
 

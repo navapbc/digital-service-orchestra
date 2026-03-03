@@ -25,7 +25,7 @@ Do NOT invoke /sprint, /preplanning, /implementation-plan, or write any code unt
 
 When invoked without an epic ID, open with: *"What feature or capability are you trying to build?"* and proceed to Phase 1.
 
-When invoked with an epic ID, load the epic first (`bd show <epic-id>`), summarize what's already defined, then enter Phase 1 to fill gaps.
+When invoked with an epic ID, load the epic first (`tk show <epic-id>`), summarize what's already defined, then enter Phase 1 to fill gaps.
 
 ---
 
@@ -41,7 +41,7 @@ Before asking any questions, silently scan for context:
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cat "$REPO_ROOT/PRD.md" 2>/dev/null || cat "$REPO_ROOT/docs/PRD.md" 2>/dev/null
 cat "$REPO_ROOT/DESIGN_NOTES.md" 2>/dev/null
-bd list --type=epic --status=open
+tk ready -T epic
 ```
 
 If a PRD or DESIGN_NOTES.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
@@ -197,9 +197,9 @@ Wait for explicit approval. If changes are requested, revise and re-run affected
 ### Step 1: Create the Epic
 
 ```bash
-bd epic create "<title>" -p <priority>
+tk create "<title>" -t epic -p <priority>
 
-bd update <epic-id> --notes="
+tk add-note <epic-id> "
 ## Context
 [context narrative]
 
@@ -225,7 +225,7 @@ bd update <epic-id> --notes="
 If the epic depends on others identified in Phase 1:
 
 ```bash
-bd dep add <this-epic-id> <blocking-epic-id>
+tk dep <this-epic-id> <blocking-epic-id>
 ```
 
 ### Step 3: Validate Beads Health
@@ -281,4 +281,4 @@ Handing off to /preplanning for story decomposition…
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Beads Integration | Create the epic, invoke preplanning | `bd epic create`, set deps, validate health, `/preplanning <epic-id>` |
+| 3: Ticket Integration | Create the epic, invoke preplanning | `tk create -t epic`, set deps, validate health, `/preplanning <epic-id>` |

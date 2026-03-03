@@ -47,10 +47,10 @@ The orchestrator provides:
 
 1. Get closed remediation tasks from the epic:
    ```bash
-   bd children {epic_id} --quiet
+   tk dep tree {epic_id}
    ```
    Filter for tasks with "Fix:" prefix and status=closed.
-2. For each closed remediation task, read its notes (`bd show <id>`) to find
+2. For each closed remediation task, read its notes (`tk show <id>`) to find
    modified files.
 3. Compare `files_targeted` against the closed tasks' modified files.
 4. If overlap exists -> `OSCILLATION` (same files being re-remediated)
@@ -87,6 +87,6 @@ Recommendation: Stop loop. Present both positions to user.
 
 ### Rules
 - Do NOT modify any code files
-- Do NOT `git commit`, `git push`, `bd close`, `bd update`
-- You CAN run `git diff`, `git log`, `bd show`, `bd children`
+- Do NOT `git commit`, `git push`, `tk close`, `tk status`, edit `.tickets/` files
+- You CAN run `git diff`, `git log`, `tk show`, `tk dep tree`
 - This is a read-only analysis -- report findings only

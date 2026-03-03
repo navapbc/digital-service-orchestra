@@ -8,7 +8,7 @@ You are a sub-agent executing `/implementation-plan` for `{story-id}`.
 
 If `{evaluator-context}` is non-empty, it contains complexity-evaluator output (classification, layers_touched, interfaces_affected, files_estimated). Use it to shortcut Step 1's cross-cutting detection: reuse the `layers_touched` and `interfaces_affected` counts directly instead of performing the full grepping analysis. Sanity-check the counts against story context and apply the escalation rule.
 
-**Note:** The `{story-id}` placeholder may contain either a story ID or an epic ID. When it is an epic ID, `/implementation-plan` will detect this from the `type` field in `bd show` output and enter epic-direct mode (creating tasks as direct children of the epic, skipping parent-epic lookup).
+**Note:** The `{story-id}` placeholder may contain either a story ID or an epic ID. When it is an epic ID, `/implementation-plan` will detect this from the `type` field in `tk show` output and enter epic-direct mode (creating tasks as direct children of the epic, skipping parent-epic lookup).
 
 ## Answers to Previous Questions
 
@@ -73,8 +73,8 @@ STATUS:blocked QUESTIONS:[{"text":"What is the expected response format for the 
 - Never include questions clearly answerable from the codebase or parent epic
 
 ### Rules
-- Do NOT: git commit, git push, bd close, bd update --status
-- You MAY use: bd create, bd update (for descriptions/acceptance), bd dep add (required for Step 5 dependency wiring)
+- Do NOT: git commit, git push, tk close, tk status
+- You MAY use: tk create (with --acceptance, -d flags), tk dep (required for Step 5 dependency wiring), direct `.tickets/<id>.md` editing for post-creation updates
 - Do NOT use the Task tool to dispatch nested sub-agents. Skill tool invocations (e.g., /review-protocol) ARE permitted.
 - Do NOT invoke `/commit`, `/review`, or any slash-command other than Skill tool invocations required by the implementation-plan steps
 - Do NOT modify files outside the scope of task creation (no source code changes — this is planning only)

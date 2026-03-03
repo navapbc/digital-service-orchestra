@@ -29,7 +29,7 @@ The orchestrator provides:
 ### Step 1: Extract Target Files (/batch-overlap-check)
 
 For each candidate task ID:
-1. Run `bd show <id>` to read the full description
+1. Run `tk show <id>` to read the full description
 2. Extract target files from the description:
    - **Explicit file paths** (e.g., `src/services/pipeline.py`)
    - **Module paths from error traces** (e.g., `src.models.document` -> `src/models/document.py`)
@@ -47,15 +47,15 @@ Report the mapping for orchestrator visibility.
 For each file that appears in 2+ tasks:
 1. Identify the higher-priority task (from beads priority or batch priority class)
 2. The lower-priority task should depend on the higher-priority one
-3. **Circular dependency guard** before running `bd dep add B A`:
-   a. Run `bd show A` and read its `blockedBy` field
-   b. Walk the chain: for each ID in A's `blockedBy`, run `bd show <id>` and check
+3. **Circular dependency guard** before running `tk dep B A`:
+   a. Run `tk show A` and read its `blockedBy` field
+   b. Walk the chain: for each ID in A's `blockedBy`, run `tk show <id>` and check
       its `blockedBy` field (up to 5 levels deep -- sufficient for practical cases)
    c. If B appears anywhere in the chain -> adding B depends-on A would create a cycle
    d. **On cycle detection**: Do NOT add the dependency. Instead, report to the
       orchestrator: "Tasks A and B overlap on file X but cannot be serialized due to
       existing circular dependency. Recommend: run A in this batch, defer B to next."
-4. If no cycle: run `bd dep add <lower-priority> <higher-priority>`
+4. If no cycle: run `tk dep <lower-priority> <higher-priority>`
 
 ### Step 4: Report (/batch-overlap-check)
 
@@ -85,7 +85,6 @@ READY TASKS (post-serialization):
 
 ### Rules
 - Do NOT modify any code files
-- Do NOT `git commit`, `git push`, `bd close`
-- You CAN run `bd show`, `bd dep add`, `bd ready`
-- Use `--quiet` on bd commands to minimize output
+- Do NOT `git commit`, `git push`, `tk close`
+- You CAN run `tk show`, `tk dep`, `tk ready`
 - Maximum 5 levels deep for cycle detection walk

@@ -43,14 +43,14 @@ This skill implements a four-phase process to transform epics into implementable
 ### Step 1: Select and Load Epic (/preplanning)
 
 If `<epic-id>` was not provided:
-1. Run `bd list --type=epic --status=open` to get all open epics
+1. Run `tk ready -T epic` to get all open epics with resolved deps
 2. If no open epics exist, report and exit
 3. Present epics to the user (if more than 5, show first 5 with option to see more)
 4. Get user selection
 
 Load the epic:
 ```bash
-bd show <epic-id>
+tk show <epic-id>
 ```
 
 ### Lightweight Mode Gate (/preplanning)
@@ -96,10 +96,10 @@ If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
 
 Gather all existing child items:
 ```bash
-bd children <epic-id>
+tk dep tree <epic-id>
 ```
 
-For each child, run `bd show <child-id>` to read full details.
+For each child, run `tk show <child-id>` to read full details.
 
 ### Step 3: Reconcile Existing Work (/preplanning)
 
@@ -253,7 +253,7 @@ For each story flagged as a **split candidate** in Phase 2, evaluate whether spl
 For each split:
 - Create both stories as children of the epic
 - Foundation gets higher priority than Enhancement
-- Add dependency: `bd dep add <enhancement-id> <foundation-id>`
+- Add dependency: `tk dep <enhancement-id> <foundation-id>`
 - Both trace to the same epic criterion
 
 **Note**: `/design-wireframe` has its own Pragmatic Scope Splitter (Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope.
@@ -266,17 +266,20 @@ For each split:
 
 For new stories, use `--parent` at creation time (single command — avoids the child not appearing under the epic if the update step is skipped):
 ```bash
-bd create --title="As a [persona], [goal]" --type=task --priority=<priority> --parent=<epic-id>
+tk create "As a [persona], [goal]" -t task -p <priority> --parent=<epic-id>
 ```
 
 For modified stories:
 ```bash
-bd update <existing-id> --title="<new-title>" --description="<new-description>"
+# Edit the ticket file directly to update title/description
+# Title is the first heading line; description is the DESCRIPTION section
+TICKET_FILE=$(find .tickets/ -name "*<existing-id>*" -print -quit)
+# Edit $TICKET_FILE to update title and description sections
 ```
 
 For stories to delete:
 ```bash
-bd close <id> --reason="Redundant with new story approach"
+tk close <id>
 ```
 
 ### Step 2: Story Structure Requirements (/preplanning)
@@ -346,7 +349,7 @@ Considerations:
 #### Dependencies
 Add blocking relationships:
 ```bash
-bd dep add <story-id> <blocking-story-id>
+tk dep <story-id> <blocking-story-id>
 ```
 
 ### Documentation Update Story
@@ -504,7 +507,7 @@ redundant reads across serial `/design-wireframe` invocations.
 **After each `/design-wireframe` completes**:
 
 1. Read the design manifest path from the story's `design` field:
-   `bd show <story-id> --json`
+   `tk show <story-id>`
 2. Append the story to the session file's `processedStories` array:
    ```json
    {
@@ -521,14 +524,10 @@ redundant reads across serial `/design-wireframe` invocations.
 then stories that depend on them). This ensures base wireframes exist before
 dependent designs reference them.
 
-### Step 7: Sync Beads (/preplanning)
+### Step 7: Sync Tickets (/preplanning)
 
-After wireframe phase completes (or is skipped):
-```bash
-bd sync --from-main
-```
-
-Confirm sync completed successfully.
+After wireframe phase completes (or is skipped), confirm all ticket state is
+up to date and report completion.
 
 ---
 
@@ -558,10 +557,10 @@ Do NOT include: file paths, code snippets, database schemas, API response format
 
 | Phase | Key Actions | Tools |
 |-------|-------------|-------|
-| 1: Reconciliation | Audit children, clarify scope | `bd show`, `bd children` |
+| 1: Reconciliation | Audit children, clarify scope | `tk show`, `tk dep tree` |
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
-| 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `bd dep add` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `bd q`, `bd update`, `bd dep add`, `validate-beads.sh`, `/design-wireframe` |
+| 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `tk dep` |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `tk create`, `tk dep`, `.tickets/<id>.md` editing, `validate-beads.sh`, `/design-wireframe` |
 
 ## Example: Reconciliation + Story Creation
 

@@ -55,7 +55,7 @@ Report your findings exactly as:
 - REMEDIATION: {for each issue, a concrete one-line task description}
 
 ### Rules
-- Do NOT: git commit, git push, bd close, bd update
+- Do NOT: git commit, git push, tk close, tk status, edit .tickets/ files
 - Do NOT modify any code — this is a read-only review
 - Do NOT re-run format, lint, or unit tests (already verified by /validate-work)
 - Be specific: include file paths, test names, exact error messages

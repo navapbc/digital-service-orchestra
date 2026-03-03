@@ -38,10 +38,10 @@ Resolved commands used in this skill:
 
 ### Step 0: Read Checkpoint Context (/fix-cascade-recovery)
 
-If a beads issue ID is available for the task that triggered the cascade, read its checkpoint notes before doing git archaeology:
+If a ticket issue ID is available for the task that triggered the cascade, read its checkpoint notes before doing git archaeology:
 
 ```bash
-bd show <id> 2>/dev/null
+tk show <id> 2>/dev/null
 ```
 
 This is best-effort (non-mandatory). The CHECKPOINT notes reveal which substep the cascade started from and which files were already modified before things went wrong. Use this context to focus Step 1's damage assessment.
@@ -61,7 +61,7 @@ cd $(git rev-parse --show-toplevel)/app && make test 2>&1 | tail -50
 git log --oneline -10
 ```
 
-Write down (in a beads issue note via `bd update <id> --notes="..."`) :
+Write down (in a ticket note via `tk add-note <id> "..."`) :
 - How many files were changed
 - How many distinct errors exist now
 - What the original task/bug was
@@ -102,7 +102,7 @@ Read systematically. Do not skim. Do not jump to the error line.
 
 ### Step 4: DIAGNOSE — Identify the Root Cause (/fix-cascade-recovery)
 
-Before writing a single line of code, answer these questions (write the answers in a beads issue note):
+Before writing a single line of code, answer these questions (write the answers in a ticket note via `tk add-note`):
 
 1. **What is the root cause?** (Not "the test fails" — WHY does it fail?)
 2. **Why did the previous fixes fail?** (What wrong assumption did each one make?)
@@ -124,7 +124,7 @@ Expected test results: [which tests pass/fail]
 Risk assessment: [what else could this affect?]
 ```
 
-Write this plan to the beads issue before proceeding.
+Write this plan to the ticket issue via `tk add-note` before proceeding.
 
 ### Step 6: EXECUTE — Apply the Fix (/fix-cascade-recovery)
 

@@ -80,21 +80,21 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
 ### Select Story
 
 If `<story-id>` was not provided:
-1. Run `bd ready --type=task` to show open, unblocked stories
-2. If none, fall back to `bd list --status=open --type=task`
+1. Run `tk ready` to show open, unblocked stories
+2. If none, fall back to `tk blocked` and `tk closed` to understand state
 3. If no open stories exist, report and exit
 4. Present stories to the user and get selection
 
 Load the story:
 ```bash
-bd show <story-id>
+tk show <story-id>
 ```
 
 If the story is not found, report the error and exit.
 
 ### Epic Type Detection
 
-After loading the item with `bd show`, check the `type` field in the output:
+After loading the item with `tk show`, check the `type` field in the output:
 
 - **If `type` is `epic`**: Enter **epic-direct mode**:
   - The epic's done definitions serve as acceptance criteria source (same role as story done definitions)
@@ -102,19 +102,19 @@ After loading the item with `bd show`, check the `type` field in the output:
   - Tasks will be created as direct children of the epic (not children of a story)
   - Skip the Context File Check below (context files are keyed by parent epic, but there is no parent)
   - Proceed directly to **Architectural Alignment**
-  - In Step 5 (Task Creation), use `--parent=<epic-id>` instead of `--parent=<story-id>`
+  - In Step 5 (Task Creation), use `--parent=<epic-id>` (if supported) instead of `--parent=<story-id>`
 
 - **If `type` is not `epic`** (task, story, etc.): Continue with the existing flow below (Context File Check → Input Analysis → etc.)
 
 ### Context File Check
 
-After loading the story with `bd show <story-id>`, check for a preplanning context file:
+After loading the story with `tk show <story-id>`, check for a preplanning context file:
 
 1. Extract the parent epic ID from the story's `parent` field
 2. Check for `/tmp/preplanning-context-<parent-epic-id>.json`
 3. If found AND `generatedAt` is within the last 24 hours:
-   - Load epic data from the context file (skip `bd show <parent-epic-id>`)
-   - Load sibling stories from the context file (skip `bd children` + per-sibling `bd show`)
+   - Load epic data from the context file (skip `tk show <parent-epic-id>`)
+   - Load sibling stories from the context file (skip `tk dep tree` + per-sibling `tk show`)
    - Carry forward: review findings, walking skeleton flags, classifications, traceability lines, story dashboard
    - Log: `"Context loaded from preplanning — skipping redundant epic/sibling fetch"`
    - **Skip the Input Analysis section below** and proceed directly to Architectural Alignment
@@ -126,11 +126,11 @@ After loading the story with `bd show <story-id>`, check for a preplanning conte
 Load the story and its parent epic for full context:
 
 ```bash
-bd show <story-id>
+tk show <story-id>
 # Extract parent ID from the 'parent' field, then:
-bd show <parent-epic-id>
+tk show <parent-epic-id>
 # Review sibling stories for context:
-bd children <parent-epic-id>
+tk dep tree <parent-epic-id>
 ```
 
 If no parent epic exists, proceed with story context alone but note the limited context.
@@ -323,16 +323,15 @@ For each task in the plan:
 
 ```bash
 # Full creation with description and parent in one command:
-bd create "{task title}" -t task -p {priority} --parent=<story-id> -d "{description with TDD requirement and acceptance criteria}"
+tk create "{task title}" -t task -p {priority} --parent=<story-id> -d "{description with TDD requirement and acceptance criteria}"
 
-# Or quick capture + update for long descriptions:
-TASK_ID=$(bd q "{task title}" -t task -p {priority})
-bd update $TASK_ID --parent=<story-id> -d "{detailed description}"
+# Full creation with parent and description in one command:
+TASK_ID=$(tk create "{task title}" -t task -p {priority} --parent=<story-id> -d "{detailed description}")
 ```
 
-**Prefer `bd create`** for short descriptions. Use `bd q` + `bd update` for multi-line content (pipe via `--body-file -` for stdin).
+**Prefer `tk create`** with all flags in one command. For multi-line descriptions, use heredoc syntax with `-d`.
 
-If `bd create` fails, retry once. If still failing, report the error.
+If `tk create` fails, retry once. If still failing, report the error.
 
 ### Task Content Requirements
 
@@ -345,10 +344,11 @@ Each task must include:
 | **TDD Requirement** | Specific failing test to write first |
 | **Acceptance Criteria** | Set via `--acceptance` flag (see format below) |
 
-**Acceptance criteria format** (set via `bd update <id> --acceptance="..."`):
+**Acceptance criteria format** (set via `tk create --acceptance="..."` at creation time, or edit `.tickets/<id>.md` directly to add/update):
 
 ```bash
-bd update <id> --acceptance="- [ ] \`make test-unit-only\` passes (exit 0)
+# At creation time:
+tk create "{title}" -t task --acceptance="- [ ] \`make test-unit-only\` passes (exit 0)
   Verify: cd \$(git rev-parse --show-toplevel)/app && make test-unit-only
 - [ ] \`make lint\` passes (exit 0)
   Verify: cd \$(git rev-parse --show-toplevel)/app && make lint
@@ -362,12 +362,12 @@ bd update <id> --acceptance="- [ ] \`make test-unit-only\` passes (exit 0)
 
 Universal criteria (test, lint, format) are always the first three lines.
 Task-specific criteria follow, drawn from the template library and customized.
-The `ACCEPTANCE CRITERIA` section appears as a separate section in `bd show` output.
+The `ACCEPTANCE CRITERIA` section appears as a separate section in `tk show` output.
 
 ### Add Dependencies
 
 ```bash
-bd dep add <downstream-task> <upstream-task>
+tk dep <downstream-task> <upstream-task>
 ```
 
 Follow the sequential order from Step 3:
@@ -388,7 +388,7 @@ If validation fails, fix dependency issues before presenting the summary.
 
 ### Present Summary
 
-Run `bd ready --parent=<story-id>` to confirm which tasks are immediately workable.
+Run `tk ready` (filtered by story) to confirm which tasks are immediately workable.
 
 Output a summary table:
 
@@ -411,8 +411,8 @@ Actions: **Create**, **Edit**, or **Remove**. If multiple tasks touch the same f
 Report:
 - Total tasks created
 - File impact summary (above)
-- Dependency graph (`bd children <story-id>`)
-- Ready tasks (`bd ready --parent=<story-id>`)
+- Dependency graph (`tk dep tree <story-id>`)
+- Ready tasks (`tk ready` filtered by story)
 - Whether documentation/E2E tasks were included and why
 
 **Stop and wait for user instructions** — do not begin implementing any tasks.
@@ -423,11 +423,11 @@ Report:
 
 | Step | Purpose | Key Commands |
 |------|---------|--------------|
-| 1 | Contextual Discovery | `bd show`, `bd children`, Glob/Grep, clarify ambiguities, cross-cutting detection |
+| 1 | Contextual Discovery | `tk show`, `tk dep tree`, Glob/Grep, clarify ambiguities, cross-cutting detection |
 | 2 | Architectural Review | `/review-protocol` (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `/review-protocol` (all dims = 5, max 3 iterations) |
-| 5 | Task Creation | `bd create`/`bd q`, `bd dep add`, `validate-beads.sh`, `bd ready` |
+| 5 | Task Creation | `tk create`, `tk dep`, `validate-beads.sh`, `tk ready` |
 
 ## Common Mistakes
 
@@ -438,7 +438,7 @@ Report:
 | Missing backward compatibility | Add migration/bridge step before breaking changes |
 | E2E tests forgotten | Always evaluate; document rationale if skipped |
 | No ADR for new patterns | Step 2 approval = ADR needed. Include doc task. |
-| Implicit dependencies | Make all task ordering explicit via `bd dep add` |
+| Implicit dependencies | Make all task ordering explicit via `tk dep` |
 | Skipping plan review | Always run Step 4 — unreviewed plans miss edge cases |
 | Infinite refinement loops | Max 3 iterations, then escalate to user |
 | Skipping cross-cutting detection | Count layers and interfaces before deciding to skip Step 2 — a "simple" change touching route → service → agent → provider is already cross-cutting |

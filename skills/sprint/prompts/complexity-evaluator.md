@@ -11,13 +11,13 @@ Story ID passed as argument.
 ### 1. Load Context
 
 ```bash
-bd show <story-id>
+tk show <story-id>
 ```
 
 Extract the parent epic ID from the `parent` field. If a parent exists:
 
 ```bash
-bd show <parent-epic-id>
+tk show <parent-epic-id>
 ```
 
 Note any preplanning split-candidate flags or risk register entries from the story/epic descriptions.

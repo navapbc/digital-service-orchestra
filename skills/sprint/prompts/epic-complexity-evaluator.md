@@ -11,7 +11,7 @@ Epic ID passed as argument.
 ### 1. Load Context
 
 ```bash
-bd show <epic-id>
+tk show <epic-id>
 ```
 
 Read the epic title, description, and any existing done definitions or success criteria.
