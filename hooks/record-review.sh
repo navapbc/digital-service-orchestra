@@ -131,8 +131,8 @@ if not isinstance(feedback, dict):
     sys.exit(1)
 
 targeted = feedback.get('files_targeted')
-if not isinstance(targeted, list) or len(targeted) == 0:
-    print('ERROR: feedback.files_targeted must be a non-empty list')
+if not isinstance(targeted, list):
+    print('ERROR: feedback.files_targeted must be a list (may be empty when reviewer finds no issues)')
     sys.exit(1)
 
 # Compute minimum numeric score
@@ -187,7 +187,7 @@ for f in data.get('feedback', {}).get('files_targeted', []):
         done <<< "$CHANGED_FILES"
     done <<< "$TARGETED"
 
-    if [[ -z "$OVERLAP_FOUND" ]]; then
+    if [[ -n "$TARGETED" ]] && [[ -z "$OVERLAP_FOUND" ]]; then
         echo "ERROR: files_targeted does not overlap with any changed files in the diff" >&2
         echo "This suggests the review was not performed against the current changes." >&2
         exit 1
