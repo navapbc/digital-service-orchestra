@@ -64,6 +64,12 @@ if [[ "$COMMAND" =~ pre-compact ]] || [[ "$COMMAND" =~ checkpoint ]]; then
     exit 0
 fi
 
+# Exempt: completing a merge after conflict resolution (MERGE_HEAD exists)
+GIT_DIR_PATH=$(git rev-parse --git-dir 2>/dev/null || echo "")
+if [[ -n "$GIT_DIR_PATH" && -f "$GIT_DIR_PATH/MERGE_HEAD" ]]; then
+    exit 0
+fi
+
 # If the command contains "git add" before "git commit", execute the add portion
 # now so that git diff --cached reflects what will actually be committed.
 # The hook fires before the command runs, so a combined "git add && git commit"
