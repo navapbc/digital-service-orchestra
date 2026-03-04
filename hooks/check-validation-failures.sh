@@ -168,6 +168,14 @@ for category in "${FAILED_CATEGORIES[@]}"; do
         continue
     fi
 
+    # Exact title match: prevents duplicates when search terms miss
+    TITLE_MATCH=$(grep -rlF "# Fix $category failure" "$TICKETS_DIR"/*.md 2>/dev/null | \
+        xargs grep -El 'status: open|status: in_progress' 2>/dev/null | head -1 || echo "")
+    if [[ -n "$TITLE_MATCH" ]]; then
+        ALREADY_TRACKED+=("$category (title match: $(basename "$TITLE_MATCH" .md))")
+        continue
+    fi
+
     # Auto-create tracking issue
     cat > "$DESC_TMPFILE" <<EODESC
 Auto-created by check-validation-failures hook.
