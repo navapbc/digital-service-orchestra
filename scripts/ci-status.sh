@@ -65,7 +65,7 @@ done
 
 # --check-jobs: print one line per job for a given run ID
 if [ -n "$CHECK_JOBS_RUN_ID" ]; then
-    gh run view "$CHECK_JOBS_RUN_ID" --json jobs --jq '.jobs[] | "\(.conclusion) \(.name)"'
+    gh run view "$CHECK_JOBS_RUN_ID" --json jobs | jq -r '.jobs[] | "\(.conclusion) \(.name)"'
     exit 0
 fi
 
@@ -102,7 +102,7 @@ unset -f _cfg; unset _val
 get_status() {
     gh run list --workflow=CI $GH_BRANCH_FLAG --limit 1 \
         --json databaseId,status,conclusion,name,startedAt,createdAt \
-        --jq '.[0]'
+        | jq '.[0]'
 }
 
 # Find CI run for a specific HEAD commit SHA.
@@ -116,8 +116,8 @@ find_run_for_sha() {
         local run_json
         run_json=$(gh run list --workflow=CI $GH_BRANCH_FLAG --limit 5 \
             --json databaseId,status,conclusion,name,startedAt,createdAt,headSha \
-            --jq --arg sha "$target_sha" \
-            'map(select(.headSha == $sha)) | .[0] // empty' 2>/dev/null || echo "")
+            2>/dev/null | jq --arg sha "$target_sha" \
+            'map(select(.headSha == $sha)) | .[0] // empty' || echo "")
         if [ -n "$run_json" ]; then
             echo "$run_json"
             return 0
@@ -294,8 +294,8 @@ check_fast_gate_failed() {
     local run_id="$1"
     local fg_conclusion
     fg_conclusion=$(gh run view "$run_id" --json jobs \
-        --jq --arg name "$FAST_GATE_JOB" \
-        '.jobs[] | select(.name == $name) | .conclusion' 2>/dev/null || echo "")
+        2>/dev/null | jq -r --arg name "$FAST_GATE_JOB" \
+        '.jobs[] | select(.name == $name) | .conclusion' || echo "")
     if [ "$fg_conclusion" = "failure" ]; then
         echo "  $FAST_GATE_JOB failed — downstream jobs were cancelled"
         return 0
@@ -305,7 +305,7 @@ check_fast_gate_failed() {
 
 # Get run ID only
 if [ $ID_ONLY -eq 1 ]; then
-    gh run list --workflow=CI $GH_BRANCH_FLAG --limit 1 --json databaseId --jq '.[0].databaseId'
+    gh run list --workflow=CI $GH_BRANCH_FLAG --limit 1 --json databaseId | jq -r '.[0].databaseId'
     exit 0
 fi
 
@@ -398,8 +398,8 @@ if [ $WAIT_MODE -eq 1 ]; then
         # Poll the specific run by ID — avoids returning a different run from the branch
         RUN_JSON=$(gh run view "$RUN_ID" \
             --json status,conclusion,name \
-            --jq '{status: .status, conclusion: .conclusion, name: .name}' \
-            2>/dev/null || echo "")
+            2>/dev/null | jq '{status: .status, conclusion: .conclusion, name: .name}' \
+            || echo "")
         STATUS=$(echo "$RUN_JSON" | jq -r '.status // empty')
         CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion // empty')
         NAME=$(echo "$RUN_JSON" | jq -r '.name // empty')
