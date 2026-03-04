@@ -266,7 +266,7 @@ For each split:
 
 For new stories, use `--parent` at creation time (single command — avoids the child not appearing under the epic if the update step is skipped):
 ```bash
-tk create "As a [persona], [goal]" -t task -p <priority> --parent=<epic-id>
+tk create "As a [persona], [goal]" -t feature -p <priority> --parent=<epic-id>
 ```
 
 For modified stories:
