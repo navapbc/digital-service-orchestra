@@ -72,12 +72,14 @@ rm -f "$TMPINDEX"
 _cleanup_tmpindex() { rm -f "$TMPINDEX"; }
 trap '_cleanup_tmpindex; if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
 
-# Seed the temporary index from main's .tickets tree (if main exists and has .tickets)
+# Seed the temporary index from main's full tree (if main exists)
 export GIT_INDEX_FILE="$TMPINDEX"
 
 if [[ -n "$MAIN_REF" ]]; then
-    # Read the existing .tickets tree from main into the temp index
-    git read-tree --prefix=.tickets/ "${MAIN_REF}:.tickets" 2>/dev/null || true
+    # Read the FULL tree from main into the temp index — not just .tickets/.
+    # Using only the .tickets/ subtree would create a commit whose tree contains
+    # nothing but .tickets/, effectively deleting all other files from main.
+    git read-tree "$MAIN_REF" 2>/dev/null || true
 fi
 
 # Compute the path of the changed file relative to the repo root
@@ -143,9 +145,32 @@ push_with_retry() {
             return 1
         }
 
-        # Rebase: create a new commit on top of the fetched tip using the same tree
+        # Rebase: rebuild the tree on top of the fetched tip.
+        # We cannot reuse $NEW_TREE because it was built from the old main tip.
+        # Read the full tree from the new tip, overlay our .tickets/ change, then commit.
+        local RETRY_INDEX
+        RETRY_INDEX=$(mktemp)
+        rm -f "$RETRY_INDEX"
+        GIT_INDEX_FILE="$RETRY_INDEX" git read-tree "$NEW_MAIN_TIP" 2>/dev/null || {
+            rm -f "$RETRY_INDEX"
+            printf "ticket-sync-push: read-tree failed during rebase retry\n" >&2
+            return 1
+        }
+        GIT_INDEX_FILE="$RETRY_INDEX" git update-index --add --cacheinfo "100644,${BLOB_HASH},${REL_PATH}" 2>/dev/null || {
+            rm -f "$RETRY_INDEX"
+            printf "ticket-sync-push: update-index failed during rebase retry\n" >&2
+            return 1
+        }
+        local RETRY_TREE
+        RETRY_TREE=$(GIT_INDEX_FILE="$RETRY_INDEX" git write-tree 2>/dev/null) || {
+            rm -f "$RETRY_INDEX"
+            printf "ticket-sync-push: write-tree failed during rebase retry\n" >&2
+            return 1
+        }
+        rm -f "$RETRY_INDEX"
+
         local REBASED_COMMIT
-        REBASED_COMMIT=$(git commit-tree "$NEW_TREE" -p "$NEW_MAIN_TIP" -m "$COMMIT_MSG" 2>/dev/null) || {
+        REBASED_COMMIT=$(git commit-tree "$RETRY_TREE" -p "$NEW_MAIN_TIP" -m "$COMMIT_MSG" 2>/dev/null) || {
             printf "ticket-sync-push: commit-tree failed during rebase retry\n" >&2
             return 1
         }
