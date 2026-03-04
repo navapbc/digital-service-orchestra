@@ -431,9 +431,10 @@ check_migrations() {
 # CI status check (smart wait):
 # - completed:success → PASS immediately
 # - completed:failure → FAIL immediately
+# - cancelled → skip; look at last non-cancelled completed run
 # - pending + previous success → PASS (assume still good)
 # - pending + previous failure → evaluate commits:
-#     - commits appear to fix the failure → wait (poll at 8m, 10m, 15m)
+#     - commits appear to fix the failure → wait (adaptive 30s polling)
 #     - commits unrelated to failure → FAIL immediately
 check_ci() {
     [ "$VERBOSE" = "1" ] && verbose_print "ci" "running"
@@ -450,12 +451,14 @@ check_ci() {
     local gh_branch_flag=""
     [ $WORKTREE_MODE -eq 1 ] && gh_branch_flag="--branch main"
 
-    # Fetch latest 2 CI runs with full metadata for commit analysis
+    # Fetch recent CI runs with full metadata for commit analysis.
+    # We fetch up to 10 so we can skip cancelled runs when looking for the
+    # last meaningful (success/failure) result.
     local ci_json
     ci_json=$(
         (
             run_with_timeout "$TIMEOUT_CI" "ci-status" \
-                gh run list --workflow=CI $gh_branch_flag --limit 2 \
+                gh run list --workflow=CI $gh_branch_flag --limit 10 \
                 --json status,conclusion,databaseId,headSha,createdAt \
                 2>/dev/null
         ) || echo "TIMEOUT_OR_ERROR"
@@ -475,10 +478,12 @@ check_ci() {
     latest_sha=$(echo "$ci_json" | jq -r '.[0].headSha' 2>/dev/null)
     latest_created=$(echo "$ci_json" | jq -r '.[0].createdAt' 2>/dev/null)
 
+    # Find the most recent *non-cancelled* completed run (skipping the latest run itself).
+    # This ensures cancelled runs are never treated as previous failures.
     local prev_conclusion prev_id prev_sha
-    prev_conclusion=$(echo "$ci_json" | jq -r '.[1].conclusion // ""' 2>/dev/null)
-    prev_id=$(echo "$ci_json" | jq -r '.[1].databaseId // ""' 2>/dev/null)
-    prev_sha=$(echo "$ci_json" | jq -r '.[1].headSha // ""' 2>/dev/null)
+    prev_conclusion=$(echo "$ci_json" | jq -r '[.[1:] | .[] | select(.status == "completed" and .conclusion != "cancelled")][0].conclusion // ""' 2>/dev/null)
+    prev_id=$(echo "$ci_json" | jq -r '[.[1:] | .[] | select(.status == "completed" and .conclusion != "cancelled")][0].databaseId // ""' 2>/dev/null)
+    prev_sha=$(echo "$ci_json" | jq -r '[.[1:] | .[] | select(.status == "completed" and .conclusion != "cancelled")][0].headSha // ""' 2>/dev/null)
 
     # If latest run is completed, report directly.
     # A "cancelled" conclusion means the run was manually stopped — not a test failure.
@@ -504,12 +509,12 @@ check_ci() {
             echo "true" > "$CHECK_DIR/ci.was_cancelled"
             [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (latest run cancelled; previous run passed)"
             return
-        elif [ -n "$prev_conclusion" ] && [ "$prev_conclusion" != "null" ] && [ "$prev_conclusion" != "cancelled" ]; then
-            # Previous run failed — treat as if CI is pending with a previous failure
+        elif [ -n "$prev_conclusion" ] && [ "$prev_conclusion" != "null" ]; then
+            # Previous non-cancelled run failed — treat as if CI is pending with a previous failure
             # (fall through to the pending+failure path below)
             latest_status="in_progress"
         else
-            # No usable previous run — report cancelled as non-failure
+            # No usable non-cancelled previous run — report cancelled as non-failure
             echo "completed:cancelled" > "$CHECK_DIR/ci.result"
             echo "0" > "$CHECK_DIR/ci.rc"
             echo "true" > "$CHECK_DIR/ci.was_cancelled"
