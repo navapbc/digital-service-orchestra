@@ -63,8 +63,11 @@ fi
 MAIN_BRANCH="main"
 MAIN_REF=$(git rev-parse "refs/heads/${MAIN_BRANCH}" 2>/dev/null) || MAIN_REF=""
 
-# Create a temporary index file
+# Create a temporary index file path. We use mktemp to get a unique path, then
+# immediately remove the empty file so git can create a fresh binary index.
+# (git read-tree fails with "index file smaller than expected" on a 0-byte file.)
 TMPINDEX=$(mktemp)
+rm -f "$TMPINDEX"
 # Ensure temp file is cleaned up on exit (best-effort; hook exits 0 regardless)
 _cleanup_tmpindex() { rm -f "$TMPINDEX"; }
 trap '_cleanup_tmpindex; if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
