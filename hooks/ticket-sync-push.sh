@@ -117,14 +117,10 @@ push_with_retry() {
     local attempt=0
 
     while true; do
-        # Attempt push
-        if git push origin "refs/heads/${MAIN_BRANCH}:refs/heads/${MAIN_BRANCH}" 2>/dev/null; then
-            return 0
-        fi
-
-        # Push failed — check if it's a non-fast-forward rejection
+        # Attempt push — capture stderr on the first try to avoid a redundant
+        # network call (fixes double-push issue).
         local push_stderr
-        push_stderr=$(git push origin "refs/heads/${MAIN_BRANCH}:refs/heads/${MAIN_BRANCH}" 2>&1 >/dev/null || true)
+        push_stderr=$(git push origin "refs/heads/${MAIN_BRANCH}:refs/heads/${MAIN_BRANCH}" 2>&1) && return 0
 
         if [[ $attempt -ge 1 ]]; then
             # Second failure — log and give up
@@ -163,9 +159,11 @@ push_with_retry() {
 
 # Attempt push and update .last-sync-hash on success
 if push_with_retry 2>/dev/null; then
-    NEW_TIP=$(git rev-parse "refs/heads/${MAIN_BRANCH}" 2>/dev/null) || NEW_TIP=""
-    if [[ -n "$NEW_TIP" ]]; then
-        printf "%s\n" "$NEW_TIP" > "$REPO_ROOT/.last-sync-hash" 2>/dev/null || true
+    # Write the tree hash of main:.tickets (not the commit hash) so that
+    # _sync_from_main() in scripts/tk can compare apples-to-apples.
+    TREE_HASH=$(git rev-parse "refs/heads/${MAIN_BRANCH}:.tickets" 2>/dev/null) || TREE_HASH=""
+    if [[ -n "$TREE_HASH" ]]; then
+        printf "%s\n" "$TREE_HASH" > "$REPO_ROOT/.last-sync-hash" 2>/dev/null || true
     fi
 else
     # Push failed — log warning to stderr and continue (hook exits 0)
