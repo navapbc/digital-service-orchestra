@@ -452,6 +452,14 @@ If no ready tasks exist:
 
 ## Phase 3: Batch Planning (/sprint)
 
+### Pre-Batch Cleanup
+
+Before building the Batch 1 checklist, clear any lingering TaskCreate items from the pre-loop phase:
+
+1. Run `TaskList` to check for pending/in_progress/completed tasks from the pre-loop phase
+2. For each task that is NOT a batch work item: `TaskUpdate(taskId=<id>, status='deleted')`
+3. Then proceed with the batch TodoWrite below
+
 ### Initialize Batch Progress Checklist
 
 > **CHECKLIST RESET**: Always call `TodoWrite` at the start of Phase 3 for EACH new batch
@@ -923,6 +931,21 @@ Check if this epic modified integration-relevant code and verify the External AP
 Before running `/validate-work`, verify CI has passed on the final batch's commit and run the full E2E suite locally.
 
 #### Step 0.5a: Wait for CI Containing the Final Commit
+
+**Docs-only detection (run first)**:
+
+Before checking CI, determine if the epic made code changes:
+
+```bash
+CODE_FILES=$(git diff --name-only main...HEAD | grep -vE '\.(md|txt|json)$|^\.tickets/|^\.claude/|^docs/' | head -1)
+```
+
+If `CODE_FILES` is empty (all changes are documentation, tickets, or config):
+- Log: "Docs-only changes detected — skipping CI verification."
+- Skip Steps 0.5a and 0.5b entirely
+- Proceed directly to Step 1 (/validate-work)
+
+If `CODE_FILES` is non-empty: continue with CI verification below.
 
 **Worktree branch detection (run first)**:
 
