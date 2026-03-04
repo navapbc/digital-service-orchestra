@@ -84,6 +84,35 @@ git log main..$BRANCH --oneline
 
 If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
 
+### 4.5. Sync Tickets to Jira
+
+After the merge lands on main, run `tk sync` to push local ticket changes to Jira and pull any incoming Jira changes back.
+
+```bash
+tk sync 2>&1 && SYNC_OK=true || SYNC_OK=false
+```
+
+**If sync succeeds**: check whether `tk sync` staged or created any new ticket files (it may write incoming Jira updates to `.tickets/`). If it did, commit them to main as a follow-up commit:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard .tickets/)" ]; then
+    git add .tickets/
+    git commit -m "chore: sync incoming Jira changes from tk sync"
+    git push
+fi
+```
+
+**If sync fails** (e.g., `acli` not installed, Jira unreachable, credentials missing): print a warning and continue — sync failure is non-blocking:
+
+```
+⚠ tk sync failed — Jira sync skipped. Session will close normally.
+   To retry: run `tk sync` manually after the session ends.
+```
+
+Note the outcome (success, follow-up commit made, or warning) in the session summary under Step 6.
+
 ### 5. Verify Clean Worktree State
 
 **This step is mandatory — do not skip it.**
