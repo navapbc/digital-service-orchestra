@@ -45,7 +45,7 @@
 12. **Never use raw `git commit`** — use `/commit` or the COMMIT-WORKFLOW.
 13. **Never present a plan without `/plan-review` first**.
 14. **Never override reviewer severity** — critical->1-2, important->3.
-15. **Never edit safeguard files without user approval** — protected: `.claude/hooks/**`, `.claude/skills/**`, `.claude/workflows/**`, `.claude/settings.json`, `scripts/**`, `CLAUDE.md`.
+15. **Never edit safeguard files without user approval** — protected: `lockpick-workflow/hooks/**`, `.claude/skills/**`, `.claude/workflows/**`, `.claude/settings.json`, `scripts/**`, `CLAUDE.md`.
 
 ### Always Do These
 

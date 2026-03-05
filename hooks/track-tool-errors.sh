@@ -132,6 +132,17 @@ echo "$COUNTER_DATA" > "$COUNTER_FILE"
 CURRENT_COUNT=$(echo "$COUNTER_DATA" | jq --arg cat "$CATEGORY" '.index[$cat] // 0')
 BUG_EXISTS=$(echo "$COUNTER_DATA" | jq -r --arg cat "$CATEGORY" '.bugs_created[$cat] // "none"')
 
+# Categories that are normal operational noise — track counts but never auto-create bugs
+NOISE_CATEGORIES="file_not_found command_exit_nonzero"
+IS_NOISE=false
+for nc in $NOISE_CATEGORIES; do
+    if [[ "$CATEGORY" == "$nc" ]]; then IS_NOISE=true; break; fi
+done
+
+if [[ "$IS_NOISE" == "true" ]]; then
+    exit 0
+fi
+
 if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" && "$BUG_EXISTS" == "none" ]]; then
     BUG_ID=""
     if command -v tk &>/dev/null; then
