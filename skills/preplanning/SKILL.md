@@ -27,14 +27,15 @@ Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, an
 
 ## Process Overview
 
-This skill implements a four-phase process to transform epics into implementable stories:
+This skill implements a five-phase process to transform epics into implementable stories:
 
 1. **Context Reconciliation & Discovery** - Audit existing work and clarify scope
 2. **Risk & Scope Scan** - Flag cross-cutting concerns and split candidates
+2.5. **Adversarial Review** - Red/blue team review for cross-story blind spots (3+ stories only)
 3. **Walking Skeleton & Vertical Slicing** - Prioritize the minimum viable path, split where needed
 4. **Verification & Traceability** - Present the plan and link to epic criteria
 
-**Lightweight mode** (`--lightweight`): Runs an abbreviated subset — Phase 1 Step 1, Phase 2 (abbreviated), and writes done definitions directly to the epic. Skips Phases 3-4. Returns `ENRICHED` or `ESCALATED`.
+**Lightweight mode** (`--lightweight`): Runs an abbreviated subset — Phase 1 Step 1, Phase 2 (abbreviated), and writes done definitions directly to the epic. Skips Phases 2.5, 3-4. Returns `ENRICHED` or `ESCALATED`.
 
 ---
 
@@ -58,7 +59,8 @@ tk show <epic-id>
 If `--lightweight` was passed:
 
 1. **Skip Steps 2-4** of Phase 1 (no children to reconcile)
-2. Proceed to **Phase 2 (abbreviated)**: Run the Risk & Scope Scan but with these modifications:
+2. **Skip Phase 2.5** (Adversarial Review) entirely — lightweight mode does not create stories, so cross-story analysis is not applicable
+3. Proceed to **Phase 2 (abbreviated)**: Run the Risk & Scope Scan but with these modifications:
    - **Run** the Concern Areas scan (Security, Performance, Accessibility, Testing, Reliability, Maintainability)
    - **Run** the qualitative override check from the epic complexity evaluator (multiple personas, UI + backend, new DB migration, foundation/enhancement candidate, external integration)
    - **Skip** split-candidate identification (no stories to split)
@@ -183,6 +185,70 @@ While scanning, flag stories where scope risk is high — stories where the mini
 - New infrastructure or integrations where a lightweight version proves the concept
 
 Mark these stories as **split candidates**. Phase 3 evaluates whether a Foundation/Enhancement split actually makes sense (see "Foundation/Enhancement Splitting" below).
+
+---
+
+## Phase 2.5: Adversarial Review (/preplanning)
+
+### Threshold Gate
+
+**Skip this phase if fewer than 3 stories exist** after Phase 2 completes. Adversarial review adds value only when there are enough stories for cross-story interactions to matter. If skipped, log: `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase 3.
+
+### Step 1: Red Team Dispatch (/preplanning)
+
+Dispatch an **opus** sub-agent using the red team prompt template. Fill all placeholders from Phase 2 output:
+
+- **Prompt template**: `prompts/red-team-review.md` (relative to this skill directory)
+- **Placeholders**:
+  - `{epic-title}`: Epic title from Phase 1
+  - `{epic-description}`: Epic description from Phase 1
+  - `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase 2 output)
+  - `{risk-register}`: Risk Register table from Phase 2
+  - `{dependency-graph}`: Dependency graph from `tk dep tree <epic-id>`
+
+The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
+
+**Fallback**: If the red team sub-agent times out, returns malformed output, or fails to produce valid JSON, log a warning: `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase 3."` and skip directly to Phase 3.
+
+### Step 2: Blue Team Dispatch (/preplanning)
+
+If the red team returns a non-empty findings array, dispatch a **sonnet** sub-agent using the blue team prompt template:
+
+- **Prompt template**: `prompts/blue-team-review.md` (relative to this skill directory)
+- **Placeholders**:
+  - `{epic-title}`: Same as red team
+  - `{epic-description}`: Same as red team
+  - `{story-map}`: Same as red team
+  - `{red-team-findings}`: The raw JSON findings array from the red team sub-agent
+
+The blue team sub-agent returns a filtered JSON object with `findings` (accepted) and `rejected` arrays.
+
+**If red team returned zero findings**: Skip the blue team dispatch entirely. Log: `"Red team found no cross-story gaps. Skipping blue team filter."` and proceed to Phase 3.
+
+**Partial failure**: If the red team succeeds but the blue team fails (timeout, malformed output, or error), **discard all unfiltered findings** and proceed to Phase 3. Do NOT apply unfiltered red team findings -- the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase 3."`
+
+### Step 3: Apply Surviving Findings (/preplanning)
+
+Parse the blue team's accepted findings and apply each one based on its `type`:
+
+| Finding Type | Action |
+|-------------|--------|
+| `new_story` | Create a new story: `tk create "<title>" -t feature --parent=<epic-id>`. Add the finding's description and rationale to the story description. Add appropriate done definitions and considerations. |
+| `modify_done_definition` | Edit the target story's ticket file (`.tickets/<target_story_id>.md`) to add or modify done definitions per the finding's description. |
+| `add_dependency` | Add the dependency: `tk dep <target_story_id> <dependency_id>` (extract dependency ID from the finding's description). |
+| `add_consideration` | Edit the target story's ticket file to append the consideration to its Considerations section. |
+
+Log a summary after applying findings:
+```
+Adversarial review complete:
+- Red team findings: <N> total
+- Blue team filtered: <M> rejected, <K> accepted
+- Applied: <A> new stories, <B> modified done definitions, <C> new dependencies, <D> new considerations
+```
+
+### Step 4: Continue to Phase 3
+
+Proceed to Phase 3 (Walking Skeleton & Vertical Slicing) with the updated story map. New stories from adversarial review are included in the walking skeleton analysis.
 
 ---
 
@@ -559,6 +625,7 @@ Do NOT include: file paths, code snippets, database schemas, API response format
 |-------|-------------|-------|
 | 1: Reconciliation | Audit children, clarify scope | `tk show`, `tk dep tree` |
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
+| 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `tk dep` |
 | 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `tk create`, `tk dep`, `.tickets/<id>.md` editing, `validate-issues.sh`, `/design-wireframe` |
 
