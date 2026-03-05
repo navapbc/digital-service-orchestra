@@ -12,7 +12,7 @@
 #   - Files inside the main repo (but not worktree): BLOCKED
 #   - Files outside both (e.g., /tmp, ~/.claude): allowed
 #
-# bd commands are unaffected — they use Bash tool, not Edit/Write.
+# tk commands are unaffected — they use Bash tool, not Edit/Write.
 
 # Log unexpected errors to JSONL and exit cleanly (never surface to user)
 # Intentional blocks (exit 2) are NOT affected by this trap.

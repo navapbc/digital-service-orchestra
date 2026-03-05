@@ -128,6 +128,17 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 - Describe the problem they face today (without this feature)
 - Avoid jargon without explanation
 
+### Step 2.5: Gap Analysis (Self-Review)
+
+Before running the fidelity review, pause and think carefully about the proposed approach:
+
+- **Are there any sync loops?** If the feature involves bidirectional data flow (sync, replication, event propagation), trace the full cycle: A pushes to B, B pulls back — will it create duplicates, false conflicts, or infinite loops?
+- **Are there race conditions?** If multiple actors (worktrees, users, agents, CI) can modify the same state concurrently, what happens when they collide?
+- **Does the approach invalidate existing assumptions?** Will adding new data to an existing format break hashing, parsing, caching, or diffing that depends on the current shape?
+- **Are there parsing ambiguities?** If the format uses delimiters or markers, can user-provided content contain those same markers?
+
+If gaps are found, present them to the user and resolve before proceeding to the fidelity review.
+
 ### Step 3: Run Fidelity Review
 
 Run the spec through three reviewers **in parallel** using the Task tool. For each reviewer:
@@ -183,7 +194,7 @@ Present the validated spec to the user:
 ## Dependencies
 [...]
 
-Does this capture the right scope? Any changes before I create the epic?
+Any changes before I create the epic?
 ```
 
 Wait for explicit approval. If changes are requested, revise and re-run affected reviewers.
