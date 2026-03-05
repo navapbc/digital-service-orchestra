@@ -10,7 +10,7 @@
 # ticket commit onto the new main tip, and retries once. If the retry fails,
 # the error is logged to stderr and the hook exits 0 (non-blocking).
 #
-# After a successful push, .last-sync-hash at the worktree root is updated.
+# After a successful push, .tickets/.last-sync-hash is updated.
 #
 # Bug workaround (#20334): PostToolUse hooks with specific matchers fire for
 # ALL tools, not just the matched tool. Guard on tool_name internally and
