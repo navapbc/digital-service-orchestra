@@ -18,7 +18,7 @@ If `{answers-context}` is non-empty, it contains user answers to questions from 
 
 ## Your Task
 
-Execute Steps 1-5 of the `/implementation-plan` skill for `{story-id}`.
+Execute Steps 1-6 of the `/implementation-plan` skill for `{story-id}`.
 
 ### Step 0: Load the Skill
 
@@ -28,7 +28,7 @@ Read the full skill definition before starting:
 $(git rev-parse --show-toplevel)/.claude/skills/implementation-plan/SKILL.md
 ```
 
-Use the `Read` tool at that path to load the skill. Then execute Steps 1-5 as defined.
+Use the `Read` tool at that path to load the skill. Then execute Steps 1-6 as defined.
 
 ### Steps to Execute
 
@@ -37,14 +37,15 @@ Use the `Read` tool at that path to load the skill. Then execute Steps 1-5 as de
 - **Step 3**: Atomic Task Drafting — draft tasks with TDD-first, E2E coverage, and docs coverage
 - **Step 4**: Plan Review — invoke `/review-protocol` with pass_threshold 5; iterate up to 3 times
 - **Step 5**: Task Creation — create tasks in tickets, add dependencies, validate ticket health
+- **Step 6**: Gap Analysis — dispatch opus sub-agent for COMPLEX stories; skip for TRIVIAL (uses evaluator-context classification)
 
 ### Override
 
-**Do NOT stop and wait for user instructions after Step 5.** Complete all steps and report output immediately.
+**Do NOT stop and wait for user instructions after Step 5.** Complete all steps (including Step 6 Gap Analysis) and report output immediately.
 
 ## Output Protocol
 
-### On success (all tasks created, dependencies added, plan approved):
+### On success (all tasks created, dependencies added, plan approved, gap analysis complete):
 
 ```
 STATUS:complete TASKS:<comma-separated-task-ids> STORY:{story-id}

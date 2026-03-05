@@ -55,6 +55,7 @@ Progress:
 - [ ] Step 3: Task Drafting (tasks drafted with E2E + docs coverage)
 - [ ] Step 4: Plan Review via /review-protocol (all dimensions: 5, iteration: _/3)
 - [ ] Step 5: Task Creation (tasks created, deps added, health validated)
+- [ ] Step 6: Gap Analysis (COMPLEX: opus sub-agent dispatched, findings processed; TRIVIAL: skipped)
 ```
 
 ## Process Overview
@@ -71,6 +72,10 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
           → [score=5] S5 (Task Creation)
           → [score<5, iter<3] Revise → S4
           → [score<5, iter=3] Present plan with remaining issues
+  → S5 complete → [evaluator says TRIVIAL?]
+    → Yes: Skip S6, present summary
+    → No: S6 (Gap Analysis) → parse findings → create tasks / amend ACs → present summary
+      → [S6 fails/times out] Log warning → present summary (non-blocking)
 ```
 
 ---
@@ -419,6 +424,59 @@ Report:
 
 ---
 
+## Step 6: Gap Analysis (/implementation-plan)
+
+Review the complete task list for design gaps that would compound during sub-agent execution. This step dispatches an opus sub-agent to analyze the plan against a structured gap taxonomy.
+
+### TRIVIAL Skip Gate
+
+Check the evaluator context passed via `{evaluator-context}` from `/sprint`:
+
+- **If `classification: "TRIVIAL"`**: Skip gap analysis entirely. Log: `"Skipping gap analysis — story classified as TRIVIAL"`. Proceed directly to the final summary presentation.
+- **If `classification: "COMPLEX"`** or **no evaluator context** (standalone invocation): Run gap analysis. The cost of an unnecessary gap analysis is low; the cost of a missed gap is high.
+
+### Dispatch Opus Sub-Agent
+
+For COMPLEX stories (or standalone invocations), dispatch an opus sub-agent via the Task tool using the prompt template at `prompts/gap-analysis.md`.
+
+Fill the template placeholders with:
+
+| Placeholder | Source |
+|-------------|--------|
+| `{story-title}` | Story title from `tk show` |
+| `{story-description}` | Story description from `tk show` |
+| `{task-list-with-descriptions}` | Full task list: titles, descriptions, TDD requirements, acceptance criteria |
+| `{dependency-graph}` | Output from `tk dep tree <story-id>` |
+| `{file-impact-summary}` | File Impact Summary table from Step 5 |
+
+### Parse Findings
+
+Parse the JSON `findings` array from the sub-agent response. For each finding:
+
+- **If `type: "new_task"`**: Create a new task via `tk create` with the finding's title and description, parent set to the story, add dependency on the appropriate existing task(s), and add to the summary table.
+- **If `type: "ac_amendment"`**: Edit `.tickets/<target_task_id>.md` to append the finding's description as an additional acceptance criterion under the `## ACCEPTANCE CRITERIA` section.
+
+### Fallback Behavior
+
+If the sub-agent times out, returns malformed JSON, or fails for any reason:
+
+1. Log a warning: `"Gap analysis sub-agent failed: <error> — continuing without gap findings"`
+2. Do NOT block the implementation plan
+3. Proceed to the summary presentation with a note that gap analysis was not completed
+
+### Summary Update
+
+After processing findings (or skipping/failing), update the summary output to include a **Gap Analysis Results** section:
+
+| Outcome | Summary Line |
+|---------|-------------|
+| TRIVIAL skip | `Gap Analysis: Skipped (TRIVIAL classification)` |
+| No gaps found | `Gap Analysis: Complete — no gaps found` |
+| Gaps found | `Gap Analysis: {N} findings — {X} new tasks created, {Y} AC amendments` |
+| Sub-agent failed | `Gap Analysis: Failed (non-blocking) — <error summary>` |
+
+---
+
 ## Quick Reference
 
 | Step | Purpose | Key Commands |
@@ -428,6 +486,7 @@ Report:
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `/review-protocol` (all dims = 5, max 3 iterations) |
 | 5 | Task Creation | `tk create`, `tk dep`, `validate-issues.sh`, `tk ready` |
+| 6 | Gap Analysis | TRIVIAL skip gate, opus sub-agent via `prompts/gap-analysis.md`, parse findings |
 
 ## Common Mistakes
 
@@ -443,3 +502,5 @@ Report:
 | Infinite refinement loops | Max 3 iterations, then escalate to user |
 | Skipping cross-cutting detection | Count layers and interfaces before deciding to skip Step 2 — a "simple" change touching route → service → agent → provider is already cross-cutting |
 | Cross-cutting but no pattern change | Cross-cutting threshold overrides the new-pattern check — Step 2 is still required |
+| Skipping gap analysis for COMPLEX stories | Always run Step 6 for COMPLEX stories — missed gaps compound during sub-agent execution |
+| Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
