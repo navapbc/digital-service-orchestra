@@ -69,7 +69,7 @@ fi
 # It always exits 0 (fire-and-forget) and logs errors to stderr.
 export REPO_ROOT
 if declare -f _sync_ticket_file > /dev/null 2>&1; then
-    _sync_ticket_file "$FILE_PATH" 2>/dev/null || true
+    _sync_ticket_file "$FILE_PATH" || true
 else
     # Fallback: lib failed to load — log and continue
     printf "ticket-sync-push: tk-sync-lib.sh not loaded, skipping sync for %s\n" \
