@@ -593,6 +593,16 @@ For each task in the batch:
 tk status <id> in_progress
 ```
 
+### Update from Main
+
+Pull the latest `.tickets/` state from main before launching sub-agents. This ensures the batch sees any ticket changes pushed by other worktrees since the last sync:
+
+```bash
+git fetch origin main && git merge origin/main --no-edit
+```
+
+If the merge has conflicts, resolve them (prefer local for code files, prefer main for `.tickets/`). If the merge fails entirely, log a warning and continue — stale ticket state is preferable to a blocked batch.
+
 ---
 
 ## Phase 5: Sub-Agent Launch (/sprint)
