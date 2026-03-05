@@ -64,11 +64,12 @@ fi
 RECENT_FIXES=$(git log --oneline -3 2>/dev/null || echo "(none)")
 
 # --- Auto-save uncommitted work ---
-# Exclude .tickets/ and .sync-state.json — these sync via their own
-# dedicated mechanism (ticket-sync-push hook). Including them here caused
-# 330+ spam ticket files to be committed in a single checkpoint (2026-03-04).
+# Exclude .tickets/ — these sync via their own dedicated mechanism
+# (ticket-sync-push hook). Including them here caused 330+ spam ticket files
+# to be committed in a single checkpoint (2026-03-04).
+# (.sync-state.json now lives inside .tickets/ so is covered by this exclusion.)
 git add -A 2>/dev/null || true
-git reset HEAD -- .tickets/ .sync-state.json 2>/dev/null || true
+git reset HEAD -- .tickets/ 2>/dev/null || true
 git commit -m "$CHECKPOINT_LABEL" --no-verify 2>/dev/null || true
 
 # --- Output structured markdown (injected into post-compaction context) ---
