@@ -161,9 +161,9 @@ fi
 # Validate files_targeted overlap with actual changed files
 CHANGED_FILES=$(
     {
-        git diff --name-only HEAD -- ':!.beads/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git diff --cached --name-only HEAD -- ':!.beads/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.beads/' | grep -v '^app/tests/e2e/snapshots/.*\.png$' | grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true
+        git diff --name-only HEAD -- ':!.tickets/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git diff --cached --name-only HEAD -- ':!.tickets/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.tickets/' | grep -v '^app/tests/e2e/snapshots/.*\.png$' | grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true
     } | sort -u | grep -v '^$' || true
 )
 

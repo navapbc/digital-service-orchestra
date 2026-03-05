@@ -1,6 +1,6 @@
 # Complexity Evaluator
 
-Classify a beads story as TRIVIAL or COMPLEX to determine whether `/implementation-plan` should run.
+Classify a ticket story as TRIVIAL or COMPLEX to determine whether `/implementation-plan` should run.
 
 ## Input
 

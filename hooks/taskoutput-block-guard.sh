@@ -2,7 +2,7 @@
 # lockpick-workflow/hooks/taskoutput-block-guard.sh
 # PreToolUse hook: block TaskOutput calls with block=false
 #
-# Addresses beads issue lxjiu:
+# Addresses ticket issue lxjiu:
 #   TaskOutput with block=false is not supported by the Claude Code tool API
 #   and causes errors or silent failures. Agents must always use block=true
 #   (the default) or omit the block parameter entirely.

@@ -21,7 +21,7 @@ to the standalone `lockpick-workflow` plugin:
 The following are **not** touched by this migration:
 
 - Project-specific CLAUDE.md content (architecture, team rules, domain knowledge)
-- Existing beads issues, sprints, and epics
+- Existing ticket issues, sprints, and epics
 - Application source code (`app/src/`, `app/tests/`)
 - Project-specific scripts that are not part of the workflow infrastructure
 - `.env` files and secrets

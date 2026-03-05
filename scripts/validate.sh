@@ -191,7 +191,7 @@ create_timeout_issue() {
 
 # Log timeout events for analysis and tuning
 # Format: timestamp | command | timeout_value | pwd
-# Also creates a beads issue for investigation
+# Also creates a ticket issue for investigation
 log_timeout() {
     local cmd_name="$1"
     local timeout_secs="$2"
@@ -201,7 +201,7 @@ log_timeout() {
     # Log to file (existing behavior)
     echo "$timestamp | TIMEOUT | $cmd_name | ${timeout_secs}s | $(pwd)" >> "$TIMEOUT_LOG"
 
-    # Create beads issue for investigation (with deduplication)
+    # Create ticket issue for investigation (with deduplication)
     create_timeout_issue "$cmd_name" "$timeout_secs" "Triggered from validate.sh"
 }
 

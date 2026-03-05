@@ -9,13 +9,13 @@
 # This is a SOFT GATE (warning). It outputs a reminder but does not block.
 #
 # Conditions for warning:
-#   1. There are uncommitted changes to tracked files (not just .beads/)
+#   1. There are uncommitted changes to tracked files (not just .tickets/)
 #   2. No review state file exists, OR the review is stale
 #
 # Conditions for silence:
 #   - Working tree is clean (nothing to review)
 #   - Review is current and passed
-#   - Only .beads/ files changed (issue tracking, not code)
+#   - Only .tickets/ files changed (issue tracking, not code)
 
 # Never surface errors — log and exit cleanly
 HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
@@ -31,10 +31,10 @@ if [[ -z "$REPO_ROOT" ]]; then
     exit 0
 fi
 
-# Check for uncommitted changes (excluding .beads/ directory)
-CHANGED_FILES=$(git -C "$REPO_ROOT" diff --name-only HEAD 2>/dev/null | grep -v '^\.beads/' || true)
-STAGED_FILES=$(git -C "$REPO_ROOT" diff --cached --name-only 2>/dev/null | grep -v '^\.beads/' || true)
-UNTRACKED_FILES=$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.beads/' || true)
+# Check for uncommitted changes (excluding .tickets/ directory)
+CHANGED_FILES=$(git -C "$REPO_ROOT" diff --name-only HEAD 2>/dev/null | grep -v '^\.tickets/' || true)
+STAGED_FILES=$(git -C "$REPO_ROOT" diff --cached --name-only 2>/dev/null | grep -v '^\.tickets/' || true)
+UNTRACKED_FILES=$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.tickets/' || true)
 
 # If no code changes, nothing to review
 if [[ -z "$CHANGED_FILES" ]] && [[ -z "$STAGED_FILES" ]] && [[ -z "$UNTRACKED_FILES" ]]; then

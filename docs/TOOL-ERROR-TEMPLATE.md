@@ -9,7 +9,7 @@ The counter file has three sections:
 
 1. **index** — Category names with occurrence counts (the "at a glance" view)
 2. **errors** — Full details of every error observed
-3. **bugs_created** — Categories that have reached the threshold and had a beads bug filed
+3. **bugs_created** — Categories that have reached the threshold and had a ticket bug filed
 
 ```json
 {
@@ -21,7 +21,7 @@ The counter file has three sections:
     { "...see Error Detail below..." }
   ],
   "bugs_created": {
-    "command_exit_nonzero": "beads-a1b2"
+    "command_exit_nonzero": "w20-a1b2"
   }
 }
 ```
@@ -73,7 +73,7 @@ New categories are created by Haiku when existing ones don't fit. Always use sna
 
 ## Bug Creation Threshold
 
-When any category reaches **10** occurrences, a beads bug is automatically created via `tk create`.
+When any category reaches **10** occurrences, a ticket bug is automatically created via `tk create`.
 The bug ID is recorded in `bugs_created` to prevent duplicates. Only one bug per category.
 
 ## Manual Operations

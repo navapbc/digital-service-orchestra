@@ -155,7 +155,7 @@ echo 0 > "/tmp/claude-cascade-${WT_HASH}/counter"
 ```
 
 If tests do NOT pass after your planned fix, do not reset the counter. Instead:
-1. Update the beads issue with what you learned
+1. Update the ticket with what you learned
 2. Consider whether the diagnosis in Step 4 was correct
 3. If you've made 2 more attempts without success, escalate to the user
 

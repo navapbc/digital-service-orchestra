@@ -10,7 +10,7 @@
 # the agent to enter the fix-cascade-recovery protocol.
 #
 # Passthrough (never blocked):
-#   - .beads/ files (issue tracking)
+#   - .tickets/ files (issue tracking)
 #   - CLAUDE.md and .claude/ files (configuration)
 #   - /tmp/ files (temporary state)
 #   - ~/.claude/ files (user config)
@@ -42,7 +42,7 @@ FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')
 # Split into two case blocks because $HOME expansion does not work
 # inside a single case pattern list with | separators.
 case "$FILE_PATH" in
-    */.beads/*|*/CLAUDE.md|*/.claude/*|/tmp/*)
+    */.tickets/*|*/CLAUDE.md|*/.claude/*|/tmp/*)
         exit 0
         ;;
 esac

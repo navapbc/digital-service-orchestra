@@ -1,6 +1,6 @@
 ---
 name: dryrun
-description: Use when the user wants to preview what a skill would do without making changes to beads, the file system, or git
+description: Use when the user wants to preview what a skill would do without making changes to tickets, the file system, or git
 user-invocable: true
 ---
 
@@ -31,7 +31,7 @@ When dryrun mode is active, follow the target skill's full workflow but apply th
 
 - Read-only commands (`tk ready`, `tk blocked`, `tk show`, `git status`, `git log`)
 - File reads (`Read`, `Glob`, `Grep`)
-- Check scripts (`check-onboarding.sh`, `validate-beads.sh`)
+- Check scripts (`check-onboarding.sh`, `validate-issues.sh`)
 - `AskUserQuestion` — the interview/dialogue portions run normally
 
 ### Output format
@@ -53,7 +53,7 @@ Summarize all deferred actions:
 ```
 === Dryrun Summary ===
 Files that would be created/modified: [list]
-Beads commands that would run: [list]
+Ticket commands that would run: [list]
 Git operations that would run: [list]
 
 To execute for real, run the skill without /dryrun.

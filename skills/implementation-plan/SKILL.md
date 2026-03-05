@@ -1,6 +1,6 @@
 ---
 name: implementation-plan
-description: Use when a user story or simple epic needs to be broken into atomic, TDD-driven implementation tasks with architectural review, or when planning how to implement a specific beads item
+description: Use when a user story or simple epic needs to be broken into atomic, TDD-driven implementation tasks with architectural review, or when planning how to implement a specific ticket item
 user-invocable: true
 ---
 
@@ -40,7 +40,7 @@ Resolved commands used in this skill:
 
 ## Arguments
 
-- `<story-id>` or `<epic-id>` (optional): The beads item to decompose. Accepts stories (creates tasks under the story) or epics (creates tasks directly under the epic). If omitted, presents an interactive list of open stories.
+- `<story-id>` or `<epic-id>` (optional): The ticket item to decompose. Accepts stories (creates tasks under the story) or epics (creates tasks directly under the epic). If omitted, presents an interactive list of open stories.
 
 ## Progress Checklist
 
@@ -315,7 +315,7 @@ The plan **must** achieve all dimension scores of **5**. `/review-protocol`'s re
 
 ## Step 5: Task Creation (/implementation-plan)
 
-Once the plan is approved (Score: 5 or user-approved), create tasks in beads.
+Once the plan is approved (Score: 5 or user-approved), create tasks in the ticket system.
 
 ### Create Tasks
 
@@ -378,10 +378,10 @@ Follow the sequential order from Step 3:
 5. Documentation task depends on implementation tasks it documents
 6. Cleanup tasks depend on all implementation + E2E tasks
 
-### Validate Beads Health
+### Validate Ticket Health
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-beads.sh
+$(git rev-parse --show-toplevel)/scripts/validate-issues.sh
 ```
 
 If validation fails, fix dependency issues before presenting the summary.
@@ -427,7 +427,7 @@ Report:
 | 2 | Architectural Review | `/review-protocol` (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `/review-protocol` (all dims = 5, max 3 iterations) |
-| 5 | Task Creation | `tk create`, `tk dep`, `validate-beads.sh`, `tk ready` |
+| 5 | Task Creation | `tk create`, `tk dep`, `validate-issues.sh`, `tk ready` |
 
 ## Common Mistakes
 

@@ -6,7 +6,7 @@ user-invocable: true
 
 # Execute Epic: Multi-Agent Orchestration
 
-Automate the full lifecycle of a beads epic: task analysis, batched sub-agent execution, post-epic validation, and remediation loop.
+Automate the full lifecycle of a ticket epic: task analysis, batched sub-agent execution, post-epic validation, and remediation loop.
 
 > **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
@@ -82,7 +82,7 @@ Mark each item `in_progress` when starting it and `completed` when done. This li
 
 ### Parse Arguments
 
-- `<epic-id>`: The beads epic to execute
+- `<epic-id>`: The ticket epic to execute
 - `--dry-run`: Output batch plan without executing any sub-agents
 - `--resume`: Resume an interrupted epic (skip to Phase 3 with recovery)
 
@@ -139,7 +139,7 @@ $REPO_ROOT/scripts/issue-quality-check.sh <id>
 - **Exit 0** (quality pass): Use the ticket-as-prompt template (`task-execution.md`) — sub-agent reads its own context
 - **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `tk show <id>` and includes output in the Task prompt
 
-**Writing quality beads**: When creating tasks for sub-agent execution, include:
+**Writing quality ticket**: When creating tasks for sub-agent execution, include:
 - Concrete file paths (`src/`, `tests/`)
 - Acceptance criteria with keywords: "must", "should", "Given/When/Then"
 - At least 5 lines of description
@@ -350,7 +350,7 @@ Process stories in layer order — Layer 0 first, then Layer 1, etc. Within each
 
 a. Filter to stories in this layer that need decomposition
 b. Dispatch up to 3 concurrent Task tool calls in a single message — fill the `impl-plan-dispatch.md` prompt template for each story:
-   - `{story-id}` → the story's beads ID
+   - `{story-id}` → the story's ticket ID
    - `{evaluator-context}` → complexity-evaluator JSON if available; otherwise `""`
    - `{answers-context}` → empty string `""` (no prior questions on first dispatch)
    - Launch using the Task tool with `subagent_type="general-purpose"` and `model="sonnet"`
@@ -419,9 +419,9 @@ CLARIFICATIONS
        A: <user answer 2>
        ```
    - **If the re-dispatched sub-agent returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`tk status <story-id> open`), log `"ERROR: /implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
-e. **Post-layer-batch beads validation** — after all stories in the layer are resolved (complete, blocked-and-resolved, or failed), run:
+e. **Post-layer-batch ticket validation** — after all stories in the layer are resolved (complete, blocked-and-resolved, or failed), run:
    ```bash
-   $(git rev-parse --show-toplevel)/scripts/validate-beads.sh --quick --terse
+   $(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
    ```
    Log any warnings but do not block on non-critical results
 f. Re-run `tk ready` (filtered by parent) to pick up newly created implementation tasks before processing the next layer
@@ -488,7 +488,7 @@ Call `TodoWrite` to replace any existing checklist with the current batch's item
 [ ] Batch N — Persistence coverage check
 [ ] Batch N — Visual verification (UI tasks only)
 [ ] Batch N — Code review (REVIEW-WORKFLOW.md)
-[ ] Batch N — Update beads notes / handle failures
+[ ] Batch N — Update ticket notes / handle failures
 [ ] Batch N — Commit and push
 [ ] Batch N — Context check (compact if ≥70%)
 ```
@@ -516,7 +516,7 @@ Each `TASK:` line is tab-separated with all fields the orchestrator needs to lau
 the sub-agent — **no further `tk show` or `classify-task.sh` calls required**:
 
 ```
-TASK: <id>  P<beads-priority>  <issue-type>  <model>  <subagent-type>  <class>  <title>  [story:<id>]
+TASK: <id>  P<tk-priority>  <issue-type>  <model>  <subagent-type>  <class>  <title>  [story:<id>]
 ```
 
 | Line prefix | Meaning |
@@ -540,7 +540,7 @@ Use `--json` for machine-readable output with full detail including file lists.
   the next cycle. No `tk dep` is needed — the task reappears as ready naturally.
 - **Classification**: Each TASK line includes `model`, `subagent`, and `class` from
   `classify-task.py` — sorted by classify priority (interface-contract first, then
-  fan-out-blocker, then independent, then db-dependent), then beads priority.
+  fan-out-blocker, then independent, then db-dependent), then ticket priority.
 - **Opus cap**: At most 2 `model=opus` tasks per batch. Additional opus tasks are
   reported as `SKIPPED_OPUS_CAP` and deferred; freed slots are filled by non-opus tasks
   in priority order.
@@ -666,7 +666,7 @@ For each sub-agent result, check the `TASKS_CREATED` line:
 
 After processing all sub-agents in the batch, if any tasks were created:
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-beads.sh --quick --terse
+$(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
 ```
 
 Newly created tasks require no special handling beyond this step — they naturally
@@ -779,10 +779,10 @@ git diff HEAD --stat -- ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/temp
   appended to the prompt. Re-execute REVIEW-WORKFLOW.md after the fix.
 - **Important issues found** → fix directly (small changes) or re-run the sub-agent
   with feedback. Re-execute REVIEW-WORKFLOW.md after the fix.
-- **Minor issues only** → proceed (note them in beads but don't block)
+- **Minor issues only** → proceed (note them in ticket but don't block)
 - **Review uses autonomous resolution per batch.** The review workflow handles up to 2 fix/defend attempts automatically before escalating. The resolution loop is split: a resolution sub-agent applies fixes (returns `FIXES_APPLIED`), then the orchestrator dispatches a separate re-review sub-agent. This avoids two-level nesting (orchestrator → resolution → re-review) which causes `[Tool result missing due to internal error]`. See REVIEW-WORKFLOW.md Autonomous Resolution Loop. If issues persist after escalation, report to user and proceed to commit (CI and Phase 7 validation provide additional gates).
 
-### Step 8: Update Beads Notes (/sprint)
+### Step 8: Update Ticket Notes (/sprint)
 
 For each task in the batch, write checkpoint-format notes for crash recovery:
 
@@ -801,11 +801,11 @@ For tasks that failed:
 
 ### Step 10: Commit & Push (/sprint)
 
-Read and execute `$REPO_ROOT/.claude/workflows/COMMIT-WORKFLOW.md`. The review gate check
+Read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md`. The review gate check
 in Step 5 of the commit workflow will find the review state file from Step 7 is already
 current, so review is skipped (no double review).
 
-After the commit completes, merge to main using `merge-to-main.sh` (handles beads sync, merge, and push in one step — avoids review-gate and pre-push hook issues from beads file changes on main):
+After the commit completes, merge to main using `merge-to-main.sh` (handles ticket sync, merge, and push in one step — avoids review-gate and pre-push hook issues from ticket file changes on main):
 
 ```bash
 "$REPO_ROOT/scripts/merge-to-main.sh"
@@ -824,7 +824,7 @@ Do NOT use `git push` directly — it only pushes the worktree branch and does n
 
 ### Step 11: Context Compaction Check (/sprint)
 
-Between batches — after all work is committed and pushed — check whether the session context is at least 70% capacity. **This is the safe window for compaction**: all sub-agents have returned, work is committed and pushed, and beads tracks task state. Compacting mid-batch would risk losing in-flight sub-agent context.
+Between batches — after all work is committed and pushed — check whether the session context is at least 70% capacity. **This is the safe window for compaction**: all sub-agents have returned, work is committed and pushed, and ticket tracks task state. Compacting mid-batch would risk losing in-flight sub-agent context.
 
 Run the context check:
 
@@ -858,8 +858,8 @@ $REPO_ROOT/scripts/agent-batch-lifecycle.sh context-check || context_exit=$?
    ```
    /compact
    ```
-5. The PreCompact hook fires automatically: it captures active beads tasks, git state, and auto-commits any remaining uncommitted work as a safety checkpoint
-6. After compaction, the recovery summary is injected into the new context. Check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` (using the epic ID from the log/recovery summary). **Continue directly to Phase 3** — beads task state and git history are intact. Do NOT go to Phase 9.
+5. The PreCompact hook fires automatically: it captures active ticket tasks, git state, and auto-commits any remaining uncommitted work as a safety checkpoint
+6. After compaction, the recovery summary is injected into the new context. Check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` (using the epic ID from the log/recovery summary). **Continue directly to Phase 3** — ticket task state and git history are intact. Do NOT go to Phase 9.
 7. **Agent-count after compact (`high` case)**: If context was at `high` (>90%), Phase 4's pre-check re-runs `check-session-usage.sh` for the next batch. If it still signals high, Phase 4 will set `MAX_AGENTS: 1` automatically. No special action is needed in this step — Phase 4 handles it.
 
 **Why this is safe**: Unlike involuntary mid-work compaction, this checkpoint happens after commit+push. The PreCompact hook's auto-commit is a belt-and-suspenders safety net, not the primary save mechanism.
@@ -1086,7 +1086,7 @@ scripts/validate.sh
 
 (Replace the example files above with the actual output of `git diff --name-only main...HEAD`.)
 
-This checks all 5 domains in parallel: local checks (format, lint, types, tests, DB), CI status, beads health, staging deployment, and staging browser tests.
+This checks all 5 domains in parallel: local checks (format, lint, types, tests, DB), CI status, ticket health, staging deployment, and staging browser tests.
 
 **Interpret the report:**
 - **All 5 domains PASS** → proceed to Step 2 (epic-specific validation)
@@ -1152,10 +1152,10 @@ For each item in the validation agent's FAIL/REMEDIATION output:
 tk create "Fix: {issue description}" -t bug -p 1 --parent=<epic-id>
 ```
 
-### Step 2: Validate Beads Health (/sprint)
+### Step 2: Validate Ticket Health (/sprint)
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-beads.sh
+$(git rev-parse --show-toplevel)/scripts/validate-issues.sh
 ```
 
 ### Step 3: Return to Phase 3 (/sprint)
@@ -1238,7 +1238,7 @@ Phase 9 delegates all completion and shutdown logic to `/end-session`, which han
 | DB not running for E2E | Ask user to run `make db-start`, wait for confirmation |
 | CI fails at Phase 7 | Dispatch `error-debugging:error-detective` to diagnose, then `/debug-everything` to fix, commit+push, restart Phase 7 Step 0.5a; if still failing after one attempt, graceful shutdown |
 | Git push fails | Report error, suggest `git pull --rebase`, never force-push |
-| Beads health < 5 after ops | Fix beads issues before continuing (see `/beads-health`) |
+| Ticket health < 5 after ops | Fix ticket issues before continuing (see `/tickets-health`) |
 | Epic has 0 children | Preplanning gate triggers `/preplanning` automatically |
 | Story has 0 impl tasks and isn't simple | Implementation planning gate triggers `/implementation-plan` per story |
 | `/implementation-plan` needs clarification | Present questions to user, persist answers to story description, resume |

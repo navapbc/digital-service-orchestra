@@ -199,7 +199,7 @@ done
 rm -f "$DESC_TMPFILE"
 
 # Report results to the agent — single-line CSV format, silent on zero failures
-# Format: "Created: format (beads-123), ruff (beads-456); Tracked: mypy (beads-789)"
+# Format: "Created: format (tk-123), ruff (tk-456); Tracked: mypy (tk-789)"
 # Only categories with results are included; output nothing when all arrays empty.
 
 PARTS=()

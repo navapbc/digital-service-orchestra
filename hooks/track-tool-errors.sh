@@ -80,8 +80,8 @@ elif echo "$ERROR_LOWER" | grep -q "syntax error"; then
     CATEGORY="syntax_error"
 elif echo "$ERROR_LOWER" | grep -qE "lock.*blocked|blocked.*lock"; then
     CATEGORY="lock_blocked"
-elif echo "$ERROR_LOWER" | grep -qE "validate.*beads|beads.*valid"; then
-    CATEGORY="validate_beads_warning"
+elif echo "$ERROR_LOWER" | grep -qE "validate.*issues|issues.*valid"; then
+    CATEGORY="validate_issues_warning"
 elif echo "$ERROR_LOWER" | grep -qE "non-zero|exit code"; then
     CATEGORY="command_exit_nonzero"
 else

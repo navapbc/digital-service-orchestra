@@ -45,7 +45,7 @@ Report the mapping for orchestrator visibility.
 ### Step 3: Serialize Overlapping Tasks (/batch-overlap-check)
 
 For each file that appears in 2+ tasks:
-1. Identify the higher-priority task (from beads priority or batch priority class)
+1. Identify the higher-priority task (from ticket priority or batch priority class)
 2. The lower-priority task should depend on the higher-priority one
 3. **Circular dependency guard** before running `tk dep B A`:
    a. Run `tk show A` and read its `blockedBy` field

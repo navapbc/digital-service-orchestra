@@ -14,7 +14,7 @@ If `{evaluator-context}` is non-empty, it contains complexity-evaluator output (
 
 {answers-context}
 
-If `{answers-context}` is non-empty, it contains user answers to questions from a previous STATUS:blocked response. These answers have already been persisted to the story description in beads. Treat them as authoritative: skip the ambiguity scan for any question addressed here and proceed directly to planning with these answers in scope.
+If `{answers-context}` is non-empty, it contains user answers to questions from a previous STATUS:blocked response. These answers have already been persisted to the story description in the ticket system. Treat them as authoritative: skip the ambiguity scan for any question addressed here and proceed directly to planning with these answers in scope.
 
 ## Your Task
 
@@ -36,7 +36,7 @@ Use the `Read` tool at that path to load the skill. Then execute Steps 1-5 as de
 - **Step 2**: Architectural Review — invoke `/review-protocol` if a new pattern is needed or cross-cutting thresholds are met; otherwise skip
 - **Step 3**: Atomic Task Drafting — draft tasks with TDD-first, E2E coverage, and docs coverage
 - **Step 4**: Plan Review — invoke `/review-protocol` with pass_threshold 5; iterate up to 3 times
-- **Step 5**: Task Creation — create tasks in beads, add dependencies, validate beads health
+- **Step 5**: Task Creation — create tasks in tickets, add dependencies, validate ticket health
 
 ### Override
 

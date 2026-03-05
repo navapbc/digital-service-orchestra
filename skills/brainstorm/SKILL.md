@@ -1,12 +1,12 @@
 ---
 name: brainstorm
-description: Use when starting a new feature or epic — turns an idea into a defined, beads-ready epic through Socratic dialogue, approach design, and milestone spec creation.
+description: Use when starting a new feature or epic — turns an idea into a defined, ticket-ready epic through Socratic dialogue, approach design, and milestone spec creation.
 user-invocable: true
 ---
 
 # Brainstorm: Feature to Epic
 
-Turn a feature idea into a high-fidelity beads epic through Socratic dialogue, approach design, and spec validation.
+Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation.
 
 <HARD-GATE>
 Do NOT invoke /sprint, /preplanning, /implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
@@ -190,9 +190,9 @@ Wait for explicit approval. If changes are requested, revise and re-run affected
 
 ---
 
-## Phase 3: Beads Integration (/brainstorm)
+## Phase 3: Ticket Integration (/brainstorm)
 
-**Goal**: Create the epic in beads and hand off to the next step.
+**Goal**: Create the epic in the ticket system and hand off to the next step.
 
 ### Step 1: Create the Epic
 
@@ -228,17 +228,17 @@ If the epic depends on others identified in Phase 1:
 tk dep <this-epic-id> <blocking-epic-id>
 ```
 
-### Step 3: Validate Beads Health
+### Step 3: Validate Ticket Health
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-beads.sh --quick --terse
+$(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
 ```
 
 Fix any issues before finalizing.
 
 ### Step 4: Invoke Preplanning
 
-After the epic is created and beads health passes, immediately invoke `/preplanning` on the new epic — do NOT wait for user input:
+After the epic is created and ticket health passes, immediately invoke `/preplanning` on the new epic — do NOT wait for user input:
 
 ```
 Skill tool:
@@ -246,7 +246,7 @@ Skill tool:
   args: "<epic-id>"
 ```
 
-`/preplanning` will decompose the epic into user stories and present a story map for user approval before anything is created in beads. Control returns here only if `/preplanning` escalates (e.g., requires user clarification).
+`/preplanning` will decompose the epic into user stories and present a story map for user approval before anything is created in the ticket system. Control returns here only if `/preplanning` escalates (e.g., requires user clarification).
 
 Report the epic creation and preplanning handoff:
 

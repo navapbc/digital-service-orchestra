@@ -1,12 +1,12 @@
 ---
 name: roadmap
-description: Use when the user wants to transform a high-level product vision, PRD, or project idea into a prioritized roadmap of Beads epics, or when they want to brainstorm and architect project milestones
+description: Use when the user wants to transform a high-level product vision, PRD, or project idea into a prioritized roadmap of epics, or when they want to brainstorm and architect project milestones
 user-invocable: true
 ---
 
 # Roadmap Architect
 
-Act as a Senior Product Manager (Google-style). Transform high-level vision into a prioritized, high-fidelity roadmap of Epics within the Beads system.
+Act as a Senior Product Manager (Google-style). Transform high-level vision into a prioritized, high-fidelity roadmap of Epics within the ticket system.
 
 > **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
@@ -187,9 +187,9 @@ AVOID/LATER (Low Impact, High Effort):
 
 ---
 
-### Phase 5: Execution & Beads Integration (/roadmap)
+### Phase 5: Execution & Ticket Integration (/roadmap)
 
-**Goal**: Create the Epics in Beads with high-fidelity specifications.
+**Goal**: Create the Epics in the ticket system with high-fidelity specifications.
 
 1. **Final Alignment Pass**: Perform a final **Agent Alignment Test** on all Epic descriptions to ensure they are "Source of Truth" ready for development agents.
 
@@ -230,10 +230,10 @@ AVOID/LATER (Low Impact, High Effort):
 
 4. **Constraint**: Do NOT create child tasks. Maintain the high-level strategic structure. Child tasks will be created later during sprint planning.
 
-5. **Validate Beads Health**: After creating all epics and dependencies:
+5. **Validate Ticket Health**: After creating all epics and dependencies:
 
    ```bash
-   $(git rev-parse --show-toplevel)/scripts/validate-beads.sh
+   $(git rev-parse --show-toplevel)/scripts/validate-issues.sh
    ```
 
    If score < 5, fix issues before finalizing.

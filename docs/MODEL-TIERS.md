@@ -50,7 +50,7 @@ Haiku is ~10x cheaper than Sonnet. Use it aggressively for structured I/O tasks.
 | `/plan-review` | Implementation plan review (sequencing, dependencies) | Must reason about task ordering and identify gaps |
 | `/debug-everything` | Routine bug fixes (single-file, clear root cause) | Must read error context and produce a targeted fix |
 | `/debug-everything` | Diagnostic sub-agent (Phase 1 failure inventory) | Must correlate failures across validation categories and cluster related errors |
-| `/debug-everything` | Triage sub-agent (Phase 2 issue creation) | Must cross-reference failure clusters with existing beads issues and make severity judgments |
+| `/debug-everything` | Triage sub-agent (Phase 2 issue creation) | Must cross-reference failure clusters with existing ticket issues and make severity judgments |
 | `/validate-work` | Staging deployment check with nested JSON responses | Must navigate nested structures and correlate fields |
 
 ### Cost/Quality Tradeoff
@@ -107,7 +107,7 @@ These are real examples found during audit. Each shows a model assignment that i
 | `/debug-everything` | Critic review of complex multi-file fixes | Haiku misses subtle architectural issues in fix correctness | **Sonnet** |
 | `/debug-everything` | Post-batch validation parsing complex type errors | Initially flagged, but audit determined these agents relay structured PASS/FAIL output from scripts — no judgment needed | **Haiku** (confirmed) |
 | `/validate-work` | Local validation parsing structured script output | Runs validate.sh and parses structured PASS/FAIL lines — mechanical output relay | **Haiku** (confirmed) |
-| `/validate-work` | Beads health running validate-beads.sh | Runs validate-beads.sh and tk commands that emit structured counts — no relationship reasoning needed | **Haiku** (confirmed) |
+| `/validate-work` | Ticket health running validate-issues.sh | Runs validate-issues.sh and tk commands that emit structured counts — no relationship reasoning needed | **Haiku** (confirmed) |
 | `/validate-work` | Staging deployment check with nested JSON | Nested JSON correlation requires structured reasoning | **Sonnet** |
 
 ### The Pattern

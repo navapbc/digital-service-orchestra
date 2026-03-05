@@ -1,6 +1,6 @@
 # Epic Complexity Evaluator
 
-Classify a beads epic as SIMPLE, MODERATE, or COMPLEX to determine the decomposition path.
+Classify a ticket epic as SIMPLE, MODERATE, or COMPLEX to determine the decomposition path.
 
 ## Input
 

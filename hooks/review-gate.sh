@@ -53,8 +53,8 @@ fi
 
 # Exempt: git merge commands (merge-to-main.sh merges already-reviewed work)
 # NOTE: --no-edit is NOT exempt. git commit --amend --no-edit with staged code
-# files would bypass review; legitimate uses (beads-only amend, merge conflict
-# resolution of .beads/ files) are caught by the .beads/-only exemption below.
+# files would bypass review; legitimate uses (tracker-only amend, merge conflict
+# resolution of .tickets/ files) are caught by the tracker-only exemption below.
 if [[ "$COMMAND" =~ git[[:space:]].*merge[[:space:]] ]]; then
     exit 0
 fi
@@ -109,7 +109,7 @@ fi
 # Filters from STAGED_NON_SNAPSHOTS so all exemptions compose
 STAGED_NON_DOCS=$(echo "$STAGED_NON_SNAPSHOTS" | grep -v -E '^(\.claude/session-logs/|\.claude/docs/|docs/)' || true)
 # Re-include any "docs" files that are actually skills, hooks, or agent guidance
-STAGED_AGENT_FILES=$(echo "$STAGED_ALL" | grep -E '^(\.claude/skills/|\.claude/workflows/|\.claude/hooks/|\.claude/hookify\.|lockpick-workflow/skills/|lockpick-workflow/hooks/|lockpick-workflow/docs/workflows/|CLAUDE\.md)' || true)
+STAGED_AGENT_FILES=$(echo "$STAGED_ALL" | grep -E '^(\.claude/skills/|\.claude/hooks/|\.claude/hookify\.|lockpick-workflow/skills/|lockpick-workflow/hooks/|lockpick-workflow/docs/workflows/|CLAUDE\.md)' || true)
 if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_DOCS" && -z "$STAGED_AGENT_FILES" ]]; then
     exit 0
 fi

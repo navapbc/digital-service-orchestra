@@ -3,7 +3,7 @@
 # SessionStart hook: analyze hook error log and create bugs for recurring errors
 #
 # Reads ~/.claude/hook-error-log.jsonl, counts errors per hook in the last 24h.
-# If any hook exceeds the threshold, outputs a warning and creates a beads bug.
+# If any hook exceeds the threshold, outputs a warning and creates a ticket bug.
 # Deduplicates bugs via a "bugs_created" marker in the log directory.
 
 # Never surface errors to user — log and exit cleanly

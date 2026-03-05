@@ -30,7 +30,7 @@ Check for an active `/debug-everything` lock belonging to this worktree and rele
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
 # Check for an active lock using the canonical lock-status subcommand
-# (locks live in the tk ticket store, not beads)
+# (locks live in the tk ticket store)
 LOCK_STATUS=$("$REPO_ROOT/scripts/agent-batch-lifecycle.sh" lock-status "debug-everything")
 
 if echo "$LOCK_STATUS" | grep -q "^LOCKED:"; then
@@ -62,9 +62,9 @@ fi
 1. `git diff main -- app/tests/e2e/snapshots/ --stat` — if empty, skip this step.
 2. Run `$REPO_ROOT/scripts/verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
-4. **Exit 2** → baseline changes with no design manifests. Debug using `/playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-beads.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/design-wireframe` or create manifest retroactively.
+4. **Exit 2** → baseline changes with no design manifests. Debug using `/playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/design-wireframe` or create manifest retroactively.
 
-### 4. Sync Beads and Merge to Main
+### 4. Sync Tickets and Merge to Main
 
 First, check if the branch has already been merged:
 
@@ -76,7 +76,7 @@ git log main..$BRANCH --oneline
 
 **If no unmerged commits** (output is empty): the branch was already merged to main by a prior phase (e.g., `/debug-everything` Phase 10). Skip the merge script. Report: "Branch already merged to main — skipping merge."
 
-**If unmerged commits exist**: run the merge script. It handles beads sync, merge, and push internally. Do NOT prompt for confirmation — proceed directly.
+**If unmerged commits exist**: run the merge script. It handles ticket sync, merge, and push internally. Do NOT prompt for confirmation — proceed directly.
 
 ```bash
 "$REPO_ROOT/scripts/merge-to-main.sh"
@@ -141,7 +141,7 @@ If any condition fails:
 
 Display a comprehensive session summary:
 
-**Task Summary** (gathered from git log and beads):
+**Task Summary** (gathered from git log and tickets):
 - Epic ID and title (if a `/sprint` or `/debug-everything` was running)
 - Tasks completed this session. Check both:
   - `git log main..HEAD --oneline` (unmerged commits on this branch)

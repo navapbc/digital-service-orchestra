@@ -1,12 +1,12 @@
 ---
 name: preplanning
-description: Use when decomposing a Beads epic into prioritized user stories with measurable done definitions, or when auditing and reconciling existing epic children before implementation
+description: Use when decomposing a ticket epic into prioritized user stories with measurable done definitions, or when auditing and reconciling existing epic children before implementation
 user-invocable: true
 ---
 
 # Pre-Planning: High-Fidelity Story Mapping
 
-Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, and decompose a Beads Epic into prioritized User Stories with measurable Done Definitions that bridge the epic's vision to task-level acceptance criteria.
+Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, and decompose a ticket Epic into prioritized User Stories with measurable Done Definitions that bridge the epic's vision to task-level acceptance criteria.
 
 > **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
@@ -22,7 +22,7 @@ Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, an
 
 ## Arguments
 
-- `<epic-id>` (optional): The beads epic to decompose. If omitted, presents an interactive list of open epics.
+- `<epic-id>` (optional): The ticket epic to decompose. If omitted, presents an interactive list of open epics.
 - `--lightweight` (optional): Enrich the epic with done definitions and considerations without creating child stories. Returns `ENRICHED` or `ESCALATED`. Used by `/sprint` for MODERATE-complexity epics. If the scope scan discovers COMPLEX qualitative overrides, returns `ESCALATED` so the orchestrator can re-invoke in full mode.
 
 ## Process Overview
@@ -262,7 +262,7 @@ For each split:
 
 ## Phase 4: Verification & Traceability (/preplanning)
 
-### Step 1: Create/Modify Stories in Beads (/preplanning)
+### Step 1: Create/Modify Stories in Tickets (/preplanning)
 
 For new stories, use `--parent` at creation time (single command — avoids the child not appearing under the epic if the update step is skipped):
 ```bash
@@ -377,7 +377,7 @@ Display a summary table:
 
 After creating all stories and dependencies:
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-beads.sh
+$(git rev-parse --show-toplevel)/scripts/validate-issues.sh
 ```
 
 If score < 5, fix issues before presenting to user.
@@ -398,9 +398,9 @@ Summary:
 Next Steps:
 1. Review the story dashboard above
 2. Confirm priorities and dependencies make sense
-3. Approve to sync to Beads, or request adjustments
+3. Approve to sync to tickets, or request adjustments
 
-Does this plan fully capture your vision and the necessary technical safeguards? Should we adjust any priorities before I finalize this in Beads?
+Does this plan fully capture your vision and the necessary technical safeguards? Should we adjust any priorities before I finalize this in the ticket system?
 ```
 
 Wait for user approval. If changes requested, iterate on the plan. Once the user explicitly approves (e.g., "looks good", "approved", "proceed"), immediately continue to Step 5a, Step 6, and Step 7 without pausing for additional input — approval is the signal to proceed, not a stopping point.
@@ -539,7 +539,7 @@ Focus on requirements, constraints, and outcomes. Avoid dictating specific imple
 **Good**: "System must validate email format before storing"
 **Bad**: "Use the `email-validator` library with pattern `^[\w.-]+@[\w.-]+\.\w+$`"
 
-### Beads Integrity
+### Ticket Integrity
 Check for existing items before creating new ones to prevent backlog pollution. Always run Phase 1 reconciliation before creating stories.
 
 ### Story-Level Fidelity
@@ -560,7 +560,7 @@ Do NOT include: file paths, code snippets, database schemas, API response format
 | 1: Reconciliation | Audit children, clarify scope | `tk show`, `tk dep tree` |
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `tk dep` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `tk create`, `tk dep`, `.tickets/<id>.md` editing, `validate-beads.sh`, `/design-wireframe` |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `tk create`, `tk dep`, `.tickets/<id>.md` editing, `validate-issues.sh`, `/design-wireframe` |
 
 ## Example: Reconciliation + Story Creation
 

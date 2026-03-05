@@ -195,7 +195,7 @@ When the review does not pass (any dimension below `pass_threshold`):
    - Present the user with: current artifact state, all unresolved findings across all cycles, and specific questions about direction
    - Apply user input, then run one final Stage 2 review
 
-6. **Cycle tracking**: The calling skill is responsible for tracking cycle count and logging review history in whatever format it uses (beads notes, review-log.md, etc.).
+6. **Cycle tracking**: The calling skill is responsible for tracking cycle count and logging review history in whatever format it uses (ticket notes, review-log.md, etc.).
 
 ---
 

@@ -73,7 +73,7 @@ automated code revisions. Instead:
 1. Triage findings by severity (critical → major → minor).
 2. Resolve conflicts before scoping the remediation epic.
 3. Group findings into priority tiers for Phase 3 user confirmation.
-4. Convert confirmed findings into beads tasks in Phase 4.
+4. Convert confirmed findings into ticket tasks in Phase 4.
 
 ## Validation
 

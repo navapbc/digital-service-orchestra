@@ -39,7 +39,7 @@ $(git rev-parse --show-toplevel)/scripts/retro-gather.sh
 Use `--quick` to skip slow checks (dependency freshness, plugin versions) when session usage is high.
 
 The script outputs structured sections (`=== SECTION_NAME ===`) covering:
-cleanup, validation, beads health/stats/open/blocked/orphaned, worktree staleness,
+cleanup, validation, ticket health/stats/open/blocked/orphaned, worktree staleness,
 outdated dependencies, session usage, hook error logs, timeout logs, plugin versions,
 test metrics, code metrics (including TODO-family comment scan), known issues counts,
 and CI shift-left data (recent run outcomes, failure rate, failed job names).
@@ -48,9 +48,9 @@ and CI shift-left data (recent run outcomes, failure rate, failed job names).
 
 After reviewing the script output:
 
-1. **Error log triage**: For each unique error pattern in `HOOK_ERROR_LOG`, propose a beads bug. Use AskUserQuestion to confirm which warrant creation. **After triage**, truncate the logs.
+1. **Error log triage**: For each unique error pattern in `HOOK_ERROR_LOG`, propose a ticket bug. Use AskUserQuestion to confirm which warrant creation. **After triage**, truncate the logs.
 2. **Plugin updates**: For any outdated plugins, never recommend `@latest` tags — always recommend specific pinned versions. Add as P3 cleanup items.
-3. **Report** the structured health inventory (validation status, beads health, worktree count, dependency freshness, session usage, error triage summary, plugin versions).
+3. **Report** the structured health inventory (validation status, ticket health, worktree count, dependency freshness, session usage, error triage summary, plugin versions).
 
 ---
 
@@ -69,7 +69,7 @@ For the review, additionally check (not covered by the script):
 4. **Naming**: Module (snake_case), class (PascalCase), function (snake_case), constant (UPPER_CASE) consistency.
 5. **Architecture**: Service/model/route separation, circular imports, layering compliance.
 6. **Review defenses**: Count `# REVIEW-DEFENSE:` comments (`grep -rn "REVIEW-DEFENSE:" src/`). Flag any that reference resolved issues, deleted ADRs, or code patterns that have since been refactored. Stale defenses are comment noise.
-7. **TODO-family comment triage**: The `CODE_METRICS` section from `retro-gather.sh` includes per-pattern counts and up to 25 sample matches for: `TODO`, `FIXME`, `HACK`, `XXX`, `NOCOMMIT`, `TEMP`, `KLUDGE`, `WORKAROUND`, `BUG`, `REVISIT`, `DEPRECATED`. For each match, evaluate whether it is: (a) a genuine deferred task → create a P3 beads task during Phase 4; (b) a historical note that is now resolved → candidate for Quick Wins removal; (c) a defense comment that belongs as `# REVIEW-DEFENSE:` → refactor during Phase 4. Do not flag matches where the comment is a legitimate in-progress annotation with a linked issue ID.
+7. **TODO-family comment triage**: The `CODE_METRICS` section from `retro-gather.sh` includes per-pattern counts and up to 25 sample matches for: `TODO`, `FIXME`, `HACK`, `XXX`, `NOCOMMIT`, `TEMP`, `KLUDGE`, `WORKAROUND`, `BUG`, `REVISIT`, `DEPRECATED`. For each match, evaluate whether it is: (a) a genuine deferred task → create a P3 ticket task during Phase 4; (b) a historical note that is now resolved → candidate for Quick Wins removal; (c) a defense comment that belongs as `# REVIEW-DEFENSE:` → refactor during Phase 4. Do not flag matches where the comment is a legitimate in-progress annotation with a linked issue ID.
 8. **Shift-left CI analysis**: Using the `CI_SHIFT_LEFT` section from `retro-gather.sh`, categorize each failed CI job into one of: `unit`, `lint`, `type-check`, `integration`, `e2e`, `build`, `other`. Then for each failure category, identify the **earliest gate** that could catch it and the **gap** preventing it from being caught there:
 
    | Failure category | Earliest possible gate | Common gaps |
@@ -116,8 +116,8 @@ Present consolidated findings for user scope confirmation.
 
 Group findings into three priority tiers:
 
-- **Critical (P0-P1)**: Test/CI failures, beads health < 3, blocked issues, circular dependencies; shift-left gaps where a recurring CI failure has no earlier detection gate at all
-- **Improvement (P2)**: Outdated deps, code smells, test quality issues, beads health 3-4, stale worktrees; shift-left gaps where a test exists but doesn't cover the failure path (missing assertion, wrong mock boundary)
+- **Critical (P0-P1)**: Test/CI failures, ticket health < 3, blocked issues, circular dependencies; shift-left gaps where a recurring CI failure has no earlier detection gate at all
+- **Improvement (P2)**: Outdated deps, code smells, test quality issues, ticket health 3-4, stale worktrees; shift-left gaps where a test exists but doesn't cover the failure path (missing assertion, wrong mock boundary)
 - **Cleanup (P3-P4)**: KNOWN-ISSUES archival, TODO/FIXME/HACK comments (deferred tasks), naming issues, doc updates, outdated plugins; shift-left findings where the gap is a pre-commit hook or lock-file update step
 
 ### User Confirmation
@@ -128,7 +128,7 @@ Use AskUserQuestion to present findings by tier with estimated effort, then ask 
 
 ## Phase 4: Epic Creation (/retro)
 
-Create a beads epic with remediation tasks based on user-confirmed scope.
+Create a ticket epic with remediation tasks based on user-confirmed scope.
 
 ### Steps
 
@@ -138,7 +138,7 @@ Create a beads epic with remediation tasks based on user-confirmed scope.
 
 3. **Add dependencies** where task order matters (e.g., worktree cleanup before orphan resolution).
 
-4. **Validate beads health**: Run `validate-beads.sh`. Fix any issues before proceeding.
+4. **Validate ticket health**: Run `validate-issues.sh`. Fix any issues before proceeding.
 
 5. **Report**: Epic ID/title, task counts by priority, dependency graph, ready tasks, recommended starting point.
 

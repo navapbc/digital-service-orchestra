@@ -22,8 +22,8 @@ that creates maintenance burden, and ensuring the codebase stays navigable as it
 |-----------|--------------------------|---------------------------|
 | file_size | No source files exceed 500 lines; files that exceed 500 lines have a documented justification (e.g., generated code, intentional monolith with ADR) | One or more files exceed 500 lines without documented justification; growth trend suggests more files will cross the threshold soon |
 | complexity | No functions or methods exceed 50 lines; no nesting deeper than 4 levels; complex logic is decomposed into named helper functions with clear single responsibilities | Functions exceeding 50 lines with mixed concerns; nesting beyond 4 levels requiring mental stack tracking; unnamed inline logic that should be extracted |
-| duplication | No significant repeated patterns (3+ occurrences of the same 10+ line block); DRY violations are tracked as beads tasks if intentionally deferred | Repeated logic blocks appearing 3+ times without abstraction; copy-pasted error handling, validation, or transformation code that diverges over time |
-| dead_code | No unreachable functions, unused imports, orphaned modules, or abandoned feature flags in hand-written source; code flagged by static analysis tools (e.g., `ruff` unused import warnings, `vulture`) is either removed or has a documented justification (e.g., public API surface, plugin entry point). If dead code cleanup is intentionally deferred, it is tracked as a beads task | Unreachable functions or entire modules with no callers; unused imports surviving beyond the file where they were introduced; feature flags or config options that no code path reads; test fixtures or helpers with zero consumers; commented-out code blocks left as "might need later" without a tracking issue |
+| duplication | No significant repeated patterns (3+ occurrences of the same 10+ line block); DRY violations are tracked as ticket tasks if intentionally deferred | Repeated logic blocks appearing 3+ times without abstraction; copy-pasted error handling, validation, or transformation code that diverges over time |
+| dead_code | No unreachable functions, unused imports, orphaned modules, or abandoned feature flags in hand-written source; code flagged by static analysis tools (e.g., `ruff` unused import warnings, `vulture`) is either removed or has a documented justification (e.g., public API surface, plugin entry point). If dead code cleanup is intentionally deferred, it is tracked as a ticket task | Unreachable functions or entire modules with no callers; unused imports surviving beyond the file where they were introduced; feature flags or config options that no code path reads; test fixtures or helpers with zero consumers; commented-out code blocks left as "might need later" without a tracking issue |
 
 ## Input Sections
 
@@ -33,7 +33,7 @@ You will receive:
 - **Top Offenders**: Specific files identified as exceeding size or complexity thresholds,
   with line counts and the longest functions listed
 - **Known Issues**: Any pre-existing code quality issues documented in KNOWN-ISSUES.md
-  or tracked as open beads tasks
+  or tracked as open ticket tasks
 
 ## Instructions
 
