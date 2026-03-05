@@ -55,7 +55,7 @@ for fname in sorted(os.listdir(tickets_dir)):
 
     for line in frontmatter.splitlines():
         # List item under a key
-        if in_list and (line.startswith("  - ") or line.startswith("  -\t")):
+        if in_list and (line.startswith("  - ") or line.startswith("  -\t") or line.rstrip() == "  -"):
             list_items.append(line.strip()[2:].strip())
             continue
         # Nested mapping item under a list key (e.g. deps entries)
