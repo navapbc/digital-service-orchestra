@@ -21,10 +21,9 @@
 # CI STATUS BEHAVIOR (with --ci flag):
 #   - If CI is "completed:success": Reports PASS
 #   - If CI is "completed:failure": Reports FAIL
-#   - If CI is "pending"/"queued" and previous completed run succeeded: Reports PASS (assumes still good)
-#   - If CI is "pending"/"queued" and previous completed run failed:
-#       - If new commits contain "fix": waits for CI (polls every 30s, up to VALIDATE_TIMEOUT_CI_WAIT seconds)
-#       - If new commits are unrelated: Reports FAIL immediately
+#   - If CI is "pending"/"queued" and previous non-cancelled completed run succeeded: Reports PASS
+#   - If CI is "pending"/"queued" and previous non-cancelled completed run failed: Reports FAIL immediately
+#   - If CI is "pending"/"queued" and no previous non-cancelled completed run: Reports PASS (no failure evidence)
 #
 # E2E TEST BEHAVIOR:
 #   - In CI environment ($CI=true): Always runs E2E tests
@@ -59,7 +58,6 @@
 #     VALIDATE_TIMEOUT_TESTS   - Test suite timeout (default: 600)
 #     VALIDATE_TIMEOUT_E2E     - E2E test timeout (default: 900)
 #     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 30)
-#     VALIDATE_TIMEOUT_CI_WAIT - Max total seconds to wait for CI to complete when fix commits detected (default: 600)
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
 #
 #   Example: VALIDATE_TIMEOUT_TESTS=900 ./lockpick-workflow/scripts/validate.sh
@@ -112,7 +110,6 @@ TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
 TIMEOUT_TESTS="${VALIDATE_TIMEOUT_TESTS:-600}"  # 10 minutes default - test suite is large
 TIMEOUT_E2E="${VALIDATE_TIMEOUT_E2E:-900}"      # 15 minutes for E2E tests (local is ~2-3x slower than CI ~180s)
 TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-30}"
-TIMEOUT_CI_WAIT="${VALIDATE_TIMEOUT_CI_WAIT:-600}"  # 10 min max total wait for CI to complete
 
 # Track sleep PIDs for cleanup at script exit
 CLEANUP_PIDS=()
@@ -300,15 +297,11 @@ for arg in "$@"; do
             echo "E2E tests are also skipped when CI completed with failure (fix CI first)."
             echo "In CI environment (\$CI set), E2E tests always run."
             echo ""
-            echo "CI wait behavior:"
-            echo "  - Pending CI with previous success: assumes still good (no wait)"
-            echo "  - Pending CI with previous failure + fix commits: polls every 30s,"
-            echo "    up to VALIDATE_TIMEOUT_CI_WAIT seconds (default: 600s / 10 min)"
-            echo "  - Pending CI with previous failure + unrelated commits: FAIL immediately"
+            echo "CI pending behavior:"
+            echo "  - Pending CI with previous success: assumes still good (PASS)"
+            echo "  - Pending CI with previous failure: FAIL immediately"
+            echo "  - Pending CI with no previous completed run: PASS (no failure evidence)"
             echo "  - Completed CI with failure: FAIL immediately; E2E skip (fix CI first)"
-            echo ""
-            echo "Environment variables:"
-            echo "  VALIDATE_TIMEOUT_CI_WAIT  Max seconds to wait for CI after fix commits (default: 600)"
             echo ""
             echo "Timeouts (in seconds):"
             echo "  format: $TIMEOUT_FORMAT, ruff: $TIMEOUT_RUFF, mypy: $TIMEOUT_MYPY"
@@ -428,14 +421,13 @@ check_migrations() {
     fi
 }
 
-# CI status check (smart wait):
-# - completed:success → PASS immediately
-# - completed:failure → FAIL immediately
-# - cancelled → skip; look at last non-cancelled completed run
+# CI status check:
+# - completed:success → PASS
+# - completed:failure → FAIL
+# - cancelled → skip; use last non-cancelled completed run's result
 # - pending + previous success → PASS (assume still good)
-# - pending + previous failure → evaluate commits:
-#     - commits appear to fix the failure → wait (adaptive 30s polling)
-#     - commits unrelated to failure → FAIL immediately
+# - pending + previous failure → FAIL immediately
+# - pending + no previous completed run → PASS (no failure evidence)
 check_ci() {
     [ "$VERBOSE" = "1" ] && verbose_print "ci" "running"
 
@@ -533,109 +525,22 @@ check_ci() {
         return
     fi
 
-    # Previous CI failed, current is pending — evaluate whether new commits fix it
-    # Step 1: Get failed job names from the previous run
-    local failed_jobs
-    failed_jobs=$(
-        run_with_timeout "$TIMEOUT_CI" "ci-failed-jobs" \
-            gh run view "$prev_id" --json jobs \
-            --jq '[.jobs[] | select(.conclusion == "failure") | .name] | join(",")' \
-            2>/dev/null || echo ""
-    )
-
-    # Step 2: Get commit messages between previous and current run
-    local commit_msgs=""
-    if [ -n "$prev_sha" ] && [ -n "$latest_sha" ] && [ "$prev_sha" != "$latest_sha" ]; then
-        commit_msgs=$(
-            git log --oneline "${prev_sha}..${latest_sha}" 2>/dev/null || echo ""
-        )
-    fi
-
-    # Step 3: Determine if commits are likely fixing the CI failure
-    # A commit is considered a fix if it contains "fix" in its message.
-    # We match broadly because commit messages like "fix: prevent CI multi-worker
-    # migration race" address CI failures without naming the specific job.
-    local is_fix_attempt=false
-    if [ -n "$commit_msgs" ] && echo "$commit_msgs" | grep -qi "fix"; then
-        is_fix_attempt=true
-    fi
-
-    if [ "$is_fix_attempt" = "false" ]; then
-        # Commits don't appear to fix the failure — fail immediately
+    if [ -n "$prev_conclusion" ] && [ "$prev_conclusion" != "null" ]; then
+        # Previous CI failed — report failure immediately.
+        # Use ci-status.sh --wait to wait for the pending run to complete.
         echo "in_progress:failure" > "$CHECK_DIR/ci.result"
         echo "1" > "$CHECK_DIR/ci.rc"
         echo "true" > "$CHECK_DIR/ci.pending_with_failure"
-        echo "$failed_jobs" > "$CHECK_DIR/ci.failed_jobs"
-        [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (pending, unrelated to previous failure)"
+        [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (pending, previous run failed)"
         return
     fi
 
-    # Step 4: Commits appear to fix the failure — wait with adaptive polling
-    # Poll every 30s from now until CI completes or VALIDATE_TIMEOUT_CI_WAIT seconds elapse
-    echo "waiting (fix commits detected)" > "$CHECK_DIR/ci.waiting"
-
-    # Adaptive 30s polling loop — poll until CI completes or VALIDATE_TIMEOUT_CI_WAIT elapses
-    local poll_interval=30
-    local wait_start_epoch
-    wait_start_epoch=$(date +%s)
-    local deadline_epoch=$((wait_start_epoch + TIMEOUT_CI_WAIT))
-
-    while true; do
-        local now_epoch
-        now_epoch=$(date +%s)
-
-        # Poll CI status via run ID (anchored to the specific run we identified above,
-        # not the latest run — prevents tracking a different run that starts mid-wait)
-        local ci_result
-        ci_result=$(
-            (
-                run_with_timeout "$TIMEOUT_CI" "ci-status" \
-                    gh run view "$latest_id" \
-                    --json status,conclusion \
-                    --jq '"\(.status):\(.conclusion)"' 2>/dev/null
-            ) || echo "TIMEOUT_OR_ERROR"
-        )
-
-        if [ "$ci_result" != "TIMEOUT_OR_ERROR" ]; then
-            local status_part conclusion
-            status_part=$(echo "$ci_result" | cut -d: -f1)
-            conclusion=$(echo "$ci_result" | cut -d: -f2)
-
-            if [ "$status_part" = "completed" ]; then
-                echo "$ci_result" > "$CHECK_DIR/ci.result"
-                if [ "$conclusion" = "success" ]; then
-                    echo "0" > "$CHECK_DIR/ci.rc"
-                    [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (fix commits verified)"
-                else
-                    echo "1" > "$CHECK_DIR/ci.rc"
-                    [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (fix commits, CI still failed)"
-                fi
-                echo "true" > "$CHECK_DIR/ci.waited_for_fix"
-                return
-            fi
-        fi
-
-        # Check if we've exceeded the wait deadline before sleeping again
-        now_epoch=$(date +%s)
-        if [ "$now_epoch" -ge "$deadline_epoch" ]; then
-            break
-        fi
-
-        # Sleep for poll_interval, but don't overshoot the deadline
-        local remaining=$((deadline_epoch - now_epoch))
-        local sleep_secs=$poll_interval
-        if [ "$remaining" -lt "$sleep_secs" ]; then
-            sleep_secs=$remaining
-        fi
-        sleep "$sleep_secs"
-    done
-
-    # Exhausted wait timeout — CI still running after VALIDATE_TIMEOUT_CI_WAIT seconds
-    echo "in_progress:timeout" > "$CHECK_DIR/ci.result"
-    echo "1" > "$CHECK_DIR/ci.rc"
-    echo "true" > "$CHECK_DIR/ci.pending_with_failure"
-    echo "$failed_jobs" > "$CHECK_DIR/ci.failed_jobs"
-    [ "$VERBOSE" = "1" ] && verbose_print "ci" "FAIL (waited for fix, CI still running)"
+    # No previous non-cancelled completed run found — no evidence of failure.
+    # Treat as passing (CI hasn't had a chance to report yet).
+    echo "in_progress:no_history" > "$CHECK_DIR/ci.result"
+    echo "0" > "$CHECK_DIR/ci.rc"
+    echo "true" > "$CHECK_DIR/ci.skipped_wait"
+    [ "$VERBOSE" = "1" ] && verbose_print "ci" "PASS (pending, no previous completed run)"
 }
 
 # Launch all independent checks in parallel
@@ -780,8 +685,6 @@ if [ $CHECK_CI -eq 1 ]; then
             skipped_wait=$(cat "$CHECK_DIR/ci.skipped_wait" 2>/dev/null || echo "")
             was_cancelled=$(cat "$CHECK_DIR/ci.was_cancelled" 2>/dev/null || echo "")
             pending_with_failure=$(cat "$CHECK_DIR/ci.pending_with_failure" 2>/dev/null || echo "")
-            waited_for_fix=$(cat "$CHECK_DIR/ci.waited_for_fix" 2>/dev/null || echo "")
-            failed_jobs=$(cat "$CHECK_DIR/ci.failed_jobs" 2>/dev/null || echo "")
 
             if [ "$ci_rc" = "0" ]; then
                 if [ "$VERBOSE" = "0" ]; then
@@ -791,8 +694,6 @@ if [ $CHECK_CI -eq 1 ]; then
                         echo "  ${CI_LABEL}:     PASS (run cancelled — not a test failure)"
                     elif [ "$skipped_wait" = "true" ]; then
                         echo "  ${CI_LABEL}:     PASS (pending, previous run passed)"
-                    elif [ "$waited_for_fix" = "true" ]; then
-                        echo "  ${CI_LABEL}:     PASS (fix commits verified — CI passed)"
                     else
                         echo "  ${CI_LABEL}:     PASS ($ci_result)"
                     fi
@@ -801,22 +702,9 @@ if [ $CHECK_CI -eq 1 ]; then
                 echo "success" > "$ARTIFACTS_DIR/ci-baseline"
             elif [ "$pending_with_failure" = "true" ]; then
                 if [ "$VERBOSE" = "0" ]; then
-                    detail=""
-                    if [ -n "$failed_jobs" ]; then
-                        detail=" (failed: $failed_jobs)"
-                    fi
-                    if [ "$ci_result" = "in_progress:timeout" ]; then
-                        echo "  ${CI_LABEL}:     FAIL (waited for fix, CI still running after 15m)${detail}"
-                    else
-                        echo "  ${CI_LABEL}:     FAIL (pending, unrelated to previous failure)${detail}"
-                    fi
+                    echo "  ${CI_LABEL}:     FAIL (pending, previous run failed)"
                     echo "  ${CI_LABEL}:     Run 'ci-status.sh --wait' to wait for completion"
                 fi
-                echo "failure" > "$ARTIFACTS_DIR/ci-baseline"
-                FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}ci"
-                FAILED=1
-            elif [ "$waited_for_fix" = "true" ]; then
-                [ "$VERBOSE" = "0" ] && echo "  ${CI_LABEL}:     FAIL (fix commits detected, but CI still failed)"
                 echo "failure" > "$ARTIFACTS_DIR/ci-baseline"
                 FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}ci"
                 FAILED=1
