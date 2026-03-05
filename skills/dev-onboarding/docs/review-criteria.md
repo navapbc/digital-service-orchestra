@@ -11,7 +11,7 @@ with `pass_threshold: 4` and `start_stage: 1` (mental pre-review included).
 | Reviewer Title | Prompt File | Perspective Label | Focus |
 |----------------|-------------|-------------------|-------|
 | Senior SRE (Failure Modes) | [reviewers/failure-modes.md](reviewers/failure-modes.md) | `"Failure Modes"` | Resource boundaries, failure isolation, recovery by design, degradation paths |
-| Senior Security and Platform Engineer (Hardening) | [reviewers/hardening.md](reviewers/hardening.md) | `"Hardening"` | Secure by default (auth, secrets, input, access control), observable by default (logging, health, lifecycle, errors) |
+| Senior Security and Platform Engineer (Hardening) | [reviewers/hardening.md](reviewers/hardening.md) | `"Hardening"` | Secure by default (auth, secrets, input, access control), observable by default (logging, health, lifecycle, errors), enforced by default (architectural invariants, pre-action gates, commit-time checks, dependency boundaries, CI enforcement) |
 | Senior Staff Software Architect (Scalability) | [reviewers/scalability.md](reviewers/scalability.md) | `"Scalability"` | Stateless by default, data patterns (pagination, query guardrails, growth planning) |
 
 ## Launching Reviews
