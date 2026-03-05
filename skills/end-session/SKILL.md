@@ -125,11 +125,11 @@ cd "$REPO_ROOT"
 git status --porcelain
 ```
 
-**All four conditions must be true** before proceeding:
-- No unstaged changes (`git diff --quiet`)
-- No uncommitted staged changes (`git diff --cached --quiet`)
-- No unmerged paths (`git diff --name-only --diff-filter=U` is empty)
-- No untracked files (`git ls-files --others --exclude-standard` is empty)
+**All four conditions must be true** before proceeding (exclude `.tickets/` — ticket files sync independently and may appear dirty in worktrees):
+- No unstaged changes (`git diff --quiet -- ':!.tickets/'`)
+- No uncommitted staged changes (`git diff --cached --quiet -- ':!.tickets/'`)
+- No unmerged paths (`git diff --name-only --diff-filter=U -- ':!.tickets/'` is empty)
+- No untracked files (`git ls-files --others --exclude-standard -- ':!.tickets/'` is empty)
 
 If any condition fails:
 1. Report the dirty files and which condition(s) failed.
