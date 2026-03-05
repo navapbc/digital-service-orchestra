@@ -83,10 +83,10 @@ if [[ "$FIRST_LINE" =~ git[[:space:]]+add[[:space:]] ]]; then
     fi
 fi
 
-# Exempt: commits that only touch issue tracker metadata (.beads/, .tickets/)
+# Exempt: commits that only touch issue tracker metadata (.tickets/)
 # (.sync-state.json now lives inside .tickets/ so is covered by the .tickets/ exclusion.)
 STAGED_ALL=$(git diff --cached --name-only 2>/dev/null || true)
-STAGED_NON_TRACKER=$(echo "$STAGED_ALL" | grep -v '^\.beads/' | grep -v '^\.tickets/' | grep -v '^\.sync-state\.json$' || true)
+STAGED_NON_TRACKER=$(echo "$STAGED_ALL" | grep -v '^\.tickets/' | grep -v '^\.sync-state\.json$' || true)
 if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_TRACKER" ]]; then
     exit 0
 fi
