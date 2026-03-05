@@ -65,7 +65,12 @@ done
 
 # --check-jobs: print one line per job for a given run ID
 if [ -n "$CHECK_JOBS_RUN_ID" ]; then
-    gh run view "$CHECK_JOBS_RUN_ID" --json jobs | jq -r '.jobs[] | "\(.conclusion) \(.name)"'
+    run_json=$(gh run view "$CHECK_JOBS_RUN_ID" --json jobs,conclusion 2>/dev/null)
+    run_conclusion=$(echo "$run_json" | jq -r '.conclusion // ""')
+    if [ "$run_conclusion" = "cancelled" ]; then
+        echo "# WARNING: run $CHECK_JOBS_RUN_ID was CANCELLED — 'failure' conclusions below may be spurious (cancellation-induced via exit 1 trap)"
+    fi
+    echo "$run_json" | jq -r '.jobs[] | "\(.conclusion) \(.name)"'
     exit 0
 fi
 
