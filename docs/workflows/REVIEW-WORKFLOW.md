@@ -90,7 +90,7 @@ Scan changed files (`git diff HEAD --name-only`) for high-blast-radius patterns:
 
 - `.claude/skills/**`
 - `.claude/workflows/**`
-- `.claude/hooks/**`
+- `lockpick-workflow/hooks/**`
 - `.claude/docs/**`
 - `CLAUDE.md`
 - `.github/workflows/**`

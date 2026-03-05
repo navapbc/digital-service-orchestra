@@ -81,7 +81,7 @@ Changes to these files affect project-wide behavior. Code review sub-agents for 
 
 ```
 .claude/skills/**
-.claude/hooks/**
+lockpick-workflow/hooks/**
 .claude/docs/**
 CLAUDE.md
 .github/workflows/**

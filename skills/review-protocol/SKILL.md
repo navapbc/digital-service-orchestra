@@ -110,7 +110,7 @@ Before launching the sub-agent, check whether the artifact under review contains
 
 - `.claude/skills/**` — skill definitions
 - `.claude/skills/**/prompts/**` — sub-agent prompt templates
-- `.claude/hooks/**` — hook scripts
+- `lockpick-workflow/hooks/**` — hook scripts
 - `.claude/docs/**` — agent documentation
 - `CLAUDE.md` — project-level agent instructions
 - `.github/workflows/**` — CI configuration
