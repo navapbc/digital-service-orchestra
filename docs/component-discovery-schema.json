@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lockpick/lockpick-workflow/component-discovery-schema.json",
+  "title": "component-discovery-adapter",
+  "description": "Stack-agnostic interface for component discovery in design skills (design-wireframe, ui-discover). Each web framework implements this interface as a JSON adapter file. Skills dispatch through adapters based on the design.template_engine config value.",
+  "type": "object",
+  "required": ["name", "route_patterns", "component_file_patterns", "template_syntax", "framework_detection"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique adapter identifier using lowercase kebab-case.",
+      "pattern": "^[a-z][a-z0-9-]+$",
+      "examples": ["my-framework", "web-stack-v2"]
+    },
+    "route_patterns": {
+      "type": "object",
+      "description": "Patterns for discovering routes/pages and their template associations.",
+      "required": ["decorator_patterns", "template_render_patterns", "registration_patterns"],
+      "additionalProperties": false,
+      "properties": {
+        "decorator_patterns": {
+          "type": "array",
+          "description": "Regex patterns that identify route handler declarations in source files.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/annotatedPattern"
+          }
+        },
+        "template_render_patterns": {
+          "type": "array",
+          "description": "Regex patterns that identify how a route handler renders its template/view (e.g. render_template(), return JSX).",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/annotatedPattern"
+          }
+        },
+        "registration_patterns": {
+          "type": "array",
+          "description": "Regex patterns that identify how routes are registered with the application.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/annotatedPattern"
+          }
+        }
+      }
+    },
+    "component_file_patterns": {
+      "type": "object",
+      "description": "Patterns for discovering and analyzing component/macro files.",
+      "required": ["glob_patterns", "definition_patterns", "import_patterns"],
+      "additionalProperties": false,
+      "properties": {
+        "glob_patterns": {
+          "type": "array",
+          "description": "Glob patterns to find component files in the project.",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "definition_patterns": {
+          "type": "array",
+          "description": "Regex patterns to extract component/macro definitions from source files.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/annotatedPattern"
+          }
+        },
+        "import_patterns": {
+          "type": "array",
+          "description": "Regex patterns to find component imports and usage references.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/annotatedPattern"
+          }
+        },
+        "exclude_patterns": {
+          "type": "array",
+          "description": "Glob patterns to exclude from component discovery (e.g. test files, vendor code). Optional — skills apply sensible defaults.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "template_syntax": {
+      "type": "object",
+      "description": "Patterns describing the template engine's syntax for defining, inheriting, and including components.",
+      "required": ["component_definition", "inheritance_pattern", "include_patterns"],
+      "additionalProperties": false,
+      "properties": {
+        "component_definition": {
+          "$ref": "#/definitions/annotatedPattern",
+          "description": "Pattern that identifies a component/macro definition in a template file."
+        },
+        "inheritance_pattern": {
+          "$ref": "#/definitions/annotatedPattern",
+          "description": "Pattern that identifies template inheritance (e.g. {% extends %}, import Layout)."
+        },
+        "include_patterns": {
+          "type": "array",
+          "description": "Patterns that identify template includes and imports.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/annotatedPattern"
+          }
+        },
+        "block_patterns": {
+          "type": "array",
+          "description": "Patterns that identify overridable template blocks/slots. Optional — not all frameworks use block-based inheritance.",
+          "items": {
+            "$ref": "#/definitions/annotatedPattern"
+          }
+        }
+      }
+    },
+    "framework_detection": {
+      "type": "object",
+      "description": "Rules for auto-detecting whether this adapter applies to a given project.",
+      "required": ["marker_files", "marker_keys"],
+      "additionalProperties": false,
+      "properties": {
+        "marker_files": {
+          "type": "array",
+          "description": "File paths (relative to project root) whose presence suggests this framework. Checked in order; first match wins.",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "marker_keys": {
+          "type": "array",
+          "description": "Key-value checks within marker files. Each entry specifies a dot-path key and what to look for.",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["key", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "Dot-notation path within the marker file to check for framework presence."
+              },
+              "file": {
+                "type": "string",
+                "description": "Which marker file this key applies to. Defaults to the first marker_file."
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of what this key check validates."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "annotatedPattern": {
+      "type": "object",
+      "description": "A regex pattern with a human-readable description of what it matches.",
+      "required": ["pattern", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "description": "Regular expression pattern (Python re syntax)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what this pattern matches."
+        },
+        "capture_groups": {
+          "type": "object",
+          "description": "Optional map of capture group index/name to its semantic meaning.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

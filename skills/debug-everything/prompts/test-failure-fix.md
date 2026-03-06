@@ -57,7 +57,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    - Unfamiliar library behavior (e.g., SQLAlchemy session lifecycle, LangGraph state management)
    - Multiple valid approaches with non-obvious tradeoffs
    - 3+ tool calls without a clear path forward
-   Use WebSearch or read official docs; follow guidelines in `.claude/docs/RESEARCH-PATTERN.md`.
+   Use WebSearch or read official docs; follow guidelines in `lockpick-workflow/docs/RESEARCH-PATTERN.md`.
    Include findings in the ROOT_CAUSE report line.
 3. **RED -- Write a failing test FIRST**:
    a. Create a test in the appropriate `tests/unit/` subdirectory
@@ -89,7 +89,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 
 1m. Run `pwd` to confirm working directory
 2m. Read the failing code -- understand what's wrong before changing anything
-2ma. **Research if stuck** -- if the fix isn't obvious after reading the code and multiple approaches are plausible, consult `.claude/docs/RESEARCH-PATTERN.md` before guessing. Use `WebSearch` inline (max 3 searches, max 2 fetches) only for external knowledge gaps. Skip if the answer is visible in the codebase.
+2ma. **Research if stuck** -- if the fix isn't obvious after reading the code and multiple approaches are plausible, consult `lockpick-workflow/docs/RESEARCH-PATTERN.md` before guessing. Use `WebSearch` inline (max 3 searches, max 2 fetches) only for external knowledge gaps. Skip if the answer is visible in the codebase.
 3m. Implement the minimal fix -- change ONLY what is necessary
 4m. Run full validation -- same as TDD path Step 6 above (capture to disk, show tail only)
    - If `TEST_EXIT != 0`: revert changes that broke tests, then report FAIL below.

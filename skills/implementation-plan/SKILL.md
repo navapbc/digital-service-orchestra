@@ -254,7 +254,7 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
 * **TDD First:** Every task must specify a concrete failing test to write first.
 * **Stability:** Each task must leave the codebase in a deployable, green state.
 * **Acceptance Criteria:** Every task must include acceptance criteria set via the
-  `--acceptance` flag, composed from the template library (`.claude/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
+  `--acceptance` flag, composed from the template library (`lockpick-workflow/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
   Read the library once at the start of Step 3. For each task:
   1. Start with Universal Criteria (always included)
   2. Select applicable category blocks based on task type

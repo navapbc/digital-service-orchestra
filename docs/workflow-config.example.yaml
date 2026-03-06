@@ -80,3 +80,18 @@ commands:
   # Run after UI template or CSS changes.
   # Used by: sprint (UI change detection), commit workflow (UI gate)
   test_visual: "make test-visual"
+
+jira:
+  # Jira project key used by `tk sync` for bidirectional ticket synchronization.
+  # Env var JIRA_PROJECT takes precedence (allows per-user overrides).
+  # Required when using Jira integration.
+  project: DTL
+
+issue_tracker:
+  # Command to search for existing tickets by substring.
+  # Used by: commit-failure-tracker.sh (pre-commit warning hook)
+  search_cmd: 'grep -rl'
+
+  # Command to create a new tracking issue.
+  # Used by: check-validation-failures.sh, commit-failure-tracker.sh
+  create_cmd: 'tk create'

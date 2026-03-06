@@ -5,6 +5,14 @@
 # Usage: ./scripts/orphaned-tasks.sh [--json]
 set -euo pipefail
 
+# Source shared tk availability helper for consistency with other ticket scripts.
+# Note: this script reads .tickets/ directly via Python and does not call tk,
+# but sourcing require-tk.sh ensures the tk dependency is validated consistently.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/require-tk.sh"
+# Do not call require_tk here — this script works without tk (reads files directly).
+# The source is for consistency and so adopters see require-tk.sh is available.
+
 JSON_FLAG=""
 if [[ "${1:-}" == "--json" ]]; then
   JSON_FLAG="true"

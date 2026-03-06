@@ -5,7 +5,7 @@
   "description": "Schema for workflow-config.yaml — configures commands and stack for the lockpick-workflow plugin",
   "type": "object",
   "required": ["version"],
-  "additionalProperties": false,
+  "additionalProperties": true,
   "properties": {
     "version": {
       "type": "string",
@@ -125,6 +125,39 @@
           "description": "Visual regression test command — compares screenshots against baselines",
           "minLength": 1,
           "examples": ["make test-visual", "npm run test:visual"]
+        }
+      }
+    },
+    "jira": {
+      "type": "object",
+      "description": "Jira integration configuration. Used by `tk sync` for bidirectional ticket synchronization.",
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Jira project key used by `tk sync`. Env var JIRA_PROJECT takes precedence.",
+          "minLength": 1,
+          "examples": ["DTL", "MYPROJ"]
+        }
+      },
+      "required": ["project"]
+    },
+    "issue_tracker": {
+      "type": "object",
+      "description": "Issue tracker CLI configuration. Used by commit-failure-tracker and validation scripts.",
+      "additionalProperties": false,
+      "properties": {
+        "search_cmd": {
+          "type": "string",
+          "description": "Command to search for existing tickets by substring. Used by commit-failure-tracker.sh.",
+          "minLength": 1,
+          "examples": ["grep -rl", "tk search"]
+        },
+        "create_cmd": {
+          "type": "string",
+          "description": "Command to create a new tracking issue. Used by check-validation-failures.sh.",
+          "minLength": 1,
+          "examples": ["tk create", "gh issue create"]
         }
       }
     }

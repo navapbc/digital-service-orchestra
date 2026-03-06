@@ -1,0 +1,97 @@
+# Acceptance Criteria Template Library
+
+> Composable criteria blocks for sub-agent task verification.
+> Read once by `/implementation-plan` Step 3; sub-agents never read this file.
+
+## Universal Criteria (applied to ALL tasks)
+
+- [ ] `make test-unit-only` passes (exit 0)
+  Verify: cd $(git rev-parse --show-toplevel)/app && make test-unit-only
+- [ ] `make lint` passes (exit 0)
+  Verify: cd $(git rev-parse --show-toplevel)/app && make lint
+- [ ] `make format-check` passes (exit 0)
+  Verify: cd $(git rev-parse --show-toplevel)/app && make format-check
+
+## Category: New Source File
+
+- [ ] `src/{path}/{file}.py` exists
+  Verify: cd $(git rev-parse --show-toplevel)/app && test -f src/{path}/{file}.py
+- [ ] Class `{ClassName}` is importable from `src.{module}.{file}`
+  Verify: cd $(git rev-parse --show-toplevel)/app && python -c "from src.{module}.{file} import {ClassName}"
+- [ ] `make lint-mypy` passes (exit 0)
+  Verify: cd $(git rev-parse --show-toplevel)/app && make lint-mypy
+
+## Category: New Test File
+
+- [ ] `tests/unit/test_{file}.py` exists
+  Verify: cd $(git rev-parse --show-toplevel)/app && test -f tests/unit/test_{file}.py
+- [ ] Test file contains at least {N} test functions
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -c "def test_" tests/unit/test_{file}.py | awk '{exit ($1 < {N})}'
+
+## Category: API Endpoint
+
+- [ ] Route registered for {METHOD} {path}
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -rq "route.*{path}" src/api/
+- [ ] Success case test exists
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -q "def test_{endpoint}_success" tests/unit/api/test_{blueprint}_routes.py
+- [ ] Error case test exists (422 validation)
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -q "def test_{endpoint}.*error\|def test_{endpoint}.*invalid" tests/unit/api/test_{blueprint}_routes.py
+- [ ] Error responses follow RFC 7807 Problem Detail format
+  Verify: cd $(git rev-parse --show-toplevel)/app && pytest tests/unit/api/test_{blueprint}_routes.py::test_error_format
+
+## Category: Database Model
+
+- [ ] Migration file exists in `migrations/versions/`
+  Verify: cd $(git rev-parse --show-toplevel)/app && ls src/db/migrations/versions/*_{description}.py
+- [ ] Model class defined with `created_at` and `updated_at` columns
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -q "created_at\|updated_at" src/db/models/{model}.py
+- [ ] Round-trip persistence test exists
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -rq "def test_.*round_trip\|def test_.*persistence" tests/
+
+## Category: Bug Fix
+
+- [ ] Regression test `test_{issue_id}_{description}` exists
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -rq "def test_{issue_id}" tests/unit/
+- [ ] Test reproduces the original bug scenario
+  Verify: cd $(git rev-parse --show-toplevel)/app && pytest tests/unit/test_{module}.py::test_{issue_id}_{description}
+
+## Category: UI / Template
+
+- [ ] Template file exists at `src/templates/{path}`
+  Verify: cd $(git rev-parse --show-toplevel)/app && test -f src/templates/{path}
+- [ ] Template extends base layout
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -q "extends" src/templates/{path}
+- [ ] `make test-visual` passes (exit 0) — or baselines updated
+  Verify: cd $(git rev-parse --show-toplevel)/app && make test-visual
+
+## Category: Refactoring
+
+- [ ] All pre-existing tests pass without modification
+  Verify: cd $(git rev-parse --show-toplevel)/app && make test-unit-only
+- [ ] No public interface signatures changed (or migration documented)
+  Verify: git diff HEAD -- 'src/**/__init__.py' | grep -c "^-.*def \|^-.*class " | awk '{exit ($1 > 0)}'
+
+## Category: Pipeline Agent
+
+- [ ] Agent class in `src/agents/{name}.py` implements `BaseAgent`
+  Verify: cd $(git rev-parse --show-toplevel)/app && python -c "from src.agents.{name} import {AgentClass}; from src.agents.base import BaseAgent; assert issubclass({AgentClass}, BaseAgent)"
+- [ ] Agent registered in pipeline configuration
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -q "{name}" src/agents/pipeline.py
+- [ ] Unit tests cover: happy path, empty input, malformed input
+  Verify: cd $(git rev-parse --show-toplevel)/app && grep -c "def test_" tests/unit/agents/test_{name}.py | awk '{exit ($1 < 3)}'
+
+## Category: Script / Tooling
+
+- [ ] Script file exists and is executable
+  Verify: test -x {script_path}
+- [ ] Script outputs expected format (single-line structured output)
+  Verify: {script_path} --help 2>&1 | head -1
+- [ ] Script handles missing arguments gracefully (non-zero exit)
+  Verify: ! {script_path} 2>/dev/null
+
+## Category: Skill / Workflow Modification
+
+- [ ] Skill file is valid markdown
+  Verify: test -f {skill_path}
+- [ ] No broken internal references (file paths in skill exist)
+  Verify: grep -oE '\$REPO_ROOT/[^ )`]+' {skill_path} | while read p; do test -e "$(git rev-parse --show-toplevel)/${p#\$REPO_ROOT/}" || echo "MISSING: $p"; done | grep -c MISSING | awk '{exit ($1 > 0)}'

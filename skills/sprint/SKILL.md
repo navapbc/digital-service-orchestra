@@ -689,7 +689,7 @@ $REPO_ROOT/scripts/check-acceptance-criteria.sh <task-id>
 ```
 
 - **Exit 0**: Proceed with dispatch — task has structured AC block
-- **Exit 1**: Do NOT dispatch. Read `.claude/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`, compose an
+- **Exit 1**: Do NOT dispatch. Read `lockpick-workflow/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`, compose an
   appropriate acceptance criteria block for the task, and add it by editing `.tickets/<id>.md` directly to insert an `## ACCEPTANCE CRITERIA` section.
   Re-run the check. If criteria cannot be determined (ambiguous task type), halt and ask the user.
 
