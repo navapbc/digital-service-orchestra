@@ -828,32 +828,14 @@ If validation fails, identify which sub-agent's code is broken and note it.
 
 #### Test Failure Sub-Agent Delegation (Phase 6 Step 4)
 
-When `validate-phase.sh post-batch` fails, dispatch a debugging sub-agent BEFORE reverting tasks to open. Follow the protocol in `lockpick-workflow/docs/workflows/TEST-FAILURE-DISPATCH.md`.
-
-**Build input payload** per TEST-FAILURE-DISPATCH.md:
+When `validate-phase.sh post-batch` fails, dispatch a debugging sub-agent BEFORE reverting tasks to open. Follow `prompts/test-failure-dispatch-protocol.md` with these caller-specific fields:
 - `test_command`: the `validate-phase.sh post-batch` command that failed
-- `exit_code`: the exit code from the failed command
-- `stderr_tail`: last 50 lines of output from the failed command
-- `changed_files`: files modified by the batch (from `git diff --name-only`)
+- `changed_files`: files modified by the batch (`git diff --name-only`)
 - `task_id`: the task ID of the sub-agent that likely caused the failure
 - `context`: `sprint-post-batch`
-- `attempt`: 1 (increment on retry)
-- `parent_task_id`: the epic ID (for discovered-work tickets)
 - `batch_task_ids`: IDs of all tasks in the current batch
 
-**Select model and subagent_type** per TEST-FAILURE-DISPATCH.md Model Selection Table and Sub-Agent Type Selection table.
-
-**Read the prompt template** from `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` and fill all placeholders with the input payload fields.
-
-**Nesting prohibition**: The sprint ORCHESTRATOR dispatches the debugging sub-agent directly via `Task` tool -- the debugging sub-agent must NOT dispatch nested `Task` calls. This respects CLAUDE.md rule #23 (two-level nesting causes `[Tool result missing due to internal error]` failures).
-
-**Parse RESULT from sub-agent output:**
-- `PASS` -- validation is now fixed. Re-run `validate-phase.sh post-batch` to confirm, then continue to Step 5 (Persistence Coverage Check).
-- `FAIL` -- increment `attempt` to 2, retry with `opus` model.
-- `FAIL` on attempt 2 -- fall back to existing behavior: revert the responsible task to open (`tk status <id> open`), add failure notes via `tk add-note`.
-- `PARTIAL` -- log concerns in ticket notes, continue to Step 5 with caveats.
-
-**Fallback**: If the sub-agent times out or returns malformed output (missing `RESULT` line), fall back to existing behavior: revert the responsible task to open and add failure notes.
+On `PASS`: re-run `validate-phase.sh post-batch` to confirm, then continue to Step 5.
 
 ### Step 5: Persistence Coverage Check (/sprint)
 
@@ -1067,8 +1049,6 @@ Before running `/validate-work`, verify CI has passed on the final batch's commi
 
 **Docs-only detection (run first)**:
 
-Before checking CI, determine if the epic made code changes:
-
 ```bash
 CODE_FILES=$(git diff --name-only main...HEAD | grep -vE '\.(md|txt|json)$|^\.tickets/|^\.claude/|^docs/' | head -1)
 ```
@@ -1078,113 +1058,21 @@ If `CODE_FILES` is empty (all changes are documentation, tickets, or config):
 - Skip Steps 0.5a and 0.5b entirely
 - Proceed directly to Step 1 (/validate-work)
 
-If `CODE_FILES` is non-empty: continue with CI verification below.
-
-**Worktree branch detection (run first)**:
+If `CODE_FILES` is non-empty: use `ci-status.sh --wait` which handles SHA-anchored polling, worktree auto-detection (falls back to `main` branch), and 30-minute timeout:
 
 ```bash
-CURRENT_BRANCH=$(git branch --show-current)
-if echo "$CURRENT_BRANCH" | grep -qE '^worktree-[0-9]{8}-[0-9]{6}$'; then
-    echo "Worktree branch detected ($CURRENT_BRANCH) — CI does not run on ephemeral branches."
-    echo "Checking main branch CI instead."
-    POLL_BRANCH="main"
-else
-    POLL_BRANCH="$CURRENT_BRANCH"
-fi
-```
-
-If `POLL_BRANCH` is `main` (worktree branch detected): poll `gh run list --branch=main --limit=5` for the most recent completed run. If it is passing, consider CI satisfied and proceed to Step 0.5b. Log: "Worktree branch detected — CI does not run on ephemeral branches. Checking main branch CI instead."
-
-**Critical** (non-worktree branches): Do NOT use `ci-status.sh --wait` alone — it returns the latest CI run, which may predate your push. Poll until a completed run **contains** your commit (exact SHA match or ancestor check for the case where another push supersedes yours and GitHub cancels your run).
-
-```bash
-HEAD_SHA=$(git rev-parse HEAD)
-BRANCH="main"
-MAX_WAIT=1800   # 30 minutes
-ELAPSED=0
-CONCLUSION=""
-RUN_ID=""
-MATCHED_SHA=""
-
-while [ $ELAPSED -lt $MAX_WAIT ]; do
-    git fetch origin $BRANCH --quiet 2>/dev/null || true
-
-    RUNS_JSON=$(gh run list --workflow=CI --branch $BRANCH --limit 20 \
-        --json databaseId,status,conclusion,headSha 2>/dev/null)
-
-    while IFS= read -r RUN_LINE; do
-        [ -z "$RUN_LINE" ] && continue
-        RUN_SHA=$(echo "$RUN_LINE" | jq -r '.headSha')
-        RUN_STATUS=$(echo "$RUN_LINE" | jq -r '.status')
-        RUN_CONCLUSION=$(echo "$RUN_LINE" | jq -r '.conclusion')
-        RUN_ID_CANDIDATE=$(echo "$RUN_LINE" | jq -r '.databaseId')
-
-        CONTAINS=false
-        if [ "$RUN_SHA" = "$HEAD_SHA" ]; then
-            CONTAINS=true
-        elif git merge-base --is-ancestor "$HEAD_SHA" "$RUN_SHA" 2>/dev/null; then
-            CONTAINS=true
-        fi
-
-        if [ "$CONTAINS" = "true" ] && [ "$RUN_STATUS" = "completed" ]; then
-            if [ "$RUN_CONCLUSION" = "success" ] || [ "$RUN_CONCLUSION" = "failure" ]; then
-                CONCLUSION="$RUN_CONCLUSION"
-                RUN_ID="$RUN_ID_CANDIDATE"
-                MATCHED_SHA="$RUN_SHA"
-                echo "CI contains $HEAD_SHA (run headSha: $MATCHED_SHA): $CONCLUSION (run: $RUN_ID)"
-                break 2
-            fi
-            echo "  Run $RUN_ID_CANDIDATE ($RUN_SHA) contains our commit but was $RUN_CONCLUSION — checking for newer run..."
-        fi
-    done < <(echo "$RUNS_JSON" | jq -c '.[]')
-
-    echo "  No completed CI run containing $HEAD_SHA yet (checking in 30s...)"
-    sleep 30
-    ELAPSED=$((ELAPSED + 30))
-done
-
-if [ -z "$CONCLUSION" ]; then
-    echo "WARNING: No completed CI run containing $HEAD_SHA found after ${MAX_WAIT}s"
-fi
+$REPO_ROOT/lockpick-workflow/scripts/ci-status.sh --wait
 ```
 
 | CI Result | Action |
 |-----------|--------|
 | `success` | Proceed to Step 0.5b |
-| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` agent (model: `sonnet`) with the CI run URL (`gh run view $RUN_ID --web`) and failed job names to diagnose root cause. Run `/debug-everything` to fix, commit+push, restart Step 0.5a. If still failing after one attempt → Phase 9 (Graceful Shutdown). |
-| Not found after 30 min | Run `gh run list --workflow=CI --limit 10` to check if CI triggered. If all containing runs were cancelled with no successor, report to user. |
+| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` agent (model: `sonnet`) with the CI run URL and failed job names. Run `/debug-everything` to fix, commit+push, restart Step 0.5a. If still failing after one attempt → Phase 9 (Graceful Shutdown). |
+| Not found after 30 min | Run `gh run list --workflow=CI --limit 10` to check if CI triggered. Report to user. |
 
 #### Validation State File (CI failure context for /debug-everything)
 
-Before invoking `/debug-everything` on CI failure, write a validation state file so that debug-everything can skip redundant diagnostics for categories that already passed locally:
-
-**File path**: `/tmp/sprint-validation-<epic-id>.json`
-
-**Schema**:
-```json
-{
-  "version": 1,
-  "epicId": "<epic-id>",
-  "generatedAt": "<ISO-8601 timestamp>",
-  "generatedBy": "sprint",
-  "localCheckResults": {
-    "format": "pass|fail",
-    "lint_ruff": "pass|fail",
-    "lint_mypy": "pass|fail",
-    "test_unit": "pass|fail"
-  },
-  "ciFailure": {
-    "url": "<CI run URL>",
-    "failedJobs": ["<job names if available>"]
-  },
-  "epicInfo": {
-    "epicId": "<epic-id>",
-    "changedFiles": ["<files from git diff main...HEAD>"]
-  }
-}
-```
-
-Populate `localCheckResults` from the post-batch validation output across all batches. Categories that passed locally are unlikely to be the CI failure cause. Write using Bash (inline JSON). Overwritten if Phase 7 is re-entered.
+Before invoking `/debug-everything` on CI failure, write the validation state file per `prompts/ci-failure-validation-state.md`.
 
 #### Step 0.5b: Run E2E Tests
 
@@ -1200,31 +1088,13 @@ cd $(git rev-parse --show-toplevel)/app && make test-e2e
 
 #### E2E Test Failure Sub-Agent Delegation (Phase 7 Step 0.5b)
 
-When E2E tests fail, dispatch a debugging sub-agent per `lockpick-workflow/docs/workflows/TEST-FAILURE-DISPATCH.md`.
-
-**Build input payload** per TEST-FAILURE-DISPATCH.md:
-- `test_command`: the E2E test command that failed (`cd $(git rev-parse --show-toplevel)/app && make test-e2e`)
-- `exit_code`: the exit code from the failed command
-- `stderr_tail`: last 50 lines of output from the failed command
-- `changed_files`: files changed across all batches (from `git diff --name-only main...HEAD`)
+When E2E tests fail, follow `prompts/test-failure-dispatch-protocol.md` with these caller-specific fields:
+- `test_command`: `cd $(git rev-parse --show-toplevel)/app && make test-e2e`
+- `changed_files`: files changed across all batches (`git diff --name-only main...HEAD`)
 - `task_id`: a tracking task ID for checkpoint notes
-- `context`: `sprint-e2e` (distinct from `sprint-post-batch` used in Phase 6 Step 4)
-- `attempt`: 1 (increment on retry)
-- `parent_task_id`: the epic ID
+- `context`: `sprint-e2e`
 
-**Select model and subagent_type** per TEST-FAILURE-DISPATCH.md Model Selection Table and Sub-Agent Type Selection table.
-
-**Read the prompt template** from `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` and fill all placeholders with the input payload fields.
-
-**Nesting prohibition**: The sprint ORCHESTRATOR dispatches the debugging sub-agent directly via `Task` tool -- the debugging sub-agent must NOT dispatch nested `Task` calls. This respects CLAUDE.md rule #23.
-
-**Parse RESULT from sub-agent output:**
-- `PASS` → E2E tests are now fixed. Proceed to Step 1.
-- `FAIL` → increment `attempt` to 2, retry with `opus` model.
-- `FAIL` on attempt 2 → fall back to existing behavior: create a P1 bug issue for each failing test, set it as a child of the epic, and return to Phase 3.
-- `PARTIAL` → log concerns in ticket notes, proceed to Step 1 with caveats.
-
-**Fallback**: If the sub-agent times out or returns malformed output (missing `RESULT` line), fall back to existing behavior: create P1 bug issues and return to Phase 3.
+On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as child of epic, return to Phase 3.
 
 ### Step 1: Run /validate-work (/sprint)
 
