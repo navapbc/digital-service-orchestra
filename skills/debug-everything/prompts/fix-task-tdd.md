@@ -1,0 +1,101 @@
+## Fix: {issue title}
+Beads ID: {id}
+Category: {tier name — e.g., "Runtime error", "Logic bug", "Data corruption"}
+
+### Error Details
+{exact error output — full traceback or assertion failure}
+{include file paths, line numbers, and the specific check that failed}
+
+### Root Cause Location (if known)
+{file path and line numbers where the error likely originates}
+{if unknown, say "Root cause unknown — investigate before fixing"}
+
+### Project Context
+Refer to CLAUDE.md (already in your context) for architecture, patterns, and conventions.
+
+### Instructions
+
+1. Run `pwd` to confirm working directory
+2. **Investigate root cause** before changing anything:
+   a. Read the failing code and its callers/callees
+   b. Trace the call stack from error back to origin
+   c. If root cause is unknown: `git log --oneline -20 <file>` to find recent changes, then `git bisect` to narrow the regression
+   d. Do NOT proceed to step 3 until you can explain WHY the error occurs
+2a. **Research if stuck** — trigger this step when any of these apply:
+   - Unfamiliar library behavior (e.g., SQLAlchemy session lifecycle, LangGraph state management)
+   - Multiple valid approaches with non-obvious tradeoffs
+   - 3+ tool calls without a clear path forward
+   Use WebSearch or read official docs; follow guidelines in `lockpick-workflow/docs/RESEARCH-PATTERN.md`.
+   Include findings in the ROOT_CAUSE report line (e.g., "ROOT_CAUSE: ... — confirmed via SQLAlchemy docs: lazy loading requires active session").
+3. **RED — Write a failing test FIRST**:
+   a. Create a test in the appropriate `tests/unit/` subdirectory
+   b. The test must assert the CORRECT behavior (what should happen after the fix)
+   c. Run: `cd $(git rev-parse --show-toplevel)/app && poetry run pytest <test_file>::<test_name> -v`
+   d. Confirm the test FAILS
+   e. If it passes immediately, your test does not capture the bug — rethink
+4. **GREEN — Implement the minimal fix** — change ONLY what is necessary
+5. Run the test again — confirm it PASSES
+6. Run full validation — capture verbose output to disk to keep the orchestrator's context lean:
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+   RESULT_FILE="$(get_artifacts_dir)/agent-result-{id}.md"
+   mkdir -p "$(dirname "$RESULT_FILE")"
+   { cd "$REPO_ROOT/app" && make format-check && make lint && make test-unit-only; } > "$RESULT_FILE" 2>&1
+   TEST_EXIT=$?
+   # Show only the tail — full output is in $RESULT_FILE
+   tail -5 "$RESULT_FILE"
+   ```
+   - If `TEST_EXIT != 0`: revert any changes that broke tests (`git checkout -- <files>`), then report FAIL below.
+7. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations outside your fix scope, write a discovery file so the orchestrator can propagate findings to the next batch:
+   ```bash
+   cat > .agent-discoveries/{id}.json.tmp << 'DISC_EOF'
+   {"task_id": "{id}", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line description>", "affected_files": ["<absolute-path>", ...]}
+   DISC_EOF
+   mv .agent-discoveries/{id}.json.tmp .agent-discoveries/{id}.json
+   ```
+   - Only write if you have genuine discoveries — do not write an empty file
+   - Use atomic write (write `.tmp`, then `mv`) to avoid partial reads
+   - If writing fails, continue — discovery writing is non-fatal and must not block task completion
+8. **Your final response MUST contain ONLY the structured report below — no test output, no diffs, no tracebacks.** Verbose output is saved in `$RESULT_FILE` for post-hoc inspection.
+   ```
+   RESULT: PASS | FAIL | PARTIAL
+   ISSUE_ID: {id}
+   FILES_MODIFIED: <path1>, <path2>, ... (or "none")
+   FILES_CREATED: <path1>, <path2>, ... (or "none")
+   ROOT_CAUSE: <1-2 sentence explanation>
+   TESTS: <N> passed, <M> failed
+   CONCERNS: <any remaining issues, or "none">
+   TASKS_CREATED: <ticket-id1>, <ticket-id2> (or "none", or "error: <reason>")
+   DISCOVERIES_WRITTEN: yes|no|error
+   ```
+
+### Rules
+Read `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
+- Do NOT: `git commit`, `git push`, `tk close`, `tk status`, `tk dep`
+- You MAY run: `tk create --parent=<parent-id>` for discovered work outside your fix scope
+- Do NOT skip, disable, or delete any tests
+- Do NOT add `# type: ignore`, `# noqa`, `@pytest.mark.skip`, or any suppression comments
+- Do NOT modify files outside the scope of this fix
+- If you discover additional unrelated bugs, create a ticket task and include the ID in TASKS_CREATED
+
+### File Ownership Boundaries
+
+{file_ownership_context}
+
+If the above section is populated, respect these boundaries:
+- Only modify files listed under "You own"
+- Do NOT modify files listed under "Other agents own" — if you need changes there, note the dependency in your report
+- If you discover you need to modify a file outside your ownership, report it in CONCERNS instead of modifying it
+
+### Anti-Patterns (Never Do These)
+
+| Anti-Pattern | Why It's Wrong | Do This Instead |
+|-------------|----------------|-----------------|
+| `# type: ignore` | Hides real type errors | Fix the type mismatch |
+| `@pytest.mark.skip` | Hides real test failures | Fix the test or the code |
+| `# noqa` | Hides lint violations | Fix the code |
+| Fixing symptoms not causes | Cascade of new errors | Trace to root cause first |
+| Guessing at fixes | Introduces new bugs | Read code, trace data flow |
+| Fixing multiple things at once | Can't isolate what worked | One logical fix, then verify |
+| Scope creep ("while I'm here...") | Unrelated changes risk regressions | Note it for a separate issue |
