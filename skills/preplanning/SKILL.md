@@ -425,9 +425,15 @@ After all implementation stories are drafted, create one final story to update p
 - **Updates existing docs only** — do not create new documentation files or patterns
 - **Targets**: `CLAUDE.md` (architecture section, quick reference), `DESIGN_NOTES.md`, ADRs, `KNOWN-ISSUES.md`, or other docs that already exist and would become stale after the epic is complete
 - **Scope**: Concise updates that ensure future agents have accurate awareness of the project state (new routes, changed patterns, updated commands, removed features)
+- **Style guide**: Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting, structure, and conventions when writing documentation updates
 - **Depends on**: All implementation stories (runs last)
 - **Title format**: "Update project docs to reflect [epic summary]"
 - **Skip if**: The epic makes no changes that would affect existing documentation (document rationale)
+
+When creating the documentation update story via `tk create`, add a note with the guide reference so sub-agents find it in their ticket payload:
+```bash
+tk add-note <story-id> "Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions."
+```
 
 ### Step 3: Present Story Dashboard (/preplanning)
 

@@ -288,6 +288,7 @@ If the story introduces or modifies patterns, conventions, or significant techni
 - **New conventions** → Update Standardization Guide or relevant docs
 - **New integration/dependency** → Document in architecture docs
 - **Config changes** → Update environment or deployment docs
+- **Style guide**: Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting, structure, and conventions when writing any documentation updates
 
 The doc task should depend on implementation tasks and reference Step 2 feedback if applicable.
 
