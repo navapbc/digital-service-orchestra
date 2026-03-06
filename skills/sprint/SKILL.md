@@ -601,10 +601,13 @@ tk status <id> in_progress
 Pull the latest `.tickets/` state from main before launching sub-agents. This ensures the batch sees any ticket changes pushed by other worktrees since the last sync:
 
 ```bash
-git fetch origin main && git merge origin/main --no-edit
+REPO_ROOT=$(git rev-parse --show-toplevel)
+"$REPO_ROOT/scripts/worktree-sync-from-main.sh"
 ```
 
-If the merge has conflicts, resolve them (prefer local for code files, prefer main for `.tickets/`). If the merge fails entirely, log a warning and continue — stale ticket state is preferable to a blocked batch.
+**Never run bare `git merge origin/main` in a worktree** — it fails when `.tickets/` files have skip-worktree flags. The sync script handles flag clearing, ticket stashing, merge, and restore automatically.
+
+If the script reports a non-ticket merge conflict, resolve it (prefer local for code files), commit, and re-run the script. If it fails entirely, log a warning and continue — stale ticket state is preferable to a blocked batch.
 
 ---
 

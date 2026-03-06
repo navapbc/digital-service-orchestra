@@ -283,9 +283,9 @@ Migration head conflicts are automatically detected by:
 
 3. **Merge from main frequently**: Pull the latest migrations from `main` before creating new ones:
    ```bash
-   git fetch origin main
-   git merge origin/main
+   "$(git rev-parse --show-toplevel)/scripts/worktree-sync-from-main.sh"
    ```
+   Never run bare `git merge origin/main` — the sync script handles skip-worktree flag clearing required for `.tickets/` files.
 
 ### Resolution
 
