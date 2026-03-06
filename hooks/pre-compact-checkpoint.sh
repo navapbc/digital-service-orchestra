@@ -74,6 +74,17 @@ fi
 # --- Last 3 fix commits ---
 RECENT_FIXES=$(git log --oneline -3 2>/dev/null || echo "(none)")
 
+# --- Write pre-checkpoint-base for diff hash detection (Phase 2) ---
+# Record current HEAD SHA *before* the checkpoint commit so that
+# compute-diff-hash.sh can identify the pre-compaction base.
+ARTIFACTS_DIR="$(get_artifacts_dir 2>/dev/null || echo "")"
+if [[ -n "$ARTIFACTS_DIR" ]]; then
+    _PRE_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+    if [[ -n "$_PRE_BASE_SHA" ]]; then
+        echo -n "$_PRE_BASE_SHA" > "$ARTIFACTS_DIR/pre-checkpoint-base"
+    fi
+fi
+
 # --- Auto-save uncommitted work ---
 # Exclude .tickets/ — these sync via their own dedicated mechanism
 # (ticket-sync-push hook). Including them here caused 330+ spam ticket files
