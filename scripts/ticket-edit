@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# tk-plugin: Open ticket in $EDITOR
+# tk-plugin-version: 1.0.0
+set -euo pipefail
+
+if [[ -z "${TICKETS_DIR:-}" ]]; then
+    echo "Error: TICKETS_DIR is not set or empty" >&2
+    exit 1
+fi
+
+if [[ $# -lt 1 ]]; then
+    echo "Usage: tk edit <id>" >&2
+    exit 1
+fi
+
+id="$1"
+# Trim leading/trailing whitespace (handles Claude/agent quirks).
+# The here-string (<<<) feeds $id back through `read`, which strips
+# leading and trailing IFS whitespace as a side effect.
+read -r id <<< "$id"
+
+# Resolve ticket file (exact or partial match)
+file="$TICKETS_DIR/${id}.md"
+if [[ ! -f "$file" ]]; then
+    matches=$(find "$TICKETS_DIR" -maxdepth 1 -name "*${id}*.md" 2>/dev/null)
+    count=$(printf '%s\n' "$matches" | grep -c . 2>/dev/null || echo 0)
+    if [[ "$count" -eq 1 ]]; then
+        file="$matches"
+    elif [[ "$count" -gt 1 ]]; then
+        echo "Error: ambiguous ID '$id' matches multiple tickets" >&2
+        exit 1
+    else
+        echo "Error: ticket '$id' not found" >&2
+        exit 1
+    fi
+fi
+
+if [ -t 0 ] && [ -t 1 ]; then
+    "${EDITOR:-vi}" "$file"
+else
+    echo "Edit ticket file: $file"
+fi

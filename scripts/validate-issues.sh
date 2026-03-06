@@ -187,6 +187,9 @@ for line in sys.stdin:
     if len(parts) < 9:
         continue
     tid, status, itype, parent, deps_str, created, title, has_desc, has_notes = parts
+    # Skip lock issues (agent-batch-lifecycle markers)
+    if title.startswith('[LOCK]'):
+        continue
     dep_list = [d.strip() for d in deps_str.split(',') if d.strip()] if deps_str else []
     issues.append({
         'id': tid,

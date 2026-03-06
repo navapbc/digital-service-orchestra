@@ -64,7 +64,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 ### Create Pre-Loop Progress Checklist
 
-Call `TodoWrite` with the following items before doing any other work. This shows the user what setup steps will be completed before batch execution begins:
+Call `TaskCreate` for each of the following items before doing any other work. This shows the user what setup steps will be completed before batch execution begins:
 
 ```
 [ ] Select and validate epic
@@ -75,9 +75,7 @@ Call `TodoWrite` with the following items before doing any other work. This show
 [ ] Implementation planning gate (run /implementation-plan per story if needed — skipped for SIMPLE/MODERATE)
 ```
 
-Mark each item `in_progress` when starting it and `completed` when done. This list is replaced entirely when the batch loop begins (Phase 3).
-
-> **IMPORTANT**: Use ONLY `TodoWrite`/`TodoRead` for this checklist — do NOT use `TaskCreate`. The `TaskCreate` tool creates independent spinner tasks that persist across `TodoWrite` calls and will NOT be cleared when Phase 3 replaces the checklist. If you accidentally created `TaskCreate` tasks for pre-loop tracking, complete them via `TaskUpdate(status='completed')` before Phase 3 begins.
+Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` when done. Before the batch loop begins (Phase 3), complete all pre-loop tasks via `TaskUpdate(status='completed')`.
 
 ### Parse Arguments
 
@@ -456,27 +454,19 @@ If no ready tasks exist:
 
 ### Pre-Batch Cleanup
 
-Before building the Batch 1 checklist, clear any lingering TaskCreate items from the pre-loop phase:
+Before building the Batch 1 checklist, clear any lingering tasks from the pre-loop phase:
 
 1. Run `TaskList` to check for pending/in_progress/completed tasks from the pre-loop phase
-2. For each task that is NOT a batch work item: `TaskUpdate(taskId=<id>, status='deleted')`
-3. Then proceed with the batch TodoWrite below
+2. For each task that is NOT a batch work item: `TaskUpdate(taskId=<id>, status='completed')`
 
 ### Initialize Batch Progress Checklist
 
-> **CHECKLIST RESET**: Always call `TodoWrite` at the start of Phase 3 for EACH new batch
-> (Batch 1, Batch 2, etc.). This replaces the previous batch's checklist. If you are
-> starting Batch N and the checklist still shows Batch N-1 items, call TodoWrite immediately
-> before doing any other Phase 3 work.
->
-> **IMPORTANT**: Use ONLY `TodoWrite` for batch checklist management — do NOT use `TaskCreate`
-> alongside it. `TaskCreate` tasks persist independently across `TodoWrite` calls and are NOT
-> cleared when `TodoWrite` replaces the checklist. If you previously created `TaskCreate` tasks
-> for batch tracking, complete them via `TaskUpdate(status='completed')` before calling
-> `TodoWrite` for the new batch. At the START of EACH new batch, call `TodoWrite` to replace
-> the ENTIRE checklist with the new batch's tasks.
+> **CHECKLIST RESET**: At the start of Phase 3 for EACH new batch (Batch 1, Batch 2, etc.),
+> complete all previous batch tasks via `TaskUpdate(status='completed')`, then create new
+> tasks for the current batch via `TaskCreate`. If you are starting Batch N and the task list
+> still shows Batch N-1 items, complete them before creating new batch tasks.
 
-Call `TodoWrite` to replace any existing checklist with the current batch's items. Replace `N` with the current batch number (1, 2, 3...). Calling `TodoWrite` replaces the previous list entirely — no accumulation across batches.
+Create tasks via `TaskCreate` for the current batch's items. Replace `N` with the current batch number (1, 2, 3...).
 
 ```
 [ ] Batch N — Plan (sprint-next-batch.sh)
@@ -1034,7 +1024,7 @@ Validation has two stages: (1) comprehensive project health via `/validate-work`
 
 ### Initialize Post-Loop Progress Checklist
 
-Call `TodoWrite` to replace the batch checklist with the post-epic validation steps:
+Complete all remaining batch tasks, then create new tasks via `TaskCreate` for the post-epic validation steps:
 
 ```
 [ ] Integration test gate

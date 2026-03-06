@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tk-bugs — list open, unblocked bugs sorted by priority
+# Shortcut for filtering tk ready output to type:bug tickets
+
+# Find .tickets directory by walking parent directories (same as tk)
+find_tickets_dir() {
+    [[ -n "${TICKETS_DIR:-}" ]] && { echo "$TICKETS_DIR"; return 0; }
+    local dir="$PWD"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -d "$dir/.tickets" ]]; then
+            echo "$dir/.tickets"
+            return 0
+        fi
+        dir=$(dirname "$dir")
+    done
+    [[ -d "/.tickets" ]] && { echo "/.tickets"; return 0; }
+    return 1
+}
+
+TICKETS_DIR=$(find_tickets_dir) || {
+    echo "Error: no .tickets directory found (searched parent directories)" >&2
+    echo "Run 'tk create' to initialize, or set TICKETS_DIR env var" >&2
+    exit 1
+}
+
+[[ ! -d "$TICKETS_DIR" ]] && { echo "Error: tickets directory '$TICKETS_DIR' does not exist" >&2; exit 1; }
+
+# Reuse tk's awk frontmatter parser, filtered to type:bug
+awk '
+BEGIN { FS=": "; in_front=0 }
+FNR==1 {
+    if (prev_file) store()
+    id=""; status=""; title=""; deps=""; priority=""; typ=""; in_front=0
+    prev_file=FILENAME
+}
+/^---$/ { in_front = !in_front; next }
+in_front && /^id:/ { id = $2 }
+in_front && /^status:/ { status = $2 }
+in_front && /^priority:/ { priority = $2 }
+in_front && /^type:/ { typ = $2 }
+in_front && /^deps:/ {
+    deps = $2
+    gsub(/[\[\] ]/, "", deps)
+}
+!in_front && /^# / && title == "" { title = substr($0, 3) }
+function store() {
+    if (id != "") {
+        statuses[id] = status
+        titles[id] = title
+        deps_raw[id] = deps
+        priorities[id] = (priority != "") ? priority : 2
+        types[id] = typ
+    }
+}
+END {
+    if (prev_file) store()
+    for (id in statuses) {
+        if (types[id] != "bug") continue
+        status = statuses[id]
+        if (status != "open" && status != "in_progress") continue
+
+        deps = deps_raw[id]
+        ready = 1
+        if (deps != "") {
+            n = split(deps, arr, ",")
+            for (i = 1; i <= n; i++) {
+                dep = arr[i]
+                if (dep != "" && statuses[dep] != "closed") {
+                    ready = 0
+                    break
+                }
+            }
+        }
+        if (ready) {
+            output[++count] = sprintf("%s|%s|%s|%s", priorities[id], id, status, titles[id])
+        }
+    }
+
+    # Sort by priority, then by id
+    for (i = 1; i <= count; i++) {
+        for (j = i + 1; j <= count; j++) {
+            split(output[i], a, "|")
+            split(output[j], b, "|")
+            if (a[1] > b[1] || (a[1] == b[1] && a[2] > b[2])) {
+                tmp = output[i]; output[i] = output[j]; output[j] = tmp
+            }
+        }
+    }
+
+    for (i = 1; i <= count; i++) {
+        split(output[i], f, "|")
+        printf "%-8s [P%s][%s] - %s\n", f[2], f[1], f[3], f[4]
+    }
+}
+' "$TICKETS_DIR"/*.md 2>/dev/null
