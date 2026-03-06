@@ -40,7 +40,7 @@ Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
   → Phase 6 (Checkpoint) → [more in tier: Phase 5] [tier clear: Phase 7]
 Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
 Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/end-session)] [FAIL: Phase 2]
-Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → Phase 11 (/end-session)
+Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/end-session)]
 ```
 
 ---
@@ -745,7 +745,9 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
    ```bash
    tk add-note <id> "Session shutdown. Progress: <summary>. Next: <what remains>."
    ```
-6. Proceed to **Phase 10** (Merge to Main & Verify). Even partial work must be merged and CI-verified.
+6. Commit partial work and proceed to **Phase 10** (Merge to Main & Verify). After Phase 10 completes successfully, check context usage:
+   - If context usage <70% AND remaining open bugs exist: return to **Phase 2** (continue fixing — do NOT go to Phase 11)
+   - If context usage ≥70% OR no remaining bugs: proceed to **Phase 11** (/end-session)
 
 ---
 
