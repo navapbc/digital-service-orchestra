@@ -456,6 +456,8 @@ Exit 0 means all checks pass. Exit 1 means at least one check requires action (d
 tk status <id> in_progress
 ```
 
+**Known-solution detection**: Before selecting `subagent_type` for a Tier 7 bug, check if its notes contain `SAFEGUARD APPROVED:` (written by Phase 2.5 Step 4). If present, classify as "known fix" — use `code-simplifier:code-simplifier` and pass the approval note as `fix_guidance` in the prompt context.
+
 ### Blackboard Write and File Ownership Context
 
 Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context from the NxN conflict matrix computed in Phase 3:
@@ -500,6 +502,7 @@ Fill in the `{placeholders}` with issue-specific details (title, ID, category, e
 | Complex multi-file bugs | `error-debugging:error-detective` | `opus` | Correlates errors across systems, identifies root causes |
 | Migration/DB issues | `database-design:database-architect` | `sonnet` | Schema modeling, migration planning, DB architecture |
 | Infrastructure issues (Tier 6) | `error-debugging:debugger` | `opus` | Complex debugging with AWS CLI access |
+| Ticket bugs — known fix (SAFEGUARD APPROVED) | `code-simplifier:code-simplifier` | `sonnet` | Fix proposal already written; apply without investigation |
 | Ticket bugs — code fixes (Tier 7) | `debugging-toolkit:debugger` | `sonnet` | General debugging for tracked code bugs |
 | Ticket bugs — tooling/scripts (Tier 7) | `code-simplifier:code-simplifier` | `sonnet` | Script and tooling fixes |
 | Ticket bugs — investigation (Tier 7) | `error-debugging:error-detective` | `sonnet` | Root cause analysis for investigation-type bugs |
