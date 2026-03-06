@@ -615,6 +615,29 @@ If the script reports a non-ticket merge conflict, resolve it (prefer local for 
 
 Launch up to `max_agents` sub-agents (1 or 5, determined in Phase 4) via the Task tool. Each sub-agent gets a structured prompt:
 
+### Blackboard Write and File Ownership Context
+
+Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context:
+
+1. **Write the blackboard**: Pipe the batch JSON (from `sprint-next-batch.sh --json` in Phase 3) to `write-blackboard.sh`:
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   echo "$BATCH_JSON" | "$REPO_ROOT/scripts/write-blackboard.sh"
+   ```
+   If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
+
+2. **Read the blackboard and build file ownership context**: Read `.worktree-blackboard.json` and construct a per-agent ownership string for each sub-agent:
+   ```bash
+   BLACKBOARD="$REPO_ROOT/.worktree-blackboard.json"
+   ```
+   For each agent (task), build a `file_ownership_context` string with the format:
+   ```
+   You own: file1.py, file2.py. Other agents own: <task-id-X> owns file3.py, file4.py; <task-id-Y> owns file5.py.
+   ```
+   If the blackboard file does not exist (due to earlier failure or degradation), use an empty string for `file_ownership_context`.
+
+3. **Populate the placeholder**: When filling the `task-execution.md` prompt template, replace `{file_ownership_context}` with the per-agent ownership string built above. Each sub-agent receives its own tailored context showing which files it owns and which files other agents in the batch own.
+
 ### Sub-Agent Prompt Template
 
 For each task, launch a Task with the appropriate `subagent_type` (use `general-purpose` for most code tasks, or a specialized type if the task clearly matches one).
@@ -857,6 +880,11 @@ After the commit completes, merge to main using `merge-to-main.sh` (handles tick
 ```
 
 Do NOT use `git push` directly — it only pushes the worktree branch and does not merge to main.
+
+**Blackboard cleanup**: After the commit, run `write-blackboard.sh --clean` to remove the blackboard file:
+```bash
+"$REPO_ROOT/scripts/write-blackboard.sh" --clean
+```
 
 **After completion, continue with Step 11 below.** Do not stop here.
 
