@@ -44,7 +44,7 @@ Resolved commands used in this skill:
 
 ## Progress Checklist
 
-> **TodoWrite rule**: Only create `TodoWrite` items from this checklist when `/implementation-plan` is invoked **standalone** (directly by the user). When invoked from `/sprint`, do NOT call `TodoWrite` — `/sprint` owns the `TodoWrite` list and calling it here will wipe the active sprint checklist. Track progress through inline notes instead.
+> **Task tracking rule**: Only create `TaskCreate` items from this checklist when `/implementation-plan` is invoked **standalone** (directly by the user). When invoked from `/sprint`, do NOT call `TaskCreate` — `/sprint` owns the task list and calling it here will add noise to the active sprint task list. Track progress through inline notes instead.
 
 Copy and track as you work (standalone only):
 

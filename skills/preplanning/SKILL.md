@@ -2,6 +2,8 @@
 name: preplanning
 description: Use when decomposing a ticket epic into prioritized user stories with measurable done definitions, or when auditing and reconciling existing epic children before implementation
 user-invocable: true
+allowed-tools:
+  - AskUserQuestion
 ---
 
 # Pre-Planning: High-Fidelity Story Mapping
@@ -131,7 +133,11 @@ Before creating new stories, present a reconciliation summary:
 | xxx-124 | ... | in_progress | Modify | Needs updated success criteria |
 | xxx-125 | ... | pending | Delete | Redundant with new story approach |
 
-Wait for user approval before proceeding.
+Use `AskUserQuestion` to get user approval before proceeding:
+- Question: "The reconciliation plan above summarizes how existing children will be handled. Do you approve this plan?"
+- Options: ["Approve — proceed with story creation", "Request changes"]
+
+If the user requests changes, iterate on the reconciliation plan and re-present.
 
 ---
 
@@ -469,7 +475,11 @@ Next Steps:
 Does this plan fully capture your vision and the necessary technical safeguards? Should we adjust any priorities before I finalize this in the ticket system?
 ```
 
-Wait for user approval. If changes requested, iterate on the plan. Once the user explicitly approves (e.g., "looks good", "approved", "proceed"), immediately continue to Step 5a, Step 6, and Step 7 without pausing for additional input — approval is the signal to proceed, not a stopping point.
+Use `AskUserQuestion` to get user approval:
+- Question: "The story map above captures the full plan for this epic. Do you approve?"
+- Options: ["Approve — finalize and proceed", "Request changes"]
+
+If the user requests changes, iterate on the plan and re-present. Once the user selects "Approve — finalize and proceed", immediately continue to Step 5a, Step 6, and Step 7 without pausing for additional input — approval is the signal to proceed, not a stopping point.
 
 ### Step 5a: Write Planning Context File (/preplanning)
 

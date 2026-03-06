@@ -139,6 +139,19 @@ If any condition fails:
 
 ### 6. Report: Task Summary and Completion
 
+**Idempotency guard** — prevents duplicate "Technical Learnings" after compaction re-runs this step:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+_END_SESSION_SENTINEL="${TMPDIR:-/tmp}/end-session-summary-$(basename "$REPO_ROOT").done"
+if [ -f "$_END_SESSION_SENTINEL" ]; then
+    echo "Step 6 already completed this session (sentinel exists) — skipping."
+    # Jump directly to Step 7 (cleanup)
+fi
+```
+
+If the sentinel exists, skip the rest of Step 6 and proceed to Step 7.
+
 Display a comprehensive session summary:
 
 **Task Summary** (gathered from git log and tickets):
@@ -161,3 +174,13 @@ Display a comprehensive session summary:
 - **Gotchas**: Edge cases, footguns, or surprising behavior that future sessions should know (e.g., "SQLAlchemy flushes on query, so tests must commit before asserting DB state")
 
 Focus on reusable knowledge. Exclude: workflow phases run, git operations performed, tool usage counts, issue IDs closed.
+
+After displaying the summary, create the sentinel so compaction re-runs skip this step:
+
+```bash
+touch "$_END_SESSION_SENTINEL"
+```
+
+### 7. Session Complete
+
+The idempotency sentinel (`$_END_SESSION_SENTINEL`) persists in `$TMPDIR` (typically `/tmp`) until OS reboot. This is intentional — it must survive context compaction re-runs within the same session. The file is a zero-byte marker and poses no cleanup concern.
