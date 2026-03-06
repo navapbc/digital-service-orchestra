@@ -10,7 +10,6 @@ allowed-tools:
 
 Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, and decompose a ticket Epic into prioritized User Stories with measurable Done Definitions that bridge the epic's vision to task-level acceptance criteria.
 
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
 **Supports dryrun mode.** Use `/dryrun /preplanning` to preview without changes.
 

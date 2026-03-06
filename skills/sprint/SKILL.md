@@ -8,7 +8,6 @@ user-invocable: true
 
 Automate the full lifecycle of a ticket epic: task analysis, batched sub-agent execution, post-epic validation, and remediation loop.
 
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
 ## Config Resolution (reads project workflow-config.yaml)
 

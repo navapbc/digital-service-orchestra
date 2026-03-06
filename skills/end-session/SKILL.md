@@ -24,37 +24,15 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 
 ### 2.5. Release debug-everything Session Lock (if held by this worktree)
 
-Check for an active `/debug-everything` lock belonging to this worktree and release it:
-
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-
-# Check for an active lock using the canonical lock-status subcommand
-# (locks live in the tk ticket store)
-LOCK_STATUS=$("$REPO_ROOT/scripts/agent-batch-lifecycle.sh" lock-status "debug-everything")
-
-if echo "$LOCK_STATUS" | grep -q "^LOCKED:"; then
-    LOCK_ID=$(echo "$LOCK_STATUS" | sed 's/^LOCKED: *//')
-
-    # Verify the lock belongs to this worktree session
-    LOCK_WORKTREE=$(tk show "$LOCK_ID" 2>/dev/null | grep -oE 'Worktree: [^ ]+' | sed 's/Worktree: //' || true)
-
-    if [ "$LOCK_WORKTREE" = "$REPO_ROOT" ]; then
-        "$REPO_ROOT/scripts/agent-batch-lifecycle.sh" lock-release "$LOCK_ID" "Session complete"
-        echo "Released lock: $LOCK_ID"
-    else
-        echo "Lock $LOCK_ID belongs to a different worktree ($LOCK_WORKTREE) — skipping."
-    fi
-else
-    echo "No active debug-everything lock — skipping."
-fi
+"$(git rev-parse --show-toplevel)/scripts/release-debug-lock.sh" "Session complete"
 ```
 
 **If released**: note it in the session summary.
 **If not found or belongs to another worktree**: skip silently (one-line report is fine).
 
 ### 3. Commit Local Changes
-1. Run `git status`. If changes exist: stage specific files, commit with descriptive message.
+1. Run `git status`. If changes exist: read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
 
 ### 3.5. Visual Baseline Comparison

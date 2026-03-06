@@ -8,7 +8,6 @@ user-invocable: true
 
 When planning new features or tasks, **proactively identify interface boundaries** that enable parallel development between agents. Formal interface contracts allow multiple agents to work simultaneously on different components that will integrate together.
 
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
 ## When to Create an Interface Contract
 

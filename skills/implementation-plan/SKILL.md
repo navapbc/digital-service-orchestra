@@ -8,7 +8,6 @@ user-invocable: true
 
 Generate a production-safe implementation plan for a User Story by decomposing it into atomic, TDD-driven tasks with correct dependencies. Prioritize understanding over assumptions — resolve ambiguity before planning.
 
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
 ## Config Resolution (reads project workflow-config.yaml)
 
