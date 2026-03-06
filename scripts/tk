@@ -3309,6 +3309,11 @@ except Exception as e:
     jira_type_name=$(sed -n '5p' <<< "$parse_result")
     jira_priority_name=$(sed -n '6p' <<< "$parse_result")
 
+    # Skip lock issues (agent-batch-lifecycle markers)
+    if [[ "$summary" == \[LOCK\]* ]]; then
+        return 0
+    fi
+
     # Restore newlines in description
     description=$(printf '%b' "${desc_escaped//\\\\n/$'\n'}")
 
@@ -4058,6 +4063,13 @@ _sync_body() {
     local _push_parents=() _push_children=()
     for ticket_file in "$tickets_dir"/*.md; do
         [[ -f "$ticket_file" ]] || continue
+
+        # Skip lock issues (agent-batch-lifecycle markers)
+        local t_title
+        t_title=$(awk '/^# /{sub(/^# /,""); print; exit}' "$ticket_file")
+        if [[ "$t_title" == \[LOCK\]* ]]; then
+            continue
+        fi
 
         local t_status
         t_status=$(awk '/^---$/{n++; next} n==1 && /^status:/{print; exit}' "$ticket_file" \
