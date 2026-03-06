@@ -161,6 +161,38 @@
         }
       }
     },
+    "design": {
+      "type": "object",
+      "description": "Design system configuration. Parameterizes design-related skills (design-onboarding, design-review, design-wireframe) so they reference the project's design system from config rather than hardcoded values.",
+      "additionalProperties": false,
+      "properties": {
+        "system_name": {
+          "type": "string",
+          "description": "Name and version of the design system used by the project (e.g. 'USWDS 3.x', 'Material UI 5', 'None (custom)').",
+          "minLength": 1,
+          "examples": ["USWDS 3.x", "Material UI 5", "Ant Design 5", "None (custom)"]
+        },
+        "component_library": {
+          "type": "string",
+          "description": "Component library identifier used for adapter selection in design-wireframe and component lookup (e.g. 'uswds', 'material', 'bootstrap').",
+          "minLength": 1,
+          "examples": ["uswds", "material", "bootstrap", "chakra", "custom"]
+        },
+        "template_engine": {
+          "type": "string",
+          "description": "Template engine used for rendering UI components. Used by design-wireframe for adapter selection (e.g. 'jinja2', 'react', 'vue').",
+          "minLength": 1,
+          "examples": ["jinja2", "react", "vue", "svelte", "handlebars"]
+        },
+        "design_notes_path": {
+          "type": "string",
+          "description": "Path to the project's North Star design document, relative to the repo root. Referenced by design-review and design-onboarding skills.",
+          "default": "DESIGN_NOTES.md",
+          "minLength": 1,
+          "examples": ["DESIGN_NOTES.md", "docs/DESIGN_NOTES.md"]
+        }
+      }
+    },
     "tickets": {
       "type": "object",
       "description": "Ticket management configuration. Parameterizes the tk script and ticket workflows, decoupling ID prefixes, directory paths, and sync settings from hardcoded values.",

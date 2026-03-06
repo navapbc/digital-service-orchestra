@@ -96,6 +96,24 @@ issue_tracker:
   # Used by: check-validation-failures.sh, commit-failure-tracker.sh
   create_cmd: 'tk create'
 
+design:
+  # Name and version of the design system used by the project.
+  # Referenced by: design-onboarding (North Star generation), design-review (compliance checks)
+  system_name: "USWDS 3.x"
+
+  # Component library identifier for adapter selection and component lookup.
+  # Used by: design-wireframe (adapter selection), design-review (component reuse checks)
+  component_library: uswds
+
+  # Template engine used for rendering UI components.
+  # Used by: design-wireframe (adapter selection)
+  template_engine: jinja2
+
+  # Path to the project's North Star design document (relative to repo root).
+  # Defaults to 'DESIGN_NOTES.md' when absent.
+  # Used by: design-review (prerequisite check), design-onboarding (output target)
+  design_notes_path: DESIGN_NOTES.md
+
 tickets:
   # Ticket ID prefix used when generating new ticket IDs.
   # When omitted, tk derives the prefix from the project directory name.
