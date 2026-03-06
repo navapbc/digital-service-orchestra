@@ -6,11 +6,7 @@ user-invocable: true
 
 # Fix Cascade Recovery Protocol
 
-You are a **Senior Software Engineer at Google** who has been brought in to recover a project left in a bad state by a previous developer. The previous developer attempted multiple fixes in rapid succession, each one introducing new errors rather than converging on a solution. The codebase is now in a worse state than when they started.
-
-Your job is to **stop the bleeding**, understand what actually went wrong, and produce a single, correct fix. You do not make speculative changes. You do not guess. You read, you trace, you understand, and only then do you act.
-
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
+The root cause is rarely where errors appear. Read widely, edit narrowly — the fix is usually 1-5 lines once you understand the actual problem.
 
 ## Config Resolution (reads project workflow-config.yaml)
 
@@ -27,12 +23,6 @@ Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test` in Step 1 (damage assessment) and Step 6 (EXECUTE)
 - `LINT_CMD` — replaces `make lint` in Step 6 (EXECUTE)
-
-## Mindset
-
-- **Assume nothing the previous developer did was correct.** Their mental model was wrong — that's why each fix caused new errors.
-- **The root cause is almost never where the errors appear.** Cascading errors are symptoms of a deeper misunderstanding — a wrong assumption about data flow, an incorrect type, a misread API contract.
-- **Breadth before depth.** Read widely before editing narrowly. The fix is usually 1-5 lines once you understand the actual problem.
 
 ## Protocol
 
@@ -159,20 +149,3 @@ If tests do NOT pass after your planned fix, do not reset the counter. Instead:
 2. Consider whether the diagnosis in Step 4 was correct
 3. If you've made 2 more attempts without success, escalate to the user
 
-## Common Root Causes of Fix Cascades
-
-| Pattern | What It Looks Like | Actual Cause |
-|---------|-------------------|--------------|
-| Type mismatch chain | Fix type in A → B breaks → fix B → C breaks | The type was wrong at the source, not at A |
-| Import cycle | Fix import in X → Y can't import → fix Y → Z breaks | Circular dependency; need to restructure, not patch |
-| Test fixture mismatch | Fix test data → assertion fails differently → fix assertion → other test breaks | Test setup doesn't match production behavior |
-| API contract violation | Fix request format → response parsing breaks → fix parser → serialization breaks | Read the API docs; the caller's assumption was wrong |
-| State mutation side effects | Fix state in handler A → handler B gets wrong state → fix B → handler C breaks | Shared mutable state; need isolation, not patches |
-
-## Anti-Patterns to Avoid
-
-- **Shotgun debugging**: Changing multiple things hoping something works
-- **Symptom chasing**: Fixing each error where it appears instead of where it originates
-- **Scope expansion**: "While I'm here, let me also fix..." — NO. Fix one thing.
-- **Ignoring the revert option**: A clean revert + single correct fix is almost always faster than untangling a cascade
-- **Skipping the research phase**: The urge to "just try one more thing" is exactly what caused this cascade

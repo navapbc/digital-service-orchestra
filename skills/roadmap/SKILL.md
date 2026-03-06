@@ -8,7 +8,6 @@ user-invocable: true
 
 Act as a Senior Product Manager (Google-style). Transform high-level vision into a prioritized, high-fidelity roadmap of Epics within the ticket system.
 
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
 ## Usage
 

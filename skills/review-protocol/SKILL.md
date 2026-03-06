@@ -106,27 +106,9 @@ Return valid JSON matching this structure:
 
 #### Determine Review Model
 
-Before launching the sub-agent, check whether the artifact under review contains high-blast-radius content — changes that cascade project-wide when wrong. Inspect the artifact (and any associated file paths provided by the caller) for these patterns:
+Check whether the artifact under review contains high-blast-radius content. For code reviews, use the pattern list in `REVIEW-WORKFLOW.md` Step 3. For non-code reviews (plans, designs), the caller specifies the model (e.g., `/plan-review` uses opus for designs, sonnet for implementation plans).
 
-- `.claude/skills/**` — skill definitions
-- `.claude/skills/**/prompts/**` — sub-agent prompt templates
-- `lockpick-workflow/hooks/**` — hook scripts
-- `.claude/docs/**` — agent documentation
-- `CLAUDE.md` — project-level agent instructions
-- `.github/workflows/**` — CI configuration
-- `scripts/**` — orchestration scripts
-- `.pre-commit-config.yaml` — pre-commit hooks
-- `Makefile` — build/test/lint commands
-
-If **any** pattern matches:
-```
-model="opus"    # Tier 3: high-blast-radius files — changes to skills/CI/scripts cascade project-wide
-```
-
-If **none** match:
-```
-model="sonnet"  # Tier 2: routine code review — standard code changes
-```
+If **any** high-blast-radius pattern matches → `model="opus"`. Otherwise → `model="sonnet"`.
 
 Launch with:
 ```

@@ -8,7 +8,6 @@ user-invocable: true
 
 Generate or update a project's `CLAUDE.md` by rendering the lockpick-workflow template with project-specific command values from `workflow-config.yaml`.
 
-> **Worktree Compatible**: All commands use `${CLAUDE_PLUGIN_ROOT}` for script and template paths.
 
 ## Usage
 

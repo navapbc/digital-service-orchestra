@@ -8,7 +8,6 @@ user-invocable: true
 
 Proactive project health assessment focused on maintainability, workflow efficiency, and technical debt. Analyzes metrics, identifies improvements, and creates a structured remediation plan.
 
-> **Worktree Compatible**: All commands use dynamic path resolution. Set `REPO_ROOT=$(git rev-parse --show-toplevel)` once at start.
 
 **Supports dryrun mode.** Use `/dryrun /retro` to preview without changes.
 

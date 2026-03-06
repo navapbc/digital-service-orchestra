@@ -12,7 +12,6 @@ Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, 
 Do NOT invoke /sprint, /preplanning, /implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
 </HARD-GATE>
 
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
 **Supports dryrun mode.** Use `/dryrun /brainstorm` to preview without changes.
 

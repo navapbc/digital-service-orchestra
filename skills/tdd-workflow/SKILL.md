@@ -8,7 +8,6 @@ user-invocable: true
 
 Use Test-Driven Development to ensure bug fixes are correct and prevent regression.
 
-> **Worktree Compatible**: All commands use dynamic path resolution and work from any worktree.
 
 ## Config Resolution (reads project workflow-config.yaml)
 

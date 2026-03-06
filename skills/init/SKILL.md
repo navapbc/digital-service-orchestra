@@ -9,7 +9,6 @@ user-invocable: true
 Set up a new project to use lockpick-workflow by auto-detecting the stack and writing a
 `workflow-config.yaml` with sensible defaults.
 
-> **Worktree Compatible**: All commands use `${CLAUDE_PLUGIN_ROOT}` for script paths.
 
 ## Usage
 
