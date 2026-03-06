@@ -102,5 +102,28 @@ if echo "$COMMAND" | grep -qE "cd[[:space:]]+(\"$MAIN_REPO_ROOT\"|'$MAIN_REPO_RO
     exit 2
 fi
 
+# --- Block git plumbing commands that operate on the worktree's object store ---
+# git read-tree, write-tree, commit-tree can produce corrupt subtree-only trees
+# when run from a worktree context without explicitly targeting the main repo.
+# tk-sync-lib.sh correctly uses "git -C <main-repo>" — those are safe.
+if echo "$COMMAND" | grep -qE "git[[:space:]]+(read-tree|write-tree|commit-tree)"; then
+    # Allow if the command uses -C to target the main repo (correct usage)
+    if echo "$COMMAND" | grep -qE "git[[:space:]]+-C[[:space:]]+['\"]?${MAIN_REPO_ROOT}['\"]?[[:space:]]+(read-tree|write-tree|commit-tree)"; then
+        exit 0
+    fi
+    echo "BLOCKED: git plumbing command in worktree context without -C targeting the main repo." >&2
+    echo "" >&2
+    echo "git read-tree/write-tree/commit-tree can produce corrupt trees when run" >&2
+    echo "directly in a worktree. Use 'git -C <main-repo-path>' to target the main repo." >&2
+    echo "  Command:   $COMMAND" >&2
+    echo "  Main repo: $MAIN_REPO_ROOT" >&2
+    echo "  Worktree:  $WORKTREE_ROOT" >&2
+    echo "" >&2
+    echo "HOW TO FIX:" >&2
+    echo "  • Use 'git -C $MAIN_REPO_ROOT read-tree ...' instead of bare 'git read-tree ...'" >&2
+    echo "  • tk-sync-lib.sh already does this correctly — follow that pattern." >&2
+    exit 2
+fi
+
 # Command references main repo path but doesn't cd into it — allow (e.g., reading files).
 exit 0
