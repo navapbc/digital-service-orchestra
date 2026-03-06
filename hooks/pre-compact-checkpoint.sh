@@ -53,8 +53,19 @@ GIT_DIFF_STAT=$(git diff --stat 2>/dev/null || echo "(no diff)")
 GIT_STATUS=$(git status --short 2>/dev/null || echo "(no status)")
 
 # --- Capture debug-everything phase state (if active) ---
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-DEBUG_STATE_FILE="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}/debug-phase-state.txt"
+# Source deps.sh for get_artifacts_dir (hash-based artifact path)
+_DEPS_SH="$HOOK_DIR/lib/deps.sh"
+if [[ ! -f "$_DEPS_SH" ]]; then
+    _DEPS_SH="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+fi
+if [[ -f "$_DEPS_SH" ]]; then
+    source "$_DEPS_SH"
+    DEBUG_STATE_FILE="$(get_artifacts_dir)/debug-phase-state.txt"
+else
+    # Fallback to old path if deps.sh not found
+    WORKTREE_NAME=$(basename "$REPO_ROOT")
+    DEBUG_STATE_FILE="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}/debug-phase-state.txt"
+fi
 DEBUG_PHASE_STATE=""
 if [[ -f "$DEBUG_STATE_FILE" ]]; then
     DEBUG_PHASE_STATE=$(cat "$DEBUG_STATE_FILE" 2>/dev/null || echo "(unreadable)")

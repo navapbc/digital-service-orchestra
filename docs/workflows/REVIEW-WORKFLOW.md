@@ -224,11 +224,12 @@ This design keeps nesting at one level (orchestrator → sub-agent) for both the
 
 ```bash
 DISPATCH_TIME=$(date +%s)
-ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE}"
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+ARTIFACTS_DIR="$(get_artifacts_dir)"
 ```
 
 Read `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
-- `{findings_file}`: `/tmp/lockpick-test-artifacts-${WORKTREE}/reviewer-findings.json`
+- `{findings_file}`: `$(get_artifacts_dir)/reviewer-findings.json`
 - `{diff_file}`: the `DIFF_FILE` path from Step 0/2
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value

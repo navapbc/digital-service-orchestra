@@ -70,8 +70,8 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 6. Run full validation -- capture verbose output to disk to keep the orchestrator's context lean:
    ```bash
    _REPO=$(git rev-parse --show-toplevel)
-   _WORKTREE=$(basename "$_REPO")
-   _RESULT="/tmp/lockpick-test-artifacts-${_WORKTREE}/agent-result-{task_id}.md"
+   source "$_REPO/lockpick-workflow/hooks/lib/deps.sh"
+   _RESULT="$(get_artifacts_dir)/agent-result-{task_id}.md"
    mkdir -p "$(dirname "$_RESULT")"
    { cd "$_REPO/app" && make format-check && make lint && make test-unit-only; } > "$_RESULT" 2>&1
    TEST_EXIT=$?
@@ -114,7 +114,7 @@ TASKS_CREATED: <ticket-id1>, <ticket-id2> (or "none", or "error: <reason>")
 
 Verbose output location (when two-file protocol is active):
 ```
-/tmp/lockpick-test-artifacts-${WORKTREE}/agent-result-{task_id}.md
+$(get_artifacts_dir)/agent-result-{task_id}.md
 ```
 
 ---

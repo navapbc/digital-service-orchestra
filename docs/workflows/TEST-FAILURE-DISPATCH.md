@@ -79,7 +79,7 @@ TASKS_CREATED: <ticket-id1>, <ticket-id2> (or "none", or "error: <reason>")
 When the two-file protocol is active (stderr > 100 lines or sprint-time context),
 verbose output is written to:
 ```
-/tmp/lockpick-test-artifacts-${WORKTREE}/agent-result-${task_id}.md
+$(get_artifacts_dir)/agent-result-${task_id}.md
 ```
 
 ### Parsing the Output
@@ -218,7 +218,7 @@ This protocol can be verified through three mechanisms, as described in the
 strategy document (`docs/designs/test-failure-subagent-strategy.md`, Section 5):
 
 ### 1. Hook Integration Tests
-- **State file test**: Verify dispatch writes correct validation state to `/tmp/lockpick-test-artifacts-*/status`
+- **State file test**: Verify dispatch writes correct validation state to `$(get_artifacts_dir)/status`
 - **RESULT parsing test**: Unit test that parses the structured RESULT format and extracts all fields
 - **Model escalation test**: Verify attempt=1 selects sonnet, attempt=2 selects opus, attempt>=3 produces escalation signal
 
@@ -233,6 +233,6 @@ strategy document (`docs/designs/test-failure-subagent-strategy.md`, Section 5):
 - Review gate reviews all changes including sub-agent fixes
 
 ### 4. Observability
-- Disk reports at `/tmp/lockpick-test-artifacts-${WORKTREE}/agent-result-${task_id}.md`
+- Disk reports at `$(get_artifacts_dir)/agent-result-${task_id}.md`
 - Ticket checkpoint notes record attempt number, model used, and outcome
 - Tool-use JSONL logging (when enabled) captures all sub-agent tool calls for anti-pattern analysis
