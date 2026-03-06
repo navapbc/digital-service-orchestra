@@ -22,6 +22,16 @@ Ticket ID: {id}
    tk create "<descriptive title>" -t task -p 3 --parent=<parent-id>
    ```
    Get your parent ID from the `tk show {id}` output (PARENT field). Do NOT create tasks for work that IS your task. Only create tasks for genuinely out-of-scope discoveries. If `tk create` fails, note the error and continue — task creation is non-fatal.
+8a. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations, write a discovery file so the orchestrator can propagate findings to the next batch:
+   ```bash
+   cat > .agent-discoveries/{id}.json.tmp << 'DISC_EOF'
+   {"task_id": "{id}", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line description>", "affected_files": ["<absolute-path>", ...]}
+   DISC_EOF
+   mv .agent-discoveries/{id}.json.tmp .agent-discoveries/{id}.json
+   ```
+   - Only write if you have genuine discoveries — do not write an empty file
+   - Use atomic write (write `.tmp`, then `mv`) to avoid partial reads
+   - If writing fails, continue — discovery writing is non-fatal and must not block task completion
 9. Report output:
    STATUS: pass|fail
    FILES_MODIFIED: path1, path2
@@ -29,6 +39,7 @@ Ticket ID: {id}
    TESTS: N passed, N failed
    AC_RESULTS: (if ACCEPTANCE CRITERIA section present) criterion1: pass, criterion2: pass/fail
    TASKS_CREATED: ticket-042, ticket-043 (or "none", or "error: <reason>")
+   DISCOVERIES_WRITTEN: yes|no|error
 
 ### Rules
 Read and follow `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format). Key points:
@@ -36,3 +47,12 @@ Read and follow `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGE
 - Do NOT: git commit, git push, tk close, tk status, tk dep, slash-commands, nested Task calls
 - You MAY run: tk create --parent=<parent-id> (for discovered work only)
 - Your task ends at step 9 (Report output) — the orchestrator handles commits and issue lifecycle
+
+### File Ownership Boundaries
+
+{file_ownership_context}
+
+If the above section is populated, respect these boundaries:
+- Only modify files listed under "You own"
+- Do NOT modify files listed under "Other agents own" — if you need changes there, note the dependency in your report
+- If you discover you need to modify a file outside your ownership, report it in CONCERNS instead of modifying it

@@ -129,6 +129,15 @@ Read `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARI
 - Do NOT modify files outside the scope of this fix
 - If you discover additional unrelated bugs, create a ticket task and include the ID in TASKS_CREATED
 
+### File Ownership Boundaries
+
+{file_ownership_context}
+
+If the above section is populated, respect these boundaries:
+- Only modify files listed under "You own"
+- Do NOT modify files listed under "Other agents own" — if you need changes there, note the dependency in your report
+- If you discover you need to modify a file outside your ownership, report it in CONCERNS instead of modifying it
+
 ### Anti-Patterns (Never Do These)
 
 | Anti-Pattern | Why It's Wrong | Do This Instead |
