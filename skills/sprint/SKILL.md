@@ -738,6 +738,35 @@ $(git rev-parse --show-toplevel)/scripts/validate-phase.sh post-batch
 
 If validation fails, identify which sub-agent's code is broken and note it.
 
+#### Test Failure Sub-Agent Delegation (Phase 6 Step 4)
+
+When `validate-phase.sh post-batch` fails, dispatch a debugging sub-agent BEFORE reverting tasks to open. Follow the protocol in `lockpick-workflow/docs/workflows/TEST-FAILURE-DISPATCH.md`.
+
+**Build input payload** per TEST-FAILURE-DISPATCH.md:
+- `test_command`: the `validate-phase.sh post-batch` command that failed
+- `exit_code`: the exit code from the failed command
+- `stderr_tail`: last 50 lines of output from the failed command
+- `changed_files`: files modified by the batch (from `git diff --name-only`)
+- `task_id`: the task ID of the sub-agent that likely caused the failure
+- `context`: `sprint-post-batch`
+- `attempt`: 1 (increment on retry)
+- `parent_task_id`: the epic ID (for discovered-work tickets)
+- `batch_task_ids`: IDs of all tasks in the current batch
+
+**Select model and subagent_type** per TEST-FAILURE-DISPATCH.md Model Selection Table and Sub-Agent Type Selection table.
+
+**Read the prompt template** from `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` and fill all placeholders with the input payload fields.
+
+**Nesting prohibition**: The sprint ORCHESTRATOR dispatches the debugging sub-agent directly via `Task` tool -- the debugging sub-agent must NOT dispatch nested `Task` calls. This respects CLAUDE.md rule #23 (two-level nesting causes `[Tool result missing due to internal error]` failures).
+
+**Parse RESULT from sub-agent output:**
+- `PASS` -- validation is now fixed. Re-run `validate-phase.sh post-batch` to confirm, then continue to Step 5 (Persistence Coverage Check).
+- `FAIL` -- increment `attempt` to 2, retry with `opus` model.
+- `FAIL` on attempt 2 -- fall back to existing behavior: revert the responsible task to open (`tk status <id> open`), add failure notes via `tk add-note`.
+- `PARTIAL` -- log concerns in ticket notes, continue to Step 5 with caveats.
+
+**Fallback**: If the sub-agent times out or returns malformed output (missing `RESULT` line), fall back to existing behavior: revert the responsible task to open and add failure notes.
+
 ### Step 5: Persistence Coverage Check (/sprint)
 
 If any task in the batch touched persistence-critical files (job_store, document_processor,
@@ -1073,7 +1102,35 @@ cd $(git rev-parse --show-toplevel)/app && make test-e2e
 
 **Interpret results:**
 - **Pass** → proceed to Step 1
-- **Fail** → do NOT proceed. Create a P1 bug issue for each failing test, set it as a child of the epic, and return to Phase 3.
+- **Fail** → do NOT proceed. Dispatch a debugging sub-agent FIRST before creating bug issues.
+
+#### E2E Test Failure Sub-Agent Delegation (Phase 7 Step 0.5b)
+
+When E2E tests fail, dispatch a debugging sub-agent per `lockpick-workflow/docs/workflows/TEST-FAILURE-DISPATCH.md`.
+
+**Build input payload** per TEST-FAILURE-DISPATCH.md:
+- `test_command`: the E2E test command that failed (`cd $(git rev-parse --show-toplevel)/app && make test-e2e`)
+- `exit_code`: the exit code from the failed command
+- `stderr_tail`: last 50 lines of output from the failed command
+- `changed_files`: files changed across all batches (from `git diff --name-only main...HEAD`)
+- `task_id`: a tracking task ID for checkpoint notes
+- `context`: `sprint-e2e` (distinct from `sprint-post-batch` used in Phase 6 Step 4)
+- `attempt`: 1 (increment on retry)
+- `parent_task_id`: the epic ID
+
+**Select model and subagent_type** per TEST-FAILURE-DISPATCH.md Model Selection Table and Sub-Agent Type Selection table.
+
+**Read the prompt template** from `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` and fill all placeholders with the input payload fields.
+
+**Nesting prohibition**: The sprint ORCHESTRATOR dispatches the debugging sub-agent directly via `Task` tool -- the debugging sub-agent must NOT dispatch nested `Task` calls. This respects CLAUDE.md rule #23.
+
+**Parse RESULT from sub-agent output:**
+- `PASS` → E2E tests are now fixed. Proceed to Step 1.
+- `FAIL` → increment `attempt` to 2, retry with `opus` model.
+- `FAIL` on attempt 2 → fall back to existing behavior: create a P1 bug issue for each failing test, set it as a child of the epic, and return to Phase 3.
+- `PARTIAL` → log concerns in ticket notes, proceed to Step 1 with caveats.
+
+**Fallback**: If the sub-agent times out or returns malformed output (missing `RESULT` line), fall back to existing behavior: create P1 bug issues and return to Phase 3.
 
 ### Step 1: Run /validate-work (/sprint)
 

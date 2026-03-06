@@ -66,6 +66,78 @@ cd app && make test-unit-only
 
 If tests fail, fix the code and restart from Step 1. Do NOT proceed with a failing test suite.
 
+### Test Failure Delegation (Step 1)
+
+When unit tests fail, apply this decision gate before attempting a fix:
+
+**Fix inline** (preserve existing behavior):
+- Single obvious failure (typo, missing import, one-line fix) — fix it and restart from Step 1.
+
+**Delegate to sub-agent** (via [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md)):
+- More than 1 test fails, OR
+- 1 test fails and an inline fix attempt did not resolve it.
+
+Do NOT spend orchestrator context on multi-test debugging — delegate immediately.
+
+#### Dispatch Procedure
+
+1. **Build the input payload**:
+
+```bash
+TEST_COMMAND="cd app && make test-unit-only"
+# EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
+# The orchestrator should have captured stdout/stderr and exit code when
+# running the test command. Do NOT re-run the tests here.
+# EXIT_CODE=<exit code from the failed test run>
+# STDERR_TAIL=<last 50 lines of output from the failed test run>
+CHANGED_FILES=$(git diff --name-only)
+```
+
+> **Note**: `EXIT_CODE` and `STDERR_TAIL` must come from the test run that already
+> failed (the one that triggered this delegation gate). Do NOT re-run tests to
+> capture them — that would execute tests twice and may yield different results.
+
+2. **Select model** (by attempt number):
+   - Attempt 1: `sonnet`
+   - Attempt 2: `opus`
+   - Attempt >= 3: **Escalate to user** — do not retry further.
+
+3. **Select sub-agent type** (from TEST-FAILURE-DISPATCH.md):
+   - Unit test failure (assertion, runtime error): `unit-testing:debugger`
+   - Type error (mypy): `debugging-toolkit:debugger`
+   - Lint violation (ruff): `code-simplifier:code-simplifier`
+   - Multi-file / complex (cross-module): `error-debugging:error-detective`
+
+4. **Select prompt template**: `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md`
+   - Behavioral failure (assertion, runtime error): TDD path
+   - Mechanical failure (import, type, lint): Mechanical path
+
+5. **Dispatch via Task tool**:
+
+```
+Task(
+  subagent_type=<selected_type>,
+  model=<selected_model>,
+  prompt=<filled template from test-failure-fix.md>,
+  input={
+    test_command: <TEST_COMMAND>,
+    exit_code: <EXIT_CODE>,
+    stderr_tail: <STDERR_TAIL>,
+    changed_files: <CHANGED_FILES>,
+    task_id: <current_task_id>,
+    context: "commit-time",
+    attempt: <attempt_number>
+  }
+)
+```
+
+6. **Parse the result**:
+   - `RESULT: PASS` — continue to Step 1.5 (re-run validation first to confirm the fix is clean).
+   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
+   - `RESULT: PARTIAL` — log concerns via `tk add-note`, continue to Step 1.5 with caveats.
+
+7. **Fallback**: If the sub-agent times out (>5 min) or returns malformed output (missing RESULT line), fall back to an inline fix attempt by the orchestrator and restart from Step 1.
+
 ## Step 1.5: Changed Integration/E2E Tests
 
 If any integration or e2e test files changed, run only those files now. This prevents broken tests from being committed when the full suite is excluded from the standard commit gate.
@@ -78,6 +150,42 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 - **Integration tests fail**: DB is not running. Start it with `make db-start` and re-run. Fix the test if it is broken.
 - **E2E tests fail**: App is not running. Start it with `make start` and re-run. Fix the test if it is broken.
 - **No changed integration/e2e files**: Script exits silently. Continue to Step 2.
+
+### Test Failure Delegation (Step 1.5)
+
+If integration or E2E tests fail after environment checks (DB/app running), apply the same delegation decision gate as Step 1:
+
+**Fix inline**: Single obvious failure (typo, missing import, one-line fix) — fix it and re-run.
+
+**Delegate to sub-agent** (via [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md)):
+- More than 1 test fails, OR
+- 1 test fails and an inline fix attempt did not resolve it.
+
+Follow the same dispatch procedure as Step 1, with these differences:
+
+1. **Build the input payload** using the integration/E2E test command that failed:
+
+```bash
+TEST_COMMAND="$REPO_ROOT/scripts/run-changed-tests.sh"
+# EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
+# Do NOT re-run the tests — capture from the original failure.
+# EXIT_CODE=<exit code from the failed test run>
+# STDERR_TAIL=<last 50 lines of output from the failed test run>
+CHANGED_FILES=$(git diff --name-only)
+```
+
+2. **Set context** based on failure type:
+   - Integration test failure: `context="sprint-ci-failure"`
+   - E2E test failure: `context="commit-time"`
+
+3. **Model selection, sub-agent type, prompt template, Task dispatch, and result parsing**: Same as Step 1 delegation procedure (steps 2-7).
+
+4. **Parse the result**:
+   - `RESULT: PASS` — re-run `run-changed-tests.sh` to confirm the fix, then continue to Step 2.
+   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
+   - `RESULT: PARTIAL` — log concerns via `tk add-note`, continue to Step 2 with caveats.
+
+5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.
 
 ## Step 2: Format
 
