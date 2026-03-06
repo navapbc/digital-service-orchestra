@@ -26,10 +26,12 @@ trap 'exit 0' ERR
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-# Resolve the repo root for tk-sync-lib.sh path resolution
-# (REPO_ROOT may not be set yet at this point; use git rev-parse)
+# Source tk-sync-lib.sh from sibling path within lockpick-workflow plugin
+# (falls back to project-level wrapper if sibling not found)
 _HOOK_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || _HOOK_REPO_ROOT=""
-if [[ -n "$_HOOK_REPO_ROOT" ]]; then
+if [[ -f "$HOOK_DIR/../scripts/tk-sync-lib.sh" ]]; then
+    source "$HOOK_DIR/../scripts/tk-sync-lib.sh" 2>/dev/null || true
+elif [[ -n "$_HOOK_REPO_ROOT" ]]; then
     source "$_HOOK_REPO_ROOT/scripts/tk-sync-lib.sh" 2>/dev/null || true
 fi
 

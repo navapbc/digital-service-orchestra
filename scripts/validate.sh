@@ -134,7 +134,7 @@ create_timeout_issue() {
     local context="${3:-Triggered from validate.sh}"
 
     local tk_cmd
-    tk_cmd="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/tk"
+    tk_cmd="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tk"
 
     # Check if tk command is available
     if [ ! -x "$tk_cmd" ]; then
