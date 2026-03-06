@@ -912,11 +912,12 @@ git diff HEAD --stat -- ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/temp
 
 **Interpret results:**
 - **No Critical or Important issues** (all scores >= 4) → proceed to Step 8
-- **Critical issues found** → revert the responsible sub-agent's task to open, add
-  the issue details to the task notes, and re-run it with the reviewer's feedback
-  appended to the prompt. Re-execute REVIEW-WORKFLOW.md after the fix.
-- **Important issues found** → fix directly (small changes) or re-run the sub-agent
-  with feedback. Re-execute REVIEW-WORKFLOW.md after the fix.
+- **Critical or Important issues found** → ALWAYS enter the Autonomous Resolution Loop
+  per REVIEW-WORKFLOW.md. Delegate to the resolution sub-agent to apply fixes, defenses,
+  or deferrals. The orchestrator then dispatches a separate re-review sub-agent. No inline
+  fixes by the orchestrator are allowed. If the responsible sub-agent's task needs rework,
+  revert it to open, add the issue details to the task notes, and re-run it with the
+  reviewer's feedback appended to the prompt.
 - **Minor issues only** → proceed (note them in ticket but don't block)
 - **Review uses autonomous resolution per batch.** The review workflow handles up to 2 fix/defend attempts automatically before escalating. The resolution loop is split: a resolution sub-agent applies fixes (returns `FIXES_APPLIED`), then the orchestrator dispatches a separate re-review sub-agent. This avoids two-level nesting (orchestrator → resolution → re-review) which causes `[Tool result missing due to internal error]`. See REVIEW-WORKFLOW.md Autonomous Resolution Loop. If issues persist after escalation, report to user and proceed to commit (CI and Phase 7 validation provide additional gates).
 
