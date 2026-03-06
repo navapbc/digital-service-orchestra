@@ -160,6 +160,44 @@
           "examples": ["tk create", "gh issue create"]
         }
       }
+    },
+    "tickets": {
+      "type": "object",
+      "description": "Ticket management configuration. Parameterizes the tk script and ticket workflows, decoupling ID prefixes, directory paths, and sync settings from hardcoded values.",
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "description": "Ticket ID prefix used when generating new ticket IDs. When omitted, tk derives the prefix from the project directory name.",
+          "minLength": 1,
+          "examples": ["lockpick-doc-to-logic", "my-project"]
+        },
+        "directory": {
+          "type": "string",
+          "description": "Directory where ticket markdown files are stored, relative to the repo root.",
+          "default": ".tickets",
+          "minLength": 1,
+          "examples": [".tickets", ".issues", "tickets"]
+        },
+        "sync": {
+          "type": "object",
+          "description": "Ticket sync configuration for Jira integration.",
+          "additionalProperties": false,
+          "properties": {
+            "jira_project_key": {
+              "type": "string",
+              "description": "Jira project key for ticket sync. Optional — only needed when using tk sync with Jira.",
+              "minLength": 1,
+              "examples": ["DTL", "MYPROJ"]
+            },
+            "bidirectional_comments": {
+              "type": "boolean",
+              "description": "Enable bidirectional comment sync between local tickets and Jira. When true, comments added locally are pushed to Jira and vice versa.",
+              "default": true
+            }
+          }
+        }
+      }
     }
   }
 }

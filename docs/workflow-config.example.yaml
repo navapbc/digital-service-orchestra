@@ -95,3 +95,25 @@ issue_tracker:
   # Command to create a new tracking issue.
   # Used by: check-validation-failures.sh, commit-failure-tracker.sh
   create_cmd: 'tk create'
+
+tickets:
+  # Ticket ID prefix used when generating new ticket IDs.
+  # When omitted, tk derives the prefix from the project directory name.
+  # Used by: tk create (ID generation)
+  prefix: my-project
+
+  # Directory where ticket markdown files are stored (relative to repo root).
+  # Defaults to '.tickets' when absent.
+  # Used by: tk (all subcommands), ticket sync hooks
+  directory: '.tickets'
+
+  sync:
+    # Jira project key for ticket sync (optional).
+    # Only needed when using `tk sync` with Jira.
+    # Used by: tk sync
+    jira_project_key: MYPROJ
+
+    # Enable bidirectional comment sync between local tickets and Jira.
+    # Defaults to true when absent.
+    # Used by: tk sync (comment sync phase)
+    bidirectional_comments: true
