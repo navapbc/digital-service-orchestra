@@ -142,8 +142,11 @@ $REPO_ROOT/scripts/issue-quality-check.sh <id>
 **Writing quality ticket**: When creating tasks for sub-agent execution, include:
 - Concrete file paths (`src/`, `tests/`)
 - Acceptance criteria with keywords: "must", "should", "Given/When/Then"
+- A `## File Impact` or `### Files to modify` section listing source and test files
 - At least 5 lines of description
 This ensures `issue-quality-check.sh` passes and sub-agents can self-serve their ticket context.
+
+**File impact enrichment**: The quality gate now also checks for a file impact section. If a ticket is missing one, run `$REPO_ROOT/scripts/enrich-file-impact.sh <id>` to auto-generate it using a haiku model call. Use `--dry-run` to preview without modifying. Gracefully degrades if `ANTHROPIC_API_KEY` is unset.
 
 ### If `--resume` Flag
 
@@ -620,7 +623,7 @@ $REPO_ROOT/scripts/issue-quality-check.sh <task-id>
 ```
 
 - **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$REPO_ROOT/.claude/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `tk show`.
-- **Exit 1 (too sparse)**: Fall back — run `tk show <id>`, then include the full description inline in the prompt alongside the template instructions.
+- **Exit 1 (too sparse)**: Try enriching the ticket first with `$REPO_ROOT/scripts/enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `tk show <id>`, then include the full description inline in the prompt alongside the template instructions.
 
 **Acceptance criteria gate**: After the quality gate, run:
 ```bash
