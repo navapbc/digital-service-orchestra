@@ -31,7 +31,7 @@ For each reviewer:
    - The reviewer prompt (role, dimensions, scoring scale, instructions)
    - The story context (ID, title, description, acceptance criteria)
    - The proposed design (code snippet, wireframe description, or diff)
-   - DESIGN_NOTES.md content (required for North Star Alignment and Tech Compliance)
+   - Design notes content from `design.design_notes_path` (required for North Star Alignment and Tech Compliance)
    - Epic context if the story belongs to an epic (for scope_fit and future_readiness)
 3. Instruct the reviewer to return JSON conforming to `REVIEW-SCHEMA.md`:
    `perspective`, `status`, `dimensions` map, `findings` array

@@ -23,7 +23,12 @@ Role: **Strict Design QA Lead.** Your only goal is to review proposed designs (c
 
 Before reviewing, you MUST have:
 
-1. The project's `DESIGN_NOTES.md` content in your context. Search for it in the project root. If it does not exist, tell the user to run `/design-onboarding` first.
+1. The project's design notes document in your context. Resolve the path from config:
+   ```bash
+   PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+   DESIGN_NOTES_PATH=$(bash "$PLUGIN_SCRIPTS/read-config.sh" design.design_notes_path)
+   ```
+   Read the file at `$DESIGN_NOTES_PATH` (defaults to `DESIGN_NOTES.md` if not configured). If it does not exist, tell the user to run `/design-onboarding` first.
 2. A description or code of the *Proposed Design* to review. If none is provided, check `git diff` for UI-related changes.
 
 ---

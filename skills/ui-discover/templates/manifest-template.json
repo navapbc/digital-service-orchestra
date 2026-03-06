@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "generatedAt": "2026-02-16T10:30:00Z",
+  "gitCommit": "abc1234",
+  "appUrl": "http://localhost:3000",
+  "playwrightUsed": true,
+  "uiFileHashes": {
+    "src/components/Button.tsx": "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+    "src/components/SearchInput.tsx": "sha256:d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5",
+    "src/components/DataTable.tsx": "sha256:f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
+    "src/components/Nav.tsx": "sha256:b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+    "src/components/SidebarNav.tsx": "sha256:c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+    "src/components/FormField.tsx": "sha256:e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
+    "src/app/layout.tsx": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "src/app/page.tsx": "sha256:789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234567",
+    "src/app/settings/page.tsx": "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    "src/app/users/[id]/page.tsx": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "src/app/dashboard/analytics/page.tsx": "sha256:23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01",
+    "tailwind.config.js": "sha256:def0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd",
+    "src/styles/globals.css": "sha256:3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123"
+  },
+  "entries": {
+    "global/app-shell": {
+      "valid": true,
+      "dependsOn": ["src/app/layout.tsx", "src/components/Nav.tsx"]
+    },
+    "global/design-tokens": {
+      "valid": true,
+      "dependsOn": ["tailwind.config.js", "src/styles/globals.css"]
+    },
+    "global/route-map": {
+      "valid": true,
+      "dependsOn": ["src/app/layout.tsx"]
+    },
+    "components/Button": {
+      "valid": true,
+      "dependsOn": ["src/components/Button.tsx"]
+    },
+    "components/SearchInput": {
+      "valid": true,
+      "dependsOn": ["src/components/SearchInput.tsx"]
+    },
+    "components/DataTable": {
+      "valid": true,
+      "dependsOn": ["src/components/DataTable.tsx"]
+    },
+    "components/Nav": {
+      "valid": true,
+      "dependsOn": ["src/components/Nav.tsx"]
+    },
+    "components/SidebarNav": {
+      "valid": true,
+      "dependsOn": ["src/components/SidebarNav.tsx"]
+    },
+    "components/FormField": {
+      "valid": true,
+      "dependsOn": ["src/components/FormField.tsx"]
+    },
+    "routes/_root": {
+      "valid": true,
+      "dependsOn": ["src/app/page.tsx", "src/components/SearchInput.tsx", "src/components/DataTable.tsx"],
+      "usesComponents": ["SearchInput", "DataTable", "Button"]
+    },
+    "routes/settings": {
+      "valid": true,
+      "dependsOn": ["src/app/settings/page.tsx", "src/components/SidebarNav.tsx", "src/components/FormField.tsx", "src/components/Button.tsx"],
+      "usesComponents": ["SidebarNav", "FormField", "Button"]
+    },
+    "routes/users_[id]": {
+      "valid": true,
+      "dependsOn": ["src/app/users/[id]/page.tsx", "src/components/FormField.tsx", "src/components/Button.tsx"],
+      "usesComponents": ["FormField", "Button", "DataTable"]
+    },
+    "routes/dashboard_analytics": {
+      "valid": true,
+      "dependsOn": ["src/app/dashboard/analytics/page.tsx", "src/components/DataTable.tsx"],
+      "usesComponents": ["DataTable", "Button"]
+    }
+  }
+}
