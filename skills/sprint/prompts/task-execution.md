@@ -48,6 +48,14 @@ Read and follow `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGE
 - You MAY run: tk create --parent=<parent-id> (for discovered work only)
 - Your task ends at step 9 (Report output) — the orchestrator handles commits and issue lifecycle
 
+### Prior Batch Discoveries
+
+{prior_batch_discoveries}
+
+If discoveries are listed above, review them before starting implementation.
+They may affect your task — check for relevant bugs, dependency changes,
+API changes, or convention violations reported by agents in the previous batch.
+
 ### File Ownership Boundaries
 
 {file_ownership_context}

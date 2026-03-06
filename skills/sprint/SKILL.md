@@ -498,6 +498,25 @@ Call `TodoWrite` to replace any existing checklist with the current batch's item
 
 Mark each item `in_progress` when starting and `completed` when done.
 
+### Inject Prior Batch Discoveries (Batch 2+ only)
+
+For Batch 2 and subsequent batches, collect discoveries from the previous batch and
+prepare them for injection into sub-agent prompts via the `{prior_batch_discoveries}`
+placeholder in `task-execution.md`:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+PRIOR_BATCH_DISCOVERIES=$("$REPO_ROOT/scripts/collect-discoveries.sh" --format=prompt 2>/dev/null) || PRIOR_BATCH_DISCOVERIES="None."
+```
+
+- For **Batch 1** (no prior discoveries), set `PRIOR_BATCH_DISCOVERIES="None."`
+- For **Batch 2+**, the script outputs a markdown-formatted `## PRIOR_BATCH_DISCOVERIES`
+  section listing each discovery with type, task ID, summary, and affected files
+- When populating the `task-execution.md` template in Phase 5, replace `{prior_batch_discoveries}`
+  with the value of `PRIOR_BATCH_DISCOVERIES`
+- **Graceful degradation**: If `collect-discoveries.sh --format=prompt` fails, log a warning
+  and use `"None."` as the fallback value. Discovery injection failure must not block the sprint.
+
 ### Compose Batch
 
 Run the deterministic batch selector. It handles story-level blocking, task
@@ -583,6 +602,19 @@ The script outputs structured key-value pairs:
 - `DB_STATUS: running | stopped | skipped` — if stopped, ask user to start DB
 
 Exit 0 means all checks pass. Exit 1 means at least one check requires action (details in output).
+
+### Clean Discovery Directory
+
+Before launching sub-agents, ensure the discovery directory is clean so that only
+discoveries from the current batch are collected in Phase 6:
+
+```bash
+$REPO_ROOT/scripts/agent-batch-lifecycle.sh cleanup-discoveries
+```
+
+The script removes any leftover `.agent-discoveries/*.json` files from the previous batch
+and ensures the directory exists so agents can write to it immediately. Output:
+`DISCOVERIES_CLEANED: <N>`. Exit 0 always (cleanup is best-effort).
 
 **Batch size limit**: Launch at most 5 Task calls in a single message. All foreground Tasks block until they return — you cannot exceed the limit mid-flight. Before each batch, verify: how many tasks am I about to launch? If > 5, split into multiple batches.
 
@@ -712,6 +744,24 @@ Newly created tasks require no special handling beyond this step — they natura
 enter the next P3→P5→P6 batch cycle when the orchestrator loops back to Phase 3
 (Batch Planning) for remaining work.
 
+### Step 1c: Collect Agent Discoveries (/sprint)
+
+After integrating discovered tasks, collect the structured discovery files that sub-agents
+wrote during execution. These discoveries are propagated to the next batch via the
+`{prior_batch_discoveries}` placeholder in `task-execution.md` (see Phase 3).
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+DISCOVERIES=$("$REPO_ROOT/scripts/collect-discoveries.sh" 2>/dev/null) || DISCOVERIES="[]"
+```
+
+- If `collect-discoveries.sh` succeeds, `DISCOVERIES` contains a JSON array of discovery objects
+- Store the result for use in Phase 3 when composing the next batch's sub-agent prompts
+- **Graceful degradation**: If discovery collection fails (script error, malformed JSON), log a
+  warning and continue with `DISCOVERIES="[]"`. Discovery collection failure must not block the
+  sprint. The script itself handles per-file validation — malformed individual files are skipped
+  with warnings to stderr.
+
 ### Step 2: Acceptance Criteria Validation (/sprint)
 
 **Batched shared criteria** (run ONCE per batch, not per-task):
@@ -758,6 +808,26 @@ actual conflicts before committing:
    d. After each re-run: if agent only touched non-conflicting files -> merge OK.
       If it re-modified the same conflicting files -> escalate to user.
 4. If no conflicts -> proceed to Step 4
+
+### Step 3b: Semantic Conflict Check (/sprint)
+
+After the file overlap check, run the LLM-based semantic conflict detector on the
+batch's combined diff to catch cross-file logical incompatibilities (type signature
+mismatches, renamed symbols still referenced elsewhere, inconsistent state assumptions):
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+SEMANTIC_RESULT=$(git diff | python3 "$REPO_ROOT/scripts/semantic-conflict-check.py" 2>/dev/null) || SEMANTIC_RESULT='{"conflicts":[],"clean":true,"error":"script failed"}'
+```
+
+Parse the JSON output:
+- If `clean` is `true`: log `"Semantic conflict check: clean"` and proceed
+- If `clean` is `false`: log each conflict (files, description, severity) and escalate
+  high-severity conflicts to the user before committing
+- **Graceful degradation**: `semantic-conflict-check.py` always exits 0 — on failure it
+  returns `{"conflicts":[], "clean":true, "error":"<message>"}`. Check for the `error`
+  key: if present, log `"Semantic conflict check warning: <error>"` and proceed. Semantic
+  conflict check failure is non-fatal and must not block the sprint.
 
 ### Step 4: Run Validation (/sprint)
 
