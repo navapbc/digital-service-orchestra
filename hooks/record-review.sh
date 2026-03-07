@@ -301,12 +301,20 @@ DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh")
 
 # If --expected-hash was provided, reject if the diff has changed since the caller captured it
 if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
-    echo "ERROR: diff hash mismatch — code changed between review dispatch and recording" >&2
-    echo "  Expected: ${EXPECTED_HASH:0:12}..." >&2
-    echo "  Current:  ${DIFF_HASH:0:12}..." >&2
-    echo "" >&2
-    echo "Do NOT re-record. Fix the issue and re-run /review from the start." >&2
-    exit 1
+    # Check if this is the pre-committed case (sub-agent PreCompact hook committed changes)
+    LAST_COMMIT_DIFF_HASH=$(git diff HEAD~1 HEAD -- ':!.tickets/' 2>/dev/null | shasum -a 256 | awk '{print $1}')
+    if [[ "$EXPECTED_HASH" == "$LAST_COMMIT_DIFF_HASH" ]]; then
+        echo "INFO: diff was pre-committed (sub-agent PreCompact hook) — accepting HEAD~1 diff hash match" >&2
+        # Update DIFF_HASH to match what was reviewed so the review-status file is consistent
+        DIFF_HASH="$EXPECTED_HASH"
+    else
+        echo "ERROR: diff hash mismatch — code changed between review dispatch and recording" >&2
+        echo "  Expected: ${EXPECTED_HASH:0:12}..." >&2
+        echo "  Current:  ${DIFF_HASH:0:12}..." >&2
+        echo "" >&2
+        echo "Do NOT re-record. Fix the issue and re-run /review from the start." >&2
+        exit 1
+    fi
 fi
 
 # Hash the review JSON itself as proof of review
