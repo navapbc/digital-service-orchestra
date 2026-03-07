@@ -1,6 +1,6 @@
 # CI Failure Validation State File
 
-Write this file before invoking `/debug-everything` on CI failure so it can skip redundant diagnostics for categories that already passed locally.
+Write this file before dispatching the `error-debugging:error-detective` sub-agent on CI failure so it can skip redundant diagnostics for categories that already passed locally.
 
 ## File Path
 

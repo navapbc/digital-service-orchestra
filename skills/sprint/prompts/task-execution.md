@@ -16,6 +16,7 @@ Ticket ID: {id}
 7. **Self-check**: If your task has an `ACCEPTANCE CRITERIA` section, re-read it from the `tk show` output.
    For each criterion with a `Verify:` command, run it. If any fails, fix your implementation
    before reporting. Skip universal criteria (test/lint/format) — already verified in step 6.
+   **Shell compatibility**: `!` (bang negation) is not portable across shells. If a `Verify:` command uses `! cmd`, rewrite it as `{ cmd; test $? -ne 0; }` before running. Example: `! grep -q PAT file` → `{ grep -q PAT file; test $? -ne 0; }`
    → Write checkpoint: `tk add-note {id} "CHECKPOINT 6/6: Done ✓"`
 8. **Discovered work**: If you find work outside your task scope (unhandled edge cases, missing docs, follow-on refactors), create a ticket task:
    ```bash

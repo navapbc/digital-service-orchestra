@@ -87,7 +87,7 @@
 - [ ] Script outputs expected format (single-line structured output)
   Verify: {script_path} --help 2>&1 | head -1
 - [ ] Script handles missing arguments gracefully (non-zero exit)
-  Verify: ! {script_path} 2>/dev/null
+  Verify: { {script_path} 2>/dev/null; test $? -ne 0; }
 
 ## Category: Skill / Workflow Modification
 
