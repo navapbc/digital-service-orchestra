@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # .claude/hooks/compute-diff-hash.sh
-# Shared utility: computes a SHA-256 hash of the current working tree diff.
-#
-# Includes staged changes, unstaged changes, and untracked file contents.
-# Excludes .tickets/ and .tickets/ files (issue tracker metadata shouldn't affect code hashes).
+# Computes a staging-invariant SHA-256 hash of all working tree changes.
+# Includes working tree changes relative to the diff base and untracked file contents.
+# Produces the same hash regardless of git staging state (git add).
+# Excludes .tickets/ files (issue tracker metadata shouldn't affect code hashes).
 #
 # Usage:
 #   HASH=$(.claude/hooks/compute-diff-hash.sh)
@@ -100,7 +100,6 @@ NON_REVIEWABLE_PATTERN='^\.tickets/|^\.tickets/|^app/tests/e2e/snapshots/|^app/t
 
 {
     git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
-    git diff --cached "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
     git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$NON_REVIEWABLE_PATTERN" || true; } | while IFS= read -r f; do
         echo "untracked: $f"
         cat "$f" 2>/dev/null || true
