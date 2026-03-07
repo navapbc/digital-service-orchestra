@@ -77,10 +77,12 @@ while IFS= read -r dir; do
     full_path="$REPO_ROOT/$dir"
     [ -d "$full_path" ] || continue
     if echo "$dir" | grep -q "test"; then
-        test_tree+=$(find "$full_path" -type f -name "*.py" | sed "s|$REPO_ROOT/||" | sort | head -40)
+        # || true prevents SIGPIPE from head -N terminating early on large codebases
+        test_tree+=$(find "$full_path" -type f -name "*.py" | sed "s|$REPO_ROOT/||" | sort | head -40 || true)
         test_tree+=$'\n'
     else
-        tree_output+=$(find "$full_path" -type f -name "*.py" | sed "s|$REPO_ROOT/||" | sort | head -80)
+        # || true prevents SIGPIPE from head -N terminating early on large codebases
+        tree_output+=$(find "$full_path" -type f -name "*.py" | sed "s|$REPO_ROOT/||" | sort | head -80 || true)
         tree_output+=$'\n'
     fi
 done <<< "$_config_dirs"
