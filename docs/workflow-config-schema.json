@@ -250,6 +250,32 @@
         }
       }
     },
+    "merge": {
+      "type": "object",
+      "description": "Merge-to-main configuration. Controls config-driven behavior of merge-to-main.sh.",
+      "additionalProperties": false,
+      "properties": {
+        "visual_baseline_path": {
+          "type": "string",
+          "description": "Path to visual baseline snapshot directory (relative to repo root). When absent, merge-to-main.sh skips the baseline intent check.",
+          "minLength": 1,
+          "examples": ["app/tests/e2e/snapshots/"]
+        },
+        "ci_workflow_name": {
+          "type": "string",
+          "description": "GitHub Actions workflow name for gh workflow run. When absent, post-push CI trigger recovery is skipped.",
+          "minLength": 1,
+          "examples": ["CI", "Build and Test"]
+        },
+        "message_exclusion_pattern": {
+          "type": "string",
+          "description": "Regex pattern for filtering commits when composing the merge message. Defaults to ^chore: post-merge cleanup.",
+          "default": "^chore: post-merge cleanup",
+          "minLength": 1,
+          "examples": ["^chore: post-merge cleanup", "^chore: sync"]
+        }
+      }
+    },
     "tickets": {
       "type": "object",
       "description": "Ticket management configuration. Parameterizes the tk script and ticket workflows, decoupling ID prefixes, directory paths, and sync settings from hardcoded values.",
