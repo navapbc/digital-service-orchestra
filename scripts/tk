@@ -5472,7 +5472,7 @@ _sync_from_main() {
             done
             rm -rf "$_tmpdir"
         fi
-        git reset HEAD .tickets/ 2>/dev/null || true
+        git reset HEAD .tickets/ >/dev/null 2>&1 || true
 
         # Remove .sync-lock if it was pulled from main — it is a transient
         # lock sentinel and should never persist in worktree working trees.
