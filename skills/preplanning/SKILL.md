@@ -632,6 +632,16 @@ Stories should be detailed enough that `/implementation-plan` can decompose them
 
 Do NOT include: file paths, code snippets, database schemas, API response formats, or testing strategies. Those are `/implementation-plan` concerns.
 
+#### Verify Scoping Assumptions
+
+After writing the Scope section for each story, verify every "OUT" assertion that claims something already exists or is handled elsewhere:
+
+1. For each OUT statement that makes a factual claim (e.g., "existing plugin skills already serve this purpose", "the API already supports this"), write a `Verify:` command that confirms the assertion
+2. Run the command. If it fails, the assumption is wrong — either move the item to IN scope or add a dependency on the story that will create it
+3. Document verified assumptions inline: `OUT: [item] — Verified: [command] returned exit 0`
+
+**Why this matters**: False preconditions encoded as scoping decisions are invisible to downstream validation. A story that says "OUT: Creating X — X already exists" will pass all structural checks even when X does not exist, because no task was created to build it and no AC was written to verify it.
+
 ---
 
 ## Quick Reference

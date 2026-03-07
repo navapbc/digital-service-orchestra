@@ -59,6 +59,7 @@ Focus areas:
 - Test coverage for the changes
 - Architecture and design decisions
 - File size: flag files >500 lines as `minor` under `readability` (only `important` if the diff itself introduces a new file >500 lines)
+- **Deletion impact analysis**: For every deleted file or removed code block, investigate whether the deleted artifact is still referenced or depended upon elsewhere. Use Grep to search for imports, references, invocations, or configuration entries that point to the deleted artifact. Flag as `critical` under `functionality` if a deletion leaves dangling references, broken imports, or removes functionality that is still in active use without a replacement. Migration tasks (delete + replace) must have both sides verified: the old artifact is gone AND the replacement exists and is functional.
 
 You may use Read/Grep/Glob to examine surrounding code context. Report only high-confidence issues.
 
