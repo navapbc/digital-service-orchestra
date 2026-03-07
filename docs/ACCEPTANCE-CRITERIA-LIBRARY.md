@@ -89,6 +89,21 @@
 - [ ] Script handles missing arguments gracefully (non-zero exit)
   Verify: { {script_path} 2>/dev/null; test $? -ne 0; }
 
+## Category: Command / Skill / Artifact Migration
+
+Use when a task removes, moves, or replaces a command, skill, script, or other workflow artifact.
+
+- [ ] Old artifact no longer exists at original path
+  Verify: ! test -f {old_path}
+- [ ] Replacement artifact exists at new path
+  Verify: test -f {new_path}
+- [ ] Replacement contains project-specific workflow reference (not a generic stub)
+  Verify: grep -q '{workflow_keyword}' {new_path}
+- [ ] No external plugin silently masks the migrated artifact
+  Verify: ! grep -q '"{artifact_name}.*claude-plugins-official.*true' .claude/settings.json || test -f {project_artifact_path}
+- [ ] Behavioral smoke test: invoking the artifact produces project-specific behavior
+  Verify: {behavioral_command}  # e.g., grep -q 'COMMIT-WORKFLOW' {new_path}
+
 ## Category: Skill / Workflow Modification
 
 - [ ] Skill file is valid markdown

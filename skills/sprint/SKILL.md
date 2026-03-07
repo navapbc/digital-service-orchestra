@@ -714,6 +714,36 @@ For each sub-agent, check the Task tool result:
 - Are the expected files present? (spot-check with Glob)
 - Were tests passing?
 
+### Step 1a: Migration Behavioral Verification (/sprint)
+
+For each sub-agent in the batch, check if its task description contains migration keywords (`remove`, `delete`, `migrate`, `move`, `replace`). For migration tasks:
+
+1. **Verify the replacement exists**: Run the first task-specific (non-universal) AC `Verify:` command. If it fails, the migration deleted something without creating its replacement — mark the task as failed.
+2. **Behavioral smoke test**: If the task migrates a command, skill, or script, invoke or test the migrated artifact (e.g., check that the replacement file contains the expected workflow reference, or that the command resolves to a project-owned artifact). Log: `"Migration behavioral check for <task-id>: <pass|fail>"`
+
+This step catches the "delete old thing, assume new thing exists" pattern that structural-only verification misses.
+
+### Step 1a2: Test Coverage Enforcement (/sprint)
+
+For each sub-agent that returned successfully, check whether its code changes include corresponding test changes:
+
+1. Extract the list of modified source files from the sub-agent result (files matching `src/**/*.py` or equivalent source patterns, excluding `__init__.py`, migrations, and config files)
+2. Extract the list of modified test files (files matching `tests/**/*.py`)
+3. If source files were modified but NO test files were modified or created, the sub-agent returned untested code changes. An untested code change is a bug waiting to happen.
+4. For untested changes, dispatch a sub-agent (same model as the original) with prompt:
+   ```
+   The task <task-id> modified source files (<file list>) but did not include any test changes.
+   Review the changes and write appropriate tests following TDD principles.
+   Read the task's acceptance criteria: tk show <task-id>
+   Ensure tests cover the modified behavior. Run the tests to confirm they pass.
+   ```
+5. Log: `"Test coverage enforcement for <task-id>: dispatched test sub-agent for untested changes in <files>"`
+
+**Exceptions** (skip enforcement):
+- Tasks classified as `skill-guided` or `docs-only`
+- Tasks whose only source changes are type stubs, `__init__.py` re-exports, or Alembic migrations
+- Tasks that explicitly document in their AC why tests are not applicable
+
 ### Step 1b: Integrate Discovered Tasks (/sprint)
 
 For each sub-agent result, check the `TASKS_CREATED` line:
