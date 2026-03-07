@@ -81,6 +81,12 @@ commands:
   # Used by: sprint (UI change detection), commit workflow (UI gate)
   test_visual: "make test-visual"
 
+  # Optional callback for project-specific environment checks.
+  # When present, check-local-env.sh runs this command after generic checks.
+  # When absent, project-specific checks are skipped with a warning.
+  # Used by: check-local-env.sh (Project checks section)
+  # env_check_app: "make env-check-app"
+
 database:
   # Command to ensure the database is running (start + wait for ready).
   # Combines start and status check into one invocation.

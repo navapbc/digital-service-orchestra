@@ -125,6 +125,12 @@
           "description": "Visual regression test command — compares screenshots against baselines",
           "minLength": 1,
           "examples": ["make test-visual", "npm run test:visual"]
+        },
+        "env_check_app": {
+          "type": "string",
+          "description": "Project-provided command for app-specific environment checks (e.g., make env-check-app). When absent, project-specific checks are skipped with a warning. Used by: check-local-env.sh",
+          "minLength": 1,
+          "examples": ["make env-check-app", "scripts/check-app-env.sh"]
         }
       }
     },
@@ -220,7 +226,7 @@
     },
     "infrastructure": {
       "type": "object",
-      "description": "Container infrastructure configuration. Used by agent-batch-lifecycle.sh for stale container cleanup. All keys are optional — when absent, cleanup is skipped.",
+      "description": "Container infrastructure configuration. Used by agent-batch-lifecycle.sh for stale container cleanup and by check-local-env.sh for environment verification. All keys are optional — when absent, the corresponding check falls back to defaults or is skipped.",
       "additionalProperties": false,
       "properties": {
         "container_prefix": {
@@ -234,6 +240,54 @@
           "description": "Docker Compose project name prefix for worktree-specific stacks. The worktree directory name is appended.",
           "minLength": 1,
           "examples": ["lockpick-db-", "myapp-db-"]
+        },
+        "db_container": {
+          "type": "string",
+          "description": "Exact Docker container name to look up for the database. Used by check-local-env.sh for container health checks. Defaults to 'lockpick-postgres-dev' when absent.",
+          "minLength": 1,
+          "examples": ["lockpick-postgres-dev", "myapp-postgres"]
+        },
+        "db_container_patterns": {
+          "type": "array",
+          "description": "List of partial Docker container name patterns to match when the exact db_container name is not found. Checked in order; first match wins. Used by check-local-env.sh.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["postgres", "myapp-db"]]
+        },
+        "required_tools": {
+          "type": "array",
+          "description": "List of CLI tools that must be present in PATH. check-local-env.sh fails if any are missing. Defaults to [jq, git, curl] when absent.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["jq", "git", "curl", "docker"]]
+        },
+        "optional_tools": {
+          "type": "array",
+          "description": "List of CLI tools that are helpful but not required. check-local-env.sh emits a warning (not a failure) if any are missing. Defaults to [shasum] when absent.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["shasum", "pg_isready"]]
+        },
+        "db_port": {
+          "type": ["integer", "string"],
+          "description": "Port to connect to for the database health check. Overrides the DB_PORT environment variable. Defaults to 5432 when absent.",
+          "examples": [5432, 5469]
+        },
+        "app_port": {
+          "type": ["integer", "string"],
+          "description": "Port to connect to for the application health check. Overrides the APP_PORT environment variable. Defaults to 3000 when absent.",
+          "examples": [3000, 3037]
+        },
+        "health_timeout": {
+          "type": ["integer", "string"],
+          "description": "Timeout in seconds for HTTP health checks performed by check-local-env.sh. Defaults to 5 when absent.",
+          "examples": [5, 10]
         }
       }
     },
