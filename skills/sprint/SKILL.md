@@ -580,8 +580,8 @@ Before launching each batch, run the shared pre-batch check script:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh pre-check       # standard
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # standard
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks
 ```
 
 The script outputs structured key-value pairs:
@@ -598,7 +598,7 @@ Before launching sub-agents, ensure the discovery directory is clean so that onl
 discoveries from the current batch are collected in Phase 6:
 
 ```bash
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh cleanup-discoveries
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
 ```
 
 The script removes any leftover `.agent-discoveries/*.json` files from the previous batch
@@ -782,7 +782,7 @@ actual conflicts before committing:
 1. For each sub-agent, collect its modified files from the Task result
 2. Run the overlap detection script:
    ```bash
-   $REPO_ROOT/scripts/agent-batch-lifecycle.sh file-overlap \
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
      --agent=<task-id-1>:<file1>,<file2> \
      --agent=<task-id-2>:<file3>,<file4>
    ```
@@ -946,7 +946,7 @@ Run the context check:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 context_exit=0
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh context-check || context_exit=$?
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?
 # context_exit: 0=normal, 10=medium, 11=high
 ```
 

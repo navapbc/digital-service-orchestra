@@ -52,6 +52,7 @@ Run ALL diagnostic checks and cluster related failures. The orchestrator runs on
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts"
 STAGING_URL="${STAGING_URL:-http://nava-lockpick-doc-to-logic-env-stage.eba-m8tugimv.us-east-2.elasticbeanstalk.com}"
 EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 ```
@@ -59,7 +60,7 @@ EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 **Session lock** — prevents multiple `/debug-everything` sessions from running concurrently:
 
 ```bash
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh lock-acquire "debug-everything"
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"
 ```
 
 The script outputs `LOCK_ID: <id>` on success, `LOCK_BLOCKED: <id>` with `LOCK_WORKTREE: <path>` if another session holds the lock, or `LOCK_STALE: <id>` if a stale lock was reclaimed before acquiring.
@@ -71,7 +72,7 @@ The script outputs `LOCK_ID: <id>` on success, `LOCK_BLOCKED: <id>` with `LOCK_W
 **Discovery cleanup** — remove stale discoveries from any previous session:
 
 ```bash
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh cleanup-discoveries
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
 ```
 
 This ensures a fresh start — no stale discoveries from a previous session. Cleanup failure is non-fatal; log a warning and continue.
@@ -139,7 +140,7 @@ Pass these to the diagnostic sub-agent in Step 2.
 Before launching diagnostics, verify that Docker Desktop and the database are running. The diagnostic sub-agent runs E2E tests which require both.
 
 ```bash
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh preflight --start-db
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh preflight --start-db
 ```
 
 The script outputs structured key-value pairs:
@@ -435,8 +436,8 @@ For remaining failures (Tiers 2-7), launch sub-agent batches.
 Before EVERY batch, run the shared pre-batch check script:
 
 ```bash
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh pre-check --db  # --db for tiers 4-5
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh pre-check       # no --db for tiers 0-3, 6-7
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # --db for tiers 4-5
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # no --db for tiers 0-3, 6-7
 ```
 
 The script outputs structured key-value pairs:
@@ -541,7 +542,7 @@ Sub-agents may modify files beyond what their task description predicts. Check f
 1. Collect modified files for each sub-agent (from Task result or `git diff --name-only`)
 2. Run overlap detection:
    ```bash
-   $REPO_ROOT/scripts/agent-batch-lifecycle.sh file-overlap \
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
      --agent=<task-id-1>:<file1>,<file2> \
      --agent=<task-id-2>:<file3>,<file4>
    ```
@@ -715,8 +716,8 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
 
 1. Clean up discoveries and release the session lock:
    ```bash
-   $REPO_ROOT/scripts/agent-batch-lifecycle.sh cleanup-discoveries
-   $REPO_ROOT/scripts/agent-batch-lifecycle.sh lock-release <lock-id> "All diagnostics passing, all bugs resolved"
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "All diagnostics passing, all bugs resolved"
    tk add-note <epic-id> "Health restored."
    tk close <epic-id>
    ```
@@ -727,8 +728,8 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
 
 1. Clean up discoveries and release the session lock:
    ```bash
-   $REPO_ROOT/scripts/agent-batch-lifecycle.sh cleanup-discoveries
-   $REPO_ROOT/scripts/agent-batch-lifecycle.sh lock-release <lock-id> "Graceful shutdown — work remains"
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "Graceful shutdown — work remains"
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
 2. Do NOT launch new sub-agents

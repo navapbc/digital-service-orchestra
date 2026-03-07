@@ -33,10 +33,23 @@ fi
 TICKETS_DIR="$REPO_ROOT/.tickets"
 
 # ─── Config helpers ──────────────────────────────────────────────────────────
+# _read_cfg <key> — read a config value, respecting WORKFLOW_CONFIG env var override.
+# When WORKFLOW_CONFIG is set, it is passed as the config-file argument to read-config.sh.
+# This allows callers (e.g. tests) to point at /dev/null or a minimal config to simulate
+# absent sections without touching the real workflow-config.yaml.
+_read_cfg() {
+    local key="$1"
+    if [ -n "${WORKFLOW_CONFIG:-}" ]; then
+        bash "$SCRIPT_DIR/read-config.sh" "$WORKFLOW_CONFIG" "$key" 2>/dev/null || true
+    else
+        bash "$SCRIPT_DIR/read-config.sh" "$key" 2>/dev/null || true
+    fi
+}
+
 # Resolve APP_DIR from config (paths.app_dir, relative to REPO_ROOT)
 _app_dir() {
     local rel
-    rel=$(bash "$SCRIPT_DIR/read-config.sh" "paths.app_dir" 2>/dev/null || true)
+    rel=$(_read_cfg "paths.app_dir")
     if [ -n "$rel" ]; then
         echo "$REPO_ROOT/$rel"
     else
@@ -74,7 +87,7 @@ cmd_pre_check() {
     local max_agents=5
     local usage="normal"
     local usage_check_cmd
-    usage_check_cmd=$(bash "$SCRIPT_DIR/read-config.sh" "session.usage_check_cmd" 2>/dev/null || true)
+    usage_check_cmd=$(_read_cfg "session.usage_check_cmd")
     if [ -n "$usage_check_cmd" ] && [ -x "$usage_check_cmd" ]; then
         if "$usage_check_cmd" 2>/dev/null; then
             max_agents=1
@@ -103,8 +116,12 @@ cmd_pre_check() {
     # DB status (optional) — read-config.sh database.status_cmd
     if $check_db; then
         local db_status_cmd
-        db_status_cmd=$(bash "$SCRIPT_DIR/read-config.sh" "database.status_cmd" 2>/dev/null || true)
-        if [ -n "$db_status_cmd" ] && (cd "$(_app_dir)" && eval "$db_status_cmd" >/dev/null 2>&1); then
+        db_status_cmd=$(_read_cfg "database.status_cmd")
+        if [ -z "$db_status_cmd" ]; then
+            # No database config — graceful no-op
+            echo "WARN: pre-check --db skipped — database not configured" >&2
+            echo "DB_STATUS: skipped"
+        elif (cd "$(_app_dir)" && eval "$db_status_cmd" >/dev/null 2>&1); then
             echo "DB_STATUS: running"
         else
             echo "DB_STATUS: stopped"
@@ -367,12 +384,14 @@ cmd_cleanup_stale_containers() {
 
     # Read container naming from config via read-config.sh infrastructure.container_prefix
     local container_prefix
-    container_prefix=$(bash "$SCRIPT_DIR/read-config.sh" "infrastructure.container_prefix" 2>/dev/null || true)
+    container_prefix=$(_read_cfg "infrastructure.container_prefix")
     # read-config.sh infrastructure.compose_project
     local compose_prefix
-    compose_prefix=$(bash "$SCRIPT_DIR/read-config.sh" "infrastructure.compose_project" 2>/dev/null || true)
+    compose_prefix=$(_read_cfg "infrastructure.compose_project")
 
     if [ -z "$container_prefix" ]; then
+        # No infrastructure config — graceful no-op
+        echo "WARN: cleanup-stale-containers skipped — infrastructure not configured" >&2
         echo "STALE_CLEANED: 0"
         return 0
     fi
@@ -494,47 +513,54 @@ cmd_preflight() {
 
     # 2. Database
     if $start_db; then
-        local app_dir
-        app_dir=$(_app_dir)
-
-        # Resolve worktree DB port via config-driven port command
-        local db_port="5432"
-        local wt_name
-        wt_name=$(basename "$REPO_ROOT")
-        local port_cmd
-        port_cmd=$(bash "$SCRIPT_DIR/read-config.sh" "database.port_cmd" 2>/dev/null || true)
-        if [ -f "$REPO_ROOT/.git" ] && [ -n "$port_cmd" ]; then
-            # port_cmd is relative to repo root
-            local port_script="$REPO_ROOT/$port_cmd"
-            if [ -x "$port_script" ]; then
-                db_port=$("$port_script" "$wt_name" db 2>/dev/null || echo "5432")
-            fi
-        fi
-
-        # Check if DB port is already listening (e.g., started by claude-safe's
-        # `make start` which brings up its own DB via docker-compose.yml).
-        # Skip DB ensure to avoid port conflict between the two compose stacks.
+        # Check if database config exists before attempting any DB operations
         local db_status_cmd
-        db_status_cmd=$(bash "$SCRIPT_DIR/read-config.sh" "database.status_cmd" 2>/dev/null || true)
-        if lsof -i :"$db_port" -sTCP:LISTEN >/dev/null 2>&1; then
-            echo "DB_STATUS: running (port $db_port already listening)"
-        elif [ -n "$db_status_cmd" ] && (cd "$app_dir" && eval "$db_status_cmd" >/dev/null 2>&1); then
-            echo "DB_STATUS: running"
+        db_status_cmd=$(_read_cfg "database.status_cmd")
+        if [ -z "$db_status_cmd" ]; then
+            # No database config — graceful no-op
+            echo "WARN: preflight --start-db skipped — database not configured" >&2
+            echo "DB_STATUS: skipped"
         else
-            echo "DB_STATUS: stopped"
-            echo "DB_ACTION: starting"
-            # Use read-config.sh database.ensure_cmd from config (combines start + wait)
-            local db_ensure_cmd
-            db_ensure_cmd=$(bash "$SCRIPT_DIR/read-config.sh" "database.ensure_cmd" 2>/dev/null || true)
-            if [ -n "$db_ensure_cmd" ]; then
-                (cd "$app_dir" && eval "$db_ensure_cmd" 2>&1) || true
+            local app_dir
+            app_dir=$(_app_dir)
+
+            # Resolve worktree DB port via config-driven port command
+            local db_port="5432"
+            local wt_name
+            wt_name=$(basename "$REPO_ROOT")
+            local port_cmd
+            port_cmd=$(_read_cfg "database.port_cmd")
+            if [ -f "$REPO_ROOT/.git" ] && [ -n "$port_cmd" ]; then
+                # port_cmd is relative to repo root
+                local port_script="$REPO_ROOT/$port_cmd"
+                if [ -x "$port_script" ]; then
+                    db_port=$("$port_script" "$wt_name" db 2>/dev/null || echo "5432")
+                fi
             fi
-            # Verify DB came up
-            if [ -n "$db_status_cmd" ] && (cd "$app_dir" && eval "$db_status_cmd" >/dev/null 2>&1); then
-                echo "DB_STATUS: started"
+
+            # Check if DB port is already listening (e.g., started by claude-safe's
+            # `make start` which brings up its own DB via docker-compose.yml).
+            # Skip DB ensure to avoid port conflict between the two compose stacks.
+            if lsof -i :"$db_port" -sTCP:LISTEN >/dev/null 2>&1; then
+                echo "DB_STATUS: running (port $db_port already listening)"
+            elif (cd "$app_dir" && eval "$db_status_cmd" >/dev/null 2>&1); then
+                echo "DB_STATUS: running"
             else
-                echo "DB_STATUS: failed_to_start"
-                any_fail=true
+                echo "DB_STATUS: stopped"
+                echo "DB_ACTION: starting"
+                # Use read-config.sh database.ensure_cmd from config (combines start + wait)
+                local db_ensure_cmd
+                db_ensure_cmd=$(_read_cfg "database.ensure_cmd")
+                if [ -n "$db_ensure_cmd" ]; then
+                    (cd "$app_dir" && eval "$db_ensure_cmd" 2>&1) || true
+                fi
+                # Verify DB came up
+                if (cd "$app_dir" && eval "$db_status_cmd" >/dev/null 2>&1); then
+                    echo "DB_STATUS: started"
+                else
+                    echo "DB_STATUS: failed_to_start"
+                    any_fail=true
+                fi
             fi
         fi
     else
@@ -590,7 +616,7 @@ cmd_context_check() {
     # Convention: exit 0 = usage IS high (>90%), exit non-zero = normal.
     if [ "$level" = "normal" ]; then
         local usage_check_cmd
-        usage_check_cmd=$(bash "$SCRIPT_DIR/read-config.sh" "session.usage_check_cmd" 2>/dev/null || true)
+        usage_check_cmd=$(_read_cfg "session.usage_check_cmd")
         if [ -n "$usage_check_cmd" ] && [ -x "$usage_check_cmd" ]; then
             if "$usage_check_cmd" 2>/dev/null; then
                 level="high"
