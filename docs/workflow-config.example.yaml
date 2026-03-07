@@ -81,6 +81,37 @@ commands:
   # Used by: sprint (UI change detection), commit workflow (UI gate)
   test_visual: "make test-visual"
 
+database:
+  # Command to ensure the database is running (start + wait for ready).
+  # Combines start and status check into one invocation.
+  # Used by: agent-batch-lifecycle.sh preflight --start-db
+  ensure_cmd: "make db-start && make db-status"
+
+  # Command to check database status (exit 0 = running, non-zero = stopped).
+  # Used by: agent-batch-lifecycle.sh pre-check --db, preflight
+  status_cmd: "make db-status"
+
+  # Command to resolve the database port for the current worktree.
+  # Receives worktree name as $1 and port type as $2.
+  # Used by: agent-batch-lifecycle.sh preflight (port conflict detection)
+  port_cmd: "scripts/worktree-port.sh"
+
+infrastructure:
+  # Docker container name prefix for worktree-specific containers.
+  # Used by: agent-batch-lifecycle.sh cleanup-stale-containers
+  container_prefix: "myapp-db-worktree-"
+
+  # Docker Compose project name prefix for worktree-specific stacks.
+  # The worktree directory name is appended (e.g., "myapp-db-worktree-XXXX").
+  # Used by: agent-batch-lifecycle.sh cleanup-stale-containers
+  compose_project: "myapp-db-"
+
+session:
+  # Command to check session context window usage.
+  # Exit 0 = usage IS high (>90%), non-zero = normal.
+  # Used by: agent-batch-lifecycle.sh pre-check, context-check
+  usage_check_cmd: "$HOME/.claude/check-session-usage.sh"
+
 jira:
   # Jira project key used by `tk sync` for bidirectional ticket synchronization.
   # Env var JIRA_PROJECT takes precedence (allows per-user overrides).
