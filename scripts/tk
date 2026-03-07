@@ -5468,6 +5468,7 @@ _sync_from_main() {
                 _basename=$(basename "$_f")
                 if [[ -f "$_tmpdir/$_basename" ]]; then
                     cp "$_tmpdir/$_basename" "$_f"
+                    echo "tk: preserving local-only changes in $_basename" >&2
                 fi
             done
             rm -rf "$_tmpdir"
