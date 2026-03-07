@@ -42,14 +42,14 @@ Capture the diff NOW and save it to a hash-stamped temp file. Sub-agents read th
    { git diff --staged; git diff; } > "$DIFF_FILE"
    # If both empty, fall back to last commit
    [ -s "$DIFF_FILE" ] || git diff HEAD~1 > "$DIFF_FILE"
-   git diff HEAD --stat > "$STAT_FILE"
+   { git diff HEAD --stat; git ls-files --others --exclude-standard | sed 's/$/ (untracked)/'; } > "$STAT_FILE"
    ```
 
 3. **Read only the stat file** into context (small). Do NOT cat/read the full diff file — the sub-agent reads it from disk.
 
 4. Store `DIFF_HASH`, `DIFF_FILE`, and `STAT_FILE` paths for use in Steps 3-5.
 
-**Note**: The diff hash includes both staged and unstaged changes. Callers must stage all intended files before invoking this workflow to avoid hash drift at commit time.
+**Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state. If you stage a new untracked file with `git add <file>` between review and commit, re-run the review workflow to capture the updated hash.
 
 ## Step 1: Validate (conditional)
 
@@ -86,7 +86,7 @@ If Docker is not available, use `python3 -m py_compile` on changed Python files 
 
 ## Step 3: Determine Model
 
-Scan changed files (`git diff HEAD --name-only`) for high-blast-radius patterns:
+Scan changed files (`{ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u`) for high-blast-radius patterns:
 
 - `.claude/skills/**`
 - `.claude/workflows/**`
@@ -262,7 +262,7 @@ Task tool:
    NEW_STAT_FILE="$ARTIFACTS_DIR/review-stat-${NEW_DIFF_HASH_SHORT}.txt"
    { git diff --staged; git diff; } > "$NEW_DIFF_FILE"
    [ -s "$NEW_DIFF_FILE" ] || git diff HEAD~1 > "$NEW_DIFF_FILE"
-   git diff HEAD --stat > "$NEW_STAT_FILE"
+   { git diff HEAD --stat; git ls-files --others --exclude-standard | sed 's/$/ (untracked)/'; } > "$NEW_STAT_FILE"
    ```
 
 2. Dispatch the re-review sub-agent using the same `code-review-dispatch.md` template:
