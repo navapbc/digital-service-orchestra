@@ -947,12 +947,12 @@ Run the context check:
 REPO_ROOT=$(git rev-parse --show-toplevel)
 context_exit=0
 $REPO_ROOT/scripts/agent-batch-lifecycle.sh context-check || context_exit=$?
-# context_exit: 0=low, 10=medium, 11=high
+# context_exit: 0=normal, 10=medium, 11=high
 ```
 
 | Output | Exit Code | Meaning | Action |
 |--------|-----------|---------|--------|
-| `CONTEXT_LEVEL: low` | 0 | <70% usage | Proceed to Step 13 normally |
+| `CONTEXT_LEVEL: normal` | 0 | <70% usage | Proceed to Step 13 normally |
 | `CONTEXT_LEVEL: medium` | 10 | 70–90% usage | Compact before next batch (see below) |
 | `CONTEXT_LEVEL: high` | 11 | >90% usage | Compact before next batch (agent limit handled separately by pre-check in Phase 4) |
 
