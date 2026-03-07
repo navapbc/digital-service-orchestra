@@ -94,7 +94,7 @@ Before launching diagnostics, estimate context load:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/estimate-context-load.sh 2>/dev/null | tail -5
+$REPO_ROOT/scripts/estimate-context-load.sh debug-everything 2>/dev/null | tail -5
 ```
 
 If the static context load is >10,000 tokens, trim `MEMORY.md` before continuing to avoid premature compaction (per CLAUDE.md). Removing stale/redundant entries from `MEMORY.md` is sufficient — aim to bring the static load under 10,000 tokens before proceeding.

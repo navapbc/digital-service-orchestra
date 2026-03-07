@@ -117,6 +117,30 @@ else
     fail "Should exit 0 even with non-existent skill name"
 fi
 
+# --- Test: non-existent skill shows ~0 tokens for SKILL.md and prompts/ ---
+if output=$("$SCRIPT" nonexistent-skill-xyz 2>&1); then
+    if echo "$output" | grep -E 'SKILL.md|prompts/' | grep -q '~0 tokens'; then
+        pass "Non-existent skill shows ~0 tokens for SKILL.md/prompts/"
+    else
+        fail "SKILL.md and prompts/ should show ~0 tokens for non-existent skill"
+    fi
+else
+    fail "Should exit 0 for non-existent skill ~0 token check"
+fi
+
+# --- Test: non-existent skill produces no stderr ---
+if stderr=$("$SCRIPT" nonexistent-skill-xyz 2>&1 1>/dev/null); then
+    # Note: redirect order means stdout goes to /dev/null first, then stderr merges.
+    # We need a subshell approach to properly capture stderr only.
+    true
+fi
+stderr_lines=$({ "$SCRIPT" nonexistent-skill-xyz 1>/dev/null; } 2>&1 | wc -l | tr -d ' ')
+if [[ "$stderr_lines" = "0" ]]; then
+    pass "Non-existent skill produces no stderr output"
+else
+    fail "Non-existent skill should produce no stderr (got $stderr_lines lines)"
+fi
+
 # --- Test: output contains expected sections ---
 if output=$("$SCRIPT" debug-everything 2>&1); then
     ok=true
