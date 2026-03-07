@@ -302,7 +302,16 @@ DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh")
 # If --expected-hash was provided, reject if the diff has changed since the caller captured it
 if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
     # Check if this is the pre-committed case (sub-agent PreCompact hook committed changes)
-    LAST_COMMIT_DIFF_HASH=$(git diff HEAD~1 HEAD -- ':!.tickets/' 2>/dev/null | shasum -a 256 | awk '{print $1}')
+    # Use the same exclusion pathspecs as compute-diff-hash.sh to avoid false mismatches
+    # when the diff includes images, snapshots, PDFs, or other non-reviewable file types.
+    # Also hash untracked files that were part of the commit (shown as empty diff vs HEAD).
+    LAST_COMMIT_DIFF_HASH=$(git diff HEAD~1 HEAD -- \
+        ':!.tickets/' \
+        ':!app/tests/e2e/snapshots/' \
+        ':!app/tests/unit/templates/snapshots/*.html' \
+        ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp' \
+        ':!*.pdf' ':!*.docx' \
+        2>/dev/null | shasum -a 256 | awk '{print $1}')
     if [[ "$EXPECTED_HASH" == "$LAST_COMMIT_DIFF_HASH" ]]; then
         echo "INFO: diff was pre-committed (sub-agent PreCompact hook) — accepting HEAD~1 diff hash match" >&2
         # Update DIFF_HASH to match what was reviewed so the review-status file is consistent
