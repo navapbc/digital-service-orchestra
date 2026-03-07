@@ -35,8 +35,8 @@ fi
 
 ID="${args[0]}"
 
-# Load ticket content
-output=$("$TK" show "$ID" 2>/dev/null)
+# Load ticket content (|| true prevents set -e from silently exiting on tk failure)
+output=$("$TK" show "$ID" 2>/dev/null) || output=""
 if [ -z "$output" ]; then
     echo "ERROR: Could not load ticket $ID" >&2
     exit 1
