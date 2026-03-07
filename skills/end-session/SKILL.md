@@ -22,7 +22,49 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 3. Ask user which to close. Close confirmed: `tk close <id>` for each
 4. **Skip if no in-progress issues** — this is common when called after `/debug-everything` or `/sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
-### 2.5. Release debug-everything Session Lock (if held by this worktree)
+### 2.5. Close Orphaned Epics (safety net)
+
+When `/sprint` is interrupted by context compaction or a control-flow issue, the epic may remain `in_progress` even though all children are closed. This step catches that case.
+
+1. List in-progress epics:
+   ```bash
+   tk list --type epic --status in_progress
+   ```
+   If none, skip this step.
+
+2. For each in-progress epic, check whether all children are closed:
+   ```bash
+   tk dep tree <epic-id>
+   ```
+   Parse the output: if **every** child line shows `[closed]` (and at least one child exists), the epic is a candidate.
+
+3. For each candidate, verify the work is related to this session by checking whether any commit on this worktree branch references the epic or its children:
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   # Collect child IDs from the dep tree output (all lines except the first/root)
+   # Check worktree commits (unmerged) first, then recent main commits from this worktree
+   COMMITS=$(git log main..HEAD --oneline 2>/dev/null)
+   [ -z "$COMMITS" ] && COMMITS=$(git log --oneline -30 main)
+   ```
+   An epic is **session-related** if any of these match:
+   - A commit message contains the epic ID or any child task ID
+   - A commit message contains keywords from the epic title (match 2+ non-trivial words)
+   - The sprint context passed to `/end-session` names this epic
+
+   If no commits match, the epic is **not** related to this session — skip it.
+
+4. For each session-related candidate, close it:
+   ```bash
+   tk close <epic-id> --reason="Epic complete: all children closed (safety-net close by /end-session)"
+   ```
+   Report: `"Closed orphaned epic <epic-id>: <title> (all children were already closed)."`
+
+5. If any candidate has all children closed but is **not** session-related, report it as informational without closing:
+   ```
+   Note: Epic <epic-id> (<title>) has all children closed but was not worked on in this session. Consider closing it manually.
+   ```
+
+### 2.75. Release debug-everything Session Lock (if held by this worktree)
 
 ```bash
 "$(git rev-parse --show-toplevel)/scripts/release-debug-lock.sh" "Session complete"
