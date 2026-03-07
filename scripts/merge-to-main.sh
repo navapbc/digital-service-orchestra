@@ -27,6 +27,15 @@ cd "$REPO_ROOT"
 # points to a temp worktree that doesn't contain scripts/.
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# --- Load project config via read-config.sh ---
+TICKETS_DIR=$(bash "$_SCRIPT_DIR"/read-config.sh tickets.directory 2>/dev/null || true)
+TICKETS_DIR=${TICKETS_DIR:-.tickets}
+export LOCKPICK_TICKETS_DIR="$TICKETS_DIR"
+
+VISUAL_BASELINE_PATH=$(bash "$_SCRIPT_DIR"/read-config.sh merge.visual_baseline_path 2>/dev/null || true)
+CI_WORKFLOW_NAME=$(bash "$_SCRIPT_DIR"/read-config.sh merge.ci_workflow_name 2>/dev/null || true)
+MSG_EXCLUSION_PATTERN=$(bash "$_SCRIPT_DIR"/read-config.sh merge.message_exclusion_pattern 2>/dev/null || true)
+
 # Fallback: try plugin dir first, then repo-root scripts/
 if [ -f "$_SCRIPT_DIR/tk-sync-lib.sh" ]; then
     source "$_SCRIPT_DIR/tk-sync-lib.sh" || { echo "ERROR: tk-sync-lib.sh failed to load"; exit 1; }
@@ -59,9 +68,9 @@ fi
 # non-main branches, so they always appear dirty in worktrees.
 # They sync independently via the PostToolUse ticket-sync-push hook.
 # (.sync-state.json now lives inside .tickets/ so is covered by this exclusion.)
-DIRTY=$(git diff --name-only -- ':!.tickets/' 2>/dev/null || true)
-DIRTY_CACHED=$(git diff --cached --name-only -- ':!.tickets/' 2>/dev/null || true)
-DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!.tickets/' 2>/dev/null || true)
+DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+DIRTY_CACHED=$(git diff --cached --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
 if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     echo "ERROR: Uncommitted changes on worktree. Commit or stash first."
     [ -n "$DIRTY" ] && echo "Unstaged: $DIRTY"
@@ -101,17 +110,21 @@ fi
 # yet, so diffing HEAD vs local main would incorrectly flag CI baseline updates pulled
 # in from origin/main as branch-originated changes (false positive).
 MERGE_BASE_ORIGIN=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD)
-BASELINE_DIFF=$(git diff --name-only "$MERGE_BASE_ORIGIN" HEAD -- 'app/tests/e2e/snapshots/' 2>/dev/null | grep '\.png$' || true)
-if [ -n "$BASELINE_DIFF" ]; then
-    BASELINE_CHECK_EXIT=0
-    "$REPO_ROOT/scripts/verify-baseline-intent.sh" || BASELINE_CHECK_EXIT=$?
-    if [ "$BASELINE_CHECK_EXIT" -eq 2 ]; then
-        echo "ERROR: Visual baseline changes need review. See .claude/docs/VISUAL-BASELINES.md"
-        exit 1
-    elif [ "$BASELINE_CHECK_EXIT" -ne 0 ]; then
-        echo "ERROR: verify-baseline-intent.sh failed with exit code $BASELINE_CHECK_EXIT."
-        exit 1
+if [ -n "$VISUAL_BASELINE_PATH" ]; then
+    BASELINE_DIFF=$(git diff --name-only "$MERGE_BASE_ORIGIN" HEAD -- "$VISUAL_BASELINE_PATH" 2>/dev/null | grep '\.png$' || true)
+    if [ -n "$BASELINE_DIFF" ]; then
+        BASELINE_CHECK_EXIT=0
+        "$REPO_ROOT/scripts/verify-baseline-intent.sh" || BASELINE_CHECK_EXIT=$?
+        if [ "$BASELINE_CHECK_EXIT" -eq 2 ]; then
+            echo "ERROR: Visual baseline changes need review. See .claude/docs/VISUAL-BASELINES.md"
+            exit 1
+        elif [ "$BASELINE_CHECK_EXIT" -ne 0 ]; then
+            echo "ERROR: verify-baseline-intent.sh failed with exit code $BASELINE_CHECK_EXIT."
+            exit 1
+        fi
     fi
+else
+    echo 'INFO: merge.visual_baseline_path not configured -- skipping baseline intent check.'
 fi
 
 # --- 2) Resolve main repo path and cd into it ---
@@ -146,9 +159,9 @@ fi
 # Order matters: clear flags first (so checkout/reset can see the files),
 # then unstage, restore working tree, and remove untracked files.
 _clear_ticket_skip_worktree
-git reset HEAD -- .tickets/ 2>/dev/null || true
-git checkout -- .tickets/ 2>/dev/null || true
-git clean -fd .tickets/ 2>/dev/null || true
+git reset HEAD -- "$TICKETS_DIR"/ 2>/dev/null || true
+git checkout -- "$TICKETS_DIR"/ 2>/dev/null || true
+git clean -fd "$TICKETS_DIR"/ 2>/dev/null || true
 
 # --- 2.6) Pull remote changes before merging ---
 echo "Pulling remote changes..."
@@ -179,9 +192,14 @@ echo "OK: Pulled remote changes."
 
 # --- 3) Merge worktree branch ---
 # Find the last meaningful commit message from the worktree branch (skip chore/cleanup commits)
-LAST_MSG=$(git log "$BRANCH" --format='%s' --no-merges -- \
-    | grep -v -E '^chore: post-merge cleanup' \
-    | head -1 || true)
+if [ -n "$MSG_EXCLUSION_PATTERN" ]; then
+    LAST_MSG=$(git log "$BRANCH" --format='%s' --no-merges -- \
+        | grep -v -E "$MSG_EXCLUSION_PATTERN" \
+        | head -1 || true)
+else
+    LAST_MSG=$(git log "$BRANCH" --format='%s' --no-merges -- \
+        | head -1 || true)
+fi
 if [ -z "$LAST_MSG" ]; then
     LAST_MSG="Merge $BRANCH"
 fi
@@ -193,9 +211,9 @@ MERGE_MSG="$LAST_MSG (merge $BRANCH)"
 # The merge result is authoritative for .tickets/ (worktree branch wins), so
 # there is no data to preserve here — force-clean is safe.
 _clear_ticket_skip_worktree
-git reset HEAD -- .tickets/ 2>/dev/null || true
-git checkout -- .tickets/ 2>/dev/null || true
-git clean -fd .tickets/ 2>/dev/null || true
+git reset HEAD -- "$TICKETS_DIR"/ 2>/dev/null || true
+git checkout -- "$TICKETS_DIR"/ 2>/dev/null || true
+git clean -fd "$TICKETS_DIR"/ 2>/dev/null || true
 
 # Capture pre-merge SHA so we can later detect whether the merge contained
 # non-.tickets/ changes (used for the CI trigger check after push).
@@ -205,11 +223,11 @@ echo "Merging $BRANCH into main..."
 if ! git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
     CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
     # Auto-resolve .tickets/ conflicts (same as worktree sync)
-    NON_TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^\.tickets/' || true)
+    NON_TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^'"$TICKETS_DIR"'/' || true)
     if [ -z "$NON_TICKET_CONFLICTS" ] && [ -n "$CONFLICTED" ]; then
         echo "Auto-resolving ticket conflicts (branch wins)..."
-        git checkout --theirs -- .tickets/ 2>/dev/null || true
-        git add .tickets/ 2>/dev/null || true
+        git checkout --theirs -- "$TICKETS_DIR"/ 2>/dev/null || true
+        git add "$TICKETS_DIR"/ 2>/dev/null || true
         git commit --no-edit --quiet 2>/dev/null || true
         echo "OK: Auto-resolved ticket conflicts."
     else
@@ -228,7 +246,7 @@ echo "OK: Merged $BRANCH into main."
 # Stage any post-merge artifacts (.gitignore entries for worktree dirs)
 git add .gitignore 2>/dev/null || true
 
-REMAINING_DIRTY=$(git diff --name-only -- ':!.tickets/' 2>/dev/null || true)
+REMAINING_DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
 if [ -n "$REMAINING_DIRTY" ]; then
     echo "WARNING: Unexpected dirty files on main (not staged): $REMAINING_DIRTY"
 fi
@@ -254,18 +272,22 @@ echo "OK: Pushed main to remote."
 # Mitigation: if the merge introduced non-.tickets/ changes AND the current HEAD
 # on origin carries [skip ci], explicitly dispatch the CI workflow so it runs.
 HEAD_MSG=$(git log -1 --format='%s' origin/main 2>/dev/null || git log -1 --format='%s' 2>/dev/null || true)
-CODE_CHANGES=$(git diff --name-only "$PRE_MERGE_SHA" HEAD -- ':!.tickets/' 2>/dev/null | head -1 || true)
-if echo "$HEAD_MSG" | grep -q '\[skip ci\]' && [ -n "$CODE_CHANGES" ]; then
-    echo "INFO: HEAD has [skip ci] but merge contained code changes — triggering CI workflow..."
-    if command -v gh >/dev/null 2>&1; then
-        if gh workflow run CI --ref main 2>&1; then
-            echo "OK: CI workflow triggered on main."
+CODE_CHANGES=$(git diff --name-only "$PRE_MERGE_SHA" HEAD -- ':!'"$TICKETS_DIR"'/' 2>/dev/null | head -1 || true)
+if [ -n "$CI_WORKFLOW_NAME" ]; then
+    if echo "$HEAD_MSG" | grep -q '\[skip ci\]' && [ -n "$CODE_CHANGES" ]; then
+        echo "INFO: HEAD has [skip ci] but merge contained code changes — triggering CI workflow..."
+        if command -v gh >/dev/null 2>&1; then
+            if gh workflow run "$CI_WORKFLOW_NAME" --ref main 2>&1; then
+                echo "OK: CI workflow triggered on main."
+            else
+                echo "WARNING: Could not trigger CI workflow (gh workflow run failed). Trigger manually or check GitHub Actions."
+            fi
         else
-            echo "WARNING: Could not trigger CI workflow (gh workflow run failed). Trigger manually or check GitHub Actions."
+            echo "WARNING: gh CLI not found — cannot trigger CI. Trigger manually or check GitHub Actions."
         fi
-    else
-        echo "WARNING: gh CLI not found — cannot trigger CI. Trigger manually or check GitHub Actions."
     fi
+else
+    echo 'INFO: merge.ci_workflow_name not configured -- skipping CI trigger.'
 fi
 
 echo "DONE: $BRANCH merged, committed, and pushed."
