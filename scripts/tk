@@ -5418,13 +5418,16 @@ _sync_from_main() {
         # git tree object for .tickets/).  If the file has been modified
         # locally since the last sync, it won't match the tree entry.
         local _local_only_files=()
-        if [[ -n "$cached_hash" ]]; then
+        # Use cached_hash if available; fall back to main_hash when
+        # the hash file is missing (e.g., deleted or first sync).
+        local _compare_hash="${cached_hash:-$main_hash}"
+        if [[ -n "$_compare_hash" ]]; then
             for _wt_file in .tickets/*.md; do
                 [[ -f "$_wt_file" ]] || continue
                 local _basename _blob_hash _wt_hash
                 _basename=$(basename "$_wt_file")
                 # Get the blob hash of this file in the cached tree
-                _blob_hash=$(git ls-tree "$cached_hash" "$_basename" 2>/dev/null | awk '{print $3}')
+                _blob_hash=$(git ls-tree "$_compare_hash" "$_basename" 2>/dev/null | awk '{print $3}')
                 if [[ -n "$_blob_hash" ]]; then
                     # Compare working tree file against the blob from the cached tree
                     _wt_hash=$(git hash-object "$_wt_file" 2>/dev/null || true)
