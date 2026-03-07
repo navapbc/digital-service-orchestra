@@ -18,12 +18,15 @@
 #   3. If neither exists, output empty string and exit 0
 #
 # Exit codes:
-#   0  — success (key found), missing file, or missing key
-#   1  — malformed YAML or unknown argument
+#   0  — success (key found), missing file, or missing key (scalar mode)
+#   1  — malformed YAML, unknown argument, or list mode key not found
+#        (in --list mode, absent/missing key exits 1 so callers can distinguish
+#         "empty list" from "key does not exist")
 #
 # Flags:
 #   --list        output list-valued keys as newline-separated items;
-#                 scalars degrade to single-line output; missing keys exit 0
+#                 scalars degrade to single-line output;
+#                 absent key exits 1 (not 0) to distinguish from empty list
 #
 # Output:
 #   stdout — value for found key (no trailing newline); empty for missing key/file
@@ -146,8 +149,8 @@ except Exception as e:
     sys.exit(1)
 
 if data is None:
-    # Empty file — key not found, exit 0 with empty output
-    sys.exit(0)
+    # Empty file — key not found
+    sys.exit(1 if list_mode else 0)
 
 # Navigate dot-notation path
 keys = key_path.split(".")
@@ -156,7 +159,7 @@ try:
     for k in keys:
         if not isinstance(value, dict):
             # Path leads to a non-dict — key not found
-            sys.exit(0)
+            sys.exit(1 if list_mode else 0)
         value = value[k]
     # Null value — treat as missing key
     if value is None:
@@ -181,6 +184,6 @@ try:
         print(value, end="")
     sys.exit(0)
 except KeyError:
-    # Key not found — exit 0 with empty output
-    sys.exit(0)
+    # Key not found
+    sys.exit(1 if list_mode else 0)
 PYEOF
