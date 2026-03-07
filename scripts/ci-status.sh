@@ -147,8 +147,8 @@ to_epoch() {
         # GNU/Linux
         result=$(date -d "${ts_clean}Z" +%s 2>/dev/null || true)
     else
-        # macOS
-        result=$(date -jf "%Y-%m-%dT%H:%M:%S" "$ts_clean" +%s 2>/dev/null || true)
+        # macOS — use -u to interpret input as UTC (GitHub API returns UTC timestamps)
+        result=$(date -u -jf "%Y-%m-%dT%H:%M:%S" "$ts_clean" +%s 2>/dev/null || true)
     fi
     echo "$result"
 }
