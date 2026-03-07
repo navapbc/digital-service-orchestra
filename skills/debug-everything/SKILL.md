@@ -79,7 +79,7 @@ This ensures a fresh start — no stale discoveries from a previous session. Cle
 **Resume check** — find and reuse previous work:
 
 1. `tk ready` and grep for "Project Health Restoration"
-2. If found: use that tracking issue (skip creating a new one in Phase 2)
+2. If found: use that epic as the tracker (skip creating a new one in Phase 2)
 3. Check in-progress issues: `tk ready` and grep for `in_progress`
 4. For each in-progress issue: read notes via `tk show <id>`, parse CHECKPOINT lines, and apply these rules:
    - **CHECKPOINT 6/6 ✓** — fast-close: verify files exist, close with `tk close <id>`
@@ -252,19 +252,19 @@ DIAGNOSTIC_FILE: $(get_artifacts_dir)/debug-diag.md
 
 If all validation categories passed but open ticket bugs exist, also append: `All validation categories passed — only open ticket bugs need triage. Skip cluster cross-referencing (no validation failures to cluster). Assign all bugs to Tier 7.`
 
-If resuming an existing tracker, append: `Existing tracker ID: <tracker-id>. Do NOT create a new tracking issue.`
+If resuming an existing tracker, append: `Existing epic ID: <epic-id>. Do NOT create a new epic. Set new issues as children of this epic with tk parent <issue-id> <epic-id>.`
 
 **Subagent**: `subagent_type="general-purpose"`, `model="sonnet"`  # Tier 2: must cross-reference failure clusters with existing issues and make severity/priority judgments for new issue creation
 
 ### Orchestrator Actions After Sub-Agent Returns
 
-1. Parse the triage report: extract issue IDs, tracker ID, `HAS_STAGING_ISSUES` flag
+1. Parse the triage report: extract issue IDs, epic ID, `HAS_STAGING_ISSUES` flag
 2. If `HAS_STAGING_ISSUES=true`: record staging symptoms for Phase 10 verification
 3. Report triage summary to user:
    - Total distinct failures discovered
    - New issues created (with IDs and titles)
    - Pre-existing issues found (with IDs)
-   - Tracking issue ID
+   - Epic ID
    - Recommended fix order by tier
 
 **If `--dry-run`**: Stop here. Output the full triage report and exit.
@@ -604,10 +604,10 @@ Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/post-
 
 ### Step 4: Decision Log (/debug-everything)
 
-Record the batch decisions and outcomes on the tracking issue for observability:
+Record the batch decisions and outcomes on the epic for observability:
 
 ```bash
-tk add-note <tracker-id> "BATCH {N} | Tier {T}
+tk add-note <epic-id> "BATCH {N} | Tier {T}
 Issues: {id1} ({status}), {id2} ({status}), ...
 Agent types: {type} ({id1}), {type} ({id2}), ...
 Model tier: {model}
@@ -717,8 +717,8 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
    ```bash
    $REPO_ROOT/scripts/agent-batch-lifecycle.sh cleanup-discoveries
    $REPO_ROOT/scripts/agent-batch-lifecycle.sh lock-release <lock-id> "All diagnostics passing, all bugs resolved"
-   tk add-note <tracker-id> "Health restored."
-   tk close <tracker-id>
+   tk add-note <epic-id> "Health restored."
+   tk close <epic-id>
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
 2. Proceed to **Phase 10** (Merge to Main & Verify).
@@ -807,7 +807,7 @@ For every open bug, apply the three-outcome classification (Fixed / Escalated / 
 - Current tier and progress within it
 - Merge status: checkpoint merged to main, pushed
 - CI status: passing/failing on main (with run ID)
-- Instruction: "Run `/debug-everything` again to continue — it will find the existing tracking issue and pick up where this session left off"
+- Instruction: "Run `/debug-everything` again to continue — it will find the existing epic and pick up where this session left off"
 
 ### Cross-Session Learning (Both Paths)
 
