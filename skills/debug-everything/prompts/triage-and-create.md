@@ -63,15 +63,15 @@ tk add-note <id> "SAFEGUARDED: fix requires editing protected file(s): <paths>"
 
 ### Step 3: Create Tracking Issue (/debug-everything)
 
-If no existing "Project Health Restoration" tracker was found:
+If no existing "Project Health Restoration" epic was found:
 
 ```bash
-tk create "Project Health Restoration ($(date +%Y-%m-%d))" -t bug -p 1
+tk create "Project Health Restoration ($(date +%Y-%m-%d))" -t epic -p 1
 ```
 
-Add dependencies so each discovered issue blocks the tracking issue:
+Set each discovered issue as a child of the epic:
 ```bash
-tk dep <tracker-id> <issue-id>  # tracker depends on each fix
+tk parent <issue-id> <epic-id>  # issue is a child of the epic
 ```
 
 ### Step 4: Validate Issue Health (/debug-everything)
@@ -88,7 +88,7 @@ Use this EXACT format:
 ```
 TRIAGE COMPLETE
 ===============
-Tracker: <tracker-id>
+Epic: <epic-id>
 Has staging issues: true|false
 
 ISSUES:
@@ -108,6 +108,6 @@ SUMMARY:
 See `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Do NOT fix any code
 - Do NOT `git commit`, `git push`, `tk close`
-- You CAN run `tk create`, `tk add-note`, `tk dep`, `tk show`, `tk ready`, `tk blocked`
+- You CAN run `tk create`, `tk add-note`, `tk parent`, `tk show`, `tk ready`, `tk blocked`
 - Create exactly ONE issue per cluster, ONE issue per standalone error
 - Never create duplicate issues — always search first
