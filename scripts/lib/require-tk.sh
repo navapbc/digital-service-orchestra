@@ -16,6 +16,11 @@ require_tk() {
         return 0
     fi
 
+    # If TK is an absolute/relative path, check if the file exists and is executable
+    if [[ "$tk_cmd" == */* ]] && [[ -x "$tk_cmd" ]]; then
+        return 0
+    fi
+
     # If TK was explicitly set but doesn't exist, report that
     if [[ -n "${TK:-}" ]]; then
         echo "lockpick-workflow: tk CLI is required but not found at '$TK'. Install tk or set TK= to its path." >&2

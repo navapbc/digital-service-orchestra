@@ -24,10 +24,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source shared tk availability helper
+TK="${TK:-$SCRIPT_DIR/tk}"
+
 source "$SCRIPT_DIR/lib/require-tk.sh"
 require_tk
-
-TK="${TK:-tk}"
 
 show_all=false
 [[ "${1:-}" == "--all" ]] && show_all=true

@@ -22,11 +22,11 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+TK="${TK:-$SCRIPT_DIR/tk}"
+
 # Source shared tk availability helper
 source "$SCRIPT_DIR/lib/require-tk.sh"
 require_tk
-
-TK="${TK:-tk}"
 
 # Colors for output
 RED='\033[0;31m'
