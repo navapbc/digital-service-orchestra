@@ -195,6 +195,13 @@ Display a comprehensive session summary:
 
 Focus on reusable knowledge. Exclude: workflow phases run, git operations performed, tool usage counts, issue IDs closed.
 
+**Bug ticket check** — after generating the Technical Learnings list, review each learning and ask: "Should this be a bug ticket?" Create a bug ticket (`tk create "<title>" -t bug -p <priority>`) for any learning that describes:
+- A defect, regression, or broken behavior that hasn't been fixed yet
+- A footgun or edge case that will bite users/developers again if not addressed
+- A workaround that was applied instead of a proper fix
+
+Do NOT create tickets for neutral observations, design decisions, or already-fixed issues.
+
 After displaying the summary, create the sentinel so compaction re-runs skip this step:
 
 ```bash
