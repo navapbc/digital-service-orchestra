@@ -381,6 +381,10 @@ if [ $WAIT_MODE -eq 1 ]; then
     fi
 
     ELAPSED=$(( $(date +%s) - STARTED_EPOCH ))
+    # Clamp to 0 if negative (timestamp parsing edge cases, e.g. TZ skew)
+    if [ "$ELAPSED" -lt 0 ]; then
+        ELAPSED=0
+    fi
 
     # Wait out the dead zone before first poll (no CI signal possible during runner startup)
     if [ "$ELAPSED" -lt "$DEAD_ZONE_SEC" ]; then
