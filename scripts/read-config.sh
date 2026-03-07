@@ -3,7 +3,7 @@
 # Read a key from workflow-config.yaml and return its value to stdout.
 #
 # Usage (key-first form):
-#   read-config.sh <key> [config-file]
+#   read-config.sh [--list] <key> [config-file]
 #
 # Usage (config-first form, also supported):
 #   read-config.sh <config-file> <key>
@@ -21,8 +21,13 @@
 #   0  — success (key found), missing file, or missing key
 #   1  — malformed YAML or unknown argument
 #
+# Flags:
+#   --list        output list-valued keys as newline-separated items;
+#                 scalars degrade to single-line output; missing keys exit 0
+#
 # Output:
 #   stdout — value for found key (no trailing newline); empty for missing key/file
+#            (with --list: newline-terminated lines)
 #   stderr — error message for malformed YAML
 
 set -uo pipefail
@@ -64,12 +69,23 @@ fi
 # treat it as the config-file path; otherwise treat it as the key.
 
 if [[ $# -eq 0 ]]; then
-    echo "Usage: read-config.sh <key> [config-file]" >&2
+    echo "Usage: read-config.sh [--list] <key> [config-file]" >&2
     exit 1
 fi
 
 config_file=""
 key=""
+list_mode=""
+
+# Detect --list flag
+if [[ "$1" == "--list" ]]; then
+    list_mode="1"
+    shift
+    if [[ $# -eq 0 ]]; then
+        echo "Usage: read-config.sh --list <key> [config-file]" >&2
+        exit 1
+    fi
+fi
 
 arg1="$1"
 # Detect if first arg is a file path: contains '/' or ends with .yaml/.yml
@@ -111,12 +127,13 @@ if [[ ! -f "$config_file" ]]; then
 fi
 
 # ── Parse YAML and extract key ─────────────────────────────────────────────────
-"$PYTHON" - "$config_file" "$key" <<'PYEOF'
+"$PYTHON" - "$config_file" "$key" "${list_mode:-0}" <<'PYEOF'
 import sys
 import yaml
 
 config_path = sys.argv[1]
 key_path = sys.argv[2]
+list_mode = sys.argv[3] == "1"
 
 try:
     with open(config_path, "r") as f:
@@ -144,12 +161,24 @@ try:
     # Null value — treat as missing key
     if value is None:
         sys.exit(0)
-    # Non-scalar value — error (caller should request a deeper key)
+    # List value — output newline-separated when --list, error otherwise
+    if isinstance(value, list):
+        if list_mode:
+            for item in value:
+                print(item)
+            sys.exit(0)
+        else:
+            print(f"Error: key '{key_path}' resolves to a non-scalar value", file=sys.stderr)
+            sys.exit(1)
+    # Non-scalar, non-list value — error
     if not isinstance(value, (str, int, float, bool)):
         print(f"Error: key '{key_path}' resolves to a non-scalar value", file=sys.stderr)
         sys.exit(1)
-    # Found — print without trailing newline
-    print(value, end="")
+    # Scalar — print (with newline in list mode for consistency, without otherwise)
+    if list_mode:
+        print(value)
+    else:
+        print(value, end="")
     sys.exit(0)
 except KeyError:
     # Key not found — exit 0 with empty output
