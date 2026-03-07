@@ -147,8 +147,8 @@ to_epoch() {
         # GNU/Linux
         result=$(date -d "${ts_clean}Z" +%s 2>/dev/null || true)
     else
-        # macOS
-        result=$(date -jf "%Y-%m-%dT%H:%M:%S" "$ts_clean" +%s 2>/dev/null || true)
+        # macOS — use -u to interpret input as UTC (GitHub API returns UTC timestamps)
+        result=$(date -u -jf "%Y-%m-%dT%H:%M:%S" "$ts_clean" +%s 2>/dev/null || true)
     fi
     echo "$result"
 }
@@ -381,6 +381,10 @@ if [ $WAIT_MODE -eq 1 ]; then
     fi
 
     ELAPSED=$(( $(date +%s) - STARTED_EPOCH ))
+    # Clamp to 0 if negative (timestamp parsing edge cases, e.g. TZ skew)
+    if [ "$ELAPSED" -lt 0 ]; then
+        ELAPSED=0
+    fi
 
     # Wait out the dead zone before first poll (no CI signal possible during runner startup)
     if [ "$ELAPSED" -lt "$DEAD_ZONE_SEC" ]; then

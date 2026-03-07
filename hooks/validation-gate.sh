@@ -26,8 +26,6 @@
 #   - Compound commands if they contain validate.sh/ci-status.sh, or if ALL sub-commands are exempt
 #
 # New-work Bash patterns (blocked when state=not_run or failed):
-#   - tk ready (without --parent; sprint task discovery)
-#   - tk children <args> (sprint task analysis)
 #   - sprint-list-epics (sprint epic discovery)
 #   - sprint (sprint invocation, as first token only)
 
@@ -79,8 +77,6 @@ is_new_work_command() {
     local cmd="$1"
     # Trim leading whitespace
     cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    [[ "$cmd" =~ ^tk[[:space:]]+ready($|[[:space:]]) ]] && ! [[ "$cmd" =~ --parent ]] && return 0
-    [[ "$cmd" =~ ^tk[[:space:]]+children[[:space:]]+ ]] && return 0
     [[ "$cmd" =~ sprint-list-epics($|[[:space:]]) ]] && return 0
     [[ "$cmd" =~ ^sprint($|[[:space:]]) ]] && return 0
     return 1

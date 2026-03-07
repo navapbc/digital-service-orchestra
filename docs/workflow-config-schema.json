@@ -193,6 +193,63 @@
         }
       }
     },
+    "database": {
+      "type": "object",
+      "description": "Database lifecycle configuration. Used by agent-batch-lifecycle.sh for DB preflight, status checks, and port resolution. All keys are optional — when absent, the corresponding lifecycle step emits a warning and succeeds as a no-op.",
+      "additionalProperties": false,
+      "properties": {
+        "ensure_cmd": {
+          "type": "string",
+          "description": "Command to start the database (e.g. 'make db-start', 'docker compose up -d db'). Used by preflight --start-db.",
+          "minLength": 1,
+          "examples": ["make db-start", "docker compose up -d db"]
+        },
+        "status_cmd": {
+          "type": "string",
+          "description": "Command to check database status. Exit 0 = running, non-zero = stopped. Used by pre-check --db and preflight.",
+          "minLength": 1,
+          "examples": ["make db-status", "pg_isready -h localhost"]
+        },
+        "port_cmd": {
+          "type": "string",
+          "description": "Command to resolve the database port for the current worktree. Receives worktree name as $1 and port type as $2. Used by preflight for port conflict detection.",
+          "minLength": 1,
+          "examples": ["scripts/worktree-port.sh", "echo 5432"]
+        }
+      }
+    },
+    "infrastructure": {
+      "type": "object",
+      "description": "Container infrastructure configuration. Used by agent-batch-lifecycle.sh for stale container cleanup. All keys are optional — when absent, cleanup is skipped.",
+      "additionalProperties": false,
+      "properties": {
+        "container_prefix": {
+          "type": "string",
+          "description": "Docker container name prefix for worktree-specific containers. Used to discover containers belonging to deleted worktrees.",
+          "minLength": 1,
+          "examples": ["lockpick-postgres-worktree-", "myapp-db-worktree-"]
+        },
+        "compose_project": {
+          "type": "string",
+          "description": "Docker Compose project name prefix for worktree-specific stacks. The worktree directory name is appended.",
+          "minLength": 1,
+          "examples": ["lockpick-db-", "myapp-db-"]
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "description": "Session management configuration. Used by agent-batch-lifecycle.sh for context window usage checks. All keys are optional — when absent, usage checks are skipped.",
+      "additionalProperties": false,
+      "properties": {
+        "usage_check_cmd": {
+          "type": "string",
+          "description": "Command to check session context window usage. Exit 0 = usage IS high (>90%), non-zero = normal. Used by pre-check and context-check subcommands.",
+          "minLength": 1,
+          "examples": ["$HOME/.claude/check-session-usage.sh", "echo 0"]
+        }
+      }
+    },
     "tickets": {
       "type": "object",
       "description": "Ticket management configuration. Parameterizes the tk script and ticket workflows, decoupling ID prefixes, directory paths, and sync settings from hardcoded values.",

@@ -169,7 +169,7 @@ $REPO_ROOT/lockpick-workflow/scripts/validate.sh --ci
 
 **Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
 
-**If validation fails**: Run `/debug-everything` to fix all failures before continuing with the sprint. Do NOT proceed to the Preplanning Gate until validation passes.
+**If validation fails**: Dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the validation output to diagnose and fix the specific failing categories. Do NOT invoke `/debug-everything` — it is a separate workflow that resolves all project bugs, not just sprint-scoped failures. Do NOT proceed to the Preplanning Gate until validation passes.
 
 ### Preplanning Gate
 
@@ -580,8 +580,8 @@ Before launching each batch, run the shared pre-batch check script:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh pre-check       # standard
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # standard
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks
 ```
 
 The script outputs structured key-value pairs:
@@ -598,7 +598,7 @@ Before launching sub-agents, ensure the discovery directory is clean so that onl
 discoveries from the current batch are collected in Phase 6:
 
 ```bash
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh cleanup-discoveries
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
 ```
 
 The script removes any leftover `.agent-discoveries/*.json` files from the previous batch
@@ -782,7 +782,7 @@ actual conflicts before committing:
 1. For each sub-agent, collect its modified files from the Task result
 2. Run the overlap detection script:
    ```bash
-   $REPO_ROOT/scripts/agent-batch-lifecycle.sh file-overlap \
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
      --agent=<task-id-1>:<file1>,<file2> \
      --agent=<task-id-2>:<file3>,<file4>
    ```
@@ -946,7 +946,7 @@ Run the context check:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 context_exit=0
-$REPO_ROOT/scripts/agent-batch-lifecycle.sh context-check || context_exit=$?
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?
 # context_exit: 0=normal, 10=medium, 11=high
 ```
 
@@ -1067,12 +1067,12 @@ $REPO_ROOT/lockpick-workflow/scripts/ci-status.sh --wait
 | CI Result | Action |
 |-----------|--------|
 | `success` | Proceed to Step 0.5b |
-| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` agent (model: `sonnet`) with the CI run URL and failed job names. Run `/debug-everything` to fix, commit+push, restart Step 0.5a. If still failing after one attempt → Phase 9 (Graceful Shutdown). |
+| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the CI run URL and failed job names. Follow the test-failure-dispatch protocol (`prompts/test-failure-dispatch-protocol.md`). Commit+push, restart Step 0.5a. If still failing after one attempt → Phase 9 (Graceful Shutdown). |
 | Not found after 30 min | Run `gh run list --workflow=CI --limit 10` to check if CI triggered. Report to user. |
 
-#### Validation State File (CI failure context for /debug-everything)
+#### Validation State File (CI failure context for error-detective sub-agent)
 
-Before invoking `/debug-everything` on CI failure, write the validation state file per `prompts/ci-failure-validation-state.md`.
+Before dispatching the error-detective sub-agent on CI failure, write the validation state file per `prompts/ci-failure-validation-state.md`.
 
 #### Step 0.5b: Run E2E Tests
 
@@ -1267,7 +1267,7 @@ Phase 9 delegates all completion and shutdown logic to `/end-session`, which han
 | All sub-agents fail | Log failures, graceful shutdown, do not retry in same session |
 | Validation agent fails to run | Skip validation, report to user, recommend manual review |
 | DB not running for E2E | Ask user to run `make db-start`, wait for confirmation |
-| CI fails at Phase 7 | Dispatch `error-debugging:error-detective` to diagnose, then `/debug-everything` to fix, commit+push, restart Phase 7 Step 0.5a; if still failing after one attempt, graceful shutdown |
+| CI fails at Phase 7 | Dispatch `error-debugging:error-detective` sub-agent (model: `sonnet`) to diagnose and fix per test-failure-dispatch protocol, commit+push, restart Phase 7 Step 0.5a; if still failing after one attempt, graceful shutdown |
 | Git push fails | Report error, suggest `git pull --rebase`, never force-push |
 | Ticket health < 5 after ops | Fix ticket issues before continuing (see `/tickets-health`) |
 | Epic has 0 children | Preplanning gate triggers `/preplanning` automatically |
