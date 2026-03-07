@@ -5458,7 +5458,6 @@ _sync_from_main() {
             _tmpdir=$(mktemp -d)
             for _f in "${_local_only_files[@]}"; do
                 cp "$_f" "$_tmpdir/$(basename "$_f")" 2>/dev/null || true
-                echo "warning: preserving local-only change to $_f (push may have failed)" >&2
             done
 
             git checkout main -- .tickets/ 2>/dev/null || true
