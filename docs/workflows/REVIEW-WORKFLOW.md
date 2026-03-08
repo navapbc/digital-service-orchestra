@@ -96,10 +96,12 @@ Scan changed files (`{ git diff HEAD --name-only; git ls-files --others --exclud
 - `.claude/docs/**`
 - `CLAUDE.md`
 - `.github/workflows/**`
-- `scripts/**`
+- `scripts/**` _(root-level `scripts/` only — matches `^scripts/`, NOT `tests/.../scripts/` or other subdirectories)_
 - `.pre-commit-config.yaml`
 - `Makefile`
 - `app/src/app.py`
+
+When implementing this check with grep, use anchored matching: `grep -E '^scripts/'` rather than `grep 'scripts/'` to avoid false positives from test directories (e.g., `tests/plugin/scripts/`).
 
 If **any** changed file matches one of the patterns above -> `model="opus"`.
 If **none** match -> `model="sonnet"`.
