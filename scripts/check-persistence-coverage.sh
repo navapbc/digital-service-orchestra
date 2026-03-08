@@ -35,6 +35,12 @@ REPO_ROOT="$SCRIPT_DIR/../.."
 # In production, defaults to the repo-level workflow-config.yaml.
 CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/workflow-config.yaml}"
 
+# If the config file does not exist at all, treat as no-op with a warning.
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "INFO: workflow-config.yaml not configured (file not found: $CONFIG_FILE) — skipping persistence coverage check." >&2
+    exit 0
+fi
+
 # Read source patterns; exit 0 (no-op) if key is absent (read-config.sh --list exits 1 on absent key)
 SOURCE_PATTERNS=()
 _source_raw=""
