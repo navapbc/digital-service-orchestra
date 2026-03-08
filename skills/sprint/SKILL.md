@@ -218,7 +218,7 @@ When the epic has zero children, dispatch a haiku sub-agent to classify the epic
 
 **Dispatch the evaluator:**
 
-Use the Task tool with `model: "haiku"` and the prompt content from `$(git rev-parse --show-toplevel)/.claude/skills/sprint/prompts/epic-complexity-evaluator.md`. Pass the epic ID as argument.
+Use the Task tool with `model: "haiku"` and the prompt content from `$(git rev-parse --show-toplevel)/.claude/skills/sprint/prompts/epic-complexity-evaluator.md` (delegates dimension scoring to `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`). Pass the epic ID as argument.
 
 **Route based on classification:**
 
@@ -302,7 +302,7 @@ For each ready task from `tk ready` (filtered by parent):
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
 
-**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Use the Task tool with `model: "haiku"` and the prompt content from `$(git rev-parse --show-toplevel)/.claude/skills/sprint/prompts/complexity-evaluator.md`. Pass the story ID as argument.
+**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Use the Task tool with `model: "haiku"` and the prompt content from `$(git rev-parse --show-toplevel)/.claude/skills/sprint/prompts/complexity-evaluator.md` (delegates dimension scoring to `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`). Pass the story ID as argument.
 
 **Routing based on classification:**
 
