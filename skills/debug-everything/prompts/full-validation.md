@@ -3,7 +3,8 @@
 Run the complete validation suite and report a compact summary.
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-phase.sh full
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+$PLUGIN_SCRIPTS/validate-phase.sh full
 ```
 
 The script outputs a structured report. Relay it verbatim.

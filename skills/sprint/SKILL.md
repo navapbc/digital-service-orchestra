@@ -851,7 +851,7 @@ Parse the JSON output:
 ### Step 4: Run Validation (/sprint)
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-phase.sh post-batch
+$PLUGIN_SCRIPTS/validate-phase.sh post-batch
 ```
 
 If validation fails, identify which sub-agent's code is broken and note it.

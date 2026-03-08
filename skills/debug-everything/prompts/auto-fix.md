@@ -7,7 +7,8 @@ Run auto-fixers, validate, and report what changed.
 1. Run `pwd` to confirm working directory
 2. Run the auto-fix validation phase:
    ```bash
-   $(git rev-parse --show-toplevel)/scripts/validate-phase.sh auto-fix
+   PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+   $PLUGIN_SCRIPTS/validate-phase.sh auto-fix
    ```
 3. The script outputs a structured report. Relay it verbatim.
 
