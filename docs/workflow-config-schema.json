@@ -196,6 +196,28 @@
           "default": "DESIGN_NOTES.md",
           "minLength": 1,
           "examples": ["DESIGN_NOTES.md", "docs/DESIGN_NOTES.md"]
+        },
+        "manifest_patterns": {
+          "type": "array",
+          "description": "Glob patterns for design manifest files (relative to repo root). Used by verify-baseline-intent.sh to locate design manifests for baseline intent checks. Defaults to ['designs/*/manifest.md', 'designs/*/brief.md'] when absent.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["designs/*/manifest.md", "designs/*/brief.md"]]
+        }
+      }
+    },
+    "visual": {
+      "type": "object",
+      "description": "Visual regression configuration. Used by verify-baseline-intent.sh for baseline intent checks.",
+      "additionalProperties": false,
+      "properties": {
+        "baseline_directory": {
+          "type": "string",
+          "description": "Path to the visual baseline snapshots directory (relative to repo root). Used by verify-baseline-intent.sh for its baseline intent check. Note: this differs from merge.visual_baseline_path, which is used by merge-to-main.sh for the diff check.",
+          "minLength": 1,
+          "examples": ["app/tests/e2e/snapshots/"]
         }
       }
     },
