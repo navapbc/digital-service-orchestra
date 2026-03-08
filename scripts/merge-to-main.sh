@@ -139,7 +139,7 @@ fi
 # by pre-compact-checkpoint.sh during a compaction), verify that record-review.sh
 # recorded checkpoint_cleared=<nonce> in review-status. Without this, code written
 # during a compaction event could bypass the mandatory code review gate.
-_CHECKPOINT_COMMIT=$(git log "$BRANCH" --diff-filter=A --format="%H" -- .checkpoint-needs-review 2>/dev/null | head -1 || true)
+_CHECKPOINT_COMMIT=$(git log "origin/main..$BRANCH" --diff-filter=A --format="%H" -- .checkpoint-needs-review 2>/dev/null | head -1 || true)
 if [[ -n "$_CHECKPOINT_COMMIT" ]]; then
     _CHECKPOINT_NONCE=$(git show "${_CHECKPOINT_COMMIT}:.checkpoint-needs-review" 2>/dev/null | tr -d '[:space:]' || true)
     if [[ -n "$_CHECKPOINT_NONCE" ]]; then
