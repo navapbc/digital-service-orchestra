@@ -235,6 +235,8 @@ git add -u -- ':(exclude).tickets'
 
 ## Step 5: Review Gate
 
+> **Pre-compaction checkpoint detection**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the diff-hash infrastructure already handles this correctly — `compute-diff-hash.sh` uses the checkpoint commit as the diff base. Proceed normally.
+
 Check whether a current, passing review already exists for this exact diff state.
 
 ```bash
