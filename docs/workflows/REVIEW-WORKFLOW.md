@@ -98,7 +98,7 @@ Scan changed files (`{ git diff HEAD --name-only; git ls-files --others --exclud
 - `Makefile`
 - `app/src/app.py`
 
-When implementing this check with grep, use anchored matching: `grep -E '^scripts/'` rather than `grep 'scripts/'` to avoid false positives from test directories (e.g., `tests/plugin/scripts/`).
+When implementing this check with grep, use anchored matching: `grep -E '^scripts/'` rather than `grep 'scripts/'` to avoid false positives from test directories (e.g., `lockpick-workflow/tests/scripts/`).
 
 If **any** changed file matches one of the patterns above -> `model="opus"`.
 If **none** match -> `model="sonnet"`.
