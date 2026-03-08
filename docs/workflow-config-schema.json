@@ -330,6 +330,19 @@
         }
       }
     },
+    "skills": {
+      "type": "object",
+      "description": "Skill-specific configuration namespace. Each key is consumed by a plugin skill at runtime. All keys are optional — when absent, the skill falls back to generic inline guidance. Values that are file paths are relative to the repo root.",
+      "additionalProperties": false,
+      "properties": {
+        "playwright_debug_reference": {
+          "type": "string",
+          "description": "Path to the project-specific playwright-debug reference file, relative to the repo root. Read by the /playwright-debug skill for framework-specific symptom tables, code patterns, and worked examples. When omitted, the skill uses generic inline fallback guidance.",
+          "minLength": 1,
+          "examples": ["docs/playwright-debug-reference.md", "docs/testing/playwright-guide.md"]
+        }
+      }
+    },
     "tickets": {
       "type": "object",
       "description": "Ticket management configuration. Parameterizes the tk script and ticket workflows, decoupling ID prefixes, directory paths, and sync settings from hardcoded values.",
