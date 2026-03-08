@@ -77,7 +77,7 @@ will be rejected by the validator and force a re-dispatch.
 
 {
   "scores": {
-    "build_lint": <integer 1-5 or "N/A">,
+    "code_hygiene": <integer 1-5 or "N/A">,
     "object_oriented_design": <integer 1-5 or "N/A">,
     "readability": <integer 1-5 or "N/A">,
     "functionality": <integer 1-5 or "N/A">,
@@ -109,7 +109,7 @@ for `important` findings. `write-reviewer-findings.sh` will reject your JSON
 with a validation error if you score a minor-only dimension below 4.
 
 Category mapping (each finding's `category` must be exactly one of these):
-- `build_lint` -- build failures, lint violations, format issues
+- `code_hygiene` -- dead code, naming anti-patterns, unnecessary complexity, missing guards, structural issues NOT caught by automated tools. Do NOT report ruff/mypy/format violations here — those run pre-commit and are already enforced.
 - `object_oriented_design` -- classes, encapsulation, SOLID, design patterns
 - `readability` -- naming, style, comments, organization
 - `functionality` -- correctness, edge cases, error handling, efficiency, security

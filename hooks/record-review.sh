@@ -17,7 +17,7 @@
 #                          has not been tampered with after the sub-agent wrote it.
 #
 # The review JSON must contain:
-#   - scores: object with build_lint, object_oriented_design, readability,
+#   - scores: object with code_hygiene, object_oriented_design, readability,
 #             functionality, testing_coverage (each 1-5 or "N/A")
 #   - summary: non-empty string
 #
@@ -100,7 +100,7 @@ if not isinstance(scores, dict):
     sys.exit(1)
 
 # Require all 5 score dimensions
-required = ['build_lint', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
+required = ['code_hygiene', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
 
 # Normalize string digits to int so both "4" and 4 are accepted
 for key in scores:
@@ -236,7 +236,7 @@ with open(os.environ['FINDINGS_PATH']) as f:
     data = json.load(f)
 
 scores = data.get('scores', {})
-required = ['build_lint', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
+required = ['code_hygiene', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
 
 # Normalize string digits to int so both "4" and 4 are accepted
 for key in scores:
