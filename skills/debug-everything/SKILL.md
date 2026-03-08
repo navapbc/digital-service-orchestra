@@ -377,9 +377,9 @@ If `SAFEGUARD_BUGS` is empty, skip to Phase 3.
 
 Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/safeguard-analysis.md` and use its contents as the sub-agent prompt. Pass the `SAFEGUARD_BUGS` list (IDs and titles) and `WORKTREE` name as context.
 
-**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="sonnet"`
-# Tier 2: must read safeguarded files, understand bug context, and propose
-# precise line-level fixes — requires code comprehension and judgment
+**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="opus"`
+# Complex investigation: must read safeguarded files, understand bug context,
+# and propose precise line-level fixes — requires deep code comprehension and judgment
 
 The sub-agent returns: path to proposals file + summary (count + per-bug one-liner).
 
@@ -597,7 +597,7 @@ Fill in the `{placeholders}` with issue-specific details (title, ID, category, e
 | Ticket bugs — known fix (SAFEGUARD APPROVED) | `code-simplifier:code-simplifier` | `sonnet` | Fix proposal already written; apply without investigation |
 | Ticket bugs — code fixes (Tier 7) | `debugging-toolkit:debugger` | `sonnet` | General debugging for tracked code bugs |
 | Ticket bugs — tooling/scripts (Tier 7) | `code-simplifier:code-simplifier` | `sonnet` | Script and tooling fixes |
-| Ticket bugs — investigation (Tier 7) | `error-debugging:error-detective` | `sonnet` | Root cause analysis for investigation-type bugs |
+| Ticket bugs — investigation (Tier 7) | `error-debugging:error-detective` | `opus` | Root cause analysis for investigation-type bugs |
 | TDD test writing (for non-test bugs) | `unit-testing:test-automator` | `sonnet` | Test automation specialist for writing new tests |
 | Post-fix critic review | `feature-dev:code-reviewer` | `sonnet` | Code reviewer for root-cause-vs-symptom analysis |
 
