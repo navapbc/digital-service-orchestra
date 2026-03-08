@@ -391,4 +391,53 @@ fi
 
 cleanup_env "$TMPENV_F"
 
+# =============================================================================
+# PART G: merge passes when checkpoint commit exists ONLY in origin/main history
+#         (not in the current branch's unique commits)
+#
+# This guards against the regression where git log "$BRANCH" (without excluding
+# origin/main) picked up old checkpoint commits from prior sessions that had
+# already been merged into main. Those sessions' nonces are no longer in the
+# current review-status, causing a false "Unreviewed checkpoint" block.
+#
+# Fix: merge-to-main.sh uses "origin/main..$BRANCH" to scope the check to
+# commits unique to the current worktree session.
+# =============================================================================
+
+TMPENV_G=$(setup_merge_env)
+WT_G=$(cd "$TMPENV_G/worktree" && pwd -P)
+MAIN_G="$TMPENV_G/main-clone"
+
+# Simulate a prior session: add a checkpoint commit to main (origin), then
+# remove the sentinel (as record-review.sh would), and push to origin.
+NONCE_OLD_G="oldnonce_from_prior_session_xyz"
+echo "$NONCE_OLD_G" > "$MAIN_G/.checkpoint-needs-review"
+(cd "$MAIN_G" && git add .checkpoint-needs-review && \
+    git commit -q -m "chore: add checkpoint sentinel") 2>/dev/null
+(cd "$MAIN_G" && git rm -q ".checkpoint-needs-review" && \
+    git commit -q -m "review: cleared sentinel") 2>/dev/null
+(cd "$MAIN_G" && git push -q origin main) 2>/dev/null
+
+# Update worktree's view of origin/main
+(cd "$WT_G" && git fetch -q origin) 2>/dev/null
+
+# Current session: normal commit, no checkpoint
+echo "normal feature" > "$WT_G/feature.py"
+(cd "$WT_G" && git add feature.py && git commit -q -m "feat: normal work") 2>/dev/null
+
+# No checkpoint_cleared needed — the old checkpoint is in origin/main, not this branch
+MERGE_OUTPUT_G=$(cd "$WT_G" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+BLOCKED_G=$(echo "$MERGE_OUTPUT_G" | grep "Unreviewed checkpoint" | head -1 || true)
+if [[ -z "$BLOCKED_G" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    printf "FAIL: test_merge_passes_when_checkpoint_only_in_origin_main\n  false positive block: %s\n" \
+        "$BLOCKED_G" >&2
+fi
+
+cleanup_env "$TMPENV_G"
+
 print_summary
