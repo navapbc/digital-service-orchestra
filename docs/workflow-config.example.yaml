@@ -192,6 +192,13 @@ merge:
   # Used by: merge-to-main.sh (merge message composition)
   message_exclusion_pattern: '^chore: post-merge cleanup'
 
+worktree:
+  # Command to run after creating a new worktree (relative to repo root).
+  # Called by worktree-create.sh as a post-create hook.
+  # When absent, worktree-create.sh skips the post-create phase.
+  # Used by: worktree-create.sh (post-create phase)
+  # post_create_cmd: './scripts/worktree-setup-env.sh'
+
 persistence:
   # Source files whose changes require persistence test coverage.
   # Matched using literal string search (grep -F), not regex.
