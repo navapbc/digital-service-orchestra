@@ -27,6 +27,13 @@ cd "$REPO_ROOT"
 # points to a temp worktree that doesn't contain scripts/.
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# --- Load hooks/lib/deps.sh for get_artifacts_dir ---
+# Needed for checkpoint sentinel verification (see below).
+_HOOK_LIB="$_SCRIPT_DIR/../hooks/lib/deps.sh"
+if [[ -f "$_HOOK_LIB" ]]; then
+    source "$_HOOK_LIB"
+fi
+
 # --- Load project config via read-config.sh ---
 TICKETS_DIR=$(bash "$_SCRIPT_DIR"/read-config.sh tickets.directory 2>/dev/null || true)
 TICKETS_DIR=${TICKETS_DIR:-.tickets}
@@ -125,6 +132,40 @@ if [ -n "$VISUAL_BASELINE_PATH" ]; then
     fi
 else
     echo 'INFO: merge.visual_baseline_path not configured -- skipping baseline intent check.'
+fi
+
+# --- 1.7) Verify checkpoint review sentinel ---
+# If any commit in this worktree branch added .checkpoint-needs-review (written
+# by pre-compact-checkpoint.sh during a compaction), verify that record-review.sh
+# recorded checkpoint_cleared=<nonce> in review-status. Without this, code written
+# during a compaction event could bypass the mandatory code review gate.
+_CHECKPOINT_COMMIT=$(git log "$BRANCH" --diff-filter=A --format="%H" -- .checkpoint-needs-review 2>/dev/null | head -1 || true)
+if [[ -n "$_CHECKPOINT_COMMIT" ]]; then
+    _CHECKPOINT_NONCE=$(git show "${_CHECKPOINT_COMMIT}:.checkpoint-needs-review" 2>/dev/null | tr -d '[:space:]' || true)
+    if [[ -n "$_CHECKPOINT_NONCE" ]]; then
+        # Read checkpoint_cleared from review-status.
+        # Hard-fail if deps.sh was not found — without get_artifacts_dir we cannot
+        # locate review-status and would silently skip the check, defeating the gate.
+        if ! declare -f get_artifacts_dir &>/dev/null; then
+            echo "ERROR: deps.sh not found — cannot verify checkpoint review sentinel."
+            echo "  Expected: $_HOOK_LIB"
+            echo "  Cannot locate review-status without get_artifacts_dir."
+            exit 1
+        fi
+        _REVIEW_STATUS_FILE="$(get_artifacts_dir)/review-status"
+        _CLEARED_NONCE=""
+        if [[ -f "$_REVIEW_STATUS_FILE" ]]; then
+            _CLEARED_NONCE=$(grep '^checkpoint_cleared=' "$_REVIEW_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '[:space:]' || true)
+        fi
+        if [[ "$_CLEARED_NONCE" != "$_CHECKPOINT_NONCE" ]]; then
+            echo "ERROR: Unreviewed checkpoint commit detected."
+            echo "  Code written during a compaction event has not passed code review."
+            echo "  Run /commit (which includes /review) to review changes before merging."
+            echo "  Checkpoint commit: ${_CHECKPOINT_COMMIT:0:12}, nonce=${_CHECKPOINT_NONCE:0:8}..."
+            exit 1
+        fi
+        echo "OK: Checkpoint review verified (nonce=${_CHECKPOINT_NONCE:0:8}...)."
+    fi
 fi
 
 # --- 2) Resolve main repo path and cd into it ---

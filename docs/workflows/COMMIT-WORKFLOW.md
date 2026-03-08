@@ -38,6 +38,7 @@ while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     case "$file" in
         .claude/hookify.*.local.md) SKIP_REVIEW=false; break ;;  # hookify rules require review (must precede *.md)
+        .checkpoint-needs-review) ;;  # compaction sentinel — cleared automatically by record-review.sh
         *.md|.tickets/*) ;;  # docs/tickets
         app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;  # snapshots
         *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;  # images
@@ -50,6 +51,8 @@ done <<< "$CHANGED_FILES"
 **If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage). The review gate (`review-gate.sh`) will also exempt these file types, so Step 5 (Review Gate) will pass automatically.
 
 **Otherwise**: Continue to Step 1.
+
+**Note on `.checkpoint-needs-review`**: If a pre-compaction checkpoint created this file, `record-review.sh` (Step 3a) automatically stages its removal and records `checkpoint_cleared` in review-status. No manual action is needed — do NOT manually delete this file or the merge to main will be blocked.
 
 ## Step 1: Test
 

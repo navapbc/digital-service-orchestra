@@ -248,12 +248,53 @@ Fix any issues before finalizing.
 
 ### Step 4: Invoke Preplanning
 
-After the epic is created and ticket health passes, immediately invoke `/preplanning` on the new epic — do NOT wait for user input:
+After the epic is created and ticket health passes, classify the epic's complexity before invoking `/preplanning`. This routes the epic to the appropriate preplanning mode so the decomposition depth matches the scope.
+
+#### Step 4a: Dispatch Haiku Complexity Evaluator
+
+Dispatch a haiku sub-agent to classify the epic. Use the Task tool with `model: "haiku"` and the prompt content from `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`. Pass the epic ID as the argument.
+
+```
+Task tool:
+  model: "haiku"
+  prompt: <contents of lockpick-workflow/skills/shared/prompts/complexity-evaluator.md>
+  argument: <epic-id>
+```
+
+If the haiku sub-agent fails or returns malformed JSON (not parseable or missing the `classification` key), log a warning and fall through to full `/preplanning` (full mode is the safe fallback default).
+
+#### Step 4b: Route Based on Classification
+
+Apply the brainstorm routing rule to the shared rubric's output:
+
+| Classification | Routing |
+|---|---|
+| TRIVIAL | `/preplanning <epic-id> --lightweight` |
+| MODERATE | `/preplanning <epic-id> --lightweight` |
+| COMPLEX | `/preplanning <epic-id>` (full mode) |
+
+**Note on MODERATE**: In the brainstorm context, MODERATE routes to `--lightweight` (no escalation to COMPLEX). Newly brainstormed epics are typically well-scoped from the dialogue; lightweight preplanning is appropriate when the scope is not COMPLEX.
+
+#### Step 4c: Surface Classification to User
+
+Before invoking `/preplanning`, output to the user:
+
+```
+Epic classified as <TIER> — invoking /preplanning in <mode> mode
+```
+
+where `<mode>` is `lightweight` for TRIVIAL or MODERATE, and `full` for COMPLEX.
+
+#### Step 4d: Invoke Preplanning
+
+Immediately invoke `/preplanning` — do NOT wait for user input after surfacing the classification:
 
 ```
 Skill tool:
   skill: "preplanning"
-  args: "<epic-id>"
+  args: "<epic-id> --lightweight" # TRIVIAL or MODERATE
+  # OR
+  args: "<epic-id>"              # COMPLEX (full mode, no --lightweight flag)
 ```
 
 `/preplanning` will decompose the epic into user stories and present a story map for user approval before anything is created in the ticket system. Control returns here only if `/preplanning` escalates (e.g., requires user clarification).
@@ -264,7 +305,7 @@ Report the epic creation and preplanning handoff:
 === Brainstorm Complete ===
 
 Epic created: <epic-id> — "<title>"
-Handing off to /preplanning for story decomposition…
+Epic classified as <TIER> — invoking /preplanning in <mode> mode…
 ```
 
 ---
@@ -291,4 +332,4 @@ Handing off to /preplanning for story decomposition…
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Ticket Integration | Create the epic, invoke preplanning | `tk create -t epic`, set deps, validate health, `/preplanning <epic-id>` |
+| 3: Ticket Integration | Create the epic, classify complexity, invoke preplanning | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), `/preplanning <epic-id> [--lightweight]` |

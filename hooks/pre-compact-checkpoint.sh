@@ -85,6 +85,21 @@ if [[ -n "$ARTIFACTS_DIR" ]]; then
     fi
 fi
 
+# --- Write checkpoint review sentinel ---
+# Generate a random nonce and write .checkpoint-needs-review before the
+# checkpoint commit. record-review.sh detects this file when recording a
+# review and appends checkpoint_cleared=<nonce> to review-status.
+# merge-to-main.sh verifies checkpoint_cleared before allowing the merge,
+# ensuring that no code written during a compaction can bypass code review.
+# Note: .checkpoint-needs-review is intentionally committed (not .gitignore'd).
+# It must be tracked so git rm --cached can stage its removal inside record-review.sh,
+# and so merge-to-main.sh can read its nonce from the commit tree after it's removed.
+NONCE=$(openssl rand -hex 16 2>/dev/null || \
+    echo "$(date +%s 2>/dev/null || echo 0)$RANDOM$RANDOM" | shasum -a 256 2>/dev/null | head -c 32 || \
+    echo "$(date +%s 2>/dev/null || echo 0)$RANDOM$RANDOM" | sha256sum 2>/dev/null | head -c 32 || \
+    echo "fallback-$(date -u +%Y%m%d%H%M%S)")
+echo "$NONCE" > "$REPO_ROOT/.checkpoint-needs-review"
+
 # --- Auto-save uncommitted work ---
 # Exclude .tickets/ — these sync via their own dedicated mechanism
 # (ticket-sync-push hook). Including them here caused 330+ spam ticket files
