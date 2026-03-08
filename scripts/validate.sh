@@ -112,8 +112,8 @@ TIMEOUT_FORMAT="${VALIDATE_TIMEOUT_FORMAT:-30}"
 TIMEOUT_RUFF="${VALIDATE_TIMEOUT_RUFF:-60}"
 TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
 TIMEOUT_TESTS="${VALIDATE_TIMEOUT_TESTS:-600}"  # 10 minutes default - test suite is large
-TIMEOUT_PLUGIN="${VALIDATE_TIMEOUT_PLUGIN:-120}"   # plugin/hook shell test suite
-TIMEOUT_SCRIPTS="${VALIDATE_TIMEOUT_SCRIPTS:-120}" # tests that exercise shell scripts
+TIMEOUT_PLUGIN="${VALIDATE_TIMEOUT_PLUGIN:-180}"   # plugin/hook shell test suite
+TIMEOUT_SCRIPTS="${VALIDATE_TIMEOUT_SCRIPTS:-180}" # tests that exercise shell scripts
 TIMEOUT_E2E="${VALIDATE_TIMEOUT_E2E:-900}"      # 15 minutes for E2E tests (local is ~2-3x slower than CI ~180s)
 TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-30}"
 

@@ -41,10 +41,7 @@ Capture the diff NOW and save it to a hash-stamped temp file. Sub-agents read th
    ```bash
    DIFF_FILE="$ARTIFACTS_DIR/review-diff-${DIFF_HASH_SHORT}.txt"
    STAT_FILE="$ARTIFACTS_DIR/review-stat-${DIFF_HASH_SHORT}.txt"
-   { git diff --staged; git diff; } > "$DIFF_FILE"
-   # If both empty, fall back to last commit
-   [ -s "$DIFF_FILE" ] || git diff HEAD~1 > "$DIFF_FILE"
-   { git diff HEAD --stat; git ls-files --others --exclude-standard | sed 's/$/ (untracked)/'; } > "$STAT_FILE"
+   "$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE"
    ```
 
 3. **Read only the stat file** into context (small). Do NOT cat/read the full diff file — the sub-agent reads it from disk.
@@ -264,9 +261,7 @@ Task tool:
    NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
    NEW_DIFF_FILE="$ARTIFACTS_DIR/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
    NEW_STAT_FILE="$ARTIFACTS_DIR/review-stat-${NEW_DIFF_HASH_SHORT}.txt"
-   { git diff --staged; git diff; } > "$NEW_DIFF_FILE"
-   [ -s "$NEW_DIFF_FILE" ] || git diff HEAD~1 > "$NEW_DIFF_FILE"
-   { git diff HEAD --stat; git ls-files --others --exclude-standard | sed 's/$/ (untracked)/'; } > "$NEW_STAT_FILE"
+   "$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
 2. Dispatch the re-review sub-agent using the same `code-review-dispatch.md` template:
