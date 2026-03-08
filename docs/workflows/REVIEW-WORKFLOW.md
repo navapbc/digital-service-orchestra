@@ -23,6 +23,8 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ## Step 0: Gather Context
 
+> **Pre-compaction checkpoint detection**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the diff-hash infrastructure already handles this correctly — `compute-diff-hash.sh` uses the checkpoint commit as the diff base. Proceed normally.
+
 Capture the diff NOW and save it to a hash-stamped temp file. Sub-agents read the diff from this file instead of receiving it inline.
 
 1. **Capture the diff hash** for later verification:
