@@ -102,6 +102,12 @@ database:
   # Used by: agent-batch-lifecycle.sh preflight (port conflict detection)
   port_cmd: "scripts/worktree-port.sh"
 
+  # Base database port number. Worktree-specific ports are derived by adding
+  # an offset to this value. Used by: worktree-port.sh (port calculation)
+  # Type: integer
+  # Default when absent: 5432
+  base_port: 5432
+
 infrastructure:
   # Docker container name prefix for worktree-specific containers.
   # Used by: agent-batch-lifecycle.sh cleanup-stale-containers
@@ -111,6 +117,12 @@ infrastructure:
   # The worktree directory name is appended (e.g., "myapp-db-worktree-XXXX").
   # Used by: agent-batch-lifecycle.sh cleanup-stale-containers
   compose_project: "myapp-db-"
+
+  # Base application port number. Worktree-specific ports are derived by adding
+  # an offset to this value. Used by: worktree-port.sh (port calculation)
+  # Type: integer
+  # Default when absent: 3000
+  app_base_port: 3000
 
 session:
   # Command to check session context window usage.
