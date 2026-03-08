@@ -750,9 +750,19 @@ cmd_dep() {
         cmd_dep_cycle "$@"
         return
     fi
+    if [[ "${1:-}" == "rm" || "${1:-}" == "remove" ]]; then
+        shift
+        cmd_undep "$@"
+        return
+    fi
+    if [[ "${1:-}" == "add" ]]; then
+        shift
+    fi
 
     if [[ $# -lt 2 ]]; then
         echo "Usage: ticket dep <id> <dependency-id>" >&2
+        echo "       ticket dep add <id> <dependency-id>  - add dependency (default)" >&2
+        echo "       ticket dep rm <id> <dependency-id>   - remove dependency" >&2
         echo "       ticket dep tree <id>  - show dependency tree" >&2
         echo "       ticket dep cycle      - find dependency cycles" >&2
         return 1
