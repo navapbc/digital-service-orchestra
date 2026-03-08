@@ -118,6 +118,13 @@ session:
   # Used by: agent-batch-lifecycle.sh pre-check, context-check
   usage_check_cmd: "$HOME/.claude/check-session-usage.sh"
 
+  # Prefix for /tmp artifact directories used by retro-gather.sh and session hooks.
+  # Type: string
+  # Default when absent: derived from basename of git repo root + '-test-artifacts'
+  #   e.g. repo at /path/to/my-project → prefix is "my-project-test-artifacts"
+  # Used by: retro-gather.sh (artifact directory resolution)
+  # artifact_prefix: "myproject-test-artifacts"
+
 jira:
   # Jira project key used by `tk sync` for bidirectional ticket synchronization.
   # Env var JIRA_PROJECT takes precedence (allows per-user overrides).
