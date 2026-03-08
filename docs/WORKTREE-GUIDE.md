@@ -8,7 +8,19 @@
 
 ## Overview
 
-Git worktrees allow you to check out multiple branches of the same repository simultaneously, each in its own directory. This project uses `git worktree` commands (and the `scripts/worktree-create.sh` helper) to manage parallel development environments.
+Git worktrees allow you to check out multiple branches of the same repository simultaneously, each in its own directory. This project uses `git worktree` commands (and the `scripts/worktree-create.sh` wrapper) to manage parallel development environments.
+
+### Config-Driven Post-Create Hook
+
+Worktree creation supports a config-driven post-create hook via `worktree.post_create_cmd` in `workflow-config.yaml`. After creating a worktree, the script exports `WORKTREE_PATH` and runs the configured command. This project uses it to set up Python 3.13/Poetry environments automatically:
+
+```yaml
+# workflow-config.yaml
+worktree:
+  post_create_cmd: "./scripts/worktree-setup-env.sh"
+```
+
+The `scripts/worktree-setup-env.sh` script detects Python 3.13 (Homebrew first, then `command -v`), removes any existing `.venv`, and runs `poetry env use` + `poetry install` in the worktree's `app/` directory. If `worktree.post_create_cmd` is absent from config, the worktree is created without any post-create setup (portability guarantee for other projects using the plugin).
 
 ### When to Use Worktrees
 
@@ -32,7 +44,7 @@ The `claude-safe` wrapper script automatically handles worktree creation, Python
 claude-safe
 ```
 
-This creates a timestamped worktree at `../lockpick-worktrees/worktree-YYYYMMDD-HHMMSS` (outside the main repo), configures Python 3.13, installs dependencies via Poetry, and launches Claude Code in the new worktree.
+This creates a timestamped worktree at `../lockpick-worktrees/worktree-YYYYMMDD-HHMMSS` (outside the main repo), runs the configured `worktree.post_create_cmd` hook (which sets up Python 3.13 and installs dependencies via Poetry), and launches Claude Code in the new worktree.
 
 Worktrees are created **outside** the main repo to prevent Claude Code from double-loading CLAUDE.md (it walks parent directories and would load the parent repo's copy too).
 
@@ -544,3 +556,5 @@ Notes have unique IDs, `origin` tracking (`agent` or `jira`), ISO timestamps, an
 - **TESTING-MIGRATION.md**: Testing workflow and database management
 - **GOTCHAS.md**: Docker section for container-specific issues
 - **JIRA-INTEGRATION.md**: Jira sync mechanics and comment sync
+- **SCRIPT-MIGRATION-PATTERNS.md**: Wrapper patterns and plugin migration conventions
+- **workflow-config.yaml**: Project-specific config including `worktree.post_create_cmd`
