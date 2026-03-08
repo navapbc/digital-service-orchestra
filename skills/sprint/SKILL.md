@@ -876,6 +876,8 @@ DB models, DB clients), run the persistence coverage check:
 $REPO_ROOT/scripts/check-persistence-coverage.sh
 ```
 
+> **Canonical location**: `lockpick-workflow/scripts/check-persistence-coverage.sh` — `scripts/check-persistence-coverage.sh` is a backward-compatible exec wrapper that delegates to the canonical copy.
+
 If the check fails:
 1. Log: `"Persistence coverage check failed — persistence source changed without test coverage."`
 2. **Do not commit.** Instead:
