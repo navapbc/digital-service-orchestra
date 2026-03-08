@@ -170,6 +170,28 @@ design:
   # Used by: design-review (prerequisite check), design-onboarding (output target)
   design_notes_path: DESIGN_NOTES.md
 
+merge:
+  # Path to visual baseline snapshots directory (relative to repo root).
+  # When absent, merge-to-main.sh skips the baseline intent check entirely.
+  # Type: string (relative path)
+  # Used by: merge-to-main.sh (baseline intent verification)
+  visual_baseline_path: 'app/tests/e2e/snapshots/'
+
+  # GitHub Actions workflow name for `gh workflow run` (must match the workflow
+  # name field exactly). When absent, merge-to-main.sh skips the post-push CI
+  # trigger recovery step.
+  # Type: string
+  # Used by: merge-to-main.sh (post-push CI trigger)
+  ci_workflow_name: 'CI'
+
+  # Regex pattern for filtering commits when composing the merge message
+  # (passed to grep -vE). Commits matching this pattern are excluded from the
+  # generated merge commit message.
+  # Type: string (regex)
+  # Default: '^chore: post-merge cleanup'
+  # Used by: merge-to-main.sh (merge message composition)
+  message_exclusion_pattern: '^chore: post-merge cleanup'
+
 persistence:
   # Source files whose changes require persistence test coverage.
   # Matched using literal string search (grep -F), not regex.

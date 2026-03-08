@@ -462,11 +462,20 @@ tk status <id> in_progress
 
 Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context from the NxN conflict matrix computed in Phase 3:
 
-1. **Write the blackboard**: Build a JSON array of the batch's tasks (id + files_likely_modified from Phase 3's file impact analysis) and pipe it to `write-blackboard.sh`:
+1. **Write the blackboard**: Build a JSON object with a top-level `batch` array (matching `sprint-next-batch.sh --json` output format) from Phase 3's file impact analysis, then pipe it to `write-blackboard.sh`:
+   ```json
+   {
+     "batch": [
+       {"id": "lockpick-doc-to-logic-XXXX", "files": ["path/to/file1.py", "path/to/file2.py"]},
+       {"id": "lockpick-doc-to-logic-YYYY", "files": []}
+     ]
+   }
+   ```
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
    echo "$BATCH_JSON" | "$REPO_ROOT/scripts/write-blackboard.sh"
    ```
+   The top-level key must be `batch`. Each entry must use `id` (the ticket ID) and `files` (list of files_likely_modified). Do not use `tasks`, `agents`, `task_id`, or `files_owned` — those are internal blackboard schema keys, not input keys.
    If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
 
 2. **Read the blackboard and build file ownership context**: Read `.worktree-blackboard.json` and construct a per-agent ownership string for each sub-agent:
