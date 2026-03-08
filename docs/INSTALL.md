@@ -47,13 +47,18 @@ Required Configuration below).
 
 ---
 
-## Required Configuration
+## Path Resolution
 
-All hooks in this plugin use the `CLAUDE_PLUGIN_ROOT` environment variable to
-locate hook scripts. You must set this variable so Claude Code resolves the
-correct path at runtime.
+Hooks in this plugin use `${CLAUDE_PLUGIN_ROOT}` to locate bundled scripts.
 
-Add an `env` block to your `.claude/settings.json`:
+**`claude plugin install` (Option A):** Claude Code sets `CLAUDE_PLUGIN_ROOT`
+automatically to the plugin's installation directory. No configuration needed.
+
+**Manual git clone (Option B):** `run-hook.sh` self-locates via
+`$(dirname "$0")` when `CLAUDE_PLUGIN_ROOT` is unset, so no manual
+configuration is needed in most cases. If any hook script references
+`$CLAUDE_PLUGIN_ROOT` directly (outside of `run-hook.sh`), add an `env` block
+to your `.claude/settings.json`:
 
 ```json
 {
@@ -62,22 +67,6 @@ Add an `env` block to your `.claude/settings.json`:
   }
 }
 ```
-
-Replace `/absolute/path/to/lockpick-workflow` with the actual path where you
-cloned or installed the plugin.
-
-Example for a home-directory install:
-
-```json
-{
-  "env": {
-    "CLAUDE_PLUGIN_ROOT": "/Users/yourname/.claude/plugins/lockpick-workflow"
-  }
-}
-```
-
-If `.claude/settings.json` does not exist yet, create it with the above
-content. If it already exists, merge the `env` key into the existing object.
 
 ---
 
