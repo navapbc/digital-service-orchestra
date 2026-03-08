@@ -37,19 +37,19 @@ assert_ne "test_record_review_exits_nonzero_on_missing_scores" "0" "$EXIT_CODE"
 
 # test_record_review_exits_nonzero_on_missing_summary
 # JSON with scores but missing summary → exit 1
-INPUT='{"scores":{"build_lint":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"feedback":{"files_targeted":["app/src/test.py"]}}'
+INPUT='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"feedback":{"files_targeted":["app/src/test.py"]}}'
 EXIT_CODE=$(run_hook_exit "$INPUT")
 assert_ne "test_record_review_exits_nonzero_on_missing_summary" "0" "$EXIT_CODE"
 
 # test_record_review_exits_nonzero_on_missing_feedback
 # JSON with scores and summary but missing feedback → exit 1
-INPUT='{"scores":{"build_lint":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here"}'
+INPUT='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here"}'
 EXIT_CODE=$(run_hook_exit "$INPUT")
 assert_ne "test_record_review_exits_nonzero_on_missing_feedback" "0" "$EXIT_CODE"
 
 # test_record_review_exits_nonzero_on_score_out_of_range
 # Score outside 1-5 range → exit 1
-INPUT='{"scores":{"build_lint":6,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here","feedback":{"files_targeted":["app/src/test.py"]}}'
+INPUT='{"scores":{"code_hygiene":6,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here","feedback":{"files_targeted":["app/src/test.py"]}}'
 EXIT_CODE=$(run_hook_exit "$INPUT")
 assert_ne "test_record_review_exits_nonzero_on_score_out_of_range" "0" "$EXIT_CODE"
 
@@ -62,7 +62,7 @@ assert_ne "test_record_review_exits_nonzero_on_malformed_json" "0" "$EXIT_CODE"
 # A structurally valid review JSON still requires --reviewer-hash → exit 1
 # (Also requires reviewer-findings.json file to exist)
 # This test verifies the mandatory --reviewer-hash argument check
-INPUT='{"scores":{"build_lint":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here that is long enough","feedback":{"files_targeted":["app/src/test.py"]},"findings":[]}'
+INPUT='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here that is long enough","feedback":{"files_targeted":["app/src/test.py"]},"findings":[]}'
 EXIT_CODE=$(run_hook_exit "$INPUT")
 assert_ne "test_record_review_exits_nonzero_without_reviewer_hash" "0" "$EXIT_CODE"
 

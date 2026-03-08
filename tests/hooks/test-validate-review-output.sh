@@ -199,7 +199,7 @@ assert_ne \
 
 VALID_CRD_FILE=$(write_fixture "valid-crd.json" '{
   "scores": {
-    "build_lint": 4,
+    "code_hygiene": 4,
     "object_oriented_design": 4,
     "readability": 4,
     "functionality": 4,
@@ -224,7 +224,7 @@ assert_contains \
 # code-review-dispatch: valid with N/A scores and findings
 VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
   "scores": {
-    "build_lint": 1,
+    "code_hygiene": 1,
     "object_oriented_design": 4,
     "readability": 4,
     "functionality": 4,
@@ -233,7 +233,7 @@ VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
   "findings": [
     {
       "severity": "critical",
-      "category": "build_lint",
+      "category": "code_hygiene",
       "description": "Syntax error in module",
       "file": "app/src/broken.py"
     }
@@ -254,7 +254,7 @@ assert_eq \
 # Missing required top-level key 'summary'
 MISSING_SUMMARY_FILE=$(write_fixture "missing-summary.json" '{
   "scores": {
-    "build_lint": 4,
+    "code_hygiene": 4,
     "object_oriented_design": 4,
     "readability": 4,
     "functionality": 4,
@@ -271,7 +271,7 @@ assert_ne \
 # Missing required score dimension
 MISSING_DIM_FILE=$(write_fixture "missing-dim.json" '{
   "scores": {
-    "build_lint": 4,
+    "code_hygiene": 4,
     "readability": 4,
     "functionality": 4,
     "testing_coverage": 4
@@ -288,7 +288,7 @@ assert_ne \
 # Score out of valid range (1-5)
 OUT_OF_RANGE_FILE=$(write_fixture "out-of-range.json" '{
   "scores": {
-    "build_lint": 6,
+    "code_hygiene": 6,
     "object_oriented_design": 4,
     "readability": 4,
     "functionality": 4,
@@ -306,7 +306,7 @@ assert_ne \
 # Unexpected extra top-level key
 EXTRA_KEY_FILE=$(write_fixture "extra-key.json" '{
   "scores": {
-    "build_lint": 4,
+    "code_hygiene": 4,
     "object_oriented_design": 4,
     "readability": 4,
     "functionality": 4,

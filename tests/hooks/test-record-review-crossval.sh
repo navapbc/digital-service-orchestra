@@ -65,14 +65,14 @@ orchestrator_json() {
     cat <<EOF
 {
   "scores": {
-    "build_lint": "N/A",
+    "code_hygiene": "N/A",
     "object_oriented_design": "N/A",
     "readability": "N/A",
     "functionality": "N/A",
     "testing_coverage": "N/A"
   },
   "feedback": {
-    "build_lint": "All checks passed",
+    "code_hygiene": "All checks passed",
     "object_oriented_design": null,
     "readability": null,
     "functionality": null,
@@ -129,72 +129,72 @@ run_test "Rejects when reviewer-findings.json is missing" 1 "reviewer-findings.j
 
 # --- Test 2: Missing --reviewer-hash ---
 echo "Test group: Missing --reviewer-hash"
-write_findings '{"scores":{"build_lint":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"ok"}' > /dev/null
+write_findings '{"scores":{"code_hygiene":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"ok"}' > /dev/null
 run_test "Rejects when --reviewer-hash is omitted" 1 "reviewer-hash is required"
 
 # --- Test 3: Hash mismatch ---
 echo "Test group: Hash mismatch"
-write_findings '{"scores":{"build_lint":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"ok"}' > /dev/null
+write_findings '{"scores":{"code_hygiene":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"ok"}' > /dev/null
 run_test "Rejects when hash doesn't match" 1 "hash mismatch" \
     --reviewer-hash "0000000000000000000000000000000000000000000000000000000000000000"
 
 # --- Test 4: Happy path (all passing) ---
 echo "Test group: Happy path"
-HASH=$(write_findings '{"scores":{"build_lint":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"ok"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"ok"}')
 run_test "Accepts valid findings with matching hash (passed)" 0 "passed" \
     --reviewer-hash "$HASH"
 
 # --- Test 5: Critical finding correctly fails ---
 echo "Test group: Critical/important findings"
-HASH=$(write_findings '{"scores":{"build_lint":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":2,"testing_coverage":"N/A"},"findings":[{"severity":"critical","category":"functionality","description":"SQL injection","file":"foo.py"}],"summary":"Critical security issue found"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":2,"testing_coverage":"N/A"},"findings":[{"severity":"critical","category":"functionality","description":"SQL injection","file":"foo.py"}],"summary":"Critical security issue found"}')
 run_test "Records as failed when reviewer score < 4 (critical finding)" 0 "failed" \
     --reviewer-hash "$HASH"
 
 # --- Test 6: Important finding correctly fails ---
-HASH=$(write_findings '{"scores":{"build_lint":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":3,"testing_coverage":"N/A"},"findings":[{"severity":"important","category":"functionality","description":"Missing error handling","file":"bar.py"}],"summary":"Important issue found"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":3,"testing_coverage":"N/A"},"findings":[{"severity":"important","category":"functionality","description":"Missing error handling","file":"bar.py"}],"summary":"Important issue found"}')
 run_test "Records as failed when reviewer score = 3 (important finding)" 0 "failed" \
     --reviewer-hash "$HASH"
 
 # --- Test 7: Critical finding with inconsistent score ---
 echo "Test group: Score/finding inconsistency"
-HASH=$(write_findings '{"scores":{"build_lint":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[{"severity":"critical","category":"functionality","description":"Bug","file":"foo.py"}],"summary":"Has critical but score is 5"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[{"severity":"critical","category":"functionality","description":"Bug","file":"foo.py"}],"summary":"Has critical but score is 5"}')
 run_test "Rejects critical finding with score > 2" 1 "critical issue" \
     --reviewer-hash "$HASH"
 
 # --- Test 8: Important finding with score = 4 (allowed — important does not constrain score) ---
 # record-review.sh only cross-validates critical findings against scores (score must be 1-2).
 # Important findings are recorded and may coexist with scores up to 5 (reviewer uses judgment).
-HASH=$(write_findings '{"scores":{"build_lint":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":4,"testing_coverage":"N/A"},"findings":[{"severity":"important","category":"functionality","description":"Issue","file":"foo.py"}],"summary":"Has important but score is 4"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":4,"testing_coverage":"N/A"},"findings":[{"severity":"important","category":"functionality","description":"Issue","file":"foo.py"}],"summary":"Has important but score is 4"}')
 run_test "Allows important finding with score = 4 (important does not constrain score)" 0 "passed" \
     --reviewer-hash "$HASH"
 
 # --- Test 9: Invalid category ---
 echo "Test group: Invalid categories"
-HASH=$(write_findings '{"scores":{"build_lint":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[{"severity":"critical","category":"performance","description":"Slow","file":"foo.py"}],"summary":"Performance issue"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[{"severity":"critical","category":"performance","description":"Slow","file":"foo.py"}],"summary":"Performance issue"}')
 run_test "Rejects finding with invalid category" 1 "invalid category" \
     --reviewer-hash "$HASH"
 
 # --- Test 10: Invalid severity ---
 echo "Test group: Invalid severity"
-HASH=$(write_findings '{"scores":{"build_lint":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[{"severity":"high","category":"functionality","description":"Issue","file":"foo.py"}],"summary":"Invalid severity"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":5,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[{"severity":"high","category":"functionality","description":"Issue","file":"foo.py"}],"summary":"Invalid severity"}')
 run_test "Rejects finding with invalid severity" 1 "invalid severity" \
     --reviewer-hash "$HASH"
 
 # --- Test 11: Low score with no findings (potential fabrication) ---
 echo "Test group: Low score no findings"
-HASH=$(write_findings '{"scores":{"build_lint":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"Clean review, no issues"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":"N/A","object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"Clean review, no issues"}')
 run_test "Accepts low-dimension score with no findings (legitimate)" 0 "passed" \
     --reviewer-hash "$HASH"
 
 # --- Test 12: Missing score dimension in reviewer file ---
 echo "Test group: Missing dimensions"
-HASH=$(write_findings '{"scores":{"build_lint":5,"functionality":5},"findings":[],"summary":"Missing dimensions"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":5,"functionality":5},"findings":[],"summary":"Missing dimensions"}')
 run_test "Rejects reviewer file missing score dimensions" 1 "missing score dimension" \
     --reviewer-hash "$HASH"
 
 # --- Test 13: Invalid score value in reviewer file ---
 echo "Test group: Invalid score values"
-HASH=$(write_findings '{"scores":{"build_lint":6,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"Score out of range"}')
+HASH=$(write_findings '{"scores":{"code_hygiene":6,"object_oriented_design":"N/A","readability":"N/A","functionality":5,"testing_coverage":"N/A"},"findings":[],"summary":"Score out of range"}')
 run_test "Rejects reviewer score out of range (6)" 1 "must be 1-5" \
     --reviewer-hash "$HASH"
 

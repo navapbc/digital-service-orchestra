@@ -178,14 +178,14 @@ cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
   --reviewer-hash "<REVIEWER_HASH from sub-agent>"
 {
   "scores": {
-    "build_lint": "N/A",
+    "code_hygiene": "N/A",
     "object_oriented_design": "N/A",
     "readability": "N/A",
     "functionality": "N/A",
     "testing_coverage": "N/A"
   },
   "feedback": {
-    "build_lint": "<lint result from Step 1 (or 'passed' if skipped)>",
+    "code_hygiene": "<dead code, naming anti-patterns, missing guards, structural issues — not ruff/mypy/format violations, those are pre-commit>",
     "object_oriented_design": "<feedback from code-reviewer or null>",
     "readability": "<feedback from code-reviewer or null>",
     "functionality": "<feedback from code-reviewer or null>",
@@ -197,7 +197,7 @@ cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
 REVIEW_EOF
 ```
 
-If format/lint/tests failed (Step 1), set `build_lint: "N/A"`, all others `"N/A"`, and summary: `"BLOCKED: Build/lint checks failed."`.
+If format/lint/tests failed (Step 1), set all scores `"N/A"` and summary: `"BLOCKED: Build/lint checks failed."`.
 
 `record-review.sh` validates JSON structure, summary, `files_targeted` overlap with actual diff, `--expected-hash` match, reads scores from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, cross-validates findings against scores, and writes the review state file that the commit gate checks. If it rejects the input, fix and retry.
 
@@ -283,14 +283,14 @@ Task tool:
      --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
    {
      "scores": {
-       "build_lint": "N/A",
+       "code_hygiene": "N/A",
        "object_oriented_design": "N/A",
        "readability": "N/A",
        "functionality": "N/A",
        "testing_coverage": "N/A"
      },
      "feedback": {
-       "build_lint": "Validation passed after fixes",
+       "code_hygiene": "N/A",
        "object_oriented_design": null,
        "readability": null,
        "functionality": null,

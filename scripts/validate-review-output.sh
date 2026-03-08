@@ -213,7 +213,7 @@ scores = data.get("scores")
 if not isinstance(scores, dict):
     errors.append("'scores' must be an object")
 else:
-    required_dims = ["build_lint", "object_oriented_design", "readability", "functionality", "testing_coverage"]
+    required_dims = ["code_hygiene", "object_oriented_design", "readability", "functionality", "testing_coverage"]
     for dim in required_dims:
         if dim not in scores:
             errors.append(f"missing score dimension: '{dim}'")
@@ -234,7 +234,7 @@ elif not isinstance(findings, list):
     errors.append("'findings' must be an array")
 else:
     valid_severities = {"critical", "important", "minor"}
-    valid_categories = {"build_lint", "object_oriented_design", "readability", "functionality", "testing_coverage"}
+    valid_categories = {"code_hygiene", "object_oriented_design", "readability", "functionality", "testing_coverage"}
     for i, finding in enumerate(findings):
         prefix = f"findings[{i}]"
         if not isinstance(finding, dict):

@@ -30,7 +30,7 @@ trap 'rm -f "$ARTIFACTS_DIR/reviewer-findings.json" "$ARTIFACTS_DIR/reviewer-fin
 # Valid findings JSON
 VALID_JSON='{
   "scores": {
-    "build_lint": 5,
+    "code_hygiene": 5,
     "object_oriented_design": "N/A",
     "readability": 4,
     "functionality": 4,
@@ -50,7 +50,7 @@ VALID_JSON='{
 # Invalid JSON (missing required score dimensions)
 INVALID_JSON='{
   "scores": {
-    "build_lint": 5
+    "code_hygiene": 5
   },
   "findings": [],
   "summary": "Incomplete scores"
@@ -59,7 +59,7 @@ INVALID_JSON='{
 # Invalid JSON (out-of-range score value)
 OUT_OF_RANGE_JSON='{
   "scores": {
-    "build_lint": 5,
+    "code_hygiene": 5,
     "object_oriented_design": "N/A",
     "readability": 10,
     "functionality": 4,
