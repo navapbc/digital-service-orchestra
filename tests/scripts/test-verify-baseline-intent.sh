@@ -125,7 +125,8 @@ assert_pass_if_clean "test_reads_design_manifest_patterns"
 # We test this by passing a config that has no visual section.
 _snapshot_fail
 TMPDIR_FIXTURE="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR_FIXTURE"' EXIT
+_CLEANUP_DIRS="$TMPDIR_FIXTURE"
+trap 'rm -rf $_CLEANUP_DIRS' EXIT
 
 EMPTY_CONFIG="$TMPDIR_FIXTURE/workflow-config.yaml"
 cat > "$EMPTY_CONFIG" <<'YAML'
@@ -205,7 +206,7 @@ assert_pass_if_clean "test_wrapper_delegation"
 # commits on the feature branch appear in the diff.
 
 PORTABILITY_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$PORTABILITY_TMPDIR"' EXIT
+_CLEANUP_DIRS="$_CLEANUP_DIRS $PORTABILITY_TMPDIR"
 
 # Resolve python3 with pyyaml: use the lockpick venv if available, else system python3.
 # REPO_ROOT is already set at the top of this file.
