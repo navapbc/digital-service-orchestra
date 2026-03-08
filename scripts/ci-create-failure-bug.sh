@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/ci-create-failure-bug.sh
+# lockpick-workflow/scripts/ci-create-failure-bug.sh
 # Creates a tk issue when CI fails, then commits and pushes ticket files.
 #
 # Called by the CI workflow's create-failure-bug job when any job fails.
