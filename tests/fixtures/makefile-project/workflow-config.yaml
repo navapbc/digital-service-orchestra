@@ -1,0 +1,6 @@
+version: 1
+stack: convention-based
+commands:
+  test: make test
+  lint: make lint
+  format: make format

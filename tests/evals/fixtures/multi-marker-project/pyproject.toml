@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "my-fullstack-app"
+version = "0.1.0"
+description = "A project with both Python (backend) and Node (frontend) — multi-marker fixture"
+authors = ["Test Author <test@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+flask = "^3.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+ruff = "^0.3"
+mypy = "^1.9"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

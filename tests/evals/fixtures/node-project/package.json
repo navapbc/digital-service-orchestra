@@ -1,0 +1,21 @@
+{
+  "name": "my-node-app",
+  "version": "1.0.0",
+  "description": "A sample Node/npm project for stack detection testing",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:e2e": "playwright test",
+    "lint": "eslint src/",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  }
+}

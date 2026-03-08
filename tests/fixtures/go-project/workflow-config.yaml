@@ -1,0 +1,6 @@
+version: 1
+stack: golang
+commands:
+  test: go test ./...
+  lint: golangci-lint run
+  format: gofmt -l .
