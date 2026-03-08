@@ -512,18 +512,6 @@ cmd_preflight() {
     # 1c. Clean up agent discoveries from previous batch
     cmd_cleanup_discoveries
 
-    # 1d. Run env check script if present (check-local-env.sh in plugin scripts dir)
-    if [ -x "$PLUGIN_SCRIPTS/check-local-env.sh" ]; then
-        if ! "$PLUGIN_SCRIPTS/check-local-env.sh" --quiet 2>/dev/null; then
-            echo "ENV_CHECK: failed"
-            any_fail=true
-        else
-            echo "ENV_CHECK: passed"
-        fi
-    else
-        echo "ENV_CHECK: skipped (script not found)"
-    fi
-
     # 2. Database
     if $start_db; then
         # Check if database config exists before attempting any DB operations
