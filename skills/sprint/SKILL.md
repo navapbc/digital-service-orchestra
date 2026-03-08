@@ -312,6 +312,11 @@ For each ready task from `tk ready` (filtered by parent):
 | TRIVIAL | medium | Treat as COMPLEX (medium confidence = plan) |
 | COMPLEX | any | Run `/implementation-plan` — pass evaluator output as context (see Step 2) |
 
+**Post-routing action for COMPLEX stories**: After routing a story to `/implementation-plan`, tag it so Phase 5 can upgrade implementation task models:
+```bash
+tk add-note <story-id> "COMPLEXITY_CLASSIFICATION: COMPLEX"
+```
+
 **When in doubt, the evaluator defaults to COMPLEX** — medium confidence always routes to `/implementation-plan`. The cost of an unnecessary `/implementation-plan` is low; the cost of a sub-agent floundering without a plan is high.
 
 #### Dependency Layer Stratification (/sprint)
@@ -690,6 +695,18 @@ Use the `model` and `subagent` fields from the `TASK:` lines produced by
 When launching each Task tool call, set:
 - `subagent_type` = the `subagent` field from the TASK line
 - `model` = the `model` field from the TASK line
+
+**COMPLEX story model upgrade**: Before dispatching each task, check whether the parent
+story was tagged COMPLEX. Only upgrade if ALL three conditions hold:
+1. The task's `model` field from `classify-task.py` is `"sonnet"` (skip if already `"opus"`)
+2. The task's `class` field is not `"skill-guided"` (docs/config tasks do not benefit from opus)
+3. The parent story is COMPLEX: run `tk show <task-id>` and read the `parent` field;
+   if a parent story ID exists, run `tk show <parent-story-id>` and grep its output with
+   `grep -Fx "COMPLEXITY_CLASSIFICATION: COMPLEX"` (exact full-line match to avoid false positives).
+   `tk show` outputs the full ticket body including note text, so this grep works on note content.
+
+When all three conditions hold, override `model` to `"opus"` and log:
+`"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."`
 
 **Skill-guided tasks**: If classification `class` is `"skill-guided"`, append to
 the sub-agent prompt: `"Before implementing, check if a skill applies to this task
