@@ -317,9 +317,51 @@ _merge_ticket_file() {
         fi
     done <<< "$all_fields"
 
-    # ── Extract body (local wins) ─────────────────────────────────────────
-    local body
-    body=$(_extract_body "$local_file")
+    # ── Extract body (longer wins to prevent description truncation) ─────
+    # Bug fix (lockpick-doc-to-logic-gows): worktree tickets often only contain
+    # frontmatter + title (no description body), because the worktree only
+    # modified frontmatter fields (e.g. status, jira_key). If we always take
+    # the local body, we silently drop main's full description.
+    #
+    # Resolution: compare body line counts. If main has more non-blank lines
+    # after stripping the title, use main's body. This preserves descriptions
+    # written on main (or another worktree) from being clobbered by a worktree
+    # that only touched frontmatter.
+    #
+    # "Local wins" still applies when local has equal or more content, so a
+    # worktree that genuinely extends the description keeps its changes.
+    local body local_body main_body
+    local_body=$(_extract_body "$local_file")
+    main_body=$(_extract_body "$main_file")
+
+    # Count non-blank, non-title lines as a proxy for "has real description"
+    _body_content_lines() {
+        printf '%s\n' "$1" | grep -v '^[[:space:]]*$' | grep -v '^#' | wc -l | tr -d ' '
+    }
+    local local_content_lines main_content_lines
+    local_content_lines=$(_body_content_lines "$local_body")
+    main_content_lines=$(_body_content_lines "$main_body")
+
+    if [[ "$main_content_lines" -gt "$local_content_lines" ]]; then
+        # Main has more description content — use main's body to prevent truncation
+        body="$main_body"
+    else
+        # Local has equal or more content — local wins (standard behavior)
+        body="$local_body"
+    fi
+
+    # ── Safety check: abort if merged body is drastically smaller than main ──
+    # If the body we would write is more than 50% smaller than main's body
+    # (by character count), something is wrong — fall back to main's body.
+    local local_body_len main_body_len
+    local_body_len=${#body}
+    main_body_len=${#main_body}
+    if [[ "$main_body_len" -gt 0 ]] && \
+       [[ "$(( local_body_len * 2 ))" -lt "$main_body_len" ]]; then
+        _tk_sync_log "tk-sync-lib: safety check: merged body (%d chars) is >50%% smaller than main body (%d chars) — using main body to prevent data loss: %s" \
+            "$local_body_len" "$main_body_len" "$(basename "$local_file")"
+        body="$main_body"
+    fi
 
     # ── Merge notes (union by note-id) ────────────────────────────────────
     local has_local_notes=0 has_main_notes=0
