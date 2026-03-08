@@ -32,7 +32,7 @@ Flow: P1 (Health Assessment) → P2 (Codebase Review) → P3 (Findings Report)
 Run the data-collection script to gather all metrics in one pass:
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/retro-gather.sh
+$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/retro-gather.sh
 ```
 
 Use `--quick` to skip slow checks (dependency freshness, plugin versions) when session usage is high.
