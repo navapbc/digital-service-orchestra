@@ -233,7 +233,7 @@ else
 fi
 ```
 
-**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="sonnet"`  # Tier 2: must correlate failures across validation categories, cluster related errors, and distinguish root causes from symptoms in complex output
+**Subagent**: `subagent_type="error-debugging:error-detective"`, `model="opus"`  # Complex investigation: must correlate failures across validation categories, cluster related errors, and distinguish root causes from symptoms in complex output
 
 The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (category counts + top-3 clusters + open bug count). The full report is saved to `$(get_artifacts_dir)/debug-diag.md` on disk; do NOT receive the full report inline. Store the `DIAGNOSTIC_FILE` path for Phase 2.
 
