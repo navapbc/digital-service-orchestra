@@ -323,6 +323,12 @@
           "description": "Command to check session context window usage. Exit 0 = usage IS high (>90%), non-zero = normal. Used by pre-check and context-check subcommands.",
           "minLength": 1,
           "examples": ["$HOME/.claude/check-session-usage.sh", "echo 0"]
+        },
+        "artifact_prefix": {
+          "type": "string",
+          "description": "Prefix for /tmp artifact directories (e.g. lockpick-test-artifacts). When absent, derived from basename of git repo root + '-test-artifacts'.",
+          "minLength": 1,
+          "examples": ["lockpick-test-artifacts", "myproject-test-artifacts"]
         }
       }
     },
