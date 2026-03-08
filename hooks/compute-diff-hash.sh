@@ -88,6 +88,7 @@ fi
 # Pathspec exclusions for non-reviewable files (binary, snapshots, images, docs)
 EXCLUDE_PATHSPECS=(
     ':!.tickets/'
+    ':!.checkpoint-needs-review'
     ':!app/tests/e2e/snapshots/'
     ':!app/tests/unit/templates/snapshots/*.html'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
@@ -95,7 +96,7 @@ EXCLUDE_PATHSPECS=(
 )
 
 # Grep pattern to filter untracked non-reviewable files
-NON_REVIEWABLE_PATTERN='^\.tickets/|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
+NON_REVIEWABLE_PATTERN='^\.tickets/|^\.checkpoint-needs-review$|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
 
 {
     git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
