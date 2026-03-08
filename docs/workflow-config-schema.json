@@ -128,9 +128,9 @@
         },
         "env_check_app": {
           "type": "string",
-          "description": "Project-provided command for app-specific environment checks (e.g., make env-check-app). When absent, project-specific checks are skipped with a warning. Used by: check-local-env.sh",
+          "description": "Project-provided command for app-specific environment checks (e.g., make env-check-app). When absent, project-specific checks are skipped with a warning. Used by: check-local-env.sh. Callback contract: exit 0 = all project-specific checks passed; exit non-zero = one or more checks failed (check-local-env.sh records the failure and exits 1). The command is invoked via eval in the calling script's environment; no additional environment variables are injected by the plugin beyond what is already exported in the shell (APP_PORT, DB_PORT, DB_CONTAINER are available if set). The callback is responsible for its own output — check-local-env.sh does not suppress or capture stdout/stderr.",
           "minLength": 1,
-          "examples": ["make env-check-app", "scripts/check-app-env.sh"]
+          "examples": ["make env-check-app", "scripts/check-app-env.sh", "node scripts/check-env.js"]
         }
       }
     },
