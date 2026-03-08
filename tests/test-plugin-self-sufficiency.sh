@@ -221,6 +221,7 @@ MIGRATED_SCRIPTS=(
     pre-commit-executable-guard.sh
     report-flaky-tests.sh
     worktree-port.sh
+    worktree-create.sh
 )
 
 # 1. Check each script exists in plugin and is executable
