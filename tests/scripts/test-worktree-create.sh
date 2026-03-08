@@ -107,6 +107,103 @@ else
     (( FAIL++ ))
 fi
 
+# ── Portability smoke-test helper ─────────────────────────────────────────────
+# Creates a real temp git repo for smoke tests. Sets SMOKE_REPO and SMOKE_WORKTREES.
+# Caller must call _smoke_cleanup after each test.
+_smoke_setup() {
+    SMOKE_REPO=$(mktemp -d)
+    SMOKE_WORKTREES=$(mktemp -d)
+    git init "$SMOKE_REPO" &>/dev/null
+    # Create an initial commit so worktree creation works
+    git -C "$SMOKE_REPO" commit --allow-empty -m "init" &>/dev/null
+}
+
+_smoke_cleanup() {
+    # Remove worktrees first (git worktree remove requires the main repo)
+    if [ -d "$SMOKE_REPO" ]; then
+        git -C "$SMOKE_REPO" worktree list 2>/dev/null | while read -r wt_line; do
+            wt_path=$(echo "$wt_line" | awk '{print $1}')
+            if [ "$wt_path" != "$SMOKE_REPO" ]; then
+                git -C "$SMOKE_REPO" worktree remove --force "$wt_path" 2>/dev/null || true
+            fi
+        done
+    fi
+    rm -rf "$SMOKE_REPO" "$SMOKE_WORKTREES" 2>/dev/null || true
+}
+
+# ── Test 11: Portability skip-path — no post_create_cmd exits 0 ──────────────
+echo "Test 11: Portability skip-path — no post_create_cmd config exits 0"
+_smoke_setup
+# No workflow-config.yaml → post_create_cmd is empty → should skip gracefully
+smoke_exit=0
+smoke_output=""
+smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-skip --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
+if [ "$smoke_exit" -eq 0 ]; then
+    # Also verify no error about missing hook in output
+    if echo "$smoke_output" | grep -qi "hook.*not found\|post_create.*error"; then
+        echo "  FAIL: portability skip-path — exit 0 but error about missing hook in output" >&2
+        (( FAIL++ ))
+    else
+        echo "  PASS: portability skip-path — exits 0 with no hook error"
+        (( PASS++ ))
+    fi
+else
+    echo "  FAIL: portability skip-path — expected exit 0, got $smoke_exit" >&2
+    echo "  Output: $smoke_output" >&2
+    (( FAIL++ ))
+fi
+_smoke_cleanup
+
+# ── Test 12: Portability hook-path — post_create_cmd runs and side effects visible ──
+echo "Test 12: Portability hook-path — post_create_cmd creates marker file"
+_smoke_setup
+# Write workflow-config.yaml with a post_create_cmd that creates a marker file
+mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
+# Copy read-config.sh so the script can find it in the temp repo
+cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
+cat > "$SMOKE_REPO/workflow-config.yaml" <<'YAML'
+worktree:
+  post_create_cmd: 'touch $WORKTREE_PATH/.setup-marker'
+YAML
+smoke_exit=0
+smoke_output=""
+smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-hook --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
+if [ "$smoke_exit" -eq 0 ] && [ -f "$SMOKE_WORKTREES/smoke-hook/.setup-marker" ]; then
+    echo "  PASS: portability hook-path — marker file created by post_create_cmd"
+    (( PASS++ ))
+elif [ "$smoke_exit" -ne 0 ]; then
+    echo "  FAIL: portability hook-path — expected exit 0, got $smoke_exit" >&2
+    echo "  Output: $smoke_output" >&2
+    (( FAIL++ ))
+else
+    echo "  FAIL: portability hook-path — marker file not found at $SMOKE_WORKTREES/smoke-hook/.setup-marker" >&2
+    echo "  Output: $smoke_output" >&2
+    (( FAIL++ ))
+fi
+_smoke_cleanup
+
+# ── Test 13: Portability hook-failure — failing post_create_cmd causes non-zero exit ──
+echo "Test 13: Portability hook-failure — failing post_create_cmd exits non-zero"
+_smoke_setup
+mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
+cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
+cat > "$SMOKE_REPO/workflow-config.yaml" <<'YAML'
+worktree:
+  post_create_cmd: 'false'
+YAML
+smoke_exit=0
+smoke_output=""
+smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-fail --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
+if [ "$smoke_exit" -ne 0 ]; then
+    echo "  PASS: portability hook-failure — exits non-zero ($smoke_exit) when post_create_cmd fails"
+    (( PASS++ ))
+else
+    echo "  FAIL: portability hook-failure — expected non-zero exit, got 0" >&2
+    echo "  Output: $smoke_output" >&2
+    (( FAIL++ ))
+fi
+_smoke_cleanup
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
