@@ -161,9 +161,9 @@ fi
 # Validate files_targeted overlap with actual changed files
 CHANGED_FILES=$(
     {
-        git diff --name-only HEAD -- ':!.tickets/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git diff --cached --name-only HEAD -- ':!.tickets/' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.tickets/' | grep -v '^app/tests/e2e/snapshots/.*\.png$' | grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true
+        git diff --name-only HEAD -- ':!.tickets/' ':!.checkpoint-needs-review' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git diff --cached --name-only HEAD -- ':!.tickets/' ':!.checkpoint-needs-review' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.tickets/' | grep -v '^\.checkpoint-needs-review$' | grep -v '^app/tests/e2e/snapshots/.*\.png$' | grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true
     } | sort -u | grep -v '^$' || true
 )
 
@@ -349,3 +349,24 @@ review_hash=${REVIEW_HASH}
 EOF
 
 echo "Review status recorded: ${STATUS} (score=${SCORE}, diff_hash=${DIFF_HASH:0:12}...)"
+
+# --- Detect and clear checkpoint review sentinel ---
+# If pre-compact-checkpoint.sh wrote .checkpoint-needs-review, record that this
+# review cleared it. merge-to-main.sh reads checkpoint_cleared from review-status
+# and verifies it matches the nonce before allowing the merge. This ensures that
+# code written during a compaction event is always reviewed before reaching main.
+# We also stage the sentinel removal so it goes into the upcoming commit.
+SENTINEL_FILE="$REPO_ROOT/.checkpoint-needs-review"
+if [[ -f "$SENTINEL_FILE" ]]; then
+    SENTINEL_NONCE=$(tr -d '[:space:]' < "$SENTINEL_FILE")
+    if [[ -n "$SENTINEL_NONCE" ]]; then
+        echo "checkpoint_cleared=${SENTINEL_NONCE}" >> "$REVIEW_STATE_FILE"
+        # Stage the removal so the sentinel is removed in the next commit.
+        # Errors are suppressed — the sentinel not staging is non-fatal for the review
+        # itself; merge-to-main.sh will catch any mismatch at merge time.
+        (cd "$REPO_ROOT" && git rm --force --cached ".checkpoint-needs-review" 2>/dev/null || \
+            git rm --force ".checkpoint-needs-review" 2>/dev/null || \
+            rm -f "$SENTINEL_FILE" 2>/dev/null) || true
+        echo "INFO: Checkpoint sentinel cleared (nonce=${SENTINEL_NONCE:0:8}...)" >&2
+    fi
+fi
