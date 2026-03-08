@@ -243,6 +243,12 @@
           "description": "Command to resolve the database port for the current worktree. Receives worktree name as $1 and port type as $2. Used by preflight for port conflict detection.",
           "minLength": 1,
           "examples": ["scripts/worktree-port.sh", "echo 5432"]
+        },
+        "base_port": {
+          "type": "integer",
+          "description": "Base database port number. Worktree-specific ports are derived by adding an offset to this value. Used by worktree-port.sh for port calculation. Defaults to 5432 when absent.",
+          "default": 5432,
+          "examples": [5432, 5400]
         }
       }
     },
@@ -310,6 +316,12 @@
           "type": ["integer", "string"],
           "description": "Timeout in seconds for HTTP health checks performed by check-local-env.sh. Defaults to 5 when absent.",
           "examples": [5, 10]
+        },
+        "app_base_port": {
+          "type": "integer",
+          "description": "Base application port number. Worktree-specific ports are derived by adding an offset to this value. Used by worktree-port.sh for port calculation. Defaults to 3000 when absent.",
+          "default": 3000,
+          "examples": [3000, 8000]
         }
       }
     },

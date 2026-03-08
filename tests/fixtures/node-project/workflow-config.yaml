@@ -1,0 +1,9 @@
+version: 1
+stack: node-npm
+commands:
+  test: npm test
+  lint: npm run lint
+  format: npm run format
+format:
+  extensions:
+    - '.ts'

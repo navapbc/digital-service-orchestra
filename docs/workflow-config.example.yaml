@@ -102,6 +102,12 @@ database:
   # Used by: agent-batch-lifecycle.sh preflight (port conflict detection)
   port_cmd: "scripts/worktree-port.sh"
 
+  # Base database port number. Worktree-specific ports are derived by adding
+  # an offset to this value. Used by: worktree-port.sh (port calculation)
+  # Type: integer
+  # Default when absent: 5432
+  base_port: 5432
+
 infrastructure:
   # Docker container name prefix for worktree-specific containers.
   # Used by: agent-batch-lifecycle.sh cleanup-stale-containers
@@ -111,6 +117,12 @@ infrastructure:
   # The worktree directory name is appended (e.g., "myapp-db-worktree-XXXX").
   # Used by: agent-batch-lifecycle.sh cleanup-stale-containers
   compose_project: "myapp-db-"
+
+  # Base application port number. Worktree-specific ports are derived by adding
+  # an offset to this value. Used by: worktree-port.sh (port calculation)
+  # Type: integer
+  # Default when absent: 3000
+  app_base_port: 3000
 
 session:
   # Command to check session context window usage.
@@ -157,6 +169,29 @@ design:
   # Defaults to 'DESIGN_NOTES.md' when absent.
   # Used by: design-review (prerequisite check), design-onboarding (output target)
   design_notes_path: DESIGN_NOTES.md
+
+persistence:
+  # Source files whose changes require persistence test coverage.
+  # Matched using literal string search (grep -F), not regex.
+  # Each entry is a path substring; any changed file containing this substring
+  # is considered a persistence-critical source file.
+  # Used by: check-persistence-coverage.sh (source change detection)
+  source_patterns:
+    - 'src/core/data_store.py'
+    - 'src/services/processor.py'
+    - 'src/models/'
+    - 'src/adapters/db/'
+
+  # Test files that count as persistence coverage.
+  # Matched using extended regex (grep -E), not literal strings.
+  # Each entry is a regex pattern; any changed file matching the pattern
+  # is considered a valid persistence test.
+  # Used by: check-persistence-coverage.sh (coverage verification)
+  test_patterns:
+    - 'tests/integration/.*test_.*_db_roundtrip'
+    - 'tests/integration/.*test_.*persistence'
+    - 'tests/e2e/test_cross_worker_'
+    - 'tests/e2e/test_post_pipeline_'
 
 tickets:
   # Ticket ID prefix used when generating new ticket IDs.

@@ -1,0 +1,14 @@
+{
+  "suites": [
+    {
+      "id": "skill-batch-overlap-check-exists",
+      "category": "skill-activation",
+      "phase_introduced": 0,
+      "hook": ".claude/skills/batch-overlap-check/SKILL.md",
+      "setup": { "stdin": "", "state_files": {}, "env": {} },
+      "assertions": [
+        { "type": "file_exists", "path": ".claude/skills/batch-overlap-check/SKILL.md" }
+      ]
+    }
+  ]
+}

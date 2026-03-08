@@ -1,0 +1,9 @@
+{
+  "name": "node-fixture",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "vitest",
+    "lint": "eslint src/",
+    "format": "prettier --write src/"
+  }
+}

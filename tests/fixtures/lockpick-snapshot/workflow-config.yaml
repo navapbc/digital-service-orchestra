@@ -1,0 +1,7 @@
+version: 1
+stack: python-poetry
+commands:
+  test: make test
+  lint: make lint
+  format: make format
+  validate: make validate
