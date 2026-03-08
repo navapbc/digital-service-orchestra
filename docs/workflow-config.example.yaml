@@ -158,6 +158,29 @@ design:
   # Used by: design-review (prerequisite check), design-onboarding (output target)
   design_notes_path: DESIGN_NOTES.md
 
+persistence:
+  # Source files whose changes require persistence test coverage.
+  # Matched using literal string search (grep -F), not regex.
+  # Each entry is a path substring; any changed file containing this substring
+  # is considered a persistence-critical source file.
+  # Used by: check-persistence-coverage.sh (source change detection)
+  source_patterns:
+    - 'src/core/data_store.py'
+    - 'src/services/processor.py'
+    - 'src/models/'
+    - 'src/adapters/db/'
+
+  # Test files that count as persistence coverage.
+  # Matched using extended regex (grep -E), not literal strings.
+  # Each entry is a regex pattern; any changed file matching the pattern
+  # is considered a valid persistence test.
+  # Used by: check-persistence-coverage.sh (coverage verification)
+  test_patterns:
+    - 'tests/integration/.*test_.*_db_roundtrip'
+    - 'tests/integration/.*test_.*persistence'
+    - 'tests/e2e/test_cross_worker_'
+    - 'tests/e2e/test_post_pipeline_'
+
 tickets:
   # Ticket ID prefix used when generating new ticket IDs.
   # When omitted, tk derives the prefix from the project directory name.
