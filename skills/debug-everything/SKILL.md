@@ -33,8 +33,10 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 ```
 Phase 1 (Diagnostic + Clustering sub-agent) → Phase 2 (Triage sub-agent)
-  → [dry-run: stop] or [execute: Phase 2.5 (Safeguard Analysis)]
-Phase 2.5 → [no safeguard bugs: Phase 3] [safeguard bugs: present proposals → user approval → Phase 3]
+  → [dry-run: stop] or [execute: Phase 2.5 (Complexity Gate)]
+Phase 2.5 → [all Tier 0-1: skip gate] or [above Tier 1: haiku evaluator per bug → TRIVIAL/MODERATE pass-through, COMPLEX → epic]
+Phase 2.5 → Phase 2.6 (Safeguard Analysis)
+Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: present proposals → user approval → Phase 3]
 Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
   → Phase 6 (Checkpoint) → [more in tier: Phase 5] [tier clear: Phase 7]
 Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
@@ -272,9 +274,90 @@ If resuming an existing tracker, append: `Existing epic ID: <epic-id>. Do NOT cr
 
 ---
 
-## Phase 2.5: Safeguard Bug Analysis (/debug-everything)
+## Phase 2.5: Complexity Gate (/debug-everything)
 
-After triage, identify which issues touch safeguarded files and route them through user-approval before fixing.
+After triage, classify each bug's complexity before dispatching fix sub-agents. This gate prevents solo fix sub-agents from attempting repairs that require multi-agent planning.
+
+### Step 1: Tier 0-1 Bypass (/debug-everything)
+
+Bugs classified at **Tier 0 or Tier 1** (format errors, lint violations, import errors, mechanical type fixes) skip Phase 2.5 entirely and proceed directly to fix dispatch. Do NOT dispatch a complexity evaluator for these bugs — mechanical fixes are always autonomous.
+
+Partition the triage list:
+- `BYPASS_BUGS`: bugs at Tier 0 or Tier 1 → skip evaluator, pass straight through to fix dispatch
+- `GATE_BUGS`: bugs above Tier 1 → proceed to Step 2
+
+If `GATE_BUGS` is empty, skip to Phase 2.6.
+
+### Step 2: Haiku Evaluator Dispatch (/debug-everything)
+
+For each bug in `GATE_BUGS`, dispatch a haiku sub-agent to classify its complexity using the shared evaluator prompt.
+
+**Sub-agent prompt template** (one sub-agent per bug, dispatched in parallel, max 5 at a time):
+
+```
+Read the shared complexity evaluator prompt at:
+  lockpick-workflow/skills/shared/prompts/complexity-evaluator.md
+
+Use its rubric to evaluate the following bug ticket: <bug-id>
+
+Load the ticket via: tk show <bug-id>
+
+Return the JSON output defined by the evaluator's Output Schema section.
+```
+
+**Subagent**: `subagent_type="general-purpose"`, `model="haiku"`
+
+**Graceful degradation**: If a sub-agent fails, times out, or returns output with no valid `classification` field (TRIVIAL, MODERATE, or COMPLEX), log a warning:
+```
+WARNING: Complexity evaluator failed for <bug-id> — falling through to fix dispatch
+```
+Treat the bug as TRIVIAL and add it to the fix-dispatch queue. Do NOT block the session.
+
+### Step 3: Apply /debug-everything Routing Rules (/debug-everything)
+
+For each evaluated bug, apply the `/debug-everything` routing rule (user-confirmed):
+
+| Classification | Routing |
+|---|---|
+| TRIVIAL | Pass through to fix dispatch unchanged |
+| MODERATE | **De-escalate → TRIVIAL** — pass through to fix dispatch (MODERATE bugs are well-understood enough for a solo fix sub-agent in /debug-everything) |
+| COMPLEX | Route to epic (see Step 4) |
+
+### Step 4: COMPLEX Routing (/debug-everything)
+
+For each bug classified as COMPLEX, run the following commands **without pausing for user input**:
+
+1. Create a new epic:
+   ```bash
+   tk create "Fix (complex): <bug title>" -t epic -p 2
+   ```
+2. Set a dependency from the bug to the new epic:
+   ```bash
+   tk dep <bug-id> <new-epic-id>
+   ```
+3. Add a routing note on the bug:
+   ```bash
+   tk add-note <bug-id> "Routed to epic <epic-id> — scope or fix complexity requires multi-agent planning before implementation"
+   ```
+4. Remove the bug from the fix-dispatch queue. Continue processing remaining bugs immediately.
+
+Track all COMPLEX-routed bugs in `COMPLEX_BUGS` list (entries: `{bug_id, epic_id, title}`) for inclusion in the session summary.
+
+### Step 5: Build Final Fix Queue (/debug-everything)
+
+Merge the remaining bugs into a single fix-dispatch list:
+- `BYPASS_BUGS` (Tier 0-1, no evaluation needed)
+- `GATE_BUGS` classified TRIVIAL or MODERATE (de-escalated to TRIVIAL)
+
+COMPLEX-routed bugs are excluded — they have been handed off to epics.
+
+Proceed to Phase 2.6 with the final fix queue.
+
+---
+
+## Phase 2.6: Safeguard Bug Analysis (/debug-everything)
+
+After the complexity gate, identify which issues touch safeguarded files and route them through user-approval before fixing.
 
 ### Step 1: Detect Safeguarded Issues (/debug-everything)
 
@@ -456,7 +539,7 @@ Exit 0 means all checks pass. Exit 1 means at least one check requires action (d
 tk status <id> in_progress
 ```
 
-**Known-solution detection**: Before selecting `subagent_type` for a Tier 7 bug, check if its notes contain `SAFEGUARD APPROVED:` (written by Phase 2.5 Step 4). If present, classify as "known fix" — use `code-simplifier:code-simplifier` and pass the approval note as `fix_guidance` in the prompt context.
+**Known-solution detection**: Before selecting `subagent_type` for a Tier 7 bug, check if its notes contain `SAFEGUARD APPROVED:` (written by Phase 2.6 Step 4). If present, classify as "known fix" — use `code-simplifier:code-simplifier` and pass the approval note as `fix_guidance` in the prompt context.
 
 ### Blackboard Write and File Ownership Context
 
@@ -823,6 +906,15 @@ After Phase 10 completes (or after Phase 10 is skipped due to unrecoverable erro
 - Recurring patterns: {patterns seen in 2+ sessions, if auto-memory has prior entries}
 - Recommendations: {observations for preventing recurrence}
 ```
+
+If any bugs were routed to epics by Phase 2.5 (COMPLEX classification), append a dedicated section to the session summary **and present it to the user** before Phase 11:
+
+```
+## Epics requiring user attention
+- <epic-id>: <title> (addresses bug <bug-id>)
+```
+
+One line per COMPLEX-routed bug. If no COMPLEX bugs were found this session, omit this section entirely.
 
 Write to: `{auto-memory-dir}/debug-sessions.md` (append, don't overwrite).
 
