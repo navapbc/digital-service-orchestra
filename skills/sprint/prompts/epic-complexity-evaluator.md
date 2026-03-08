@@ -62,30 +62,17 @@ Apply the one-sentence test: can you describe the change in one sentence without
 
 ### 8. Classify
 
-**SIMPLE** — ALL of these must be true:
-- Estimated source files to modify (excl. tests): **≤ 3**
-- Architectural layers touched: **≤ 1**
-- Interface/class signature changes: **0**
-- No qualitative overrides triggered
-- Done definitions: **present** (requirements are specific enough to write tasks now)
-- Single concern: **yes**
-- Confidence in estimates: **high** (you found the specific files and verified layer boundaries)
+Load the shared rubric dimensions from `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md` before scoring. Apply those dimension thresholds and scope_certainty guidance. Map your result to this file's output tier schema.
 
-**MODERATE** — ALL of these must be true (and COMPLEX not triggered):
-- Estimated source files to modify (excl. tests): **≤ 8**
-- Architectural layers touched: **≤ 2**
-- Interface/class signature changes: **0**
-- No qualitative overrides triggered
-- Single concern: **yes** (once clarified)
-- At least one of: done definitions missing OR confidence is medium on file estimates
+**Sprint routing rule**: If the shared rubric returns MODERATE, classify this epic as COMPLEX for /sprint. This preserves the safety behavior of full preplanning when scope is not fully certain.
 
-**COMPLEX** — ANY of these:
-- Estimated source files > 8
-- Architectural layers ≥ 3
-- Interface/class signature changes ≥ 1
-- Any qualitative override triggered
-- Single concern: no (multiple vertical slices needed)
-- Can't estimate architectural layers (ambiguity too deep)
+**File threshold note**: The shared rubric's MODERATE threshold (≤3 files) is more conservative than the old inline threshold (≤8 files). This is intentional — the tighter threshold ensures safe routing and avoids under-classifying epics with uncertain scope.
+
+**SIMPLE** — ALL dimension thresholds met (per shared rubric), no qualitative overrides, done definitions present, single concern yes, confidence high.
+
+**MODERATE** — Within moderate thresholds (per shared rubric), no qualitative overrides, single concern yes (once clarified), but at least one of: done definitions missing OR confidence medium on file estimates.
+
+**COMPLEX** — ANY quantitative threshold exceeded (per shared rubric), any qualitative override triggered, single concern no, or layer count cannot be estimated.
 
 ### 9. Output
 
