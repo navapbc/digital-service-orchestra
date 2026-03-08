@@ -2,6 +2,8 @@
 
 Template for the `general-purpose` sub-agent launched in REVIEW-WORKFLOW.md Step 4.
 
+**Bash tool required**: This prompt uses Bash to run `verify-review-diff.sh` and pipe JSON to `write-reviewer-findings.sh`. Only `general-purpose` sub-agents have the Bash tool. Do NOT dispatch this prompt to specialized sub-agent types.
+
 ## Placeholders
 
 - `{working_directory}`: Current working directory

@@ -98,7 +98,7 @@ Scan changed files (`{ git diff HEAD --name-only; git ls-files --others --exclud
 - `Makefile`
 - `app/src/app.py`
 
-When implementing this check with grep, use anchored matching: `grep -E '^scripts/'` rather than `grep 'scripts/'` to avoid false positives from test directories (e.g., `tests/plugin/scripts/`).
+When implementing this check with grep, use anchored matching: `grep -E '^scripts/'` rather than `grep 'scripts/'` to avoid false positives from test directories (e.g., `lockpick-workflow/tests/scripts/`).
 
 If **any** changed file matches one of the patterns above -> `model="opus"`.
 If **none** match -> `model="sonnet"`.
@@ -108,6 +108,8 @@ If **none** match -> `model="sonnet"`.
 **You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
 
 Launch a `general-purpose` sub-agent using the Task tool. This agent type has full tool access, which is required to write `reviewer-findings.json` and compute its hash.
+
+**Do NOT use specialized sub-agent types** (e.g., `feature-dev:code-reviewer`, `unit-testing:test-automator`). Those types lack the Bash tool, which is required to run `verify-review-diff.sh` and pipe JSON to `write-reviewer-findings.sh`. Using a non-general-purpose type will cause the review to fail with a malformed output and require a re-dispatch.
 
 Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
 - `{working_directory}`: current working directory

@@ -22,9 +22,14 @@ tk show <parent-epic-id>
 
 Note any preplanning split-candidate flags or risk register entries from the story/epic descriptions.
 
-### 2. Find Story-Specific Files (for context only)
+### 2. Find Story-Specific Files (codebase context — not dimension scoring)
 
-Grep/Glob for files specifically mentioned or implied by the story description (class names, function names, routes, models). This step is to locate relevant codebase context for the story — not for rubric scoring. The shared rubric performs all dimension counting.
+Grep/Glob for files specifically mentioned or implied by the story description (class names, function names, routes, models). The purpose of this step is twofold:
+
+1. **Locate codebase context** so you can accurately describe the story's scope to the shared rubric.
+2. **Enable high-confidence assessment** — the shared rubric's Confidence dimension (Dimension 5) requires specific files found via Grep/Glob to rate confidence as "High". If you skip file search, confidence defaults to "Medium", which forces COMPLEX classification for everything.
+
+**What this step does NOT do**: Apply rubric thresholds or count files/layers/interfaces as dimension scores. The shared rubric in Step 3 applies all dimension thresholds (files, layers, interfaces, scope_certainty, confidence). Your job here is to find the files so the shared rubric can score them.
 
 ### 3. Delegate to Shared Rubric
 
