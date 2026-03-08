@@ -27,8 +27,10 @@ REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 cd "$REPO_ROOT"
 
 # --- Verify tk is available ---
-if ! command -v tk &>/dev/null; then
-    echo "WARNING: tk not found in PATH — CI failure tracking disabled."
+# Use $TK directly — consistent with how it is used throughout this script.
+# $TK is already resolved: either the caller-supplied path or $SCRIPT_DIR/tk.
+if ! command -v "$TK" &>/dev/null; then
+    echo "WARNING: tk not found at $TK — CI failure tracking disabled."
     exit 0
 fi
 
