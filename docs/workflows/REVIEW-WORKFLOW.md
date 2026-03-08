@@ -308,11 +308,12 @@ Task tool:
    ```
    Then proceed to commit.
 
-5. **If re-review fails** (first attempt): dispatch a second resolution sub-agent (second fix cycle).
-   Run `/oscillation-check` (iteration=2) only if new findings appeared not in the original review —
-   if OSCILLATION detected, skip second attempt and escalate immediately.
+5. **If re-review fails** (first or second attempt): dispatch another resolution sub-agent (next fix cycle).
+   Run `/oscillation-check` (iteration=2+) only if new findings appeared not in the original review —
+   if OSCILLATION detected, skip further attempts and escalate immediately.
+   Up to 3 fix/defend attempts total before escalating.
 
-6. **If re-review fails** (second attempt, or oscillation detected): escalate to user.
+6. **If re-review fails** (third attempt, or oscillation detected): escalate to user.
 
 **Escalation message format** (when sub-agent returns FAIL or ESCALATE, or re-review fails twice):
 

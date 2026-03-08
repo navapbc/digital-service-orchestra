@@ -22,54 +22,21 @@ tk show <parent-epic-id>
 
 Note any preplanning split-candidate flags or risk register entries from the story/epic descriptions.
 
-### 2. Estimate File Impact
+### 2. Find Story-Specific Files (for context only)
 
-Using the story description and codebase knowledge:
+Grep/Glob for files specifically mentioned or implied by the story description (class names, function names, routes, models). This step is to locate relevant codebase context for the story — not for rubric scoring. The shared rubric performs all dimension counting.
 
-1. Grep/Glob for files likely affected by the story (search for relevant class names, function names, routes, models mentioned or implied)
-2. List estimated source files to modify (excluding test files)
-3. List estimated test files to modify or create
+### 3. Delegate to Shared Rubric
 
-### 3. Count Architectural Layers
+Load the shared rubric dimensions from `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md` before scoring. Apply those dimension thresholds and scope_certainty guidance. Map your result to this file's output tier schema.
 
-Determine which architectural layers the change touches:
+**Sprint routing rule**: If the shared rubric returns MODERATE, classify this story as COMPLEX for /sprint. The sprint workflow escalates MODERATE to COMPLEX for safety — triggering /implementation-plan ensures no planning gaps before sub-agents execute.
 
-> **Layers for this project** (each counts as one):
-> Route/Blueprint | Service/DocumentProcessor | Agent/Node | LLM Provider/Client | Formatter | DB/SQLAlchemy Model | Migration
+**TRIVIAL** — ALL dimension thresholds met (per shared rubric), no qualitative overrides triggered, confidence high.
 
-Count the distinct layers from the estimated file impact.
+**COMPLEX** — ANY quantitative threshold exceeded, any qualitative override triggered, confidence is medium, OR shared rubric returns MODERATE.
 
-### 4. Count Interface Changes
-
-Grep for classes, abstract base types, Protocol definitions, and public method signatures that the story requires changing. Count distinct interfaces/classes requiring **signature changes** (not just internal implementation changes).
-
-### 5. Check Qualitative Overrides
-
-Check whether ANY of these apply (each forces COMPLEX):
-
-- Requirements contain ambiguity or undefined scope
-- New architectural pattern needed (not following existing conventions)
-- Breaking changes to existing public interfaces
-- Spans multiple architectural layers simultaneously (DB + API + UI)
-- External integration or infrastructure dependency
-- Story flagged as a split candidate from preplanning
-
-### 6. Classify
-
-**TRIVIAL** — ALL of these must be true:
-- Estimated files to modify (excl. tests): **<= 2**
-- Estimated test files: **<= 1**
-- Architectural layers touched: **<= 1**
-- Interface/class signature changes: **0**
-- No qualitative overrides triggered
-- Confidence in estimates: **high** (you found the specific files and verified layer boundaries)
-
-**COMPLEX** — ANY of these:
-- Any quantitative threshold exceeded
-- Any qualitative override triggered
-- Confidence in estimates is **medium** (couldn't verify file impact or layer boundaries)
-
-### 7. Output
+### 4. Output
 
 Return a single JSON block:
 
@@ -89,6 +56,7 @@ Return a single JSON block:
 **Rules:**
 - When confidence is "medium", classification MUST be "COMPLEX"
 - When any qualitative override is triggered, classification MUST be "COMPLEX"
+- When shared rubric returns MODERATE, classification MUST be "COMPLEX" (sprint routing rule)
 - List qualitative overrides by name (e.g., `["ambiguity", "new_pattern"]`)
 - `reasoning` should be one sentence explaining the classification
 - Do NOT modify any files — this is analysis only
