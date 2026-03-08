@@ -484,7 +484,7 @@ Based on the story context, identify which application pages are relevant:
 
 Run the local environment preflight check:
 ```
-$REPO_ROOT/scripts/check-local-env.sh
+$REPO_ROOT/lockpick-workflow/scripts/check-local-env.sh
 ```
 
 - **If exits 0**: The app is running. Use the `APP_PORT` (default 3000) for

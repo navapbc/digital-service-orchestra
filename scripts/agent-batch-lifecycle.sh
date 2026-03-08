@@ -23,6 +23,7 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_SCRIPTS="$SCRIPT_DIR"
 TK="${TK:-$SCRIPT_DIR/tk}"
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
@@ -510,6 +511,18 @@ cmd_preflight() {
 
     # 1c. Clean up agent discoveries from previous batch
     cmd_cleanup_discoveries
+
+    # 1d. Run env check script if present (check-local-env.sh in plugin scripts dir)
+    if [ -x "$PLUGIN_SCRIPTS/check-local-env.sh" ]; then
+        if ! "$PLUGIN_SCRIPTS/check-local-env.sh" --quiet 2>/dev/null; then
+            echo "ENV_CHECK: failed"
+            any_fail=true
+        else
+            echo "ENV_CHECK: passed"
+        fi
+    else
+        echo "ENV_CHECK: skipped (script not found)"
+    fi
 
     # 2. Database
     if $start_db; then

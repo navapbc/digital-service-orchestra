@@ -104,7 +104,7 @@ The Playwright crawl (Phase 2 Step 8) requires Docker, Postgres, and the
 application to be healthy.
 
 ```
-$REPO_ROOT/scripts/check-local-env.sh
+$REPO_ROOT/lockpick-workflow/scripts/check-local-env.sh
 ```
 
 Where `$REPO_ROOT` is determined by `git rev-parse --show-toplevel`.
@@ -145,7 +145,7 @@ Note whether Playwright is available. If not, warn that route crawling will be
 skipped and the cache will be static-analysis-only.
 
 **Running application:** If Phase 0 passed, the app is confirmed healthy on its
-port. Use the port from `check-local-env.sh` output or the `APP_PORT` env var
+port. Use the port from `lockpick-workflow/scripts/check-local-env.sh` output or the `APP_PORT` env var
 (default port depends on the framework — use the adapter's conventions or
 fall back to common defaults: 5000 for Flask, 3000 for Node, 8080 for Go).
 If Phase 0 was skipped with "Continue without live app", skip this probe

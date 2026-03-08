@@ -895,7 +895,7 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 
 - **Pass** → Log: "Visual regression tests pass — MCP visual verification skipped."
 - **Fail** → Use `/playwright-debug` starting at the Visual Regression Gate (Tier 2 targeted investigation of flagged elements). If verification fails, revert the task to open.
-- **No baselines** → Use `/playwright-debug` full 3-tier process. Verify local env first: `$REPO_ROOT/scripts/check-local-env.sh`. Never skip Playwright validation without user approval.
+- **No baselines** → Use `/playwright-debug` full 3-tier process. Verify local env first: `$PLUGIN_SCRIPTS/check-local-env.sh`. Never skip Playwright validation without user approval.
 
 ### Step 7: Formal Code Review (/sprint)
 
