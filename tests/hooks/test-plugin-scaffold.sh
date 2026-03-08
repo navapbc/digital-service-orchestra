@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# lockpick-workflow/tests/hooks/test-plugin-scaffold.sh
+# Verifies the lockpick-workflow plugin scaffold directories and plugin.json exist.
+#
+# Usage:
+#   bash lockpick-workflow/tests/hooks/test-plugin-scaffold.sh
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+
+PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+
+# test_plugin_root_exists
+# The lockpick-workflow/ directory must exist at the repo root.
+if [[ -d "$PLUGIN_ROOT" ]]; then
+    actual="exists"
+else
+    actual="missing"
+fi
+assert_eq "test_plugin_root_exists" "exists" "$actual"
+
+# test_plugin_json_exists
+# lockpick-workflow/plugin.json must exist.
+if [[ -f "$PLUGIN_ROOT/plugin.json" ]]; then
+    actual="exists"
+else
+    actual="missing"
+fi
+assert_eq "test_plugin_json_exists" "exists" "$actual"
+
+# test_plugin_json_is_valid_json
+# lockpick-workflow/plugin.json must be valid JSON.
+if python3 -m json.tool "$PLUGIN_ROOT/plugin.json" > /dev/null 2>&1; then
+    actual="valid"
+else
+    actual="invalid"
+fi
+assert_eq "test_plugin_json_is_valid_json" "valid" "$actual"
+
+# test_plugin_subdirs_exist
+# All required subdirectories must exist under lockpick-workflow/.
+required_dirs=(
+    "skills"
+    "hooks"
+    "hooks/lib"
+    "scripts"
+    "docs"
+    "docs/workflows"
+)
+
+for subdir in "${required_dirs[@]}"; do
+    if [[ -d "$PLUGIN_ROOT/$subdir" ]]; then
+        actual="exists"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_plugin_subdirs_exist: $subdir" "exists" "$actual"
+done
+
+print_summary
