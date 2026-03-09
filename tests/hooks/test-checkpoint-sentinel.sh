@@ -115,6 +115,9 @@ TEST_ARTIFACTS_A=$(mktemp -d)
     echo "test" > file.txt
     git add file.txt
     git commit -q -m "initial"
+    # Add uncommitted work so the hook detects real changes and writes the sentinel.
+    # Without this, _HAS_REAL_CHANGES is empty and the hook skips sentinel+commit.
+    echo "work-in-progress" > work.py
 ) 2>/dev/null
 
 # Run the hook — it calls get_artifacts_dir, so we set _DEPS_LOADED + export override
