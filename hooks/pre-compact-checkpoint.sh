@@ -20,6 +20,13 @@ if [[ -z "$REPO_ROOT" ]]; then
     exit 0
 fi
 
+# --- Disable sentinel ---
+# If .disable-precompact-checkpoint exists at repo root, skip the hook entirely.
+# Used to prevent checkpoint commits during worktree sessions with hook timing issues.
+if [[ -f "$REPO_ROOT/.disable-precompact-checkpoint" ]]; then
+    exit 0
+fi
+
 # Read config-driven checkpoint label (with fallback default)
 # Resolve read-config.sh: try HOOK_DIR/../scripts (lockpick-workflow/hooks/ path),
 # then HOOK_DIR/../../lockpick-workflow/scripts (.claude/hooks/ path).
