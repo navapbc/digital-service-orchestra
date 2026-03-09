@@ -39,9 +39,7 @@ def check_bash(repo_root: Path) -> tuple[list[str], int]:
     files = git_tracked_files(repo_root, (".sh",))
     errors = []
     for f in files:
-        result = subprocess.run(
-            ["bash", "-n", str(f)], capture_output=True, text=True
-        )
+        result = subprocess.run(["bash", "-n", str(f)], capture_output=True, text=True)
         if result.returncode != 0:
             errors.append(f"bash: {f.relative_to(repo_root)}: {result.stderr.strip()}")
     return errors, len(files)
