@@ -98,16 +98,52 @@ NONCE=$(openssl rand -hex 16 2>/dev/null || \
     echo "$(date +%s 2>/dev/null || echo 0)$RANDOM$RANDOM" | shasum -a 256 2>/dev/null | head -c 32 || \
     echo "$(date +%s 2>/dev/null || echo 0)$RANDOM$RANDOM" | sha256sum 2>/dev/null | head -c 32 || \
     echo "fallback-$(date -u +%Y%m%d%H%M%S)")
-echo "$NONCE" > "$REPO_ROOT/.checkpoint-needs-review"
 
 # --- Auto-save uncommitted work ---
-# Exclude .tickets/ — these sync via their own dedicated mechanism
-# (ticket-sync-push hook). Including them here caused 330+ spam ticket files
-# to be committed in a single checkpoint (2026-03-04).
-# (.sync-state.json now lives inside .tickets/ so is covered by this exclusion.)
-git add -A 2>/dev/null || true
-git reset HEAD -- .tickets/ 2>/dev/null || true
-git commit -m "$CHECKPOINT_LABEL" --no-verify 2>/dev/null || true
+# Skip the commit (and sentinel write) when there are no real changes to preserve.
+# This prevents checkpoint spam in sub-agent contexts (Task tool agents compact their
+# own contexts independently, sharing the same git worktree) and in idle orchestrator
+# sessions where all work has already been committed. Sub-agent file changes (e.g.,
+# reviewer-findings.json) survive compaction on disk without a git commit; Task agents
+# do not resume across sessions so a checkpoint commit adds no recovery value for them.
+#
+# "Real changes" = anything except .checkpoint-needs-review and .tickets/ files.
+# Tickets sync via their own mechanism; the sentinel is only meaningful when committed
+# alongside actual code changes.
+_HAS_REAL_CHANGES=$(git status --porcelain \
+    -- ':!.checkpoint-needs-review' ':!.tickets/' 2>/dev/null | grep -c '.' || echo 0)
+
+if [[ "$_HAS_REAL_CHANGES" -eq 0 ]]; then
+    # Nothing meaningful to save — emit recovery state but skip the commit.
+    # The sentinel is not written to avoid creating a false "unreviewed code" signal.
+    true
+else
+    # Real uncommitted work exists — write sentinel and commit.
+    echo "$NONCE" > "$REPO_ROOT/.checkpoint-needs-review"
+
+    # Capture the index state of the sentinel BEFORE git add -A so we can
+    # restore a staged deletion (written by record-review.sh during /commit)
+    # that git add -A would otherwise silently un-stage.
+    _SENTINEL_INDEX=$(git status --porcelain -- .checkpoint-needs-review 2>/dev/null | head -1)
+
+    # Stage everything except sentinel and tickets; handle them explicitly below.
+    # Exclude .tickets/ — these sync via ticket-sync-push hook.
+    # (Including them caused 330+ spam ticket files in a single checkpoint 2026-03-04.)
+    git add -A -- ':!.checkpoint-needs-review' ':!.tickets/' 2>/dev/null || true
+
+    # Restore sentinel index state:
+    if [[ "${_SENTINEL_INDEX:0:2}" == "D " ]]; then
+        # record-review.sh had staged a deletion — preserve it so /commit can commit it.
+        # REVIEW-DEFENSE: git add -A above would re-stage the file from working tree,
+        # un-doing the staged deletion. We must restore the deletion explicitly.
+        git rm --cached .checkpoint-needs-review 2>/dev/null || true
+    else
+        # Normal case — stage the newly written nonce.
+        git add -- .checkpoint-needs-review 2>/dev/null || true
+    fi
+
+    git commit -m "$CHECKPOINT_LABEL" --no-verify 2>/dev/null || true
+fi
 
 # --- Output structured markdown (injected into post-compaction context) ---
 cat <<CHECKPOINT

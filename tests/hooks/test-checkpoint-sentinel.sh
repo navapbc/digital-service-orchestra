@@ -440,4 +440,176 @@ fi
 
 cleanup_env "$TMPENV_G"
 
+# =============================================================================
+# PART H: merge passes when deletion follows checkpoint add (add→delete ordering)
+#
+# Exercises the NEW ordering-based logic: if the most recent ADD/MODIFY is an
+# ancestor of the most recent DELETE, the checkpoint was properly reviewed.
+# =============================================================================
+
+test_merge_passes_when_deletion_follows_checkpoint_add() {
+    local TMPENV_H
+    TMPENV_H=$(setup_merge_env)
+    local WT_H
+    WT_H=$(cd "$TMPENV_H/worktree" && pwd -P)
+
+    # Commit code + sentinel (simulating a checkpoint auto-save)
+    echo "feature code" > "$WT_H/feature.py"
+    echo "nonce_H_abc123" > "$WT_H/.checkpoint-needs-review"
+    (cd "$WT_H" && git add feature.py .checkpoint-needs-review && \
+        git commit -q -m "checkpoint: pre-compaction auto-save") 2>/dev/null
+
+    # Commit the DELETION of the sentinel (simulating /commit clearing it)
+    (cd "$WT_H" && git rm -q ".checkpoint-needs-review" && \
+        git commit -q -m "review: cleared sentinel") 2>/dev/null
+
+    local MERGE_OUTPUT_H
+    MERGE_OUTPUT_H=$(cd "$WT_H" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+        bash "$MERGE_SCRIPT" 2>&1 || true)
+
+    local BLOCKED_H
+    BLOCKED_H=$(echo "$MERGE_OUTPUT_H" | grep "Unreviewed checkpoint" | head -1 || true)
+    if [[ -z "$BLOCKED_H" ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_merge_passes_when_deletion_follows_checkpoint_add\n  unexpected block: %s\n  full output: %s\n" \
+            "$BLOCKED_H" "$MERGE_OUTPUT_H" >&2
+    fi
+
+    cleanup_env "$TMPENV_H"
+}
+
+test_merge_passes_when_deletion_follows_checkpoint_add
+
+# =============================================================================
+# PART I: merge blocks when add commit follows delete commit (delete→add ordering)
+#
+# If a new checkpoint is added AFTER the sentinel was deleted (i.e., the most
+# recent ADD/MODIFY is NOT an ancestor of the most recent DELETE), merge must block.
+# =============================================================================
+
+test_merge_blocked_when_checkpoint_add_follows_deletion() {
+    local TMPENV_I
+    TMPENV_I=$(setup_merge_env)
+    local WT_I
+    WT_I=$(cd "$TMPENV_I/worktree" && pwd -P)
+
+    # First checkpoint commit
+    echo "feature code" > "$WT_I/feature.py"
+    echo "nonce_I_first" > "$WT_I/.checkpoint-needs-review"
+    (cd "$WT_I" && git add feature.py .checkpoint-needs-review && \
+        git commit -q -m "checkpoint: pre-compaction auto-save") 2>/dev/null
+
+    # Deletion commit (first checkpoint cleared)
+    (cd "$WT_I" && git rm -q ".checkpoint-needs-review" && \
+        git commit -q -m "review: cleared sentinel") 2>/dev/null
+
+    # Second checkpoint commit AFTER the deletion (new unreviewed checkpoint)
+    echo "more feature code" >> "$WT_I/feature.py"
+    echo "nonce_I_second" > "$WT_I/.checkpoint-needs-review"
+    (cd "$WT_I" && git add feature.py .checkpoint-needs-review && \
+        git commit -q -m "checkpoint: pre-compaction auto-save") 2>/dev/null
+
+    local MERGE_OUTPUT_I
+    MERGE_OUTPUT_I=$(cd "$WT_I" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+        bash "$MERGE_SCRIPT" 2>&1 || true)
+
+    local BLOCKED_I
+    BLOCKED_I=$(echo "$MERGE_OUTPUT_I" | grep "Unreviewed checkpoint" | head -1 || true)
+    if [[ -n "$BLOCKED_I" ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_merge_blocked_when_checkpoint_add_follows_deletion\n  expected block not found\n  full output: %s\n" \
+            "$MERGE_OUTPUT_I" >&2
+    fi
+
+    cleanup_env "$TMPENV_I"
+}
+
+test_merge_blocked_when_checkpoint_add_follows_deletion
+
+# =============================================================================
+# PART J: record-review.sh preserves checkpoint_cleared on subsequent re-review
+#
+# When a review runs after the sentinel was already cleared by a prior review,
+# the checkpoint_cleared entry must survive the review-status rewrite.
+# =============================================================================
+
+test_record_review_preserves_checkpoint_cleared_on_rerun() {
+    local TEST_GIT_J
+    TEST_GIT_J=$(mktemp -d)
+    local PREV_NONCE_J="previousnonce_J_xyz789"
+
+    (
+        cd "$TEST_GIT_J"
+        git init -q
+        git config user.email "test@test.com"
+        git config user.name "Test"
+        echo "initial" > src.py
+        git add src.py
+        git commit -q -m "initial commit"
+        # Stage a change so the review has something to target
+        echo "re-review change" >> src.py
+        git add src.py
+    ) 2>/dev/null
+
+    local REAL_ARTIFACTS_J
+    REAL_ARTIFACTS_J=$(get_test_artifacts_dir "$TEST_GIT_J")
+    mkdir -p "$REAL_ARTIFACTS_J"
+
+    # Write an existing review-status that already contains checkpoint_cleared
+    {
+        echo "passed"
+        echo "timestamp=2026-01-01T00:00:00Z"
+        echo "diff_hash=oldhash"
+        echo "score=4"
+        echo "checkpoint_cleared=${PREV_NONCE_J}"
+    } > "$REAL_ARTIFACTS_J/review-status"
+
+    # Write reviewer-findings.json for record-review.sh to validate against
+    local FINDINGS_JSON_J
+    FINDINGS_JSON_J='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"findings":[],"summary":"Re-review: all good."}'
+    echo "$FINDINGS_JSON_J" > "$REAL_ARTIFACTS_J/reviewer-findings.json"
+    local REVIEWER_HASH_J
+    REVIEWER_HASH_J=$(shasum -a 256 "$REAL_ARTIFACTS_J/reviewer-findings.json" | awk '{print $1}')
+
+    local DIFF_HASH_J
+    DIFF_HASH_J=$(cd "$TEST_GIT_J" && bash "$COMPUTE_HASH" 2>/dev/null || true)
+
+    # Run record-review.sh — NO sentinel file on disk (already cleared by prior review)
+    local REVIEW_JSON_J
+    REVIEW_JSON_J='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"Re-review: all good.","feedback":{"files_targeted":["src.py"]},"findings":[]}'
+    local RECORD_OUTPUT_J
+    RECORD_OUTPUT_J=$(cd "$TEST_GIT_J" && echo "$REVIEW_JSON_J" | bash "$RECORD_HOOK" \
+        --expected-hash "$DIFF_HASH_J" \
+        --reviewer-hash "$REVIEWER_HASH_J" 2>&1) || true
+
+    cd "$REPO_ROOT"
+
+    # Assert: checkpoint_cleared is still present with the original nonce
+    if [[ -f "$REAL_ARTIFACTS_J/review-status" ]]; then
+        local CLEARED_LINE_J
+        CLEARED_LINE_J=$(grep "^checkpoint_cleared=" "$REAL_ARTIFACTS_J/review-status" | head -1 || true)
+        local CLEARED_NONCE_J
+        CLEARED_NONCE_J="${CLEARED_LINE_J#checkpoint_cleared=}"
+        if [[ "$CLEARED_NONCE_J" == "$PREV_NONCE_J" ]]; then
+            (( ++PASS ))
+        else
+            (( ++FAIL ))
+            printf "FAIL: test_record_review_preserves_checkpoint_cleared_on_rerun\n  expected checkpoint_cleared=%s, got=%s\n  record output: %s\n" \
+                "$PREV_NONCE_J" "$CLEARED_NONCE_J" "$RECORD_OUTPUT_J" >&2
+        fi
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_record_review_preserves_checkpoint_cleared_on_rerun\n  review-status not written\n  record output: %s\n" \
+            "$RECORD_OUTPUT_J" >&2
+    fi
+
+    rm -rf "$TEST_GIT_J"
+}
+
+test_record_review_preserves_checkpoint_cleared_on_rerun
+
 print_summary
