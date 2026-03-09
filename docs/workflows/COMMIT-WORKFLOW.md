@@ -29,30 +29,40 @@ git log --oneline -5
 
 ## Step 0.5: Check for Non-Reviewable-Only Changes
 
-Check if all changed files are non-reviewable (documentation, ticket tracking, snapshots, images, binary docs):
+Check if all changed files are non-reviewable. If every file matches a non-reviewable pattern, Steps 1-3a can be skipped. Otherwise a full review is required.
 
 ```bash
 CHANGED_FILES=$(git diff HEAD --name-only)
 SKIP_REVIEW=true
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
+    # Agent guidance always requires review (checked first, overrides docs/* below)
     case "$file" in
-        .claude/hookify.*.local.md) SKIP_REVIEW=false; break ;;  # hookify rules require review (must precede *.md)
-        .checkpoint-needs-review) ;;  # compaction sentinel — cleared automatically by record-review.sh
-        *.md|.tickets/*) ;;  # docs/tickets
-        app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;  # snapshots
-        *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;  # images
-        *.pdf|*.docx) ;;  # binary documents
+        .claude/skills/*|.claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
+        lockpick-workflow/skills/*|lockpick-workflow/hooks/*|lockpick-workflow/docs/workflows/*) SKIP_REVIEW=false; break ;;
+        CLAUDE.md) SKIP_REVIEW=false; break ;;
+    esac
+    # .checkpoint-needs-review always requires a full review (see Note below)
+    case "$file" in
+        .checkpoint-needs-review) SKIP_REVIEW=false; break ;;
+    esac
+    # Non-reviewable files
+    case "$file" in
+        .tickets/*|.sync-state.json) ;;                                            # tracker metadata
+        app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;   # visual snapshots
+        *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;                            # images
+        *.pdf|*.docx) ;;                                                           # binary docs
+        .claude/session-logs/*|.claude/docs/*|docs/*) ;;                          # logs and non-agent docs
         *) SKIP_REVIEW=false; break ;;
     esac
 done <<< "$CHANGED_FILES"
 ```
 
-**If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage). The review gate (`review-gate.sh`) will also exempt these file types, so Step 5 (Review Gate) will pass automatically.
+**If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
 
 **Otherwise**: Continue to Step 1.
 
-**Note on `.checkpoint-needs-review`**: If a pre-compaction checkpoint created this file, `record-review.sh` (Step 3a) automatically stages its removal and records `checkpoint_cleared` in review-status. No manual action is needed — do NOT manually delete this file or the merge to main will be blocked.
+**Note on `.checkpoint-needs-review`**: This file is written when code is auto-committed during a context-compaction event. It signals that the code has never been reviewed. The only correct path through is to run `/commit` from the beginning — Steps 1-3a must execute so the review can read the sentinel nonce and delete the file. Skipping to Step 4 or later will cause the commit to be blocked; restart from Step 1.
 
 ## Step 1: Test
 
@@ -238,31 +248,22 @@ git add -u -- ':(exclude).tickets'
 
 ## Step 5: Review Gate
 
-> **Pre-compaction checkpoint detection**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the diff-hash infrastructure already handles this correctly — `compute-diff-hash.sh` uses the checkpoint commit as the diff base. Proceed normally.
+> **Pre-compaction checkpoint recovery**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the checkpoint contains unreviewed code that was auto-saved during compaction. Recover with these exact steps:
+>
+> ```bash
+> git reset --soft HEAD~1                    # undo the checkpoint commit, re-stage the changes
+> git rm --cached .checkpoint-needs-review   # un-stage the sentinel (leave the file in the working tree)
+> ```
+>
+> Then restart from **Step 1** of this workflow. Leave `.checkpoint-needs-review` in the working tree — `record-review.sh` reads the nonce from it during review and removes it automatically. Do NOT skip to Step 4 or Step 5; the code was committed without review and must go through the complete workflow.
 
-Check whether a current, passing review already exists for this exact diff state.
+Decide whether a review is needed:
 
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
-ARTIFACTS_DIR=$(get_artifacts_dir)
-REVIEW_STATE="$ARTIFACTS_DIR/review-status"
-CURRENT_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
-```
+- **Review ran earlier this session and no files changed since**: Skip to Step 6.
+- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context.
+- **The commit in Step 6 is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry Step 6. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.
 
-Read the review state file:
-
-```bash
-REVIEW_STATUS=$(head -n 1 "$REVIEW_STATE" 2>/dev/null || echo "missing")
-RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE" 2>/dev/null | head -1 | cut -d= -f2- || true)
-```
-
-**If** `REVIEW_STATUS` is `passed` AND `RECORDED_HASH` equals `CURRENT_HASH`:
-- Review is current. Skip to Step 6.
-
-**Otherwise** (missing, failed, or stale hash):
-- Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context.
-- If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to 2 attempts). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1** (not Step 5). Re-running only the review after fixing code risks a stale diff hash.
+If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to 2 attempts). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1** (not Step 5).
 
 ## Step 6: Commit
 

@@ -89,7 +89,7 @@ Scan changed files (`{ git diff HEAD --name-only; git ls-files --others --exclud
 
 - `.claude/skills/**`
 - `.claude/workflows/**`
-- `lockpick-workflow/hooks/**`
+- `lockpick-workflow/**`
 - `.claude/docs/**`
 - `CLAUDE.md`
 - `.github/workflows/**`

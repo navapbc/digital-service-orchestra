@@ -2,10 +2,10 @@
 # lockpick-workflow/tests/run-all.sh
 # Top-level regression runner: orchestrates all plugin test suites.
 #
-# Runs:
-#   1. lockpick-workflow/tests/evals/run-evals.sh
-#   2. lockpick-workflow/tests/hooks/run-hook-tests.sh
-#   3. lockpick-workflow/tests/scripts/run-script-tests.sh
+# Runs (hooks and scripts concurrently, evals after both complete):
+#   1. lockpick-workflow/tests/hooks/run-hook-tests.sh  \  concurrent
+#   2. lockpick-workflow/tests/scripts/run-script-tests.sh  /
+#   3. lockpick-workflow/tests/evals/run-evals.sh
 #
 # Produces a combined PASS/FAIL summary across all suites.
 # Exits 0 only if ALL suites exit 0; exits 1 otherwise.
@@ -49,20 +49,22 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Run a suite and capture its exit code ---
-# Usage: run_suite <label> <runner_path>
-# Prints the suite output, returns the exit code via SUITE_EXIT variable.
-SUITE_EXIT=0
-run_suite() {
+# --- Run a suite, capturing output to a temp file for clean sequential display ---
+# Usage: run_suite_to_file <label> <runner_path> <outfile> <exitfile>
+# Writes suite output to <outfile> and exit code to <exitfile>.
+run_suite_to_file() {
     local label="$1"
     local runner="$2"
-    echo ""
-    echo "========================================"
-    echo "Suite: $label"
-    echo "========================================"
-    SUITE_EXIT=0
-    bash "$runner" || SUITE_EXIT=$?
-    return 0
+    local outfile="$3"
+    local exitfile="$4"
+    {
+        echo ""
+        echo "========================================"
+        echo "Suite: $label"
+        echo "========================================"
+        bash "$runner"
+    } >"$outfile" 2>&1
+    echo $? >"$exitfile"
 }
 
 # --- Tracking ---
@@ -70,17 +72,35 @@ EVALS_EXIT=0
 HOOKS_EXIT=0
 SCRIPTS_EXIT=0
 
-# --- Run evals suite ---
-run_suite "Evals" "$EVALS_RUNNER"
-EVALS_EXIT=$SUITE_EXIT
+# --- Temp files for parallel suite output and exit codes ---
+_HOOKS_OUT=$(mktemp)
+_HOOKS_EXIT_FILE=$(mktemp)
+_SCRIPTS_OUT=$(mktemp)
+_SCRIPTS_EXIT_FILE=$(mktemp)
 
-# --- Run hooks suite ---
-run_suite "Hook Tests" "$HOOKS_RUNNER"
-HOOKS_EXIT=$SUITE_EXIT
+# --- Run hooks and scripts suites concurrently ---
+run_suite_to_file "Hook Tests" "$HOOKS_RUNNER" "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" &
+_HOOKS_PID=$!
+run_suite_to_file "Script Tests" "$SCRIPTS_RUNNER" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" &
+_SCRIPTS_PID=$!
 
-# --- Run scripts suite ---
-run_suite "Script Tests" "$SCRIPTS_RUNNER"
-SCRIPTS_EXIT=$SUITE_EXIT
+wait "$_HOOKS_PID"
+wait "$_SCRIPTS_PID"
+
+# Print captured output sequentially for readable logs
+cat "$_HOOKS_OUT"
+cat "$_SCRIPTS_OUT"
+
+HOOKS_EXIT=$(cat "$_HOOKS_EXIT_FILE")
+SCRIPTS_EXIT=$(cat "$_SCRIPTS_EXIT_FILE")
+rm -f "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE"
+
+# --- Run evals suite after parallel suites complete ---
+echo ""
+echo "========================================"
+echo "Suite: Evals"
+echo "========================================"
+bash "$EVALS_RUNNER" || EVALS_EXIT=$?
 
 # --- Combined summary ---
 echo ""

@@ -44,6 +44,8 @@ _make_skeleton() {
     local dir="$TMPDIR_BASE/$name"
     mkdir -p "$dir" || { echo "ERROR: mkdir failed for $dir" >&2; exit 1; }
     git init -q "$dir" || { echo "ERROR: git init failed for $dir" >&2; exit 1; }
+    git -C "$dir" config user.email "test@example.com" || { echo "ERROR: git config email failed for $dir" >&2; exit 1; }
+    git -C "$dir" config user.name "Test" || { echo "ERROR: git config name failed for $dir" >&2; exit 1; }
     git -C "$dir" commit --allow-empty -m "init" -q || { echo "ERROR: git commit failed for $dir" >&2; exit 1; }
     printf '%s\n' "$config_content" > "$dir/workflow-config.yaml" || { echo "ERROR: failed to write workflow-config.yaml in $dir" >&2; exit 1; }
     echo "$dir"

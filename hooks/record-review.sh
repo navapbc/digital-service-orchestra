@@ -339,6 +339,14 @@ if [[ $(echo "$SCORE < 4" | bc -l 2>/dev/null || echo "1") == "1" ]] || [[ "$HAS
     STATUS="failed"
 fi
 
+# Preserve any existing checkpoint_cleared line across the overwrite below.
+# On multi-session branches a review may run after the sentinel was already cleared;
+# without this guard the checkpoint_cleared entry is silently lost.
+_PREV_CHECKPOINT_CLEARED=""
+if [[ -f "$REVIEW_STATE_FILE" ]]; then
+    _PREV_CHECKPOINT_CLEARED=$(grep '^checkpoint_cleared=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 || true)
+fi
+
 # Write state file
 cat > "$REVIEW_STATE_FILE" <<EOF
 ${STATUS}
@@ -352,21 +360,23 @@ echo "Review status recorded: ${STATUS} (score=${SCORE}, diff_hash=${DIFF_HASH:0
 
 # --- Detect and clear checkpoint review sentinel ---
 # If pre-compact-checkpoint.sh wrote .checkpoint-needs-review, record that this
-# review cleared it. merge-to-main.sh reads checkpoint_cleared from review-status
-# and verifies it matches the nonce before allowing the merge. This ensures that
-# code written during a compaction event is always reviewed before reaching main.
-# We also stage the sentinel removal so it goes into the upcoming commit.
+# review cleared it and remove the sentinel from the working tree so it is not
+# committed. The recovery procedure (git reset --soft HEAD~1 + git rm --cached)
+# leaves the file as untracked; record-review.sh handles the final removal here.
 SENTINEL_FILE="$REPO_ROOT/.checkpoint-needs-review"
 if [[ -f "$SENTINEL_FILE" ]]; then
     SENTINEL_NONCE=$(tr -d '[:space:]' < "$SENTINEL_FILE")
     if [[ -n "$SENTINEL_NONCE" ]]; then
         echo "checkpoint_cleared=${SENTINEL_NONCE}" >> "$REVIEW_STATE_FILE"
-        # Stage the removal so the sentinel is removed in the next commit.
-        # Errors are suppressed — the sentinel not staging is non-fatal for the review
-        # itself; merge-to-main.sh will catch any mismatch at merge time.
-        (cd "$REPO_ROOT" && git rm --force --cached ".checkpoint-needs-review" 2>/dev/null || \
-            git rm --force ".checkpoint-needs-review" 2>/dev/null || \
-            rm -f "$SENTINEL_FILE" 2>/dev/null) || true
+        # Remove the sentinel from the working tree (and index if it was staged).
+        # Errors are suppressed — removal is best-effort; merge-to-main.sh verifies
+        # the deletion commit exists in git history rather than relying on this.
+        (cd "$REPO_ROOT" && git rm --force --cached ".checkpoint-needs-review" 2>/dev/null || true)
+        rm -f "$SENTINEL_FILE" 2>/dev/null || true
         echo "INFO: Checkpoint sentinel cleared (nonce=${SENTINEL_NONCE:0:8}...)" >&2
     fi
+elif [[ -n "$_PREV_CHECKPOINT_CLEARED" ]]; then
+    # Sentinel already cleared by a previous review; re-append so subsequent reviews
+    # don't lose the audit record.
+    echo "$_PREV_CHECKPOINT_CLEARED" >> "$REVIEW_STATE_FILE"
 fi
