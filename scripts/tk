@@ -5432,24 +5432,51 @@ _sync_from_main() {
         # the hash file is missing (e.g., deleted or first sync).
         local _compare_hash="${cached_hash:-$main_hash}"
         if [[ -n "$_compare_hash" ]]; then
+            # Batch 1: ONE git ls-tree call for all blob hashes (replaces N per-file calls).
+            # Build parallel arrays: _tree_names[i] / _tree_hashes[i].
+            # ls-tree output format: "mode type hash<TAB>filename"
+            local _tree_names=() _tree_hashes=()
+            while IFS=$' \t' read -r _tm _tt _t_hash _t_name; do
+                _tree_names+=("$_t_name")
+                _tree_hashes+=("$_t_hash")
+            done < <(git ls-tree "$_compare_hash" 2>/dev/null)
+
+            # Collect all ticket files (bash parameter expansion avoids basename subprocess)
+            local _ticket_files=()
             for _wt_file in .tickets/*.md; do
                 [[ -f "$_wt_file" ]] || continue
-                local _basename _blob_hash _wt_hash
-                _basename=$(basename "$_wt_file")
-                # Get the blob hash of this file in the cached tree
-                _blob_hash=$(git ls-tree "$_compare_hash" "$_basename" 2>/dev/null | awk '{print $3}')
-                if [[ -n "$_blob_hash" ]]; then
-                    # Compare working tree file against the blob from the cached tree
-                    _wt_hash=$(git hash-object "$_wt_file" 2>/dev/null || true)
-                    if [[ "$_wt_hash" != "$_blob_hash" ]]; then
+                _ticket_files+=("$_wt_file")
+            done
+
+            if [[ ${#_ticket_files[@]} -gt 0 ]]; then
+                # Batch 2: ONE git hash-object call for all working-tree files.
+                # --stdin-paths reads filenames from stdin, outputs one hash per line
+                # in the same order — maps 1:1 with _ticket_files[].
+                local _wt_hashes=()
+                while IFS= read -r _wt_h; do
+                    _wt_hashes+=("$_wt_h")
+                done < <(printf '%s\n' "${_ticket_files[@]}" | git hash-object --stdin-paths 2>/dev/null)
+
+                # Compare using pure bash string ops — no subprocess per file.
+                local _i _j _wt_basename _found_hash
+                for _i in "${!_ticket_files[@]}"; do
+                    _wt_file="${_ticket_files[$_i]}"
+                    _wt_basename="${_wt_file##*/}"  # bash built-in: no subprocess
+                    _found_hash=""
+                    for _j in "${!_tree_names[@]}"; do
+                        if [[ "${_tree_names[$_j]}" == "$_wt_basename" ]]; then
+                            _found_hash="${_tree_hashes[$_j]}"
+                            break
+                        fi
+                    done
+                    # If file doesn't exist in cached tree, it's new — handled by
+                    # checkout (new files from main get added; locally-created files
+                    # without a cached counterpart are not at risk of overwrite).
+                    if [[ -n "$_found_hash" && "${_wt_hashes[$_i]:-}" != "$_found_hash" ]]; then
                         _local_only_files+=("$_wt_file")
                     fi
-                fi
-                # If file doesn't exist in cached tree, it's new — will be
-                # handled by the checkout (new files from main get added,
-                # locally-created files without a cached counterpart are
-                # not at risk of overwrite).
-            done
+                done
+            fi
         fi
 
         # Clear any skip-worktree flags on .tickets/ files before overwriting.
