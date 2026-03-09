@@ -160,12 +160,22 @@ This ensures `issue-quality-check.sh` passes and sub-agents can self-serve their
 
 ### Run Validation Gate
 
-Run `validate.sh --ci` to populate the validation state file. This allows sub-agents to use Edit/Write/Bash without being blocked by the validation gate hook.
+Before running `validate.sh --ci`, check if a validation state file already exists for this worktree session. If it does, reuse it rather than re-running validation.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/lockpick-workflow/scripts/validate.sh --ci
+WORKTREE_NAME=$(basename "$REPO_ROOT")
+STATE_FILE="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}/status"
+
+if [ -f "$STATE_FILE" ]; then
+  echo "Validation state file found at $STATE_FILE — reusing existing result."
+  cat "$STATE_FILE"
+else
+  $REPO_ROOT/lockpick-workflow/scripts/validate.sh --ci
+fi
 ```
+
+This avoids redundant re-runs when the validation was already executed earlier in the same session (e.g., manually before invoking `/sprint`, or during a previous phase).
 
 **Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
 

@@ -84,7 +84,13 @@ _worktree_sync_from_main() {
             echo "Auto-resolving ticket conflicts (worktree wins)..."
             git checkout --ours -- .tickets/ 2>/dev/null || true
             git add .tickets/ 2>/dev/null || true
-            git commit --no-edit --quiet 2>/dev/null || true
+            if ! git commit --no-edit --quiet 2>/dev/null; then
+                git merge --abort 2>/dev/null || true
+                if $TICKETS_STASHED; then
+                    git stash pop --quiet 2>/dev/null || git stash drop --quiet 2>/dev/null || true
+                fi
+                return 1
+            fi
             echo "OK: Auto-resolved ticket conflicts."
         else
             local BRANCH
@@ -92,6 +98,7 @@ _worktree_sync_from_main() {
             echo "ERROR: Merge conflict with non-ticket files."
             echo "CONFLICT_DATA: direction=main-into-worktree branch=$BRANCH merge_base=$(git merge-base HEAD origin/main 2>/dev/null || echo unknown)"
             [ -n "$CONFLICTED" ] && echo "CONFLICT_FILES: $CONFLICTED"
+            git merge --abort 2>/dev/null || true
             # Restore stash before exiting
             if $TICKETS_STASHED; then
                 git stash pop --quiet 2>/dev/null || git stash drop --quiet 2>/dev/null || true
