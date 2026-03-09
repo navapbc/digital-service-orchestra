@@ -13,6 +13,13 @@
 HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"pre-compact-checkpoint.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
 
+# Allow temporary disabling during commit workflows to prevent checkpoint loops.
+# Supports both env var (for subshell calls) and file flag (for hook invocations
+# which run in fresh shells without inheriting env vars).
+[[ -n "${LOCKPICK_DISABLE_PRECOMPACT:-}" ]] && exit 0
+REPO_ROOT_EARLY=$(git rev-parse --show-toplevel 2>/dev/null || true)
+[[ -n "$REPO_ROOT_EARLY" && -f "$REPO_ROOT_EARLY/.disable-precompact-checkpoint" ]] && exit 0
+
 # --- Determine repo root ---
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [[ -z "$REPO_ROOT" ]]; then

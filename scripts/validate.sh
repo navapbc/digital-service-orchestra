@@ -55,6 +55,7 @@
 #
 # ENVIRONMENT VARIABLES:
 #   Configure timeouts via environment variables (values in seconds):
+#     VALIDATE_TIMEOUT_SYNTAX  - Syntax check timeout (default: 30)
 #     VALIDATE_TIMEOUT_FORMAT  - Format check timeout (default: 30)
 #     VALIDATE_TIMEOUT_RUFF    - Ruff lint timeout (default: 60)
 #     VALIDATE_TIMEOUT_MYPY    - MyPy type check timeout (default: 120)
@@ -108,7 +109,7 @@ VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 
 # Timeout values in seconds - configurable via environment variables
 # Check $TIMEOUT_LOG for timeout history to identify if values need adjustment
-TIMEOUT_SYNTAX="${VALIDATE_TIMEOUT_SYNTAX:-5}"   # E999 syntax check — fast, runs before format/lint
+TIMEOUT_SYNTAX="${VALIDATE_TIMEOUT_SYNTAX:-30}"  # E999 + bash/YAML/JSON syntax check — scans 300+ files
 TIMEOUT_FORMAT="${VALIDATE_TIMEOUT_FORMAT:-30}"
 TIMEOUT_RUFF="${VALIDATE_TIMEOUT_RUFF:-60}"
 TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
