@@ -526,6 +526,7 @@ cmd_preflight() {
         echo "ENV_CHECK: skipped (not configured)"
     fi
 
+
     # 2. Database
     if $start_db; then
         # Check if database config exists before attempting any DB operations
