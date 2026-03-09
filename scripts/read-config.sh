@@ -8,6 +8,9 @@
 # Usage (config-first form, also supported):
 #   read-config.sh <config-file> <key>
 #
+# Usage (cache generation):
+#   read-config.sh --generate-cache [config-file]
+#
 # Arguments:
 #   <key>         dot-notation path (e.g. 'commands.test', 'stack', 'version')
 #   [config-file] optional path to config file
@@ -24,9 +27,17 @@
 #         "empty list" from "key does not exist")
 #
 # Flags:
-#   --list        output list-valued keys as newline-separated items;
-#                 scalars degrade to single-line output;
-#                 absent key exits 1 (not 0) to distinguish from empty list
+#   --list            output list-valued keys as newline-separated items;
+#                     scalars degrade to single-line output;
+#                     absent key exits 1 (not 0) to distinguish from empty list
+#   --generate-cache  dump all keys to a flat cache file for fast subsequent reads;
+#                     cache location: /tmp/workflow-plugin-<hash>/config-cache
+#
+# Caching:
+#   Normal reads check a flat cache file before spawning Python. The cache is
+#   keyed by config file path and validated by mtime. On cache miss, the script
+#   generates the cache via --generate-cache and retries. If cache generation
+#   fails, it falls through to the Python parser (self-healing).
 #
 # Output:
 #   stdout — value for found key (no trailing newline); empty for missing key/file
@@ -61,6 +72,141 @@ else
         echo "Error: no python3 with pyyaml found. Install pyyaml or set CLAUDE_PLUGIN_PYTHON." >&2
         exit 1
     fi
+fi
+
+# ── Cache infrastructure ──────────────────────────────────────────────────────
+# Flat-file cache eliminates Python subprocess overhead (~100ms → ~3ms).
+# Cache is per-repo/worktree, stored alongside other workflow plugin artifacts.
+
+# Returns the workflow plugin artifacts dir path (matches deps.sh get_artifacts_dir).
+# Does NOT source deps.sh — this script is called by non-hook consumers too.
+_wcfg_cache_dir() {
+    local repo="${REPO_ROOT:-}"
+    [[ -z "$repo" ]] && return 1
+    local hash
+    hash=$(echo -n "$repo" | shasum -a 256 2>/dev/null | awk '{print $1}' | head -c 16)
+    [[ -z "$hash" ]] && return 1
+    echo "/tmp/workflow-plugin-${hash}"
+}
+
+# Cross-platform file mtime (macOS then Linux).
+_wcfg_file_mtime() {
+    stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+}
+
+# Read a key from the flat cache file.
+# Returns 0 on success (value on stdout), 1 on miss/error.
+# Handles: scalars, lists, scalar-degradation in list mode,
+# empty lists, and list-key-in-scalar-mode detection.
+_wcfg_read_cache() {
+    local key="$1" list_mode="$2" cache_file="$3"
+    [[ ! -f "$cache_file" ]] && return 1
+
+    if [[ -n "$list_mode" ]]; then
+        # List mode: grep key.N= lines, extract values in order
+        local results
+        results=$(grep "^${key}\.[0-9]" "$cache_file" 2>/dev/null | cut -d= -f2-) || true
+        if [[ -n "$results" ]]; then
+            echo "$results"
+            return 0
+        fi
+        # Scalar degradation: --list on a scalar key outputs scalar on one line
+        local val
+        val=$(grep "^${key}=" "$cache_file" 2>/dev/null | head -1 | cut -d= -f2-) || true
+        if [[ -n "$val" ]]; then
+            echo "$val"
+            return 0
+        fi
+        # Empty list: key exists as a list but has no items
+        if grep -q "^${key}\.__empty_list=" "$cache_file" 2>/dev/null; then
+            return 0
+        fi
+        return 1
+    else
+        # Scalar mode: exact key match
+        local val
+        val=$(grep "^${key}=" "$cache_file" 2>/dev/null | head -1 | cut -d= -f2-) || true
+        if [[ -z "$val" ]]; then
+            # Check if key is a list/dict (has sub-keys) — non-scalar error
+            if grep -q "^${key}\." "$cache_file" 2>/dev/null; then
+                echo "Error: key '${key}' resolves to a non-scalar value" >&2
+                return 1
+            fi
+        fi
+        printf '%s' "$val"
+        return 0
+    fi
+}
+
+# ── Handle --generate-cache mode ─────────────────────────────────────────────
+# Dumps all YAML leaf keys to a flat cache file for fast grep-based reads.
+# Called on cache miss by the fast-path, or explicitly for pre-warming.
+if [[ "${1:-}" == "--generate-cache" ]]; then
+    shift
+    _gc_config="${1:-}"
+    # Resolve config file if not provided
+    if [[ -z "$_gc_config" ]]; then
+        if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml" ]]; then
+            _gc_config="${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml"
+        elif [[ -f "$(pwd)/workflow-config.yaml" ]]; then
+            _gc_config="$(pwd)/workflow-config.yaml"
+        else
+            exit 0
+        fi
+    fi
+    [[ ! -f "$_gc_config" ]] && exit 0
+
+    _gc_cache_dir=$(_wcfg_cache_dir) || exit 0
+    mkdir -p "$_gc_cache_dir" 2>/dev/null || exit 0
+    _gc_cache_file="$_gc_cache_dir/config-cache"
+    _gc_mtime=$(_wcfg_file_mtime "$_gc_config")
+
+    _gc_tmp=$(mktemp "${_gc_cache_file}.tmp.XXXXXX" 2>/dev/null) || exit 0
+    if "$PYTHON" - "$_gc_config" "$_gc_mtime" <<'PYEOF' > "$_gc_tmp"
+import sys
+import yaml
+
+config_path = sys.argv[1]
+mtime = sys.argv[2]
+
+try:
+    with open(config_path, "r") as f:
+        data = yaml.safe_load(f)
+except Exception:
+    sys.exit(1)
+
+if data is None:
+    sys.exit(0)
+
+print(f"# wcfg-cache v1")
+print(f"# config={config_path}")
+print(f"# mtime={mtime}")
+
+def dump(obj, prefix=""):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            dump(v, f"{prefix}{k}.")
+    elif isinstance(obj, list):
+        key = prefix.rstrip(".")
+        if len(obj) == 0:
+            # Mark empty lists so cache reader can distinguish from missing keys
+            print(f"{key}.__empty_list=1")
+        for i, item in enumerate(obj):
+            if isinstance(item, (dict, list)):
+                dump(item, f"{key}.{i}.")
+            else:
+                print(f"{key}.{i}={item}")
+    elif obj is not None:
+        key = prefix.rstrip(".")
+        print(f"{key}={obj}")
+
+dump(data)
+PYEOF
+    then
+        mv "$_gc_tmp" "$_gc_cache_file" 2>/dev/null || true
+    fi
+    rm -f "$_gc_tmp" 2>/dev/null || true
+    exit 0
 fi
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
@@ -128,6 +274,45 @@ fi
 if [[ ! -f "$config_file" ]]; then
     exit 0
 fi
+
+# ── Fast-path: check cache before spawning Python ────────────────────────────
+# On cache hit (~3ms): grep the flat cache file and return.
+# On cache miss: generate cache via --generate-cache, retry, then fall through
+# to Python if cache generation fails. Self-healing — cache failures degrade
+# to the original Python path, never to wrong behavior.
+_cache_dir=$(_wcfg_cache_dir 2>/dev/null) || true
+if [[ -n "${_cache_dir:-}" ]]; then
+    _cache="${_cache_dir}/config-cache"
+    _cache_fresh=0
+
+    if [[ -f "$_cache" ]]; then
+        _cached_config=$(sed -n 's/^# config=//p' "$_cache" | head -1)
+        _cached_mtime=$(sed -n 's/^# mtime=//p' "$_cache" | head -1)
+        _current_mtime=$(_wcfg_file_mtime "$config_file")
+        if [[ "$_cached_config" == "$config_file" && \
+              "$_cached_mtime" == "$_current_mtime" && \
+              -n "$_cached_mtime" ]]; then
+            _cache_fresh=1
+        fi
+    fi
+
+    if [[ "$_cache_fresh" -eq 1 ]]; then
+        _wcfg_read_cache "$key" "${list_mode:-}" "$_cache"
+        exit $?
+    fi
+
+    # Cache miss or stale — regenerate and retry
+    "${BASH_SOURCE[0]}" --generate-cache "$config_file" 2>/dev/null || true
+    if [[ -f "$_cache" ]]; then
+        # Verify the regenerated cache is for our config file
+        _new_config=$(sed -n 's/^# config=//p' "$_cache" | head -1)
+        if [[ "$_new_config" == "$config_file" ]]; then
+            _wcfg_read_cache "$key" "${list_mode:-}" "$_cache"
+            exit $?
+        fi
+    fi
+fi
+# Cache unavailable — fall through to Python
 
 # ── Parse YAML and extract key ─────────────────────────────────────────────────
 "$PYTHON" - "$config_file" "$key" "${list_mode:-0}" <<'PYEOF'
