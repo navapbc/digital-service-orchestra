@@ -43,7 +43,8 @@ INPUT=$(cat)
 TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
 
 # --- Resolve paths (needed for both Bash and Edit/Write) ---
-WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# Reuse _TOPLEVEL already computed above (avoids a redundant git rev-parse).
+WORKTREE_ROOT="$_TOPLEVEL"
 if [[ -z "$WORKTREE_ROOT" ]]; then
     exit 0
 fi

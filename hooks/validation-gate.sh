@@ -37,11 +37,18 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"validation-gate.sh\",\"line\":%s}\n" "$(
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-# Read configured validate command for error messages.
-# Falls back to 'validate.sh --ci' when no config is present.
+# Defer read-config.sh call (spawns Python) until it's actually needed.
+# Most commands exit early via exemptions or passed-state silent allow,
+# so we avoid the ~143ms Python spawn for the vast majority of invocations.
 SCRIPTS_DIR="$HOOK_DIR/../scripts"
-VALIDATE_CMD=$("$SCRIPTS_DIR/read-config.sh" commands.validate 2>/dev/null || echo 'validate.sh --ci')
-VALIDATE_CMD=${VALIDATE_CMD:-'validate.sh --ci'}
+VALIDATE_CMD=''  # populated lazily by _get_validate_cmd below
+_get_validate_cmd() {
+    if [[ -z "$VALIDATE_CMD" ]]; then
+        VALIDATE_CMD=$("$SCRIPTS_DIR/read-config.sh" commands.validate 2>/dev/null || echo 'validate.sh --ci')
+        VALIDATE_CMD=${VALIDATE_CMD:-'validate.sh --ci'}
+    fi
+    echo "$VALIDATE_CMD"
+}
 
 # Read hook input from stdin
 INPUT=$(cat)
@@ -85,9 +92,9 @@ is_new_work_command() {
 # Helper: emit hard-block message for new-work commands in not_run or failed state
 block_new_work() {
     if [[ -z "$VALIDATION_STATUS" ]]; then
-        echo "BLOCKED: Validation has not been run yet. Run $VALIDATE_CMD first to check project health." >&2
+        echo "BLOCKED: Validation has not been run yet. Run $(_get_validate_cmd) first to check project health." >&2
     else
-        echo "BLOCKED: Fix validation failures before sprint/epic discovery. Re-run $VALIDATE_CMD first." >&2
+        echo "BLOCKED: Fix validation failures before sprint/epic discovery. Re-run $(_get_validate_cmd) first." >&2
     fi
     exit 2
 }
@@ -206,11 +213,11 @@ fi
 if [[ "$VALIDATION_STATUS" == "failed" ]]; then
     if [[ "$TOOL_NAME" == "Bash" ]]; then
         # Non-exempt Bash command while validation failed → WARNING ONLY
-        echo "WARNING: Validation failures exist. Fix before starting new work ($VALIDATE_CMD)." >&2
+        echo "WARNING: Validation failures exist. Fix before starting new work ($(_get_validate_cmd))." >&2
         exit 0
     else
         # Edit/Write while validation failed → WARNING ONLY (needed for fixing code)
-        echo "WARNING: $VALIDATE_CMD reported failures. Fix before starting new work." >&2
+        echo "WARNING: $(_get_validate_cmd) reported failures. Fix before starting new work." >&2
         exit 0
     fi
 fi

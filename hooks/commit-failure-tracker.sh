@@ -30,17 +30,6 @@ if [[ -f "$HOOK_DIR/../scripts/read-config.sh" ]]; then
 elif [[ -f "$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh" ]]; then
     _READ_CONFIG="$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh"
 fi
-# Only apply config overrides when the caller did NOT supply the env var.
-# Caller-supplied env vars (e.g. test mocks) take precedence over config.
-if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_SEARCH_CMD_FROM_ENV" ]]; then
-    _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
-    [[ -n "$_SEARCH" ]] && SEARCH_CMD="$_SEARCH"
-fi
-if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_CREATE_CMD_FROM_ENV" ]]; then
-    _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
-    [[ -n "$_CREATE" ]] && CREATE_CMD="$_CREATE"
-fi
-
 # This hook is non-blocking (warnings only) — skip entirely without jq
 check_tool jq || exit 0
 
@@ -66,6 +55,18 @@ if [[ "$COMMAND" =~ [Ww][Ii][Pp] ]] || [[ "$COMMAND" =~ --no-edit ]] || \
    [[ "$COMMAND" =~ git[[:space:]].*merge[[:space:]] ]] || \
    [[ "$COMMAND" =~ pre-compact ]] || [[ "$COMMAND" =~ checkpoint ]]; then
     exit 0
+fi
+
+# Only apply config overrides when the caller did NOT supply the env var.
+# Caller-supplied env vars (e.g. test mocks) take precedence over config.
+# Deferred to here (after early exits) to avoid spawning Python for non-commit commands.
+if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_SEARCH_CMD_FROM_ENV" ]]; then
+    _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
+    [[ -n "$_SEARCH" ]] && SEARCH_CMD="$_SEARCH"
+fi
+if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_CREATE_CMD_FROM_ENV" ]]; then
+    _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
+    [[ -n "$_CREATE" ]] && CREATE_CMD="$_CREATE"
 fi
 
 # Check validation state
