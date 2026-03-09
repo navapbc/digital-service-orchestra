@@ -24,6 +24,9 @@ def git_tracked_files(repo_root: Path, suffixes: tuple[str, ...]) -> list[Path]:
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        print(f"error: git ls-files failed: {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
     paths = []
     for line in result.stdout.splitlines():
         p = repo_root / line
@@ -79,7 +82,6 @@ def main() -> None:
     # parents[2] = repo root
     repo_root = Path(__file__).resolve().parents[2]
 
-    all_errors: list[str] = []
     bash_errors, bash_n = check_bash(repo_root)
     yaml_errors, yaml_n = check_yaml(repo_root)
     json_errors, json_n = check_json(repo_root)
