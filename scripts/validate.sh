@@ -28,7 +28,7 @@
 # E2E TEST BEHAVIOR:
 #   - In CI environment ($CI=true): Always runs E2E tests
 #   - Locally with --ci flag: Skips E2E if CI is passing for main
-#   - Locally with --ci flag: Skips E2E if CI completed with failure (fix CI first)
+#   - Locally with --ci flag: Starts E2E in parallel when CI completed with failure
 #   - Locally without --ci: E2E tests are not run
 #   - If E2E tests are run and fail, the state file records "e2e_failed=true"
 #     so that push-blocking hooks can prevent pushing broken E2E code.
