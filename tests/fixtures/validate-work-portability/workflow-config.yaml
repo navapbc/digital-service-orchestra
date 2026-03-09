@@ -1,0 +1,44 @@
+version: "1.0.0"
+
+stack: node-npm
+
+commands:
+  test: npm test
+  test_unit: npm run test:unit
+  test_e2e: npm run test:e2e
+  lint: npm run lint
+  format: npm run format
+  format_check: npm run format:check
+  validate: npm run validate
+
+format:
+  extensions:
+    - ".ts"
+    - ".tsx"
+  source_dirs:
+    - "src"
+    - "tests"
+
+staging:
+  url: https://staging.my-node-app.example.com
+  deploy_check: scripts/staging-deploy-check.sh
+  test: docs/staging-test.md
+  routes: "/,/api/health,/api/v1/status"
+  health_path: /api/health
+
+ci:
+  integration_workflow: Integration Tests
+  fast_gate_job: Lint & Format
+  test_ceil_job: Unit Tests
+
+tickets:
+  prefix: my-node-app
+  directory: .tickets
+
+jira:
+  project: MNA
+
+design:
+  system_name: Material UI 5
+  component_library: material
+  template_engine: react

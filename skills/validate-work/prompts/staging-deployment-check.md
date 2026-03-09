@@ -1,3 +1,5 @@
+# Staging Deployment Check
+
 Verify the staging environment is deployed and healthy.
 Do NOT fix any issues — only report status.
 

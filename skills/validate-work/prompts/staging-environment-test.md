@@ -1,3 +1,5 @@
+# Staging Environment Test
+
 Validate the staging environment using a tiered approach that minimizes Playwright MCP
 token usage. Follow the `/playwright-debug` 3-tier process: deterministic checks first,
 targeted `browser_run_code` second, full MCP only as last resort.

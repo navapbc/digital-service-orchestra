@@ -1,0 +1,25 @@
+version: "1.0.0"
+
+stack: node-npm
+
+commands:
+  test: npm test
+  test_unit: npm run test:unit
+  lint: npm run lint
+  format: npm run format
+  format_check: npm run format:check
+  validate: npm run validate
+
+format:
+  extensions:
+    - ".ts"
+  source_dirs:
+    - "src"
+    - "tests"
+
+tickets:
+  prefix: my-node-app
+  directory: .tickets
+
+jira:
+  project: MNA
