@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-worktree-cleanup.sh
-# Baseline tests for scripts/worktree-cleanup.sh
+# Baseline tests for lockpick-workflow/scripts/worktree-cleanup.sh (canonical)
+# and scripts/worktree-cleanup.sh (exec wrapper).
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-worktree-cleanup.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -11,8 +12,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 # Canonical location is lockpick-workflow/scripts/; scripts/ is a thin exec wrapper.
 SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-cleanup.sh"
+WRAPPER="$REPO_ROOT/scripts/worktree-cleanup.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
+
+# worktree-cleanup.sh requires bash 4+ (associative arrays). macOS ships bash 3.2
+# at /bin/bash; find a suitable bash for execution tests.
+BASH4=""
+if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+    BASH4="$BASH"
+elif command -v /opt/homebrew/bin/bash &>/dev/null; then
+    BASH4="/opt/homebrew/bin/bash"
+elif command -v /usr/local/bin/bash &>/dev/null; then
+    BASH4="/usr/local/bin/bash"
+fi
+
+if [[ -z "$BASH4" ]]; then
+    echo "WARNING: No bash 4+ found. Execution tests will be skipped."
+fi
 
 echo "=== test-worktree-cleanup.sh ==="
 
@@ -28,46 +45,66 @@ fi
 
 # ── Test 2: --help exits 0 with usage text ───────────────────────────────────
 echo "Test 2: --help exits 0 with usage text"
-run_test "--help exits 0 and prints Usage" 0 "[Uu]sage" bash "$SCRIPT" --help
+if [[ -n "$BASH4" ]]; then
+    run_test "--help exits 0 and prints Usage" 0 "[Uu]sage" "$BASH4" "$SCRIPT" --help
+else
+    echo "  SKIP: no bash 4+ available"
+fi
 
 # ── Test 3: Unknown option exits non-zero ─────────────────────────────────────
 echo "Test 3: Unknown option exits non-zero"
-run_test "unknown option exits 1" 1 "" bash "$SCRIPT" --unknown-flag-xyz
+if [[ -n "$BASH4" ]]; then
+    run_test "unknown option exits 1" 1 "" "$BASH4" "$SCRIPT" --unknown-flag-xyz
+else
+    echo "  SKIP: no bash 4+ available"
+fi
 
 # ── Test 4: --dry-run exits 0 ─────────────────────────────────────────────────
 echo "Test 4: --dry-run exits 0"
-exit_code=0
-bash "$SCRIPT" --dry-run 2>&1 || exit_code=$?
-if [ "$exit_code" -eq 0 ]; then
-    echo "  PASS: --dry-run exits 0"
-    (( PASS++ ))
+if [[ -n "$BASH4" ]]; then
+    exit_code=0
+    "$BASH4" "$SCRIPT" --dry-run 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: --dry-run exits 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: --dry-run exited $exit_code" >&2
+        (( FAIL++ ))
+    fi
 else
-    echo "  FAIL: --dry-run exited $exit_code" >&2
-    (( FAIL++ ))
+    echo "  SKIP: no bash 4+ available"
 fi
 
 # ── Test 5: WORKTREE_CLEANUP_ENABLED=1 with --dry-run exits 0 ────────────────
 echo "Test 5: WORKTREE_CLEANUP_ENABLED=1 + --dry-run exits 0"
-exit_code=0
-WORKTREE_CLEANUP_ENABLED=1 bash "$SCRIPT" --dry-run 2>&1 || exit_code=$?
-if [ "$exit_code" -eq 0 ]; then
-    echo "  PASS: WORKTREE_CLEANUP_ENABLED=1 + --dry-run exits 0"
-    (( PASS++ ))
+if [[ -n "$BASH4" ]]; then
+    exit_code=0
+    WORKTREE_CLEANUP_ENABLED=1 "$BASH4" "$SCRIPT" --dry-run 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: WORKTREE_CLEANUP_ENABLED=1 + --dry-run exits 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: expected exit 0, got $exit_code" >&2
+        (( FAIL++ ))
+    fi
 else
-    echo "  FAIL: expected exit 0, got $exit_code" >&2
-    (( FAIL++ ))
+    echo "  SKIP: no bash 4+ available"
 fi
 
 # ── Test 6: --all --force --dry-run exits 0 (non-interactive path) ───────────
 echo "Test 6: --all --force --dry-run exits 0"
-exit_code=0
-WORKTREE_CLEANUP_ENABLED=1 bash "$SCRIPT" --all --force --dry-run 2>&1 || exit_code=$?
-if [ "$exit_code" -eq 0 ]; then
-    echo "  PASS: --all --force --dry-run exits 0"
-    (( PASS++ ))
+if [[ -n "$BASH4" ]]; then
+    exit_code=0
+    WORKTREE_CLEANUP_ENABLED=1 "$BASH4" "$SCRIPT" --all --force --dry-run 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: --all --force --dry-run exits 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: --all --force --dry-run exited $exit_code" >&2
+        (( FAIL++ ))
+    fi
 else
-    echo "  FAIL: --all --force --dry-run exited $exit_code" >&2
-    (( FAIL++ ))
+    echo "  SKIP: no bash 4+ available"
 fi
 
 # ── Test 7: Script contains stash safety check ────────────────────────────────
@@ -267,6 +304,108 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 18: Exec wrapper delegation — scripts/worktree-cleanup.sh delegates ──
+# Verifies that the thin exec wrapper at scripts/worktree-cleanup.sh
+# delegates to the canonical copy in lockpick-workflow/scripts/.
+echo "Test 18: Exec wrapper delegates to canonical plugin copy"
+if [[ -f "$WRAPPER" ]]; then
+    # Verify the wrapper contains an exec call pointing to the plugin path
+    if grep -q 'exec' "$WRAPPER" && grep -q 'lockpick-workflow/scripts/worktree-cleanup.sh' "$WRAPPER"; then
+        echo "  PASS: scripts/worktree-cleanup.sh exec-delegates to lockpick-workflow/scripts/worktree-cleanup.sh"
+        (( PASS++ ))
+    else
+        echo "  FAIL: scripts/worktree-cleanup.sh does not exec-delegate to lockpick-workflow/scripts/worktree-cleanup.sh" >&2
+        (( FAIL++ ))
+    fi
+else
+    echo "  FAIL: wrapper scripts/worktree-cleanup.sh does not exist" >&2
+    (( FAIL++ ))
+fi
+
+# Additional: verify the wrapper exits 0 when given --help (smoke-tests delegation)
+if [[ -n "$BASH4" && -f "$WRAPPER" ]]; then
+    exit_code=0
+    "$BASH4" "$WRAPPER" --help 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: wrapper --help exits 0 (delegation works)"
+        (( PASS++ ))
+    else
+        echo "  FAIL: wrapper --help exited $exit_code (delegation may be broken)" >&2
+        (( FAIL++ ))
+    fi
+else
+    [[ -z "$BASH4" ]] && echo "  SKIP: no bash 4+ available (wrapper exec test)"
+fi
+
+# ── Test 19: Portability smoke test — no-infra config, Docker steps skipped ──
+# Creates a temp git repo with a workflow-config.yaml containing no infrastructure
+# or worktree sections, runs the canonical script with --dry-run, and verifies
+# it completes without Docker errors. The absence of CONFIG_COMPOSE_DB_FILE
+# means all Docker teardown and network cleanup blocks are skipped.
+echo "Test 19: Portability smoke test — no infra config, Docker steps absent"
+if [[ -n "$BASH4" ]]; then
+    TMP_SMOKE_REPO=$(mktemp -d)
+    TMP_SMOKE_WT=$(mktemp -d)
+    cleanup_smoke() { rm -rf "$TMP_SMOKE_REPO" "$TMP_SMOKE_WT"; }
+    trap cleanup_smoke EXIT
+
+    # Build a minimal git repo to run the script against
+    git -C "$TMP_SMOKE_REPO" init -q
+    git -C "$TMP_SMOKE_REPO" config user.email "test@test.com"
+    git -C "$TMP_SMOKE_REPO" config user.name "Test"
+    touch "$TMP_SMOKE_REPO/file.txt"
+    git -C "$TMP_SMOKE_REPO" add . && git -C "$TMP_SMOKE_REPO" commit -q -m "init"
+
+    # Create a workflow-config.yaml with no infrastructure or worktree sections
+    # (simulates a Docker-absent project — the portability scenario)
+    cat > "$TMP_SMOKE_REPO/workflow-config.yaml" <<'EOF'
+format:
+  line_length: 100
+tickets:
+  directory: .tickets
+EOF
+
+    # Run the canonical script from within the smoke repo (sets MAIN_REPO context)
+    # The script locates the repo via BASH_SOURCE, so we need to run it in a subshell
+    # where the script's SCRIPT_DIR resolves to the plugin path but MAIN_REPO resolves
+    # to TMP_SMOKE_REPO. We do this by temporarily overriding HOME and CLEANUP_LOG
+    # to avoid polluting real user state.
+    SMOKE_LOG=$(mktemp)
+    exit_code=0
+    smoke_output=$(
+        cd "$TMP_SMOKE_REPO" && \
+        CLEANUP_LOG="$SMOKE_LOG" \
+        "$BASH4" "$SCRIPT" --dry-run 2>&1
+    ) || exit_code=$?
+
+    # Clean up
+    trap - EXIT
+    cleanup_smoke
+    rm -f "$SMOKE_LOG"
+
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: script exits 0 in no-infra repo (Docker steps skipped cleanly)"
+        (( PASS++ ))
+    else
+        echo "  FAIL: script exited $exit_code in no-infra repo" >&2
+        echo "  Output: $smoke_output" >&2
+        (( FAIL++ ))
+    fi
+
+    # Verify no Docker-related error output in smoke run
+    if echo "$smoke_output" | grep -qiE "docker.*error|compose.*error|Error.*docker"; then
+        echo "  FAIL: Docker-related error output found in no-infra smoke run" >&2
+        echo "  Output: $smoke_output" >&2
+        (( FAIL++ ))
+    else
+        echo "  PASS: no Docker-related errors in no-infra smoke run"
+        (( PASS++ ))
+    fi
+else
+    echo "  SKIP: no bash 4+ available (portability smoke test)"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
+echo "PASSED: $PASS  FAILED: $FAIL"
 [ "$FAIL" -eq 0 ]
