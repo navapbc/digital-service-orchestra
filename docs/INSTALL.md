@@ -117,6 +117,114 @@ wrong location, `/init` will report an error with remediation steps.
 
 ---
 
+## validate-work Configuration
+
+The `/validate-work` skill runs comprehensive project health checks across five
+domains: local validation, CI status, issue health, staging deployment, and
+staging environment tests.
+
+### Staging Keys
+
+All staging configuration lives under the `staging:` section of
+`workflow-config.yaml`. All keys are optional — when `staging.url` is absent,
+all staging sub-agents are skipped with the message "SKIPPED (staging not
+configured)".
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `url` | string | Base URL of the staging environment (e.g. `https://staging.example.com`). Required for any staging checks to run. |
+| `deploy_check` | string | Path to a deploy-check file (see dispatch rules below). |
+| `test` | string | Path to a smoke/acceptance test file (see dispatch rules below). |
+| `routes` | string | Comma-separated URL paths to health-check (e.g. `/,/upload,/health`). Default: `/`. |
+| `health_path` | string | URL path for the primary health endpoint. Default: `/health`. |
+
+Example configuration:
+
+```yaml
+staging:
+  url: "https://my-app-env-stage.us-east-2.elasticbeanstalk.com"
+  deploy_check: "scripts/check-staging-deploy.sh"
+  test: "scripts/smoke-test-staging.sh"
+  routes: "/,/upload,/history"
+  health_path: "/health"
+```
+
+### .sh vs .md Dispatch Mechanism
+
+The `deploy_check` and `test` keys each accept either a shell script (`.sh`)
+or a Markdown prompt file (`.md`). The file extension determines how
+validate-work uses the file:
+
+- **`.sh` — shell script**: Executed directly. Exit codes are interpreted as:
+  - `0` = healthy / all tests passed
+  - `1` = unhealthy / one or more tests failed
+  - `2` (deploy_check only) = deployment still in progress; staging sub-agent
+    retries up to 10 times (5-minute window) before reporting NOT_READY
+
+- **`.md` — sub-agent prompt**: Read as a prompt file for the staging
+  sub-agent. Use this when the check requires judgment, browser interaction,
+  or multi-step logic beyond a simple shell script.
+
+Examples:
+
+```yaml
+# Shell script dispatch
+staging:
+  deploy_check: "scripts/check-staging-deploy.sh"   # .sh → executed as script
+  test: "scripts/smoke-test-staging.sh"              # .sh → executed as script
+
+# Sub-agent prompt dispatch
+staging:
+  deploy_check: "docs/staging-deploy-check.md"       # .md → read as prompt
+  test: "docs/staging-test-prompt.md"                # .md → read as prompt
+```
+
+When a key is absent, validate-work uses a built-in fallback:
+- **`deploy_check` absent**: falls back to a generic HTTP health check using
+  `curl` against `staging.url` + `staging.health_path`
+- **`test` absent**: falls back to a tiered validation sequence (deterministic
+  pre-checks → API-driven checks → Playwright) using the generic
+  `staging-environment-test.md` prompt template
+
+### Graceful Degradation
+
+validate-work degrades gracefully when staging configuration is absent or
+incomplete:
+
+- **`staging.url` absent**: Both staging sub-agents (deploy check and staging
+  test) are skipped entirely. The final report marks them as
+  `SKIPPED (staging not configured)`. This is the expected state for projects
+  that do not have a deployed staging environment.
+
+- **`staging.deploy_check` absent**: Sub-Agent 4 uses the built-in generic
+  HTTP health check against `staging.url` + `staging.health_path`. No custom
+  deploy script is required.
+
+- **`staging.test` absent**: Sub-Agent 5 runs the built-in generic tiered
+  validation (HTTP checks, page load, basic interaction). No custom test
+  script is required.
+
+- **Non-deployment changes**: If `staging.relevance_script` is configured and
+  classifies the current change as non-deployment (exit 1), staging sub-agents
+  are skipped automatically with the message
+  `SKIPPED (non-deployment changes only)`.
+
+### ci.integration_workflow (Optional)
+
+When your project runs integration tests in a separate GitHub Actions workflow,
+set `ci.integration_workflow` to the workflow name:
+
+```yaml
+ci:
+  integration_workflow: "Integration Tests"   # must match the workflow `name:` field exactly
+```
+
+When set, validate-work's CI sub-agent polls the integration workflow
+separately from the main CI workflow. When absent, integration workflow status
+checks are skipped.
+
+---
+
 ## Upgrade
 
 ```bash
