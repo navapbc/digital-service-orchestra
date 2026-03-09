@@ -44,6 +44,12 @@ ci:
   fast_fail_job: "Fast Gate"
   test_ceil_job: "Unit Tests"
 
+  # GitHub Actions workflow name to check for integration test status.
+  # Used by validate-work and CI status checks to poll integration tests separately.
+  # When absent, integration workflow status checks are skipped.
+  # Type: string (must match the workflow `name:` field exactly)
+  # integration_workflow: "Integration Tests"
+
 commands:
   # Full test suite — runs unit + integration + any slow tests.
   # Used by: sprint (post-batch gate), tdd-workflow (green phase)
@@ -197,6 +203,33 @@ merge:
   # Default: '^chore: post-merge cleanup'
   # Used by: merge-to-main.sh (merge message composition)
   message_exclusion_pattern: '^chore: post-merge cleanup'
+
+staging:
+  # Base URL of the staging environment.
+  # Used by validate-work and staging sub-agents for health checks and smoke tests.
+  # url: "https://my-app-env-stage.us-east-2.elasticbeanstalk.com"
+
+  # Path to a deploy-check script or prompt (relative to repo root).
+  # File extension determines usage: .sh = shell script, .md = sub-agent prompt.
+  # Shell script exit code contract:
+  #   0 = healthy (deploy complete and serving traffic)
+  #   1 = unhealthy (deploy failed or environment is down)
+  #   2 = deploying (still in progress — staging sub-agent retries)
+  # deploy_check: "scripts/check-staging-deploy.sh"
+
+  # Path to a staging smoke/acceptance test script or prompt (relative to repo root).
+  # File extension determines usage: .sh = shell script, .md = sub-agent prompt.
+  # Shell script exit code: 0 = all tests passed, non-zero = one or more failed.
+  # test: "scripts/smoke-test-staging.sh"
+
+  # Comma-separated URL paths to health-check on the staging URL.
+  # The orchestrator splits on commas at read time (scalar convention for read-config.sh).
+  # Default: "/" when absent.
+  # routes: "/,/upload,/history"
+
+  # URL path for the primary health endpoint.
+  # Default: "/health" when absent.
+  # health_path: "/health"
 
 worktree:
   # Command to run after creating a new worktree (relative to repo root).
