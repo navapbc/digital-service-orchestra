@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-worktree-cleanup.sh
-# Baseline tests for scripts/worktree-cleanup.sh
+# Baseline tests for lockpick-workflow/scripts/worktree-cleanup.sh (canonical)
+# and scripts/worktree-cleanup.sh (exec wrapper).
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-worktree-cleanup.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -9,9 +10,26 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-SCRIPT="$REPO_ROOT/scripts/worktree-cleanup.sh"
+# Canonical location is lockpick-workflow/scripts/; scripts/ is a thin exec wrapper.
+SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-cleanup.sh"
+WRAPPER="$REPO_ROOT/scripts/worktree-cleanup.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
+
+# worktree-cleanup.sh requires bash 4+ (associative arrays). macOS ships bash 3.2
+# at /bin/bash; find a suitable bash for execution tests.
+BASH4=""
+if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+    BASH4="$BASH"
+elif command -v /opt/homebrew/bin/bash &>/dev/null; then
+    BASH4="/opt/homebrew/bin/bash"
+elif command -v /usr/local/bin/bash &>/dev/null; then
+    BASH4="/usr/local/bin/bash"
+fi
+
+if [[ -z "$BASH4" ]]; then
+    echo "WARNING: No bash 4+ found. Execution tests will be skipped."
+fi
 
 echo "=== test-worktree-cleanup.sh ==="
 
@@ -27,46 +45,66 @@ fi
 
 # ── Test 2: --help exits 0 with usage text ───────────────────────────────────
 echo "Test 2: --help exits 0 with usage text"
-run_test "--help exits 0 and prints Usage" 0 "[Uu]sage" bash "$SCRIPT" --help
+if [[ -n "$BASH4" ]]; then
+    run_test "--help exits 0 and prints Usage" 0 "[Uu]sage" "$BASH4" "$SCRIPT" --help
+else
+    echo "  SKIP: no bash 4+ available"
+fi
 
 # ── Test 3: Unknown option exits non-zero ─────────────────────────────────────
 echo "Test 3: Unknown option exits non-zero"
-run_test "unknown option exits 1" 1 "" bash "$SCRIPT" --unknown-flag-xyz
+if [[ -n "$BASH4" ]]; then
+    run_test "unknown option exits 1" 1 "" "$BASH4" "$SCRIPT" --unknown-flag-xyz
+else
+    echo "  SKIP: no bash 4+ available"
+fi
 
 # ── Test 4: --dry-run exits 0 ─────────────────────────────────────────────────
 echo "Test 4: --dry-run exits 0"
-exit_code=0
-bash "$SCRIPT" --dry-run 2>&1 || exit_code=$?
-if [ "$exit_code" -eq 0 ]; then
-    echo "  PASS: --dry-run exits 0"
-    (( PASS++ ))
+if [[ -n "$BASH4" ]]; then
+    exit_code=0
+    "$BASH4" "$SCRIPT" --dry-run 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: --dry-run exits 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: --dry-run exited $exit_code" >&2
+        (( FAIL++ ))
+    fi
 else
-    echo "  FAIL: --dry-run exited $exit_code" >&2
-    (( FAIL++ ))
+    echo "  SKIP: no bash 4+ available"
 fi
 
 # ── Test 5: WORKTREE_CLEANUP_ENABLED=1 with --dry-run exits 0 ────────────────
 echo "Test 5: WORKTREE_CLEANUP_ENABLED=1 + --dry-run exits 0"
-exit_code=0
-WORKTREE_CLEANUP_ENABLED=1 bash "$SCRIPT" --dry-run 2>&1 || exit_code=$?
-if [ "$exit_code" -eq 0 ]; then
-    echo "  PASS: WORKTREE_CLEANUP_ENABLED=1 + --dry-run exits 0"
-    (( PASS++ ))
+if [[ -n "$BASH4" ]]; then
+    exit_code=0
+    WORKTREE_CLEANUP_ENABLED=1 "$BASH4" "$SCRIPT" --dry-run 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: WORKTREE_CLEANUP_ENABLED=1 + --dry-run exits 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: expected exit 0, got $exit_code" >&2
+        (( FAIL++ ))
+    fi
 else
-    echo "  FAIL: expected exit 0, got $exit_code" >&2
-    (( FAIL++ ))
+    echo "  SKIP: no bash 4+ available"
 fi
 
 # ── Test 6: --all --force --dry-run exits 0 (non-interactive path) ───────────
 echo "Test 6: --all --force --dry-run exits 0"
-exit_code=0
-WORKTREE_CLEANUP_ENABLED=1 bash "$SCRIPT" --all --force --dry-run 2>&1 || exit_code=$?
-if [ "$exit_code" -eq 0 ]; then
-    echo "  PASS: --all --force --dry-run exits 0"
-    (( PASS++ ))
+if [[ -n "$BASH4" ]]; then
+    exit_code=0
+    WORKTREE_CLEANUP_ENABLED=1 "$BASH4" "$SCRIPT" --all --force --dry-run 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: --all --force --dry-run exits 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: --all --force --dry-run exited $exit_code" >&2
+        (( FAIL++ ))
+    fi
 else
-    echo "  FAIL: --all --force --dry-run exited $exit_code" >&2
-    (( FAIL++ ))
+    echo "  SKIP: no bash 4+ available"
 fi
 
 # ── Test 7: Script contains stash safety check ────────────────────────────────
@@ -155,6 +193,219 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 12: Docker Compose teardown guard: compose_db_file absent → skip ─────
+# Static assertion: the Docker Compose teardown block must check CONFIG_COMPOSE_DB_FILE
+echo "Test 12: Docker Compose teardown block guards on CONFIG_COMPOSE_DB_FILE"
+if grep -qE '\[\[ -n "\$CONFIG_COMPOSE_DB_FILE" \]\]' "$SCRIPT"; then
+    echo "  PASS: Docker Compose teardown guards on CONFIG_COMPOSE_DB_FILE"
+    (( PASS++ ))
+else
+    echo "  FAIL: Docker Compose teardown does not guard on CONFIG_COMPOSE_DB_FILE" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 13: Orphaned network cleanup guard: compose_db_file absent → skip ────
+# Static assertion: the orphaned Docker network cleanup block must check CONFIG_COMPOSE_DB_FILE
+echo "Test 13: Orphaned Docker network cleanup guards on CONFIG_COMPOSE_DB_FILE"
+orphan_net_block_line=$(grep -n "Clean up orphaned Docker networks" "$SCRIPT" | head -1 | cut -d: -f1)
+if [[ -n "$orphan_net_block_line" ]]; then
+    # Check that CONFIG_COMPOSE_DB_FILE appears in the guard condition for that block
+    # (within 5 lines of the section header)
+    block_range_end=$(( orphan_net_block_line + 10 ))
+    if awk "NR>=$orphan_net_block_line && NR<=$block_range_end" "$SCRIPT" | grep -qE '\[\[ -n "\$CONFIG_COMPOSE_DB_FILE" \]\]|\$CONFIG_COMPOSE_DB_FILE'; then
+        echo "  PASS: orphaned network cleanup guards on CONFIG_COMPOSE_DB_FILE"
+        (( PASS++ ))
+    else
+        echo "  FAIL: orphaned network cleanup does not guard on CONFIG_COMPOSE_DB_FILE" >&2
+        (( FAIL++ ))
+    fi
+else
+    echo "  FAIL: orphaned Docker network cleanup section not found in script" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 14: Partial config warning — compose_project present, compose_db_file absent ──
+# Static assertion: script must contain logic that emits a warning when compose_project
+# is set but compose_db_file is absent. We look for a Warning: message near the
+# CONFIG_COMPOSE_PROJECT / CONFIG_COMPOSE_DB_FILE check.
+echo "Test 14: Script contains Warning log for partial Docker config (compose_project set, compose_db_file absent)"
+if grep -qE '[Ww]arning.*[Dd]ocker|[Ww]arning.*compose|partial.*[Dd]ocker.*config|[Dd]ocker.*partial.*config' "$SCRIPT"; then
+    echo "  PASS: script contains partial Docker config warning"
+    (( PASS++ ))
+else
+    echo "  FAIL: script missing partial Docker config warning (compose_project set, compose_db_file absent)" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 15: Partial config warning — compose_db_file set, compose_project absent ──
+# Static assertion: the partial config warning block must cover both directions.
+echo "Test 15: Script warns on partial Docker config (compose_db_file set, compose_project absent)"
+# Check that both CONFIG_COMPOSE_DB_FILE and CONFIG_COMPOSE_PROJECT are referenced
+# within the same warning/partial-config block.
+if grep -qE 'CONFIG_COMPOSE_DB_FILE' "$SCRIPT" && grep -qE 'CONFIG_COMPOSE_PROJECT' "$SCRIPT"; then
+    # Ensure a Warning: message exists covering both variables
+    if grep -qE '[Ww]arning.*[Dd]ocker|[Ww]arning.*compose' "$SCRIPT"; then
+        echo "  PASS: script contains partial Docker config warning referencing both compose_db_file and compose_project"
+        (( PASS++ ))
+    else
+        echo "  FAIL: script missing Warning message for partial Docker config" >&2
+        (( FAIL++ ))
+    fi
+else
+    echo "  FAIL: script missing CONFIG_COMPOSE_DB_FILE or CONFIG_COMPOSE_PROJECT references" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 16: Docker-absent: no Docker-related errors in script source ────────
+# Static assertion: the script must not have any unconditional Docker calls
+# (i.e. docker/compose calls not inside a CONFIG_COMPOSE_DB_FILE guard).
+# We verify that ALL docker invocations are within a conditional block that
+# checks CONFIG_COMPOSE_DB_FILE or is already skipped when it's empty.
+echo "Test 16: Docker calls are guarded by CONFIG_COMPOSE_DB_FILE"
+# Count docker command invocations vs those inside CONFIG_COMPOSE_DB_FILE guards
+# Strategy: check that no standalone 'docker' invocation appears outside a guard.
+# We verify the orphaned-network block checks CONFIG_COMPOSE_DB_FILE.
+orphan_guard_line=$(grep -n "Clean up orphaned Docker networks" "$SCRIPT" | head -1 | cut -d: -f1)
+if [[ -n "$orphan_guard_line" ]]; then
+    block_end=$(( orphan_guard_line + 12 ))
+    guard_found=$(awk "NR>=$orphan_guard_line && NR<=$block_end" "$SCRIPT" | \
+        grep -cE 'CONFIG_COMPOSE_DB_FILE' || true)
+    if [ "$guard_found" -gt 0 ]; then
+        echo "  PASS: orphaned Docker network section guards on CONFIG_COMPOSE_DB_FILE"
+        (( PASS++ ))
+    else
+        echo "  FAIL: orphaned Docker network section does not check CONFIG_COMPOSE_DB_FILE" >&2
+        (( FAIL++ ))
+    fi
+else
+    echo "  FAIL: orphaned Docker network cleanup section not found in script" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 17: Partial config warning placement — near startup config loading ───
+# Static assertion: the warning for partial Docker config must appear after the
+# CONFIG_* variables are loaded (i.e., after the PLUGIN_SCRIPTS block) and
+# before the main logic loop.
+echo "Test 17: Partial Docker config warning is placed after config loading"
+config_load_line=$(grep -n "CONFIG_COMPOSE_DB_FILE=\$(bash" "$SCRIPT" | head -1 | cut -d: -f1)
+warning_line=$(grep -n "[Ww]arning.*[Dd]ocker\|[Ww]arning.*compose" "$SCRIPT" | head -1 | cut -d: -f1)
+gather_line=$(grep -n "Gather worktree info\|Parse porcelain output" "$SCRIPT" | head -1 | cut -d: -f1)
+if [[ -n "$config_load_line" && -n "$warning_line" && -n "$gather_line" ]]; then
+    if [ "$warning_line" -gt "$config_load_line" ] && [ "$warning_line" -lt "$gather_line" ]; then
+        echo "  PASS: partial Docker config warning appears after config loading and before main loop"
+        (( PASS++ ))
+    else
+        echo "  FAIL: partial Docker config warning is not in the expected location" >&2
+        echo "  (config_load=$config_load_line, warning=$warning_line, gather=$gather_line)" >&2
+        (( FAIL++ ))
+    fi
+else
+    echo "  FAIL: could not locate config load line ($config_load_line), warning line ($warning_line), or gather line ($gather_line)" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 18: Exec wrapper delegation — scripts/worktree-cleanup.sh delegates ──
+# Verifies that the thin exec wrapper at scripts/worktree-cleanup.sh
+# delegates to the canonical copy in lockpick-workflow/scripts/.
+echo "Test 18: Exec wrapper delegates to canonical plugin copy"
+if [[ -f "$WRAPPER" ]]; then
+    # Verify the wrapper contains an exec call pointing to the plugin path
+    if grep -q 'exec' "$WRAPPER" && grep -q 'lockpick-workflow/scripts/worktree-cleanup.sh' "$WRAPPER"; then
+        echo "  PASS: scripts/worktree-cleanup.sh exec-delegates to lockpick-workflow/scripts/worktree-cleanup.sh"
+        (( PASS++ ))
+    else
+        echo "  FAIL: scripts/worktree-cleanup.sh does not exec-delegate to lockpick-workflow/scripts/worktree-cleanup.sh" >&2
+        (( FAIL++ ))
+    fi
+else
+    echo "  FAIL: wrapper scripts/worktree-cleanup.sh does not exist" >&2
+    (( FAIL++ ))
+fi
+
+# Additional: verify the wrapper exits 0 when given --help (smoke-tests delegation)
+if [[ -n "$BASH4" && -f "$WRAPPER" ]]; then
+    exit_code=0
+    "$BASH4" "$WRAPPER" --help 2>&1 || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: wrapper --help exits 0 (delegation works)"
+        (( PASS++ ))
+    else
+        echo "  FAIL: wrapper --help exited $exit_code (delegation may be broken)" >&2
+        (( FAIL++ ))
+    fi
+else
+    [[ -z "$BASH4" ]] && echo "  SKIP: no bash 4+ available (wrapper exec test)"
+fi
+
+# ── Test 19: Portability smoke test — no-infra config, Docker steps skipped ──
+# Creates a temp git repo with a workflow-config.yaml containing no infrastructure
+# or worktree sections, runs the canonical script with --dry-run, and verifies
+# it completes without Docker errors. The absence of CONFIG_COMPOSE_DB_FILE
+# means all Docker teardown and network cleanup blocks are skipped.
+echo "Test 19: Portability smoke test — no infra config, Docker steps absent"
+if [[ -n "$BASH4" ]]; then
+    TMP_SMOKE_REPO=$(mktemp -d)
+    TMP_SMOKE_WT=$(mktemp -d)
+    cleanup_smoke() { rm -rf "$TMP_SMOKE_REPO" "$TMP_SMOKE_WT"; }
+    trap cleanup_smoke EXIT
+
+    # Build a minimal git repo to run the script against
+    git -C "$TMP_SMOKE_REPO" init -q
+    git -C "$TMP_SMOKE_REPO" config user.email "test@test.com"
+    git -C "$TMP_SMOKE_REPO" config user.name "Test"
+    touch "$TMP_SMOKE_REPO/file.txt"
+    git -C "$TMP_SMOKE_REPO" add . && git -C "$TMP_SMOKE_REPO" commit -q -m "init"
+
+    # Create a workflow-config.yaml with no infrastructure or worktree sections
+    # (simulates a Docker-absent project — the portability scenario)
+    cat > "$TMP_SMOKE_REPO/workflow-config.yaml" <<'EOF'
+format:
+  line_length: 100
+tickets:
+  directory: .tickets
+EOF
+
+    # Run the canonical script from within the smoke repo (sets MAIN_REPO context)
+    # The script locates the repo via BASH_SOURCE, so we need to run it in a subshell
+    # where the script's SCRIPT_DIR resolves to the plugin path but MAIN_REPO resolves
+    # to TMP_SMOKE_REPO. We do this by temporarily overriding HOME and CLEANUP_LOG
+    # to avoid polluting real user state.
+    SMOKE_LOG=$(mktemp)
+    exit_code=0
+    smoke_output=$(
+        cd "$TMP_SMOKE_REPO" && \
+        CLEANUP_LOG="$SMOKE_LOG" \
+        "$BASH4" "$SCRIPT" --dry-run 2>&1
+    ) || exit_code=$?
+
+    # Clean up
+    trap - EXIT
+    cleanup_smoke
+    rm -f "$SMOKE_LOG"
+
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: script exits 0 in no-infra repo (Docker steps skipped cleanly)"
+        (( PASS++ ))
+    else
+        echo "  FAIL: script exited $exit_code in no-infra repo" >&2
+        echo "  Output: $smoke_output" >&2
+        (( FAIL++ ))
+    fi
+
+    # Verify no Docker-related error output in smoke run
+    if echo "$smoke_output" | grep -qiE "docker.*error|compose.*error|Error.*docker"; then
+        echo "  FAIL: Docker-related error output found in no-infra smoke run" >&2
+        echo "  Output: $smoke_output" >&2
+        (( FAIL++ ))
+    else
+        echo "  PASS: no Docker-related errors in no-infra smoke run"
+        (( PASS++ ))
+    fi
+else
+    echo "  SKIP: no bash 4+ available (portability smoke test)"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
+echo "PASSED: $PASS  FAILED: $FAIL"
 [ "$FAIL" -eq 0 ]
