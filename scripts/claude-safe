@@ -24,6 +24,8 @@
 # Config keys read from workflow-config.yaml via read-config.sh:
 #   infrastructure.compose_files   — list of compose file paths (relative to repo root)
 #   infrastructure.compose_project — prefix for COMPOSE_PROJECT_NAME (e.g. myproject-db-)
+#   worktree.service_start_cmd   — command to start background services before Claude launches
+#   database.port_cmd            — script path (relative to repo root) that resolves APP_PORT
 
 set -euo pipefail
 
@@ -250,12 +252,40 @@ VALIDATION_ARTIFACTS_DIR="/tmp/${_artifact_prefix}-${WORKTREE_NAME}"
 mkdir -p "$VALIDATION_ARTIFACTS_DIR"
 VALIDATION_STATE_FILE="$VALIDATION_ARTIFACTS_DIR/status"
 
-# ── Service startup (background) ─────────────────────────────────────────────
-# Config-driven service startup via worktree.service_start_cmd is implemented in
-# story muq8 (epic lockpick-doc-to-logic-boak). No hardcoded startup command is
-# run here; the block is a deliberate no-op placeholder until muq8 lands.
-# SERVICE_LOG path is retained so downstream validation prompt logic compiles.
+# ── Service startup (background, config-driven) ───────────────────────────────
+# Runs worktree.service_start_cmd from workflow-config.yaml (when set) in a
+# background subshell. When absent, no service startup is attempted (zero-config no-op).
+# Failure is non-blocking: stderr captured to SERVICE_LOG for post-hoc inspection.
+#
+# Security note: worktree.service_start_cmd executes an arbitrary command.
+# This is the same trust boundary as the script itself — the config file lives
+# in the repo and is controlled by repo owners.
+# REVIEW-DEFENSE: eval is intentional here. The config value may use shell
+# chaining (e.g. 'cd "$WORKTREE_PATH/app" && env VAR=val cmd'), which requires
+# eval to handle properly. bash -c would suppress variable expansion that the
+# caller relies on (WORKTREE_PATH, APP_PORT). The trust boundary is identical
+# to the script itself; repo owners control workflow-config.yaml.
+# Test coverage: scripts/tests/test-claude-safe.sh tests 13-18 cover this block.
 SERVICE_LOG="$VALIDATION_ARTIFACTS_DIR/service-startup.log"
+SERVICE_START_CMD=$(_read_cfg worktree.service_start_cmd 2>/dev/null || true)
+if [ -n "$SERVICE_START_CMD" ]; then
+    # Resolve APP_PORT via database.port_cmd config (exported for the command)
+    PORT_CMD=$(_read_cfg database.port_cmd 2>/dev/null || true)
+    APP_PORT=""
+    if [ -n "$PORT_CMD" ]; then
+        APP_PORT=$("$REPO_ROOT/$PORT_CMD" "$WORKTREE_NAME" app 2>/dev/null || true)
+    fi
+    echo "[service] Starting pre-launch services (background)..."
+    echo "  Log: $SERVICE_LOG"
+    (
+        export WORKTREE_PATH="$WORKTREE_PATH"
+        export APP_PORT="$APP_PORT"
+        echo "[$(date +%H:%M:%S)] $SERVICE_START_CMD" >> "$SERVICE_LOG" 2>&1
+        eval "$SERVICE_START_CMD" >> "$SERVICE_LOG" 2>&1; _svc_rc=$?
+        [ "$_svc_rc" -eq 0 ] || echo "[$(date +%H:%M:%S)] service startup FAILED (exit $_svc_rc)" >> "$SERVICE_LOG" 2>&1
+        echo "[$(date +%H:%M:%S)] service startup complete" >> "$SERVICE_LOG" 2>&1
+    ) &
+fi
 
 # ── Validation prompt ─────────────────────────────────────────────────────────
 # Ask the user whether to run validate.sh before launching Claude.
