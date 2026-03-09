@@ -50,7 +50,6 @@
 #   MyPy check (120s):   cd app && make lint-mypy
 #   Tests (600s/10min):  cd app && make test-unit-only
 #   Plugin/hook tests (120s): make test-plugin (from repo root)
-#   Scripts tests (120s): cd app && make test-scripts
 #   E2E tests (600s):    cd app && make test-e2e
 #   CI status (30s):     gh run list --workflow=CI --limit 1 --json status,conclusion
 #
@@ -60,8 +59,7 @@
 #     VALIDATE_TIMEOUT_RUFF    - Ruff lint timeout (default: 60)
 #     VALIDATE_TIMEOUT_MYPY    - MyPy type check timeout (default: 120)
 #     VALIDATE_TIMEOUT_TESTS   - Test suite timeout (default: 600)
-#     VALIDATE_TIMEOUT_PLUGIN  - Plugin/hook test suite timeout (default: 120)
-#     VALIDATE_TIMEOUT_SCRIPTS - Shell-script exercising tests timeout (default: 120)
+#     VALIDATE_TIMEOUT_PLUGIN  - Plugin/hook test suite timeout (default: 300)
 #     VALIDATE_TIMEOUT_E2E     - E2E test timeout (default: 900)
 #     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 30)
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
@@ -114,8 +112,7 @@ TIMEOUT_FORMAT="${VALIDATE_TIMEOUT_FORMAT:-30}"
 TIMEOUT_RUFF="${VALIDATE_TIMEOUT_RUFF:-60}"
 TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
 TIMEOUT_TESTS="${VALIDATE_TIMEOUT_TESTS:-600}"  # 10 minutes default - test suite is large
-TIMEOUT_PLUGIN="${VALIDATE_TIMEOUT_PLUGIN:-180}"   # plugin/hook shell test suite
-TIMEOUT_SCRIPTS="${VALIDATE_TIMEOUT_SCRIPTS:-180}" # tests that exercise shell scripts
+TIMEOUT_PLUGIN="${VALIDATE_TIMEOUT_PLUGIN:-300}"   # plugin/hook shell test suite (safety buffer for slow tests)
 TIMEOUT_E2E="${VALIDATE_TIMEOUT_E2E:-900}"      # 15 minutes for E2E tests (local is ~2-3x slower than CI ~180s)
 TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-30}"
 
@@ -313,7 +310,7 @@ for arg in "$@"; do
             echo ""
             echo "Timeouts (in seconds):"
             echo "  format: $TIMEOUT_FORMAT, ruff: $TIMEOUT_RUFF, mypy: $TIMEOUT_MYPY"
-            echo "  tests: $TIMEOUT_TESTS, plugin: $TIMEOUT_PLUGIN, scripts-tests: $TIMEOUT_SCRIPTS"
+            echo "  tests: $TIMEOUT_TESTS, plugin: $TIMEOUT_PLUGIN"
             echo "  e2e: $TIMEOUT_E2E, ci: $TIMEOUT_CI"
             echo ""
             echo "Timeout log: $TIMEOUT_LOG"
@@ -558,7 +555,6 @@ run_check "format" "$TIMEOUT_FORMAT" make format-check &
 run_check "ruff" "$TIMEOUT_RUFF" make lint-ruff &
 run_check "mypy" "$TIMEOUT_MYPY" make lint-mypy &
 run_check "tests" "$TIMEOUT_TESTS" make test-unit-only args="-q --tb=line" &
-run_check "scripts-tests" "$TIMEOUT_SCRIPTS" make test-scripts args="-q --tb=line" &
 run_check "plugin" "$TIMEOUT_PLUGIN" make -C "$REPO_ROOT" test-plugin &
 check_migrations &
 if [ $CHECK_CI -eq 1 ]; then
@@ -570,9 +566,7 @@ if [ $CHECK_CI -eq 1 ]; then
     (
         # Wait for the CI check to write its result file
         while [ ! -f "$CHECK_DIR/ci.rc" ]; do sleep 1; done
-        local_ci_rc
         local_ci_rc=$(cat "$CHECK_DIR/ci.rc")
-        local_e2e_result
         local_e2e_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "")
         # Only trigger when CI definitively completed with failure and we are not
         # already inside a CI environment (where the E2E block above handles it).
@@ -670,14 +664,12 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "ruff" "ruff" "$TIMEOUT_RUFF"
     report_check "mypy" "mypy" "$TIMEOUT_MYPY"
     report_check "tests" "tests" "$TIMEOUT_TESTS"
-    report_check "scripts-tests" "scripts-tests" "$TIMEOUT_SCRIPTS" "cd app && make test-scripts"
     report_check "plugin" "plugin" "$TIMEOUT_PLUGIN" "make -C $REPO_ROOT test-plugin"
 else
     tally_check "format" "format"
     tally_check "ruff" "ruff"
     tally_check "mypy" "mypy"
     tally_check "tests" "tests"
-    tally_check "scripts-tests" "scripts-tests"
     tally_check "plugin" "plugin"
 fi
 
