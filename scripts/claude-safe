@@ -1,0 +1,354 @@
+#!/usr/bin/env bash
+# lockpick-workflow/scripts/claude-safe — Launch Claude Code with automatic worktree isolation
+#
+# Drop-in replacement for `claude` that always creates a fresh worktree
+# so every session gets its own isolated working directory.
+#
+# Behavior:
+#   1. If not in a git repo → launches claude normally
+#   2. If already in a worktree → launches claude normally
+#   3. If in main repo → creates a new worktree and launches claude there
+#   4. On exit from auto-created worktree → offers to remove if branch is merged
+#   5. When creating 4th+ worktree → suggests running worktree-cleanup.sh
+#   6. When 10+ worktrees exist → auto-runs worktree-cleanup.sh
+#
+# Usage:
+#   claude-safe                    # Launch claude in a new worktree
+#   claude-safe --resume           # Pass flags through to claude
+#   claude-safe --help-wrapper     # Show this script's help
+#
+# Source-only mode (for tests):
+#   _CLAUDE_SAFE_SOURCE_ONLY=1 source lockpick-workflow/scripts/claude-safe
+#   _cleanup_docker_for_worktree "wt-name" "/path/to/wt"
+#
+# Config keys read from workflow-config.yaml via read-config.sh:
+#   infrastructure.compose_files   — list of compose file paths (relative to repo root)
+#   infrastructure.compose_project — prefix for COMPOSE_PROJECT_NAME (e.g. "lockpick-db-")
+
+set -euo pipefail
+
+# ── Plugin scripts resolution ─────────────────────────────────────────────────
+# PLUGIN_SCRIPTS can be injected by callers (e.g. tests); otherwise resolved
+# relative to BASH_SOURCE so the script works from any CWD.
+if [ -z "${PLUGIN_SCRIPTS:-}" ]; then
+    PLUGIN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# ── Config helper ─────────────────────────────────────────────────────────────
+# _read_cfg [--list] <key> — read a config value via read-config.sh.
+# When WORKFLOW_CONFIG is set, it is passed as the config-file argument.
+_read_cfg() {
+    local list_flag=""
+    if [ "${1:-}" = "--list" ]; then
+        list_flag="--list"
+        shift
+    fi
+    local key="$1"
+    if [ -n "${WORKFLOW_CONFIG:-}" ]; then
+        bash "$PLUGIN_SCRIPTS/read-config.sh" $list_flag "$key" "$WORKFLOW_CONFIG" 2>/dev/null || true
+    else
+        bash "$PLUGIN_SCRIPTS/read-config.sh" $list_flag "$key" 2>/dev/null || true
+    fi
+}
+
+# ── Docker cleanup helper ─────────────────────────────────────────────────────
+# Stops the worktree's containers and removes Docker networks.
+# Called before worktree removal to prevent Docker network exhaustion.
+#
+# Reads infrastructure.compose_files from config (list of paths relative to repo root).
+# For each file: COMPOSE_PROJECT_NAME="<compose_project><wt_name>" docker compose -f <wt_path>/<file> down
+# When the key is absent, no Docker cleanup is attempted.
+# When Docker is not on PATH, returns silently.
+_cleanup_docker_for_worktree() {
+    local wt_name="$1"
+    local wt_path="$2"
+
+    if ! command -v docker &>/dev/null; then
+        return
+    fi
+
+    # Read compose file list from config; absent key → no cleanup
+    local compose_files
+    compose_files=$(_read_cfg --list infrastructure.compose_files 2>/dev/null) || true
+    if [ -z "$compose_files" ]; then
+        return
+    fi
+
+    # Read compose project prefix from config (e.g. "lockpick-db-")
+    local compose_project
+    compose_project=$(_read_cfg infrastructure.compose_project 2>/dev/null) || true
+
+    # Iterate each compose file; failures are isolated (|| true after each call)
+    while IFS= read -r compose_file; do
+        [ -z "$compose_file" ] && continue
+        local full_path="$wt_path/$compose_file"
+        COMPOSE_PROJECT_NAME="${compose_project}${wt_name}" docker compose -f "$full_path" down 2>/dev/null || true
+    done <<< "$compose_files"
+}
+
+# ── Worktree cleanup helper ───────────────────────────────────────────────────
+_offer_worktree_cleanup() {
+    local wt_name="$1"
+    local wt_path="$2"
+
+    # Check if stdin is a terminal (interactive session)
+    if [ ! -t 0 ]; then
+        return
+    fi
+
+    # Find the main repo root (parent of this worktree)
+    local main_root
+    main_root=$(git -C "$wt_path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||') || return
+
+    # Check if the worktree's branch is merged to main
+    local branch
+    branch=$(git -C "$wt_path" branch --show-current 2>/dev/null) || return
+    if [ -z "$branch" ]; then
+        return
+    fi
+
+    local is_merged=0
+    if git -C "$main_root" merge-base --is-ancestor "$branch" main 2>/dev/null; then
+        is_merged=1
+    fi
+
+    # Check for uncommitted changes (excluding .tickets/ which syncs independently
+    # and contains .sync-state.json for Jira sync state)
+    local is_clean=1
+    local dirty_non_tickets
+    dirty_non_tickets=$(git -C "$wt_path" status --porcelain 2>/dev/null | grep -v '^.. \.tickets/' || true)
+    if [ -n "$dirty_non_tickets" ]; then
+        is_clean=0
+    fi
+
+    # Check if unmerged commits only touch .tickets/ files already on main.
+    # The cross-worktree ticket sync hook pushes .tickets/ changes directly to main
+    # via detached-index commits, so the branch won't be an ancestor of main even
+    # though the content is already there.
+    local tickets_only_unmerged=0
+    if [ "$is_merged" -eq 0 ]; then
+        local unmerged_non_tickets
+        unmerged_non_tickets=$(git -C "$wt_path" diff --name-only main..HEAD -- ':!.tickets/' 2>/dev/null || true)
+        if [ -z "$unmerged_non_tickets" ]; then
+            # All unmerged commits only touch .tickets/ — verify content matches main
+            local tickets_diff
+            tickets_diff=$(git -C "$wt_path" diff main -- .tickets/ 2>/dev/null || true)
+            if [ -z "$tickets_diff" ]; then
+                tickets_only_unmerged=1
+            fi
+        fi
+    fi
+
+    local can_remove=0
+    if [ "$is_merged" -eq 1 ] && [ "$is_clean" -eq 1 ]; then
+        can_remove=1
+    elif [ "$tickets_only_unmerged" -eq 1 ] && [ "$is_clean" -eq 1 ]; then
+        can_remove=1
+    fi
+
+    # Auto-remove if safe; show blocking details otherwise
+    if [ "$can_remove" -eq 1 ]; then
+        echo ""
+        if [ "$tickets_only_unmerged" -eq 1 ]; then
+            echo "Cleaning up worktree '$wt_name' (only .tickets/ changes, already synced to main)..."
+        else
+            echo "Cleaning up worktree '$wt_name' (branch merged to main, working tree clean)..."
+        fi
+
+        # Stop Docker containers/networks for this worktree
+        _cleanup_docker_for_worktree "$wt_name" "$wt_path"
+
+        local removed=0
+        if git -C "$main_root" worktree remove "$wt_path" --force 2>/dev/null; then
+            removed=1
+        fi
+
+        if [ "$removed" -eq 1 ]; then
+            echo "Worktree removed."
+            # Delete local branch
+            git -C "$main_root" branch -d "$branch" 2>/dev/null && echo "Local branch '$branch' deleted." || \
+            git -C "$main_root" branch -D "$branch" 2>/dev/null && echo "Local branch '$branch' deleted." || true
+            # Delete remote branch if it exists
+            if git -C "$main_root" ls-remote --heads origin "$branch" 2>/dev/null | grep -q .; then
+                git -C "$main_root" push origin --delete "$branch" 2>/dev/null && echo "Remote branch 'origin/$branch' deleted." || true
+            fi
+        else
+            echo "Worktree removal failed. Run 'worktree-cleanup.sh' from the main repo."
+        fi
+    else
+        echo ""
+        echo "Worktree '$wt_name' cannot be auto-removed:"
+        if [ "$is_merged" -eq 0 ] && [ "$tickets_only_unmerged" -eq 0 ]; then
+            echo ""
+            echo "  Branch '$branch' has unmerged commits:"
+            git -C "$wt_path" log main..HEAD --oneline 2>/dev/null | sed 's/^/    /' || echo "    (unable to list commits)"
+        fi
+        if [ "$is_clean" -eq 0 ]; then
+            echo ""
+            echo "  Uncommitted changes:"
+            git -C "$wt_path" status --short 2>/dev/null | sed 's/^/    /' || echo "    (unable to list changes)"
+        fi
+        echo ""
+        echo "Run 'worktree-cleanup.sh' from the main repo to manage worktrees."
+    fi
+}
+
+# ── Source-only guard ─────────────────────────────────────────────────────────
+# When _CLAUDE_SAFE_SOURCE_ONLY=1, stop here so tests can source just the
+# helper functions without running the main script body.
+if [ "${_CLAUDE_SAFE_SOURCE_ONLY:-}" = "1" ]; then
+    return 0 2>/dev/null || true
+fi
+
+# ── Help ──────────────────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--help-wrapper" ]]; then
+    sed -n '2,/^$/s/^# //p' "$0"
+    exit 0
+fi
+
+# ── Not in a git repo: launch normally ───────────────────────────────────────
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -z "$REPO_ROOT" ]; then
+    exec claude "$@"
+fi
+
+# ── Already in a worktree: launch normally ────────────────────────────────────
+if [ -f "$REPO_ROOT/.git" ]; then
+    exec claude "$@"
+fi
+
+# ── In main repo: create a new worktree via worktree-create.sh ───────────────
+CREATE_SCRIPT="$PLUGIN_SCRIPTS/worktree-create.sh"
+if [ ! -x "$CREATE_SCRIPT" ]; then
+    # Fall back to project scripts/ directory
+    CREATE_SCRIPT="$REPO_ROOT/scripts/worktree-create.sh"
+fi
+if [ ! -x "$CREATE_SCRIPT" ]; then
+    echo "ERROR: worktree-create.sh not found or not executable" >&2
+    exit 1
+fi
+
+WORKTREE_PATH=$("$CREATE_SCRIPT")
+if [ -z "$WORKTREE_PATH" ] || [ ! -d "$WORKTREE_PATH" ]; then
+    echo "ERROR: Failed to create worktree" >&2
+    echo "Create one manually: $CREATE_SCRIPT" >&2
+    exit 1
+fi
+
+WORKTREE_NAME=$(basename "$WORKTREE_PATH")
+# REVIEW-DEFENSE: The artifact prefix 'lockpick-test-artifacts' is transitional code.
+# It will be replaced by a config-driven value read from session.artifact_prefix via
+# _read_cfg in story xylw (epic lockpick-doc-to-logic-boak). The workflow-config-schema.json
+# already defines session.artifact_prefix; the wiring is tracked there and is next-batch work.
+# Test 4 correctly shows RED until xylw lands.
+VALIDATION_ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}"
+mkdir -p "$VALIDATION_ARTIFACTS_DIR"
+VALIDATION_STATE_FILE="$VALIDATION_ARTIFACTS_DIR/status"
+
+# ── Service startup (background) ─────────────────────────────────────────────
+# Start the app stack (includes DB) so it is ready by the time the session
+# needs to run E2E or integration tests. `make start` uses the main compose
+# file which defines both the app and DB services — do NOT also run `make db-start`
+# (which uses a separate DB-only compose file) or the two DB containers will
+# fight over the same port.
+# Docker detaches immediately; running in a background subshell keeps this
+# script non-blocking. Output is logged for post-hoc inspection.
+#
+# REVIEW-DEFENSE: The inline hardcoded service startup command ('USE_MOCK_LLM=true make start')
+# is intentionally retained here while the config wiring is deferred to story xylw
+# (epic lockpick-doc-to-logic-boak). workflow-config.yaml's 'service_start_cmd' key defines
+# the contract and documents intent — it is not a no-op but rather the agreed interface that
+# xylw will implement. Tests 13-14 correctly show RED for 'service_start_cmd consumed by
+# plugin' until that story runs. This is a planned phased migration, not an oversight.
+SERVICE_LOG="$VALIDATION_ARTIFACTS_DIR/service-startup.log"
+
+if command -v docker &>/dev/null && [ -f "$WORKTREE_PATH/app/Makefile" ]; then
+    echo "[$(date +%H:%M:%S)] Starting app services for $WORKTREE_NAME (background)..."
+    echo "  Log: $SERVICE_LOG"
+    (
+        cd "$WORKTREE_PATH/app"
+        # Use worktree-specific port to avoid conflicts between concurrent sessions
+        APP_PORT=$("$REPO_ROOT/scripts/worktree-port.sh" "$WORKTREE_NAME" app)
+        export APP_PORT
+        echo "[$(date +%H:%M:%S)] make start (APP_PORT=$APP_PORT)" >> "$SERVICE_LOG" 2>&1
+        USE_MOCK_LLM=true make start >> "$SERVICE_LOG" 2>&1
+        echo "[$(date +%H:%M:%S)] Services up" >> "$SERVICE_LOG" 2>&1
+    ) &
+fi
+
+# ── Validation prompt ─────────────────────────────────────────────────────────
+# Ask the user whether to run validate.sh before launching Claude.
+# The state file tells the validation-gate PreToolUse hook whether validation
+# passed, failed, was skipped, or hasn't been run.
+
+if [ -t 0 ]; then
+    echo "Pre-launch validation:"
+    echo "  1) Run validation now (recommended)"
+    echo "  2) Skip — this session won't make code changes"
+    echo "  3) Run validation later (agent will be warned)"
+    echo "  4) Override — mark as passed without running (emergency only)"
+    echo ""
+    printf "Choose [1-4] (default: 1): "
+    read -r VALIDATION_CHOICE
+    VALIDATION_CHOICE="${VALIDATION_CHOICE:-1}"
+
+    case "$VALIDATION_CHOICE" in
+        1)
+            echo ""
+            echo "Running validate.sh --ci ..."
+            echo ""
+            VALIDATE_SCRIPT="$PLUGIN_SCRIPTS/validate.sh"
+            if [ -x "$VALIDATE_SCRIPT" ]; then
+                # Run from worktree so paths resolve correctly
+                if (cd "$WORKTREE_PATH" && "$VALIDATE_SCRIPT" --ci --verbose); then
+                    echo ""
+                    echo "Validation passed."
+                else
+                    echo ""
+                    echo "Validation failed. The agent will see this and can fix issues."
+                fi
+            else
+                echo "WARNING: validate.sh not found at $VALIDATE_SCRIPT" >&2
+            fi
+            ;;
+        2)
+            echo "skipped" > "$VALIDATION_STATE_FILE"
+            echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$VALIDATION_STATE_FILE"
+            echo "reason=no_code_changes" >> "$VALIDATION_STATE_FILE"
+            echo ""
+            echo "Validation skipped. Agent will not be blocked."
+            ;;
+        3)
+            # Don't write a state file — validation-gate sees "not run" and warns
+            echo ""
+            echo "Validation deferred. The agent will be warned before editing files."
+            ;;
+        4)
+            echo ""
+            printf "Type OVERRIDE to confirm manual validation override: "
+            read -r CONFIRM
+            if [ "$CONFIRM" = "OVERRIDE" ]; then
+                echo "override" > "$VALIDATION_STATE_FILE"
+                echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$VALIDATION_STATE_FILE"
+                echo "reason=manual_override" >> "$VALIDATION_STATE_FILE"
+                echo ""
+                echo "Validation overridden. Agent will treat as passed."
+            else
+                echo "Override cancelled. Validation not run."
+            fi
+            ;;
+        *)
+            echo "Invalid choice. Proceeding without validation."
+            ;;
+    esac
+    echo ""
+fi
+
+echo "Launching Claude in: $WORKTREE_PATH"
+echo ""
+(cd "$WORKTREE_PATH" && claude "$@") || true
+# ── Post-exit: offer to clean up this auto-created worktree ──────────────────
+# Note: we never cd'd out of REPO_ROOT, so our cwd is NOT inside the worktree.
+# This is critical — git worktree remove fails if a process's cwd is inside the target.
+_offer_worktree_cleanup "$WORKTREE_NAME" "$WORKTREE_PATH"
+exit 0

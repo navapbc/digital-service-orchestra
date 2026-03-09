@@ -324,6 +324,8 @@ The merge migration is a standard Alembic file with multiple `down_revision` val
 
 ### `claude-safe` Wrapper (Recommended)
 
+> **Script location** (migration in progress): canonical source will be at `lockpick-workflow/scripts/claude-safe`; `scripts/claude-safe` is a backward-compatible exec wrapper that delegates to the plugin location once migration is complete. Currently, `scripts/claude-safe` contains the full implementation.
+
 Use `scripts/claude-safe` instead of `claude` to get automatic worktree isolation:
 
 ```bash
@@ -340,6 +342,7 @@ claude-safe --resume # All claude flags pass through
 
 ```bash
 # Option 1: Alias (replaces claude for this project)
+# scripts/claude-safe is the backward-compatible exec wrapper
 alias claude-safe='/path/to/lockpick-doc-to-logic/scripts/claude-safe'
 
 # Option 2: Symlink to PATH
