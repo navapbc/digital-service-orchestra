@@ -111,9 +111,9 @@ NONCE=$(openssl rand -hex 16 2>/dev/null || \
 # Tickets sync via their own mechanism; the sentinel is only meaningful when committed
 # alongside actual code changes.
 _HAS_REAL_CHANGES=$(git status --porcelain \
-    -- ':!.checkpoint-needs-review' ':!.tickets/' 2>/dev/null | grep -c '.' || echo 0)
+    -- ':!.checkpoint-needs-review' ':!.tickets/' 2>/dev/null)
 
-if [[ "$_HAS_REAL_CHANGES" -eq 0 ]]; then
+if [[ -z "$_HAS_REAL_CHANGES" ]]; then
     # Nothing meaningful to save — emit recovery state but skip the commit.
     # The sentinel is not written to avoid creating a false "unreviewed code" signal.
     true
