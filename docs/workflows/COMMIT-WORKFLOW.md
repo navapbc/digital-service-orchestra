@@ -62,10 +62,7 @@ done <<< "$CHANGED_FILES"
 
 **Otherwise**: Continue to Step 1.
 
-**Note on `.checkpoint-needs-review`**: This file is written when code is auto-committed during a context-compaction event. It signals that the code has never been reviewed. The only correct path through is to run `/commit` from the beginning — Steps 1-3a must execute so the review can be completed and the sentinel cleared. Two approaches that will NOT work:
-
-- **Unstaging `.checkpoint-needs-review`**: The sentinel still exists in the working tree. Even if the current commit succeeds, the merge-to-main step will detect the uncleared sentinel and block the merge.
-- **Skipping to Step 4 or later**: The commit will be blocked. Restart from Step 1.
+**Note on `.checkpoint-needs-review`**: This file is written when code is auto-committed during a context-compaction event. It signals that the code has never been reviewed. The only correct path through is to run `/commit` from the beginning — Steps 1-3a must execute so the review can read the sentinel nonce and delete the file. Skipping to Step 4 or later will cause the commit to be blocked; restart from Step 1.
 
 ## Step 1: Test
 
@@ -255,11 +252,10 @@ git add -u -- ':(exclude).tickets'
 >
 > ```bash
 > git reset --soft HEAD~1                    # undo the checkpoint commit, re-stage the changes
-> git rm --cached .checkpoint-needs-review   # stage the sentinel as a deletion (not a modification)
-> rm -f .checkpoint-needs-review             # remove from working tree
+> git rm --cached .checkpoint-needs-review   # un-stage the sentinel (leave the file in the working tree)
 > ```
 >
-> Then restart from **Step 1** of this workflow. The sentinel must be staged as a **deletion** before the review hash is computed — if it stays as a staged modification, `record-review.sh` will change the staged diff after the hash is captured, causing `--expected-hash` to fail. Do NOT skip to Step 4 or Step 5; the code was committed without review and must go through the complete workflow.
+> Then restart from **Step 1** of this workflow. Leave `.checkpoint-needs-review` in the working tree — `record-review.sh` reads the nonce from it during review and removes it automatically. Do NOT skip to Step 4 or Step 5; the code was committed without review and must go through the complete workflow.
 
 Decide whether a review is needed:
 
