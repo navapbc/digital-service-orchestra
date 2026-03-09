@@ -251,7 +251,13 @@ git add -u -- ':(exclude).tickets'
 
 ## Step 5: Review Gate
 
-> **Pre-compaction checkpoint detection**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). Proceed normally — the review infrastructure handles checkpoint commits correctly.
+> **Pre-compaction checkpoint recovery**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the checkpoint contains unreviewed code that was auto-saved during compaction. Recover it with a soft-reset:
+>
+> ```bash
+> git reset --soft HEAD~1   # undo the checkpoint commit, re-stage the changes
+> ```
+>
+> Then restart from **Step 1** of this workflow — the changes must pass tests, format, lint, and the full review gate before they can be committed properly. Do NOT skip to Step 4 or Step 5; the code was committed without review and must go through the complete workflow.
 
 Decide whether a review is needed:
 
