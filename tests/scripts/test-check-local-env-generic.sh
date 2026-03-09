@@ -45,7 +45,11 @@ _make_skeleton() {
     mkdir -p "$dir" || { echo "ERROR: mkdir failed for $dir" >&2; exit 1; }
     git init -q "$dir" || { echo "ERROR: git init failed for $dir" >&2; exit 1; }
     git -C "$dir" config user.email "test@example.com" || { echo "ERROR: git config email failed for $dir" >&2; exit 1; }
-    git -C "$dir" config user.name "Test" || { echo "ERROR: git config name failed for $dir" >&2; exit 1; }
+    git -C "$dir" config user.name "Test User" || { echo "ERROR: git config name failed for $dir" >&2; exit 1; }
+    # Export identity env vars explicitly: on CI runners with no global gitconfig, empty
+    # GIT_AUTHOR_*/GIT_COMMITTER_* env vars override local git config, causing "empty ident name".
+    GIT_AUTHOR_NAME="Test User" GIT_AUTHOR_EMAIL="test@example.com" \
+    GIT_COMMITTER_NAME="Test User" GIT_COMMITTER_EMAIL="test@example.com" \
     git -C "$dir" commit --allow-empty -m "init" -q || { echo "ERROR: git commit failed for $dir" >&2; exit 1; }
     printf '%s\n' "$config_content" > "$dir/workflow-config.yaml" || { echo "ERROR: failed to write workflow-config.yaml in $dir" >&2; exit 1; }
     echo "$dir"

@@ -108,6 +108,7 @@ VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 
 # Timeout values in seconds - configurable via environment variables
 # Check $TIMEOUT_LOG for timeout history to identify if values need adjustment
+TIMEOUT_SYNTAX="${VALIDATE_TIMEOUT_SYNTAX:-5}"   # E999 syntax check — fast, runs before format/lint
 TIMEOUT_FORMAT="${VALIDATE_TIMEOUT_FORMAT:-30}"
 TIMEOUT_RUFF="${VALIDATE_TIMEOUT_RUFF:-60}"
 TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
@@ -309,7 +310,7 @@ for arg in "$@"; do
             echo "  - Completed CI with failure: FAIL immediately; E2E starts in parallel immediately"
             echo ""
             echo "Timeouts (in seconds):"
-            echo "  format: $TIMEOUT_FORMAT, ruff: $TIMEOUT_RUFF, mypy: $TIMEOUT_MYPY"
+            echo "  syntax: $TIMEOUT_SYNTAX, format: $TIMEOUT_FORMAT, ruff: $TIMEOUT_RUFF, mypy: $TIMEOUT_MYPY"
             echo "  tests: $TIMEOUT_TESTS, plugin: $TIMEOUT_PLUGIN"
             echo "  e2e: $TIMEOUT_E2E, ci: $TIMEOUT_CI"
             echo ""
@@ -551,6 +552,7 @@ check_ci() {
 
 # Launch all independent checks in parallel
 cd "$APP_DIR"
+run_check "syntax" "$TIMEOUT_SYNTAX" make syntax-check &
 run_check "format" "$TIMEOUT_FORMAT" make format-check &
 run_check "ruff" "$TIMEOUT_RUFF" make lint-ruff &
 run_check "mypy" "$TIMEOUT_MYPY" make lint-mypy &
@@ -660,12 +662,14 @@ tally_check() {
 }
 
 if [ "$VERBOSE" = "0" ]; then
+    report_check "syntax" "syntax" "$TIMEOUT_SYNTAX"
     report_check "format" "format" "$TIMEOUT_FORMAT"
     report_check "ruff" "ruff" "$TIMEOUT_RUFF"
     report_check "mypy" "mypy" "$TIMEOUT_MYPY"
     report_check "tests" "tests" "$TIMEOUT_TESTS"
     report_check "plugin" "plugin" "$TIMEOUT_PLUGIN" "make -C $REPO_ROOT test-plugin"
 else
+    tally_check "syntax" "syntax"
     tally_check "format" "format"
     tally_check "ruff" "ruff"
     tally_check "mypy" "mypy"
