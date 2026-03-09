@@ -110,7 +110,20 @@ checkpoint:
   commit_label: 'checkpoint: my-project auto-save'
 YAML_EOF
 
-_PC_VENV_PYTHON="$REPO_ROOT/app/.venv/bin/python3"
+# Probe for python3 with pyyaml using the same portable pattern as other hook tests.
+# Tries project venv first (local dev), falls back to system python3 (CI).
+_PC_VENV_PYTHON=""
+for _py_candidate in \
+        "$REPO_ROOT/app/.venv/bin/python3" \
+        "$REPO_ROOT/.venv/bin/python3" \
+        "/usr/bin/python3" \
+        "python3"; do
+    [[ -z "$_py_candidate" ]] && continue
+    if "$_py_candidate" -c "import yaml" 2>/dev/null; then
+        _PC_VENV_PYTHON="$_py_candidate"
+        break
+    fi
+done
 _PC_OUTPUT=$(CLAUDE_PLUGIN_ROOT="$_PC_PLUGIN_ROOT" CLAUDE_PLUGIN_PYTHON="$_PC_VENV_PYTHON" run_hook_output \
     '{"hook_type":"PreCompact","session_id":"test-config-label"}')
 # When config is honored, the output (or behavior) should reflect 'my-project auto-save'.
