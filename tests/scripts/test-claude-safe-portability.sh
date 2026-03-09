@@ -48,7 +48,7 @@ echo "$TMPDIR_WORKTREE"
 EOF
 chmod +x "$TMPDIR_MAIN/bin/worktree-create.sh"
 
-# Stub: scripts/worktree-create.sh (the hardcoded path used by current claude-safe)
+# Stub: scripts/worktree-create.sh (fallback path used by claude-safe)
 mkdir -p "$TMPDIR_MAIN/scripts"
 cat > "$TMPDIR_MAIN/scripts/worktree-create.sh" <<EOF
 #!/usr/bin/env bash
@@ -57,6 +57,22 @@ touch "$SENTINEL_FILE"
 echo "$TMPDIR_WORKTREE"
 EOF
 chmod +x "$TMPDIR_MAIN/scripts/worktree-create.sh"
+
+# Stub: fake plugin scripts dir — claude-safe checks CLAUDE_PLUGIN_SCRIPTS/worktree-create.sh
+# first (before $REPO_ROOT/scripts/). Point CLAUDE_PLUGIN_SCRIPTS to a fake dir that
+# contains the sentinel-writing stub so the real lockpick-workflow/scripts/worktree-create.sh
+# is not used during the portability test.
+FAKE_PLUGIN_SCRIPTS="$TMPDIR_MAIN/fake-plugin-scripts"
+mkdir -p "$FAKE_PLUGIN_SCRIPTS"
+cat > "$FAKE_PLUGIN_SCRIPTS/worktree-create.sh" <<EOF
+#!/usr/bin/env bash
+# Stub: writes sentinel, returns fake worktree path
+touch "$SENTINEL_FILE"
+echo "$TMPDIR_WORKTREE"
+EOF
+chmod +x "$FAKE_PLUGIN_SCRIPTS/worktree-create.sh"
+# Copy read-config.sh from real plugin scripts so config reads still work
+cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$FAKE_PLUGIN_SCRIPTS/read-config.sh" 2>/dev/null || true
 
 # Stub: claude — exits 0 immediately (simulates real Claude binary)
 cat > "$TMPDIR_MAIN/bin/claude" <<'EOF'
@@ -74,7 +90,9 @@ git -C "$TMPDIR_WORKTREE" commit --allow-empty -m "init" -q
 # Export PATH so stubs take precedence
 export PATH="$TMPDIR_MAIN/bin:$PATH"
 export WORKFLOW_CONFIG="$TMPDIR_MAIN/workflow-config.yaml"
-export CLAUDE_PLUGIN_SCRIPTS="$REPO_ROOT/lockpick-workflow/scripts"
+# claude-safe reads PLUGIN_SCRIPTS (not CLAUDE_PLUGIN_SCRIPTS) to find worktree-create.sh.
+# Point to fake-plugin-scripts so the sentinel-writing stub is used instead of the real one.
+export PLUGIN_SCRIPTS="$FAKE_PLUGIN_SCRIPTS"
 
 # ── Helper: run claude-safe from TMPDIR_MAIN (non-interactively) ─────────────
 _run_claude_safe() {
