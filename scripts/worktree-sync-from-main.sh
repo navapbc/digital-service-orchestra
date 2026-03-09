@@ -24,6 +24,16 @@ if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
     exit 1
 fi
 
+# --- Ensure pre-commit is available in PATH ---
+# git merge --no-edit auto-commits, which runs pre-commit hooks. If the venv
+# is not activated, `pre-commit` is not found and the merge commit fails.
+# Probe the conventional venv location and prepend it without activating the
+# full venv (activation changes PS1, sys.path, and other env state).
+_VENV_BIN="$REPO_ROOT/app/.venv/bin"
+if [[ -f "$_VENV_BIN/pre-commit" && ":$PATH:" != *":$_VENV_BIN:"* ]]; then
+    export PATH="$_VENV_BIN:$PATH"
+fi
+
 # --- Load ticket sync library ---
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_SCRIPT_DIR/tk-sync-lib.sh" || { echo "ERROR: tk-sync-lib.sh not found"; exit 1; }
