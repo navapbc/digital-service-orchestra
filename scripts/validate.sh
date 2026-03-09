@@ -36,7 +36,9 @@
 # PARALLEL EXECUTION:
 #   Format, ruff, mypy, tests, migration, and CI checks all run in parallel.
 #   Results are collected and reported after all checks complete.
-#   E2E tests run after CI check completes (depends on CI result for skip logic).
+#   E2E tests: when CI definitively fails (completed:failure), E2E starts immediately
+#   in parallel with remaining checks (triggered ~30s after CI result). Otherwise,
+#   E2E runs after CI check completes (skip if CI passing, run if CI pending).
 #
 # TIMEOUTS:
 #   Each command has an explicit timeout to prevent hanging processes.
@@ -307,7 +309,7 @@ for arg in "$@"; do
             echo "  - Pending CI with previous success: assumes still good (PASS)"
             echo "  - Pending CI with previous failure: FAIL immediately"
             echo "  - Pending CI with no previous completed run: PASS (no failure evidence)"
-            echo "  - Completed CI with failure: FAIL immediately; E2E skip (fix CI first)"
+            echo "  - Completed CI with failure: FAIL immediately; E2E starts in parallel immediately"
             echo ""
             echo "Timeouts (in seconds):"
             echo "  format: $TIMEOUT_FORMAT, ruff: $TIMEOUT_RUFF, mypy: $TIMEOUT_MYPY"
@@ -561,6 +563,26 @@ run_check "plugin" "$TIMEOUT_PLUGIN" make -C "$REPO_ROOT" test-plugin &
 check_migrations &
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
+    # When CI definitively fails, start E2E immediately in parallel rather than
+    # waiting for all other checks to complete first. CI typically finishes in ~30s
+    # while unit tests / mypy can take 60-600s, so this saves significant wall time.
+    # Only triggers locally (not in CI environment, where E2E always runs separately).
+    (
+        # Wait for the CI check to write its result file
+        while [ ! -f "$CHECK_DIR/ci.rc" ]; do sleep 1; done
+        local_ci_rc
+        local_ci_rc=$(cat "$CHECK_DIR/ci.rc")
+        local_e2e_result
+        local_e2e_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "")
+        # Only trigger when CI definitively completed with failure and we are not
+        # already inside a CI environment (where the E2E block above handles it).
+        if [ "$local_ci_rc" != "0" ] && [ "$local_ci_rc" != "skip" ] && \
+           [[ "$local_e2e_result" == completed:* ]] && [ -z "$CI" ]; then
+            [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running (parallel, CI failed)"
+            run_check "e2e" "$TIMEOUT_E2E" make test-e2e
+            echo "parallel" > "$CHECK_DIR/e2e.mode"
+        fi
+    ) &
 fi
 
 # Wait for all parallel checks to complete
@@ -777,7 +799,42 @@ if [ $CHECK_CI -eq 1 ]; then
         # E2E to avoid a 15-minute hang: CI already ran E2E, fix CI first.
         e2e_ci_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "")
         if [[ "$e2e_ci_result" == completed:* ]]; then
-            [ "$VERBOSE" = "0" ] && echo "  e2e:     SKIP (CI completed with failure — fix CI first)"
+            # CI definitively completed with failure. Check if the parallel trigger
+            # already started E2E (it writes e2e.mode=parallel and e2e.rc when done).
+            e2e_mode=$(cat "$CHECK_DIR/e2e.mode" 2>/dev/null || echo "")
+            if [ "$e2e_mode" = "parallel" ]; then
+                # E2E already ran in parallel — report its result
+                E2E_RAN=1
+                e2e_rc=$(cat "$CHECK_DIR/e2e.rc" 2>/dev/null || echo "1")
+                if [ "$e2e_rc" = "0" ]; then
+                    if [ "$VERBOSE" = "0" ]; then
+                        echo "  e2e:     PASS (ran in parallel)"
+                    else
+                        verbose_print "e2e" "PASS (ran in parallel)"
+                    fi
+                elif [ "$e2e_rc" = "124" ]; then
+                    E2E_FAILED=1
+                    if [ "$VERBOSE" = "0" ]; then
+                        echo "  e2e:     TIMEOUT (${TIMEOUT_E2E}s) - run 'cd app && make test-e2e' to debug"
+                    else
+                        verbose_print "e2e" "FAIL (timeout ${TIMEOUT_E2E}s)"
+                    fi
+                    FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}e2e"
+                    FAILED=1
+                else
+                    E2E_FAILED=1
+                    if [ "$VERBOSE" = "0" ]; then
+                        echo "  e2e:     FAIL (ran in parallel)"
+                    else
+                        verbose_print "e2e" "FAIL (ran in parallel)"
+                    fi
+                    FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}e2e"
+                    FAILED=1
+                fi
+            else
+                # Parallel trigger did not fire (e.g. ci.rc was non-1 edge case)
+                [ "$VERBOSE" = "0" ] && echo "  e2e:     SKIP (CI completed with failure — fix CI first)"
+            fi
         else
             # CI still running/pending — run E2E locally to catch issues early
             E2E_RAN=1

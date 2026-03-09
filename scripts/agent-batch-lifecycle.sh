@@ -512,16 +512,18 @@ cmd_preflight() {
     # 1c. Clean up agent discoveries from previous batch
     cmd_cleanup_discoveries
 
-    # 1d. Run env check script if present (check-local-env.sh in plugin scripts dir)
-    if [ -x "$PLUGIN_SCRIPTS/check-local-env.sh" ]; then
-        if ! "$PLUGIN_SCRIPTS/check-local-env.sh" --quiet 2>/dev/null; then
+    # 1d. Run env check command if configured (commands.env_check_cmd in workflow-config.yaml)
+    local env_check_cmd
+    env_check_cmd=$(_read_cfg "commands.env_check_cmd")
+    if [ -n "$env_check_cmd" ]; then
+        if ! eval "$env_check_cmd" >/dev/null 2>/dev/null; then
             echo "ENV_CHECK: failed"
             any_fail=true
         else
             echo "ENV_CHECK: passed"
         fi
     else
-        echo "ENV_CHECK: skipped (script not found)"
+        echo "ENV_CHECK: skipped (not configured)"
     fi
 
     # 2. Database
