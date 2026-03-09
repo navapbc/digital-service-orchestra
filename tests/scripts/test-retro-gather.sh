@@ -56,7 +56,8 @@ echo "Test 4: Output contains === section headers"
 _OUTFILE=$(mktemp)
 bash "$SCRIPT" --quick >"$_OUTFILE" 2>&1 &
 _PID=$!
-( sleep 60 && kill "$_PID" 2>/dev/null ) &
+# 15s is sufficient: the CLEANUP header is printed in the first line of the script
+( sleep 15 && kill "$_PID" 2>/dev/null ) &
 _TIMER=$!
 wait "$_PID" 2>/dev/null || true
 kill "$_TIMER" 2>/dev/null; wait "$_TIMER" 2>/dev/null || true
