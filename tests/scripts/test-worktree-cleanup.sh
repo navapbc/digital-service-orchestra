@@ -109,6 +109,52 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 11: MAIN_BRANCH derived from git symbolic-ref ───────────────────────
+# test_main_branch_derived_from_git_symbolic_ref
+# Verifies that:
+#   a) The script uses git symbolic-ref to derive MAIN_BRANCH (not hardcode 'main')
+#   b) merge-base --is-ancestor calls use $MAIN_BRANCH, not a bare literal 'main'
+#   c) diff commands use $MAIN_BRANCH, not a bare literal 'main'
+#   d) The branch guard skips $MAIN_BRANCH in addition to 'detached'/'master'
+# This is a static (grep-based) test — the structural invariant must hold in source.
+echo "Test 11: MAIN_BRANCH is derived from git symbolic-ref (not hardcoded)"
+fail_11=0
+
+if ! grep -q 'symbolic-ref refs/remotes/origin/HEAD' "$SCRIPT"; then
+    echo "  FAIL: script does not derive MAIN_BRANCH from git symbolic-ref" >&2
+    fail_11=1
+fi
+
+if ! grep -qE "MAIN_BRANCH=.*'main'|MAIN_BRANCH:-main" "$SCRIPT"; then
+    echo "  FAIL: script does not fall back to 'main' when symbolic-ref fails" >&2
+    fail_11=1
+fi
+
+# merge-base --is-ancestor calls must reference \$MAIN_BRANCH, not bare 'main'
+if grep -qE 'is-ancestor[^$"]*[^$]main\b' "$SCRIPT"; then
+    echo "  FAIL: merge-base --is-ancestor uses hardcoded 'main' instead of \$MAIN_BRANCH" >&2
+    fail_11=1
+fi
+
+# diff commands for branch comparison must not use bare 'main'
+if grep -qE 'diff --name-only main\b|diff main\b' "$SCRIPT"; then
+    echo "  FAIL: diff command uses hardcoded 'main' instead of \$MAIN_BRANCH" >&2
+    fail_11=1
+fi
+
+# Branch guard must reference \$MAIN_BRANCH alongside 'master'
+if ! grep -qE 'MAIN_BRANCH.*master|master.*MAIN_BRANCH' "$SCRIPT"; then
+    echo "  FAIL: branch guard does not reference \$MAIN_BRANCH alongside 'master'" >&2
+    fail_11=1
+fi
+
+if [ "$fail_11" -eq 0 ]; then
+    echo "  PASS: MAIN_BRANCH derived from symbolic-ref with correct usage throughout"
+    (( PASS++ ))
+else
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
