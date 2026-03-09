@@ -305,6 +305,36 @@ if ! git push 2>&1; then
 fi
 echo "OK: Pushed main to remote."
 
+# --- 4.5) Archive closed tickets if count exceeds threshold ---
+_ARCHIVE_SCRIPT="$_SCRIPT_DIR/archive-closed-tickets.sh"
+if [ ! -f "$_ARCHIVE_SCRIPT" ]; then
+    _ARCHIVE_SCRIPT="$MAIN_REPO/scripts/archive-closed-tickets.sh"
+fi
+if [ -f "$_ARCHIVE_SCRIPT" ]; then
+    _CLOSED_COUNT=$(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" -type f \
+        -exec awk '/^---$/{n++; if(n==2)exit} n==1 && /^status:[[:space:]]*closed/{found=1} END{if(found)print FILENAME}' {} \; \
+        | wc -l | tr -d '[:space:]')
+    if [ "$_CLOSED_COUNT" -gt 100 ]; then
+        echo "Archiving $_CLOSED_COUNT closed ticket(s)..."
+        _ARCHIVE_OUT=$(TICKETS_DIR="$TICKETS_DIR" bash "$_ARCHIVE_SCRIPT" 2>&1)
+        echo "$_ARCHIVE_OUT"
+        # Commit archived tickets if any were moved
+        if echo "$_ARCHIVE_OUT" | grep -qE '^Archived [1-9]'; then
+            git add "$TICKETS_DIR"/archive/ 2>/dev/null || true
+            git add -u "$TICKETS_DIR"/ 2>/dev/null || true
+            if ! git diff --cached --quiet 2>/dev/null; then
+                git commit -m "chore: archive closed tickets [skip ci]" --quiet
+                git push --quiet 2>&1 || echo "WARNING: Push of archive commit failed — retry with git push."
+                echo "OK: Archived tickets committed and pushed."
+            fi
+        fi
+    else
+        echo "INFO: $_CLOSED_COUNT closed ticket(s) — below threshold (100), skipping archive."
+    fi
+else
+    echo "INFO: archive-closed-tickets.sh not found — skipping archive step."
+fi
+
 # --- 5) Trigger CI if HEAD has [skip ci] but merge contained code changes ---
 # The PostToolUse ticket-sync-push hook appends [skip ci] commits to main after
 # the push. GitHub evaluates CI eligibility based on the HEAD commit message, so
