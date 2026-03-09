@@ -124,6 +124,12 @@ infrastructure:
   # Default when absent: 3000
   app_base_port: 3000
 
+  # Docker Compose files to shut down on session exit.
+  # Will be used by: lockpick-workflow/scripts/claude-safe (post-exit Docker cleanup) once wiring is complete (see epic boak).
+  # When absent or Docker not on PATH, cleanup step is skipped silently.
+  # Type: list of strings
+  # compose_files: ['docker-compose.yml', 'docker-compose.db.yml']
+
 session:
   # Command to check session context window usage.
   # Exit 0 = usage IS high (>90%), non-zero = normal.
@@ -198,6 +204,11 @@ worktree:
   # When absent, worktree-create.sh skips the post-create phase.
   # Used by: worktree-create.sh (post-create phase)
   # post_create_cmd: './scripts/worktree-setup-env.sh'
+
+  # Command to run before launching Claude Code (e.g., start background services).
+  # Will be used by: lockpick-workflow/scripts/claude-safe (pre-launch phase) once wiring is complete (see epic boak).
+  # When absent, claude-safe skips the service startup step.
+  # service_start_cmd: 'make start'
 
 persistence:
   # Source files whose changes require persistence test coverage.
