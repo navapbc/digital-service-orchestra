@@ -10,16 +10,44 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-compact-checkpoint.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# make_test_repo: create a minimal git repo with one committed file and one
+# uncommitted (untracked) file so _HAS_REAL_CHANGES is non-empty.
+# Prints the repo path.
+make_test_repo() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    (
+        cd "$tmpdir"
+        git init -q
+        git config user.email "test@test.com"
+        git config user.name "Test"
+        echo "initial" > README.md
+        git add README.md
+        git commit -q -m "initial commit"
+        # Uncommitted work so _HAS_REAL_CHANGES is non-empty
+        echo "work-in-progress" > work.txt
+    ) 2>/dev/null
+    echo "$tmpdir"
+}
+
 run_hook_exit() {
     local input="$1"
     local exit_code=0
-    echo "$input" | bash "$HOOK" > /dev/null 2>/dev/null || exit_code=$?
+    local tmpdir
+    tmpdir=$(make_test_repo)
+    (cd "$tmpdir" && echo "$input" | bash "$HOOK") > /dev/null 2>/dev/null || exit_code=$?
+    rm -rf "$tmpdir"
     echo "$exit_code"
 }
 
 run_hook_output() {
     local input="$1"
-    echo "$input" | bash "$HOOK" 2>/dev/null
+    local tmpdir
+    tmpdir=$(make_test_repo)
+    local out
+    out=$(cd "$tmpdir" && echo "$input" | bash "$HOOK" 2>/dev/null)
+    rm -rf "$tmpdir"
+    echo "$out"
 }
 
 # test_pre_compact_exits_zero_on_valid_hook_input
@@ -82,7 +110,8 @@ checkpoint:
   commit_label: 'checkpoint: my-project auto-save'
 YAML_EOF
 
-_PC_OUTPUT=$(CLAUDE_PLUGIN_ROOT="$_PC_PLUGIN_ROOT" run_hook_output \
+_PC_VENV_PYTHON="$REPO_ROOT/app/.venv/bin/python3"
+_PC_OUTPUT=$(CLAUDE_PLUGIN_ROOT="$_PC_PLUGIN_ROOT" CLAUDE_PLUGIN_PYTHON="$_PC_VENV_PYTHON" run_hook_output \
     '{"hook_type":"PreCompact","session_id":"test-config-label"}')
 # When config is honored, the output (or behavior) should reflect 'my-project auto-save'.
 # In red phase: hook hardcodes the label and does not read config, so this FAILS.

@@ -32,7 +32,9 @@ NC='\033[0m' # No Color
 
 # Create a temp untracked file in the repo so files_targeted always overlaps with
 # the git diff regardless of the worktree's current state. The file is cleaned up on exit.
-SENTINEL_FILE="$REPO_ROOT/.crossval-test-sentinel-$$.tmp"
+# NOTE: Do NOT use a .tmp extension — *.tmp is gitignored and won't appear in
+# git ls-files --others, breaking the overlap check in record-review.sh.
+SENTINEL_FILE="$REPO_ROOT/.crossval-test-sentinel-$$.marker"
 touch "$SENTINEL_FILE"
 SENTINEL_BASENAME=$(basename "$SENTINEL_FILE")
 

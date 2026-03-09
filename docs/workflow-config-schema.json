@@ -258,6 +258,25 @@
         }
       }
     },
+    "worktree": {
+      "type": "object",
+      "description": "Worktree lifecycle configuration. Used by worktree-create.sh and claude-safe for pre-launch and post-create steps.",
+      "additionalProperties": false,
+      "properties": {
+        "post_create_cmd": {
+          "type": "string",
+          "description": "Command to run after creating a new worktree (relative to repo root). Used by worktree-create.sh post-create phase. When absent, post-create phase is skipped.",
+          "minLength": 1,
+          "examples": ["./scripts/worktree-setup-env.sh"]
+        },
+        "service_start_cmd": {
+          "type": "string",
+          "description": "Command to run before launching Claude Code (e.g., start background services). Will be used by lockpick-workflow/scripts/claude-safe (pre-launch phase) once wiring is complete (see epic boak). When absent, claude-safe skips the service startup step.",
+          "minLength": 1,
+          "examples": ["make start", "docker compose up -d"]
+        }
+      }
+    },
     "infrastructure": {
       "type": "object",
       "description": "Container infrastructure configuration. Used by agent-batch-lifecycle.sh for stale container cleanup and by check-local-env.sh for environment verification. All keys are optional — when absent, the corresponding check falls back to defaults or is skipped.",
@@ -328,6 +347,15 @@
           "description": "Base application port number. Worktree-specific ports are derived by adding an offset to this value. Used by worktree-port.sh for port calculation. Defaults to 3000 when absent.",
           "default": 3000,
           "examples": [3000, 8000]
+        },
+        "compose_files": {
+          "type": "array",
+          "description": "Docker Compose files to shut down on session exit. Will be used by lockpick-workflow/scripts/claude-safe (post-exit Docker cleanup) once wiring is complete (see epic boak). When absent or Docker not on PATH, the cleanup step is skipped silently.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["docker-compose.yml", "docker-compose.db.yml"]]
         }
       }
     },
