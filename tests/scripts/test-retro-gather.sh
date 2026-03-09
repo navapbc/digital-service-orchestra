@@ -56,7 +56,10 @@ echo "Test 4: Output contains === section headers"
 _OUTFILE=$(mktemp)
 bash "$SCRIPT" --quick >"$_OUTFILE" 2>&1 &
 _PID=$!
-( sleep 60 && kill "$_PID" 2>/dev/null ) &
+# Timeout is injectable via RETRO_GATHER_TEST_TIMEOUT (default: 15s).
+# Set to a small value (e.g. 1) in CI or fast test runs.
+_TIMEOUT="${RETRO_GATHER_TEST_TIMEOUT:-15}"
+( sleep "$_TIMEOUT" && kill "$_PID" 2>/dev/null ) &
 _TIMER=$!
 wait "$_PID" 2>/dev/null || true
 kill "$_TIMER" 2>/dev/null; wait "$_TIMER" 2>/dev/null || true

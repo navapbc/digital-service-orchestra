@@ -512,18 +512,30 @@ cmd_preflight() {
     # 1c. Clean up agent discoveries from previous batch
     cmd_cleanup_discoveries
 
+<<<<<<< HEAD
     # 1d. Config-driven env check (commands.env_check_cmd in workflow-config.yaml; absent = noop)
     local env_check_cmd
     env_check_cmd=$(_read_cfg "commands.env_check_cmd")
     if [ -n "$env_check_cmd" ]; then
         if ! (cd "$REPO_ROOT" && eval "$env_check_cmd") 2>/dev/null; then
+=======
+    # 1d. Run env check command if configured (commands.env_check_cmd in workflow-config.yaml)
+    local env_check_cmd
+    env_check_cmd=$(_read_cfg "commands.env_check_cmd")
+    if [ -n "$env_check_cmd" ]; then
+        if ! eval "$env_check_cmd" >/dev/null 2>/dev/null; then
+>>>>>>> origin/main
             echo "ENV_CHECK: failed"
             any_fail=true
         else
             echo "ENV_CHECK: passed"
         fi
     else
+<<<<<<< HEAD
         echo "ENV_CHECK: skipped (commands.env_check_cmd not configured)"
+=======
+        echo "ENV_CHECK: skipped (not configured)"
+>>>>>>> origin/main
     fi
 
 

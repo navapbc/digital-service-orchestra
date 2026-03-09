@@ -16,7 +16,7 @@ REVIEW_STATE="$ARTIFACTS_DIR/review-status"
 
 run_hook_exit() {
     local exit_code=0
-    bash "$HOOK" 2>/dev/null < /dev/null || exit_code=$?
+    bash "$HOOK" >/dev/null 2>/dev/null < /dev/null || exit_code=$?
     echo "$exit_code"
 }
 
