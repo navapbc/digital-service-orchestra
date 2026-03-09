@@ -20,6 +20,20 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"pre-compact-checkpoint.sh\",\"line\":%s}
 REPO_ROOT_EARLY=$(git rev-parse --show-toplevel 2>/dev/null || true)
 [[ -n "$REPO_ROOT_EARLY" && -f "$REPO_ROOT_EARLY/.disable-precompact-checkpoint" ]] && exit 0
 
+# Deduplication guard: prevent double-firing when hook is registered via both
+# settings.json and hooks.json plugin manifest. Use a per-HEAD lockfile with a
+# 30-second TTL — the second sequential invocation exits immediately.
+_LOCK_KEY=$(git rev-parse HEAD 2>/dev/null | head -c 12 || echo "nohead")
+_LOCK_FILE="${TMPDIR:-/tmp}/.precompact-lock-${_LOCK_KEY}"
+_NOW=$(date +%s 2>/dev/null || echo 0)
+if [[ -f "$_LOCK_FILE" ]]; then
+    _LOCK_TIME=$(cat "$_LOCK_FILE" 2>/dev/null || echo 0)
+    _AGE=$(( _NOW - _LOCK_TIME ))
+    [[ $_AGE -lt 30 ]] && exit 0
+fi
+echo "$_NOW" > "$_LOCK_FILE"
+trap 'rm -f "$_LOCK_FILE"' EXIT
+
 # --- Determine repo root ---
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [[ -z "$REPO_ROOT" ]]; then
