@@ -70,6 +70,51 @@
           "description": "Display name of the job whose timeout-minutes defines the end of the test polling phase. Defaults to 'Unit Tests'.",
           "minLength": 1,
           "examples": ["Unit Tests", "Test"]
+        },
+        "integration_workflow": {
+          "type": "string",
+          "description": "GitHub Actions workflow name to check for integration test status. Used by validate-work and CI status checks to poll the integration test workflow separately from the main CI workflow. When absent, integration workflow status checks are skipped.",
+          "minLength": 1,
+          "examples": ["Integration Tests", "E2E Tests", "CI"]
+        }
+      }
+    },
+    "staging": {
+      "type": "object",
+      "description": "Staging environment configuration. Used by validate-work and staging sub-agents to run deploy checks, smoke tests, and route health verification against a deployed staging environment. All keys are optional — when absent, the corresponding check is skipped with a warning.",
+      "additionalProperties": true,
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Base URL of the staging environment (e.g. 'https://staging.example.com'). Used by staging sub-agents as the target for health checks and smoke tests.",
+          "minLength": 1,
+          "examples": ["https://staging.example.com", "http://my-app-env-stage.us-east-2.elasticbeanstalk.com"]
+        },
+        "deploy_check": {
+          "type": "string",
+          "description": "Path to a script or prompt file for checking deploy status, relative to the repo root. File extension determines how it is used: .sh = executed as a shell script; .md = read as a prompt for the staging sub-agent. Exit code contract for scripts: 0 = healthy (deploy complete and serving traffic), 1 = unhealthy (deploy failed or environment is down), 2 = deploying (deploy is still in progress, retry later).",
+          "minLength": 1,
+          "examples": ["scripts/check-staging-deploy.sh", "docs/staging-deploy-check.md"]
+        },
+        "test": {
+          "type": "string",
+          "description": "Path to a script or prompt file for running smoke or acceptance tests against the staging environment, relative to the repo root. File extension determines how it is used: .sh = executed as a shell script (exit 0 = all tests passed, non-zero = one or more tests failed); .md = read as a prompt for the staging sub-agent.",
+          "minLength": 1,
+          "examples": ["scripts/smoke-test-staging.sh", "docs/staging-test-prompt.md"]
+        },
+        "routes": {
+          "type": "string",
+          "description": "Comma-separated list of URL paths to health-check on the staging URL (e.g. '/,/upload,/history'). The orchestrator splits on commas at read time — this convention avoids YAML array syntax, keeping the value readable as a scalar via read-config.sh. Default: '/' when absent.",
+          "default": "/",
+          "minLength": 1,
+          "examples": ["/", "/,/upload,/history", "/health,/api/v1/status"]
+        },
+        "health_path": {
+          "type": "string",
+          "description": "URL path for the primary health endpoint on the staging environment (e.g. '/health'). Used by staging sub-agents to determine if the environment is up before running further checks. Default: '/health' when absent.",
+          "default": "/health",
+          "minLength": 1,
+          "examples": ["/health", "/api/health", "/status"]
         }
       }
     },
