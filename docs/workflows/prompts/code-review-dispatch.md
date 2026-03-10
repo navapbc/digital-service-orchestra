@@ -69,9 +69,10 @@ Produce a JSON object with this EXACT schema (for writing to disk in Step 3).
 
 === SCHEMA ENFORCEMENT (violations cause re-dispatch) ===
 
-The JSON MUST have EXACTLY three top-level keys: "scores", "findings", "summary".
-Do NOT add any other top-level keys (no "schema_version", "review_result", "id", "review_date").
-The "scores" object MUST contain ALL five dimensions listed below.
+REQUIRED: EXACTLY three top-level keys: "scores", "findings", "summary".
+Do NOT add "schema_version", "review_result", "id", "review_date", or any other key —
+the validator will reject any extra keys and force a re-dispatch.
+The "scores" object MUST contain ALL five dimensions listed below with integer 1–5 or "N/A".
 
 **SCORE SCALE: INTEGER 1–5 ONLY. NOT 0–10. NOT 0–100. NOT any other scale.**
 Valid numeric score values: 1, 2, 3, 4, 5. Any value outside this range (e.g. 6, 7, 8, 9, 10)
@@ -128,7 +129,7 @@ Pipe your complete JSON into `write-reviewer-findings.sh`. This script validates
 schema first and only writes the file if validation passes — you cannot obtain a valid
 hash without passing schema validation. If it exits non-zero, fix the JSON and retry.
 
-  REPO_ROOT=$(git rev-parse --show-toplevel)
+  REPO_ROOT={repo_root}
   REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/write-reviewer-findings.sh"
   <your complete JSON here>
   FINDINGS_EOF
