@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# lockpick-workflow/scripts/verify-review-diff.sh
+# Validate that a review diff file matches the current working tree state.
+# Used by the code-review sub-agent before reading the diff.
+#
+# Usage:
+#   verify-review-diff.sh <diff-file-path>
+#
+# Exit codes:
+#   0 = diff file matches current working tree (DIFF_VALID: yes)
+#   1 = mismatch or file missing (DIFF_VALID: no ...)
+
+set -euo pipefail
+
+if [ $# -ne 1 ]; then
+    echo "Usage: verify-review-diff.sh <diff-file-path>" >&2
+    exit 1
+fi
+
+DIFF_FILE="$1"
+
+# Check file exists
+if [ ! -f "$DIFF_FILE" ]; then
+    echo "DIFF_VALID: no (file not found: $DIFF_FILE)"
+    exit 1
+fi
+
+# Check file is not empty
+if [ ! -s "$DIFF_FILE" ]; then
+    echo "DIFF_VALID: no (file is empty: $DIFF_FILE)"
+    exit 1
+fi
+
+# Extract hash fragment from filename (e.g., review-diff-a1b2c3d4.txt -> a1b2c3d4)
+filename=$(basename "$DIFF_FILE")
+file_hash=$(echo "$filename" | sed -n 's/.*-\([0-9a-f]\{8,\}\)\.txt$/\1/p')
+
+if [ -z "$file_hash" ]; then
+    echo "DIFF_VALID: no (could not extract hash from filename: $filename)"
+    exit 1
+fi
+
+# Compute current working tree hash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+current_hash=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
+current_hash_short="${current_hash:0:8}"
+
+# Compare
+if [ "$file_hash" = "$current_hash_short" ]; then
+    echo "DIFF_VALID: yes"
+    exit 0
+else
+    echo "DIFF_VALID: no (file: $file_hash, current: $current_hash_short)"
+    exit 1
+fi
