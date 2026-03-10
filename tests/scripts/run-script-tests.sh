@@ -9,6 +9,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$(cd "$SCRIPT_DIR/../plugin" && pwd)"
 
 TOTAL_PASS=0
 TOTAL_FAIL=0
@@ -16,7 +17,7 @@ TOTAL_FAIL=0
 echo "=== Script Tests ==="
 echo ""
 
-for f in "$SCRIPT_DIR"/test-*.sh; do
+for f in "$SCRIPT_DIR"/test-*.sh "$PLUGIN_DIR"/test-*.sh; do
     [ -f "$f" ] || continue
     test_name=$(basename "$f")
     echo "--- $test_name ---"

@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+# stubs/acli — mock acli binary for tk sync tests
+# Simulates a working acli installation: authenticated, project accessible.
+#
+# Behavior mirrors the real acli CLI (Go binary) API:
+#
+#   acli jira workitem search --jql "..." [--limit N] [--paginate] [--json]
+#   → exits 0, outputs JSON array of Jira issue objects (when --json is present)
+#   → when --limit 1 (preflight check): returns "✓ Number of work items..." text
+#
+#   acli jira workitem view KEY [--json]
+#   → exits 0, outputs single Jira issue JSON object (when --json present)
+#   → without --json: outputs "Key: KEY\nType: Task\n..." text
+#
+#   acli jira workitem create --project P --summary S [--description D] [--type T] [--parent KEY]
+#   → exits 0, outputs: "✓ Work item D2L-100 created: https://..." text
+#
+#   acli jira workitem edit --key KEY [--summary S] [--description D] [--type T]
+#   → exits 0, no output (acli edit doesn't support --priority or --status)
+#
+#   acli jira workitem transition --key KEY --status S
+#   → exits 0, no output (or STUB_ACLI_TRANSITION_FAIL=1 to fail)
+#
+#   acli jira workitem link create --out KEY1 --in KEY2 --type "Blocks"
+#   → exits 0, no output (or STUB_ACLI_LINK_FAIL=1 to fail)
+#
+# Environment:
+#   STUB_ACLI_AUTH_FAIL=1          → simulate "not authenticated" (exit 1 with auth error)
+#   STUB_ACLI_NO_PROJECT=1         → simulate "project not accessible" (exit 1 with project error)
+#   STUB_ACLI_CREATE_FAIL=1        → simulate workitem create failure (exit 1 with error)
+#   STUB_ACLI_EDIT_FAIL=1          → simulate workitem edit failure (exit 1 with error)
+#   STUB_ACLI_TRANSITION_FAIL=1    → simulate workitem transition failure (exit 1 with error)
+#   STUB_ACLI_LINK_FAIL=1          → simulate workitem link failure (exit 1 with error)
+#   STUB_JIRA_KEY=D2L-NNN          → override the key returned by workitem create
+#   STUB_ACLI_SEARCH_EMPTY=1       → workitem search returns [] (no remote issues)
+#   STUB_ACLI_SEARCH_FAIL=1        → workitem search exits 1 with error (simulate search failure)
+#   STUB_JIRA_ISSUES='<json>'      → workitem search returns this custom JSON array
+#   STUB_JIRA_VIEW_JSON='<json>'   → workitem view returns this custom JSON object
+#   STUB_ACLI_CONFLICT_ISSUES='<json>'  → workitem view returns this JSON (simulates remotely-changed
+#                                          Jira issue for conflict detection tests)
+#   STUB_ACLI_SEARCH_CONFLICT=1    → workitem search returns issues with divergent summary/status/body
+#   STUB_ACLI_DELETE_FAIL=1        → simulate workitem delete failure (exit 1 with error)
+#   STUB_ACLI_LOG_FILE=<path>      → append each command invocation to this log file
+#   STUB_JIRA_CREATE_COUNTER=<path> → auto-increment key counter file for multiple creates
+
+set -euo pipefail
+
+# Optional command logging for test assertions
+if [[ -n "${STUB_ACLI_LOG_FILE:-}" ]]; then
+    echo "$*" >> "$STUB_ACLI_LOG_FILE"
+fi
+
+SUBCMD="${1:-}"
+
+case "$SUBCMD" in
+    jira)
+        shift
+        OP="${1:-}"
+        case "$OP" in
+            workitem)
+                shift
+                ACTION="${1:-}"
+                case "$ACTION" in
+                    search)
+                        shift
+                        # Simulate auth failure
+                        if [[ "${STUB_ACLI_AUTH_FAIL:-0}" == "1" ]]; then
+                            echo "Error: not authenticated. Run 'acli jira login' to authenticate." >&2
+                            exit 1
+                        fi
+                        # Simulate project not accessible
+                        if [[ "${STUB_ACLI_NO_PROJECT:-0}" == "1" ]]; then
+                            echo "Error: project not found or not accessible." >&2
+                            exit 1
+                        fi
+                        # Simulate search failure
+                        if [[ "${STUB_ACLI_SEARCH_FAIL:-0}" == "1" ]]; then
+                            echo "Error: failed to search workitems in Jira." >&2
+                            exit 1
+                        fi
+
+                        # Parse flags
+                        _search_limit=""
+                        _search_json=0
+                        _search_paginate=0
+                        _search_count=0
+                        _prev_arg=""
+                        for _arg in "$@"; do
+                            if [[ "$_prev_arg" == "--limit" ]]; then
+                                _search_limit="$_arg"
+                            fi
+                            if [[ "$_arg" == "--json" ]]; then
+                                _search_json=1
+                            fi
+                            if [[ "$_arg" == "--paginate" ]]; then
+                                _search_paginate=1
+                            fi
+                            if [[ "$_arg" == "--count" ]]; then
+                                _search_count=1
+                            fi
+                            _prev_arg="$_arg"
+                        done
+
+                        # --count mode: return just the count
+                        if [[ $_search_count -eq 1 ]]; then
+                            if [[ "${STUB_ACLI_SEARCH_EMPTY:-0}" == "1" ]]; then
+                                echo "✓ Number of work items in the search: 0"
+                            elif [[ -n "${STUB_JIRA_ISSUES:-}" ]]; then
+                                local_count=$(echo "${STUB_JIRA_ISSUES}" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo "0")
+                                echo "✓ Number of work items in the search: $local_count"
+                            else
+                                echo "✓ Number of work items in the search: 1"
+                            fi
+                            exit 0
+                        fi
+
+                        # Return empty array when STUB_ACLI_SEARCH_EMPTY=1
+                        if [[ "${STUB_ACLI_SEARCH_EMPTY:-0}" == "1" ]]; then
+                            if [[ $_search_json -eq 1 ]]; then
+                                echo "[]"
+                            else
+                                echo "✓ Number of work items in the search: 0"
+                            fi
+                            exit 0
+                        fi
+
+                        # Return conflict-triggering issues when STUB_ACLI_SEARCH_CONFLICT=1
+                        if [[ "${STUB_ACLI_SEARCH_CONFLICT:-0}" == "1" ]]; then
+                            echo '[{"key":"TEST-1","fields":{"summary":"Remote changed summary","description":"Remote changed body","status":{"name":"In Progress"},"issuetype":{"name":"Task"},"priority":{"name":"High"}}}]'
+                            exit 0
+                        fi
+
+                        # Return custom issues when STUB_JIRA_ISSUES is set
+                        if [[ -n "${STUB_JIRA_ISSUES:-}" ]]; then
+                            if [[ $_search_json -eq 1 || $_search_paginate -eq 1 ]]; then
+                                echo "${STUB_JIRA_ISSUES}"
+                            else
+                                echo "✓ Number of work items in the search: $(echo "${STUB_JIRA_ISSUES}" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+                            fi
+                            exit 0
+                        fi
+
+                        # Check if this is a preflight (--limit 1) call
+                        if [[ "$_search_limit" == "1" ]]; then
+                            if [[ $_search_json -eq 1 ]]; then
+                                echo "[]"
+                            else
+                                # Non-json preflight: acli returns table output (success means project accessible)
+                                echo "✓ Number of work items in the search: 0"
+                            fi
+                            exit 0
+                        fi
+
+                        # Default: return a single well-formed Jira issue object
+                        if [[ $_search_json -eq 1 || $_search_paginate -eq 1 ]]; then
+                            echo '[{"key":"D2L-42","fields":{"summary":"Test issue","description":"Test body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}]'
+                        else
+                            echo "✓ Number of work items in the search: 1"
+                        fi
+                        exit 0
+                        ;;
+                    view)
+                        shift
+                        # Simulate auth failure
+                        if [[ "${STUB_ACLI_AUTH_FAIL:-0}" == "1" ]]; then
+                            echo "Error: not authenticated. Run 'acli jira login' to authenticate." >&2
+                            exit 1
+                        fi
+
+                        # Parse key and --json flag
+                        _view_key=""
+                        _view_json=0
+                        for _arg in "$@"; do
+                            if [[ "$_arg" == "--json" ]]; then
+                                _view_json=1
+                            elif [[ ! "$_arg" =~ ^-- ]]; then
+                                _view_key="$_arg"
+                            fi
+                        done
+                        _view_key="${_view_key:-D2L-100}"
+
+                        # Return conflict JSON when STUB_ACLI_CONFLICT_ISSUES is set
+                        if [[ -n "${STUB_ACLI_CONFLICT_ISSUES:-}" ]]; then
+                            echo "${STUB_ACLI_CONFLICT_ISSUES}"
+                            exit 0
+                        fi
+                        # Return custom JSON when STUB_JIRA_VIEW_JSON is set
+                        if [[ -n "${STUB_JIRA_VIEW_JSON:-}" ]]; then
+                            echo "${STUB_JIRA_VIEW_JSON}"
+                            exit 0
+                        fi
+
+                        if [[ $_view_json -eq 1 ]]; then
+                            echo "{\"key\":\"${_view_key}\",\"fields\":{\"summary\":\"Viewed issue\",\"description\":\"View body\",\"status\":{\"name\":\"To Do\"},\"issuetype\":{\"name\":\"Task\"},\"priority\":{\"name\":\"Medium\"}}}"
+                        else
+                            echo "Key: ${_view_key}"
+                            echo "Type: Task"
+                            echo "Summary: Viewed issue"
+                            echo "Status: To Do"
+                            echo "Description: View body"
+                        fi
+                        exit 0
+                        ;;
+                    create)
+                        shift
+                        # Simulate create failure
+                        if [[ "${STUB_ACLI_CREATE_FAIL:-0}" == "1" ]]; then
+                            echo "Error: failed to create workitem in Jira." >&2
+                            exit 1
+                        fi
+
+                        # Parse --type to validate (reject unknown types)
+                        _create_type=""
+                        _prev_arg=""
+                        for _arg in "$@"; do
+                            if [[ "$_prev_arg" == "--type" ]]; then
+                                _create_type="$_arg"
+                            fi
+                            _prev_arg="$_arg"
+                        done
+
+                        # Auto-increment key counter if configured
+                        local_key="${STUB_JIRA_KEY:-D2L-100}"
+                        if [[ -n "${STUB_JIRA_CREATE_COUNTER:-}" ]]; then
+                            if [[ -f "$STUB_JIRA_CREATE_COUNTER" ]]; then
+                                counter=$(cat "$STUB_JIRA_CREATE_COUNTER")
+                            else
+                                counter=100
+                            fi
+                            local_key="D2L-${counter}"
+                            echo $((counter + 1)) > "$STUB_JIRA_CREATE_COUNTER"
+                        fi
+
+                        # Output matches real acli format
+                        echo "✓ Work item ${local_key} created: https://example.atlassian.net/browse/${local_key}"
+                        exit 0
+                        ;;
+                    edit)
+                        shift
+                        # Simulate edit failure
+                        if [[ "${STUB_ACLI_EDIT_FAIL:-0}" == "1" ]]; then
+                            echo "Error: failed to edit workitem in Jira." >&2
+                            exit 1
+                        fi
+                        # Success — no output (matches real acli)
+                        exit 0
+                        ;;
+                    transition)
+                        shift
+                        # acli jira workitem transition --key KEY --status STATUS
+                        # Simulate transition failure
+                        if [[ "${STUB_ACLI_TRANSITION_FAIL:-0}" == "1" ]]; then
+                            echo "Error: failed to transition workitem in Jira." >&2
+                            exit 1
+                        fi
+                        # Success — no output
+                        exit 0
+                        ;;
+                    delete)
+                        shift
+                        # acli jira workitem delete --jql "..." --yes [--ignore-errors]
+                        if [[ "${STUB_ACLI_DELETE_FAIL:-0}" == "1" ]]; then
+                            echo "Error: failed to delete workitems in Jira." >&2
+                            exit 1
+                        fi
+                        # Success
+                        echo "✓ Deleted work items"
+                        exit 0
+                        ;;
+                    link)
+                        shift
+                        # acli jira workitem link create --out KEY1 --in KEY2 --type "Blocks"
+                        # Simulate link failure
+                        if [[ "${STUB_ACLI_LINK_FAIL:-0}" == "1" ]]; then
+                            echo "Error: failed to create link in Jira." >&2
+                            exit 1
+                        fi
+                        # Success — no output
+                        exit 0
+                        ;;
+                    *)
+                        echo "stub acli: unknown workitem action: $ACTION" >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            *)
+                echo "stub acli: unknown jira op: $OP" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+    --version|-v)
+        echo "acli stub 0.0.1"
+        exit 0
+        ;;
+    *)
+        echo "stub acli: unknown subcommand: $SUBCMD" >&2
+        exit 1
+        ;;
+esac
