@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-ticket-unstage-guard.sh
-# Tests for scripts/pre-commit-ticket-unstage-guard.sh
+# lockpick-workflow/tests/plugin/test-ticket-unstage-guard.sh
+# Tests for lockpick-workflow/scripts/pre-commit-ticket-unstage-guard.sh
 #
 # Pre-commit hook that detects .tickets/ files staged on non-main branches,
 # automatically unstages them (git reset HEAD .tickets/), prints a warning,
@@ -17,7 +17,7 @@
 #   8.  only unstages .tickets/ files (not other staged files)
 #   9.  hook is registered in .pre-commit-config.yaml
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-ticket-unstage-guard.sh
+# Usage: bash lockpick-workflow/tests/plugin/test-ticket-unstage-guard.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
