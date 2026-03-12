@@ -265,47 +265,57 @@ If the haiku sub-agent fails or returns malformed JSON (not parseable or missing
 
 #### Step 4b: Route Based on Classification
 
-Apply the brainstorm routing rule to the shared rubric's output:
+Apply the brainstorm routing rule to the shared rubric's output. The key insight: brainstorm produces specs at varying fidelity levels. When the spec already includes explicit file lists, a defined approach, and measurable success criteria, preplanning (story decomposition) is redundant — route directly to `/implementation-plan`.
 
-| Classification | Routing |
-|---|---|
-| TRIVIAL | `/preplanning <epic-id> --lightweight` |
-| MODERATE | `/preplanning <epic-id> --lightweight` |
-| COMPLEX | `/preplanning <epic-id>` (full mode) |
+| Classification | scope_certainty | Routing |
+|---|---|---|
+| TRIVIAL | High (always) | `/implementation-plan <epic-id>` |
+| MODERATE | High | `/implementation-plan <epic-id>` |
+| MODERATE | Medium | `/preplanning <epic-id> --lightweight` |
+| COMPLEX | any | `/preplanning <epic-id>` (full mode) |
 
-**Note on MODERATE**: In the brainstorm context, MODERATE routes to `--lightweight` (no escalation to COMPLEX). Newly brainstormed epics are typically well-scoped from the dialogue; lightweight preplanning is appropriate when the scope is not COMPLEX.
+**Rationale**: TRIVIAL and MODERATE+High epics have named files, testable acceptance criteria, and bounded scope — the brainstorm dialogue already produced story-level detail. Preplanning would add overhead without value. MODERATE+Medium epics have a clear goal but implicit acceptance criteria that need decomposition. COMPLEX epics require full story decomposition regardless of spec fidelity.
 
 #### Step 4c: Surface Classification to User
 
-Before invoking `/preplanning`, output to the user:
+Before invoking the next skill, output to the user:
 
 ```
-Epic classified as <TIER> — invoking /preplanning in <mode> mode
+Epic classified as <TIER> (scope_certainty: <HIGH|MEDIUM|LOW>) — invoking /<skill> [mode]
 ```
 
-where `<mode>` is `lightweight` for TRIVIAL or MODERATE, and `full` for COMPLEX.
+where `<skill>` is `implementation-plan` for TRIVIAL or MODERATE+High, `preplanning --lightweight` for MODERATE+Medium, and `preplanning` (full) for COMPLEX.
 
-#### Step 4d: Invoke Preplanning
+#### Step 4d: Invoke Next Skill
 
-Immediately invoke `/preplanning` — do NOT wait for user input after surfacing the classification:
+Immediately invoke the routed skill — do NOT wait for user input after surfacing the classification:
 
 ```
+# TRIVIAL or MODERATE + scope_certainty High:
+Skill tool:
+  skill: "implementation-plan"
+  args: "<epic-id>"
+
+# MODERATE + scope_certainty Medium:
 Skill tool:
   skill: "preplanning"
-  args: "<epic-id> --lightweight" # TRIVIAL or MODERATE
-  # OR
-  args: "<epic-id>"              # COMPLEX (full mode, no --lightweight flag)
+  args: "<epic-id> --lightweight"
+
+# COMPLEX:
+Skill tool:
+  skill: "preplanning"
+  args: "<epic-id>"
 ```
 
-`/preplanning` will decompose the epic into user stories and present a story map for user approval before anything is created in the ticket system. Control returns here only if `/preplanning` escalates (e.g., requires user clarification).
+`/implementation-plan` will break the epic directly into atomic TDD tasks. `/preplanning` will decompose into user stories first, then each story gets `/implementation-plan`. Control returns here only if the invoked skill escalates (e.g., requires user clarification).
 
-Report the epic creation and preplanning handoff:
+Report the epic creation and skill handoff:
 
 ```
 === Brainstorm Complete ===
 
 Epic created: <epic-id> — "<title>"
-Epic classified as <TIER> — invoking /preplanning in <mode> mode…
+Epic classified as <TIER> (scope_certainty: <level>) — invoking /<skill>…
 ```
 
 ---
@@ -332,4 +342,4 @@ Epic classified as <TIER> — invoking /preplanning in <mode> mode…
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Ticket Integration | Create the epic, classify complexity, invoke preplanning | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), `/preplanning <epic-id> [--lightweight]` |
+| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), route: TRIVIAL/MODERATE+High → `/implementation-plan`, MODERATE+Medium → `/preplanning --lightweight`, COMPLEX → `/preplanning` |

@@ -44,7 +44,7 @@ The `claude-safe` wrapper script automatically handles worktree creation, Python
 claude-safe
 ```
 
-This creates a timestamped worktree at `../lockpick-worktrees/worktree-YYYYMMDD-HHMMSS` (outside the main repo), runs the configured `worktree.post_create_cmd` hook (which sets up Python 3.13 and installs dependencies via Poetry), and launches Claude Code in the new worktree.
+This creates a timestamped worktree at `../<repo-name>-worktrees/worktree-YYYYMMDD-HHMMSS` (outside the main repo, directory name derived from repo name), runs the configured `worktree.post_create_cmd` hook (which sets up Python 3.13 and installs dependencies via Poetry), and launches Claude Code in the new worktree.
 
 Worktrees are created **outside** the main repo to prevent Claude Code from double-loading CLAUDE.md (it walks parent directories and would load the parent repo's copy too).
 
@@ -54,10 +54,10 @@ If you need to manually create a worktree with a specific name:
 
 ```bash
 # From the main repo root — create worktree OUTSIDE the repo on a new branch
-git worktree add ../lockpick-worktrees/feature-auth -b feature-auth
+git worktree add ../<repo-name>-worktrees/feature-auth -b feature-auth
 
 # Set up the dev environment in the new worktree (REQUIRED: Python 3.13)
-cd ../lockpick-worktrees/feature-auth/app
+cd ../<repo-name>-worktrees/feature-auth/app
 rm -rf .venv
 poetry env use /opt/homebrew/opt/python@3.13/bin/python3.13
 poetry install
@@ -95,7 +95,7 @@ This means:
     refs/
     ...
 
-/Users/joeoakhart/lockpick-worktrees/          ← worktree parent (outside repo)
+/Users/joeoakhart/lockpick-doc-to-logic-worktrees/  ← worktree parent (outside repo, derived from repo name)
   feature-auth/
     .git             <-- file (not directory) pointing to main repo's .git/worktrees/feature-auth/
 ```
@@ -108,10 +108,10 @@ This means:
 
 ```bash
 # Basic: creates worktree outside the repo on a new branch (recommended)
-git worktree add ../lockpick-worktrees/feature-auth -b feature-auth
+git worktree add ../<repo-name>-worktrees/feature-auth -b feature-auth
 
 # With an existing branch
-git worktree add ../lockpick-worktrees/feature-auth feature-auth
+git worktree add ../<repo-name>-worktrees/feature-auth feature-auth
 
 # claude-safe does this automatically with timestamped names
 claude-safe
@@ -454,7 +454,7 @@ fi
 | Pre-commit hooks not working | Re-run `.venv/bin/pre-commit install --config ../.pre-commit-config.yaml` from `app/` |
 | Disk space running low | Each worktree with venv takes ~500MB+; remove unused worktrees with `git worktree remove <name>` |
 | "Not a git repository" error | Ensure you are inside the worktree directory, not a parent |
-| Worktree branch already checked out | Each branch can only be checked out in one worktree at a time; use `-b <new-branch>` to create a new branch: `git worktree add ../lockpick-worktrees/feature-auth -b feature-auth` |
+| Worktree branch already checked out | Each branch can only be checked out in one worktree at a time; use `-b <new-branch>` to create a new branch: `git worktree add ../<repo-name>-worktrees/feature-auth -b feature-auth` |
 | `make db-start` fails: container name conflict | The persistent DB uses a fixed container name; only one instance can run. Stop the existing one first with `make db-stop`, or share the existing DB across worktrees |
 | `validate.sh` reports multiple migration heads | Two worktrees created migrations from the same base. Run `make db-migrate-merge-heads` to create a merge migration. See "Database Migration Conflicts" section above |
 
@@ -468,7 +468,7 @@ This shows the full flow from creation to cleanup.
 
 ```bash
 # From main repo root — creates worktree outside repo on a new branch
-git worktree add ../lockpick-worktrees/feature-auth -b feature-auth-redesign
+git worktree add ../<repo-name>-worktrees/feature-auth -b feature-auth-redesign
 ```
 
 **Branch naming tip**: Use dash-separated names (e.g., `feature-auth-redesign`) rather than slash-separated names (e.g., `feature/auth-redesign`) to ensure CI triggers on direct pushes. CI patterns like `feature-*` match dashes but not slashes. Slash-separated branches still trigger CI via pull requests to `main`.
@@ -476,7 +476,7 @@ git worktree add ../lockpick-worktrees/feature-auth -b feature-auth-redesign
 ### 2. Set Up the Dev Environment
 
 ```bash
-cd ../lockpick-worktrees/feature-auth/app
+cd ../<repo-name>-worktrees/feature-auth/app
 rm -rf .venv
 poetry env use /opt/homebrew/opt/python@3.13/bin/python3.13
 poetry install
@@ -486,7 +486,7 @@ poetry install
 ### 3. Start Working
 
 ```bash
-cd /Users/joeoakhart/lockpick-worktrees/feature-auth
+cd /Users/joeoakhart/lockpick-doc-to-logic-worktrees/feature-auth
 claude
 ```
 
