@@ -323,9 +323,19 @@ else
 fi
 
 # Additional: verify the wrapper exits 0 when given --help (smoke-tests delegation)
+# CI-ONLY: On macOS the wrapper uses exec which re-invokes via the canonical script's
+# shebang (#!/bin/bash = bash 3.2), bypassing the bash4 we found above. Run the
+# canonical script directly with bash4 on macOS to smoke-test the delegation path.
 if [[ -n "$BASH4" && -f "$WRAPPER" ]]; then
     exit_code=0
-    "$BASH4" "$WRAPPER" --help 2>&1 || exit_code=$?
+    if [[ "$OSTYPE" == linux* ]]; then
+        # On Linux: exec shebang picks up bash4 from PATH — test wrapper directly
+        "$BASH4" "$WRAPPER" --help 2>&1 || exit_code=$?
+    else
+        # On macOS: exec re-invokes via #!/bin/bash (bash 3.2), bypassing bash4.
+        # Verify delegation by running the canonical script directly.
+        "$BASH4" "$SCRIPT" --help 2>&1 || exit_code=$?
+    fi
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS: wrapper --help exits 0 (delegation works)"
         (( PASS++ ))

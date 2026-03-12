@@ -57,9 +57,11 @@ if [ -z "$BRANCH" ]; then
 fi
 
 # --- Check for uncommitted or untracked changes on worktree ---
-DIRTY=$(git diff --name-only 2>/dev/null || true)
-DIRTY_CACHED=$(git diff --cached --name-only 2>/dev/null || true)
-DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null || true)
+# Exclude the configured tickets directory — ticket files are created by tk
+# and should never block a merge regardless of sync infrastructure.
+DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+DIRTY_CACHED=$(git diff --cached --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
 if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     echo "ERROR: Uncommitted changes on worktree. Commit or stash first."
     [ -n "$DIRTY" ] && echo "Unstaged: $DIRTY"
