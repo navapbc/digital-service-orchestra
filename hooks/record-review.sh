@@ -296,8 +296,13 @@ HAS_CRITICAL="${SCORE_AND_CRITICAL##*:}"
 REVIEW_STATE_FILE="$ARTIFACTS_DIR/review-status"
 
 # Compute a hash of the current diff (staged + unstaged) to fingerprint the code state.
+# Reuse untracked snapshot if available for deterministic hashing during review sessions.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh")
+_SNAPSHOT_ARGS=()
+if [[ -n "${ARTIFACTS_DIR:-}" && -f "$ARTIFACTS_DIR/untracked-snapshot.txt" ]]; then
+    _SNAPSHOT_ARGS=(--snapshot "$ARTIFACTS_DIR/untracked-snapshot.txt")
+fi
+DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh" "${_SNAPSHOT_ARGS[@]}")
 
 # If --expected-hash was provided, reject if the diff has changed since the caller captured it
 if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then

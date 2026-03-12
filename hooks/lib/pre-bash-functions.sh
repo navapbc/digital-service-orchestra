@@ -478,9 +478,16 @@ hook_review_gate() {
 
     # compute-diff-hash.sh lives in lockpick-workflow/hooks/
     # _PRE_BASH_FUNC_DIR is hooks/lib/ so ../ = hooks/
-    local _HOOK_DIR_FOR_DIFF
+    local _HOOK_DIR_FOR_DIFF _SNAPSHOT_ARGS
     _HOOK_DIR_FOR_DIFF="$_PRE_BASH_FUNC_DIR/.."
-    CURRENT_HASH=$("$_HOOK_DIR_FOR_DIFF/compute-diff-hash.sh")
+    _SNAPSHOT_ARGS=()
+    # Reuse untracked snapshot if available for deterministic hashing
+    local _ARTIFACTS_DIR
+    _ARTIFACTS_DIR=$(get_artifacts_dir 2>/dev/null || echo "")
+    if [[ -n "$_ARTIFACTS_DIR" && -f "$_ARTIFACTS_DIR/untracked-snapshot.txt" ]]; then
+        _SNAPSHOT_ARGS=(--snapshot "$_ARTIFACTS_DIR/untracked-snapshot.txt")
+    fi
+    CURRENT_HASH=$("$_HOOK_DIR_FOR_DIFF/compute-diff-hash.sh" "${_SNAPSHOT_ARGS[@]}")
 
     if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
         local REVIEW_TS

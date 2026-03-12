@@ -1,0 +1,202 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "claude-code-workflows": {
+      "source": {
+        "source": "github",
+        "repo": "wshobson/agents"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "feature-dev@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "debugging-toolkit@claude-code-workflows": true,
+    "unit-testing@claude-code-workflows": true,
+    "error-debugging@claude-code-workflows": true,
+    "backend-api-security@claude-code-workflows": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/inject-using-lockpick.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/session-safety-check.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/post-compact-review-check.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/tool-logging.sh pre"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/pre-bash.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/validation-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/worktree-edit-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/cascade-circuit-breaker.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/title-length-validator.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/plan-review-gate.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/validation-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/worktree-edit-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/cascade-circuit-breaker.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/title-length-validator.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/worktree-isolation-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "TaskOutput",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/taskoutput-block-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-all.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-bash.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-edit.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-write.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/review-stop-check.sh"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/tool-logging-summary.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/track-tool-errors.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

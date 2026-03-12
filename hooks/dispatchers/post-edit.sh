@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# lockpick-workflow/hooks/dispatchers/post-edit.sh
+# PostToolUse Edit dispatcher: sources all 2 Edit post-hook functions and runs them.
+#
+# Replaces 2 separate settings.json entries with a single dispatcher entry:
+#   run-hook.sh dispatchers/post-edit.sh
+#
+# Hook execution order:
+#   1. hook_auto_format
+#   2. hook_ticket_sync_push
+#
+# PostToolUse hooks always exit 0 (non-blocking).
+# Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
+
+# DEFENSE-IN-DEPTH: Guarantee exit 0 and non-empty stdout on any unexpected failure.
+_HOOK_HAS_OUTPUT=""
+trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
+trap 'exit 0' ERR
+
+# Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+
+HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
+
+# Source the dispatcher framework (provides run_hooks)
+source "$HOOKS_LIB_DIR/dispatcher.sh"
+
+# Source all post hook functions
+source "$HOOKS_LIB_DIR/post-functions.sh"
+
+# Run all Edit post-hook functions sequentially.
+# PostToolUse hooks are non-blocking (always return 0).
+# Accumulate output from all hooks; emit at least '{}' if none.
+_run_post_fn() {
+    local fn_name="$1"
+    local json_input="$2"
+    local _fn_out=""
+    _fn_out=$("$fn_name" "$json_input" 2>/dev/null) || true
+    if [[ -n "$_fn_out" ]] && [[ "$_fn_out" != "{}" ]]; then
+        _HOOK_HAS_OUTPUT=1
+        printf '%s\n' "$_fn_out"
+    fi
+}
+
+_post_edit_dispatch() {
+    # Read hook input from stdin
+    local INPUT
+    INPUT=$(cat)
+
+    _run_post_fn hook_auto_format "$INPUT"
+    _run_post_fn hook_ticket_sync_push "$INPUT"
+}
+
+# Only execute dispatch logic when run as a script (not sourced).
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    _post_edit_dispatch
+    exit 0
+fi
