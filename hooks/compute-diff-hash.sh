@@ -3,7 +3,7 @@
 # Computes a staging-invariant SHA-256 hash of all working tree changes.
 # Includes working tree changes relative to the diff base and untracked file contents.
 # Produces the same hash regardless of git staging state (git add).
-# Excludes .tickets/ files (issue tracker metadata shouldn't affect code hashes).
+# Includes .tickets/ files — tickets now flow through normal commits after removing automatic sync.
 #
 # Usage:
 #   HASH=$(.claude/hooks/compute-diff-hash.sh)
@@ -109,7 +109,6 @@ fi
 
 # Pathspec exclusions for non-reviewable files (binary, snapshots, images, docs)
 EXCLUDE_PATHSPECS=(
-    ':!.tickets/'
     ':!.checkpoint-needs-review'
     ':!app/tests/e2e/snapshots/'
     ':!app/tests/unit/templates/snapshots/*.html'
@@ -118,7 +117,7 @@ EXCLUDE_PATHSPECS=(
 )
 
 # Grep pattern to filter untracked non-reviewable files
-NON_REVIEWABLE_PATTERN='^\.tickets/|^\.checkpoint-needs-review$|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
+NON_REVIEWABLE_PATTERN='^\.checkpoint-needs-review$|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
 
 # Build the untracked file list — either from snapshot or live query
 _get_untracked_files() {

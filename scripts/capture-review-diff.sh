@@ -5,7 +5,6 @@
 # Usage: capture-review-diff.sh <diff-file> <stat-file> [extra-exclusion ...]
 #
 # Always excludes:
-#   - .tickets/ (issue tracker metadata; always unstaged in worktree sessions)
 #   - visual.baseline_directory/*.png (from workflow-config.yaml; skipped if unset)
 #
 # Additional exclusions can be passed as extra arguments (e.g., ':!app/snapshots/*.html').
@@ -26,7 +25,7 @@ shift 2
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Build exclusion list ---
-EXCLUDES=(':!.tickets/' ':!.checkpoint-needs-review')
+EXCLUDES=(':!.checkpoint-needs-review')
 
 # Read visual baseline directory from config (e.g., app/tests/e2e/snapshots/)
 BASELINE_DIR=$("$SCRIPT_DIR/read-config.sh" visual.baseline_directory 2>/dev/null || true)
@@ -42,13 +41,13 @@ done
 # --- Capture diff with exclusions (tee for worktree fd compatibility) ---
 { git diff --staged -- "${EXCLUDES[@]}"; git diff -- "${EXCLUDES[@]}"; } | tee "$DIFF_FILE" > /dev/null
 
-# Guard: if empty after exclusions (snapshot-only commit), fall back to tickets-excluded diff
-# so verify-review-diff.sh doesn't reject the empty file. The reviewer ignores binary files.
+# Guard: if empty after exclusions (snapshot-only commit), fall back to a diff
+# without any exclusions so verify-review-diff.sh doesn't reject the empty file.
 [ -s "$DIFF_FILE" ] || \
-    { git diff --staged -- ':!.tickets/'; git diff -- ':!.tickets/'; } | tee "$DIFF_FILE" > /dev/null
+    { git diff --staged; git diff; } | tee "$DIFF_FILE" > /dev/null
 
 # Final fallback: last commit (e.g., post-compaction checkpoint scenario)
-[ -s "$DIFF_FILE" ] || git diff HEAD~1 -- ':!.tickets/' | tee "$DIFF_FILE" > /dev/null
+[ -s "$DIFF_FILE" ] || git diff HEAD~1 | tee "$DIFF_FILE" > /dev/null
 
 # --- Capture stat with exclusions ---
 { git diff HEAD --stat -- "${EXCLUDES[@]}"; \

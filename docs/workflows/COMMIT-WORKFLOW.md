@@ -48,7 +48,7 @@ while IFS= read -r file; do
     esac
     # Non-reviewable files
     case "$file" in
-        .tickets/*|.sync-state.json) ;;                                            # tracker metadata
+        .sync-state.json) ;;                                                       # sync state metadata
         app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;   # visual snapshots
         *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;                            # images
         *.pdf|*.docx) ;;                                                           # binary docs
@@ -240,10 +240,10 @@ echo "passed" > "$ARTIFACTS_DIR/validation-status"
 
 If you intend to include new (untracked) files in this commit, add them explicitly by name first.
 
-Then stage all tracked modifications (including any files touched by the format or lint steps) without accidentally staging untracked files. Exclude `.tickets/` to avoid triggering the ticket-unstage-guard hook (ticket files sync to main automatically via the PostToolUse hook):
+Then stage all tracked modifications (including any files touched by the format or lint steps) without accidentally staging untracked files:
 
 ```bash
-git add -u -- ':(exclude).tickets'
+git add -u
 ```
 
 ## Step 5: Review Gate
