@@ -21,10 +21,6 @@ if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
 fi
 cd "$REPO_ROOT"
 
-# --- Load ticket sync library (provides _clear_ticket_skip_worktree) ---
-# Resolve relative to script location, not REPO_ROOT, so the source works
-# when merge-to-main.sh is invoked from a test environment where REPO_ROOT
-# points to a temp worktree that doesn't contain scripts/.
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Load hooks/lib/deps.sh for get_artifacts_dir ---
@@ -42,16 +38,6 @@ export LOCKPICK_TICKETS_DIR="$TICKETS_DIR"
 VISUAL_BASELINE_PATH=$(bash "$_SCRIPT_DIR"/read-config.sh merge.visual_baseline_path 2>/dev/null || true)
 CI_WORKFLOW_NAME=$(bash "$_SCRIPT_DIR"/read-config.sh merge.ci_workflow_name 2>/dev/null || true)
 MSG_EXCLUSION_PATTERN=$(bash "$_SCRIPT_DIR"/read-config.sh merge.message_exclusion_pattern 2>/dev/null || true)
-
-# Fallback: try plugin dir first, then repo-root scripts/
-if [ -f "$_SCRIPT_DIR/tk-sync-lib.sh" ]; then
-    source "$_SCRIPT_DIR/tk-sync-lib.sh" || { echo "ERROR: tk-sync-lib.sh failed to load"; exit 1; }
-elif [ -f "$REPO_ROOT/scripts/tk-sync-lib.sh" ]; then
-    source "$REPO_ROOT/scripts/tk-sync-lib.sh" || { echo "ERROR: tk-sync-lib.sh failed to load"; exit 1; }
-else
-    echo "ERROR: tk-sync-lib.sh not found in $_SCRIPT_DIR or $REPO_ROOT/scripts/"
-    exit 1
-fi
 
 # --- Verify worktree context ---
 if [ -d .git ]; then
@@ -71,13 +57,9 @@ if [ -z "$BRANCH" ]; then
 fi
 
 # --- Check for uncommitted or untracked changes on worktree ---
-# Exclude .tickets/ — the pre-commit guard auto-unstages ticket files on
-# non-main branches, so they always appear dirty in worktrees.
-# They sync independently via the PostToolUse ticket-sync-push hook.
-# (.sync-state.json now lives inside .tickets/ so is covered by this exclusion.)
-DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
-DIRTY_CACHED=$(git diff --cached --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
-DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+DIRTY=$(git diff --name-only 2>/dev/null || true)
+DIRTY_CACHED=$(git diff --cached --name-only 2>/dev/null || true)
+DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null || true)
 if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     echo "ERROR: Uncommitted changes on worktree. Commit or stash first."
     [ -n "$DIRTY" ] && echo "Unstaged: $DIRTY"
@@ -127,11 +109,7 @@ fi
 
 # --- 1.5) Sync worktree with main ---
 # Delegates to worktree-sync-from-main.sh which handles:
-#   - Clearing skip-worktree flags on .tickets/ files
-#   - Stashing dirty/untracked .tickets/ files
 #   - Fetching and merging origin/main
-#   - Auto-resolving .tickets/ conflicts (worktree wins)
-#   - Restoring stashed .tickets/ files
 # This surfaces merge conflicts here (where /resolve-conflicts can operate)
 # rather than discovering them during the main-repo merge.
 
@@ -197,18 +175,6 @@ if [ -f "$(git rev-parse --git-dir)/MERGE_HEAD" ]; then
     git merge --abort 2>/dev/null || git reset --merge 2>/dev/null || true
 fi
 
-# --- 2.55) Force-clean .tickets/ on main ---
-# The ticket-sync-push hook advances refs/heads/main via detached-index commits,
-# leaving the main repo's working tree dirty with stale .tickets/ files. Some may
-# have skip-worktree set (hiding them from git diff/stash). Force-clean ensures
-# .tickets/ is pristine before any git operations (pull, merge) on main.
-# Order matters: clear flags first (so checkout/reset can see the files),
-# then unstage, restore working tree, and remove untracked files.
-_clear_ticket_skip_worktree
-git reset HEAD -- "$TICKETS_DIR"/ 2>/dev/null || true
-git checkout -- "$TICKETS_DIR"/ 2>/dev/null || true
-git clean -fd "$TICKETS_DIR"/ 2>/dev/null || true
-
 # --- 2.6) Pull remote changes before merging ---
 echo "Pulling remote changes..."
 # Stash any local changes so rebase pull can proceed
@@ -251,16 +217,6 @@ if [ -z "$LAST_MSG" ]; then
 fi
 MERGE_MSG="$LAST_MSG (merge $BRANCH)"
 
-# Force-clean .tickets/ before merge — the ticket sync push hook and git pull
-# --rebase may have left .tickets/ dirty again since the force-clean in 2.55
-# (e.g., stash pop at 2.6 can restore stashed ticket files).
-# The merge result is authoritative for .tickets/ (worktree branch wins), so
-# there is no data to preserve here — force-clean is safe.
-_clear_ticket_skip_worktree
-git reset HEAD -- "$TICKETS_DIR"/ 2>/dev/null || true
-git checkout -- "$TICKETS_DIR"/ 2>/dev/null || true
-git clean -fd "$TICKETS_DIR"/ 2>/dev/null || true
-
 # Capture pre-merge SHA so we can later detect whether the merge contained
 # non-.tickets/ changes (used for the CI trigger check after push).
 PRE_MERGE_SHA=$(git rev-parse HEAD)
@@ -268,31 +224,21 @@ PRE_MERGE_SHA=$(git rev-parse HEAD)
 echo "Merging $BRANCH into main..."
 if ! git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
     CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
-    # Auto-resolve .tickets/ conflicts (same as worktree sync)
-    NON_TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^'"$TICKETS_DIR"'/' || true)
-    if [ -z "$NON_TICKET_CONFLICTS" ] && [ -n "$CONFLICTED" ]; then
-        echo "Auto-resolving ticket conflicts (branch wins)..."
-        git checkout --theirs -- "$TICKETS_DIR"/ 2>/dev/null || true
-        git add "$TICKETS_DIR"/ 2>/dev/null || true
-        git commit --no-edit --quiet 2>/dev/null || true
-        echo "OK: Auto-resolved ticket conflicts."
-    else
-        git merge --abort 2>/dev/null || true
-        echo "ERROR: Merge conflict. Aborted merge."
-        # Structured output for /resolve-conflicts skill consumption
-        echo "CONFLICT_DATA: branch=$BRANCH merge_base=$(git merge-base main "$BRANCH" 2>/dev/null || echo unknown)"
-        if [ -n "$CONFLICTED" ]; then
-            echo "CONFLICT_FILES: $CONFLICTED"
-        fi
-        exit 1
+    git merge --abort 2>/dev/null || true
+    echo "ERROR: Merge conflict. Aborted merge."
+    # Structured output for /resolve-conflicts skill consumption
+    echo "CONFLICT_DATA: branch=$BRANCH merge_base=$(git merge-base main "$BRANCH" 2>/dev/null || echo unknown)"
+    if [ -n "$CONFLICTED" ]; then
+        echo "CONFLICT_FILES: $CONFLICTED"
     fi
+    exit 1
 fi
 echo "OK: Merged $BRANCH into main."
 
 # Stage any post-merge artifacts (.gitignore entries for worktree dirs)
 git add .gitignore 2>/dev/null || true
 
-REMAINING_DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+REMAINING_DIRTY=$(git diff --name-only 2>/dev/null || true)
 if [ -n "$REMAINING_DIRTY" ]; then
     echo "WARNING: Unexpected dirty files on main (not staged): $REMAINING_DIRTY"
 fi
@@ -340,15 +286,13 @@ else
     echo "INFO: archive-closed-tickets.sh not found — skipping archive step."
 fi
 
-# --- 5) Trigger CI if HEAD has [skip ci] but merge contained code changes ---
-# The PostToolUse ticket-sync-push hook appends [skip ci] commits to main after
-# the push. GitHub evaluates CI eligibility based on the HEAD commit message, so
-# if a [skip ci] commit lands on top of the merge commit, CI is suppressed even
-# though the merge contained real code changes.
-# Mitigation: if the merge introduced non-.tickets/ changes AND the current HEAD
+# --- 5) Trigger CI if HEAD has [skip ci] but merge contained changes ---
+# If a [skip ci] commit lands on top of the merge commit, CI is suppressed even
+# though the merge contained real changes.
+# Mitigation: if the merge introduced changes AND the current HEAD
 # on origin carries [skip ci], explicitly dispatch the CI workflow so it runs.
 HEAD_MSG=$(git log -1 --format='%s' origin/main 2>/dev/null || git log -1 --format='%s' 2>/dev/null || true)
-CODE_CHANGES=$(git diff --name-only "$PRE_MERGE_SHA" HEAD -- ':!'"$TICKETS_DIR"'/' 2>/dev/null | head -1 || true)
+CODE_CHANGES=$(git diff --name-only "$PRE_MERGE_SHA" HEAD 2>/dev/null | head -1 || true)
 if [ -n "$CI_WORKFLOW_NAME" ]; then
     if echo "$HEAD_MSG" | grep -q '\[skip ci\]' && [ -n "$CODE_CHANGES" ]; then
         echo "INFO: HEAD has [skip ci] but merge contained code changes — triggering CI workflow..."

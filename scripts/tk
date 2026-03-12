@@ -247,20 +247,6 @@ open('$file', 'w').writelines(result)
     fi
 }
 
-# ---------------------------------------------------------------------------
-# Source the ticket-sync push library.
-# Provides _sync_ticket_file <absolute_path> — fire-and-forget push to main.
-# Guard: silently skip if the lib is absent (e.g., during bootstrap).
-# ---------------------------------------------------------------------------
-_TK_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/tk-sync-lib.sh
-if [[ -f "${_TK_SCRIPT_DIR}/tk-sync-lib.sh" ]]; then
-    source "${_TK_SCRIPT_DIR}/tk-sync-lib.sh"
-else
-    # Stub: no-op so _sync_ticket_file calls below are always safe
-    _sync_ticket_file() { return 0; }
-fi
-
 cmd_create() {
     ensure_dir
 
@@ -348,7 +334,6 @@ cmd_create() {
         fi
     } > "$file"
 
-    ( _sync_ticket_file "$file" || true )
     echo "$id"
 }
 
@@ -380,7 +365,6 @@ cmd_status() {
     file=$(ticket_path "$id") || return 1
 
     update_yaml_field "$file" "status" "$status"
-    ( _sync_ticket_file "$file" || true )
     echo "Updated $(basename "$file" .md) -> $status"
 }
 
@@ -414,8 +398,6 @@ cmd_close() {
         cmd_add_note "$id" "CLOSE REASON: $reason"
     fi
     cmd_status "$id" "closed"
-    local _close_file
-    ( _close_file=$(ticket_path "$id" 2>/dev/null) && _sync_ticket_file "$_close_file" || true )
 }
 
 cmd_reopen() {
@@ -424,8 +406,6 @@ cmd_reopen() {
         return 1
     fi
     cmd_status "$1" "open"
-    local _reopen_file
-    ( _reopen_file=$(ticket_path "$1" 2>/dev/null) && _sync_ticket_file "$_reopen_file" || true )
 }
 
 cmd_dep_tree() {
@@ -797,7 +777,6 @@ cmd_dep() {
         update_yaml_field "$file" "deps" "$new_deps"
     fi
 
-    ( _sync_ticket_file "$file" || true )
     echo "Added dependency: $(basename "$file" .md) -> $dep_id"
 }
 
@@ -1166,7 +1145,6 @@ cmd_assign() {
     local file
     file=$(ticket_path "$1") || return 1
     update_yaml_field "$file" "assignee" "$2"
-    ( _sync_ticket_file "$file" || true )
     echo "Assigned $(basename "$file" .md) -> $2"
 }
 
@@ -1183,7 +1161,6 @@ cmd_priority() {
         return 1
     fi
     update_yaml_field "$file" "priority" "$p"
-    ( _sync_ticket_file "$file" || true )
     echo "Priority $(basename "$file" .md) -> P$p"
 }
 
@@ -1199,7 +1176,6 @@ cmd_set_parent() {
     local parent_id
     parent_id=$(basename "$parent_file" .md)
     update_yaml_field "$file" "parent" "$parent_id"
-    ( _sync_ticket_file "$file" || true )
     echo "Parent $(basename "$file" .md) -> $parent_id"
 }
 
@@ -1229,7 +1205,6 @@ cmd_tag() {
         new_tags=$(echo "$current_tags" | sed "s/\]/, $new_tag]/")
         update_yaml_field "$file" "tags" "$new_tags"
     fi
-    ( _sync_ticket_file "$file" || true )
     echo "Tagged $(basename "$file" .md) with $new_tag"
 }
 
@@ -1243,8 +1218,6 @@ cmd_delete() {
     local id
     id=$(basename "$file" .md)
     rm "$file"
-    # Use _sync_ticket_delete (not _sync_ticket_file) because the file no longer exists on disk
-    ( _sync_ticket_delete "$file" || true )
     echo "Deleted $id"
 }
 
@@ -1337,7 +1310,6 @@ cmd_undep() {
     [[ "$new_deps" == "[]" || "$new_deps" == "[, ]" || "$new_deps" == "[ ]" ]] && new_deps="[]"
 
     update_yaml_field "$file" "deps" "$new_deps"
-    ( _sync_ticket_file "$file" || true )
     echo "Removed dependency: $(basename "$file" .md) -/-> $dep_id"
 }
 
@@ -1439,10 +1411,6 @@ cmd_link() {
         echo "All links already exist"
     else
         echo "Added $count link(s) between ${#ids[@]} tickets"
-        # Sync all modified ticket files
-        for ((i=0; i<${#files[@]}; i++)); do
-            ( _sync_ticket_file "${files[$i]}" || true )
-        done
     fi
 }
 
@@ -1490,8 +1458,6 @@ cmd_unlink() {
     # Remove from both files
     remove_link_from_file "$file" "$target_id"
     remove_link_from_file "$target_file" "$id"
-    ( _sync_ticket_file "$file" || true )
-    ( _sync_ticket_file "$target_file" || true )
 
     echo "Removed link: $(basename "$file" .md) <-> $target_id"
 }
@@ -1698,7 +1664,6 @@ cmd_add_note() {
     printf '<!-- sync: unsynced -->\n\n' >> "$file"
     printf '%s\n' "$note" >> "$file"
 
-    ( _sync_ticket_file "$file" || true )
     echo "Note added to $(basename "$file" .md)"
 }
 
@@ -2776,7 +2741,6 @@ open(ticket_file, 'w').writelines(result)
             fi
         fi
         # Propagate jira_key stamp to worktree peers via cross-worktree sync
-        ( _sync_ticket_file "$ticket_file" || true )
 
         # Write ledger entry — compute jira_hash from the fields we just pushed
         # so the pull phase sees no change and skips this ticket (prevents
@@ -3130,7 +3094,6 @@ for line in lines:
 open(tf, 'w').writelines(result)
 " 2>/dev/null
     # Propagate deps change to worktree peers via cross-worktree sync
-    ( _sync_ticket_file "$ticket_file" || true )
 
     return 0
 }
@@ -3229,7 +3192,6 @@ for line in lines:
 open(tf, 'w').writelines(result)
 " 2>/dev/null
     # Propagate links change to worktree peers via cross-worktree sync
-    ( _sync_ticket_file "$ticket_file" || true )
 
     return 0
 }
@@ -3526,7 +3488,6 @@ open(ticket_file, 'w').writelines(result)
         fi
 
         # Propagate all writes (status, jira_key, body, deps, links) to worktree peers
-        ( _sync_ticket_file "$ticket_file" || true )
 
         # Compute local_hash from the actual file content (not from Jira fields directly)
         # so that conflict detection is consistent regardless of body-write success.
@@ -3726,7 +3687,6 @@ open(ticket_file, 'w').writelines(result)
         fi
 
         # Propagate all writes (title, status, body, deps, links) to worktree peers
-        ( _sync_ticket_file "$ticket_file" || true )
 
         # Update ledger: record local_hash = file content hash after the pull update.
         # After a successful pull, the local file reflects Jira content, so compute
@@ -3954,48 +3914,6 @@ _resolve_main_repo_root() {
 _jira_key_num() { echo "$1" | grep -oE '[0-9]+$'; }
 
 # ---------------------------------------------------------------------------
-# _sync_diff_changed_tickets
-#
-# Returns newline-separated list of changed .tickets/*.md file paths since
-# the given base SHA.  Uses git diff-tree for tree-object comparison (NOT
-# ancestry-based git diff) so it correctly handles cross-worktree detached-
-# index commits that are NOT ancestors of HEAD.
-#
-# Args:
-#   $1 - base_sha: the commit SHA to diff against
-#   $2 - tickets_dir: absolute path to the .tickets/ directory
-#
-# Output: full paths (one per line) of changed .md files, or ALL .md files
-#         on fallback (invalid SHA / missing tree).
-# ---------------------------------------------------------------------------
-_sync_diff_changed_tickets() {
-    local base_sha="$1"
-    local tickets_dir="$2"
-
-    # Resolve tree objects for .tickets/ subtree at each point
-    local base_tree head_tree
-    base_tree=$(git rev-parse --verify "$base_sha:.tickets" 2>/dev/null) || true
-    head_tree=$(git rev-parse --verify "HEAD:.tickets" 2>/dev/null) || true
-
-    if [[ -z "$base_tree" || -z "$head_tree" ]]; then
-        # Fallback: return ALL .tickets/*.md files
-        for f in "$tickets_dir"/*.md; do
-            [[ -f "$f" ]] && echo "$f"
-        done
-        return 0
-    fi
-
-    # Compare tree objects directly — works regardless of commit ancestry
-    git diff-tree -r --name-only --diff-filter=ACMRD "$base_tree" "$head_tree" \
-        | grep '\.md$' \
-        | while IFS= read -r name; do
-            echo "$tickets_dir/$name"
-        done
-
-    return 0
-}
-
-# ---------------------------------------------------------------------------
 # _sync_body
 #
 # Core push/pull sync logic.  Reads $include_closed, $force_local,
@@ -4010,19 +3928,13 @@ _sync_body() {
     local _last_sync_sha=""
     _last_sync_sha=$(_sync_state_read "$ledger_file" last_sync_commit)
 
-    local _incremental_mode=0
-    local _changed_files_tmp=""
     local _total_ticket_count=0
 
     if [[ "${_sync_full_mode:-0}" -eq 1 ]]; then
         echo "tk sync: --full requested — performing full sync (bypassing incremental logic)" >&2
-    elif [[ -n "$_last_sync_sha" ]] && git rev-parse --verify "${_last_sync_sha}^{commit}" &>/dev/null; then
-        _changed_files_tmp=$(mktemp "${TMPDIR:-/tmp}/tk-sync-changed.XXXXXX")
-        _sync_diff_changed_tickets "$_last_sync_sha" "$tickets_dir" > "$_changed_files_tmp"
-        _incremental_mode=1
     else
         if [[ -n "$_last_sync_sha" ]]; then
-            echo "tk sync: invalid prior state SHA — performing full push (auto-fallback)" >&2
+            echo "tk sync: performing full push" >&2
         else
             echo "tk sync: no prior state — performing full push" >&2
         fi
@@ -4099,26 +4011,8 @@ _sync_body() {
         fi
     done
 
-    # ── Incremental filter: narrow push lists to changed files only ──────
+    # ── Compute total ticket count ────────────────────────────────────────
     _total_ticket_count=$(( ${#_push_parents[@]} + ${#_push_children[@]} ))
-    if [[ $_incremental_mode -eq 1 ]]; then
-        local _filtered_parents=() _filtered_children=()
-        for ticket_file in "${_push_parents[@]+"${_push_parents[@]}"}"; do
-            if grep -qxF "$ticket_file" "$_changed_files_tmp"; then
-                _filtered_parents+=("$ticket_file")
-            fi
-        done
-        for ticket_file in "${_push_children[@]+"${_push_children[@]}"}"; do
-            if grep -qxF "$ticket_file" "$_changed_files_tmp"; then
-                _filtered_children+=("$ticket_file")
-            fi
-        done
-        _push_parents=("${_filtered_parents[@]+"${_filtered_parents[@]}"}")
-        _push_children=("${_filtered_children[@]+"${_filtered_children[@]}"}")
-        local _changed_count=$(( ${#_push_parents[@]} + ${#_push_children[@]} ))
-        echo "tk sync: pushing $_changed_count changed tickets (of $_total_ticket_count total)" >&2
-        rm -f "$_changed_files_tmp"
-    fi
 
     # Pass 1: push parent tickets
     for ticket_file in "${_push_parents[@]+"${_push_parents[@]}"}"; do
@@ -4205,9 +4099,6 @@ print(len(json.load(open(os.environ['LEDGER_FILE']))))
             echo "warning: Jira has more issues ($jira_count) than ledger ($ledger_count) — investigate for orphans or duplicates" >&2
         fi
     fi
-
-    # Clean up temp files
-    rm -f "${_changed_files_tmp:-}"
 
     # ── Write state after successful sync ─────────────────────────────────
     if [[ $sync_failures -eq 0 && $pull_failures -eq 0 ]]; then
@@ -5121,7 +5012,6 @@ open(ticket_file, 'w').writelines(result)
                 continue
             fi
             # Propagate to worktrees
-            ( _sync_ticket_file "$ticket_file" || true )
             echo "stamped: $tk_id <- $jira_key"
             ((stamped++))
         fi
@@ -5139,122 +5029,6 @@ for tk_id, entry in data.items():
     else
         echo "Stamped $stamped tickets, skipped $skipped (already stamped), $missing ticket files not found"
     fi
-}
-
-# ---------------------------------------------------------------------------
-# cmd_sync_to_main
-#
-# One-shot recovery tool: pushes all divergent local .tickets/ files to main.
-#
-# For each local .tickets/*.md file:
-#   - If it differs from main (or doesn't exist on main): call _sync_ticket_file
-#   - If it exists on main but not locally: call _sync_ticket_delete
-#   - If it matches main exactly: skip (idempotent)
-#
-# Prints a summary: "N files pushed, M files deleted, K files unchanged"
-#
-# Works from any worktree or the main repo.
-# ---------------------------------------------------------------------------
-cmd_sync_to_main() {
-    # Resolve repo root: prefer injected REPO_ROOT env var, fall back to git
-    local _REPO_ROOT="${REPO_ROOT:-}"
-    if [[ -z "$_REPO_ROOT" ]]; then
-        _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
-            echo "Error: not inside a git repository" >&2
-            return 1
-        }
-    fi
-
-    # Load tk-sync-lib.sh for _sync_ticket_file and _sync_ticket_delete.
-    # tk-sync-lib.sh is always at the scripts/ dir of the *main* repo (not
-    # a worktree-local copy). Resolve via the git common dir so we find the
-    # real scripts/ dir even when running from inside a worktree.
-    local _GIT_COMMON_DIR
-    _GIT_COMMON_DIR=$(git -C "$_REPO_ROOT" rev-parse --git-common-dir 2>/dev/null) || _GIT_COMMON_DIR=""
-    local _MAIN_REPO_ROOT=""
-    if [[ -n "$_GIT_COMMON_DIR" ]]; then
-        # git-common-dir may be relative — make it absolute
-        case "$_GIT_COMMON_DIR" in
-            /*) _MAIN_REPO_ROOT=$(dirname "$_GIT_COMMON_DIR") ;;
-            *)  _MAIN_REPO_ROOT=$(dirname "$_REPO_ROOT/$_GIT_COMMON_DIR") ;;
-        esac
-    fi
-    # If we couldn't resolve main repo root, fall back to _REPO_ROOT itself
-    [[ -z "$_MAIN_REPO_ROOT" ]] && _MAIN_REPO_ROOT="$_REPO_ROOT"
-
-    local _LIB="$_MAIN_REPO_ROOT/scripts/tk-sync-lib.sh"
-    if [[ ! -f "$_LIB" ]]; then
-        # Fallback: lib in same scripts/ dir as the tk script itself
-        _LIB="$(cd "$(dirname "$0")" && pwd)/tk-sync-lib.sh"
-    fi
-    if [[ ! -f "$_LIB" ]]; then
-        echo "Error: tk-sync-lib.sh not found" >&2
-        return 1
-    fi
-    # shellcheck source=scripts/tk-sync-lib.sh
-    source "$_LIB"
-
-    # Export REPO_ROOT so _sync_ticket_file and _sync_ticket_delete use the
-    # correct repo root (the one we resolved above, not the caller's CWD).
-    export REPO_ROOT="$_REPO_ROOT"
-
-    # Resolve tickets directory
-    local tickets_dir="${TICKETS_DIR:-}"
-    if [[ -z "$tickets_dir" ]]; then
-        tickets_dir=$(find_tickets_dir 2>/dev/null) || {
-            echo "Error: no .tickets directory found" >&2
-            return 1
-        }
-    fi
-
-    local pushed=0
-    local deleted=0
-    local unchanged=0
-
-    # ── Pass 1: push local files that differ from (or are absent on) main ────
-    local ticket_file rel_path main_content local_content
-    for ticket_file in "$tickets_dir"/*.md; do
-        [[ -f "$ticket_file" ]] || continue
-        rel_path="${ticket_file#"$_REPO_ROOT/"}"
-
-        # Get content from main branch (empty string if absent)
-        main_content=$(git -C "$_REPO_ROOT" show "refs/heads/main:${rel_path}" 2>/dev/null) || main_content=""
-        local_content=$(cat "$ticket_file" 2>/dev/null) || local_content=""
-
-        if [[ "$local_content" == "$main_content" ]]; then
-            ((unchanged++)) || true
-        else
-            # Call in a subshell so that the RETURN trap set by _sync_ticket_file
-            # (to clean up its temp index) does not propagate to cmd_sync_to_main.
-            ( _sync_ticket_file "$ticket_file" )
-            ((pushed++)) || true
-        fi
-    done
-
-    # ── Pass 2: delete files present on main but not locally ─────────────────
-    local main_files main_file local_abs
-    # List .tickets/*.md files tracked on main.
-    # Determine the directory to check for local files: use tickets_dir if it
-    # is under _REPO_ROOT, otherwise fall back to _REPO_ROOT/.tickets.
-    local _local_tickets_dir="$_REPO_ROOT/.tickets"
-    if [[ "$tickets_dir" == "$_REPO_ROOT"* ]]; then
-        _local_tickets_dir="$tickets_dir"
-    fi
-    while IFS= read -r main_file; do
-        [[ -n "$main_file" ]] || continue
-        # main_file is like "some-ticket.md"; build the local abs path
-        local_abs="$_local_tickets_dir/$main_file"
-        if [[ ! -f "$local_abs" ]]; then
-            # Call in a subshell so the RETURN trap from _sync_ticket_delete
-            # does not propagate to cmd_sync_to_main.
-            ( _sync_ticket_delete "$_REPO_ROOT/.tickets/$main_file" )
-            ((deleted++)) || true
-        fi
-    done < <(git -C "$_REPO_ROOT" ls-tree --name-only "refs/heads/main:.tickets" 2>/dev/null \
-        | grep '\.md$')
-
-    echo "${pushed} files pushed, ${deleted} files deleted, ${unchanged} files unchanged"
-    return 0
 }
 
 cmd_help() {
@@ -5314,10 +5088,6 @@ Commands:
     --break-lock           Interactively break a stuck sync lock (CAS-guarded)
     --lock-timeout=N       Override lock acquire/sync timeout to N seconds
     --full                 Bypass incremental logic; perform full push+pull reconciliation
-  sync-to-main             Push all divergent local .tickets/ changes to main branch
-                           Files changed locally are pushed; files on main but not locally are deleted.
-                           Idempotent: files already matching main are skipped.
-                           Prints: "N files pushed, M files deleted, K files unchanged"
   super <cmd> [args]       Bypass plugins, run built-in command directly
 
 Aliases:
@@ -5348,177 +5118,6 @@ Plugin descriptions: comment '# tk-plugin: text' or --tk-describe flag
 Tickets stored as markdown files in .tickets/
 Supports partial ID matching (e.g., '$cmd show 5c4' matches 'nw-5c46')
 EOF
-}
-
-# ---------------------------------------------------------------------------
-# _sync_from_main
-#
-# Called before every read subcommand.  Compares git rev-parse main:.tickets
-# against the hash stored in .tickets/.last-sync-hash.  If they
-# differ (or the hash file is absent), runs:
-#   git checkout main -- .tickets/
-#   git reset HEAD .tickets/
-# and rewrites .tickets/.last-sync-hash.
-#
-# Skips silently when:
-#   • Not inside a git repository
-#   • main:.tickets ref doesn't exist yet (fresh repo / no main branch)
-#   • .git is a directory (running in the main repo, not a worktree)
-#     — This avoids polluting the main repo's working tree.
-#
-# Zero network calls; at most two git rev-parse calls on the unchanged path.
-# ---------------------------------------------------------------------------
-_sync_from_main() {
-    # No sync: _sync_ticket_file is intentionally NOT called here.
-    # This function pulls .tickets/ FROM main into the worktree — calling
-    # _sync_ticket_file would push those files back to main, creating a
-    # circular write loop. The source of truth for this pull is main itself.
-
-    # Determine the worktree root (directory containing .git file/dir)
-    local git_root
-    git_root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
-
-    # Resolve the .git path
-    local git_path="$git_root/.git"
-
-    # If .git is a directory we are in the main repo — skip
-    if [[ -d "$git_path" ]]; then
-        return 0
-    fi
-
-    # Must be a file (worktree gitfile) to proceed
-    if [[ ! -f "$git_path" ]]; then
-        return 0
-    fi
-
-    # Resolve the canonical main repo root from the worktree gitfile
-    local common_dir
-    common_dir=$(git rev-parse --git-common-dir 2>/dev/null) || return 0
-    # --git-common-dir may return a relative path; make it absolute
-    case "$common_dir" in
-        /*) ;;
-        *) common_dir="$git_root/$common_dir" ;;
-    esac
-
-    # Get the tree hash of main:.tickets from the main repo
-    # Use the common_dir so we query the main repo's object store
-    local main_hash
-    main_hash=$(GIT_DIR="$common_dir" git rev-parse main:.tickets 2>/dev/null) || return 0
-
-    # Compare with cached hash
-    local hash_file="$git_root/.tickets/.last-sync-hash"
-    local cached_hash=""
-    [[ -f "$hash_file" ]] && cached_hash=$(cat "$hash_file" 2>/dev/null || true)
-
-    if [[ "$main_hash" == "$cached_hash" ]]; then
-        # Nothing changed — fast path (zero additional git calls)
-        return 0
-    fi
-
-    # Hashes differ: pull .tickets/ from main, preserving local-only changes.
-    (
-        cd "$git_root" || exit 0
-
-        # Detect local-only changes: files that differ from the last-synced
-        # tree.  These are edits whose _sync_ticket_file push may have failed;
-        # overwriting them would silently lose work (GAP-5).
-        #
-        # Strategy: for each .tickets/*.md file in the worktree, compare its
-        # content against the same path in the cached tree hash (which is a
-        # git tree object for .tickets/).  If the file has been modified
-        # locally since the last sync, it won't match the tree entry.
-        local _local_only_files=()
-        # Use cached_hash if available; fall back to main_hash when
-        # the hash file is missing (e.g., deleted or first sync).
-        local _compare_hash="${cached_hash:-$main_hash}"
-        if [[ -n "$_compare_hash" ]]; then
-            # Batch 1: ONE git ls-tree call for all blob hashes (replaces N per-file calls).
-            # Build parallel arrays: _tree_names[i] / _tree_hashes[i].
-            # ls-tree output format: "mode type hash<TAB>filename"
-            local _tree_names=() _tree_hashes=()
-            while IFS=$' \t' read -r _tm _tt _t_hash _t_name; do
-                _tree_names+=("$_t_name")
-                _tree_hashes+=("$_t_hash")
-            done < <(git ls-tree "$_compare_hash" 2>/dev/null)
-
-            # Collect all ticket files (bash parameter expansion avoids basename subprocess)
-            local _ticket_files=()
-            for _wt_file in .tickets/*.md; do
-                [[ -f "$_wt_file" ]] || continue
-                _ticket_files+=("$_wt_file")
-            done
-
-            if [[ ${#_ticket_files[@]} -gt 0 ]]; then
-                # Batch 2: ONE git hash-object call for all working-tree files.
-                # --stdin-paths reads filenames from stdin, outputs one hash per line
-                # in the same order — maps 1:1 with _ticket_files[].
-                local _wt_hashes=()
-                while IFS= read -r _wt_h; do
-                    _wt_hashes+=("$_wt_h")
-                done < <(printf '%s\n' "${_ticket_files[@]}" | git hash-object --stdin-paths 2>/dev/null)
-
-                # Compare using pure bash string ops — no subprocess per file.
-                local _i _j _wt_basename _found_hash
-                for _i in "${!_ticket_files[@]}"; do
-                    _wt_file="${_ticket_files[$_i]}"
-                    _wt_basename="${_wt_file##*/}"  # bash built-in: no subprocess
-                    _found_hash=""
-                    for _j in "${!_tree_names[@]}"; do
-                        if [[ "${_tree_names[$_j]}" == "$_wt_basename" ]]; then
-                            _found_hash="${_tree_hashes[$_j]}"
-                            break
-                        fi
-                    done
-                    # If file doesn't exist in cached tree, it's new — handled by
-                    # checkout (new files from main get added; locally-created files
-                    # without a cached counterpart are not at risk of overwrite).
-                    if [[ -n "$_found_hash" && "${_wt_hashes[$_i]:-}" != "$_found_hash" ]]; then
-                        _local_only_files+=("$_wt_file")
-                    fi
-                done
-            fi
-        fi
-
-        # Clear any skip-worktree flags on .tickets/ files before overwriting.
-        # If files were synced by _sync_ticket_file and marked skip-worktree,
-        # git checkout would silently skip them (the skip-worktree flag tells
-        # git "don't touch this file"). We clear the flags first so the pull
-        # always overwrites with the authoritative main branch content.
-        _clear_ticket_skip_worktree
-
-        if [[ ${#_local_only_files[@]} -eq 0 ]]; then
-            # No local-only changes — safe to overwrite everything
-            git checkout main -- .tickets/ 2>/dev/null || true
-        else
-            # Back up local-only files, checkout from main, then restore them
-            local _tmpdir
-            _tmpdir=$(mktemp -d)
-            for _f in "${_local_only_files[@]}"; do
-                cp "$_f" "$_tmpdir/$(basename "$_f")" 2>/dev/null || true
-            done
-
-            git checkout main -- .tickets/ 2>/dev/null || true
-
-            # Restore local-only files
-            for _f in "${_local_only_files[@]}"; do
-                local _basename
-                _basename=$(basename "$_f")
-                if [[ -f "$_tmpdir/$_basename" ]]; then
-                    cp "$_tmpdir/$_basename" "$_f"
-                    echo "tk: preserving local-only changes in $_basename" >&2
-                fi
-            done
-            rm -rf "$_tmpdir"
-        fi
-        git reset HEAD .tickets/ >/dev/null 2>&1 || true
-
-        # Remove .sync-lock if it was pulled from main — it is a transient
-        # lock sentinel and should never persist in worktree working trees.
-        rm -f .tickets/.sync-lock
-    )
-
-    # Update the cached hash
-    echo "$main_hash" > "$hash_file"
 }
 
 # Main dispatch
@@ -5553,17 +5152,8 @@ fi
 case "${1:-help}" in
     help|--help|-h) ;;
     sync) ;;
-    sync-to-main) ;;
     backfill-jira-keys) ;;
     *) init_tickets_dir "${1:-}" || exit 1 ;;
-esac
-
-# Auto-sync .tickets/ from main before READ subcommands only.
-# Write commands (create, close, etc.) must NOT trigger sync — if a prior
-# _sync_ticket_file push failed, _sync_from_main would overwrite the
-# local-only change via `git checkout main -- .tickets/`.  See GAP-5.
-case "${1:-help}" in
-    list|ls|show|ready|blocked|search|count|children|closed) _sync_from_main ;;
 esac
 
 # Built-in commands
@@ -5597,7 +5187,6 @@ case "${1:-help}" in
     add-note) shift; cmd_add_note "$@" ;;
     enumerate-notes) shift; cmd_enumerate_notes "$@" ;;
     sync)    shift; cmd_sync "$@" ;;
-    sync-to-main) shift; cmd_sync_to_main "$@" ;;
     backfill-jira-keys) shift; cmd_backfill_jira_keys "$@" ;;
     help|--help|-h) cmd_help ;;
     *)
