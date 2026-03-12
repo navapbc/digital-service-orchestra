@@ -48,6 +48,7 @@ while IFS= read -r file; do
     esac
     # Non-reviewable files
     case "$file" in
+        .tickets/*) ;;                                                              # ticket metadata
         .sync-state.json) ;;                                                       # sync state metadata
         app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;   # visual snapshots
         *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;                            # images

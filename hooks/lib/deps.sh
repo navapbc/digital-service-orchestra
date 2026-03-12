@@ -13,6 +13,7 @@
 #   try_start_docker            — start Docker Desktop (macOS) or systemd (Linux), wait ≤30s
 #   try_find_python <version>   — search for Python matching <version> (e.g., "3.13")
 #   get_artifacts_dir           — returns portable /tmp/workflow-plugin-<hash>/ state dir (with one-time migration from old lockpick path)
+#   get_timeout_cmd             — returns 'gtimeout' (macOS coreutils) or 'timeout' (Linux), empty if neither
 
 # Guard: only load once
 [[ "${_DEPS_LOADED:-}" == "1" ]] && return 0
@@ -294,6 +295,25 @@ is_worktree() {
     local toplevel
     toplevel=$(git rev-parse --show-toplevel 2>/dev/null) || return 1
     [[ -f "$toplevel/.git" ]]
+}
+
+# --- get_timeout_cmd ---
+# Returns the GNU timeout command name for the current platform.
+# macOS: gtimeout (from brew install coreutils)
+# Linux: timeout (built-in)
+# Returns empty string and exit 1 if neither is available.
+#
+# Usage:
+#   TIMEOUT_CMD=$(get_timeout_cmd) || { echo "timeout not available"; exit 1; }
+#   $TIMEOUT_CMD 180 make test-unit-only
+get_timeout_cmd() {
+    if command -v gtimeout &>/dev/null; then
+        echo "gtimeout"
+    elif command -v timeout &>/dev/null; then
+        echo "timeout"
+    else
+        return 1
+    fi
 }
 
 # --- EXCLUDE_PATTERNS ---

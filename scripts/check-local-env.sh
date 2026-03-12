@@ -263,6 +263,16 @@ for tool in "${_optional_tools[@]}"; do
     fi
 done
 
+# GNU timeout check (gtimeout on macOS via coreutils, timeout on Linux).
+# Used by workflow scripts for command timeouts (e.g., hook chains, CI polling).
+if command -v gtimeout &>/dev/null; then
+    pass "gtimeout available (GNU coreutils)"
+elif command -v timeout &>/dev/null; then
+    pass "timeout available"
+else
+    fail "GNU timeout not found (required — install coreutils: brew install coreutils)"
+fi
+
 # ── 6. Project-specific callback (optional) ───────────────────────────────────
 header "Project checks"
 

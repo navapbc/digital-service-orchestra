@@ -25,7 +25,7 @@ shift 2
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Build exclusion list ---
-EXCLUDES=(':!.checkpoint-needs-review')
+EXCLUDES=(':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json')
 
 # Read visual baseline directory from config (e.g., app/tests/e2e/snapshots/)
 BASELINE_DIR=$("$SCRIPT_DIR/read-config.sh" visual.baseline_directory 2>/dev/null || true)
@@ -51,4 +51,4 @@ done
 
 # --- Capture stat with exclusions ---
 { git diff HEAD --stat -- "${EXCLUDES[@]}"; \
-  git ls-files --others --exclude-standard | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
+  git ls-files --others --exclude-standard | grep -v '^\.tickets/' | grep -v '^\.sync-state\.json$' | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null

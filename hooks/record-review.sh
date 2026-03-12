@@ -161,9 +161,9 @@ fi
 # Validate files_targeted overlap with actual changed files
 CHANGED_FILES=$(
     {
-        git diff --name-only HEAD -- ':!.checkpoint-needs-review' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git diff --cached --name-only HEAD -- ':!.checkpoint-needs-review' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.checkpoint-needs-review$' | grep -v '^app/tests/e2e/snapshots/.*\.png$' | grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true
+        git diff --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git diff --cached --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.checkpoint-needs-review$' | grep -v '^\.tickets/' | grep -v '^\.sync-state\.json$' | grep -v '^app/tests/e2e/snapshots/.*\.png$' | grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true
     } | sort -u | grep -v '^$' || true
 )
 
@@ -311,6 +311,8 @@ if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
     # when the diff includes images, snapshots, PDFs, or other non-reviewable file types.
     # Also hash untracked files that were part of the commit (shown as empty diff vs HEAD).
     LAST_COMMIT_DIFF_HASH=$(git diff HEAD~1 HEAD -- \
+        ':!.tickets/' \
+        ':!.sync-state.json' \
         ':!app/tests/e2e/snapshots/' \
         ':!app/tests/unit/templates/snapshots/*.html' \
         ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp' \

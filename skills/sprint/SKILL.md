@@ -930,7 +930,7 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 
 Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. This produces a formal review state file with diff hash and scores at `$(get_artifacts_dir)/review-status` (computed by `get_artifacts_dir()` in `hooks/lib/deps.sh`). (Note: the commit workflow's review gate finds this state file and skips re-review.)
 
-**Snapshot exclusion**: When generating the diff files for review (Steps 0 and 2 of REVIEW-WORKFLOW.md), exclude snapshot baseline files from the diff so reviewers focus on code changes:
+**Snapshot exclusion**: When generating the diff files for review (Steps 1 and 2.5 of REVIEW-WORKFLOW.md), exclude snapshot baseline files from the diff so reviewers focus on code changes:
 ```bash
 "$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE" \
   ':!app/tests/unit/templates/snapshots/*.html'

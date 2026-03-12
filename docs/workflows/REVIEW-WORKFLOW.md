@@ -15,13 +15,31 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ---
 
-**CRITICAL**: Steps 0-5 are mandatory and sequential. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md rule #15 regardless of how "simple" the changes appear.
+**CRITICAL**: Steps 0-5 are mandatory and sequential. Step 0 clears stale artifacts — always start here, even when restarting. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md rule #15 regardless of how "simple" the changes appear.
 
 **This workflow reviews CODE (diffs, commits). To review a PLAN or DESIGN, use `/plan-review` instead.** See CLAUDE.md "Always Do These" rule 10 for the review routing table.
 
 ---
 
-## Step 0: Gather Context
+## Step 0: Clear Stale Review Artifacts
+
+**Always run this step first.** Clear any leftover review state and snapshot files from prior sessions or earlier review passes. This ensures the current review computes a fresh diff hash and does not accidentally reuse a stale `review-status` that would let a commit bypass the review gate.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+ARTIFACTS_DIR=$(get_artifacts_dir)
+mkdir -p "$ARTIFACTS_DIR"
+rm -f "$ARTIFACTS_DIR/review-status"
+rm -f "$ARTIFACTS_DIR/untracked-snapshot.txt"
+rm -f "$ARTIFACTS_DIR"/review-diff-*.txt
+rm -f "$ARTIFACTS_DIR"/review-stat-*.txt
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+```
+
+If restarting the review workflow after a failed attempt, this step guarantees a clean slate.
+
+## Step 1: Gather Context
 
 > **Pre-compaction checkpoint detection**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the diff-hash infrastructure already handles this correctly — `compute-diff-hash.sh` uses the checkpoint commit as the diff base. Proceed normally.
 
@@ -30,13 +48,10 @@ Capture the diff NOW and save it to a hash-stamped temp file. Sub-agents read th
 1. **Initialize artifacts directory and snapshot**:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
-   ARTIFACTS_DIR=$(get_artifacts_dir)
-   mkdir -p "$ARTIFACTS_DIR"
    SNAPSHOT_FILE="$ARTIFACTS_DIR/untracked-snapshot.txt"
    ```
 
-2. **Capture an initial diff hash** (may be re-captured after Step 1 if format changes files):
+2. **Capture an initial diff hash** (may be re-captured after Step 2 if format changes files):
    ```bash
    DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT_FILE")
    DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
@@ -58,9 +73,9 @@ Capture the diff NOW and save it to a hash-stamped temp file. Sub-agents read th
 
 **Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state. If you stage a new untracked file with `git add <file>` between review and commit, delete the snapshot file and re-run the review workflow to capture the updated hash.
 
-## Step 1: Validate (conditional)
+## Step 2: Validate (conditional)
 
-**Skip check**: If a validation state file exists and is fresh (< 60 seconds old), skip Step 1 and go directly to Step 3:
+**Skip check**: If a validation state file exists and is fresh (< 60 seconds old), skip Step 2 and go directly to Step 3:
 
 ```bash
 VALIDATION_STATUS="$ARTIFACTS_DIR/validation-status"
@@ -73,7 +88,7 @@ if [ -f "$VALIDATION_STATUS" ]; then
 fi
 ```
 
-If the file is missing, stale (>60s), or shows "failed", execute Step 1 as normal:
+If the file is missing, stale (>60s), or shows "failed", execute Step 2 as normal:
 
 Run these checks in order. The code is sound before the review sub-agent sees it.
 
@@ -91,12 +106,12 @@ If Docker is not available, use `python3 -m py_compile` on changed Python files 
 - Do NOT proceed with the code review
 - Fix the issue and restart from Step 0
 
-## Step 1.5: Re-capture Hash (if format changed files)
+## Step 2.5: Re-capture Hash (if format changed files)
 
-If Step 1's format step (`make format`) modified any files, the diff hash from Step 0 is now stale. Re-capture it:
+If Step 2's format step (`make format`) modified any files, the diff hash from Step 1 is now stale. Re-capture it:
 
 ```bash
-# Check if format changed files (tracked in Step 1 via git diff --name-only)
+# Check if format changed files (tracked in Step 2 via git diff --name-only)
 # If files were changed and re-staged:
 rm -f "$SNAPSHOT_FILE"  # Clear snapshot so untracked list is refreshed
 DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT_FILE")
@@ -106,7 +121,7 @@ STAT_FILE="$ARTIFACTS_DIR/review-stat-${DIFF_HASH_SHORT}.txt"
 "$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE"
 ```
 
-If format did NOT change any files, skip this step — the Step 0 hash is still valid.
+If format did NOT change any files, skip this step — the Step 1 hash is still valid.
 
 ## Step 3: Determine Model (MANDATORY — run the command, do not evaluate mentally)
 
@@ -133,8 +148,8 @@ Launch a `general-purpose` sub-agent using the Task tool. This agent type has fu
 
 Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
 - `{working_directory}`: current working directory
-- `{diff_stat}`: content of the stat file from Step 0/2
-- `{diff_file_path}`: the `DIFF_FILE` path from Step 0/2
+- `{diff_stat}`: content of the stat file from Step 1 or 2.5
+- `{diff_file_path}`: the `DIFF_FILE` path from Step 1 or 2.5
 - `{repo_root}`: `REPO_ROOT` value
 - `{issue_context}`: Issue context (see below)
 
@@ -193,12 +208,12 @@ The orchestrator's role is reduced to relaying — not translating — the sub-a
 
 ### Record the review
 
-Construct the JSON and pipe it into `record-review.sh` with `--expected-hash` from Step 0/2 and `--reviewer-hash` from the sub-agent output:
+Construct the JSON and pipe it into `record-review.sh` with `--expected-hash` from Step 1/2.5 and `--reviewer-hash` from the sub-agent output:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
-  --expected-hash "<DIFF_HASH from Step 0/2>" \
+  --expected-hash "<DIFF_HASH from Step 1/2.5>" \
   --reviewer-hash "<REVIEWER_HASH from sub-agent>"
 {
   "scores": {
@@ -221,7 +236,7 @@ cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
 REVIEW_EOF
 ```
 
-If format/lint/tests failed (Step 1), set all scores `"N/A"` and summary: `"BLOCKED: Build/lint checks failed."`.
+If format/lint/tests failed (Step 2), set all scores `"N/A"` and summary: `"BLOCKED: Build/lint checks failed."`.
 
 `record-review.sh` validates JSON structure, summary, `files_targeted` overlap with actual diff, `--expected-hash` match, reads scores from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, cross-validates findings against scores, and writes the review state file that the commit gate checks. If it rejects the input, fix and retry.
 
@@ -257,7 +272,7 @@ ARTIFACTS_DIR="$(get_artifacts_dir)"
 
 Read `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
 - `{findings_file}`: `$(get_artifacts_dir)/reviewer-findings.json`
-- `{diff_file}`: the `DIFF_FILE` path from Step 0/2
+- `{diff_file}`: the `DIFF_FILE` path from Step 1/2.5
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
 - `{issue_ids}`: issue IDs associated with the current work (for `tk create` defers), or empty string

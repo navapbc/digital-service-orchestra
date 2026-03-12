@@ -9,6 +9,8 @@ skills and hooks for software development projects.
 
 - **Claude Code** >= 1.0.0 (the `claude` CLI)
 - **bash** >= 4.0
+- **GNU coreutils** — provides `gtimeout` (macOS) / `timeout` (Linux), used by
+  workflow scripts for command timeouts. Install on macOS: `brew install coreutils`
 - **python3** with PyYAML installed — required by `read-config.sh` for parsing
   `workflow-config.yaml`
 

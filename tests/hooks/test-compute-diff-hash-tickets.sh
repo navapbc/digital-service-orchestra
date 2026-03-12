@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/hooks/test-compute-diff-hash-tickets.sh
-# Tests that .tickets/ files ARE included in the compute-diff-hash.sh output.
+# Tests that .tickets/ and .sync-state.json files are EXCLUDED from compute-diff-hash.sh.
 #
-# After removing automatic ticket sync, .tickets/ files flow through normal
-# commits and must be included in diff hashes so code review covers them.
+# Ticket metadata changes (checkpoint notes, status updates) must not invalidate
+# code reviews. The diff hash should be stable across ticket-only changes.
 #
-# TDD Protocol:
-#   RED  (before change): hashes are EQUAL — .tickets/ is excluded, so modifying
-#        a .tickets/ file does not change the hash.
-#   GREEN (after change):  hashes are DIFFERENT — .tickets/ is included, so
-#        modifying a .tickets/ file changes the hash.
+# Tests:
+#   test_compute_diff_hash_excludes_tickets_directory
+#   test_compute_diff_hash_excludes_sync_state_json
+#   test_non_reviewable_pattern_includes_tickets
+#   test_tickets_exclusion_pathspec_exists
+#   test_sync_state_exclusion_pathspec_exists
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
@@ -44,32 +45,110 @@ echo "status: open" > .tickets/ticket-001.md
 git add .tickets/ticket-001.md
 git commit -q -m "add ticket"
 
-# Capture hash BEFORE modifying the ticket
+# ============================================================
+# test_compute_diff_hash_excludes_tickets_directory
+# Modifying a .tickets/ file should NOT change the hash
+# ============================================================
+echo "--- test_compute_diff_hash_excludes_tickets_directory ---"
+
 HASH_BEFORE=$(bash "$HOOK" 2>/dev/null)
-assert_ne "test_compute_diff_hash_produces_non_empty_output_before" "" "$HASH_BEFORE"
+assert_ne "hash produces non-empty output before" "" "$HASH_BEFORE"
 
 # Modify the ticket file (unstaged change)
 echo "status: closed" >> .tickets/ticket-001.md
 
-# Capture hash AFTER modifying the ticket
 HASH_AFTER=$(bash "$HOOK" 2>/dev/null)
-assert_ne "test_compute_diff_hash_produces_non_empty_output_after" "" "$HASH_AFTER"
+assert_ne "hash produces non-empty output after" "" "$HASH_AFTER"
 
-# GREEN assertion: hashes must DIFFER — .tickets/ is now included in the hash
-assert_ne "test_compute_diff_hash_includes_tickets_directory" \
-    "$HASH_BEFORE" "$HASH_AFTER"
+# Hashes must be EQUAL — .tickets/ is excluded from the hash
+assert_eq "ticket change does not alter hash" "$HASH_BEFORE" "$HASH_AFTER"
 
-# Also verify that the NON_REVIEWABLE_PATTERN does not contain .tickets/
-# (regression guard — if the pattern is ever re-added this test fails)
-PATTERN_MATCH=$(grep 'NON_REVIEWABLE_PATTERN.*tickets\|tickets.*NON_REVIEWABLE' \
-    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null || echo "")
-assert_eq "test_non_reviewable_pattern_excludes_tickets" \
-    "" "$PATTERN_MATCH"
+# Reset the ticket change
+git checkout -- .tickets/ticket-001.md
 
-# Verify no ':!.tickets/' exclusion pathspec exists in the script
-PATHSPEC_MATCH=$(grep ':\!\.tickets/' \
-    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null || echo "")
-assert_eq "test_no_tickets_exclusion_pathspec_in_compute_diff_hash" \
-    "" "$PATHSPEC_MATCH"
+# ============================================================
+# test_compute_diff_hash_excludes_sync_state_json
+# Modifying .sync-state.json should NOT change the hash
+# ============================================================
+echo "--- test_compute_diff_hash_excludes_sync_state_json ---"
+
+# Create and commit .sync-state.json
+echo '{"last_sync": "2026-01-01"}' > .sync-state.json
+git add .sync-state.json
+git commit -q -m "add sync state"
+
+HASH_BEFORE_SYNC=$(bash "$HOOK" 2>/dev/null)
+
+# Modify sync state (unstaged change)
+echo '{"last_sync": "2026-03-12"}' > .sync-state.json
+
+HASH_AFTER_SYNC=$(bash "$HOOK" 2>/dev/null)
+
+# Hashes must be EQUAL — .sync-state.json is excluded
+assert_eq "sync-state change does not alter hash" "$HASH_BEFORE_SYNC" "$HASH_AFTER_SYNC"
+
+# ============================================================
+# test_non_reviewable_pattern_includes_tickets
+# The NON_REVIEWABLE_PATTERN must contain .tickets/ for filtering untracked files
+# ============================================================
+echo "--- test_non_reviewable_pattern_includes_tickets ---"
+
+PATTERN_MATCH=$(grep 'NON_REVIEWABLE_PATTERN=.*\.tickets/' \
+    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "NON_REVIEWABLE_PATTERN contains .tickets/" "1" "$PATTERN_MATCH"
+
+# ============================================================
+# test_tickets_exclusion_pathspec_exists
+# The EXCLUDE_PATHSPECS must contain ':!.tickets/'
+# ============================================================
+echo "--- test_tickets_exclusion_pathspec_exists ---"
+
+PATHSPEC_MATCH=$(grep "':!\.tickets/'" \
+    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "EXCLUDE_PATHSPECS contains :!.tickets/" "1" "$PATHSPEC_MATCH"
+
+# ============================================================
+# test_sync_state_exclusion_pathspec_exists
+# The EXCLUDE_PATHSPECS must contain ':!.sync-state.json'
+# ============================================================
+echo "--- test_sync_state_exclusion_pathspec_exists ---"
+
+PATHSPEC_MATCH=$(grep "':!\.sync-state\.json'" \
+    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "EXCLUDE_PATHSPECS contains :!.sync-state.json" "1" "$PATHSPEC_MATCH"
+
+# ============================================================
+# test_capture_review_diff_excludes_tickets
+# capture-review-diff.sh EXCLUDES array must contain ':!.tickets/'
+# ============================================================
+echo "--- test_capture_review_diff_excludes_tickets ---"
+
+CAPTURE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh"
+CAPTURE_TICKETS=$(grep "':!\.tickets/'" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "capture-review-diff excludes .tickets/" "1" "$CAPTURE_TICKETS"
+
+CAPTURE_SYNC=$(grep "':!\.sync-state\.json'" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "capture-review-diff excludes .sync-state.json" "1" "$CAPTURE_SYNC"
+
+# ============================================================
+# test_record_review_excludes_tickets
+# record-review.sh CHANGED_FILES must exclude .tickets/ and .sync-state.json
+# ============================================================
+echo "--- test_record_review_excludes_tickets ---"
+
+RECORD_SCRIPT="$REPO_ROOT/lockpick-workflow/hooks/record-review.sh"
+RECORD_TICKETS=$(grep "':!\.tickets/'" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+# Should appear in git diff --name-only lines (at least 2: unstaged + cached)
+assert_eq "record-review.sh excludes .tickets/ in diff queries (>=2 occurrences)" "true" \
+    "$( [[ $RECORD_TICKETS -ge 2 ]] && echo true || echo false )"
+
+RECORD_SYNC=$(grep "':!\.sync-state\.json'" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "record-review.sh excludes .sync-state.json in diff queries (>=2 occurrences)" "true" \
+    "$( [[ $RECORD_SYNC -ge 2 ]] && echo true || echo false )"
+
+# Verify grep filters for untracked files include .tickets/
+RECORD_GREP_TICKETS=$(grep "grep -v.*\.tickets/" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "record-review.sh grep filters include .tickets/" "true" \
+    "$( [[ $RECORD_GREP_TICKETS -ge 1 ]] && echo true || echo false )"
 
 print_summary
