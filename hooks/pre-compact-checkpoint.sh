@@ -137,11 +137,11 @@ NONCE=$(openssl rand -hex 16 2>/dev/null || \
 # reviewer-findings.json) survive compaction on disk without a git commit; Task agents
 # do not resume across sessions so a checkpoint commit adds no recovery value for them.
 #
-# "Real changes" = anything except .checkpoint-needs-review and .tickets/ files.
-# Tickets sync via their own mechanism; the sentinel is only meaningful when committed
-# alongside actual code changes.
+# "Real changes" = anything except .checkpoint-needs-review.
+# .tickets/ files are included — they now flow through normal commits (no separate sync hook).
+# The sentinel is only meaningful when committed alongside actual code changes.
 _HAS_REAL_CHANGES=$(git status --porcelain \
-    -- ':!.checkpoint-needs-review' ':!.tickets/' 2>/dev/null)
+    -- ':!.checkpoint-needs-review' 2>/dev/null)
 
 if [[ -z "$_HAS_REAL_CHANGES" ]]; then
     # Nothing meaningful to save — emit recovery state but skip the commit.
@@ -156,10 +156,9 @@ else
     # that git add -A would otherwise silently un-stage.
     _SENTINEL_INDEX=$(git status --porcelain -- .checkpoint-needs-review 2>/dev/null | head -1)
 
-    # Stage everything except sentinel and tickets; handle them explicitly below.
-    # Exclude .tickets/ — these sync via ticket-sync-push hook.
-    # (Including them caused 330+ spam ticket files in a single checkpoint 2026-03-04.)
-    git add -A -- ':!.checkpoint-needs-review' ':!.tickets/' 2>/dev/null || true
+    # Stage everything except the sentinel; handle it explicitly below.
+    # .tickets/ is included — tickets now flow through normal commits (no separate sync hook).
+    git add -A -- ':!.checkpoint-needs-review' 2>/dev/null || true
 
     # Restore sentinel index state:
     if [[ "${_SENTINEL_INDEX:0:2}" == "D " ]]; then

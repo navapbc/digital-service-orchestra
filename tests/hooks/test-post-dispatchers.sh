@@ -5,7 +5,7 @@
 # Tests:
 #   test_post_bash_dispatcher_calls_check_validation_failures
 #   test_post_edit_dispatcher_calls_auto_format
-#   test_post_write_dispatcher_calls_ticket_sync_push
+#   test_post_write_dispatcher_exits_0
 #   test_post_all_dispatcher_calls_tool_logging_post
 #   test_tool_logging_wrapper_passes_mode_arg_correctly
 #
@@ -82,15 +82,15 @@ printf '%s' "$_INPUT" | bash "$POST_EDIT_DISPATCHER" >/dev/null 2>/dev/null || _
 assert_eq "test_post_edit_dispatcher_calls_auto_format: exits 0" "0" "$_exit_code"
 
 # ============================================================
-# test_post_write_dispatcher_calls_ticket_sync_push
-# The post-write dispatcher must call hook_ticket_sync_push.
-# Send a non-.tickets/ file path — hook should exit 0 silently.
+# test_post_write_dispatcher_exits_0
+# The post-write dispatcher is a no-op (ticket sync removed in epic 3igl).
+# Verify it exits 0 cleanly.
 # ============================================================
-echo "--- test_post_write_dispatcher_calls_ticket_sync_push ---"
+echo "--- test_post_write_dispatcher_exits_0 ---"
 _INPUT='{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.txt","content":"hello"},"tool_response":{"success":true}}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$POST_WRITE_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
-assert_eq "test_post_write_dispatcher_calls_ticket_sync_push: exits 0" "0" "$_exit_code"
+assert_eq "test_post_write_dispatcher_exits_0: exits 0" "0" "$_exit_code"
 
 # ============================================================
 # test_post_all_dispatcher_calls_tool_logging_post

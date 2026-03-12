@@ -530,28 +530,21 @@ git pull
 
 ## Cross-Worktree Ticket Sync
 
-`.tickets/` files sync bidirectionally across worktrees via git plumbing. No manual action is required — sync happens automatically via hooks.
+Ticket files (`.tickets/`) flow through normal git commits. There is no automatic sync infrastructure — ticket changes are committed, pushed, and merged like any other file.
 
-### Push (Automatic)
+### Syncing Tickets in Worktrees
 
-A PostToolUse hook (`lockpick-workflow/hooks/ticket-sync-push.sh`) fires on Edit/Write of `.tickets/` files, creating a detached-index commit on `main` using `git read-tree` + `git update-index` + `git commit-tree` + `git update-ref`, then pushes to origin. The worktree's HEAD, index, and staged files are never touched. If push is rejected (non-fast-forward), it fetches, rebuilds the tree on the new tip, and retries once.
+Use `worktree-sync-from-main.sh` to pull the latest ticket state from main:
 
-### Pull (Automatic)
+```bash
+$(git rev-parse --show-toplevel)/scripts/worktree-sync-from-main.sh
+```
 
-`_sync_from_main()` in `scripts/tk` runs before any read subcommand (`list`, `show`, `ready`, etc.), comparing `git rev-parse main:.tickets` against `.tickets/.last-sync-hash`. If they differ, it runs `git checkout main -- .tickets/ && git reset HEAD .tickets/` and updates `.tickets/.last-sync-hash`. `.tickets/.last-sync-hash` is gitignored and per-worktree.
-
-### Pre-Commit Guard
-
-`scripts/pre-commit-ticket-unstage-guard.sh` (registered in `.pre-commit-config.yaml`) auto-unstages `.tickets/` files on non-main branches, printing a warning that ticket changes sync automatically.
+This merges main into the worktree branch. Run it before launching sub-agent batches to ensure ticket state is current.
 
 ### Structured Note Format
 
 Notes have unique IDs, `origin` tracking (`agent` or `jira`), ISO timestamps, and `sync_state` markers (`unsynced` or `synced`). This format enables bidirectional comment sync with Jira (see `.claude/docs/JIRA-INTEGRATION.md`).
-
-### Constraints
-
-- Last-write-wins for concurrent same-file pushes
-- Unchanged sync path uses zero network calls (local hash comparison only)
 
 ---
 

@@ -98,12 +98,9 @@ cmd_pre_check() {
     echo "MAX_AGENTS: $max_agents"
     echo "SESSION_USAGE: $usage"
 
-    # Clean working tree — exclude ALL .tickets/ entries regardless of status code.
-    # Ticket files sync to main via detached-index commits (ticket-sync-push hook)
-    # and appear as dirty/untracked in worktrees without being branch-relevant.
-    # Use the simplest possible pattern '\.tickets/' to match any git status line
-    # containing the .tickets/ path, regardless of the preceding status characters.
-    # This is more robust than '[/ ]\.tickets/' which requires a specific preceding char.
+    # Clean working tree — exclude .tickets/ entries from dirty check.
+    # Ticket files are tracked normally but changes to them should not
+    # block batch execution (they are metadata, not code).
     local dirty_files
     dirty_files=$(git status --short 2>/dev/null | grep -v '\.tickets/' || true)
     if [ -n "$dirty_files" ]; then

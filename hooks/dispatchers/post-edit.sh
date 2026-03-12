@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/post-edit.sh
-# PostToolUse Edit dispatcher: sources all 2 Edit post-hook functions and runs them.
-#
-# Replaces 2 separate settings.json entries with a single dispatcher entry:
-#   run-hook.sh dispatchers/post-edit.sh
+# PostToolUse Edit dispatcher: runs Edit post-hook functions.
 #
 # Hook execution order:
 #   1. hook_auto_format
-#   2. hook_ticket_sync_push
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -50,7 +46,6 @@ _post_edit_dispatch() {
     INPUT=$(cat)
 
     _run_post_fn hook_auto_format "$INPUT"
-    _run_post_fn hook_ticket_sync_push "$INPUT"
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

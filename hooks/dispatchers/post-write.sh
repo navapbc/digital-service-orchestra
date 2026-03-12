@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/post-write.sh
-# PostToolUse Write dispatcher: sources the 1 Write post-hook function and runs it.
-#
-# Replaces 1 settings.json entry with a single dispatcher entry:
-#   run-hook.sh dispatchers/post-write.sh
-#
-# Hook execution order:
-#   1. hook_ticket_sync_push
+# PostToolUse Write dispatcher: placeholder after ticket-sync removal.
+# No Write-specific post-hooks remain. Kept for future hooks.
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -47,7 +42,9 @@ _post_write_dispatch() {
     local INPUT
     INPUT=$(cat)
 
-    _run_post_fn hook_ticket_sync_push "$INPUT"
+    # No Write-specific post-hooks remain after ticket-sync removal.
+    # This dispatcher is kept as a placeholder for future hooks.
+    : # no-op
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

@@ -29,7 +29,6 @@ NC='\033[0m'
 HOOKS=(
     "check-validation-failures.sh"
     "track-cascade-failures.sh"
-    "ticket-sync-push.sh"
 )
 
 # Tool types that Claude Code may dispatch to PostToolUse hooks

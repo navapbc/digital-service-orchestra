@@ -3920,8 +3920,8 @@ _jira_key_num() { echo "$1" | grep -oE '[0-9]+$'; }
 # $tickets_dir, and $ledger_file from cmd_sync()'s dynamic scope.
 # ---------------------------------------------------------------------------
 _sync_body() {
-    # ── Hook coordination: prevent ticket-sync-push.sh from creating ──────
-    # ── intermediate commits that corrupt the diff base ───────────────────
+    # ── Hook coordination: prevent hooks from creating intermediate ────────
+    # ── commits that corrupt the diff base ──────────────────────────────
     export TK_SYNC_SKIP_WORKTREE_PUSH=1
 
     # ── Diff-scoped incremental push: read prior state ────────────────────

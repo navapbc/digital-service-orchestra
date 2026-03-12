@@ -12,7 +12,6 @@
 #   hook_check_validation_failures — auto-create tracking issues for validate.sh failures
 #   hook_track_cascade_failures    — track consecutive fix-fail cycles for cascade detection
 #   hook_auto_format               — auto-format source files after Edit/Write tool calls
-#   hook_ticket_sync_push          — push .tickets/ changes to main in worktrees
 #   hook_tool_logging_pre          — log tool call (pre mode, hardcoded MODE=pre)
 #   hook_tool_logging_post         — log tool call (post mode, hardcoded MODE=post)
 #
@@ -104,30 +103,9 @@ hook_auto_format() {
     return 0
 }
 
-# ---------------------------------------------------------------------------
-# hook_ticket_sync_push
-# ---------------------------------------------------------------------------
-# PostToolUse hook: push .tickets/ changes to main in worktrees.
-# Delegates to the original hook script to avoid code duplication.
-hook_ticket_sync_push() {
-    local INPUT="$1"
-    local _HOOK_HAS_OUTPUT=""
-    trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi' EXIT
 
-    # Delegate to original script (which has all the logic)
-    local _SYNC_SCRIPT="$_POST_FUNC_DIR/../ticket-sync-push.sh"
-    if [[ -x "$_SYNC_SCRIPT" ]]; then
-        local _output _exit=0
-        _output=$(printf '%s' "$INPUT" | bash "$_SYNC_SCRIPT" 2>/dev/null) || _exit=0
-        if [[ -n "$_output" ]] && [[ "$_output" != "{}" ]]; then
-            _HOOK_HAS_OUTPUT=1
-            printf '%s\n' "$_output"
-        fi
-    fi
-
-    trap - EXIT
-    return 0
-}
+# hook_ticket_sync_push — REMOVED (epic 3igl)
+# Ticket sync infrastructure removed. Tickets now flow through normal git commits.
 
 # ---------------------------------------------------------------------------
 # hook_tool_logging_pre

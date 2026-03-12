@@ -591,7 +591,7 @@ hook_worktree_bash_guard() {
         echo "" >&2
         echo "HOW TO FIX:" >&2
         echo "  • Use 'git -C $MAIN_REPO_ROOT read-tree ...' instead of bare 'git read-tree ...'" >&2
-        echo "  • tk-sync-lib.sh already does this correctly — follow that pattern." >&2
+        echo "  • Use explicit '-C <repo-root>' to target the correct repository." >&2
         trap - ERR; return 2
     fi
 
