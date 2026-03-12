@@ -279,6 +279,39 @@ get_artifacts_dir() {
     echo "$new_dir"
 }
 
+# --- is_worktree ---
+# Returns 0 (true) if the current working directory is inside a git worktree
+# (i.e., the repo's .git entry is a FILE, not a directory). Returns 1 otherwise.
+#
+# In a normal repo:   $TOPLEVEL/.git is a directory  → returns 1
+# In a git worktree: $TOPLEVEL/.git is a file        → returns 0
+#
+# Usage:
+#   if is_worktree; then
+#     echo "Running inside a worktree"
+#   fi
+is_worktree() {
+    local toplevel
+    toplevel=$(git rev-parse --show-toplevel 2>/dev/null) || return 1
+    [[ -f "$toplevel/.git" ]]
+}
+
+# --- EXCLUDE_PATTERNS ---
+# Array of path patterns that hooks should skip.
+# Entries are substring patterns — a file path matching any entry is excluded.
+#
+# .tickets/ — ticket files managed by the tk CLI; hooks should not interfere
+#             with ticket-sync-push.sh already handles these explicitly.
+#
+# Usage:
+#   for pat in "${EXCLUDE_PATTERNS[@]}"; do
+#     if [[ "$file_path" == *"$pat"* ]]; then skip; fi
+#   done
+EXCLUDE_PATTERNS=(
+    ".tickets/"
+    ".git/"
+)
+
 try_find_python() {
     local version="$1"
     local major="${version%%.*}"
