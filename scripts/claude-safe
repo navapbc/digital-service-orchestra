@@ -120,10 +120,14 @@ _offer_worktree_cleanup() {
     tickets_dir="${tickets_dir:-.tickets}"
 
     # Check for uncommitted changes (excluding tickets dir which syncs independently
-    # and contains .sync-state.json for Jira sync state)
+    # and contains .sync-state.json for Jira sync state).
+    # Build a grep-safe pattern for tickets_dir: escape any leading dot so the
+    # pattern works for both '.tickets' and 'custom-tickets'.
+    local tickets_dir_pat
+    tickets_dir_pat=$(printf '%s' "$tickets_dir" | sed 's/^\./\\./')
     local is_clean=1
     local dirty_non_tickets
-    dirty_non_tickets=$(git -C "$wt_path" status --porcelain 2>/dev/null | grep -v "^.. \\.${tickets_dir#.}/" || true)
+    dirty_non_tickets=$(git -C "$wt_path" status --porcelain 2>/dev/null | grep -v "^.. ${tickets_dir_pat}/" || true)
     if [ -n "$dirty_non_tickets" ]; then
         is_clean=0
     fi

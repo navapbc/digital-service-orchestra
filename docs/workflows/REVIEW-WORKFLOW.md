@@ -83,25 +83,20 @@ If Docker is not available, use `python3 -m py_compile` on changed Python files 
 - Do NOT proceed with the code review
 - Fix the issue and restart from Step 0
 
-## Step 3: Determine Model
+## Step 3: Determine Model (MANDATORY — run the command, do not evaluate mentally)
 
-Scan changed files (`{ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u`) for high-blast-radius patterns:
+**You MUST run this command and use its output.** Do NOT select a model based on your assessment of diff complexity or file types — only file paths determine model selection.
 
-- `.claude/skills/**`
-- `.claude/workflows/**`
-- `lockpick-workflow/**`
-- `.claude/docs/**`
-- `CLAUDE.md`
-- `.github/workflows/**`
-- `scripts/**` _(root-level `scripts/` only — matches `^scripts/`, NOT `tests/.../scripts/` or other subdirectories)_
-- `.pre-commit-config.yaml`
-- `Makefile`
-- `app/src/app.py`
+```bash
+CHANGED_FILES=$({ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u)
+MODEL="sonnet"
+if echo "$CHANGED_FILES" | grep -qE '^(\.claude/skills/|\.claude/workflows/|lockpick-workflow/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
+    MODEL="opus"
+fi
+echo "REVIEW_MODEL=$MODEL"
+```
 
-When implementing this check with grep, use anchored matching: `grep -E '^scripts/'` rather than `grep 'scripts/'` to avoid false positives from test directories (e.g., `lockpick-workflow/tests/scripts/`).
-
-If **any** changed file matches one of the patterns above -> `model="opus"`.
-If **none** match -> `model="sonnet"`.
+Use the `REVIEW_MODEL=` value in Step 4. Do not substitute `sonnet` when the command outputs `opus`.
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
@@ -137,6 +132,8 @@ Task tool:
   description: "Review code changes"
   prompt: <filled template from code-review-dispatch.md>
 ```
+
+**NEVER set `isolation: "worktree"` on this sub-agent.** The reviewer must read `reviewer-findings.json` and run `write-reviewer-findings.sh` in the same working directory as the orchestrator. Worktree isolation gives the agent a separate branch where those files are not present, causing the review to fail.
 
 **Retry on malformed output:** If the sub-agent does not return the fixed format (`REVIEW_RESULT:`, `REVIEWER_HASH=`, etc.) or does not include `REVIEWER_HASH=`, re-dispatch with a correction prompt. Never fabricate scores.
 
@@ -213,6 +210,8 @@ Review failed. Enter the Autonomous Resolution Loop. Critical findings always fa
 
 #### Autonomous Resolution Loop
 
+**INLINE FIX PROHIBITION**: The orchestrator MUST NOT use Edit, Write, or Bash to fix review findings directly. All fixes MUST go through a resolution sub-agent dispatch. There are no exceptions.
+
 **Architecture**: The resolution loop is split across two levels to avoid nested sub-agent nesting
 that causes `[Tool result missing due to internal error]`:
 
@@ -247,6 +246,8 @@ Task tool:
   prompt: <filled template from review-fix-dispatch.md>
 ```
 
+**NEVER set `isolation: "worktree"` on this sub-agent.** It must edit the same working tree files that the orchestrator and re-review agent will see.
+
 **After resolution sub-agent returns**, interpret the compact output:
 
 | `RESOLUTION_RESULT` | Action |
@@ -274,6 +275,8 @@ Task tool:
      description: "Re-review after fixes"
      prompt: <filled code-review-dispatch.md with NEW_DIFF_HASH, NEW_DIFF_FILE, NEW_STAT_FILE>
    ```
+
+   **NEVER set `isolation: "worktree"` on this sub-agent.** It must access `reviewer-findings.json` and `write-reviewer-findings.sh` in the shared working directory.
 
 3. Parse re-review sub-agent output: extract `REVIEW_RESULT`, `MIN_SCORE`, `REVIEWER_HASH`.
 
@@ -305,9 +308,13 @@ Task tool:
    ```
    Then proceed to commit.
 
-5. **If re-review fails** (first or second attempt): dispatch another resolution sub-agent (next fix cycle).
-   Run `/oscillation-check` (iteration=2+) only if new findings appeared not in the original review —
-   if OSCILLATION detected, skip further attempts and escalate immediately.
+5. **If re-review fails**: run the OSCILLATION GATE before dispatching another resolution sub-agent.
+
+   **OSCILLATION GATE (mandatory on attempt 2+)**:
+   - If attempt >= 2: run `/oscillation-check` unconditionally. Do NOT skip based on whether findings appear new.
+   - If OSCILLATION detected: escalate immediately. Do NOT dispatch another resolution sub-agent.
+   - If CLEAR: dispatch the next resolution sub-agent.
+
    Up to 3 fix/defend attempts total before escalating.
 
 6. **If re-review fails** (third attempt, or oscillation detected): escalate to user.

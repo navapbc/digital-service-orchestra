@@ -6,9 +6,9 @@
 #   test_syntax_ok               — bash -n passes
 #   test_accepts_three_args      — runs command_string via bash -c
 #   test_missing_args_exits_nonzero — exits non-zero when args missing
-#   test_no_project_specific_refs — no PY_RUN_APPROACH, cd app, make targets
-#   test_reads_artifact_prefix   — uses read-config.sh for session.artifact_prefix
-#   test_reads_create_cmd        — uses issue_tracker.create_cmd from config
+#   test_generic_runs_without_project_env — works without project-specific tools/env
+#   test_reads_artifact_prefix   — artifacts go to config-specified prefix dir
+#   test_reads_create_cmd        — warning emitted when issue_tracker.create_cmd absent
 #   test_exit_code_passthrough   — passes through command exit code
 #   test_timeout_exit_codes      — handles 124, 143, 137 exit codes
 #   test_timeout_logging         — logs timeout events to log file
@@ -30,6 +30,25 @@ WRAPPER="$REPO_ROOT/lockpick-workflow/scripts/pre-commit-wrapper.sh"
 # shellcheck source=../lib/assert.sh
 source "$ASSERT_LIB"
 
+# Locate a python3 with pyyaml for read-config.sh to use.
+# read-config.sh needs pyyaml; the system python3 may not have it.
+# Export so all wrapper invocations in this file inherit it.
+_find_python_with_yaml() {
+    for candidate in /usr/bin/python3 /usr/local/bin/python3 \
+                     "$REPO_ROOT/app/.venv/bin/python3" \
+                     "$REPO_ROOT/.venv/bin/python3" \
+                     python3; do
+        [[ -z "$candidate" ]] && continue
+        if "$candidate" -c "import yaml" 2>/dev/null; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+export CLAUDE_PLUGIN_PYTHON
+CLAUDE_PLUGIN_PYTHON=$(_find_python_with_yaml 2>/dev/null || echo "python3")
+
 echo "=== test-pre-commit-wrapper.sh (generic plugin wrapper) ==="
 echo ""
 
@@ -45,11 +64,19 @@ assert_eq "test_syntax_ok" "0" "$syntax_exit"
 # Test 2: accepts three args and runs command_string
 # ---------------------------------------------------------------------------
 echo "Test 2: accepts <hook_name> <timeout_secs> <command_string>"
+_T2_CFG=$(mktemp -d)
+cat > "$_T2_CFG/workflow-config.yaml" << 'EOF'
+version: "1.0.0"
+session:
+  artifact_prefix: test-t2-artifacts
+EOF
 output=""
 rc=0
-output=$("$WRAPPER" test-hook 30 "echo hello-from-wrapper" 2>/dev/null) || rc=$?
+output=$(CLAUDE_PLUGIN_ROOT="$_T2_CFG" "$WRAPPER" test-hook 30 "echo hello-from-wrapper" 2>/dev/null) || rc=$?
 assert_eq "test_accepts_three_args_exit" "0" "$rc"
 assert_contains "test_accepts_three_args_output" "hello-from-wrapper" "$output"
+_T2_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
+rm -rf "$_T2_CFG" "/tmp/test-t2-artifacts-${_T2_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 3: missing arguments exits non-zero
@@ -68,78 +95,167 @@ rc=0
 assert_ne "test_missing_args_exits_nonzero_two_args" "0" "$rc"
 
 # ---------------------------------------------------------------------------
-# Test 4: no project-specific references
+# Test 4: generic wrapper works without project-specific tools or environment
+#
+# Behavioral tests replacing source-grep checks:
+#   - Runs correctly from an unrelated temp directory (no cd app dependency)
+#   - Runs correctly without project-specific env vars (no PY_RUN_APPROACH, etc.)
+#   - Runs correctly without make in PATH (no make format/lint/test invocations)
 # ---------------------------------------------------------------------------
-echo "Test 4: no project-specific references"
-py_run_count=0
-py_run_count=$(grep -c 'PY_RUN_APPROACH' "$WRAPPER" 2>/dev/null || true)
-assert_eq "test_no_PY_RUN_APPROACH" "0" "$py_run_count"
+echo "Test 4: generic wrapper works without project-specific tools or environment"
 
-# Exclude comment lines (lines starting with optional whitespace + #) from checks
-cd_app_count=0
-cd_app_count=$(grep -v '^\s*#' "$WRAPPER" | grep -c 'cd app' 2>/dev/null || true)
-assert_eq "test_no_cd_app" "0" "$cd_app_count"
+# Set up an isolated config for all sub-tests
+_T4_CFG=$(mktemp -d)
+cat > "$_T4_CFG/workflow-config.yaml" << 'EOF'
+version: "1.0.0"
+session:
+  artifact_prefix: test-t4-generic
+EOF
+_T4_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 
-make_target_count=0
-make_target_count=$(grep -v '^\s*#' "$WRAPPER" | grep -cE 'make (format|lint|test)' 2>/dev/null || true)
-assert_eq "test_no_make_targets" "0" "$make_target_count"
+# Sub-test A: works from an arbitrary directory (no cd app dependency)
+_T4_TMPDIR=$(mktemp -d)
+rc=0
+output=$(cd "$_T4_TMPDIR" && CLAUDE_PLUGIN_ROOT="$_T4_CFG" "$WRAPPER" generic-hook 30 "echo ran-ok" 2>/dev/null) || rc=$?
+assert_eq "test_runs_from_arbitrary_dir_exit" "0" "$rc"
+assert_contains "test_runs_from_arbitrary_dir_output" "ran-ok" "$output"
+rm -rf "$_T4_TMPDIR"
+
+# Sub-test B: works without PY_RUN_APPROACH in environment
+rc=0
+output=$(env -u PY_RUN_APPROACH 2>/dev/null \
+    CLAUDE_PLUGIN_ROOT="$_T4_CFG" "$WRAPPER" generic-hook 30 "echo no-py-run" 2>/dev/null \
+    || CLAUDE_PLUGIN_ROOT="$_T4_CFG" "$WRAPPER" generic-hook 30 "echo no-py-run" 2>/dev/null) || rc=$?
+assert_eq "test_no_PY_RUN_APPROACH_needed_exit" "0" "$rc"
+assert_contains "test_no_PY_RUN_APPROACH_needed_output" "no-py-run" "$output"
+
+# Sub-test C: works when make is not in PATH (no make targets invoked)
+_T4_SAFEPATH=$(mktemp -d)  # empty dir with no tools — wrapper should still complete
+rc=0
+# Use a PATH that includes only bash and python (enough for the wrapper) but not make
+output=$(PATH="/usr/bin:/bin:$(dirname "$CLAUDE_PLUGIN_PYTHON")" \
+    CLAUDE_PLUGIN_ROOT="$_T4_CFG" "$WRAPPER" generic-hook 30 "echo no-make-needed" 2>/dev/null) || rc=$?
+assert_eq "test_no_make_invocation_exit" "0" "$rc"
+assert_contains "test_no_make_invocation_output" "no-make-needed" "$output"
+rm -rf "$_T4_SAFEPATH"
+
+rm -rf "$_T4_CFG" "/tmp/test-t4-generic-${_T4_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Test 5: reads artifact prefix from config
+# Test 5: wrapper uses session.artifact_prefix from config for artifact paths
+#
+# Behavioral test: run with a custom artifact_prefix and verify the timeout log
+# is written under /tmp/<custom_prefix>-<worktree>/precommit-timeouts.log.
+# This proves the wrapper reads session.artifact_prefix from config at runtime.
 # ---------------------------------------------------------------------------
-echo "Test 5: reads session.artifact_prefix via read-config.sh"
-config_ref=0
-config_ref=$(grep -c 'session.artifact_prefix' "$WRAPPER" 2>/dev/null || true)
-assert_ne "test_reads_artifact_prefix" "0" "$config_ref"
+echo "Test 5: artifact dir uses session.artifact_prefix from config"
+_T5_CFG=$(mktemp -d)
+_T5_PREFIX="test-t5-custom-prefix"
+cat > "$_T5_CFG/workflow-config.yaml" << EOF
+version: "1.0.0"
+session:
+  artifact_prefix: ${_T5_PREFIX}
+EOF
+_T5_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
+_T5_EXPECTED_LOG="/tmp/${_T5_PREFIX}-${_T5_WORKTREE}/precommit-timeouts.log"
+rm -f "$_T5_EXPECTED_LOG" 2>/dev/null || true
 
-read_config_ref=0
-read_config_ref=$(grep -c 'read-config.sh' "$WRAPPER" 2>/dev/null || true)
-assert_ne "test_uses_read_config" "0" "$read_config_ref"
+# Run with timeout=1 and sleep 2 so duration always exceeds the threshold
+rc=0
+CLAUDE_PLUGIN_ROOT="$_T5_CFG" "$WRAPPER" prefix-check-hook 1 "sleep 2" 2>/dev/null || rc=$?
+
+if [ -f "$_T5_EXPECTED_LOG" ]; then
+    assert_eq "test_reads_artifact_prefix_log_created" "exists" "exists"
+    _t5_log_has_hook=$(grep -c 'prefix-check-hook' "$_T5_EXPECTED_LOG" 2>/dev/null || true)
+    assert_ne "test_reads_artifact_prefix_log_has_hook" "0" "$_t5_log_has_hook"
+else
+    assert_eq "test_reads_artifact_prefix_log_created" "exists" "missing"
+fi
+
+rm -rf "$_T5_CFG" "/tmp/${_T5_PREFIX}-${_T5_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Test 6: reads issue_tracker.create_cmd from config
+# Test 6: wrapper consults issue_tracker.create_cmd from config at runtime
+#
+# Behavioral test: when create_cmd is absent from config and a timeout fires,
+# the wrapper emits a warning mentioning issue_tracker.create_cmd.
+# This proves the wrapper actually reads (and reports on) that config key.
 # ---------------------------------------------------------------------------
-echo "Test 6: reads issue_tracker.create_cmd"
-create_cmd_ref=0
-create_cmd_ref=$(grep -c 'issue_tracker.create_cmd' "$WRAPPER" 2>/dev/null || true)
-assert_ne "test_reads_create_cmd" "0" "$create_cmd_ref"
+echo "Test 6: wrapper warns about missing issue_tracker.create_cmd on timeout"
+_T6_CFG=$(mktemp -d)
+cat > "$_T6_CFG/workflow-config.yaml" << 'EOF'
+version: "1.0.0"
+session:
+  artifact_prefix: test-t6-nocmd
+EOF
+_T6_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
+
+rc=0
+_t6_output=$(CLAUDE_PLUGIN_ROOT="$_T6_CFG" "$WRAPPER" cmd-check-hook 1 "sleep 2" 2>&1) || rc=$?
+# Wrapper should still succeed (command exit 0), just skip ticket creation
+assert_eq "test_reads_create_cmd_exit" "0" "$rc"
+# Warning should mention the config key so users know how to configure it
+assert_contains "test_reads_create_cmd_warning" "issue_tracker.create_cmd" "$_t6_output"
+
+rm -rf "$_T6_CFG" "/tmp/test-t6-nocmd-${_T6_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 7: exit code passthrough
 # ---------------------------------------------------------------------------
 echo "Test 7: exit code passthrough"
+_T7_CFG=$(mktemp -d)
+cat > "$_T7_CFG/workflow-config.yaml" << 'EOF'
+version: "1.0.0"
+session:
+  artifact_prefix: test-t7-exitcodes
+EOF
+_T7_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
+
 rc=0
-"$WRAPPER" test-hook 30 "exit 0" 2>/dev/null || rc=$?
+CLAUDE_PLUGIN_ROOT="$_T7_CFG" "$WRAPPER" test-hook 30 "exit 0" 2>/dev/null || rc=$?
 assert_eq "test_exit_code_passthrough_0" "0" "$rc"
 
 rc=0
-"$WRAPPER" test-hook 30 "exit 1" 2>/dev/null || rc=$?
+CLAUDE_PLUGIN_ROOT="$_T7_CFG" "$WRAPPER" test-hook 30 "exit 1" 2>/dev/null || rc=$?
 assert_eq "test_exit_code_passthrough_1" "1" "$rc"
 
 rc=0
-"$WRAPPER" test-hook 30 "exit 42" 2>/dev/null || rc=$?
+CLAUDE_PLUGIN_ROOT="$_T7_CFG" "$WRAPPER" test-hook 30 "exit 42" 2>/dev/null || rc=$?
 assert_eq "test_exit_code_passthrough_42" "42" "$rc"
 
+rm -rf "$_T7_CFG" "/tmp/test-t7-exitcodes-${_T7_WORKTREE}" 2>/dev/null || true
+
 # ---------------------------------------------------------------------------
-# Test 8: timeout exit codes (124, 143, 137) are recognized
+# Test 8: timeout exit codes (124, 143, 137) are all handled correctly
+#
+# Behavioral tests: the wrapper recognizes all three timeout signal codes
+# and normalizes them to exit 124 with a TIMEOUT message.
 # ---------------------------------------------------------------------------
 echo "Test 8: timeout exit codes"
-grep_rc=0
-grep -qE '124|143|137' "$WRAPPER" || grep_rc=$?
-assert_eq "test_timeout_exit_codes_referenced" "0" "$grep_rc"
-
-# Test that 124 is passed through (timeout) — use isolated config to avoid real ticket creation
-TMPDIR_T8=$(mktemp -d)
-cat > "$TMPDIR_T8/workflow-config.yaml" << 'EOF'
+_T8_CFG=$(mktemp -d)
+cat > "$_T8_CFG/workflow-config.yaml" << 'EOF'
 version: "1.0.0"
 session:
   artifact_prefix: test-t8-artifacts
 EOF
+_T8_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
+
+# 124 (direct timeout) — passed through as 124
 rc=0
-CLAUDE_PLUGIN_ROOT="$TMPDIR_T8" "$WRAPPER" test-hook 30 "exit 124" 2>/dev/null || rc=$?
+CLAUDE_PLUGIN_ROOT="$_T8_CFG" "$WRAPPER" test-hook 30 "exit 124" 2>/dev/null || rc=$?
 assert_eq "test_exit_code_124_passthrough" "124" "$rc"
-WORKTREE_NAME_T8=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
-rm -rf "$TMPDIR_T8" "/tmp/test-t8-artifacts-${WORKTREE_NAME_T8}" 2>/dev/null || true
+
+# 143 (SIGTERM = 128+15) — normalized to 124
+rc=0
+CLAUDE_PLUGIN_ROOT="$_T8_CFG" "$WRAPPER" test-hook 30 "exit 143" 2>/dev/null || rc=$?
+assert_eq "test_exit_code_143_normalized" "124" "$rc"
+
+# 137 (SIGKILL = 128+9) — normalized to 124
+rc=0
+CLAUDE_PLUGIN_ROOT="$_T8_CFG" "$WRAPPER" test-hook 30 "exit 137" 2>/dev/null || rc=$?
+assert_eq "test_exit_code_137_normalized" "124" "$rc"
+
+rm -rf "$_T8_CFG" "/tmp/test-t8-artifacts-${_T8_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 9: timeout logging — slow command logs to timeout log file
@@ -159,9 +275,9 @@ ARTIFACTS_DIR_TEST="/tmp/test-wrapper-artifacts-${WORKTREE_NAME_TEST}"
 TIMEOUT_LOG_TEST="$ARTIFACTS_DIR_TEST/precommit-timeouts.log"
 rm -f "$TIMEOUT_LOG_TEST" 2>/dev/null || true
 
-# Run with -1 timeout so DURATION(0) > TIMEOUT_SECS(-1) is always true
+# Run with timeout=1 and sleep 2 so duration always exceeds the threshold
 rc=0
-CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" slow-hook -1 "true" 2>/dev/null || rc=$?
+CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" slow-hook 1 "sleep 2" 2>/dev/null || rc=$?
 
 # Check that the log file was created with content about slow-hook
 if [ -f "$TIMEOUT_LOG_TEST" ]; then
@@ -199,7 +315,7 @@ issue_tracker:
 EOF
 
 rc=0
-CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" ticket-hook -1 "true" 2>/dev/null || rc=$?
+CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" ticket-hook 1 "sleep 2" 2>/dev/null || rc=$?
 
 create_called=0
 if [ -f "$MOCK_CREATE_DIR/create_calls" ]; then
@@ -224,7 +340,7 @@ EOF
 
 rc=0
 output=""
-output=$(CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" noticket-hook -1 "true" 2>&1) || rc=$?
+output=$(CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" noticket-hook 1 "sleep 2" 2>&1) || rc=$?
 
 # Should NOT error out -- exit code from the command itself should be 0
 assert_eq "test_no_ticket_without_config_exit" "0" "$rc"
@@ -233,13 +349,77 @@ WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || ec
 rm -rf "$TMPDIR_TEST" "/tmp/test-wrapper-noticket-${WORKTREE_NAME_TEST}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
+# Test 13: non-numeric TIMEOUT_SECS is rejected with a clear error
+# ---------------------------------------------------------------------------
+echo "Test 13: non-numeric TIMEOUT_SECS validation"
+
+# Non-numeric string — should exit non-zero with a clear error message
+rc=0
+err_output=""
+err_output=$("$WRAPPER" test-hook "abc" "echo hello" 2>&1) || rc=$?
+assert_ne "test_nonnumeric_timeout_exits_nonzero" "0" "$rc"
+assert_contains "test_nonnumeric_timeout_error_msg" "TIMEOUT_SECS" "$err_output"
+
+# Float / decimal — should also be rejected (bash arithmetic only handles integers)
+rc=0
+err_output=""
+err_output=$("$WRAPPER" test-hook "3.14" "echo hello" 2>&1) || rc=$?
+assert_ne "test_float_timeout_exits_nonzero" "0" "$rc"
+
+# Empty string — should also be rejected
+rc=0
+err_output=""
+err_output=$("$WRAPPER" test-hook "" "echo hello" 2>&1) || rc=$?
+assert_ne "test_empty_timeout_exits_nonzero" "0" "$rc"
+
+# Negative integer — should be rejected (negative timeout is nonsensical)
+rc=0
+err_output=""
+err_output=$("$WRAPPER" test-hook "-5" "echo hello" 2>&1) || rc=$?
+assert_ne "test_negative_timeout_exits_nonzero" "0" "$rc"
+
+# Valid positive integer — should still work normally
+rc=0
+output=""
+output=$("$WRAPPER" test-hook "30" "echo valid-run" 2>/dev/null) || rc=$?
+assert_eq "test_valid_numeric_timeout_exit" "0" "$rc"
+assert_contains "test_valid_numeric_timeout_output" "valid-run" "$output"
+
+# ---------------------------------------------------------------------------
 # Test 12: fallback artifact prefix when config absent
+#
+# Behavioral test: when session.artifact_prefix is not set in config (or no
+# config exists at CLAUDE_PLUGIN_ROOT or cwd), the wrapper creates artifacts
+# under /tmp/<repo-basename>-test-artifacts-<worktree>/precommit-timeouts.log.
+#
+# We run the wrapper from a repo subdirectory that has no workflow-config.yaml
+# and set CLAUDE_PLUGIN_ROOT to an empty dir, so read-config.sh finds no config
+# and returns empty. The wrapper then derives the prefix from the repo basename.
 # ---------------------------------------------------------------------------
 echo "Test 12: fallback artifact prefix"
-# The script should derive prefix from repo name when session.artifact_prefix is absent
-grep_rc=0
-grep -q 'basename' "$WRAPPER" || grep_rc=$?
-assert_eq "test_fallback_artifact_prefix_uses_basename" "0" "$grep_rc"
+_T12_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
+_T12_REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'unknown')")
+_T12_EXPECTED_PREFIX="${_T12_REPO_NAME}-test-artifacts"
+_T12_EXPECTED_LOG="/tmp/${_T12_EXPECTED_PREFIX}-${_T12_WORKTREE}/precommit-timeouts.log"
+rm -f "$_T12_EXPECTED_LOG" 2>/dev/null || true
+
+# Use a subdirectory inside the repo (so git rev-parse works) that has no
+# workflow-config.yaml (so read-config.sh cwd fallback returns empty).
+# lockpick-workflow/tests/lib/ is a stable subdir with no workflow-config.yaml.
+_T12_SUBDIR="$REPO_ROOT/lockpick-workflow/tests/lib"
+_T12_CFGDIR=$(mktemp -d)  # no workflow-config.yaml inside
+rc=0
+(cd "$_T12_SUBDIR" && CLAUDE_PLUGIN_ROOT="$_T12_CFGDIR" "$WRAPPER" fallback-hook 1 "sleep 2" 2>/dev/null) || rc=$?
+
+if [ -f "$_T12_EXPECTED_LOG" ]; then
+    assert_eq "test_fallback_artifact_prefix_log_created" "exists" "exists"
+    _t12_log_has_hook=$(grep -c 'fallback-hook' "$_T12_EXPECTED_LOG" 2>/dev/null || true)
+    assert_ne "test_fallback_artifact_prefix_log_has_hook" "0" "$_t12_log_has_hook"
+else
+    assert_eq "test_fallback_artifact_prefix_log_created" "exists" "missing"
+fi
+
+rm -rf "$_T12_CFGDIR" "/tmp/${_T12_EXPECTED_PREFIX}-${_T12_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Print summary

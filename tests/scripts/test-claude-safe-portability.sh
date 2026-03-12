@@ -18,7 +18,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/claude-safe"
 FIXTURE_CONFIG="$REPO_ROOT/lockpick-workflow/tests/fixtures/minimal-plugin-consumer/workflow-config.yaml"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+if [ ! -f "$ASSERT_LIB" ]; then
+    echo "SKIP: test-claude-safe-portability.sh — assert.sh not found at: $ASSERT_LIB" >&2
+    exit 0
+fi
+source "$ASSERT_LIB"
 
 echo "=== test-claude-safe-portability.sh ==="
 

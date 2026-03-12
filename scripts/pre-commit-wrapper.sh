@@ -41,6 +41,15 @@ HOOK_NAME="$1"
 TIMEOUT_SECS="$2"
 COMMAND_STRING="$3"
 
+# ── Numeric validation for TIMEOUT_SECS ─────────────────────────────────────
+# TIMEOUT_SECS must be a positive integer. Non-numeric values (e.g. "abc",
+# "3.14", "") or non-positive integers cause unpredictable bash arithmetic
+# behaviour, so we reject them early with a clear error.
+if [[ ! "$TIMEOUT_SECS" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT_SECS" -le 0 ]]; then
+    echo "ERROR: TIMEOUT_SECS must be a positive integer, got: '$TIMEOUT_SECS'" >&2
+    exit 1
+fi
+
 # ── Plugin scripts resolution ────────────────────────────────────────────────
 PLUGIN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
