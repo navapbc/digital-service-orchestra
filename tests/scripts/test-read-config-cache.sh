@@ -46,7 +46,14 @@ FAKE_REPO=$(cd "$TMPDIR_FIXTURE/fake-repo" && git rev-parse --show-toplevel)
 # Compute what the cache dir would be for the fake repo (matches _wcfg_cache_dir)
 FAKE_HASH=$(echo -n "$FAKE_REPO" | shasum -a 256 | awk '{print $1}' | head -c 16)
 CACHE_DIR="/tmp/workflow-plugin-${FAKE_HASH}"
-CACHE_FILE="$CACHE_DIR/config-cache"
+
+# Helper to compute per-config cache file path (matches _wcfg_cache_file)
+cache_file_for() {
+    local config_path="$1"
+    local cfg_hash
+    cfg_hash=$(echo -n "$config_path" | shasum -a 256 | awk '{print $1}' | head -c 12)
+    echo "${CACHE_DIR}/config-cache-${cfg_hash}"
+}
 
 cleanup() {
     rm -rf "$TMPDIR_FIXTURE"
@@ -56,6 +63,7 @@ trap cleanup EXIT
 
 # Write a fixture config in the fake repo
 FIXTURE_CONFIG="$FAKE_REPO/workflow-config.yaml"
+CACHE_FILE=$(cache_file_for "$FIXTURE_CONFIG")
 cat > "$FIXTURE_CONFIG" <<'YAML'
 version: "1.0.0"
 stack: python-poetry
@@ -191,5 +199,53 @@ _snapshot_fail
 result=$(run_rc "$FIXTURE_CONFIG" tickets.sync.bidirectional_comments 2>&1)
 assert_eq "boolean value" "True" "$result"
 assert_pass_if_clean "test_boolean_value"
+
+# ── test_different_config_files_get_isolated_caches ────────────────────
+# Regression: CI failure when hook tests and script tests run concurrently,
+# both calling read-config.sh with different config files. A single shared
+# cache file caused cross-contamination (TOCTOU race between _new_config
+# check and _wcfg_read_cache read). Fix: each config file gets its own
+# cache file, keyed by a hash of the config path.
+_snapshot_fail
+
+# Create two config files with the same key but different values
+CONFIG_A="$FAKE_REPO/config-a.yaml"
+CONFIG_B="$FAKE_REPO/config-b.yaml"
+
+cat > "$CONFIG_A" <<'YAML'
+version: "1.0.0"
+commands:
+  test: "npm test"
+YAML
+
+cat > "$CONFIG_B" <<'YAML'
+version: "1.0.0"
+commands:
+  test: "make test"
+YAML
+
+# Generate caches for both configs
+rm -f "$CACHE_DIR"/config-cache* 2>/dev/null || true
+cd "$FAKE_REPO" && bash "$SCRIPT" --generate-cache "$CONFIG_A"
+cd "$FAKE_REPO" && bash "$SCRIPT" --generate-cache "$CONFIG_B"
+
+# Both caches must exist simultaneously (not overwrite each other)
+cache_count=$(ls "$CACHE_DIR"/config-cache* 2>/dev/null | wc -l | tr -d ' ')
+assert_ne "two config files produce separate cache files" "1" "$cache_count"
+
+# Each config returns its own value (no cross-contamination)
+result_a=$(cd "$FAKE_REPO" && bash "$SCRIPT" "$CONFIG_A" commands.test 2>&1)
+assert_eq "isolated cache: config A returns its own value" "npm test" "$result_a"
+
+result_b=$(cd "$FAKE_REPO" && bash "$SCRIPT" "$CONFIG_B" commands.test 2>&1)
+assert_eq "isolated cache: config B returns its own value" "make test" "$result_b"
+
+# Interleave reads — each must return its own value
+result_a2=$(cd "$FAKE_REPO" && bash "$SCRIPT" "$CONFIG_A" commands.test 2>&1)
+result_b2=$(cd "$FAKE_REPO" && bash "$SCRIPT" "$CONFIG_B" commands.test 2>&1)
+assert_eq "isolated cache: interleaved A" "npm test" "$result_a2"
+assert_eq "isolated cache: interleaved B" "make test" "$result_b2"
+
+assert_pass_if_clean "test_different_config_files_get_isolated_caches"
 
 print_summary

@@ -31,7 +31,7 @@
 #                     scalars degrade to single-line output;
 #                     absent key exits 1 (not 0) to distinguish from empty list
 #   --generate-cache  dump all keys to a flat cache file for fast subsequent reads;
-#                     cache location: /tmp/workflow-plugin-<hash>/config-cache
+#                     cache location: /tmp/workflow-plugin-<hash>/config-cache-<cfghash>
 #
 # Caching:
 #   Normal reads check a flat cache file before spawning Python. The cache is
@@ -87,6 +87,16 @@ _wcfg_cache_dir() {
     hash=$(echo -n "$repo" | shasum -a 256 2>/dev/null | awk '{print $1}' | head -c 16)
     [[ -z "$hash" ]] && return 1
     echo "/tmp/workflow-plugin-${hash}"
+}
+
+# Returns a cache filename unique to the given config file path.
+# Different config files get different cache files, preventing TOCTOU races
+# when concurrent processes (e.g., parallel test suites) use different configs.
+_wcfg_cache_file() {
+    local cache_dir="$1" config_path="$2"
+    local cfg_hash
+    cfg_hash=$(echo -n "$config_path" | shasum -a 256 2>/dev/null | awk '{print $1}' | head -c 12)
+    echo "${cache_dir}/config-cache-${cfg_hash}"
 }
 
 # Cross-platform file mtime (macOS then Linux).
@@ -158,7 +168,7 @@ if [[ "${1:-}" == "--generate-cache" ]]; then
 
     _gc_cache_dir=$(_wcfg_cache_dir) || exit 0
     mkdir -p "$_gc_cache_dir" 2>/dev/null || exit 0
-    _gc_cache_file="$_gc_cache_dir/config-cache"
+    _gc_cache_file=$(_wcfg_cache_file "$_gc_cache_dir" "$_gc_config")
     _gc_mtime=$(_wcfg_file_mtime "$_gc_config")
 
     _gc_tmp=$(mktemp "${_gc_cache_file}.tmp.XXXXXX" 2>/dev/null) || exit 0
@@ -282,7 +292,7 @@ fi
 # to the original Python path, never to wrong behavior.
 _cache_dir=$(_wcfg_cache_dir 2>/dev/null) || true
 if [[ -n "${_cache_dir:-}" ]]; then
-    _cache="${_cache_dir}/config-cache"
+    _cache=$(_wcfg_cache_file "$_cache_dir" "$config_file")
     _cache_fresh=0
 
     if [[ -f "$_cache" ]]; then
