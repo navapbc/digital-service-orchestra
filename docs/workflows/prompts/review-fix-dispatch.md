@@ -2,6 +2,13 @@
 
 Template for the resolution sub-agent launched from REVIEW-WORKFLOW.md's Autonomous Resolution Loop.
 
+## ISOLATION PROHIBITION
+
+**NEVER set `isolation: "worktree"` on this sub-agent.** It must edit the same
+working tree files that the orchestrator and re-review agent will see. Worktree
+isolation gives the agent a separate branch where changes are invisible to the
+orchestrator, preventing the re-review from seeing the fixes.
+
 ## NESTING PROHIBITION
 
 **This sub-agent MUST NOT dispatch nested Task tool calls (sub-agents).**

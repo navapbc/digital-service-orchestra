@@ -35,6 +35,19 @@ The `scripts/worktree-setup-env.sh` script detects Python 3.13 (Homebrew first, 
 
 ## Quick Start
 
+### Worktree Location Conventions
+
+This project uses two worktree location conventions depending on how the session is launched:
+
+| Convention | Path Pattern | Created By |
+|------------|-------------|------------|
+| `claude-safe` (recommended for humans) | `../<repo-name>-worktrees/worktree-YYYYMMDD-HHMMSS` | `claude-safe` wrapper or `git worktree add` |
+| Claude Code built-in (agents) | `.claude/worktrees/agent-<id>` | Claude Code task/sub-agent framework |
+
+The `claude-safe` convention places worktrees **outside** the main repo to prevent Claude Code from double-loading CLAUDE.md. The Claude Code built-in convention places worktrees inside `.claude/worktrees/` within the project; these are managed automatically by the Claude Code framework and should not be edited manually.
+
+In both cases, hooks and scripts must locate sibling files via `$CLAUDE_PLUGIN_ROOT` or `$(git rev-parse --show-toplevel)` — never via hardcoded absolute paths.
+
 ### Automatic Setup (via `claude-safe`)
 
 The `claude-safe` wrapper script automatically handles worktree creation, Python version pinning, and dependency installation:

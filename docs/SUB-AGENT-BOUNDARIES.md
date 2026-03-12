@@ -9,6 +9,10 @@ Sub-agents must NOT:
 - `tk close`, `tk dep`, `tk status <id> <status>` — orchestrator manages issue lifecycle
 - Invoke `/commit`, `/review`, or any slash-command — sub-agents are workers, not orchestrators
 - Dispatch nested Task tool calls or code-review sub-agents
+- **NEVER set `isolation: "worktree"` on this sub-agent.** Code-review and fix-resolution
+  sub-agents must share the orchestrator's working directory. Worktree isolation gives the
+  agent a separate branch where `reviewer-findings.json` and `write-reviewer-findings.sh`
+  are not present, causing the review to fail.
 - Modify files outside the scope of their assigned task
 - Modify files outside `$(git rev-parse --show-toplevel)` (worktree boundary)
 - Skip, disable, or delete any tests
