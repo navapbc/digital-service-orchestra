@@ -114,21 +114,8 @@ Log your decision: `"Change scope evaluated: TEST_MODE={FULL_BROWSER|API_ONLY}. 
 Run local deterministic tests before any live environment interaction:
 
 ```bash
-STAGING_URL="{STAGING_URL}"         # injected by orchestrator
-HEALTH_PATH="{STAGING_HEALTH_PATH}" # injected by orchestrator; default: /health
-ROUTES="{STAGING_ROUTES}"           # injected by orchestrator; default: /
-
-# Health check via curl
-HEALTH_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$STAGING_URL$HEALTH_PATH" 2>/dev/null)
-echo "Health endpoint ($HEALTH_PATH): $HEALTH_STATUS"
-
-# Route scan (split ROUTES on commas)
-IFS=',' read -ra ROUTE_LIST <<< "$ROUTES"
-for route in "${ROUTE_LIST[@]}"; do
-  route="$(echo "$route" | xargs)"  # trim whitespace
-  STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$STAGING_URL$route" 2>/dev/null || echo "error")
-  echo "Route $route: $STATUS"
-done
+REPO_ROOT=$(git rev-parse --show-toplevel)
+STAGING_URL="{STAGING_URL}" HEALTH_PATH="{STAGING_HEALTH_PATH}" ROUTES="{STAGING_ROUTES}" bash "$REPO_ROOT/lockpick-workflow/scripts/staging-smoke-test.sh"
 ```
 
 **Interpret Tier 0 results:**
