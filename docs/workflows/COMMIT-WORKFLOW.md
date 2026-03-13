@@ -205,16 +205,7 @@ Run plugin tests when workflow files or project scripts have changed. This catch
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-CHANGED=$(git diff HEAD --name-only)
-PLUGIN_CHANGED=false
-while IFS= read -r f; do
-    case "$f" in
-        lockpick-workflow/hooks/*|lockpick-workflow/scripts/*|lockpick-workflow/skills/*|scripts/*|.pre-commit-config.yaml|Makefile|app/Makefile)
-            PLUGIN_CHANGED=true; break ;;
-    esac
-done <<< "$CHANGED"
-
-if [ "$PLUGIN_CHANGED" = "true" ]; then
+if git diff HEAD --name-only | bash "$REPO_ROOT/lockpick-workflow/scripts/check-plugin-test-needed.sh"; then
     cd "$REPO_ROOT" && make test-plugin
 fi
 ```
