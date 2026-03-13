@@ -44,21 +44,34 @@ fi
 # archival — even if that ticket itself is closed.
 
 # Phase 1: collect deps for every ticket into an associative array (id -> dep ids)
+# Scan both .tickets/ and .tickets/archive/ so the transitive graph is complete.
 declare -A ticket_deps
 declare -A ticket_status
-while IFS= read -r ticket_file; do
-    tid=$(basename "$ticket_file" .md)
-    status=$(awk '
-        /^---$/ { n++; if (n == 2) exit; next }
-        n == 1 && /^status:/ { gsub(/^status:[[:space:]]*/, ""); print; exit }
-    ' "$ticket_file")
-    deps_raw=$(awk '
-        /^---$/ { n++; if (n == 2) exit; next }
-        n == 1 && /^deps:/ { gsub(/^deps:[[:space:]]*\[/, ""); gsub(/\].*/, ""); print; exit }
-    ' "$ticket_file")
-    ticket_status["$tid"]="$status"
-    ticket_deps["$tid"]="$deps_raw"
-done < <(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" -type f | sort)
+declare -A ticket_location  # "root" or "archive"
+_scan_tickets() {
+    local dir="$1" location="$2"
+    while IFS= read -r ticket_file; do
+        local tid
+        tid=$(basename "$ticket_file" .md)
+        local status
+        status=$(awk '
+            /^---$/ { n++; if (n == 2) exit; next }
+            n == 1 && /^status:/ { gsub(/^status:[[:space:]]*/, ""); print; exit }
+        ' "$ticket_file")
+        local deps_raw
+        deps_raw=$(awk '
+            /^---$/ { n++; if (n == 2) exit; next }
+            n == 1 && /^deps:/ { gsub(/^deps:[[:space:]]*\[/, ""); gsub(/\].*/, ""); print; exit }
+        ' "$ticket_file")
+        ticket_status["$tid"]="$status"
+        ticket_deps["$tid"]="$deps_raw"
+        ticket_location["$tid"]="$location"
+    done < <(find "$dir" -maxdepth 1 -name "*.md" -type f | sort)
+}
+_scan_tickets "$TICKETS_DIR" "root"
+if [[ -d "$ARCHIVE_DIR" ]]; then
+    _scan_tickets "$ARCHIVE_DIR" "archive"
+fi
 
 # Phase 2: BFS from every active ticket to collect all transitively protected IDs
 declare -A protected
@@ -84,6 +97,30 @@ for tid in "${!ticket_status[@]}"; do
         _walk_deps "$tid"
     fi
 done
+
+# ── Restore archived tickets that belong to active dep chains ─────────────────
+# Before archiving, move any ticket in archive/ that is in the protected set
+# back to .tickets/ so dependency chains remain intact.
+
+restored=0
+for tid in "${!protected[@]}"; do
+    if [[ "${ticket_location[$tid]:-}" == "archive" ]]; then
+        src="$ARCHIVE_DIR/${tid}.md"
+        dest="$TICKETS_DIR/${tid}.md"
+        if [[ -f "$src" ]]; then
+            if ! mv "$src" "$dest"; then
+                echo "ERROR: failed to restore $src to $dest" >&2
+                exit 1
+            fi
+            ticket_location["$tid"]="root"
+            ((restored++))
+        fi
+    fi
+done
+
+if [[ "$restored" -gt 0 ]]; then
+    echo "Restored ${restored} ticket(s) from archive to active."
+fi
 
 # ── Find and move closed tickets ──────────────────────────────────────────────
 # Only scan .md files at the top level of TICKETS_DIR (not archive/ subdirectory).
