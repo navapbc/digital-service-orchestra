@@ -734,9 +734,23 @@ invoke the appropriate skill based on the task content.
 
 After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Protocol from CLAUDE.md.
 
+### Step 0: Dispatch Failure Recovery (/sprint)
+
+Before verifying results, check whether any sub-agent Task call returned an **infrastructure-level dispatch failure** — i.e., the Task tool itself errored rather than the sub-agent producing work that was incorrect. Dispatch failures are distinguishable from task-level failures by their error signature: no `STATUS:` line, no `FILES_MODIFIED:` line, and the error message references agent type, tool availability, or internal errors.
+
+**For each sub-agent that returned a dispatch failure:**
+
+1. **Detect**: The Task result contains no `STATUS:` or `FILES_MODIFIED:` lines AND includes error indicators (e.g., "unknown subagent_type", "agent unavailable", "internal error", "Tool result missing")
+2. **Retry with general-purpose**: Re-dispatch the same task immediately using `subagent_type="general-purpose"` with the same model and prompt. Log: `"Dispatch failure for task <id> with subagent_type=<original-type> — retrying with general-purpose."`
+3. **If retry succeeds**: Continue to Step 1 with the retry result
+4. **If retry also fails**: Escalate model (sonnet → opus) and retry once more with `subagent_type="general-purpose"`. Log: `"Retry with general-purpose also failed for task <id> — escalating model to opus."`
+5. **If all retries fail**: Mark the task as failed and proceed to Step 9
+
+**Important**: Dispatch failure retries happen sequentially (not parallel) since they are error recovery, not planned work. Do not count retries toward the batch size limit.
+
 ### Step 1: Verify Results (/sprint)
 
-For each sub-agent, check the Task tool result:
+For each sub-agent (including any that succeeded on retry), check the Task tool result:
 - Did it report success?
 - Are the expected files present? (spot-check with Glob)
 - Were tests passing?

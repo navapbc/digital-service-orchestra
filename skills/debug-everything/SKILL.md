@@ -620,9 +620,20 @@ If AWS auth is not configured, report this and recommend: `aws sso login`
 
 After ALL sub-agents in a batch return:
 
+### Step 0: Dispatch Failure Recovery (/debug-everything)
+
+Before verifying results, check whether any sub-agent Task call returned an **infrastructure-level dispatch failure** (no `STATUS:` line, no `FILES_MODIFIED:` line, error message references agent type or internal errors — as opposed to task-level failures where the agent ran but produced incorrect work).
+
+**For each dispatch failure:**
+1. Retry with `subagent_type="general-purpose"`, same model and prompt. Log: `"Dispatch failure for task <id> with subagent_type=<original-type> — retrying with general-purpose."`
+2. If retry fails: escalate model (sonnet → opus) and retry once more with `subagent_type="general-purpose"`.
+3. If all retries fail: mark task as failed.
+
+Dispatch failure retries are sequential (error recovery, not planned work) and do not count toward batch size limits.
+
 ### Step 1: Verify Results (/debug-everything)
 
-For each sub-agent, check the Task result:
+For each sub-agent (including any that succeeded on retry), check the Task result:
 - Did it report success?
 - Were the expected files modified? (spot-check with Glob)
 - Did it follow TDD? (check for new test files)

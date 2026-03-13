@@ -63,6 +63,18 @@ When running in a worktree:
 
 Escalation on failure: haiku -> sonnet -> opus.
 
+## Dispatch Failure Recovery
+
+When a Task tool call returns an infrastructure-level dispatch failure (no `STATUS:` or `FILES_MODIFIED:` lines, error references agent type or internal errors), the orchestrator retries before giving up:
+
+1. **Retry with general-purpose**: Same model, `subagent_type="general-purpose"`
+2. **Escalate model**: If retry fails, upgrade model (sonnet → opus) with `subagent_type="general-purpose"`
+3. **Mark failed**: If all retries fail, revert task to open
+
+This is distinct from task-level failures (where the agent ran but produced incorrect work). Task-level failures follow normal Step 9 handling (revert to open, record failure reason).
+
+Dispatch failure retries are sequential and do not count toward batch size limits. Both `/sprint` (Phase 6 Step 0) and `/debug-everything` (Phase 6 Step 0) implement this protocol.
+
 ## Checkpoint Protocol
 
 Sub-agents write progress via `tk add-note {id} "CHECKPOINT N/6: ..."`:
