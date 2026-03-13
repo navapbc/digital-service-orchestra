@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/post-bash.sh
-# PostToolUse Bash dispatcher: sources all 2 Bash post-hook functions and runs them.
+# PostToolUse Bash dispatcher: sources all 3 Bash post-hook functions and runs them.
 #
-# Replaces 2 separate settings.json entries with a single dispatcher entry:
+# Replaces 3 separate settings.json entries with a single dispatcher entry:
 #   run-hook.sh dispatchers/post-bash.sh
 #
 # Hook execution order:
 #   1. hook_check_validation_failures
 #   2. hook_track_cascade_failures
+#   3. hook_tool_logging_post
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -51,6 +52,7 @@ _post_bash_dispatch() {
 
     _run_post_fn hook_check_validation_failures "$INPUT"
     _run_post_fn hook_track_cascade_failures "$INPUT"
+    _run_post_fn hook_tool_logging_post "$INPUT"
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

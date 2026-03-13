@@ -128,4 +128,127 @@ else
 fi
 rm -rf "$_TTE_FAKE_BIN"
 
+# ============================================================
+# Group: jq removal
+# ============================================================
+# These tests verify that track-tool-errors.sh has zero jq calls
+# and produces valid JSON via python3/bash alternatives.
+
+# test_track_tool_errors_no_jq_calls_remain
+# grep the hook source for jq invocations — must return zero.
+_TTE_JQ_COUNT=$(grep -cE '^\s*(check_tool jq|.*\| jq |jq -)' "$HOOK" 2>/dev/null; true)
+assert_eq "test_track_tool_errors_no_jq_calls_remain" "0" "$_TTE_JQ_COUNT"
+
+# test_track_tool_errors_counter_json_structure
+# Feed a known error, then validate the counter file has correct JSON structure.
+_TTE_ORIG_COUNTER2=""
+if [[ -f "$COUNTER_FILE" ]]; then
+    _TTE_ORIG_COUNTER2=$(cat "$COUNTER_FILE")
+fi
+rm -f "$COUNTER_FILE"
+
+INPUT='{"tool_name":"Bash","error":"command not found: foobar","tool_input":{"command":"foobar --version"},"session_id":"test-session-123","is_interrupt":false}'
+echo "$INPUT" | bash "$HOOK" >/dev/null 2>/dev/null || true
+
+# Validate JSON structure using python3
+_TTE_JSON_VALID="no"
+if [[ -f "$COUNTER_FILE" ]]; then
+    _TTE_JSON_VALID=$(python3 -c "
+import json, sys
+d = json.load(open('$COUNTER_FILE'))
+# Must have index, errors, bugs_created
+assert isinstance(d.get('index'), dict), 'missing index'
+assert isinstance(d.get('errors'), list), 'missing errors'
+assert isinstance(d.get('bugs_created'), dict), 'missing bugs_created'
+# errors list must have at least one entry with correct fields
+if len(d['errors']) > 0:
+    e = d['errors'][-1]
+    for field in ['id', 'timestamp', 'category', 'tool_name', 'input_summary', 'error_message', 'session_id']:
+        assert field in e, f'missing field: {field}'
+# index must have the category incremented
+assert d['index'].get('command_not_found', 0) >= 1, 'index not incremented'
+print('yes')
+" 2>/dev/null || echo "no")
+fi
+assert_eq "test_track_tool_errors_counter_json_structure" "yes" "$_TTE_JSON_VALID"
+
+# test_track_tool_errors_input_summary_populated
+# The input_summary field should contain meaningful content from tool_input
+_TTE_SUMMARY_OK="no"
+if [[ -f "$COUNTER_FILE" ]]; then
+    _TTE_SUMMARY_OK=$(python3 -c "
+import json
+d = json.load(open('$COUNTER_FILE'))
+last_error = d['errors'][-1]
+summary = last_error.get('input_summary', '')
+# Should contain key=value from tool_input
+if 'command=' in summary:
+    print('yes')
+else:
+    print('no')
+" 2>/dev/null || echo "no")
+fi
+assert_eq "test_track_tool_errors_input_summary_populated" "yes" "$_TTE_SUMMARY_OK"
+
+# test_track_tool_errors_second_error_increments
+# Feed a second error of the same category, verify index increments
+INPUT2='{"tool_name":"Bash","error":"command not found: baz","tool_input":{"command":"baz"},"session_id":"test-session-456","is_interrupt":false}'
+echo "$INPUT2" | bash "$HOOK" >/dev/null 2>/dev/null || true
+
+_TTE_INCREMENT_OK="no"
+if [[ -f "$COUNTER_FILE" ]]; then
+    _TTE_INCREMENT_OK=$(python3 -c "
+import json
+d = json.load(open('$COUNTER_FILE'))
+count = d['index'].get('command_not_found', 0)
+errors_count = len(d['errors'])
+if count >= 2 and errors_count >= 2:
+    print('yes')
+else:
+    print('no')
+" 2>/dev/null || echo "no")
+fi
+assert_eq "test_track_tool_errors_second_error_increments" "yes" "$_TTE_INCREMENT_OK"
+
+# test_track_tool_errors_bug_recorded_in_json
+# Prime counter at 49, trigger threshold, verify bugs_created is set in JSON
+rm -f "$COUNTER_FILE"
+cat > "$COUNTER_FILE" << 'JSON_EOF2'
+{"index":{"permission_denied":49},"errors":[],"bugs_created":{}}
+JSON_EOF2
+
+_TTE_FAKE_BIN2=$(mktemp -d)
+_TTE_TK_LOG2="$_TTE_FAKE_BIN2/tk.log"
+cat > "$_TTE_FAKE_BIN2/tk" << 'MOCK_EOF2'
+#!/usr/bin/env bash
+echo "$@" >> "$TK_LOG"
+echo "test-bug-id-999"
+MOCK_EOF2
+chmod +x "$_TTE_FAKE_BIN2/tk"
+
+INPUT3='{"tool_name":"Read","error":"permission denied: /tmp/x","tool_input":{},"session_id":"s1","is_interrupt":false}'
+echo "$INPUT3" | TK_LOG="$_TTE_TK_LOG2" PATH="$_TTE_FAKE_BIN2:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+_TTE_BUG_RECORDED="no"
+if [[ -f "$COUNTER_FILE" ]]; then
+    _TTE_BUG_RECORDED=$(python3 -c "
+import json
+d = json.load(open('$COUNTER_FILE'))
+bug_id = d.get('bugs_created', {}).get('permission_denied', 'none')
+if bug_id != 'none' and len(bug_id) > 0:
+    print('yes')
+else:
+    print('no')
+" 2>/dev/null || echo "no")
+fi
+assert_eq "test_track_tool_errors_bug_recorded_in_json" "yes" "$_TTE_BUG_RECORDED"
+
+# Restore counter file
+if [[ -n "$_TTE_ORIG_COUNTER2" ]]; then
+    echo "$_TTE_ORIG_COUNTER2" > "$COUNTER_FILE"
+else
+    rm -f "$COUNTER_FILE"
+fi
+rm -rf "$_TTE_FAKE_BIN2"
+
 print_summary

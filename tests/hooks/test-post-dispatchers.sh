@@ -7,6 +7,7 @@
 #   test_post_edit_dispatcher_calls_auto_format
 #   test_post_write_dispatcher_exits_0
 #   test_post_all_dispatcher_calls_tool_logging_post
+#   test_post_bash_calls_tool_logging_post
 #   test_tool_logging_wrapper_passes_mode_arg_correctly
 #
 # Usage: bash lockpick-workflow/tests/hooks/test-post-dispatchers.sh
@@ -172,6 +173,40 @@ _exists=0; [[ -f "$POST_ALL_DISPATCHER" ]] && _exists=1
 assert_eq "test_post_all_dispatcher_exists_and_is_executable: file exists" "1" "$_exists"
 _exec=0; [[ -x "$POST_ALL_DISPATCHER" ]] && _exec=1
 assert_eq "test_post_all_dispatcher_exists_and_is_executable: file executable" "1" "$_exec"
+
+# ============================================================
+# test_post_bash_calls_tool_logging_post
+# The post-bash dispatcher must call hook_tool_logging_post after
+# the tracking hooks. Enable tool logging and verify a JSONL log
+# entry is written when the dispatcher runs.
+# ============================================================
+echo "--- test_post_bash_calls_tool_logging_post ---"
+# Setup: enable logging via temp HOME so we can check the JSONL log
+_ORIG_HOME="$HOME"
+_TEST_HOME=$(mktemp -d)
+export HOME="$_TEST_HOME"
+mkdir -p "$_TEST_HOME/.claude"
+touch "$_TEST_HOME/.claude/tool-logging-enabled"
+
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo hello"},"tool_response":{"stdout":"hello","stderr":"","exit_code":0}}'
+_exit_code=0
+printf '%s' "$_INPUT" | bash "$POST_BASH_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
+assert_eq "test_post_bash_calls_tool_logging_post: exits 0" "0" "$_exit_code"
+
+# Check that a JSONL log file was created with a post-mode entry
+_LOG_FILE="$_TEST_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+_log_found=0
+if [[ -f "$_LOG_FILE" ]]; then
+    # Look for a post-mode entry for Bash tool
+    if grep -q '"hook_type":"post"' "$_LOG_FILE" 2>/dev/null; then
+        _log_found=1
+    fi
+fi
+assert_eq "test_post_bash_calls_tool_logging_post: JSONL log entry written" "1" "$_log_found"
+
+# Teardown
+export HOME="$_ORIG_HOME"
+rm -rf "$_TEST_HOME"
 
 # ============================================================
 # Summary

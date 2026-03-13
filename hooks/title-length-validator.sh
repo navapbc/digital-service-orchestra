@@ -54,14 +54,9 @@ else
     FIELD='.tool_input.new_string'
 fi
 
-# Use jq if available for reliable multi-line JSON extraction,
-# otherwise fall back to parse_json_field (works for single-line JSON).
+# Extract text content using bash-native parse_json_field (no jq dependency).
 TEXT_CONTENT=""
-if check_tool jq; then
-    TEXT_CONTENT=$(echo "$INPUT" | jq -r "${FIELD} // empty" 2>/dev/null) || TEXT_CONTENT=""
-else
-    TEXT_CONTENT=$(parse_json_field "$INPUT" "$FIELD")
-fi
+TEXT_CONTENT=$(parse_json_field "$INPUT" "$FIELD")
 
 if [[ -z "$TEXT_CONTENT" ]]; then
     exit 0

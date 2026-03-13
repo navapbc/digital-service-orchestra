@@ -21,18 +21,12 @@ source "$HOOK_DIR/lib/deps.sh"
 INPUT=$(cat)
 
 # Parse block field — must handle both boolean false and string "false".
-# parse_json_field uses jq's `// empty` which converts boolean false to empty string,
-# so we use jq directly with explicit boolean comparison.
+# Uses grep on raw JSON to detect block value without jq dependency.
 BLOCK_VALUE=""
-if command -v jq &>/dev/null; then
-    BLOCK_VALUE=$(echo "$INPUT" | jq -r 'if .tool_input.block == false then "false" elif .tool_input.block == true then "true" else "" end' 2>/dev/null) || BLOCK_VALUE=""
-else
-    # Bash fallback: look for "block":false in the raw JSON
-    if echo "$INPUT" | grep -qE '"block"\s*:\s*false'; then
-        BLOCK_VALUE="false"
-    elif echo "$INPUT" | grep -qE '"block"\s*:\s*true'; then
-        BLOCK_VALUE="true"
-    fi
+if echo "$INPUT" | grep -qE '"block"\s*:\s*false'; then
+    BLOCK_VALUE="false"
+elif echo "$INPUT" | grep -qE '"block"\s*:\s*true'; then
+    BLOCK_VALUE="true"
 fi
 
 # Allow if block is not specified, true, or anything other than false

@@ -25,8 +25,8 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"track-tool-errors.sh\",\"line\":%s}\n" "
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-# This hook is non-blocking (error tracking only) — skip entirely without jq
-check_tool jq || exit 0
+# This hook is non-blocking (error tracking only) — skip entirely without python3
+check_tool python3 || exit 0
 
 COUNTER_FILE="$HOME/.claude/tool-error-counter.json"
 THRESHOLD=50
@@ -34,11 +34,13 @@ THRESHOLD=50
 # --- Read hook input ---
 INPUT=$(cat)
 
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
-ERROR_MSG=$(echo "$INPUT" | jq -r '.error // empty' 2>/dev/null || echo "")
-TOOL_INPUT=$(echo "$INPUT" | jq -c '.tool_input // {}' 2>/dev/null || echo "{}")
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || echo "")
-IS_INTERRUPT=$(echo "$INPUT" | jq -r '.is_interrupt // false' 2>/dev/null || echo "false")
+TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+ERROR_MSG=$(parse_json_field "$INPUT" '.error')
+TOOL_INPUT=$(parse_json_object "$INPUT" '.tool_input')
+[[ -z "$TOOL_INPUT" ]] && TOOL_INPUT="{}"
+SESSION_ID=$(parse_json_field "$INPUT" '.session_id')
+IS_INTERRUPT=$(parse_json_field "$INPUT" '.is_interrupt')
+[[ -z "$IS_INTERRUPT" ]] && IS_INTERRUPT="false"
 
 # Skip user interrupts (not real errors)
 if [[ "$IS_INTERRUPT" == "true" ]]; then
@@ -88,49 +90,48 @@ else
     # Generic: tool_name + first 3 words of error
     CATEGORY=$(echo "${TOOL_NAME}_${ERROR_MSG}" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '_' | sed 's/__*/_/g' | cut -d_ -f1-4 | head -c 50)
 fi
-INPUT_SUMMARY="$TOOL_NAME: $(echo "$TOOL_INPUT" | jq -r 'to_entries | map(.key + "=" + (.value | tostring | .[0:80])) | join(", ")' 2>/dev/null | head -c 120)"
+INPUT_SUMMARY="$TOOL_NAME: $(json_summarize_input "$TOOL_INPUT" 2>/dev/null | head -c 120)"
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # --- Update counter file ---
 COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[],"bugs_created":{}}')
 
-# Guard against malformed JSON or missing .errors field before any jq pipeline
-if ! echo "$COUNTER_DATA" | jq -e '.errors' >/dev/null 2>&1; then
+# Guard against malformed JSON or missing .errors field before mutation
+_VALID=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'errors' in d" <<< "$COUNTER_DATA" 2>/dev/null && echo "ok" || echo "bad")
+if [[ "$_VALID" != "ok" ]]; then
     COUNTER_DATA='{"index":{},"errors":[],"bugs_created":{}}'
 fi
 
-NEXT_ID=$(echo "$COUNTER_DATA" | jq '.errors | length + 1' 2>/dev/null || echo 1)
-
-# Append error detail
-COUNTER_DATA=$(echo "$COUNTER_DATA" | jq \
-    --arg cat "$CATEGORY" \
-    --arg tool "$TOOL_NAME" \
-    --arg summary "$INPUT_SUMMARY" \
-    --arg error "$ERROR_MSG" \
-    --arg session "$SESSION_ID" \
-    --arg ts "$TIMESTAMP" \
-    --argjson id "$NEXT_ID" \
-    '.errors += [{
-        "id": $id,
-        "timestamp": $ts,
-        "category": $cat,
-        "tool_name": $tool,
-        "input_summary": $summary,
-        "error_message": $error,
-        "session_id": $session
-    }]')
-
-# Increment index count
-COUNTER_DATA=$(echo "$COUNTER_DATA" | jq \
-    --arg cat "$CATEGORY" \
-    '.index[$cat] = ((.index[$cat] // 0) + 1)')
+# Append error detail and increment index count in a single python3 call
+COUNTER_DATA=$(python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+cat = sys.argv[1]
+tool = sys.argv[2]
+summary = sys.argv[3]
+error = sys.argv[4]
+session = sys.argv[5]
+ts = sys.argv[6]
+next_id = len(data.get('errors', [])) + 1
+data.setdefault('errors', []).append({
+    'id': next_id,
+    'timestamp': ts,
+    'category': cat,
+    'tool_name': tool,
+    'input_summary': summary,
+    'error_message': error,
+    'session_id': session
+})
+data.setdefault('index', {})[cat] = data['index'].get(cat, 0) + 1
+print(json.dumps(data))
+" "$CATEGORY" "$TOOL_NAME" "$INPUT_SUMMARY" "$ERROR_MSG" "$SESSION_ID" "$TIMESTAMP" <<< "$COUNTER_DATA")
 
 echo "$COUNTER_DATA" > "$COUNTER_FILE"
 
 # --- Check threshold and create bug if needed ---
-CURRENT_COUNT=$(echo "$COUNTER_DATA" | jq --arg cat "$CATEGORY" '.index[$cat] // 0')
-BUG_EXISTS=$(echo "$COUNTER_DATA" | jq -r --arg cat "$CATEGORY" '.bugs_created[$cat] // "none"')
+CURRENT_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('index',{}).get(sys.argv[1],0))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo 0)
+BUG_EXISTS=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('bugs_created',{}).get(sys.argv[1],'none'))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo "none")
 
 # Categories that are normal operational noise — track counts but never auto-create bugs
 NOISE_CATEGORIES="file_not_found command_exit_nonzero"
@@ -154,11 +155,12 @@ if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" && "$BUG_EXISTS" == "none" ]]; then
 
     if [[ -n "$BUG_ID" ]]; then
         # Record bug ID to prevent duplicates
-        COUNTER_DATA=$(cat "$COUNTER_FILE")
-        COUNTER_DATA=$(echo "$COUNTER_DATA" | jq \
-            --arg cat "$CATEGORY" \
-            --arg bug "$BUG_ID" \
-            '.bugs_created[$cat] = $bug')
+        COUNTER_DATA=$(python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+data.setdefault('bugs_created', {})[sys.argv[1]] = sys.argv[2]
+print(json.dumps(data))
+" "$CATEGORY" "$BUG_ID" < "$COUNTER_FILE" 2>/dev/null || cat "$COUNTER_FILE")
         echo "$COUNTER_DATA" > "$COUNTER_FILE"
     fi
 
