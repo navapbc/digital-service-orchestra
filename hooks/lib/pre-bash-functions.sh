@@ -493,6 +493,13 @@ hook_review_gate() {
         local REVIEW_TS
         REVIEW_TS=$(grep '^timestamp=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
         echo "BLOCKED: Review is stale (${REVIEW_TS:-unknown}; hash ${RECORDED_HASH:0:8}→${CURRENT_HASH:0:8}). Use /commit to re-run." >&2
+        # Debug: log hash mismatch details when hook timing is enabled
+        if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
+            {
+                printf '%s\treview-gate-mismatch\trecorded=%s\tcurrent=%s\tcwd=%s\n' \
+                    "$(date +%H:%M:%S)" "$RECORDED_HASH" "$CURRENT_HASH" "$(pwd)"
+            } >> /tmp/hook-timing.log 2>/dev/null
+        fi
         trap - ERR; return 2
     fi
 
