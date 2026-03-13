@@ -67,6 +67,21 @@ assert_eq "scripts/audit-skill-resolution.sh wrapper is < 15 lines" "true" \
     "$([ "$LINE_COUNT" -lt 15 ] && echo true || echo false)"
 
 # ---------------------------------------------------------------------------
+# test_self_sufficiency_checks_audit_skill_resolution
+#
+# Asserts that audit-skill-resolution.sh is listed in MIGRATED_SCRIPTS
+# in test-plugin-self-sufficiency.sh so the self-sufficiency test validates
+# the canonical copy and thin wrapper.
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- test_self_sufficiency_checks_audit_skill_resolution ---"
+
+SELF_SUFFICIENCY_TEST="$PLUGIN_ROOT/tests/test-plugin-self-sufficiency.sh"
+
+assert_eq "audit-skill-resolution.sh listed in MIGRATED_SCRIPTS in test-plugin-self-sufficiency.sh" "true" \
+    "$(grep -q 'audit-skill-resolution.sh' "$SELF_SUFFICIENCY_TEST" && echo true || echo false)"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 print_summary
