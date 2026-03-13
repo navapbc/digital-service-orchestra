@@ -482,7 +482,14 @@ cmd_dep_tree() {
             id = stack[sp]; depth = stack_depth[sp]; path = stack_path[sp]
             sp--
 
-            if (!(id in statuses)) continue
+            if (!(id in statuses)) {
+                # Missing/archived dep — record as leaf node
+                if (!(id in max_depth) || depth > max_depth[id]) {
+                    max_depth[id] = depth
+                }
+                missing[id] = 1
+                continue
+            }
             if (index(path, ":" id ":") > 0) continue
 
             if (!(id in max_depth) || depth > max_depth[id]) {
@@ -509,6 +516,11 @@ cmd_dep_tree() {
         while (sp > 0) {
             id = stack[sp]; path = stack_path[sp]; phase = stack_phase[sp]
 
+            if (id in missing) {
+                # Missing deps are leaf nodes — subtree depth = max_depth
+                subtree_depth[id] = max_depth[id]
+                sp--; continue
+            }
             if (!(id in statuses) || index(path, ":" id ":") > 0) { sp--; continue }
 
             if (phase == 0) {
@@ -555,6 +567,12 @@ cmd_dep_tree() {
             path = print_stack_path[print_sp]
             print_sp--
 
+            if (id in missing) {
+                if (!full_mode && (id in printed)) { continue }
+                print prefix connector id " [missing \342\200\224 treated as satisfied]"
+                if (!full_mode) printed[id] = 1
+                continue
+            }
             if (!(id in statuses)) continue
             if (!full_mode && (id in printed)) continue
             if (index(path, ":" id ":") > 0) continue
@@ -845,7 +863,7 @@ cmd_ready() {
                 n = split(deps, arr, ",")
                 for (i = 1; i <= n; i++) {
                     dep = arr[i]
-                    if (dep != "" && statuses[dep] != "closed") {
+                    if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
                         ready = 0
                         break
                     }
@@ -983,7 +1001,7 @@ cmd_blocked() {
             n = split(deps, arr, ",")
             for (i = 1; i <= n; i++) {
                 dep = arr[i]
-                if (dep != "" && statuses[dep] != "closed") {
+                if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
                     blocked = 1
                     break
                 }
@@ -994,7 +1012,7 @@ cmd_blocked() {
                 n = split(deps, arr, ",")
                 for (i = 1; i <= n; i++) {
                     dep = arr[i]
-                    if (dep != "" && statuses[dep] != "closed") {
+                    if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
                         blockers = (blockers == "") ? dep : blockers ", " dep
                     }
                 }

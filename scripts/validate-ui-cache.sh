@@ -22,14 +22,13 @@ EXCLUDE_PATTERNS=(
 )
 
 # Embedded theme files (changes trigger theme-global scope)
-THEME_FILES=( <LIST_OF_THEME_FILES> )
+THEME_FILES=( )
 
 # Embedded root layout files (changes trigger shell-global scope)
-SHELL_FILES=( <LIST_OF_LAYOUT_FILES> )
+SHELL_FILES=( )
 
 # Embedded dependency graph: ENTRY|file1|file2|...
 DEPENDS_ON=(
-  <ENTRY_DEPENDENCY_LINES>
 )
 # e.g.: "components/pagination_controls|src/templates/macros/pagination.html"
 # e.g.: "routes/upload|src/templates/upload.html|src/templates/base.html"
