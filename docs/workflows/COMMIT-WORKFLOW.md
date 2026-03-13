@@ -20,34 +20,14 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ### Pre-flight: Ensure `pre-commit` Is Available
 
-Before running any git commands, verify that `pre-commit` is on the PATH and that the git hook shims are not stale:
+Before running any git commands, run the pre-flight check script. It activates the venv if needed and detects/repairs stale git hook shims (left behind when worktrees are cleaned up):
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-
-# 1. Activate venv if pre-commit is not on PATH
-if ! command -v pre-commit &>/dev/null; then
-    if [ -f "$REPO_ROOT/app/.venv/bin/activate" ]; then
-        source "$REPO_ROOT/app/.venv/bin/activate"
-    fi
-fi
-
-# 2. Check if git hook shims have a stale INSTALL_PYTHON path.
-#    Worktree cleanup can leave .git/hooks/pre-commit pointing at a dead venv.
-#    The poetry-run fallback (added by reinstall-hooks.sh) prevents failures,
-#    but if it's missing, reinstall now.
-_HOOK_SHIM="$REPO_ROOT/.git/hooks/pre-commit"
-if [ -f "$_HOOK_SHIM" ]; then
-    _INSTALL_PY=$(grep '^INSTALL_PYTHON=' "$_HOOK_SHIM" 2>/dev/null | head -1 | cut -d= -f2-)
-    _HAS_FALLBACK=$(grep -c 'poetry run pre-commit' "$_HOOK_SHIM" 2>/dev/null || echo 0)
-    if [ -n "$_INSTALL_PY" ] && [ ! -x "$_INSTALL_PY" ] && [ "$_HAS_FALLBACK" -eq 0 ]; then
-        echo "Stale INSTALL_PYTHON in hook shim — running reinstall-hooks.sh"
-        WORKTREE_PATH="$REPO_ROOT" "$REPO_ROOT/lockpick-workflow/scripts/reinstall-hooks.sh" 2>&1 || true
-    fi
-fi
+source "$REPO_ROOT/lockpick-workflow/scripts/ensure-pre-commit.sh" || true
 ```
 
-If `pre-commit` is still not found after activation, warn but continue — the commit hooks may fail later.
+If the script warns that `pre-commit` is not found, the commit hooks may fail later. See `lockpick-workflow/scripts/ensure-pre-commit.sh` for the full fallback chain.
 
 ### Gather State
 
