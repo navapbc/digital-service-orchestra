@@ -6,9 +6,10 @@
 #   run-hook.sh dispatchers/pre-all.sh
 #
 # Hook execution order:
-#   1. tool-logging.sh pre — log tool invocations for session summaries
+#   1. hook_checkpoint_rollback — unwind pre-compact checkpoint if marker present
+#   2. tool-logging.sh pre — log tool invocations for session summaries
 #
-# Returns: 0 always (tool logging is informational; never blocks)
+# Returns: 0 always (checkpoint rollback and tool logging are informational; never blocks)
 #
 # NOTE: This dispatcher is no longer registered as an empty-matcher in settings.json.
 # It was removed to reduce process count per tool call (N+1 → N).
@@ -38,10 +39,16 @@ _get_ms() {
     fi
 }
 
+# Source pre-all function library (for checkpoint rollback)
+source "$HOOKS_LIB_DIR/pre-all-functions.sh"
+
 _pre_all_dispatch() {
     # Read hook input from stdin
     local INPUT
     INPUT=$(cat)
+
+    # 1. Checkpoint rollback (before any other hooks)
+    hook_checkpoint_rollback "$INPUT"
 
     # Fast-path: skip tool-logging subprocess entirely when logging is disabled
     # (avoids ~10-50ms subprocess overhead per tool call)
