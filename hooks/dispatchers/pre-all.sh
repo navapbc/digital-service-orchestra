@@ -9,6 +9,12 @@
 #   1. tool-logging.sh pre — log tool invocations for session summaries
 #
 # Returns: 0 always (tool logging is informational; never blocks)
+#
+# NOTE: This dispatcher is no longer registered as an empty-matcher in settings.json.
+# It was removed to reduce process count per tool call (N+1 → N).
+# Tool logging is unavailable for tools without dedicated dispatchers
+# (Read, Glob, Grep, Skill, ToolSearch) — accepted tradeoff for process count reduction.
+# Tool logging remains available for Bash, Edit, and Write via their dedicated dispatchers.
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
@@ -36,6 +42,10 @@ _pre_all_dispatch() {
     # Read hook input from stdin
     local INPUT
     INPUT=$(cat)
+
+    # Fast-path: skip tool-logging subprocess entirely when logging is disabled
+    # (avoids ~10-50ms subprocess overhead per tool call)
+    test -f "$HOME/.claude/tool-logging-enabled" || return 0
 
     # Run tool-logging pre phase (informational, never blocks)
     if [[ -x "$TOOL_LOGGING_HOOK" ]]; then

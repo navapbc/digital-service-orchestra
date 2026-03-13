@@ -71,7 +71,11 @@ _post_all_dispatch() {
     local INPUT
     INPUT=$(cat)
 
-    _run_post_fn hook_tool_logging_post "$INPUT"
+    # Fast-path: skip tool-logging when logging is disabled
+    # (avoids subprocess overhead per tool call)
+    if [[ -f "$HOME/.claude/tool-logging-enabled" ]]; then
+        _run_post_fn hook_tool_logging_post "$INPUT"
+    fi
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

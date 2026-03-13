@@ -123,4 +123,63 @@ else
 fi
 assert_eq "test_run_hook_fallback_guard" "has_fallback_guard" "$actual"
 
+# ─────────────────────────────────────────────────────────────
+# test_settings_json_no_empty_matcher_pre
+# settings.json must NOT have an empty-matcher PreToolUse entry.
+# (Removed to reduce process count per tool call.)
+# ─────────────────────────────────────────────────────────────
+SETTINGS_JSON="$REPO_ROOT/.claude/settings.json"
+if [[ -f "$SETTINGS_JSON" ]]; then
+    empty_pre=$(SETTINGS_JSON_PATH="$SETTINGS_JSON" python3 -c "
+import json, os, sys
+with open(os.environ['SETTINGS_JSON_PATH']) as f:
+    d = json.load(f)
+entries = [h for h in d.get('hooks', {}).get('PreToolUse', []) if h.get('matcher') == '']
+sys.exit(0 if not entries else 1)
+" 2>&1) && actual="no_empty_matcher_pre" || actual="has_empty_matcher_pre"
+else
+    actual="missing_file"
+fi
+assert_eq "test_settings_json_no_empty_matcher_pre" "no_empty_matcher_pre" "$actual"
+
+# ─────────────────────────────────────────────────────────────
+# test_settings_json_no_empty_matcher_post
+# settings.json must NOT have an empty-matcher PostToolUse entry.
+# (Removed to reduce process count per tool call.)
+# ─────────────────────────────────────────────────────────────
+if [[ -f "$SETTINGS_JSON" ]]; then
+    empty_post=$(SETTINGS_JSON_PATH="$SETTINGS_JSON" python3 -c "
+import json, os, sys
+with open(os.environ['SETTINGS_JSON_PATH']) as f:
+    d = json.load(f)
+entries = [h for h in d.get('hooks', {}).get('PostToolUse', []) if h.get('matcher') == '']
+sys.exit(0 if not entries else 1)
+" 2>&1) && actual="no_empty_matcher_post" || actual="has_empty_matcher_post"
+else
+    actual="missing_file"
+fi
+assert_eq "test_settings_json_no_empty_matcher_post" "no_empty_matcher_post" "$actual"
+
+# ─────────────────────────────────────────────────────────────
+# test_bash_only_two_hook_entries
+# settings.json must have exactly 1 PreToolUse Bash entry and 1 PostToolUse Bash entry.
+# ─────────────────────────────────────────────────────────────
+if [[ -f "$SETTINGS_JSON" ]]; then
+    bash_counts=$(SETTINGS_JSON_PATH="$SETTINGS_JSON" python3 -c "
+import json, os, sys
+with open(os.environ['SETTINGS_JSON_PATH']) as f:
+    d = json.load(f)
+pre = [h for h in d.get('hooks', {}).get('PreToolUse', []) if h.get('matcher') == 'Bash']
+post = [h for h in d.get('hooks', {}).get('PostToolUse', []) if h.get('matcher') == 'Bash']
+if len(pre) == 1 and len(post) == 1:
+    sys.exit(0)
+else:
+    print(f'pre={len(pre)} post={len(post)}')
+    sys.exit(1)
+" 2>&1) && actual="bash_two_entries" || actual="wrong_count: $bash_counts"
+else
+    actual="missing_file"
+fi
+assert_eq "test_bash_only_two_hook_entries" "bash_two_entries" "$actual"
+
 print_summary

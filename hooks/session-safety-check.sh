@@ -19,27 +19,32 @@ if [[ ! -f "$HOOK_ERROR_LOG" ]]; then
 fi
 
 # --- Rotate: remove entries older than 7 days ---
-if command -v jq &>/dev/null; then
-    if [[ "$(uname)" == "Darwin" ]]; then
-        ROTATE_CUTOFF=$(date -u -v-7d +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
-    else
-        ROTATE_CUTOFF=$(date -u -d "7 days ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
-    fi
-    if [[ -n "$ROTATE_CUTOFF" ]]; then
-        ROTATED=$(jq -c --arg cutoff "$ROTATE_CUTOFF" \
-            'select(.ts != null and .ts >= $cutoff)' \
-            "$HOOK_ERROR_LOG" 2>/dev/null) || ROTATED=""
-        if [[ -n "$ROTATED" ]]; then
-            echo "$ROTATED" > "$HOOK_ERROR_LOG.tmp" && mv "$HOOK_ERROR_LOG.tmp" "$HOOK_ERROR_LOG"
-        else
-            : > "$HOOK_ERROR_LOG"
-        fi
-    fi
+if [[ "$(uname)" == "Darwin" ]]; then
+    ROTATE_CUTOFF=$(date -u -v-7d +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
+else
+    ROTATE_CUTOFF=$(date -u -d "7 days ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
 fi
-
-# --- Ensure jq is available ---
-if ! command -v jq &>/dev/null; then
-    exit 0
+if [[ -n "$ROTATE_CUTOFF" ]]; then
+    ROTATED=$(python3 -c "
+import sys, json
+cutoff = sys.argv[1]
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        obj = json.loads(line)
+        ts = obj.get('ts', '')
+        if ts and ts >= cutoff:
+            print(line)
+    except (json.JSONDecodeError, KeyError):
+        pass
+" "$ROTATE_CUTOFF" < "$HOOK_ERROR_LOG" 2>/dev/null) || ROTATED=""
+    if [[ -n "$ROTATED" ]]; then
+        echo "$ROTATED" > "$HOOK_ERROR_LOG.tmp" && mv "$HOOK_ERROR_LOG.tmp" "$HOOK_ERROR_LOG"
+    else
+        : > "$HOOK_ERROR_LOG"
+    fi
 fi
 
 # --- Get 24h-ago timestamp for filtering ---
@@ -54,11 +59,23 @@ if [[ -z "$CUTOFF" ]]; then
 fi
 
 # --- Count errors per hook in the last 24h ---
-# Use jq to filter by timestamp and count by hook name
-COUNTS=$(jq -r --arg cutoff "$CUTOFF" '
-    select(.ts != null and .ts >= $cutoff and .hook != null)
-    | .hook
-' "$HOOK_ERROR_LOG" 2>/dev/null | sort | uniq -c | sort -rn || echo "")
+# Use python3 to filter JSONL by timestamp and extract hook names
+COUNTS=$(python3 -c "
+import sys, json
+cutoff = sys.argv[1]
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        obj = json.loads(line)
+        ts = obj.get('ts', '')
+        hook = obj.get('hook', '')
+        if ts and ts >= cutoff and hook:
+            print(hook)
+    except (json.JSONDecodeError, KeyError):
+        pass
+" "$CUTOFF" < "$HOOK_ERROR_LOG" 2>/dev/null | sort | uniq -c | sort -rn || echo "")
 
 if [[ -z "$COUNTS" ]]; then
     exit 0

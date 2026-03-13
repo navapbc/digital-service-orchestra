@@ -10,6 +10,11 @@
 #
 # Flag file: ~/.claude/tool-logging-enabled
 # Log files: ~/.claude/logs/tool-use-YYYY-MM-DD.jsonl
+#
+# Performance: When logging is disabled (flag absent), the dispatchers
+# (pre-all.sh, post-all.sh) skip the tool-logging subprocess entirely,
+# avoiding ~10-50ms of overhead per tool call. The flag check is also
+# present inside tool-logging.sh as defense-in-depth.
 
 FLAG_FILE="$HOME/.claude/tool-logging-enabled"
 LOG_DIR="$HOME/.claude/logs"

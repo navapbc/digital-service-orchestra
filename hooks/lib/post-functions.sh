@@ -114,6 +114,8 @@ hook_auto_format() {
 # tool-logging.sh accepts MODE as $1; this wrapper hardcodes pre.
 hook_tool_logging_pre() {
     local INPUT="$1"
+    # Defense-in-depth: skip if logging is disabled (dispatcher also checks)
+    test -f "$HOME/.claude/tool-logging-enabled" || return 0
     local _LOG_SCRIPT="$_POST_FUNC_DIR/../tool-logging.sh"
     if [[ -x "$_LOG_SCRIPT" ]]; then
         printf '%s' "$INPUT" | bash "$_LOG_SCRIPT" pre 2>/dev/null || true
@@ -128,6 +130,8 @@ hook_tool_logging_pre() {
 # tool-logging.sh accepts MODE as $1; this wrapper hardcodes post.
 hook_tool_logging_post() {
     local INPUT="$1"
+    # Defense-in-depth: skip if logging is disabled (dispatcher also checks)
+    test -f "$HOME/.claude/tool-logging-enabled" || return 0
     local _HOOK_HAS_OUTPUT=""
     trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi' EXIT
 
