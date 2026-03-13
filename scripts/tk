@@ -845,7 +845,7 @@ cmd_ready() {
                 n = split(deps, arr, ",")
                 for (i = 1; i <= n; i++) {
                     dep = arr[i]
-                    if (dep != "" && statuses[dep] != "closed") {
+                    if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
                         ready = 0
                         break
                     }
@@ -983,7 +983,7 @@ cmd_blocked() {
             n = split(deps, arr, ",")
             for (i = 1; i <= n; i++) {
                 dep = arr[i]
-                if (dep != "" && statuses[dep] != "closed") {
+                if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
                     blocked = 1
                     break
                 }
@@ -994,7 +994,7 @@ cmd_blocked() {
                 n = split(deps, arr, ",")
                 for (i = 1; i <= n; i++) {
                     dep = arr[i]
-                    if (dep != "" && statuses[dep] != "closed") {
+                    if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
                         blockers = (blockers == "") ? dep : blockers ", " dep
                     }
                 }

@@ -38,20 +38,67 @@ if ! mkdir -p "$ARCHIVE_DIR"; then
     exit 1
 fi
 
-# ── Find and move closed tickets ──────────────────────────────────────────────
-# Only scan .md files at the top level of TICKETS_DIR (not archive/ subdirectory).
+# ── Build protected set from transitive dependency chains ────────────────────
+# Walk the dep graph of all open/in_progress tickets recursively. Any ticket ID
+# reachable as a transitive dependency of an active ticket is protected from
+# archival — even if that ticket itself is closed.
 
-archived=0
+# Phase 1: collect deps for every ticket into an associative array (id -> dep ids)
+declare -A ticket_deps
+declare -A ticket_status
 while IFS= read -r ticket_file; do
-    # Extract the status field from YAML frontmatter.
-    # Frontmatter is the block between the first two '---' lines.
-    # We read only the frontmatter section (awk exits after second ---).
+    tid=$(basename "$ticket_file" .md)
     status=$(awk '
         /^---$/ { n++; if (n == 2) exit; next }
         n == 1 && /^status:/ { gsub(/^status:[[:space:]]*/, ""); print; exit }
     ' "$ticket_file")
+    deps_raw=$(awk '
+        /^---$/ { n++; if (n == 2) exit; next }
+        n == 1 && /^deps:/ { gsub(/^deps:[[:space:]]*\[/, ""); gsub(/\].*/, ""); print; exit }
+    ' "$ticket_file")
+    ticket_status["$tid"]="$status"
+    ticket_deps["$tid"]="$deps_raw"
+done < <(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" -type f | sort)
+
+# Phase 2: BFS from every active ticket to collect all transitively protected IDs
+declare -A protected
+_walk_deps() {
+    local tid="$1"
+    # Skip if already visited
+    [[ -n "${protected[$tid]+x}" ]] && return
+    protected["$tid"]=1
+    # Parse comma-separated deps and recurse
+    local deps_str="${ticket_deps[$tid]:-}"
+    if [[ -n "$deps_str" ]]; then
+        local dep
+        while IFS= read -r dep; do
+            dep=$(echo "$dep" | tr -d '[:space:]')
+            [[ -z "$dep" ]] && continue
+            _walk_deps "$dep"
+        done <<< "${deps_str//,/$'\n'}"
+    fi
+}
+
+for tid in "${!ticket_status[@]}"; do
+    if [[ "${ticket_status[$tid]}" == "open" || "${ticket_status[$tid]}" == "in_progress" ]]; then
+        _walk_deps "$tid"
+    fi
+done
+
+# ── Find and move closed tickets ──────────────────────────────────────────────
+# Only scan .md files at the top level of TICKETS_DIR (not archive/ subdirectory).
+# Skip any ticket in the protected set (transitively depended upon by active tickets).
+
+archived=0
+while IFS= read -r ticket_file; do
+    tid=$(basename "$ticket_file" .md)
+    status="${ticket_status[$tid]:-}"
 
     if [ "$status" = "closed" ]; then
+        # Skip if protected by an active dependency chain
+        if [[ -n "${protected[$tid]+x}" ]]; then
+            continue
+        fi
         dest="$ARCHIVE_DIR/$(basename "$ticket_file")"
         if ! mv "$ticket_file" "$dest"; then
             echo "ERROR: failed to move $ticket_file to $dest" >&2
