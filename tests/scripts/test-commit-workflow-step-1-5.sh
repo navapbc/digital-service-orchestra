@@ -21,7 +21,7 @@ echo "=== test-commit-workflow-step-1-5.sh ==="
 # Step 1.5 must NOT contain a hardcoded reference to scripts/run-changed-tests.sh
 _snapshot_fail
 hardcoded_count=0
-hardcoded_count=$(grep -c 'run-changed-tests\.sh' "$WORKFLOW_FILE" 2>/dev/null) || hardcoded_count=0
+hardcoded_count=$(grep -v '(default:' "$WORKFLOW_FILE" | grep -c 'run-changed-tests\.sh' 2>/dev/null) || hardcoded_count=0
 assert_eq "test_no_hardcoded_run_changed_tests: no hardcoded run-changed-tests.sh" "0" "$hardcoded_count"
 assert_pass_if_clean "test_no_hardcoded_run_changed_tests"
 

@@ -173,7 +173,12 @@ If any integration or e2e test files changed, run only those files now. This pre
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 TEST_CHANGED_CMD="$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" commands.test_changed)"
-"$REPO_ROOT/$TEST_CHANGED_CMD"
+if [ -z "$TEST_CHANGED_CMD" ]; then
+    echo "commands.test_changed not configured — skipping changed-test step"
+    # continue to Step 2
+else
+    "$REPO_ROOT/$TEST_CHANGED_CMD"
+fi
 ```
 
 - **Integration tests fail**: DB is not running. Start it with `make db-start` and re-run. Fix the test if it is broken.
