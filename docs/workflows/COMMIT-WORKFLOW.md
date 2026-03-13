@@ -46,31 +46,8 @@ git log --oneline -5
 Check if all changed files are non-reviewable. If every file matches a non-reviewable pattern, Steps 1-3a can be skipped. Otherwise a full review is required.
 
 ```bash
-CHANGED_FILES=$(git diff HEAD --name-only)
-SKIP_REVIEW=true
-while IFS= read -r file; do
-    [[ -z "$file" ]] && continue
-    # Agent guidance always requires review (checked first, overrides docs/* below)
-    case "$file" in
-        .claude/skills/*|.claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
-        lockpick-workflow/skills/*|lockpick-workflow/hooks/*|lockpick-workflow/docs/workflows/*) SKIP_REVIEW=false; break ;;
-        CLAUDE.md) SKIP_REVIEW=false; break ;;
-    esac
-    # .checkpoint-needs-review always requires a full review (see Note below)
-    case "$file" in
-        .checkpoint-needs-review) SKIP_REVIEW=false; break ;;
-    esac
-    # Non-reviewable files
-    case "$file" in
-        .tickets/*) ;;                                                              # ticket metadata
-        .sync-state.json) ;;                                                       # sync state metadata
-        app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;   # visual snapshots
-        *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;                            # images
-        *.pdf|*.docx) ;;                                                           # binary docs
-        .claude/session-logs/*|.claude/docs/*|docs/*) ;;                          # logs and non-agent docs
-        *) SKIP_REVIEW=false; break ;;
-    esac
-done <<< "$CHANGED_FILES"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+git diff HEAD --name-only | bash "$REPO_ROOT/lockpick-workflow/scripts/skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
 ```
 
 **If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
