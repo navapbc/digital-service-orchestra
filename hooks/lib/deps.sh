@@ -2,12 +2,12 @@
 # .claude/hooks/lib/deps.sh
 # Shared dependency library for hooks and scripts.
 #
-# Provides graceful fallbacks when tools like jq, shasum, or docker are missing.
+# Provides graceful fallbacks when tools like shasum or docker are missing.
 # Source this file at the top of any hook or script that needs these utilities.
 #
 # Functions:
 #   check_tool <name>           — silent availability check (returns 0/1)
-#   parse_json_field <json> <jq_expr> — jq with bash fallback for Claude Code hook JSON
+#   parse_json_field <json> <field_expr> — pure bash JSON field extraction for Claude Code hook JSON
 #   hash_stdin                  — cascading hash: shasum > sha256sum > md5 > md5sum > cksum
 #   hash_file <path>            — hash a file using hash_stdin
 #   try_start_docker            — start Docker Desktop (macOS) or systemd (Linux), wait ≤30s
@@ -20,15 +20,15 @@
 _DEPS_LOADED=1
 
 # --- check_tool ---
-# Usage: check_tool jq && echo "jq available"
-#        check_tool jq || exit 0
+# Usage: check_tool shasum && echo "shasum available"
+#        check_tool docker || exit 0
 check_tool() {
     command -v "$1" &>/dev/null
 }
 
 # --- parse_json_field ---
-# Extract a field from JSON. Uses jq when available, falls back to bash string
-# parsing for the known Claude Code hook JSON shape:
+# Extract a field from JSON using pure bash string parsing for the known
+# Claude Code hook JSON shape:
 #   {"tool_name":"...","tool_input":{"command":"...","file_path":"..."}}
 #
 # Supports:
@@ -47,15 +47,7 @@ parse_json_field() {
     local json="$1"
     local expr="$2"
 
-    # Try jq first
-    if check_tool jq; then
-        local result
-        result=$(echo "$json" | jq -r "${expr} // empty" 2>/dev/null) || true
-        echo "$result"
-        return 0
-    fi
-
-    # Bash fallback: handle the known Claude Code hook JSON shape
+    # Handle the known Claude Code hook JSON shape
     # Strip leading dot from expression
     local field="${expr#.}"
 
