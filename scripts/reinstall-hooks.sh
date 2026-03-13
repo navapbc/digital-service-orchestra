@@ -137,7 +137,7 @@ patch_hook_shim() {
     local tmpfile
     tmpfile=$(mktemp)
 
-    # Use awk to inject the poetry fallback branch before the final error block.
+    # Use awk to inject venv and poetry fallback branches before the final error block.
     #
     # The pre-commit shim has this structure:
     #   elif command -v pre-commit > /dev/null; then
@@ -148,7 +148,11 @@ patch_hook_shim() {
     #   fi
     #
     # We replace the bare `else` line (that precedes the "not found" error) with
-    # a new elif-else chain that adds `poetry run pre-commit` as a fallback.
+    # two new fallback branches:
+    #   1. Direct venv python: find app/.venv/bin/python relative to the repo root
+    #      (handles repos where pyproject.toml is in a subdirectory)
+    #   2. poetry run: cd to the app dir first so poetry can find pyproject.toml
+    #
     # To do this safely, we match the `else` followed by the error echo — using a
     # two-line lookahead in awk to ensure we only modify the right `else`.
     awk '
@@ -157,8 +161,12 @@ patch_hook_shim() {
         if (held != "") {
             # Check if held line is "else" and current line is the error echo
             if (held ~ /^else$/ && $0 ~ /echo .*pre-commit.*not found/) {
-                print "elif command -v poetry > /dev/null; then"
-                print "    exec poetry run pre-commit \"${ARGS[@]}\""
+                # Fallback 1: find venv python relative to repo root
+                print "elif _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -x \"$_REPO_ROOT/app/.venv/bin/python\" ]; then"
+                print "    exec \"$_REPO_ROOT/app/.venv/bin/python\" -mpre_commit \"${ARGS[@]}\""
+                # Fallback 2: poetry run from the app directory
+                print "elif command -v poetry > /dev/null && _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -f \"$_REPO_ROOT/app/pyproject.toml\" ]; then"
+                print "    cd \"$_REPO_ROOT/app\" && exec poetry run pre-commit \"${ARGS[@]}\""
                 print "else"
                 print $0   # print the original error echo
                 held = ""
