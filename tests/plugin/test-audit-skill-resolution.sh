@@ -48,6 +48,25 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# test_wrapper_delegates_to_plugin
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- test_wrapper_delegates_to_plugin ---"
+
+REPO_ROOT="$(cd "$PLUGIN_ROOT/.." && pwd)"
+WRAPPER_SCRIPT="$REPO_ROOT/scripts/audit-skill-resolution.sh"
+
+assert_eq "scripts/audit-skill-resolution.sh wrapper exists" "true" \
+    "$(test -f "$WRAPPER_SCRIPT" && echo true || echo false)"
+
+assert_contains "scripts/audit-skill-resolution.sh wrapper contains exec delegation" "exec" \
+    "$(cat "$WRAPPER_SCRIPT" 2>/dev/null || echo '')"
+
+LINE_COUNT="$(wc -l < "$WRAPPER_SCRIPT" 2>/dev/null || echo 999)"
+assert_eq "scripts/audit-skill-resolution.sh wrapper is < 15 lines" "true" \
+    "$([ "$LINE_COUNT" -lt 15 ] && echo true || echo false)"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 print_summary
