@@ -147,7 +147,7 @@ hook_session_safety_check() {
         return 0
     fi
 
-    check_tool jq || return 0
+    check_tool python3 || return 0
 
     local CUTOFF=""
     if [[ "$(uname)" == "Darwin" ]]; then
@@ -161,10 +161,22 @@ hook_session_safety_check() {
     fi
 
     local COUNTS
-    COUNTS=$(jq -r --arg cutoff "$CUTOFF" '
-        select(.ts != null and .ts >= $cutoff and .hook != null)
-        | .hook
-    ' "$HOOK_ERROR_LOG" 2>/dev/null | sort | uniq -c | sort -rn || echo "")
+    COUNTS=$(python3 -c "
+import sys, json
+cutoff = sys.argv[1]
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        obj = json.loads(line)
+        ts = obj.get('ts', '')
+        hook = obj.get('hook', '')
+        if ts and ts >= cutoff and hook:
+            print(hook)
+    except (json.JSONDecodeError, KeyError):
+        pass
+" "$CUTOFF" < "$HOOK_ERROR_LOG" 2>/dev/null | sort | uniq -c | sort -rn || echo "")
 
     if [[ -z "$COUNTS" ]]; then
         return 0
@@ -385,7 +397,7 @@ hook_review_stop_check() {
 hook_tool_logging_summary() {
     local HOOK_DIR="$_SESSION_MISC_FUNC_DIR/.."
 
-    check_tool jq || return 0
+    check_tool python3 || return 0
 
     if ! test -f "$HOME/.claude/tool-logging-enabled"; then
         return 0
@@ -402,58 +414,114 @@ hook_tool_logging_summary() {
         return 0
     fi
 
-    local SESSION_ENTRIES
-    SESSION_ENTRIES=$(jq -c --arg sid "$SESSION_ID" \
-        'select(.session_id == $sid)' "$LOG_FILE" 2>/dev/null || echo "")
+    # Process all JSONL data in a single python3 invocation (mirrors tool-logging-summary.sh)
+    local SUMMARY_DATA
+    SUMMARY_DATA=$(python3 -c "
+import json, sys
+from collections import Counter
 
-    if [[ -z "$SESSION_ENTRIES" ]]; then
+session_id = sys.argv[1]
+log_file = sys.argv[2]
+
+entries = []
+with open(log_file) as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if obj.get('session_id') == session_id:
+            entries.append(obj)
+
+if not entries:
+    sys.exit(1)
+
+post_entries = [e for e in entries if e.get('hook_type') == 'post']
+total_calls = len(post_entries)
+
+if total_calls < 10:
+    print('BELOW_THRESHOLD')
+    sys.exit(0)
+
+tool_counter = Counter(e.get('tool_name', 'unknown') for e in post_entries)
+tool_counts = sorted(tool_counter.items(), key=lambda x: (-x[1], x[0]))
+
+all_epochs = sorted(e.get('epoch_ms', 0) for e in entries if e.get('epoch_ms'))
+first_epoch = all_epochs[0] if all_epochs else 0
+last_epoch = all_epochs[-1] if all_epochs else 0
+duration_secs = max(0, (last_epoch - first_epoch) // 1000) if last_epoch > first_epoch else 0
+
+pre_entries = [e for e in entries if e.get('hook_type') == 'pre']
+slow_calls = []
+for p in post_entries:
+    tool = p.get('tool_name', '')
+    post_epoch = p.get('epoch_ms', 0)
+    candidates = [
+        pr for pr in pre_entries
+        if pr.get('tool_name') == tool and pr.get('epoch_ms', 0) <= post_epoch
+    ]
+    if candidates:
+        best = max(candidates, key=lambda x: x.get('epoch_ms', 0))
+        delta_ms = post_epoch - best.get('epoch_ms', 0)
+        slow_calls.append((tool, delta_ms))
+
+slow_calls.sort(key=lambda x: -x[1])
+slow_calls = slow_calls[:5]
+
+print('TOTAL_CALLS={}'.format(total_calls))
+print('DURATION_SECS={}'.format(duration_secs))
+for tool, count in tool_counts:
+    print('TOOL_COUNT={}:{}'.format(tool, count))
+for tool, delta_ms in slow_calls:
+    print('SLOW_CALL={}:{}'.format(tool, delta_ms // 1000))
+print('DONE')
+" "$SESSION_ID" "$LOG_FILE" 2>/dev/null || echo "")
+
+    if [[ -z "$SUMMARY_DATA" ]]; then
+        # No entries for this session — return without cleanup (matches original jq behavior)
         return 0
     fi
 
-    local POST_ENTRIES TOTAL_CALLS
-    POST_ENTRIES=$(echo "$SESSION_ENTRIES" | jq -c 'select(.hook_type == "post")' 2>/dev/null || echo "")
-    TOTAL_CALLS=$(echo "$POST_ENTRIES" | grep -c '"hook_type":"post"' 2>/dev/null || echo "0")
-
-    if [[ "$TOTAL_CALLS" -lt 10 ]]; then
+    if [[ "$SUMMARY_DATA" == "BELOW_THRESHOLD" ]]; then
         find "$HOME/.claude/logs/" -name "*.jsonl" -mtime +7 -delete 2>/dev/null || true
         return 0
     fi
 
-    local TOOL_COUNTS
-    TOOL_COUNTS=$(echo "$POST_ENTRIES" | \
-        jq -rs '[.[] | .tool_name] | group_by(.) | map({tool: .[0], count: length}) | sort_by(-.count)' \
-        2>/dev/null || echo "[]")
+    # Parse structured output
+    local TOTAL_CALLS="" DURATION_SECS=0
+    local TOOL_COUNTS_LINES="" SLOW_CALLS_LINES=""
 
-    local ALL_EPOCHS FIRST_EPOCH LAST_EPOCH
-    ALL_EPOCHS=$(echo "$SESSION_ENTRIES" | jq -r '.epoch_ms' 2>/dev/null | sort -n)
-    FIRST_EPOCH=$(echo "$ALL_EPOCHS" | head -1)
-    LAST_EPOCH=$(echo "$ALL_EPOCHS" | tail -1)
-
-    local DURATION_SECS=0
-    if [[ -n "$FIRST_EPOCH" && -n "$LAST_EPOCH" && "$FIRST_EPOCH" -gt 0 && "$LAST_EPOCH" -gt "$FIRST_EPOCH" ]]; then
-        DURATION_SECS=$(( (LAST_EPOCH - FIRST_EPOCH) / 1000 ))
-    fi
+    while IFS= read -r line; do
+        case "$line" in
+            TOTAL_CALLS=*)
+                TOTAL_CALLS="${line#TOTAL_CALLS=}"
+                ;;
+            DURATION_SECS=*)
+                DURATION_SECS="${line#DURATION_SECS=}"
+                ;;
+            TOOL_COUNT=*)
+                local _tc_data="${line#TOOL_COUNT=}"
+                local _tc_tool="${_tc_data%%:*}"
+                local _tc_count="${_tc_data#*:}"
+                TOOL_COUNTS_LINES="${TOOL_COUNTS_LINES}  - ${_tc_tool}: ${_tc_count}"$'\n'
+                ;;
+            SLOW_CALL=*)
+                local _sc_data="${line#SLOW_CALL=}"
+                local _sc_tool="${_sc_data%%:*}"
+                local _sc_secs="${_sc_data#*:}"
+                SLOW_CALLS_LINES="${SLOW_CALLS_LINES}  - ${_sc_tool}: ${_sc_secs}s"$'\n'
+                ;;
+            DONE)
+                break
+                ;;
+        esac
+    done <<< "$SUMMARY_DATA"
 
     local DURATION_MIN=$(( DURATION_SECS / 60 ))
     local DURATION_SEC=$(( DURATION_SECS % 60 ))
-
-    local SLOW_CALLS
-    SLOW_CALLS=$(echo "$SESSION_ENTRIES" | jq -rs '
-        . as $all |
-        [ $all[] | select(.hook_type == "pre") ]  as $pres |
-        [ $all[] | select(.hook_type == "post") ] as $posts |
-        [ $posts[] as $p |
-          [ $pres[] | select(.tool_name == $p.tool_name and .epoch_ms <= $p.epoch_ms) ] |
-          sort_by(.epoch_ms) | last |
-          if . then
-            { tool: $p.tool_name, delta_ms: ($p.epoch_ms - .epoch_ms) }
-          else
-            empty
-          end
-        ] |
-        sort_by(-.delta_ms) | .[0:5] |
-        map("  - \(.tool): \(.delta_ms / 1000 | floor)s")[]
-    ' 2>/dev/null || echo "")
 
     echo "# Session Tool Usage Summary"
     echo ""
@@ -465,12 +533,12 @@ hook_tool_logging_summary() {
     echo ""
     echo "## Calls by Tool"
     echo ""
-    echo "$TOOL_COUNTS" | jq -r '.[] | "  - \(.tool): \(.count)"' 2>/dev/null || true
+    printf '%s' "$TOOL_COUNTS_LINES"
     echo ""
-    if [[ -n "$SLOW_CALLS" ]]; then
+    if [[ -n "$SLOW_CALLS_LINES" ]]; then
         echo "## Top 5 Slowest Calls (approx)"
         echo ""
-        echo "$SLOW_CALLS"
+        printf '%s' "$SLOW_CALLS_LINES"
         echo ""
     fi
 
@@ -486,14 +554,16 @@ hook_track_tool_errors() {
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
 
-    check_tool jq || return 0
+    check_tool python3 || return 0
 
     local TOOL_NAME ERROR_MSG TOOL_INPUT SESSION_ID IS_INTERRUPT
-    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
-    ERROR_MSG=$(echo "$INPUT" | jq -r '.error // empty' 2>/dev/null || echo "")
-    TOOL_INPUT=$(echo "$INPUT" | jq -c '.tool_input // {}' 2>/dev/null || echo "{}")
-    SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || echo "")
-    IS_INTERRUPT=$(echo "$INPUT" | jq -r '.is_interrupt // false' 2>/dev/null || echo "false")
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+    ERROR_MSG=$(parse_json_field "$INPUT" '.error')
+    TOOL_INPUT=$(parse_json_object "$INPUT" '.tool_input')
+    [[ -z "$TOOL_INPUT" ]] && TOOL_INPUT="{}"
+    SESSION_ID=$(parse_json_field "$INPUT" '.session_id')
+    IS_INTERRUPT=$(parse_json_field "$INPUT" '.is_interrupt')
+    [[ -z "$IS_INTERRUPT" ]] && IS_INTERRUPT="false"
 
     if [[ "$IS_INTERRUPT" == "true" ]]; then
         return 0
@@ -541,7 +611,7 @@ hook_track_tool_errors() {
         CATEGORY=$(echo "${TOOL_NAME}_${ERROR_MSG}" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '_' | sed 's/__*/_/g' | cut -d_ -f1-4 | head -c 50)
     fi
 
-    INPUT_SUMMARY="$TOOL_NAME: $(echo "$TOOL_INPUT" | jq -r 'to_entries | map(.key + "=" + (.value | tostring | .[0:80])) | join(", ")' 2>/dev/null | head -c 120)"
+    INPUT_SUMMARY="$TOOL_NAME: $(json_summarize_input "$TOOL_INPUT" 2>/dev/null | head -c 120)"
 
     local TIMESTAMP
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -549,40 +619,42 @@ hook_track_tool_errors() {
     local COUNTER_DATA
     COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[],"bugs_created":{}}')
 
-    if ! echo "$COUNTER_DATA" | jq -e '.errors' >/dev/null 2>&1; then
+    # Guard against malformed JSON
+    local _VALID
+    _VALID=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'errors' in d" <<< "$COUNTER_DATA" 2>/dev/null && echo "ok" || echo "bad")
+    if [[ "$_VALID" != "ok" ]]; then
         COUNTER_DATA='{"index":{},"errors":[],"bugs_created":{}}'
     fi
 
-    local NEXT_ID
-    NEXT_ID=$(echo "$COUNTER_DATA" | jq '.errors | length + 1' 2>/dev/null || echo 1)
-
-    COUNTER_DATA=$(echo "$COUNTER_DATA" | jq \
-        --arg cat "$CATEGORY" \
-        --arg tool "$TOOL_NAME" \
-        --arg summary "$INPUT_SUMMARY" \
-        --arg error "$ERROR_MSG" \
-        --arg session "$SESSION_ID" \
-        --arg ts "$TIMESTAMP" \
-        --argjson id "$NEXT_ID" \
-        '.errors += [{
-            "id": $id,
-            "timestamp": $ts,
-            "category": $cat,
-            "tool_name": $tool,
-            "input_summary": $summary,
-            "error_message": $error,
-            "session_id": $session
-        }]')
-
-    COUNTER_DATA=$(echo "$COUNTER_DATA" | jq \
-        --arg cat "$CATEGORY" \
-        '.index[$cat] = ((.index[$cat] // 0) + 1)')
+    # Append error detail and increment index count in a single python3 call
+    COUNTER_DATA=$(python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+cat = sys.argv[1]
+tool = sys.argv[2]
+summary = sys.argv[3]
+error = sys.argv[4]
+session = sys.argv[5]
+ts = sys.argv[6]
+next_id = len(data.get('errors', [])) + 1
+data.setdefault('errors', []).append({
+    'id': next_id,
+    'timestamp': ts,
+    'category': cat,
+    'tool_name': tool,
+    'input_summary': summary,
+    'error_message': error,
+    'session_id': session
+})
+data.setdefault('index', {})[cat] = data['index'].get(cat, 0) + 1
+print(json.dumps(data))
+" "$CATEGORY" "$TOOL_NAME" "$INPUT_SUMMARY" "$ERROR_MSG" "$SESSION_ID" "$TIMESTAMP" <<< "$COUNTER_DATA")
 
     echo "$COUNTER_DATA" > "$COUNTER_FILE"
 
     local CURRENT_COUNT BUG_EXISTS
-    CURRENT_COUNT=$(echo "$COUNTER_DATA" | jq --arg cat "$CATEGORY" '.index[$cat] // 0')
-    BUG_EXISTS=$(echo "$COUNTER_DATA" | jq -r --arg cat "$CATEGORY" '.bugs_created[$cat] // "none"')
+    CURRENT_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('index',{}).get(sys.argv[1],0))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo 0)
+    BUG_EXISTS=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('bugs_created',{}).get(sys.argv[1],'none'))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo "none")
 
     local NOISE_CATEGORIES="file_not_found command_exit_nonzero"
     local IS_NOISE=false
@@ -605,11 +677,12 @@ hook_track_tool_errors() {
         fi
 
         if [[ -n "$BUG_ID" ]]; then
-            COUNTER_DATA=$(cat "$COUNTER_FILE")
-            COUNTER_DATA=$(echo "$COUNTER_DATA" | jq \
-                --arg cat "$CATEGORY" \
-                --arg bug "$BUG_ID" \
-                '.bugs_created[$cat] = $bug')
+            COUNTER_DATA=$(python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+data.setdefault('bugs_created', {})[sys.argv[1]] = sys.argv[2]
+print(json.dumps(data))
+" "$CATEGORY" "$BUG_ID" < "$COUNTER_FILE" 2>/dev/null || cat "$COUNTER_FILE")
             echo "$COUNTER_DATA" > "$COUNTER_FILE"
         fi
 
@@ -730,14 +803,10 @@ hook_taskoutput_block_guard() {
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"taskoutput-block-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
     local BLOCK_VALUE=""
-    if command -v jq &>/dev/null; then
-        BLOCK_VALUE=$(echo "$INPUT" | jq -r 'if .tool_input.block == false then "false" elif .tool_input.block == true then "true" else "" end' 2>/dev/null) || BLOCK_VALUE=""
-    else
-        if echo "$INPUT" | grep -qE '"block"\s*:\s*false'; then
-            BLOCK_VALUE="false"
-        elif echo "$INPUT" | grep -qE '"block"\s*:\s*true'; then
-            BLOCK_VALUE="true"
-        fi
+    if echo "$INPUT" | grep -qE '"block"\s*:\s*false'; then
+        BLOCK_VALUE="false"
+    elif echo "$INPUT" | grep -qE '"block"\s*:\s*true'; then
+        BLOCK_VALUE="true"
     fi
 
     if [[ "$BLOCK_VALUE" != "false" ]]; then

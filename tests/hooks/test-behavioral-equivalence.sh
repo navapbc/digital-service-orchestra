@@ -163,6 +163,71 @@ assert_eq \
     "$USES_OLD_HOOKS"
 
 # ============================================================
+# test_behavioral_equivalence_post_consolidation
+#
+# Post-consolidation: tool logging is now dispatched via per-tool
+# dispatchers (pre-bash, post-bash, etc.) rather than catch-all
+# empty-matcher hooks. Verify that:
+#   1. pre-bash dispatcher sources hook_tool_logging_pre
+#   2. post-bash dispatcher sources hook_tool_logging_post
+#   3. No catch-all (empty-matcher) entries remain in settings.json
+# ============================================================
+
+PRE_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
+POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
+
+# Verify tool-logging dispatch is integrated into pre-bash
+if [[ -f "$PRE_BASH_DISPATCHER" ]]; then
+    if grep -q 'tool_logging_pre\|tool.logging.*pre' "$PRE_BASH_DISPATCHER" 2>/dev/null; then
+        actual="has_tool_logging_pre"
+    else
+        actual="missing_tool_logging_pre"
+    fi
+else
+    actual="dispatcher_missing"
+fi
+assert_eq \
+    "test_behavioral_equivalence_post_consolidation: pre-bash dispatches tool-logging" \
+    "has_tool_logging_pre" \
+    "$actual"
+
+# Verify tool-logging dispatch is integrated into post-bash
+if [[ -f "$POST_BASH_DISPATCHER" ]]; then
+    if grep -q 'tool_logging_post\|tool.logging.*post' "$POST_BASH_DISPATCHER" 2>/dev/null; then
+        actual="has_tool_logging_post"
+    else
+        actual="missing_tool_logging_post"
+    fi
+else
+    actual="dispatcher_missing"
+fi
+assert_eq \
+    "test_behavioral_equivalence_post_consolidation: post-bash dispatches tool-logging" \
+    "has_tool_logging_post" \
+    "$actual"
+
+# Verify no catch-all empty-matcher in settings.json PreToolUse/PostToolUse
+if [[ -f "$SETTINGS_FILE" ]]; then
+    HAS_EMPTY_MATCHER="no"
+    EMPTY_CHECK=$(SETTINGS_JSON_PATH="$SETTINGS_FILE" python3 -c "
+import json, os, sys
+with open(os.environ['SETTINGS_JSON_PATH']) as f:
+    d = json.load(f)
+hooks = d.get('hooks', {})
+for event in ['PreToolUse', 'PostToolUse']:
+    for group in hooks.get(event, []):
+        if group.get('matcher') == '':
+            print(f'{event} has empty matcher')
+            sys.exit(1)
+sys.exit(0)
+" 2>&1) || HAS_EMPTY_MATCHER="yes"
+fi
+assert_eq \
+    "test_behavioral_equivalence_post_consolidation: no catch-all empty-matcher hooks" \
+    "no" \
+    "$HAS_EMPTY_MATCHER"
+
+# ============================================================
 # Summary
 # ============================================================
 
