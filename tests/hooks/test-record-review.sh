@@ -1,86 +1,108 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/hooks/test-record-review.sh
-# Tests for .claude/hooks/record-review.sh
+# Tests for lockpick-workflow/hooks/record-review.sh
 #
-# record-review.sh is a utility that records a code review result.
-# It requires a full review JSON on stdin AND --reviewer-hash flag.
-# Exits 1 on validation failures.
+# record-review.sh reads directly from reviewer-findings.json (written by
+# the code-reviewer sub-agent). It requires --reviewer-hash and validates
+# the findings file's integrity and schema. No stdin JSON is accepted.
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/record-review.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Source deps.sh to use get_artifacts_dir()
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+
+# Use an isolated temp directory so tests don't clobber production artifacts.
+# Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so record-review.sh (via get_artifacts_dir())
+# uses this dir instead of the real one. Without this, concurrent test runs
+# delete the production reviewer-findings.json — the root cause of the
+# "reviewer-findings.json not found" bug that blocked the commit workflow.
+ARTIFACTS_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-record-review-XXXXXX")
+export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"
+FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
+
+cleanup() {
+    rm -f "$FINDINGS_FILE"
+}
+trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
+
 run_hook_exit() {
-    local input="$1"
-    shift
     local exit_code=0
-    echo "$input" | bash "$HOOK" "$@" 2>/dev/null || exit_code=$?
+    bash "$HOOK" "$@" 2>/dev/null || exit_code=$?
     echo "$exit_code"
 }
 
-# test_record_review_exits_nonzero_without_required_fields
-# Empty JSON {} → missing scores, summary, etc → exit 1
-EXIT_CODE=$(run_hook_exit "{}")
-assert_ne "test_record_review_exits_nonzero_without_required_fields" "0" "$EXIT_CODE"
+# test_record_review_exits_nonzero_without_reviewer_hash
+# No --reviewer-hash → exit 1
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+EXIT_CODE=$(run_hook_exit)
+assert_ne "test_record_review_exits_nonzero_without_reviewer_hash" "0" "$EXIT_CODE"
 
-# test_record_review_exits_nonzero_on_empty_input
-# Empty stdin → "review JSON required on stdin" → exit 1
-EXIT_CODE=$(run_hook_exit "")
-assert_ne "test_record_review_exits_nonzero_on_empty_input" "0" "$EXIT_CODE"
+# test_record_review_exits_nonzero_without_findings_file
+# No reviewer-findings.json → exit 1
+cleanup
+EXIT_CODE=$(run_hook_exit --reviewer-hash "abc123")
+assert_ne "test_record_review_exits_nonzero_without_findings_file" "0" "$EXIT_CODE"
+
+# test_record_review_exits_nonzero_on_hash_mismatch
+# Wrong hash → exit 1
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+EXIT_CODE=$(run_hook_exit --reviewer-hash "0000000000000000000000000000000000000000000000000000000000000000")
+assert_ne "test_record_review_exits_nonzero_on_hash_mismatch" "0" "$EXIT_CODE"
 
 # test_record_review_exits_nonzero_on_missing_scores
-# JSON without scores object → exit 1
-INPUT='{"summary":"This is a test review summary","feedback":{"files_targeted":["app/src/test.py"]}}'
-EXIT_CODE=$(run_hook_exit "$INPUT")
+# Findings file without scores → exit 1
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"findings":[],"summary":"Missing scores object entirely"}' > "$FINDINGS_FILE"
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
 assert_ne "test_record_review_exits_nonzero_on_missing_scores" "0" "$EXIT_CODE"
 
 # test_record_review_exits_nonzero_on_missing_summary
-# JSON with scores but missing summary → exit 1
-INPUT='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"feedback":{"files_targeted":["app/src/test.py"]}}'
-EXIT_CODE=$(run_hook_exit "$INPUT")
+# Findings file without summary → exit 1
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[]}' > "$FINDINGS_FILE"
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
 assert_ne "test_record_review_exits_nonzero_on_missing_summary" "0" "$EXIT_CODE"
 
-# test_record_review_exits_nonzero_on_missing_feedback
-# JSON with scores and summary but missing feedback → exit 1
-INPUT='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here"}'
-EXIT_CODE=$(run_hook_exit "$INPUT")
-assert_ne "test_record_review_exits_nonzero_on_missing_feedback" "0" "$EXIT_CODE"
-
 # test_record_review_exits_nonzero_on_score_out_of_range
-# Score outside 1-5 range → exit 1
-INPUT='{"scores":{"code_hygiene":6,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here","feedback":{"files_targeted":["app/src/test.py"]}}'
-EXIT_CODE=$(run_hook_exit "$INPUT")
+# Score of 6 → exit 1
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"scores":{"code_hygiene":6,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"Score out of range test review"}' > "$FINDINGS_FILE"
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
 assert_ne "test_record_review_exits_nonzero_on_score_out_of_range" "0" "$EXIT_CODE"
 
-# test_record_review_exits_nonzero_on_malformed_json
-# Malformed JSON → exit 1
-EXIT_CODE=$(run_hook_exit "not json {{")
-assert_ne "test_record_review_exits_nonzero_on_malformed_json" "0" "$EXIT_CODE"
-
-# test_record_review_exits_nonzero_without_reviewer_hash
-# A structurally valid review JSON still requires --reviewer-hash → exit 1
-# (Also requires reviewer-findings.json file to exist)
-# This test verifies the mandatory --reviewer-hash argument check
-INPUT='{"scores":{"code_hygiene":4,"object_oriented_design":4,"readability":4,"functionality":4,"testing_coverage":4},"summary":"A sufficient review summary here that is long enough","feedback":{"files_targeted":["app/src/test.py"]},"findings":[]}'
-EXIT_CODE=$(run_hook_exit "$INPUT")
-assert_ne "test_record_review_exits_nonzero_without_reviewer_hash" "0" "$EXIT_CODE"
+# test_record_review_drains_stdin_silently
+# Piped stdin should be drained without error (backward compat)
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+EXIT_CODE=0
+echo "some old stdin json" | bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
+# Should succeed (stdin is drained, not used)
+assert_eq "test_record_review_drains_stdin_silently" "0" "$EXIT_CODE"
 
 # ============================================================
 # test_record_review_portable_state_path
 #
 # Verify that record-review.sh writes review-status to /tmp/workflow-plugin-*/
 # not /tmp/lockpick-test-artifacts-*/ .
-#
-# Approach: source deps.sh from the hook directory and call get_artifacts_dir()
-# with a controlled REPO_ROOT. Assert the returned path does NOT contain
-# 'lockpick-test-artifacts'.
-#
-# MUST FAIL until Task j46vp.3.9 implements get_artifacts_dir() in record-review.sh.
 # ============================================================
 
 RRSTATE_TMP=$(mktemp -d)
-cleanup_rrstate() { rm -rf "$RRSTATE_TMP"; }
+cleanup_rrstate() { rm -rf "$RRSTATE_TMP" "$ARTIFACTS_DIR"; }
 trap cleanup_rrstate EXIT
 
 # Initialize a minimal fake git repo so get_artifacts_dir() can call git rev-parse

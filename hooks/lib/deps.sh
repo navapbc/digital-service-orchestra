@@ -251,6 +251,13 @@ try_start_docker() {
 #
 # Usage: ARTIFACTS_DIR=$(get_artifacts_dir)
 get_artifacts_dir() {
+    # Allow tests to override the artifacts directory for isolation
+    if [[ -n "${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-}" ]]; then
+        mkdir -p "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"
+        echo "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"
+        return 0
+    fi
+
     local repo_root=${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}
     [[ -z "$repo_root" ]] && echo "/tmp/workflow-plugin-unknown" && return 0
 

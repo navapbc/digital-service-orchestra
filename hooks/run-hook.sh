@@ -30,8 +30,35 @@ if [[ -z "$HOOK" || ! -f "$HOOK" ]]; then
     exit 0
 fi
 
+# --- Hook timing instrumentation ---
+# Logs wall-clock duration of each hook dispatcher to a timing file.
+# Enable: touch ~/.claude/hook-timing-enabled
+# View:   cat /tmp/hook-timing.log | column -t -s $'\t'
+# Disable: rm ~/.claude/hook-timing-enabled
+_HOOK_TIMING_LOG="/tmp/hook-timing.log"
+_HOOK_TIMING_ENABLED=""
+if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
+    _HOOK_TIMING_ENABLED=1
+    _HOOK_START_MS=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+fi
+
 SYNTAX_ERR_LOG=$(mktemp /tmp/claude-hook-syntax-err.XXXXXX)
-trap 'rm -f "$SYNTAX_ERR_LOG"' EXIT
+_cleanup() {
+    local _exit_code=$?
+    rm -f "$SYNTAX_ERR_LOG"
+    # Log timing on exit (covers both exec and non-exec paths)
+    if [[ -n "$_HOOK_TIMING_ENABLED" ]]; then
+        local _end_ms=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+        local _elapsed_ms=$((_end_ms - _HOOK_START_MS))
+        printf '%s\t%s\t%dms\texit=%d\n' \
+            "$(date +%H:%M:%S)" \
+            "$(basename "$HOOK")" \
+            "$_elapsed_ms" \
+            "$_exit_code" \
+            >> "$_HOOK_TIMING_LOG" 2>/dev/null
+    fi
+}
+trap '_cleanup' EXIT
 
 if ! bash -n "$HOOK" 2>"$SYNTAX_ERR_LOG"; then
     # Parse error detected — log it and fail-open
@@ -45,4 +72,11 @@ if ! bash -n "$HOOK" 2>"$SYNTAX_ERR_LOG"; then
     exit 0
 fi
 
-exec "$HOOK" "$@"
+# When timing is enabled, run the hook (not exec) so the EXIT trap fires.
+# When disabled, exec for zero overhead.
+if [[ -n "$_HOOK_TIMING_ENABLED" ]]; then
+    "$HOOK" "$@"
+    exit $?
+else
+    exec "$HOOK" "$@"
+fi

@@ -50,5 +50,7 @@ done
 [ -s "$DIFF_FILE" ] || git diff HEAD~1 | tee "$DIFF_FILE" > /dev/null
 
 # --- Capture stat with exclusions ---
+# Guard grep -v with || true to prevent pipefail crash when no untracked files
+# match (grep -v returns exit 1 when all lines are filtered out).
 { git diff HEAD --stat -- "${EXCLUDES[@]}"; \
-  git ls-files --others --exclude-standard | grep -v '^\.tickets/' | grep -v '^\.sync-state\.json$' | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
+  git ls-files --others --exclude-standard | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null

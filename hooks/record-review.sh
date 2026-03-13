@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
-# .claude/hooks/record-review.sh
+# lockpick-workflow/hooks/record-review.sh
 # Utility: records that a code review passed for the current working tree state.
 #
-# Called after a successful /review run. Requires the full review JSON on stdin
-# to verify that an actual review was performed (not just a score claim).
+# Called after a successful /review run. Reads scores, findings, and summary
+# directly from reviewer-findings.json (written by the code-reviewer sub-agent
+# via write-reviewer-findings.sh). This ensures that only genuine sub-agent
+# reviews can produce a valid review state — no orchestrator-constructed JSON
+# is accepted.
 #
 # Usage:
-#   echo '<review JSON>' | .claude/hooks/record-review.sh [--expected-hash HASH] [--reviewer-hash HASH]
+#   record-review.sh --reviewer-hash HASH [--expected-hash HASH]
 #
 # Options:
 #   --expected-hash HASH   If provided, the script computes the current diff hash
 #                          and rejects if it differs from HASH. This prevents
 #                          recording a review against a stale diff.
 #   --reviewer-hash HASH   SHA256 hash of reviewer-findings.json as reported by
-#                          the code-reviewer sub-agent. Used to verify the file
-#                          has not been tampered with after the sub-agent wrote it.
+#                          the code-reviewer sub-agent. REQUIRED. Used to verify
+#                          the file has not been tampered with after the sub-agent
+#                          wrote it.
 #
-# The review JSON must contain:
+# reviewer-findings.json must contain (written by sub-agent):
 #   - scores: object with code_hygiene, object_oriented_design, readability,
 #             functionality, testing_coverage (each 1-5 or "N/A")
-#   - summary: non-empty string
+#   - summary: non-empty string (min 10 chars)
+#   - findings: array of finding objects (may be empty)
 #
 # Writes review state to: /tmp/workflow-plugin-<hash>/review-status
 # Format:
@@ -27,7 +32,7 @@
 #   Line 2: timestamp=<ISO8601>
 #   Line 3: diff_hash=<sha256 of staged+unstaged diff>
 #   Line 4: score=<min numeric score from review>
-#   Line 5: review_hash=<sha256 of the review JSON input>
+#   Line 5: review_hash=<sha256 of reviewer-findings.json>
 #
 # The diff_hash lets hooks detect whether code has changed since the review.
 # The review_hash proves that structured review data was provided.
@@ -66,132 +71,20 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "ERROR: unknown argument: $1" >&2
+            echo "" >&2
+            echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH]" >&2
+            echo "" >&2
+            echo "This script reads directly from reviewer-findings.json (written by the" >&2
+            echo "code-reviewer sub-agent). No stdin JSON is accepted." >&2
             exit 1
             ;;
     esac
 done
 
-# Read review JSON from stdin
-REVIEW_JSON=$(cat)
-
-if [[ -z "$REVIEW_JSON" ]]; then
-    echo "ERROR: review JSON required on stdin" >&2
-    echo "" >&2
-    echo "Usage: echo '<review JSON>' | record-review.sh" >&2
-    echo "" >&2
-    echo "The /review skill outputs the required JSON format." >&2
-    exit 1
-fi
-
-# Validate JSON structure
-VALID=$(echo "$REVIEW_JSON" | python3 -c "
-import sys, json
-
-try:
-    data = json.load(sys.stdin)
-except json.JSONDecodeError:
-    print('ERROR: invalid JSON')
-    sys.exit(1)
-
-# Require scores object
-scores = data.get('scores')
-if not isinstance(scores, dict):
-    print('ERROR: missing scores object')
-    sys.exit(1)
-
-# Require all 5 score dimensions
-required = ['code_hygiene', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
-
-# Normalize string digits to int so both "4" and 4 are accepted
-for key in scores:
-    val = scores[key]
-    if isinstance(val, str) and val.isdigit():
-        scores[key] = int(val)
-
-for key in required:
-    if key not in scores:
-        print(f'ERROR: missing score dimension: {key}')
-        sys.exit(1)
-    val = scores[key]
-    if val != 'N/A':
-        if not isinstance(val, (int, float)) or not (1 <= val <= 5):
-            print(f'ERROR: score {key} must be 1-5 or \"N/A\", got: {val}')
-            sys.exit(1)
-
-# Require summary
-summary = data.get('summary')
-if not summary or not isinstance(summary, str) or len(summary.strip()) < 10:
-    print('ERROR: missing or too short summary (min 10 chars)')
-    sys.exit(1)
-
-# Require feedback object with files_targeted
-feedback = data.get('feedback')
-if not isinstance(feedback, dict):
-    print('ERROR: missing feedback object')
-    sys.exit(1)
-
-targeted = feedback.get('files_targeted')
-if not isinstance(targeted, list):
-    print('ERROR: feedback.files_targeted must be a list (may be empty when reviewer finds no issues)')
-    sys.exit(1)
-
-# Compute minimum numeric score
-numeric_scores = [v for v in scores.values() if isinstance(v, (int, float))]
-if not numeric_scores:
-    min_score = 5  # all N/A
-else:
-    min_score = min(numeric_scores)
-
-print(f'OK:{min_score}')
-" 2>&1) || true
-
-if [[ "$VALID" == ERROR:* ]]; then
-    echo "$VALID" >&2
-    exit 1
-fi
-
-if [[ "$VALID" != OK:* ]]; then
-    echo "ERROR: failed to validate review JSON" >&2
-    exit 1
-fi
-
-# Note: orchestrator's score (VALID) is intentionally discarded.
-# Actual SCORE is set from reviewer-findings.json below.
-
-# Validate files_targeted overlap with actual changed files
-CHANGED_FILES=$(
-    {
-        git diff --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git diff --cached --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.checkpoint-needs-review$' | grep -v '^\.tickets/' | grep -v '^\.sync-state\.json$' | grep -v '^app/tests/e2e/snapshots/.*\.png$' | grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true
-    } | sort -u | grep -v '^$' || true
-)
-
-if [[ -n "$CHANGED_FILES" ]]; then
-    TARGETED=$(echo "$REVIEW_JSON" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for f in data.get('feedback', {}).get('files_targeted', []):
-    print(f)
-" 2>/dev/null || echo "")
-
-    OVERLAP_FOUND=""
-    while IFS= read -r target; do
-        [[ -z "$target" ]] && continue
-        while IFS= read -r changed; do
-            [[ -z "$changed" ]] && continue
-            if [[ "$changed" == *"$target"* || "$target" == *"$changed"* ]]; then
-                OVERLAP_FOUND="yes"
-                break 2
-            fi
-        done <<< "$CHANGED_FILES"
-    done <<< "$TARGETED"
-
-    if [[ -n "$TARGETED" ]] && [[ -z "$OVERLAP_FOUND" ]]; then
-        echo "ERROR: files_targeted does not overlap with any changed files in the diff" >&2
-        echo "This suggests the review was not performed against the current changes." >&2
-        exit 1
-    fi
+# Drain stdin silently if anything was piped (backward compatibility — don't
+# error on callers that still pipe, but don't use the input)
+if [[ ! -t 0 ]]; then
+    cat > /dev/null 2>&1 || true
 fi
 
 # Determine worktree name and artifacts directory
@@ -204,19 +97,26 @@ fi
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 
-# --- Cross-validate reviewer findings file (written by code-reviewer sub-agent) ---
+# --- Locate and verify reviewer-findings.json (written by code-reviewer sub-agent) ---
 FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
 if [[ ! -f "$FINDINGS_FILE" ]]; then
     echo "ERROR: reviewer-findings.json not found — review sub-agent must write this file" >&2
     echo "  Expected at: $FINDINGS_FILE" >&2
+    echo "" >&2
+    echo "The code-reviewer sub-agent writes this file via write-reviewer-findings.sh." >&2
+    echo "Run /review to dispatch a sub-agent review." >&2
     exit 1
 fi
 
-# Verify file integrity — --reviewer-hash is mandatory
+# Verify --reviewer-hash is provided (mandatory)
 if [[ -z "$REVIEWER_HASH" ]]; then
     echo "ERROR: --reviewer-hash is required — the code-reviewer sub-agent must report the hash" >&2
+    echo "" >&2
+    echo "Usage: record-review.sh --reviewer-hash HASH [--expected-hash HASH]" >&2
     exit 1
 fi
+
+# Verify file integrity via hash comparison
 ACTUAL_HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 if [[ "$REVIEWER_HASH" != "$ACTUAL_HASH" ]]; then
     echo "ERROR: reviewer-findings.json hash mismatch — file was tampered with" >&2
@@ -225,7 +125,8 @@ if [[ "$REVIEWER_HASH" != "$ACTUAL_HASH" ]]; then
     exit 1
 fi
 
-# Read scores from reviewer file (not from orchestrator JSON) and cross-validate
+# --- Validate and extract review data from reviewer-findings.json ---
+# Read scores, summary, findings, and files from the sub-agent's findings file.
 # Note: do NOT use || true here — we want to fail closed on Python errors.
 # Instead, temporarily disable set -e for this block to capture exit code.
 set +e
@@ -238,8 +139,8 @@ with open(os.environ['FINDINGS_PATH']) as f:
 scores = data.get('scores', {})
 required = ['code_hygiene', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
 
-# Normalize string digits to int so both "4" and 4 are accepted
-for key in scores:
+# Normalize string digits to int so both '4' and 4 are accepted
+for key in list(scores.keys()):
     val = scores[key]
     if isinstance(val, str) and val.isdigit():
         scores[key] = int(val)
@@ -247,12 +148,31 @@ for key in scores:
 for key in required:
     if key not in scores:
         print(f'ERROR: reviewer missing score dimension: {key}')
+        print()
+        print('Required schema for reviewer-findings.json:')
+        print('{')
+        print('  \"scores\": {')
+        print('    \"code_hygiene\": <1-5 or \"N/A\">,')
+        print('    \"object_oriented_design\": <1-5 or \"N/A\">,')
+        print('    \"readability\": <1-5 or \"N/A\">,')
+        print('    \"functionality\": <1-5 or \"N/A\">,')
+        print('    \"testing_coverage\": <1-5 or \"N/A\">}')
+        print('  },')
+        print('  \"findings\": [{\"severity\": \"critical|important|minor\", \"category\": \"<one of 5 score dims>\", \"file\": \"path\", \"description\": \"...\"}],')
+        print('  \"summary\": \"<10+ char assessment>\"')
+        print('}')
         sys.exit(1)
     val = scores[key]
     if val != 'N/A':
         if not isinstance(val, (int, float)) or not (1 <= val <= 5):
             print(f'ERROR: reviewer score {key} must be 1-5 or N/A, got: {val}')
             sys.exit(1)
+
+# Validate summary
+summary = data.get('summary')
+if not summary or not isinstance(summary, str) or len(summary.strip()) < 10:
+    print('ERROR: missing or too short summary in reviewer-findings.json (min 10 chars)')
+    sys.exit(1)
 
 # Cross-validate findings against scores
 valid_categories = set(required)
@@ -264,7 +184,7 @@ for finding in data.get('findings', []):
         print(f'ERROR: finding has invalid severity: {severity} (must be one of {sorted(valid_severities)})')
         sys.exit(1)
     if category not in valid_categories:
-        print(f'ERROR: finding has invalid category: {category} (must be one of {required})')
+        print(f'ERROR: finding has invalid category: {category} (must be one of {sorted(required)})')
         sys.exit(1)
     score = scores.get(category)
     if score == 'N/A' or not isinstance(score, (int, float)):
@@ -277,7 +197,16 @@ numeric = [v for v in scores.values() if isinstance(v, (int, float))]
 min_score = min(numeric) if numeric else 5
 has_critical = any(f.get('severity') == 'critical' for f in data.get('findings', []))
 critical_flag = 'yes' if has_critical else 'no'
-print(f'OK:{min_score}:{critical_flag}')
+
+# Extract files from findings for overlap check
+files = set()
+for finding in data.get('findings', []):
+    f = finding.get('file', '')
+    if f:
+        files.add(f)
+
+files_str = '\\n'.join(sorted(files)) if files else ''
+print(f'OK:{min_score}:{critical_flag}:{files_str}')
 " 2>&1)
 REVIEWER_EXIT=$?
 set -e
@@ -287,11 +216,41 @@ if [[ $REVIEWER_EXIT -ne 0 || "$REVIEWER_SCORE" == ERROR:* ]]; then
     exit 1
 fi
 
-# Override SCORE with reviewer's score (not orchestrator's)
-SCORE_AND_CRITICAL="${REVIEWER_SCORE#OK:}"
-SCORE="${SCORE_AND_CRITICAL%%:*}"
-HAS_CRITICAL="${SCORE_AND_CRITICAL##*:}"
-# --- End reviewer findings cross-validation ---
+# Parse the OK response: OK:<score>:<critical_flag>:<files>
+RESULT_BODY="${REVIEWER_SCORE#OK:}"
+SCORE="${RESULT_BODY%%:*}"
+REMAINDER="${RESULT_BODY#*:}"
+HAS_CRITICAL="${REMAINDER%%:*}"
+FILES_FROM_FINDINGS="${REMAINDER#*:}"
+
+# --- Validate files overlap with actual changed files ---
+CHANGED_FILES=$(
+    {
+        git diff --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git diff --cached --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
+        git ls-files --others --exclude-standard 2>/dev/null | { grep -v '^\.checkpoint-needs-review$' || true; } | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | { grep -v '^app/tests/e2e/snapshots/.*\.png$' || true; } | { grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true; }
+    } | sort -u | { grep -v '^$' || true; }
+)
+
+if [[ -n "$CHANGED_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
+    OVERLAP_FOUND=""
+    while IFS= read -r target; do
+        [[ -z "$target" ]] && continue
+        while IFS= read -r changed; do
+            [[ -z "$changed" ]] && continue
+            if [[ "$changed" == *"$target"* || "$target" == *"$changed"* ]]; then
+                OVERLAP_FOUND="yes"
+                break 2
+            fi
+        done <<< "$CHANGED_FILES"
+    done <<< "$FILES_FROM_FINDINGS"
+
+    if [[ -z "$OVERLAP_FOUND" ]]; then
+        echo "ERROR: reviewer findings files do not overlap with any changed files in the diff" >&2
+        echo "This suggests the review was not performed against the current changes." >&2
+        exit 1
+    fi
+fi
 
 REVIEW_STATE_FILE="$ARTIFACTS_DIR/review-status"
 
@@ -332,8 +291,8 @@ if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
     fi
 fi
 
-# Hash the review JSON itself as proof of review
-REVIEW_HASH=$(echo "$REVIEW_JSON" | shasum -a 256 | awk '{print $1}')
+# Hash the reviewer-findings.json as proof of review
+REVIEW_HASH="$ACTUAL_HASH"
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 

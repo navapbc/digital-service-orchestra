@@ -34,7 +34,6 @@ rm -f "$ARTIFACTS_DIR/review-status"
 rm -f "$ARTIFACTS_DIR/untracked-snapshot.txt"
 rm -f "$ARTIFACTS_DIR"/review-diff-*.txt
 rm -f "$ARTIFACTS_DIR"/review-stat-*.txt
-rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 ```
 
 If restarting the review workflow after a failed attempt, this step guarantees a clean slate.
@@ -196,11 +195,11 @@ Task tool:
    cat "$FINDINGS_FILE" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'[{f[\"severity\"]}] {f[\"category\"]}: {f[\"description\"]}') for f in d['findings'] if f['severity'] in ('critical','important')]"
    ```
 
-### Relay Rules
+### Integrity Rules
 
-The orchestrator's role is reduced to relaying — not translating — the sub-agent's review. Scores come exclusively from the reviewer's temp file (`reviewer-findings.json`), not from the orchestrator's JSON.
+Scores come exclusively from `reviewer-findings.json` (written by the code-reviewer sub-agent via `write-reviewer-findings.sh`). The orchestrator does NOT determine pass/fail.
 
-- **R1 - No score relay**: Set ALL scores to `"N/A"` in the orchestrator's JSON. `record-review.sh` reads actual scores from the reviewer's temp file. The orchestrator does NOT determine pass/fail.
+- **R1 - Sub-agent only**: `record-review.sh` reads all review data directly from `reviewer-findings.json`. No orchestrator-constructed JSON is accepted. The orchestrator's only role is to pass `--reviewer-hash` and `--expected-hash`.
 - **R2 - No dismissal**: "Pre-existing", "not a runtime bug", "trivial/cosmetic" are not valid grounds for dismissing findings. Create tracking issues for pre-existing problems instead.
 - **R3 - Critical/important resolution**: Any critical or important finding triggers the Autonomous Resolution Loop (see "After Review").
 - **R4 - Verbatim severity**: The summary must reference the reviewer's severity levels exactly as stated. Do not downgrade or rephrase severity.
@@ -208,37 +207,16 @@ The orchestrator's role is reduced to relaying — not translating — the sub-a
 
 ### Record the review
 
-Construct the JSON and pipe it into `record-review.sh` with `--expected-hash` from Step 1/2.5 and `--reviewer-hash` from the sub-agent output:
+Call `record-review.sh` with `--expected-hash` from Step 1/2.5 and `--reviewer-hash` from the sub-agent output. No stdin JSON is needed — the script reads directly from `reviewer-findings.json`:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
+"$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
   --expected-hash "<DIFF_HASH from Step 1/2.5>" \
   --reviewer-hash "<REVIEWER_HASH from sub-agent>"
-{
-  "scores": {
-    "code_hygiene": "N/A",
-    "object_oriented_design": "N/A",
-    "readability": "N/A",
-    "functionality": "N/A",
-    "testing_coverage": "N/A"
-  },
-  "feedback": {
-    "code_hygiene": "<dead code, naming anti-patterns, missing guards, structural issues — not ruff/mypy/format violations, those are pre-commit>",
-    "object_oriented_design": "<feedback from code-reviewer or null>",
-    "readability": "<feedback from code-reviewer or null>",
-    "functionality": "<feedback from code-reviewer or null>",
-    "testing_coverage": "<feedback from code-reviewer or null>",
-    "files_targeted": ["<files from sub-agent FILES line>"]
-  },
-  "summary": "<2-3 sentence assessment using reviewer's exact severity levels>"
-}
-REVIEW_EOF
 ```
 
-If format/lint/tests failed (Step 2), set all scores `"N/A"` and summary: `"BLOCKED: Build/lint checks failed."`.
-
-`record-review.sh` validates JSON structure, summary, `files_targeted` overlap with actual diff, `--expected-hash` match, reads scores from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, cross-validates findings against scores, and writes the review state file that the commit gate checks. If it rejects the input, fix and retry.
+`record-review.sh` reads scores, summary, and findings from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, validates findings against scores, checks file overlap with the actual diff, verifies `--expected-hash` against the current diff hash, and writes the review state file that the commit gate checks. If it rejects, fix and retry.
 
 ## After Review
 
@@ -323,28 +301,9 @@ Task tool:
 4. **If re-review passes** (MIN_SCORE ≥ 4 and no critical findings):
    Call `record-review.sh` with the NEW diff hash and re-review's REVIEWER_HASH:
    ```bash
-   cat <<'REVIEW_EOF' | "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
+   "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
      --expected-hash "<NEW_DIFF_HASH>" \
      --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
-   {
-     "scores": {
-       "code_hygiene": "N/A",
-       "object_oriented_design": "N/A",
-       "readability": "N/A",
-       "functionality": "N/A",
-       "testing_coverage": "N/A"
-     },
-     "feedback": {
-       "code_hygiene": "N/A",
-       "object_oriented_design": null,
-       "readability": null,
-       "functionality": null,
-       "testing_coverage": null,
-       "files_targeted": [<FILES_MODIFIED from resolution sub-agent>]
-     },
-     "summary": "<2-3 sentence summary of what was fixed/defended/deferred>"
-   }
-   REVIEW_EOF
    ```
    Then proceed to commit.
 

@@ -46,7 +46,19 @@ _run_hook_fn() {
     local fn_name="$1"
     local json_input="$2"
     local fn_exit=0
-    "$fn_name" "$json_input" || fn_exit=$?
+
+    # Per-function timing (enabled by ~/.claude/hook-timing-enabled)
+    if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
+        local _fn_start=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+        "$fn_name" "$json_input" || fn_exit=$?
+        local _fn_end=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+        printf '%s\t  %s\t%dms\texit=%d\n' \
+            "$(date +%H:%M:%S)" "$fn_name" "$((_fn_end - _fn_start))" "$fn_exit" \
+            >> /tmp/hook-timing.log 2>/dev/null
+    else
+        "$fn_name" "$json_input" || fn_exit=$?
+    fi
+
     return "$fn_exit"
 }
 

@@ -18,6 +18,23 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ## Step 0: Gather Context
 
+### Pre-flight: Ensure `pre-commit` Is Available
+
+Before running any git commands, verify that `pre-commit` is on the PATH. If not, activate the venv:
+
+```bash
+if ! command -v pre-commit &>/dev/null; then
+    REPO_ROOT=$(git rev-parse --show-toplevel)
+    if [ -f "$REPO_ROOT/app/.venv/bin/activate" ]; then
+        source "$REPO_ROOT/app/.venv/bin/activate"
+    fi
+fi
+```
+
+If `pre-commit` is still not found after activation, warn but continue — the commit hooks may fail later.
+
+### Gather State
+
 Run these commands and save their output:
 
 ```bash

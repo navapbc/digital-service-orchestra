@@ -138,6 +138,23 @@ If any condition fails:
 3. If you cannot determine how to resolve the situation, **ask the user** what they would like to do before proceeding.
 4. **Do not report completion** until all four conditions pass. Re-run the checks after any resolution attempt.
 
+### 5.5. Clean Up Artifacts Directory
+
+Remove stale config-cache files from the workflow artifacts directory. These accumulate over sessions (one per unique config path hash) and cause I/O overhead in hooks that scan the directory.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+CACHE_COUNT=$(find "$ARTIFACTS_DIR" -name 'config-cache-*' -type f 2>/dev/null | wc -l | tr -d ' ')
+if [ "$CACHE_COUNT" -gt 0 ]; then
+    find "$ARTIFACTS_DIR" -name 'config-cache-*' -type f -delete
+    echo "Cleaned up $CACHE_COUNT stale config-cache files from $ARTIFACTS_DIR"
+fi
+```
+
+Keep the primary `config-cache` file (no suffix) — only delete the hash-suffixed variants.
+
 ### 6. Report: Task Summary and Completion
 
 Display a comprehensive session summary:

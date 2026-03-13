@@ -20,12 +20,14 @@ source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
 SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/write-reviewer-findings.sh"
 
-# Resolve artifacts dir once, before any script invocations
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-ARTIFACTS_DIR=$(get_artifacts_dir)
+# Use an isolated temp directory so tests don't clobber production artifacts.
+# Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so write-reviewer-findings.sh (via
+# get_artifacts_dir()) uses this dir instead of the real one.
+ARTIFACTS_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-write-findings-XXXXXX")
+export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"
 
-# Clean up any leftover findings from previous runs
-trap 'rm -f "$ARTIFACTS_DIR/reviewer-findings.json" "$ARTIFACTS_DIR/reviewer-findings-pending.json"' EXIT
+# Clean up temp directory on exit
+trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
 
 # Valid findings JSON
 VALID_JSON='{
