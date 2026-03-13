@@ -46,6 +46,7 @@ _post_edit_dispatch() {
     INPUT=$(cat)
 
     _run_post_fn hook_auto_format "$INPUT"
+    _run_post_fn hook_tool_logging_post "$INPUT"
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

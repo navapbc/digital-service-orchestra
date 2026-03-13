@@ -42,9 +42,7 @@ _post_write_dispatch() {
     local INPUT
     INPUT=$(cat)
 
-    # No Write-specific post-hooks remain after ticket-sync removal.
-    # This dispatcher is kept as a placeholder for future hooks.
-    : # no-op
+    _run_post_fn hook_tool_logging_post "$INPUT"
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

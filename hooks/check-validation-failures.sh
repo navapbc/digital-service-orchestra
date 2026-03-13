@@ -30,27 +30,23 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"check-validation-failures.sh\",\"line\":
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-# This hook is non-blocking (auto-creates tracking issues) — skip entirely without jq
-check_tool jq || exit 0
-
 # Read hook input from stdin
 INPUT=$(cat)
 
 # Only act on Bash tool calls
-# Guard against malformed JSON: if jq fails, treat as non-Bash and exit 0
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
+TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
 if [[ "$TOOL_NAME" != "Bash" ]]; then
     exit 0
 fi
 
 # Only act on validate.sh commands
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
+COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
 if [[ "$COMMAND" != *"validate.sh"* ]]; then
     exit 0
 fi
 
 # Get the command output
-STDOUT=$(echo "$INPUT" | jq -r '.tool_response.stdout // empty' 2>/dev/null || echo "")
+STDOUT=$(parse_json_field "$INPUT" '.tool_response.stdout')
 
 # Find FAIL/TIMEOUT lines in the validation summary.
 # Format: "  label:  FAIL" or "  label:  FAIL (details)" or "  label:  TIMEOUT (...)"

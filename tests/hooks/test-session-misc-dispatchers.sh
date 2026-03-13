@@ -230,6 +230,49 @@ printf '%s' "$_INPUT" | bash "$PRE_ALL_DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_eq "test_pre_all_dispatcher_calls_tool_logging_pre: exits 0" "0" "$_exit_code"
 
 # ============================================================
+# test_pre_agent_calls_tool_logging_pre
+# The pre-agent dispatcher must source post-functions.sh and call
+# hook_tool_logging_pre before the guard hooks.
+# ============================================================
+echo "--- test_pre_agent_calls_tool_logging_pre ---"
+
+_has_logging=0
+grep -q 'hook_tool_logging_pre' "$PRE_AGENT_DISPATCHER" && _has_logging=1
+assert_eq "test_pre_agent_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+
+_has_source=0
+grep -q 'post-functions.sh' "$PRE_AGENT_DISPATCHER" && _has_source=1
+assert_eq "test_pre_agent_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+
+# ============================================================
+# test_pre_exitplanmode_calls_tool_logging_pre
+# The pre-exitplanmode dispatcher must call hook_tool_logging_pre.
+# ============================================================
+echo "--- test_pre_exitplanmode_calls_tool_logging_pre ---"
+
+_has_logging=0
+grep -q 'hook_tool_logging_pre' "$PRE_EXITPLANMODE_DISPATCHER" && _has_logging=1
+assert_eq "test_pre_exitplanmode_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+
+_has_source=0
+grep -q 'post-functions.sh' "$PRE_EXITPLANMODE_DISPATCHER" && _has_source=1
+assert_eq "test_pre_exitplanmode_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+
+# ============================================================
+# test_pre_taskoutput_calls_tool_logging_pre
+# The pre-taskoutput dispatcher must call hook_tool_logging_pre.
+# ============================================================
+echo "--- test_pre_taskoutput_calls_tool_logging_pre ---"
+
+_has_logging=0
+grep -q 'hook_tool_logging_pre' "$PRE_TASKOUTPUT_DISPATCHER" && _has_logging=1
+assert_eq "test_pre_taskoutput_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+
+_has_source=0
+grep -q 'post-functions.sh' "$PRE_TASKOUTPUT_DISPATCHER" && _has_source=1
+assert_eq "test_pre_taskoutput_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+
+# ============================================================
 # test_cleanup_orphaned_processes_function_defined
 # The session-misc-functions.sh library must define
 # hook_cleanup_orphaned_processes and it must exit 0 when

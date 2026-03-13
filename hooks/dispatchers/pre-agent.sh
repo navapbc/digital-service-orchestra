@@ -23,6 +23,9 @@ source "$HOOKS_LIB_DIR/dispatcher.sh"
 # Source all pre-agent hook functions
 source "$HOOKS_LIB_DIR/session-misc-functions.sh"
 
+# Source post-functions.sh for hook_tool_logging_pre (non-blocking tool logging)
+source "$HOOKS_LIB_DIR/post-functions.sh"
+
 _run_hook_fn() {
     local fn_name="$1"
     local json_input="$2"
@@ -35,6 +38,9 @@ _pre_agent_dispatch() {
     # Read hook input from stdin
     local INPUT
     INPUT=$(cat)
+
+    # Tool logging runs first (non-blocking, informational only — never returns 2)
+    hook_tool_logging_pre "$INPUT" || true
 
     for _HOOK_FN in \
         hook_worktree_isolation_guard
