@@ -212,28 +212,7 @@ Visual tests only run on CI (Linux) — they always skip on macOS
 because font rendering differs ~11%, causing false pixel-diff failures.
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-if [ "$(uname)" = "Darwin" ]; then
-    # macOS: visual tests skip by design (font rendering differs ~11%)
-    # Check if baselines exist using the configured path (or skip if not configured)
-    if [ -n "$VISUAL_BASELINE_PATH" ]; then
-        BASELINE_COUNT=$(ls "$REPO_ROOT/$VISUAL_BASELINE_PATH"*.png 2>/dev/null | wc -l | tr -d ' ')
-        if [ "$BASELINE_COUNT" -gt 0 ]; then
-            echo "VISUAL_REGRESSION=skipped_macos (${BASELINE_COUNT} baselines exist, verified on CI only)"
-        else
-            echo "VISUAL_REGRESSION=no_baselines (run the visual baseline workflow to generate them)"
-        fi
-    else
-        echo "VISUAL_REGRESSION=skipped_macos (no visual.baseline_directory configured)"
-    fi
-else
-    # Linux/CI: run the actual comparison if configured
-    if [ -n "$TEST_VISUAL_CMD" ]; then
-        cd "$REPO_ROOT" && eval "$TEST_VISUAL_CMD" 2>&1
-    else
-        echo "VISUAL_REGRESSION=skipped (no test_visual command configured)"
-    fi
-fi
+bash "$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/check-visual-baseline.sh"
 ```
 
 **If on macOS** (the common local case): Report `VISUAL_REGRESSION=skipped_macos`.
