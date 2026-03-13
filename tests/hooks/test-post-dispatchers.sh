@@ -209,6 +209,50 @@ export HOME="$_ORIG_HOME"
 rm -rf "$_TEST_HOME"
 
 # ============================================================
+# test_post_all_timing_instrumentation
+# When ~/.claude/hook-timing-enabled exists, the post-all dispatcher
+# must write timing data to /tmp/hook-timing.log.
+# ============================================================
+echo "--- test_post_all_timing_instrumentation ---"
+
+_timing_test_dir=$(mktemp -d)
+mkdir -p "$_timing_test_dir/.claude/logs"
+# Enable both timing and tool logging
+touch "$_timing_test_dir/.claude/hook-timing-enabled"
+touch "$_timing_test_dir/.claude/tool-logging-enabled"
+
+# Save/restore /tmp/hook-timing.log to avoid interfering with real timing data.
+# The dispatcher hardcodes this path, so we isolate via save/restore + unique marker.
+_saved_timing_file="/tmp/hook-timing-saved-$$"
+cp /tmp/hook-timing.log "$_saved_timing_file" 2>/dev/null || true
+> /tmp/hook-timing.log 2>/dev/null || true
+
+_INPUT='{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.txt"},"tool_response":{"content":"data"}}'
+_exit_code=0
+printf '%s' "$_INPUT" | HOME="$_timing_test_dir" bash "$POST_ALL_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
+assert_eq "test_post_all_timing_instrumentation: exits 0" "0" "$_exit_code"
+
+# Check that timing log contains entries with ms timing data
+_has_timing=0
+if [[ -f /tmp/hook-timing.log ]]; then
+    if grep -qE '[0-9]+ms' /tmp/hook-timing.log 2>/dev/null; then
+        _has_timing=1
+    fi
+fi
+assert_eq "test_post_all_timing_instrumentation: timing log entries created" "1" "$_has_timing"
+
+# Restore previous timing log content
+if [[ -f "$_saved_timing_file" ]]; then
+    cp "$_saved_timing_file" /tmp/hook-timing.log
+    rm -f "$_saved_timing_file"
+else
+    rm -f /tmp/hook-timing.log
+fi
+
+# Cleanup
+rm -rf "$_timing_test_dir"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary

@@ -182,4 +182,60 @@ else
 fi
 assert_eq "test_bash_only_two_hook_entries" "bash_two_entries" "$actual"
 
+# ─────────────────────────────────────────────────────────────
+# test_no_pre_all_in_settings_json
+# settings.json must NOT reference pre-all.sh (removed to reduce process count).
+# ─────────────────────────────────────────────────────────────
+if [[ -f "$SETTINGS_JSON" ]]; then
+    if grep -q 'pre-all\.sh' "$SETTINGS_JSON" 2>/dev/null; then
+        actual="pre-all still referenced"
+    else
+        actual="no_pre_all"
+    fi
+else
+    actual="missing_file"
+fi
+assert_eq "test_no_pre_all_in_settings_json" "no_pre_all" "$actual"
+
+# ─────────────────────────────────────────────────────────────
+# test_no_post_all_in_settings_json
+# settings.json must NOT reference post-all.sh (removed to reduce process count).
+# ─────────────────────────────────────────────────────────────
+if [[ -f "$SETTINGS_JSON" ]]; then
+    if grep -q 'post-all\.sh' "$SETTINGS_JSON" 2>/dev/null; then
+        actual="post-all still referenced"
+    else
+        actual="no_post_all"
+    fi
+else
+    actual="missing_file"
+fi
+assert_eq "test_no_post_all_in_settings_json" "no_post_all" "$actual"
+
+# ─────────────────────────────────────────────────────────────
+# test_no_catch_all_empty_matcher_hooks_json
+# hooks.json must NOT have empty-matcher PreToolUse or PostToolUse entries
+# (catch-all dispatchers were removed to reduce process count per tool call).
+# ─────────────────────────────────────────────────────────────
+if [[ -f "$HOOKS_JSON" ]]; then
+    empty_catch_all=$(HOOKS_JSON_PATH="$HOOKS_JSON" python3 -c "
+import json, os, sys
+with open(os.environ['HOOKS_JSON_PATH']) as f:
+    d = json.load(f)
+hooks = d.get('hooks', {})
+bad = []
+for event in ['PreToolUse', 'PostToolUse']:
+    for group in hooks.get(event, []):
+        if group.get('matcher') == '':
+            bad.append(f'{event} has empty matcher')
+if bad:
+    print('; '.join(bad))
+    sys.exit(1)
+sys.exit(0)
+" 2>&1) && actual="no_catch_all" || actual="has_catch_all: $empty_catch_all"
+else
+    actual="missing_file"
+fi
+assert_eq "test_no_catch_all_empty_matcher_hooks_json" "no_catch_all" "$actual"
+
 print_summary
