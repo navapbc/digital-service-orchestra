@@ -941,18 +941,38 @@ cmd_closed() {
 }
 
 cmd_blocked() {
-    local assignee_filter="" tag_filter=""
+    local assignee_filter="" tag_filter="" audit_mode=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -a) assignee_filter="$2"; shift 2 ;;
             --assignee=*) assignee_filter="${1#--assignee=}"; shift ;;
             -T) tag_filter="$2"; shift 2 ;;
             --tag=*) tag_filter="${1#--tag=}"; shift ;;
+            --audit) audit_mode=1; shift ;;
             *) shift ;;
         esac
     done
 
-    awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" '
+    # Build the list of files to scan: .tickets/ plus .tickets/archive/ if it exists
+    local -a ticket_files=()
+    # shellcheck disable=SC2206
+    ticket_files=( $TICKETS_DIR/*.md )
+    if [[ -d "$TICKETS_DIR/archive" ]]; then
+        local -a archive_files=()
+        # shellcheck disable=SC2206
+        archive_files=( $TICKETS_DIR/archive/*.md )
+        # Only add if glob actually matched files
+        if [[ -e "${archive_files[0]:-}" ]]; then
+            ticket_files+=( "${archive_files[@]}" )
+        fi
+    fi
+
+    # If no ticket files found, nothing to do
+    if [[ ! -e "${ticket_files[0]:-}" ]]; then
+        return 0
+    fi
+
+    awk -v assignee_filter="$assignee_filter" -v tag_filter="$tag_filter" -v audit_mode="$audit_mode" '
     BEGIN { FS=": "; in_front=0 }
     FNR==1 {
         if (prev_file) store()
@@ -987,36 +1007,65 @@ cmd_blocked() {
     }
     END {
         if (prev_file) store()
-        # Find blocked tickets: active with at least one dep not closed
-        for (id in statuses) {
-            status = statuses[id]
-            if (status != "open" && status != "in_progress") continue
-            if (assignee_filter != "" && assignees[id] != assignee_filter) continue
-            if (tag_filter != "" && !has_tag(all_tags[id], tag_filter)) continue
 
-            deps = deps_raw[id]
-            if (deps == "") continue
+        if (audit_mode) {
+            # Audit mode: report tickets blocked by deps not found in any ticket file
+            # (i.e., deps whose id is not a key in statuses[])
+            for (id in statuses) {
+                status = statuses[id]
+                if (status != "open" && status != "in_progress") continue
+                if (assignee_filter != "" && assignees[id] != assignee_filter) continue
+                if (tag_filter != "" && !has_tag(all_tags[id], tag_filter)) continue
 
-            blocked = 0
-            n = split(deps, arr, ",")
-            for (i = 1; i <= n; i++) {
-                dep = arr[i]
-                if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
-                    blocked = 1
-                    break
+                deps = deps_raw[id]
+                if (deps == "") continue
+
+                # Collect only truly missing deps (not in any scanned file)
+                missing_deps = ""
+                n = split(deps, arr, ",")
+                for (i = 1; i <= n; i++) {
+                    dep = arr[i]
+                    if (dep != "" && !(dep in statuses)) {
+                        missing_deps = (missing_deps == "") ? dep : missing_deps ", " dep
+                    }
+                }
+
+                if (missing_deps != "") {
+                    output[++count] = sprintf("%s|%s|%s|%s|[%s]", priorities[id], id, status, titles[id], missing_deps)
                 }
             }
-            if (blocked) {
-                # Build list of only open blockers
-                blockers = ""
+        } else {
+            # Normal mode: find blocked tickets (active with at least one dep not closed)
+            for (id in statuses) {
+                status = statuses[id]
+                if (status != "open" && status != "in_progress") continue
+                if (assignee_filter != "" && assignees[id] != assignee_filter) continue
+                if (tag_filter != "" && !has_tag(all_tags[id], tag_filter)) continue
+
+                deps = deps_raw[id]
+                if (deps == "") continue
+
+                blocked = 0
                 n = split(deps, arr, ",")
                 for (i = 1; i <= n; i++) {
                     dep = arr[i]
                     if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
-                        blockers = (blockers == "") ? dep : blockers ", " dep
+                        blocked = 1
+                        break
                     }
                 }
-                output[++count] = sprintf("%s|%s|%s|%s|[%s]", priorities[id], id, status, titles[id], blockers)
+                if (blocked) {
+                    # Build list of only open blockers
+                    blockers = ""
+                    n = split(deps, arr, ",")
+                    for (i = 1; i <= n; i++) {
+                        dep = arr[i]
+                        if (dep != "" && statuses[dep] != "closed" && statuses[dep] != "") {
+                            blockers = (blockers == "") ? dep : blockers ", " dep
+                        }
+                    }
+                    output[++count] = sprintf("%s|%s|%s|%s|[%s]", priorities[id], id, status, titles[id], blockers)
+                }
             }
         }
 
@@ -1036,7 +1085,7 @@ cmd_blocked() {
             printf "%-8s [P%s][%s] - %s <- %s\n", f[2], f[1], f[3], f[4], f[5]
         }
     }
-    ' "$TICKETS_DIR"/*.md 2>/dev/null
+    ' "${ticket_files[@]}" 2>/dev/null
 }
 
 cmd_list() {
