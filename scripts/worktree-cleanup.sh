@@ -425,10 +425,8 @@ while IFS= read -r line; do
         # .tickets/ files, and the .tickets/ content matches main (already synced
         # by the cross-worktree ticket sync hook).
         if [[ "${WT_MERGED[${#WT_MERGED[@]}-1]}" == "no" && -n "$current_branch" && "$current_branch" != "detached" ]]; then
-            local unmerged_non_tickets
             unmerged_non_tickets=$(git -C "$current_path" diff --name-only "$MAIN_BRANCH"..HEAD -- ":!${CONFIG_TICKETS_DIR:-.tickets}/" 2>/dev/null || true)
             if [[ -z "$unmerged_non_tickets" ]]; then
-                local tickets_diff
                 tickets_diff=$(git -C "$current_path" diff "$MAIN_BRANCH" -- "${CONFIG_TICKETS_DIR:-.tickets}/" 2>/dev/null || true)
                 if [[ -z "$tickets_diff" ]]; then
                     WT_TICKETS_ONLY+=("yes")

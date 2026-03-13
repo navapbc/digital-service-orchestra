@@ -50,6 +50,10 @@ STUBS_DIR="$REPO_ROOT/lockpick-workflow/tests/plugin/fixtures/stubs"
 PASS=0
 FAIL=0
 
+# Skip local sync lock — test temp dirs are not git repos, so the lock
+# resolves to the real repo's .git/tk-sync.lock causing cross-test contention.
+export TK_SYNC_SKIP_LOCK=1
+
 # Parse --live flag
 LIVE_MODE=0
 for _arg in "$@"; do

@@ -2806,10 +2806,10 @@ open(ticket_file, 'w').writelines(result)
 " || stamp_exit=$?
             if [[ $stamp_exit -ne 0 ]]; then
                 echo "warning: failed to stamp jira_key into $ticket_file (exit=$stamp_exit)" >&2
-                ((sync_failures++))
+                ((sync_failures++)) || true
             elif ! _grep -q "^jira_key:" "$ticket_file"; then
                 echo "warning: jira_key not found in $ticket_file after stamping" >&2
-                ((sync_failures++))
+                ((sync_failures++)) || true
             fi
         fi
         # Propagate jira_key stamp to worktree peers via cross-worktree sync
@@ -4092,11 +4092,11 @@ _sync_body() {
         _sync_push_ticket "$ticket_file" "$ledger_file" || _push_exit=$?
         touch "${SYNC_HEARTBEAT_FILE:-}" 2>/dev/null || true
         if [[ $_push_exit -eq 3 ]]; then
-            ((sync_conflicts++))
+            ((sync_conflicts++)) || true
         elif [[ $_push_exit -eq 4 ]]; then
-            ((sync_forced++))
+            ((sync_forced++)) || true
         elif [[ $_push_exit -ne 0 ]]; then
-            ((sync_failures++))
+            ((sync_failures++)) || true
         fi
     done
 
@@ -4106,11 +4106,11 @@ _sync_body() {
         _sync_push_ticket "$ticket_file" "$ledger_file" || _push_exit=$?
         touch "${SYNC_HEARTBEAT_FILE:-}" 2>/dev/null || true
         if [[ $_push_exit -eq 3 ]]; then
-            ((sync_conflicts++))
+            ((sync_conflicts++)) || true
         elif [[ $_push_exit -eq 4 ]]; then
-            ((sync_forced++))
+            ((sync_forced++)) || true
         elif [[ $_push_exit -ne 0 ]]; then
-            ((sync_failures++))
+            ((sync_failures++)) || true
         fi
     done
 
@@ -4136,11 +4136,11 @@ _sync_body() {
                 _sync_pull_ticket "$issue_json" "$ledger_file" "$tickets_dir" || _pull_exit=$?
                 touch "${SYNC_HEARTBEAT_FILE:-}" 2>/dev/null || true
                 if [[ $_pull_exit -eq 3 ]]; then
-                    ((sync_conflicts++))
+                    ((sync_conflicts++)) || true
                 elif [[ $_pull_exit -eq 4 ]]; then
-                    ((sync_forced++))
+                    ((sync_forced++)) || true
                 elif [[ $_pull_exit -ne 0 ]]; then
-                    ((pull_failures++))
+                    ((pull_failures++)) || true
                 fi
             done < <(echo "$_windowed_jira_issues" | python3 -c "import json,sys; [print(json.dumps(i)) for i in json.load(sys.stdin)]")
         fi
@@ -4983,7 +4983,9 @@ except: print('?')
         # and local mkdir lock (when w21-fqzt/w21-4x2x land).
         export TK_SYNC_SKIP_LOCAL_LOCK=1
         echo "warning: running without sync lock — concurrent syncs may cause duplicates" >&2
-        _sync_body "$@"
+        local sync_exit=0
+        _sync_body "$@" || sync_exit=$?
+        return $sync_exit
     else
         _sync_with_lock "$@"
     fi

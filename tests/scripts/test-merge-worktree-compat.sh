@@ -132,8 +132,11 @@ else
         (( FAIL++ ))
         wt_test_failed=true
     else
-        # Normalize both paths to resolve symlinks for comparison
-        expected_real=$(cd "$REPO_ROOT" && pwd -P 2>/dev/null || echo "$REPO_ROOT")
+        # Normalize both paths to resolve symlinks for comparison.
+        # When running from a worktree, REPO_ROOT is the worktree root, but
+        # MAIN_REPO should resolve to the *main* repo root (git-common-dir parent).
+        main_repo_root=$(cd "$REPO_ROOT" && dirname "$(git rev-parse --git-common-dir)")
+        expected_real=$(cd "$main_repo_root" && pwd -P 2>/dev/null || echo "$main_repo_root")
         derived_real=$(cd "$derived_main" && pwd -P 2>/dev/null || echo "$derived_main")
 
         if [ "$derived_real" = "$expected_real" ]; then

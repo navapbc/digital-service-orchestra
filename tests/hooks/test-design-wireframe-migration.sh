@@ -92,9 +92,10 @@ assert_eq "test_no_hardcoded_blueprint_detection" "no_hardcoded_pyproject" "$act
 # ─── Adapter resolution logic present ─────────────────────────────────────────
 
 # test_references_read_config
-# Skill must reference read-config.sh for config-driven adapter resolution
+# Skill must reference read-config.sh or resolve-stack-adapter.sh (which
+# internally uses read-config.sh) for config-driven adapter resolution.
 if [[ -f "$SKILL_MD" ]]; then
-    if grep -q 'read-config\.sh' "$SKILL_MD"; then
+    if grep -qE 'read-config\.sh|resolve-stack-adapter\.sh' "$SKILL_MD"; then
         actual="references_read_config"
     else
         actual="no_read_config_reference"

@@ -49,6 +49,10 @@ _find_python_with_yaml() {
 export CLAUDE_PLUGIN_PYTHON
 CLAUDE_PLUGIN_PYTHON=$(_find_python_with_yaml 2>/dev/null || echo "python3")
 
+# PID-namespace all artifact prefixes so concurrent or stale test runs
+# cannot collide on /tmp artifact directories.
+_TEST_PID=$$
+
 echo "=== test-pre-commit-wrapper.sh (generic plugin wrapper) ==="
 echo ""
 
@@ -65,10 +69,10 @@ assert_eq "test_syntax_ok" "0" "$syntax_exit"
 # ---------------------------------------------------------------------------
 echo "Test 2: accepts <hook_name> <timeout_secs> <command_string>"
 _T2_CFG=$(mktemp -d)
-cat > "$_T2_CFG/workflow-config.yaml" << 'EOF'
+cat > "$_T2_CFG/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-t2-artifacts
+  artifact_prefix: test-t2-artifacts-${_TEST_PID}
 EOF
 output=""
 rc=0
@@ -76,7 +80,7 @@ output=$(CLAUDE_PLUGIN_ROOT="$_T2_CFG" "$WRAPPER" test-hook 30 "echo hello-from-
 assert_eq "test_accepts_three_args_exit" "0" "$rc"
 assert_contains "test_accepts_three_args_output" "hello-from-wrapper" "$output"
 _T2_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
-rm -rf "$_T2_CFG" "/tmp/test-t2-artifacts-${_T2_WORKTREE}" 2>/dev/null || true
+rm -rf "$_T2_CFG" "/tmp/test-t2-artifacts-${_TEST_PID}-${_T2_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 3: missing arguments exits non-zero
@@ -106,10 +110,10 @@ echo "Test 4: generic wrapper works without project-specific tools or environmen
 
 # Set up an isolated config for all sub-tests
 _T4_CFG=$(mktemp -d)
-cat > "$_T4_CFG/workflow-config.yaml" << 'EOF'
+cat > "$_T4_CFG/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-t4-generic
+  artifact_prefix: test-t4-generic-${_TEST_PID}
 EOF
 _T4_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 
@@ -139,7 +143,7 @@ assert_eq "test_no_make_invocation_exit" "0" "$rc"
 assert_contains "test_no_make_invocation_output" "no-make-needed" "$output"
 rm -rf "$_T4_SAFEPATH"
 
-rm -rf "$_T4_CFG" "/tmp/test-t4-generic-${_T4_WORKTREE}" 2>/dev/null || true
+rm -rf "$_T4_CFG" "/tmp/test-t4-generic-${_TEST_PID}-${_T4_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 5: wrapper uses session.artifact_prefix from config for artifact paths
@@ -150,7 +154,7 @@ rm -rf "$_T4_CFG" "/tmp/test-t4-generic-${_T4_WORKTREE}" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 echo "Test 5: artifact dir uses session.artifact_prefix from config"
 _T5_CFG=$(mktemp -d)
-_T5_PREFIX="test-t5-custom-prefix"
+_T5_PREFIX="test-t5-custom-prefix-${_TEST_PID}"
 cat > "$_T5_CFG/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
@@ -183,10 +187,10 @@ rm -rf "$_T5_CFG" "/tmp/${_T5_PREFIX}-${_T5_WORKTREE}" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 echo "Test 6: wrapper warns about missing issue_tracker.create_cmd on timeout"
 _T6_CFG=$(mktemp -d)
-cat > "$_T6_CFG/workflow-config.yaml" << 'EOF'
+cat > "$_T6_CFG/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-t6-nocmd
+  artifact_prefix: test-t6-nocmd-${_TEST_PID}
 EOF
 _T6_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 
@@ -197,17 +201,17 @@ assert_eq "test_reads_create_cmd_exit" "0" "$rc"
 # Warning should mention the config key so users know how to configure it
 assert_contains "test_reads_create_cmd_warning" "issue_tracker.create_cmd" "$_t6_output"
 
-rm -rf "$_T6_CFG" "/tmp/test-t6-nocmd-${_T6_WORKTREE}" 2>/dev/null || true
+rm -rf "$_T6_CFG" "/tmp/test-t6-nocmd-${_TEST_PID}-${_T6_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 7: exit code passthrough
 # ---------------------------------------------------------------------------
 echo "Test 7: exit code passthrough"
 _T7_CFG=$(mktemp -d)
-cat > "$_T7_CFG/workflow-config.yaml" << 'EOF'
+cat > "$_T7_CFG/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-t7-exitcodes
+  artifact_prefix: test-t7-exitcodes-${_TEST_PID}
 EOF
 _T7_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 
@@ -223,7 +227,7 @@ rc=0
 CLAUDE_PLUGIN_ROOT="$_T7_CFG" "$WRAPPER" test-hook 30 "exit 42" 2>/dev/null || rc=$?
 assert_eq "test_exit_code_passthrough_42" "42" "$rc"
 
-rm -rf "$_T7_CFG" "/tmp/test-t7-exitcodes-${_T7_WORKTREE}" 2>/dev/null || true
+rm -rf "$_T7_CFG" "/tmp/test-t7-exitcodes-${_TEST_PID}-${_T7_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 8: timeout exit codes (124, 143, 137) are all handled correctly
@@ -233,10 +237,10 @@ rm -rf "$_T7_CFG" "/tmp/test-t7-exitcodes-${_T7_WORKTREE}" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 echo "Test 8: timeout exit codes"
 _T8_CFG=$(mktemp -d)
-cat > "$_T8_CFG/workflow-config.yaml" << 'EOF'
+cat > "$_T8_CFG/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-t8-artifacts
+  artifact_prefix: test-t8-artifacts-${_TEST_PID}
 EOF
 _T8_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
 
@@ -255,7 +259,7 @@ rc=0
 CLAUDE_PLUGIN_ROOT="$_T8_CFG" "$WRAPPER" test-hook 30 "exit 137" 2>/dev/null || rc=$?
 assert_eq "test_exit_code_137_normalized" "124" "$rc"
 
-rm -rf "$_T8_CFG" "/tmp/test-t8-artifacts-${_T8_WORKTREE}" 2>/dev/null || true
+rm -rf "$_T8_CFG" "/tmp/test-t8-artifacts-${_TEST_PID}-${_T8_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 9: timeout logging — slow command logs to timeout log file
@@ -264,14 +268,14 @@ echo "Test 9: timeout logging"
 # Use TIMEOUT_SECS=-1 so any duration triggers the slow path
 TMPDIR_TEST=$(mktemp -d)
 # Create a minimal config that sets artifact_prefix
-cat > "$TMPDIR_TEST/workflow-config.yaml" << 'EOF'
+cat > "$TMPDIR_TEST/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-wrapper-artifacts
+  artifact_prefix: test-wrapper-artifacts-${_TEST_PID}
 EOF
 # The wrapper uses git rev-parse --show-toplevel for worktree name (not the config dir)
 WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
-ARTIFACTS_DIR_TEST="/tmp/test-wrapper-artifacts-${WORKTREE_NAME_TEST}"
+ARTIFACTS_DIR_TEST="/tmp/test-wrapper-artifacts-${_TEST_PID}-${WORKTREE_NAME_TEST}"
 TIMEOUT_LOG_TEST="$ARTIFACTS_DIR_TEST/precommit-timeouts.log"
 rm -f "$TIMEOUT_LOG_TEST" 2>/dev/null || true
 
@@ -309,7 +313,7 @@ chmod +x "$MOCK_CREATE_DIR/mock-create"
 cat > "$TMPDIR_TEST/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-wrapper-ticket
+  artifact_prefix: test-wrapper-ticket-${_TEST_PID}
 issue_tracker:
   create_cmd: "$MOCK_CREATE_DIR/mock-create"
 EOF
@@ -324,7 +328,7 @@ fi
 assert_eq "test_timeout_ticket_creation" "1" "$create_called"
 
 WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
-rm -rf "$TMPDIR_TEST" "$MOCK_CREATE_DIR" "/tmp/test-wrapper-ticket-${WORKTREE_NAME_TEST}" 2>/dev/null || true
+rm -rf "$TMPDIR_TEST" "$MOCK_CREATE_DIR" "/tmp/test-wrapper-ticket-${_TEST_PID}-${WORKTREE_NAME_TEST}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 11: no ticket creation when create_cmd is absent
@@ -332,10 +336,10 @@ rm -rf "$TMPDIR_TEST" "$MOCK_CREATE_DIR" "/tmp/test-wrapper-ticket-${WORKTREE_NA
 echo "Test 11: no ticket creation without config"
 TMPDIR_TEST=$(mktemp -d)
 
-cat > "$TMPDIR_TEST/workflow-config.yaml" << 'EOF'
+cat > "$TMPDIR_TEST/workflow-config.yaml" << EOF
 version: "1.0.0"
 session:
-  artifact_prefix: test-wrapper-noticket
+  artifact_prefix: test-wrapper-noticket-${_TEST_PID}
 EOF
 
 rc=0
@@ -346,7 +350,7 @@ output=$(CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" noticket-hook 1 "sleep 2" 
 assert_eq "test_no_ticket_without_config_exit" "0" "$rc"
 
 WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
-rm -rf "$TMPDIR_TEST" "/tmp/test-wrapper-noticket-${WORKTREE_NAME_TEST}" 2>/dev/null || true
+rm -rf "$TMPDIR_TEST" "/tmp/test-wrapper-noticket-${_TEST_PID}-${WORKTREE_NAME_TEST}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 13: non-numeric TIMEOUT_SECS is rejected with a clear error
