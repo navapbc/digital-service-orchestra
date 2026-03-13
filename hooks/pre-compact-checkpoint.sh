@@ -9,18 +9,88 @@
 # Also auto-commits uncommitted work as a checkpoint so nothing is lost
 # during compaction.
 
+# Capture start time for telemetry duration_ms
+if command -v perl &>/dev/null; then
+    _START_MS=$(perl -MTime::HiRes=time -e 'printf "%d\n", time()*1000' 2>/dev/null || echo 0)
+else
+    _START_MS=$(( $(date +%s 2>/dev/null || echo 0) * 1000 ))
+fi
+
+# --- Telemetry writer ---
+# Appends a single JSONL line to ~/.claude/precompact-telemetry.jsonl on every
+# hook invocation (including early exits). No jq dependency — uses printf.
+_TELEMETRY_FILE="$HOME/.claude/precompact-telemetry.jsonl"
+
+_write_telemetry() {
+    local hook_outcome="$1" exit_reason="$2"
+
+    # Compute duration
+    local end_ms
+    if command -v perl &>/dev/null; then
+        end_ms=$(perl -MTime::HiRes=time -e 'printf "%d\n", time()*1000' 2>/dev/null || echo 0)
+    else
+        end_ms=$(( $(date +%s 2>/dev/null || echo 0) * 1000 ))
+    fi
+    local duration_ms=$(( end_ms - _START_MS ))
+    [[ $duration_ms -lt 0 ]] && duration_ms=0
+
+    # Gather field values
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+
+    local session_id="${CLAUDE_SESSION_ID:-unknown}"
+
+    local parent_session_id_json="null"
+    [[ -n "${CLAUDE_PARENT_SESSION_ID:-}" ]] && parent_session_id_json="\"$CLAUDE_PARENT_SESSION_ID\""
+
+    local context_tokens_json="null"
+    [[ -n "${CLAUDE_CONTEXT_WINDOW_TOKENS:-}" ]] && context_tokens_json="$CLAUDE_CONTEXT_WINDOW_TOKENS"
+
+    local context_limit_json="null"
+    [[ -n "${CLAUDE_CONTEXT_WINDOW_LIMIT:-}" ]] && context_limit_json="$CLAUDE_CONTEXT_WINDOW_LIMIT"
+
+    local active_task_count=-1
+    if command -v tk &>/dev/null; then
+        active_task_count=$(tk list 2>/dev/null | grep -c in_progress 2>/dev/null || echo -1)
+    fi
+
+    local git_dirty=false
+    if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+        git_dirty=true
+    fi
+
+    local working_directory
+    working_directory=$(pwd -P 2>/dev/null || pwd)
+
+    # Write JSONL line (mkdir -p for safety)
+    mkdir -p "$(dirname "$_TELEMETRY_FILE")" 2>/dev/null || true
+    printf '{"timestamp":"%s","session_id":"%s","parent_session_id":%s,"context_tokens":%s,"context_limit":%s,"active_task_count":%s,"git_dirty":%s,"hook_outcome":"%s","exit_reason":"%s","working_directory":"%s","duration_ms":%s}\n' \
+        "$timestamp" \
+        "$session_id" \
+        "$parent_session_id_json" \
+        "$context_tokens_json" \
+        "$context_limit_json" \
+        "$active_task_count" \
+        "$git_dirty" \
+        "$hook_outcome" \
+        "$exit_reason" \
+        "$working_directory" \
+        "$duration_ms" \
+        >> "$_TELEMETRY_FILE" 2>/dev/null || true
+}
+
 # Log unexpected errors to JSONL and exit cleanly (never surface to user)
 HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-trap 'printf "{\"ts\":\"%s\",\"hook\":\"pre-compact-checkpoint.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
+trap 'printf "{\"ts\":\"%s\",\"hook\":\"pre-compact-checkpoint.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; _write_telemetry "exited_early" "error_trap"; exit 0' ERR
 
 # Allow temporary disabling during commit workflows to prevent checkpoint loops.
 # Supports both env var (for subshell calls) and file flag (for hook invocations
 # which run in fresh shells without inheriting env vars).
-[[ -n "${LOCKPICK_DISABLE_PRECOMPACT:-}" ]] && exit 0
+[[ -n "${LOCKPICK_DISABLE_PRECOMPACT:-}" ]] && { _write_telemetry "exited_early" "env_var_disabled"; exit 0; }
 REPO_ROOT_EARLY=$(git rev-parse --show-toplevel 2>/dev/null || true)
-[[ -n "$REPO_ROOT_EARLY" && -f "$REPO_ROOT_EARLY/.disable-precompact-checkpoint" ]] && exit 0
+[[ -n "$REPO_ROOT_EARLY" && -f "$REPO_ROOT_EARLY/.disable-precompact-checkpoint" ]] && { _write_telemetry "exited_early" "file_disabled"; exit 0; }
 # Sub-agent guard: orchestrator creates this file before Task dispatches; remove after batch completes
-[[ -n "$REPO_ROOT_EARLY" && -f "$REPO_ROOT_EARLY/.disable-precompact-subagent" ]] && exit 0
+[[ -n "$REPO_ROOT_EARLY" && -f "$REPO_ROOT_EARLY/.disable-precompact-subagent" ]] && { _write_telemetry "exited_early" "subagent_guard"; exit 0; }
 
 # Deduplication guard: prevent double-firing when hook is registered via both
 # settings.json and hooks.json plugin manifest. Use a per-HEAD lockfile with a
@@ -31,7 +101,7 @@ _NOW=$(date +%s 2>/dev/null || echo 0)
 if [[ -f "$_LOCK_FILE" ]]; then
     _LOCK_TIME=$(cat "$_LOCK_FILE" 2>/dev/null || echo 0)
     _AGE=$(( _NOW - _LOCK_TIME ))
-    [[ $_AGE -lt 120 ]] && exit 0
+    [[ $_AGE -lt 120 ]] && { _write_telemetry "exited_early" "dedup_lock"; exit 0; }
 fi
 echo "$_NOW" > "$_LOCK_FILE"
 trap 'rm -f "$_LOCK_FILE"' EXIT
@@ -40,6 +110,7 @@ trap 'rm -f "$_LOCK_FILE"' EXIT
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [[ -z "$REPO_ROOT" ]]; then
     # Not in a git repo; nothing useful to capture
+    _write_telemetry "exited_early" "no_git_repo"
     exit 0
 fi
 
@@ -47,6 +118,7 @@ fi
 # If .disable-precompact-checkpoint exists at repo root, skip the hook entirely.
 # Used to prevent checkpoint commits during worktree sessions with hook timing issues.
 if [[ -f "$REPO_ROOT/.disable-precompact-checkpoint" ]]; then
+    _write_telemetry "exited_early" "disable_sentinel"
     exit 0
 fi
 
@@ -146,7 +218,8 @@ _HAS_REAL_CHANGES=$(git status --porcelain \
 if [[ -z "$_HAS_REAL_CHANGES" ]]; then
     # Nothing meaningful to save — emit recovery state but skip the commit.
     # The sentinel is not written to avoid creating a false "unreviewed code" signal.
-    true
+    _HOOK_OUTCOME="skipped"
+    _EXIT_REASON="no_real_changes"
 else
     # Real uncommitted work exists — write sentinel and commit.
     echo "$NONCE" > "$REPO_ROOT/.checkpoint-needs-review"
@@ -172,6 +245,8 @@ else
     fi
 
     git commit -m "$CHECKPOINT_LABEL" --no-verify 2>/dev/null || true
+    _HOOK_OUTCOME="committed"
+    _EXIT_REASON="committed"
 fi
 
 # --- Output structured markdown (injected into post-compaction context) ---
@@ -185,4 +260,5 @@ Recent fixes: ${RECENT_FIXES}
 Next: Run 'tk list' then 'tk show <id>' to find CHECKPOINT notes.
 CHECKPOINT
 
+_write_telemetry "${_HOOK_OUTCOME:-skipped}" "${_EXIT_REASON:-unknown}"
 exit 0
