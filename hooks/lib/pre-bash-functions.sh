@@ -227,19 +227,16 @@ hook_commit_failure_tracker() {
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"commit-failure-tracker\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
-    # This hook is non-blocking — skip entirely without jq
-    check_tool jq || return 0
-
     # Only act on Bash tool calls
     local TOOL_NAME
-    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
     if [[ "$TOOL_NAME" != "Bash" ]]; then
         return 0
     fi
 
     # Only act on git commit commands
     local COMMAND FIRST_LINE
-    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
+    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
     FIRST_LINE=$(echo "$COMMAND" | head -1)
     if ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+commit([[:space:]]|$) ]] && \
        ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+-[^[:space:]]+.*[[:space:]]commit([[:space:]]|$) ]] && \

@@ -19,8 +19,8 @@ trap 'exit 0' EXIT
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-# This hook uses jq extensively for JSONL processing — skip entirely without jq
-check_tool jq || exit 0
+# This hook uses python3 for JSONL processing — skip entirely without python3
+check_tool python3 || exit 0
 
 # Fast path: skip entirely if logging is not enabled
 test -f "$HOME/.claude/tool-logging-enabled" || exit 0
@@ -37,63 +37,127 @@ if [[ ! -f "$LOG_FILE" ]]; then
     exit 0
 fi
 
-# --- Filter entries for this session ---
-SESSION_ENTRIES=$(jq -c --arg sid "$SESSION_ID" \
-    'select(.session_id == $sid)' "$LOG_FILE" 2>/dev/null || echo "")
+# --- Process all JSONL data in a single python3 invocation ---
+# Reads the log file, filters by session_id, computes all summary stats,
+# and outputs structured lines that bash parses for the markdown template.
+SUMMARY_DATA=$(python3 -c "
+import json, sys
+from collections import Counter
 
-if [[ -z "$SESSION_ENTRIES" ]]; then
+session_id = sys.argv[1]
+log_file = sys.argv[2]
+
+entries = []
+with open(log_file) as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if obj.get('session_id') == session_id:
+            entries.append(obj)
+
+if not entries:
+    sys.exit(1)
+
+# Count post entries
+post_entries = [e for e in entries if e.get('hook_type') == 'post']
+total_calls = len(post_entries)
+
+if total_calls < 10:
+    # Signal to bash: below threshold
+    print('BELOW_THRESHOLD')
+    sys.exit(0)
+
+# Tool counts (sorted by count descending)
+tool_counter = Counter(e.get('tool_name', 'unknown') for e in post_entries)
+tool_counts = sorted(tool_counter.items(), key=lambda x: (-x[1], x[0]))
+
+# Duration from all entries
+all_epochs = sorted(e.get('epoch_ms', 0) for e in entries if e.get('epoch_ms'))
+first_epoch = all_epochs[0] if all_epochs else 0
+last_epoch = all_epochs[-1] if all_epochs else 0
+duration_secs = max(0, (last_epoch - first_epoch) // 1000) if last_epoch > first_epoch else 0
+
+# Top 5 slowest calls: pair pre/post by tool_name + time proximity
+pre_entries = [e for e in entries if e.get('hook_type') == 'pre']
+# For each post entry, find the closest preceding pre with same tool_name
+slow_calls = []
+for p in post_entries:
+    tool = p.get('tool_name', '')
+    post_epoch = p.get('epoch_ms', 0)
+    # Find all pre entries for this tool with epoch <= post_epoch
+    candidates = [
+        pr for pr in pre_entries
+        if pr.get('tool_name') == tool and pr.get('epoch_ms', 0) <= post_epoch
+    ]
+    if candidates:
+        # Pick the one with the largest epoch (closest preceding)
+        best = max(candidates, key=lambda x: x.get('epoch_ms', 0))
+        delta_ms = post_epoch - best.get('epoch_ms', 0)
+        slow_calls.append((tool, delta_ms))
+
+slow_calls.sort(key=lambda x: -x[1])
+slow_calls = slow_calls[:5]
+
+# Output structured data
+print('TOTAL_CALLS={}'.format(total_calls))
+print('DURATION_SECS={}'.format(duration_secs))
+for tool, count in tool_counts:
+    print('TOOL_COUNT={}:{}'.format(tool, count))
+for tool, delta_ms in slow_calls:
+    print('SLOW_CALL={}:{}'.format(tool, delta_ms // 1000))
+print('DONE')
+" "$SESSION_ID" "$LOG_FILE" 2>/dev/null || echo "")
+
+if [[ -z "$SUMMARY_DATA" ]]; then
     exit 0
 fi
 
-# Require at least 10 tool calls (post entries) to emit a summary
-POST_ENTRIES=$(echo "$SESSION_ENTRIES" | jq -c 'select(.hook_type == "post")' 2>/dev/null || echo "")
-TOTAL_CALLS=$(echo "$POST_ENTRIES" | grep -c '"hook_type":"post"' 2>/dev/null || echo "0")
-
-if [[ "$TOTAL_CALLS" -lt 10 ]]; then
+# Check for below-threshold signal
+if [[ "$SUMMARY_DATA" == "BELOW_THRESHOLD" ]]; then
     # --- Log rotation (always run regardless of threshold) ---
     find "$HOME/.claude/logs/" -name "*.jsonl" -mtime +7 -delete 2>/dev/null || true
     exit 0
 fi
 
-# --- Tool call counts by tool_name (post entries only) ---
-TOOL_COUNTS=$(echo "$POST_ENTRIES" | \
-    jq -rs '[.[] | .tool_name] | group_by(.) | map({tool: .[0], count: length}) | sort_by(-.count)' \
-    2>/dev/null || echo "[]")
-
-# --- Session duration: first to last entry (all entries) ---
-ALL_EPOCHS=$(echo "$SESSION_ENTRIES" | jq -r '.epoch_ms' 2>/dev/null | sort -n)
-FIRST_EPOCH=$(echo "$ALL_EPOCHS" | head -1)
-LAST_EPOCH=$(echo "$ALL_EPOCHS" | tail -1)
-
+# --- Parse structured output ---
+TOTAL_CALLS=""
 DURATION_SECS=0
-if [[ -n "$FIRST_EPOCH" && -n "$LAST_EPOCH" && "$FIRST_EPOCH" -gt 0 && "$LAST_EPOCH" -gt "$FIRST_EPOCH" ]]; then
-    DURATION_SECS=$(( (LAST_EPOCH - FIRST_EPOCH) / 1000 ))
-fi
+TOOL_COUNTS_LINES=""
+SLOW_CALLS_LINES=""
+
+while IFS= read -r line; do
+    case "$line" in
+        TOTAL_CALLS=*)
+            TOTAL_CALLS="${line#TOTAL_CALLS=}"
+            ;;
+        DURATION_SECS=*)
+            DURATION_SECS="${line#DURATION_SECS=}"
+            ;;
+        TOOL_COUNT=*)
+            local_data="${line#TOOL_COUNT=}"
+            tool="${local_data%%:*}"
+            count="${local_data#*:}"
+            TOOL_COUNTS_LINES="${TOOL_COUNTS_LINES}  - ${tool}: ${count}"$'\n'
+            ;;
+        SLOW_CALL=*)
+            local_data="${line#SLOW_CALL=}"
+            tool="${local_data%%:*}"
+            secs="${local_data#*:}"
+            SLOW_CALLS_LINES="${SLOW_CALLS_LINES}  - ${tool}: ${secs}s"$'\n'
+            ;;
+        DONE)
+            break
+            ;;
+    esac
+done <<< "$SUMMARY_DATA"
 
 DURATION_MIN=$(( DURATION_SECS / 60 ))
 DURATION_SEC=$(( DURATION_SECS % 60 ))
-
-# --- Best-effort: top 5 slowest calls (pair pre/post by tool_name + time proximity) ---
-# Strategy: for each post entry, find the nearest preceding pre entry for the same tool.
-# Emit delta in seconds. Sort descending, take top 5.
-SLOW_CALLS=$(echo "$SESSION_ENTRIES" | jq -rs '
-    # Separate pre and post entries
-    . as $all |
-    [ $all[] | select(.hook_type == "pre") ]  as $pres |
-    [ $all[] | select(.hook_type == "post") ] as $posts |
-    # For each post, find closest preceding pre with same tool_name
-    [ $posts[] as $p |
-      [ $pres[] | select(.tool_name == $p.tool_name and .epoch_ms <= $p.epoch_ms) ] |
-      sort_by(.epoch_ms) | last |
-      if . then
-        { tool: $p.tool_name, delta_ms: ($p.epoch_ms - .epoch_ms) }
-      else
-        empty
-      end
-    ] |
-    sort_by(-.delta_ms) | .[0:5] |
-    map("  - \(.tool): \(.delta_ms / 1000 | floor)s")[]
-' 2>/dev/null || echo "")
 
 # --- Emit markdown summary ---
 echo "# Session Tool Usage Summary"
@@ -106,12 +170,12 @@ echo "**Total tool calls:** ${TOTAL_CALLS}"
 echo ""
 echo "## Calls by Tool"
 echo ""
-echo "$TOOL_COUNTS" | jq -r '.[] | "  - \(.tool): \(.count)"' 2>/dev/null || true
+printf '%s' "$TOOL_COUNTS_LINES"
 echo ""
-if [[ -n "$SLOW_CALLS" ]]; then
+if [[ -n "$SLOW_CALLS_LINES" ]]; then
     echo "## Top 5 Slowest Calls (approx)"
     echo ""
-    echo "$SLOW_CALLS"
+    printf '%s' "$SLOW_CALLS_LINES"
     echo ""
 fi
 

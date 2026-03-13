@@ -30,19 +30,16 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"track-cascade-failures.sh\",\"line\":%s}
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-# This hook is non-blocking (cascade tracking only) — skip entirely without jq
-check_tool jq || exit 0
-
 # --- Read hook input ---
 INPUT=$(cat)
 
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
+TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
 if [[ "$TOOL_NAME" != "Bash" ]]; then
     exit 0
 fi
 
 # --- Only act on test/lint commands ---
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || echo "")
+COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
 
 # Match test and lint commands that indicate a fix-then-verify cycle
 IS_TEST_CMD=false
@@ -95,8 +92,8 @@ if [[ -f "$COUNTER_FILE" ]]; then
 fi
 
 # --- Get command output and exit code ---
-STDOUT=$(echo "$INPUT" | jq -r '.tool_response.stdout // empty' 2>/dev/null || echo "")
-STDERR=$(echo "$INPUT" | jq -r '.tool_response.stderr // empty' 2>/dev/null || echo "")
+STDOUT=$(parse_json_field "$INPUT" '.tool_response.stdout')
+STDERR=$(parse_json_field "$INPUT" '.tool_response.stderr')
 COMBINED_OUTPUT="${STDOUT}${STDERR}"
 
 # --- Determine pass/fail ---

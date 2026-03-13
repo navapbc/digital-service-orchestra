@@ -32,23 +32,21 @@ fi
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-# This hook is non-blocking (logging only) — skip entirely without jq
-check_tool jq || exit 0
-
 # Fast path: exit immediately if logging is not enabled
 test -f "$HOME/.claude/tool-logging-enabled" || exit 0
 
 # --- Read hook input ---
 INPUT=$(cat)
 
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
-TOOL_INPUT_RAW=$(echo "$INPUT" | jq -c '.tool_input // {}' 2>/dev/null || echo "{}")
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || echo "")
+TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+TOOL_INPUT_RAW=$(parse_json_object "$INPUT" '.tool_input')
+[[ -z "$TOOL_INPUT_RAW" ]] && TOOL_INPUT_RAW="{}"
+SESSION_ID=$(parse_json_field "$INPUT" '.session_id')
 # PostToolUse only fires on success; exit code is not at top level.
 # For Bash, read from tool_response if available (for richer logging).
 EXIT_STATUS=""
 if [[ "$MODE" == "post" ]]; then
-    EXIT_STATUS=$(echo "$INPUT" | jq -r '.tool_response.exit_code // empty' 2>/dev/null || echo "")
+    EXIT_STATUS=$(parse_json_field "$INPUT" '.tool_response.exit_code')
 fi
 
 # Session ID fallback: use a file-based session marker if not in input
@@ -69,9 +67,10 @@ fi
 TOOL_INPUT_REDACTED="$TOOL_INPUT_RAW"
 
 # Redact JSON keys: api_key, token, password, Authorization
+# Use sed to replace values of sensitive keys with [REDACTED]
 for KEY in api_key token password Authorization; do
     TOOL_INPUT_REDACTED=$(echo "$TOOL_INPUT_REDACTED" | \
-        jq -c --arg k "$KEY" 'if type == "object" and has($k) then .[$k] = "[REDACTED]" else . end' \
+        sed -E "s/\"${KEY}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"${KEY}\":\"[REDACTED]\"/g" \
         2>/dev/null || echo "$TOOL_INPUT_REDACTED")
 done
 
@@ -92,39 +91,24 @@ LOG_FILE="$LOG_DIR/tool-use-$(date +%Y-%m-%d).jsonl"
 
 # --- Build and append JSONL entry (compact single-line output) ---
 if [[ "$MODE" == "post" && -n "$EXIT_STATUS" ]]; then
-    ENTRY=$(jq -nc \
-        --arg ts "$TS" \
-        --argjson epoch_ms "$EPOCH_MS" \
-        --arg session_id "$SESSION_ID" \
-        --arg tool_name "$TOOL_NAME" \
-        --arg hook_type "$MODE" \
-        --arg tool_input_summary "$TOOL_INPUT_SUMMARY" \
-        --argjson exit_status "$EXIT_STATUS" \
-        '{
-            ts: $ts,
-            epoch_ms: $epoch_ms,
-            session_id: $session_id,
-            tool_name: $tool_name,
-            hook_type: $hook_type,
-            tool_input_summary: $tool_input_summary,
-            exit_status: $exit_status
-        }' 2>/dev/null || echo "")
+    ENTRY=$(json_build \
+        ts="$TS" \
+        epoch_ms:n="$EPOCH_MS" \
+        session_id="$SESSION_ID" \
+        tool_name="$TOOL_NAME" \
+        hook_type="$MODE" \
+        tool_input_summary="$TOOL_INPUT_SUMMARY" \
+        exit_status:n="$EXIT_STATUS" \
+    )
 else
-    ENTRY=$(jq -nc \
-        --arg ts "$TS" \
-        --argjson epoch_ms "$EPOCH_MS" \
-        --arg session_id "$SESSION_ID" \
-        --arg tool_name "$TOOL_NAME" \
-        --arg hook_type "$MODE" \
-        --arg tool_input_summary "$TOOL_INPUT_SUMMARY" \
-        '{
-            ts: $ts,
-            epoch_ms: $epoch_ms,
-            session_id: $session_id,
-            tool_name: $tool_name,
-            hook_type: $hook_type,
-            tool_input_summary: $tool_input_summary
-        }' 2>/dev/null || echo "")
+    ENTRY=$(json_build \
+        ts="$TS" \
+        epoch_ms:n="$EPOCH_MS" \
+        session_id="$SESSION_ID" \
+        tool_name="$TOOL_NAME" \
+        hook_type="$MODE" \
+        tool_input_summary="$TOOL_INPUT_SUMMARY" \
+    )
 fi
 
 if [[ -n "$ENTRY" ]]; then

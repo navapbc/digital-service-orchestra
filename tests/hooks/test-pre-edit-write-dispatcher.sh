@@ -184,6 +184,85 @@ assert_contains "test_pre_write_dispatcher_cascade_blocks_non_exempt_at_threshol
 rm -f "$_CASCADE_COUNTER_FILE" 2>/dev/null || true
 
 # ============================================================
+# test_pre_edit_calls_tool_logging_pre
+# The pre-edit dispatcher must source post-functions.sh and call
+# hook_tool_logging_pre before the guard hooks.
+# ============================================================
+echo "--- test_pre_edit_calls_tool_logging_pre ---"
+
+# Verify the dispatcher file contains the hook_tool_logging_pre call
+_has_logging=0
+grep -q 'hook_tool_logging_pre' "$PRE_EDIT_DISPATCHER" && _has_logging=1
+assert_eq "test_pre_edit_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+
+# Verify the dispatcher sources post-functions.sh (which defines hook_tool_logging_pre)
+_has_source=0
+grep -q 'post-functions.sh' "$PRE_EDIT_DISPATCHER" && _has_source=1
+assert_eq "test_pre_edit_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+
+# Verify dispatcher still exits 0 for a normal edit (tool logging is non-blocking)
+rm -f "$_CASCADE_COUNTER_FILE" 2>/dev/null || true
+_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
+_exit_code=0
+printf '%s' "$_INPUT" | bash "$PRE_EDIT_DISPATCHER" 2>/dev/null || _exit_code=$?
+assert_eq "test_pre_edit_calls_tool_logging_pre: exits 0 (non-blocking)" "0" "$_exit_code"
+
+# ============================================================
+# test_pre_write_calls_tool_logging_pre
+# The pre-write dispatcher must source post-functions.sh and call
+# hook_tool_logging_pre before the guard hooks.
+# ============================================================
+echo "--- test_pre_write_calls_tool_logging_pre ---"
+
+_has_logging=0
+grep -q 'hook_tool_logging_pre' "$PRE_WRITE_DISPATCHER" && _has_logging=1
+assert_eq "test_pre_write_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+
+_has_source=0
+grep -q 'post-functions.sh' "$PRE_WRITE_DISPATCHER" && _has_source=1
+assert_eq "test_pre_write_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+
+# Verify dispatcher still exits 0 for a normal write
+_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/output.py","content":"print(\"hello\")"}}'
+_exit_code=0
+printf '%s' "$_INPUT" | bash "$PRE_WRITE_DISPATCHER" 2>/dev/null || _exit_code=$?
+assert_eq "test_pre_write_calls_tool_logging_pre: exits 0 (non-blocking)" "0" "$_exit_code"
+
+# ============================================================
+# test_post_edit_calls_tool_logging_post
+# The post-edit dispatcher must call hook_tool_logging_post.
+# ============================================================
+echo "--- test_post_edit_calls_tool_logging_post ---"
+
+POST_EDIT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-edit.sh"
+_has_logging=0
+grep -q 'hook_tool_logging_post' "$POST_EDIT_DISPATCHER" && _has_logging=1
+assert_eq "test_post_edit_calls_tool_logging_post: grep finds hook_tool_logging_post" "1" "$_has_logging"
+
+# Verify exits 0 (non-blocking)
+_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.txt","old_string":"old","new_string":"new"},"tool_response":{"success":true}}'
+_exit_code=0
+printf '%s' "$_INPUT" | bash "$POST_EDIT_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
+assert_eq "test_post_edit_calls_tool_logging_post: exits 0" "0" "$_exit_code"
+
+# ============================================================
+# test_post_write_calls_tool_logging_post
+# The post-write dispatcher must call hook_tool_logging_post.
+# ============================================================
+echo "--- test_post_write_calls_tool_logging_post ---"
+
+POST_WRITE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-write.sh"
+_has_logging=0
+grep -q 'hook_tool_logging_post' "$POST_WRITE_DISPATCHER" && _has_logging=1
+assert_eq "test_post_write_calls_tool_logging_post: grep finds hook_tool_logging_post" "1" "$_has_logging"
+
+# Verify exits 0 (non-blocking)
+_INPUT='{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.txt","content":"hello"},"tool_response":{"success":true}}'
+_exit_code=0
+printf '%s' "$_INPUT" | bash "$POST_WRITE_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
+assert_eq "test_post_write_calls_tool_logging_post: exits 0" "0" "$_exit_code"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary
