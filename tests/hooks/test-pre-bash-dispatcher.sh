@@ -186,6 +186,40 @@ assert_contains "test_pre_bash_dispatcher_review_integrity_guard_blocks_direct_w
     "BLOCKED" "$_output"
 
 # ============================================================
+# test_pre_bash_calls_tool_logging_pre
+# When tool logging is enabled, the pre-bash dispatcher must call
+# hook_tool_logging_pre BEFORE the guard hooks, producing a JSONL log entry.
+# ============================================================
+echo "--- test_pre_bash_calls_tool_logging_pre ---"
+
+_log_test_dir=$(mktemp -d)
+_log_test_logdir="$_log_test_dir/.claude/logs"
+mkdir -p "$_log_test_logdir"
+mkdir -p "$_log_test_dir/.claude"
+# Enable tool logging
+touch "$_log_test_dir/.claude/tool-logging-enabled"
+
+_INPUT='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
+_exit_code=0
+# Run the dispatcher with HOME overridden so tool-logging writes to our temp dir
+_output=$(HOME="$_log_test_dir" printf '%s' "$_INPUT" | HOME="$_log_test_dir" bash "$DISPATCHER" 2>/dev/null) || _exit_code=$?
+assert_eq "test_pre_bash_calls_tool_logging_pre: exit 0" "0" "$_exit_code"
+
+# Check that a JSONL log file was created with a "pre" entry
+_log_file=$(ls "$_log_test_logdir"/tool-use-*.jsonl 2>/dev/null | head -1)
+_log_exists=0
+[[ -n "$_log_file" ]] && [[ -f "$_log_file" ]] && _log_exists=1
+assert_eq "test_pre_bash_calls_tool_logging_pre: JSONL log file created" "1" "$_log_exists"
+
+if [[ "$_log_exists" -eq 1 ]]; then
+    _has_pre_entry=0
+    grep -q '"hook_type":"pre"' "$_log_file" 2>/dev/null && _has_pre_entry=1
+    assert_eq "test_pre_bash_calls_tool_logging_pre: log contains pre entry" "1" "$_has_pre_entry"
+fi
+
+rm -rf "$_log_test_dir"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary

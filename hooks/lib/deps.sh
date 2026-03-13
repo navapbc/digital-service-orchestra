@@ -323,6 +323,211 @@ get_timeout_cmd() {
     fi
 }
 
+# --- parse_json_object ---
+# Extract a JSON object value from a JSON string using brace-matching.
+# Like jq -c '.key // {}' but in pure bash.
+#
+# Usage: OBJ=$(parse_json_object "$JSON" '.tool_input')
+parse_json_object() {
+    local json="$1"
+    local expr="$2"
+    local field="${expr#.}"
+
+    # Find "field":{
+    if [[ "$json" =~ \"${field}\"[[:space:]]*:[[:space:]]*\{ ]]; then
+        # Get everything starting from the opening brace
+        local after="${json#*\"${field}\"*:}"
+        # Trim leading whitespace
+        after="${after#"${after%%[![:space:]]*}"}"
+        # Now balance braces, respecting strings
+        local depth=0
+        local i=0
+        local len=${#after}
+        local in_string=0
+        local prev_ch=""
+        while (( i < len )); do
+            local ch="${after:$i:1}"
+            if (( in_string )); then
+                if [[ "$ch" == '"' && "$prev_ch" != "\\" ]]; then
+                    in_string=0
+                fi
+            else
+                if [[ "$ch" == '"' ]]; then
+                    in_string=1
+                elif [[ "$ch" == "{" ]]; then
+                    (( depth++ ))
+                elif [[ "$ch" == "}" ]]; then
+                    (( depth-- ))
+                    if (( depth == 0 )); then
+                        echo "${after:0:$((i+1))}"
+                        return 0
+                    fi
+                fi
+            fi
+            prev_ch="$ch"
+            (( i++ ))
+        done
+    fi
+    echo ""
+}
+
+# --- json_build ---
+# Construct a compact JSON object from key=value pairs.
+# Suffix :n on the key name indicates numeric (no quotes). Default is string (quoted).
+#
+# Usage: json_build ts="2026-01-01" count:n=42 name="Alice"
+#        → {"ts":"2026-01-01","count":42,"name":"Alice"}
+json_build() {
+    local parts=()
+    for arg in "$@"; do
+        local key_part="${arg%%=*}"
+        local val="${arg#*=}"
+        if [[ "$key_part" == *":n" ]]; then
+            # Numeric: strip :n suffix, no quotes on value
+            local key="${key_part%:n}"
+            parts+=("\"${key}\":${val}")
+        else
+            # String: escape special characters for valid JSON
+            local key="$key_part"
+            # Use python3 for reliable JSON string escaping
+            local escaped_val
+            escaped_val=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()),end='')" <<< "$val"  2>/dev/null)
+            if [[ $? -eq 0 && -n "$escaped_val" ]]; then
+                # python3 wraps in quotes already, but we read with trailing newline from <<<
+                # Use python to escape the exact value (without trailing newline from <<<)
+                escaped_val=$(printf '%s' "$val" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()),end='')" 2>/dev/null)
+                parts+=("\"${key}\":${escaped_val}")
+            else
+                # Fallback: basic escaping
+                val="${val//\\/\\\\}"
+                val="${val//\"/\\\"}"
+                val="${val//$'\n'/\\n}"
+                val="${val//$'\r'/\\r}"
+                val="${val//$'\t'/\\t}"
+                parts+=("\"${key}\":\"${val}\"")
+            fi
+        fi
+    done
+    # Join with commas
+    local result="{"
+    local first=1
+    for part in "${parts[@]}"; do
+        if (( first )); then
+            result="${result}${part}"
+            first=0
+        else
+            result="${result},${part}"
+        fi
+    done
+    result="${result}}"
+    echo "$result"
+}
+
+# --- json_mutate ---
+# Run a python3 one-liner to mutate JSON data.
+# The python snippet receives the parsed JSON as 'data' and should modify it in place.
+#
+# Usage (stdin):  echo '{"a":1}' | json_mutate 'data["b"]=2'
+# Usage (file):   json_mutate 'data["b"]=2' /path/to/file.json
+# Output: modified JSON on stdout
+json_mutate() {
+    local snippet="$1"
+    local file="${2:-}"
+
+    if ! check_tool python3; then
+        echo "ERROR: json_mutate requires python3" >&2
+        return 1
+    fi
+
+    local python_script
+    python_script="import json,sys
+data=json.load(sys.stdin)
+${snippet}
+print(json.dumps(data))"
+
+    if [[ -n "$file" ]]; then
+        python3 -c "$python_script" < "$file"
+    else
+        python3 -c "$python_script"
+    fi
+}
+
+# --- json_filter_jsonl ---
+# Filter lines of a JSONL file using a python3 filter expression.
+# Each line is parsed as JSON and available as 'data' in the expression.
+# Lines where the expression evaluates to True are output.
+#
+# Usage: json_filter_jsonl /path/to/file.jsonl 'data.get("age",0) > 28'
+# Output: matching JSONL lines on stdout
+json_filter_jsonl() {
+    local file="$1"
+    local filter_expr="$2"
+
+    if ! check_tool python3; then
+        echo "ERROR: json_filter_jsonl requires python3" >&2
+        return 1
+    fi
+
+    # Handle empty files
+    if [[ ! -s "$file" ]]; then
+        return 0
+    fi
+
+    python3 -c "
+import json, sys
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    data = json.loads(line)
+    if ${filter_expr}:
+        print(line)
+" < "$file"
+}
+
+# --- json_summarize_input ---
+# Summarize a JSON object's keys and values for logging.
+# Values are truncated to 80 characters.
+# Replaces: jq -r 'to_entries | map(.key + "=" + (.value | tostring | .[0:80])) | join(", ")'
+#
+# Usage: SUMMARY=$(json_summarize_input '{"command":"git status","file":"/tmp/x"}')
+#        → command=git status, file=/tmp/x
+json_summarize_input() {
+    local json="$1"
+
+    if check_tool python3; then
+        python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+parts = []
+for k, v in data.items():
+    s = json.dumps(v) if v is None else str(v)
+    s = s[:80]
+    parts.append(k + '=' + s)
+print(', '.join(parts))
+" "$json" 2>/dev/null
+        return
+    fi
+
+    # Bash fallback: extract key-value pairs using grep
+    # This handles simple flat JSON objects
+    local result=""
+    local pairs
+    pairs=$(echo "$json" | grep -oE '"[^"]+"\s*:\s*("[^"]*"|[0-9.]+|true|false|null)' || true)
+    while IFS= read -r pair; do
+        [[ -z "$pair" ]] && continue
+        local key val
+        key=$(echo "$pair" | grep -oE '^"[^"]+"' | tr -d '"')
+        val=$(echo "$pair" | sed 's/^"[^"]*"\s*:\s*//' | tr -d '"')
+        val="${val:0:80}"
+        if [[ -n "$result" ]]; then
+            result="${result}, "
+        fi
+        result="${result}${key}=${val}"
+    done <<< "$pairs"
+    echo "$result"
+}
+
 # --- EXCLUDE_PATTERNS ---
 # Array of path patterns that hooks should skip.
 # Entries are substring patterns — a file path matching any entry is excluded.

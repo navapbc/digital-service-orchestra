@@ -7,6 +7,7 @@
 #   run-hook.sh dispatchers/pre-bash.sh
 #
 # Hook execution order (per task spec):
+#   0. hook_tool_logging_pre (non-blocking, informational — from post-functions.sh)
 #   1. hook_validation_gate
 #   2. hook_commit_failure_tracker
 #   3. hook_review_gate
@@ -30,6 +31,9 @@ source "$HOOKS_LIB_DIR/dispatcher.sh"
 
 # Source all 8 hook functions
 source "$HOOKS_LIB_DIR/pre-bash-functions.sh"
+
+# Source post-functions.sh for hook_tool_logging_pre (non-blocking tool logging)
+source "$HOOKS_LIB_DIR/post-functions.sh"
 
 # Run all 8 hook functions sequentially.
 # Stops at first function that returns 2 (block).
@@ -66,6 +70,9 @@ _pre_bash_dispatch() {
     # Read hook input from stdin
     local INPUT
     INPUT=$(cat)
+
+    # Tool logging runs first (non-blocking, informational only — never returns 2)
+    hook_tool_logging_pre "$INPUT" || true
 
     for _HOOK_FN in \
         hook_validation_gate \

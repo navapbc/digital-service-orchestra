@@ -29,13 +29,37 @@ source "$HOOKS_LIB_DIR/dispatcher.sh"
 # Source all post hook functions
 source "$HOOKS_LIB_DIR/post-functions.sh"
 
+# macOS-compatible millisecond timestamp (date +%s%N unavailable on macOS)
+_get_ms() {
+    local _ns
+    _ns=$(date +%s%N 2>/dev/null) || _ns=""
+    if [[ -n "$_ns" && "$_ns" != *N* ]]; then
+        echo $(( _ns / 1000000 ))
+    else
+        python3 -c 'import time;print(int(time.time()*1e3))' 2>/dev/null || echo 0
+    fi
+}
+
 # Run all catch-all post-hook functions sequentially.
 # PostToolUse hooks are non-blocking (always return 0).
 _run_post_fn() {
     local fn_name="$1"
     local json_input="$2"
     local _fn_out=""
-    _fn_out=$("$fn_name" "$json_input" 2>/dev/null) || true
+
+    # Per-function timing (enabled by ~/.claude/hook-timing-enabled)
+    if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
+        local _start _end _exit=0
+        _start=$(_get_ms)
+        _fn_out=$("$fn_name" "$json_input" 2>/dev/null) || _exit=$?
+        _end=$(_get_ms)
+        printf '%s\t%s\t%dms\texit=%d\n' \
+            "$(date +%H:%M:%S)" "$fn_name" "$((_end - _start))" "$_exit" \
+            >> /tmp/hook-timing.log 2>/dev/null
+    else
+        _fn_out=$("$fn_name" "$json_input" 2>/dev/null) || true
+    fi
+
     if [[ -n "$_fn_out" ]] && [[ "$_fn_out" != "{}" ]]; then
         _HOOK_HAS_OUTPUT=1
         printf '%s\n' "$_fn_out"

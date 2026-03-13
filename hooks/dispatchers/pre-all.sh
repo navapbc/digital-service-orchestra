@@ -21,6 +21,17 @@ TOOL_LOGGING_HOOK="$CLAUDE_PLUGIN_ROOT/hooks/tool-logging.sh"
 # Source the dispatcher framework
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
+# macOS-compatible millisecond timestamp (date +%s%N unavailable on macOS)
+_get_ms() {
+    local _ns
+    _ns=$(date +%s%N 2>/dev/null) || _ns=""
+    if [[ -n "$_ns" && "$_ns" != *N* ]]; then
+        echo $(( _ns / 1000000 ))
+    else
+        python3 -c 'import time;print(int(time.time()*1e3))' 2>/dev/null || echo 0
+    fi
+}
+
 _pre_all_dispatch() {
     # Read hook input from stdin
     local INPUT
@@ -29,7 +40,18 @@ _pre_all_dispatch() {
     # Run tool-logging pre phase (informational, never blocks)
     if [[ -x "$TOOL_LOGGING_HOOK" ]]; then
         local _exit=0
-        echo "$INPUT" | bash "$TOOL_LOGGING_HOOK" pre 2>/dev/null || _exit=$?
+        # Per-call timing (enabled by ~/.claude/hook-timing-enabled)
+        if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
+            local _start _end
+            _start=$(_get_ms)
+            echo "$INPUT" | bash "$TOOL_LOGGING_HOOK" pre 2>/dev/null || _exit=$?
+            _end=$(_get_ms)
+            printf '%s\ttool-logging-pre\t%dms\texit=%d\n' \
+                "$(date +%H:%M:%S)" "$((_end - _start))" "$_exit" \
+                >> /tmp/hook-timing.log 2>/dev/null
+        else
+            echo "$INPUT" | bash "$TOOL_LOGGING_HOOK" pre 2>/dev/null || _exit=$?
+        fi
         # Non-blocking: ignore exit codes
     fi
 
