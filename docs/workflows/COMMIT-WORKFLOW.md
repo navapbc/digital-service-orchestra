@@ -10,6 +10,7 @@ Replace commands below with values from your `workflow-config.yaml`:
 - `commands.lint` (default: `make lint-ruff`)
 - `commands.type_check` (default: `make lint-mypy`)
 - `commands.format` (default: `make format-modified`)
+- `commands.test_changed` (default: `scripts/run-changed-tests.sh`)
 - `commands.validate` (default: `validate.sh --ci`)
 
 The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
@@ -45,31 +46,8 @@ git log --oneline -5
 Check if all changed files are non-reviewable. If every file matches a non-reviewable pattern, Steps 1-3a can be skipped. Otherwise a full review is required.
 
 ```bash
-CHANGED_FILES=$(git diff HEAD --name-only)
-SKIP_REVIEW=true
-while IFS= read -r file; do
-    [[ -z "$file" ]] && continue
-    # Agent guidance always requires review (checked first, overrides docs/* below)
-    case "$file" in
-        .claude/skills/*|.claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
-        lockpick-workflow/skills/*|lockpick-workflow/hooks/*|lockpick-workflow/docs/workflows/*) SKIP_REVIEW=false; break ;;
-        CLAUDE.md) SKIP_REVIEW=false; break ;;
-    esac
-    # .checkpoint-needs-review always requires a full review (see Note below)
-    case "$file" in
-        .checkpoint-needs-review) SKIP_REVIEW=false; break ;;
-    esac
-    # Non-reviewable files
-    case "$file" in
-        .tickets/*) ;;                                                              # ticket metadata
-        .sync-state.json) ;;                                                       # sync state metadata
-        app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;   # visual snapshots
-        *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;                            # images
-        *.pdf|*.docx) ;;                                                           # binary docs
-        .claude/session-logs/*|.claude/docs/*|docs/*) ;;                          # logs and non-agent docs
-        *) SKIP_REVIEW=false; break ;;
-    esac
-done <<< "$CHANGED_FILES"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+git diff HEAD --name-only | bash "$REPO_ROOT/lockpick-workflow/scripts/skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
 ```
 
 **If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
@@ -171,7 +149,13 @@ If any integration or e2e test files changed, run only those files now. This pre
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-"$REPO_ROOT/scripts/run-changed-tests.sh"
+TEST_CHANGED_CMD="$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" commands.test_changed)"
+if [ -z "$TEST_CHANGED_CMD" ]; then
+    echo "commands.test_changed not configured — skipping changed-test step"
+    # continue to Step 2
+else
+    "$REPO_ROOT/$TEST_CHANGED_CMD"
+fi
 ```
 
 - **Integration tests fail**: DB is not running. Start it with `make db-start` and re-run. Fix the test if it is broken.
@@ -193,7 +177,8 @@ Follow the same dispatch procedure as Step 1, with these differences:
 1. **Build the input payload** using the integration/E2E test command that failed:
 
 ```bash
-TEST_COMMAND="$REPO_ROOT/scripts/run-changed-tests.sh"
+TEST_CHANGED_CMD="$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" commands.test_changed)"
+TEST_COMMAND="$REPO_ROOT/$TEST_CHANGED_CMD"
 # EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
 # Do NOT re-run the tests — capture from the original failure.
 # EXIT_CODE=<exit code from the failed test run>
@@ -208,7 +193,7 @@ CHANGED_FILES=$(git diff --name-only)
 3. **Model selection, sub-agent type, prompt template, Task dispatch, and result parsing**: Same as Step 1 delegation procedure (steps 2-7).
 
 4. **Parse the result**:
-   - `RESULT: PASS` — re-run `run-changed-tests.sh` to confirm the fix, then continue to Step 2.
+   - `RESULT: PASS` — re-run the config-driven test command (`$REPO_ROOT/$TEST_CHANGED_CMD`) to confirm the fix, then continue to Step 2.
    - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
    - `RESULT: PARTIAL` — log concerns via `tk add-note`, continue to Step 2 with caveats.
 
@@ -220,16 +205,7 @@ Run plugin tests when workflow files or project scripts have changed. This catch
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-CHANGED=$(git diff HEAD --name-only)
-PLUGIN_CHANGED=false
-while IFS= read -r f; do
-    case "$f" in
-        lockpick-workflow/hooks/*|lockpick-workflow/scripts/*|lockpick-workflow/skills/*|scripts/*|.pre-commit-config.yaml|Makefile|app/Makefile)
-            PLUGIN_CHANGED=true; break ;;
-    esac
-done <<< "$CHANGED"
-
-if [ "$PLUGIN_CHANGED" = "true" ]; then
+if git diff HEAD --name-only | bash "$REPO_ROOT/lockpick-workflow/scripts/check-plugin-test-needed.sh"; then
     cd "$REPO_ROOT" && make test-plugin
 fi
 ```

@@ -48,29 +48,7 @@ regex patterns, and framework detection rules for the project's web stack.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
-
-# 1. Read the stack and template engine from workflow-config.yaml
-STACK=$("$READ_CONFIG" stack 2>/dev/null || echo "")
-TEMPLATE_ENGINE=$("$READ_CONFIG" design.template_engine 2>/dev/null || echo "")
-
-# 2. Resolve the adapter file
-ADAPTER_DIR="$REPO_ROOT/lockpick-workflow/config/stack-adapters"
-ADAPTER_FILE=""
-
-if [[ -n "$TEMPLATE_ENGINE" ]]; then
-  # Try stack-specific adapter first (e.g. flask-jinja2.yaml)
-  for candidate in "$ADAPTER_DIR"/*.yaml; do
-    [ -f "$candidate" ] || continue
-    # Match selector.stack and selector.template_engine in the YAML
-    candidate_stack=$(python3 -c "import yaml; d=yaml.safe_load(open('$candidate')); print(d.get('selector',{}).get('stack',''))" 2>/dev/null)
-    candidate_engine=$(python3 -c "import yaml; d=yaml.safe_load(open('$candidate')); print(d.get('selector',{}).get('template_engine',''))" 2>/dev/null)
-    if [[ "$candidate_stack" == "$STACK" && "$candidate_engine" == "$TEMPLATE_ENGINE" ]]; then
-      ADAPTER_FILE="$candidate"
-      break
-    fi
-  done
-fi
+ADAPTER_FILE=$(bash "$REPO_ROOT/lockpick-workflow/scripts/resolve-stack-adapter.sh")
 ```
 
 ### Adapter loaded vs missing:

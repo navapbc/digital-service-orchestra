@@ -1,0 +1,9 @@
+version: "1.0.0"
+
+commands:
+  test: "make test"
+  lint: "make lint-ruff"
+  type_check: "make lint-mypy"
+  format: "make format-modified"
+  validate: "lockpick-workflow/scripts/validate.sh --ci"
+  # test_changed intentionally omitted — tests absent-key skip path

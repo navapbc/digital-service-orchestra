@@ -76,4 +76,14 @@ for key in paths.app_dir paths.src_dir paths.test_dir paths.test_unit_dir interp
 done
 assert_pass_if_clean "test_config_paths_keys_exist"
 
+# ── test_commands_test_changed_key_exists ────────────────────────────────────
+# commands.test_changed must return "./scripts/run-changed-tests.sh"
+_snapshot_fail
+test_changed_exit=0
+test_changed_output=""
+test_changed_output=$(bash "$SCRIPT" "$CONFIG" "commands.test_changed" 2>&1) || test_changed_exit=$?
+assert_eq "test_commands_test_changed_key_exists: exit 0" "0" "$test_changed_exit"
+assert_eq "test_commands_test_changed_key_exists: value is ./scripts/run-changed-tests.sh" "./scripts/run-changed-tests.sh" "$test_changed_output"
+assert_pass_if_clean "test_commands_test_changed_key_exists"
+
 print_summary
