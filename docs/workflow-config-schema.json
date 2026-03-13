@@ -182,6 +182,16 @@
           "description": "Full environment check command invoked by agent-batch-lifecycle.sh preflight step 1d. When absent, the env check step is skipped (ENV_CHECK: skipped). Exit 0 = environment healthy; exit non-zero = environment issues found (preflight exits 1). Invoked via eval with stdout and stderr suppressed.",
           "minLength": 1,
           "examples": ["bash lockpick-workflow/scripts/check-local-env.sh --quiet", "make env-check", "scripts/check-env.sh --quiet"]
+        },
+        "test_changed": {
+          "type": "string",
+          "description": "Command to run changed integration/E2E tests before committing. When absent, Step 1.5 of the commit workflow is skipped. Typically a project-specific script path (e.g., './scripts/run-changed-tests.sh').",
+          "minLength": 1,
+          "examples": [
+            "./scripts/run-changed-tests.sh",
+            "jest --findRelatedTests",
+            "go test ./..."
+          ]
         }
       }
     },
