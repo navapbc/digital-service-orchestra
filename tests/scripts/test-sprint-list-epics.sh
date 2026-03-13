@@ -36,16 +36,34 @@ else
     (( FAIL++ ))
 fi
 
+# ── Create fixture tickets so tests are self-contained (no real .tickets/) ────
+# Tests 3 and 6 check output format, which requires at least one epic to exist.
+# Use RUN_ALL_TEST_TICKETS_DIR if set by run-all.sh, otherwise create our own.
+_FIXTURE_TICKETS="${RUN_ALL_TEST_TICKETS_DIR:-$(mktemp -d)}"
+if [[ -z "${RUN_ALL_TEST_TICKETS_DIR:-}" ]]; then
+    trap 'rm -rf "$_FIXTURE_TICKETS"' EXIT
+fi
+cat > "$_FIXTURE_TICKETS/lockpick-doc-to-logic-test1.md" << 'EOF'
+---
+id: lockpick-doc-to-logic-test1
+type: epic
+status: open
+priority: 2
+deps: []
+---
+# Test Epic for CI
+EOF
+
 # ── Single invocation: capture output and exit code once (Tests 2, 3, 6) ────
 # The script scans all .tickets/ files which can be slow on large repos.
-# Run it once and reuse the output to avoid repeated full-scan overhead.
+# Run it once with fixture data and reuse the output.
 script_exit=0
 script_output=""
-script_output=$(bash "$SCRIPT" 2>&1) || script_exit=$?
+script_output=$(TICKETS_DIR="$_FIXTURE_TICKETS" bash "$SCRIPT" 2>&1) || script_exit=$?
 
 # Also run --all once (Test 4)
 all_exit=0
-bash "$SCRIPT" --all >/dev/null 2>&1 || all_exit=$?
+TICKETS_DIR="$_FIXTURE_TICKETS" bash "$SCRIPT" --all >/dev/null 2>&1 || all_exit=$?
 
 # ── Test 2: No args exits within valid range (0, 1, or 2) ────────────────────
 echo "Test 2: No args exits within valid range (0=found, 1=none, 2=all-blocked)"

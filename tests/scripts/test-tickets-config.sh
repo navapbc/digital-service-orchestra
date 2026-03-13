@@ -258,7 +258,7 @@ YAML
 # Source tk functions via _TK_SOURCE_ONLY and test generate_id
 # Note: set +o pipefail is needed because generate_id uses tr|head which
 # causes SIGPIPE; with set -e + pipefail (from tk), this kills the shell.
-tk_id_output=$(cd "$TK_TEST_DIR" && bash -c '
+tk_id_output=$(cd "$TK_TEST_DIR" && CLAUDE_PLUGIN_PYTHON="$PYTHON" bash -c '
     _TK_SOURCE_ONLY=1
     . "'"$TK_SCRIPT"'"
     set +o pipefail
@@ -289,7 +289,7 @@ tickets:
 YAML
 
 # Test that find_tickets_dir finds the custom directory
-tk_dir_output=$(cd "$TK_DIR_TEST" && bash -c '
+tk_dir_output=$(cd "$TK_DIR_TEST" && CLAUDE_PLUGIN_PYTHON="$PYTHON" bash -c '
     _TK_SOURCE_ONLY=1
     . "'"$TK_SCRIPT"'"
     find_tickets_dir
@@ -313,7 +313,7 @@ mkdir -p "$TK_NOCONFIG_DIR/.tickets"
 (cd "$TK_NOCONFIG_DIR" && git init -q)
 # No workflow-config.yaml
 
-tk_noconfig_output=$(cd "$TK_NOCONFIG_DIR" && bash -c '
+tk_noconfig_output=$(cd "$TK_NOCONFIG_DIR" && CLAUDE_PLUGIN_PYTHON="$PYTHON" bash -c '
     _TK_SOURCE_ONLY=1
     . "'"$TK_SCRIPT"'"
     find_tickets_dir

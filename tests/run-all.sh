@@ -31,11 +31,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 
 # --- Isolate tests from real .tickets/ (290+ files slow git operations) ---
-# Override TICKETS_DIR so tk commands scan a minimal temp directory instead.
-# Tests that need specific ticket setups already create and export their own TICKETS_DIR.
-if [[ -z "${TICKETS_DIR:-}" ]]; then
+# Create a minimal temp .tickets/ directory and set RUN_ALL_TEST_TICKETS_DIR
+# for sub-runners to use. We do NOT export TICKETS_DIR here because some tests
+# (e.g., test-tickets-config.sh) specifically test tk's config-based directory
+# resolution and would break if TICKETS_DIR is pre-set in the environment.
+if [[ -z "${RUN_ALL_TEST_TICKETS_DIR:-}" ]]; then
     _TEST_TICKETS_DIR=$(mktemp -d)
-    export TICKETS_DIR="$_TEST_TICKETS_DIR"
+    export RUN_ALL_TEST_TICKETS_DIR="$_TEST_TICKETS_DIR"
     trap 'rm -rf "$_TEST_TICKETS_DIR"' EXIT
 fi
 

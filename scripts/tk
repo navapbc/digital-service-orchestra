@@ -44,6 +44,11 @@ _tk_read_config() {
                     CLAUDE_PLUGIN_PYTHON="$_py_candidate" "$_read_config" "$_config_file" "$key" 2>/dev/null || true
                     return
                 fi
+                # Fallback: try system python3 if it has pyyaml
+                if command -v python3 &>/dev/null && python3 -c "import yaml" 2>/dev/null; then
+                    CLAUDE_PLUGIN_PYTHON=python3 "$_read_config" "$_config_file" "$key" 2>/dev/null || true
+                    return
+                fi
             fi
             "$_read_config" "$_config_file" "$key" 2>/dev/null || true
         fi
