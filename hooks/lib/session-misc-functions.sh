@@ -33,6 +33,88 @@ _SESSION_MISC_FUNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_SESSION_MISC_FUNC_DIR/deps.sh"
 
 # ---------------------------------------------------------------------------
+# hook_cleanup_orphaned_processes
+# ---------------------------------------------------------------------------
+# SessionStart hook: kill nohup-orphaned processes older than 30 minutes.
+# These accumulate from the nohup + file-based polling pattern (INC-016
+# workaround) and never get cleaned up. Uses process age to avoid killing
+# processes from concurrent sessions.
+hook_cleanup_orphaned_processes() {
+    local AGE_THRESHOLD_MIN=30
+    local NOW_EPOCH
+    NOW_EPOCH=$(date +%s)
+
+    # Patterns for known nohup-orphaned commands
+    local PATTERNS=(
+        "timeout.*make.*test-plugin"
+        "timeout.*make.*test-e2e"
+        "timeout.*make.*test-unit"
+        "timeout.*make.*test-integration"
+        "timeout.*validate\.sh"
+    )
+
+    local KILLED=0
+    for pattern in "${PATTERNS[@]}"; do
+        # Get PIDs matching the pattern (exclude grep itself)
+        local PIDS
+        PIDS=$(pgrep -f "$pattern" 2>/dev/null || true)
+        if [[ -z "$PIDS" ]]; then
+            continue
+        fi
+
+        for pid in $PIDS; do
+            # Get process start time (elapsed seconds since start)
+            local ELAPSED
+            if [[ "$(uname)" == "Darwin" ]]; then
+                # macOS: ps -o etime gives [[dd-]hh:]mm:ss
+                local ETIME
+                ETIME=$(ps -o etime= -p "$pid" 2>/dev/null | tr -d ' ') || continue
+                # Skip if process vanished between pgrep and ps
+                [[ -z "$ETIME" ]] && continue
+                # Parse etime to seconds
+                local DAYS=0 HOURS=0 MINS=0 SECS=0
+                if [[ "$ETIME" == *-* ]]; then
+                    DAYS="${ETIME%%-*}"
+                    ETIME="${ETIME#*-}"
+                fi
+                # Count colons to determine format
+                local COLON_COUNT
+                COLON_COUNT=$(echo "$ETIME" | tr -cd ':' | wc -c | tr -d ' ')
+                if [[ "$COLON_COUNT" -eq 2 ]]; then
+                    HOURS=$(echo "$ETIME" | cut -d: -f1)
+                    MINS=$(echo "$ETIME" | cut -d: -f2)
+                    SECS=$(echo "$ETIME" | cut -d: -f3)
+                elif [[ "$COLON_COUNT" -eq 1 ]]; then
+                    MINS=$(echo "$ETIME" | cut -d: -f1)
+                    SECS=$(echo "$ETIME" | cut -d: -f2)
+                fi
+                # Remove leading zeros
+                DAYS=$((10#$DAYS)) HOURS=$((10#$HOURS)) MINS=$((10#$MINS)) SECS=$((10#$SECS))
+                ELAPSED=$(( DAYS*86400 + HOURS*3600 + MINS*60 + SECS ))
+            else
+                # Linux: use /proc
+                local START_TIME
+                START_TIME=$(stat -c %Y "/proc/$pid" 2>/dev/null) || continue
+                ELAPSED=$(( NOW_EPOCH - START_TIME ))
+            fi
+
+            local AGE_MIN=$(( ELAPSED / 60 ))
+            if [[ "$AGE_MIN" -ge "$AGE_THRESHOLD_MIN" ]]; then
+                # Kill the process group (timeout + make + children)
+                kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+                KILLED=$((KILLED + 1))
+            fi
+        done
+    done
+
+    if [[ "$KILLED" -gt 0 ]]; then
+        echo "Cleaned up $KILLED orphaned background process(es) older than ${AGE_THRESHOLD_MIN} minutes." >&2
+    fi
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # hook_inject_using_lockpick
 # ---------------------------------------------------------------------------
 # SessionStart hook: inject using-lockpick skill context into conversation

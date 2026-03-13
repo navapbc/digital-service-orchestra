@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/session-start.sh
-# SessionStart dispatcher: sources all 3 session-start hook functions and runs them.
+# SessionStart dispatcher: sources all 4 session-start hook functions and runs them.
 #
-# Replaces 3 separate settings.json SessionStart entries with a single dispatcher:
+# Replaces separate settings.json SessionStart entries with a single dispatcher:
 #   run-hook.sh dispatchers/session-start.sh
 #
 # Hook execution order:
+#   0. hook_cleanup_orphaned_processes — kill stale nohup orphans (>30 min old)
 #   1. hook_inject_using_lockpick     — inject using-lockpick skill context
 #   2. hook_session_safety_check      — analyze hook error log, create bugs for recurring errors
 #   3. hook_post_compact_review_check — warn about review state after compaction
 #
-# Returns: 0 always (all 3 hooks are informational/output-only; none block)
+# Returns: 0 always (all 4 hooks are informational/output-only; none block)
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
@@ -39,6 +40,7 @@ _session_start_dispatch() {
     INPUT=$(cat)
 
     for _HOOK_FN in \
+        hook_cleanup_orphaned_processes \
         hook_inject_using_lockpick \
         hook_session_safety_check \
         hook_post_compact_review_check

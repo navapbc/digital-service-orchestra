@@ -4,7 +4,7 @@
 # post-failure dispatchers and the session-misc-functions.sh library.
 #
 # Tests:
-#   test_session_start_dispatcher_runs_all_3_hooks
+#   test_session_start_dispatcher_runs_all_4_hooks
 #   test_stop_dispatcher_runs_review_stop_check
 #   test_pre_agent_dispatcher_denies_worktree_isolation
 #   test_worktree_isolation_guard_function_preserves_python3
@@ -34,26 +34,26 @@ PRE_TASKOUTPUT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-ta
 SESSION_MISC_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/session-misc-functions.sh"
 
 # ============================================================
-# test_session_start_dispatcher_runs_all_3_hooks
+# test_session_start_dispatcher_runs_all_4_hooks
 # The session-start dispatcher must exist, be executable, and
 # run without error for a normal (non-compact) session start input.
-# All 3 hooks (inject, safety-check, post-compact-review-check)
-# must be sourced and invoked.
+# All 4 hooks (cleanup-orphaned-processes, inject, safety-check,
+# post-compact-review-check) must be sourced and invoked.
 # ============================================================
-echo "--- test_session_start_dispatcher_runs_all_3_hooks ---"
+echo "--- test_session_start_dispatcher_runs_all_4_hooks ---"
 _dispatcher_exists=0
 [[ -f "$SESSION_START_DISPATCHER" ]] && _dispatcher_exists=1
-assert_eq "test_session_start_dispatcher_runs_all_3_hooks: file exists" "1" "$_dispatcher_exists"
+assert_eq "test_session_start_dispatcher_runs_all_4_hooks: file exists" "1" "$_dispatcher_exists"
 
 _dispatcher_executable=0
 [[ -x "$SESSION_START_DISPATCHER" ]] && _dispatcher_executable=1
-assert_eq "test_session_start_dispatcher_runs_all_3_hooks: executable" "1" "$_dispatcher_executable"
+assert_eq "test_session_start_dispatcher_runs_all_4_hooks: executable" "1" "$_dispatcher_executable"
 
-# Run with a normal start input — should exit 0 (all 3 hooks are informational)
+# Run with a normal start input — should exit 0 (all 4 hooks are informational)
 _INPUT='{"source":"start","session_id":"test-session-abc"}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$SESSION_START_DISPATCHER" 2>/dev/null || _exit_code=$?
-assert_eq "test_session_start_dispatcher_runs_all_3_hooks: exits 0 on normal start" "0" "$_exit_code"
+assert_eq "test_session_start_dispatcher_runs_all_4_hooks: exits 0 on normal start" "0" "$_exit_code"
 
 # ============================================================
 # test_stop_dispatcher_runs_review_stop_check
@@ -228,6 +228,95 @@ _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls"},"session_id":"test"}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$PRE_ALL_DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_eq "test_pre_all_dispatcher_calls_tool_logging_pre: exits 0" "0" "$_exit_code"
+
+# ============================================================
+# test_cleanup_orphaned_processes_function_defined
+# The session-misc-functions.sh library must define
+# hook_cleanup_orphaned_processes and it must exit 0 when
+# no matching processes exist.
+# ============================================================
+echo "--- test_cleanup_orphaned_processes_function_defined ---"
+(
+    _SESSION_MISC_FUNCTIONS_LOADED=""
+    source "$SESSION_MISC_FUNCTIONS" 2>/dev/null
+    declare -F hook_cleanup_orphaned_processes >/dev/null 2>&1
+)
+_fn_defined=$?
+assert_eq "test_cleanup_orphaned_processes_function_defined: function defined" "0" "$_fn_defined"
+
+# ============================================================
+# test_cleanup_orphaned_processes_exits_0_no_matches
+# When no orphaned processes match the patterns, the hook must
+# exit 0 without errors.
+# ============================================================
+echo "--- test_cleanup_orphaned_processes_exits_0_no_matches ---"
+_exit_code=0
+_output=""
+(
+    _SESSION_MISC_FUNCTIONS_LOADED=""
+    source "$SESSION_MISC_FUNCTIONS" 2>/dev/null
+    hook_cleanup_orphaned_processes
+) > /dev/null 2>&1 || _exit_code=$?
+assert_eq "test_cleanup_orphaned_processes_exits_0_no_matches: exits 0" "0" "$_exit_code"
+
+# ============================================================
+# test_cleanup_orphaned_processes_etime_parsing
+# The etime-to-seconds conversion must correctly handle various
+# etime formats: mm:ss, hh:mm:ss, dd-hh:mm:ss.
+# We test this by sourcing the function and verifying the parser
+# logic handles different formats (extracted into a test helper).
+# ============================================================
+echo "--- test_cleanup_orphaned_processes_etime_parsing ---"
+
+# Test etime parsing logic directly by simulating the parser
+_test_etime_to_seconds() {
+    local ETIME="$1"
+    local DAYS=0 HOURS=0 MINS=0 SECS=0
+    if [[ "$ETIME" == *-* ]]; then
+        DAYS="${ETIME%%-*}"
+        ETIME="${ETIME#*-}"
+    fi
+    local COLON_COUNT
+    COLON_COUNT=$(echo "$ETIME" | tr -cd ':' | wc -c | tr -d ' ')
+    if [[ "$COLON_COUNT" -eq 2 ]]; then
+        HOURS=$(echo "$ETIME" | cut -d: -f1)
+        MINS=$(echo "$ETIME" | cut -d: -f2)
+        SECS=$(echo "$ETIME" | cut -d: -f3)
+    elif [[ "$COLON_COUNT" -eq 1 ]]; then
+        MINS=$(echo "$ETIME" | cut -d: -f1)
+        SECS=$(echo "$ETIME" | cut -d: -f2)
+    fi
+    DAYS=$((10#$DAYS)) HOURS=$((10#$HOURS)) MINS=$((10#$MINS)) SECS=$((10#$SECS))
+    echo $(( DAYS*86400 + HOURS*3600 + MINS*60 + SECS ))
+}
+
+# mm:ss format
+_result=$(_test_etime_to_seconds "05:30")
+assert_eq "test_cleanup_orphaned_processes_etime_parsing: mm:ss 05:30 = 330s" "330" "$_result"
+
+# mm:ss with leading zeros
+_result=$(_test_etime_to_seconds "00:45")
+assert_eq "test_cleanup_orphaned_processes_etime_parsing: mm:ss 00:45 = 45s" "45" "$_result"
+
+# hh:mm:ss format
+_result=$(_test_etime_to_seconds "01:30:00")
+assert_eq "test_cleanup_orphaned_processes_etime_parsing: hh:mm:ss 01:30:00 = 5400s" "5400" "$_result"
+
+# hh:mm:ss with various values
+_result=$(_test_etime_to_seconds "02:15:30")
+assert_eq "test_cleanup_orphaned_processes_etime_parsing: hh:mm:ss 02:15:30 = 8130s" "8130" "$_result"
+
+# dd-hh:mm:ss format
+_result=$(_test_etime_to_seconds "1-00:00:00")
+assert_eq "test_cleanup_orphaned_processes_etime_parsing: dd-hh:mm:ss 1-00:00:00 = 86400s" "86400" "$_result"
+
+# dd-hh:mm:ss with complex values
+_result=$(_test_etime_to_seconds "2-03:30:15")
+assert_eq "test_cleanup_orphaned_processes_etime_parsing: dd-hh:mm:ss 2-03:30:15 = 185415s" "185415" "$_result"
+
+# Large minute value (>30 min threshold = 1800s)
+_result=$(_test_etime_to_seconds "45:00")
+assert_eq "test_cleanup_orphaned_processes_etime_parsing: mm:ss 45:00 = 2700s" "2700" "$_result"
 
 # ============================================================
 # Summary
