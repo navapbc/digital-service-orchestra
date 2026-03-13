@@ -18,6 +18,25 @@ if [[ ! -f "$HOOK_ERROR_LOG" ]]; then
     exit 0
 fi
 
+# --- Rotate: remove entries older than 7 days ---
+if command -v jq &>/dev/null; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+        ROTATE_CUTOFF=$(date -u -v-7d +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
+    else
+        ROTATE_CUTOFF=$(date -u -d "7 days ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
+    fi
+    if [[ -n "$ROTATE_CUTOFF" ]]; then
+        ROTATED=$(jq -c --arg cutoff "$ROTATE_CUTOFF" \
+            'select(.ts != null and .ts >= $cutoff)' \
+            "$HOOK_ERROR_LOG" 2>/dev/null) || ROTATED=""
+        if [[ -n "$ROTATED" ]]; then
+            echo "$ROTATED" > "$HOOK_ERROR_LOG.tmp" && mv "$HOOK_ERROR_LOG.tmp" "$HOOK_ERROR_LOG"
+        else
+            : > "$HOOK_ERROR_LOG"
+        fi
+    fi
+fi
+
 # --- Ensure jq is available ---
 if ! command -v jq &>/dev/null; then
     exit 0
@@ -63,6 +82,18 @@ while IFS= read -r line; do
     fi
 
     if (( COUNT >= THRESHOLD )); then
+        # Skip phantom hooks — only create bugs for hooks that exist
+        HOOK_EXISTS=false
+        for _HOOK_DIR in "$HOME/.claude/hooks" "$(git rev-parse --show-toplevel 2>/dev/null)/lockpick-workflow/hooks"; do
+            if [[ -f "$_HOOK_DIR/$HOOK_NAME" ]]; then
+                HOOK_EXISTS=true
+                break
+            fi
+        done
+        if [[ "$HOOK_EXISTS" == "false" ]]; then
+            continue
+        fi
+
         WARNINGS="${WARNINGS}\n  - ${HOOK_NAME}: ${COUNT} errors in last 24h"
 
         # Create bug if not already created for this hook
@@ -80,6 +111,18 @@ while IFS= read -r line; do
         fi
     fi
 done <<< "$COUNTS"
+
+# --- Check for unreviewed checkpoint commits ---
+# If .checkpoint-needs-review exists in HEAD, a pre-compact auto-save
+# committed with --no-verify and needs review before new work.
+REPO_ROOT_CHECK=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [[ -n "$REPO_ROOT_CHECK" && -f "$REPO_ROOT_CHECK/.checkpoint-needs-review" ]]; then
+    echo "# Unreviewed Checkpoint Detected"
+    echo ""
+    echo "A pre-compaction auto-save committed code without review."
+    echo "Run /commit (which includes /review) to review and clear the checkpoint before starting new work."
+    echo ""
+fi
 
 # --- Output warnings if any ---
 if [[ -n "$WARNINGS" ]]; then

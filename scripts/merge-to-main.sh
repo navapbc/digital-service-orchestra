@@ -237,10 +237,36 @@ if ! git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
 fi
 echo "OK: Merged $BRANCH into main."
 
+# --- 3.5) Post-merge validation ---
+# Pre-commit hooks use stages: [commit] which excludes merge commits.
+# Run format-check and lint here to catch issues that bypass pre-commit via merge.
+if [ -d "$MAIN_REPO/app" ]; then
+    echo "Running post-merge validation (format-check + lint)..."
+    POST_MERGE_FAIL=false
+    if ! (cd "$MAIN_REPO/app" && PY_RUN_APPROACH=local make format-check 2>&1); then
+        echo "WARNING: Post-merge format-check failed. Run 'make format' to fix."
+        POST_MERGE_FAIL=true
+    fi
+    if ! (cd "$MAIN_REPO/app" && PY_RUN_APPROACH=local make lint-ruff 2>&1); then
+        echo "WARNING: Post-merge lint failed. Fix lint errors before pushing."
+        POST_MERGE_FAIL=true
+    fi
+    if [[ "$POST_MERGE_FAIL" == "true" ]]; then
+        echo "ERROR: Post-merge validation failed. Fix issues, amend the merge commit, then retry."
+        exit 1
+    fi
+    echo "OK: Post-merge validation passed."
+fi
+
 # Stage any post-merge artifacts (.gitignore entries for worktree dirs)
 git add .gitignore 2>/dev/null || true
 
-REMAINING_DIRTY=$(git diff --name-only 2>/dev/null || true)
+# Auto-stage .tickets/ changes — CI failure tracking pushes ticket commits directly
+# to main, and the merge can leave .tickets/ files dirty. These are data files, not
+# code, so auto-staging into the merge commit is safe.
+git add "$TICKETS_DIR"/ 2>/dev/null || true
+
+REMAINING_DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
 if [ -n "$REMAINING_DIRTY" ]; then
     echo "WARNING: Unexpected dirty files on main (not staged): $REMAINING_DIRTY"
 fi

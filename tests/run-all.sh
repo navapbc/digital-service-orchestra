@@ -30,6 +30,15 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 
+# --- Isolate tests from real .tickets/ (290+ files slow git operations) ---
+# Override TICKETS_DIR so tk commands scan a minimal temp directory instead.
+# Tests that need specific ticket setups already create and export their own TICKETS_DIR.
+if [[ -z "${TICKETS_DIR:-}" ]]; then
+    _TEST_TICKETS_DIR=$(mktemp -d)
+    export TICKETS_DIR="$_TEST_TICKETS_DIR"
+    trap 'rm -rf "$_TEST_TICKETS_DIR"' EXIT
+fi
+
 # --- Default suite runner paths ---
 HOOKS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/hooks/run-hook-tests.sh"
 SCRIPTS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/scripts/run-script-tests.sh"

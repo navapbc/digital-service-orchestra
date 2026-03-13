@@ -257,8 +257,8 @@ hook_commit_failure_tracker() {
     # Read config-driven issue tracker commands (with fallback defaults)
     local _SEARCH_CMD_FROM_ENV="${SEARCH_CMD:-}"
     local _CREATE_CMD_FROM_ENV="${CREATE_CMD:-}"
-    local SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
-    local CREATE_CMD="${CREATE_CMD:-tk create}"
+    local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
+    local _CREATE_CMD="${CREATE_CMD:-tk create}"
     local _READ_CONFIG=""
     # _PRE_BASH_FUNC_DIR is hooks/lib/ so ../../scripts/ = lockpick-workflow/scripts/
     if [[ -f "$_PRE_BASH_FUNC_DIR/../../scripts/read-config.sh" ]]; then
@@ -269,12 +269,12 @@ hook_commit_failure_tracker() {
     if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_SEARCH_CMD_FROM_ENV" ]]; then
         local _SEARCH
         _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
-        [[ -n "$_SEARCH" ]] && SEARCH_CMD="$_SEARCH"
+        [[ -n "$_SEARCH" ]] && _SEARCH_CMD="$_SEARCH"
     fi
     if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_CREATE_CMD_FROM_ENV" ]]; then
         local _CREATE
         _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
-        [[ -n "$_CREATE" ]] && CREATE_CMD="$_CREATE"
+        [[ -n "$_CREATE" ]] && _CREATE_CMD="$_CREATE"
     fi
 
     # Check validation state
@@ -328,7 +328,7 @@ hook_commit_failure_tracker() {
     local category
     for category in "${FAILED_CATEGORIES[@]}"; do
         local RESULT
-        RESULT=$($SEARCH_CMD "$category failure" "$(git rev-parse --show-toplevel)/.tickets" 2>/dev/null | head -1 || echo "")
+        RESULT=$($_SEARCH_CMD "$category failure" "$(git rev-parse --show-toplevel)/.tickets" 2>/dev/null | head -1 || echo "")
         if [[ -z "$RESULT" ]]; then
             UNTRACKED+=("$category")
         fi
@@ -347,7 +347,7 @@ hook_commit_failure_tracker() {
     done
     echo "" >&2
     echo "Issues should have been auto-created by check-validation-failures.sh." >&2
-    echo "Search: $SEARCH_CMD '<check> failure' $(git rev-parse --show-toplevel)/.tickets" >&2
+    echo "Search: $_SEARCH_CMD '<check> failure' $(git rev-parse --show-toplevel)/.tickets" >&2
     echo "Create manually if needed: tk create \"Fix <check> failure\" -t bug -p 1" >&2
     echo "" >&2
 
@@ -404,11 +404,26 @@ hook_review_gate() {
         return 0
     fi
 
-    # If command contains "git add" before "git commit", execute the add portion
+    # If command contains "git add" before "git commit", check targets and execute
     if [[ "$FIRST_LINE" =~ git[[:space:]]+add[[:space:]] ]]; then
         local GIT_ADD_CMD
         GIT_ADD_CMD=$(echo "$FIRST_LINE" | sed 's/&&[[:space:]]*git[[:space:]].*commit.*//')
+
+        # Exempt: if ALL git add targets are .tickets/ paths, skip review entirely.
+        # This handles the PreToolUse timing issue: the hook fires BEFORE git add
+        # executes, so git diff --cached shows nothing staged. By inspecting the
+        # command's intended targets, we can exempt ticket-only commits without
+        # relying on index state.
         if [[ -n "$GIT_ADD_CMD" ]]; then
+            local _ADD_TARGETS _NON_TICKET_TARGETS
+            # Extract paths from the git add command (strip flags like -A, -u, -f, --)
+            _ADD_TARGETS=$(echo "$GIT_ADD_CMD" | sed 's/git[[:space:]]*add//' | sed 's/[[:space:]]*--[[:space:]]*//' | sed 's/[[:space:]]*-[AufpneNv]*//g' | xargs 2>/dev/null || echo "")
+            if [[ -n "$_ADD_TARGETS" ]]; then
+                _NON_TICKET_TARGETS=$(echo "$_ADD_TARGETS" | tr ' ' '\n' | grep -v '^\.\?tickets/' | grep -v '^\.sync-state\.json$' || true)
+                if [[ -z "$_NON_TICKET_TARGETS" ]]; then
+                    return 0
+                fi
+            fi
             eval "$GIT_ADD_CMD" 2>/dev/null || true
         fi
     fi

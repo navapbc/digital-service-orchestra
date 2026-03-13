@@ -127,12 +127,12 @@ fi
 mkdir -p "$(dirname "$HOOK_ERROR_LOG")"
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 for _i in $(seq 1 11); do
-    printf '{"ts":"%s","hook":"bad-hook.sh","line":42}\n' "$NOW" >> "$HOOK_ERROR_LOG"
+    printf '{"ts":"%s","hook":"auto-format.sh","line":42}\n' "$NOW" >> "$HOOK_ERROR_LOG"
 done
 
 # Also clear the bugs_dir marker so bug creation is attempted
 _SS_BUGS_DIR="$HOME/.claude/hook-error-bugs"
-_SS_MARKER="$_SS_BUGS_DIR/bad-hook.sh.bug"
+_SS_MARKER="$_SS_BUGS_DIR/auto-format.sh.bug"
 _SS_MARKER_SAVED=""
 if [[ -f "$_SS_MARKER" ]]; then
     _SS_MARKER_SAVED=$(cat "$_SS_MARKER")
