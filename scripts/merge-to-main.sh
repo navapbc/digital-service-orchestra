@@ -22,10 +22,11 @@ fi
 cd "$REPO_ROOT"
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
 
 # --- Load hooks/lib/deps.sh for get_artifacts_dir ---
 # Needed for checkpoint sentinel verification (see below).
-_HOOK_LIB="$_SCRIPT_DIR/../hooks/lib/deps.sh"
+_HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
 if [[ -f "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"
 fi

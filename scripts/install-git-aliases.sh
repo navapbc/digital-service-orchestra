@@ -14,8 +14,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Resolve the repo root from the location of this script (lockpick-workflow/scripts/).
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Resolve the repo root via git (works from any nested directory).
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # ── Register aliases ──────────────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 TK="${TK:-$SCRIPT_DIR/tk}"
 
 # ── Parse flags ──────────────────────────────────────────────────────────────

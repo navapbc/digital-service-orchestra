@@ -20,7 +20,7 @@ set -uo pipefail
 
 # ── Resolve REPO_ROOT ─────────────────────────────────────────────────────────
 if [[ -z "${REPO_ROOT:-}" ]]; then
-    REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
 fi
 
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"

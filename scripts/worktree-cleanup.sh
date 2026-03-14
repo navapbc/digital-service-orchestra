@@ -315,9 +315,9 @@ _delete_local_branch() {
 
 # ── Find main repo root ──────────────────────────────────────────────────────
 
-# The script lives in <repo>/lockpick-workflow/scripts/, so the repo root is two levels up
+# Resolve the repo root via git (works from any nested directory).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MAIN_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
+MAIN_REPO="$(git rev-parse --show-toplevel)"
 
 # Verify this is a git repo
 if ! git -C "$MAIN_REPO" rev-parse --git-dir &>/dev/null; then

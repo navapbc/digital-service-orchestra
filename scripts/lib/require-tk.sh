@@ -3,7 +3,7 @@
 # Shared helper for tk CLI availability checking.
 #
 # Usage: source this file and call require_tk before using tk commands.
-#   source "$(dirname "${BASH_SOURCE[0]}")/../lib/require-tk.sh"
+#   source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/require-tk.sh"
 #   require_tk
 #
 # Respects TK env var for custom tk path. Exits 1 with clear error if tk is not found.
