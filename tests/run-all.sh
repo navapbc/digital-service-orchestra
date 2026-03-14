@@ -114,35 +114,52 @@ EVALS_EXIT=0
 HOOKS_EXIT=0
 SCRIPTS_EXIT=0
 
-# --- Temp files for parallel suite output and exit codes ---
-_HOOKS_OUT=$(mktemp)
-_HOOKS_EXIT_FILE=$(mktemp)
-_SCRIPTS_OUT=$(mktemp)
-_SCRIPTS_EXIT_FILE=$(mktemp)
+# --- Run hooks and scripts suites ---
+# SERIAL_SUITES=1 runs hooks then scripts sequentially (lower peak memory for CI).
+# Default: concurrent execution with output captured to temp files.
+if [ "${SERIAL_SUITES:-0}" = "1" ]; then
+    # --- Sequential mode (CI-friendly) ---
+    echo ""
+    echo "========================================"
+    echo "Suite: Hook Tests"
+    echo "========================================"
+    bash "$HOOKS_RUNNER" </dev/null || HOOKS_EXIT=$?
 
-# --- Run hooks and scripts suites concurrently ---
-run_suite_to_file "Hook Tests" "$HOOKS_RUNNER" "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" &
-_HOOKS_PID=$!
-run_suite_to_file "Script Tests" "$SCRIPTS_RUNNER" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" &
-_SCRIPTS_PID=$!
+    echo ""
+    echo "========================================"
+    echo "Suite: Script Tests"
+    echo "========================================"
+    bash "$SCRIPTS_RUNNER" </dev/null || SCRIPTS_EXIT=$?
+else
+    # --- Concurrent mode (local dev) ---
+    _HOOKS_OUT=$(mktemp)
+    _HOOKS_EXIT_FILE=$(mktemp)
+    _SCRIPTS_OUT=$(mktemp)
+    _SCRIPTS_EXIT_FILE=$(mktemp)
 
-# Propagate signals to background suite runners so they don't orphan when
-# the parent is killed (by CI timeout, cancel-in-progress, or the 720s wrapper).
-_kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" 2>/dev/null || true; }
-trap '_kill_suites' TERM INT
+    run_suite_to_file "Hook Tests" "$HOOKS_RUNNER" "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" &
+    _HOOKS_PID=$!
+    run_suite_to_file "Script Tests" "$SCRIPTS_RUNNER" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" &
+    _SCRIPTS_PID=$!
 
-wait "$_HOOKS_PID"
-wait "$_SCRIPTS_PID"
+    # Propagate signals to background suite runners so they don't orphan when
+    # the parent is killed (by CI timeout, cancel-in-progress, or the 720s wrapper).
+    _kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" 2>/dev/null || true; }
+    trap '_kill_suites' TERM INT
 
-trap - TERM INT
+    wait "$_HOOKS_PID"
+    wait "$_SCRIPTS_PID"
 
-# Print captured output sequentially for readable logs
-cat "$_HOOKS_OUT"
-cat "$_SCRIPTS_OUT"
+    trap - TERM INT
 
-HOOKS_EXIT=$(cat "$_HOOKS_EXIT_FILE")
-SCRIPTS_EXIT=$(cat "$_SCRIPTS_EXIT_FILE")
-rm -f "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE"
+    # Print captured output sequentially for readable logs
+    cat "$_HOOKS_OUT"
+    cat "$_SCRIPTS_OUT"
+
+    HOOKS_EXIT=$(cat "$_HOOKS_EXIT_FILE")
+    SCRIPTS_EXIT=$(cat "$_SCRIPTS_EXIT_FILE")
+    rm -f "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE"
+fi
 
 # --- Run evals suite after parallel suites complete ---
 echo ""
