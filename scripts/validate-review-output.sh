@@ -18,7 +18,7 @@
 # Caller IDs and their schema hashes (--caller for review-protocol):
 #   roadmap                f4e5f5a355e4c145
 #   design-wireframe       bd60a68f8060f939
-#   implementation-plan    88bcd1ab2b1d0108
+#   implementation-plan    ae8bfc7bd9a0d7e3
 #   retro                  8a1a3dd74e54f101
 #   design-review          1a50fe899037ef49
 #   dev-onboarding         9ec70789c77bcca2
@@ -52,7 +52,7 @@ HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 # --- Per-caller schema hashes (for --caller with review-protocol) ---
 HASH_CALLER_ROADMAP="f4e5f5a355e4c145"
 HASH_CALLER_DESIGN_WIREFRAME="bd60a68f8060f939"
-HASH_CALLER_IMPLEMENTATION_PLAN="88bcd1ab2b1d0108"
+HASH_CALLER_IMPLEMENTATION_PLAN="ae8bfc7bd9a0d7e3"
 HASH_CALLER_RETRO="8a1a3dd74e54f101"
 HASH_CALLER_DESIGN_REVIEW="1a50fe899037ef49"
 HASH_CALLER_DEV_ONBOARDING="9ec70789c77bcca2"
@@ -473,11 +473,16 @@ CALLER_SCHEMAS = {
         ],
     },
     "implementation-plan": {
-        "schema_hash": "88bcd1ab2b1d0108",
+        "schema_hash": "ae8bfc7bd9a0d7e3",
         "perspectives": [
             {
                 "perspective": "Task Design",
-                "required_dimensions": ["atomicity", "tdd_discipline"],
+                "required_dimensions": ["atomicity", "acceptance_criteria"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "TDD",
+                "required_dimensions": ["tdd_discipline", "test_isolation", "red_green_sequence", "test_boundary_coverage"],
                 "required_finding_fields": [],
             },
             {

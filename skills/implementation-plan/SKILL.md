@@ -308,6 +308,7 @@ Invoke `/review-protocol` to evaluate the plan:
 - **start_stage**: 1
 - **perspectives**: Read from reviewer files in `docs/reviewers/plan/`:
   - [docs/reviewers/plan/task-design.md](docs/reviewers/plan/task-design.md) — perspective: `"Task Design"`
+  - [docs/reviewers/plan/tdd.md](docs/reviewers/plan/tdd.md) — perspective: `"TDD"`
   - [docs/reviewers/plan/safety.md](docs/reviewers/plan/safety.md) — perspective: `"Safety"`
   - [docs/reviewers/plan/dependencies.md](docs/reviewers/plan/dependencies.md) — perspective: `"Dependencies"`
   - [docs/reviewers/plan/completeness.md](docs/reviewers/plan/completeness.md) — perspective: `"Completeness"`
