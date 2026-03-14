@@ -5,13 +5,22 @@
 # track-tool-errors.sh is a PostToolUseFailure hook that categorizes and counts
 # tool errors, and creates a bug ticket when any category reaches 50 occurrences.
 # It always exits 0 (non-blocking).
+#
+# All tests use an isolated $HOME (temp dir) so no real user files are touched.
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/track-tool-errors.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
-COUNTER_FILE="$HOME/.claude/tool-error-counter.json"
+# --- Test isolation: override HOME to a temp directory ---
+_REAL_HOME="$HOME"
+TEST_HOME=$(mktemp -d)
+export HOME="$TEST_HOME"
+mkdir -p "$TEST_HOME/.claude"
+trap 'export HOME="$_REAL_HOME"; rm -rf "$TEST_HOME"' EXIT
+
+COUNTER_FILE="$TEST_HOME/.claude/tool-error-counter.json"
 
 run_hook() {
     local input="$1"
@@ -39,23 +48,13 @@ assert_eq "test_track_tool_errors_exits_zero_on_empty_error" "0" "$EXIT_CODE"
 
 # test_track_tool_errors_exits_zero_on_normal_error
 # Normal tool error → categorize, increment counter, exit 0
-# Back up and remove the counter file so we start clean
-_ORIG_COUNTER=""
-if [[ -f "$COUNTER_FILE" ]]; then
-    _ORIG_COUNTER=$(cat "$COUNTER_FILE")
-    rm -f "$COUNTER_FILE"
-fi
+rm -f "$COUNTER_FILE"
 
 INPUT='{"tool_name":"Read","error":"file not found: /tmp/test.txt","is_interrupt":false}'
 EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_track_tool_errors_exits_zero_on_normal_error" "0" "$EXIT_CODE"
 
-# Restore counter file
-if [[ -n "$_ORIG_COUNTER" ]]; then
-    echo "$_ORIG_COUNTER" > "$COUNTER_FILE"
-else
-    rm -f "$COUNTER_FILE"
-fi
+rm -f "$COUNTER_FILE"
 
 # test_track_tool_errors_exits_zero_on_malformed_json
 # Malformed JSON → exit 0 (fail-open)
@@ -94,12 +93,6 @@ exit 0
 MOCK_EOF
 chmod +x "$_TTE_FAKE_BIN/bd"
 
-# Back up counter file and prime it so the next call pushes the category to threshold (50)
-_TTE_ORIG_COUNTER=""
-if [[ -f "$COUNTER_FILE" ]]; then
-    _TTE_ORIG_COUNTER=$(cat "$COUNTER_FILE")
-fi
-
 # Build a counter file where 'permission_denied' is at 49 occurrences (threshold is 50)
 # So the next call will push it to 50 and trigger bug creation.
 # NOTE: 'file_not_found' is in NOISE_CATEGORIES and is intentionally excluded from
@@ -120,12 +113,7 @@ if [[ -f "$_TTE_TK_LOG" ]] && grep -q "create" "$_TTE_TK_LOG" 2>/dev/null; then
 fi
 assert_eq "test_track_tool_errors_creates_tk_bug" "yes" "$_TTE_TK_CALLED"
 
-# Restore counter file
-if [[ -n "$_TTE_ORIG_COUNTER" ]]; then
-    echo "$_TTE_ORIG_COUNTER" > "$COUNTER_FILE"
-else
-    rm -f "$COUNTER_FILE"
-fi
+rm -f "$COUNTER_FILE"
 rm -rf "$_TTE_FAKE_BIN"
 
 # ============================================================
@@ -141,10 +129,6 @@ assert_eq "test_track_tool_errors_no_jq_calls_remain" "0" "$_TTE_JQ_COUNT"
 
 # test_track_tool_errors_counter_json_structure
 # Feed a known error, then validate the counter file has correct JSON structure.
-_TTE_ORIG_COUNTER2=""
-if [[ -f "$COUNTER_FILE" ]]; then
-    _TTE_ORIG_COUNTER2=$(cat "$COUNTER_FILE")
-fi
 rm -f "$COUNTER_FILE"
 
 INPUT='{"tool_name":"Bash","error":"command not found: foobar","tool_input":{"command":"foobar --version"},"session_id":"test-session-123","is_interrupt":false}'
@@ -243,12 +227,7 @@ else:
 fi
 assert_eq "test_track_tool_errors_bug_recorded_in_json" "yes" "$_TTE_BUG_RECORDED"
 
-# Restore counter file
-if [[ -n "$_TTE_ORIG_COUNTER2" ]]; then
-    echo "$_TTE_ORIG_COUNTER2" > "$COUNTER_FILE"
-else
-    rm -f "$COUNTER_FILE"
-fi
+rm -f "$COUNTER_FILE"
 rm -rf "$_TTE_FAKE_BIN2"
 
 print_summary

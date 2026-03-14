@@ -4,13 +4,22 @@
 #
 # tool-logging.sh is a PreToolUse/PostToolUse hook that logs every tool call
 # as JSONL. It always exits 0. Only logs if ~/.claude/tool-logging-enabled exists.
+#
+# All tests use an isolated $HOME (temp dir) so no real user files are touched.
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/tool-logging.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
-LOGGING_FLAG="$HOME/.claude/tool-logging-enabled"
+# --- Test isolation: override HOME to a temp directory ---
+_REAL_HOME="$HOME"
+TEST_HOME=$(mktemp -d)
+export HOME="$TEST_HOME"
+mkdir -p "$TEST_HOME/.claude/logs"
+trap 'export HOME="$_REAL_HOME"; rm -rf "$TEST_HOME"' EXIT
+
+LOGGING_FLAG="$TEST_HOME/.claude/tool-logging-enabled"
 
 run_hook_exit() {
     local input="$1"
@@ -19,13 +28,6 @@ run_hook_exit() {
     echo "$input" | bash "$HOOK" "$mode" > /dev/null 2>/dev/null || exit_code=$?
     echo "$exit_code"
 }
-
-# Ensure logging is disabled for these tests (so we don't create test log entries)
-LOGGING_WAS_ENABLED=false
-if [[ -f "$LOGGING_FLAG" ]]; then
-    LOGGING_WAS_ENABLED=true
-    rm -f "$LOGGING_FLAG"
-fi
 
 # test_tool_logging_exits_zero_always (pre mode, logging disabled)
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo test"}}'
@@ -64,13 +66,8 @@ rm -f "$LOGGING_FLAG"
 
 # ---- JSONL output schema tests (logging enabled) ----
 
-# Setup: enable logging and use a temp log directory
+# Setup: enable logging (already in isolated TEST_HOME)
 touch "$LOGGING_FLAG"
-ORIG_HOME="$HOME"
-TEST_HOME=$(mktemp -d)
-export HOME="$TEST_HOME"
-mkdir -p "$TEST_HOME/.claude"
-touch "$TEST_HOME/.claude/tool-logging-enabled"
 
 # test_jsonl_pre_mode_has_required_fields
 INPUT='{"tool_name":"Bash","tool_input":{"command":"ls -la"},"session_id":"test-jsonl-123"}'
@@ -151,10 +148,6 @@ SUMMARY_LEN=$(echo "$LAST_LINE" | python3 -c "import json,sys; d=json.load(sys.s
 WITHIN_LIMIT=$( (( SUMMARY_LEN <= 500 )) && echo "yes" || echo "no" )
 assert_eq "test_jsonl_summary_within_500_chars" "yes" "$WITHIN_LIMIT"
 
-# Cleanup test artifacts
-rm -rf "$TEST_HOME"
-export HOME="$ORIG_HOME"
-
 # ---- Dispatcher integration tests ----
 # Verify tool logging works when invoked via per-tool dispatchers
 # (post-consolidation: dispatchers replaced catch-all empty-matcher hooks)
@@ -162,16 +155,13 @@ export HOME="$ORIG_HOME"
 PRE_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
 POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
 
-# Setup: fresh temp HOME with logging enabled
-_DISP_HOME=$(mktemp -d)
-mkdir -p "$_DISP_HOME/.claude/logs"
-touch "$_DISP_HOME/.claude/tool-logging-enabled"
-export HOME="$_DISP_HOME"
+# Reset log file for dispatcher tests
+rm -f "$LOG_FILE"
 
 # test_tool_logging_via_pre_bash_dispatcher
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo dispatcher-test"},"session_id":"disp-pre-123"}'
-printf '%s' "$INPUT" | HOME="$_DISP_HOME" bash "$PRE_BASH_DISPATCHER" 2>/dev/null || true
-_DISP_LOG="$_DISP_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+printf '%s' "$INPUT" | bash "$PRE_BASH_DISPATCHER" 2>/dev/null || true
+_DISP_LOG="$TEST_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
 _disp_pre_ok="no"
 if [[ -f "$_DISP_LOG" ]] && grep -q '"hook_type":"pre"' "$_DISP_LOG" 2>/dev/null; then
     _disp_pre_ok="yes"
@@ -180,22 +170,11 @@ assert_eq "test_tool_logging_via_pre_bash_dispatcher" "yes" "$_disp_pre_ok"
 
 # test_tool_logging_via_post_bash_dispatcher
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo dispatcher-test"},"tool_response":{"stdout":"ok","exit_code":0},"session_id":"disp-post-456"}'
-printf '%s' "$INPUT" | HOME="$_DISP_HOME" bash "$POST_BASH_DISPATCHER" 2>/dev/null || true
+printf '%s' "$INPUT" | bash "$POST_BASH_DISPATCHER" 2>/dev/null || true
 _disp_post_ok="no"
 if [[ -f "$_DISP_LOG" ]] && grep -q '"hook_type":"post"' "$_DISP_LOG" 2>/dev/null; then
     _disp_post_ok="yes"
 fi
 assert_eq "test_tool_logging_via_post_bash_dispatcher" "yes" "$_disp_post_ok"
-
-# Cleanup dispatcher test artifacts
-rm -rf "$_DISP_HOME"
-export HOME="$ORIG_HOME"
-
-# Restore logging state
-if [[ "$LOGGING_WAS_ENABLED" == "true" ]]; then
-    touch "$LOGGING_FLAG"
-else
-    rm -f "$LOGGING_FLAG"
-fi
 
 print_summary
