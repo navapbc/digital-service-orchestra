@@ -140,7 +140,6 @@ version: "1.0.0"
 issue_tracker:
   search_cmd: 'gh issue list --search'
 YAML_EOF
->>>>>>> origin/main
 
 ARTIFACTS_DIR_CT="$(get_artifacts_dir)"
 mkdir -p "$ARTIFACTS_DIR_CT"
