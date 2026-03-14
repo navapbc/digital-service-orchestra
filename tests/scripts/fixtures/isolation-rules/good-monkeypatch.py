@@ -3,8 +3,6 @@
 
 import os
 
-import pytest
-
 
 def test_with_monkeypatch(monkeypatch):
     monkeypatch.setenv("MY_KEY", "value")
