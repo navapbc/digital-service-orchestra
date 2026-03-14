@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
 # lockpick-workflow/scripts/read-config.sh
-# Pure-bash reader for flat KEY=VALUE config files (workflow-config.conf).
+# YAML/conf reader for workflow-config.yaml (or .conf) files.
 #
 # Usage (key-first):  read-config.sh [--list] <key> [config-file]
 # Usage (config-first): read-config.sh <config-file> <key>
 #
+# Supports:
+#   - Arbitrary nesting depth via dot-notation (e.g. "tickets.sync.jira_project_key")
+#   - List/sequence values with --list flag (one item per line)
+#   - Malformed YAML detection (exits 1 with error message)
+#   - Non-scalar detection in scalar mode (exits 1 with "non-scalar" error)
+#   - Empty list → empty output, exit 0
+#   - Absent key in --list mode → exit 1
+#   - Absent key in scalar mode → empty output, exit 0
+#   - Missing file → empty output, exit 0
+#   - CLAUDE_PLUGIN_PYTHON env var to override Python interpreter
+#
 # Exit codes:
 #   0 — success, missing file, or missing key (scalar mode)
 #   1 — missing key in --list mode (distinguishes "empty" from "absent")
+#   1 — malformed YAML
+#   1 — non-scalar value in scalar mode
 
 set -uo pipefail
 list_mode=""; [[ "${1:-}" == "--list" ]] && { list_mode=1; shift; }
@@ -38,21 +51,103 @@ if [[ "$config_file" == *.yaml || "$config_file" == *.yml ]]; then
     [[ -f "$sib" ]] && config_file="$sib"
 fi
 
-# Emit flat KEY=VALUE lines (awk flattens YAML during transition)
-# REVIEW-DEFENSE: The awk YAML parser intentionally handles only 2-level scalar YAML.
-# .conf is the primary format (takes precedence when both exist); YAML is a transition
-# fallback. Callers passing .yaml explicitly get auto-redirected to .conf sibling (lines 36-38).
-# Inline lists and 3-level nesting are not needed — real config uses .conf format.
-_lines() {
-    if [[ "$config_file" == *.yaml || "$config_file" == *.yml ]]; then
-        awk '/^\s*#/{next}/^[^ ][^:]*:$/{sub(/:$/,"");p=$0;next}/^[^ ][^:]*: /{k=$0;sub(/: .*/,"",k);v=$0;sub(/^[^:]*: /,"",v);gsub(/"/,"",v);print k"="v;next}/^  [^ ]/{l=$0;sub(/^  /,"",l);k=l;sub(/: .*/,"",k);v=l;sub(/^[^:]*: /,"",v);gsub(/"/,"",v);print p"."k"="v}' "$config_file"
-    else grep -v '^\s*#' "$config_file"; fi
-}
-
-# Extract value(s) for the requested key
-if [[ -n "$list_mode" ]]; then
-    results=$(_lines | grep "^${key}=" | cut -d= -f2-)
-    [[ -n "$results" ]] && { printf '%s\n' "$results"; exit 0; }; exit 1
-else
-    printf '%s' "$(_lines | grep -m1 "^${key}=" | cut -d= -f2-)"; exit 0
+# ── .conf format: flat KEY=VALUE lines ───────────────────────────────────────
+if [[ "$config_file" == *.conf ]]; then
+    _conf_lines() { grep -v '^\s*#' "$config_file"; }
+    if [[ -n "$list_mode" ]]; then
+        results=$(_conf_lines | grep "^${key}=" | cut -d= -f2-)
+        [[ -n "$results" ]] && { printf '%s\n' "$results"; exit 0; }; exit 1
+    else
+        printf '%s' "$(_conf_lines | grep -m1 "^${key}=" | cut -d= -f2-)"; exit 0
+    fi
 fi
+
+# ── YAML format: use Python/pyyaml for full YAML support ──────────────────────
+
+# Resolve Python interpreter (CLAUDE_PLUGIN_PYTHON env var or probe)
+PYTHON="${CLAUDE_PLUGIN_PYTHON:-}"
+if [[ -z "$PYTHON" ]]; then
+    # Derive actual repo root from script location (not necessarily CLAUDE_PLUGIN_ROOT)
+    _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    _actual_repo_root="$(cd "$_script_dir" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
+    for candidate in \
+        "${_actual_repo_root:+$_actual_repo_root/app/.venv/bin/python3}" \
+        "${_actual_repo_root:+$_actual_repo_root/.venv/bin/python3}" \
+        "${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/app/.venv/bin/python3}" \
+        "python3"; do
+        [[ -z "$candidate" ]] && continue
+        [[ "$candidate" != "python3" ]] && [[ ! -f "$candidate" ]] && continue
+        if "$candidate" -c "import yaml" 2>/dev/null; then
+            PYTHON="$candidate"
+            break
+        fi
+    done
+fi
+
+if [[ -z "$PYTHON" ]]; then
+    echo "Error: no python3 with pyyaml found — cannot parse YAML config" >&2
+    exit 1
+fi
+
+# Python script: resolve a dotted key path in YAML, handling lists and scalars.
+# Outputs differ by mode:
+#   scalar mode:  print scalar value (str/int/bool/float), error on list/dict
+#   list mode:    print each list item on its own line, scalar on one line,
+#                 empty list → empty output, absent key → exit 1
+_PY_SCRIPT='
+import sys, yaml
+
+config_file = sys.argv[1]
+key_path    = sys.argv[2]
+list_mode   = sys.argv[3] == "1"
+
+# Load and validate YAML
+try:
+    with open(config_file) as f:
+        data = yaml.safe_load(f)
+except yaml.YAMLError as e:
+    print(f"Error: malformed YAML in {config_file}: {e}", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"Error: cannot read {config_file}: {e}", file=sys.stderr)
+    sys.exit(1)
+
+if data is None:
+    data = {}
+
+# Traverse dot-notation key path
+parts = key_path.split(".")
+value = data
+for part in parts:
+    if not isinstance(value, dict):
+        value = None
+        break
+    value = value.get(part)
+    if value is None:
+        break
+
+# Key absent
+if value is None:
+    if list_mode:
+        sys.exit(1)  # absent key in list mode = error
+    else:
+        sys.exit(0)  # absent key in scalar mode = empty output
+
+# List mode
+if list_mode:
+    if isinstance(value, list):
+        for item in value:
+            print(item)          # empty list prints nothing
+    else:
+        print(value)             # scalar degrades gracefully
+    sys.exit(0)
+
+# Scalar mode
+if isinstance(value, (list, dict)):
+    print(f"Error: key \"{key_path}\" is non-scalar (use --list to read sequences)", file=sys.stderr)
+    sys.exit(1)
+print(value, end="")
+sys.exit(0)
+'
+
+"$PYTHON" -c "$_PY_SCRIPT" "$config_file" "$key" "${list_mode:-0}"
