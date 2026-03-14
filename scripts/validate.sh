@@ -74,12 +74,43 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Use the caller's git toplevel as REPO_ROOT so that worktrees are tested
 # against their own working tree, not the main repo's.
 CALLER_GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [ -n "$CALLER_GIT_ROOT" ] && [ -d "$CALLER_GIT_ROOT/app" ]; then
+if [ -n "$CALLER_GIT_ROOT" ]; then
     REPO_ROOT="$CALLER_GIT_ROOT"
 else
     REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
-APP_DIR="$REPO_ROOT/app"
+
+# --- Config-driven command and path resolution ---
+# All commands are read from workflow-config.conf via read-config.sh.
+# Fallback defaults preserve backward compatibility when config keys are absent.
+READ_CONFIG="$SCRIPT_DIR/read-config.sh"
+CONFIG_FILE="$REPO_ROOT/workflow-config.conf"
+
+_cfg() {
+    local key="$1" default="${2:-}"
+    local val=""
+    if [ -f "$CONFIG_FILE" ] && [ -x "$READ_CONFIG" ]; then
+        val=$("$READ_CONFIG" "$key" "$CONFIG_FILE" 2>/dev/null || true)
+    fi
+    if [ -z "$val" ]; then
+        echo "$default"
+    else
+        echo "$val"
+    fi
+}
+
+# Resolve APP_DIR from config (fallback: app)
+_APP_DIR_REL=$(_cfg "paths.app_dir" "app")
+APP_DIR="$REPO_ROOT/$_APP_DIR_REL"
+
+# Cache command config at startup (with fallback defaults matching current make targets)
+CMD_SYNTAX_CHECK=$(_cfg "commands.syntax_check" "make syntax-check")
+CMD_FORMAT_CHECK=$(_cfg "commands.format_check" "make format-check")
+CMD_LINT_RUFF=$(_cfg "commands.lint_ruff" "make lint-ruff")
+CMD_LINT_MYPY=$(_cfg "commands.lint_mypy" "make lint-mypy")
+CMD_TEST_UNIT=$(_cfg "commands.test_unit" "make test-unit-only")
+CMD_TEST_PLUGIN=$(_cfg "commands.test_plugin" "make test-plugin")
+CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
 
 # Detect if running in a worktree
 if [ -f "$REPO_ROOT/.git" ]; then
@@ -553,12 +584,15 @@ check_ci() {
 
 # Launch all independent checks in parallel
 cd "$APP_DIR"
-run_check "syntax" "$TIMEOUT_SYNTAX" make syntax-check &
-run_check "format" "$TIMEOUT_FORMAT" make format-check &
-run_check "ruff" "$TIMEOUT_RUFF" make lint-ruff &
-run_check "mypy" "$TIMEOUT_MYPY" make lint-mypy &
-run_check "tests" "$TIMEOUT_TESTS" make test-unit-only args="-q --tb=line" &
-run_check "plugin" "$TIMEOUT_PLUGIN" make -C "$REPO_ROOT" test-plugin &
+# REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
+# Commands like "make format-check" must split into ["make", "format-check"] for run_check.
+# This is the standard bash pattern for stored multi-word commands.
+run_check "syntax" "$TIMEOUT_SYNTAX" $CMD_SYNTAX_CHECK &
+run_check "format" "$TIMEOUT_FORMAT" $CMD_FORMAT_CHECK &
+run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
+run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
+run_check "tests" "$TIMEOUT_TESTS" $CMD_TEST_UNIT args="-q --tb=line" &
+(cd "$REPO_ROOT" && run_check "plugin" "$TIMEOUT_PLUGIN" $CMD_TEST_PLUGIN) &
 check_migrations &
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
@@ -576,7 +610,7 @@ if [ $CHECK_CI -eq 1 ]; then
         if [ "$local_ci_rc" != "0" ] && [ "$local_ci_rc" != "skip" ] && \
            [[ "$local_e2e_result" == completed:* ]] && [ -z "$CI" ]; then
             [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running (parallel, CI failed)"
-            run_check "e2e" "$TIMEOUT_E2E" make test-e2e
+            run_check "e2e" "$TIMEOUT_E2E" $CMD_TEST_E2E
             echo "parallel" > "$CHECK_DIR/e2e.mode"
         fi
     ) &
@@ -763,7 +797,7 @@ if [ $CHECK_CI -eq 1 ]; then
         # In CI environment: always run E2E tests
         E2E_RAN=1
         [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"
-        if run_with_timeout "$TIMEOUT_E2E" "test-e2e" make test-e2e >> "$LOGFILE" 2>&1; then
+        if run_with_timeout "$TIMEOUT_E2E" "test-e2e" $CMD_TEST_E2E >> "$LOGFILE" 2>&1; then
             if [ "$VERBOSE" = "0" ]; then
                 echo "  e2e:     PASS"
             else
@@ -836,7 +870,7 @@ if [ $CHECK_CI -eq 1 ]; then
             # CI still running/pending — run E2E locally to catch issues early
             E2E_RAN=1
             [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"
-            if run_with_timeout "$TIMEOUT_E2E" "test-e2e" make test-e2e >> "$LOGFILE" 2>&1; then
+            if run_with_timeout "$TIMEOUT_E2E" "test-e2e" $CMD_TEST_E2E >> "$LOGFILE" 2>&1; then
                 if [ "$VERBOSE" = "0" ]; then
                     echo "  e2e:     PASS"
                 else

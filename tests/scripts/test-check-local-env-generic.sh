@@ -77,9 +77,8 @@ _run_script() {
 case "$*" in
     info*)       exit 0 ;;
     "ps --format"*)
-        # Emit the container name from STUB_DB_CONTAINER env var if set,
-        # or the default 'lockpick-postgres-dev'
-        echo "${STUB_DB_CONTAINER:-lockpick-postgres-dev}"
+        # Emit the container name from STUB_DB_CONTAINER env var if set
+        echo "${STUB_DB_CONTAINER:-}"
         exit 0
         ;;
     "inspect --format"*)

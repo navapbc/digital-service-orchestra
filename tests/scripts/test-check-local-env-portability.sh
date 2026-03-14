@@ -70,7 +70,7 @@ _run_script() {
 case "$*" in
     info*)       exit 0 ;;
     "ps --format"*)
-        echo "${STUB_DB_CONTAINER:-lockpick-postgres-dev}"
+        echo "${STUB_DB_CONTAINER:-}"
         exit 0
         ;;
     "inspect --format"*)

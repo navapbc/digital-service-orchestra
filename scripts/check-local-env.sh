@@ -12,7 +12,7 @@
 #
 # Config keys (workflow-config.conf):
 #   commands.env_check_app          — project-specific callback; absent = warn + skip
-#   infrastructure.db_container     — DB container name (default: lockpick-postgres-dev)
+#   infrastructure.db_container     — DB container name (no default — when absent, DB container check is skipped)
 #   infrastructure.db_container_patterns — list of DB container name patterns
 #   infrastructure.required_tools   — list of required dev tools
 #   infrastructure.optional_tools   — list of optional dev tools
@@ -97,7 +97,7 @@ _cfg_db_container=$(_read_cfg "infrastructure.db_container")
 APP_PORT="${APP_PORT:-${_cfg_app_port:-3000}}"
 DB_PORT="${DB_PORT:-${_cfg_db_port:-5432}}"
 HEALTH_TIMEOUT="${_cfg_health_timeout:-5}"
-DB_CONTAINER="${DB_CONTAINER:-${_cfg_db_container:-lockpick-postgres-dev}}"
+DB_CONTAINER="${DB_CONTAINER:-${_cfg_db_container:-}}"
 
 # ── Counters and helpers ──────────────────────────────────────────────────────
 passed=0
@@ -110,77 +110,92 @@ warn()   { warnings=$((warnings + 1)); $QUIET || printf "  ⚠ WARN %s\n" "$1"; 
 header() { $QUIET || printf "\n%s\n" "$1"; }
 
 # ── 1. Docker daemon ──────────────────────────────────────────────────────────
-header "Docker"
+_docker_available=false
 
 if ! command -v docker &>/dev/null; then
-    fail "docker CLI not found in PATH"
-elif ! docker info &>/dev/null; then
-    if type try_start_docker &>/dev/null; then
-        $QUIET || printf "  … Docker daemon not running, attempting auto-start…\n"
-        if try_start_docker; then
-            pass "Docker daemon started automatically"
+    # Docker CLI not installed — warn (not fail) and skip Docker-dependent sections
+    if [[ -n "$DB_CONTAINER" ]]; then
+        # Docker config exists but CLI is missing — that's a warning worth showing
+        header "Docker"
+        warn "docker CLI not found in PATH (Docker checks skipped)"
+    fi
+    # When no Docker config at all: produce zero output about Docker
+else
+    header "Docker"
+    if ! docker info &>/dev/null; then
+        if type try_start_docker &>/dev/null; then
+            $QUIET || printf "  … Docker daemon not running, attempting auto-start…\n"
+            if try_start_docker; then
+                pass "Docker daemon started automatically"
+                _docker_available=true
+            else
+                fail "Docker daemon not running (auto-start failed — start Docker Desktop manually)"
+            fi
         else
-            fail "Docker daemon not running (auto-start failed — start Docker Desktop manually)"
+            fail "Docker daemon not running (is Docker Desktop started?)"
         fi
     else
-        fail "Docker daemon not running (is Docker Desktop started?)"
+        pass "Docker daemon responding"
+        _docker_available=true
     fi
-else
-    pass "Docker daemon responding"
 fi
 
 # ── 2. Postgres container ─────────────────────────────────────────────────────
-header "Postgres (port $DB_PORT)"
+# Skip entirely when DB_CONTAINER is empty (no config) or Docker is not available
+if $_docker_available && [[ -n "$DB_CONTAINER" ]]; then
+    header "Postgres (port $DB_PORT)"
 
-_db_found=false
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${DB_CONTAINER}$"; then
-    _db_found=true
-    health=$(docker inspect --format '{{.State.Health.Status}}' "$DB_CONTAINER" 2>/dev/null || echo "unknown")
-    if [[ "$health" == "healthy" ]]; then
-        pass "$DB_CONTAINER running (healthy)"
-    elif [[ "$health" == "starting" ]]; then
-        warn "$DB_CONTAINER running but still starting"
-    else
-        warn "$DB_CONTAINER running (health: $health)"
-    fi
-fi
-
-# Also check config-driven pattern list (infrastructure.db_container_patterns)
-if ! $_db_found; then
-    while IFS= read -r pattern; do
-        [[ -z "$pattern" ]] && continue
-        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "$pattern"; then
-            _container_name=$(docker ps --format '{{.Names}}' 2>/dev/null | grep "$pattern" | head -1 || true)
-            pass "$_container_name running (matches pattern: $pattern)"
-            _db_found=true
-            break
+    _db_found=false
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${DB_CONTAINER}$"; then
+        _db_found=true
+        health=$(docker inspect --format '{{.State.Health.Status}}' "$DB_CONTAINER" 2>/dev/null || echo "unknown")
+        if [[ "$health" == "healthy" ]]; then
+            pass "$DB_CONTAINER running (healthy)"
+        elif [[ "$health" == "starting" ]]; then
+            warn "$DB_CONTAINER running but still starting"
+        else
+            warn "$DB_CONTAINER running (health: $health)"
         fi
-    done < <(_read_cfg_list "infrastructure.db_container_patterns")
-fi
-
-if ! $_db_found; then
-    fail "No Postgres container found (run 'make db-start' or 'docker compose up')"
-fi
-
-# Verify Postgres is accepting connections on the expected port
-if command -v pg_isready &>/dev/null; then
-    if pg_isready -h localhost -p "$DB_PORT" -U app -q 2>/dev/null; then
-        pass "Postgres accepting connections on localhost:$DB_PORT"
-    else
-        fail "Postgres not accepting connections on localhost:$DB_PORT"
     fi
-else
-    if (echo >/dev/tcp/localhost/"$DB_PORT") 2>/dev/null; then
-        pass "Port $DB_PORT is open (pg_isready not available for deeper check)"
+
+    # Also check config-driven pattern list (infrastructure.db_container_patterns)
+    if ! $_db_found; then
+        while IFS= read -r pattern; do
+            [[ -z "$pattern" ]] && continue
+            if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "$pattern"; then
+                _container_name=$(docker ps --format '{{.Names}}' 2>/dev/null | grep "$pattern" | head -1 || true)
+                pass "$_container_name running (matches pattern: $pattern)"
+                _db_found=true
+                break
+            fi
+        done < <(_read_cfg_list "infrastructure.db_container_patterns")
+    fi
+
+    if ! $_db_found; then
+        fail "No Postgres container found (run 'make db-start' or 'docker compose up')"
+    fi
+
+    # Verify Postgres is accepting connections on the expected port
+    if command -v pg_isready &>/dev/null; then
+        if pg_isready -h localhost -p "$DB_PORT" -U app -q 2>/dev/null; then
+            pass "Postgres accepting connections on localhost:$DB_PORT"
+        else
+            fail "Postgres not accepting connections on localhost:$DB_PORT"
+        fi
     else
-        fail "Nothing listening on localhost:$DB_PORT"
+        if (echo >/dev/tcp/localhost/"$DB_PORT") 2>/dev/null; then
+            pass "Port $DB_PORT is open (pg_isready not available for deeper check)"
+        else
+            fail "Nothing listening on localhost:$DB_PORT"
+        fi
     fi
 fi
 
 # ── 3. Application container ──────────────────────────────────────────────────
 header "Application (port $APP_PORT)"
 
-app_container=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -v "db" | grep -v "postgres" | head -1 || true)
+app_container=""
+$_docker_available && app_container=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -v "db" | grep -v "postgres" | head -1 || true)
 if [[ -n "$app_container" ]]; then
     pass "App container running: $app_container"
 else
