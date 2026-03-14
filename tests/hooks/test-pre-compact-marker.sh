@@ -16,6 +16,11 @@ READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # =============================================================================
 # TEST A: Marker file is written after checkpoint commit (with real changes)
 # =============================================================================
@@ -23,8 +28,10 @@ source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 test_marker_written_after_checkpoint_commit() {
     local TEST_DIR
     TEST_DIR=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_DIR")
     local TEST_ARTIFACTS
     TEST_ARTIFACTS=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_ARTIFACTS")
 
     (
         cd "$TEST_DIR"
@@ -78,8 +85,10 @@ test_marker_written_after_checkpoint_commit
 test_marker_uses_default_when_config_absent() {
     local TEST_DIR
     TEST_DIR=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_DIR")
     local TEST_ARTIFACTS
     TEST_ARTIFACTS=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_ARTIFACTS")
 
     (
         cd "$TEST_DIR"
@@ -127,8 +136,10 @@ test_marker_uses_default_when_config_absent
 test_no_marker_written_when_no_changes() {
     local TEST_DIR
     TEST_DIR=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_DIR")
     local TEST_ARTIFACTS
     TEST_ARTIFACTS=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_ARTIFACTS")
 
     (
         cd "$TEST_DIR"

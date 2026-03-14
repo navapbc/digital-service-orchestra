@@ -10,6 +10,11 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/auto-format.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 run_hook() {
     local input="$1"
     local exit_code=0
@@ -90,6 +95,7 @@ assert_eq "test_auto_format_backward_compat_still_handles_py" "0" "$EXIT_CODE"
 # This test MUST FAIL in the red phase because auto-format.sh currently
 # hardcodes .py and does not read format.extensions from config.
 _PLUGIN_ROOT=$(mktemp -d)
+_CLEANUP_DIRS+=("$_PLUGIN_ROOT")
 cat > "$_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
 format.extensions=.ts
 CONF_EOF
@@ -121,6 +127,7 @@ assert_eq "test_auto_format_config_driven_extensions_skips_unconfigured_type" ""
 # we just assert exit 0 (non-blocking) — but the hook must not skip .ts.
 # This test MUST FAIL in the red phase: the hook will skip .ts (only knows .py).
 _PLUGIN_ROOT2=$(mktemp -d)
+_CLEANUP_DIRS+=("$_PLUGIN_ROOT2")
 cat > "$_PLUGIN_ROOT2/workflow-config.conf" << 'CONF_EOF'
 format.extensions=.ts
 CONF_EOF

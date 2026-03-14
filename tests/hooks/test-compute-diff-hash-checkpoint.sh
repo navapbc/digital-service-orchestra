@@ -13,6 +13,11 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ============================================================
 # Static source analysis tests
 # ============================================================
@@ -61,6 +66,7 @@ assert_contains "test_source_uses_get_artifacts_dir" \
 setup_test_repo() {
     local dir
     dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$dir")
     (
         cd "$dir"
         git init -q
@@ -108,6 +114,7 @@ rm -rf "$TEST_REPO"
 # We create: initial -> real_work -> checkpoint_commit, with base file pointing to real_work.
 TEST_REPO=$(setup_test_repo)
 TEST_ARTIFACTS=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_ARTIFACTS")
 (
     cd "$TEST_REPO"
     # Add real work
@@ -132,6 +139,7 @@ rm -rf "$TEST_REPO" "$TEST_ARTIFACTS"
 # test_invalid_stored_sha_falls_through
 TEST_REPO=$(setup_test_repo)
 TEST_ARTIFACTS=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_ARTIFACTS")
 echo -n "not_a_valid_sha_at_all_1234567890abcdef" > "$TEST_ARTIFACTS/pre-checkpoint-base"
 (
     cd "$TEST_REPO"
@@ -149,6 +157,7 @@ rm -rf "$TEST_REPO" "$TEST_ARTIFACTS"
 # and find the checkpoint, using its parent as the diff base.
 TEST_REPO=$(setup_test_repo)
 TEST_ARTIFACTS=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_ARTIFACTS")
 (
     cd "$TEST_REPO"
     # Add real work
@@ -172,6 +181,7 @@ rm -rf "$TEST_REPO" "$TEST_ARTIFACTS"
 # the walk should stop after 10 iterations and fall through to HEAD.
 TEST_REPO=$(setup_test_repo)
 TEST_ARTIFACTS=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_ARTIFACTS")
 (
     cd "$TEST_REPO"
     for i in $(seq 1 12); do

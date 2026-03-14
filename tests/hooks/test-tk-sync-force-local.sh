@@ -25,6 +25,11 @@ TK_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/tk"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-tk-sync-force-local.sh ==="
 echo ""
 
@@ -40,6 +45,7 @@ _T1_EXIT=0
 # PATH="/dev/null:$PATH" does NOT work on macOS (/dev/null is a char device,
 # not a directory — the shell skips it and finds the real acli).
 _T1_MOCK_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T1_MOCK_DIR")
 printf '#!/usr/bin/env bash\necho "Error: acli not authenticated" >&2; exit 1\n' > "$_T1_MOCK_DIR/acli"
 chmod +x "$_T1_MOCK_DIR/acli"
 _T1_OUTPUT=$(PATH="$_T1_MOCK_DIR:$PATH" bash "$TK_SCRIPT" sync --force-local 2>&1) || _T1_EXIT=$?

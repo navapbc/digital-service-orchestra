@@ -52,6 +52,7 @@ FAIL=0
 
 # Skip local sync lock — test temp dirs are not git repos, so the lock
 # resolves to the real repo's .git/tk-sync.lock causing cross-test contention.
+_OLD_TK_SYNC_SKIP_LOCK="${TK_SYNC_SKIP_LOCK:-}"
 export TK_SYNC_SKIP_LOCK=1
 
 # Parse --live flag
@@ -190,6 +191,7 @@ EOF
 # without running the full tk dispatch loop.
 # ---------------------------------------------------------------------------
 load_pull_helpers() {
+    _OLD_TK_SCRIPT="${TK_SCRIPT:-}"
     export TK_SCRIPT="$TK"
 
     # Portable grep/rg shim
@@ -930,6 +932,13 @@ else
     ((FAIL++))
 fi
 rm -rf "$_T17"
+
+# ── Restore exported variables ─────────────────────────────────────────────────
+if [[ -n "$_OLD_TK_SYNC_SKIP_LOCK" ]]; then
+    export TK_SYNC_SKIP_LOCK="$_OLD_TK_SYNC_SKIP_LOCK"
+else
+    unset TK_SYNC_SKIP_LOCK 2>/dev/null || true
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 

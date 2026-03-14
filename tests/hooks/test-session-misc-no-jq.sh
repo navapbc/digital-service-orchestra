@@ -19,6 +19,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 SESSION_MISC_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/session-misc-functions.sh"
 
 # ============================================================
@@ -39,6 +44,7 @@ assert_eq "test_no_jq_calls: zero jq calls in session-misc-functions.sh" "0" "$_
 echo "--- test_session_safety_check_with_known_input ---"
 
 _test_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_test_dir")
 mkdir -p "$_test_dir/.claude"
 _test_log="$_test_dir/.claude/hook-error-log.jsonl"
 _test_bugs_dir="$_test_dir/.claude/hook-error-bugs"
@@ -74,6 +80,7 @@ rm -rf "$_test_dir"
 echo "--- test_session_safety_check_no_log ---"
 
 _test_dir2=$(mktemp -d)
+_CLEANUP_DIRS+=("$_test_dir2")
 _exit_code=0
 _output=""
 _output=$(
@@ -98,6 +105,7 @@ rm -rf "$_test_dir2"
 echo "--- test_tool_logging_summary_with_known_input ---"
 
 _test_dir3=$(mktemp -d)
+_CLEANUP_DIRS+=("$_test_dir3")
 mkdir -p "$_test_dir3/.claude/logs"
 echo "test-session-001" > "$_test_dir3/.claude/current-session-id"
 touch "$_test_dir3/.claude/tool-logging-enabled"
@@ -136,6 +144,7 @@ rm -rf "$_test_dir3"
 echo "--- test_tool_logging_summary_below_threshold ---"
 
 _test_dir4=$(mktemp -d)
+_CLEANUP_DIRS+=("$_test_dir4")
 mkdir -p "$_test_dir4/.claude/logs"
 echo "test-session-002" > "$_test_dir4/.claude/current-session-id"
 touch "$_test_dir4/.claude/tool-logging-enabled"
@@ -173,6 +182,7 @@ rm -rf "$_test_dir4"
 echo "--- test_track_tool_errors_with_known_input ---"
 
 _test_dir5=$(mktemp -d)
+_CLEANUP_DIRS+=("$_test_dir5")
 _counter_file="$_test_dir5/.claude/tool-error-counter.json"
 mkdir -p "$_test_dir5/.claude"
 
@@ -217,6 +227,7 @@ rm -rf "$_test_dir5"
 echo "--- test_track_tool_errors_skips_interrupts ---"
 
 _test_dir6=$(mktemp -d)
+_CLEANUP_DIRS+=("$_test_dir6")
 mkdir -p "$_test_dir6/.claude"
 
 _input_interrupt='{"tool_name":"Bash","error":"interrupted","tool_input":{},"session_id":"test","is_interrupt":true}'

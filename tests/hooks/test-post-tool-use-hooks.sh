@@ -15,6 +15,11 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOKS_DIR="$REPO_ROOT/lockpick-workflow/hooks"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 PASS=0
 FAIL=0
 TOTAL=0
@@ -52,7 +57,9 @@ run_test() {
     # Capture stdout, stderr, and exit code separately
     local stdout_file stderr_file
     stdout_file=$(mktemp)
+    _CLEANUP_DIRS+=("$stdout_file")
     stderr_file=$(mktemp)
+    _CLEANUP_DIRS+=("$stderr_file")
 
     local exit_code=0
     echo "$input" | bash "$hook_path" >"$stdout_file" 2>"$stderr_file" || exit_code=$?
