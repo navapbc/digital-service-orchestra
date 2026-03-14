@@ -501,7 +501,7 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md` and use its contents as the sub-agent prompt.
 
-**Subagent**: `subagent_type="code-simplifier:code-simplifier"`, `model="sonnet"`
+**Subagent**: Resolve via `discover-agents.sh` routing category `code_simplify` (see `agent-routing.conf`), `model="sonnet"`
 
 ### Orchestrator Actions After Sub-Agent Returns
 
@@ -544,7 +544,7 @@ Exit 0 means all checks pass. Exit 1 means at least one check requires action (d
 tk status <id> in_progress
 ```
 
-**Known-solution detection**: Before selecting `subagent_type` for a Tier 7 bug, check if its notes contain `SAFEGUARD APPROVED:` (written by Phase 2.6 Step 4). If present, classify as "known fix" — use `code-simplifier:code-simplifier` and pass the approval note as `fix_guidance` in the prompt context.
+**Known-solution detection**: Before selecting `subagent_type` for a Tier 7 bug, check if its notes contain `SAFEGUARD APPROVED:` (written by Phase 2.6 Step 4). If present, classify as "known fix" — resolve via `discover-agents.sh` routing category `code_simplify` (see `agent-routing.conf`) and pass the approval note as `fix_guidance` in the prompt context.
 
 ### Blackboard Write and File Ownership Context
 
@@ -590,21 +590,25 @@ Fill in the `{placeholders}` with issue-specific details (title, ID, category, e
 
 ### Subagent Type Selection
 
-| Fix Category | `subagent_type` | `model` | Why This Agent |
-|-------------|-----------------|---------|----------------|
-| Type errors (mypy) | `debugging-toolkit:debugger` | `sonnet` | Debugging specialist for errors and unexpected behavior |
-| Unit test failures | `unit-testing:debugger` | `sonnet` | Test-specific debugging with testing framework knowledge |
-| E2E test failures | `debugging-toolkit:debugger` | `sonnet` | General debugger for cross-cutting E2E issues |
-| Lint violations (manual) | `code-simplifier:code-simplifier` | `sonnet` | Code quality specialist for clarity and consistency |
-| Complex multi-file bugs | `error-debugging:error-detective` | `opus` | Correlates errors across systems, identifies root causes |
+Resolve `subagent_type` via `discover-agents.sh` using the routing category from `agent-routing.conf`. Run `$PLUGIN_SCRIPTS/discover-agents.sh` and use the resolved agent for each category.
+
+| Fix Category | Routing Category | `model` | Why This Routing |
+|-------------|-----------------|---------|------------------|
+| Type errors (mypy) | `mechanical_fix` | `sonnet` | Debugging specialist for errors and unexpected behavior |
+| Unit test failures | `test_fix_unit` | `sonnet` | Test-specific debugging with testing framework knowledge |
+| E2E test failures | `test_fix_e_to_e` | `sonnet` | General debugger for cross-cutting E2E issues |
+| Lint violations (manual) | `code_simplify` | `sonnet` | Code quality specialist for clarity and consistency |
+| Complex multi-file bugs | `complex_debug` | `opus` | Correlates errors across systems, identifies root causes |
 | Migration/DB issues | `database-design:database-architect` | `sonnet` | Schema modeling, migration planning, DB architecture |
-| Infrastructure issues (Tier 6) | `error-debugging:debugger` | `opus` | Complex debugging with AWS CLI access |
-| Ticket bugs — known fix (SAFEGUARD APPROVED) | `code-simplifier:code-simplifier` | `sonnet` | Fix proposal already written; apply without investigation |
-| Ticket bugs — code fixes (Tier 7) | `debugging-toolkit:debugger` | `sonnet` | General debugging for tracked code bugs |
-| Ticket bugs — tooling/scripts (Tier 7) | `code-simplifier:code-simplifier` | `sonnet` | Script and tooling fixes |
-| Ticket bugs — investigation (Tier 7) | `error-debugging:error-detective` | `opus` | Root cause analysis for investigation-type bugs |
-| TDD test writing (for non-test bugs) | `unit-testing:test-automator` | `sonnet` | Test automation specialist for writing new tests |
+| Infrastructure issues (Tier 6) | `complex_debug` | `opus` | Complex debugging with AWS CLI access |
+| Ticket bugs — known fix (SAFEGUARD APPROVED) | `code_simplify` | `sonnet` | Fix proposal already written; apply without investigation |
+| Ticket bugs — code fixes (Tier 7) | `mechanical_fix` | `sonnet` | General debugging for tracked code bugs |
+| Ticket bugs — tooling/scripts (Tier 7) | `code_simplify` | `sonnet` | Script and tooling fixes |
+| Ticket bugs — investigation (Tier 7) | `complex_debug` | `opus` | Root cause analysis for investigation-type bugs |
+| TDD test writing (for non-test bugs) | `test_write` | `sonnet` | Test automation specialist for writing new tests |
 | Post-fix critic review | `feature-dev:code-reviewer` | `sonnet` | Code reviewer for root-cause-vs-symptom analysis |
+
+**Note**: `error-debugging:error-detective` and `database-design:database-architect` are referenced directly because they are core agents that do not require optional plugin routing. `feature-dev:code-reviewer` is similarly a direct reference. All other agent types are resolved dynamically via `discover-agents.sh` and `agent-routing.conf` preference chains, falling back to `general-purpose` when the preferred plugin is not installed.
 
 **Infrastructure sub-agents (Tier 6)** get additional instructions in their prompt:
 ```
@@ -695,7 +699,7 @@ approaches and both critic concerns. Do NOT retry.
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-validation.md` and use its contents as the sub-agent prompt. Replace `{list of files modified by batch}` with the actual file list from this batch.
 
-**Subagent**: `subagent_type="unit-testing:debugger"`, `model="haiku"`  # Tier 1: runs validate-phase.sh post-batch and relays output verbatim — pure command execution with one bounded LIKELY_CAUSE inference from provided file list
+**Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`), `model="haiku"`  # Tier 1: runs validate-phase.sh post-batch and relays output verbatim — pure command execution with one bounded LIKELY_CAUSE inference from provided file list
 
 ### Step 3: Handle Failures (/debug-everything)
 
@@ -781,7 +785,7 @@ Same pattern as Phase 6 Step 2, but run the full diagnostic set:
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/tier-transition-validation.md` and use its contents as the sub-agent prompt.
 
-**Subagent**: `subagent_type="unit-testing:debugger"`, `model="haiku"`  # Tier 1: runs validate-phase.sh tier-transition and relays structured output verbatim — no interpretation required, pass/fail reporting only
+**Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`), `model="haiku"`  # Tier 1: runs validate-phase.sh tier-transition and relays structured output verbatim — no interpretation required, pass/fail reporting only
 
 ### Step 2: Update Failure Inventory (/debug-everything)
 
@@ -805,7 +809,7 @@ When all known issues across all tiers are addressed, delegate validation to a s
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/full-validation.md` and use its contents as the sub-agent prompt.
 
-**Subagent**: `subagent_type="unit-testing:debugger"`, `model="haiku"`  # Tier 1: runs validate-phase.sh full and relays structured output verbatim — pure command execution, ALL_PASS/SOME_FAIL is explicit in script output
+**Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`), `model="haiku"`  # Tier 1: runs validate-phase.sh full and relays structured output verbatim — pure command execution, ALL_PASS/SOME_FAIL is explicit in script output
 
 ### Interpret Result
 
