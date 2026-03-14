@@ -306,6 +306,65 @@ test_workflow_docs_no_unguarded_removed_plugins() {
 
 test_workflow_docs_no_unguarded_removed_plugins
 
+# ── Test: INSTALL.md optional plugins section ────────────────────────────────
+# Ensures INSTALL.md documents optional plugins (feature-dev, playwright,
+# error-debugging) and does not list removed plugins as requirements.
+
+test_install_doc_optional_plugins_section() {
+    echo ""
+    echo "=== test-no-unguarded-plugin-refs (install-docs) ==="
+
+    local install_file="$REPO_ROOT/lockpick-workflow/docs/INSTALL.md"
+    local removed_plugins=("unit-testing" "debugging-toolkit" "code-simplifier" "backend-api-security" "commit-commands" "claude-md-management")
+
+    # Test: INSTALL.md exists
+    echo "Test: INSTALL.md exists"
+    if [[ -f "$install_file" ]]; then
+        echo "  PASS: INSTALL.md exists"
+        (( PASS++ ))
+    else
+        echo "  FAIL: INSTALL.md not found at $install_file" >&2
+        (( FAIL++ ))
+        return
+    fi
+
+    # Test: Has Optional Plugins section
+    echo "Test: INSTALL.md has Optional Plugins section"
+    if grep -q 'Optional Plugins' "$install_file"; then
+        echo "  PASS: Optional Plugins section found"
+        (( PASS++ ))
+    else
+        echo "  FAIL: Optional Plugins section missing" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: Lists feature-dev, playwright, error-debugging as optional
+    for plugin in feature-dev playwright error-debugging; do
+        echo "Test: INSTALL.md mentions '$plugin'"
+        if grep -q "$plugin" "$install_file"; then
+            echo "  PASS: '$plugin' found"
+            (( PASS++ ))
+        else
+            echo "  FAIL: '$plugin' missing from INSTALL.md" >&2
+            (( FAIL++ ))
+        fi
+    done
+
+    # Test: No removed plugins listed as requirements
+    for plugin in "${removed_plugins[@]}"; do
+        echo "Test: '$plugin' not listed as required in INSTALL.md"
+        if grep -iE "${plugin}.*(required|must install)" "$install_file" 2>/dev/null; then
+            echo "  FAIL: '$plugin' listed as required" >&2
+            (( FAIL++ ))
+        else
+            echo "  PASS: '$plugin' not listed as required"
+            (( PASS++ ))
+        fi
+    done
+}
+
+test_install_doc_optional_plugins_section
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

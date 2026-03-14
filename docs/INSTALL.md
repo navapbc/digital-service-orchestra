@@ -214,6 +214,32 @@ checks are skipped.
 
 ---
 
+## Optional Plugins
+
+lockpick-workflow works standalone with `general-purpose` agents for all task
+categories. Installing optional Claude Code plugins adds specialized agents that
+are automatically discovered via `discover-agents.sh` and preferred when
+available:
+
+| Plugin | Enhancement |
+|--------|-------------|
+| **feature-dev** | Specialized code review (`code-reviewer`), architecture exploration (`code-explorer`, `code-architect`) |
+| **error-debugging** | Error pattern detection (`error-detective`), structured debugging (`debugger`) |
+| **playwright** | Browser automation for visual regression testing and staging verification |
+
+When a plugin is not installed, `discover-agents.sh` falls back to
+`general-purpose` with a category-specific prompt from
+`prompts/fallback/<category>.md`. No manual configuration is required — the
+routing system in `agent-routing.conf` handles resolution automatically.
+
+To install an optional plugin:
+
+```bash
+claude plugin install github:<org>/<plugin-name>
+```
+
+---
+
 ## Upgrade
 
 ```bash
