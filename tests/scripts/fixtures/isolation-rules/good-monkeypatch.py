@@ -2,6 +2,7 @@
 # Expected: passes no-direct-os-environ rule
 
 import os
+
 import pytest
 
 

@@ -2,6 +2,7 @@
 # Expected: triggers no-direct-os-environ violations
 
 import os
+
 import pytest
 
 
