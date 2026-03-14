@@ -30,6 +30,18 @@ if [[ -z "$HOOK" || ! -f "$HOOK" ]]; then
     exit 0
 fi
 
+# macOS-compatible millisecond timestamp (date +%s%N unavailable on macOS)
+# Guarantees a numeric result — falls back to python3, then 0.
+_get_ms() {
+    local _ns
+    _ns=$(date +%s%N 2>/dev/null) || _ns=""
+    if [[ -n "$_ns" && "$_ns" != *N* ]]; then
+        echo $(( _ns / 1000000 ))
+    else
+        python3 -c 'import time;print(int(time.time()*1e3))' 2>/dev/null || echo 0
+    fi
+}
+
 # --- Hook timing instrumentation ---
 # Logs wall-clock duration of each hook dispatcher to a timing file.
 # Enable: touch ~/.claude/hook-timing-enabled
@@ -39,7 +51,7 @@ _HOOK_TIMING_LOG="/tmp/hook-timing.log"
 _HOOK_TIMING_ENABLED=""
 if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
     _HOOK_TIMING_ENABLED=1
-    _HOOK_START_MS=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+    _HOOK_START_MS=$(_get_ms)
 fi
 
 SYNTAX_ERR_LOG=$(mktemp /tmp/claude-hook-syntax-err.XXXXXX)
@@ -48,7 +60,8 @@ _cleanup() {
     rm -f "$SYNTAX_ERR_LOG"
     # Log timing on exit (covers both exec and non-exec paths)
     if [[ -n "$_HOOK_TIMING_ENABLED" ]]; then
-        local _end_ms=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+        local _end_ms
+        _end_ms=$(_get_ms)
         local _elapsed_ms=$((_end_ms - _HOOK_START_MS))
         printf '%s\t%s\t%dms\texit=%d\n' \
             "$(date +%H:%M:%S)" \

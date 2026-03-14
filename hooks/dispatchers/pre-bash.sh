@@ -26,6 +26,18 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
+# macOS-compatible millisecond timestamp (date +%s%N unavailable on macOS)
+# Guarantees a numeric result — falls back to python3, then 0.
+_get_ms() {
+    local _ns
+    _ns=$(date +%s%N 2>/dev/null) || _ns=""
+    if [[ -n "$_ns" && "$_ns" != *N* ]]; then
+        echo $(( _ns / 1000000 ))
+    else
+        python3 -c 'import time;print(int(time.time()*1e3))' 2>/dev/null || echo 0
+    fi
+}
+
 # Source the dispatcher framework (provides run_hooks — kept for reference/reuse)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
@@ -53,9 +65,11 @@ _run_hook_fn() {
 
     # Per-function timing (enabled by ~/.claude/hook-timing-enabled)
     if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
-        local _fn_start=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+        local _fn_start
+        _fn_start=$(_get_ms)
         "$fn_name" "$json_input" || fn_exit=$?
-        local _fn_end=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
+        local _fn_end
+        _fn_end=$(_get_ms)
         printf '%s\t  %s\t%dms\texit=%d\n' \
             "$(date +%H:%M:%S)" "$fn_name" "$((_fn_end - _fn_start))" "$fn_exit" \
             >> "${HOOK_TIMING_LOG:-/tmp/hook-timing.log}" 2>/dev/null
