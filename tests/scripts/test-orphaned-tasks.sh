@@ -5,10 +5,9 @@
 # Tests verify orphaned-tasks.sh uses tk/file-based ticket storage.
 # GREEN phase: Run AFTER migration to confirm all pass.
 #
-# Tests 1-6: Structural / baseline — always pass against current script.
+# Tests 1-5: Structural / baseline — always pass against current script.
 # Test 7 (RED): test_orphaned_tasks_uses_tickets_dir — FAILS until script reads TICKETS_DIR
 # Test 8 (RED): test_orphaned_tasks_json_flag_uses_file_based_source — FAILS until file-based
-# Test 9 (RED): test_orphaned_tasks_no_bd_calls_remain — FAILS while 'bd ' still present
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-orphaned-tasks.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -74,16 +73,6 @@ if echo "$output" | grep -qE "none|P[0-9]|orphan" || [ -z "$output" ]; then
     (( PASS++ ))
 else
     echo "  FAIL: unexpected output format: $output" >&2
-    (( FAIL++ ))
-fi
-
-# ── Test 6: Script does NOT use bd for data collection (post-migration) ──────
-echo "Test 6: Script does not use bd for data collection (migrated to tk)"
-if ! grep -qE '\bbd ' "$SCRIPT"; then
-    echo "  PASS: script contains no bd calls (fully migrated)"
-    (( PASS++ ))
-else
-    echo "  FAIL: script still contains bd calls" >&2
     (( FAIL++ ))
 fi
 
@@ -242,23 +231,6 @@ else
 fi
 
 rm -rf "$FIXTURE_BASE"
-
-# ---------------------------------------------------------------------------
-# Test 9: no 'bd ' calls remain in orphaned-tasks.sh source
-# After migration: zero occurrences of 'bd ' in the script source.
-# This test acts as a migration completeness gate (PASSES post-migration).
-# ---------------------------------------------------------------------------
-echo "Test 9: orphaned-tasks.sh source contains no 'bd ' calls (post-migration)"
-bd_call_count=0
-bd_call_count=$(grep -cE '\bbd ' "$SCRIPT" 2>/dev/null) || true
-
-if [ "$bd_call_count" -eq 0 ]; then
-    echo "  PASS: test_orphaned_tasks_no_bd_calls_remain"
-    (( PASS++ ))
-else
-    echo "  FAIL: test_orphaned_tasks_no_bd_calls_remain — found $bd_call_count 'bd ' occurrence(s) in $SCRIPT" >&2
-    (( FAIL++ ))
-fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

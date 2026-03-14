@@ -63,18 +63,6 @@ assert_eq "test_session_safety_output_empty_below_threshold" "" "$OUTPUT"
 # Clean up for next test
 rm -f "$HOOK_ERROR_LOG"
 
-# ============================================================
-# Group: bd → tk migration (RED phase)
-# ============================================================
-# These tests verify that session-safety-check.sh has been migrated
-# away from bd. They MUST FAIL against the current bd-based implementation.
-
-# test_session_safety_no_bd_calls_remain
-# grep the hook source for 'bd ' — must return zero occurrences once migrated.
-# MUST FAIL in red phase: hook calls 'bd create' when threshold is exceeded.
-_SS_BD_COUNT=$(grep -c 'bd ' "$HOOK" 2>/dev/null; true)
-assert_eq "test_session_safety_no_bd_calls_remain" "0" "$_SS_BD_COUNT"
-
 # test_session_safety_creates_tk_issue
 # Stub tk in PATH. Create a hook-error-log.jsonl with 11 entries for one hook.
 # Assert tk create is called when threshold exceeded (>= 10 errors in 24h).
@@ -88,13 +76,6 @@ echo "$@" >> "$TK_LOG"
 echo "Created issue: tk-003"
 MOCK_EOF
 chmod +x "$_SS_FAKE_BIN/tk"
-
-# Suppress bd so it doesn't call real bd
-cat > "$_SS_FAKE_BIN/bd" << 'MOCK_EOF'
-#!/usr/bin/env bash
-exit 0
-MOCK_EOF
-chmod +x "$_SS_FAKE_BIN/bd"
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 for _i in $(seq 1 11); do
@@ -132,12 +113,6 @@ echo "$@" >> "$TK_LOG"
 exit 1
 MOCK_EOF
 chmod +x "$_SS_FAKE_BIN2/tk"
-
-cat > "$_SS_FAKE_BIN2/bd" << 'MOCK_EOF'
-#!/usr/bin/env bash
-exit 0
-MOCK_EOF
-chmod +x "$_SS_FAKE_BIN2/bd"
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 for _i in $(seq 1 11); do

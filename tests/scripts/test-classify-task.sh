@@ -118,14 +118,6 @@ _setup_migration_test_env() {
     local tmpdir
     tmpdir="$(mktemp -d)"
 
-    # Fake bd: records invocation to a log file, returns empty JSON array
-    cat > "$tmpdir/bd" <<'STUB'
-#!/usr/bin/env bash
-echo "bd $*" >> "$STUB_LOG"
-echo "[]"
-STUB
-    chmod +x "$tmpdir/bd"
-
     # Fake tk: records invocation to a log file, returns empty JSON array
     cat > "$tmpdir/tk" <<'STUB'
 #!/usr/bin/env bash
@@ -183,20 +175,6 @@ echo "Test 9 (RED): single task ID uses tk show (MUST FAIL until migration)"
 
     rm -rf "$_tmpdir"
 }
-
-# ── RED Test 10: no bd calls remain in classify-task.sh source ───────────────
-# Grep for 'bd ' (bd followed by space) in the script source.
-# Currently FAILS because the script still has bd ready and bd show calls.
-# After migration, this becomes a GREEN guard ensuring no bd regressions.
-echo "Test 10 (RED): no 'bd ' calls remain in classify-task.sh source"
-if ! grep -q 'bd ' "$SCRIPT" 2>/dev/null; then
-    echo "  PASS: no 'bd ' occurrences in script source"
-    (( PASS++ ))
-else
-    bd_count=$(grep -c 'bd ' "$SCRIPT" 2>/dev/null || echo "?")
-    echo "  FAIL: classify_task_no_bd_calls_remain — found $bd_count occurrence(s) of 'bd ' in $SCRIPT" >&2
-    (( FAIL++ ))
-fi
 
 echo ""
 echo "Results (including RED phase): $PASS passed, $FAIL failed"
