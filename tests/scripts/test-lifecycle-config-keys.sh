@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 CONFIG="$REPO_ROOT/workflow-config.conf"
 SCHEMA="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
-EXAMPLE="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.yaml"
+EXAMPLE="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.conf"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
@@ -200,7 +200,7 @@ assert_pass_if_clean "test_schema_all_new_sections_optional"
 # ── test_example_config_has_new_sections ────────────────────────────────────
 _snapshot_fail
 for section in database infrastructure session; do
-    if grep -q "^${section}:" "$EXAMPLE" 2>/dev/null; then
+    if grep -q "^${section}\." "$EXAMPLE" 2>/dev/null; then
         assert_eq "test_example_config_has_${section}" "found" "found"
     else
         assert_eq "test_example_config_has_${section}" "found" "missing"

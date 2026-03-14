@@ -260,8 +260,8 @@ fi
 
 # ── test_example_config_contains_jira_section ────────────────────────────────
 _fail_before_ecj=$FAIL
-EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.yaml"
-if grep -q "^jira:" "$EXAMPLE_CONFIG" 2>/dev/null; then
+EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.conf"
+if grep -q "^jira\." "$EXAMPLE_CONFIG" 2>/dev/null; then
     example_has_jira="has_jira"
 else
     example_has_jira="missing_jira"

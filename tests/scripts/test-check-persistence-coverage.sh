@@ -251,7 +251,7 @@ empty_sp_output=$(_run_portability "$_p2_repo") || empty_sp_exit=$?
 assert_eq "test_portability_empty_source_patterns_exits_0: exit code" "0" "$empty_sp_exit"
 # Verify the empty-source-patterns branch was actually exercised (not "no changed files")
 assert_contains "test_portability_empty_source_patterns_exits_0: empty-patterns message" \
-    "No persistence source patterns configured" "$empty_sp_output"
+    "persistence.source_patterns not configured" "$empty_sp_output"
 assert_pass_if_clean "test_portability_empty_source_patterns_exits_0"
 
 # ── test_portability_absent_test_patterns ────────────────────────────────────

@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 SCHEMA_FILE="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
-EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.yaml"
+EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.conf"
 TK_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/tk"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
@@ -218,7 +218,7 @@ fi
 
 # test_example_config_has_tickets_section
 _fail_before=$FAIL
-if grep -q "^tickets:" "$EXAMPLE_CONFIG" 2>/dev/null; then
+if grep -q "^tickets\." "$EXAMPLE_CONFIG" 2>/dev/null; then
     example_has_tickets="has_tickets"
 else
     example_has_tickets="missing_tickets"

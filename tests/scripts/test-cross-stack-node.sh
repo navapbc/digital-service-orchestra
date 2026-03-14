@@ -32,7 +32,7 @@ assert_eq "test_node_stack_detect_returns_node_npm" "node-npm" "$detect_output"
 # so that the plugin knows how to run tests for the Node.js stack.
 if [[ -f "$FIXTURE/workflow-config.conf" ]]; then
     config_contents="$(cat "$FIXTURE/workflow-config.conf")"
-    assert_contains "test_node_stack_workflow_config_has_npm_test" "test: npm test" "$config_contents"
+    assert_contains "test_node_stack_workflow_config_has_npm_test" "commands.test=npm test" "$config_contents"
 else
     assert_eq "test_node_stack_workflow_config_has_npm_test: workflow-config.conf exists" "exists" "missing"
 fi
@@ -42,7 +42,7 @@ fi
 # so that the plugin knows how to run linting for the Node.js stack.
 if [[ -f "$FIXTURE/workflow-config.conf" ]]; then
     config_contents="$(cat "$FIXTURE/workflow-config.conf")"
-    assert_contains "test_node_stack_workflow_config_has_npm_lint" "lint: npm run lint" "$config_contents"
+    assert_contains "test_node_stack_workflow_config_has_npm_lint" "commands.lint=npm run lint" "$config_contents"
 else
     assert_eq "test_node_stack_workflow_config_has_npm_lint: workflow-config.conf exists" "exists" "missing"
 fi

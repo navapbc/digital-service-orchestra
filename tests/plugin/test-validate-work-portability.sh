@@ -61,11 +61,11 @@ echo "--- prerequisite: fixture files exist ---"
 assert_eq "workflow-config.conf exists" "true" \
     "$(test -f "$FIXTURES_DIR/workflow-config.conf" && echo true || echo false)"
 
-assert_eq "workflow-config-no-staging.yaml exists" "true" \
-    "$(test -f "$FIXTURES_DIR/workflow-config-no-staging.yaml" && echo true || echo false)"
+assert_eq "workflow-config-no-staging.conf exists" "true" \
+    "$(test -f "$FIXTURES_DIR/workflow-config-no-staging.conf" && echo true || echo false)"
 
-assert_eq "workflow-config-partial-staging.yaml exists" "true" \
-    "$(test -f "$FIXTURES_DIR/workflow-config-partial-staging.yaml" && echo true || echo false)"
+assert_eq "workflow-config-partial-staging.conf exists" "true" \
+    "$(test -f "$FIXTURES_DIR/workflow-config-partial-staging.conf" && echo true || echo false)"
 
 assert_eq "staging-deploy-check.sh exists" "true" \
     "$(test -f "$FIXTURES_DIR/staging-deploy-check.sh" && echo true || echo false)"
@@ -127,7 +127,7 @@ assert_eq "jira.project reads correctly" "MNA" "$JIRA_PROJECT"
 echo ""
 echo "--- Test B: staging URL absent — verify SKIPPED behavior in orchestrator ---"
 
-NO_STAGING_CONFIG="$FIXTURES_DIR/workflow-config-no-staging.yaml"
+NO_STAGING_CONFIG="$FIXTURES_DIR/workflow-config-no-staging.conf"
 
 # Config should return empty for staging.url
 STAGING_URL_ABSENT=$(read_key "$NO_STAGING_CONFIG" "staging.url")
@@ -154,7 +154,7 @@ assert_eq "commands.test resolves in no-staging config" "npm test" "$TEST_CMD_NO
 echo ""
 echo "--- Test C: partial staging config — url present, deploy_check/test absent ---"
 
-PARTIAL_CONFIG="$FIXTURES_DIR/workflow-config-partial-staging.yaml"
+PARTIAL_CONFIG="$FIXTURES_DIR/workflow-config-partial-staging.conf"
 
 PARTIAL_STAGING_URL=$(read_key "$PARTIAL_CONFIG" "staging.url")
 assert_eq "staging.url present in partial config" \
@@ -249,27 +249,27 @@ assert_ne "ci-status.md prompt references INTEGRATION_WORKFLOW" "0" "$CI_PROMPT_
 echo ""
 echo "--- Test F: fixture config YAML structure validation ---"
 
-# Verify all required YAML sections are present in full config
+# Verify all required sections are present in full config (.conf format)
 assert_eq "full config has staging section" "true" \
-    "$(grep -q '^staging:' "$FULL_CONFIG" && echo true || echo false)"
+    "$(grep -q '^staging\.' "$FULL_CONFIG" && echo true || echo false)"
 
 assert_eq "full config has staging.url" "true" \
-    "$(grep -q 'url:' "$FULL_CONFIG" && echo true || echo false)"
+    "$(grep -q '^staging\.url=' "$FULL_CONFIG" && echo true || echo false)"
 
 assert_eq "full config has commands section" "true" \
-    "$(grep -q '^commands:' "$FULL_CONFIG" && echo true || echo false)"
+    "$(grep -q '^commands\.' "$FULL_CONFIG" && echo true || echo false)"
 
 assert_eq "full config has ci section" "true" \
-    "$(grep -q '^ci:' "$FULL_CONFIG" && echo true || echo false)"
+    "$(grep -q '^ci\.' "$FULL_CONFIG" && echo true || echo false)"
 
 assert_eq "full config has jira section" "true" \
-    "$(grep -q '^jira:' "$FULL_CONFIG" && echo true || echo false)"
+    "$(grep -q '^jira\.' "$FULL_CONFIG" && echo true || echo false)"
 
 assert_eq "no-staging config has NO staging section" "false" \
-    "$(grep -q '^staging:' "$NO_STAGING_CONFIG" && echo true || echo false)"
+    "$(grep -q '^staging\.' "$NO_STAGING_CONFIG" && echo true || echo false)"
 
 assert_eq "partial staging config has staging.url but no deploy_check" "true" \
-    "$(grep -q '  url:' "$PARTIAL_CONFIG" && ! grep -q 'deploy_check:' "$PARTIAL_CONFIG" && echo true || echo false)"
+    "$(grep -q '^staging\.url=' "$PARTIAL_CONFIG" && ! grep -q '^staging\.deploy_check=' "$PARTIAL_CONFIG" && echo true || echo false)"
 
 # ---------------------------------------------------------------------------
 # Test G: SKILL.md documents domain-by-domain report structure
