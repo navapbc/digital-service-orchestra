@@ -55,8 +55,8 @@ for cmd in "${REQUIRED_COMMANDS[@]}"; do
         echo "FAIL: /$cmd has no project-owned artifact" >&2
         echo "  Checked: ${PROJECT_PATHS[*]}" >&2
 
-        # Check if an external plugin would shadow it
-        if grep -q "\"commit-commands.*true\|\"${cmd}.*true" "$REPO_ROOT/.claude/settings.json" 2>/dev/null; then
+        # Check if an external plugin would shadow it via enabledPlugins
+        if grep -q "\"${cmd}.*true" "$REPO_ROOT/.claude/settings.json" 2>/dev/null; then
             echo "  WARNING: external plugin may be silently handling /$cmd" >&2
         fi
 

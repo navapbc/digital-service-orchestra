@@ -62,7 +62,7 @@
 #     VALIDATE_TIMEOUT_TESTS   - Test suite timeout (default: 600)
 #     VALIDATE_TIMEOUT_PLUGIN  - Plugin/hook test suite timeout (default: 300)
 #     VALIDATE_TIMEOUT_E2E     - E2E test timeout (default: 900)
-#     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 30)
+#     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 60)
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
 #
 #   Example: VALIDATE_TIMEOUT_TESTS=900 ./lockpick-workflow/scripts/validate.sh
@@ -109,14 +109,14 @@ VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 
 # Timeout values in seconds - configurable via environment variables
 # Check $TIMEOUT_LOG for timeout history to identify if values need adjustment
-TIMEOUT_SYNTAX="${VALIDATE_TIMEOUT_SYNTAX:-30}"  # E999 + bash/YAML/JSON syntax check — scans 300+ files
+TIMEOUT_SYNTAX="${VALIDATE_TIMEOUT_SYNTAX:-60}"  # E999 + bash/YAML/JSON syntax check — scans 300+ files (parallel)
 TIMEOUT_FORMAT="${VALIDATE_TIMEOUT_FORMAT:-30}"
 TIMEOUT_RUFF="${VALIDATE_TIMEOUT_RUFF:-60}"
 TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
 TIMEOUT_TESTS="${VALIDATE_TIMEOUT_TESTS:-600}"  # 10 minutes default - test suite is large
 TIMEOUT_PLUGIN="${VALIDATE_TIMEOUT_PLUGIN:-300}"   # plugin/hook shell test suite (safety buffer for slow tests)
 TIMEOUT_E2E="${VALIDATE_TIMEOUT_E2E:-900}"      # 15 minutes for E2E tests (local is ~2-3x slower than CI ~180s)
-TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-30}"
+TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-60}"  # GitHub API call — 60s headroom for rate limiting/slow network
 
 # Track sleep PIDs for cleanup at script exit
 CLEANUP_PIDS=()

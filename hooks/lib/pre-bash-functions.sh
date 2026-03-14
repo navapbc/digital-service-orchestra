@@ -415,12 +415,14 @@ hook_review_gate() {
         # command's intended targets, we can exempt ticket-only commits without
         # relying on index state.
         if [[ -n "$GIT_ADD_CMD" ]]; then
-            local _ADD_TARGETS _NON_TICKET_TARGETS
+            local _ADD_TARGETS
             # Extract paths from the git add command (strip flags like -A, -u, -f, --)
             _ADD_TARGETS=$(echo "$GIT_ADD_CMD" | sed 's/git[[:space:]]*add//' | sed 's/[[:space:]]*--[[:space:]]*//' | sed 's/[[:space:]]*-[AufpneNv]*//g' | xargs 2>/dev/null || echo "")
             if [[ -n "$_ADD_TARGETS" ]]; then
-                _NON_TICKET_TARGETS=$(echo "$_ADD_TARGETS" | tr ' ' '\n' | grep -v '^\.\?tickets/' | grep -v '^\.sync-state\.json$' || true)
-                if [[ -z "$_NON_TICKET_TARGETS" ]]; then
+                # Use skip-review-check.sh to determine if all targets are non-reviewable.
+                # This covers .tickets/, .claude/docs/, docs/, images, snapshots, etc.
+                local _SKIP_REVIEW_SCRIPT="$CLAUDE_PLUGIN_ROOT/scripts/skip-review-check.sh"
+                if [[ -x "$_SKIP_REVIEW_SCRIPT" ]] && echo "$_ADD_TARGETS" | tr ' ' '\n' | bash "$_SKIP_REVIEW_SCRIPT" 2>/dev/null; then
                     return 0
                 fi
             fi

@@ -10,7 +10,7 @@
 #   0. hook_tool_logging_pre (non-blocking, informational — from post-functions.sh)
 #   1. hook_validation_gate
 #   2. hook_commit_failure_tracker
-#   3. hook_review_gate
+#   3. hook_review_gate (skip_review for non-reviewable/ticket-only commits)
 #   4. hook_worktree_bash_guard
 #   5. hook_worktree_edit_guard
 #   6. hook_bug_close_guard

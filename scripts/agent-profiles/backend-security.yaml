@@ -1,4 +1,5 @@
 agent_type: "backend-api-security:backend-security-coder"
+routing_category: "security_audit"
 model:
   default: "sonnet"
   complex: "sonnet"

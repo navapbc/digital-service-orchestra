@@ -11,6 +11,7 @@ Uses only stdlib + pyyaml (already a project dependency).
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -35,13 +36,22 @@ def git_tracked_files(repo_root: Path, suffixes: tuple[str, ...]) -> list[Path]:
     return sorted(paths)
 
 
+def _check_one_bash(args: tuple[Path, Path]) -> str | None:
+    f, repo_root = args
+    result = subprocess.run(["bash", "-n", str(f)], capture_output=True, text=True)
+    if result.returncode != 0:
+        return f"bash: {f.relative_to(repo_root)}: {result.stderr.strip()}"
+    return None
+
+
 def check_bash(repo_root: Path) -> tuple[list[str], int]:
     files = git_tracked_files(repo_root, (".sh",))
-    errors = []
-    for f in files:
-        result = subprocess.run(["bash", "-n", str(f)], capture_output=True, text=True)
-        if result.returncode != 0:
-            errors.append(f"bash: {f.relative_to(repo_root)}: {result.stderr.strip()}")
+    errors: list[str] = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = pool.map(_check_one_bash, [(f, repo_root) for f in files])
+    for err in results:
+        if err is not None:
+            errors.append(err)
     return errors, len(files)
 
 
