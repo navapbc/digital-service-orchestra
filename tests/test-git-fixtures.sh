@@ -17,12 +17,33 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 source "$SCRIPT_DIR/lib/assert.sh"
 
 WORK_DIR=$(mktemp -d)
-trap 'rm -rf "$WORK_DIR"' EXIT
 
-# Disable commit signing for test git repos
-export GIT_CONFIG_COUNT=1
-export GIT_CONFIG_KEY_0=commit.gpgsign
-export GIT_CONFIG_VALUE_0=false
+# Disable commit signing for test git repos (save/restore for isolation)
+_OLD_GIT_CONFIG_COUNT="${GIT_CONFIG_COUNT:-}"
+_OLD_GIT_CONFIG_KEY_0="${GIT_CONFIG_KEY_0:-}"
+_OLD_GIT_CONFIG_VALUE_0="${GIT_CONFIG_VALUE_0:-}"
+export GIT_CONFIG_COUNT=1  # isolation-ok: save/restore wraps this export
+export GIT_CONFIG_KEY_0=commit.gpgsign  # isolation-ok: save/restore wraps this export
+export GIT_CONFIG_VALUE_0=false  # isolation-ok: save/restore wraps this export
+
+_restore_git_config() {
+    if [[ -n "$_OLD_GIT_CONFIG_COUNT" ]]; then
+        export GIT_CONFIG_COUNT="$_OLD_GIT_CONFIG_COUNT"
+    else
+        unset GIT_CONFIG_COUNT 2>/dev/null || true
+    fi
+    if [[ -n "$_OLD_GIT_CONFIG_KEY_0" ]]; then
+        export GIT_CONFIG_KEY_0="$_OLD_GIT_CONFIG_KEY_0"
+    else
+        unset GIT_CONFIG_KEY_0 2>/dev/null || true
+    fi
+    if [[ -n "$_OLD_GIT_CONFIG_VALUE_0" ]]; then
+        export GIT_CONFIG_VALUE_0="$_OLD_GIT_CONFIG_VALUE_0"
+    else
+        unset GIT_CONFIG_VALUE_0 2>/dev/null || true
+    fi
+}
+trap '_restore_git_config; rm -rf "$WORK_DIR"' EXIT
 
 # --- Test 1: clone_test_repo creates a valid git repo ---
 test_clone_test_repo_creates_valid_git_repo() {

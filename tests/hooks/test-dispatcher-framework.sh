@@ -16,6 +16,11 @@ source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/dispatcher.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ============================================================
 # Helpers
 # ============================================================
@@ -24,6 +29,7 @@ source "$REPO_ROOT/lockpick-workflow/hooks/lib/dispatcher.sh"
 make_allow_hook() {
     local tmpfile
     tmpfile=$(mktemp /tmp/test-dispatcher-allow-XXXXXX)
+    _CLEANUP_DIRS+=("$tmpfile")
     cat >"$tmpfile" <<'EOF'
 #!/usr/bin/env bash
 exit 0
@@ -37,6 +43,7 @@ make_block_hook() {
     local name="$1"
     local tmpfile
     tmpfile=$(mktemp /tmp/test-dispatcher-block-XXXXXX)
+    _CLEANUP_DIRS+=("$tmpfile")
     cat >"$tmpfile" <<EOF
 #!/usr/bin/env bash
 echo '{"decision":"block","reason":"${name} blocked"}'
@@ -50,6 +57,7 @@ EOF
 make_deny_hook() {
     local tmpfile
     tmpfile=$(mktemp /tmp/test-dispatcher-deny-XXXXXX)
+    _CLEANUP_DIRS+=("$tmpfile")
     cat >"$tmpfile" <<'EOF'
 #!/usr/bin/env bash
 printf '{"decision":"deny","reason":"denied by test hook"}'
@@ -109,10 +117,12 @@ rm -f "$_h_deny"
 # ============================================================
 echo "--- test_run_hooks_stops_at_first_block ---"
 _sentinel=$(mktemp /tmp/test-dispatcher-sentinel.XXXXXX)
+_CLEANUP_DIRS+=("$_sentinel")
 rm -f "$_sentinel"   # ensure it doesn't exist yet
 
 _h_block_first=$(make_block_hook "first")
 _h_sentinel=$(mktemp /tmp/test-dispatcher-sentinel-hook-XXXXXX)
+_CLEANUP_DIRS+=("$_h_sentinel")
 cat >"$_h_sentinel" <<EOF
 #!/usr/bin/env bash
 touch "${_sentinel}"
@@ -139,6 +149,7 @@ rm -f "$_h_block_first" "$_h_sentinel" "$_sentinel"
 # ============================================================
 echo "--- test_is_worktree_returns_false_in_main_repo ---"
 _main_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_main_repo")
 git -C "$_main_repo" init -q -b main 2>/dev/null || git -C "$_main_repo" init -q
 git -C "$_main_repo" config user.email "test@test.com"
 git -C "$_main_repo" config user.name "Test"

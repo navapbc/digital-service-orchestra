@@ -19,6 +19,11 @@ COMPUTE_HASH="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ── Helper: compute get_artifacts_dir for a given repo path ──────────────────
 # Must run from inside the repo so git rev-parse --show-toplevel returns the right path.
 get_test_artifacts_dir() {
@@ -48,6 +53,7 @@ EOF
 setup_merge_env() {
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
     local REALENV
     REALENV=$(cd "$tmpdir" && pwd -P)
 
@@ -106,7 +112,9 @@ fi
 # test_pre_compact_sentinel_committed_in_temp_repo
 # Run the hook in a temp git repo and verify .checkpoint-needs-review is committed.
 TEST_GIT_A=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_GIT_A")
 TEST_ARTIFACTS_A=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_ARTIFACTS_A")
 (
     cd "$TEST_GIT_A"
     git init -q
@@ -162,6 +170,7 @@ assert_contains "test_record_review_source_stages_sentinel_removal" \
 # Set up a minimal git repo with a sentinel file committed.
 # record-review.sh should detect it and write checkpoint_cleared to review-status.
 TEST_GIT_B=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_GIT_B")
 NONCE_B="testnonceabcd1234"
 (
     cd "$TEST_GIT_B"
@@ -216,6 +225,7 @@ rm -rf "$TEST_GIT_B"
 # test_record_review_no_checkpoint_cleared_without_sentinel
 # When .checkpoint-needs-review is absent, checkpoint_cleared must NOT be written.
 TEST_GIT_C=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_GIT_C")
 (
     cd "$TEST_GIT_C"
     git init -q
@@ -543,6 +553,7 @@ test_merge_blocked_when_checkpoint_add_follows_deletion
 test_record_review_preserves_checkpoint_cleared_on_rerun() {
     local TEST_GIT_J
     TEST_GIT_J=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_GIT_J")
     local PREV_NONCE_J="previousnonce_J_xyz789"
 
     (

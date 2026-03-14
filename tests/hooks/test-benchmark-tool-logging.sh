@@ -24,6 +24,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 BENCHMARK_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/benchmark-tool-logging.sh"
 PRE_ALL_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-all.sh"
 POST_ALL_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-all.sh"
@@ -92,6 +97,7 @@ _timing_log="/tmp/hook-timing-test-pre-all-$$"
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls"},"session_id":"test"}'
 # Ensure flag does NOT exist (use temp HOME)
 _tmp_home=$(mktemp -d)
+_CLEANUP_DIRS+=("$_tmp_home")
 _exit_code=0
 printf '%s' "$_INPUT" | HOME="$_tmp_home" bash "$PRE_ALL_DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_eq "test_pre_all_timing_is_opt_in: exits 0 without flag" "0" "$_exit_code"
@@ -118,6 +124,7 @@ assert_eq "test_post_all_timing_is_opt_in: timing is conditional" "1" "$_guarded
 # ============================================================
 echo "--- test_pre_all_still_exits_0_with_timing_enabled ---"
 _tmp_home=$(mktemp -d)
+_CLEANUP_DIRS+=("$_tmp_home")
 mkdir -p "$_tmp_home/.claude"
 touch "$_tmp_home/.claude/hook-timing-enabled"
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls"},"session_id":"test"}'
@@ -132,6 +139,7 @@ rm -rf "$_tmp_home"
 # ============================================================
 echo "--- test_post_all_still_exits_0_with_timing_enabled ---"
 _tmp_home=$(mktemp -d)
+_CLEANUP_DIRS+=("$_tmp_home")
 mkdir -p "$_tmp_home/.claude"
 touch "$_tmp_home/.claude/hook-timing-enabled"
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls"},"session_id":"test"}'

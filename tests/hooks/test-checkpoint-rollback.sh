@@ -15,12 +15,18 @@ DEPS_SH="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # =============================================================================
 # Helper: create a temp git repo with an initial commit
 # =============================================================================
 setup_test_repo() {
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
     local realdir
     realdir=$(cd "$tmpdir" && pwd -P)
 

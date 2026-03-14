@@ -8,9 +8,15 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-compact-checkpoint.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # --- Setup: create a temp ARTIFACTS_DIR and source deps.sh for get_artifacts_dir ---
 # We override get_artifacts_dir so the hook writes to our temp dir.
 TEST_ARTIFACTS_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_ARTIFACTS_DIR")
 
 # test_hook_source_contains_pre_checkpoint_base_write
 # The hook source must contain a line writing to pre-checkpoint-base
@@ -45,6 +51,7 @@ fi
 # Run the hook in a real git repo and verify the file content is a 40-char hex SHA.
 # We need to use a temp git repo to avoid modifying the real repo.
 TEST_GIT_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_GIT_DIR")
 (
     cd "$TEST_GIT_DIR"
     git init -q

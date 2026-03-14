@@ -13,6 +13,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 PASS=0
 FAIL=0
 
@@ -112,6 +117,7 @@ assert_ne "different data different hash" "$HASH_A" "$HASH_C"
 # --- hash_file ---
 echo "=== hash_file ==="
 TMPFILE=$(mktemp)
+_CLEANUP_DIRS+=("$TMPFILE")
 echo "test data" > "$TMPFILE"
 HASH_FILE=$(hash_file "$TMPFILE")
 HASH_STDIN=$(echo "test data" | hash_stdin)

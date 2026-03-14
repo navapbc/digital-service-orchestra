@@ -17,6 +17,11 @@ MERGE_SCRIPT="$REPO_ROOT/scripts/merge-to-main.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ── Ensure read-config.sh can find a python3 with pyyaml ─────────────────────
 # read-config.sh probes for a python3 with pyyaml; in temp test environments
 # REPO_ROOT points to the temp dir (no venv there), so the probe falls back to
@@ -80,6 +85,7 @@ setup_portability_env() {
     local tickets_dir="${1:-.tickets}"
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
     local REALENV
     REALENV=$(cd "$tmpdir" && pwd -P)
 

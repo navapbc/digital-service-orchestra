@@ -131,9 +131,9 @@ patch_hook_shim() {
         return 0
     fi
 
-    # Insert `poetry run pre-commit` fallback before the final error line.
+    # Insert fallback branches before the final error line.
     # The error line is: echo '`pre-commit` not found...'
-    # We insert a new elif branch before it.
+    # We insert new elif branches before it.
     local tmpfile
     tmpfile=$(mktemp)
 
@@ -148,10 +148,13 @@ patch_hook_shim() {
     #   fi
     #
     # We replace the bare `else` line (that precedes the "not found" error) with
-    # two new fallback branches:
+    # new fallback branches:
     #   1. Direct venv python: find app/.venv/bin/python relative to the repo root
     #      (handles repos where pyproject.toml is in a subdirectory)
-    #   2. poetry run: cd to the app dir first so poetry can find pyproject.toml
+    #   2. Main repo venv python: resolve main repo via git-common-dir (handles
+    #      worktrees that share hooks with the main repo — the worktree's toplevel
+    #      may not have a venv, but the main repo does)
+    #   3. poetry run: cd to the app dir first so poetry can find pyproject.toml
     #
     # To do this safely, we match the `else` followed by the error echo — using a
     # two-line lookahead in awk to ensure we only modify the right `else`.
@@ -161,10 +164,16 @@ patch_hook_shim() {
         if (held != "") {
             # Check if held line is "else" and current line is the error echo
             if (held ~ /^else$/ && $0 ~ /echo .*pre-commit.*not found/) {
-                # Fallback 1: find venv python relative to repo root
+                # Fallback 1: find venv python relative to repo root (worktree toplevel)
                 print "elif _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -x \"$_REPO_ROOT/app/.venv/bin/python\" ]; then"
                 print "    exec \"$_REPO_ROOT/app/.venv/bin/python\" -mpre_commit \"${ARGS[@]}\""
-                # Fallback 2: poetry run from the app directory
+                # Fallback 2: find venv python via main repo (git-common-dir)
+                # In worktrees, --show-toplevel returns the worktree path, but
+                # --git-common-dir returns the main repo .git dir. The main repo
+                # root is its parent. This handles stale worktree venvs.
+                print "elif _MAIN_GIT=\"$(git rev-parse --git-common-dir 2>/dev/null)\" && _MAIN_ROOT=\"$(cd \"$_MAIN_GIT/..\" 2>/dev/null && pwd)\" && [ -x \"$_MAIN_ROOT/app/.venv/bin/python\" ]; then"
+                print "    exec \"$_MAIN_ROOT/app/.venv/bin/python\" -mpre_commit \"${ARGS[@]}\""
+                # Fallback 3: poetry run from the app directory
                 print "elif command -v poetry > /dev/null && _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -f \"$_REPO_ROOT/app/pyproject.toml\" ]; then"
                 print "    cd \"$_REPO_ROOT/app\" && exec poetry run pre-commit \"${ARGS[@]}\""
                 print "else"

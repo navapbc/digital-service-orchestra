@@ -22,6 +22,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
 POST_EDIT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-edit.sh"
 POST_WRITE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-write.sh"
@@ -184,6 +189,7 @@ echo "--- test_post_bash_calls_tool_logging_post ---"
 # Setup: enable logging via temp HOME so we can check the JSONL log
 _ORIG_HOME="$HOME"
 _TEST_HOME=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST_HOME")
 export HOME="$_TEST_HOME"
 mkdir -p "$_TEST_HOME/.claude"
 touch "$_TEST_HOME/.claude/tool-logging-enabled"
@@ -216,6 +222,7 @@ rm -rf "$_TEST_HOME"
 echo "--- test_post_all_timing_instrumentation ---"
 
 _timing_test_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_timing_test_dir")
 mkdir -p "$_timing_test_dir/.claude/logs"
 # Enable both timing and tool logging
 touch "$_timing_test_dir/.claude/hook-timing-enabled"

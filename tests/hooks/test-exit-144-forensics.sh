@@ -22,12 +22,18 @@ POST_HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ============================================================
 # test_pre_bash_records_start_timestamp
 # A Bash tool call should create a bash-start-ts-<hash> file
 # in the artifacts directory with a numeric timestamp value.
 # ============================================================
 _TEST1_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST1_DIR")
 _TEST1_COMMAND="echo hello world"
 _TEST1_HASH=$(echo -n "$_TEST1_COMMAND" | hash_stdin | cut -c1-8)
 _TEST1_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo hello world"}}'
@@ -66,6 +72,7 @@ rm -rf "$_TEST1_DIR"
 # bash-start-ts-* files in the artifacts directory.
 # ============================================================
 _TEST2_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST2_DIR")
 _TEST2_INPUT='{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.py"}}'
 
 # Run the dispatcher with isolated artifacts dir
@@ -85,6 +92,7 @@ rm -rf "$_TEST2_DIR"
 # Two different commands should create different timestamp files.
 # ============================================================
 _TEST3_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST3_DIR")
 _TEST3_CMD_A="git status"
 _TEST3_CMD_B="make test"
 _TEST3_HASH_A=$(echo -n "$_TEST3_CMD_A" | hash_stdin | cut -c1-8)
@@ -119,6 +127,7 @@ rm -rf "$_TEST3_DIR"
 # should be written to exit-144-forensics.jsonl with correct fields.
 # ============================================================
 _TEST4_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST4_DIR")
 _TEST4_COMMAND="make test-unit-only"
 _TEST4_HASH=$(echo -n "$_TEST4_COMMAND" | hash_stdin | cut -c1-8)
 
@@ -154,6 +163,7 @@ rm -rf "$_TEST4_DIR"
 # When exit_code != 144, no JSONL file should be created.
 # ============================================================
 _TEST5_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST5_DIR")
 _TEST5_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo ok"},"tool_response":{"exit_code":0}}'
 
 echo "$_TEST5_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST5_DIR" bash "$POST_HOOK" 2>/dev/null || true
@@ -174,6 +184,7 @@ rm -rf "$_TEST5_DIR"
 # timestamp, command, elapsed_s, cause, cwd
 # ============================================================
 _TEST6_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST6_DIR")
 _TEST6_COMMAND="poetry run pytest"
 _TEST6_HASH=$(echo -n "$_TEST6_COMMAND" | hash_stdin | cut -c1-8)
 
@@ -219,6 +230,7 @@ rm -rf "$_TEST6_DIR"
 # the entry should have elapsed_s=-1 and cause="unknown".
 # ============================================================
 _TEST7_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST7_DIR")
 # Do NOT create a bash-start-ts file — simulate missing pre-hook timestamp
 
 _TEST7_INPUT='{"tool_name":"Bash","tool_input":{"command":"some long command"},"tool_response":{"exit_code":144}}'
@@ -246,6 +258,7 @@ rm -rf "$_TEST7_DIR"
 # ============================================================
 # Boundary test A: 65000ms → cancellation (clearly < 70000ms even with drift)
 _TEST8A_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST8A_DIR")
 _TEST8A_COMMAND="boundary test A"
 _TEST8A_HASH=$(echo -n "$_TEST8A_COMMAND" | hash_stdin | cut -c1-8)
 
@@ -269,6 +282,7 @@ rm -rf "$_TEST8A_DIR"
 
 # Boundary test B: 75000ms → timeout (clearly >= 70000ms)
 _TEST8B_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST8B_DIR")
 _TEST8B_COMMAND="boundary test B"
 _TEST8B_HASH=$(echo -n "$_TEST8B_COMMAND" | hash_stdin | cut -c1-8)
 
@@ -296,6 +310,7 @@ rm -rf "$_TEST8B_DIR"
 # should return cleanly without creating a JSONL file.
 # ============================================================
 _TEST9_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST9_DIR")
 _TEST9_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":{"output":"hi"}}'
 
 echo "$_TEST9_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST9_DIR" bash "$POST_HOOK" 2>/dev/null || true
@@ -331,6 +346,7 @@ assert_contains "test_analyze_script_handles_missing_file: message" "No exit-144
 # "No exit-144 events recorded." and exit 0.
 # ============================================================
 _TEST11_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST11_DIR")
 _TEST11_FILE="$_TEST11_DIR/exit-144-forensics.jsonl"
 touch "$_TEST11_FILE"
 
@@ -347,6 +363,7 @@ rm -rf "$_TEST11_DIR"
 # three report sections: top commands, cause breakdown, elapsed stats.
 # ============================================================
 _TEST12_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST12_DIR")
 _TEST12_FILE="$_TEST12_DIR/exit-144-forensics.jsonl"
 
 # Write synthetic JSONL entries
@@ -384,6 +401,7 @@ rm -rf "$_TEST12_DIR"
 # Malformed JSONL lines should be skipped with a count message.
 # ============================================================
 _TEST13_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST13_DIR")
 _TEST13_FILE="$_TEST13_DIR/exit-144-forensics.jsonl"
 
 cat > "$_TEST13_FILE" <<'JSONL'

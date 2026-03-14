@@ -9,15 +9,22 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/auto-format.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ── test_reads_extensions_from_conf ──────────────────────────────────────────
 # auto-format reads .py extension from a .conf file via read-config.sh
 _PLUGIN_ROOT=$(mktemp -d)
+_CLEANUP_DIRS+=("$_PLUGIN_ROOT")
 cat > "$_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
 format.extensions=.py
 CONF_EOF
 
 # Create a real .py file under app/src so the hook will attempt to process it
 _FAKE_PY=$(mktemp "$REPO_ROOT/app/src/fake_test_XXXXXX.py")
+_CLEANUP_DIRS+=("$_FAKE_PY")
 echo "x = 1" > "$_FAKE_PY"
 
 INPUT="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$_FAKE_PY\"}}"
@@ -42,6 +49,7 @@ rm -rf "$_PLUGIN_ROOT"
 # ── test_reads_source_dirs_from_conf ─────────────────────────────────────────
 # auto-format reads app/src, app/tests from a .conf file
 _PLUGIN_ROOT2=$(mktemp -d)
+_CLEANUP_DIRS+=("$_PLUGIN_ROOT2")
 cat > "$_PLUGIN_ROOT2/workflow-config.conf" << 'CONF_EOF'
 format.extensions=.py
 format.source_dirs=app/src
@@ -50,6 +58,7 @@ CONF_EOF
 
 # A .py file under app/src should be processed
 _FAKE_PY2=$(mktemp "$REPO_ROOT/app/src/fake_test_XXXXXX.py")
+_CLEANUP_DIRS+=("$_FAKE_PY2")
 echo "x = 1" > "$_FAKE_PY2"
 INPUT2="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$_FAKE_PY2\"}}"
 EXIT_CODE2=0
@@ -76,6 +85,7 @@ assert_eq "test_no_python_invocation" "0" "$_has_python"
 # Without any config file, defaults to .py and app/src, app/tests
 # A .py file outside app/src and app/tests should be skipped (no config, default dirs)
 _NO_CONFIG_ROOT=$(mktemp -d)
+_CLEANUP_DIRS+=("$_NO_CONFIG_ROOT")
 # No workflow-config.conf or .yaml present
 
 _OUTSIDE_PY2="/tmp/no_config_test.py"
@@ -86,6 +96,7 @@ assert_eq "test_fallback_defaults_without_config_skips_outside" "" "$_NC_OUTPUT"
 
 # A .py file inside app/src should be processed (exit 0)
 _FAKE_PY3=$(mktemp "$REPO_ROOT/app/src/fake_test_XXXXXX.py")
+_CLEANUP_DIRS+=("$_FAKE_PY3")
 echo "x = 1" > "$_FAKE_PY3"
 INPUT_NC2="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$_FAKE_PY3\"}}"
 EXIT_CODE_NC=0

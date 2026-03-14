@@ -10,6 +10,7 @@
 #   - Commits with "WIP" or "wip" in the message (work-in-progress)
 #   - Commits from the pre-compact-checkpoint hook (emergency saves)
 #   - Merge commits (merge-to-main.sh merges already-reviewed work)
+#   - Ticket-only / non-reviewable commits (skip_review via skip-review-check.sh)
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/pre-bash-functions.sh"
