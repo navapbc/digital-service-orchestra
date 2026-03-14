@@ -13,6 +13,11 @@ SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-create.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-worktree-create.sh ==="
 
 # ── Test 1: Script exists at plugin location ─────────────────────────────────
@@ -47,6 +52,7 @@ run_test "unknown option exits 1" 1 "" bash "$SCRIPT" --unknown-flag-xyz
 echo "Test 5: Script exits non-zero when not in a git repo"
 exit_code=0
 TMP_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMP_DIR")
 ( cd "$TMP_DIR" && bash "$SCRIPT" 2>/dev/null ) || exit_code=$?
 rmdir "$TMP_DIR" 2>/dev/null || true
 if [ "$exit_code" -ne 0 ]; then
@@ -112,7 +118,9 @@ fi
 # Caller must call _smoke_cleanup after each test.
 _smoke_setup() {
     SMOKE_REPO=$(mktemp -d)
+    _CLEANUP_DIRS+=("$SMOKE_REPO")
     SMOKE_WORKTREES=$(mktemp -d)
+    _CLEANUP_DIRS+=("$SMOKE_WORKTREES")
     git init "$SMOKE_REPO" &>/dev/null
     # Create an initial commit so worktree creation works
     git -C "$SMOKE_REPO" commit --allow-empty -m "init" &>/dev/null

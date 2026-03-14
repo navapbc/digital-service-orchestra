@@ -29,6 +29,11 @@ TK_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/tk"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-tk-no-sync-calls.sh ==="
 
 # ── Shared ticket fixture ────────────────────────────────────────────────────
@@ -64,6 +69,7 @@ EOF
 echo "Test 1: mock tk-sync-lib.sh — write command must not invoke sync"
 
 TMPDIR_T1=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T1")
 INVOCATION_LOG="$TMPDIR_T1/sync-calls.log"
 touch "$INVOCATION_LOG"
 
@@ -156,6 +162,7 @@ fi
 echo "Test 3: smoke — tk ready exits 0"
 
 TMPDIR_T3=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T3")
 export TICKETS_DIR="$TMPDIR_T3"
 make_ticket "$TICKETS_DIR" "ticket-smoke1"
 

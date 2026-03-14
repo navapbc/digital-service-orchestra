@@ -23,6 +23,13 @@
 #   - Stored in _GIT_FIXTURE_TEMPLATE_DIR (exported so callers can inspect)
 #   - Callers are responsible for their own dest cleanup
 
+# Temp dir cleanup on exit (guarded for sourced usage — avoid clobbering caller state)
+if [[ -z "${_CLEANUP_DIRS+set}" ]]; then
+    _CLEANUP_DIRS=()
+    _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+    trap _cleanup EXIT
+fi
+
 # Global: path to the cached template repo (empty = not yet created)
 : "${_GIT_FIXTURE_TEMPLATE_DIR:=}"
 
@@ -31,6 +38,7 @@ _ensure_git_fixture_template() {
         return
     fi
     _GIT_FIXTURE_TEMPLATE_DIR=$(mktemp -d)
+    _CLEANUP_DIRS+=("$_GIT_FIXTURE_TEMPLATE_DIR")
     git init -q -b main "$_GIT_FIXTURE_TEMPLATE_DIR"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config user.email "test@test.com"
     git -C "$_GIT_FIXTURE_TEMPLATE_DIR" config user.name "Test"

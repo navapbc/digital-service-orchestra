@@ -15,6 +15,11 @@ WRAPPER_SCRIPT="$REPO_ROOT/scripts/git-revert-safe.sh"
 PASS=0
 FAIL=0
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-git-revert-safe.sh (plugin) ==="
 echo ""
 
@@ -26,6 +31,7 @@ echo ""
 setup_test_repo() {
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
 
     cd "$tmpdir" || return 1
     git init -q
@@ -101,6 +107,7 @@ fi
 echo "Test: test_revert_safe_strips_ticket_files"
 
 TMPDIR_1=$(setup_test_repo)
+_CLEANUP_DIRS+=("$TMPDIR_1")
 COMMIT2_SHA=$(git -C "$TMPDIR_1" rev-parse HEAD)
 
 cd "$TMPDIR_1" || { echo "  FAIL: test_revert_safe_strips_ticket_files (cd failed)"; ((FAIL++)); exit 1; }
@@ -134,6 +141,7 @@ rm -rf "$TMPDIR_1"
 echo "Test: test_revert_safe_include_tickets_flag"
 
 TMPDIR_2=$(setup_test_repo)
+_CLEANUP_DIRS+=("$TMPDIR_2")
 COMMIT2_SHA=$(git -C "$TMPDIR_2" rev-parse HEAD)
 
 cd "$TMPDIR_2" || { echo "  FAIL: test_revert_safe_include_tickets_flag (cd failed)"; ((FAIL++)); exit 1; }
@@ -167,6 +175,7 @@ rm -rf "$TMPDIR_2"
 echo "Test: test_revert_safe_no_tickets_in_revert"
 
 TMPDIR_3=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_3")
 cd "$TMPDIR_3" || { echo "  FAIL: test_revert_safe_no_tickets_in_revert (cd failed)"; ((FAIL++)); exit 1; }
 git init -q
 git config user.email "test@test.com"
@@ -184,6 +193,7 @@ git commit -q -m "Modify app file only"
 COMMIT2_SHA=$(git rev-parse HEAD)
 
 no_ticket_stderr_file=$(mktemp)
+_CLEANUP_DIRS+=("$no_ticket_stderr_file")
 no_ticket_exit=0
 bash "$CANONICAL_SCRIPT" "$COMMIT2_SHA" >"$no_ticket_stderr_file.stdout" 2>"$no_ticket_stderr_file" || no_ticket_exit=$?
 no_ticket_stderr=$(cat "$no_ticket_stderr_file")
@@ -207,6 +217,7 @@ rm -rf "$TMPDIR_3"
 echo "Test: test_revert_safe_prints_warning_with_filenames"
 
 TMPDIR_4=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_4")
 cd "$TMPDIR_4" || { echo "  FAIL: test_revert_safe_prints_warning_with_filenames (cd failed)"; ((FAIL++)); exit 1; }
 git init -q
 git config user.email "test@test.com"
@@ -227,6 +238,7 @@ git commit -q -m "Change with two tickets"
 COMMIT2_SHA=$(git rev-parse HEAD)
 
 warn_stderr_file=$(mktemp)
+_CLEANUP_DIRS+=("$warn_stderr_file")
 warn_exit=0
 bash "$CANONICAL_SCRIPT" "$COMMIT2_SHA" >"$warn_stderr_file.stdout" 2>"$warn_stderr_file" || warn_exit=$?
 warn_stderr=$(cat "$warn_stderr_file")
@@ -250,6 +262,7 @@ rm -rf "$TMPDIR_4"
 echo "Test: test_revert_safe_tickets_only_commit_aborts_cleanly"
 
 TMPDIR_5=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_5")
 cd "$TMPDIR_5" || { echo "  FAIL: test_revert_safe_tickets_only_commit_aborts_cleanly (cd failed)"; ((FAIL++)); exit 1; }
 git init -q
 git config user.email "test@test.com"
@@ -269,6 +282,7 @@ COMMIT2_SHA=$(git rev-parse HEAD)
 HEAD_BEFORE=$(git rev-parse HEAD)
 
 tickets_only_stderr_file=$(mktemp)
+_CLEANUP_DIRS+=("$tickets_only_stderr_file")
 tickets_only_exit=0
 bash "$CANONICAL_SCRIPT" "$COMMIT2_SHA" >"$tickets_only_stderr_file.stdout" 2>"$tickets_only_stderr_file" || tickets_only_exit=$?
 tickets_only_stderr=$(cat "$tickets_only_stderr_file")
@@ -304,6 +318,7 @@ rm -rf "$TMPDIR_5"
 echo "Test: test_wrapper_delegates_to_canonical"
 
 TMPDIR_6=$(setup_test_repo)
+_CLEANUP_DIRS+=("$TMPDIR_6")
 COMMIT2_SHA=$(git -C "$TMPDIR_6" rev-parse HEAD)
 
 cd "$TMPDIR_6" || { echo "  FAIL: test_wrapper_delegates_to_canonical (cd failed)"; ((FAIL++)); exit 1; }

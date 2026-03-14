@@ -29,6 +29,11 @@ SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/reinstall-hooks.sh"
 # shellcheck source=../lib/assert.sh
 source "$ASSERT_LIB"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-reinstall-hooks.sh ==="
 echo ""
 
@@ -63,6 +68,7 @@ assert_ne "test_missing_worktree_path" "0" "$rc"
 # ---------------------------------------------------------------------------
 echo "Test 4: exits non-zero when app/ dir does not exist"
 TMPDIR_T4=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T4")
 rc=0
 WORKTREE_PATH="$TMPDIR_T4" bash "$SCRIPT" 2>/dev/null || rc=$?
 assert_ne "test_missing_app_dir" "0" "$rc"
@@ -73,6 +79,7 @@ rm -rf "$TMPDIR_T4"
 # ---------------------------------------------------------------------------
 echo "Test 5: exits non-zero when no venv and no poetry"
 TMPDIR_T5=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T5")
 mkdir -p "$TMPDIR_T5/app"
 # No .venv and PATH points to empty dir with no poetry
 rc=0
@@ -90,6 +97,7 @@ rm -rf "$TMPDIR_T5"
 echo "Test 6: hook shims contain poetry run fallback after reinstall"
 
 TMPDIR_T6=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T6")
 FAKE_REPO="$TMPDIR_T6/repo"
 mkdir -p "$FAKE_REPO/app/.venv/bin"
 
@@ -171,6 +179,7 @@ rm -rf "$TMPDIR_T6"
 echo "Test 7: all three hook types are installed"
 
 TMPDIR_T7=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T7")
 FAKE_REPO7="$TMPDIR_T7/repo"
 mkdir -p "$FAKE_REPO7/app/.venv/bin"
 git -C "$TMPDIR_T7" init -q "$FAKE_REPO7"
@@ -225,6 +234,7 @@ rm -rf "$TMPDIR_T7"
 echo "Test 8: hook shim with stale INSTALL_PYTHON path gets poetry run fallback injected"
 
 TMPDIR_T8=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T8")
 FAKE_REPO8="$TMPDIR_T8/repo"
 mkdir -p "$FAKE_REPO8/app/.venv/bin"
 git -C "$TMPDIR_T8" init -q "$FAKE_REPO8"
@@ -294,6 +304,7 @@ rm -rf "$TMPDIR_T8"
 echo "Test 9: executable bit preserved on hook shims after patching"
 
 TMPDIR_T9=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T9")
 FAKE_REPO9="$TMPDIR_T9/repo"
 mkdir -p "$FAKE_REPO9/app/.venv/bin"
 git -C "$TMPDIR_T9" init -q "$FAKE_REPO9"

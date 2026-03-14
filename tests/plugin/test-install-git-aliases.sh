@@ -15,6 +15,11 @@ WRAPPER_SCRIPT="$REPO_ROOT/scripts/install-git-aliases.sh"
 PASS=0
 FAIL=0
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-install-git-aliases.sh (plugin) ==="
 echo ""
 
@@ -70,6 +75,7 @@ fi
 echo "Test: test_install_git_aliases_registers_revert_safe"
 
 TMPDIR_1=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_1")
 
 cd "$TMPDIR_1" || { echo "  FAIL: test_install_git_aliases_registers_revert_safe (cd failed)"; ((FAIL++)); exit 1; }
 git init -q
@@ -103,6 +109,7 @@ rm -rf "$TMPDIR_1"
 echo "Test: test_install_prints_confirmation"
 
 TMPDIR_2=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_2")
 
 cd "$TMPDIR_2" || { echo "  FAIL: test_install_prints_confirmation (cd failed)"; ((FAIL++)); exit 1; }
 git init -q
@@ -133,6 +140,7 @@ rm -rf "$TMPDIR_2"
 echo "Test: test_install_idempotent"
 
 TMPDIR_3=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_3")
 
 cd "$TMPDIR_3" || { echo "  FAIL: test_install_idempotent (cd failed)"; ((FAIL++)); exit 1; }
 git init -q
@@ -165,6 +173,7 @@ rm -rf "$TMPDIR_3"
 echo "Test: test_wrapper_delegates_to_canonical"
 
 TMPDIR_4=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_4")
 
 cd "$TMPDIR_4" || { echo "  FAIL: test_wrapper_delegates_to_canonical (cd failed)"; ((FAIL++)); exit 1; }
 git init -q

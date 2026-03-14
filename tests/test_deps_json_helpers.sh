@@ -17,6 +17,11 @@ source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 PASS=0
 FAIL=0
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 assert_eq() {
     local label="$1" expected="$2" actual="$3"
     if [[ "$expected" == "$actual" ]]; then
@@ -136,6 +141,7 @@ assert_eq "json_mutate adds field" "1 2" "$PARSED"
 
 # Mutation from file
 TMPFILE=$(mktemp)
+_CLEANUP_DIRS+=("$TMPFILE")
 echo '{"x":10,"y":20}' > "$TMPFILE"
 RESULT2=$(json_mutate 'data["z"]=data["x"]+data["y"]' "$TMPFILE")
 rm -f "$TMPFILE"
@@ -158,6 +164,7 @@ assert_eq "json_mutate on empty object" "42" "$PARSED4"
 echo "=== json_filter_jsonl ==="
 
 TMPJSONL=$(mktemp)
+_CLEANUP_DIRS+=("$TMPJSONL")
 cat > "$TMPJSONL" <<'JSONL'
 {"name":"alice","age":30}
 {"name":"bob","age":25}
@@ -184,6 +191,7 @@ rm -f "$TMPJSONL"
 
 # Empty file
 TMPEMPTY=$(mktemp)
+_CLEANUP_DIRS+=("$TMPEMPTY")
 > "$TMPEMPTY"
 RESULT4=$(json_filter_jsonl "$TMPEMPTY" 'True')
 assert_eq "json_filter_jsonl empty file" "" "$RESULT4"
