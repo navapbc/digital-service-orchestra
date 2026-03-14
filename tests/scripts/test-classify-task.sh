@@ -13,6 +13,11 @@ SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/classify-task.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-classify-task.sh ==="
 
 # ── Test 1: Script is executable ──────────────────────────────────────────────
@@ -159,6 +164,7 @@ echo "=== TDD RED Phase: bd→tk migration tests ==="
 _setup_migration_test_env() {
     local tmpdir
     tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
 
     # Fake tk: records invocation to a log file, returns empty JSON array
     cat > "$tmpdir/tk" <<'STUB'
@@ -175,6 +181,7 @@ STUB
 echo "Test 8 (RED): --from-epic uses tk ready (MUST FAIL until migration)"
 {
     _tmpdir="$(_setup_migration_test_env)"
+    _CLEANUP_DIRS+=("$_tmpdir")
     _log="$_tmpdir/stub.log"
     touch "$_log"
     export STUB_LOG="$_log"
@@ -198,6 +205,7 @@ echo "Test 8 (RED): --from-epic uses tk ready (MUST FAIL until migration)"
 echo "Test 9 (RED): single task ID uses tk show (MUST FAIL until migration)"
 {
     _tmpdir="$(_setup_migration_test_env)"
+    _CLEANUP_DIRS+=("$_tmpdir")
     _log="$_tmpdir/stub.log"
     touch "$_log"
     export STUB_LOG="$_log"

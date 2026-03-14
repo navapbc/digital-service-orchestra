@@ -21,7 +21,7 @@ hidden complexity.
 
 | Dimension | What "4 or 5" looks like | What "below 4" looks like |
 |-----------|--------------------------|---------------------------|
-| modern_standards | Pattern follows current industry standards for the chosen stack; APIs used are actively recommended by the framework's current documentation; no use of deprecated APIs or superseded idioms. **Evaluate against the stack in use** — check the framework's migration guides and changelogs for deprecation warnings. *Project-specific examples (Python/Flask stack)*: SQLAlchemy 2.x `select()` over 1.x `session.query()`, Flask blueprints over bare `@app.route`, Pydantic v2 model validation, LangGraph stateful node patterns | Pattern relies on deprecated APIs, anti-patterns, or approaches that current framework documentation explicitly discourages; pattern would require a refactor within 1–2 framework versions. The key question: would a framework maintainer reviewing this code flag anything as outdated? |
+| modern_standards | Pattern follows current industry standards for the chosen stack; APIs used are actively recommended by the framework's current documentation; no use of deprecated APIs or superseded idioms. **Evaluate against the stack in use** — check the framework's migration guides and changelogs for deprecation warnings. *Examples*: using the framework's current query builder API over deprecated query interfaces, modular route registration over monolithic route definitions, schema-based validation over manual dict parsing, stateful graph node patterns over ad-hoc state passing | Pattern relies on deprecated APIs, anti-patterns, or approaches that current framework documentation explicitly discourages; pattern would require a refactor within 1–2 framework versions. The key question: would a framework maintainer reviewing this code flag anything as outdated? |
 | simplicity | Pattern is the simplest design that satisfies the requirements — no speculative abstractions, no premature generalization, no feature flags or extension points for hypothetical future needs. Three similar lines of code is preferred over a premature abstraction. New helpers, utilities, or base classes are only introduced when there are 3+ concrete consumers | Pattern introduces abstractions with only one consumer ("just in case"); adds configuration options or extension points that no current requirement demands; uses a design pattern (Strategy, Factory, Observer) where a simple function call would suffice; builds for hypothetical future requirements that are not in the story's acceptance criteria |
 | testability | Each component in the pattern can be unit-tested in isolation — dependencies are injectable, side effects are contained behind interfaces, and state is explicit (not ambient). A developer can write a test for any single component without mocking more than 2 collaborators | Components have hard-coded dependencies that cannot be injected (e.g., direct `import` and instantiation of a concrete client inside business logic); side effects are interleaved with logic (e.g., DB writes inside a calculation method); testing requires elaborate setup or mocking of 3+ collaborators to exercise a single code path |
 
@@ -31,11 +31,9 @@ You will receive:
 - **Story**: ID, title, description, and acceptance criteria — use this to understand
   what the pattern must accomplish
 - **Proposed Pattern**: description of the new architectural pattern, including how
-  it fits into the existing pipeline (enrichment → structural_analysis → gap_analysis →
-  entity_extraction → gap_rule_correlation → relationship_extraction → [rego/drools/
-  json_rules_engine]_generation → conflict_detection → validation) and which
-  layers it touches (Route/Blueprint → Service/DocumentProcessor → Agent/Node →
-  LLM Provider/Client → Formatter → DB/SQLAlchemy Model → Migration)
+  it fits into the existing pipeline (e.g., intake → analysis → processing →
+  generation → validation) and which layers it touches (Route → Service →
+  Agent/Node → Client → Formatter → Model → Migration)
 - **Architecture Context**: relevant existing patterns from `docs/adr/`, codebase
   grep results, and framework documentation excerpts gathered in Step 1
 

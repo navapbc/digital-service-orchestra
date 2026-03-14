@@ -351,9 +351,9 @@
         },
         "db_container": {
           "type": "string",
-          "description": "Exact Docker container name to look up for the database. Used by check-local-env.sh for container health checks. Defaults to 'lockpick-postgres-dev' when absent.",
+          "description": "Exact Docker container name to look up for the database. Used by check-local-env.sh for container health checks. No default — when absent, DB container check is skipped.",
           "minLength": 1,
-          "examples": ["lockpick-postgres-dev", "myapp-postgres"]
+          "examples": ["myapp-postgres", "project-db-dev"]
         },
         "db_container_patterns": {
           "type": "array",

@@ -28,6 +28,11 @@ PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/retro-gather.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-plugin-retro-gather.sh ==="
 echo ""
 
@@ -155,6 +160,7 @@ assert_eq "test_derived_prefix_uppercase" "my-big-project" "$result_mixed"
 make_stub_scripts() {
     local stub_dir
     stub_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$stub_dir")
 
     cat > "$stub_dir/cleanup-claude-session.sh" << 'STUB'
 #!/usr/bin/env bash
@@ -185,6 +191,7 @@ make_fake_repo() {
     local repo_name="$1"
     local fake_dir
     fake_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$fake_dir")
     local repo_dir="$fake_dir/$repo_name"
     mkdir -p "$repo_dir"
     git -C "$repo_dir" init -q 2>/dev/null
@@ -218,6 +225,7 @@ if [ -f "$PLUGIN_SCRIPT" ]; then
     echo "Test 12: fallback prefix derived from repo dir name when no config set"
 
     repo_dir12=$(make_fake_repo "my-test-project")
+    _CLEANUP_DIRS+=("$repo_dir12")
     prefix12_result=""
     if [ -n "$_YAML_PYTHON" ]; then
         # Simulate the ARTIFACT_PREFIX resolution from retro-gather.sh
@@ -243,6 +251,7 @@ if [ -f "$PLUGIN_SCRIPT" ]; then
     echo "Test 13: config session.artifact_prefix overrides fallback derivation"
 
     repo_dir13=$(make_fake_repo "my-test-project")
+    _CLEANUP_DIRS+=("$repo_dir13")
     cat > "$repo_dir13/workflow-config.conf" << 'CONFIGEOF'
 session.artifact_prefix=custom-test-prefix
 CONFIGEOF

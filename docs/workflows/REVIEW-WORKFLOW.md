@@ -131,7 +131,7 @@ Use the `REVIEW_MODEL=` value in Step 4. Do not substitute `sonnet` when the com
 
 Launch a `general-purpose` sub-agent using the Task tool. This agent type has full tool access, which is required to write `reviewer-findings.json` and compute its hash.
 
-**Do NOT use specialized sub-agent types** (e.g., `feature-dev:code-reviewer`, `unit-testing:test-automator`). Those types lack the Bash tool, which is required to run `verify-review-diff.sh` and pipe JSON to `write-reviewer-findings.sh`. Using a non-general-purpose type will cause the review to fail with a malformed output and require a re-dispatch.
+**Do NOT use specialized sub-agent types** (e.g., `feature-dev:code-reviewer`). Those types lack the Bash tool, which is required to run `verify-review-diff.sh` and pipe JSON to `write-reviewer-findings.sh`. Using a non-general-purpose type will cause the review to fail with a malformed output and require a re-dispatch.
 
 Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
 - `{working_directory}`: current working directory

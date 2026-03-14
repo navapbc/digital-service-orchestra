@@ -19,6 +19,11 @@ TK_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/tk"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-tk-jira-stamp-preserves-parent.sh ==="
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -50,6 +55,7 @@ create_ticket_file() {
 
 echo "Test 1: update_yaml_field inserts new field (parent:) into frontmatter"
 TMPDIR_T1=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T1")
 TICKET_T1="$TMPDIR_T1/test-ticket.md"
 create_ticket_file "$TICKET_T1"
 
@@ -108,6 +114,7 @@ rm -rf "$TMPDIR_T1"
 
 echo "Test 2: update_yaml_field preserves existing fields when inserting new one"
 TMPDIR_T2=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T2")
 TICKET_T2="$TMPDIR_T2/test-ticket.md"
 create_ticket_file "$TICKET_T2" "assignee: Bob"
 
@@ -130,6 +137,7 @@ rm -rf "$TMPDIR_T2"
 
 echo "Test 3: Python jira_key stamper preserves parent: field"
 TMPDIR_T3=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T3")
 TICKET_T3="$TMPDIR_T3/test-ticket.md"
 create_ticket_file "$TICKET_T3" "parent: epic-789"
 
@@ -173,6 +181,7 @@ rm -rf "$TMPDIR_T3"
 
 echo "Test 4: update_yaml_field updates existing field preserving parent:"
 TMPDIR_T4=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T4")
 TICKET_T4="$TMPDIR_T4/test-ticket.md"
 create_ticket_file "$TICKET_T4" "parent: epic-abc" "jira_key: OLD-1"
 
@@ -202,6 +211,7 @@ rm -rf "$TMPDIR_T4"
 
 echo "Test 5: update_yaml_field inserts new field within frontmatter block"
 TMPDIR_T5=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T5")
 TICKET_T5="$TMPDIR_T5/test-ticket.md"
 create_ticket_file "$TICKET_T5"
 

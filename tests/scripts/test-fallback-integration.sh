@@ -20,6 +20,11 @@ PROMPTS_DIR="$REPO_ROOT/lockpick-workflow/prompts/fallback"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-fallback-integration.sh ==="
 
 # All 7 categories from agent-routing.conf
@@ -29,6 +34,7 @@ ALL_CATEGORIES="test_fix_unit test_fix_e_to_e test_write mechanical_fix complex_
 _setup_env() {
     local tmpdir
     tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
     cp "$CONF_FILE" "$tmpdir/agent-routing.conf"
     echo "$tmpdir"
 }
@@ -60,6 +66,7 @@ SETTINGS_EOF
 # With empty plugins, all 7 categories resolve to general-purpose
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir"  # no plugins
 
 output=$(bash "$DISCOVER_SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true
@@ -141,6 +148,7 @@ _snapshot_fail
 
 # 5a: Preferred agent with error-debugging enabled
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir" "error-debugging@claude-code-workflows"
 
 output=$(bash "$DISCOVER_SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true
@@ -150,6 +158,7 @@ rm -rf "$tmpdir"
 
 # 5b: Fallback with empty plugins
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir"  # no plugins
 
 output=$(bash "$DISCOVER_SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true
@@ -179,6 +188,7 @@ assert_pass_if_clean "scenario_5_error_detective_preference"
 # while other non-unit-testing categories resolve to general-purpose
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir" "unit-testing@claude-code-workflows"
 
 output=$(bash "$DISCOVER_SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true

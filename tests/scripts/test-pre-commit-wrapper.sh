@@ -53,6 +53,11 @@ CLAUDE_PLUGIN_PYTHON=$(_find_python_with_yaml 2>/dev/null || echo "python3")
 # cannot collide on /tmp artifact directories.
 _TEST_PID=$$
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-pre-commit-wrapper.sh (generic plugin wrapper) ==="
 echo ""
 
@@ -69,6 +74,7 @@ assert_eq "test_syntax_ok" "0" "$syntax_exit"
 # ---------------------------------------------------------------------------
 echo "Test 2: accepts <hook_name> <timeout_secs> <command_string>"
 _T2_CFG=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T2_CFG")
 cat > "$_T2_CFG/workflow-config.conf" << EOF
 session.artifact_prefix=test-t2-artifacts-${_TEST_PID}
 EOF
@@ -108,6 +114,7 @@ echo "Test 4: generic wrapper works without project-specific tools or environmen
 
 # Set up an isolated config for all sub-tests
 _T4_CFG=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T4_CFG")
 cat > "$_T4_CFG/workflow-config.conf" << EOF
 session.artifact_prefix=test-t4-generic-${_TEST_PID}
 EOF
@@ -115,6 +122,7 @@ _T4_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'de
 
 # Sub-test A: works from an arbitrary directory (no cd app dependency)
 _T4_TMPDIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T4_TMPDIR")
 rc=0
 output=$(cd "$_T4_TMPDIR" && CLAUDE_PLUGIN_ROOT="$_T4_CFG" "$WRAPPER" generic-hook 30 "echo ran-ok" 2>/dev/null) || rc=$?
 assert_eq "test_runs_from_arbitrary_dir_exit" "0" "$rc"
@@ -131,6 +139,7 @@ assert_contains "test_no_PY_RUN_APPROACH_needed_output" "no-py-run" "$output"
 
 # Sub-test C: works when make is not in PATH (no make targets invoked)
 _T4_SAFEPATH=$(mktemp -d)  # empty dir with no tools — wrapper should still complete
+_CLEANUP_DIRS+=("$_T4_SAFEPATH")
 rc=0
 # Use a PATH that includes only bash and python (enough for the wrapper) but not make
 output=$(PATH="/usr/bin:/bin:$(dirname "$CLAUDE_PLUGIN_PYTHON")" \
@@ -150,6 +159,7 @@ rm -rf "$_T4_CFG" "/tmp/test-t4-generic-${_TEST_PID}-${_T4_WORKTREE}" 2>/dev/nul
 # ---------------------------------------------------------------------------
 echo "Test 5: artifact dir uses session.artifact_prefix from config"
 _T5_CFG=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T5_CFG")
 _T5_PREFIX="test-t5-custom-prefix-${_TEST_PID}"
 cat > "$_T5_CFG/workflow-config.conf" << EOF
 session.artifact_prefix=${_T5_PREFIX}
@@ -181,6 +191,7 @@ rm -rf "$_T5_CFG" "/tmp/${_T5_PREFIX}-${_T5_WORKTREE}" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 echo "Test 6: wrapper warns about missing issue_tracker.create_cmd on timeout"
 _T6_CFG=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T6_CFG")
 cat > "$_T6_CFG/workflow-config.conf" << EOF
 session.artifact_prefix=test-t6-nocmd-${_TEST_PID}
 EOF
@@ -200,6 +211,7 @@ rm -rf "$_T6_CFG" "/tmp/test-t6-nocmd-${_TEST_PID}-${_T6_WORKTREE}" 2>/dev/null 
 # ---------------------------------------------------------------------------
 echo "Test 7: exit code passthrough"
 _T7_CFG=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T7_CFG")
 cat > "$_T7_CFG/workflow-config.conf" << EOF
 session.artifact_prefix=test-t7-exitcodes-${_TEST_PID}
 EOF
@@ -227,6 +239,7 @@ rm -rf "$_T7_CFG" "/tmp/test-t7-exitcodes-${_TEST_PID}-${_T7_WORKTREE}" 2>/dev/n
 # ---------------------------------------------------------------------------
 echo "Test 8: timeout exit codes"
 _T8_CFG=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T8_CFG")
 cat > "$_T8_CFG/workflow-config.conf" << EOF
 session.artifact_prefix=test-t8-artifacts-${_TEST_PID}
 EOF
@@ -255,6 +268,7 @@ rm -rf "$_T8_CFG" "/tmp/test-t8-artifacts-${_TEST_PID}-${_T8_WORKTREE}" 2>/dev/n
 echo "Test 9: timeout logging"
 # Use TIMEOUT_SECS=-1 so any duration triggers the slow path
 TMPDIR_TEST=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_TEST")
 # Create a minimal config that sets artifact_prefix
 cat > "$TMPDIR_TEST/workflow-config.conf" << EOF
 session.artifact_prefix=test-wrapper-artifacts-${_TEST_PID}
@@ -285,7 +299,9 @@ rm -rf "$TMPDIR_TEST" "$ARTIFACTS_DIR_TEST" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 echo "Test 10: timeout ticket creation"
 TMPDIR_TEST=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_TEST")
 MOCK_CREATE_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$MOCK_CREATE_DIR")
 
 # Create a mock create command that logs calls
 cat > "$MOCK_CREATE_DIR/mock-create" << MOCK_SCRIPT
@@ -318,6 +334,7 @@ rm -rf "$TMPDIR_TEST" "$MOCK_CREATE_DIR" "/tmp/test-wrapper-ticket-${_TEST_PID}-
 # ---------------------------------------------------------------------------
 echo "Test 11: no ticket creation without config"
 TMPDIR_TEST=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_TEST")
 
 cat > "$TMPDIR_TEST/workflow-config.conf" << EOF
 session.artifact_prefix=test-wrapper-noticket-${_TEST_PID}
@@ -393,6 +410,7 @@ rm -f "$_T12_EXPECTED_LOG" 2>/dev/null || true
 # lockpick-workflow/tests/lib/ is a stable subdir with no workflow-config.conf.
 _T12_SUBDIR="$REPO_ROOT/lockpick-workflow/tests/lib"
 _T12_CFGDIR=$(mktemp -d)  # no workflow-config.conf inside
+_CLEANUP_DIRS+=("$_T12_CFGDIR")
 rc=0
 (cd "$_T12_SUBDIR" && CLAUDE_PLUGIN_ROOT="$_T12_CFGDIR" "$WRAPPER" fallback-hook 1 "sleep 2" 2>/dev/null) || rc=$?
 

@@ -29,6 +29,11 @@
 
 set -uo pipefail
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # --- Configuration from environment ---
 : "${TEST_TIMEOUT:=30}"
 : "${MAX_PARALLEL:=8}"
@@ -133,6 +138,7 @@ run_test_suite() {
 
     local results_dir
     results_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$results_dir")
 
     # --- Parallel execution ---
     local index=0

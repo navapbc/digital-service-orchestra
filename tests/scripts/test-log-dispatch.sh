@@ -13,6 +13,11 @@ SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/log-dispatch.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-log-dispatch.sh ==="
 
 # ── Test 1: Script is executable ──────────────────────────────────────────────
@@ -36,6 +41,7 @@ run_test "missing agent_type arg exits 1" 1 "" bash "$SCRIPT" "session-123"
 # ── Test 4: Valid dispatch writes JSONL entry ─────────────────────────────────
 echo "Test 4: Valid dispatch writes JSONL entry to log file"
 TEST_LOG_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_LOG_DIR")
 exit_code=0
 HOME="$TEST_LOG_DIR" bash "$SCRIPT" "session-test-123" "debugging-toolkit:debugger" "TASK-42" 2>&1 || exit_code=$?
 LOG_FILE="$TEST_LOG_DIR/.claude/logs/dispatch-$(date +%Y-%m-%d).jsonl"
@@ -51,6 +57,7 @@ rm -rf "$TEST_LOG_DIR"
 # ── Test 5: Written JSONL entry is valid JSON ─────────────────────────────────
 echo "Test 5: Written JSONL entry is valid JSON"
 TEST_LOG_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_LOG_DIR")
 HOME="$TEST_LOG_DIR" bash "$SCRIPT" "session-test-456" "code-review:reviewer" "" 2>&1 || true
 LOG_FILE="$TEST_LOG_DIR/.claude/logs/dispatch-$(date +%Y-%m-%d).jsonl"
 if [ -f "$LOG_FILE" ]; then
@@ -71,6 +78,7 @@ rm -rf "$TEST_LOG_DIR"
 # ── Test 6: JSONL entry contains expected fields ─────────────────────────────
 echo "Test 6: JSONL entry contains ts, session_id, assigned_agent, task_id fields"
 TEST_LOG_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TEST_LOG_DIR")
 HOME="$TEST_LOG_DIR" bash "$SCRIPT" "session-xyz" "sprint:orchestrator" "LOCK-99" 2>&1 || true
 LOG_FILE="$TEST_LOG_DIR/.claude/logs/dispatch-$(date +%Y-%m-%d).jsonl"
 if [ -f "$LOG_FILE" ]; then

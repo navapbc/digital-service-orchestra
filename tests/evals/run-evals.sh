@@ -21,6 +21,11 @@
 
 set -euo pipefail
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # --- Dependency check ---
 if ! command -v jq &>/dev/null; then
     echo "ERROR: jq is required but not found. Install jq and retry." >&2
@@ -105,6 +110,7 @@ for i in $(seq 0 $(( entry_count - 1 ))); do
 
         # Run hook, capturing stdout, stderr, exit code
         tmp_stderr=$(mktemp)
+        _CLEANUP_DIRS+=("$tmp_stderr")
         set +e
         actual_stdout=$(printf '%s' "$stdin_val" | bash "$hook_path" 2>"$tmp_stderr")
         actual_exit_code=$?

@@ -14,12 +14,18 @@ CONF_FILE="$REPO_ROOT/lockpick-workflow/config/agent-routing.conf"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-discover-agents.sh ==="
 
 # Helper: create a temp dir with mock settings.json and routing conf
 _setup_env() {
     local tmpdir
     tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$tmpdir")
     # Copy the real routing conf
     cp "$CONF_FILE" "$tmpdir/agent-routing.conf"
     echo "$tmpdir"
@@ -53,6 +59,7 @@ SETTINGS_EOF
 # All plugins enabled -> each category resolves to first preference
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir" \
     "unit-testing@claude-code-workflows" \
     "debugging-toolkit@claude-code-workflows" \
@@ -76,6 +83,7 @@ rm -rf "$tmpdir"
 # Empty enabledPlugins -> every category resolves to general-purpose
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir"  # no plugins
 
 output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true
@@ -94,6 +102,7 @@ rm -rf "$tmpdir"
 # No settings.json -> all general-purpose, exit 0
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 # No settings.json written
 
 exit_code=0
@@ -109,6 +118,7 @@ rm -rf "$tmpdir"
 # Invalid JSON -> all general-purpose, exit 0
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 echo "NOT VALID JSON {{{" > "$tmpdir/settings.json"
 
 exit_code=0
@@ -123,6 +133,7 @@ rm -rf "$tmpdir"
 # Some plugins installed -> correct partial resolution
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir" \
     "unit-testing@claude-code-workflows" \
     "error-debugging@claude-code-workflows"
@@ -150,6 +161,7 @@ rm -rf "$tmpdir"
 # Each category produces one stderr line matching the expected format
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir" "unit-testing@claude-code-workflows"
 
 stderr_output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>&1 >/dev/null) || true
@@ -164,6 +176,7 @@ rm -rf "$tmpdir"
 # When preferred plugin installed, reason=available
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir" "unit-testing@claude-code-workflows"
 
 stderr_output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>&1 >/dev/null) || true
@@ -177,6 +190,7 @@ rm -rf "$tmpdir"
 # When no preferred plugin, reason=fallback
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir"  # no plugins
 
 stderr_output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>&1 >/dev/null) || true
@@ -190,6 +204,7 @@ rm -rf "$tmpdir"
 # Update mock settings.json between invocations, verify routing changes
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir"  # no plugins initially
 
 output1=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true
@@ -207,6 +222,7 @@ rm -rf "$tmpdir"
 # When routing conf absent, script exits 1
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir"
 
 exit_code=0
@@ -220,6 +236,7 @@ rm -rf "$tmpdir"
 # Malformed lines in agent-routing.conf are skipped with stderr warning
 _snapshot_fail
 tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
 _write_settings "$tmpdir" "unit-testing@claude-code-workflows"
 
 # Write a routing conf with a malformed line mixed in

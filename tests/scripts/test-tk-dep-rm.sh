@@ -17,11 +17,17 @@ TK_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/tk"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-tk-dep-rm.sh ==="
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 TICKETS_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TICKETS_DIR")
 export TICKETS_DIR
 
 make_ticket() {
@@ -47,6 +53,7 @@ EOF
 
 echo "Test 1: dep rm removes existing dependency"
 TMPDIR_T1=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T1")
 OLD_TICKETS_DIR="$TICKETS_DIR"
 export TICKETS_DIR="$TMPDIR_T1"
 
@@ -93,6 +100,7 @@ TICKETS_DIR="$OLD_TICKETS_DIR"
 
 echo "Test 2: dep rm on non-existent dependency returns non-zero exit"
 TMPDIR_T2=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T2")
 export TICKETS_DIR="$TMPDIR_T2"
 
 make_ticket "ticket-ccc"
@@ -118,6 +126,7 @@ TICKETS_DIR="$OLD_TICKETS_DIR"
 
 echo "Test 3: dep add still works after fix (regression guard)"
 TMPDIR_T3=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T3")
 export TICKETS_DIR="$TMPDIR_T3"
 
 make_ticket "ticket-eee"

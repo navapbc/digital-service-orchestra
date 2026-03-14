@@ -21,7 +21,7 @@ set -uo pipefail
 
 # ── Resolve repo root ────────────────────────────────────────────────────────
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$_script_dir/../.." && pwd)"
+REPO_ROOT="$(cd "$_script_dir" && git rev-parse --show-toplevel)"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 settings_file="$REPO_ROOT/.claude/settings.json"

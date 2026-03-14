@@ -21,6 +21,11 @@ REAL_CONF="$REPO_ROOT/workflow-config.conf"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-flat-config-e2e.sh ==="
 
 # -- test_all_23_keys_readable ------------------------------------------------

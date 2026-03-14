@@ -51,8 +51,8 @@ For any score below 4, you MUST:
 - State whether the proposal is genuinely new, a modification of an existing pattern,
   or the existing pattern misidentified as new
 - If new/modified: name the existing alternative(s) that were not adequately evaluated
-  (e.g., "the existing `PipelineLLMClientFactory` mock injection pattern in
-  `app/src/pipeline/factory.py` already supports the test isolation requirement
+  (e.g., "the existing `ClientFactory` mock injection pattern in
+  `src/pipeline/factory.py` already supports the test isolation requirement
   stated in the story — the proposal does not explain why this is insufficient")
 - Reference existing patterns by file path when evaluating whether an existing
   approach was correctly rejected

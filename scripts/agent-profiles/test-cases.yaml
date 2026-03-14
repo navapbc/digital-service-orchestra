@@ -1,10 +1,13 @@
 # Test cases for classify-task.sh --test
 # Each case is scored against all profiles; expected_agent is verified against winner.
+# routing_category (when present) documents which agent-routing.conf category
+# discover-agents.sh would use to resolve the agent at dispatch time.
 
 - title: "Add JWT auth to upload endpoint"
   description: "Implement token validation middleware for the file upload API route"
   blocks: 0
   expected_agent: "backend-api-security:backend-security-coder"
+  routing_category: "security_audit"
   expected_complexity: "low"
 
 - title: "Investigate why gap analysis produces duplicates"
@@ -17,18 +20,21 @@
   description: "Clean up unused conditional branches and simplify the factory pattern"
   blocks: 0
   expected_agent: "code-simplifier:code-simplifier"
+  routing_category: "code_simplify"
   expected_complexity: "low"
 
 - title: "Fix broken database migration endpoint error handling"
   description: "The POST /api/migrate endpoint crashes when alembic detects conflicting heads. Add proper error handling and return 409."
   blocks: 0
   expected_agent: "debugging-toolkit:debugger"
+  routing_category: "mechanical_fix"
   expected_complexity: "low"
 
 - title: "Write tests for the enrichment pipeline stage"
   description: "Add unit tests covering the enrichment agent's prompt construction, LLM response parsing, and error recovery paths"
   blocks: 0
   expected_agent: "unit-testing:test-automator"
+  routing_category: "test_write"
   expected_complexity: "low"
 
 - title: "Add bulk document upload endpoint"
@@ -59,6 +65,7 @@
   description: "Add role-based access control checking in src/middleware/auth.py for admin blueprint routes in src/routes/admin.py. Validate JWT claims against required roles. Update tests in tests/unit/auth/."
   blocks: 2
   expected_agent: "backend-api-security:backend-security-coder"
+  routing_category: "security_audit"
   expected_complexity: "high"
 
 - title: "No keywords match this generic task"
@@ -71,12 +78,14 @@
   description: "The test_pipeline.py file has grown to 3468 lines and is hard to navigate. Split it into 6 focused test files, each under 500 lines. Maintain all existing test coverage and ensure no tests fail after the split."
   blocks: 0
   expected_agent: "unit-testing:test-automator"
+  routing_category: "test_write"
   expected_complexity: "low"
 
 - title: "Reorganize test_document_processor.py into focused modules"
   description: "Split the monolithic test file into separate files by concern: pipeline integration, chunking logic, error handling. Each output file must be under 500 lines."
   blocks: 0
   expected_agent: "unit-testing:test-automator"
+  routing_category: "test_write"
   expected_complexity: "low"
 
 # Bug-type tasks must never route to read-only agents (code-explorer).

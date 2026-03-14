@@ -13,6 +13,11 @@ SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/retro-gather.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-retro-gather.sh ==="
 
 # ── Test 1: Script is executable ──────────────────────────────────────────────
@@ -39,6 +44,7 @@ fi
 echo "Test 3: Script exits non-zero when not in a git repo"
 exit_code=0
 TMP_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMP_DIR")
 ( cd "$TMP_DIR" && bash "$SCRIPT" 2>/dev/null ) || exit_code=$?
 rmdir "$TMP_DIR" 2>/dev/null || true
 if [ "$exit_code" -ne 0 ]; then
@@ -54,6 +60,7 @@ fi
 # Use a background process with a kill-timer to prevent infinite hangs.
 echo "Test 4: Output contains === section headers"
 _OUTFILE=$(mktemp)
+_CLEANUP_DIRS+=("$_OUTFILE")
 bash "$SCRIPT" --quick >"$_OUTFILE" 2>&1 &
 _PID=$!
 # Timeout is injectable via RETRO_GATHER_TEST_TIMEOUT (default: 15s).

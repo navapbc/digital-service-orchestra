@@ -1,4 +1,5 @@
 agent_type: "unit-testing:test-automator"
+routing_category: "test_write"
 model:
   default: "sonnet"
   complex: "sonnet"

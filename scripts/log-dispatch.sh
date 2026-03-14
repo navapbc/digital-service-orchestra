@@ -9,7 +9,7 @@
 #   log-dispatch.sh <session_id> <assigned_agent_type> [task_id]
 #
 # Example:
-#   log-dispatch.sh "session-20260224-143022-12345" "debugging-toolkit:debugger" "LOCK-42"
+#   log-dispatch.sh "session-20260224-143022-12345" "mechanical_fix" "LOCK-42"
 #
 # The dispatch log is consumed by analyze-tool-use.py (Pattern 7: domain mismatch).
 
