@@ -2,9 +2,9 @@
 
 Review the current code diff using a `general-purpose` sub-agent for deep analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
 
-## Config Reference (from workflow-config.yaml)
+## Config Reference (from workflow-config.conf)
 
-Replace commands below with values from your `workflow-config.yaml`:
+Replace commands below with values from your `workflow-config.conf`:
 
 - `commands.format` (default: `make format`)
 - `commands.lint` (default: `make lint-ruff`)
@@ -117,7 +117,7 @@ The diff hash is captured here â€” AFTER Step 1's format/lint/type-check pass â€
 ```bash
 CHANGED_FILES=$({ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u)
 MODEL="sonnet"
-if echo "$CHANGED_FILES" | grep -qE '^(\.claude/skills/|\.claude/workflows/|lockpick-workflow/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
+if echo "$CHANGED_FILES" | grep -qE '^(lockpick-workflow/skills/|\.claude/workflows/|lockpick-workflow/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
     MODEL="opus"
 fi
 echo "REVIEW_MODEL=$MODEL"

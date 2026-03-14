@@ -4,7 +4,7 @@
 #
 # Tests cover:
 #   1. Exits 0 when Docker+DB are healthy and no env_check_app is configured (generic-only mode)
-#   2. Emits a WARN and exits 0 when commands.env_check_app is absent from workflow-config.yaml
+#   2. Emits a WARN and exits 0 when commands.env_check_app is absent from workflow-config.conf
 #   3. Invokes the configured env_check_app command when commands.env_check_app is present
 #   4. Exits non-zero when env_check_app command exits non-zero (error path)
 #   5. Config-driven DB container name override
@@ -38,7 +38,7 @@ echo "=== test-check-local-env-generic.sh ==="
 TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
-# Helper: create a minimal project skeleton with the given workflow-config.yaml content
+# Helper: create a minimal project skeleton with the given workflow-config.conf content
 _make_skeleton() {
     local name="$1" config_content="$2"
     local dir="$TMPDIR_BASE/$name"
@@ -51,7 +51,7 @@ _make_skeleton() {
     GIT_AUTHOR_NAME="Test User" GIT_AUTHOR_EMAIL="test@example.com" \
     GIT_COMMITTER_NAME="Test User" GIT_COMMITTER_EMAIL="test@example.com" \
     git -C "$dir" commit --allow-empty -m "init" -q || { echo "ERROR: git commit failed for $dir" >&2; exit 1; }
-    printf '%s\n' "$config_content" > "$dir/workflow-config.yaml" || { echo "ERROR: failed to write workflow-config.yaml in $dir" >&2; exit 1; }
+    printf '%s\n' "$config_content" > "$dir/workflow-config.conf" || { echo "ERROR: failed to write workflow-config.conf in $dir" >&2; exit 1; }
     echo "$dir"
 }
 
@@ -119,7 +119,7 @@ CURL_STUB
 
     (
         export PATH="$stub_bin:$PATH"
-        export WORKFLOW_CONFIG="$skeleton_dir/workflow-config.yaml"
+        export WORKFLOW_CONFIG="$skeleton_dir/workflow-config.conf"
         cd "$skeleton_dir"
         bash "$CANONICAL_SCRIPT" "$@"
     )
@@ -128,10 +128,9 @@ CURL_STUB
 # ── test_generic_only_exit_0 ──────────────────────────────────────────────────
 # Script exits 0 when Docker+DB are healthy and no env_check_app is configured.
 _snapshot_fail
-skeleton1=$(_make_skeleton "generic-only" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-YAML
+skeleton1=$(_make_skeleton "generic-only" "$(cat <<'CONF'
+stack=python-poetry
+CONF
 )")
 
 generic_exit=0
@@ -142,13 +141,11 @@ assert_pass_if_clean "test_generic_only_exit_0"
 # ── test_absent_env_check_app_warns ──────────────────────────────────────────
 # Script emits WARN and exits 0 when commands.env_check_app is absent.
 _snapshot_fail
-skeleton2=$(_make_skeleton "absent-callback" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-commands:
-  test: "make test"
-  lint: "make lint"
-YAML
+skeleton2=$(_make_skeleton "absent-callback" "$(cat <<'CONF'
+stack=python-poetry
+commands.test=make test
+commands.lint=make lint
+CONF
 )")
 
 absent_exit=0
@@ -162,12 +159,10 @@ assert_pass_if_clean "test_absent_env_check_app_warns"
 # Script invokes the configured env_check_app command when present.
 _snapshot_fail
 CALLBACK_MARKER_FILE="$TMPDIR_BASE/callback-invoked-$$"
-skeleton3=$(_make_skeleton "callback-present" "$(cat <<YAML
-version: "1.0.0"
-stack: python-poetry
-commands:
-  env_check_app: "touch $CALLBACK_MARKER_FILE"
-YAML
+skeleton3=$(_make_skeleton "callback-present" "$(cat <<CONF
+stack=python-poetry
+commands.env_check_app=touch $CALLBACK_MARKER_FILE
+CONF
 )")
 
 invoked_exit=0
@@ -180,12 +175,10 @@ assert_pass_if_clean "test_env_check_app_invoked"
 # ── test_env_check_app_error_exits_nonzero ────────────────────────────────────
 # Script exits non-zero when env_check_app command exits non-zero.
 _snapshot_fail
-skeleton4=$(_make_skeleton "callback-failing" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-commands:
-  env_check_app: "false"
-YAML
+skeleton4=$(_make_skeleton "callback-failing" "$(cat <<'CONF'
+stack=python-poetry
+commands.env_check_app=false
+CONF
 )")
 
 failing_exit=0
@@ -195,15 +188,13 @@ assert_pass_if_clean "test_env_check_app_error_exits_nonzero"
 
 # ── test_db_container_name_override ──────────────────────────────────────────
 # Config-driven DB container name override (commands.db_container or
-# infrastructure.db_container key in workflow-config.yaml).
+# infrastructure.db_container key in workflow-config.conf).
 _snapshot_fail
 CUSTOM_CONTAINER="my-custom-db-container"
-skeleton5=$(_make_skeleton "custom-db-name" "$(cat <<YAML
-version: "1.0.0"
-stack: python-poetry
-infrastructure:
-  db_container: "$CUSTOM_CONTAINER"
-YAML
+skeleton5=$(_make_skeleton "custom-db-name" "$(cat <<CONF
+stack=python-poetry
+infrastructure.db_container=$CUSTOM_CONTAINER
+CONF
 )")
 
 # Export STUB_DB_CONTAINER so it is visible inside the subshell in _run_script and to the
@@ -219,14 +210,12 @@ assert_pass_if_clean "test_db_container_name_override"
 
 # ── test_health_timeout_override ─────────────────────────────────────────────
 # Config-driven health timeout override (commands.health_timeout or
-# infrastructure.health_timeout key in workflow-config.yaml).
+# infrastructure.health_timeout key in workflow-config.conf).
 _snapshot_fail
-skeleton6=$(_make_skeleton "health-timeout" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-infrastructure:
-  health_timeout: 42
-YAML
+skeleton6=$(_make_skeleton "health-timeout" "$(cat <<'CONF'
+stack=python-poetry
+infrastructure.health_timeout=42
+CONF
 )")
 
 # Export CURL_LOG so the curl stub records its invocation args to a file.

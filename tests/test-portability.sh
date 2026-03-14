@@ -47,9 +47,9 @@ cp -RL "$REPO_ROOT/lockpick-workflow" "$PORTABILITY_DIR/lockpick-workflow"
 # git rev-parse. Initialize one at the portability root.
 (cd "$PORTABILITY_DIR" && git init -q && git config user.email "test@test.com" && git config user.name "Test")
 
-# Copy workflow-config.yaml if it exists (some scripts need it)
-if [[ -f "$REPO_ROOT/workflow-config.yaml" ]]; then
-    cp "$REPO_ROOT/workflow-config.yaml" "$PORTABILITY_DIR/"
+# Copy workflow-config.conf if it exists (some scripts need it)
+if [[ -f "$REPO_ROOT/workflow-config.conf" ]]; then
+    cp "$REPO_ROOT/workflow-config.conf" "$PORTABILITY_DIR/"
 fi
 
 # Symlink the app venv for scripts that probe for Python/pyyaml

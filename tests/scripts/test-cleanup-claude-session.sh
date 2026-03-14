@@ -148,7 +148,7 @@ fi
 # ── Test 8: Absent session.artifact_prefix — Docker and artifact steps skip ───
 # Static assertion: all Docker-related commands and artifact-dir operations
 # must be guarded by a config key check so they skip gracefully when the key
-# is absent from workflow-config.yaml.
+# is absent from workflow-config.conf.
 echo "Test 8: Absent session.artifact_prefix — Docker steps guarded by config key (static check)"
 if [ -f "$SCRIPT" ]; then
     # Script must reference artifact_prefix or equivalent config key guard
@@ -165,7 +165,7 @@ else
 fi
 
 # ── Test 9: Absent artifact_prefix — script exits 0 with warning ──────────────
-# Behavioral test: run the plugin script against a repo whose workflow-config.yaml
+# Behavioral test: run the plugin script against a repo whose workflow-config.conf
 # has no session.artifact_prefix key. The script must exit 0 (no crash) and
 # emit a warning that the Docker/artifact steps are being skipped.
 echo "Test 9: Absent artifact_prefix config — script exits 0 and warns (no-config smoke test)"
@@ -177,13 +177,11 @@ if [ -x "$SCRIPT" ]; then
     touch "$TMP_NO_CONFIG/file.txt"
     git -C "$TMP_NO_CONFIG" add . && git -C "$TMP_NO_CONFIG" commit -q -m "init"
 
-    # workflow-config.yaml with no session section (simulates absent artifact_prefix)
-    cat > "$TMP_NO_CONFIG/workflow-config.yaml" <<'EOF'
-format:
-  line_length: 100
-tickets:
-  directory: .tickets
-EOF
+    # workflow-config.conf with no session section (simulates absent artifact_prefix)
+    cat > "$TMP_NO_CONFIG/workflow-config.conf" <<'CONF'
+format.line_length=100
+tickets.directory=.tickets
+CONF
 
     exit_code=0
     no_config_output=$(

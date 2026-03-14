@@ -4,7 +4,7 @@
 # (lockpick-workflow/scripts/claude-safe).
 #
 # Verifies that _offer_worktree_cleanup reads tickets.directory from
-# workflow-config.yaml via _read_cfg and uses it to filter dirty files,
+# workflow-config.conf via _read_cfg and uses it to filter dirty files,
 # rather than always using the hardcoded '.tickets' fallback.
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-claude-safe-tickets-dir.sh
@@ -65,28 +65,26 @@ _read_cfg_from_config() {
 # custom-tickets config (used by filter tests)
 cfg_custom_dir="$TMPDIR_BASE/custom-dir"
 mkdir -p "$cfg_custom_dir"
-cat > "$cfg_custom_dir/workflow-config.yaml" <<YAML
-version: "1.0.0"
-tickets:
-  directory: "custom-tickets"
-YAML
+cat > "$cfg_custom_dir/workflow-config.conf" <<CONF
+tickets.directory=custom-tickets
+CONF
 
 # absent tickets.directory config (fallback tests)
 cfg_absent_dir="$TMPDIR_BASE/absent"
 mkdir -p "$cfg_absent_dir"
-cat > "$cfg_absent_dir/workflow-config.yaml" <<YAML
-version: "1.0.0"
-YAML
+cat > "$cfg_absent_dir/workflow-config.conf" <<CONF
+
+CONF
 
 # ── test_tickets_directory_read_from_config ───────────────────────────────────
-# When tickets.directory is set in workflow-config.yaml, _read_cfg must
+# When tickets.directory is set in workflow-config.conf, _read_cfg must
 # return the configured value.
 echo ""
 echo "--- test_tickets_directory_read_from_config ---"
 _snapshot_fail
 
 read_result=""
-read_result=$(_read_cfg_from_config "$cfg_custom_dir/workflow-config.yaml" "tickets.directory") || true
+read_result=$(_read_cfg_from_config "$cfg_custom_dir/workflow-config.conf" "tickets.directory") || true
 
 assert_eq "test_tickets_directory_read_from_config: returns configured value" \
     "custom-tickets" "$read_result"
@@ -100,7 +98,7 @@ echo "--- test_tickets_directory_absent_returns_empty ---"
 _snapshot_fail
 
 absent_result=""
-absent_result=$(_read_cfg_from_config "$cfg_absent_dir/workflow-config.yaml" "tickets.directory") || true
+absent_result=$(_read_cfg_from_config "$cfg_absent_dir/workflow-config.conf" "tickets.directory") || true
 
 assert_eq "test_tickets_directory_absent_returns_empty: empty string when key absent" \
     "" "$absent_result"
@@ -127,7 +125,7 @@ HELPER
 
 fallback_result=""
 fallback_result=$(
-    WORKFLOW_CONFIG="$cfg_absent_dir/workflow-config.yaml" \
+    WORKFLOW_CONFIG="$cfg_absent_dir/workflow-config.conf" \
     _CLAUDE_SAFE_SOURCE_ONLY=1 \
     PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
     CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \
@@ -156,7 +154,7 @@ HELPER
 
 passthrough_result=""
 passthrough_result=$(
-    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.yaml" \
+    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.conf" \
     _CLAUDE_SAFE_SOURCE_ONLY=1 \
     PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
     CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \
@@ -197,7 +195,7 @@ sed -i '' "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_custom_helper" 2
 
 filter_result=""
 filter_result=$(
-    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.yaml" \
+    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.conf" \
     _CLAUDE_SAFE_SOURCE_ONLY=1 \
     PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
     CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \
@@ -231,7 +229,7 @@ sed -i '' "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_mixed_helper" 2>
 
 filter_mixed_result=""
 filter_mixed_result=$(
-    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.yaml" \
+    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.conf" \
     _CLAUDE_SAFE_SOURCE_ONLY=1 \
     PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
     CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \
@@ -265,7 +263,7 @@ sed -i '' "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_default_helper" 
 
 filter_default_result=""
 filter_default_result=$(
-    WORKFLOW_CONFIG="$cfg_absent_dir/workflow-config.yaml" \
+    WORKFLOW_CONFIG="$cfg_absent_dir/workflow-config.conf" \
     _CLAUDE_SAFE_SOURCE_ONLY=1 \
     PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
     CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \

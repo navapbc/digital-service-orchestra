@@ -311,7 +311,7 @@ INFO
 # ---------------------------------------------------------------------------
 # Stop hook: warn when there are uncommitted code changes that haven't been reviewed.
 hook_review_stop_check() {
-    local HOOK_DIR="$_SESSION_MISC_FUNC_DIR/.."
+    local HOOK_DIR="$CLAUDE_PLUGIN_ROOT/hooks"
 
     local REPO_ROOT
     REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
@@ -400,7 +400,7 @@ hook_review_stop_check() {
 # ---------------------------------------------------------------------------
 # Stop hook: output a session summary of tool usage from the JSONL tool-use log.
 hook_tool_logging_summary() {
-    local HOOK_DIR="$_SESSION_MISC_FUNC_DIR/.."
+    local HOOK_DIR="$CLAUDE_PLUGIN_ROOT/hooks"
 
     check_tool python3 || return 0
 

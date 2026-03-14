@@ -77,11 +77,16 @@ hook_validation_gate() {
     fi
 
     # Lazily resolve validate command (avoid spawning Python unless needed)
-    local SCRIPTS_DIR="$CLAUDE_PLUGIN_ROOT/scripts"
+    local _VG_SCRIPTS_DIR=""
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
+        _VG_SCRIPTS_DIR="$CLAUDE_PLUGIN_ROOT/scripts"
+    fi
     local VALIDATE_CMD=""
     _vg_get_validate_cmd() {
         if [[ -z "$VALIDATE_CMD" ]]; then
-            VALIDATE_CMD=$("$SCRIPTS_DIR/read-config.sh" commands.validate 2>/dev/null || echo 'validate.sh --ci')
+            if [[ -n "$_VG_SCRIPTS_DIR" ]]; then
+                VALIDATE_CMD=$("$_VG_SCRIPTS_DIR/read-config.sh" commands.validate 2>/dev/null || echo 'validate.sh --ci')
+            fi
             VALIDATE_CMD=${VALIDATE_CMD:-'validate.sh --ci'}
         fi
         echo "$VALIDATE_CMD"
@@ -256,7 +261,7 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
     local _CREATE_CMD="${CREATE_CMD:-tk create}"
     local _READ_CONFIG=""
-    if [[ -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
         _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
     fi
 
@@ -446,7 +451,7 @@ hook_review_gate() {
     # Exempt: commits that only touch docs/logs
     local STAGED_NON_DOCS STAGED_AGENT_FILES
     STAGED_NON_DOCS=$(echo "$STAGED_NON_SNAPSHOTS" | grep -v -E '^(\.claude/session-logs/|\.claude/docs/|docs/)' || true)
-    STAGED_AGENT_FILES=$(echo "$STAGED_ALL" | grep -E '^(\.claude/skills/|\.claude/hooks/|\.claude/hookify\.|lockpick-workflow/skills/|lockpick-workflow/hooks/|lockpick-workflow/docs/workflows/|CLAUDE\.md)' || true)
+    STAGED_AGENT_FILES=$(echo "$STAGED_ALL" | grep -E '^(\.claude/hooks/|\.claude/hookify\.|lockpick-workflow/skills/|lockpick-workflow/hooks/|lockpick-workflow/docs/workflows/|CLAUDE\.md)' || true)
     if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_DOCS" && -z "$STAGED_AGENT_FILES" ]]; then
         return 0
     fi
@@ -487,7 +492,7 @@ hook_review_gate() {
     RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
 
     local _HOOK_DIR_FOR_DIFF _SNAPSHOT_ARGS
-    _HOOK_DIR_FOR_DIFF="$CLAUDE_PLUGIN_ROOT/hooks"
+    _HOOK_DIR_FOR_DIFF="${CLAUDE_PLUGIN_ROOT:-}/hooks"
     _SNAPSHOT_ARGS=()
     # Reuse untracked snapshot if available for deterministic hashing
     local _ARTIFACTS_DIR

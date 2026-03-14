@@ -7,6 +7,7 @@
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/review-gate.sh"
+export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"

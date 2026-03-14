@@ -3,7 +3,7 @@
 # PostToolUse hook: auto-format source files after Edit/Write tool calls.
 #
 # By default, processes .py files under app/src/ and app/tests/.
-# When CLAUDE_PLUGIN_ROOT is set and workflow-config.yaml is present, reads:
+# When CLAUDE_PLUGIN_ROOT is set and workflow-config.conf is present, reads:
 #   format.extensions  — list of file extensions to process (default: ['.py'])
 #   format.source_dirs — directories to restrict processing to (default: app/src, app/tests)
 #   commands.format    — project-wide format command (used to derive single-file command)
@@ -24,7 +24,7 @@ trap 'exit 0' ERR
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-SCRIPTS_DIR="$HOOK_DIR/../scripts"
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}/scripts"
 
 INPUT=$(cat)
 
@@ -64,7 +64,7 @@ fi
 # Read format.extensions list from config via read-config.sh --list
 CONFIGURED_EXTS=()
 if [[ -n "$CONFIG_FILE" ]]; then
-    _RAW_EXTS=$(bash "$SCRIPTS_DIR/../scripts/read-config.sh" --list format.extensions "$CONFIG_FILE" 2>/dev/null) || true
+    _RAW_EXTS=$(bash "$SCRIPTS_DIR/read-config.sh" --list format.extensions "$CONFIG_FILE" 2>/dev/null) || true
     if [[ -n "$_RAW_EXTS" ]]; then
         while IFS= read -r ext; do
             CONFIGURED_EXTS+=("$ext")
@@ -80,7 +80,7 @@ fi
 # Read format.source_dirs from config via read-config.sh --list
 CONFIGURED_DIRS=()
 if [[ -n "$CONFIG_FILE" ]]; then
-    _RAW_DIRS=$(bash "$SCRIPTS_DIR/../scripts/read-config.sh" --list format.source_dirs "$CONFIG_FILE" 2>/dev/null) || true
+    _RAW_DIRS=$(bash "$SCRIPTS_DIR/read-config.sh" --list format.source_dirs "$CONFIG_FILE" 2>/dev/null) || true
     if [[ -n "$_RAW_DIRS" ]]; then
         while IFS= read -r dir; do
             CONFIGURED_DIRS+=("$dir")

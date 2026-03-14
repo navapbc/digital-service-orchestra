@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-commit-workflow-step-1-5.sh
 # Tests that COMMIT-WORKFLOW.md Step 1.5 reads the changed-test command from
-# workflow-config.yaml via read-config.sh instead of hardcoding
+# workflow-config.conf via read-config.sh instead of hardcoding
 # scripts/run-changed-tests.sh.
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-commit-workflow-step-1-5.sh
@@ -37,7 +37,7 @@ assert_pass_if_clean "test_reads_from_config"
 # The path constructed from $REPO_ROOT + config value must resolve to an
 # executable file. Config value is ./scripts/run-changed-tests.sh.
 _snapshot_fail
-CONFIG="$REPO_ROOT/workflow-config.yaml"
+CONFIG="$REPO_ROOT/workflow-config.conf"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 cmd_path=""
 cmd_path=$(bash "$READ_CONFIG" "$CONFIG" "commands.test_changed" 2>/dev/null) || true

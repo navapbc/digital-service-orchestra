@@ -14,7 +14,7 @@ to the standalone `lockpick-workflow` plugin:
 | Scripts | `scripts/` (workflow-specific) | `lockpick-workflow/scripts/` |
 | Workflows | `.claude/workflows/` | `lockpick-workflow/docs/workflows/` |
 | CLAUDE.md | Manually maintained | Plugin-generated preamble + project sections |
-| Config | Hardcoded paths | `workflow-config.yaml` at project root |
+| Config | Hardcoded paths | `workflow-config.conf` at project root |
 
 ### What Stays
 
@@ -93,35 +93,34 @@ to:
 cd "$(git rev-parse --show-toplevel)" && "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/<hook>.sh"
 ```
 
-### Step 2: Create workflow-config.yaml
+### Step 2: Create workflow-config.conf
 
 Copy the example config into your project root:
 
 ```bash
-cp "${CLAUDE_PLUGIN_ROOT}/docs/workflow-config.example.yaml" ./workflow-config.yaml
+cp "${CLAUDE_PLUGIN_ROOT}/docs/workflow-config.example.conf" ./workflow-config.conf
 ```
 
-Open `workflow-config.yaml` and fill in the values for your project. At minimum:
+Open `workflow-config.conf` and fill in the values for your project. At minimum:
 
-```yaml
-version: "1.0.0"
+```conf
+version=1.0.0
 
 # Set the detected stack (or let detect-stack.sh auto-detect by omitting this)
-stack: python-poetry
+stack=python-poetry
 
-format:
-  extensions: ['.py']
-  source_dirs: ['app/src', 'app/tests']
+format.extensions=.py
+format.source_dirs=app/src
+format.source_dirs=app/tests
 
-commands:
-  test: "make test"
-  lint: "make lint"
-  format: "make format"
-  format_check: "make format-check"
-  validate: "./lockpick-workflow/scripts/validate.sh --ci"
-  test_unit: "make test-unit-only"
-  test_e2e: "make test-e2e"
-  test_visual: "make test-visual"
+commands.test=make test
+commands.lint=make lint
+commands.format=make format
+commands.format_check=make format-check
+commands.validate=./lockpick-workflow/scripts/validate.sh --ci
+commands.test_unit=make test-unit-only
+commands.test_e2e=make test-e2e
+commands.test_visual=make test-visual
 ```
 
 See `${CLAUDE_PLUGIN_ROOT}/docs/workflow-config-schema.json` for the full schema reference.
@@ -228,7 +227,7 @@ If you need to revert to the embedded workflow:
 
 4. **Restart the Claude Code session** to pick up the restored embedded hooks.
 
-5. **Delete `workflow-config.yaml`** if you do not want it in the project root.
+5. **Delete `workflow-config.conf`** if you do not want it in the project root.
 
 ---
 
@@ -238,6 +237,6 @@ If you need to revert to the embedded workflow:
 |---------|--------------|-----|
 | `CLAUDE_PLUGIN_ROOT: unbound variable` | `env` block missing from `settings.json` | Add `"env": { "CLAUDE_PLUGIN_ROOT": "/path/..." }` |
 | Hook fires but cannot find `deps.sh` | Wrong `CLAUDE_PLUGIN_ROOT` path | Verify path with `echo $CLAUDE_PLUGIN_ROOT` in a Bash hook |
-| `/init` says stack not detected | Missing `workflow-config.yaml` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
+| `/init` says stack not detected | Missing `workflow-config.conf` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
 | Tests fail after migration | Unrelated pre-existing failures | Check `git diff HEAD~1` to confirm no app code was changed |
 | `run-hook.sh: No such file` | `CLAUDE_PLUGIN_ROOT` not set in hook command | Recheck `settings.json` hook commands to use `${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh` |

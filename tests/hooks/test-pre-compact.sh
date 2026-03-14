@@ -80,18 +80,18 @@ assert_contains "test_pre_compact_output_contains_changes_line" "Changes:" "$OUT
 # Group: Config-driven checkpoint message
 # ============================================================
 # These tests verify that pre-compact-checkpoint.sh uses CLAUDE_PLUGIN_ROOT to
-# read workflow-config.yaml and uses the configured checkpoint.commit_label
+# read workflow-config.conf and uses the configured checkpoint.commit_label
 # instead of hardcoding 'checkpoint: pre-compaction auto-save'.
 #
 # test_pre_compact_config_driven_checkpoint_label
 #   MUST FAIL in red phase: hook currently hardcodes 'checkpoint: pre-compaction auto-save'
-#   and does not read checkpoint.commit_label from workflow-config.yaml.
+#   and does not read checkpoint.commit_label from workflow-config.conf.
 # test_pre_compact_backward_compat_default_message
 #   MUST PASS in red phase: without CLAUDE_PLUGIN_ROOT, output still contains
 #   'Recovery State' header (unchanged backward-compat behavior).
 
 # test_pre_compact_config_driven_checkpoint_label
-# CLAUDE_PLUGIN_ROOT with workflow-config.yaml:
+# CLAUDE_PLUGIN_ROOT with workflow-config.conf:
 #   checkpoint:
 #     commit_label: 'checkpoint: my-project auto-save'
 # Run hook and check that the git commit message would use that label.
@@ -104,11 +104,9 @@ assert_contains "test_pre_compact_output_contains_changes_line" "Changes:" "$OUT
 # In red phase, the hook ignores the config and always outputs 'pre-compaction auto-save'.
 # We assert that the output contains the configured label string — this FAILS in red phase.
 _PC_PLUGIN_ROOT=$(mktemp -d)
-cat > "$_PC_PLUGIN_ROOT/workflow-config.yaml" << 'YAML_EOF'
-version: "1.0.0"
-checkpoint:
-  commit_label: 'checkpoint: my-project auto-save'
-YAML_EOF
+cat > "$_PC_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
+checkpoint.commit_label=checkpoint: my-project auto-save
+CONF_EOF
 
 # Probe for python3 with pyyaml using the same portable pattern as other hook tests.
 # Tries project venv first (local dev), falls back to system python3 (CI).

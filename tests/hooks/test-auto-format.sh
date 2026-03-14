@@ -68,7 +68,7 @@ assert_eq "test_auto_format_exits_zero_on_write_tool_non_py" "0" "$EXIT_CODE"
 # Group A: Backward-compat (no config)
 # ============================================================
 # test_auto_format_backward_compat_defaults_to_py_extension
-# No CLAUDE_PLUGIN_ROOT set, no workflow-config.yaml present.
+# No CLAUDE_PLUGIN_ROOT set, no workflow-config.conf present.
 # Edit of a .ts file should be ignored (hook only processes .py by default).
 INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.ts"}}'
 EXIT_CODE=$(run_hook "$INPUT")
@@ -84,17 +84,15 @@ assert_eq "test_auto_format_backward_compat_still_handles_py" "0" "$EXIT_CODE"
 # Group B: Config-driven extensions
 # ============================================================
 # test_auto_format_config_driven_extensions_skips_unconfigured_type
-# CLAUDE_PLUGIN_ROOT points to a temp dir with workflow-config.yaml
+# CLAUDE_PLUGIN_ROOT points to a temp dir with workflow-config.conf
 # that sets format.extensions: ['.ts'] — a .py file in app/src should be
 # skipped when config overrides the default extension set.
 # This test MUST FAIL in the red phase because auto-format.sh currently
 # hardcodes .py and does not read format.extensions from config.
 _PLUGIN_ROOT=$(mktemp -d)
-cat > "$_PLUGIN_ROOT/workflow-config.yaml" << 'YAML_EOF'
-version: "1.0.0"
-format:
-  extensions: ['.ts']
-YAML_EOF
+cat > "$_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
+format.extensions=.ts
+CONF_EOF
 
 # Build a path that looks like it's inside app/src so the hook would normally format it
 _APP_SRC_PY="$REPO_ROOT/app/src/fake_module.py"
@@ -123,11 +121,9 @@ assert_eq "test_auto_format_config_driven_extensions_skips_unconfigured_type" ""
 # we just assert exit 0 (non-blocking) — but the hook must not skip .ts.
 # This test MUST FAIL in the red phase: the hook will skip .ts (only knows .py).
 _PLUGIN_ROOT2=$(mktemp -d)
-cat > "$_PLUGIN_ROOT2/workflow-config.yaml" << 'YAML_EOF'
-version: "1.0.0"
-format:
-  extensions: ['.ts']
-YAML_EOF
+cat > "$_PLUGIN_ROOT2/workflow-config.conf" << 'CONF_EOF'
+format.extensions=.ts
+CONF_EOF
 
 _TS_FILE="/tmp/test_component.ts"
 INPUT="{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$_TS_FILE\"}}"

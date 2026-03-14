@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-tickets-config.sh
-# Tests for the tickets: section in workflow-config.yaml
+# Tests for the tickets: section in workflow-config.conf
 #
 # Validates:
 #   - Schema defines tickets: section with correct keys
@@ -245,15 +245,13 @@ fi
 # generate_id should use it instead of deriving from directory name
 _fail_before=$FAIL
 
-# Create a temp project with a git repo and workflow-config.yaml
+# Create a temp project with a git repo and workflow-config.conf
 TK_TEST_DIR="$TMPDIR_FIXTURE/test-project"
 mkdir -p "$TK_TEST_DIR/.tickets"
 (cd "$TK_TEST_DIR" && git init -q)
-cat > "$TK_TEST_DIR/workflow-config.yaml" <<'YAML'
-version: "1.0.0"
-tickets:
-  prefix: custom-prefix
-YAML
+cat > "$TK_TEST_DIR/workflow-config.conf" <<'CONF'
+tickets.prefix=custom-prefix
+CONF
 
 # Source tk functions via _TK_SOURCE_ONLY and test generate_id
 # Note: set +o pipefail is needed because generate_id uses tr|head which
@@ -282,11 +280,9 @@ _fail_before=$FAIL
 TK_DIR_TEST="$TMPDIR_FIXTURE/dir-test-project"
 mkdir -p "$TK_DIR_TEST/.custom-tickets"
 (cd "$TK_DIR_TEST" && git init -q)
-cat > "$TK_DIR_TEST/workflow-config.yaml" <<'YAML'
-version: "1.0.0"
-tickets:
-  directory: .custom-tickets
-YAML
+cat > "$TK_DIR_TEST/workflow-config.conf" <<'CONF'
+tickets.directory=.custom-tickets
+CONF
 
 # Test that find_tickets_dir finds the custom directory
 tk_dir_output=$(cd "$TK_DIR_TEST" && CLAUDE_PLUGIN_PYTHON="$PYTHON" bash -c '
@@ -305,13 +301,13 @@ if [[ "$FAIL" -eq "$_fail_before" ]]; then
     echo "test_tk_uses_config_directory ... PASS"
 fi
 
-# test_tk_backward_compat_no_config: without workflow-config.yaml,
+# test_tk_backward_compat_no_config: without workflow-config.conf,
 # tk should still work with .tickets directory (existing behavior)
 _fail_before=$FAIL
 TK_NOCONFIG_DIR="$TMPDIR_FIXTURE/noconfig-project"
 mkdir -p "$TK_NOCONFIG_DIR/.tickets"
 (cd "$TK_NOCONFIG_DIR" && git init -q)
-# No workflow-config.yaml
+# No workflow-config.conf
 
 tk_noconfig_output=$(cd "$TK_NOCONFIG_DIR" && CLAUDE_PLUGIN_PYTHON="$PYTHON" bash -c '
     _TK_SOURCE_ONLY=1

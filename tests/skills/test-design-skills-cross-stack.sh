@@ -82,7 +82,7 @@ resolve_adapter() {
 
 # --------------------------------------------------------------------------
 # Helper: create_mock_config
-# Creates a temporary workflow-config.yaml with given stack and template_engine
+# Creates a temporary workflow-config.conf with given stack and template_engine
 # Inputs: $1 = stack, $2 = template_engine (optional)
 # Output: prints path to temp config file
 # --------------------------------------------------------------------------
@@ -92,17 +92,15 @@ create_mock_config() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
     TMPFILES+=("$tmp_dir")
-    local config_file="$tmp_dir/workflow-config.yaml"
+    local config_file="$tmp_dir/workflow-config.conf"
 
     cat > "$config_file" <<EOF
-version: "1.0.0"
-stack: $stack
+stack=$stack
 EOF
 
     if [[ -n "$template_engine" ]]; then
         cat >> "$config_file" <<EOF
-design:
-  template_engine: $template_engine
+design.template_engine=$template_engine
 EOF
     fi
 

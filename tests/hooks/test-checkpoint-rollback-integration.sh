@@ -24,7 +24,7 @@ CHECKPOINT_LABEL="checkpoint: pre-compaction auto-save"
 MARKER_FILE=".checkpoint-pending-rollback"
 
 # =============================================================================
-# Helper: create a temp git repo with workflow-config.yaml and initial commit
+# Helper: create a temp git repo with workflow-config.conf and initial commit
 # =============================================================================
 setup_test_repo() {
     local tmpdir
@@ -36,12 +36,11 @@ setup_test_repo() {
     git -C "$realdir/repo" config user.email "test@test.com"
     git -C "$realdir/repo" config user.name "Test"
 
-    # Create workflow-config.yaml so read-config.sh can find defaults
-    cat > "$realdir/repo/workflow-config.yaml" <<'YAML'
-checkpoint:
-  commit_label: "checkpoint: pre-compaction auto-save"
-  marker_file: ".checkpoint-pending-rollback"
-YAML
+    # Create workflow-config.conf so read-config.sh can find defaults
+    cat > "$realdir/repo/workflow-config.conf" <<'CONF'
+checkpoint.commit_label=checkpoint: pre-compaction auto-save
+checkpoint.marker_file=.checkpoint-pending-rollback
+CONF
 
     # .gitignore the marker file (as in production)
     echo "$MARKER_FILE" > "$realdir/repo/.gitignore"

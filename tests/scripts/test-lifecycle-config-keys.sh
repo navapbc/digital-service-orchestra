@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-lifecycle-config-keys.sh
-# Tests that workflow-config.yaml contains database, infrastructure, and session
+# Tests that workflow-config.conf contains database, infrastructure, and session
 # sections with all keys needed by agent-batch-lifecycle.sh subcommands.
 #
 # Also validates workflow-config-schema.json documents these new sections.
@@ -13,7 +13,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.yaml"
+CONFIG="$REPO_ROOT/workflow-config.conf"
 SCHEMA="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
 EXAMPLE="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.yaml"
 

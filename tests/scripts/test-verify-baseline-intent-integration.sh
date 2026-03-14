@@ -3,7 +3,7 @@
 # Integration tests for verify-baseline-intent.sh config-driven path reading.
 #
 # These are behavioral tests that run the script end-to-end in isolated git
-# repos to verify it reads visual.baseline_directory from workflow-config.yaml
+# repos to verify it reads visual.baseline_directory from workflow-config.conf
 # rather than any hardcoded path.
 #
 # Test cases:
@@ -54,7 +54,7 @@ done
 
 # Helper: create a minimal isolated git repo with a `main` branch and one base
 # commit (the merge-base), then check out a feature branch for test additions.
-# The workflow-config.yaml content is written BEFORE the base commit so both
+# The workflow-config.conf content is written BEFORE the base commit so both
 # branches share the same config (the base commit includes the config file).
 _make_integration_repo() {
     local name="$1"
@@ -64,8 +64,8 @@ _make_integration_repo() {
     git -C "$dir" init -q -b main
     git -C "$dir" config user.email "test@test.local"
     git -C "$dir" config user.name "Test"
-    printf '%s\n' "$config_content" > "$dir/workflow-config.yaml"
-    git -C "$dir" add workflow-config.yaml
+    printf '%s\n' "$config_content" > "$dir/workflow-config.conf"
+    git -C "$dir" add workflow-config.conf
     git -C "$dir" commit -m "base" -q
     git -C "$dir" checkout -q -b feature/test
     echo "$dir"
@@ -87,16 +87,12 @@ _run_integration() {
 # there without a manifest. Script must exit 2, print WARNING, and list the
 # custom path — proving it reads visual.baseline_directory from config.
 _snapshot_fail
-_i1_repo=$(_make_integration_repo "custom-dir-png-no-manifest" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-visual:
-  baseline_directory: custom/baselines/
-design:
-  manifest_patterns:
-    - designs/*/manifest.md
-    - designs/*/brief.md
-YAML
+_i1_repo=$(_make_integration_repo "custom-dir-png-no-manifest" "$(cat <<'CONF'
+stack=python-poetry
+visual.baseline_directory=custom/baselines/
+design.manifest_patterns=designs/*/manifest.md
+design.manifest_patterns=designs/*/brief.md
+CONF
 )")
 mkdir -p "$_i1_repo/custom/baselines"
 printf '\x89PNG\r\n\x1a\n' > "$_i1_repo/custom/baselines/screen.png"
@@ -121,16 +117,12 @@ assert_pass_if_clean "test_integration_custom_baseline_dir_png_no_manifest_exits
 # Script must exit 0 — the hardcoded path is outside the configured baseline dir
 # and must NOT trigger a warning. Proves script does not use hardcoded paths.
 _snapshot_fail
-_i2_repo=$(_make_integration_repo "custom-dir-old-hardcoded-path" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-visual:
-  baseline_directory: custom/baselines/
-design:
-  manifest_patterns:
-    - designs/*/manifest.md
-    - designs/*/brief.md
-YAML
+_i2_repo=$(_make_integration_repo "custom-dir-old-hardcoded-path" "$(cat <<'CONF'
+stack=python-poetry
+visual.baseline_directory=custom/baselines/
+design.manifest_patterns=designs/*/manifest.md
+design.manifest_patterns=designs/*/brief.md
+CONF
 )")
 mkdir -p "$_i2_repo/app/tests/e2e/snapshots"
 printf '\x89PNG\r\n\x1a\n' > "$_i2_repo/app/tests/e2e/snapshots/screen.png"
@@ -152,16 +144,12 @@ assert_pass_if_clean "test_integration_default_hardcoded_path_ignored_when_custo
 # the configured dir AND a design manifest. Script must exit 0 — intent is
 # confirmed. Proves intent-confirmation path works with a non-default baseline dir.
 _snapshot_fail
-_i3_repo=$(_make_integration_repo "custom-dir-png-with-manifest" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-visual:
-  baseline_directory: custom/baselines/
-design:
-  manifest_patterns:
-    - designs/*/manifest.md
-    - designs/*/brief.md
-YAML
+_i3_repo=$(_make_integration_repo "custom-dir-png-with-manifest" "$(cat <<'CONF'
+stack=python-poetry
+visual.baseline_directory=custom/baselines/
+design.manifest_patterns=designs/*/manifest.md
+design.manifest_patterns=designs/*/brief.md
+CONF
 )")
 mkdir -p "$_i3_repo/custom/baselines"
 printf '\x89PNG\r\n\x1a\n' > "$_i3_repo/custom/baselines/screen.png"

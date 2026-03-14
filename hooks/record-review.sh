@@ -287,6 +287,29 @@ if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
         echo "  Current:  ${DIFF_HASH:0:12}..." >&2
         echo "" >&2
         echo "Do NOT re-record. Fix the issue and re-run /review from the start." >&2
+
+        # Write diagnostic dump (same format as hook_review_gate in pre-bash-functions.sh)
+        _DIAG_FILE="$ARTIFACTS_DIR/mismatch-diagnostics-$(date -u +%Y%m%dT%H%M%SZ).log"
+        _DIAG_BREADCRUMB="NOT FOUND"
+        if [[ -f "$ARTIFACTS_DIR/commit-breadcrumbs.log" ]]; then
+            _DIAG_BREADCRUMB=$(cat "$ARTIFACTS_DIR/commit-breadcrumbs.log" 2>/dev/null || echo "READ ERROR")
+        fi
+        {
+            printf 'source=record-review.sh\n'
+            printf 'expected_hash=%s\n' "$EXPECTED_HASH"
+            printf 'current_hash=%s\n' "$DIFF_HASH"
+            printf 'snapshot_used=%s\n' "${#_SNAPSHOT_ARGS[@]}"
+            printf 'snapshot_exists=%s\n' "$(test -f "$ARTIFACTS_DIR/untracked-snapshot.txt" && echo yes || echo no)"
+            printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf 'git_status=%s\n' "$(git status --short 2>/dev/null | tr '\n' ',' || echo "ERROR")"
+            printf 'git_diff_names=%s\n' "$(git diff --name-only 2>/dev/null | tr '\n' ',' || echo "ERROR")"
+            printf 'staged_diff_names=%s\n' "$(git diff --cached --name-only 2>/dev/null | tr '\n' ',' || echo "ERROR")"
+            printf 'untracked_files=%s\n' "$(git ls-files --others --exclude-standard 2>/dev/null | head -20 | tr '\n' ',' || echo "ERROR")"
+            printf 'untracked_count=%s\n' "$(git ls-files --others --exclude-standard 2>/dev/null | wc -l | tr -d ' ')"
+            printf 'breadcrumb_log=%s\n' "$(echo "$_DIAG_BREADCRUMB" | tr '\n' ',')"
+        } > "$_DIAG_FILE" 2>/dev/null || true
+        echo "  Diagnostics written to: $_DIAG_FILE" >&2
+
         exit 1
     fi
 fi

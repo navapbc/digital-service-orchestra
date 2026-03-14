@@ -16,7 +16,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/claude-safe"
-FIXTURE_CONFIG="$REPO_ROOT/lockpick-workflow/tests/fixtures/minimal-plugin-consumer/workflow-config.yaml"
+FIXTURE_CONFIG="$REPO_ROOT/lockpick-workflow/tests/fixtures/minimal-plugin-consumer/workflow-config.conf"
 
 ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 if [ ! -f "$ASSERT_LIB" ]; then
@@ -39,7 +39,7 @@ git init -q "$TMPDIR_MAIN"
 git -C "$TMPDIR_MAIN" commit --allow-empty -m "init" -q
 
 # Copy minimal fixture config
-cp "$FIXTURE_CONFIG" "$TMPDIR_MAIN/workflow-config.yaml"
+cp "$FIXTURE_CONFIG" "$TMPDIR_MAIN/workflow-config.conf"
 
 # Create bin/ stub directory
 mkdir -p "$TMPDIR_MAIN/bin"
@@ -94,7 +94,7 @@ git -C "$TMPDIR_WORKTREE" commit --allow-empty -m "init" -q
 
 # Export PATH so stubs take precedence
 export PATH="$TMPDIR_MAIN/bin:$PATH"
-export WORKFLOW_CONFIG="$TMPDIR_MAIN/workflow-config.yaml"
+export WORKFLOW_CONFIG="$TMPDIR_MAIN/workflow-config.conf"
 # claude-safe reads PLUGIN_SCRIPTS (not CLAUDE_PLUGIN_SCRIPTS) to find worktree-create.sh.
 # Point to fake-plugin-scripts so the sentinel-writing stub is used instead of the real one.
 export PLUGIN_SCRIPTS="$FAKE_PLUGIN_SCRIPTS"
