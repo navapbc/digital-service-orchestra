@@ -1,8 +1,8 @@
 # Flat Config Migration Plan
 
-Future migration path: replace `workflow-config.yaml` (YAML, requires Python to parse) with a flat key=value file that bash reads natively via `grep`/`cut`.
+Migration from `workflow-config.yaml` (YAML, requires Python to parse) to a flat key=value `.conf` file that bash reads natively via `grep`/`cut`.
 
-**Status**: Not started. The YAML format remains the source of truth. A caching layer in `read-config.sh` (implemented 2026-03-09) mitigates the Python subprocess overhead for all callers.
+**Status**: Completed (2026-03-14). The flat `workflow-config.conf` format is now the primary config format. `read-config.sh` reads `.conf` files directly via `grep`/`cut` with no Python dependency. YAML fallback is retained for migration compatibility but `.conf` takes precedence when both files exist. The YAML cache infrastructure has been removed.
 
 ## Why Consider This
 
