@@ -31,6 +31,7 @@ offenders=$(grep -rn 'workflow-config\.yaml' "$REPO_ROOT/lockpick-workflow/tests
     | grep -v 'test-config-callers-updated\.sh' \
     | grep -v 'test-adr-config-system\.sh' \
     | grep -v 'test-init-skill\.sh' \
+    | grep -v 'test-docs-config-refs\.sh' \
     || true)
 
 match_count=0

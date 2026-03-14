@@ -135,12 +135,9 @@ run_hook_stderr() {
 # MUST FAIL — hook currently hardcodes bd search
 _CT_PLUGIN_ROOT=$(mktemp -d)
 ln -s "$REPO_ROOT/lockpick-workflow/scripts" "$_CT_PLUGIN_ROOT/scripts"
-cat > "$_CT_PLUGIN_ROOT/workflow-config.yaml" << 'YAML_EOF'
-version: "1.0.0"
-issue_tracker:
-  search_cmd: 'gh issue list --search'
-YAML_EOF
->>>>>>> origin/main
+cat > "$_CT_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
+issue_tracker.search_cmd=gh issue list --search
+CONF_EOF
 
 ARTIFACTS_DIR_CT="$(get_artifacts_dir)"
 mkdir -p "$ARTIFACTS_DIR_CT"

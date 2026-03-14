@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/lockpick/lockpick-workflow/workflow-config-schema.json",
   "title": "workflow-config",
-  "description": "Schema for workflow-config.yaml — configures commands and stack for the lockpick-workflow plugin",
+  "description": "Schema for workflow-config — configures commands and stack for the lockpick-workflow plugin. Note: the primary config format is now workflow-config.conf (flat KEY=VALUE). This JSON schema documents the logical key structure and types. For the flat format, use validate-config.sh.",
   "type": "object",
   "required": ["version"],
   "additionalProperties": true,

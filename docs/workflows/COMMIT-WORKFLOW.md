@@ -2,9 +2,9 @@
 
 Create a git commit with mandatory test, format, lint, and review gates.
 
-## Config Reference (from workflow-config.yaml)
+## Config Reference (from workflow-config.conf)
 
-Replace commands below with values from your `workflow-config.yaml`:
+Replace commands below with values from your `workflow-config.conf`:
 
 - `commands.test_unit` (default: `make test-unit-only`)
 - `commands.lint` (default: `make lint-ruff`)

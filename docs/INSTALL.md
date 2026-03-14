@@ -11,19 +11,9 @@ skills and hooks for software development projects.
 - **bash** >= 4.0
 - **GNU coreutils** — provides `gtimeout` (macOS) / `timeout` (Linux), used by
   workflow scripts for command timeouts. Install on macOS: `brew install coreutils`
-- **python3** with PyYAML installed — required by `read-config.sh` for parsing
-  `workflow-config.yaml`
-
-  Install PyYAML if not already present:
-
-  ```bash
-  pip install pyyaml
-  # or, in a Poetry project:
-  poetry add --group dev pyyaml
-  ```
-
-  Alternatively, set `CLAUDE_PLUGIN_PYTHON` to a python3 binary that already
-  has PyYAML installed (e.g., a project venv).
+- **python3** with PyYAML installed — only required if using the legacy YAML
+  config format. The recommended `workflow-config.conf` format (flat KEY=VALUE)
+  requires no Python dependency.
 
 ---
 
@@ -72,18 +62,19 @@ to your `.claude/settings.json`:
 
 ---
 
-## Optional: workflow-config.yaml
+## Optional: workflow-config.conf
 
 The plugin auto-detects common project stacks (Python/Poetry, Node/npm,
 Rust/Cargo, Go) without any configuration. For custom commands or explicit
-stack overrides, create a `workflow-config.yaml` at your project root:
+stack overrides, create a `workflow-config.conf` at your project root:
 
 ```bash
-cp /path/to/lockpick-workflow/docs/workflow-config.example.yaml workflow-config.yaml
+cp /path/to/lockpick-workflow/docs/workflow-config.example.conf workflow-config.conf
 ```
 
 Edit the file to match your project's commands. All keys are optional —
-omitted keys fall back to stack-detected defaults.
+omitted keys fall back to stack-detected defaults. The format is flat
+KEY=VALUE with dot-notation for nesting (no Python dependency required).
 
 Schema reference: `lockpick-workflow/docs/workflow-config-schema.json`
 
@@ -127,8 +118,8 @@ staging environment tests.
 
 ### Staging Keys
 
-All staging configuration lives under the `staging:` section of
-`workflow-config.yaml`. All keys are optional — when `staging.url` is absent,
+All staging configuration lives under the `staging.*` keys in
+`workflow-config.conf`. All keys are optional — when `staging.url` is absent,
 all staging sub-agents are skipped with the message "SKIPPED (staging not
 configured)".
 
@@ -142,13 +133,12 @@ configured)".
 
 Example configuration:
 
-```yaml
-staging:
-  url: "https://my-app-env-stage.us-east-2.elasticbeanstalk.com"
-  deploy_check: "scripts/check-staging-deploy.sh"
-  test: "scripts/smoke-test-staging.sh"
-  routes: "/,/upload,/history"
-  health_path: "/health"
+```conf
+staging.url=https://my-app-env-stage.us-east-2.elasticbeanstalk.com
+staging.deploy_check=scripts/check-staging-deploy.sh
+staging.test=scripts/smoke-test-staging.sh
+staging.routes=/,/upload,/history
+staging.health_path=/health
 ```
 
 ### .sh vs .md Dispatch Mechanism
@@ -169,16 +159,14 @@ validate-work uses the file:
 
 Examples:
 
-```yaml
+```conf
 # Shell script dispatch
-staging:
-  deploy_check: "scripts/check-staging-deploy.sh"   # .sh → executed as script
-  test: "scripts/smoke-test-staging.sh"              # .sh → executed as script
+staging.deploy_check=scripts/check-staging-deploy.sh
+staging.test=scripts/smoke-test-staging.sh
 
 # Sub-agent prompt dispatch
-staging:
-  deploy_check: "docs/staging-deploy-check.md"       # .md → read as prompt
-  test: "docs/staging-test-prompt.md"                # .md → read as prompt
+staging.deploy_check=docs/staging-deploy-check.md
+staging.test=docs/staging-test-prompt.md
 ```
 
 When a key is absent, validate-work uses a built-in fallback:
@@ -216,9 +204,8 @@ incomplete:
 When your project runs integration tests in a separate GitHub Actions workflow,
 set `ci.integration_workflow` to the workflow name:
 
-```yaml
-ci:
-  integration_workflow: "Integration Tests"   # must match the workflow `name:` field exactly
+```conf
+ci.integration_workflow=Integration Tests
 ```
 
 When set, validate-work's CI sub-agent polls the integration workflow
@@ -239,4 +226,4 @@ No configuration migration is required for patch or minor version bumps
 
 For major version bumps (e.g., `0.x` → `1.0`), check `CHANGELOG.md` in the
 plugin repository for breaking changes and any required updates to
-`workflow-config.yaml` or `.claude/settings.json`.
+`workflow-config.conf` or `.claude/settings.json`.
