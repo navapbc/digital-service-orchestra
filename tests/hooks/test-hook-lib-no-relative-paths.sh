@@ -16,11 +16,12 @@ source "$SCRIPT_DIR/../lib/assert.sh"
 
 echo "=== Test: zero ../ references in hook lib function files ==="
 
-# Target files (the 3 hook lib function files that source dispatchers set CLAUDE_PLUGIN_ROOT for)
+# Target files (the hook lib function files that source dispatchers set CLAUDE_PLUGIN_ROOT for)
 TARGET_FILES=(
     "$HOOKS_LIB_DIR/post-functions.sh"
     "$HOOKS_LIB_DIR/pre-all-functions.sh"
     "$HOOKS_LIB_DIR/pre-bash-functions.sh"
+    "$HOOKS_LIB_DIR/session-misc-functions.sh"
 )
 
 VIOLATIONS=""

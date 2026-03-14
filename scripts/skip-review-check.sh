@@ -19,7 +19,7 @@ while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     # Agent guidance always requires review (checked first, overrides docs/* below)
     case "$file" in
-        .claude/skills/*|.claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
+        .claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
         lockpick-workflow/skills/*|lockpick-workflow/hooks/*|lockpick-workflow/docs/workflows/*) SKIP_REVIEW=false; break ;;
         CLAUDE.md) SKIP_REVIEW=false; break ;;
     esac
