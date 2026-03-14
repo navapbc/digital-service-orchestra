@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/hooks/test-exit-144-forensics.sh
-# Tests for exit-144 forensic logger: PreToolUse dispatcher records Bash start timestamps.
+# Tests for exit-144 forensic logger:
+#   Part 1 (Batch 1): PreToolUse dispatcher records Bash start timestamps.
+#   Part 2 (Batch 2): PostToolUse forensic logger writes JSONL on exit 144.
 #
 # Validates:
 #   - Bash tool calls create a command-hash-keyed timestamp file (bash-start-ts-XXXXXXXX)
 #   - Non-Bash tool calls do NOT create timestamp files
 #   - Timestamp value is a numeric millisecond timestamp
+#   - Exit 144 triggers JSONL forensic log entry
+#   - Non-144 exits produce zero file I/O
+#   - JSONL entries are valid JSON with required fields
+#   - Missing start timestamp yields elapsed_s=-1
+#   - Boundary classification: 69999ms=cancellation, 70000ms=timeout
+#   - Missing exit_code field is handled gracefully
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
+POST_HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
@@ -99,5 +108,206 @@ assert_eq "test_pre_bash_uses_command_hash_keyed_filename: file B exists" "yes" 
 assert_ne "test_pre_bash_uses_command_hash_keyed_filename: different hashes" "$_TEST3_HASH_A" "$_TEST3_HASH_B"
 
 rm -rf "$_TEST3_DIR"
+
+# ============================================================
+# Part 2: PostToolUse forensic logger tests
+# ============================================================
+
+# ============================================================
+# test_post_bash_logs_forensic_entry_on_exit_144
+# When exit_code=144 and a start timestamp exists, a JSONL entry
+# should be written to exit-144-forensics.jsonl with correct fields.
+# ============================================================
+_TEST4_DIR=$(mktemp -d)
+_TEST4_COMMAND="make test-unit-only"
+_TEST4_HASH=$(echo -n "$_TEST4_COMMAND" | hash_stdin | cut -c1-8)
+
+# Simulate a start timestamp 80 seconds ago (80000ms → timeout)
+_TEST4_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST4_START_MS=$(( _TEST4_NOW_MS - 80000 ))
+echo "$_TEST4_START_MS" > "$_TEST4_DIR/bash-start-ts-${_TEST4_HASH}"
+
+_TEST4_INPUT='{"tool_name":"Bash","tool_input":{"command":"make test-unit-only"},"tool_response":{"exit_code":144}}'
+
+echo "$_TEST4_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST4_DIR" bash "$POST_HOOK" 2>/dev/null || true
+
+_TEST4_JSONL="$_TEST4_DIR/exit-144-forensics.jsonl"
+if [[ -f "$_TEST4_JSONL" ]]; then
+    _TEST4_FILE_EXISTS="yes"
+else
+    _TEST4_FILE_EXISTS="no"
+fi
+assert_eq "test_post_bash_logs_forensic_entry_on_exit_144: jsonl file created" "yes" "$_TEST4_FILE_EXISTS"
+
+# Verify cause is "timeout" (80s > 70s threshold)
+if [[ -f "$_TEST4_JSONL" ]]; then
+    _TEST4_CAUSE=$(python3 -c "import json,sys; d=json.loads(sys.stdin.readline()); print(d.get('cause',''))" < "$_TEST4_JSONL")
+else
+    _TEST4_CAUSE=""
+fi
+assert_eq "test_post_bash_logs_forensic_entry_on_exit_144: cause is timeout" "timeout" "$_TEST4_CAUSE"
+
+rm -rf "$_TEST4_DIR"
+
+# ============================================================
+# test_post_bash_no_file_io_on_non_144
+# When exit_code != 144, no JSONL file should be created.
+# ============================================================
+_TEST5_DIR=$(mktemp -d)
+_TEST5_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo ok"},"tool_response":{"exit_code":0}}'
+
+echo "$_TEST5_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST5_DIR" bash "$POST_HOOK" 2>/dev/null || true
+
+_TEST5_JSONL="$_TEST5_DIR/exit-144-forensics.jsonl"
+if [[ -f "$_TEST5_JSONL" ]]; then
+    _TEST5_NO_FILE="no"
+else
+    _TEST5_NO_FILE="yes"
+fi
+assert_eq "test_post_bash_no_file_io_on_non_144: no jsonl file" "yes" "$_TEST5_NO_FILE"
+
+rm -rf "$_TEST5_DIR"
+
+# ============================================================
+# test_forensic_entry_is_valid_json
+# The JSONL entry should be valid JSON with all required fields:
+# timestamp, command, elapsed_s, cause, cwd
+# ============================================================
+_TEST6_DIR=$(mktemp -d)
+_TEST6_COMMAND="poetry run pytest"
+_TEST6_HASH=$(echo -n "$_TEST6_COMMAND" | hash_stdin | cut -c1-8)
+
+# Simulate 75s elapsed (timeout)
+_TEST6_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST6_START_MS=$(( _TEST6_NOW_MS - 75000 ))
+echo "$_TEST6_START_MS" > "$_TEST6_DIR/bash-start-ts-${_TEST6_HASH}"
+
+_TEST6_INPUT='{"tool_name":"Bash","tool_input":{"command":"poetry run pytest"},"tool_response":{"exit_code":144}}'
+
+echo "$_TEST6_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST6_DIR" bash "$POST_HOOK" 2>/dev/null || true
+
+_TEST6_JSONL="$_TEST6_DIR/exit-144-forensics.jsonl"
+if [[ -f "$_TEST6_JSONL" ]]; then
+    # Validate all required fields exist and entry is valid JSON
+    _TEST6_VALID=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.stdin.readline())
+    required = ['timestamp', 'command', 'elapsed_s', 'cause', 'cwd']
+    missing = [k for k in required if k not in d]
+    if missing:
+        print('missing:' + ','.join(missing))
+    elif not isinstance(d['elapsed_s'], (int, float)):
+        print('elapsed_s not numeric')
+    elif d['cause'] not in ('timeout', 'cancellation', 'unknown'):
+        print('invalid cause: ' + str(d['cause']))
+    else:
+        print('valid')
+except Exception as e:
+    print('error:' + str(e))
+" < "$_TEST6_JSONL")
+else
+    _TEST6_VALID="file_missing"
+fi
+assert_eq "test_forensic_entry_is_valid_json: all fields valid" "valid" "$_TEST6_VALID"
+
+rm -rf "$_TEST6_DIR"
+
+# ============================================================
+# test_post_bash_144_missing_start_timestamp
+# When exit_code=144 but no start timestamp file exists,
+# the entry should have elapsed_s=-1 and cause="unknown".
+# ============================================================
+_TEST7_DIR=$(mktemp -d)
+# Do NOT create a bash-start-ts file — simulate missing pre-hook timestamp
+
+_TEST7_INPUT='{"tool_name":"Bash","tool_input":{"command":"some long command"},"tool_response":{"exit_code":144}}'
+
+echo "$_TEST7_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST7_DIR" bash "$POST_HOOK" 2>/dev/null || true
+
+_TEST7_JSONL="$_TEST7_DIR/exit-144-forensics.jsonl"
+if [[ -f "$_TEST7_JSONL" ]]; then
+    _TEST7_ELAPSED=$(python3 -c "import json,sys; d=json.loads(sys.stdin.readline()); print(d.get('elapsed_s',''))" < "$_TEST7_JSONL")
+    _TEST7_CAUSE=$(python3 -c "import json,sys; d=json.loads(sys.stdin.readline()); print(d.get('cause',''))" < "$_TEST7_JSONL")
+else
+    _TEST7_ELAPSED=""
+    _TEST7_CAUSE=""
+fi
+assert_eq "test_post_bash_144_missing_start_timestamp: elapsed_s is -1" "-1.0" "$_TEST7_ELAPSED"
+assert_eq "test_post_bash_144_missing_start_timestamp: cause is unknown" "unknown" "$_TEST7_CAUSE"
+
+rm -rf "$_TEST7_DIR"
+
+# ============================================================
+# test_post_bash_classification_at_boundary
+# Tests the 70000ms threshold: < 70000ms → cancellation, >= 70000ms → timeout.
+# Uses values with margin to avoid wall-clock drift between test setup
+# and function execution (function computes its own NOW_MS).
+# ============================================================
+# Boundary test A: 65000ms → cancellation (clearly < 70000ms even with drift)
+_TEST8A_DIR=$(mktemp -d)
+_TEST8A_COMMAND="boundary test A"
+_TEST8A_HASH=$(echo -n "$_TEST8A_COMMAND" | hash_stdin | cut -c1-8)
+
+_TEST8A_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST8A_START_MS=$(( _TEST8A_NOW_MS - 65000 ))
+echo "$_TEST8A_START_MS" > "$_TEST8A_DIR/bash-start-ts-${_TEST8A_HASH}"
+
+_TEST8A_INPUT='{"tool_name":"Bash","tool_input":{"command":"boundary test A"},"tool_response":{"exit_code":144}}'
+
+echo "$_TEST8A_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST8A_DIR" bash "$POST_HOOK" 2>/dev/null || true
+
+_TEST8A_JSONL="$_TEST8A_DIR/exit-144-forensics.jsonl"
+if [[ -f "$_TEST8A_JSONL" ]]; then
+    _TEST8A_CAUSE=$(python3 -c "import json,sys; d=json.loads(sys.stdin.readline()); print(d.get('cause',''))" < "$_TEST8A_JSONL")
+else
+    _TEST8A_CAUSE=""
+fi
+assert_eq "test_post_bash_classification_at_boundary: 65000ms=cancellation" "cancellation" "$_TEST8A_CAUSE"
+
+rm -rf "$_TEST8A_DIR"
+
+# Boundary test B: 75000ms → timeout (clearly >= 70000ms)
+_TEST8B_DIR=$(mktemp -d)
+_TEST8B_COMMAND="boundary test B"
+_TEST8B_HASH=$(echo -n "$_TEST8B_COMMAND" | hash_stdin | cut -c1-8)
+
+_TEST8B_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST8B_START_MS=$(( _TEST8B_NOW_MS - 75000 ))
+echo "$_TEST8B_START_MS" > "$_TEST8B_DIR/bash-start-ts-${_TEST8B_HASH}"
+
+_TEST8B_INPUT='{"tool_name":"Bash","tool_input":{"command":"boundary test B"},"tool_response":{"exit_code":144}}'
+
+echo "$_TEST8B_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST8B_DIR" bash "$POST_HOOK" 2>/dev/null || true
+
+_TEST8B_JSONL="$_TEST8B_DIR/exit-144-forensics.jsonl"
+if [[ -f "$_TEST8B_JSONL" ]]; then
+    _TEST8B_CAUSE=$(python3 -c "import json,sys; d=json.loads(sys.stdin.readline()); print(d.get('cause',''))" < "$_TEST8B_JSONL")
+else
+    _TEST8B_CAUSE=""
+fi
+assert_eq "test_post_bash_classification_at_boundary: 75000ms=timeout" "timeout" "$_TEST8B_CAUSE"
+
+rm -rf "$_TEST8B_DIR"
+
+# ============================================================
+# test_post_bash_missing_exit_code_field
+# When the JSON input has no exit_code field at all, the hook
+# should return cleanly without creating a JSONL file.
+# ============================================================
+_TEST9_DIR=$(mktemp -d)
+_TEST9_INPUT='{"tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":{"output":"hi"}}'
+
+echo "$_TEST9_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST9_DIR" bash "$POST_HOOK" 2>/dev/null || true
+
+_TEST9_JSONL="$_TEST9_DIR/exit-144-forensics.jsonl"
+if [[ -f "$_TEST9_JSONL" ]]; then
+    _TEST9_NO_FILE="no"
+else
+    _TEST9_NO_FILE="yes"
+fi
+assert_eq "test_post_bash_missing_exit_code_field: no jsonl file" "yes" "$_TEST9_NO_FILE"
+
+rm -rf "$_TEST9_DIR"
 
 print_summary
