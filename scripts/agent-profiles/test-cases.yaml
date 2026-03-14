@@ -78,3 +78,26 @@
   blocks: 0
   expected_agent: "unit-testing:test-automator"
   expected_complexity: "low"
+
+# Bug-type tasks must never route to read-only agents (code-explorer).
+# Even when "investigate" keywords match, task_type=bug forces write-capable agent.
+- title: "Investigate timeout in ci-status.sh causing exit 144"
+  description: "Trace the ci-status.sh script to find why it times out and fix the broken timeout handling. The error causes a crash."
+  task_type: "bug"
+  blocks: 0
+  expected_agent: "debugging-toolkit:debugger"
+  expected_complexity: "low"
+
+- title: "Investigate why syntax-timeout.sh hangs on large input"
+  description: "Explore the syntax timeout script to understand why it hangs. Fix the broken error handling that causes it to crash."
+  task_type: "bug"
+  blocks: 0
+  expected_agent: "debugging-toolkit:debugger"
+  expected_complexity: "low"
+
+# Non-bug investigate task should still route to code-explorer
+- title: "Investigate how the pipeline graph topology works"
+  description: "Trace the pipeline graph topology to understand the execution flow"
+  blocks: 0
+  expected_agent: "feature-dev:code-explorer"
+  expected_complexity: "low"

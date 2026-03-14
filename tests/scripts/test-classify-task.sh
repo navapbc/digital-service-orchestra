@@ -109,6 +109,48 @@ fi
 # ── TDD RED Phase: bd→tk migration tests ──────────────────────────────────────
 # These tests assert tk-based behavior. They FAIL against the current bd-based
 # implementation and will PASS once classify-task.sh is migrated to use tk.
+# ── Test: Bug-type tasks never route to read-only agents ─────────────────────
+echo "Test: Bug-type tasks never route to code-explorer (read-only)"
+{
+    # Feed a bug-type task with "investigate" keywords to classify-task.py
+    # and verify it does NOT get assigned to code-explorer
+    PYTHON="$(cd "$REPO_ROOT/app" && poetry env info -e 2>/dev/null || echo "python3")"
+    SCORER="$REPO_ROOT/lockpick-workflow/scripts/classify-task.py"
+
+    bug_task='[{"id":"test-bug","title":"Investigate timeout in ci-status.sh","description":"Trace and fix the timeout handling","task_type":"bug"}]'
+    output=$(echo "$bug_task" | "$PYTHON" "$SCORER" 2>&1) || true
+
+    subagent=$(echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['subagent'])" 2>/dev/null) || subagent=""
+
+    if [ "$subagent" = "feature-dev:code-explorer" ]; then
+        echo "  FAIL: bug-type task was routed to code-explorer (read-only agent)" >&2
+        (( FAIL++ ))
+    elif [ -n "$subagent" ]; then
+        echo "  PASS: bug-type task routed to $subagent (not code-explorer)"
+        (( PASS++ ))
+    else
+        echo "  FAIL: could not parse subagent from output" >&2
+        (( FAIL++ ))
+    fi
+}
+
+# ── Test: Non-bug investigate tasks still route to code-explorer ─────────────
+echo "Test: Non-bug investigate tasks still route to code-explorer"
+{
+    nonbug_task='[{"id":"test-nonbug","title":"Investigate how the pipeline graph topology works","description":"Trace the pipeline graph topology to understand the execution flow"}]'
+    output=$(echo "$nonbug_task" | "$PYTHON" "$SCORER" 2>&1) || true
+
+    subagent=$(echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['subagent'])" 2>/dev/null) || subagent=""
+
+    if [ "$subagent" = "feature-dev:code-explorer" ]; then
+        echo "  PASS: non-bug investigate task correctly routed to code-explorer"
+        (( PASS++ ))
+    else
+        echo "  FAIL: non-bug investigate task routed to $subagent instead of code-explorer" >&2
+        (( FAIL++ ))
+    fi
+}
+
 echo ""
 echo "=== TDD RED Phase: bd→tk migration tests ==="
 

@@ -79,7 +79,9 @@ def score_task_against_profile(text: str, profile: dict) -> int:
     return score
 
 
-def compute_complexity(passing_profile_count: int, blocks_count: int, description: str) -> str:
+def compute_complexity(
+    passing_profile_count: int, blocks_count: int, description: str
+) -> str:
     """Compute complexity based on three signals; any 2 of 3 → 'high'.
 
     Signal 1: 3+ profiles pass min_score (task spans multiple domains)
@@ -99,6 +101,25 @@ def compute_complexity(passing_profile_count: int, blocks_count: int, descriptio
     return "high" if signals_true >= 2 else "low"
 
 
+def _is_bug_type(task: dict) -> bool:
+    """Check if task is a bug-type ticket.
+
+    Checks the task_type field (from structured input) and also falls back
+    to scanning the raw ticket content for the YAML front-matter 'type: bug'.
+    """
+    task_type = task.get("task_type", "")
+    if task_type == "bug":
+        return True
+    # Fall back to checking raw content for front-matter type field
+    raw = task.get("raw", "")
+    if raw:
+        for line in raw.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("type:") and "bug" in stripped:
+                return True
+    return False
+
+
 def classify_task(task: dict, profiles: list[dict]) -> dict:
     """Classify a single task against all profiles and return enriched dict."""
     title = task.get("title", "")
@@ -106,6 +127,7 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
     acceptance_criteria = task.get("acceptance_criteria", "")
     blocks = task.get("blocks", 0)
     blocks_count = len(blocks) if isinstance(blocks, list) else int(blocks or 0)
+    is_bug = _is_bug_type(task)
 
     text = (title + " " + description + " " + acceptance_criteria).lower()
 
@@ -132,6 +154,11 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
         reverse=True,
     )
 
+    # Bug-type tasks must never be routed to read-only agents.
+    # Filter out read-only profiles when the task is a bug.
+    if is_bug:
+        passing = [p for p in passing if not p.get("read_only", False)]
+
     complexity = compute_complexity(len(passing), blocks_count, description)
 
     if passing:
@@ -142,7 +169,10 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
             model = winner["model"]["complex"]
         else:
             model = winner["model"]["default"]
-        reason = f"Matched profile {winner['_file']} with score " f"{scores.get(subagent, 0)}"
+        reason = (
+            f"Matched profile {winner['_file']} with score "
+            f"{scores.get(subagent, 0)}"
+        )
     else:
         subagent = "general-purpose"
         category = None
@@ -151,7 +181,9 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
 
     # Detect interface-contract tasks from text keywords (priority override)
     interface_keywords = ["interface", "contract", "abstract", "protocol", "base class"]
-    is_interface = any(kw in text for kw in interface_keywords) or bool(re.search(r"\babc\b", text))
+    is_interface = any(kw in text for kw in interface_keywords) or bool(
+        re.search(r"\babc\b", text)
+    )
 
     # Assign priority (integer 1-4 for backward compat with sprint consumer)
     if is_interface or category == "interface-contract":
@@ -203,6 +235,7 @@ def run_test(profiles_dir: Path) -> int:
             "description": case.get("description", ""),
             "acceptance_criteria": case.get("acceptance_criteria", ""),
             "blocks": case.get("blocks", 0),
+            "task_type": case.get("task_type", ""),
         }
 
         result = classify_task(task, profiles)
@@ -211,7 +244,9 @@ def run_test(profiles_dir: Path) -> int:
         expected_complexity = case.get("expected_complexity")
 
         agent_ok = result["subagent"] == expected_agent
-        complexity_ok = expected_complexity is None or result["complexity"] == expected_complexity
+        complexity_ok = (
+            expected_complexity is None or result["complexity"] == expected_complexity
+        )
 
         if agent_ok and complexity_ok:
             print(f"PASS [{i}] {case['title'][:60]}")
@@ -220,7 +255,8 @@ def run_test(profiles_dir: Path) -> int:
             print(f"FAIL [{i}] {case['title'][:60]}")
             if not agent_ok:
                 print(
-                    f"     agent:      got={result['subagent']!r}  " f"expected={expected_agent!r}"
+                    f"     agent:      got={result['subagent']!r}  "
+                    f"expected={expected_agent!r}"
                 )
             if not complexity_ok:
                 print(

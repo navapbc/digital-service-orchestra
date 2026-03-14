@@ -369,6 +369,34 @@ _result=$(_test_etime_to_seconds "45:00")
 assert_eq "test_cleanup_orphaned_processes_etime_parsing: mm:ss 45:00 = 2700s" "2700" "$_result"
 
 # ============================================================
+# test_cleanup_orphaned_processes_uses_pgid_not_pid
+# The hook must resolve the actual PGID via `ps -o pgid=`
+# rather than assuming PID == PGID when killing process groups.
+# ============================================================
+echo "--- test_cleanup_orphaned_processes_uses_pgid_not_pid ---"
+
+# Verify the function source references pgid resolution (ps -o pgid=)
+_uses_pgid=0
+grep -q 'pgid' "$SESSION_MISC_FUNCTIONS" && _uses_pgid=1
+assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: references pgid" "1" "$_uses_pgid"
+
+# Verify it uses ps -o pgid= to look up the actual PGID
+_uses_ps_pgid=0
+grep -q 'ps.*-o.*pgid' "$SESSION_MISC_FUNCTIONS" && _uses_ps_pgid=1
+assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: uses ps -o pgid=" "1" "$_uses_ps_pgid"
+
+# Verify the kill line uses a PGID variable, not $pid directly for group kill
+# The kill -- -<var> should use a variable named *pgid* or *PGID*, not $pid
+_kill_uses_pgid=0
+grep -qE 'kill.*-.*\$(.*pgid|.*PGID)' "$SESSION_MISC_FUNCTIONS" && _kill_uses_pgid=1
+assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: kill uses PGID var" "1" "$_kill_uses_pgid"
+
+# Verify the old buggy pattern (kill -- -"$pid") is NOT present
+_old_pattern_absent=1
+grep -q 'kill -- -"$pid"' "$SESSION_MISC_FUNCTIONS" && _old_pattern_absent=0
+assert_eq "test_cleanup_orphaned_processes_uses_pgid_not_pid: old kill -pid pattern removed" "1" "$_old_pattern_absent"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary

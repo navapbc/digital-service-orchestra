@@ -4,6 +4,7 @@ model:
   complex: "sonnet"
 base_priority: 2
 category: null
+read_only: true  # This agent has no write tools (Edit, Write, Bash)
 
 keywords:
   strong:                # weight: 3 per match

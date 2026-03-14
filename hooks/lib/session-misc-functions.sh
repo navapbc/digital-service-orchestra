@@ -100,8 +100,16 @@ hook_cleanup_orphaned_processes() {
 
             local AGE_MIN=$(( ELAPSED / 60 ))
             if [[ "$AGE_MIN" -ge "$AGE_THRESHOLD_MIN" ]]; then
-                # Kill the process group (timeout + make + children)
-                kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+                # Resolve actual PGID — do not assume PID == PGID
+                local ACTUAL_PGID
+                ACTUAL_PGID=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ') || ACTUAL_PGID=""
+                if [[ -n "$ACTUAL_PGID" && "$ACTUAL_PGID" =~ ^[0-9]+$ ]]; then
+                    # Kill the process group using resolved PGID
+                    kill -- -"$ACTUAL_PGID" 2>/dev/null || kill "$pid" 2>/dev/null || true
+                else
+                    # Fallback: kill individual process if PGID lookup fails
+                    kill "$pid" 2>/dev/null || true
+                fi
                 KILLED=$((KILLED + 1))
             fi
         done
