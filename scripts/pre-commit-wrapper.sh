@@ -16,10 +16,10 @@
 #
 # Timeout detection:
 #   - If command exceeds timeout_secs, logs to <artifacts_dir>/precommit-timeouts.log
-#   - If issue_tracker.create_cmd is configured in workflow-config.yaml, creates a bug ticket
+#   - If issue_tracker.create_cmd is configured in workflow-config.conf, creates a bug ticket
 #   - If issue_tracker.create_cmd is absent, skips ticket creation with a warning
 #
-# Config keys read from workflow-config.yaml via read-config.sh:
+# Config keys read from workflow-config.conf via read-config.sh:
 #   session.artifact_prefix    — prefix for /tmp artifact dirs (fallback: <repo-name>-test-artifacts)
 #   issue_tracker.create_cmd   — command to create a tracking ticket (absent = skip)
 #

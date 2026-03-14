@@ -10,7 +10,7 @@
 #   check-local-env.sh --quiet      # Exit code only, no output on success
 #   APP_PORT=3037 DB_PORT=5469 check-local-env.sh  # Custom ports
 #
-# Config keys (workflow-config.yaml):
+# Config keys (workflow-config.conf):
 #   commands.env_check_app          — project-specific callback; absent = warn + skip
 #   infrastructure.db_container     — DB container name (default: lockpick-postgres-dev)
 #   infrastructure.db_container_patterns — list of DB container name patterns
@@ -24,7 +24,7 @@
 #   APP_PORT      — application port (default: 3000)
 #   DB_PORT       — database port (default: 5432)
 #   DB_CONTAINER  — DB container name override
-#   WORKFLOW_CONFIG — path to workflow-config.yaml (for testing)
+#   WORKFLOW_CONFIG — path to workflow-config.conf (for testing)
 #
 # Exit codes:
 #   0 = all checks passed

@@ -39,7 +39,7 @@ hook_check_validation_failures() {
     trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi' EXIT
 
     # Delegate to original script (which has all the logic)
-    local _CHECK_SCRIPT="$_POST_FUNC_DIR/../check-validation-failures.sh"
+    local _CHECK_SCRIPT="$CLAUDE_PLUGIN_ROOT/hooks/check-validation-failures.sh"
     if [[ -x "$_CHECK_SCRIPT" ]]; then
         local _output _exit=0
         _output=$(printf '%s' "$INPUT" | bash "$_CHECK_SCRIPT" 2>/dev/null) || _exit=0
@@ -64,7 +64,7 @@ hook_track_cascade_failures() {
     trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi' EXIT
 
     # Delegate to original script (which has all the logic)
-    local _TRACK_SCRIPT="$_POST_FUNC_DIR/../track-cascade-failures.sh"
+    local _TRACK_SCRIPT="$CLAUDE_PLUGIN_ROOT/hooks/track-cascade-failures.sh"
     if [[ -x "$_TRACK_SCRIPT" ]]; then
         local _output _exit=0
         _output=$(printf '%s' "$INPUT" | bash "$_TRACK_SCRIPT" 2>/dev/null) || _exit=0
@@ -89,7 +89,7 @@ hook_auto_format() {
     trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi' EXIT
 
     # Delegate to original script (which has all the logic)
-    local _FORMAT_SCRIPT="$_POST_FUNC_DIR/../auto-format.sh"
+    local _FORMAT_SCRIPT="$CLAUDE_PLUGIN_ROOT/hooks/auto-format.sh"
     if [[ -x "$_FORMAT_SCRIPT" ]]; then
         local _output _exit=0
         _output=$(printf '%s' "$INPUT" | bash "$_FORMAT_SCRIPT" 2>/dev/null) || _exit=0
@@ -116,7 +116,7 @@ hook_tool_logging_pre() {
     local INPUT="$1"
     # Defense-in-depth: skip if logging is disabled (dispatcher also checks)
     test -f "$HOME/.claude/tool-logging-enabled" || return 0
-    local _LOG_SCRIPT="$_POST_FUNC_DIR/../tool-logging.sh"
+    local _LOG_SCRIPT="$CLAUDE_PLUGIN_ROOT/hooks/tool-logging.sh"
     if [[ -x "$_LOG_SCRIPT" ]]; then
         printf '%s' "$INPUT" | bash "$_LOG_SCRIPT" pre 2>/dev/null || true
     fi
@@ -135,7 +135,7 @@ hook_tool_logging_post() {
     local _HOOK_HAS_OUTPUT=""
     trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi' EXIT
 
-    local _LOG_SCRIPT="$_POST_FUNC_DIR/../tool-logging.sh"
+    local _LOG_SCRIPT="$CLAUDE_PLUGIN_ROOT/hooks/tool-logging.sh"
     if [[ -x "$_LOG_SCRIPT" ]]; then
         local _output _exit=0
         _output=$(printf '%s' "$INPUT" | bash "$_LOG_SCRIPT" post 2>/dev/null) || _exit=0

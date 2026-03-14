@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/scripts/resolve-stack-adapter.sh
-# Resolves the stack adapter file path for a project based on workflow-config.yaml.
+# Resolves the stack adapter file path for a project based on workflow-config.conf.
 #
 # Usage:
 #   ADAPTER_FILE=$(bash "$REPO_ROOT/lockpick-workflow/scripts/resolve-stack-adapter.sh")
@@ -12,7 +12,7 @@
 # Environment:
 #   REPO_ROOT — optional; if not set, derived from BASH_SOURCE location
 #
-# The script reads `stack` and `design.template_engine` from workflow-config.yaml via
+# The script reads `stack` and `design.template_engine` from workflow-config.conf via
 # read-config.sh, then scans lockpick-workflow/config/stack-adapters/*.yaml for a file
 # whose selector.stack and selector.template_engine fields match the project config.
 
@@ -25,7 +25,7 @@ fi
 
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 
-# ── Read stack and template engine from workflow-config.yaml ──────────────────
+# ── Read stack and template engine from workflow-config.conf ──────────────────
 STACK=$("$READ_CONFIG" stack 2>/dev/null || echo "")
 TEMPLATE_ENGINE=$("$READ_CONFIG" design.template_engine 2>/dev/null || echo "")
 
