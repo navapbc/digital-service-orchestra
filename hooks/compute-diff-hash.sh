@@ -38,6 +38,9 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/deps.sh"
 
+# Source config-driven path resolver (provides CFG_VISUAL_BASELINE_PATH, CFG_UNIT_SNAPSHOT_PATH, etc.)
+source "$SCRIPT_DIR/lib/config-paths.sh"
+
 # Anchor all git pathspec exclusions and file operations to the repo root,
 # regardless of the caller's CWD. Without this, pathspecs like ':!app/.tickets/'
 # resolve relative to CWD, producing different hashes when called from app/.
@@ -110,14 +113,28 @@ EXCLUDE_PATHSPECS=(
     ':!.checkpoint-needs-review'
     ':!.tickets/'
     ':!.sync-state.json'
-    ':!app/tests/e2e/snapshots/'
-    ':!app/tests/unit/templates/snapshots/*.html'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
     ':!*.pdf' ':!*.docx'
 )
+# Add config-driven snapshot exclusions (visual baselines and unit snapshots)
+if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
+    EXCLUDE_PATHSPECS+=(":!${CFG_VISUAL_BASELINE_PATH}")
+fi
+if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
+    EXCLUDE_PATHSPECS+=(":!${CFG_UNIT_SNAPSHOT_PATH}*.html")
+fi
 
 # Grep pattern to filter untracked non-reviewable files
-NON_REVIEWABLE_PATTERN='^\.checkpoint-needs-review$|^\.tickets/|^\.sync-state\.json$|^app/tests/e2e/snapshots/|^app/tests/unit/templates/snapshots/.*\.html$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
+# Build pattern dynamically from config-driven paths
+NON_REVIEWABLE_PATTERN='^\.checkpoint-needs-review$|^\.tickets/|^\.sync-state\.json$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
+if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
+    _VBP_ESCAPED="${CFG_VISUAL_BASELINE_PATH//./\\.}"
+    NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_VBP_ESCAPED}"
+fi
+if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
+    _USP_ESCAPED="${CFG_UNIT_SNAPSHOT_PATH//./\\.}"
+    NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_USP_ESCAPED}.*\\.html$"
+fi
 
 # Build the untracked file list — either from snapshot or live query
 _get_untracked_files() {

@@ -43,6 +43,9 @@ set -euo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
+# Source config-driven path resolver (provides CFG_VISUAL_BASELINE_PATH, CFG_UNIT_SNAPSHOT_PATH, etc.)
+source "$HOOK_DIR/lib/config-paths.sh"
+
 # Pre-flight: python3 and shasum are required (integrity-critical hook).
 # This hook hard-fails without shasum rather than cascading to weaker hashes,
 # because the reviewer sub-agent also uses shasum -a 256. Both sides must use
@@ -224,11 +227,31 @@ HAS_CRITICAL="${REMAINDER%%:*}"
 FILES_FROM_FINDINGS="${REMAINDER#*:}"
 
 # --- Validate files overlap with actual changed files ---
+# Build pathspec exclusions from config
+_RR_EXCLUDE=(':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json')
+if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
+    _RR_EXCLUDE+=(":!${CFG_VISUAL_BASELINE_PATH}*.png")
+fi
+if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
+    _RR_EXCLUDE+=(":!${CFG_UNIT_SNAPSHOT_PATH}*.html")
+fi
+
+# Build grep exclusion pattern for untracked files
+_RR_GREP_PATTERN='^\.checkpoint-needs-review$|^\.tickets/|^\.sync-state\.json$'
+if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
+    _VBP_ESC="${CFG_VISUAL_BASELINE_PATH//./\\.}"
+    _RR_GREP_PATTERN="${_RR_GREP_PATTERN}|^${_VBP_ESC}.*\\.png$"
+fi
+if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
+    _USP_ESC="${CFG_UNIT_SNAPSHOT_PATH//./\\.}"
+    _RR_GREP_PATTERN="${_RR_GREP_PATTERN}|^${_USP_ESC}.*\\.html$"
+fi
+
 CHANGED_FILES=$(
     {
-        git diff --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git diff --cached --name-only HEAD -- ':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!app/tests/e2e/snapshots/*.png' ':!app/tests/unit/templates/snapshots/*.html' 2>/dev/null || true
-        git ls-files --others --exclude-standard 2>/dev/null | { grep -v '^\.checkpoint-needs-review$' || true; } | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | { grep -v '^app/tests/e2e/snapshots/.*\.png$' || true; } | { grep -v '^app/tests/unit/templates/snapshots/.*\.html$' || true; }
+        git diff --name-only HEAD -- "${_RR_EXCLUDE[@]}" 2>/dev/null || true
+        git diff --cached --name-only HEAD -- "${_RR_EXCLUDE[@]}" 2>/dev/null || true
+        git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$_RR_GREP_PATTERN" || true; }
     } | sort -u | { grep -v '^$' || true; }
 )
 
@@ -269,13 +292,18 @@ if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
     # Use the same exclusion pathspecs as compute-diff-hash.sh to avoid false mismatches
     # when the diff includes images, snapshots, PDFs, or other non-reviewable file types.
     # Also hash untracked files that were part of the commit (shown as empty diff vs HEAD).
+    # Build exclusion pathspecs from config
+    _LC_EXCLUDE=(':!.tickets/' ':!.sync-state.json'
+        ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
+        ':!*.pdf' ':!*.docx')
+    if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
+        _LC_EXCLUDE+=(":!${CFG_VISUAL_BASELINE_PATH}")
+    fi
+    if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
+        _LC_EXCLUDE+=(":!${CFG_UNIT_SNAPSHOT_PATH}*.html")
+    fi
     LAST_COMMIT_DIFF_HASH=$(git diff HEAD~1 HEAD -- \
-        ':!.tickets/' \
-        ':!.sync-state.json' \
-        ':!app/tests/e2e/snapshots/' \
-        ':!app/tests/unit/templates/snapshots/*.html' \
-        ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp' \
-        ':!*.pdf' ':!*.docx' \
+        "${_LC_EXCLUDE[@]}" \
         2>/dev/null | shasum -a 256 | awk '{print $1}')
     if [[ "$EXPECTED_HASH" == "$LAST_COMMIT_DIFF_HASH" ]]; then
         echo "INFO: diff was pre-committed (sub-agent PreCompact hook) — accepting HEAD~1 diff hash match" >&2

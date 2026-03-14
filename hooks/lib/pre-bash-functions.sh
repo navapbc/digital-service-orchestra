@@ -32,6 +32,11 @@ _PRE_BASH_FUNCTIONS_LOADED=1
 _PRE_BASH_FUNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_PRE_BASH_FUNC_DIR/deps.sh"
 
+# Source config-paths.sh for portable path resolution (idempotent via its own guard)
+if [ -f "$_PRE_BASH_FUNC_DIR/config-paths.sh" ]; then
+    source "$_PRE_BASH_FUNC_DIR/config-paths.sh"
+fi
+
 # ---------------------------------------------------------------------------
 # hook_validation_gate
 # ---------------------------------------------------------------------------
@@ -440,9 +445,11 @@ hook_review_gate() {
 
     # Exempt: commits that only touch non-reviewable binary/snapshot files
     local STAGED_NON_SNAPSHOTS
+    local _CFG_APP_D="${CFG_APP_DIR:-app}"
+    local _CFG_TEST_D="${CFG_TEST_DIR:-tests}"
     STAGED_NON_SNAPSHOTS=$(echo "$STAGED_NON_TRACKER" \
-        | grep -v -E '^app/tests/e2e/snapshots/' \
-        | grep -v -E '^app/tests/unit/templates/snapshots/.*\.html$' \
+        | grep -v -E "^${_CFG_APP_D}/${_CFG_TEST_D}/e2e/snapshots/" \
+        | grep -v -E "^${_CFG_APP_D}/${_CFG_TEST_D}/unit/templates/snapshots/.*\.html$" \
         | grep -v -E '\.(png|jpg|jpeg|gif|svg|ico|webp)$' \
         | grep -v -E '\.(pdf|docx)$' \
         || true)

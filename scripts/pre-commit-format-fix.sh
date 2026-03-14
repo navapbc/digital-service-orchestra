@@ -25,7 +25,17 @@ set -uo pipefail
 
 # ── Resolve paths ─────────────────────────────────────────────────────────────
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-APP_DIR="$REPO_ROOT/app"
+
+# Source config-driven paths (CFG_APP_DIR defaults to "app")
+_CONFIG_PATHS="$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+if [[ -f "$_CONFIG_PATHS" ]]; then
+    # shellcheck source=../../hooks/lib/config-paths.sh
+    source "$_CONFIG_PATHS"
+else
+    CFG_APP_DIR="app"
+fi
+
+APP_DIR="$REPO_ROOT/$CFG_APP_DIR"
 
 # ── Resolve ruff binary ──────────────────────────────────────────────────────
 # Look for ruff in: PATH, app venv, poetry run (in order of speed).
@@ -74,10 +84,10 @@ for file in "${STAGED_PY_FILES[@]}"; do
     # Skip files that don't exist (e.g., submodule references)
     [[ -f "$abs_file" ]] || continue
 
-    # Determine the working directory for ruff (app/ for app files, repo root otherwise)
-    if [[ "$file" == app/* ]]; then
+    # Determine the working directory for ruff (CFG_APP_DIR for app files, repo root otherwise)
+    if [[ "$file" == "${CFG_APP_DIR}/"* ]]; then
         WORK_DIR="$APP_DIR"
-        REL_FILE="${file#app/}"
+        REL_FILE="${file#"${CFG_APP_DIR}/"}"
     else
         WORK_DIR="$REPO_ROOT"
         REL_FILE="$file"
@@ -86,7 +96,7 @@ for file in "${STAGED_PY_FILES[@]}"; do
     # Run import sorting fix, then format
     # Non-app files need --config to use the project's ruff settings (line-length=100)
     CONFIG_FLAG=""
-    if [[ "$file" != app/* ]]; then
+    if [[ "$file" != "${CFG_APP_DIR}/"* ]]; then
         CONFIG_FLAG="--config $APP_DIR/pyproject.toml"
     fi
     if ! (cd "$WORK_DIR" && run_ruff check --select I --fix $CONFIG_FLAG "$REL_FILE" 2>/dev/null && run_ruff format $CONFIG_FLAG "$REL_FILE" 2>/dev/null); then
@@ -111,16 +121,16 @@ for file in "${STAGED_PY_FILES[@]}"; do
     abs_file="$REPO_ROOT/$file"
     [[ -f "$abs_file" ]] || continue
 
-    if [[ "$file" == app/* ]]; then
+    if [[ "$file" == "${CFG_APP_DIR}/"* ]]; then
         WORK_DIR="$APP_DIR"
-        REL_FILE="${file#app/}"
+        REL_FILE="${file#"${CFG_APP_DIR}/"}"
     else
         WORK_DIR="$REPO_ROOT"
         REL_FILE="$file"
     fi
 
     CONFIG_FLAG=""
-    if [[ "$file" != app/* ]]; then
+    if [[ "$file" != "${CFG_APP_DIR}/"* ]]; then
         CONFIG_FLAG="--config $APP_DIR/pyproject.toml"
     fi
     if ! (cd "$WORK_DIR" && run_ruff check --select I $CONFIG_FLAG "$REL_FILE" >/dev/null 2>&1 && run_ruff format --check $CONFIG_FLAG "$REL_FILE" >/dev/null 2>&1); then

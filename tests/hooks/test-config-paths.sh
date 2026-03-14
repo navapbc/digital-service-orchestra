@@ -110,8 +110,8 @@ assert_eq "custom CFG_APP_DIR" "myapp" "$(echo "$result" | grep '^CFG_APP_DIR=' 
 assert_eq "custom CFG_PYTHON_VENV" "myapp/.venv/bin/python3" "$(echo "$result" | grep '^CFG_PYTHON_VENV=' | cut -d= -f2-)"
 assert_eq "custom CFG_SRC_DIR" "lib" "$(echo "$result" | grep '^CFG_SRC_DIR=' | cut -d= -f2-)"
 assert_eq "custom CFG_TEST_DIR" "spec" "$(echo "$result" | grep '^CFG_TEST_DIR=' | cut -d= -f2-)"
-# CFG_UNIT_SNAPSHOT_PATH should be derived from CFG_APP_DIR
-assert_eq "custom CFG_UNIT_SNAPSHOT_PATH" "myapp/tests/unit/templates/snapshots/" "$(echo "$result" | grep '^CFG_UNIT_SNAPSHOT_PATH=' | cut -d= -f2-)"
+# CFG_UNIT_SNAPSHOT_PATH should be derived from CFG_APP_DIR and CFG_TEST_DIR
+assert_eq "custom CFG_UNIT_SNAPSHOT_PATH" "myapp/spec/unit/templates/snapshots/" "$(echo "$result" | grep '^CFG_UNIT_SNAPSHOT_PATH=' | cut -d= -f2-)"
 
 # ============================================================================
 # test_config_paths_idempotent_sourcing

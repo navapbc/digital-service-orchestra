@@ -147,7 +147,8 @@ assert_eq "record-review.sh excludes .sync-state.json in diff queries (>=2 occur
     "$( [[ $RECORD_SYNC -ge 2 ]] && echo true || echo false )"
 
 # Verify grep filters for untracked files include .tickets/
-RECORD_GREP_TICKETS=$(grep "grep -v.*\.tickets/" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+# Matches either old style (grep -v '...tickets/') or new config-driven pattern (_RR_GREP_PATTERN contains .tickets/)
+RECORD_GREP_TICKETS=$(grep -E "(grep -v.*\.tickets/|_GREP_PATTERN=.*\.tickets/)" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "record-review.sh grep filters include .tickets/" "true" \
     "$( [[ $RECORD_GREP_TICKETS -ge 1 ]] && echo true || echo false )"
 

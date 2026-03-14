@@ -25,6 +25,13 @@ if [ -z "$REPO_ROOT" ]; then
     exit 2
 fi
 
+# Source config-paths.sh for portable path resolution
+_CONFIG_PATHS="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+if [ -f "$_CONFIG_PATHS" ]; then
+    # shellcheck source=../hooks/lib/config-paths.sh
+    source "$_CONFIG_PATHS"
+fi
+
 phase="${1:-}"
 if [ -z "$phase" ]; then
     echo "Usage: validate-phase.sh {auto-fix|post-batch|tier-transition|full}"
@@ -80,7 +87,10 @@ done < <("$READ_CONFIG" --list "format.extensions" "$CONFIG_FILE" 2>/dev/null ||
 
 # Default fallbacks if config keys are missing
 if [ "${#_source_dirs[@]}" -eq 0 ]; then
-    _source_dirs=("$REPO_ROOT/app/src" "$REPO_ROOT/app/tests")
+    _CFG_APP="${CFG_APP_DIR:-app}"
+    _CFG_SRC="${CFG_SRC_DIR:-src}"
+    _CFG_TEST="${CFG_TEST_DIR:-tests}"
+    _source_dirs=("$REPO_ROOT/$_CFG_APP/$_CFG_SRC" "$REPO_ROOT/$_CFG_APP/$_CFG_TEST")
 fi
 if [ "${#_extensions[@]}" -eq 0 ]; then
     _extensions=('.py')

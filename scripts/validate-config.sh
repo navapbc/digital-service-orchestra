@@ -99,6 +99,7 @@ KNOWN_KEYS=(
     visual.baseline_directory
 
     # Worktree
+    worktree.python_version
     worktree.post_create_cmd
     worktree.branch_pattern
     worktree.max_age_days

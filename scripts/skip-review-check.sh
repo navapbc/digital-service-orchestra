@@ -14,6 +14,23 @@
 
 set -uo pipefail
 
+# Source config-paths.sh for portable path resolution
+_SKIP_REVIEW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_CONFIG_PATHS="$_SKIP_REVIEW_DIR/../hooks/lib/config-paths.sh"
+if [ -f "$_CONFIG_PATHS" ]; then
+    # shellcheck source=../hooks/lib/config-paths.sh
+    source "$_CONFIG_PATHS"
+fi
+
+# Build config-driven snapshot patterns (defaults ensure non-empty values)
+_CFG_APP="${CFG_APP_DIR:-app}"
+_CFG_TEST="${CFG_TEST_DIR:-tests}"
+# Guard: ensure app dir is non-empty to prevent wildcard degradation in case patterns
+[[ -z "$_CFG_APP" ]] && _CFG_APP="app"
+[[ -z "$_CFG_TEST" ]] && _CFG_TEST="tests"
+_E2E_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/e2e/snapshots/"
+_UNIT_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/unit/templates/snapshots/"
+
 SKIP_REVIEW=true
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
@@ -31,7 +48,7 @@ while IFS= read -r file; do
     case "$file" in
         .tickets/*) ;;                                                              # ticket metadata
         .sync-state.json) ;;                                                       # sync state metadata
-        app/tests/e2e/snapshots/*|app/tests/unit/templates/snapshots/*.html) ;;   # visual snapshots
+        ${_E2E_SNAP_PREFIX}*|${_UNIT_SNAP_PREFIX}*.html) ;;                       # visual snapshots
         *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;                            # images
         *.pdf|*.docx) ;;                                                           # binary docs
         .claude/session-logs/*|.claude/docs/*|docs/*) ;;                          # logs and non-agent docs

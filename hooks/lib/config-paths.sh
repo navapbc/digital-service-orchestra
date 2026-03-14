@@ -73,6 +73,6 @@ CFG_SRC_DIR=$(_cfg_read "paths.src_dir" "src")
 export CFG_TEST_DIR
 CFG_TEST_DIR=$(_cfg_read "paths.test_dir" "tests")
 
-# Derived: unit snapshot path is based on CFG_APP_DIR
+# Derived: unit snapshot path uses both CFG_APP_DIR and CFG_TEST_DIR
 export CFG_UNIT_SNAPSHOT_PATH
-CFG_UNIT_SNAPSHOT_PATH="${CFG_APP_DIR}/tests/unit/templates/snapshots/"
+CFG_UNIT_SNAPSHOT_PATH="${CFG_APP_DIR}/${CFG_TEST_DIR}/unit/templates/snapshots/"

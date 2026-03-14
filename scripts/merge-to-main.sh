@@ -40,6 +40,14 @@ VISUAL_BASELINE_PATH=$(bash "$_SCRIPT_DIR"/read-config.sh merge.visual_baseline_
 CI_WORKFLOW_NAME=$(bash "$_SCRIPT_DIR"/read-config.sh merge.ci_workflow_name 2>/dev/null || true)
 MSG_EXCLUSION_PATTERN=$(bash "$_SCRIPT_DIR"/read-config.sh merge.message_exclusion_pattern 2>/dev/null || true)
 
+# Post-merge validation commands
+# Defaults: make format-check (commands.format_check), make lint (commands.lint)
+_FMT_TARGET="format-check"
+CMD_FORMAT_CHECK=$(bash "$_SCRIPT_DIR"/read-config.sh commands.format_check 2>/dev/null || true)
+CMD_FORMAT_CHECK=${CMD_FORMAT_CHECK:-make $_FMT_TARGET}
+CMD_LINT=$(bash "$_SCRIPT_DIR"/read-config.sh commands.lint 2>/dev/null || true)
+CMD_LINT=${CMD_LINT:-make lint}
+
 # --- Verify worktree context ---
 if [ -d .git ]; then
     echo "ERROR: Not a worktree. This script is for worktree sessions only."
@@ -241,14 +249,16 @@ echo "OK: Merged $BRANCH into main."
 # --- 3.5) Post-merge validation ---
 # Pre-commit hooks use stages: [commit] which excludes merge commits.
 # Run format-check and lint here to catch issues that bypass pre-commit via merge.
-if [ -d "$MAIN_REPO/app" ]; then
+_APP_DIR_NAME=$(bash "$_SCRIPT_DIR"/read-config.sh paths.app_dir 2>/dev/null || true)
+_APP_DIR_NAME=${_APP_DIR_NAME:-app}
+if [ -d "$MAIN_REPO/$_APP_DIR_NAME" ]; then
     echo "Running post-merge validation (format-check + lint)..."
     POST_MERGE_FAIL=false
-    if ! (cd "$MAIN_REPO/app" && PY_RUN_APPROACH=local make format-check 2>&1); then
+    if ! (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_FORMAT_CHECK 2>&1); then
         echo "WARNING: Post-merge format-check failed. Run 'make format' to fix."
         POST_MERGE_FAIL=true
     fi
-    if ! (cd "$MAIN_REPO/app" && PY_RUN_APPROACH=local make lint-ruff 2>&1); then
+    if ! (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_LINT 2>&1); then
         echo "WARNING: Post-merge lint failed. Fix lint errors before pushing."
         POST_MERGE_FAIL=true
     fi

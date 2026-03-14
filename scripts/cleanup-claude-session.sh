@@ -66,6 +66,15 @@ log_action() {
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 WORKTREE_NAME=$(basename "$REPO_ROOT")
 
+# Source config-driven paths (CFG_APP_DIR defaults to "app")
+_CONFIG_PATHS="$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+if [ -f "$_CONFIG_PATHS" ]; then
+    # shellcheck source=../../hooks/lib/config-paths.sh
+    source "$_CONFIG_PATHS"
+else
+    CFG_APP_DIR="app"
+fi
+
 # Read session.artifact_prefix from workflow-config.conf via read-config.sh.
 # When absent, steps 4 (Docker filter) and 8 (artifact dirs) are skipped.
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
@@ -177,7 +186,7 @@ else
     if [ -n "$HUNG_CONTAINERS" ]; then
         log_action "  Found potentially hung containers:"
         log_action "  $HUNG_CONTAINERS"
-        log_action "  (Run 'docker compose down' in app/ to clean up if needed)"
+        log_action "  (Run 'docker compose down' in ${CFG_APP_DIR}/ to clean up if needed)"
     else
         log "  No hung containers found"
     fi

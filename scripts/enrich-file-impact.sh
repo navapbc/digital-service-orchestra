@@ -15,6 +15,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TK="${TK:-$SCRIPT_DIR/tk}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 PLUGIN_SCRIPTS="${SCRIPT_DIR}"
+
+# Source config-paths.sh for portable path resolution
+_CONFIG_PATHS="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+if [ -f "$_CONFIG_PATHS" ]; then
+    # shellcheck source=../hooks/lib/config-paths.sh
+    source "$_CONFIG_PATHS"
+fi
+
 MODEL="claude-haiku-4-5-20251001"
 MAX_TOKENS=500
 DRY_RUN=false
@@ -66,7 +74,10 @@ if [ -x "${PLUGIN_SCRIPTS}/read-config.sh" ]; then
 fi
 if [ -z "${_config_dirs:-}" ]; then
     echo "WARNING: read-config.sh unavailable or format.source_dirs empty; using fallback defaults." >&2
-    _config_dirs=$'app/src\napp/tests'  # fallback defaults
+    _CFG_APP="${CFG_APP_DIR:-app}"
+    _CFG_SRC="${CFG_SRC_DIR:-src}"
+    _CFG_TEST="${CFG_TEST_DIR:-tests}"
+    _config_dirs="${_CFG_APP}/${_CFG_SRC}"$'\n'"${_CFG_APP}/${_CFG_TEST}"  # fallback defaults
 fi
 
 # Get codebase structure for context — split dirs into source vs test

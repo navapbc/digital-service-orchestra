@@ -329,6 +329,12 @@
           "description": "Command to run before launching Claude Code (e.g., start background services). Will be used by lockpick-workflow/scripts/claude-safe (pre-launch phase) once wiring is complete (see epic boak). When absent, claude-safe skips the service startup step.",
           "minLength": 1,
           "examples": ["make start", "docker compose up -d"]
+        },
+        "python_version": {
+          "type": "string",
+          "description": "Python version for worktree environment setup (e.g., '3.13', '3.12'). Used by worktree-setup-env.sh to find the correct Python binary via try_find_python. When absent, falls back to any python3 on PATH.",
+          "pattern": "^[0-9]+\\.[0-9]+$",
+          "examples": ["3.13", "3.12", "3.11"]
         }
       }
     },
