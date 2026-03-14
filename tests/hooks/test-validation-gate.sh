@@ -407,7 +407,12 @@ run_hook_with_stderr() {
 # --- THIS TEST MUST FAIL IN RED PHASE ---
 # validation-gate.sh currently outputs a hardcoded message without reading config.
 _CONFIG_PLUGIN_ROOT=$(mktemp -d)
+<<<<<<< HEAD
 printf 'version: "1.0.0"\ncommands:\n  validate: "./custom-validate.sh"\n' > "$_CONFIG_PLUGIN_ROOT/workflow-config.conf"
+=======
+ln -s "$REPO_ROOT/lockpick-workflow/scripts" "$_CONFIG_PLUGIN_ROOT/scripts"
+printf 'version: "1.0.0"\ncommands:\n  validate: "./custom-validate.sh"\n' > "$_CONFIG_PLUGIN_ROOT/workflow-config.yaml"
+>>>>>>> origin/main
 set_state not_run
 _HOOK_OUTPUT=$(CLAUDE_PLUGIN_ROOT="$_CONFIG_PLUGIN_ROOT" run_hook_with_stderr "Bash" "sprint")
 _HOOK_STDERR=$(echo "$_HOOK_OUTPUT" | tail -n +2)
