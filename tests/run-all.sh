@@ -126,8 +126,15 @@ _HOOKS_PID=$!
 run_suite_to_file "Script Tests" "$SCRIPTS_RUNNER" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" &
 _SCRIPTS_PID=$!
 
+# Propagate signals to background suite runners so they don't orphan when
+# the parent is killed (by CI timeout, cancel-in-progress, or the 720s wrapper).
+_kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" 2>/dev/null || true; }
+trap '_kill_suites' TERM INT
+
 wait "$_HOOKS_PID"
 wait "$_SCRIPTS_PID"
+
+trap - TERM INT
 
 # Print captured output sequentially for readable logs
 cat "$_HOOKS_OUT"

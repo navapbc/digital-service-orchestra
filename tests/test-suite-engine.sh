@@ -288,7 +288,52 @@ test_results_colon_format() {
     assert_pass_if_clean "test_results_colon_format"
 }
 
+# --- Test 11: timeout with orphan child does not hang ---
+# Reproduces CI hang: when timeout kills a test that spawned a background
+# process, the $() command substitution hangs waiting for the orphan's fd
+# to close. The suite engine must write output directly to a file, not
+# capture via $(), so orphan fds don't block the runner.
+test_timeout_orphan_child_no_hang() {
+    _snapshot_fail
+    # Create a test that spawns a background process (simulating git or other
+    # subprocesses) that outlives the main test script
+    local test_path="$MOCK_DIR/test-orphan-child.sh"
+    cat > "$test_path" <<'TESTEOF'
+#!/usr/bin/env bash
+# Spawn a background process that sleeps forever — simulates orphaned
+# subprocesses (e.g., git credential helpers, background git operations)
+sleep 300 &
+# Main test sleeps long enough to be killed by timeout
+sleep 60
+TESTEOF
+    chmod +x "$test_path"
+
+    local start_time end_time elapsed
+    start_time=$(date +%s)
+
+    local output exit_code=0
+    # 3s timeout. If the bug is present, this hangs for 300s (orphan's sleep).
+    # If fixed, it should complete in ~8s (3s timeout + 5s kill-after).
+    output=$(TEST_TIMEOUT=3 MAX_PARALLEL=1 MAX_CONSECUTIVE_FAILS=999 \
+        bash "$SCRIPT_DIR/lib/suite-engine.sh" "$test_path" 2>&1) || exit_code=$?
+
+    end_time=$(date +%s)
+    elapsed=$(( end_time - start_time ))
+
+    # Must complete within 15s (generous margin over 3+5=8s theoretical max)
+    if [ "$elapsed" -le 15 ]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: orphan-child: took %ds, expected ≤15s (hung on orphan fd?)\n" "$elapsed" >&2
+    fi
+
+    assert_contains "orphan-child: reports TIMEOUT" "TIMEOUT" "$output"
+    assert_pass_if_clean "test_timeout_orphan_child_no_hang"
+}
+
 # --- Run all tests ---
+test_timeout_orphan_child_no_hang
 test_timeout_kills_slow_test
 test_parallel_faster_than_serial
 test_fail_fast_aborts_after_threshold

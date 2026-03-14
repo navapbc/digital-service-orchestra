@@ -89,15 +89,20 @@ _run_single_test() {
     test_name=$(basename "$test_path")
 
     local exit_code=0
-    local output
 
+    # Write output directly to file — NOT via $() command substitution.
+    # $() waits for ALL processes holding the pipe fd to close, so if a test
+    # spawns orphan children (background git ops, credential helpers, etc.),
+    # the substitution hangs even after timeout kills the main process.
+    # Direct file redirection avoids this: timeout kills the child, and we
+    # read the file afterward regardless of orphan process state.
     if [ -n "$_TIMEOUT_CMD" ]; then
-        output=$("$_TIMEOUT_CMD" --signal=TERM --kill-after=5 "$TEST_TIMEOUT" bash "$test_path" 2>&1) || exit_code=$?
+        "$_TIMEOUT_CMD" --signal=TERM --kill-after=5 "$TEST_TIMEOUT" \
+            bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || exit_code=$?
     else
-        output=$(bash "$test_path" 2>&1) || exit_code=$?
+        bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || exit_code=$?
     fi
 
-    echo "$output" > "$results_dir/$test_name.out"
     echo "$exit_code" > "$results_dir/$test_name.exit"
 
     # Parse counts
@@ -105,7 +110,8 @@ _run_single_test() {
         # Timeout (124 = TERM, 137 = KILL)
         echo "0 0 timeout" > "$results_dir/$test_name.counts"
     else
-        local counts
+        local counts output
+        output=$(cat "$results_dir/$test_name.out")
         counts=$(_parse_test_counts "$output")
         echo "$counts" > "$results_dir/$test_name.counts"
     fi
