@@ -37,7 +37,7 @@ fi
 if [[ -z "$config_file" ]]; then
     root="${CLAUDE_PLUGIN_ROOT:-$(pwd)}"
     if [[ -f "$root/workflow-config.conf" ]]; then config_file="$root/workflow-config.conf"
-    elif [[ -f "$root/workflow-config.yaml" ]]; then config_file="$root/workflow-config.yaml"
+    elif [[ -f "$root/workflow-config.yaml" ]]; then config_file="$root/workflow-config.yaml" # fallback for migration
     else exit 0; fi
 fi
 # Missing file: try swapping extension, else exit 0

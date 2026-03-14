@@ -106,12 +106,11 @@ database:
   # Command to resolve the database port for the current worktree.
   # Receives worktree name as $1 and port type as $2.
   # Used by: agent-batch-lifecycle.sh preflight (port conflict detection)
-  port_cmd: "scripts/worktree-port.sh"
+  port_cmd: "echo 5432"
 
   # Base database port number. Worktree-specific ports are derived by adding
-  # an offset to this value. Used by: worktree-port.sh (port calculation)
+  # an offset to this value. Defaults to 5432 when absent.
   # Type: integer
-  # Default when absent: 5432
   base_port: 5432
 
 infrastructure:
@@ -125,9 +124,8 @@ infrastructure:
   compose_project: "myapp-db-"
 
   # Base application port number. Worktree-specific ports are derived by adding
-  # an offset to this value. Used by: worktree-port.sh (port calculation)
+  # an offset to this value. Defaults to 3000 when absent.
   # Type: integer
-  # Default when absent: 3000
   app_base_port: 3000
 
   # Docker Compose files to shut down on session exit.

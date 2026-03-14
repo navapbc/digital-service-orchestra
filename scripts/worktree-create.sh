@@ -2,7 +2,7 @@
 # worktree-create.sh — Create and initialize a git worktree ready for a Claude session
 #
 # Generic plugin version: no project-specific hardcoding. All project-specific
-# behavior is driven by workflow-config.yaml (via read-config.sh).
+# behavior is driven by workflow-config.conf (via read-config.sh).
 #
 # Usage:
 #   worktree-create.sh [OPTIONS]

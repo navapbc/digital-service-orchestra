@@ -4,7 +4,7 @@
 # Verifies that changes to persistence-critical source files are accompanied
 # by changes to persistence test files. Exits non-zero if coverage is missing.
 #
-# Patterns are read from workflow-config.yaml via read-config.sh:
+# Patterns are read from workflow-config.conf via read-config.sh:
 #   persistence.source_patterns — literal substrings (grep -F)
 #   persistence.test_patterns   — extended regex patterns (grep -E)
 #
@@ -32,12 +32,12 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 # test_patterns: extended regex patterns (grep -E)
 
 # CONFIG_FILE may be overridden via environment variable for test isolation.
-# In production, defaults to the repo-level workflow-config.yaml.
-CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/workflow-config.yaml}"
+# In production, defaults to the repo-level workflow-config.conf.
+CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/workflow-config.conf}"
 
 # If the config file does not exist at all, treat as no-op with a warning.
 if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo "INFO: workflow-config.yaml not configured (file not found: $CONFIG_FILE) — skipping persistence coverage check." >&2
+    echo "INFO: workflow-config.conf not configured (file not found: $CONFIG_FILE) — skipping persistence coverage check." >&2
     exit 0
 fi
 
@@ -50,7 +50,7 @@ if _source_raw=$(bash "$SCRIPT_DIR/read-config.sh" --list persistence.source_pat
     done <<< "$_source_raw"
 else
     # Key absent — treat as no-op
-    echo "INFO: persistence.source_patterns not configured in workflow-config.yaml — skipping persistence coverage check." >&2
+    echo "INFO: persistence.source_patterns not configured in workflow-config.conf — skipping persistence coverage check." >&2
     exit 0
 fi
 
@@ -62,7 +62,7 @@ if _test_raw=$(bash "$SCRIPT_DIR/read-config.sh" --list persistence.test_pattern
         [ -n "$_p" ] && TEST_PATTERNS+=("$_p")
     done <<< "$_test_raw"
 else
-    echo "INFO: persistence.test_patterns not configured in workflow-config.yaml — skipping persistence coverage check." >&2
+    echo "INFO: persistence.test_patterns not configured in workflow-config.conf — skipping persistence coverage check." >&2
     exit 0
 fi
 
