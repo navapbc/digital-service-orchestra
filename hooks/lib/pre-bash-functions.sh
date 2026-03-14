@@ -505,6 +505,30 @@ hook_review_gate() {
         local REVIEW_TS
         REVIEW_TS=$(grep '^timestamp=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
         echo "BLOCKED: Review is stale (${REVIEW_TS:-unknown}; hash ${RECORDED_HASH:0:8}→${CURRENT_HASH:0:8}). Use /commit to re-run." >&2
+
+        # Write diagnostic dump for hash mismatch debugging
+        local _DIAG_DIR _DIAG_FILE _DIAG_BREADCRUMB
+        _DIAG_DIR="${_ARTIFACTS_DIR:-$(get_artifacts_dir 2>/dev/null || echo "")}"
+        if [[ -n "$_DIAG_DIR" ]]; then
+            mkdir -p "$_DIAG_DIR" 2>/dev/null || true
+            _DIAG_FILE="$_DIAG_DIR/mismatch-diagnostics-$(date -u +%Y%m%dT%H%M%SZ).log"
+            if [[ -f "$_DIAG_DIR/commit-breadcrumbs.log" ]]; then
+                _DIAG_BREADCRUMB=$(cat "$_DIAG_DIR/commit-breadcrumbs.log" 2>/dev/null || echo "READ ERROR")
+            else
+                _DIAG_BREADCRUMB="NOT FOUND"
+            fi
+            {
+                printf 'recorded_hash=%s\n' "$RECORDED_HASH"
+                printf 'current_hash=%s\n' "$CURRENT_HASH"
+                printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                printf 'review_timestamp=%s\n' "${REVIEW_TS:-unknown}"
+                printf 'git_status=%s\n' "$(git status --short 2>/dev/null | tr '\n' ',' || echo "ERROR")"
+                printf 'git_diff_names=%s\n' "$(git diff --name-only 2>/dev/null | tr '\n' ',' || echo "ERROR")"
+                printf 'untracked_files=%s\n' "$(git ls-files --others --exclude-standard 2>/dev/null | tr '\n' ',' || echo "ERROR")"
+                printf 'breadcrumb_log=%s\n' "$(echo "$_DIAG_BREADCRUMB" | tr '\n' ',')"
+            } > "$_DIAG_FILE" 2>/dev/null || true
+        fi
+
         # Debug: log hash mismatch details when hook timing is enabled
         if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
             {

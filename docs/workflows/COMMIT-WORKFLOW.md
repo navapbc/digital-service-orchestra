@@ -30,6 +30,18 @@ source "$REPO_ROOT/lockpick-workflow/scripts/ensure-pre-commit.sh" || true
 
 If the script warns that `pre-commit` is not found, the commit hooks may fail later. See `lockpick-workflow/scripts/ensure-pre-commit.sh` for the full fallback chain.
 
+### Breadcrumb Init
+
+Truncate the breadcrumb log to prevent unbounded growth, then initialize it for this run:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+mkdir -p "$ARTIFACTS_DIR"
+: > "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ### Gather State
 
 Run these commands and save their output:
@@ -39,6 +51,10 @@ git status
 git diff HEAD --stat
 git branch --show-current
 git log --oneline -5
+```
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0-gather-context" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
 ## Step 0.5: Check for Non-Reviewable-Only Changes
@@ -53,6 +69,10 @@ git diff HEAD --name-only | bash "$REPO_ROOT/lockpick-workflow/scripts/skip-revi
 **If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
 
 **Otherwise**: Continue to Step 1.
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
 
 **Note on `.checkpoint-needs-review`**: This file is written when code is auto-committed during a context-compaction event. It signals that the code has never been reviewed. The only correct path through is to run `/commit` from the beginning — Steps 1-3a must execute so the review can read the sentinel nonce and delete the file. Skipping to Step 4 or later will cause the commit to be blocked; restart from Step 1.
 
@@ -70,6 +90,10 @@ cd app && make test-unit-only
 ```
 
 If tests fail, fix the code and restart from Step 1. Do NOT proceed with a failing test suite.
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1-test" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
 
 ### Test Failure Delegation (Step 1)
 
@@ -162,6 +186,10 @@ fi
 - **E2E tests fail**: App is not running. Start it with `make start` and re-run. Fix the test if it is broken.
 - **No changed integration/e2e files**: Script exits silently. Continue to Step 2.
 
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1.5-changed-tests" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ### Test Failure Delegation (Step 1.5)
 
 If integration or E2E tests fail after environment checks (DB/app running), apply the same delegation decision gate as Step 1:
@@ -214,6 +242,10 @@ fi
 - **Pattern matches, tests pass**: Continue to Step 2.
 - **Pattern matches, tests fail**: See Test Failure Delegation (Step 1.75) below.
 
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1.75-plugin-tests" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ### Test Failure Delegation (Step 1.75)
 
 When plugin tests fail, apply the same delegation decision gate as Step 1:
@@ -256,6 +288,10 @@ Run formatting on modified files so file edits are complete before staging.
 cd app && make format-modified
 ```
 
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-2-format" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ## Step 3: Lint and Type Check
 
 Run lint and type checks before staging. Any tool that may edit files must run before `git add`.
@@ -272,6 +308,10 @@ On success, only the summary lines are needed. If either exit code is non-zero, 
 
 If either check fails, fix the issue and **restart from Step 1**.
 
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-lint-typecheck" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ## Step 3a: Write Validation State File
 
 After Steps 1-3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
@@ -284,6 +324,10 @@ mkdir -p "$ARTIFACTS_DIR"
 echo "passed" > "$ARTIFACTS_DIR/validation-status"
 ```
 
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3a-validation-state" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ## Step 4: Stage
 
 If you intend to include new (untracked) files in this commit, add them explicitly by name first.
@@ -292,6 +336,10 @@ Then stage all tracked modifications (including any files touched by the format 
 
 ```bash
 git add -u
+```
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-stage" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
 ## Step 5: Review Gate
@@ -308,16 +356,24 @@ git add -u
 Decide whether a review is needed:
 
 - **Review ran earlier this session and no files changed since**: Skip to Step 6.
-- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context.
+- **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1-3a above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
 - **The commit in Step 6 is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry Step 6. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.
 
 If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to 2 attempts). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1** (not Step 5).
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-review-gate" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
 
 ## Step 6: Commit
 
 Files are already staged from Step 4. The diff stat summary is already in context from Step 0 or the review workflow. Use that for the commit message — do not re-run `git diff --staged`. If you need a file list, use `git diff --staged --name-only` (minimal output).
 
 Create a single git commit following the repository's commit message conventions visible in the recent commits from Step 0.
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
 
 After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/debug-everything`, continue at the step after this commit invocation (Phase 4 Step 5 for auto-fix commits, or Phase 6 Step 6 for post-batch commits). If you were executing `/sprint`, continue at Phase 6 Step 10.5 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
 
