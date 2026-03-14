@@ -252,6 +252,13 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
 
 * **TDD First:** Every task must specify a concrete failing test to write first.
 * **Stability:** Each task must leave the codebase in a deployable, green state.
+  Tasks must never require being committed together — each task is an independent
+  atomic unit that can be committed, pushed, and deployed on its own. If a task
+  would leave the codebase broken without another task also being committed, the
+  tasks must be restructured (merged or reordered) until each is independently green.
+  A task that deploys an inert feature (e.g., a guard that reads files no one writes yet)
+  is acceptable — inert is not broken. The key test: after committing only this task,
+  do all tests pass and is the system deployable?
 * **Acceptance Criteria:** Every task must include acceptance criteria set via the
   `--acceptance` flag, composed from the template library (`lockpick-workflow/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
   Read the library once at the start of Step 3. For each task:
@@ -505,3 +512,4 @@ After processing findings (or skipping/failing), update the summary output to in
 | Cross-cutting but no pattern change | Cross-cutting threshold overrides the new-pattern check — Step 2 is still required |
 | Skipping gap analysis for COMPLEX stories | Always run Step 6 for COMPLEX stories — missed gaps compound during sub-agent execution |
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
+| Tasks requiring co-commit | Every task must be independently committable and green. If Task B is broken without Task A in the same commit, merge them or reorder so each stands alone. Inert (does nothing yet) is fine; broken is not. |
