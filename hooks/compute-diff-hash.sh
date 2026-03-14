@@ -58,12 +58,10 @@ cd "$(git rev-parse --show-toplevel)"
 # Shared constant — must match the label used by pre-compact-checkpoint.sh
 CHECKPOINT_LABEL='checkpoint: pre-compaction auto-save'
 # Read config-driven checkpoint label (same resolution as pre-compact-checkpoint.sh)
-_READ_CONFIG=""
-if [[ -f "$SCRIPT_DIR/../scripts/read-config.sh" ]]; then
-    _READ_CONFIG="$SCRIPT_DIR/../scripts/read-config.sh"
-elif [[ -f "$SCRIPT_DIR/../../lockpick-workflow/scripts/read-config.sh" ]]; then
-    _READ_CONFIG="$SCRIPT_DIR/../../lockpick-workflow/scripts/read-config.sh"
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
+_READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
 if [[ -n "$_READ_CONFIG" ]]; then
     _LABEL=$("$_READ_CONFIG" checkpoint.commit_label 2>/dev/null || echo '')
     [[ -n "$_LABEL" ]] && CHECKPOINT_LABEL="$_LABEL"

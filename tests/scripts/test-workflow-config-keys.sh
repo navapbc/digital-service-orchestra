@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-workflow-config-keys.sh
-# Tests that workflow-config.yaml contains scalar path and interpreter keys
+# Tests that workflow-config.conf contains scalar path and interpreter keys
 # readable by read-config.sh.
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-workflow-config-keys.sh
@@ -11,7 +11,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.yaml"
+CONFIG="$REPO_ROOT/workflow-config.conf"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 

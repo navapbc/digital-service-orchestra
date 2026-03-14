@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-lifecycle-portability.sh
 # Portability smoke test: exercises all agent-batch-lifecycle.sh subcommands
-# against a minimal project skeleton (empty/stub workflow-config.yaml with no
+# against a minimal project skeleton (empty/stub workflow-config.conf with no
 # database, infrastructure, or session sections).
 #
 # Validates:
@@ -24,7 +24,7 @@ source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 echo "=== test-lifecycle-portability.sh ==="
 
 # ── Setup: minimal project skeleton ─────────────────────────────────────────
-# Create a temporary git repo with a stub workflow-config.yaml that has NO
+# Create a temporary git repo with a stub workflow-config.conf that has NO
 # database, infrastructure, or session sections.
 TMPDIR_SKELETON="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_SKELETON"' EXIT
@@ -33,17 +33,16 @@ trap 'rm -rf "$TMPDIR_SKELETON"' EXIT
 git init -q "$TMPDIR_SKELETON"
 git -C "$TMPDIR_SKELETON" commit --allow-empty -m "init" -q
 
-# Stub workflow-config.yaml with only version/stack (no optional sections)
-cat > "$TMPDIR_SKELETON/workflow-config.yaml" <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-YAML
+# Stub workflow-config.conf with only version/stack (no optional sections)
+cat > "$TMPDIR_SKELETON/workflow-config.conf" <<'CONF'
+stack=python-poetry
+CONF
 
 # Create .tickets dir (lock subcommands scan it)
 mkdir -p "$TMPDIR_SKELETON/.tickets"
 
 # Point WORKFLOW_CONFIG at the minimal config; run lifecycle from the temp repo
-export WORKFLOW_CONFIG="$TMPDIR_SKELETON/workflow-config.yaml"
+export WORKFLOW_CONFIG="$TMPDIR_SKELETON/workflow-config.conf"
 
 # Helper: run lifecycle subcommand inside the temp repo context
 _run() {

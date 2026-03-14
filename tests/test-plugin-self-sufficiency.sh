@@ -220,7 +220,6 @@ MIGRATED_SCRIPTS=(
     ci-create-failure-bug.sh
     pre-commit-executable-guard.sh
     report-flaky-tests.sh
-    worktree-port.sh
     worktree-create.sh
     audit-skill-resolution.sh
     bench-tk-ready.sh

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-verify-baseline-intent.sh
 # TDD tests for verify-baseline-intent.sh config-driven behavior:
-#   1. workflow-config.yaml contains the required keys:
+#   1. workflow-config.conf contains the required keys:
 #      - visual.baseline_directory → 'app/tests/e2e/snapshots/'
 #      - design.manifest_patterns  → a list with exactly two entries
 #   2. lockpick-workflow/scripts/verify-baseline-intent.sh:
@@ -18,7 +18,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.yaml"
+CONFIG="$REPO_ROOT/workflow-config.conf"
 PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/verify-baseline-intent.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
@@ -128,11 +128,10 @@ TMPDIR_FIXTURE="$(mktemp -d)"
 _CLEANUP_DIRS="$TMPDIR_FIXTURE"
 trap 'rm -rf $_CLEANUP_DIRS' EXIT
 
-EMPTY_CONFIG="$TMPDIR_FIXTURE/workflow-config.yaml"
-cat > "$EMPTY_CONFIG" <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-YAML
+EMPTY_CONFIG="$TMPDIR_FIXTURE/workflow-config.conf"
+cat > "$EMPTY_CONFIG" <<'CONF'
+stack=python-poetry
+CONF
 
 absent_exit=0
 absent_output=""
@@ -224,7 +223,7 @@ done
 
 # Helper: create a minimal isolated git repo with a `main` branch and one base
 # commit (the merge-base), then check out a feature branch for test additions.
-# The workflow-config.yaml content is written BEFORE the base commit so both
+# The workflow-config.conf content is written BEFORE the base commit so both
 # branches share the same config (the base commit includes the config file).
 _make_portability_repo() {
     local name="$1"
@@ -234,8 +233,8 @@ _make_portability_repo() {
     git -C "$dir" init -q -b main
     git -C "$dir" config user.email "test@test.local"
     git -C "$dir" config user.name "Test"
-    printf '%s\n' "$config_content" > "$dir/workflow-config.yaml"
-    git -C "$dir" add workflow-config.yaml
+    printf '%s\n' "$config_content" > "$dir/workflow-config.conf"
+    git -C "$dir" add workflow-config.conf
     git -C "$dir" commit -m "base" -q
     git -C "$dir" checkout -q -b feature/test
     echo "$dir"
@@ -254,13 +253,12 @@ _run_portability() {
 
 # ── test_portability_no_visual_config_exits_0 ─────────────────────────────────
 # Portability: an isolated git repo with no visual.baseline_directory in
-# workflow-config.yaml must cause the canonical script to exit 0 (no-op).
+# workflow-config.conf must cause the canonical script to exit 0 (no-op).
 # This verifies the absent-config guard works end-to-end in a real git context.
 _snapshot_fail
-_p1_repo=$(_make_portability_repo "no-visual-config" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-YAML
+_p1_repo=$(_make_portability_repo "no-visual-config" "$(cat <<'CONF'
+stack=python-poetry
+CONF
 )")
 
 portability_no_visual_exit=0
@@ -276,16 +274,12 @@ assert_pass_if_clean "test_portability_no_visual_config_exits_0"
 # Portability: isolated git repo with visual.baseline_directory configured but
 # no PNG changes on the feature branch versus main must exit 0.
 _snapshot_fail
-_p2_repo=$(_make_portability_repo "config-no-png" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-visual:
-  baseline_directory: snapshots/
-design:
-  manifest_patterns:
-    - designs/*/manifest.md
-    - designs/*/brief.md
-YAML
+_p2_repo=$(_make_portability_repo "config-no-png" "$(cat <<'CONF'
+stack=python-poetry
+visual.baseline_directory=snapshots/
+design.manifest_patterns=designs/*/manifest.md
+design.manifest_patterns=designs/*/brief.md
+CONF
 )")
 # Feature branch has no PNG additions — only a non-visual text file change
 echo "readme" > "$_p2_repo/README.md"
@@ -306,16 +300,12 @@ assert_pass_if_clean "test_portability_config_present_no_png_changes_exits_0"
 # there are PNG changes on the feature branch versus main, but no manifest
 # files were added. Assert exit code 2 (unintended visual changes).
 _snapshot_fail
-_p3_repo=$(_make_portability_repo "png-no-manifest" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-visual:
-  baseline_directory: snapshots/
-design:
-  manifest_patterns:
-    - designs/*/manifest.md
-    - designs/*/brief.md
-YAML
+_p3_repo=$(_make_portability_repo "png-no-manifest" "$(cat <<'CONF'
+stack=python-poetry
+visual.baseline_directory=snapshots/
+design.manifest_patterns=designs/*/manifest.md
+design.manifest_patterns=designs/*/brief.md
+CONF
 )")
 # Add a fake PNG in the baseline directory — no accompanying manifest
 mkdir -p "$_p3_repo/snapshots"
@@ -338,16 +328,12 @@ assert_pass_if_clean "test_portability_baseline_changes_no_manifests_exits_2"
 # Portability: isolated git repo where PNG baseline changes are accompanied by a
 # design manifest file on the feature branch. Assert exit code 0 (intent confirmed).
 _snapshot_fail
-_p4_repo=$(_make_portability_repo "png-with-manifest" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-visual:
-  baseline_directory: snapshots/
-design:
-  manifest_patterns:
-    - designs/*/manifest.md
-    - designs/*/brief.md
-YAML
+_p4_repo=$(_make_portability_repo "png-with-manifest" "$(cat <<'CONF'
+stack=python-poetry
+visual.baseline_directory=snapshots/
+design.manifest_patterns=designs/*/manifest.md
+design.manifest_patterns=designs/*/brief.md
+CONF
 )")
 # Add a fake PNG baseline change AND a matching design manifest
 mkdir -p "$_p4_repo/snapshots"

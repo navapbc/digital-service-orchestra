@@ -30,11 +30,11 @@ fail() { TESTS=$((TESTS + 1)); FAILURES=$((FAILURES + 1)); echo "  FAIL: $1"; }
 echo "=== Tests for validate-phase.sh portability ==="
 
 # ---------------------------------------------------------------------------
-# Setup: create a temp git repo with stub workflow-config.yaml and symlinks.
+# Setup: create a temp git repo with stub workflow-config.conf and symlinks.
 #
 # Temp dir structure:
 #   $TMPDIR/                           ← REPO_ROOT (fake git repo)
-#   $TMPDIR/workflow-config.yaml       ← stub config (populated per scenario)
+#   $TMPDIR/workflow-config.conf       ← stub config (populated per scenario)
 #   $TMPDIR/lockpick-workflow/scripts/
 #       validate-phase.sh              ← symlink to canonical script
 #       read-config.sh                 ← symlink to real read-config.sh
@@ -68,20 +68,16 @@ fi
 (cd "$TMPDIR" && git init -q && git config user.email "test@test.com" && git config user.name "Test")
 
 # ---------------------------------------------------------------------------
-# Helper: write an all-pass stub workflow-config.yaml
+# Helper: write an all-pass stub workflow-config.conf
 # ---------------------------------------------------------------------------
 write_all_pass_config() {
-    cat > "$TMPDIR/workflow-config.yaml" << 'WCFG'
-commands:
-  format: "true"
-  format_check: "true"
-  lint: "true"
-  lint_fix: "true"
-  test_unit: "echo '1 passed'"
-  validate: "true"
-format:
-  source_dirs: []
-  extensions: []
+    cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+commands.format=true
+commands.format_check=true
+commands.lint=true
+commands.lint_fix=true
+commands.test_unit=echo '1 passed'
+commands.validate=true
 WCFG
 }
 
@@ -145,17 +141,13 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "Test b: post-batch / lint: false config"
-cat > "$TMPDIR/workflow-config.yaml" << 'WCFG'
-commands:
-  format: "true"
-  format_check: "true"
-  lint: "false"
-  lint_fix: "true"
-  test_unit: "echo '1 passed'"
-  validate: "true"
-format:
-  source_dirs: []
-  extensions: []
+cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+commands.format=true
+commands.format_check=true
+commands.lint=false
+commands.lint_fix=true
+commands.test_unit=echo '1 passed'
+commands.validate=true
 WCFG
 
 run_phase "post-batch"
