@@ -132,9 +132,9 @@ CHANGED_FILES=$(git diff --name-only)
    - Attempt >= 3: **Escalate to user** — do not retry further.
 
 3. **Select sub-agent type** (from TEST-FAILURE-DISPATCH.md):
-   - Unit test failure (assertion, runtime error): `unit-testing:debugger`
-   - Type error (mypy): `debugging-toolkit:debugger`
-   - Lint violation (ruff): `code-simplifier:code-simplifier`
+   - Unit test failure (assertion, runtime error): Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`)
+   - Type error (mypy): Resolve via `discover-agents.sh` routing category `mechanical_fix` (see `agent-routing.conf`)
+   - Lint violation (ruff): Resolve via `discover-agents.sh` routing category `code_simplify` (see `agent-routing.conf`)
    - Multi-file / complex (cross-module): `error-debugging:error-detective`
 
 4. **Select prompt template**: `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md`
