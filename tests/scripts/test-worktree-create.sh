@@ -134,7 +134,7 @@ _smoke_cleanup() {
 # ── Test 11: Portability skip-path — no post_create_cmd exits 0 ──────────────
 echo "Test 11: Portability skip-path — no post_create_cmd config exits 0"
 _smoke_setup
-# No workflow-config.yaml → post_create_cmd is empty → should skip gracefully
+# No workflow-config.conf → post_create_cmd is empty → should skip gracefully
 smoke_exit=0
 smoke_output=""
 smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-skip --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
@@ -157,14 +157,13 @@ _smoke_cleanup
 # ── Test 12: Portability hook-path — post_create_cmd runs and side effects visible ──
 echo "Test 12: Portability hook-path — post_create_cmd creates marker file"
 _smoke_setup
-# Write workflow-config.yaml with a post_create_cmd that creates a marker file
+# Write workflow-config.conf with a post_create_cmd that creates a marker file
 mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
 # Copy read-config.sh so the script can find it in the temp repo
 cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
-cat > "$SMOKE_REPO/workflow-config.yaml" <<'YAML'
-worktree:
-  post_create_cmd: 'touch $WORKTREE_PATH/.setup-marker'
-YAML
+cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
+worktree.post_create_cmd=touch $WORKTREE_PATH/.setup-marker
+CONF
 smoke_exit=0
 smoke_output=""
 smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-hook --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
@@ -187,10 +186,9 @@ echo "Test 13: Portability hook-failure — failing post_create_cmd exits non-ze
 _smoke_setup
 mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
 cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
-cat > "$SMOKE_REPO/workflow-config.yaml" <<'YAML'
-worktree:
-  post_create_cmd: 'false'
-YAML
+cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
+worktree.post_create_cmd=false
+CONF
 smoke_exit=0
 smoke_output=""
 smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-fail --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?

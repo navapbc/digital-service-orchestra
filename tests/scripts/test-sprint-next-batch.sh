@@ -81,7 +81,7 @@ case "$KEY" in
 esac
 T3_CFG
 chmod +x "$_t3_fake_repo/lockpick-workflow/scripts/read-config.sh"
-printf "version: '1.0.0'\n" > "$_t3_fake_repo/workflow-config.yaml"
+printf '' > "$_t3_fake_repo/workflow-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t3_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
 chmod +x "$_t3_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
 
@@ -139,7 +139,7 @@ case "$KEY" in
 esac
 T4_CFG
 chmod +x "$_t4_fake_repo/lockpick-workflow/scripts/read-config.sh"
-printf "version: '1.0.0'\n" > "$_t4_fake_repo/workflow-config.yaml"
+printf '' > "$_t4_fake_repo/workflow-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t4_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
 chmod +x "$_t4_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
 
@@ -197,7 +197,7 @@ case "$KEY" in
 esac
 T5_CFG
 chmod +x "$_t5_fake_repo/lockpick-workflow/scripts/read-config.sh"
-printf "version: '1.0.0'\n" > "$_t5_fake_repo/workflow-config.yaml"
+printf '' > "$_t5_fake_repo/workflow-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t5_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
 chmod +x "$_t5_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
 

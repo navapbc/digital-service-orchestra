@@ -99,12 +99,12 @@ assert_eq "test_commit_tracker_exits_zero_on_wip_commit" "0" "$EXIT_CODE"
 # Group: Config-driven issue tracker commands
 # ============================================================
 # These tests verify that commit-failure-tracker.sh uses CLAUDE_PLUGIN_ROOT to
-# read workflow-config.yaml and uses the configured search command instead of
+# read workflow-config.conf and uses the configured search command instead of
 # hardcoding 'bd search'.
 #
 # test_commit_tracker_config_driven_issue_tracker_search_cmd
 #   MUST FAIL in red phase: commit-failure-tracker.sh currently hardcodes 'bd search'
-#   and does not read issue_tracker.search_cmd from workflow-config.yaml.
+#   and does not read issue_tracker.search_cmd from workflow-config.conf.
 # test_commit_tracker_backward_compat_defaults_to_bd
 #   MUST PASS in red phase: without CLAUDE_PLUGIN_ROOT, hook still uses bd internally
 #   and exits 0 (never blocks).
@@ -126,7 +126,7 @@ run_hook_stderr() {
 }
 
 # test_commit_tracker_config_driven_issue_tracker_search_cmd
-# CLAUDE_PLUGIN_ROOT with workflow-config.yaml:
+# CLAUDE_PLUGIN_ROOT with workflow-config.conf:
 #   issue_tracker:
 #     search_cmd: 'gh issue list --search'
 # Set validation state to 'failed' with failed_checks=lint
@@ -134,11 +134,9 @@ run_hook_stderr() {
 # Assert stderr does NOT reference 'bd search' (uses configured command instead)
 # MUST FAIL — hook currently hardcodes bd search
 _CT_PLUGIN_ROOT=$(mktemp -d)
-cat > "$_CT_PLUGIN_ROOT/workflow-config.yaml" << 'YAML_EOF'
-version: "1.0.0"
-issue_tracker:
-  search_cmd: 'gh issue list --search'
-YAML_EOF
+cat > "$_CT_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
+issue_tracker.search_cmd=gh issue list --search
+CONF_EOF
 
 ARTIFACTS_DIR_CT="$(get_artifacts_dir)"
 mkdir -p "$ARTIFACTS_DIR_CT"

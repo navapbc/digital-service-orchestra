@@ -123,16 +123,12 @@ if [[ -f "$REPO_ROOT/.disable-precompact-checkpoint" ]]; then
 fi
 
 # Read config-driven checkpoint label (with fallback default)
-# Resolve read-config.sh: try HOOK_DIR/../scripts (lockpick-workflow/hooks/ path),
-# then HOOK_DIR/../../lockpick-workflow/scripts (.claude/hooks/ path).
 CHECKPOINT_LABEL='checkpoint: pre-compaction auto-save'
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_READ_CONFIG=""
-if [[ -f "$HOOK_DIR/../scripts/read-config.sh" ]]; then
-    _READ_CONFIG="$HOOK_DIR/../scripts/read-config.sh"
-elif [[ -f "$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh" ]]; then
-    _READ_CONFIG="$HOOK_DIR/../../lockpick-workflow/scripts/read-config.sh"
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    CLAUDE_PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
 fi
+_READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
 if [[ -n "$_READ_CONFIG" ]]; then
     _LABEL=$("$_READ_CONFIG" checkpoint.commit_label 2>/dev/null || echo '')
     [[ -n "$_LABEL" ]] && CHECKPOINT_LABEL="$_LABEL"

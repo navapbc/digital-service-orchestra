@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-compose-files-config.sh
-# Tests that workflow-config.yaml contains the infrastructure.compose_files key
+# Tests that workflow-config.conf contains the infrastructure.compose_files key
 # readable by read-config.sh in --list mode.
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-compose-files-config.sh
@@ -11,7 +11,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.yaml"
+CONFIG="$REPO_ROOT/workflow-config.conf"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 

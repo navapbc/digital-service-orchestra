@@ -1,7 +1,7 @@
 # Reviewer File Quality Checklist
 
 Standard for all `/review-protocol` reviewer prompt files, derived from auditing
-the reference implementation in `.claude/skills/design-wireframe/docs/reviewers/`.
+the reference implementation in `lockpick-workflow/skills/design-wireframe/docs/reviewers/`.
 
 ## File Structure
 
@@ -122,7 +122,7 @@ When migrating a skill's inline perspectives to separate files, the calling SKIL
 ### Directory Structure
 
 ```
-.claude/skills/{skill-name}/
+lockpick-workflow/skills/{skill-name}/
   SKILL.md
   docs/
     review-criteria.md      # Overview of all reviewers + launch/aggregation instructions

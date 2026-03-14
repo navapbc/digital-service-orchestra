@@ -360,12 +360,12 @@ assert_exit "tk children (bare, no args) → allowed" "0" "$result"
 # Group 9: Config-driven validate command in error messages
 # ============================================================
 # These tests verify that validation-gate.sh uses CLAUDE_PLUGIN_ROOT to read
-# workflow-config.yaml and reference the configured validate command in its
+# workflow-config.conf and reference the configured validate command in its
 # BLOCKED error messages (rather than hardcoding "validate.sh --ci").
 #
 # test_validation_gate_config_driven_blocked_message_uses_config_validate_cmd
 #   MUST FAIL in red phase: validation-gate.sh currently outputs a hardcoded
-#   message that does not reference workflow-config.yaml at all.
+#   message that does not reference workflow-config.conf at all.
 # test_validation_gate_backward_compat_no_config
 #   MUST PASS in red phase: the gate still blocks new-work commands when no
 #   config is present (backward compatibility is already implemented).
@@ -399,7 +399,7 @@ run_hook_with_stderr() {
 }
 
 # test_validation_gate_config_driven_blocked_message_uses_config_validate_cmd
-# Set up CLAUDE_PLUGIN_ROOT with workflow-config.yaml: commands.validate = './custom-validate.sh'
+# Set up CLAUDE_PLUGIN_ROOT with workflow-config.conf: commands.validate = './custom-validate.sh'
 # Set validation state to not_run
 # Run hook with 'tk ready' (new-work command)
 # Capture stderr output
@@ -407,7 +407,7 @@ run_hook_with_stderr() {
 # --- THIS TEST MUST FAIL IN RED PHASE ---
 # validation-gate.sh currently outputs a hardcoded message without reading config.
 _CONFIG_PLUGIN_ROOT=$(mktemp -d)
-printf 'version: "1.0.0"\ncommands:\n  validate: "./custom-validate.sh"\n' > "$_CONFIG_PLUGIN_ROOT/workflow-config.yaml"
+printf 'version: "1.0.0"\ncommands:\n  validate: "./custom-validate.sh"\n' > "$_CONFIG_PLUGIN_ROOT/workflow-config.conf"
 set_state not_run
 _HOOK_OUTPUT=$(CLAUDE_PLUGIN_ROOT="$_CONFIG_PLUGIN_ROOT" run_hook_with_stderr "Bash" "sprint")
 _HOOK_STDERR=$(echo "$_HOOK_OUTPUT" | tail -n +2)

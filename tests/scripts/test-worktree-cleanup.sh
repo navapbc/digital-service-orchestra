@@ -348,7 +348,7 @@ else
 fi
 
 # ── Test 19: Portability smoke test — no-infra config, Docker steps skipped ──
-# Creates a temp git repo with a workflow-config.yaml containing no infrastructure
+# Creates a temp git repo with a workflow-config.conf containing no infrastructure
 # or worktree sections, runs the canonical script with --dry-run, and verifies
 # it completes without Docker errors. The absence of CONFIG_COMPOSE_DB_FILE
 # means all Docker teardown and network cleanup blocks are skipped.
@@ -366,14 +366,12 @@ if [[ -n "$BASH4" ]]; then
     touch "$TMP_SMOKE_REPO/file.txt"
     git -C "$TMP_SMOKE_REPO" add . && git -C "$TMP_SMOKE_REPO" commit -q -m "init"
 
-    # Create a workflow-config.yaml with no infrastructure or worktree sections
+    # Create a workflow-config.conf with no infrastructure or worktree sections
     # (simulates a Docker-absent project — the portability scenario)
-    cat > "$TMP_SMOKE_REPO/workflow-config.yaml" <<'EOF'
-format:
-  line_length: 100
-tickets:
-  directory: .tickets
-EOF
+    cat > "$TMP_SMOKE_REPO/workflow-config.conf" <<'CONF'
+format.line_length=100
+tickets.directory=.tickets
+CONF
 
     # Run the canonical script from within the smoke repo (sets MAIN_REPO context)
     # The script locates the repo via BASH_SOURCE, so we need to run it in a subshell
