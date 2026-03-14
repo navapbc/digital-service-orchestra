@@ -76,6 +76,22 @@ Process skills first (`/brainstorm`, `tdd-workflow`) — then implementation ski
 
 **Rigid** (`tdd-workflow`, `verification-before-completion`): follow exactly. **Flexible** (patterns): adapt to context. The skill itself tells you which.
 
+## Execution Discipline
+
+**Follow skills and workflows exactly as written. Do not take shortcuts.**
+
+When a skill or workflow specifies steps, phases, gates, or procedures, execute every one in order. Do not:
+
+- Skip steps you consider "unnecessary" or "obvious"
+- Combine steps to "save time"
+- Substitute your own judgment for a documented gate or check
+- Omit a validation step because "the change is small"
+- Rationalize that "this particular case doesn't need" a required step
+
+**Why this matters**: Skills encode hard-won lessons from production failures. Every gate exists because skipping it caused a real problem. Config masking hid bugs for weeks because a validation step was conditional instead of mandatory. Tests passed locally but failed in CI because a smoke test was skipped. The cost of running an "unnecessary" step is seconds; the cost of skipping a necessary one is hours of debugging.
+
+**If a skill step seems wrong or outdated**, flag it to the user — do not silently skip it. The correct response to a bad instruction is to raise it, not to ignore it.
+
 ## User Instructions
 
 Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.

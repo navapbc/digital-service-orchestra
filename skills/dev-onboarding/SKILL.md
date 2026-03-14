@@ -240,6 +240,43 @@ Use `WebSearch` to find how the chosen stack enforces exhaustive matching (e.g.,
 
 **Rule of thumb**: If you have a typed config system, any direct env var read outside the config layer is a bug, not a shortcut.
 
+#### AP-7: TDD Discipline Without Enforcement
+
+**The pattern**: The project mandates TDD (Red-Green-Refactor) in documentation, but nothing prevents developers or AI agents from writing code first and tests after — or skipping tests entirely for "trivial" changes. Over time, test coverage erodes, bugs recur, and the test suite becomes a rubber stamp rather than a safety net.
+
+**Why it recurs**: TDD requires discipline that feels slow in the moment. Without enforcement, the path of least resistance is to write code first, especially under time pressure. AI agents are particularly prone to this — they optimize for task completion speed and will rationalize skipping tests ("this change is mechanical," "existing tests cover this").
+
+**Enforcement mechanisms**:
+
+| Mechanism | When | Goal |
+|-----------|------|------|
+| **Commit-time test coverage gate** | Pre-commit | Block commits where changed source files lack corresponding test changes. Use coverage diff tools (`coverage-diff`, `diff-cover`) to require that new/modified lines have test coverage above a threshold. |
+| **Assertion density check** | Pre-commit/CI | Require a minimum number of assertions per test function. Tests with zero or one assertion are often smoke tests that don't verify behavior. Configure via `check-assertion-density` or equivalent. |
+| **TDD workflow skill** | Agent runtime | Require agents to invoke `/tdd-workflow` for bug fixes. The skill enforces RED (failing test) → GREEN (minimal fix) → REFACTOR → VALIDATE ordering. Wire this into CLAUDE.md's Quick Start table. |
+| **Test-before-fix gate** | Pre-commit hook | For files matching `src/**` patterns, check that corresponding `tests/**` files were also modified in the same commit. Exempt mechanical changes (imports, type annotations, config). |
+| **Red test verification** | Skill enforcement | The TDD workflow requires running the test and confirming it FAILS before writing fix code. If the test passes immediately, the agent must rethink — the test doesn't capture the bug. |
+
+**Rule of thumb**: If TDD is in your docs but not in your hooks, it's a suggestion. Enforcement mechanisms must make it harder to skip TDD than to follow it.
+
+#### AP-8: Test Isolation Violations
+
+**The pattern**: Tests share state through class variables, module-level caches, database rows, or filesystem artifacts. Tests pass when run individually but fail when run in certain orders, or pass locally but fail in CI where execution order or parallelism differs.
+
+**Why it recurs**: Shared fixtures are convenient. `autouse=True` fixtures hide implicit ordering dependencies. Global state (module-level singletons, class variables, environment variables) leaks between tests without explicit cleanup. The problem is invisible until test count grows large enough for order-dependent failures to manifest.
+
+**Enforcement mechanisms**:
+
+| Mechanism | When | Goal |
+|-----------|------|------|
+| **Randomized test ordering** | CI | Run tests in random order (`pytest-randomly`, `jest --randomize`) to surface order-dependent failures. Fix immediately — order-dependent tests are latent bugs. |
+| **No `autouse=True` rule** | Code review / lint | Ban `autouse=True` on database and state fixtures. Require explicit fixture dependencies so test setup is visible and deterministic. Enforce via grep-based pre-commit hook or custom lint rule. |
+| **Test isolation checker** | CI | Run each test in isolation (`pytest --forked`, or split into single-test runs) periodically. Compare results against full-suite runs. Divergence indicates shared state. |
+| **Fixture scope audit** | Architectural test | Assert that no fixture with `scope="session"` or `scope="module"` touches mutable state (DB, filesystem, global variables). Session-scoped fixtures must be read-only. |
+| **Environment variable isolation** | Test framework config | Use `monkeypatch` (pytest) or `jest.resetModules()` to prevent env var leakage between tests. Never set env vars at module level in test files. |
+| **Database transaction rollback** | Test framework | Wrap each test in a transaction that rolls back on completion. Prevents test data from persisting across test boundaries. Framework-specific: `pytest-django`'s `@pytest.mark.django_db(transaction=True)`, SQLAlchemy's `nested` transactions. |
+
+**Rule of thumb**: If a test can only pass when run after another test, both tests are broken. Test isolation is not optional — it's the foundation that makes the rest of the test suite trustworthy.
+
 #### AP-6: Naming Collisions Across Sibling Modules
 
 **The pattern**: Two interfaces or abstract types in the same package share the same name (e.g., two `Validator` interfaces with incompatible signatures). Any import is ambiguous, and refactoring tools can't distinguish them.
@@ -278,6 +315,8 @@ Anti-Pattern Risk Assessment:
 | AP-4: Parallel inheritance | Yes — format-specific handlers | MEDIUM | Shared base type in blueprint |
 | AP-5: Config bypass | Low — config system is new | LOW | Grep pre-commit hook |
 | AP-6: Naming collision | Low — small package count | LOW | Naming convention rule |
+| AP-7: TDD without enforcement | Yes — all code changes | HIGH | TDD workflow skill + commit-time coverage gate + assertion density |
+| AP-8: Test isolation violations | Yes — shared DB/state | HIGH | Randomized ordering + no autouse + transaction rollback |
 ```
 
 ### Layer 1: Architectural Invariants (Documentation as Enforcement)
@@ -421,6 +460,8 @@ Generate **skeleton architectural tests** based on the Step 1 anti-pattern asses
 | **AP-3** | `test_variant_completeness` | For each variant registry: assert the set of registered handlers equals the full set of enum/union values. Fails immediately when a new variant value is added without a corresponding handler. |
 | **AP-4** | `test_no_excessive_duplication` | (Optional — CI-level) Run the stack's duplication detection tool with a threshold. Or: assert all implementations of a concept extend the shared base type, not the root type directly. |
 | **AP-5** | `test_no_env_var_bypass` | Scan source directories (excluding the config module) for direct environment variable reads using the stack's env-read API pattern. Fails if any business logic file reads env vars directly. |
+| **AP-7** | `test_tdd_coverage_gate` | For each source file modified in the last commit, assert a corresponding test file was also modified — unless the change is purely mechanical (imports, annotations). Separately, assert minimum assertion density across the test suite. |
+| **AP-8** | `test_no_autouse_db_fixtures` | Scan test fixtures for `autouse=True` combined with database or mutable state operations. Assert that all DB fixtures require explicit opt-in. Separately, run the test suite in randomized order and assert identical pass/fail results. |
 
 **Design principles for architectural tests:**
 

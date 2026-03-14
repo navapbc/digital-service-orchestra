@@ -38,13 +38,13 @@ grep -q 'lockpick-workflow/scripts/check-plugin-test-needed.sh' "$WRAPPER" 2>/de
 assert_eq "test_wrapper_exists: wrapper delegates to canonical" "1" "$wrapper_delegates"
 assert_pass_if_clean "test_wrapper_exists"
 
-# ── test_commit_workflow_references_script ────────────────────────────────────
-# (c) COMMIT-WORKFLOW.md references check-plugin-test-needed.sh
+# ── test_commit_workflow_has_plugin_test_step ─────────────────────────────────
+# (c) COMMIT-WORKFLOW.md has a mandatory plugin test step (Step 1.75)
 _snapshot_fail
-workflow_refs=0
-grep -q 'check-plugin-test-needed\.sh' "$WORKFLOW_FILE" 2>/dev/null && workflow_refs=1
-assert_eq "test_commit_workflow_references_script: COMMIT-WORKFLOW.md references script" "1" "$workflow_refs"
-assert_pass_if_clean "test_commit_workflow_references_script"
+workflow_has_step=0
+grep -q 'make test-plugin' "$WORKFLOW_FILE" 2>/dev/null && workflow_has_step=1
+assert_eq "test_commit_workflow_has_plugin_test_step: COMMIT-WORKFLOW.md has make test-plugin" "1" "$workflow_has_step"
+assert_pass_if_clean "test_commit_workflow_has_plugin_test_step"
 
 # ── test_exits_zero_for_lockpick_workflow_scripts ─────────────────────────────
 # (d) exits 0 when lockpick-workflow/scripts/* file is in the changed list

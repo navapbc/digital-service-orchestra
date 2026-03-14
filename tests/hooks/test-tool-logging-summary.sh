@@ -5,14 +5,23 @@
 # tool-logging-summary.sh is a Stop hook that outputs a session summary
 # of tool usage. Always exits 0. Only runs if logging is enabled AND
 # a session ID file exists AND >= 10 tool calls were made.
+#
+# All tests use an isolated $HOME (temp dir) so no real user files are touched.
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/tool-logging-summary.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
-LOGGING_FLAG="$HOME/.claude/tool-logging-enabled"
-SESSION_FILE="$HOME/.claude/current-session-id"
+# --- Test isolation: override HOME to a temp directory ---
+_REAL_HOME="$HOME"
+TEST_HOME=$(mktemp -d)
+export HOME="$TEST_HOME"
+mkdir -p "$TEST_HOME/.claude/logs"
+trap 'export HOME="$_REAL_HOME"; rm -rf "$TEST_HOME"' EXIT
+
+LOGGING_FLAG="$TEST_HOME/.claude/tool-logging-enabled"
+SESSION_FILE="$TEST_HOME/.claude/current-session-id"
 
 run_hook_exit() {
     local exit_code=0
@@ -23,17 +32,6 @@ run_hook_exit() {
 run_hook_output() {
     bash "$HOOK" 2>/dev/null < /dev/null
 }
-
-# Save state
-LOGGING_WAS_ENABLED=false
-ORIG_SESSION=""
-if [[ -f "$LOGGING_FLAG" ]]; then
-    LOGGING_WAS_ENABLED=true
-    rm -f "$LOGGING_FLAG"
-fi
-if [[ -f "$SESSION_FILE" ]]; then
-    ORIG_SESSION=$(cat "$SESSION_FILE")
-fi
 
 # test_tool_logging_summary_exits_zero_on_valid_input
 # Without logging enabled, should exit 0 immediately
@@ -55,18 +53,13 @@ assert_eq "test_tool_logging_summary_exits_zero_with_logging_but_no_session" "0"
 # test_tool_logging_summary_exits_zero_with_no_log_file
 # Logging enabled, session ID exists, but no today's log file → exit 0
 echo "test-session-$$" > "$SESSION_FILE"
-LOG_FILE="$HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
-ORIG_LOG_CONTENT=""
-if [[ -f "$LOG_FILE" ]]; then
-    ORIG_LOG_CONTENT=$(cat "$LOG_FILE")
-    rm -f "$LOG_FILE"
-fi
+LOG_FILE="$TEST_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+rm -f "$LOG_FILE"
 EXIT_CODE=$(run_hook_exit)
 assert_eq "test_tool_logging_summary_exits_zero_with_no_log_file" "0" "$EXIT_CODE"
 
 # test_tool_logging_summary_exits_zero_with_few_calls
 # Logging enabled, session ID exists, but < 10 tool calls → exit 0 silently
-mkdir -p "$HOME/.claude/logs"
 SESSION_ID="test-session-$$"
 echo "$SESSION_ID" > "$SESSION_FILE"
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -129,21 +122,5 @@ assert_contains "test_output_has_edit_count" "Edit: 3" "$OUTPUT"
 # Verify the script itself contains no jq calls
 JQ_LINES=$(grep -cE '^\s*(check_tool jq|.*\| jq |jq -)' "$HOOK" 2>/dev/null) || JQ_LINES=0
 assert_eq "test_no_jq_calls_in_script" "0" "$JQ_LINES"
-
-# Restore state
-rm -f "$LOGGING_FLAG"
-if [[ -n "$ORIG_LOG_CONTENT" ]]; then
-    echo "$ORIG_LOG_CONTENT" > "$LOG_FILE"
-elif [[ -f "$LOG_FILE" ]]; then
-    rm -f "$LOG_FILE"
-fi
-if [[ -n "$ORIG_SESSION" ]]; then
-    echo "$ORIG_SESSION" > "$SESSION_FILE"
-else
-    rm -f "$SESSION_FILE"
-fi
-if [[ "$LOGGING_WAS_ENABLED" == "true" ]]; then
-    touch "$LOGGING_FLAG"
-fi
 
 print_summary
