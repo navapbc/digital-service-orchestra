@@ -325,13 +325,18 @@ For each evaluated bug, apply the `/debug-everything` routing rule (user-confirm
 
 ### Step 4: COMPLEX Routing (/debug-everything)
 
-For each bug classified as COMPLEX, run the following commands **without pausing for user input**:
+For each bug classified as COMPLEX, create an epic using `/brainstorm`:
 
-1. Create a new epic:
-   ```bash
-   tk create "Fix (complex): <bug title>" -t epic -p 2
+1. Invoke `/brainstorm` to create the epic:
    ```
-2. Set a dependency from the bug to the new epic:
+   /brainstorm
+   ```
+   Provide the following context when brainstorm asks "What feature or capability are you trying to build?":
+   > Fix (complex): <bug title>. This is a complex bug fix that requires multi-agent planning. Bug ID: <bug-id>. Complexity classification: COMPLEX. The evaluator found: <reasoning from complexity evaluator>. Priority: P2.
+
+   Follow the `/brainstorm` phases (Socratic dialogue, approach design, spec validation) to create a well-defined epic.
+
+2. After `/brainstorm` Phase 3 creates the epic, set a dependency from the bug to the new epic:
    ```bash
    tk dep <bug-id> <new-epic-id>
    ```
@@ -339,7 +344,7 @@ For each bug classified as COMPLEX, run the following commands **without pausing
    ```bash
    tk add-note <bug-id> "Routed to epic <epic-id> — scope or fix complexity requires multi-agent planning before implementation"
    ```
-4. Remove the bug from the fix-dispatch queue. Continue processing remaining bugs immediately.
+4. Remove the bug from the fix-dispatch queue. Continue processing remaining bugs.
 
 Track all COMPLEX-routed bugs in `COMPLEX_BUGS` list (entries: `{bug_id, epic_id, title}`) for inclusion in the session summary.
 

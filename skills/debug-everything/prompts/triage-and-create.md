@@ -63,11 +63,17 @@ tk add-note <id> "SAFEGUARDED: fix requires editing protected file(s): <paths>"
 
 ### Step 3: Create Tracking Issue (/debug-everything)
 
-If no existing "Project Health Restoration" epic was found:
+If no existing "Project Health Restoration" epic was found, invoke `/brainstorm` to create the epic:
 
-```bash
-tk create "Project Health Restoration ($(date +%Y-%m-%d))" -t epic -p 1
 ```
+/brainstorm
+```
+
+Provide the following context when brainstorm asks "What feature or capability are you trying to build?":
+
+> Project Health Restoration (date: today). This is a tracking epic for all validation failures, test failures, and infrastructure issues discovered during a /debug-everything session. The discovered issues are: <list issue IDs and titles from Step 2>. Priority: P1.
+
+Follow the `/brainstorm` phases (Socratic dialogue, approach design, spec validation) to create a well-defined epic. After `/brainstorm` Phase 3 creates the epic, use its ID as the tracking epic.
 
 Set each discovered issue as a child of the epic:
 ```bash
