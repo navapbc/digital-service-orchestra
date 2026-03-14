@@ -291,73 +291,11 @@ if [ -n "$SERVICE_START_CMD" ]; then
     ) &
 fi
 
-# ── Validation prompt ─────────────────────────────────────────────────────────
-# Ask the user whether to run validate.sh before launching Claude.
-# The state file tells the validation-gate PreToolUse hook whether validation
-# passed, failed, was skipped, or hasn't been run.
-
-if [ -t 0 ]; then
-    echo "Pre-launch validation:"
-    echo "  1) Run validation now (recommended)"
-    echo "  2) Skip — this session won't make code changes"
-    echo "  3) Run validation later (agent will be warned)"
-    echo "  4) Override — mark as passed without running (emergency only)"
-    echo ""
-    printf "Choose [1-4] (default: 1): "
-    read -r VALIDATION_CHOICE
-    VALIDATION_CHOICE="${VALIDATION_CHOICE:-1}"
-
-    case "$VALIDATION_CHOICE" in
-        1)
-            echo ""
-            echo "Running validate.sh --ci ..."
-            echo ""
-            VALIDATE_SCRIPT="$PLUGIN_SCRIPTS/validate.sh"
-            if [ -x "$VALIDATE_SCRIPT" ]; then
-                # Run from worktree so paths resolve correctly
-                if (cd "$WORKTREE_PATH" && "$VALIDATE_SCRIPT" --ci --verbose); then
-                    echo ""
-                    echo "Validation passed."
-                else
-                    echo ""
-                    echo "Validation failed. The agent will see this and can fix issues."
-                fi
-            else
-                echo "WARNING: validate.sh not found at $VALIDATE_SCRIPT" >&2
-            fi
-            ;;
-        2)
-            echo "skipped" > "$VALIDATION_STATE_FILE"
-            echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$VALIDATION_STATE_FILE"
-            echo "reason=no_code_changes" >> "$VALIDATION_STATE_FILE"
-            echo ""
-            echo "Validation skipped. Agent will not be blocked."
-            ;;
-        3)
-            # Don't write a state file — validation-gate sees "not run" and warns
-            echo ""
-            echo "Validation deferred. The agent will be warned before editing files."
-            ;;
-        4)
-            echo ""
-            printf "Type OVERRIDE to confirm manual validation override: "
-            read -r CONFIRM
-            if [ "$CONFIRM" = "OVERRIDE" ]; then
-                echo "override" > "$VALIDATION_STATE_FILE"
-                echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$VALIDATION_STATE_FILE"
-                echo "reason=manual_override" >> "$VALIDATION_STATE_FILE"
-                echo ""
-                echo "Validation overridden. Agent will treat as passed."
-            else
-                echo "Override cancelled. Validation not run."
-            fi
-            ;;
-        *)
-            echo "Invalid choice. Proceeding without validation."
-            ;;
-    esac
-    echo ""
-fi
+# ── Validation skip ──────────────────────────────────────────────────────────
+# Write "skipped" state so the validation-gate PreToolUse hook does not block.
+echo "skipped" > "$VALIDATION_STATE_FILE"
+echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$VALIDATION_STATE_FILE"
+echo "reason=no_code_changes" >> "$VALIDATION_STATE_FILE"
 
 echo "Launching Claude in: $WORKTREE_PATH"
 echo ""

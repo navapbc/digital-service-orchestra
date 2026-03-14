@@ -131,8 +131,8 @@ fi
 
 # ── test_lifecycle_exit_zero_with_minimal_config ──────────────────────────────
 # Running claude-safe non-interactively (stdin=/dev/null) should exit 0.
-# With stdin not a tty: skips validation prompt, skips _offer_worktree_cleanup,
-# creates worktree, launches stub claude (exits 0), then exits 0.
+# With stdin not a tty: skips _offer_worktree_cleanup,
+# creates worktree, writes validation skip state, launches stub claude (exits 0), then exits 0.
 echo ""
 echo "--- test_lifecycle_exit_zero_with_minimal_config ---"
 _snapshot_fail
