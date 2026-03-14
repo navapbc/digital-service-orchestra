@@ -310,4 +310,96 @@ assert_eq "test_post_bash_missing_exit_code_field: no jsonl file" "yes" "$_TEST9
 
 rm -rf "$_TEST9_DIR"
 
+# ============================================================
+# Part 3: Companion analysis script tests
+# ============================================================
+ANALYZE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/analyze-exit-144.sh"
+
+# ============================================================
+# test_analyze_script_handles_missing_file
+# When the log file does not exist, the script should print
+# "No exit-144 events recorded." and exit 0.
+# ============================================================
+_TEST10_OUTPUT=$(bash "$ANALYZE_SCRIPT" --file /tmp/nonexistent-file-$$.jsonl 2>/dev/null)
+_TEST10_EXIT=$?
+assert_eq "test_analyze_script_handles_missing_file: exit 0" "0" "$_TEST10_EXIT"
+assert_contains "test_analyze_script_handles_missing_file: message" "No exit-144 events recorded." "$_TEST10_OUTPUT"
+
+# ============================================================
+# test_analyze_script_handles_empty_jsonl
+# When the log file exists but is empty, the script should print
+# "No exit-144 events recorded." and exit 0.
+# ============================================================
+_TEST11_DIR=$(mktemp -d)
+_TEST11_FILE="$_TEST11_DIR/exit-144-forensics.jsonl"
+touch "$_TEST11_FILE"
+
+_TEST11_OUTPUT=$(bash "$ANALYZE_SCRIPT" --file "$_TEST11_FILE" 2>/dev/null)
+_TEST11_EXIT=$?
+assert_eq "test_analyze_script_handles_empty_jsonl: exit 0" "0" "$_TEST11_EXIT"
+assert_contains "test_analyze_script_handles_empty_jsonl: message" "No exit-144 events recorded." "$_TEST11_OUTPUT"
+
+rm -rf "$_TEST11_DIR"
+
+# ============================================================
+# test_analyze_script_reports_patterns
+# Given synthetic JSONL with known data, the script should produce
+# three report sections: top commands, cause breakdown, elapsed stats.
+# ============================================================
+_TEST12_DIR=$(mktemp -d)
+_TEST12_FILE="$_TEST12_DIR/exit-144-forensics.jsonl"
+
+# Write synthetic JSONL entries
+cat > "$_TEST12_FILE" <<'JSONL'
+{"timestamp":"2026-03-14T10:00:00Z","command":"make test-unit-only","elapsed_s":80.5,"cause":"timeout","cwd":"/app"}
+{"timestamp":"2026-03-14T10:01:00Z","command":"make test-unit-only","elapsed_s":75.0,"cause":"timeout","cwd":"/app"}
+{"timestamp":"2026-03-14T10:02:00Z","command":"make test-unit-only","elapsed_s":90.2,"cause":"timeout","cwd":"/app"}
+{"timestamp":"2026-03-14T10:03:00Z","command":"poetry run pytest","elapsed_s":45.0,"cause":"cancellation","cwd":"/app"}
+{"timestamp":"2026-03-14T10:04:00Z","command":"poetry run pytest","elapsed_s":50.0,"cause":"cancellation","cwd":"/app"}
+{"timestamp":"2026-03-14T10:05:00Z","command":"git status","elapsed_s":30.0,"cause":"cancellation","cwd":"/app"}
+JSONL
+
+_TEST12_OUTPUT=$(bash "$ANALYZE_SCRIPT" --file "$_TEST12_FILE" 2>/dev/null)
+_TEST12_EXIT=$?
+assert_eq "test_analyze_script_reports_patterns: exit 0" "0" "$_TEST12_EXIT"
+
+# Should contain top commands section with "make test-unit-only" as #1 (3 occurrences)
+assert_contains "test_analyze_script_reports_patterns: top commands header" "Top" "$_TEST12_OUTPUT"
+assert_contains "test_analyze_script_reports_patterns: top command entry" "make test-unit-only" "$_TEST12_OUTPUT"
+
+# Should contain cause breakdown with timeout and cancellation percentages
+assert_contains "test_analyze_script_reports_patterns: cause header" "Cause" "$_TEST12_OUTPUT"
+assert_contains "test_analyze_script_reports_patterns: timeout count" "timeout" "$_TEST12_OUTPUT"
+assert_contains "test_analyze_script_reports_patterns: cancellation count" "cancellation" "$_TEST12_OUTPUT"
+
+# Should contain elapsed time stats (min=30.0, max=90.2, median, p90)
+assert_contains "test_analyze_script_reports_patterns: elapsed header" "Elapsed" "$_TEST12_OUTPUT"
+assert_contains "test_analyze_script_reports_patterns: min value" "30.0" "$_TEST12_OUTPUT"
+assert_contains "test_analyze_script_reports_patterns: max value" "90.2" "$_TEST12_OUTPUT"
+
+rm -rf "$_TEST12_DIR"
+
+# ============================================================
+# test_analyze_script_handles_malformed_lines
+# Malformed JSONL lines should be skipped with a count message.
+# ============================================================
+_TEST13_DIR=$(mktemp -d)
+_TEST13_FILE="$_TEST13_DIR/exit-144-forensics.jsonl"
+
+cat > "$_TEST13_FILE" <<'JSONL'
+{"timestamp":"2026-03-14T10:00:00Z","command":"make test","elapsed_s":80.0,"cause":"timeout","cwd":"/app"}
+this is not json
+{"timestamp":"2026-03-14T10:01:00Z","command":"make test","elapsed_s":70.0,"cause":"timeout","cwd":"/app"}
+also bad {{{
+JSONL
+
+_TEST13_OUTPUT=$(bash "$ANALYZE_SCRIPT" --file "$_TEST13_FILE" 2>/dev/null)
+_TEST13_EXIT=$?
+assert_eq "test_analyze_script_handles_malformed_lines: exit 0" "0" "$_TEST13_EXIT"
+assert_contains "test_analyze_script_handles_malformed_lines: skip message" "Skipped 2 malformed" "$_TEST13_OUTPUT"
+# Should still report on the 2 valid entries
+assert_contains "test_analyze_script_handles_malformed_lines: valid data reported" "make test" "$_TEST13_OUTPUT"
+
+rm -rf "$_TEST13_DIR"
+
 print_summary
