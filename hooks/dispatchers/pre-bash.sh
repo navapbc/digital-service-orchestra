@@ -105,6 +105,18 @@ _pre_bash_dispatch() {
         fi
     done
 
+    # Record start timestamp for exit-144 forensic logger.
+    # Uses command-hash-keyed filename to avoid race conditions with concurrent Bash calls.
+    local _cmd
+    _cmd=$(parse_json_field "$INPUT" '.tool_input.command')
+    if [[ -n "$_cmd" ]]; then
+        local _cmd_hash
+        _cmd_hash=$(echo -n "$_cmd" | hash_stdin | cut -c1-8)
+        local _artifacts_dir
+        _artifacts_dir=$(get_artifacts_dir)
+        _get_ms > "$_artifacts_dir/bash-start-ts-${_cmd_hash}" 2>/dev/null || true
+    fi
+
     return 0
 }
 
