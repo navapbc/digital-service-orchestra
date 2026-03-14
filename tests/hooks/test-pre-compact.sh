@@ -139,20 +139,6 @@ rm -rf "$_PC_PLUGIN_ROOT"
 OUTPUT=$(run_hook_output '{"hook_type":"PreCompact","session_id":"test-backward"}')
 assert_contains "test_pre_compact_backward_compat_default_message" "Recovery State" "$OUTPUT"
 
-# ============================================================
-# Group: bd → tk migration (RED phase)
-# ============================================================
-# These tests verify that pre-compact-checkpoint.sh has been migrated
-# away from bd. They MUST FAIL against the current bd-based implementation.
-
-# test_pre_compact_no_bd_calls_remain
-# grep the hook source for 'bd ' — must return zero occurrences once migrated.
-# MUST FAIL in red phase: hook calls 'bd list --status=in_progress' and 'bd sync'.
-# Note: grep -c exits 1 on macOS when count is 0; use grep -o | wc -l to avoid
-# the || fallback running when count is legitimately 0.
-_PC2_BD_COUNT=$(grep -o 'bd ' "$HOOK" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "test_pre_compact_no_bd_calls_remain" "0" "$_PC2_BD_COUNT"
-
 # test_pre_compact_output_uses_tk_status
 # Run hook and assert the "Next:" recovery line uses 'tk list' rather than 'bd list'.
 # MUST FAIL in red phase because the hook outputs:

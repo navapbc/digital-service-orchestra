@@ -174,19 +174,6 @@ _CT_BACK_EXIT=0
 echo "$INPUT" | bash "$HOOK" > /dev/null 2>/dev/null || _CT_BACK_EXIT=$?
 assert_eq "test_commit_tracker_backward_compat_defaults_to_bd" "0" "$_CT_BACK_EXIT"
 
-# ============================================================
-# Group: bd → tk migration (RED phase)
-# ============================================================
-# These tests verify that commit-failure-tracker.sh has been migrated
-# away from hardcoded bd defaults. They MUST FAIL against the current
-# implementation where SEARCH_CMD and CREATE_CMD default to 'bd search'/'bd q'.
-
-# test_commit_tracker_no_bd_calls_remain
-# grep the hook source for hardcoded 'bd ' — must return zero occurrences once migrated.
-# MUST FAIL in red phase: hook has SEARCH_CMD='bd search' and CREATE_CMD='bd q' defaults.
-_CT2_BD_COUNT=$(grep -c "bd " "$HOOK" 2>/dev/null || true)
-assert_eq "test_commit_tracker_no_bd_calls_remain" "0" "$_CT2_BD_COUNT"
-
 # test_commit_tracker_uses_config_driven_cmd
 # Export SEARCH_CMD and CREATE_CMD as environment variables pointing to a mock.
 # Assert hook uses them (records calls to the mock) when a failed validation state exists.

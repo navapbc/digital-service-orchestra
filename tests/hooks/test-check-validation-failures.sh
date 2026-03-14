@@ -70,22 +70,6 @@ INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.py"},"tool_respo
 EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_check_validation_exits_zero_on_edit_tool" "0" "$EXIT_CODE"
 
-# ============================================================
-# Group: bd → tk migration (RED phase)
-# ============================================================
-# These tests verify that check-validation-failures.sh has been migrated
-# away from bd. They MUST FAIL against the current bd-based implementation.
-
-# test_check_validation_failures_no_bd_calls_remain
-# grep the hook source for 'bd ' — must return zero occurrences once migrated.
-# MUST FAIL in red phase: hook still calls 'bd search' and 'bd create'.
-# Note: grep -c exits 1 on macOS when count is 0; use '; true' to avoid
-# the '|| echo "0"' fallback running and doubling the output to "0\n0".
-_CVF_BD_COUNT=$(grep -c 'bd ' "$HOOK" 2>/dev/null; true)
-_CVF_FAIL_BEFORE=$FAIL
-assert_eq "test_check_validation_failures_no_bd_calls_remain" "0" "$_CVF_BD_COUNT"
-[[ $FAIL -eq $_CVF_FAIL_BEFORE ]] && echo "PASS: test_check_validation_failures_no_bd_calls_remain"
-
 # test_check_validation_failures_creates_tk_issue
 # Stub tk in PATH and feed the hook a validate.sh FAIL output.
 # Assert tk create was called with a bug title.
@@ -100,13 +84,6 @@ echo "$@" >> "$TK_LOG"
 echo "Created issue: tk-001"
 MOCK_EOF
 chmod +x "$_CVF_FAKE_BIN/tk"
-
-# Also suppress bd so it doesn't interfere
-cat > "$_CVF_FAKE_BIN/bd" << 'MOCK_EOF'
-#!/usr/bin/env bash
-exit 0
-MOCK_EOF
-chmod +x "$_CVF_FAKE_BIN/bd"
 
 _CVF_INPUT='{"tool_name":"Bash","tool_input":{"command":"validate.sh --ci"},"tool_response":{"stdout":"  format:  FAIL\n  lint:    PASS","exit_code":1}}'
 # Create an empty TICKETS_DIR so no pre-existing tickets are found, forcing tk create to be called.

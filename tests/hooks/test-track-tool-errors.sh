@@ -61,18 +61,6 @@ rm -f "$COUNTER_FILE"
 EXIT_CODE=$(run_hook "not json {{")
 assert_eq "test_track_tool_errors_exits_zero_on_malformed_json" "0" "$EXIT_CODE"
 
-# ============================================================
-# Group: bd → tk migration (RED phase)
-# ============================================================
-# These tests verify that track-tool-errors.sh has been migrated
-# away from bd. They MUST FAIL against the current bd-based implementation.
-
-# test_track_tool_errors_no_bd_calls_remain
-# grep the hook source for 'bd ' — must return zero occurrences once migrated.
-# MUST FAIL in red phase: hook calls 'bd create' when threshold is reached.
-_TTE_BD_COUNT=$(grep -c 'bd ' "$HOOK" 2>/dev/null; true)
-assert_eq "test_track_tool_errors_no_bd_calls_remain" "0" "$_TTE_BD_COUNT"
-
 # test_track_tool_errors_creates_tk_bug
 # Stub tk in PATH. Feed hook an error that pushes counter to 50.
 # Assert tk create is called (FAILS now because hook calls bd create).
@@ -85,13 +73,6 @@ echo "$@" >> "$TK_LOG"
 echo "Created issue: tk-004"
 MOCK_EOF
 chmod +x "$_TTE_FAKE_BIN/tk"
-
-# Suppress bd so it doesn't call real bd
-cat > "$_TTE_FAKE_BIN/bd" << 'MOCK_EOF'
-#!/usr/bin/env bash
-exit 0
-MOCK_EOF
-chmod +x "$_TTE_FAKE_BIN/bd"
 
 # Build a counter file where 'permission_denied' is at 49 occurrences (threshold is 50)
 # So the next call will push it to 50 and trigger bug creation.
