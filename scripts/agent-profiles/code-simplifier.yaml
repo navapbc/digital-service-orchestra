@@ -1,4 +1,5 @@
 agent_type: "code-simplifier:code-simplifier"
+routing_category: "code_simplify"
 model:
   default: "sonnet"
   complex: "sonnet"

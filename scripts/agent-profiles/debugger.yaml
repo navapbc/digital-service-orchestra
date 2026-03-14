@@ -1,4 +1,5 @@
 agent_type: "debugging-toolkit:debugger"
+routing_category: "mechanical_fix"
 model:
   default: "sonnet"
   complex: "sonnet"

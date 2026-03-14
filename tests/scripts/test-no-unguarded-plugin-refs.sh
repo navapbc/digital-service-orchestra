@@ -80,6 +80,69 @@ else
     (( FAIL++ ))
 fi
 
+
+# ── Test: No unguarded plugin refs in lockpick-workflow/scripts/ ─────────────
+# Scans .sh and .yaml files in lockpick-workflow/scripts/ for hard-coded
+# references to removed plugin names. Excludes:
+#   - plugin-reference-catalog.sh (canonical registry of removed plugins)
+#   - discover-agents.sh (routing system itself, references plugin names in docs)
+#   - agent-profiles/*.yaml agent_type fields (definitions, not dispatch calls)
+# Any other occurrence is considered "unguarded" — it should use a routing
+# category from agent-routing.conf instead of a bare plugin name.
+
+test_scripts_no_unguarded_removed_plugins() {
+    echo ""
+    echo "=== test-no-unguarded-plugin-refs (scripts) ==="
+
+    local scripts_dir="$REPO_ROOT/lockpick-workflow/scripts"
+    local removed_plugins=("unit-testing" "debugging-toolkit" "code-simplifier" "backend-api-security" "commit-commands" "claude-md-management")
+    local excluded_files=("plugin-reference-catalog.sh" "discover-agents.sh")
+
+    # Build grep -v filter pattern for excluded files
+    local exclude_pattern
+    exclude_pattern=$(printf '%s\|' "${excluded_files[@]}")
+    exclude_pattern="${exclude_pattern%\\|}"  # strip trailing \|
+
+    for plugin in "${removed_plugins[@]}"; do
+        echo "Test: No unguarded '$plugin' references in scripts/"
+
+        # Search .sh files (excluding allowed files by filtering output)
+        local sh_matches
+        sh_matches=$(grep -rn --include='*.sh' "$plugin" "$scripts_dir" 2>/dev/null | grep -v "$exclude_pattern" || true)
+
+        # Search .yaml files, but filter out structural definition lines:
+        #   - agent_type: lines (agent definitions in profile YAMLs)
+        #   - expected_agent: lines (test case assertions in test-cases.yaml)
+        local yaml_matches
+        yaml_matches=$(grep -rn --include='*.yaml' "$plugin" "$scripts_dir" 2>/dev/null | grep -v -e '^.*:.*agent_type:' -e '^.*:.*expected_agent:' || true)
+
+        local all_matches=""
+        if [[ -n "$sh_matches" ]]; then
+            all_matches="$sh_matches"
+        fi
+        if [[ -n "$yaml_matches" ]]; then
+            if [[ -n "$all_matches" ]]; then
+                all_matches="$all_matches"$'\n'"$yaml_matches"
+            else
+                all_matches="$yaml_matches"
+            fi
+        fi
+
+        if [[ -z "$all_matches" ]]; then
+            echo "  PASS: No unguarded '$plugin' references"
+            (( PASS++ ))
+        else
+            local count
+            count=$(echo "$all_matches" | wc -l | tr -d ' ')
+            echo "  FAIL: Found $count unguarded '$plugin' reference(s):" >&2
+            echo "$all_matches" | head -10 >&2
+            (( FAIL++ ))
+        fi
+    done
+}
+
+test_scripts_no_unguarded_removed_plugins
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
