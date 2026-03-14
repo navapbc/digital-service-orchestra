@@ -4,7 +4,7 @@
 # Uses 4 chars ≈ 1 token approximation.
 #
 # Usage: estimate-context-load.sh <skill-name> [--window=<N>] [--threshold=<N>]
-#   <skill-name>     Required. Name of the skill directory under .claude/skills/
+#   <skill-name>     Required. Name of the skill directory under lockpick-workflow/skills/
 #   --window=<N>     Context window size in tokens (default: from env or 200k)
 #   --threshold=<N>  Warning threshold in tokens (default: from env or 10k)
 #   --help           Show this help message
@@ -17,7 +17,7 @@ usage() {
     echo "Estimates tokens consumed by static context before a skill starts."
     echo ""
     echo "Arguments:"
-    echo "  <skill-name>     Required. Name of the skill directory under .claude/skills/"
+    echo "  <skill-name>     Required. Name of the skill directory under lockpick-workflow/skills/"
     echo "  --window=<N>     Context window size in tokens (default: \${CONTEXT_WINDOW:-${DEFAULT_WINDOW}})"
     echo "  --threshold=<N>  Warning threshold in tokens (default: \${CONTEXT_THRESHOLD:-${DEFAULT_THRESHOLD}})"
     echo "  --help           Show this help message"
@@ -67,6 +67,8 @@ if [[ -z "$SKILL_NAME" ]]; then
 fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 count_tokens() {
     if [[ -f "$1" ]]; then
@@ -82,8 +84,8 @@ echo ""
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 MEMORY_PROJECT_SLUG=$(echo "$REPO_ROOT" | sed 's|^/||' | tr '/' '-')
 MEMORY="$HOME/.claude/projects/-${MEMORY_PROJECT_SLUG}/memory/MEMORY.md"
-SKILL="$REPO_ROOT/.claude/skills/${SKILL_NAME}/SKILL.md"
-PROMPTS_DIR="$REPO_ROOT/.claude/skills/${SKILL_NAME}/prompts"
+SKILL="$CLAUDE_PLUGIN_ROOT/skills/${SKILL_NAME}/SKILL.md"
+PROMPTS_DIR="$CLAUDE_PLUGIN_ROOT/skills/${SKILL_NAME}/prompts"
 
 CLAUDE_TOK=$(count_tokens "$CLAUDE_MD")
 MEMORY_TOK=$(count_tokens "$MEMORY")
