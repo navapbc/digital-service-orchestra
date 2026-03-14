@@ -36,7 +36,9 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 # --- Session-safe process cleanup (Fix 3) ---
 # Source the cleanup library and clear stale processes from prior runs
 # of the SAME session (worktree). Does NOT touch other sessions.
-if [ -f "$SCRIPT_DIR/lib/process-cleanup.sh" ]; then
+# Skip cleanup if we're a nested invocation (e.g., spawned by test-run-all.sh)
+# to avoid killing the parent run-all.sh process (fratricide bug).
+if [ -z "${_RUN_ALL_ACTIVE:-}" ] && [ -f "$SCRIPT_DIR/lib/process-cleanup.sh" ]; then
     source "$SCRIPT_DIR/lib/process-cleanup.sh"
 
     _SESSION_ID=$(_get_session_id)
@@ -55,6 +57,10 @@ if [ -f "$SCRIPT_DIR/lib/process-cleanup.sh" ]; then
         '"${_orig_trap:+$_orig_trap}"'
     ' EXIT
 fi
+
+# Mark ourselves as active so nested invocations (e.g., from test-run-all.sh)
+# skip process cleanup and don't kill us.
+export _RUN_ALL_ACTIVE=1
 
 # --- Isolate tests from real .tickets/ (290+ files slow git operations) ---
 # Create a minimal temp .tickets/ directory and set RUN_ALL_TEST_TICKETS_DIR
