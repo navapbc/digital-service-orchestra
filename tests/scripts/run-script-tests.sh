@@ -18,6 +18,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../plugin" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 
+# Bump timeout for heavyweight tests (e.g., test-sync-roundtrip.sh: 941 lines)
+: "${TEST_TIMEOUT:=60}"
+
 # Source the suite engine
 source "$LIB_DIR/suite-engine.sh"
 
