@@ -164,6 +164,69 @@ fi
 
 rm -rf "$_SS_FAKE_BIN"
 
+# test_session_safety_marker_written_before_tk_create
+# Even if tk create fails/times out, the marker file must exist to prevent
+# duplicate ticket creation on subsequent sessions. This was the root cause
+# of y86r: tk create timeout → no marker → duplicates every session.
+_SS_FAKE_BIN2=$(mktemp -d)
+_SS_TK_LOG2="$_SS_FAKE_BIN2/tk.log"
+
+# Mock tk that FAILS (simulates timeout / exit 144)
+cat > "$_SS_FAKE_BIN2/tk" << 'MOCK_EOF'
+#!/usr/bin/env bash
+echo "$@" >> "$TK_LOG"
+exit 1
+MOCK_EOF
+chmod +x "$_SS_FAKE_BIN2/tk"
+
+cat > "$_SS_FAKE_BIN2/bd" << 'MOCK_EOF'
+#!/usr/bin/env bash
+exit 0
+MOCK_EOF
+chmod +x "$_SS_FAKE_BIN2/bd"
+
+_SS_ORIG_LOG_MK=""
+if [[ -f "$HOOK_ERROR_LOG" ]]; then
+    _SS_ORIG_LOG_MK="$HOOK_ERROR_LOG.bak.mk.$$"
+    mv "$HOOK_ERROR_LOG" "$_SS_ORIG_LOG_MK"
+fi
+
+mkdir -p "$(dirname "$HOOK_ERROR_LOG")"
+NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+for _i in $(seq 1 11); do
+    printf '{"ts":"%s","hook":"auto-format.sh","line":42}\n' "$NOW" >> "$HOOK_ERROR_LOG"
+done
+
+_SS_BUGS_DIR_MK="$HOME/.claude/hook-error-bugs"
+_SS_MARKER_MK="$_SS_BUGS_DIR_MK/auto-format.sh.bug"
+_SS_MARKER_MK_SAVED=""
+if [[ -f "$_SS_MARKER_MK" ]]; then
+    _SS_MARKER_MK_SAVED=$(cat "$_SS_MARKER_MK")
+    rm -f "$_SS_MARKER_MK"
+fi
+
+TK_LOG="$_SS_TK_LOG2" PATH="$_SS_FAKE_BIN2:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+# Marker must exist even though tk create failed
+_SS_MARKER_EXISTS="no"
+if [[ -f "$_SS_MARKER_MK" ]]; then
+    _SS_MARKER_EXISTS="yes"
+fi
+assert_eq "test_session_safety_marker_written_before_tk_create" "yes" "$_SS_MARKER_EXISTS"
+
+# Restore
+rm -f "$HOOK_ERROR_LOG"
+if [[ -n "$_SS_ORIG_LOG_MK" && -f "$_SS_ORIG_LOG_MK" ]]; then
+    mv "$_SS_ORIG_LOG_MK" "$HOOK_ERROR_LOG"
+fi
+if [[ -n "$_SS_MARKER_MK_SAVED" ]]; then
+    mkdir -p "$_SS_BUGS_DIR_MK"
+    echo "$_SS_MARKER_MK_SAVED" > "$_SS_MARKER_MK"
+else
+    rm -f "$_SS_MARKER_MK"
+fi
+rm -rf "$_SS_FAKE_BIN2"
+
 # ============================================================
 # Group: jq removal — python3/bash replacement
 # ============================================================
