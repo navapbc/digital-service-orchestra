@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-check-persistence-coverage.sh
 # TDD tests for check-persistence-coverage.sh config-driven behavior:
-#   1. workflow-config.yaml contains the required keys:
+#   1. workflow-config.conf contains the required keys:
 #      - persistence.source_patterns → non-empty list
 #      - persistence.test_patterns   → non-empty list
 #   2. lockpick-workflow/scripts/check-persistence-coverage.sh:
@@ -22,7 +22,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.yaml"
+CONFIG="$REPO_ROOT/workflow-config.conf"
 PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/check-persistence-coverage.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
@@ -100,7 +100,7 @@ fi
 assert_pass_if_clean "test_reads_persistence_test_patterns"
 
 # ── test_config_persistence_source_patterns_present ──────────────────────────
-# workflow-config.yaml must have persistence.source_patterns as a non-empty list
+# workflow-config.conf must have persistence.source_patterns as a non-empty list
 _snapshot_fail
 sp_exit=0
 sp_output=""
@@ -116,7 +116,7 @@ fi
 assert_pass_if_clean "test_config_persistence_source_patterns_present"
 
 # ── test_config_persistence_test_patterns_present ────────────────────────────
-# workflow-config.yaml must have persistence.test_patterns as a non-empty list
+# workflow-config.conf must have persistence.test_patterns as a non-empty list
 _snapshot_fail
 tp_exit=0
 tp_output=""
@@ -165,29 +165,29 @@ _make_portability_repo() {
     git -C "$dir" init -q -b main
     git -C "$dir" config user.email "test@test.local"
     git -C "$dir" config user.name "Test"
-    printf '%s\n' "$config_content" > "$dir/workflow-config.yaml"
-    git -C "$dir" add workflow-config.yaml
+    printf '%s\n' "$config_content" > "$dir/workflow-config.conf"
+    git -C "$dir" add workflow-config.conf
     git -C "$dir" commit -m "base" -q
     git -C "$dir" checkout -q -b feature/test
     echo "$dir"
 }
 
 # Helper: run PLUGIN_SCRIPT from within a portability repo dir
-# Sets CONFIG_FILE to the isolated repo's workflow-config.yaml so the plugin
+# Sets CONFIG_FILE to the isolated repo's workflow-config.conf so the plugin
 # script does not fall back to the real repo's config via BASH_SOURCE resolution.
 _run_portability() {
     local repo_dir="$1"
     shift
     (
         export CLAUDE_PLUGIN_PYTHON="${_PORTABILITY_PYTHON:-python3}"
-        export CONFIG_FILE="$repo_dir/workflow-config.yaml"
+        export CONFIG_FILE="$repo_dir/workflow-config.conf"
         cd "$repo_dir"
         bash "$PLUGIN_SCRIPT" "$@" 2>&1
     )
 }
 
 # ── test_portability_no_workflow_config_file_exits_0 ─────────────────────────
-# Portability: when workflow-config.yaml does not exist at all (CONFIG_FILE set
+# Portability: when workflow-config.conf does not exist at all (CONFIG_FILE set
 # to a non-existent path), script exits 0 with a warning message.
 # This verifies SC5: missing config file is treated as a no-op.
 _snapshot_fail
@@ -205,7 +205,7 @@ no_config_exit=0
 no_config_output=""
 no_config_output=$(
     export CLAUDE_PLUGIN_PYTHON="${_PORTABILITY_PYTHON:-python3}"
-    export CONFIG_FILE="$_p0_dir/workflow-config.yaml"  # file does NOT exist
+    export CONFIG_FILE="$_p0_dir/workflow-config.conf"  # file does NOT exist
     cd "$_p0_dir"
     bash "$PLUGIN_SCRIPT" 2>&1
 ) || no_config_exit=$?
@@ -219,10 +219,9 @@ assert_pass_if_clean "test_portability_no_workflow_config_file_exits_0"
 # Portability: when persistence section is absent from config, script exits 0
 # with a warning to stderr. This verifies graceful handling end-to-end.
 _snapshot_fail
-_p1_repo=$(_make_portability_repo "no-persistence-config" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-YAML
+_p1_repo=$(_make_portability_repo "no-persistence-config" "$(cat <<'CONF'
+stack=python-poetry
+CONF
 )")
 
 absent_exit=0
@@ -239,14 +238,10 @@ assert_pass_if_clean "test_portability_absent_config_exits_0"
 # Portability: when persistence.source_patterns is empty, script exits 0 with
 # "nothing to check" message.
 _snapshot_fail
-_p2_repo=$(_make_portability_repo "empty-source-patterns" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-persistence:
-  source_patterns: []
-  test_patterns:
-    - 'tests/integration/.*test_.*_db_roundtrip'
-YAML
+_p2_repo=$(_make_portability_repo "empty-source-patterns" "$(cat <<'CONF'
+stack=python-poetry
+persistence.test_patterns=tests/integration/.*test_.*_db_roundtrip
+CONF
 )")
 
 empty_sp_exit=0
@@ -265,13 +260,10 @@ assert_pass_if_clean "test_portability_empty_source_patterns_exits_0"
 # an INFO message (not an error). This exercises the graceful fallback at the
 # read_config --list persistence.test_patterns path.
 _snapshot_fail
-_p_absent_tp_repo=$(_make_portability_repo "absent-test-patterns" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-persistence:
-  source_patterns:
-    - 'src/extraction/job_store.py'
-YAML
+_p_absent_tp_repo=$(_make_portability_repo "absent-test-patterns" "$(cat <<'CONF'
+stack=python-poetry
+persistence.source_patterns=src/extraction/job_store.py
+CONF
 )")
 
 absent_tp_exit=0
@@ -287,15 +279,11 @@ assert_pass_if_clean "test_portability_absent_test_patterns"
 # Portability: when persistence source patterns are configured but no matching
 # files are changed on the branch, script exits 0.
 _snapshot_fail
-_p3_repo=$(_make_portability_repo "no-persistence-changes" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-persistence:
-  source_patterns:
-    - 'src/extraction/job_store.py'
-  test_patterns:
-    - 'tests/integration/.*test_.*_db_roundtrip'
-YAML
+_p3_repo=$(_make_portability_repo "no-persistence-changes" "$(cat <<'CONF'
+stack=python-poetry
+persistence.source_patterns=src/extraction/job_store.py
+persistence.test_patterns=tests/integration/.*test_.*_db_roundtrip
+CONF
 )")
 # Add a non-persistence file change
 echo "# readme" > "$_p3_repo/README.md"
@@ -313,15 +301,11 @@ assert_pass_if_clean "test_portability_no_persistence_changes_exits_0"
 # Portability: when a persistence source file changes but no test files match,
 # script exits 1 (coverage failure).
 _snapshot_fail
-_p4_repo=$(_make_portability_repo "source-no-tests" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-persistence:
-  source_patterns:
-    - 'src/extraction/job_store.py'
-  test_patterns:
-    - 'tests/integration/.*test_.*_db_roundtrip'
-YAML
+_p4_repo=$(_make_portability_repo "source-no-tests" "$(cat <<'CONF'
+stack=python-poetry
+persistence.source_patterns=src/extraction/job_store.py
+persistence.test_patterns=tests/integration/.*test_.*_db_roundtrip
+CONF
 )")
 # Add a persistence source file change — no test changes
 mkdir -p "$_p4_repo/src/extraction"
@@ -342,15 +326,11 @@ assert_pass_if_clean "test_portability_source_changed_no_tests_exits_1"
 # Portability: when a persistence source file changes AND a matching test file
 # changes, script exits 0 (coverage satisfied).
 _snapshot_fail
-_p5_repo=$(_make_portability_repo "source-with-tests" "$(cat <<'YAML'
-version: "1.0.0"
-stack: python-poetry
-persistence:
-  source_patterns:
-    - 'src/extraction/job_store.py'
-  test_patterns:
-    - 'tests/integration/.*test_.*_db_roundtrip'
-YAML
+_p5_repo=$(_make_portability_repo "source-with-tests" "$(cat <<'CONF'
+stack=python-poetry
+persistence.source_patterns=src/extraction/job_store.py
+persistence.test_patterns=tests/integration/.*test_.*_db_roundtrip
+CONF
 )")
 # Add both a persistence source file AND a matching test file
 mkdir -p "$_p5_repo/src/extraction"

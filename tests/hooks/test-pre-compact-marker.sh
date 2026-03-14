@@ -72,7 +72,7 @@ test_marker_written_after_checkpoint_commit() {
 test_marker_written_after_checkpoint_commit
 
 # =============================================================================
-# TEST B: Default marker filename used when workflow-config.yaml lacks key
+# TEST B: Default marker filename used when workflow-config.conf lacks key
 # =============================================================================
 
 test_marker_uses_default_when_config_absent() {
@@ -89,12 +89,11 @@ test_marker_uses_default_when_config_absent() {
         echo "initial" > file.txt
         git add file.txt
         git commit -q -m "initial"
-        # Create a workflow-config.yaml WITHOUT checkpoint.marker_file
-        cat > workflow-config.yaml <<'WCEOF'
-version: "1.0.0"
-stack: python-poetry
-WCEOF
-        git add workflow-config.yaml
+        # Create a workflow-config.conf WITHOUT checkpoint.marker_file
+        cat > workflow-config.conf <<'CONF'
+stack=python-poetry
+CONF
+        git add workflow-config.conf
         git commit -q -m "add config"
         # Add uncommitted work
         echo "work" > work.py
@@ -163,17 +162,17 @@ test_no_marker_written_when_no_changes() {
 test_no_marker_written_when_no_changes
 
 # =============================================================================
-# TEST D: Config key checkpoint.marker_file exists in workflow-config.yaml
+# TEST D: Config key checkpoint.marker_file exists in workflow-config.conf
 # =============================================================================
 
 test_config_key_exists() {
     local MARKER_VALUE
-    MARKER_VALUE=$("$READ_CONFIG" checkpoint.marker_file "$REPO_ROOT/workflow-config.yaml" 2>/dev/null || true)
+    MARKER_VALUE=$("$READ_CONFIG" checkpoint.marker_file "$REPO_ROOT/workflow-config.conf" 2>/dev/null || true)
     if [[ -n "$MARKER_VALUE" ]]; then
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: test_config_key_exists\n  checkpoint.marker_file not found in workflow-config.yaml\n" >&2
+        printf "FAIL: test_config_key_exists\n  checkpoint.marker_file not found in workflow-config.conf\n" >&2
     fi
 }
 

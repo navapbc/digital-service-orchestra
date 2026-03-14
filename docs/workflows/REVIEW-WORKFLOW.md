@@ -117,7 +117,7 @@ The diff hash is captured here â€” AFTER Step 1's format/lint/type-check pass â€
 ```bash
 CHANGED_FILES=$({ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u)
 MODEL="sonnet"
-if echo "$CHANGED_FILES" | grep -qE '^(\.claude/skills/|\.claude/workflows/|lockpick-workflow/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
+if echo "$CHANGED_FILES" | grep -qE '^(lockpick-workflow/skills/|\.claude/workflows/|lockpick-workflow/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
     MODEL="opus"
 fi
 echo "REVIEW_MODEL=$MODEL"

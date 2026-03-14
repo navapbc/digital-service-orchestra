@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-design-config.sh
-# Tests for the design: section in workflow-config.yaml
+# Tests for the design: section in workflow-config.conf
 #
 # Validates:
 #   - Schema defines design: section with correct keys
@@ -19,7 +19,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 SCHEMA_FILE="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
 EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.yaml"
-PROJECT_CONFIG="$REPO_ROOT/workflow-config.yaml"
+PROJECT_CONFIG="$REPO_ROOT/workflow-config.conf"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 

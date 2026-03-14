@@ -44,20 +44,20 @@ fi
 assert_eq "test_lockpick_snapshot_detect_returns_python_poetry" "python-poetry" "$detect_output"
 
 # ── test_lockpick_snapshot_workflow_config_exists ────────────────────────────
-# The lockpick-snapshot fixture must contain a workflow-config.yaml file.
-# FAILS until the GREEN task creates lockpick-workflow/tests/fixtures/lockpick-snapshot/workflow-config.yaml
-if [ -f "$FIXTURE/workflow-config.yaml" ]; then
+# The lockpick-snapshot fixture must contain a workflow-config.conf file.
+# FAILS until the GREEN task creates lockpick-workflow/tests/fixtures/lockpick-snapshot/workflow-config.conf
+if [ -f "$FIXTURE/workflow-config.conf" ]; then
     assert_eq "test_lockpick_snapshot_workflow_config_exists" "exists" "exists"
 else
     assert_eq "test_lockpick_snapshot_workflow_config_exists" "exists" "missing"
 fi
 
 # ── test_lockpick_snapshot_workflow_config_stack ──────────────────────────────
-# Reading the 'stack' key from the fixture's workflow-config.yaml must return
+# Reading the 'stack' key from the fixture's workflow-config.conf must return
 # 'python-poetry'.
 config_output=""
 config_exit=0
-config_output=$(bash "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" stack "$FIXTURE/workflow-config.yaml" 2>/dev/null) || config_exit=$?
+config_output=$(bash "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" stack "$FIXTURE/workflow-config.conf" 2>/dev/null) || config_exit=$?
 assert_eq "test_lockpick_snapshot_workflow_config_stack" "python-poetry" "$config_output"
 
 print_summary

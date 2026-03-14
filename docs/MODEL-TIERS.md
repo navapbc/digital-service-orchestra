@@ -80,7 +80,7 @@ Sonnet is ~10x cheaper than Opus. It handles the vast majority of code generatio
 Changes to these files affect project-wide behavior. Code review sub-agents for these paths must use Opus:
 
 ```
-.claude/skills/**
+lockpick-workflow/skills/**
 lockpick-workflow/hooks/**
 .claude/docs/**
 CLAUDE.md

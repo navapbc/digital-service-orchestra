@@ -69,10 +69,8 @@ assert_eq "test_syntax_ok" "0" "$syntax_exit"
 # ---------------------------------------------------------------------------
 echo "Test 2: accepts <hook_name> <timeout_secs> <command_string>"
 _T2_CFG=$(mktemp -d)
-cat > "$_T2_CFG/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-t2-artifacts-${_TEST_PID}
+cat > "$_T2_CFG/workflow-config.conf" << EOF
+session.artifact_prefix=test-t2-artifacts-${_TEST_PID}
 EOF
 output=""
 rc=0
@@ -110,10 +108,8 @@ echo "Test 4: generic wrapper works without project-specific tools or environmen
 
 # Set up an isolated config for all sub-tests
 _T4_CFG=$(mktemp -d)
-cat > "$_T4_CFG/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-t4-generic-${_TEST_PID}
+cat > "$_T4_CFG/workflow-config.conf" << EOF
+session.artifact_prefix=test-t4-generic-${_TEST_PID}
 EOF
 _T4_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 
@@ -155,10 +151,8 @@ rm -rf "$_T4_CFG" "/tmp/test-t4-generic-${_TEST_PID}-${_T4_WORKTREE}" 2>/dev/nul
 echo "Test 5: artifact dir uses session.artifact_prefix from config"
 _T5_CFG=$(mktemp -d)
 _T5_PREFIX="test-t5-custom-prefix-${_TEST_PID}"
-cat > "$_T5_CFG/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: ${_T5_PREFIX}
+cat > "$_T5_CFG/workflow-config.conf" << EOF
+session.artifact_prefix=${_T5_PREFIX}
 EOF
 _T5_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 _T5_EXPECTED_LOG="/tmp/${_T5_PREFIX}-${_T5_WORKTREE}/precommit-timeouts.log"
@@ -187,10 +181,8 @@ rm -rf "$_T5_CFG" "/tmp/${_T5_PREFIX}-${_T5_WORKTREE}" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 echo "Test 6: wrapper warns about missing issue_tracker.create_cmd on timeout"
 _T6_CFG=$(mktemp -d)
-cat > "$_T6_CFG/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-t6-nocmd-${_TEST_PID}
+cat > "$_T6_CFG/workflow-config.conf" << EOF
+session.artifact_prefix=test-t6-nocmd-${_TEST_PID}
 EOF
 _T6_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 
@@ -208,10 +200,8 @@ rm -rf "$_T6_CFG" "/tmp/test-t6-nocmd-${_TEST_PID}-${_T6_WORKTREE}" 2>/dev/null 
 # ---------------------------------------------------------------------------
 echo "Test 7: exit code passthrough"
 _T7_CFG=$(mktemp -d)
-cat > "$_T7_CFG/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-t7-exitcodes-${_TEST_PID}
+cat > "$_T7_CFG/workflow-config.conf" << EOF
+session.artifact_prefix=test-t7-exitcodes-${_TEST_PID}
 EOF
 _T7_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'default')")
 
@@ -237,10 +227,8 @@ rm -rf "$_T7_CFG" "/tmp/test-t7-exitcodes-${_TEST_PID}-${_T7_WORKTREE}" 2>/dev/n
 # ---------------------------------------------------------------------------
 echo "Test 8: timeout exit codes"
 _T8_CFG=$(mktemp -d)
-cat > "$_T8_CFG/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-t8-artifacts-${_TEST_PID}
+cat > "$_T8_CFG/workflow-config.conf" << EOF
+session.artifact_prefix=test-t8-artifacts-${_TEST_PID}
 EOF
 _T8_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
 
@@ -268,10 +256,8 @@ echo "Test 9: timeout logging"
 # Use TIMEOUT_SECS=-1 so any duration triggers the slow path
 TMPDIR_TEST=$(mktemp -d)
 # Create a minimal config that sets artifact_prefix
-cat > "$TMPDIR_TEST/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-wrapper-artifacts-${_TEST_PID}
+cat > "$TMPDIR_TEST/workflow-config.conf" << EOF
+session.artifact_prefix=test-wrapper-artifacts-${_TEST_PID}
 EOF
 # The wrapper uses git rev-parse --show-toplevel for worktree name (not the config dir)
 WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
@@ -310,12 +296,9 @@ exit 0
 MOCK_SCRIPT
 chmod +x "$MOCK_CREATE_DIR/mock-create"
 
-cat > "$TMPDIR_TEST/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-wrapper-ticket-${_TEST_PID}
-issue_tracker:
-  create_cmd: "$MOCK_CREATE_DIR/mock-create"
+cat > "$TMPDIR_TEST/workflow-config.conf" << EOF
+session.artifact_prefix=test-wrapper-ticket-${_TEST_PID}
+issue_tracker.create_cmd="$MOCK_CREATE_DIR/mock-create"
 EOF
 
 rc=0
@@ -336,10 +319,8 @@ rm -rf "$TMPDIR_TEST" "$MOCK_CREATE_DIR" "/tmp/test-wrapper-ticket-${_TEST_PID}-
 echo "Test 11: no ticket creation without config"
 TMPDIR_TEST=$(mktemp -d)
 
-cat > "$TMPDIR_TEST/workflow-config.yaml" << EOF
-version: "1.0.0"
-session:
-  artifact_prefix: test-wrapper-noticket-${_TEST_PID}
+cat > "$TMPDIR_TEST/workflow-config.conf" << EOF
+session.artifact_prefix=test-wrapper-noticket-${_TEST_PID}
 EOF
 
 rc=0
@@ -396,7 +377,7 @@ assert_contains "test_valid_numeric_timeout_output" "valid-run" "$output"
 # config exists at CLAUDE_PLUGIN_ROOT or cwd), the wrapper creates artifacts
 # under /tmp/<repo-basename>-test-artifacts-<worktree>/precommit-timeouts.log.
 #
-# We run the wrapper from a repo subdirectory that has no workflow-config.yaml
+# We run the wrapper from a repo subdirectory that has no workflow-config.conf
 # and set CLAUDE_PLUGIN_ROOT to an empty dir, so read-config.sh finds no config
 # and returns empty. The wrapper then derives the prefix from the repo basename.
 # ---------------------------------------------------------------------------
@@ -408,10 +389,10 @@ _T12_EXPECTED_LOG="/tmp/${_T12_EXPECTED_PREFIX}-${_T12_WORKTREE}/precommit-timeo
 rm -f "$_T12_EXPECTED_LOG" 2>/dev/null || true
 
 # Use a subdirectory inside the repo (so git rev-parse works) that has no
-# workflow-config.yaml (so read-config.sh cwd fallback returns empty).
-# lockpick-workflow/tests/lib/ is a stable subdir with no workflow-config.yaml.
+# workflow-config.conf (so read-config.sh cwd fallback returns empty).
+# lockpick-workflow/tests/lib/ is a stable subdir with no workflow-config.conf.
 _T12_SUBDIR="$REPO_ROOT/lockpick-workflow/tests/lib"
-_T12_CFGDIR=$(mktemp -d)  # no workflow-config.yaml inside
+_T12_CFGDIR=$(mktemp -d)  # no workflow-config.conf inside
 rc=0
 (cd "$_T12_SUBDIR" && CLAUDE_PLUGIN_ROOT="$_T12_CFGDIR" "$WRAPPER" fallback-hook 1 "sleep 2" 2>/dev/null) || rc=$?
 
