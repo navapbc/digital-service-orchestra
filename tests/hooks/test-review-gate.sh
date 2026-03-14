@@ -7,6 +7,7 @@
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HOOK="$REPO_ROOT/lockpick-workflow/hooks/review-gate.sh"
+_OLD_CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
@@ -273,5 +274,12 @@ fi
 
 # Clean up mismatch diagnostics created by tests
 rm -f "$ARTIFACTS_DIR"/mismatch-diagnostics-*.log
+
+# Restore exported variables
+if [[ -n "$_OLD_CLAUDE_PLUGIN_ROOT" ]]; then
+    export CLAUDE_PLUGIN_ROOT="$_OLD_CLAUDE_PLUGIN_ROOT"
+else
+    unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
+fi
 
 print_summary

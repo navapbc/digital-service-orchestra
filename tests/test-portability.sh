@@ -23,6 +23,12 @@ PORTABILITY_DIR="/tmp/lw-portability-test"
 
 cleanup() {
     rm -rf "$PORTABILITY_DIR" 2>/dev/null || true
+    # Restore CLAUDE_PLUGIN_ROOT
+    if [[ -n "${_OLD_CLAUDE_PLUGIN_ROOT:-}" ]]; then
+        export CLAUDE_PLUGIN_ROOT="$_OLD_CLAUDE_PLUGIN_ROOT"
+    else
+        unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
@@ -103,6 +109,7 @@ assert_eq "no hardcoded source-repo paths in copied scripts/hooks" "0" "$HARDCOD
 echo ""
 echo "--- test_run_all_from_copied_location ---"
 
+_OLD_CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 export CLAUDE_PLUGIN_ROOT="$PORTABILITY_DIR/lockpick-workflow"
 
 # Create stub runners that exit 0 (simulating all-pass suites)

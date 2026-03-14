@@ -22,6 +22,11 @@ DEPS_SH="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ── Helper: minimal ticket file ───────────────────────────────────────────────
 make_ticket_file() {
     local dir="$1" id="$2"
@@ -45,6 +50,7 @@ EOF
 setup_merge_env() {
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
     local REALENV
     REALENV=$(cd "$tmpdir" && pwd -P)
 
@@ -104,6 +110,7 @@ test_merge_blocked_when_rollback_not_run() {
     # We override get_artifacts_dir and disable the dedup lock.
     local TEST_ARTIFACTS
     TEST_ARTIFACTS=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_ARTIFACTS")
     (
         cd "$WT"
         export _DEPS_LOADED=1

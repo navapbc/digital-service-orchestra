@@ -11,6 +11,11 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/check-validation-failures.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 run_hook() {
     local input="$1"
     local exit_code=0
@@ -75,6 +80,7 @@ assert_eq "test_check_validation_exits_zero_on_edit_tool" "0" "$EXIT_CODE"
 # Assert tk create was called with a bug title.
 # MUST FAIL in red phase because the hook calls bd create, not tk create.
 _CVF_FAKE_BIN=$(mktemp -d)
+_CLEANUP_DIRS+=("$_CVF_FAKE_BIN")
 _CVF_TK_LOG="$_CVF_FAKE_BIN/tk.log"
 
 # Create mock tk that records its arguments
@@ -88,6 +94,7 @@ chmod +x "$_CVF_FAKE_BIN/tk"
 _CVF_INPUT='{"tool_name":"Bash","tool_input":{"command":"validate.sh --ci"},"tool_response":{"stdout":"  format:  FAIL\n  lint:    PASS","exit_code":1}}'
 # Create an empty TICKETS_DIR so no pre-existing tickets are found, forcing tk create to be called.
 _CVF_EMPTY_TICKETS=$(mktemp -d)
+_CLEANUP_DIRS+=("$_CVF_EMPTY_TICKETS")
 # REVIEW-DEFENSE: TK_LOG, TICKETS_DIR, and PATH are prefixed to `bash "$HOOK"` (right side of pipe),
 # not to `echo` (left side). Bash applies inline env assignments to the immediately
 # following command, so the hook process inherits TK_LOG, the mock PATH, and the empty TICKETS_DIR.

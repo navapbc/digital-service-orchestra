@@ -12,6 +12,11 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/commit-failure-tracker.sh"
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 run_hook() {
     local input="$1"
     local exit_code=0
@@ -115,6 +120,7 @@ run_hook_stderr() {
     local exit_code=0
     local stderr_file
     stderr_file=$(mktemp)
+    _CLEANUP_DIRS+=("$stderr_file")
     if [[ -n "$plugin_root" ]]; then
         CLAUDE_PLUGIN_ROOT="$plugin_root" echo "$input" | bash "$HOOK" 2>"$stderr_file" || exit_code=$?
     else
@@ -134,6 +140,7 @@ run_hook_stderr() {
 # Assert stderr does NOT reference 'bd search' (uses configured command instead)
 # MUST FAIL — hook currently hardcodes bd search
 _CT_PLUGIN_ROOT=$(mktemp -d)
+_CLEANUP_DIRS+=("$_CT_PLUGIN_ROOT")
 ln -s "$REPO_ROOT/lockpick-workflow/scripts" "$_CT_PLUGIN_ROOT/scripts"
 cat > "$_CT_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
 issue_tracker.search_cmd=gh issue list --search
@@ -178,6 +185,7 @@ assert_eq "test_commit_tracker_backward_compat_defaults_to_bd" "0" "$_CT_BACK_EX
 # Assert hook uses them (records calls to the mock) when a failed validation state exists.
 # MUST FAIL if hook ignores env vars and falls back to hardcoded bd defaults.
 _CT2_FAKE_BIN=$(mktemp -d)
+_CLEANUP_DIRS+=("$_CT2_FAKE_BIN")
 _CT2_SEARCH_LOG="$_CT2_FAKE_BIN/search.log"
 _CT2_CREATE_LOG="$_CT2_FAKE_BIN/create.log"
 

@@ -7,6 +7,12 @@
 set -uo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 PASS=0
 FAIL=0
 SKIP=0
@@ -136,6 +142,7 @@ if [ $? -eq 0 ]; then pass "settings_hooks_use_dispatchers"; else fail "settings
 echo ""
 echo "--- test_snapshot_flag_deterministic ---"
 TMPDIR_TEST=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_TEST")
 SNAPSHOT="$TMPDIR_TEST/snapshot.txt"
 H1=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
 H2=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")

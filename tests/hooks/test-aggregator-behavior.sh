@@ -18,6 +18,11 @@ LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
 
 source "$LIB_DIR/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # ============================================================
 # Helpers
 # ============================================================
@@ -27,6 +32,7 @@ source "$LIB_DIR/assert.sh"
 make_isolated_dir() {
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
     # Copy aggregator into the temp dir (the aggregator globs test-*.sh in $(dirname $0))
     cp "$AGGREGATOR" "$tmpdir/run-hook-tests.sh"
     chmod +x "$tmpdir/run-hook-tests.sh"

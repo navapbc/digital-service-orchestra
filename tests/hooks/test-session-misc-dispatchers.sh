@@ -24,6 +24,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 SESSION_START_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/session-start.sh"
 STOP_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/stop.sh"
 POST_FAILURE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-failure.sh"
@@ -145,7 +150,9 @@ assert_eq "test_pre_exitplanmode_dispatcher_calls_plan_review_gate: executable" 
 
 # Set up isolated artifacts dir with no plan-review-status — must be blocked
 _exitplan_artifacts=$(mktemp -d)
+_CLEANUP_DIRS+=("$_exitplan_artifacts")
 _exitplan_git_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_exitplan_git_repo")
 git -C "$_exitplan_git_repo" init -q -b main 2>/dev/null || git -C "$_exitplan_git_repo" init -q
 git -C "$_exitplan_git_repo" config user.email "test@test.com"
 git -C "$_exitplan_git_repo" config user.name "Test"

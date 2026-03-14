@@ -20,6 +20,11 @@ DEPS_SH="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 CHECKPOINT_LABEL="checkpoint: pre-compaction auto-save"
 MARKER_FILE=".checkpoint-pending-rollback"
 
@@ -29,6 +34,7 @@ MARKER_FILE=".checkpoint-pending-rollback"
 setup_test_repo() {
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
     local realdir
     realdir=$(cd "$tmpdir" && pwd -P)
 

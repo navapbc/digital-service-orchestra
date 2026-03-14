@@ -10,12 +10,18 @@ HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-compact-checkpoint.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # make_test_repo: create a minimal git repo with one committed file and one
 # uncommitted (untracked) file so _HAS_REAL_CHANGES is non-empty.
 # Prints the repo path.
 make_test_repo() {
     local tmpdir
     tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
     (
         cd "$tmpdir"
         git init -q
@@ -104,6 +110,7 @@ assert_contains "test_pre_compact_output_contains_changes_line" "Changes:" "$OUT
 # In red phase, the hook ignores the config and always outputs 'pre-compaction auto-save'.
 # We assert that the output contains the configured label string — this FAILS in red phase.
 _PC_PLUGIN_ROOT=$(mktemp -d)
+_CLEANUP_DIRS+=("$_PC_PLUGIN_ROOT")
 cat > "$_PC_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
 checkpoint.commit_label=checkpoint: my-project auto-save
 CONF_EOF
