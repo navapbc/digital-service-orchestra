@@ -3,8 +3,6 @@
 
 import os
 
-import pytest
-
 
 def test_direct_assignment():
     os.environ["MY_KEY"] = "value"
