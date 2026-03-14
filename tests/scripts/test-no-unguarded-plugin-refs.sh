@@ -143,6 +143,71 @@ test_scripts_no_unguarded_removed_plugins() {
 
 test_scripts_no_unguarded_removed_plugins
 
+# ── Test: No unguarded plugin refs in sprint/SKILL.md and REVIEW-WORKFLOW.md ──
+# Ensures sprint/SKILL.md does not use unit-testing:test-automator as a
+# subagent_type (should use routing-based resolution via test_write category),
+# and REVIEW-WORKFLOW.md does not reference removed plugin names as dispatch
+# examples.
+
+test_sprint_review_no_unguarded_removed_plugins() {
+    echo ""
+    echo "=== test-no-unguarded-plugin-refs (sprint + review-workflow) ==="
+
+    local sprint_file="$REPO_ROOT/lockpick-workflow/skills/sprint/SKILL.md"
+    local review_file="$REPO_ROOT/lockpick-workflow/docs/workflows/REVIEW-WORKFLOW.md"
+    local removed_plugins=("unit-testing" "debugging-toolkit" "code-simplifier" "backend-api-security" "commit-commands" "claude-md-management")
+
+    # Test: sprint/SKILL.md exists
+    echo "Test: sprint/SKILL.md exists"
+    if [[ -f "$sprint_file" ]]; then
+        echo "  PASS: sprint/SKILL.md exists"
+        (( PASS++ ))
+    else
+        echo "  FAIL: sprint/SKILL.md not found at $sprint_file" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: No subagent_type="unit-testing:" in sprint/SKILL.md
+    echo "Test: No subagent_type=\"unit-testing:\" in sprint/SKILL.md"
+    local sprint_matches
+    sprint_matches=$(grep -c 'subagent_type="unit-testing:' "$sprint_file" 2>/dev/null || true)
+    if [[ "$sprint_matches" -eq 0 ]]; then
+        echo "  PASS: No subagent_type=\"unit-testing:\" references in sprint/SKILL.md"
+        (( PASS++ ))
+    else
+        echo "  FAIL: Found $sprint_matches subagent_type=\"unit-testing:\" reference(s) in sprint/SKILL.md" >&2
+        grep -n 'subagent_type="unit-testing:' "$sprint_file" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: REVIEW-WORKFLOW.md exists
+    echo "Test: REVIEW-WORKFLOW.md exists"
+    if [[ -f "$review_file" ]]; then
+        echo "  PASS: REVIEW-WORKFLOW.md exists"
+        (( PASS++ ))
+    else
+        echo "  FAIL: REVIEW-WORKFLOW.md not found at $review_file" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: No removed plugin dispatch examples in REVIEW-WORKFLOW.md
+    for plugin in "${removed_plugins[@]}"; do
+        echo "Test: No '${plugin}:' dispatch example in REVIEW-WORKFLOW.md"
+        local review_matches
+        review_matches=$(grep -c "${plugin}:" "$review_file" 2>/dev/null || true)
+        if [[ "$review_matches" -eq 0 ]]; then
+            echo "  PASS: No '${plugin}:' references in REVIEW-WORKFLOW.md"
+            (( PASS++ ))
+        else
+            echo "  FAIL: Found $review_matches '${plugin}:' reference(s) in REVIEW-WORKFLOW.md" >&2
+            grep -n "${plugin}:" "$review_file" >&2
+            (( FAIL++ ))
+        fi
+    done
+}
+
+test_sprint_review_no_unguarded_removed_plugins
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

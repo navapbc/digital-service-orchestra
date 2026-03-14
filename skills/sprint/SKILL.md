@@ -1212,7 +1212,7 @@ This sub-agent evaluates the epic's quality beyond pass/fail checks — assessin
 
 Launch a Task tool with the appropriate subagent type:
 - UI epic: `subagent_type="full-stack-orchestration:test-automator"`
-- Backend-only epic: `subagent_type="unit-testing:test-automator"`
+- Backend-only epic: Resolve via `discover-agents.sh` routing category `test_write` (see `agent-routing.conf`)
 
 **Validation Agent Prompt**: Read and fill in the externalized prompt template:
 ```bash
