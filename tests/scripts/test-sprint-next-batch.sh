@@ -14,6 +14,11 @@ PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/sprint-next-batch.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-sprint-next-batch.sh ==="
 
 # ── Test 1: Script is executable ──────────────────────────────────────────────
@@ -33,7 +38,9 @@ run_test "missing epic-id exits 2" 2 "[Uu]sage|epic" bash "$SCRIPT"
 # ── Test 3: Plugin copy exits 0 with EPIC and BATCH_SIZE output for mock epic ─
 echo "Test 3: Plugin copy exits 0 with expected output format (mock epic)"
 _t3_mock_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t3_mock_dir")
 _t3_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t3_fake_repo")
 git init -q "$_t3_fake_repo"
 mkdir -p "$_t3_fake_repo/.tickets" "$_t3_fake_repo/lockpick-workflow/scripts" "$_t3_fake_repo/scripts"
 printf -- "---\nid: t3-child\nstatus: open\ntype: task\npriority: 2\nparent: t3-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t3_fake_repo/.tickets/t3-child.md"
@@ -99,7 +106,9 @@ fi
 # ── Test 4: Plugin copy --json flag produces valid JSON ───────────────────────
 echo "Test 4: Plugin copy --json flag produces valid JSON (mock epic)"
 _t4_mock_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t4_mock_dir")
 _t4_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t4_fake_repo")
 git init -q "$_t4_fake_repo"
 mkdir -p "$_t4_fake_repo/.tickets" "$_t4_fake_repo/lockpick-workflow/scripts"
 printf -- "---\nid: t4-child\nstatus: open\ntype: task\npriority: 2\nparent: t4-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t4_fake_repo/.tickets/t4-child.md"
@@ -157,7 +166,9 @@ fi
 # ── Test 5: Plugin copy --limit=N flag is accepted ────────────────────────────
 echo "Test 5: Plugin copy --limit=N flag is accepted (mock epic)"
 _t5_mock_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t5_mock_dir")
 _t5_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t5_fake_repo")
 git init -q "$_t5_fake_repo"
 mkdir -p "$_t5_fake_repo/.tickets" "$_t5_fake_repo/lockpick-workflow/scripts"
 printf -- "---\nid: t5-child\nstatus: open\ntype: task\npriority: 2\nparent: t5-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t5_fake_repo/.tickets/t5-child.md"

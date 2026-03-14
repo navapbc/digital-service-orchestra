@@ -50,6 +50,11 @@ STUBS_DIR="$REPO_ROOT/lockpick-workflow/tests/plugin/fixtures/stubs"
 PASS=0
 FAIL=0
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 # Skip local sync lock — test temp dirs are not git repos, so the lock
 # resolves to the real repo's .git/tk-sync.lock causing cross-test contention.
 _OLD_TK_SYNC_SKIP_LOCK="${TK_SYNC_SKIP_LOCK:-}"
@@ -291,6 +296,7 @@ echo "SECTION 1: Push roundtrip"
 # Test 1: new ticket pushed → Jira create called, ledger entry written
 echo "Test 1: new ticket push creates Jira issue and ledger entry"
 _T1=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T1")
 make_ticket "$_T1" "t-push1" "open" "task" "2" "Push roundtrip ticket"
 _out1=$(env PATH="${ACLI_PATH_PREFIX:+$ACLI_PATH_PREFIX:}$PATH" \
     JIRA_PROJECT=TEST TICKETS_DIR="$_T1" SYNC_STATE_FILE="$_T1/.sync-state.json" STUB_JIRA_KEY=D2L-201 \
@@ -314,6 +320,7 @@ rm -rf "$_T1"
 # Test 2: jira_key stamped in frontmatter after push
 echo "Test 2: jira_key stamped in frontmatter after push"
 _T2=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T2")
 make_ticket "$_T2" "t-push2" "open" "task" "2" "Stamp test push"
 env PATH="${ACLI_PATH_PREFIX:+$ACLI_PATH_PREFIX:}$PATH" \
     JIRA_PROJECT=TEST TICKETS_DIR="$_T2" SYNC_STATE_FILE="$_T2/.sync-state.json" STUB_JIRA_KEY=D2L-202 \
@@ -331,6 +338,7 @@ rm -rf "$_T2"
 # Test 3: second sync is idempotent (skips unchanged ticket)
 echo "Test 3: second sync skips unchanged ticket"
 _T3=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T3")
 make_ticket "$_T3" "t-push3" "open" "task" "2" "Idempotent push test"
 env PATH="${ACLI_PATH_PREFIX:+$ACLI_PATH_PREFIX:}$PATH" \
     JIRA_PROJECT=TEST TICKETS_DIR="$_T3" SYNC_STATE_FILE="$_T3/.sync-state.json" \
@@ -347,6 +355,7 @@ rm -rf "$_T3"
 # Test 4: modified ticket re-pushed (update path)
 echo "Test 4: modified ticket triggers Jira update on next sync"
 _T4=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T4")
 make_ticket_with_jira_key "$_T4" "t-push4" "open" "task" "2" "D2L-204" "Original push title"
 # Plant stale hash in ledger to simulate "modified since last sync"
 printf '{"t-push4":{"jira_key":"D2L-204","local_hash":"stale000000000000000000000000000","jira_hash":"","last_synced":"2026-01-01T00:00:00Z"}}\n' \
@@ -369,6 +378,7 @@ echo "SECTION 2: Pull roundtrip"
 # Test 5: new Jira issue pulled → local ticket file created
 echo "Test 5: new Jira issue pulled creates local ticket file"
 _T5=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T5")
 _ledger5="$_T5/.sync-state.json"
 _issue5='{"key":"TEST-5","fields":{"summary":"Pulled issue roundtrip","description":"Roundtrip body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}'
 pull_ticket_direct "$_T5" "$_ledger5" "$_issue5" "${ACLI_PATH_PREFIX:-}" >/dev/null 2>&1 || true
@@ -385,6 +395,7 @@ rm -rf "$_T5"
 # Test 6: pulled ticket has jira_key in frontmatter
 echo "Test 6: pulled ticket has jira_key: TEST-6 in frontmatter"
 _T6=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T6")
 _ledger6="$_T6/.sync-state.json"
 _issue6='{"key":"TEST-6","fields":{"summary":"Pull frontmatter test","description":"body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}'
 pull_ticket_direct "$_T6" "$_ledger6" "$_issue6" "${ACLI_PATH_PREFIX:-}" >/dev/null 2>&1 || true
@@ -402,6 +413,7 @@ rm -rf "$_T6"
 # Test 7: pulled ticket has ledger entry with jira_hash set
 echo "Test 7: pull writes ledger entry with jira_hash"
 _T7=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T7")
 _ledger7="$_T7/.sync-state.json"
 _issue7='{"key":"TEST-7","fields":{"summary":"Ledger pull test","description":"body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}'
 pull_ticket_direct "$_T7" "$_ledger7" "$_issue7" "${ACLI_PATH_PREFIX:-}" >/dev/null 2>&1 || true
@@ -433,6 +445,7 @@ rm -rf "$_T7"
 # Test 8: second pull is idempotent (skips unchanged issue)
 echo "Test 8: second pull skips unchanged Jira issue"
 _T8=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T8")
 _ledger8="$_T8/.sync-state.json"
 _issue8='{"key":"TEST-8","fields":{"summary":"Idempotent pull","description":"body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}'
 # First pull
@@ -461,6 +474,7 @@ rm -rf "$_T8"
 # Test 9: modified Jira issue triggers update on second pull
 echo "Test 9: modified Jira issue triggers local ticket update"
 _T9=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T9")
 _ledger9="$_T9/.sync-state.json"
 _issue9_v1='{"key":"TEST-9","fields":{"summary":"Original title","description":"original","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}'
 pull_ticket_direct "$_T9" "$_ledger9" "$_issue9_v1" "${ACLI_PATH_PREFIX:-}" >/dev/null 2>&1 || true
@@ -490,6 +504,7 @@ echo "SECTION 3: Conflict detection"
 # Asserts: exit 2 (CONFLICT sentinel), ticket content unchanged (diff before/after identical)
 echo "Test 10: conflict in non-TTY mode — neither side overwritten"
 _T10=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T10")
 _ledger10="$_T10/.sync-state.json"
 # Step 1: establish baseline via pull (creates ticket + ledger)
 _issue10_base='{"key":"TEST-10","fields":{"summary":"Conflict base","description":"base body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}'
@@ -553,6 +568,7 @@ rm -rf "$_T10"
 # Test 11: conflict output contains a recognizable key/ID reference
 echo "Test 11: conflict output mentions ticket or issue identifier"
 _T11=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T11")
 _ledger11="$_T11/.sync-state.json"
 # Create ticket with known ID
 make_ticket_with_jira_key "$_T11" "t-conflict11" "open" "task" "2" "D2L-211" "Conflict test ticket"
@@ -585,6 +601,7 @@ echo "SECTION 4: Dep and link sync"
 # Test 12: ticket with deps — stub acli link command invoked for dep
 echo "Test 12: dep sync — acli link invoked for ticket with deps"
 _T12=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T12")
 _acli_log12="$_T12/acli-calls.log"
 # Two tickets: t-dep-parent depends on t-dep-child
 make_ticket "$_T12" "t-dep-child"  "open" "task" "2" "Child ticket"
@@ -613,6 +630,7 @@ rm -rf "$_T12"
 # Test 13: ticket with links field — stub records link invocation
 echo "Test 13: link sync — acli link invoked for ticket with links"
 _T13=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T13")
 _acli_log13="$_T13/acli-calls.log"
 make_ticket_with_deps "$_T13" "t-linked13" "open" "task" "2" "" "https://example.com/related" "Ticket with remote link"
 _out13=$(env PATH="${ACLI_PATH_PREFIX:+$ACLI_PATH_PREFIX:}$PATH" \
@@ -640,6 +658,7 @@ rm -rf "$_T13"
 # ticket's Jira key — verify the first ticket's deps frontmatter has the tk ID.
 echo "Test 12b: pull_dep_roundtrip — Jira issuelinks Blocks → deps frontmatter"
 _T12b=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T12b")
 _ledger12b="$_T12b/.sync-state.json"
 # Pre-populate ledger: TEST-CHILD-12B → tk-child-12b
 python3 -c "
@@ -676,6 +695,7 @@ rm -rf "$_T12b"
 # remoteLinks containing a URL — verify the ticket's links frontmatter has the URL.
 echo "Test 13b: pull_link_roundtrip — Jira remoteLinks → links frontmatter"
 _T13b=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T13b")
 _ledger13b="$_T13b/.sync-state.json"
 echo '{}' > "$_ledger13b"
 # Pull issue JSON with a top-level remoteLinks array containing a URL
@@ -719,6 +739,7 @@ echo "SECTION 4b: Dep pull sync"
 # the mapped tk ID for the linked Jira key.
 echo "Test test_pull_dep_populates_tk_deps: outward Blocks link → deps field in created ticket"
 _T_dep=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T_dep")
 _ledger_dep="$_T_dep/.sync-state.json"
 # Pre-populate ledger: TEST-DEP-A is already mapped to tk-dep-a
 python3 -c "
@@ -754,6 +775,7 @@ rm -rf "$_T_dep"
 # Test: Jira link to unknown key → exit 0 + warning
 echo "Test pull_dep_unknown_link_skipped: Jira link not in ledger → exit 0 with warning"
 _T_unk=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T_unk")
 _ledger_unk="$_T_unk/.sync-state.json"
 echo '{}' > "$_ledger_unk"
 _issue_unk='{"key":"TEST-UNK","fields":{"summary":"Unknown dep","description":"body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"},"issuelinks":[{"type":{"name":"Blocks","outward":"blocks"},"outwardIssue":{"key":"TEST-NOT-IN-LEDGER"}}]}}'
@@ -785,6 +807,7 @@ echo "SECTION 4c: Remote link pull sync"
 # Test: test_pull_links_populates_tk_links
 echo "Test test_pull_links_populates_tk_links: remoteLinks URL in Jira issue JSON → links: in ticket"
 _T_rl=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T_rl")
 _ledger_rl="$_T_rl/.sync-state.json"
 echo '{}' > "$_ledger_rl"
 # Issue JSON with a top-level remoteLinks array (as produced by _sync_pull_remote_links
@@ -819,6 +842,7 @@ rm -rf "$_T_rl"
 # Test: pull_links_empty_when_no_remote_links
 echo "Test pull_links_empty_when_no_remote_links: no remoteLinks in Jira JSON → links: [] in ticket"
 _T_rl2=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T_rl2")
 _ledger_rl2="$_T_rl2/.sync-state.json"
 echo '{}' > "$_ledger_rl2"
 _issue_rl2='{"key":"TEST-RL2","fields":{"summary":"No remote links","description":"body","status":{"name":"To Do"},"issuetype":{"name":"Task"},"priority":{"name":"Medium"}}}'
@@ -851,6 +875,7 @@ echo "SECTION 5: Error handling and exit codes"
 # Test 14: push failure → exit 1 with error output
 echo "Test 14: push failure exits 1 with error output"
 _T14=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T14")
 make_ticket "$_T14" "t-fail14" "open" "task" "2" "Failing push ticket"
 run_test \
     "push_failure_exits_1" \
@@ -863,6 +888,7 @@ rm -rf "$_T14"
 # Test 15: pull with empty Jira returns → no tickets created, exit 0
 echo "Test 15: pull with empty Jira result creates no tickets"
 _T15=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T15")
 _ledger15="$_T15/.sync-state.json"
 # Direct pull of empty issue list should work without creating tickets
 _out15=$(env PATH="${ACLI_PATH_PREFIX:+$ACLI_PATH_PREFIX:}$PATH" \
@@ -882,6 +908,7 @@ rm -rf "$_T15"
 # Test 16: ledger is valid JSON after mixed push+pull operations
 echo "Test 16: ledger is valid JSON after mixed push and pull operations"
 _T16=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T16")
 _ledger16="$_T16/.sync-state.json"
 # Push a ticket
 make_ticket "$_T16" "t-mixed16" "open" "task" "2" "Mixed push ticket"
@@ -914,6 +941,7 @@ rm -rf "$_T16"
 # tk sync must exit 0 (not 1) and print a warning mentioning the unknown dep ID.
 echo "Test 17: dep sync with unknown dep ID — exits 0 and warns"
 _T17=$(mktemp -d)
+_CLEANUP_DIRS+=("$_T17")
 _acli_log17="$_T17/acli-calls.log"
 # Create a ticket with a dep that has no ledger entry
 make_ticket_with_deps "$_T17" "t-dep17" "open" "task" "2" "unknown-dep-id" "" "Dep with unknown ledger entry"

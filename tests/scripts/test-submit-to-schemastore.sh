@@ -13,6 +13,11 @@ SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/submit-to-schemastore.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-submit-to-schemastore.sh ==="
 
 # ── test_schemastore_script_exists ────────────────────────────────────────────
@@ -38,6 +43,7 @@ assert_eq "test_schemastore_rejects_missing_file" "1" "$exit_code"
 
 # ── test_schemastore_rejects_invalid_json ─────────────────────────────────────
 TEMP_BAD_JSON=$(mktemp)
+_CLEANUP_DIRS+=("$TEMP_BAD_JSON")
 echo "not json {{{" > "$TEMP_BAD_JSON"
 exit_code=0
 bash "$SCRIPT" "$TEMP_BAD_JSON" 2>/dev/null || exit_code=$?
@@ -46,6 +52,7 @@ assert_eq "test_schemastore_rejects_invalid_json" "1" "$exit_code"
 
 # ── test_schemastore_rejects_missing_id ───────────────────────────────────────
 TEMP_NO_ID=$(mktemp)
+_CLEANUP_DIRS+=("$TEMP_NO_ID")
 echo '{"type": "object"}' > "$TEMP_NO_ID"
 exit_code=0
 bash "$SCRIPT" "$TEMP_NO_ID" 2>/dev/null || exit_code=$?
@@ -54,6 +61,7 @@ assert_eq "test_schemastore_rejects_missing_id" "1" "$exit_code"
 
 # ── test_schemastore_rejects_localhost_id ──────────────────────────────────────
 TEMP_LOCALHOST=$(mktemp)
+_CLEANUP_DIRS+=("$TEMP_LOCALHOST")
 cat > "$TEMP_LOCALHOST" <<'EOF'
 {"$id": "http://localhost:8080/schema.json", "$schema": "http://json-schema.org/draft-07/schema#"}
 EOF
@@ -64,6 +72,7 @@ assert_eq "test_schemastore_rejects_localhost_id" "1" "$exit_code"
 
 # ── test_schemastore_accepts_valid_schema ─────────────────────────────────────
 TEMP_VALID=$(mktemp)
+_CLEANUP_DIRS+=("$TEMP_VALID")
 cat > "$TEMP_VALID" <<'EOF'
 {"$id": "https://raw.githubusercontent.com/lockpick/lockpick-workflow/main/docs/workflow-config-schema.json", "$schema": "http://json-schema.org/draft-07/schema#", "type": "object"}
 EOF

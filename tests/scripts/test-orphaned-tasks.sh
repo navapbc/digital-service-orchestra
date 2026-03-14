@@ -20,6 +20,11 @@ SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/orphaned-tasks.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-orphaned-tasks.sh ==="
 
 # ── Test 1: Script is executable ──────────────────────────────────────────────
@@ -92,6 +97,7 @@ fi
 make_fixture_tickets_dir() {
     local base_dir
     base_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$base_dir")
     local tickets_dir="$base_dir/.tickets"
     mkdir -p "$tickets_dir"
 
@@ -161,6 +167,7 @@ EPIC_TICKET
 # ---------------------------------------------------------------------------
 echo "Test 7: orphaned-tasks.sh respects TICKETS_DIR (post-migration)"
 FIXTURE_BASE=$(make_fixture_tickets_dir)
+_CLEANUP_DIRS+=("$FIXTURE_BASE")
 FIXTURE_TICKETS_DIR="$FIXTURE_BASE/.tickets"
 
 json_output=""
@@ -188,6 +195,7 @@ rm -rf "$FIXTURE_BASE"
 # ---------------------------------------------------------------------------
 echo "Test 8: --json with TICKETS_DIR returns only orphan tasks (post-migration)"
 FIXTURE_BASE=$(make_fixture_tickets_dir)
+_CLEANUP_DIRS+=("$FIXTURE_BASE")
 FIXTURE_TICKETS_DIR="$FIXTURE_BASE/.tickets"
 
 json_output=""

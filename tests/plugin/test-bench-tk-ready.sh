@@ -31,6 +31,11 @@ FAIL=0
 # shellcheck source=../../tests/lib/assert.sh
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+# Temp dir cleanup on exit
+_CLEANUP_DIRS=()
+_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+trap _cleanup EXIT
+
 echo "=== test-bench-tk-ready.sh ==="
 echo ""
 
@@ -42,6 +47,7 @@ echo ""
 make_mock_tk() {
     local mock_dir
     mock_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$mock_dir")
     cat > "$mock_dir/tk" << 'MOCK'
 #!/usr/bin/env bash
 # Mock tk — fast, exits immediately
@@ -89,6 +95,7 @@ test_bench_exits_zero_within_threshold() {
     fi
     local mock_dir exit_code
     mock_dir=$(make_mock_tk)
+    _CLEANUP_DIRS+=("$mock_dir")
     exit_code=0
     BENCH_THRESHOLD_SECONDS=60 PATH="$mock_dir:$PATH" \
         bash "$TARGET_SCRIPT" > /dev/null 2>&1 || exit_code=$?
@@ -106,6 +113,7 @@ test_bench_exits_nonzero_when_slow() {
     fi
     local mock_dir exit_code
     mock_dir=$(make_mock_tk)
+    _CLEANUP_DIRS+=("$mock_dir")
     exit_code=0
     BENCH_THRESHOLD_SECONDS=0 PATH="$mock_dir:$PATH" \
         bash "$TARGET_SCRIPT" > /dev/null 2>&1 || exit_code=$?
@@ -122,6 +130,7 @@ test_bench_exits_nonzero_when_tk_missing() {
     fi
     local empty_dir exit_code
     empty_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$empty_dir")
     exit_code=0
     TK="$empty_dir/tk" PATH="$empty_dir" \
         bash "$TARGET_SCRIPT" > /dev/null 2>&1 || exit_code=$?
@@ -139,6 +148,7 @@ test_bench_outputs_timing_info() {
     fi
     local mock_dir stdout_output
     mock_dir=$(make_mock_tk)
+    _CLEANUP_DIRS+=("$mock_dir")
     stdout_output=""
     stdout_output=$(BENCH_THRESHOLD_SECONDS=60 PATH="$mock_dir:$PATH" \
         bash "$TARGET_SCRIPT" 2>/dev/null) || true
@@ -156,6 +166,7 @@ test_bench_prints_warning_on_slow_tk() {
     fi
     local mock_dir stderr_output
     mock_dir=$(make_mock_tk)
+    _CLEANUP_DIRS+=("$mock_dir")
     stderr_output=""
     stderr_output=$(BENCH_THRESHOLD_SECONDS=0 PATH="$mock_dir:$PATH" \
         bash "$TARGET_SCRIPT" 2>&1 >/dev/null) || true
