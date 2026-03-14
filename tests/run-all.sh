@@ -10,6 +10,9 @@
 # Produces a combined PASS/FAIL summary across all suites.
 # Exits 0 only if ALL suites exit 0; exits 1 otherwise.
 #
+# Process cleanup: uses session-safe PID files so that killing a stale
+# run-all.sh doesn't affect other worktrees running concurrently.
+#
 # Note: test-estimate-context-load.sh (pre-existing in lockpick-workflow/tests/)
 # uses its own pass/fail helpers, not assert.sh. It is excluded from this
 # orchestrator because it is a standalone test that predates the suite structure
@@ -30,6 +33,29 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 
+# --- Session-safe process cleanup (Fix 3) ---
+# Source the cleanup library and clear stale processes from prior runs
+# of the SAME session (worktree). Does NOT touch other sessions.
+if [ -f "$SCRIPT_DIR/lib/process-cleanup.sh" ]; then
+    source "$SCRIPT_DIR/lib/process-cleanup.sh"
+
+    _SESSION_ID=$(_get_session_id)
+    _PIDFILE_DIR=$(_get_pidfile_dir)
+
+    # Clean up stale processes from prior runs of this session
+    _cleanup_stale_session_processes "$_PIDFILE_DIR" "$_SESSION_ID" "$$"
+
+    # Register ourselves
+    _write_pidfile "$_PIDFILE_DIR/run-all-$$.pid" "$$" "$_SESSION_ID"
+
+    # Ensure we remove our pidfile on exit
+    _orig_trap=$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//")
+    trap '
+        _remove_pidfile "$_PIDFILE_DIR/run-all-$$.pid" 2>/dev/null || true
+        '"${_orig_trap:+$_orig_trap}"'
+    ' EXIT
+fi
+
 # --- Isolate tests from real .tickets/ (290+ files slow git operations) ---
 # Create a minimal temp .tickets/ directory and set RUN_ALL_TEST_TICKETS_DIR
 # for sub-runners to use. We do NOT export TICKETS_DIR here because some tests
@@ -38,7 +64,12 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 if [[ -z "${RUN_ALL_TEST_TICKETS_DIR:-}" ]]; then
     _TEST_TICKETS_DIR=$(mktemp -d)
     export RUN_ALL_TEST_TICKETS_DIR="$_TEST_TICKETS_DIR"
-    trap 'rm -rf "$_TEST_TICKETS_DIR"' EXIT
+    # Append to existing trap
+    _prev_trap=$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//")
+    trap '
+        rm -rf "$_TEST_TICKETS_DIR" 2>/dev/null || true
+        '"${_prev_trap:+$_prev_trap}"'
+    ' EXIT
 fi
 
 # --- Default suite runner paths ---

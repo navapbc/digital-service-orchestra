@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/hooks/run-hook-tests.sh
 # Aggregator: discovers and runs all hook test files in this directory.
-# Tracks cumulative pass/fail counts; exits non-zero if any test fails.
+# Uses suite-engine for parallel execution, per-test timeouts, fail-fast,
+# and progress reporting.
 #
 # Usage: bash lockpick-workflow/tests/hooks/run-hook-tests.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
+#
+# Environment (passed through to suite-engine):
+#   TEST_TIMEOUT=30              Per-test timeout in seconds (default: 30)
+#   MAX_PARALLEL=8               Max concurrent tests (default: 8)
+#   MAX_CONSECUTIVE_FAILS=5      Abort after N consecutive failures (default: 5)
 
 set -uo pipefail
 
@@ -16,57 +22,32 @@ export GIT_CONFIG_KEY_0=commit.gpgsign
 export GIT_CONFIG_VALUE_0=false
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$SCRIPT_DIR/../lib"
 
-TOTAL_PASS=0
-TOTAL_FAIL=0
+# Source the suite engine
+source "$LIB_DIR/suite-engine.sh"
 
 echo "=== Hook Tests ==="
 echo ""
 
+# Collect test files
+test_files=()
 for f in "$SCRIPT_DIR"/test-*.sh; do
     [ -f "$f" ] || continue
-    test_name=$(basename "$f")
-    echo "--- $test_name ---"
-    file_exit=0
-    output=$(bash "$f" 2>&1) || file_exit=$?
-    echo "$output"
-
-    # Parse PASS/FAIL counts from output.
-    # Handles multiple summary line formats used by hook test files:
-    #   "Results: N passed, N failed"           (test-post-tool-use-hooks.sh, test-record-review-crossval.sh)
-    #   "Results: N/N passed"                   (test-validation-gate.sh — no explicit failed count)
-    #   "PASSED: N  FAILED: N"                  (assert.sh pattern)
-    # Strip ANSI color codes before parsing (test-post-tool-use-hooks.sh uses colors).
-    clean_output=$(echo "$output" | sed 's/\x1b\[[0-9;]*m//g')
-
-    # Try "Results: N passed, N failed" format first
-    results_line=$(echo "$clean_output" | grep -E "Results:.*[0-9]+ passed" | tail -1 || true)
-    if [ -n "$results_line" ]; then
-        file_pass=$(echo "$results_line" | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" || echo 0)
-        file_fail=$(echo "$results_line" | grep -oE "[0-9]+ failed" | grep -oE "[0-9]+" || echo 0)
-        TOTAL_PASS=$(( TOTAL_PASS + file_pass ))
-        TOTAL_FAIL=$(( TOTAL_FAIL + file_fail ))
-    else
-        # Try "PASSED: N  FAILED: N" format (assert.sh)
-        summary_line=$(echo "$clean_output" | grep -E "^PASSED: [0-9]+  FAILED: [0-9]+" | tail -1 || true)
-        if [ -n "$summary_line" ]; then
-            file_pass=$(echo "$summary_line" | grep -oE "PASSED: [0-9]+" | grep -oE "[0-9]+" || echo 0)
-            file_fail=$(echo "$summary_line" | grep -oE "FAILED: [0-9]+" | grep -oE "[0-9]+" || echo 0)
-            TOTAL_PASS=$(( TOTAL_PASS + file_pass ))
-            TOTAL_FAIL=$(( TOTAL_FAIL + file_fail ))
-        elif [ "$file_exit" -ne 0 ]; then
-            # No recognized summary line and non-zero exit: count the file as 1 failure
-            (( TOTAL_FAIL++ ))
-        fi
-    fi
-
-    echo ""
+    test_files+=("$f")
 done
 
-echo "=== Hook Tests Summary ==="
-printf "Hook Tests: PASSED: %d  FAILED: %d\n" "$TOTAL_PASS" "$TOTAL_FAIL"
-
-if [ "$TOTAL_FAIL" -gt 0 ]; then
-    exit 1
+if [ ${#test_files[@]} -eq 0 ]; then
+    echo "No hook test files found."
+    exit 0
 fi
-exit 0
+
+# Run via suite engine (parallel, with timeouts and fail-fast)
+run_test_suite "Hook Tests" "${test_files[@]}"
+suite_exit=$?
+
+echo ""
+echo "=== Hook Tests Summary ==="
+printf "Hook Tests: PASSED: %d  FAILED: %d\n" "$SUITE_TOTAL_PASS" "$SUITE_TOTAL_FAIL"
+
+exit $suite_exit

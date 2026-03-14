@@ -23,13 +23,16 @@ source "$LIB_DIR/assert.sh"
 # ============================================================
 
 # Create a temporary directory to act as an isolated "hooks test dir"
-# with a copy of the aggregator and only the mock test files we control.
+# with a copy of the aggregator, lib/, and only the mock test files we control.
 make_isolated_dir() {
     local tmpdir
     tmpdir=$(mktemp -d)
     # Copy aggregator into the temp dir (the aggregator globs test-*.sh in $(dirname $0))
     cp "$AGGREGATOR" "$tmpdir/run-hook-tests.sh"
     chmod +x "$tmpdir/run-hook-tests.sh"
+    # Copy lib/ so suite-engine.sh can be sourced by the aggregator
+    mkdir -p "$tmpdir/../lib"
+    cp "$LIB_DIR"/*.sh "$tmpdir/../lib/"
     echo "$tmpdir"
 }
 
