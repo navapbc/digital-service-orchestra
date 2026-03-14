@@ -298,7 +298,7 @@ chmod +x "$MOCK_CREATE_DIR/mock-create"
 
 cat > "$TMPDIR_TEST/workflow-config.conf" << EOF
 session.artifact_prefix=test-wrapper-ticket-${_TEST_PID}
-issue_tracker.create_cmd="$MOCK_CREATE_DIR/mock-create"
+issue_tracker.create_cmd=$MOCK_CREATE_DIR/mock-create
 EOF
 
 rc=0

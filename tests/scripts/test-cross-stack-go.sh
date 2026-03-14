@@ -33,7 +33,7 @@ assert_eq "test_go_stack_detect_returns_golang: outputs golang" "golang" "$go_de
 CONFIG="$FIXTURE/workflow-config.conf"
 if [[ -f "$CONFIG" ]]; then
     config_content=$(cat "$CONFIG")
-    assert_contains "test_go_stack_workflow_config_has_go_test: config contains go test" "test: go test ./..." "$config_content"
+    assert_contains "test_go_stack_workflow_config_has_go_test: config contains go test" "commands.test=go test ./..." "$config_content"
 else
     assert_eq "test_go_stack_workflow_config_has_go_test: workflow-config.conf exists" "exists" "missing"
 fi
@@ -42,7 +42,7 @@ fi
 # The fixture's workflow-config.conf must contain the golangci-lint command.
 if [[ -f "$CONFIG" ]]; then
     config_content=$(cat "$CONFIG")
-    assert_contains "test_go_stack_workflow_config_has_golangci_lint: config contains golangci-lint" "lint: golangci-lint run" "$config_content"
+    assert_contains "test_go_stack_workflow_config_has_golangci_lint: config contains golangci-lint" "commands.lint=golangci-lint run" "$config_content"
 else
     assert_eq "test_go_stack_workflow_config_has_golangci_lint: workflow-config.conf exists" "exists" "missing"
 fi
@@ -51,7 +51,7 @@ fi
 # The fixture's workflow-config.conf must contain the gofmt format command.
 if [[ -f "$CONFIG" ]]; then
     config_content=$(cat "$CONFIG")
-    assert_contains "test_go_stack_workflow_config_has_gofmt: config contains gofmt" "format: gofmt -l ." "$config_content"
+    assert_contains "test_go_stack_workflow_config_has_gofmt: config contains gofmt" "commands.format=gofmt -l ." "$config_content"
 else
     assert_eq "test_go_stack_workflow_config_has_gofmt: workflow-config.conf exists" "exists" "missing"
 fi

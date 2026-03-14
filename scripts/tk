@@ -34,7 +34,11 @@ _tk_read_config() {
         # Pass the config file from the current repo, not from tk's repo
         local _repo_root
         _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
-        local _config_file="$_repo_root/workflow-config.yaml"
+        # Prefer .conf format; fall back to .yaml for migration compatibility
+        local _config_file="$_repo_root/workflow-config.conf"
+        if [[ ! -f "$_config_file" ]]; then
+            _config_file="$_repo_root/workflow-config.yaml"
+        fi
         if [[ -f "$_config_file" ]]; then
             # Ensure read-config.sh can find Python with pyyaml by hinting
             # the venv from tk's own repo if not already set

@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 SCHEMA_FILE="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
-EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.yaml"
+EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.conf"
 PROJECT_CONFIG="$REPO_ROOT/workflow-config.conf"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
@@ -233,7 +233,7 @@ fi
 
 # test_example_config_has_design_section
 _fail_before=$FAIL
-if grep -q "^design:" "$EXAMPLE_CONFIG" 2>/dev/null; then
+if grep -q "^design\." "$EXAMPLE_CONFIG" 2>/dev/null; then
     example_has_design="has_design"
 else
     example_has_design="missing_design"
@@ -269,7 +269,7 @@ fi
 
 # test_project_config_has_design_section
 _fail_before=$FAIL
-if grep -q "^design:" "$PROJECT_CONFIG" 2>/dev/null; then
+if grep -q "^design\." "$PROJECT_CONFIG" 2>/dev/null; then
     project_has_design="has_design"
 else
     project_has_design="missing_design"

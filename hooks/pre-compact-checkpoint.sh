@@ -128,15 +128,17 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
 fi
-_READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
-if [[ -n "$_READ_CONFIG" ]]; then
+# Always use the read-config.sh from the actual plugin scripts dir (not from
+# CLAUDE_PLUGIN_ROOT, which tests may override to a temp dir for config isolation).
+_READ_CONFIG="$HOOK_DIR/../scripts/read-config.sh"
+if [[ -f "$_READ_CONFIG" ]]; then
     _LABEL=$("$_READ_CONFIG" checkpoint.commit_label 2>/dev/null || echo '')
     [[ -n "$_LABEL" ]] && CHECKPOINT_LABEL="$_LABEL"
 fi
 
 # Read config-driven rollback marker filename (with fallback default)
 CHECKPOINT_MARKER_FILE='.checkpoint-pending-rollback'
-if [[ -n "$_READ_CONFIG" ]]; then
+if [[ -f "$_READ_CONFIG" ]]; then
     _MARKER=$("$_READ_CONFIG" checkpoint.marker_file 2>/dev/null || echo '')
     [[ -n "$_MARKER" ]] && CHECKPOINT_MARKER_FILE="$_MARKER"
 fi

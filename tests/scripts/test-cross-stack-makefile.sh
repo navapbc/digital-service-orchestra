@@ -33,7 +33,7 @@ assert_eq "test_makefile_stack_detect_returns_convention_based" "convention-base
 # so that the plugin knows how to run tests for the convention-based stack.
 if [[ -f "$FIXTURE/workflow-config.conf" ]]; then
     config_contents="$(cat "$FIXTURE/workflow-config.conf")"
-    assert_contains "test_makefile_stack_workflow_config_has_make_test" "test: make test" "$config_contents"
+    assert_contains "test_makefile_stack_workflow_config_has_make_test" "commands.test=make test" "$config_contents"
 else
     assert_eq "test_makefile_stack_workflow_config_has_make_test: workflow-config.conf exists" "exists" "missing"
 fi
@@ -43,7 +43,7 @@ fi
 # so that the plugin knows how to run linting for the convention-based stack.
 if [[ -f "$FIXTURE/workflow-config.conf" ]]; then
     config_contents="$(cat "$FIXTURE/workflow-config.conf")"
-    assert_contains "test_makefile_stack_workflow_config_has_make_lint" "lint: make lint" "$config_contents"
+    assert_contains "test_makefile_stack_workflow_config_has_make_lint" "commands.lint=make lint" "$config_contents"
 else
     assert_eq "test_makefile_stack_workflow_config_has_make_lint: workflow-config.conf exists" "exists" "missing"
 fi
@@ -53,7 +53,7 @@ fi
 # that the plugin records the correct detected stack for the Makefile project.
 if [[ -f "$FIXTURE/workflow-config.conf" ]]; then
     config_contents="$(cat "$FIXTURE/workflow-config.conf")"
-    assert_contains "test_makefile_stack_workflow_config_stack_value" "stack: convention-based" "$config_contents"
+    assert_contains "test_makefile_stack_workflow_config_stack_value" "stack=convention-based" "$config_contents"
 else
     assert_eq "test_makefile_stack_workflow_config_stack_value: workflow-config.conf exists" "exists" "missing"
 fi
