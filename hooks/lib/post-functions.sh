@@ -9,6 +9,7 @@
 #   stdout: optional feedback (always at least '{}' per bug #10463 workaround)
 #
 # Functions defined:
+#   hook_exit_144_forensic_logger  — log forensic data on exit 144 (SIGURG timeout/cancellation)
 #   hook_check_validation_failures — auto-create tracking issues for validate.sh failures
 #   hook_track_cascade_failures    — track consecutive fix-fail cycles for cascade detection
 #   hook_auto_format               — auto-format source files after Edit/Write tool calls
@@ -27,6 +28,104 @@ _POST_FUNCTIONS_LOADED=1
 # Source shared dependency library (idempotent via its own guard)
 _POST_FUNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_POST_FUNC_DIR/deps.sh"
+
+# ---------------------------------------------------------------------------
+# hook_exit_144_forensic_logger
+# ---------------------------------------------------------------------------
+# PostToolUse hook: log forensic data when a Bash tool call exits with 144.
+# Exit 144 = SIGURG — indicates either a timeout or a cancellation.
+#
+# Reads the start timestamp written by pre-bash.sh (bash-start-ts-<hash>),
+# computes elapsed time, classifies as timeout (>=70s) or cancellation (<70s),
+# and appends a JSONL entry to exit-144-forensics.jsonl in the artifacts dir.
+#
+# If start timestamp is missing, writes entry with elapsed_s=-1, cause=unknown.
+# If exit_code != 144 (or missing), returns immediately with zero I/O.
+hook_exit_144_forensic_logger() {
+    local INPUT="$1"
+
+    # Fast path: parse exit_code — bail immediately if not 144
+    local EXIT_CODE
+    EXIT_CODE=$(parse_json_field "$INPUT" '.tool_response.exit_code')
+    [[ "$EXIT_CODE" == "144" ]] || return 0
+
+    # ERR trap for graceful degradation
+    trap 'return 0' ERR
+
+    # macOS-compatible millisecond timestamp (local copy to avoid dependency on pre-bash.sh)
+    _forensic_get_ms() {
+        local _ns
+        _ns=$(date +%s%N 2>/dev/null) || _ns=""
+        if [[ -n "$_ns" && "$_ns" != *N* ]]; then
+            echo $(( _ns / 1000000 ))
+        else
+            python3 -c 'import time;print(int(time.time()*1e3))' 2>/dev/null || echo 0
+        fi
+    }
+
+    # Extract command from input
+    local COMMAND
+    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
+
+    # Compute command hash to find the matching start timestamp
+    local ARTIFACTS_DIR
+    ARTIFACTS_DIR=$(get_artifacts_dir)
+
+    local ELAPSED_S="-1"
+    local CAUSE="unknown"
+
+    if [[ -n "$COMMAND" ]]; then
+        local CMD_HASH
+        CMD_HASH=$(echo -n "$COMMAND" | hash_stdin | cut -c1-8)
+        local TS_FILE="$ARTIFACTS_DIR/bash-start-ts-${CMD_HASH}"
+
+        if [[ -f "$TS_FILE" ]]; then
+            local START_MS
+            START_MS=$(cat "$TS_FILE")
+            local NOW_MS
+            NOW_MS=$(_forensic_get_ms)
+
+            if [[ -n "$START_MS" && "$START_MS" =~ ^[0-9]+$ && -n "$NOW_MS" && "$NOW_MS" =~ ^[0-9]+$ ]]; then
+                local ELAPSED_MS=$(( NOW_MS - START_MS ))
+                # Format as float with 1 decimal place
+                ELAPSED_S=$(python3 -c "print(round(${ELAPSED_MS}/1000.0, 1))" 2>/dev/null || echo "-1")
+
+                # Classify: >=70000ms = timeout, <70000ms = cancellation
+                if (( ELAPSED_MS >= 70000 )); then
+                    CAUSE="timeout"
+                else
+                    CAUSE="cancellation"
+                fi
+            fi
+        fi
+    fi
+
+    # Generate ISO8601 timestamp
+    local TIMESTAMP
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+
+    # Write JSONL entry via file append (NOT stdout — stdout is captured as agent feedback)
+    local JSONL_FILE="$ARTIFACTS_DIR/exit-144-forensics.jsonl"
+    local ENTRY
+    ENTRY=$(python3 -c "
+import json, sys
+entry = {
+    'timestamp': sys.argv[1],
+    'command': sys.argv[2],
+    'elapsed_s': float(sys.argv[3]),
+    'cause': sys.argv[4],
+    'cwd': sys.argv[5]
+}
+print(json.dumps(entry))
+" "$TIMESTAMP" "${COMMAND:-unknown}" "$ELAPSED_S" "$CAUSE" "$PWD" 2>/dev/null)
+
+    if [[ -n "$ENTRY" ]]; then
+        printf '%s\n' "$ENTRY" >> "$JSONL_FILE"
+    fi
+
+    trap - ERR
+    return 0
+}
 
 # ---------------------------------------------------------------------------
 # hook_check_validation_failures

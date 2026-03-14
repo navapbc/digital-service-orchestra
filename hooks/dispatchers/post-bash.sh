@@ -6,9 +6,10 @@
 #   run-hook.sh dispatchers/post-bash.sh
 #
 # Hook execution order:
-#   1. hook_check_validation_failures
-#   2. hook_track_cascade_failures
-#   3. hook_tool_logging_post
+#   1. hook_exit_144_forensic_logger
+#   2. hook_check_validation_failures
+#   3. hook_track_cascade_failures
+#   4. hook_tool_logging_post
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -50,6 +51,7 @@ _post_bash_dispatch() {
     local INPUT
     INPUT=$(cat)
 
+    _run_post_fn hook_exit_144_forensic_logger "$INPUT"
     _run_post_fn hook_check_validation_failures "$INPUT"
     _run_post_fn hook_track_cascade_failures "$INPUT"
     _run_post_fn hook_tool_logging_post "$INPUT"
