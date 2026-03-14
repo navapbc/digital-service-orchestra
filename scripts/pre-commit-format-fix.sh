@@ -84,7 +84,12 @@ for file in "${STAGED_PY_FILES[@]}"; do
     fi
 
     # Run import sorting fix, then format
-    if ! (cd "$WORK_DIR" && run_ruff check --select I --fix "$REL_FILE" 2>/dev/null && run_ruff format "$REL_FILE" 2>/dev/null); then
+    # Non-app files need --config to use the project's ruff settings (line-length=100)
+    CONFIG_FLAG=""
+    if [[ "$file" != app/* ]]; then
+        CONFIG_FLAG="--config $APP_DIR/pyproject.toml"
+    fi
+    if ! (cd "$WORK_DIR" && run_ruff check --select I --fix $CONFIG_FLAG "$REL_FILE" 2>/dev/null && run_ruff format $CONFIG_FLAG "$REL_FILE" 2>/dev/null); then
         echo "format-fix: failed to format $file (syntax error or ruff issue)" >&2
         FIX_FAILED=1
     fi
@@ -114,7 +119,11 @@ for file in "${STAGED_PY_FILES[@]}"; do
         REL_FILE="$file"
     fi
 
-    if ! (cd "$WORK_DIR" && run_ruff check --select I "$REL_FILE" >/dev/null 2>&1 && run_ruff format --check "$REL_FILE" >/dev/null 2>&1); then
+    CONFIG_FLAG=""
+    if [[ "$file" != app/* ]]; then
+        CONFIG_FLAG="--config $APP_DIR/pyproject.toml"
+    fi
+    if ! (cd "$WORK_DIR" && run_ruff check --select I $CONFIG_FLAG "$REL_FILE" >/dev/null 2>&1 && run_ruff format --check $CONFIG_FLAG "$REL_FILE" >/dev/null 2>&1); then
         echo "format-fix: $file still has formatting issues after auto-fix" >&2
         VERIFY_FAILED=1
     fi
