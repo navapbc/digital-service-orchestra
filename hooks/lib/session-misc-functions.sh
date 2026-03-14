@@ -204,6 +204,11 @@ for line in sys.stdin:
             local MARKER="$BUGS_DIR/${HOOK_NAME}.bug"
             if [[ ! -f "$MARKER" ]]; then
                 if command -v tk &>/dev/null; then
+                    # Write marker BEFORE tk create to prevent duplicates on timeout.
+                    # If tk create times out (exit 144), the ticket is created but the
+                    # ID is not captured — without this pre-write, no marker is saved
+                    # and every subsequent session creates another duplicate.
+                    echo "pending" > "$MARKER"
                     local BUG_ID
                     BUG_ID=$(tk create "Fix recurring hook errors: ${HOOK_NAME} (${COUNT} in 24h)" \
                         -t bug -p 2 \
