@@ -134,6 +134,7 @@ run_hook_stderr() {
 # Assert stderr does NOT reference 'bd search' (uses configured command instead)
 # MUST FAIL — hook currently hardcodes bd search
 _CT_PLUGIN_ROOT=$(mktemp -d)
+ln -s "$REPO_ROOT/lockpick-workflow/scripts" "$_CT_PLUGIN_ROOT/scripts"
 cat > "$_CT_PLUGIN_ROOT/workflow-config.yaml" << 'YAML_EOF'
 version: "1.0.0"
 issue_tracker:

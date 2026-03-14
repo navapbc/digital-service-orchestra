@@ -130,8 +130,8 @@ _get_untracked_files() {
         # Live query
         local _live_list
         _live_list=$(git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$NON_REVIEWABLE_PATTERN" || true; })
-        # Save snapshot if requested and this is the first run
-        if [[ -n "$SNAPSHOT_FILE" && ! -f "$SNAPSHOT_FILE" && -n "$_live_list" ]]; then
+        # Save snapshot if requested and this is the first run (empty list is valid)
+        if [[ -n "$SNAPSHOT_FILE" && ! -f "$SNAPSHOT_FILE" ]]; then
             echo "$_live_list" > "$SNAPSHOT_FILE"
         fi
         echo "$_live_list"
