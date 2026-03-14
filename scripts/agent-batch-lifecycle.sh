@@ -2,7 +2,7 @@
 # agent-batch-lifecycle.sh — Shared lifecycle operations for multi-agent orchestration.
 #
 # Consolidates deterministic sequences used by /debug-everything and /sprint.
-# Config-driven: all project-specific values read from workflow-config.yaml via read-config.sh.
+# Config-driven: all project-specific values read from workflow-config.conf via read-config.sh.
 #
 # Subcommands:
 #   pre-check [--db]          Pre-batch safety checks (session usage, git, optional DB)
@@ -37,7 +37,7 @@ TICKETS_DIR="$REPO_ROOT/.tickets"
 # _read_cfg <key> — read a config value, respecting WORKFLOW_CONFIG env var override.
 # When WORKFLOW_CONFIG is set, it is passed as the config-file argument to read-config.sh.
 # This allows callers (e.g. tests) to point at /dev/null or a minimal config to simulate
-# absent sections without touching the real workflow-config.yaml.
+# absent sections without touching the real workflow-config.conf.
 _read_cfg() {
     local key="$1"
     if [ -n "${WORKFLOW_CONFIG:-}" ]; then
@@ -509,7 +509,7 @@ cmd_preflight() {
     # 1c. Clean up agent discoveries from previous batch
     cmd_cleanup_discoveries
 
-    # 1d. Run env check command if configured (commands.env_check_cmd in workflow-config.yaml)
+    # 1d. Run env check command if configured (commands.env_check_cmd in workflow-config.conf)
     local env_check_cmd
     env_check_cmd=$(_read_cfg "commands.env_check_cmd")
     if [ -n "$env_check_cmd" ]; then

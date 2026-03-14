@@ -32,12 +32,12 @@ if [ -z "$phase" ]; then
 fi
 
 # --- Config-driven command resolution ---
-# All commands are read once from workflow-config.yaml via read-config.sh.
+# All commands are read once from workflow-config.conf via read-config.sh.
 # This makes the script portable across projects with different toolchains.
 # Missing required keys fail fast with a clear error message.
 
 READ_CONFIG="$SCRIPT_DIR/read-config.sh"
-CONFIG_FILE="$REPO_ROOT/workflow-config.yaml"
+CONFIG_FILE="$REPO_ROOT/workflow-config.conf"
 
 _cfg() {
     local key="$1"
@@ -51,7 +51,7 @@ _cfg_required() {
     local val
     val=$(_cfg "$key")
     if [ -z "$val" ]; then
-        echo "ERROR: $key not configured in workflow-config.yaml" >&2
+        echo "ERROR: $key not configured in workflow-config.conf" >&2
         exit 2
     fi
     echo "$val"
@@ -93,11 +93,11 @@ run_check() {
     local cmd="$2"
     local output
     # REVIEW-DEFENSE: eval is used here to execute config-supplied command strings from
-    # workflow-config.yaml. This file is project-controlled (committed to the repo) and is
+    # workflow-config.conf. This file is project-controlled (committed to the repo) and is
     # not user-supplied at runtime. All current config values are simple make targets
     # (e.g., "make lint", "make format-check"). The threat model for a developer-facing
     # toolchain script does not include adversarial config files; a user with write access
-    # to workflow-config.yaml already has full repo access. eval is required to support
+    # to workflow-config.conf already has full repo access. eval is required to support
     # commands with embedded arguments (e.g., "make target ARGS=value") as single config strings.
     if output=$(cd "$REPO_ROOT" && eval "$cmd" 2>&1); then
         echo "$label: PASS"
@@ -185,7 +185,7 @@ phase_auto_fix() {
     collect_modified "FORMAT" "$CMD_FORMAT"
 
     # Tier 1: Lint auto-fix
-    # CMD_LINT_FIX: auto-fix ruff violations in place (see commands.lint_fix in workflow-config.yaml)
+    # CMD_LINT_FIX: auto-fix ruff violations in place (see commands.lint_fix in workflow-config.conf)
     collect_modified "LINT" "$CMD_LINT_FIX"
 
     # Validate
@@ -261,7 +261,7 @@ phase_tier_transition() {
 phase_full() {
     local any_fail=0
 
-    # Full validation — path resolved from commands.validate in workflow-config.yaml
+    # Full validation — path resolved from commands.validate in workflow-config.conf
     local val_output
     if val_output=$(cd "$REPO_ROOT" && eval "$CMD_VALIDATE" 2>&1); then
         echo "RESULT: ALL_PASS"

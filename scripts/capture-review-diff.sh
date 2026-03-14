@@ -5,7 +5,7 @@
 # Usage: capture-review-diff.sh <diff-file> <stat-file> [extra-exclusion ...]
 #
 # Always excludes:
-#   - visual.baseline_directory/*.png (from workflow-config.yaml; skipped if unset)
+#   - visual.baseline_directory/*.png (from workflow-config.conf; skipped if unset)
 #
 # Additional exclusions can be passed as extra arguments (e.g., ':!app/snapshots/*.html').
 #

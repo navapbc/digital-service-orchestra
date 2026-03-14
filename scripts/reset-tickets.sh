@@ -17,7 +17,7 @@
 #   scripts/reset-tickets.sh <commit-sha> [--jira-project <key>]
 #
 # Options:
-#   --jira-project <key>   Jira project key (default: from workflow-config.yaml)
+#   --jira-project <key>   Jira project key (default: from workflow-config.conf)
 #   --skip-jira            Skip Jira deletion and sync (local reset only)
 #   --dry-run              Show what would happen without making changes
 #   --yes                  Skip confirmation prompts
@@ -69,16 +69,16 @@ fi
 # ── Resolve Jira project ────────────────────────────────────────────────────
 
 if [[ -z "$JIRA_PROJECT" ]]; then
-    # Read from env var first, then workflow-config.yaml
+    # Read from env var first, then workflow-config.conf
     if [[ -n "${JIRA_PROJECT_OVERRIDE:-}" ]]; then
         JIRA_PROJECT="$JIRA_PROJECT_OVERRIDE"
     else
-        JIRA_PROJECT=$(grep 'project:' "$REPO_ROOT/workflow-config.yaml" 2>/dev/null | awk '{print $2}' | head -1) || true
+        JIRA_PROJECT=$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" jira.project "$REPO_ROOT/workflow-config.conf" 2>/dev/null) || true
     fi
 fi
 
 if [[ -z "$JIRA_PROJECT" ]] && [[ "$SKIP_JIRA" == "false" ]]; then
-    echo "Error: could not determine Jira project. Use --jira-project <key> or set in workflow-config.yaml" >&2
+    echo "Error: could not determine Jira project. Use --jira-project <key> or set in workflow-config.conf" >&2
     exit 1
 fi
 

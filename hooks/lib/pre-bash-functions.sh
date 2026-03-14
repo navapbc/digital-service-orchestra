@@ -77,8 +77,7 @@ hook_validation_gate() {
     fi
 
     # Lazily resolve validate command (avoid spawning Python unless needed)
-    # Note: _PRE_BASH_FUNC_DIR is hooks/lib/, so ../../ reaches lockpick-workflow/scripts/
-    local SCRIPTS_DIR="$_PRE_BASH_FUNC_DIR/../../scripts"
+    local SCRIPTS_DIR="$CLAUDE_PLUGIN_ROOT/scripts"
     local VALIDATE_CMD=""
     _vg_get_validate_cmd() {
         if [[ -z "$VALIDATE_CMD" ]]; then
@@ -257,9 +256,8 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
     local _CREATE_CMD="${CREATE_CMD:-tk create}"
     local _READ_CONFIG=""
-    # _PRE_BASH_FUNC_DIR is hooks/lib/ so ../../scripts/ = lockpick-workflow/scripts/
-    if [[ -f "$_PRE_BASH_FUNC_DIR/../../scripts/read-config.sh" ]]; then
-        _READ_CONFIG="$_PRE_BASH_FUNC_DIR/../../scripts/read-config.sh"
+    if [[ -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
+        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
     fi
 
     # Apply config overrides (defer Python spawn; don't override caller-supplied env vars)
@@ -488,10 +486,8 @@ hook_review_gate() {
     local RECORDED_HASH CURRENT_HASH
     RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
 
-    # compute-diff-hash.sh lives in lockpick-workflow/hooks/
-    # _PRE_BASH_FUNC_DIR is hooks/lib/ so ../ = hooks/
     local _HOOK_DIR_FOR_DIFF _SNAPSHOT_ARGS
-    _HOOK_DIR_FOR_DIFF="$_PRE_BASH_FUNC_DIR/.."
+    _HOOK_DIR_FOR_DIFF="$CLAUDE_PLUGIN_ROOT/hooks"
     _SNAPSHOT_ARGS=()
     # Reuse untracked snapshot if available for deterministic hashing
     local _ARTIFACTS_DIR
