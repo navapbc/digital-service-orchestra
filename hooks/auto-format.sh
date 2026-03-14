@@ -53,34 +53,22 @@ APP_DIR="$REPO_ROOT/app"
 # commands.format   — project-wide format command (used to derive single-file command)
 
 CONFIG_FILE=""
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml" ]]; then
-    CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml"
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    if [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
+        CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
+    elif [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml" ]]; then
+        CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml"
+    fi
 fi
 
-# Read format.extensions list from config using inline Python (read-config.sh
-# only handles scalars; extensions is a YAML list).
+# Read format.extensions list from config via read-config.sh --list
 CONFIGURED_EXTS=()
-if [[ -n "$CONFIG_FILE" ]] && command -v python3 &>/dev/null; then
-    _RAW_EXTS=$(python3 - "$CONFIG_FILE" "format.extensions" <<'PYEOF' 2>/dev/null
-import sys, yaml
-try:
-    with open(sys.argv[1]) as f:
-        data = yaml.safe_load(f) or {}
-    keys = sys.argv[2].split(".")
-    val = data
-    for k in keys:
-        if not isinstance(val, dict): sys.exit(0)
-        val = val.get(k)
-    if isinstance(val, list):
-        print(" ".join(str(v) for v in val if v))
-    elif isinstance(val, str):
-        print(val)
-except Exception:
-    pass
-PYEOF
-) || true
+if [[ -n "$CONFIG_FILE" ]]; then
+    _RAW_EXTS=$(bash "$SCRIPTS_DIR/../scripts/read-config.sh" --list format.extensions "$CONFIG_FILE" 2>/dev/null) || true
     if [[ -n "$_RAW_EXTS" ]]; then
-        read -ra CONFIGURED_EXTS <<< "$_RAW_EXTS"
+        while IFS= read -r ext; do
+            CONFIGURED_EXTS+=("$ext")
+        done <<< "$_RAW_EXTS"
     fi
 fi
 
@@ -89,27 +77,10 @@ if [[ ${#CONFIGURED_EXTS[@]} -eq 0 ]]; then
     CONFIGURED_EXTS=('.py')
 fi
 
-# Read format.source_dirs from config (also a list)
+# Read format.source_dirs from config via read-config.sh --list
 CONFIGURED_DIRS=()
-if [[ -n "$CONFIG_FILE" ]] && command -v python3 &>/dev/null; then
-    _RAW_DIRS=$(python3 - "$CONFIG_FILE" "format.source_dirs" <<'PYEOF' 2>/dev/null
-import sys, yaml
-try:
-    with open(sys.argv[1]) as f:
-        data = yaml.safe_load(f) or {}
-    keys = sys.argv[2].split(".")
-    val = data
-    for k in keys:
-        if not isinstance(val, dict): sys.exit(0)
-        val = val.get(k)
-    if isinstance(val, list):
-        print("\n".join(str(v) for v in val if v))
-    elif isinstance(val, str):
-        print(val)
-except Exception:
-    pass
-PYEOF
-) || true
+if [[ -n "$CONFIG_FILE" ]]; then
+    _RAW_DIRS=$(bash "$SCRIPTS_DIR/../scripts/read-config.sh" --list format.source_dirs "$CONFIG_FILE" 2>/dev/null) || true
     if [[ -n "$_RAW_DIRS" ]]; then
         while IFS= read -r dir; do
             CONFIGURED_DIRS+=("$dir")

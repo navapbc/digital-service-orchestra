@@ -54,7 +54,8 @@ Run ALL diagnostic checks and cluster related failures. The orchestrator runs on
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}"
+PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 STAGING_URL="${STAGING_URL:-http://nava-lockpick-doc-to-logic-env-stage.eba-m8tugimv.us-east-2.elasticbeanstalk.com}"
 EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 ```
@@ -180,7 +181,7 @@ written by `/sprint` that indicates which categories already passed:
 
 Launch a **single sub-agent** that runs all diagnostics, collects verbose output, clusters related failures, and returns a structured failure inventory.
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/diagnostic-and-cluster.md` and use its contents as the sub-agent prompt.
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/diagnostic-and-cluster.md` and use its contents as the sub-agent prompt.
 
 **If `validatePassedAll = true`**: ALL validation categories passed. Append to the sub-agent prompt:
 ```
@@ -247,7 +248,7 @@ Delegate ALL triage work to a sub-agent. The orchestrator passes the diagnostic 
 
 ### Launch Triage Sub-Agent
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/triage-and-create.md` and use its contents as the sub-agent prompt. Pass the diagnostic file path as context — do NOT append the full report inline:
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/triage-and-create.md` and use its contents as the sub-agent prompt. Pass the diagnostic file path as context — do NOT append the full report inline:
 
 ```
 DIAGNOSTIC_FILE: $(get_artifacts_dir)/debug-diag.md
@@ -367,8 +368,7 @@ After the complexity gate, identify which issues touch safeguarded files and rou
 ### Step 1: Detect Safeguarded Issues (/debug-everything)
 
 Safeguarded file patterns (from CLAUDE.md rule 20):
-- `.claude/skills/**`, `.claude/workflows/**`
-- `lockpick-workflow/hooks/**`, `lockpick-workflow/skills/**`, `lockpick-workflow/docs/workflows/**`
+- `lockpick-workflow/skills/**`, `lockpick-workflow/hooks/**`, `lockpick-workflow/docs/workflows/**`
 - `.claude/settings.json`, `.claude/docs/**`
 - `scripts/**`, `CLAUDE.md`
 
@@ -380,7 +380,7 @@ If `SAFEGUARD_BUGS` is empty, skip to Phase 3.
 
 ### Step 2: Launch Analysis Sub-Agent (/debug-everything)
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/safeguard-analysis.md` and use its contents as the sub-agent prompt. Pass the `SAFEGUARD_BUGS` list (IDs and titles) and `WORKTREE` name as context.
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/safeguard-analysis.md` and use its contents as the sub-agent prompt. Pass the `SAFEGUARD_BUGS` list (IDs and titles) and `WORKTREE` name as context.
 
 **Subagent**: `subagent_type="error-debugging:error-detective"`, `model="opus"`
 # Complex investigation: must read safeguarded files, understand bug context,
@@ -454,7 +454,7 @@ Tier 7: Open ticket bugs — pre-existing tracked bugs not covered by tiers 0-6
 
 **Consult prior session data**: If `{auto-memory-dir}/debug-sessions.md` exists, read it. Use prior session outcomes to prefer agent types that succeeded for similar failure categories and flag recurring patterns.
 
-**Load bug classification rules**: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/bug-accountability-guide.md` now. You will need these rules in Phase 10 Step 4; loading here avoids loading them when context is tighter.
+**Load bug classification rules**: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/bug-accountability-guide.md` now. You will need these rules in Phase 10 Step 4; loading here avoids loading them when context is tighter.
 
 **Research complex fixes**: For any Tier 3+ fix where the failure involves unfamiliar library behavior, a non-obvious tradeoff, or an external system whose current behavior you cannot derive from the codebase — spawn a research sub-agent before choosing a fix strategy. Pass findings as a `Research Context` section in the fix sub-agent prompt. See `lockpick-workflow/docs/RESEARCH-PATTERN.md` for trigger criteria, guardrails, and sub-agent prompt template.
 
@@ -499,7 +499,7 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
 
 ### Launch Auto-Fix Sub-Agent
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/auto-fix.md` and use its contents as the sub-agent prompt.
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md` and use its contents as the sub-agent prompt.
 
 **Subagent**: `subagent_type="code-simplifier:code-simplifier"`, `model="sonnet"`
 
@@ -583,8 +583,8 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 For each fix task, launch via the Task tool. **Launch all sub-agents in the batch within a single message** (parallel tool calls).
 
 Sub-agent prompt: Select the appropriate template based on the TDD Enforcement table:
-- **TDD required** → Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/fix-task-tdd.md`
-- **TDD not required** → Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/fix-task-mechanical.md`
+- **TDD required** → Read `$PLUGIN_ROOT/skills/debug-everything/prompts/fix-task-tdd.md`
+- **TDD not required** → Read `$PLUGIN_ROOT/skills/debug-everything/prompts/fix-task-mechanical.md`
 
 Fill in the `{placeholders}` with issue-specific details (title, ID, category, error output, root cause location, and `{file_ownership_context}` from the blackboard step above) before passing to the sub-agent.
 
@@ -676,7 +676,7 @@ git diff --stat   # save as {diff_stat}
 git diff          # save as {full_diff}
 ```
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/critic-review.md` and use its contents as the sub-agent prompt. Replace the `{full_diff captured by orchestrator via \`git diff\`}` placeholder with the actual diff output.
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-review.md` and use its contents as the sub-agent prompt. Replace the `{full_diff captured by orchestrator via \`git diff\`}` placeholder with the actual diff output.
 
 **Subagent**: `subagent_type="feature-dev:code-reviewer"`, `model="sonnet"`  # Tier 2: must evaluate root-cause-vs-symptom, regression risk, and convention violations from a raw diff — requires judgment across codebase context, not just output parsing
 
@@ -693,7 +693,7 @@ approaches and both critic concerns. Do NOT retry.
 
 **Do NOT run validation directly in the orchestrator.** Launch a validation sub-agent:
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/post-batch-validation.md` and use its contents as the sub-agent prompt. Replace `{list of files modified by batch}` with the actual file list from this batch.
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-validation.md` and use its contents as the sub-agent prompt. Replace `{list of files modified by batch}` with the actual file list from this batch.
 
 **Subagent**: `subagent_type="unit-testing:debugger"`, `model="haiku"`  # Tier 1: runs validate-phase.sh post-batch and relays output verbatim — pure command execution with one bounded LIKELY_CAUSE inference from provided file list
 
@@ -779,7 +779,7 @@ After completing a tier, re-validate to check for transitive resolutions.
 
 Same pattern as Phase 6 Step 2, but run the full diagnostic set:
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/tier-transition-validation.md` and use its contents as the sub-agent prompt.
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/tier-transition-validation.md` and use its contents as the sub-agent prompt.
 
 **Subagent**: `subagent_type="unit-testing:debugger"`, `model="haiku"`  # Tier 1: runs validate-phase.sh tier-transition and relays structured output verbatim — no interpretation required, pass/fail reporting only
 
@@ -803,7 +803,7 @@ When all known issues across all tiers are addressed, delegate validation to a s
 
 ### Launch Validation Sub-Agent
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/full-validation.md` and use its contents as the sub-agent prompt.
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/full-validation.md` and use its contents as the sub-agent prompt.
 
 **Subagent**: `subagent_type="unit-testing:debugger"`, `model="haiku"`  # Tier 1: runs validate-phase.sh full and relays structured output verbatim — pure command execution, ALL_PASS/SOME_FAIL is explicit in script output
 
@@ -870,7 +870,7 @@ This phase is REQUIRED for both success and graceful shutdown. The `/debug-every
 
 Dispatch a merge-and-verify sub-agent:
 
-Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/phase-10-merge-verify.md` and follow it. Pass as context:
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/phase-10-merge-verify.md` and follow it. Pass as context:
 - `REPO_ROOT`: absolute path
 - `HAS_STAGING_ISSUES`: from Phase 2 triage
 - `PATH_TYPE`: result of `test -f "$REPO_ROOT/.git" && echo worktree || echo main`
@@ -890,7 +890,7 @@ Sub-agent prompt: Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/phase
 
 #### Open Bug Accountability (required — both success and shutdown paths)
 
-Read `$REPO_ROOT/.claude/skills/debug-everything/prompts/bug-accountability-guide.md` for classification rules (loaded in Phase 3 — use cached version if already in context).
+Read `$PLUGIN_ROOT/skills/debug-everything/prompts/bug-accountability-guide.md` for classification rules (loaded in Phase 3 — use cached version if already in context).
 
 Run:
 ```bash

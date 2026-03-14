@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-worktree-port-portability.sh
 # Portability smoke test: worktree-port.sh with no config file (default base
-# ports), with custom config (custom base ports), and wrapper delegation.
+# ports), with custom config (custom base ports), and standalone script checks.
 #
 # Validates:
 #   - No config file present → uses default base ports (5432 + offset, 3000 + offset), exits 0
 #   - Custom config (database.base_port: 3306) → uses custom DB base port
 #   - Custom config (infrastructure.app_base_port: 8000) → uses custom app base port
-#   - Wrapper scripts/worktree-port.sh delegates to lockpick-workflow/scripts/worktree-port.sh
+#   - Standalone scripts/worktree-port.sh exists, is executable, and produces correct output
+#   - Plugin copy (lockpick-workflow/scripts/worktree-port.sh) no longer exists (migrated to standalone)
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-worktree-port-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -16,8 +17,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-port.sh"
-WRAPPER_SCRIPT="$REPO_ROOT/scripts/worktree-port.sh"
+STANDALONE_SCRIPT="$REPO_ROOT/scripts/worktree-port.sh"
+OLD_PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-port.sh"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
@@ -62,7 +63,7 @@ no_config_output=""
 no_config_output=$(
     cd "$NO_CONFIG_DIR"
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-    bash "$PLUGIN_SCRIPT" "$TEST_WORKTREE_NAME" 2>&1
+    bash "$STANDALONE_SCRIPT" "$TEST_WORKTREE_NAME" 2>&1
 ) || no_config_exit=$?
 
 EXPECTED_DB_PORT_DEFAULT=$(( 5432 + PORT_OFFSET ))
@@ -85,7 +86,7 @@ no_config_db_output=""
 no_config_db_output=$(
     cd "$NO_CONFIG_DIR"
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-    bash "$PLUGIN_SCRIPT" "$TEST_WORKTREE_NAME" db 2>&1
+    bash "$STANDALONE_SCRIPT" "$TEST_WORKTREE_NAME" db 2>&1
 ) || no_config_db_exit=$?
 
 assert_eq "test_no_config_db_mode_exit_0: exit code" "0" "$no_config_db_exit"
@@ -102,7 +103,7 @@ no_config_app_output=""
 no_config_app_output=$(
     cd "$NO_CONFIG_DIR"
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-    bash "$PLUGIN_SCRIPT" "$TEST_WORKTREE_NAME" app 2>&1
+    bash "$STANDALONE_SCRIPT" "$TEST_WORKTREE_NAME" app 2>&1
 ) || no_config_app_exit=$?
 
 assert_eq "test_no_config_app_mode_exit_0: exit code" "0" "$no_config_app_exit"
@@ -127,7 +128,7 @@ custom_db_output=""
 custom_db_output=$(
     cd "$CUSTOM_DB_DIR"
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-    bash "$PLUGIN_SCRIPT" "$TEST_WORKTREE_NAME" db 2>&1
+    bash "$STANDALONE_SCRIPT" "$TEST_WORKTREE_NAME" db 2>&1
 ) || custom_db_exit=$?
 
 EXPECTED_DB_PORT_CUSTOM=$(( 3306 + PORT_OFFSET ))
@@ -154,7 +155,7 @@ custom_app_output=""
 custom_app_output=$(
     cd "$CUSTOM_APP_DIR"
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-    bash "$PLUGIN_SCRIPT" "$TEST_WORKTREE_NAME" app 2>&1
+    bash "$STANDALONE_SCRIPT" "$TEST_WORKTREE_NAME" app 2>&1
 ) || custom_app_exit=$?
 
 EXPECTED_APP_PORT_CUSTOM=$(( 8000 + PORT_OFFSET ))
@@ -183,7 +184,7 @@ custom_both_output=""
 custom_both_output=$(
     cd "$CUSTOM_BOTH_DIR"
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-    bash "$PLUGIN_SCRIPT" "$TEST_WORKTREE_NAME" 2>&1
+    bash "$STANDALONE_SCRIPT" "$TEST_WORKTREE_NAME" 2>&1
 ) || custom_both_exit=$?
 
 EXPECTED_DB_BOTH=$(( 3306 + PORT_OFFSET ))
@@ -197,75 +198,55 @@ assert_contains "test_custom_both_app_port: APP_PORT=$EXPECTED_APP_BOTH" \
 assert_pass_if_clean "test_custom_both_ports"
 
 # ==========================================================================
-# Test 7: Wrapper delegation — scripts/worktree-port.sh delegates correctly
+# Test 7: Standalone script — scripts/worktree-port.sh exists and works
 # ==========================================================================
 _snapshot_fail
 
-# 7a. Wrapper must exist
-if [[ -f "$WRAPPER_SCRIPT" ]]; then
-    assert_eq "test_wrapper_exists: file exists" "yes" "yes"
+# 7a. Standalone script must exist
+if [[ -f "$STANDALONE_SCRIPT" ]]; then
+    assert_eq "test_standalone_exists: file exists" "yes" "yes"
 else
-    assert_eq "test_wrapper_exists: file exists" "yes" "no"
+    assert_eq "test_standalone_exists: file exists" "yes" "no"
 fi
 
-# 7b. Wrapper must be executable
-if [[ -x "$WRAPPER_SCRIPT" ]]; then
-    assert_eq "test_wrapper_executable: executable" "yes" "yes"
+# 7b. Standalone script must be executable
+if [[ -x "$STANDALONE_SCRIPT" ]]; then
+    assert_eq "test_standalone_executable: executable" "yes" "yes"
 else
-    assert_eq "test_wrapper_executable: executable" "yes" "no"
+    assert_eq "test_standalone_executable: executable" "yes" "no"
 fi
 
-# 7c. Wrapper must reference the canonical path
-if grep -q 'lockpick-workflow/scripts/worktree-port.sh' "$WRAPPER_SCRIPT" 2>/dev/null; then
-    assert_eq "test_wrapper_references_canonical: canonical path" "yes" "yes"
+# 7c. Standalone script must be self-contained (not a thin wrapper)
+standalone_lines=$(wc -l < "$STANDALONE_SCRIPT" | tr -d ' ')
+if [[ "$standalone_lines" -gt 10 ]]; then
+    assert_eq "test_standalone_not_wrapper: > 10 lines (standalone)" "yes" "yes"
 else
-    assert_eq "test_wrapper_references_canonical: canonical path" "yes" "no"
+    assert_eq "test_standalone_not_wrapper: > 10 lines (got $standalone_lines)" "yes" "no"
 fi
 
-# 7d. Wrapper must pass $@ to the canonical script
-if grep -q '"$@"' "$WRAPPER_SCRIPT" 2>/dev/null; then
-    assert_eq "test_wrapper_passes_args: passes \$@" "yes" "yes"
-else
-    assert_eq "test_wrapper_passes_args: passes \$@" "yes" "no"
-fi
-
-# 7e. Wrapper must be thin (< 10 lines)
-wrapper_lines=$(wc -l < "$WRAPPER_SCRIPT" | tr -d ' ')
-if [[ "$wrapper_lines" -lt 10 ]]; then
-    assert_eq "test_wrapper_thin: < 10 lines" "yes" "yes"
-else
-    assert_eq "test_wrapper_thin: < 10 lines (got $wrapper_lines)" "yes" "no"
-fi
-
-# 7f. Wrapper must produce same output as plugin script
-wrapper_output=$(
+# 7d. Standalone script produces correct output
+standalone_output=$(
     cd "$NO_CONFIG_DIR"
     unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-    bash "$WRAPPER_SCRIPT" "$TEST_WORKTREE_NAME" 2>&1
+    bash "$STANDALONE_SCRIPT" "$TEST_WORKTREE_NAME" 2>&1
 ) || true
 
-assert_eq "test_wrapper_same_output: matches plugin script" "$no_config_output" "$wrapper_output"
+assert_eq "test_standalone_output: matches expected" "$no_config_output" "$standalone_output"
 
-assert_pass_if_clean "test_wrapper_delegation"
+assert_pass_if_clean "test_standalone_script"
 
 # ==========================================================================
-# Test 8: Plugin script exists and is executable
+# Test 8: Plugin copy removed — lockpick-workflow/scripts/worktree-port.sh must NOT exist
 # ==========================================================================
 _snapshot_fail
 
-if [[ -f "$PLUGIN_SCRIPT" ]]; then
-    assert_eq "test_plugin_script_exists: file exists" "yes" "yes"
+if [[ ! -f "$OLD_PLUGIN_SCRIPT" ]]; then
+    assert_eq "test_plugin_script_removed: file absent" "yes" "yes"
 else
-    assert_eq "test_plugin_script_exists: file exists" "yes" "no"
+    assert_eq "test_plugin_script_removed: file absent (still exists)" "yes" "no"
 fi
 
-if [[ -x "$PLUGIN_SCRIPT" ]]; then
-    assert_eq "test_plugin_script_executable: executable" "yes" "yes"
-else
-    assert_eq "test_plugin_script_executable: executable" "yes" "no"
-fi
-
-assert_pass_if_clean "test_plugin_script_properties"
+assert_pass_if_clean "test_plugin_script_removed"
 
 # ==========================================================================
 print_summary

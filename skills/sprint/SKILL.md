@@ -14,7 +14,8 @@ Automate the full lifecycle of a ticket epic: task analysis, batched sub-agent e
 At activation, load project commands via read-config.sh before executing any steps:
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}"
+PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
 VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)
@@ -228,7 +229,7 @@ When the epic has zero children, dispatch a haiku sub-agent to classify the epic
 
 **Dispatch the evaluator:**
 
-Use the Task tool with `model: "haiku"` and the prompt content from `$(git rev-parse --show-toplevel)/.claude/skills/sprint/prompts/epic-complexity-evaluator.md` (delegates dimension scoring to `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`). Pass the epic ID as argument.
+Use the Task tool with `model: "haiku"` and the prompt content from `$PLUGIN_ROOT/skills/sprint/prompts/epic-complexity-evaluator.md` (delegates dimension scoring to `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`). Pass the epic ID as argument.
 
 **Route based on classification:**
 
@@ -248,7 +249,7 @@ The epic's requirements are clear and the scope is small. Skip preplanning entir
 
 1. Log: `"Epic <id> classified as SIMPLE — running /implementation-plan directly on epic."`
 2. Dispatch `/implementation-plan` sub-agent via Task tool:
-   - Read the prompt template from `$(git rev-parse --show-toplevel)/.claude/skills/sprint/prompts/impl-plan-dispatch.md`
+   - Read the prompt template from `$PLUGIN_ROOT/skills/sprint/prompts/impl-plan-dispatch.md`
    - Fill `{story-id}` with the **epic ID** (not a story ID — /implementation-plan handles epic type detection)
    - Fill `{evaluator-context}` with the epic complexity evaluator JSON output
    - Launch with `subagent_type="general-purpose"` and `model="sonnet"`
@@ -312,7 +313,7 @@ For each ready task from `tk ready` (filtered by parent):
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
 
-**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Use the Task tool with `model: "haiku"` and the prompt content from `$(git rev-parse --show-toplevel)/.claude/skills/sprint/prompts/complexity-evaluator.md` (delegates dimension scoring to `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`). Pass the story ID as argument.
+**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Use the Task tool with `model: "haiku"` and the prompt content from `$PLUGIN_ROOT/skills/sprint/prompts/complexity-evaluator.md` (delegates dimension scoring to `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`). Pass the story ID as argument.
 
 **Routing based on classification:**
 
@@ -684,7 +685,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 $REPO_ROOT/scripts/issue-quality-check.sh <task-id>
 ```
 
-- **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$REPO_ROOT/.claude/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `tk show`.
+- **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `tk show`.
 - **Exit 1 (too sparse)**: Try enriching the ticket first with `$REPO_ROOT/scripts/enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `tk show <id>`, then include the full description inline in the prompt alongside the template instructions.
 
 **Acceptance criteria gate**: After the quality gate, run:
@@ -1216,7 +1217,7 @@ Launch a Task tool with the appropriate subagent type:
 **Validation Agent Prompt**: Read and fill in the externalized prompt template:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-# Read: $REPO_ROOT/.claude/skills/sprint/prompts/epic-validation-review.md
+# Read: $PLUGIN_ROOT/skills/sprint/prompts/epic-validation-review.md
 # Placeholders: {title}, {id}, {epic-type}, {repo_root}, {list of files from git diff}
 ```
 

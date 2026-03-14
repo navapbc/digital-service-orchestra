@@ -25,7 +25,7 @@ Execute Steps 1-6 of the `/implementation-plan` skill for `{story-id}`.
 Read the full skill definition before starting:
 
 ```
-$(git rev-parse --show-toplevel)/.claude/skills/implementation-plan/SKILL.md
+$PLUGIN_ROOT/skills/implementation-plan/SKILL.md
 ```
 
 Use the `Read` tool at that path to load the skill. Then execute Steps 1-6 as defined.
