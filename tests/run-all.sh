@@ -73,7 +73,7 @@ run_suite_to_file() {
         echo "========================================"
         echo "Suite: $label"
         echo "========================================"
-        bash "$runner"
+        bash "$runner" </dev/null
     } >"$outfile" 2>&1
     echo $? >"$exitfile"
 }
@@ -111,7 +111,7 @@ echo ""
 echo "========================================"
 echo "Suite: Evals"
 echo "========================================"
-bash "$EVALS_RUNNER" || EVALS_EXIT=$?
+bash "$EVALS_RUNNER" </dev/null || EVALS_EXIT=$?
 
 # --- Combined summary ---
 echo ""

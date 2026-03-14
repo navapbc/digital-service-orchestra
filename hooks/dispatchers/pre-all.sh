@@ -65,7 +65,7 @@ _pre_all_dispatch() {
             _end=$(_get_ms)
             printf '%s\ttool-logging-pre\t%dms\texit=%d\n' \
                 "$(date +%H:%M:%S)" "$((_end - _start))" "$_exit" \
-                >> /tmp/hook-timing.log 2>/dev/null
+                >> "${HOOK_TIMING_LOG:-/tmp/hook-timing.log}" 2>/dev/null
         else
             echo "$INPUT" | bash "$TOOL_LOGGING_HOOK" pre 2>/dev/null || _exit=$?
         fi

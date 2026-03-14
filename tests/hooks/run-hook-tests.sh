@@ -28,7 +28,7 @@ for f in "$SCRIPT_DIR"/test-*.sh; do
     test_name=$(basename "$f")
     echo "--- $test_name ---"
     file_exit=0
-    output=$(bash "$f" 2>&1) || file_exit=$?
+    output=$(bash "$f" </dev/null 2>&1) || file_exit=$?
     echo "$output"
 
     # Parse PASS/FAIL counts from output.

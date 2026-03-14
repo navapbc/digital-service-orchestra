@@ -58,7 +58,7 @@ _run_hook_fn() {
         local _fn_end=$(($(date +%s%N 2>/dev/null || python3 -c 'import time;print(int(time.time()*1e9))') / 1000000))
         printf '%s\t  %s\t%dms\texit=%d\n' \
             "$(date +%H:%M:%S)" "$fn_name" "$((_fn_end - _fn_start))" "$fn_exit" \
-            >> /tmp/hook-timing.log 2>/dev/null
+            >> "${HOOK_TIMING_LOG:-/tmp/hook-timing.log}" 2>/dev/null
     else
         "$fn_name" "$json_input" || fn_exit=$?
     fi

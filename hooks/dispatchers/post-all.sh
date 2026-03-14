@@ -55,7 +55,7 @@ _run_post_fn() {
         _end=$(_get_ms)
         printf '%s\t%s\t%dms\texit=%d\n' \
             "$(date +%H:%M:%S)" "$fn_name" "$((_end - _start))" "$_exit" \
-            >> /tmp/hook-timing.log 2>/dev/null
+            >> "${HOOK_TIMING_LOG:-/tmp/hook-timing.log}" 2>/dev/null
     else
         _fn_out=$("$fn_name" "$json_input" 2>/dev/null) || true
     fi

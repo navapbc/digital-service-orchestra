@@ -234,29 +234,35 @@ touch "$_timing_test_dir/.claude/hook-timing-enabled"
 touch "$_timing_test_dir/.claude/tool-logging-enabled"
 mkdir -p "$_timing_test_dir/.claude/logs"
 
-# Use a unique timing log to avoid interference
+# Use HOOK_TIMING_LOG env var to redirect timing to a unique test log
 _timing_log="/tmp/hook-timing-test-pre-$$.log"
 rm -f "$_timing_log"
 
+# Save/restore /tmp/hook-timing.log to avoid interfering with real timing data
+_saved_timing_file="/tmp/hook-timing-saved-pre-$$"
+cp /tmp/hook-timing.log "$_saved_timing_file" 2>/dev/null || true
+
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
 _exit_code=0
-# Override HOME so timing-enabled sentinel is found; redirect timing to our log
-printf '%s' "$_INPUT" | HOME="$_timing_test_dir" bash -c "
-    # Redirect hook-timing.log writes to our test file
-    ln -sf '$_timing_log' /tmp/hook-timing.log 2>/dev/null || true
-    exec bash '$DISPATCHER'
-" 2>/dev/null || _exit_code=$?
+# Override HOME so timing-enabled sentinel is found; use HOOK_TIMING_LOG env var
+printf '%s' "$_INPUT" | HOME="$_timing_test_dir" HOOK_TIMING_LOG="$_timing_log" bash "$DISPATCHER" 2>/dev/null || _exit_code=$?
 
 # Check if timing log was created with timing entries
 _has_timing=0
-if [[ -f /tmp/hook-timing.log ]] || [[ -f "$_timing_log" ]]; then
-    # Check for timing entries from the dispatcher
-    _log_to_check="/tmp/hook-timing.log"
-    if grep -qE 'hook_.*\t[0-9]+ms\texit=' "$_log_to_check" 2>/dev/null; then
+if [[ -f "$_timing_log" ]]; then
+    if grep -qE 'hook_.*[0-9]+ms.*exit=' "$_timing_log" 2>/dev/null; then
         _has_timing=1
     fi
 fi
 assert_eq "test_pre_bash_timing_instrumentation: timing log entries created" "1" "$_has_timing"
+
+# Restore previous timing log content
+if [[ -f "$_saved_timing_file" ]]; then
+    cp "$_saved_timing_file" /tmp/hook-timing.log
+    rm -f "$_saved_timing_file"
+else
+    rm -f /tmp/hook-timing.log
+fi
 
 # Cleanup
 rm -f "$_timing_log"
