@@ -227,20 +227,17 @@ CHANGED_FILES=$(git diff --name-only)
 
 5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.
 
-## Step 1.75: Plugin Tests (Conditional)
+## Step 1.75: Plugin Tests
 
-Run plugin tests when workflow files or project scripts have changed. This catches broken hooks and scripts before review, avoiding wasted review cycles on a broken commit.
+Run plugin tests to catch broken hooks and scripts before review. This gate is mandatory — config masking (`.conf` files hiding YAML parser bugs) can cause changes to pass locally but fail in CI where only YAML is available.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-if git diff HEAD --name-only | bash "$REPO_ROOT/lockpick-workflow/scripts/check-plugin-test-needed.sh"; then
-    cd "$REPO_ROOT" && make test-plugin
-fi
+cd "$REPO_ROOT" && make test-plugin
 ```
 
-- **No pattern matches**: Exit silently. Continue to Step 2.
-- **Pattern matches, tests pass**: Continue to Step 2.
-- **Pattern matches, tests fail**: See Test Failure Delegation (Step 1.75) below.
+- **Tests pass**: Continue to Step 2.
+- **Tests fail**: See Test Failure Delegation (Step 1.75) below.
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1.75-plugin-tests" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"

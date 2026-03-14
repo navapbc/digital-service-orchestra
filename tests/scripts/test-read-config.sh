@@ -385,4 +385,87 @@ if [[ "$FAIL" -eq "$_fail_before_lwf" ]]; then
     echo "test_read_config_list_without_flag_errors ... PASS"
 fi
 
+# ── YAML-isolation smoke tests ────────────────────────────────────────────────
+# These tests run against a YAML-only temp directory (no .conf sibling) to
+# verify the Python/pyyaml parser handles lists, nesting, and malformed YAML
+# correctly when the .conf fallback is unavailable. This is the exact scenario
+# that caused 22 CI failures when config masking hid YAML parser bugs locally.
+
+YAML_ONLY_DIR="$(mktemp -d)"
+
+# Write a YAML config with lists and nested sections — NO .conf sibling
+cat > "$YAML_ONLY_DIR/workflow-config.yaml" <<'YAML'
+commands:
+  test: make test-unit-only
+  lint: make lint-ruff
+tickets:
+  sync:
+    jira_project_key: LLD2L
+ci:
+  paths_ignore:
+    - "docs/**"
+    - "*.md"
+    - ".tickets/**"
+YAML
+
+# ── test_yaml_isolation_scalar ───────────────────────────────────────────────
+_fail_before_yis=$FAIL
+yis_exit=0
+yis_output=""
+yis_output=$(bash "$SCRIPT" "$YAML_ONLY_DIR/workflow-config.yaml" "commands.test" 2>&1) || yis_exit=$?
+assert_eq "test_yaml_isolation_scalar: exit 0" "0" "$yis_exit"
+assert_eq "test_yaml_isolation_scalar: correct value" "make test-unit-only" "$yis_output"
+if [[ "$FAIL" -eq "$_fail_before_yis" ]]; then
+    echo "test_yaml_isolation_scalar ... PASS"
+fi
+
+# ── test_yaml_isolation_3level_nesting ───────────────────────────────────────
+_fail_before_yi3=$FAIL
+yi3_exit=0
+yi3_output=""
+yi3_output=$(bash "$SCRIPT" "$YAML_ONLY_DIR/workflow-config.yaml" "tickets.sync.jira_project_key" 2>&1) || yi3_exit=$?
+assert_eq "test_yaml_isolation_3level_nesting: exit 0" "0" "$yi3_exit"
+assert_eq "test_yaml_isolation_3level_nesting: correct value" "LLD2L" "$yi3_output"
+if [[ "$FAIL" -eq "$_fail_before_yi3" ]]; then
+    echo "test_yaml_isolation_3level_nesting ... PASS"
+fi
+
+# ── test_yaml_isolation_list ─────────────────────────────────────────────────
+_fail_before_yil=$FAIL
+yil_exit=0
+yil_output=""
+yil_output=$(bash "$SCRIPT" --list ci.paths_ignore "$YAML_ONLY_DIR/workflow-config.yaml" 2>&1) || yil_exit=$?
+assert_eq "test_yaml_isolation_list: exit 0" "0" "$yil_exit"
+expected_yil="docs/**
+*.md
+.tickets/**"
+assert_eq "test_yaml_isolation_list: correct items" "$expected_yil" "$yil_output"
+if [[ "$FAIL" -eq "$_fail_before_yil" ]]; then
+    echo "test_yaml_isolation_list ... PASS"
+fi
+
+# ── test_yaml_isolation_malformed ────────────────────────────────────────────
+YAML_MALFORMED_DIR="$(mktemp -d)"
+cat > "$YAML_MALFORMED_DIR/workflow-config.yaml" <<'YAML'
+key: [unclosed bracket
+  bad: : indentation ::
+YAML
+
+_fail_before_yim=$FAIL
+yim_exit=0
+yim_output=""
+yim_output=$(bash "$SCRIPT" "$YAML_MALFORMED_DIR/workflow-config.yaml" "key" 2>&1) || yim_exit=$?
+if [[ "$yim_exit" -ne 0 ]]; then
+    actual_yim_exit="nonzero"
+else
+    actual_yim_exit="zero"
+fi
+assert_eq "test_yaml_isolation_malformed: exits nonzero" "nonzero" "$actual_yim_exit"
+assert_contains "test_yaml_isolation_malformed: error message" "malformed" "$yim_output"
+if [[ "$FAIL" -eq "$_fail_before_yim" ]]; then
+    echo "test_yaml_isolation_malformed ... PASS"
+fi
+
+rm -rf "$YAML_ONLY_DIR" "$YAML_MALFORMED_DIR"
+
 print_summary
