@@ -208,6 +208,104 @@ test_sprint_review_no_unguarded_removed_plugins() {
 
 test_sprint_review_no_unguarded_removed_plugins
 
+# ── Test: No unguarded plugin refs in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md ──
+# Ensures workflow docs do not hard-code removed plugin agent types as dispatch
+# targets. These should use routing category references via discover-agents.sh
+# and agent-routing.conf instead. error-debugging:error-detective is exempt
+# (core agent, not a removed plugin).
+
+test_workflow_docs_no_unguarded_removed_plugins() {
+    echo ""
+    echo "=== test-no-unguarded-plugin-refs (commit-workflow + test-failure-dispatch) ==="
+
+    local commit_file="$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md"
+    local dispatch_file="$REPO_ROOT/lockpick-workflow/docs/workflows/TEST-FAILURE-DISPATCH.md"
+    # Only the 3 removed plugins referenced in these docs as dispatch targets
+    local removed_dispatch_plugins=("unit-testing" "debugging-toolkit" "code-simplifier")
+
+    # Test: COMMIT-WORKFLOW.md exists
+    echo "Test: COMMIT-WORKFLOW.md exists"
+    if [[ -f "$commit_file" ]]; then
+        echo "  PASS: COMMIT-WORKFLOW.md exists"
+        (( PASS++ ))
+    else
+        echo "  FAIL: COMMIT-WORKFLOW.md not found at $commit_file" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: TEST-FAILURE-DISPATCH.md exists
+    echo "Test: TEST-FAILURE-DISPATCH.md exists"
+    if [[ -f "$dispatch_file" ]]; then
+        echo "  PASS: TEST-FAILURE-DISPATCH.md exists"
+        (( PASS++ ))
+    else
+        echo "  FAIL: TEST-FAILURE-DISPATCH.md not found at $dispatch_file" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: No removed plugin dispatch targets in COMMIT-WORKFLOW.md
+    for plugin in "${removed_dispatch_plugins[@]}"; do
+        echo "Test: No '${plugin}:' dispatch target in COMMIT-WORKFLOW.md"
+        local commit_matches
+        commit_matches=$(grep -c "${plugin}:" "$commit_file" 2>/dev/null || true)
+        if [[ "$commit_matches" -eq 0 ]]; then
+            echo "  PASS: No '${plugin}:' references in COMMIT-WORKFLOW.md"
+            (( PASS++ ))
+        else
+            echo "  FAIL: Found $commit_matches '${plugin}:' reference(s) in COMMIT-WORKFLOW.md" >&2
+            grep -n "${plugin}:" "$commit_file" >&2
+            (( FAIL++ ))
+        fi
+    done
+
+    # Test: No removed plugin dispatch targets in TEST-FAILURE-DISPATCH.md
+    for plugin in "${removed_dispatch_plugins[@]}"; do
+        echo "Test: No '${plugin}:' dispatch target in TEST-FAILURE-DISPATCH.md"
+        local dispatch_matches
+        dispatch_matches=$(grep -c "${plugin}:" "$dispatch_file" 2>/dev/null || true)
+        if [[ "$dispatch_matches" -eq 0 ]]; then
+            echo "  PASS: No '${plugin}:' references in TEST-FAILURE-DISPATCH.md"
+            (( PASS++ ))
+        else
+            echo "  FAIL: Found $dispatch_matches '${plugin}:' reference(s) in TEST-FAILURE-DISPATCH.md" >&2
+            grep -n "${plugin}:" "$dispatch_file" >&2
+            (( FAIL++ ))
+        fi
+    done
+
+    # Test: error-debugging:error-detective preserved in COMMIT-WORKFLOW.md
+    echo "Test: error-debugging:error-detective preserved in COMMIT-WORKFLOW.md"
+    if grep -q 'error-debugging:error-detective' "$commit_file"; then
+        echo "  PASS: error-debugging:error-detective present in COMMIT-WORKFLOW.md"
+        (( PASS++ ))
+    else
+        echo "  FAIL: error-debugging:error-detective missing from COMMIT-WORKFLOW.md" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: error-debugging:error-detective preserved in TEST-FAILURE-DISPATCH.md
+    echo "Test: error-debugging:error-detective preserved in TEST-FAILURE-DISPATCH.md"
+    if grep -q 'error-debugging:error-detective' "$dispatch_file"; then
+        echo "  PASS: error-debugging:error-detective present in TEST-FAILURE-DISPATCH.md"
+        (( PASS++ ))
+    else
+        echo "  FAIL: error-debugging:error-detective missing from TEST-FAILURE-DISPATCH.md" >&2
+        (( FAIL++ ))
+    fi
+
+    # Test: Routing system referenced in COMMIT-WORKFLOW.md
+    echo "Test: Routing system referenced in COMMIT-WORKFLOW.md"
+    if grep -qE 'discover-agents\.sh|routing category|agent-routing\.conf' "$commit_file"; then
+        echo "  PASS: Routing system references found in COMMIT-WORKFLOW.md"
+        (( PASS++ ))
+    else
+        echo "  FAIL: No routing system references in COMMIT-WORKFLOW.md" >&2
+        (( FAIL++ ))
+    fi
+}
+
+test_workflow_docs_no_unguarded_removed_plugins
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -95,9 +95,9 @@ The orchestrator extracts the `RESULT` line to decide the next action:
 
 | Failure Category | Sub-Agent Type | Prompt Path |
 |-----------------|----------------|-------------|
-| Unit test failure (assertion, runtime error) | `unit-testing:debugger` | TDD path in `test-failure-fix.md` |
-| Type error (mypy) | `debugging-toolkit:debugger` | Mechanical path in `test-failure-fix.md` |
-| Lint violation (ruff) | `code-simplifier:code-simplifier` | Mechanical path in `test-failure-fix.md` |
+| Unit test failure (assertion, runtime error) | Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`) | TDD path in `test-failure-fix.md` |
+| Type error (mypy) | Resolve via `discover-agents.sh` routing category `mechanical_fix` (see `agent-routing.conf`) | Mechanical path in `test-failure-fix.md` |
+| Lint violation (ruff) | Resolve via `discover-agents.sh` routing category `code_simplify` (see `agent-routing.conf`) | Mechanical path in `test-failure-fix.md` |
 | Multi-file / complex (cross-module, CI-only) | `error-debugging:error-detective` | TDD path in `test-failure-fix.md` |
 
 ## Prompt Template Selection
@@ -195,9 +195,9 @@ Select model:
   |
   v
 Select subagent_type:
-  - Unit test failure --> unit-testing:debugger
-  - Type error --> debugging-toolkit:debugger
-  - Lint violation --> code-simplifier:code-simplifier
+  - Unit test failure --> resolve via discover-agents.sh routing category test_fix_unit
+  - Type error --> resolve via discover-agents.sh routing category mechanical_fix
+  - Lint violation --> resolve via discover-agents.sh routing category code_simplify
   - Multi-file / complex --> error-debugging:error-detective
   |
   v
