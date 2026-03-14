@@ -46,6 +46,17 @@ Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 1
 
 ---
 
+## Epic Lifecycle
+
+`/debug-everything` creates a "Project Health Restoration" epic to track all discovered bugs for a session. The epic follows this lifecycle:
+
+1. **Creation** (Phase 2): The triage sub-agent creates the epic via `/brainstorm` and sets all discovered issues as children via `tk parent <issue-id> <epic-id>`.
+2. **Resume** (Phase 1, on re-entry): If a "Project Health Restoration" epic already exists from a previous session, it is reused — no new epic is created. New issues are added as children of the existing epic.
+3. **Closure on success** (Phase 9, "On Success"): When all checks pass and zero open bugs remain, the epic is closed with `tk close <epic-id>` after adding a "Health restored." note.
+4. **Left open on graceful shutdown** (Phase 9, "On Graceful Shutdown"): When the session shuts down with work remaining, the epic is left open with a summary note listing resolved vs. remaining issues. The next session resumes it.
+
+---
+
 ## Phase 1: Full Diagnostic Scan + Clustering (/debug-everything)
 
 Run ALL diagnostic checks and cluster related failures. The orchestrator runs only Step 1 (session lock). Everything else is delegated.
@@ -860,7 +871,15 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
    ```bash
    tk add-note <id> "Session shutdown. Progress: <summary>. Next: <what remains>."
    ```
-6. Commit partial work and proceed to **Phase 10** (Merge to Main & Verify). After Phase 10 completes successfully, check context usage:
+6. Update the epic with remaining work summary:
+   ```bash
+   # List remaining open children
+   tk children <epic-id>
+   # Add a note summarizing what remains
+   tk add-note <epic-id> "Graceful shutdown. Resolved: <N resolved>/<M total> issues. Remaining open: <list IDs and titles>. Next session should resume with tk ready."
+   ```
+   The epic stays open so the next `/debug-everything` session can resume it (see [Epic Lifecycle](#epic-lifecycle)).
+7. Commit partial work and proceed to **Phase 10** (Merge to Main & Verify). After Phase 10 completes successfully, check context usage:
    - If context usage <70% AND remaining open bugs exist: return to **Phase 2** (continue fixing — do NOT go to Phase 11)
    - If context usage ≥70% OR no remaining bugs: proceed to **Phase 11** (/end-session)
 

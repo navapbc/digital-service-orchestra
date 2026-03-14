@@ -77,7 +77,14 @@ import sys, re, json
 content = sys.stdin.read()
 # Extract title from first # heading
 title_match = re.search(r'^# (.+)', content, re.MULTILINE)
-obj = {'id': sys.argv[1], 'title': title_match.group(1) if title_match else '', 'raw': content}
+# Extract type from YAML front-matter (e.g. 'type: bug')
+type_match = re.search(r'^type:\s*(\S+)', content, re.MULTILINE)
+obj = {
+    'id': sys.argv[1],
+    'title': title_match.group(1) if title_match else '',
+    'task_type': type_match.group(1) if type_match else '',
+    'raw': content,
+}
 print(json.dumps(obj))
 " "$task_id" 2>/dev/null || echo "{\"id\":\"$task_id\",\"error\":\"Parse error\"}" )
     fi

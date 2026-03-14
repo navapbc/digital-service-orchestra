@@ -99,6 +99,25 @@ def compute_complexity(passing_profile_count: int, blocks_count: int, descriptio
     return "high" if signals_true >= 2 else "low"
 
 
+def _is_bug_type(task: dict) -> bool:
+    """Check if task is a bug-type ticket.
+
+    Checks the task_type field (from structured input) and also falls back
+    to scanning the raw ticket content for the YAML front-matter 'type: bug'.
+    """
+    task_type = task.get("task_type", "")
+    if task_type == "bug":
+        return True
+    # Fall back to checking raw content for front-matter type field
+    raw = task.get("raw", "")
+    if raw:
+        for line in raw.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("type:") and "bug" in stripped:
+                return True
+    return False
+
+
 def classify_task(task: dict, profiles: list[dict]) -> dict:
     """Classify a single task against all profiles and return enriched dict."""
     title = task.get("title", "")
@@ -106,6 +125,7 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
     acceptance_criteria = task.get("acceptance_criteria", "")
     blocks = task.get("blocks", 0)
     blocks_count = len(blocks) if isinstance(blocks, list) else int(blocks or 0)
+    is_bug = _is_bug_type(task)
 
     text = (title + " " + description + " " + acceptance_criteria).lower()
 
@@ -131,6 +151,11 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
         ),
         reverse=True,
     )
+
+    # Bug-type tasks must never be routed to read-only agents.
+    # Filter out read-only profiles when the task is a bug.
+    if is_bug:
+        passing = [p for p in passing if not p.get("read_only", False)]
 
     complexity = compute_complexity(len(passing), blocks_count, description)
 
@@ -203,6 +228,7 @@ def run_test(profiles_dir: Path) -> int:
             "description": case.get("description", ""),
             "acceptance_criteria": case.get("acceptance_criteria", ""),
             "blocks": case.get("blocks", 0),
+            "task_type": case.get("task_type", ""),
         }
 
         result = classify_task(task, profiles)

@@ -407,6 +407,32 @@ cmd_close() {
         cmd_add_note "$id" "CLOSE REASON: $reason"
     fi
     cmd_status "$id" "closed"
+
+    # Warn if pre-commit hooks may fail due to missing venv.
+    # This prevents silent partial-close where the file is updated locally
+    # but git commit fails, leaving main out of sync.
+    _warn_if_venv_absent "$id"
+}
+
+# Prints a warning to stderr if the Python venv is absent, which means
+# pre-commit hooks (ruff, mypy) will fail on git commit.
+# Accepts TK_REPO_ROOT env var override for testing.
+_warn_if_venv_absent() {
+    local id="$1"
+    local repo_root="${TK_REPO_ROOT:-}"
+    if [[ -z "$repo_root" ]]; then
+        repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    fi
+    [[ -n "$repo_root" ]] || return 0
+
+    local venv_python="$repo_root/app/.venv/bin/python"
+    if [[ ! -x "$venv_python" ]]; then
+        echo "WARNING: Python venv not found at app/.venv/bin/python" >&2
+        echo "  Pre-commit hooks may fail when committing this change." >&2
+        echo "  To complete the close, commit manually or run:" >&2
+        echo "    merge-to-main.sh   (in worktree sessions)" >&2
+        echo "    git add .tickets/${id}.md && git commit" >&2
+    fi
 }
 
 cmd_reopen() {
