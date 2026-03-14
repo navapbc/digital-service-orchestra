@@ -33,15 +33,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Source shared dependency library for try_start_docker, try_find_python, check_tool
-# Support CLAUDE_PLUGIN_ROOT fallback pattern for plugin consumers
 _HOOK_LIB=""
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
+if [[ -f "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
     _HOOK_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-elif [[ -f "$SCRIPT_DIR/../hooks/lib/deps.sh" ]]; then
-    _HOOK_LIB="$SCRIPT_DIR/../hooks/lib/deps.sh"
 elif [[ -f "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh" ]]; then
     _HOOK_LIB="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 fi
@@ -55,8 +53,6 @@ fi
 # test skeleton that has no venv (avoids "no python3 with pyyaml" errors in tests).
 if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
     for _py_candidate in \
-        "$SCRIPT_DIR/../../app/.venv/bin/python3" \
-        "$SCRIPT_DIR/../../../app/.venv/bin/python3" \
         "$REPO_ROOT/app/.venv/bin/python3" \
         "$REPO_ROOT/.venv/bin/python3" \
         "python3"; do

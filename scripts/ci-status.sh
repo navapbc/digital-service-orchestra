@@ -217,11 +217,13 @@ parse_phase_ceilings() {
     # Locate ci.yml relative to this script (works from worktree or main repo)
     local script_dir
     script_dir="$(cd "$(dirname "$0")" && pwd)"
+    local _ci_repo_root
+    _ci_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
     local candidate
     for candidate in \
-        "$script_dir/../../.github/workflows/ci.yml" \
-        "$script_dir/../../../.github/workflows/ci.yml"
+        "${_ci_repo_root:+$_ci_repo_root/.github/workflows/ci.yml}"
     do
+        [[ -z "$candidate" ]] && continue
         if [ -f "$candidate" ]; then
             yaml="$(cd "$(dirname "$candidate")" && pwd)/$(basename "$candidate")"
             break
