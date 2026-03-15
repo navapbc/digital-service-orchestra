@@ -58,6 +58,10 @@ KNOWN_KEYS=(
     commands.env_check_app
     commands.test_e2e
     commands.test_visual
+    commands.syntax_check
+    commands.lint_ruff
+    commands.lint_mypy
+    commands.test_plugin
 
     # Database
     database.base_port

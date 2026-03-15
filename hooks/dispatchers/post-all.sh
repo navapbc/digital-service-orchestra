@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/post-all.sh
-# PostToolUse catch-all dispatcher: placeholder after tool-logging removal.
-# No catch-all post-hooks remain. Kept for future hooks.
+# PostToolUse catch-all dispatcher: timing instrumentation for all tools.
+# No blocking post-hooks. Kept for timing support.
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -18,9 +18,16 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
-# Cache REPO_ROOT once for all hooks (avoids redundant git rev-parse calls)
-export REPO_ROOT
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+# macOS-compatible millisecond timestamp (date +%s%N unavailable on macOS)
+_get_ms() {
+    local _ns
+    _ns=$(date +%s%N 2>/dev/null) || _ns=""
+    if [[ -n "$_ns" && "$_ns" != *N* ]]; then
+        echo $(( _ns / 1000000 ))
+    else
+        python3 -c 'import time;print(int(time.time()*1e3))' 2>/dev/null || echo 0
+    fi
+}
 
 # Source the dispatcher framework (provides run_hooks)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
@@ -30,7 +37,16 @@ _post_all_dispatch() {
     local INPUT
     INPUT=$(cat)
 
-    # No catch-all post-hooks remain. Kept for future hooks.
+    # Per-call timing (enabled by ~/.claude/hook-timing-enabled)
+    if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
+        local _end
+        _end=$(_get_ms)
+        local _tool_name
+        _tool_name=$(parse_json_field "$INPUT" '.tool_name' 2>/dev/null || echo "unknown")
+        printf '%s\tpost-all\t%s\t%s\n' \
+            "$(date +%H:%M:%S)" "$_tool_name" "${_end}ms" \
+            >> "${HOOK_TIMING_LOG:-/tmp/hook-timing.log}" 2>/dev/null
+    fi
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

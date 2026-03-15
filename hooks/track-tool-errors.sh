@@ -53,7 +53,7 @@ fi
 
 # --- Initialize counter file if missing ---
 if [[ ! -f "$COUNTER_FILE" ]]; then
-    echo '{"index":{},"errors":[],"bugs_created":{}}' > "$COUNTER_FILE"
+    echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"
 fi
 
 # --- Categorize the error via pattern matching ---
@@ -94,12 +94,12 @@ INPUT_SUMMARY="$TOOL_NAME: $(json_summarize_input "$TOOL_INPUT" 2>/dev/null | he
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # --- Update counter file ---
-COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[],"bugs_created":{}}')
+COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[]}')
 
 # Guard against malformed JSON or missing .errors field before mutation
 _VALID=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'errors' in d" <<< "$COUNTER_DATA" 2>/dev/null && echo "ok" || echo "bad")
 if [[ "$_VALID" != "ok" ]]; then
-    COUNTER_DATA='{"index":{},"errors":[],"bugs_created":{}}'
+    COUNTER_DATA='{"index":{},"errors":[]}'
 fi
 
 # Append error detail and increment index count in a single python3 call
@@ -144,9 +144,43 @@ fi
 
 # Notify at threshold and each subsequent multiple to avoid spamming
 if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" ]] && (( CURRENT_COUNT % THRESHOLD == 0 )); then
-    # Notify via hook output (becomes a system reminder)
-    _HOOK_HAS_OUTPUT=1
-    echo "Recurring tool error detected: '$CATEGORY' has occurred $CURRENT_COUNT times (threshold: $THRESHOLD). Review: $COUNTER_FILE"
+    # Check if a bug has already been created for this category at this threshold
+    _ALREADY_BUGGED=$(python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read())
+cat=sys.argv[1]
+cnt=int(sys.argv[2])
+bugs=d.get('bugs_created',{})
+# Check if already reported at this threshold level
+key=cat
+if key in bugs:
+    print('yes')
+else:
+    print('no')
+" "$CATEGORY" "$CURRENT_COUNT" <<< "$COUNTER_DATA" 2>/dev/null || echo "no")
+
+    if [[ "$_ALREADY_BUGGED" != "yes" ]]; then
+        # Create a bug ticket via tk
+        _BUG_ID=""
+        if command -v tk >/dev/null 2>&1; then
+            _BUG_ID=$(tk create "Recurring tool error: $CATEGORY ($CURRENT_COUNT occurrences)" -t bug -p 2 2>/dev/null | grep -oE '[a-z]+-[0-9]+' | head -1 || echo "")
+        fi
+
+        # Record in bugs_created to avoid duplicate tickets
+        COUNTER_DATA=$(python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read())
+cat=sys.argv[1]
+bug_id=sys.argv[2] if len(sys.argv) > 2 else 'created'
+d.setdefault('bugs_created',{})[cat] = bug_id if bug_id else 'created'
+print(json.dumps(d))
+" "$CATEGORY" "${_BUG_ID:-created}" <<< "$COUNTER_DATA" 2>/dev/null || echo "$COUNTER_DATA")
+        echo "$COUNTER_DATA" > "$COUNTER_FILE"
+
+        # Notify via hook output (becomes a system reminder)
+        _HOOK_HAS_OUTPUT=1
+        echo "Recurring tool error detected: '$CATEGORY' has occurred $CURRENT_COUNT times. Bug ticket created. Review: $COUNTER_FILE"
+    fi
 fi
 
 exit 0

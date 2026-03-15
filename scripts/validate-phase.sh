@@ -26,7 +26,7 @@ if [ -z "$REPO_ROOT" ]; then
 fi
 
 # Source config-paths.sh for portable path resolution
-_CONFIG_PATHS="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
 if [ -f "$_CONFIG_PATHS" ]; then
     # shellcheck source=../hooks/lib/config-paths.sh
     source "$_CONFIG_PATHS"

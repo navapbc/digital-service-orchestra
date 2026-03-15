@@ -383,6 +383,22 @@ print(json.dumps(idx))
 " 2>/dev/null || echo "{}"
 }
 
+# Rebuild the full index from all .md files in TICKETS_DIR and write atomically.
+# Usage: tk index-rebuild
+cmd_index_rebuild() {
+    ensure_dir
+    local index_file="$TICKETS_DIR/.index.json"
+    local tmp_file="${index_file}.tmp"
+    local full_index
+    full_index=$(_tk_build_full_index)
+    # Write indented JSON for readability, atomically
+    echo "$full_index" | python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+print(json.dumps(data, indent=2, sort_keys=True))
+" > "$tmp_file" && mv "$tmp_file" "$index_file"
+}
+
 cmd_create() {
     ensure_dir
 
@@ -4509,7 +4525,7 @@ _SYNC_WATCHDOG_PID=""   # Global — watchdog PID for cleanup in traps
 
 SYNC_LOCK_CAS_REF="refs/tk/sync-lock"
 SYNC_LOCK_STALE_THRESHOLD=1800      # 30 minutes
-SYNC_LOCK_ACQUIRE_TIMEOUT=300       # 5 minutes total
+SYNC_LOCK_ACQUIRE_TIMEOUT=30        # 30 seconds default (override via --lock-timeout=N or JIRA_SYNC_TIMEOUT_SECONDS env)
 SYNC_LOCK_INITIAL_BACKOFF_V2=1      # seconds
 SYNC_LOCK_MAX_BACKOFF_V2=30         # seconds max backoff
 _HELD_LOCK_SHA=""                    # Global — set by acquire_v2, read by release_v2
@@ -5014,6 +5030,17 @@ cmd_sync() {
     local break_lock=0
     local arg
 
+    # Apply JIRA_SYNC_TIMEOUT_SECONDS env override before flag parsing.
+    # --lock-timeout=N (parsed below) takes precedence over this env var.
+    if [[ -n "${JIRA_SYNC_TIMEOUT_SECONDS:-}" ]]; then
+        if [[ "$JIRA_SYNC_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] && [[ "$JIRA_SYNC_TIMEOUT_SECONDS" -gt 0 ]]; then
+            SYNC_LOCK_ACQUIRE_TIMEOUT="$JIRA_SYNC_TIMEOUT_SECONDS"
+            SYNC_TIMEOUT_SECONDS="$JIRA_SYNC_TIMEOUT_SECONDS"
+        else
+            echo "Warning: JIRA_SYNC_TIMEOUT_SECONDS='${JIRA_SYNC_TIMEOUT_SECONDS}' is not a positive integer — using default ${SYNC_LOCK_ACQUIRE_TIMEOUT}s" >&2
+        fi
+    fi
+
     # Parse flags
     for arg in "$@"; do
         case "$arg" in
@@ -5336,6 +5363,7 @@ Commands:
     --break-lock           Interactively break a stuck sync lock (CAS-guarded)
     --lock-timeout=N       Override lock acquire/sync timeout to N seconds
     --full                 Bypass incremental logic; perform full push+pull reconciliation
+  index-rebuild            Rebuild .index.json from all ticket files (full scan, atomic write)
   super <cmd> [args]       Bypass plugins, run built-in command directly
 
 Aliases:
@@ -5436,6 +5464,7 @@ case "${1:-help}" in
     enumerate-notes) shift; cmd_enumerate_notes "$@" ;;
     sync)    shift; cmd_sync "$@" ;;
     backfill-jira-keys) shift; cmd_backfill_jira_keys "$@" ;;
+    index-rebuild) shift; cmd_index_rebuild "$@" ;;
     help|--help|-h) cmd_help ;;
     *)
         echo "Unknown command: $1" >&2

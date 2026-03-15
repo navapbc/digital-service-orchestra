@@ -5,11 +5,10 @@ Errors are logged to `~/.claude/tool-error-counter.json`.
 
 ## Counter File Format
 
-The counter file has three sections:
+The counter file has two sections:
 
 1. **index** — Category names with occurrence counts (the "at a glance" view)
 2. **errors** — Full details of every error observed
-3. **bugs_created** — Categories that have reached the threshold and had a ticket bug filed
 
 ```json
 {
@@ -19,10 +18,7 @@ The counter file has three sections:
   },
   "errors": [
     { "...see Error Detail below..." }
-  ],
-  "bugs_created": {
-    "command_exit_nonzero": "w20-a1b2"
-  }
+  ]
 }
 ```
 
@@ -71,23 +67,20 @@ Each entry in the `errors` array must include these fields:
 
 New categories are created by Haiku when existing ones don't fit. Always use snake_case.
 
-## Bug Creation Threshold
+## Threshold Notification
 
-When any category reaches **10** occurrences, a ticket bug is automatically created via `tk create`.
-The bug ID is recorded in `bugs_created` to prevent duplicates. Only one bug per category.
+When any category reaches **50** occurrences, a notification is emitted via hook output.
+Notifications repeat at each subsequent multiple of 50.
 
 ## Manual Operations
 
 ```bash
 # View the error index
-jq '.index' ~/.claude/tool-error-counter.json
+python3 -c "import json; print(json.dumps(json.load(open('$HOME/.claude/tool-error-counter.json'))['index'], indent=2))"
 
 # View errors for a specific category
-jq '.errors[] | select(.category == "file_not_found")' ~/.claude/tool-error-counter.json
+python3 -c "import json; [print(json.dumps(e, indent=2)) for e in json.load(open('$HOME/.claude/tool-error-counter.json'))['errors'] if e['category']=='file_not_found']"
 
 # Reset the counter (start fresh)
 rm ~/.claude/tool-error-counter.json
-
-# View bugs that have been auto-created
-jq '.bugs_created' ~/.claude/tool-error-counter.json
 ```

@@ -15,7 +15,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
@@ -47,8 +47,6 @@ _test_dir=$(mktemp -d)
 _CLEANUP_DIRS+=("$_test_dir")
 mkdir -p "$_test_dir/.claude"
 _test_log="$_test_dir/.claude/hook-error-log.jsonl"
-_test_bugs_dir="$_test_dir/.claude/hook-error-bugs"
-
 # Create 12 recent error entries for the same hook (exceeds threshold of 10)
 _now_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 for i in $(seq 1 12); do

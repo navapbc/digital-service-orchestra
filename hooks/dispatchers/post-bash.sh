@@ -9,7 +9,8 @@
 #   1. hook_exit_144_forensic_logger
 #   2. (removed: hook_check_validation_failures — created spurious tickets from stale validation state)
 #   3. hook_track_cascade_failures
-#   4. hook_tool_logging_post
+#
+# Removed (optimization): logging hook (moved to all-tools dispatcher)
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -53,7 +54,6 @@ _post_bash_dispatch() {
 
     _run_post_fn hook_exit_144_forensic_logger "$INPUT"
     _run_post_fn hook_track_cascade_failures "$INPUT"
-    _run_post_fn hook_tool_logging_post "$INPUT"
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

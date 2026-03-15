@@ -81,7 +81,7 @@ fi
 # Source config-paths.sh for CFG_PYTHON_VENV (guard against circular sourcing:
 # config-paths.sh calls _cfg_read() which invokes read-config.sh as a subprocess)
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_config_paths="$_script_dir/../hooks/lib/config-paths.sh"
+_config_paths="${CLAUDE_PLUGIN_ROOT:-$_script_dir/..}/hooks/lib/config-paths.sh"
 if [[ -z "${_READ_CONFIG_IN_PROGRESS:-}" && -f "$_config_paths" ]]; then
     export _READ_CONFIG_IN_PROGRESS=1
     source "$_config_paths"
@@ -93,10 +93,12 @@ PYTHON="${CLAUDE_PLUGIN_PYTHON:-}"
 if [[ -z "$PYTHON" ]]; then
     # Derive actual repo root from script location (not necessarily CLAUDE_PLUGIN_ROOT)
     _actual_repo_root="$(cd "$_script_dir" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
+    # CFG_PYTHON_VENV and CFG_APP_DIR are set by config-paths.sh (sourced above)
+    _py_venv="${CFG_PYTHON_VENV:-${CFG_APP_DIR:-app}/.venv/bin/python3}"
     for candidate in \
-        "${_actual_repo_root:+$_actual_repo_root/$CFG_PYTHON_VENV}" \
+        "${_actual_repo_root:+$_actual_repo_root/$_py_venv}" \
         "${_actual_repo_root:+$_actual_repo_root/.venv/bin/python3}" \
-        "${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/$CFG_PYTHON_VENV}" \
+        "${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/$_py_venv}" \
         "python3"; do
         [[ -z "$candidate" ]] && continue
         [[ "$candidate" != "python3" ]] && [[ ! -f "$candidate" ]] && continue

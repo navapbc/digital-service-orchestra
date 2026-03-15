@@ -16,7 +16,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 SKILL_MD="$REPO_ROOT/lockpick-workflow/skills/quick-ref/SKILL.md"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"

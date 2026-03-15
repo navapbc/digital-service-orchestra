@@ -23,7 +23,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/retro-gather.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"

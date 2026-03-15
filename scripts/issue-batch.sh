@@ -42,7 +42,7 @@ if [ -z "$REPO_ROOT" ]; then
 fi
 
 # Source config-paths.sh for CFG_APP_DIR
-_batch_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+_batch_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
 [[ -f "$_batch_config_paths" ]] && source "$_batch_config_paths"
 
 # Resolve Python — prefer poetry env for PyYAML (used by classify-task.py)

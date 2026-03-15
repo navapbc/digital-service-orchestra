@@ -170,6 +170,13 @@ for category in "${FAILED_CATEGORIES[@]}"; do
     {
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) | UNTRACKED | $category | logfile: ${LOGFILE:-unknown}"
     } >> "$UNTRACKED_LOG" 2>/dev/null || true
+
+    # Auto-create a bug ticket for the untracked failure
+    if command -v tk >/dev/null 2>&1; then
+        _ticket_title="Fix $category failure"
+        tk create "$_ticket_title" -t bug -p 2 >/dev/null 2>/dev/null || true
+    fi
+
     UNTRACKED+=("$category")
 done
 

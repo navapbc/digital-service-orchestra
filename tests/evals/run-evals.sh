@@ -39,7 +39,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$REPO_ROOT" ]]; then
     # Fallback: assume script is at lockpick-workflow/tests/evals/ inside the repo
-    REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+    REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 fi
 
 # evals.json path: first arg or default
@@ -78,12 +78,18 @@ for i in $(seq 0 $(( entry_count - 1 ))); do
         export "$key"="$val"
     done < <(echo "$entry" | jq -c '.setup.env // {} | to_entries[]' 2>/dev/null || true)
 
-    # Write state files if provided
+    # Write state files if provided (into a temp dir for test isolation)
     state_file_count=$(echo "$entry" | jq '.setup.state_files // {} | length')
     if [[ "$state_file_count" -gt 0 ]]; then
+        _state_tmp=$(mktemp -d "${TMPDIR:-/tmp}/evals-state-XXXXXX")
+        _CLEANUP_DIRS+=("$_state_tmp")
         while IFS= read -r sf_pair; do
             sf_path=$(echo "$sf_pair" | jq -r '.key')
             sf_content=$(echo "$sf_pair" | jq -r '.value')
+            # Resolve relative paths into temp dir to avoid worktree writes
+            if [[ "$sf_path" != /* ]]; then
+                sf_path="$_state_tmp/$sf_path"
+            fi
             sf_dir=$(dirname "$sf_path")
             mkdir -p "$sf_dir"
             printf '%s' "$sf_content" > "$sf_path"

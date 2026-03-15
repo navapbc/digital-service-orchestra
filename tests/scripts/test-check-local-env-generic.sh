@@ -21,7 +21,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # REVIEW-DEFENSE: This path points to the future canonical script location inside the
 # workflow plugin. The test is intentionally RED — it will pass only after task
 # lockpick-doc-to-logic-sn0y creates the canonical script at this path. Per TDD workflow,

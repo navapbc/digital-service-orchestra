@@ -63,10 +63,9 @@ assert_eq "test_session_safety_output_empty_below_threshold" "" "$OUTPUT"
 # Clean up for next test
 rm -f "$HOOK_ERROR_LOG"
 
-# test_session_safety_creates_tk_issue
+# test_session_safety_no_auto_ticket_creation
 # Stub tk in PATH. Create a hook-error-log.jsonl with 11 entries for one hook.
-# Assert tk create is called when threshold exceeded (>= 10 errors in 24h).
-# MUST FAIL in red phase because the hook calls bd create, not tk create.
+# Assert tk create is NOT called — auto-ticket-creation was removed (july).
 _SS_FAKE_BIN=$(mktemp -d)
 _SS_TK_LOG="$_SS_FAKE_BIN/tk.log"
 
@@ -82,35 +81,26 @@ for _i in $(seq 1 11); do
     printf '{"ts":"%s","hook":"auto-format.sh","line":42}\n' "$NOW" >> "$HOOK_ERROR_LOG"
 done
 
-_SS_BUGS_DIR="$TEST_HOME/.claude/hook-error-bugs"
-_SS_MARKER="$_SS_BUGS_DIR/auto-format.sh.bug"
-rm -f "$_SS_MARKER"
-
 TK_LOG="$_SS_TK_LOG" PATH="$_SS_FAKE_BIN:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
 
-# Check that tk create was called
+# Check that tk create was NOT called
 _SS_TK_CALLED="no"
 if [[ -f "$_SS_TK_LOG" ]] && grep -q "create" "$_SS_TK_LOG" 2>/dev/null; then
     _SS_TK_CALLED="yes"
 fi
-assert_eq "test_session_safety_creates_tk_issue" "yes" "$_SS_TK_CALLED"
+assert_eq "test_session_safety_no_auto_ticket_creation" "no" "$_SS_TK_CALLED"
 
 # Clean up
-rm -f "$HOOK_ERROR_LOG" "$_SS_MARKER"
+rm -f "$HOOK_ERROR_LOG"
 rm -rf "$_SS_FAKE_BIN"
 
-# test_session_safety_marker_written_before_tk_create
-# Even if tk create fails/times out, the marker file must exist to prevent
-# duplicate ticket creation on subsequent sessions. This was the root cause
-# of y86r: tk create timeout → no marker → duplicates every session.
+# test_session_safety_no_marker_files
+# With auto-ticket-creation removed, no marker files should be written.
 _SS_FAKE_BIN2=$(mktemp -d)
-_SS_TK_LOG2="$_SS_FAKE_BIN2/tk.log"
 
-# Mock tk that FAILS (simulates timeout / exit 144)
 cat > "$_SS_FAKE_BIN2/tk" << 'MOCK_EOF'
 #!/usr/bin/env bash
-echo "$@" >> "$TK_LOG"
-exit 1
+exit 0
 MOCK_EOF
 chmod +x "$_SS_FAKE_BIN2/tk"
 
@@ -120,20 +110,19 @@ for _i in $(seq 1 11); do
 done
 
 _SS_BUGS_DIR_MK="$TEST_HOME/.claude/hook-error-bugs"
-_SS_MARKER_MK="$_SS_BUGS_DIR_MK/auto-format.sh.bug"
-rm -f "$_SS_MARKER_MK"
+rm -rf "$_SS_BUGS_DIR_MK"
 
-TK_LOG="$_SS_TK_LOG2" PATH="$_SS_FAKE_BIN2:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+PATH="$_SS_FAKE_BIN2:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
 
-# Marker must exist even though tk create failed
-_SS_MARKER_EXISTS="no"
-if [[ -f "$_SS_MARKER_MK" ]]; then
-    _SS_MARKER_EXISTS="yes"
+# No marker directory or files should be created
+_SS_NO_MARKERS="yes"
+if [[ -d "$_SS_BUGS_DIR_MK" ]] && [[ -n "$(ls -A "$_SS_BUGS_DIR_MK" 2>/dev/null)" ]]; then
+    _SS_NO_MARKERS="no"
 fi
-assert_eq "test_session_safety_marker_written_before_tk_create" "yes" "$_SS_MARKER_EXISTS"
+assert_eq "test_session_safety_no_marker_files" "yes" "$_SS_NO_MARKERS"
 
 # Clean up
-rm -f "$HOOK_ERROR_LOG" "$_SS_MARKER_MK"
+rm -f "$HOOK_ERROR_LOG"
 rm -rf "$_SS_FAKE_BIN2"
 
 # ============================================================

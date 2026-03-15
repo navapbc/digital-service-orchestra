@@ -255,7 +255,6 @@ hook_inject_using_lockpick() {
 hook_session_safety_check() {
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
     local THRESHOLD=10
-    local BUGS_DIR="$HOME/.claude/hook-error-bugs"
 
     if [[ ! -f "$HOOK_ERROR_LOG" ]]; then
         return 0
@@ -296,8 +295,6 @@ for line in sys.stdin:
         return 0
     fi
 
-    mkdir -p "$BUGS_DIR" 2>/dev/null || return 0
-
     local WARNINGS=""
     while IFS= read -r line; do
         local COUNT HOOK_NAME
@@ -314,25 +311,6 @@ for line in sys.stdin:
 
         if (( COUNT >= THRESHOLD )); then
             WARNINGS="${WARNINGS}\n  - ${HOOK_NAME}: ${COUNT} errors in last 24h"
-
-            local MARKER="$BUGS_DIR/${HOOK_NAME}.bug"
-            if [[ ! -f "$MARKER" ]]; then
-                if command -v tk &>/dev/null; then
-                    # Write marker BEFORE tk create to prevent duplicates on timeout.
-                    # If tk create times out (exit 144), the ticket is created but the
-                    # ID is not captured — without this pre-write, no marker is saved
-                    # and every subsequent session creates another duplicate.
-                    echo "pending" > "$MARKER"
-                    local BUG_ID
-                    BUG_ID=$(tk create "Fix recurring hook errors: ${HOOK_NAME} (${COUNT} in 24h)" \
-                        -t bug -p 2 \
-                        -d "The hook '${HOOK_NAME}' has logged ${COUNT} errors in the last 24 hours (threshold: ${THRESHOLD}). Review ~/.claude/hook-error-log.jsonl for details. This bug was auto-created by session-safety-check." \
-                        2>/dev/null || echo '')
-                    if [[ -n "$BUG_ID" ]]; then
-                        echo "$BUG_ID" > "$MARKER"
-                    fi
-                fi
-            fi
         fi
     done <<< "$COUNTS"
 
@@ -343,7 +321,6 @@ for line in sys.stdin:
         echo -e "$WARNINGS"
         echo ""
         echo "Review: ~/.claude/hook-error-log.jsonl"
-        echo "Bugs have been auto-created for investigation."
     fi
 
     return 0
@@ -696,7 +673,7 @@ hook_track_tool_errors() {
     local THRESHOLD=50
 
     if [[ ! -f "$COUNTER_FILE" ]]; then
-        echo '{"index":{},"errors":[],"bugs_created":{}}' > "$COUNTER_FILE"
+        echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"
     fi
 
     local CATEGORY="" INPUT_SUMMARY=""
@@ -736,13 +713,13 @@ hook_track_tool_errors() {
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     local COUNTER_DATA
-    COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[],"bugs_created":{}}')
+    COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[]}')
 
     # Guard against malformed JSON
     local _VALID
     _VALID=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'errors' in d" <<< "$COUNTER_DATA" 2>/dev/null && echo "ok" || echo "bad")
     if [[ "$_VALID" != "ok" ]]; then
-        COUNTER_DATA='{"index":{},"errors":[],"bugs_created":{}}'
+        COUNTER_DATA='{"index":{},"errors":[]}'
     fi
 
     # Append error detail and increment index count in a single python3 call
@@ -771,9 +748,8 @@ print(json.dumps(data))
 
     echo "$COUNTER_DATA" > "$COUNTER_FILE"
 
-    local CURRENT_COUNT BUG_EXISTS
+    local CURRENT_COUNT
     CURRENT_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('index',{}).get(sys.argv[1],0))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo 0)
-    BUG_EXISTS=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('bugs_created',{}).get(sys.argv[1],'none'))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo "none")
 
     local NOISE_CATEGORIES="file_not_found command_exit_nonzero"
     local IS_NOISE=false
@@ -786,32 +762,8 @@ print(json.dumps(data))
         return 0
     fi
 
-    if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" && "$BUG_EXISTS" == "none" ]]; then
-        local BUG_ID=""
-        if command -v tk &>/dev/null; then
-            BUG_ID=$(tk create "Investigate recurring tool error: $CATEGORY ($CURRENT_COUNT occurrences)" \
-                -t bug -p 2 \
-                -d "The '$CATEGORY' tool error has been observed $CURRENT_COUNT times across sessions. Recent example: $TOOL_NAME failed with: $ERROR_MSG. Review full log: $COUNTER_FILE" \
-                2>/dev/null || echo '')
-        fi
-
-        if [[ -n "$BUG_ID" ]]; then
-            COUNTER_DATA=$(python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-data.setdefault('bugs_created', {})[sys.argv[1]] = sys.argv[2]
-print(json.dumps(data))
-" "$CATEGORY" "$BUG_ID" < "$COUNTER_FILE" 2>/dev/null || cat "$COUNTER_FILE")
-            echo "$COUNTER_DATA" > "$COUNTER_FILE"
-        fi
-
-        echo "Recurring tool error detected: '$CATEGORY' has occurred $CURRENT_COUNT times (threshold: $THRESHOLD)."
-        if [[ -n "$BUG_ID" ]]; then
-            echo "Bug created: $BUG_ID — investigate root cause before continuing."
-        else
-            echo "Failed to create bug automatically. Create one manually:"
-            echo "  tk create \"Investigate recurring tool error: $CATEGORY\" -t bug -p 2"
-        fi
+    if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" ]] && (( CURRENT_COUNT % THRESHOLD == 0 )); then
+        echo "Recurring tool error detected: '$CATEGORY' has occurred $CURRENT_COUNT times (threshold: $THRESHOLD). Review: $COUNTER_FILE"
     fi
 
     return 0

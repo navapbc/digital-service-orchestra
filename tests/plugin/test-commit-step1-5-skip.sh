@@ -8,7 +8,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 WORKFLOW_FILE="$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md"
 FIXTURE_CONFIG="$REPO_ROOT/lockpick-workflow/tests/fixtures/commit-workflow-skip/workflow-config-no-test-changed.yaml"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"

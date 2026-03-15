@@ -24,6 +24,25 @@ cd "$REPO_ROOT"
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
 
+# --- Count closed tickets using a single awk pass over all .md files ---
+# Usage: _count_closed_tickets <tickets_dir>
+# Returns: integer count of .md files whose YAML front-matter contains "status: closed"
+_count_closed_tickets() {
+    local dir="$1"
+    local _result
+    _result=$(find "$dir" -maxdepth 1 -name "*.md" -type f \
+        | xargs awk '
+            FILENAME != _prev {
+                if (_prev != "" && _found) count++
+                _prev=FILENAME; _found=0; _n=0
+            }
+            /^---$/ { _n++; if(_n==2) nextfile }
+            _n==1 && /^status:[[:space:]]*closed/ { _found=1 }
+            END { if (_prev != "" && _found) count++; print count+0 }
+        ' 2>/dev/null)
+    echo "${_result:-0}"
+}
+
 # --- Load hooks/lib/deps.sh for get_artifacts_dir ---
 # Needed for checkpoint sentinel verification (see below).
 _HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
@@ -248,16 +267,35 @@ echo "OK: Merged $BRANCH into main."
 # Run format-check and lint here to catch issues that bypass pre-commit via merge.
 _APP_DIR_NAME="${PATHS_APP_DIR:-app}"
 if [ -d "$MAIN_REPO/$_APP_DIR_NAME" ]; then
-    echo "Running post-merge validation (format-check + lint)..."
+    echo "Running post-merge validation (format-check + lint in parallel)..."
     POST_MERGE_FAIL=false
-    if ! (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_FORMAT_CHECK 2>&1); then
+    _FMT_LOG=$(mktemp)
+    _LINT_LOG=$(mktemp)
+
+    # Run both checks concurrently as background jobs
+    (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_FORMAT_CHECK 2>&1) > "$_FMT_LOG" &
+    _FMT_PID=$!
+    (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_LINT 2>&1) > "$_LINT_LOG" &
+    _LINT_PID=$!
+
+    # Collect exit codes after both finish
+    wait $_FMT_PID
+    _FMT_RC=$?
+    wait $_LINT_PID
+    _LINT_RC=$?
+
+    if [[ $_FMT_RC -ne 0 ]]; then
+        cat "$_FMT_LOG"
         echo "WARNING: Post-merge format-check failed. Run 'make format' to fix."
         POST_MERGE_FAIL=true
     fi
-    if ! (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_LINT 2>&1); then
+    if [[ $_LINT_RC -ne 0 ]]; then
+        cat "$_LINT_LOG"
         echo "WARNING: Post-merge lint failed. Fix lint errors before pushing."
         POST_MERGE_FAIL=true
     fi
+    rm -f "$_FMT_LOG" "$_LINT_LOG"
+
     if [[ "$POST_MERGE_FAIL" == "true" ]]; then
         echo "ERROR: Post-merge validation failed. Fix issues, amend the merge commit, then retry."
         exit 1
@@ -297,9 +335,7 @@ if [ ! -f "$_ARCHIVE_SCRIPT" ]; then
     _ARCHIVE_SCRIPT="$MAIN_REPO/scripts/archive-closed-tickets.sh"
 fi
 if [ -f "$_ARCHIVE_SCRIPT" ]; then
-    _CLOSED_COUNT=$(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" -type f \
-        -exec awk '/^---$/{n++; if(n==2)exit} n==1 && /^status:[[:space:]]*closed/{found=1} END{if(found)print FILENAME}' {} \; \
-        | wc -l | tr -d '[:space:]')
+    _CLOSED_COUNT=$(_count_closed_tickets "$TICKETS_DIR")
     if [ "$_CLOSED_COUNT" -gt 100 ]; then
         echo "Archiving $_CLOSED_COUNT closed ticket(s)..."
         _ARCHIVE_OUT=$(TICKETS_DIR="$TICKETS_DIR" bash "$_ARCHIVE_SCRIPT" 2>&1)
