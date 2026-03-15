@@ -480,5 +480,109 @@ assert_eq "test_node_not_installed_falls_back: falls back when node not on PATH"
 rm -rf "$TMPDIR_NODE_NOBIN"
 assert_pass_if_clean "test_node_not_installed_falls_back"
 
+# ── test_interrupted_node_test_exits_nonzero ─────────────────────────────────
+# When a node test is killed due to timeout, the run records "interrupted" and
+# emits NEXT:. On a subsequent resume, the interrupted result must cause a
+# non-zero exit so callers know the run did not fully succeed.
+echo ""
+echo "--- test_interrupted_node_test_exits_nonzero ---"
+_snapshot_fail
+TMPDIR_INT_NODE="$(mktemp -d)"
+INT_NODE_STATE="$TMPDIR_INT_NODE/state.json"
+
+if command -v node >/dev/null 2>&1; then
+    # Create a .test.js that runs forever so the harness kills it on timeout
+    cat > "$TMPDIR_INT_NODE/slow.test.js" << 'JSEOF'
+const timer = setInterval(() => {}, 1000);
+JSEOF
+
+    # First run: timeout=1 with a slow node test → test gets killed → "interrupted" saved
+    int_node_first_out=""
+    int_node_first_out=$(TEST_BATCHED_STATE_FILE="$INT_NODE_STATE" \
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=1 2>&1) || true
+
+    # Verify the first run emitted a NEXT: resume command
+    assert_contains "test_interrupted_node_test_exits_nonzero: first run emits NEXT:" \
+        "NEXT:" "$int_node_first_out"
+
+    # Verify state file contains "interrupted" result
+    int_has_interrupted=0
+    if [ -f "$INT_NODE_STATE" ]; then
+        python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+vals = list(d.get('results', {}).values())
+sys.exit(0 if 'interrupted' in vals else 1)
+" "$INT_NODE_STATE" && int_has_interrupted=1 || true
+    fi
+    assert_eq "test_interrupted_node_test_exits_nonzero: state records interrupted result" \
+        "1" "$int_has_interrupted"
+
+    # Second run: resume from state file — all tests already "completed" (as interrupted)
+    # This resume should exit non-zero because interrupted tests are non-passing
+    int_node_resume_exit=0
+    int_node_resume_out=""
+    int_node_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_NODE_STATE" \
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=30 2>&1) \
+        || int_node_resume_exit=$?
+
+    assert_contains "test_interrupted_node_test_exits_nonzero: resume output contains 'interrupted'" \
+        "interrupted" "$int_node_resume_out"
+    assert_ne "test_interrupted_node_test_exits_nonzero: resume exits non-zero on all-interrupted run" \
+        "0" "$int_node_resume_exit"
+else
+    assert_eq "test_interrupted_node_test_exits_nonzero: node not installed (skip)" "ok" "ok"
+fi
+rm -rf "$TMPDIR_INT_NODE"
+assert_pass_if_clean "test_interrupted_node_test_exits_nonzero"
+
+# ── test_interrupted_generic_test_resume_exits_nonzero ───────────────────────
+# When a generic runner test is killed due to timeout, "interrupted" is recorded
+# in the state file. On resume, the script detects the interrupted result and
+# must exit non-zero.
+echo ""
+echo "--- test_interrupted_generic_test_resume_exits_nonzero ---"
+_snapshot_fail
+TMPDIR_INT_GEN="$(mktemp -d)"
+INT_GEN_STATE="$TMPDIR_INT_GEN/state.json"
+
+# First run: timeout=1 with a slow command → test gets killed → "interrupted" saved
+int_gen_first_out=""
+int_gen_first_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
+    bash "$SCRIPT" --timeout=1 "sleep 30" 2>&1) || true
+
+# Verify first run emits NEXT:
+assert_contains "test_interrupted_generic_test_resume_exits_nonzero: first run emits NEXT:" \
+    "NEXT:" "$int_gen_first_out"
+
+# Verify state file contains "interrupted"
+int_gen_has_interrupted=0
+if [ -f "$INT_GEN_STATE" ]; then
+    python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+vals = list(d.get('results', {}).values())
+sys.exit(0 if 'interrupted' in vals else 1)
+" "$INT_GEN_STATE" && int_gen_has_interrupted=1 || true
+fi
+assert_eq "test_interrupted_generic_test_resume_exits_nonzero: state records interrupted result" \
+    "1" "$int_gen_has_interrupted"
+
+# Second run: resume from the state file.
+# The test ID is already in "completed" list with result "interrupted".
+# The resume run skips the test (already done) and must exit non-zero.
+int_gen_resume_exit=0
+int_gen_resume_out=""
+int_gen_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
+    bash "$SCRIPT" --timeout=30 "sleep 30" 2>&1) \
+    || int_gen_resume_exit=$?
+
+assert_contains "test_interrupted_generic_test_resume_exits_nonzero: resume mentions interrupted" \
+    "interrupted" "$int_gen_resume_out"
+assert_ne "test_interrupted_generic_test_resume_exits_nonzero: resume exits non-zero" \
+    "0" "$int_gen_resume_exit"
+rm -rf "$TMPDIR_INT_GEN"
+assert_pass_if_clean "test_interrupted_generic_test_resume_exits_nonzero"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

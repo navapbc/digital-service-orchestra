@@ -24,6 +24,24 @@ export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST_ARTIFACTS_DIR"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE="$ARTIFACTS_DIR/review-status"
 
+# Source pre-bash-functions.sh early so hook_review_gate() is available for
+# in-process calls. This avoids spawning bash subprocesses for each simple test
+# (each subprocess would source ~1400 lines of deps — ~1.5s per call on macOS).
+# pre-bash-functions.sh sources deps.sh idempotently via its own guard.
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
+
+# call_review_gate: invoke hook_review_gate() directly (no subprocess).
+# Returns the exit code of hook_review_gate on stdout.
+# This is ~10x faster than run_hook() for simple/passthrough cases.
+call_review_gate() {
+    local input="$1"
+    local exit_code=0
+    hook_review_gate "$input" 2>/dev/null || exit_code=$?
+    echo "$exit_code"
+}
+
+# run_hook: spawn bash "$HOOK" as a subprocess (kept for compatibility).
+# Used only when subprocess isolation is required (e.g., subshell env overrides).
 run_hook() {
     local input="$1"
     local exit_code=0
@@ -34,42 +52,42 @@ run_hook() {
 # test_review_gate_exits_zero_on_non_commit_command
 # Non-commit Bash commands should pass through
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo hello"}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_exits_zero_on_non_commit_command" "0" "$EXIT_CODE"
 
 # test_review_gate_exits_zero_on_non_bash_tool
 # Non-Bash tool calls should pass through
 INPUT='{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.py"}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_exits_zero_on_non_bash_tool" "0" "$EXIT_CODE"
 
 # test_review_gate_exits_zero_on_edit_tool
 # Edit tool → not a Bash commit → pass through
 INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.py"}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_exits_zero_on_edit_tool" "0" "$EXIT_CODE"
 
 # test_review_gate_exits_zero_on_empty_input
 # Empty stdin → exit 0
-EXIT_CODE=$(run_hook "")
+EXIT_CODE=$(call_review_gate "")
 assert_eq "test_review_gate_exits_zero_on_empty_input" "0" "$EXIT_CODE"
 
 # test_review_gate_exits_zero_on_wip_commit
 # WIP commits are exempt from review gate
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"WIP: save progress\""}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_exits_zero_on_wip_commit" "0" "$EXIT_CODE"
 
 # test_review_gate_exits_zero_on_checkpoint_commit
 # Checkpoint/pre-compact commits are exempt
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"checkpoint: pre-compaction auto-save\""}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_exits_zero_on_checkpoint_commit" "0" "$EXIT_CODE"
 
 # test_review_gate_exits_zero_on_git_log_command
 # git log is not a commit command
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git log --oneline -5"}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_exits_zero_on_git_log_command" "0" "$EXIT_CODE"
 
 # test_review_gate_blocks_commit_without_review
@@ -78,7 +96,7 @@ assert_eq "test_review_gate_exits_zero_on_git_log_command" "0" "$EXIT_CODE"
 rm -f "$REVIEW_STATE"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: add feature\""}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_blocks_commit_without_review" "2" "$EXIT_CODE"
 
 # test_review_gate_blocks_commit_with_failed_review
@@ -87,7 +105,7 @@ mkdir -p "$ARTIFACTS_DIR"
 printf "failed\ntimestamp=2026-01-01T00:00:00Z\ndiff_hash=abc123\nscore=2\nreview_hash=xyz\n" > "$REVIEW_STATE"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: add feature\""}}'
-EXIT_CODE=$(run_hook "$INPUT")
+EXIT_CODE=$(call_review_gate "$INPUT")
 assert_eq "test_review_gate_blocks_commit_with_failed_review" "2" "$EXIT_CODE"
 
 # Clean up test state (isolated dir — no restore needed since we own this temp dir)
@@ -159,9 +177,6 @@ assert_eq \
 #
 # ISOLATION: Uses a temp git repo so no files are staged in the real repo.
 # ============================================================
-
-# Source pre-bash-functions.sh to get hook_review_gate()
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
 
 # Create isolated temp git repo for mismatch tests
 _DIAG_TMPDIR=$(mktemp -d)
