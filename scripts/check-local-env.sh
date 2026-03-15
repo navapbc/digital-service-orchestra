@@ -52,6 +52,7 @@ if [[ -n "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"
 fi
 
+<<<<<<< HEAD
 # Resolve Python with pyyaml for read-config.sh YAML mode.
 # read-config.sh uses pure bash for .conf files and only invokes Python when
 # parsing .yaml/.yml configs. Export CLAUDE_PLUGIN_PYTHON so read-config.sh
@@ -69,6 +70,8 @@ if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
     done
 fi
 
+=======
+>>>>>>> origin/main
 # Config reader helper — respects WORKFLOW_CONFIG override (for tests)
 _read_cfg() {
     local key="$1"
