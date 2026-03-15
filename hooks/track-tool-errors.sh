@@ -144,20 +144,14 @@ fi
 
 # Notify at threshold and each subsequent multiple to avoid spamming
 if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" ]] && (( CURRENT_COUNT % THRESHOLD == 0 )); then
-    # Check if a bug has already been created for this category at this threshold
+    # Check if a bug has already been created for this category
     _ALREADY_BUGGED=$(python3 -c "
 import json,sys
 d=json.loads(sys.stdin.read())
 cat=sys.argv[1]
-cnt=int(sys.argv[2])
 bugs=d.get('bugs_created',{})
-# Check if already reported at this threshold level
-key=cat
-if key in bugs:
-    print('yes')
-else:
-    print('no')
-" "$CATEGORY" "$CURRENT_COUNT" <<< "$COUNTER_DATA" 2>/dev/null || echo "no")
+print('yes' if cat in bugs else 'no')
+" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo "no")
 
     if [[ "$_ALREADY_BUGGED" != "yes" ]]; then
         # Create a bug ticket via tk

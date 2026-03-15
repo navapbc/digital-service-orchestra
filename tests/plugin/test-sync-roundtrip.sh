@@ -44,7 +44,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd "$SCRIPT_DIR/../../.." && pwd))"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TK="$REPO_ROOT/lockpick-workflow/scripts/tk"
 STUBS_DIR="$REPO_ROOT/lockpick-workflow/tests/plugin/fixtures/stubs"
 PASS=0

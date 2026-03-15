@@ -154,5 +154,48 @@ assert_contains "shows usage on no args" "usage" "$(echo "$usage_output" | tr '[
 
 assert_pass_if_clean "usage message"
 
+# ── Test: piped command produces non-empty output ────────────────────────────
+echo ""
+echo "--- piped command output ---"
+_snapshot_fail
+
+PIPE_OUTPUT_FILE="$TMPDIR_TEST/pipe-output.txt"
+NOHUP_PROCESS_BUDGET=99999 \
+NOHUP_PID_DIR="$TMPDIR_TEST/pids-pipe" \
+    bash "$LAUNCH_SCRIPT" "$PIPE_OUTPUT_FILE" -- "echo pipe-marker | cat" 2>"$TMPDIR_TEST/pipe-stderr.txt"
+pipe_launch_exit=$?
+
+assert_eq "piped command launches successfully" "0" "$pipe_launch_exit"
+
+# Wait briefly for background task to complete
+sleep 2
+
+# Output file must exist
+if [[ -f "$PIPE_OUTPUT_FILE" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: output file not created for piped command at $PIPE_OUTPUT_FILE" >&2
+fi
+
+# Output file must contain exactly the marker — not an error about "command not found".
+# The bug (line 85 in nohup-launch.sh) causes "${@:5}" to treat the piped command
+# string as a literal executable name, producing a "command not found" error instead
+# of running the pipeline. Verify the actual marker text appears without any error.
+if [[ -f "$PIPE_OUTPUT_FILE" ]]; then
+    pipe_output_content=$(cat "$PIPE_OUTPUT_FILE")
+    # Must contain the expected output
+    assert_contains "piped command output contains marker" "pipe-marker" "$pipe_output_content"
+    # Must NOT contain a "command not found" error (which would be the bug symptom)
+    if echo "$pipe_output_content" | grep -q "command not found"; then
+        (( ++FAIL ))
+        printf "FAIL: piped command output contains 'command not found' error (pipe not interpreted)\n  output: %s\n" "$pipe_output_content" >&2
+    else
+        (( ++PASS ))
+    fi
+fi
+
+assert_pass_if_clean "piped command produces non-empty output"
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 print_summary

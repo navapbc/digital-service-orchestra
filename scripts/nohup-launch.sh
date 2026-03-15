@@ -81,8 +81,10 @@ HEARTBEAT_FILE="${OUTPUT_FILE}.heartbeat"
 nohup bash -c '
     # Write initial heartbeat
     date +%s > "$4"
-    # Run the command
-    "${@:5}" > "$1" 2>&1 &
+    # Run the command; use eval so shell syntax (pipes, redirects, etc.) in the
+    # command string is interpreted correctly rather than treated as a literal
+    # executable name (argument passing bug fix).
+    eval "${*:5}" > "$1" 2>&1 &
     CMD_PID=$!
     # Heartbeat loop: write timestamp every INTERVAL seconds while command runs
     while kill -0 "$CMD_PID" 2>/dev/null; do

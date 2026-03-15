@@ -8,7 +8,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-REPO_ROOT="$(cd "$PLUGIN_ROOT/.." && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/git-revert-safe.sh"
 WRAPPER_SCRIPT="$REPO_ROOT/scripts/git-revert-safe.sh"
 

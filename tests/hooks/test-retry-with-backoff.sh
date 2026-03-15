@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/assert.sh"
 
 # Source deps.sh to get retry_with_backoff
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../" && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 # Reset the loaded guard so we can re-source
 unset _DEPS_LOADED
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
