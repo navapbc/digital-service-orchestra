@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 #
 # validate-issues.sh - Validate tk issue tracking health
 #

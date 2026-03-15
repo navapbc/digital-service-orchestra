@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # classify-task.sh — Classify tasks for /sprint batch planning.
 #
 # Uses weighted profile scoring via classify-task.py to select the best

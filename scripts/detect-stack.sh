@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/detect-stack.sh
 # Auto-detect the project type by inspecting marker files in the given directory.
 #

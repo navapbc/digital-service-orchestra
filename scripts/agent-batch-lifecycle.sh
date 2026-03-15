@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # agent-batch-lifecycle.sh — Shared lifecycle operations for multi-agent orchestration.
 #
 # Consolidates deterministic sequences used by /debug-everything and /sprint.

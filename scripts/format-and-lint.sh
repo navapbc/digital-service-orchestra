@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/format-and-lint.sh — Combined format-check + lint pre-commit hook
 #
 # Runs format check (ruff format) then lint (ruff check + mypy) in sequence,

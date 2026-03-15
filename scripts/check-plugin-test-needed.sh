@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/check-plugin-test-needed.sh
 # Determines whether plugin tests should run based on the list of changed files.
 #

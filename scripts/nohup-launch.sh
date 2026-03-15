@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/nohup-launch.sh
 # Launch a background task with process budget enforcement and PID registry.
 #

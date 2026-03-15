@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/ci-create-failure-bug.sh
 # Creates a tk issue when CI fails, then commits and pushes ticket files.
 #

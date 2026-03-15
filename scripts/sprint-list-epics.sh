@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # sprint-list-epics.sh — List unblocked epics for /sprint Phase 1.
 #
 # Consolidates the multi-command epic discovery sequence into a single

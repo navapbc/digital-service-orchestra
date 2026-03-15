@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/skip-review-check.sh
 # Classifies a list of changed files to determine if review can be skipped.
 #

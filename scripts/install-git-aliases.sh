@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/install-git-aliases.sh
 # Registers project-specific git aliases in the local repo config.
 #

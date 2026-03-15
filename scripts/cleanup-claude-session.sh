@@ -1,4 +1,5 @@
 #!/bin/bash
+set -uo pipefail
 # lockpick-workflow/scripts/cleanup-claude-session.sh
 # Clean up orphaned processes, temp files, and stale state.
 #
@@ -104,6 +105,82 @@ DEBUG_LOGS_CLEANED=0
 WORKTREES_PRUNED=0
 PLAYWRIGHT_CLEANED=0
 TMP_DIRS_CLEANED=0
+STATE_FILES_CLEANED=0
+
+# gc_stale_state_files
+# Removes state files older than 24 hours from /tmp/workflow-plugin-*/
+# directories and prunes empty plugin dirs after cleanup.
+#
+# Affected file patterns:
+#   review-status, validation-status, reviewer-findings.json,
+#   commit-breadcrumbs.log, review-diff-*.txt, review-stat-*.txt
+#
+# The GC_PLUGIN_GLOB environment variable overrides the default glob
+# (/tmp/workflow-plugin-*/) to allow isolated testing without touching
+# real /tmp directories.
+#
+# Safe to call multiple times (idempotent). Logs to stderr.
+gc_stale_state_files() {
+    local glob="${GC_PLUGIN_GLOB:-/tmp/workflow-plugin-*/}"
+    local age_minutes=1440  # 24 hours
+
+    local stale_count=0
+
+    # Expand the glob; if nothing matches, return cleanly
+    local dirs=()
+    while IFS= read -r -d '' dir; do
+        dirs+=("$dir")
+    done < <(find / -maxdepth 3 -type d -name "workflow-plugin-*" -path "/tmp/*" -print0 2>/dev/null || true)
+
+    # If GC_PLUGIN_GLOB is set to a specific path, use it directly
+    if [[ -n "${GC_PLUGIN_GLOB:-}" ]]; then
+        dirs=()
+        if [[ -d "$GC_PLUGIN_GLOB" ]]; then
+            dirs=("$GC_PLUGIN_GLOB")
+        fi
+    fi
+
+    if [[ ${#dirs[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    for plugin_dir in "${dirs[@]}"; do
+        [[ -d "$plugin_dir" ]] || continue
+
+        # Find state files matching known patterns older than 24 hours
+        local stale_files
+        stale_files=$(find "$plugin_dir" -maxdepth 1 \( \
+            -name "review-status" \
+            -o -name "validation-status" \
+            -o -name "reviewer-findings.json" \
+            -o -name "commit-breadcrumbs.log" \
+            -o -name "review-diff-*.txt" \
+            -o -name "review-stat-*.txt" \
+        \) -mmin "+${age_minutes}" 2>/dev/null || true)
+
+        if [[ -n "$stale_files" ]]; then
+            local count
+            count=$(echo "$stale_files" | wc -l | tr -d ' ')
+            stale_count=$((stale_count + count))
+            echo "$stale_files" | xargs rm -f 2>/dev/null || true
+            echo "  gc_stale_state_files: removed $count stale state file(s) from $plugin_dir" >&2
+        fi
+
+        # Remove the plugin dir if it is now empty
+        if [[ -d "$plugin_dir" ]]; then
+            local remaining
+            remaining=$(find "$plugin_dir" -maxdepth 1 -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
+            if [[ "$remaining" -eq 0 ]]; then
+                rmdir "$plugin_dir" 2>/dev/null || true
+                echo "  gc_stale_state_files: removed empty plugin dir $plugin_dir" >&2
+            fi
+        fi
+    done
+
+    # Export count for summary (use default 0 in case function is sourced in isolation)
+    STATE_FILES_CLEANED=$(( ${STATE_FILES_CLEANED:-0} + stale_count ))
+    return 0
+}
 
 log "=== Claude Session Cleanup ==="
 
@@ -399,8 +476,37 @@ else
     log "  No Playwright/tmp state found"
 fi
 
+# 14. GC stale workflow plugin state files (>24h old)
+log ""
+log "Checking for stale workflow plugin state files..."
+
+if [ $DRY_RUN -eq 1 ]; then
+    # Dry-run: report what would be removed without deleting
+    _DRY_STALE=$(find /tmp/workflow-plugin-*/ -maxdepth 1 \( \
+        -name "review-status" \
+        -o -name "validation-status" \
+        -o -name "reviewer-findings.json" \
+        -o -name "commit-breadcrumbs.log" \
+        -o -name "review-diff-*.txt" \
+        -o -name "review-stat-*.txt" \
+    \) -mmin +1440 2>/dev/null || true)
+    if [ -n "$_DRY_STALE" ]; then
+        _DRY_COUNT=$(echo "$_DRY_STALE" | wc -l | tr -d ' ')
+        log_action "  Would remove $_DRY_COUNT stale plugin state file(s)"
+    else
+        log "  No stale plugin state files found"
+    fi
+else
+    gc_stale_state_files 2>&1 | while IFS= read -r line; do log_action "$line"; done
+    if [ $STATE_FILES_CLEANED -gt 0 ]; then
+        log_action "  Removed $STATE_FILES_CLEANED stale plugin state file(s)"
+    else
+        log "  No stale plugin state files found"
+    fi
+fi
+
 # Summary
-TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED))
+TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED + STATE_FILES_CLEANED))
 
 if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
     # Summary-only mode: single line when clean, brief list when not

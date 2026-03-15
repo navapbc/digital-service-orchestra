@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 #
 # check-onboarding.sh - Check if design and dev onboarding artifacts exist
 #

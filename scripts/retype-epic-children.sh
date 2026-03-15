@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # retype-epic-children.sh — Retype task-type tickets whose parent is an epic to feature.
 #
 # Finds all .tickets/*.md files where:

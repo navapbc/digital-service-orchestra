@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/smoke-test-portable.sh
 # Plugin bootstrap validation: creates a minimal skeleton project, copies the
 # plugin, initializes a git repo, writes a minimal config, and runs key scripts

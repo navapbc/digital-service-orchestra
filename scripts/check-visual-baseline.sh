@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/check-visual-baseline.sh
 # Checks the visual regression baseline state before running browser-based tests.
 #

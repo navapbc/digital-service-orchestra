@@ -262,6 +262,36 @@ except Exception:
 }
 
 # ---------------------------------------------------------------------------
+# is_formatting_only_change
+# ---------------------------------------------------------------------------
+# Returns 0 if the diff between old_diff and new_diff is whitespace/formatting only.
+# Returns 1 if there are any substantive (non-whitespace) code changes.
+#
+# "Formatting only" means: after stripping trailing whitespace from every line
+# and removing blank lines, the two diffs are identical.
+#
+# Usage:
+#   is_formatting_only_change "$OLD_DIFF" "$NEW_DIFF"
+#   if is_formatting_only_change "$OLD_DIFF" "$NEW_DIFF"; then
+#       echo "formatting only"
+#   fi
+is_formatting_only_change() {
+    local old_diff="$1"
+    local new_diff="$2"
+
+    # Normalize both diffs: strip trailing whitespace from each line, remove blank lines,
+    # and remove 'index' lines (blob hashes change with any content change, even whitespace-only)
+    local old_norm new_norm
+    old_norm=$(printf '%s' "$old_diff" | sed 's/[[:space:]]*$//' | grep -v '^$' | grep -v '^index ' || true)
+    new_norm=$(printf '%s' "$new_diff" | sed 's/[[:space:]]*$//' | grep -v '^$' | grep -v '^index ' || true)
+
+    if [[ "$old_norm" == "$new_norm" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# ---------------------------------------------------------------------------
 # hook_review_gate
 # ---------------------------------------------------------------------------
 # PreToolUse hook: HARD GATE that blocks git commit if code review hasn't
@@ -415,11 +445,48 @@ hook_review_gate() {
     if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
         local REVIEW_TS
         REVIEW_TS=$(grep '^timestamp=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+
+        # --- Self-healing: check if mismatch is formatting-only ---
+        # If a stored review-diff.txt exists (saved by record-review.sh or test setup),
+        # compare it to the current diff. If the only differences are whitespace/blank
+        # lines, auto-heal by updating the hash and allowing the commit.
+        local _DIAG_DIR
+        _DIAG_DIR="${_ARTIFACTS_DIR:-$(get_artifacts_dir 2>/dev/null || echo "")}"
+        local _REVIEW_DIFF_FILE="${_DIAG_DIR}/review-diff.txt"
+        if [[ -f "$_REVIEW_DIFF_FILE" ]]; then
+            local _OLD_DIFF _CURR_DIFF
+            _OLD_DIFF=$(cat "$_REVIEW_DIFF_FILE" 2>/dev/null || echo "")
+            _CURR_DIFF=$(git diff HEAD -- 2>/dev/null || true)
+            if is_formatting_only_change "$_OLD_DIFF" "$_CURR_DIFF"; then
+                # Only whitespace changed — update the stored hash and allow the commit
+                if [[ -n "$_DIAG_DIR" ]]; then
+                    mkdir -p "$_DIAG_DIR" 2>/dev/null || true
+                    # Update the diff_hash line in the review-status file
+                    local _UPDATED_STATUS
+                    _UPDATED_STATUS=$(sed "s/^diff_hash=.*/diff_hash=${CURRENT_HASH}/" "$REVIEW_STATE_FILE" 2>/dev/null || cat "$REVIEW_STATE_FILE")
+                    printf '%s\n' "$_UPDATED_STATUS" > "$REVIEW_STATE_FILE" 2>/dev/null || true
+                    # Also update the stored review-diff.txt to the current diff
+                    printf '%s' "$_CURR_DIFF" > "$_REVIEW_DIFF_FILE" 2>/dev/null || true
+                    # Write audit log entry
+                    local _HEAL_LOG="$_DIAG_DIR/mismatch-diagnostics-$(date -u +%Y%m%dT%H%M%SZ).log"
+                    {
+                        printf 'self_healed=yes\n'
+                        printf 'recorded_hash=%s\n' "$RECORDED_HASH"
+                        printf 'current_hash=%s\n' "$CURRENT_HASH"
+                        printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                        printf 'review_timestamp=%s\n' "${REVIEW_TS:-unknown}"
+                        printf 'reason=formatting-only change (whitespace/blank lines)\n'
+                    } > "$_HEAL_LOG" 2>/dev/null || true
+                fi
+                echo "Self-healed formatting-only hash mismatch (hash ${RECORDED_HASH:0:8}→${CURRENT_HASH:0:8})" >&2
+                trap - ERR; return 0
+            fi
+        fi
+
         echo "BLOCKED: Review is stale (${REVIEW_TS:-unknown}; hash ${RECORDED_HASH:0:8}→${CURRENT_HASH:0:8}). Use /commit to re-run." >&2
 
         # Write diagnostic dump for hash mismatch debugging
-        local _DIAG_DIR _DIAG_FILE _DIAG_BREADCRUMB
-        _DIAG_DIR="${_ARTIFACTS_DIR:-$(get_artifacts_dir 2>/dev/null || echo "")}"
+        local _DIAG_FILE _DIAG_BREADCRUMB
         if [[ -n "$_DIAG_DIR" ]]; then
             mkdir -p "$_DIAG_DIR" 2>/dev/null || true
             _DIAG_FILE="$_DIAG_DIR/mismatch-diagnostics-$(date -u +%Y%m%dT%H%M%SZ).log"

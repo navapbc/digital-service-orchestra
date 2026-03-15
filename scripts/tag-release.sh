@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # tag-release.sh — Update plugin version fields and print the git tag command.
 #
 # Usage:

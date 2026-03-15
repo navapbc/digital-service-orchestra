@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/reset-tickets.sh
 #
 # Reset .tickets/ to a specific git commit's state and resync to Jira.

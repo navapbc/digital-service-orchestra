@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/verify-baseline-intent.sh
 #
 # Pre-merge check: verifies that visual baseline changes are intentional

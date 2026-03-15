@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # archive-closed-tickets.sh — Move closed tickets from .tickets/ to .tickets/archive/
 #
 # Finds all .tickets/*.md files whose YAML frontmatter status field is "closed",

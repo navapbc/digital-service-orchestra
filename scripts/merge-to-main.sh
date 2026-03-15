@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/merge-to-main.sh
 # Merge worktree branch into main and push.
 # Called by /end-session after all worktree commits are done.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/validate-review-output.sh
 # Validates review agent output against the expected schema for a given prompt.
 #

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Require bash 4+ for associative array support (declare -A).
 # macOS ships with bash 3.2 at /bin/bash; install bash 4+ via Homebrew.
 if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then

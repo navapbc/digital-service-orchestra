@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/validate-config.sh
 # Validates a workflow-config.conf file against KNOWN_KEYS.
 #

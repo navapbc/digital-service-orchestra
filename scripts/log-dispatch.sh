@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/log-dispatch.sh
 # Log a sub-agent dispatch for domain mismatch analysis.
 #

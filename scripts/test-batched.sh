@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/test-batched.sh — Time-bounded test batching harness
 #
 # Runs a test command in a time-bounded loop, saving progress to a state file.
@@ -49,6 +50,62 @@
 
 set -uo pipefail
 set -m  # Enable job control so background jobs get their own process group
+
+# ── Signal handling ────────────────────────────────────────────────────────────
+# Trap SIGTERM, SIGINT, and SIGURG (exit code 144 from Claude Code tool timeout)
+# to save state before exiting, enabling resume on the next invocation.
+#
+# The handler is defined here (at the top) but references variables (STATE_FILE,
+# COMPLETED_LIST, RESULTS_JSON, CMD) that are initialized later in the script.
+# Bash traps are closures over the current environment at signal-delivery time,
+# so by the time a signal arrives the variables will be set. If a signal fires
+# before initialization, the defaults are safe (empty/undefined → guarded below).
+
+_signal_handler() {
+    local sig="${1:-TERM}"
+    # Guard: only write state if STATE_FILE is defined and non-empty
+    if [ -n "${STATE_FILE:-}" ]; then
+        local completed_json results_json
+        completed_json=$(python3 -c "
+import json, sys
+items = sys.argv[1:]
+print(json.dumps(items))
+" "${COMPLETED_LIST[@]+"${COMPLETED_LIST[@]}"}" 2>/dev/null || echo "[]")
+        results_json="${RESULTS_JSON:-{\}}"
+        local runner_val="${CMD:-}"
+        # Write state file with SIGNAL_INTERRUPTED marker using python3 for atomicity
+        python3 -c "
+import json, sys, os, tempfile
+state = {
+    'runner': sys.argv[1],
+    'completed': json.loads(sys.argv[2]),
+    'results': json.loads(sys.argv[3]),
+    'signal_interrupted': True,
+    'SIGNAL_INTERRUPTED': True
+}
+target = sys.argv[4]
+dir_ = os.path.dirname(os.path.abspath(target))
+os.makedirs(dir_, exist_ok=True)
+fd, tmp = tempfile.mkstemp(dir=dir_)
+try:
+    with os.fdopen(fd, 'w') as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, target)
+except Exception:
+    try:
+        os.unlink(tmp)
+    except Exception:
+        pass
+" "$runner_val" "$completed_json" "$results_json" "$STATE_FILE" 2>/dev/null || true
+        echo "" >&2
+        echo "test-batched: interrupted by signal $sig, state saved to $STATE_FILE" >&2
+    fi
+    exit 130
+}
+
+trap '_signal_handler TERM' SIGTERM
+trap '_signal_handler INT'  SIGINT
+trap '_signal_handler URG'  SIGURG
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 DEFAULT_TIMEOUT=50

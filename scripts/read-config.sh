@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/read-config.sh
 # YAML/conf reader for workflow-config.yaml (or .conf) files.
 #

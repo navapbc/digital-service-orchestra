@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/issue-batch.sh — Next-batch selector using tk commands.
 #
 # Selects tasks for a parallel agent batch under a given epic. Uses tk

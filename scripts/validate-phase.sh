@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # validate-phase.sh — Run a specific validation phase and output structured results.
 #
 # Replaces the near-identical logic in:

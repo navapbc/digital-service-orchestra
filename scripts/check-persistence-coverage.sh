@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/check-persistence-coverage.sh
 #
 # Verifies that changes to persistence-critical source files are accompanied

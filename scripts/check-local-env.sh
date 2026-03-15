@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/check-local-env.sh
 # Generic local environment verification script.
 #

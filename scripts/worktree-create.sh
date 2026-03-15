@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # worktree-create.sh — Create and initialize a git worktree ready for a Claude session
 #
 # Generic plugin version: no project-specific hardcoding. All project-specific

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/pre-commit-format-fix.sh
 #
 # Pre-commit hook that auto-fixes formatting on staged Python files and re-stages them.

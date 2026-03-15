@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/staging-smoke-test.sh
 # Staging health check and route scan (Tier 0 deterministic pre-checks).
 #

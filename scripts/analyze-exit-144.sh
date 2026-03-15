@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/analyze-exit-144.sh
 # Companion analysis script for exit-144 forensic logger.
 #

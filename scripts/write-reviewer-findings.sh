@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/write-reviewer-findings.sh
 #
 # Validate-then-write gate for reviewer-findings.json.

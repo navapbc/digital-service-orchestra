@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/discover-agents.sh
 # Agent discovery pipeline: reads enabledPlugins from .claude/settings.json,
 # walks agent-routing.conf preference chains, outputs resolved routing.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # restore-ticket-bodies.sh — Restore lost body content to tickets stripped by cross-worktree sync bug.
 #
 # The sync bug overwrote ticket files with versions that had correct frontmatter

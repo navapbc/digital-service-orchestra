@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # sprint-next-batch.sh — Deterministic next-batch selector for sprint orchestration.
 #
 # Selects tasks for a parallel agent batch under a given epic. Produces a

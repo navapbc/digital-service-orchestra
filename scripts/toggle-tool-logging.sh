@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/toggle-tool-logging.sh
 # Toggle JSONL tool-use logging on or off.
 #

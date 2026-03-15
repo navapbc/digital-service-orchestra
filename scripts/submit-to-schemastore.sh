@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/submit-to-schemastore.sh
 # Prepares the schemastore.org contribution for workflow-config-schema.json.
 #

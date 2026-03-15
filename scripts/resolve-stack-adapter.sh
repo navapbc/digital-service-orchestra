@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/resolve-stack-adapter.sh
 # Resolves the stack adapter file path for a project based on workflow-config.conf.
 #

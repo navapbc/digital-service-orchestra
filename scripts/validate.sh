@@ -1,4 +1,5 @@
 #!/bin/bash
+set -uo pipefail
 # validate.sh - Token-optimized validation script for AI agents
 # Outputs only summary to stdout, saves details to log file on failure
 #

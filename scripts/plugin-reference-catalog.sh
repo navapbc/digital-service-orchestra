@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/plugin-reference-catalog.sh
 # Scans lockpick-workflow/ directories for references to 7 external plugins.
 #

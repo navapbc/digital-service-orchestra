@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # estimate-context-load.sh
 # Estimates tokens consumed by static context before a skill starts.
 # Uses 4 chars ≈ 1 token approximation.

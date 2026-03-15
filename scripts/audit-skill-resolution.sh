@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/audit-skill-resolution.sh
 #
 # Canonical location. The project-root wrapper at scripts/audit-skill-resolution.sh

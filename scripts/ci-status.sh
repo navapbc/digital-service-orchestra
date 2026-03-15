@@ -1,4 +1,5 @@
 #!/bin/bash
+set -uo pipefail
 # ci-status.sh - Token-optimized CI status checker
 # Returns minimal output: "STATUS: conclusion" or waits for completion
 #
@@ -149,6 +150,32 @@ to_epoch() {
     else
         # macOS — use -u to interpret input as UTC (GitHub API returns UTC timestamps)
         result=$(date -u -jf "%Y-%m-%dT%H:%M:%S" "$ts_clean" +%s 2>/dev/null || true)
+    fi
+    echo "$result"
+}
+
+# Source deps.sh for parse_json_field (jq fallback) and other utilities.
+_ci_deps_sh="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")" && pwd)/..}/hooks/lib/deps.sh"
+[[ -f "$_ci_deps_sh" ]] && source "$_ci_deps_sh"
+
+# ci_parse_json <json> <field_expr>
+# Extract a simple JSON field. Tries jq first; falls back to parse_json_field
+# from deps.sh when jq is not installed or fails.
+# Emits a one-time warning to stderr on fallback.
+# NOTE: Only handles simple top-level field expressions (e.g. '.status', '.name').
+# Complex jq expressions (arrays, filters, argument passing) still require jq.
+_CI_JQ_WARNED=0
+ci_parse_json() {
+    local json="$1"
+    local expr="$2"
+    local result
+    result=$(echo "$json" | jq -r "$expr" 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        if [ "$_CI_JQ_WARNED" -eq 0 ]; then
+            echo "ci-status: jq not found, using parse_json_field fallback" >&2
+            _CI_JQ_WARNED=1
+        fi
+        result=$(parse_json_field "$json" "$expr")
     fi
     echo "$result"
 }
@@ -348,10 +375,10 @@ if [ $WAIT_MODE -eq 1 ]; then
         STATUS_JSON=$(get_status)
     fi
 
-    STATUS=$(echo "$STATUS_JSON" | jq -r '.status')
-    CONCLUSION=$(echo "$STATUS_JSON" | jq -r '.conclusion')
-    NAME=$(echo "$STATUS_JSON" | jq -r '.name')
-    RUN_ID=$(echo "$STATUS_JSON" | jq -r '.databaseId')
+    STATUS=$(ci_parse_json "$STATUS_JSON" '.status')
+    CONCLUSION=$(ci_parse_json "$STATUS_JSON" '.conclusion')
+    NAME=$(ci_parse_json "$STATUS_JSON" '.name')
+    RUN_ID=$(ci_parse_json "$STATUS_JSON" '.databaseId')
 
     # If already completed on the first fetch, report immediately
     if [ "$STATUS" = "completed" ]; then
@@ -371,7 +398,11 @@ if [ $WAIT_MODE -eq 1 ]; then
     # Determine how long this run has already been running.
     # If the timestamp is missing or unparseable, treat the run as just started
     # (conservative: may over-wait in dead zone, never false-timeout).
-    STARTED_AT=$(echo "$STATUS_JSON" | jq -r '.startedAt // .createdAt')
+    # Extract startedAt, falling back to createdAt if absent/null
+    STARTED_AT=$(ci_parse_json "$STATUS_JSON" '.startedAt')
+    if [ -z "$STARTED_AT" ] || [ "$STARTED_AT" = "null" ]; then
+        STARTED_AT=$(ci_parse_json "$STATUS_JSON" '.createdAt')
+    fi
     STARTED_EPOCH=""
     if [ -n "$STARTED_AT" ] && [ "$STARTED_AT" != "null" ]; then
         STARTED_EPOCH=$(to_epoch "$STARTED_AT")
@@ -407,11 +438,10 @@ if [ $WAIT_MODE -eq 1 ]; then
         # Poll the specific run by ID — avoids returning a different run from the branch
         RUN_JSON=$(gh run view "$RUN_ID" \
             --json status,conclusion,name \
-            2>/dev/null | jq '{status: .status, conclusion: .conclusion, name: .name}' \
-            || echo "")
-        STATUS=$(echo "$RUN_JSON" | jq -r '.status // empty')
-        CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion // empty')
-        NAME=$(echo "$RUN_JSON" | jq -r '.name // empty')
+            2>/dev/null || echo "")
+        STATUS=$(ci_parse_json "$RUN_JSON" '.status')
+        CONCLUSION=$(ci_parse_json "$RUN_JSON" '.conclusion')
+        NAME=$(ci_parse_json "$RUN_JSON" '.name')
 
         if [ "$STATUS" = "completed" ]; then
             ELAPSED=$(( $(date +%s) - STARTED_EPOCH ))
@@ -436,10 +466,10 @@ fi
 # Default: single status check
 # ---------------------------------------------------------------------------
 STATUS_JSON=$(get_status)
-STATUS=$(echo "$STATUS_JSON" | jq -r '.status')
-CONCLUSION=$(echo "$STATUS_JSON" | jq -r '.conclusion')
-NAME=$(echo "$STATUS_JSON" | jq -r '.name')
-RUN_ID=$(echo "$STATUS_JSON" | jq -r '.databaseId')
+STATUS=$(ci_parse_json "$STATUS_JSON" '.status')
+CONCLUSION=$(ci_parse_json "$STATUS_JSON" '.conclusion')
+NAME=$(ci_parse_json "$STATUS_JSON" '.name')
+RUN_ID=$(ci_parse_json "$STATUS_JSON" '.databaseId')
 
 if [ "$STATUS" = "completed" ]; then
     echo "CI${BRANCH_LABEL}: $CONCLUSION ($NAME) [run: $RUN_ID]"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/pre-commit-wrapper.sh — Generic pre-commit timeout wrapper
 #
 # Runs a command string with timeout detection and logging.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # lockpick-workflow/scripts/bench-tk-ready.sh
 # Measures wall-clock time of `tk ready` and exits non-zero if it exceeds the threshold.
 #

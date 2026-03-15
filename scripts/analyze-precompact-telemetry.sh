@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/analyze-precompact-telemetry.sh
 #
 # Reads ~/.claude/precompact-telemetry.jsonl and outputs a summary.

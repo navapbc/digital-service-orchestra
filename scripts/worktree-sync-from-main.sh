@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/worktree-sync-from-main.sh
 # Sync a worktree branch with origin/main by fetching and merging.
 #

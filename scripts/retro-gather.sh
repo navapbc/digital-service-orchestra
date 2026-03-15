@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # retro-gather.sh — Collect all Phase 1 health metrics for /retro.
 #
 # Extracts the deterministic data-collection steps from retro SKILL.md Phase 1

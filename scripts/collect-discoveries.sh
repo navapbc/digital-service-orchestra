@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/collect-discoveries.sh — Collect and merge agent discovery files.
 #
 # Reads all .agent-discoveries/<task-id>.json files, validates each against

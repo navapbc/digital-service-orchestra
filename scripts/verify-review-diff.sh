@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/verify-review-diff.sh
 # Validate that a review diff file matches the current working tree state.
 # Used by the code-review sub-agent before reading the diff.

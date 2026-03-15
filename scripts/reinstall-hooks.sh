@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/reinstall-hooks.sh — Reinstall git hook shims with resilient fallback
 #
 # Re-runs `pre-commit install` for all three hook types using the current venv,

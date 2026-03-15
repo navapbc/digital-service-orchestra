@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/bench-hook-timing.sh
 # Benchmark hook timing by enabling per-call timing, running sample hooks,
 # and reporting the results.

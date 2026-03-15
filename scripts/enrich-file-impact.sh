@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # lockpick-workflow/scripts/enrich-file-impact.sh
 # Enrich a ticket with a ## File Impact section using haiku model.
 #
