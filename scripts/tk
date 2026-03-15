@@ -383,6 +383,22 @@ print(json.dumps(idx))
 " 2>/dev/null || echo "{}"
 }
 
+# Rebuild the full index from all .md files in TICKETS_DIR and write atomically.
+# Usage: tk index-rebuild
+cmd_index_rebuild() {
+    ensure_dir
+    local index_file="$TICKETS_DIR/.index.json"
+    local tmp_file="${index_file}.tmp"
+    local full_index
+    full_index=$(_tk_build_full_index)
+    # Write indented JSON for readability, atomically
+    echo "$full_index" | python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+print(json.dumps(data, indent=2, sort_keys=True))
+" > "$tmp_file" && mv "$tmp_file" "$index_file"
+}
+
 cmd_create() {
     ensure_dir
 
@@ -5336,6 +5352,7 @@ Commands:
     --break-lock           Interactively break a stuck sync lock (CAS-guarded)
     --lock-timeout=N       Override lock acquire/sync timeout to N seconds
     --full                 Bypass incremental logic; perform full push+pull reconciliation
+  index-rebuild            Rebuild .index.json from all ticket files (full scan, atomic write)
   super <cmd> [args]       Bypass plugins, run built-in command directly
 
 Aliases:
@@ -5436,6 +5453,7 @@ case "${1:-help}" in
     enumerate-notes) shift; cmd_enumerate_notes "$@" ;;
     sync)    shift; cmd_sync "$@" ;;
     backfill-jira-keys) shift; cmd_backfill_jira_keys "$@" ;;
+    index-rebuild) shift; cmd_index_rebuild "$@" ;;
     help|--help|-h) cmd_help ;;
     *)
         echo "Unknown command: $1" >&2

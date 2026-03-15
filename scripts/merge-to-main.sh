@@ -248,16 +248,35 @@ echo "OK: Merged $BRANCH into main."
 # Run format-check and lint here to catch issues that bypass pre-commit via merge.
 _APP_DIR_NAME="${PATHS_APP_DIR:-app}"
 if [ -d "$MAIN_REPO/$_APP_DIR_NAME" ]; then
-    echo "Running post-merge validation (format-check + lint)..."
+    echo "Running post-merge validation (format-check + lint in parallel)..."
     POST_MERGE_FAIL=false
-    if ! (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_FORMAT_CHECK 2>&1); then
+    _FMT_LOG=$(mktemp)
+    _LINT_LOG=$(mktemp)
+
+    # Run both checks concurrently as background jobs
+    (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_FORMAT_CHECK 2>&1) > "$_FMT_LOG" &
+    _FMT_PID=$!
+    (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_LINT 2>&1) > "$_LINT_LOG" &
+    _LINT_PID=$!
+
+    # Collect exit codes after both finish
+    wait $_FMT_PID
+    _FMT_RC=$?
+    wait $_LINT_PID
+    _LINT_RC=$?
+
+    if [[ $_FMT_RC -ne 0 ]]; then
+        cat "$_FMT_LOG"
         echo "WARNING: Post-merge format-check failed. Run 'make format' to fix."
         POST_MERGE_FAIL=true
     fi
-    if ! (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_LINT 2>&1); then
+    if [[ $_LINT_RC -ne 0 ]]; then
+        cat "$_LINT_LOG"
         echo "WARNING: Post-merge lint failed. Fix lint errors before pushing."
         POST_MERGE_FAIL=true
     fi
+    rm -f "$_FMT_LOG" "$_LINT_LOG"
+
     if [[ "$POST_MERGE_FAIL" == "true" ]]; then
         echo "ERROR: Post-merge validation failed. Fix issues, amend the merge commit, then retry."
         exit 1
