@@ -24,6 +24,25 @@ cd "$REPO_ROOT"
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
 
+# --- Count closed tickets using a single awk pass over all .md files ---
+# Usage: _count_closed_tickets <tickets_dir>
+# Returns: integer count of .md files whose YAML front-matter contains "status: closed"
+_count_closed_tickets() {
+    local dir="$1"
+    local _result
+    _result=$(find "$dir" -maxdepth 1 -name "*.md" -type f \
+        | xargs awk '
+            FILENAME != _prev {
+                if (_prev != "" && _found) count++
+                _prev=FILENAME; _found=0; _n=0
+            }
+            /^---$/ { _n++; if(_n==2) nextfile }
+            _n==1 && /^status:[[:space:]]*closed/ { _found=1 }
+            END { if (_prev != "" && _found) count++; print count+0 }
+        ' 2>/dev/null)
+    echo "${_result:-0}"
+}
+
 # --- Load hooks/lib/deps.sh for get_artifacts_dir ---
 # Needed for checkpoint sentinel verification (see below).
 _HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
@@ -316,9 +335,7 @@ if [ ! -f "$_ARCHIVE_SCRIPT" ]; then
     _ARCHIVE_SCRIPT="$MAIN_REPO/scripts/archive-closed-tickets.sh"
 fi
 if [ -f "$_ARCHIVE_SCRIPT" ]; then
-    _CLOSED_COUNT=$(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" -type f \
-        -exec awk '/^---$/{n++; if(n==2)exit} n==1 && /^status:[[:space:]]*closed/{found=1} END{if(found)print FILENAME}' {} \; \
-        | wc -l | tr -d '[:space:]')
+    _CLOSED_COUNT=$(_count_closed_tickets "$TICKETS_DIR")
     if [ "$_CLOSED_COUNT" -gt 100 ]; then
         echo "Archiving $_CLOSED_COUNT closed ticket(s)..."
         _ARCHIVE_OUT=$(TICKETS_DIR="$TICKETS_DIR" bash "$_ARCHIVE_SCRIPT" 2>&1)
