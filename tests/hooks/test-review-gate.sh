@@ -13,6 +13,14 @@ export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
+# Use an isolated temp directory so tests don't clobber production artifacts.
+# Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so get_artifacts_dir() returns this dir
+# instead of the real one. Without this, test runs corrupt the real review-status
+# file (blocking all commits) and stage dummy files in the real repo.
+_TEST_ARTIFACTS_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-review-gate-XXXXXX")
+export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST_ARTIFACTS_DIR"
+# Note: EXIT trap is set after RGATE_TMP is created (see cleanup_all below).
+
 ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE="$ARTIFACTS_DIR/review-status"
 
@@ -66,11 +74,8 @@ assert_eq "test_review_gate_exits_zero_on_git_log_command" "0" "$EXIT_CODE"
 
 # test_review_gate_blocks_commit_without_review
 # git commit with no review state → blocked (exit 2)
-ORIG_STATE=""
-if [[ -f "$REVIEW_STATE" ]]; then
-    ORIG_STATE=$(cat "$REVIEW_STATE")
-    rm -f "$REVIEW_STATE"
-fi
+# Clean up at test start to ensure isolated state (not just on EXIT trap).
+rm -f "$REVIEW_STATE"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: add feature\""}}'
 EXIT_CODE=$(run_hook "$INPUT")
@@ -85,12 +90,8 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: add fe
 EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_review_gate_blocks_commit_with_failed_review" "2" "$EXIT_CODE"
 
-# Restore original state
-if [[ -n "$ORIG_STATE" ]]; then
-    echo "$ORIG_STATE" > "$REVIEW_STATE"
-else
-    rm -f "$REVIEW_STATE"
-fi
+# Clean up test state (isolated dir — no restore needed since we own this temp dir)
+rm -f "$REVIEW_STATE"
 
 # ============================================================
 # test_review_gate_uses_workflow_plugin_artifact_dir
@@ -108,8 +109,11 @@ fi
 
 # Create a fake REPO_ROOT so we can inspect what path review-gate.sh uses
 RGATE_TMP=$(mktemp -d)
-cleanup_rgate() { rm -rf "$RGATE_TMP"; }
-trap cleanup_rgate EXIT
+cleanup_all() {
+    rm -rf "$RGATE_TMP" 2>/dev/null || true
+    rm -rf "$_TEST_ARTIFACTS_DIR" 2>/dev/null || true
+}
+trap cleanup_all EXIT
 
 # Initialize a minimal fake git repo so git rev-parse works
 git -C "$RGATE_TMP" init --quiet 2>/dev/null || true
@@ -186,11 +190,18 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: trigge
 _DIAG_EXIT=0
 (
     cd "$_DIAG_TMPDIR"
+    # Use WORKFLOW_PLUGIN_ARTIFACTS_DIR so get_artifacts_dir() returns the isolated dir.
+    # Export ARTIFACTS_DIR directly so hook_review_gate uses it (avoids inheriting outer
+    # ARTIFACTS_DIR which points to _TEST_ARTIFACTS_DIR, blocking at "no review recorded").
+    # Set _DEPS_LOADED=1 to skip full deps.sh reload; export hash_stdin, check_tool, and
+    # get_artifacts_dir so compute-diff-hash.sh subprocess has them without reloading deps.sh.
+    # get_artifacts_dir reads WORKFLOW_PLUGIN_ARTIFACTS_DIR (an env var, always available).
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_DIAG_ARTIFACTS"
     export ARTIFACTS_DIR="$_DIAG_ARTIFACTS"
     export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
     export _DEPS_LOADED=1
-    get_artifacts_dir() { echo "$_DIAG_ARTIFACTS"; }
-    export -f get_artifacts_dir
+    get_artifacts_dir() { mkdir -p "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}"; echo "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}"; }
+    export -f get_artifacts_dir hash_stdin check_tool 2>/dev/null || true
     hook_review_gate "$INPUT" 2>/dev/null
 ) || _DIAG_EXIT=$?
 
@@ -250,11 +261,18 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: synthe
 _SYNTH_EXIT=0
 (
     cd "$_SYNTH_TMPDIR"
+    # Use WORKFLOW_PLUGIN_ARTIFACTS_DIR so get_artifacts_dir() returns the isolated dir.
+    # Export ARTIFACTS_DIR directly so hook_review_gate uses it (avoids inheriting outer
+    # ARTIFACTS_DIR which points to _TEST_ARTIFACTS_DIR, blocking at "no review recorded").
+    # Set _DEPS_LOADED=1 to skip full deps.sh reload; export hash_stdin, check_tool, and
+    # get_artifacts_dir so compute-diff-hash.sh subprocess has them without reloading deps.sh.
+    # get_artifacts_dir reads WORKFLOW_PLUGIN_ARTIFACTS_DIR (an env var, always available).
+    export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_SYNTH_ARTIFACTS"
     export ARTIFACTS_DIR="$_SYNTH_ARTIFACTS"
     export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
     export _DEPS_LOADED=1
-    get_artifacts_dir() { echo "$_SYNTH_ARTIFACTS"; }
-    export -f get_artifacts_dir
+    get_artifacts_dir() { mkdir -p "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}"; echo "${WORKFLOW_PLUGIN_ARTIFACTS_DIR}"; }
+    export -f get_artifacts_dir hash_stdin check_tool 2>/dev/null || true
     hook_review_gate "$INPUT" 2>/dev/null
 ) || _SYNTH_EXIT=$?
 
