@@ -86,10 +86,15 @@ nohup bash -c '
     # executable name (argument passing bug fix).
     eval "${*:5}" > "$1" 2>&1 &
     CMD_PID=$!
-    # Heartbeat loop: write timestamp every INTERVAL seconds while command runs
+    # Heartbeat loop: write timestamp every INTERVAL seconds while command runs.
+    # Inner loop polls every 1s to detect fast exits without sleeping the full interval.
     while kill -0 "$CMD_PID" 2>/dev/null; do
         date +%s > "$4"
-        sleep "$3"
+        _hb_remaining="$3"
+        while [ "$_hb_remaining" -gt 0 ] && kill -0 "$CMD_PID" 2>/dev/null; do
+            sleep 1
+            _hb_remaining=$((_hb_remaining - 1))
+        done
     done
     wait "$CMD_PID" 2>/dev/null
     echo $? > "$2"

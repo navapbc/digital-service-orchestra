@@ -44,43 +44,43 @@ else
 fi
 assert_eq "test_read_config_script_exists: file is executable" "executable" "$actual_exec"
 
-# ── test_read_config_no_yaml_references ───────────────────────────────────────
-# read-config.sh must not contain any 'yaml' or 'YAML' references.
+# ── test_read_config_yaml_support ──────────────────────────────────────────────
+# read-config.sh must support YAML format (uses pure-Python parser, no pyyaml).
 _fail_before_nyr=$FAIL
-if { grep -qi yaml "$SCRIPT"; test $? -ne 0; }; then
-    actual_yaml_ref="none"
-else
+if grep -qi 'yaml' "$SCRIPT"; then
     actual_yaml_ref="found"
+else
+    actual_yaml_ref="none"
 fi
-assert_eq "test_read_config_no_yaml_references: no yaml/YAML in script" "none" "$actual_yaml_ref"
+assert_eq "test_read_config_yaml_support: has YAML support" "found" "$actual_yaml_ref"
 if [[ "$FAIL" -eq "$_fail_before_nyr" ]]; then
-    echo "test_read_config_no_yaml_references ... PASS"
+    echo "test_read_config_yaml_support ... PASS"
 fi
 
-# ── test_read_config_no_python3_references ────────────────────────────────────
-# read-config.sh must not invoke python3.
+# ── test_read_config_uses_python3 ─────────────────────────────────────────────
+# read-config.sh uses python3 for YAML parsing (pure-Python, no external deps).
 _fail_before_npy=$FAIL
-if { grep -q python3 "$SCRIPT"; test $? -ne 0; }; then
-    actual_py_ref="none"
-else
+if grep -q 'python3' "$SCRIPT"; then
     actual_py_ref="found"
+else
+    actual_py_ref="none"
 fi
-assert_eq "test_read_config_no_python3_references: no python3 in script" "none" "$actual_py_ref"
+assert_eq "test_read_config_uses_python3: uses python3 for YAML" "found" "$actual_py_ref"
 if [[ "$FAIL" -eq "$_fail_before_npy" ]]; then
-    echo "test_read_config_no_python3_references ... PASS"
+    echo "test_read_config_uses_python3 ... PASS"
 fi
 
-# ── test_read_config_no_config_paths_sourcing ─────────────────────────────────
-# read-config.sh must not source config-paths.sh (only needed for YAML/python path).
+# ── test_read_config_references_config_paths ──────────────────────────────────
+# read-config.sh references config-paths.sh (foundation layer relationship).
 _fail_before_ncp=$FAIL
-if { grep -q "config-paths" "$SCRIPT"; test $? -ne 0; }; then
-    actual_cp_ref="none"
-else
+if grep -q 'config-paths' "$SCRIPT"; then
     actual_cp_ref="found"
+else
+    actual_cp_ref="none"
 fi
-assert_eq "test_read_config_no_config_paths_sourcing: config-paths.sh not sourced" "none" "$actual_cp_ref"
+assert_eq "test_read_config_references_config_paths: references config-paths.sh" "found" "$actual_cp_ref"
 if [[ "$FAIL" -eq "$_fail_before_ncp" ]]; then
-    echo "test_read_config_no_config_paths_sourcing ... PASS"
+    echo "test_read_config_references_config_paths ... PASS"
 fi
 
 # ── test_read_config_no_in_progress_guard ─────────────────────────────────────
@@ -382,5 +382,209 @@ if [[ "$FAIL" -eq "$_fail_before_be" ]]; then
 fi
 
 rm -rf "$BATCH_FIXTURE_DIR"
+
+# ── YAML functional tests ─────────────────────────────────────────────────────
+# These tests invoke read-config.sh against actual YAML fixture files to verify
+# key lookup, nested keys, boolean handling, quote stripping, batch mode, list
+# mode, and the _is_yaml heuristic.
+
+YAML_FIXTURE="$TMPDIR_FIXTURE/test-config.yaml"
+cat > "$YAML_FIXTURE" <<'YAML'
+# Test YAML config
+database:
+  host: localhost
+  port: 5432
+  enabled: true
+  debug: false
+
+app:
+  name: "my-app"
+  version: '1.2.3'
+  description: plain value
+
+top_level_key: top_value
+YAML
+
+# ── test_yaml_simple_key_lookup ──────────────────────────────────────────────
+_fail_before_ysk=$FAIL
+yaml_sk_exit=0
+yaml_sk_output=""
+yaml_sk_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "top_level_key" 2>&1) || yaml_sk_exit=$?
+assert_eq "test_yaml_simple_key_lookup: exit 0" "0" "$yaml_sk_exit"
+assert_eq "test_yaml_simple_key_lookup: correct value" "top_value" "$yaml_sk_output"
+if [[ "$FAIL" -eq "$_fail_before_ysk" ]]; then
+    echo "test_yaml_simple_key_lookup ... PASS"
+fi
+
+# ── test_yaml_nested_key_lookup ──────────────────────────────────────────────
+_fail_before_ynk=$FAIL
+yaml_nk_exit=0
+yaml_nk_output=""
+yaml_nk_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "database.host" 2>&1) || yaml_nk_exit=$?
+assert_eq "test_yaml_nested_key_lookup: exit 0" "0" "$yaml_nk_exit"
+assert_eq "test_yaml_nested_key_lookup: correct value" "localhost" "$yaml_nk_output"
+if [[ "$FAIL" -eq "$_fail_before_ynk" ]]; then
+    echo "test_yaml_nested_key_lookup ... PASS"
+fi
+
+# ── test_yaml_nested_numeric_value ───────────────────────────────────────────
+_fail_before_ynv=$FAIL
+yaml_nv_exit=0
+yaml_nv_output=""
+yaml_nv_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "database.port" 2>&1) || yaml_nv_exit=$?
+assert_eq "test_yaml_nested_numeric_value: exit 0" "0" "$yaml_nv_exit"
+assert_eq "test_yaml_nested_numeric_value: correct value" "5432" "$yaml_nv_output"
+if [[ "$FAIL" -eq "$_fail_before_ynv" ]]; then
+    echo "test_yaml_nested_numeric_value ... PASS"
+fi
+
+# ── test_yaml_boolean_true ───────────────────────────────────────────────────
+_fail_before_ybt=$FAIL
+yaml_bt_exit=0
+yaml_bt_output=""
+yaml_bt_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "database.enabled" 2>&1) || yaml_bt_exit=$?
+assert_eq "test_yaml_boolean_true: exit 0" "0" "$yaml_bt_exit"
+assert_eq "test_yaml_boolean_true: returns True" "True" "$yaml_bt_output"
+if [[ "$FAIL" -eq "$_fail_before_ybt" ]]; then
+    echo "test_yaml_boolean_true ... PASS"
+fi
+
+# ── test_yaml_boolean_false ──────────────────────────────────────────────────
+_fail_before_ybf=$FAIL
+yaml_bf_exit=0
+yaml_bf_output=""
+yaml_bf_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "database.debug" 2>&1) || yaml_bf_exit=$?
+assert_eq "test_yaml_boolean_false: exit 0" "0" "$yaml_bf_exit"
+assert_eq "test_yaml_boolean_false: returns False" "False" "$yaml_bf_output"
+if [[ "$FAIL" -eq "$_fail_before_ybf" ]]; then
+    echo "test_yaml_boolean_false ... PASS"
+fi
+
+# ── test_yaml_double_quote_stripping ─────────────────────────────────────────
+_fail_before_ydq=$FAIL
+yaml_dq_exit=0
+yaml_dq_output=""
+yaml_dq_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "app.name" 2>&1) || yaml_dq_exit=$?
+assert_eq "test_yaml_double_quote_stripping: exit 0" "0" "$yaml_dq_exit"
+assert_eq "test_yaml_double_quote_stripping: quotes stripped" "my-app" "$yaml_dq_output"
+if [[ "$FAIL" -eq "$_fail_before_ydq" ]]; then
+    echo "test_yaml_double_quote_stripping ... PASS"
+fi
+
+# ── test_yaml_single_quote_stripping ─────────────────────────────────────────
+_fail_before_ysq=$FAIL
+yaml_sq_exit=0
+yaml_sq_output=""
+yaml_sq_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "app.version" 2>&1) || yaml_sq_exit=$?
+assert_eq "test_yaml_single_quote_stripping: exit 0" "0" "$yaml_sq_exit"
+assert_eq "test_yaml_single_quote_stripping: quotes stripped" "1.2.3" "$yaml_sq_output"
+if [[ "$FAIL" -eq "$_fail_before_ysq" ]]; then
+    echo "test_yaml_single_quote_stripping ... PASS"
+fi
+
+# ── test_yaml_missing_key ────────────────────────────────────────────────────
+_fail_before_ymk=$FAIL
+yaml_mk_exit=0
+yaml_mk_output=""
+yaml_mk_output=$(bash "$SCRIPT" "$YAML_FIXTURE" "database.nonexistent" 2>&1) || yaml_mk_exit=$?
+assert_eq "test_yaml_missing_key: exit 0" "0" "$yaml_mk_exit"
+assert_eq "test_yaml_missing_key: output is empty" "" "$yaml_mk_output"
+if [[ "$FAIL" -eq "$_fail_before_ymk" ]]; then
+    echo "test_yaml_missing_key ... PASS"
+fi
+
+# ── test_yaml_list_mode ──────────────────────────────────────────────────────
+_fail_before_ylm=$FAIL
+yaml_lm_exit=0
+yaml_lm_output=""
+yaml_lm_output=$(bash "$SCRIPT" --list "$YAML_FIXTURE" "database.host" 2>&1) || yaml_lm_exit=$?
+assert_eq "test_yaml_list_mode: exit 0" "0" "$yaml_lm_exit"
+assert_eq "test_yaml_list_mode: correct value" "localhost" "$yaml_lm_output"
+if [[ "$FAIL" -eq "$_fail_before_ylm" ]]; then
+    echo "test_yaml_list_mode ... PASS"
+fi
+
+# ── test_yaml_list_mode_absent_key ───────────────────────────────────────────
+_fail_before_ylma=$FAIL
+yaml_lma_exit=0
+yaml_lma_output=""
+yaml_lma_output=$(bash "$SCRIPT" --list "$YAML_FIXTURE" "nonexistent.key" 2>&1) || yaml_lma_exit=$?
+if [[ "$yaml_lma_exit" -ne 0 ]]; then
+    actual_lma_exit="nonzero"
+else
+    actual_lma_exit="zero"
+fi
+assert_eq "test_yaml_list_mode_absent_key: exits nonzero" "nonzero" "$actual_lma_exit"
+if [[ "$FAIL" -eq "$_fail_before_ylma" ]]; then
+    echo "test_yaml_list_mode_absent_key ... PASS"
+fi
+
+# ── test_yaml_batch_mode ─────────────────────────────────────────────────────
+_fail_before_ybm=$FAIL
+yaml_bm_exit=0
+yaml_bm_output=""
+yaml_bm_output=$(bash "$SCRIPT" --batch "$YAML_FIXTURE" 2>&1) || yaml_bm_exit=$?
+assert_eq "test_yaml_batch_mode: exit 0" "0" "$yaml_bm_exit"
+# Must contain uppercase KEY=value lines
+if echo "$yaml_bm_output" | grep -qE '^[A-Z_]+='; then
+    actual_ybm_format="has_uppercase_kv"
+else
+    actual_ybm_format="no_uppercase_kv"
+fi
+assert_eq "test_yaml_batch_mode: KEY=value format" "has_uppercase_kv" "$actual_ybm_format"
+# Check specific keys
+if echo "$yaml_bm_output" | grep -q "^DATABASE_HOST="; then
+    actual_ybm_host="found"
+else
+    actual_ybm_host="missing"
+fi
+assert_eq "test_yaml_batch_mode: DATABASE_HOST present" "found" "$actual_ybm_host"
+if echo "$yaml_bm_output" | grep -q "^APP_NAME="; then
+    actual_ybm_name="found"
+else
+    actual_ybm_name="missing"
+fi
+assert_eq "test_yaml_batch_mode: APP_NAME present" "found" "$actual_ybm_name"
+if [[ "$FAIL" -eq "$_fail_before_ybm" ]]; then
+    echo "test_yaml_batch_mode ... PASS"
+fi
+
+# ── test_yaml_heuristic_detection ────────────────────────────────────────────
+# A file without .yaml/.yml extension but with YAML-style content (colon, no equals)
+# should be detected as YAML by the _is_yaml heuristic.
+YAML_HEURISTIC_FIXTURE="$TMPDIR_FIXTURE/config-no-ext"
+cat > "$YAML_HEURISTIC_FIXTURE" <<'YAMLH'
+server:
+  host: 0.0.0.0
+  port: 8080
+YAMLH
+
+_fail_before_yhd=$FAIL
+yaml_hd_exit=0
+yaml_hd_output=""
+yaml_hd_output=$(bash "$SCRIPT" "$YAML_HEURISTIC_FIXTURE" "server.host" 2>&1) || yaml_hd_exit=$?
+assert_eq "test_yaml_heuristic_detection: exit 0" "0" "$yaml_hd_exit"
+assert_eq "test_yaml_heuristic_detection: correct value" "0.0.0.0" "$yaml_hd_output"
+if [[ "$FAIL" -eq "$_fail_before_yhd" ]]; then
+    echo "test_yaml_heuristic_detection ... PASS"
+fi
+
+# ── test_yaml_yml_extension ──────────────────────────────────────────────────
+# .yml extension should also be recognized as YAML.
+YML_FIXTURE="$TMPDIR_FIXTURE/test-config.yml"
+cat > "$YML_FIXTURE" <<'YML'
+feature:
+  enabled: yes
+YML
+
+_fail_before_yye=$FAIL
+yaml_ye_exit=0
+yaml_ye_output=""
+yaml_ye_output=$(bash "$SCRIPT" "$YML_FIXTURE" "feature.enabled" 2>&1) || yaml_ye_exit=$?
+assert_eq "test_yaml_yml_extension: exit 0" "0" "$yaml_ye_exit"
+assert_eq "test_yaml_yml_extension: yes is boolean True" "True" "$yaml_ye_output"
+if [[ "$FAIL" -eq "$_fail_before_yye" ]]; then
+    echo "test_yaml_yml_extension ... PASS"
+fi
 
 print_summary

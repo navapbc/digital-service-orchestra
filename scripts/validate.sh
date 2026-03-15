@@ -350,7 +350,7 @@ fi
 # If docker CLI is available but daemon isn't running, attempt auto-start.
 # Source shared dependency library for try_start_docker.
 # Source deps.sh from lockpick-workflow plugin (canonical location)
-HOOK_LIB="$SCRIPT_DIR/../hooks/lib/deps.sh"
+HOOK_LIB="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 if [[ ! -f "$HOOK_LIB" ]]; then
     # Fallback: try legacy .claude/hooks path
     HOOK_LIB="$REPO_ROOT/.claude/hooks/lib/deps.sh"

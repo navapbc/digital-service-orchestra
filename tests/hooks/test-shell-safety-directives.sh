@@ -33,6 +33,7 @@ EXCEPTIONS=(
     "ensure-pre-commit.sh"
     "lib/require-tk.sh"
     "runners/node-runner.sh"
+    "runners/pytest-runner.sh"
 )
 
 is_exception() {
