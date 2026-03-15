@@ -17,9 +17,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
+# Source config-paths.sh for CFG_APP_DIR
+_classify_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+[[ -f "$_classify_config_paths" ]] && source "$_classify_config_paths"
+
 # Resolve Python — prefer poetry env, fall back to system python3
-if [ -f "$REPO_ROOT/app/poetry.lock" ]; then
-    PYTHON="$(cd "$REPO_ROOT/app" && poetry env info -e 2>/dev/null || echo "python3")"
+if [ -f "$REPO_ROOT/${CFG_APP_DIR:-app}/poetry.lock" ]; then
+    PYTHON="$(cd "$REPO_ROOT/${CFG_APP_DIR:-app}" && poetry env info -e 2>/dev/null || echo "python3")"
 else
     PYTHON="python3"
 fi

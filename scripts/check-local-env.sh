@@ -36,6 +36,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
+# Source config-paths.sh for CFG_PYTHON_VENV
+_env_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+[[ -f "$_env_config_paths" ]] && source "$_env_config_paths"
+
 # Source shared dependency library for try_start_docker, try_find_python, check_tool
 _HOOK_LIB=""
 if [[ -f "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
@@ -48,12 +52,12 @@ if [[ -n "$_HOOK_LIB" ]]; then
 fi
 
 # Resolve Python with pyyaml for read-config.sh.
-# Probe candidates in order: plugin's own venv, repo root venv, system python3.
+# Probe candidates in order: config-driven venv, repo root venv, system python3.
 # Export as CLAUDE_PLUGIN_PYTHON so read-config.sh uses it even when CWD is a
 # test skeleton that has no venv (avoids "no python3 with pyyaml" errors in tests).
 if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
     for _py_candidate in \
-        "$REPO_ROOT/app/.venv/bin/python3" \
+        "$REPO_ROOT/${CFG_PYTHON_VENV:-app/.venv/bin/python3}" \
         "$REPO_ROOT/.venv/bin/python3" \
         "python3"; do
         [[ "$_py_candidate" != "python3" ]] && [[ ! -f "$_py_candidate" ]] && continue

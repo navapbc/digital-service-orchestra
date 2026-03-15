@@ -41,8 +41,12 @@ if [ -z "$REPO_ROOT" ]; then
     exit 2
 fi
 
+# Source config-paths.sh for CFG_APP_DIR
+_batch_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+[[ -f "$_batch_config_paths" ]] && source "$_batch_config_paths"
+
 # Resolve Python — prefer poetry env for PyYAML (used by classify-task.py)
-PYTHON="$(cd "$REPO_ROOT/app" && poetry env info -e 2>/dev/null || echo "python3")"
+PYTHON="$(cd "$REPO_ROOT/${CFG_APP_DIR:-app}" && poetry env info -e 2>/dev/null || echo "python3")"
 SCORER="$REPO_ROOT/lockpick-workflow/scripts/classify-task.py"
 
 # --- Argument parsing ---

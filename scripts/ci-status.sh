@@ -153,9 +153,13 @@ to_epoch() {
     echo "$result"
 }
 
+# Source config-paths.sh for CFG_PYTHON_VENV
+_ci_config_paths="$(cd "$(dirname "$0")" && pwd)/../hooks/lib/config-paths.sh"
+[[ -f "$_ci_config_paths" ]] && source "$_ci_config_paths"
+
 # Resolve a python3 interpreter that has PyYAML installed.
 # Uses the same probe order as read-config.sh: CLAUDE_PLUGIN_PYTHON env var,
-# project venvs (app/.venv, .venv), then system python3.
+# config-driven venv (CFG_PYTHON_VENV), .venv, then system python3.
 # Prints the path on success; empty string if none found.
 _find_python_with_yaml() {
     local repo_root
@@ -163,7 +167,7 @@ _find_python_with_yaml() {
     local candidate
     for candidate in \
         "${CLAUDE_PLUGIN_PYTHON:-}" \
-        "${repo_root:+$repo_root/app/.venv/bin/python3}" \
+        "${repo_root:+$repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}}" \
         "${repo_root:+$repo_root/.venv/bin/python3}" \
         "python3"; do
         [[ -z "$candidate" ]] && continue
