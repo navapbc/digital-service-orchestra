@@ -61,22 +61,98 @@ rm -f "$COUNTER_FILE"
 EXIT_CODE=$(run_hook "not json {{")
 assert_eq "test_track_tool_errors_exits_zero_on_malformed_json" "0" "$EXIT_CODE"
 
-# test_track_tool_errors_threshold_notification
-# Feed hook an error that pushes counter to 50 (threshold).
-# Assert the hook outputs a notification message.
+# test_no_ticket_creation_at_threshold
+# Set counter permission_denied=49, mock tk in PATH, trigger error at threshold.
+# Assert: count=50, no tk call logged, no bugs_created key, no hook output.
+TEST_BIN=$(mktemp -d)
+TK_CALL_LOG="$TEST_BIN/tk-calls.log"
+cat > "$TEST_BIN/tk" << 'TK_EOF'
+#!/usr/bin/env bash
+echo "$@" >> "$TK_CALL_LOG"
+echo "lockpick-doc-to-logic-mock"
+TK_EOF
+chmod +x "$TEST_BIN/tk"
+# Inject TK_CALL_LOG path into the mock script
+sed -i.bak "s|TK_CALL_LOG|$TK_CALL_LOG|g" "$TEST_BIN/tk"
+
 cat > "$COUNTER_FILE" << 'JSON_EOF'
 {"index":{"permission_denied":49},"errors":[]}
 JSON_EOF
 
 INPUT='{"tool_name":"Read","error":"permission denied: /tmp/trigger.txt","is_interrupt":false}'
-_TTE_OUTPUT=$(echo "$INPUT" | bash "$HOOK" 2>/dev/null || true)
+_TTE_OUTPUT=$(echo "$INPUT" | PATH="$TEST_BIN:$PATH" TK_CALL_LOG="$TK_CALL_LOG" bash "$HOOK" 2>/dev/null || true)
 
-_TTE_NOTIFIED="no"
+# Assert count reached 50
+_TTE_COUNT=$(python3 -c "import json; d=json.load(open('$COUNTER_FILE')); print(d.get('index',{}).get('permission_denied',0))" 2>/dev/null || echo 0)
+assert_eq "test_no_ticket_creation_at_threshold_count" "50" "$_TTE_COUNT"
+
+# Assert tk was NOT called
+_TTE_TK_CALLED="no"
+if [[ -f "$TK_CALL_LOG" ]]; then _TTE_TK_CALLED="yes"; fi
+assert_eq "test_no_ticket_creation_at_threshold_no_tk_call" "no" "$_TTE_TK_CALLED"
+
+# Assert no bugs_created key in counter file
+_TTE_BUGS_CREATED=$(python3 -c "import json; d=json.load(open('$COUNTER_FILE')); print('yes' if 'bugs_created' in d else 'no')" 2>/dev/null || echo "no")
+assert_eq "test_no_ticket_creation_at_threshold_no_bugs_created" "no" "$_TTE_BUGS_CREATED"
+
+# Assert no hook output (no "Recurring tool error detected")
+_TTE_OUTPUT_CLEAN="yes"
 if echo "$_TTE_OUTPUT" | grep -q "Recurring tool error detected" 2>/dev/null; then
-    _TTE_NOTIFIED="yes"
+    _TTE_OUTPUT_CLEAN="no"
 fi
-assert_eq "test_track_tool_errors_threshold_notification" "yes" "$_TTE_NOTIFIED"
+assert_eq "test_no_ticket_creation_at_threshold_no_output" "yes" "$_TTE_OUTPUT_CLEAN"
 
+rm -rf "$TEST_BIN"
+rm -f "$COUNTER_FILE"
+
+# test_permission_denied_at_50_no_ticket
+# Non-noise category at exactly threshold count — no tk call.
+TEST_BIN2=$(mktemp -d)
+TK_CALL_LOG2="$TEST_BIN2/tk-calls.log"
+cat > "$TEST_BIN2/tk" << TK2_EOF
+#!/usr/bin/env bash
+echo "\$@" >> "$TK_CALL_LOG2"
+echo "lockpick-doc-to-logic-mock"
+TK2_EOF
+chmod +x "$TEST_BIN2/tk"
+
+cat > "$COUNTER_FILE" << 'JSON_EOF'
+{"index":{"permission_denied":49},"errors":[]}
+JSON_EOF
+
+INPUT='{"tool_name":"Read","error":"permission denied: /tmp/test2.txt","is_interrupt":false}'
+PATH="$TEST_BIN2:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+_TTE_TK2_CALLED="no"
+if [[ -f "$TK_CALL_LOG2" ]]; then _TTE_TK2_CALLED="yes"; fi
+assert_eq "test_permission_denied_at_50_no_ticket" "no" "$_TTE_TK2_CALLED"
+
+rm -rf "$TEST_BIN2"
+rm -f "$COUNTER_FILE"
+
+# test_noise_category_at_threshold_no_ticket
+# Noise category (file_not_found) at threshold — no tk call.
+TEST_BIN3=$(mktemp -d)
+TK_CALL_LOG3="$TEST_BIN3/tk-calls.log"
+cat > "$TEST_BIN3/tk" << TK3_EOF
+#!/usr/bin/env bash
+echo "\$@" >> "$TK_CALL_LOG3"
+echo "lockpick-doc-to-logic-mock"
+TK3_EOF
+chmod +x "$TEST_BIN3/tk"
+
+cat > "$COUNTER_FILE" << 'JSON_EOF'
+{"index":{"file_not_found":49},"errors":[]}
+JSON_EOF
+
+INPUT='{"tool_name":"Read","error":"file not found: /tmp/test3.txt","is_interrupt":false}'
+PATH="$TEST_BIN3:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+_TTE_TK3_CALLED="no"
+if [[ -f "$TK_CALL_LOG3" ]]; then _TTE_TK3_CALLED="yes"; fi
+assert_eq "test_noise_category_at_threshold_no_ticket" "no" "$_TTE_TK3_CALLED"
+
+rm -rf "$TEST_BIN3"
 rm -f "$COUNTER_FILE"
 
 # ============================================================
