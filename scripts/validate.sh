@@ -130,7 +130,8 @@ LOGFILE="$ARTIFACTS_DIR/validation-$$.log"
 TIMEOUT_LOG="${VALIDATE_TIMEOUT_LOG:-$ARTIFACTS_DIR/validation-timeouts.log}"
 FAILED=0
 CHECK_CI=0
-VERBOSE=0    # Set to 1 when --verbose is passed (exported so subshells see it)
+VERBOSE=0      # Set to 1 when --verbose is passed (exported so subshells see it)
+BACKGROUND=0   # Set to 1 when --background is passed (self-daemonize mode)
 export VERBOSE
 CI_PASSED=0  # Set to 1 when CI check passes (used for E2E skip logic)
 E2E_RAN=0    # Set to 1 when E2E tests are actually executed
@@ -262,11 +263,16 @@ for arg in "$@"; do
     case $arg in
         --ci) CHECK_CI=1 ;;
         --verbose) VERBOSE=1 ;;
+        --background) BACKGROUND=1 ;;
         --help)
-            echo "Usage: ./lockpick-workflow/scripts/validate.sh [--ci] [--verbose]"
-            echo "  --ci      Include CI status check + smart E2E skip"
-            echo "  --verbose Print real-time dot-notation progress as each check runs"
-            echo "            (suppresses batch summary output)"
+            echo "Usage: ./lockpick-workflow/scripts/validate.sh [--ci] [--verbose] [--background]"
+            echo "  --ci         Include CI status check + smart E2E skip"
+            echo "  --verbose    Print real-time dot-notation progress as each check runs"
+            echo "               (suppresses batch summary output)"
+            echo "  --background Self-daemonize: invoke bg-run.sh with label validate-<worktree>"
+            echo "               and output /tmp/validate-<worktree>.out, then exit 0 immediately."
+            echo "               Results go to /tmp/validate-<worktree>.out and .exit files."
+            echo "               If bg-run.sh is not in PATH, exits 0 with a warning."
             echo ""
             echo "E2E tests are skipped locally when --ci is used and CI is passing for main."
             echo "E2E tests are also skipped when CI completed with failure (fix CI first)."
@@ -293,6 +299,35 @@ done
 
 if [ $WORKTREE_MODE -eq 1 ]; then
     echo "  (worktree: $(basename "$REPO_ROOT"))"
+fi
+
+# ── Background self-daemonize mode ────────────────────────────────────────
+# When --background is passed, invoke bg-run.sh (Session A) with:
+#   label:  validate-<worktree-name>
+#   output: /tmp/validate-<worktree-name>.out
+# Then exit 0 immediately — caller does not wait for validation to complete.
+# Results are available in /tmp/validate-<worktree-name>.out and .exit files.
+# GATED: requires bg-run.sh to be available in PATH. If unavailable, exits 0
+# with a warning so callers that probe for --background support are not broken.
+if [ $BACKGROUND -eq 1 ]; then
+    BG_LABEL="validate-${WORKTREE_NAME}"
+    BG_OUTPUT="/tmp/validate-${WORKTREE_NAME}.out"
+    if command -v bg-run.sh &>/dev/null; then
+        # Build the forward args (all original args except --background itself)
+        FWD_ARGS=()
+        for _a in "$@"; do
+            [ "$_a" = "--background" ] || FWD_ARGS+=("$_a")
+        done
+        # Invoke bg-run.sh: <label> <output-file> -- <command> [args...]
+        # bg-run.sh launches the command in the background and exits immediately;
+        # results land in BG_OUTPUT and BG_OUTPUT.exit (written by bg-run.sh).
+        bg-run.sh "$BG_LABEL" "$BG_OUTPUT" -- \
+            bash "$0" "${FWD_ARGS[@]+"${FWD_ARGS[@]}"}"
+        exit 0
+    else
+        echo "WARNING: --background requested but bg-run.sh not found in PATH; skipping background launch" >&2
+        exit 0
+    fi
 fi
 
 # ── Pre-flight: Docker auto-start ────────────────────────────────────────

@@ -262,19 +262,23 @@ open('$file', 'w').writelines(result)
 }
 
 # Update a single ticket entry in .tickets/.index.json atomically.
-# Schema: { "<id>": { "title": "...", "status": "...", "type": "..." }, ... }
+# Schema: { "<id>": { "title": "...", "status": "...", "type": "...", "priority": <int|null>, "deps": [...] }, ... }
 #
 # If .index.json is missing or corrupt, rebuilds the full index from all
 # ticket files in TICKETS_DIR for this invocation, then writes it out.
 #
 # Uses atomic write: write to .index.json.tmp then mv to .index.json.
 #
-# Usage: _update_ticket_index <id> <title> <status> <type>
+# Usage: _update_ticket_index <id> <title> <status> <type> [priority] [deps_json]
+#   priority   — integer 0-4 or empty string (stored as null in JSON)
+#   deps_json  — JSON array string e.g. '["id1","id2"]' or empty string (stored as [])
 _update_ticket_index() {
     local id="$1"
     local title="$2"
     local status="$3"
     local type="$4"
+    local priority="${5:-}"
+    local deps_json="${6:-[]}"
 
     local index_file="$TICKETS_DIR/.index.json"
     local tmp_file="$TICKETS_DIR/.index.json.tmp"
@@ -306,13 +310,33 @@ except Exception:
 
     # Merge the updated entry into the existing index
     TICKET_ID="$id" TICKET_TITLE="$title" TICKET_STATUS="$status" TICKET_TYPE="$type" \
+        TICKET_PRIORITY="$priority" TICKET_DEPS="$deps_json" \
         EXISTING_JSON="$existing_json" python3 -c "
 import json, os
 idx = json.loads(os.environ['EXISTING_JSON'])
+raw_priority = os.environ.get('TICKET_PRIORITY', '').strip()
+try:
+    priority = int(raw_priority) if raw_priority != '' else None
+except (ValueError, TypeError):
+    priority = None
+raw_deps = os.environ.get('TICKET_DEPS', '[]').strip()
+try:
+    deps = json.loads(raw_deps)
+    if not isinstance(deps, list):
+        deps = []
+except Exception:
+    # Handle YAML-style unquoted inline array: [id1, id2] -> [\"id1\", \"id2\"]
+    if raw_deps in ('', '[]'):
+        deps = []
+    else:
+        inner = raw_deps.strip().lstrip('[').rstrip(']')
+        deps = [s.strip().strip('\"').strip(chr(39)) for s in inner.split(',') if s.strip()]
 idx[os.environ['TICKET_ID']] = {
-    'title':  os.environ['TICKET_TITLE'],
-    'status': os.environ['TICKET_STATUS'],
-    'type':   os.environ['TICKET_TYPE'],
+    'title':    os.environ['TICKET_TITLE'],
+    'status':   os.environ['TICKET_STATUS'],
+    'type':     os.environ['TICKET_TYPE'],
+    'priority': priority,
+    'deps':     deps,
 }
 print(json.dumps(idx, indent=2, sort_keys=True))
 " > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$index_file" || true
@@ -370,6 +394,22 @@ for fname in files:
     status = get_field('status') or 'open'
     type_ = get_field('type') or 'task'
 
+    # Parse priority as integer (null if missing or non-integer)
+    raw_priority = get_field('priority')
+    try:
+        priority = int(raw_priority) if raw_priority != '' else None
+    except (ValueError, TypeError):
+        priority = None
+
+    # Parse deps as list of strings from YAML inline array e.g. [id1, id2]
+    raw_deps = get_field('deps')
+    if raw_deps in ('', '[]'):
+        deps = []
+    else:
+        # Strip surrounding brackets and split by comma
+        inner = raw_deps.strip().lstrip('[').rstrip(']')
+        deps = [s.strip().strip('\"').strip(\"'\") for s in inner.split(',') if s.strip()]
+
     # Extract title from first '# ' heading in body
     title = ''
     for line in lines:
@@ -377,7 +417,7 @@ for fname in files:
             title = line[2:].strip()
             break
 
-    idx[ticket_id] = {'title': title, 'status': status, 'type': type_}
+    idx[ticket_id] = {'title': title, 'status': status, 'type': type_, 'priority': priority, 'deps': deps}
 
 print(json.dumps(idx))
 " 2>/dev/null || echo "{}"
@@ -486,7 +526,7 @@ cmd_create() {
         fi
     } > "$file"
 
-    _update_ticket_index "$id" "$title" "open" "$issue_type"
+    _update_ticket_index "$id" "$title" "open" "$issue_type" "$priority" "[]"
 
     echo "$id"
 }
@@ -522,10 +562,12 @@ cmd_status() {
     echo "Updated $(basename "$file" .md) -> $status"
 
     # Update the ticket index
-    local _idx_title _idx_type
+    local _idx_title _idx_type _idx_priority _idx_deps
     _idx_title=$(sed -n '/^# /{s/^# //p;q;}' "$file" 2>/dev/null || true)
     _idx_type=$(yaml_field "$file" "type" 2>/dev/null || true)
-    _update_ticket_index "$(basename "$file" .md)" "$_idx_title" "$status" "${_idx_type:-task}"
+    _idx_priority=$(yaml_field "$file" "priority" 2>/dev/null || true)
+    _idx_deps=$(yaml_field "$file" "deps" 2>/dev/null || true)
+    _update_ticket_index "$(basename "$file" .md)" "$_idx_title" "$status" "${_idx_type:-task}" "$_idx_priority" "${_idx_deps:-[]}"
 }
 
 cmd_start() {
@@ -984,6 +1026,15 @@ cmd_dep() {
     fi
 
     echo "Added dependency: $(basename "$file" .md) -> $dep_id"
+
+    # Update the ticket index so deps field stays current
+    local _dep_title _dep_status _dep_type _dep_priority _dep_deps_new
+    _dep_title=$(sed -n '/^# /{s/^# //p;q;}' "$file" 2>/dev/null || true)
+    _dep_status=$(yaml_field "$file" "status" 2>/dev/null || true)
+    _dep_type=$(yaml_field "$file" "type" 2>/dev/null || true)
+    _dep_priority=$(yaml_field "$file" "priority" 2>/dev/null || true)
+    _dep_deps_new=$(yaml_field "$file" "deps" 2>/dev/null || true)
+    _update_ticket_index "$(basename "$file" .md)" "$_dep_title" "${_dep_status:-open}" "${_dep_type:-task}" "$_dep_priority" "${_dep_deps_new:-[]}"
 }
 
 cmd_ready() {
@@ -1417,6 +1468,14 @@ cmd_priority() {
     fi
     update_yaml_field "$file" "priority" "$p"
     echo "Priority $(basename "$file" .md) -> P$p"
+
+    # Update the ticket index so priority field stays current
+    local _prio_title _prio_status _prio_type _prio_deps
+    _prio_title=$(sed -n '/^# /{s/^# //p;q;}' "$file" 2>/dev/null || true)
+    _prio_status=$(yaml_field "$file" "status" 2>/dev/null || true)
+    _prio_type=$(yaml_field "$file" "type" 2>/dev/null || true)
+    _prio_deps=$(yaml_field "$file" "deps" 2>/dev/null || true)
+    _update_ticket_index "$(basename "$file" .md)" "$_prio_title" "${_prio_status:-open}" "${_prio_type:-task}" "$p" "${_prio_deps:-[]}"
 }
 
 cmd_set_parent() {
@@ -1463,11 +1522,13 @@ cmd_tag() {
     echo "Tagged $(basename "$file" .md) with $new_tag"
 
     # Update the ticket index (tags don't change index schema, but keeps index fresh)
-    local _tag_title _tag_status _tag_type
+    local _tag_title _tag_status _tag_type _tag_priority _tag_deps
     _tag_title=$(sed -n '/^# /{s/^# //p;q;}' "$file" 2>/dev/null || true)
     _tag_status=$(yaml_field "$file" "status" 2>/dev/null || true)
     _tag_type=$(yaml_field "$file" "type" 2>/dev/null || true)
-    _update_ticket_index "$(basename "$file" .md)" "$_tag_title" "${_tag_status:-open}" "${_tag_type:-task}"
+    _tag_priority=$(yaml_field "$file" "priority" 2>/dev/null || true)
+    _tag_deps=$(yaml_field "$file" "deps" 2>/dev/null || true)
+    _update_ticket_index "$(basename "$file" .md)" "$_tag_title" "${_tag_status:-open}" "${_tag_type:-task}" "$_tag_priority" "${_tag_deps:-[]}"
 }
 
 cmd_delete() {
