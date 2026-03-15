@@ -44,9 +44,20 @@ source "$_POST_FUNC_DIR/deps.sh"
 hook_exit_144_forensic_logger() {
     local INPUT="$1"
 
-    # Fast path: parse exit_code — bail immediately if not 144
+    # Fast path: parse exit_code — bail immediately if not 144.
+    # PostToolUse provides .tool_response.exit_code (but only fires on exit 0).
+    # PostToolUseFailure provides .error string like "...status code 144" (fires on non-zero).
+    # Try both paths so this function works from either dispatcher.
     local EXIT_CODE
     EXIT_CODE=$(parse_json_field "$INPUT" '.tool_response.exit_code')
+    if [[ -z "$EXIT_CODE" || "$EXIT_CODE" == "null" ]]; then
+        # PostToolUseFailure path: extract exit code from error string
+        local ERROR_MSG
+        ERROR_MSG=$(parse_json_field "$INPUT" '.error')
+        if [[ "$ERROR_MSG" == *"status code 144"* ]]; then
+            EXIT_CODE="144"
+        fi
+    fi
     [[ "$EXIT_CODE" == "144" ]] || return 0
 
     # ERR trap for graceful degradation

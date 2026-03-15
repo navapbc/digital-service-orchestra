@@ -420,4 +420,70 @@ assert_contains "test_analyze_script_handles_malformed_lines: valid data reporte
 
 rm -rf "$_TEST13_DIR"
 
+# ============================================================
+# Part 4: PostToolUseFailure path tests
+# The forensic logger must also work when invoked from
+# PostToolUseFailure, which provides a different input schema:
+#   .error = "Command exited with non-zero status code 144"
+#   (no .tool_response.exit_code field)
+# ============================================================
+
+# ============================================================
+# test_post_failure_144_writes_jsonl
+# PostToolUseFailure input with "status code 144" in .error
+# should trigger forensic logging.
+# ============================================================
+_TEST14_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST14_DIR")
+_TEST14_COMMAND="make test-unit-only"
+_TEST14_HASH=$(echo -n "$_TEST14_COMMAND" | hash_stdin | cut -c1-8)
+
+# Write a start timestamp 80s ago (should classify as timeout)
+_TEST14_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST14_START_MS=$(( _TEST14_NOW_MS - 80000 ))
+echo "$_TEST14_START_MS" > "$_TEST14_DIR/bash-start-ts-${_TEST14_HASH}"
+
+_TEST14_INPUT='{"tool_name":"Bash","tool_input":{"command":"make test-unit-only"},"tool_use_id":"toolu_test","error":"Command exited with non-zero status code 144","is_interrupt":false}'
+
+POST_FAILURE_HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-failure.sh"
+echo "$_TEST14_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST14_DIR" bash "$POST_FAILURE_HOOK" 2>/dev/null || true
+
+_TEST14_JSONL="$_TEST14_DIR/exit-144-forensics.jsonl"
+_snapshot_fail
+if [[ -f "$_TEST14_JSONL" ]]; then
+    _TEST14_CMD=$(python3 -c "import json,sys; d=json.loads(sys.stdin.readline()); print(d.get('command',''))" < "$_TEST14_JSONL")
+    _TEST14_CAUSE=$(python3 -c "import json,sys; d=json.loads(sys.stdin.readline()); print(d.get('cause',''))" < "$_TEST14_JSONL")
+else
+    _TEST14_CMD=""
+    _TEST14_CAUSE=""
+fi
+assert_eq "test_post_failure_144_writes_jsonl: command captured" "make test-unit-only" "$_TEST14_CMD"
+assert_eq "test_post_failure_144_writes_jsonl: cause=timeout (80s)" "timeout" "$_TEST14_CAUSE"
+assert_pass_if_clean "test_post_failure_144_writes_jsonl"
+
+rm -rf "$_TEST14_DIR"
+
+# ============================================================
+# test_post_failure_non_144_no_jsonl
+# PostToolUseFailure with a non-144 error should NOT create
+# a forensics file.
+# ============================================================
+_TEST15_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST15_DIR")
+_TEST15_INPUT='{"tool_name":"Bash","tool_input":{"command":"false"},"tool_use_id":"toolu_test","error":"Command exited with non-zero status code 1","is_interrupt":false}'
+
+echo "$_TEST15_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST15_DIR" bash "$POST_FAILURE_HOOK" 2>/dev/null || true
+
+_TEST15_JSONL="$_TEST15_DIR/exit-144-forensics.jsonl"
+_snapshot_fail
+if [[ -f "$_TEST15_JSONL" ]]; then
+    _TEST15_NO_FILE="no"
+else
+    _TEST15_NO_FILE="yes"
+fi
+assert_eq "test_post_failure_non_144_no_jsonl: no file" "yes" "$_TEST15_NO_FILE"
+assert_pass_if_clean "test_post_failure_non_144_no_jsonl"
+
+rm -rf "$_TEST15_DIR"
+
 print_summary
