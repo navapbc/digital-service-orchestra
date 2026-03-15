@@ -158,7 +158,23 @@ TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-60}"  # GitHub API call — 60s headroom for 
 CLEANUP_PIDS=()
 
 # Cleanup function to kill any remaining processes on exit
+# Also writes "interrupted" to the status file if validate.sh exits unexpectedly
+# while still in the "in_progress" state (i.e., before success/fail is written).
 cleanup() {
+    # Write "interrupted" state if we are still in_progress (unexpected exit)
+    if [[ -f "$VALIDATION_STATE_FILE" ]]; then
+        local _current_state
+        _current_state=$(head -n 1 "$VALIDATION_STATE_FILE" 2>/dev/null || echo "")
+        if [[ "$_current_state" == "in_progress" ]]; then
+            local _interrupted_content="interrupted
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            if declare -f atomic_write_file &>/dev/null; then
+                atomic_write_file "$VALIDATION_STATE_FILE" "$_interrupted_content"
+            else
+                printf '%s\n' "$_interrupted_content" > "$VALIDATION_STATE_FILE" 2>/dev/null || true
+            fi
+        fi
+    fi
     for pid in "${CLEANUP_PIDS[@]}"; do
         kill -TERM "$pid" 2>/dev/null || true
         kill -KILL "$pid" 2>/dev/null || true
@@ -318,6 +334,21 @@ if [[ -f "$HOOK_LIB" ]]; then
         VALIDATION_STATE_FILE="$(get_artifacts_dir)/status"
     fi
 fi
+
+# ── Write in_progress state before launching any checks ──────────────────
+# This ensures that if validate.sh is killed or crashes, the EXIT trap can
+# detect the unfinished run and write "interrupted" instead of leaving a
+# stale "passed" or "failed" from the previous run.
+{
+    local_in_progress_content="in_progress
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    mkdir -p "$(dirname "$VALIDATION_STATE_FILE")" 2>/dev/null || true
+    if declare -f atomic_write_file &>/dev/null; then
+        atomic_write_file "$VALIDATION_STATE_FILE" "$local_in_progress_content"
+    else
+        printf '%s\n' "$local_in_progress_content" > "$VALIDATION_STATE_FILE" 2>/dev/null || true
+    fi
+}
 
 # ── Parallel Check Execution ─────────────────────────────────────────────
 # All independent checks run simultaneously. Results are collected and
