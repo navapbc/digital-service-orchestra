@@ -43,12 +43,12 @@ Evaluate the codebase on all four dimensions. For each, assign an integer score 
 For any score below 4, you MUST name the specific files and functions violating the
 threshold. Findings must include: the file path, the function or class name, the
 current line count or nesting depth, and a concrete remediation (e.g., "Extract
-`_build_prompt_context` from `enrichment_agent.py::EnrichmentAgent.run` (87 lines)
-into a separate `_build_prompt_context` method" or "Consolidate the three copies of
-`_validate_confidence_score` in `agents/` into a shared utility in `agents/utils.py`").
+`_build_context` from `processing_agent.py::ProcessingAgent.run` (87 lines)
+into a separate `_build_context` method" or "Consolidate the three copies of
+`_validate_score` in `agents/` into a shared utility in `agents/utils.py`").
 
 Do NOT flag files in `migrations/`, `__pycache__/`, or generated client stubs — only
-evaluate hand-written source files under `app/src/`. Score `null` for `duplication`
+evaluate hand-written source files under `src/`. Score `null` for `duplication`
 if no systematic duplication scan was performed during data collection. Score `null`
 for `dead_code` if no static analysis or dead code scan was performed.
 
@@ -66,4 +66,4 @@ label `"Code Quality"` and these dimensions:
 
 Include the domain-specific field `"violating_location"` in each finding as
 `"<file_path>::<function_or_class_name> (<line_count> lines)"` where applicable
-(e.g., `"violating_location": "app/src/agents/rego_generation.py::RegoGenerationAgent.run (93 lines)"`).
+(e.g., `"violating_location": "src/agents/data_processor.py::DataProcessorAgent.run (93 lines)"`).

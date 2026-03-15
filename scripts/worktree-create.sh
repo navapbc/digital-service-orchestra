@@ -94,6 +94,11 @@ fi
 # smoke-test temp repos where the script is copied into place).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source config-paths.sh for CFG_PYTHON_VENV
+_wt_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+[[ -f "$_wt_config_paths" ]] && source "$_wt_config_paths"
+
 if [ -x "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" ]; then
     READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 else
@@ -111,9 +116,9 @@ _resolve_plugin_python() {
     local script_repo_root
     script_repo_root="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
     for candidate in \
-        "$REPO_ROOT/app/.venv/bin/python3" \
+        "$REPO_ROOT/$CFG_PYTHON_VENV" \
         "$REPO_ROOT/.venv/bin/python3" \
-        "${script_repo_root:+$script_repo_root/app/.venv/bin/python3}" \
+        "${script_repo_root:+$script_repo_root/$CFG_PYTHON_VENV}" \
         "${script_repo_root:+$script_repo_root/.venv/bin/python3}" \
         "python3"; do
         [ -z "$candidate" ] && continue

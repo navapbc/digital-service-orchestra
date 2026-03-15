@@ -4,6 +4,11 @@ set -euo pipefail
 # ticket - minimal ticket system with dependency tracking
 # Stores markdown files with YAML frontmatter in .tickets/
 
+# Source config-paths.sh for CFG_PYTHON_VENV
+_tk_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_tk_config_paths="$_tk_script_dir/../hooks/lib/config-paths.sh"
+[[ -f "$_tk_config_paths" ]] && source "$_tk_config_paths"
+
 # Read a value from workflow-config.yaml using read-config.sh
 # Returns empty string and exit 0 if key or config not found.
 _tk_read_config() {
@@ -43,7 +48,7 @@ _tk_read_config() {
             # Ensure read-config.sh can find Python with pyyaml by hinting
             # the venv from tk's own repo if not already set
             if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
-                local _py_candidate="$_tk_repo_root/app/.venv/bin/python3"
+                local _py_candidate="$_tk_repo_root/$CFG_PYTHON_VENV"
                 if [[ -f "$_py_candidate" ]] && "$_py_candidate" -c "import yaml" 2>/dev/null; then
                     CLAUDE_PLUGIN_PYTHON="$_py_candidate" "$_read_config" "$_config_file" "$key" 2>/dev/null || true
                     return
@@ -425,9 +430,11 @@ _warn_if_venv_absent() {
     fi
     [[ -n "$repo_root" ]] || return 0
 
-    local venv_python="$repo_root/app/.venv/bin/python"
-    if [[ ! -x "$venv_python" ]]; then
-        echo "WARNING: Python venv not found at app/.venv/bin/python" >&2
+    local venv_python="$repo_root/$CFG_PYTHON_VENV"
+    # Also check without trailing '3' for backward compat
+    local venv_python_alt="${venv_python%3}"
+    if [[ ! -x "$venv_python" ]] && [[ ! -x "$venv_python_alt" ]]; then
+        echo "WARNING: Python venv not found at $CFG_PYTHON_VENV" >&2
         echo "  Pre-commit hooks may fail when committing this change." >&2
         echo "  To complete the close, commit manually or run:" >&2
         echo "    merge-to-main.sh   (in worktree sessions)" >&2
