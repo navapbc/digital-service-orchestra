@@ -52,23 +52,6 @@ if [[ -n "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"
 fi
 
-# Resolve Python with pyyaml for read-config.sh.
-# Probe candidates in order: config-driven venv, repo root venv, system python3.
-# Export as CLAUDE_PLUGIN_PYTHON so read-config.sh uses it even when CWD is a
-# test skeleton that has no venv (avoids "no python3 with pyyaml" errors in tests).
-if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
-    for _py_candidate in \
-        "$REPO_ROOT/$CFG_PYTHON_VENV" \
-        "$REPO_ROOT/.venv/bin/python3" \
-        "python3"; do
-        [[ "$_py_candidate" != "python3" ]] && [[ ! -f "$_py_candidate" ]] && continue
-        if "$_py_candidate" -c "import yaml" 2>/dev/null; then
-            export CLAUDE_PLUGIN_PYTHON="$_py_candidate"
-            break
-        fi
-    done
-fi
-
 # Config reader helper — respects WORKFLOW_CONFIG override (for tests)
 _read_cfg() {
     local key="$1"

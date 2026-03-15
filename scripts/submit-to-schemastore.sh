@@ -84,7 +84,7 @@ echo ""
 echo '{'
 echo '  "name": "workflow-config",'
 echo '  "description": "Schema for workflow-config.conf — lockpick-workflow plugin configuration",'
-echo '  "fileMatch": ["workflow-config.conf", "workflow-config.yaml", "workflow-config.yml"],' # backward compat: .yaml/.yml match for migration
+echo '  "fileMatch": ["workflow-config.conf"],'
 echo "  \"url\": \"$SCHEMA_RAW_URL\""
 echo '}'
 echo ""

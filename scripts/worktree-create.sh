@@ -110,32 +110,6 @@ else
     READ_CONFIG="$SCRIPT_DIR/read-config.sh"
 fi
 
-# Helper: invoke read-config.sh with Python resolution.
-# read-config.sh needs a Python with pyyaml. When REPO_ROOT differs from the
-# script's actual repo (e.g. smoke tests in a temp git repo), the venv probing
-# inside read-config.sh won't find pyyaml. We resolve a working Python here
-# and export CLAUDE_PLUGIN_PYTHON so read-config.sh uses it.
-_resolve_plugin_python() {
-    if [ -n "${CLAUDE_PLUGIN_PYTHON:-}" ]; then return; fi
-    # Derive the script's actual repo root from SCRIPT_DIR
-    local script_repo_root
-    script_repo_root="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
-    for candidate in \
-        "$REPO_ROOT/$CFG_PYTHON_VENV" \
-        "$REPO_ROOT/.venv/bin/python3" \
-        "${script_repo_root:+$script_repo_root/$CFG_PYTHON_VENV}" \
-        "${script_repo_root:+$script_repo_root/.venv/bin/python3}" \
-        "python3"; do
-        [ -z "$candidate" ] && continue
-        [ "$candidate" != "python3" ] && [ ! -f "$candidate" ] && continue
-        if "$candidate" -c "import yaml" 2>/dev/null; then
-            export CLAUDE_PLUGIN_PYTHON="$candidate"
-            return
-        fi
-    done
-}
-_resolve_plugin_python
-
 # ── Resolve name and directory ───────────────────────────────────────────────
 
 if [ -z "$WORKTREE_NAME" ]; then

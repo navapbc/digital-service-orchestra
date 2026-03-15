@@ -46,7 +46,7 @@ fi
 _batch_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
 [[ -f "$_batch_config_paths" ]] && source "$_batch_config_paths"
 
-# Resolve Python — prefer poetry env for PyYAML (used by classify-task.py)
+# Resolve Python — prefer poetry env (classify-task.py needs its dependencies)
 # Fall back to system python3 when poetry is absent (graceful degradation).
 if command -v poetry >/dev/null 2>&1 && [ -f "$REPO_ROOT/${CFG_APP_DIR:-app}/poetry.lock" ]; then
     PYTHON="$(cd "$REPO_ROOT/${CFG_APP_DIR:-app}" && poetry env info -e 2>/dev/null || echo "python3")"

@@ -56,8 +56,6 @@ CONFIG_FILE=""
 if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     if [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
         CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
-    elif [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml" ]]; then
-        CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.yaml"
     fi
 fi
 

@@ -144,8 +144,6 @@ if [[ -z "$config_file" ]]; then
     root="${CLAUDE_PLUGIN_ROOT:-$(pwd)}"
     if [[ -f "$root/workflow-config.conf" ]]; then
         config_file="$root/workflow-config.conf"
-    elif [[ -f "$root/workflow-config.yaml" ]]; then # fallback for migration
-        config_file="$root/workflow-config.yaml" # fallback for migration
     else
         # No config file found — nothing to validate
         exit 0
