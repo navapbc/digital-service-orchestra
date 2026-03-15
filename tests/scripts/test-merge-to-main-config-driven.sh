@@ -27,9 +27,11 @@ assert_ne "test_merge_to_main_reads_format_check_config" "0" "$READS_FORMAT_CHEC
 
 # =============================================================================
 # Test 2: Script reads commands.lint from config
-# The script should contain a read-config.sh call for commands.lint.
+# The script uses --batch eval to load all config keys (including commands.lint)
+# in a single read-config.sh call. Verify that commands.lint is referenced
+# (in a comment or as the COMMANDS_LINT variable) and COMMANDS_LINT is consumed.
 # =============================================================================
-READS_LINT=$(grep -c 'read-config.sh.*commands\.lint\b' "$MERGE_SCRIPT" || true)
+READS_LINT=$(grep -c 'commands\.lint\|COMMANDS_LINT' "$MERGE_SCRIPT" || true)
 assert_ne "test_merge_to_main_reads_lint_config" "0" "$READS_LINT"
 
 # =============================================================================

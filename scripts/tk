@@ -4525,7 +4525,7 @@ _SYNC_WATCHDOG_PID=""   # Global — watchdog PID for cleanup in traps
 
 SYNC_LOCK_CAS_REF="refs/tk/sync-lock"
 SYNC_LOCK_STALE_THRESHOLD=1800      # 30 minutes
-SYNC_LOCK_ACQUIRE_TIMEOUT=300       # 5 minutes total
+SYNC_LOCK_ACQUIRE_TIMEOUT=30        # 30 seconds default (override via --lock-timeout=N or JIRA_SYNC_TIMEOUT_SECONDS env)
 SYNC_LOCK_INITIAL_BACKOFF_V2=1      # seconds
 SYNC_LOCK_MAX_BACKOFF_V2=30         # seconds max backoff
 _HELD_LOCK_SHA=""                    # Global — set by acquire_v2, read by release_v2
@@ -5029,6 +5029,17 @@ cmd_sync() {
     local _sync_full_mode=0
     local break_lock=0
     local arg
+
+    # Apply JIRA_SYNC_TIMEOUT_SECONDS env override before flag parsing.
+    # --lock-timeout=N (parsed below) takes precedence over this env var.
+    if [[ -n "${JIRA_SYNC_TIMEOUT_SECONDS:-}" ]]; then
+        if [[ "$JIRA_SYNC_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] && [[ "$JIRA_SYNC_TIMEOUT_SECONDS" -gt 0 ]]; then
+            SYNC_LOCK_ACQUIRE_TIMEOUT="$JIRA_SYNC_TIMEOUT_SECONDS"
+            SYNC_TIMEOUT_SECONDS="$JIRA_SYNC_TIMEOUT_SECONDS"
+        else
+            echo "Warning: JIRA_SYNC_TIMEOUT_SECONDS='${JIRA_SYNC_TIMEOUT_SECONDS}' is not a positive integer — using default ${SYNC_LOCK_ACQUIRE_TIMEOUT}s" >&2
+        fi
+    fi
 
     # Parse flags
     for arg in "$@"; do
