@@ -73,9 +73,41 @@ When `/sprint` is interrupted by context compaction or a control-flow issue, the
 **If released**: note it in the session summary.
 **If not found or belongs to another worktree**: skip silently (one-line report is fine).
 
+### 2.8. Extract Technical Learnings (pre-commit)
+
+Silently scan the git diff and conversation context to extract technical learnings before committing. Store the results for display in Step 6.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+# Gather diff context (unmerged commits + staged/unstaged changes)
+GIT_DIFF=$(git diff main..HEAD --stat 2>/dev/null; git diff --stat 2>/dev/null)
+```
+
+Review the diff output and conversation history for signal. Identify:
+- **Discoveries**: Non-obvious findings about how the system behaves (e.g., "The pipeline skips gap_analysis when document has no tables")
+- **Design decisions**: Choices made and why (e.g., "Used sentinel value max_tokens=0 instead of None to distinguish 'unset' from 'default'")
+- **Gotchas**: Edge cases, footguns, or surprising behavior that future sessions should know (e.g., "SQLAlchemy flushes on query, so tests must commit before asserting DB state")
+
+**Store the results in a named section** called `LEARNINGS_FROM_2_8` for use in Step 6. If nothing substantive is found, store an empty list.
+
+Focus on reusable knowledge. Exclude: workflow phases run, git operations performed, tool usage counts, issue IDs closed.
+
+**This step runs silently** — do not print the learnings here. Step 6 will display them.
+
 ### 3. Commit Local Changes
 1. Run `git status`. If changes exist: read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
+
+### 3.25. Write Pre-Merge Sentinel (Disable Pre-Compact Checkpoint)
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+touch "$REPO_ROOT/.disable-precompact-checkpoint"
+```
+
+This sentinel prevents `pre-compact-checkpoint.sh` from creating unmerged checkpoint commits during the post-merge window (the brief period between merge and worktree removal when a context compaction could fire).
+
+**Note**: The sentinel is session-scoped — it is safe to delete manually if `/end` is interrupted before the cleanup step runs (Step 4.75 handles cleanup automatically). It must NOT be committed to git (it is a transient flag file and is excluded by `.gitignore`).
 
 ### 3.5. Visual Baseline Comparison
 
@@ -172,7 +204,9 @@ when no open bug matching `"Recurring tool error: $CATEGORY"` already exists (de
 
 ### 6. Report: Task Summary and Completion
 
-Display a comprehensive session summary:
+Display a comprehensive session summary using stored learnings from Step 2.8.
+
+**Technical Learnings** — display the `LEARNINGS_FROM_2_8` list generated earlier in Step 2.8 (omit if empty). Do not re-scan git diff or conversation context here.
 
 **Task Summary** (gathered from git log and tickets):
 - Epic ID and title (if a `/sprint` or `/debug-everything` was running)
@@ -188,14 +222,7 @@ Display a comprehensive session summary:
 - Branch merged/pushed (or "already merged by prior phase")
 - Worktree cleanup status
 
-**Technical Learnings** (scan git diff and conversation for signal — omit if nothing substantive):
-- **Discoveries**: Non-obvious findings about how the system behaves (e.g., "The pipeline skips gap_analysis when document has no tables")
-- **Design decisions**: Choices made and why (e.g., "Used sentinel value max_tokens=0 instead of None to distinguish 'unset' from 'default'")
-- **Gotchas**: Edge cases, footguns, or surprising behavior that future sessions should know (e.g., "SQLAlchemy flushes on query, so tests must commit before asserting DB state")
-
-Focus on reusable knowledge. Exclude: workflow phases run, git operations performed, tool usage counts, issue IDs closed.
-
-**Bug ticket check** — after generating the Technical Learnings list, review each learning and ask: "Should this be a bug ticket?" Create a bug ticket (`tk create "<title>" -t bug -p <priority>`) for any learning that describes:
+**Bug ticket check** — after displaying the Technical Learnings list, review each learning and ask: "Should this be a bug ticket?" Create a bug ticket (`tk create "<title>" -t bug -p <priority>`) for any learning that describes:
 - A defect, regression, or broken behavior that hasn't been fixed yet
 - A footgun or edge case that will bite users/developers again if not addressed
 - A workaround that was applied instead of a proper fix

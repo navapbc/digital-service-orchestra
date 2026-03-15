@@ -93,8 +93,9 @@ _offer_worktree_cleanup() {
     local wt_name="$1"
     local wt_path="$2"
 
-    # Check if stdin is a terminal (interactive session)
-    if [ ! -t 0 ]; then
+    # Check if stdin is a terminal (interactive session).
+    # _CLAUDE_SAFE_TEST_INTERACTIVE=1 bypasses this guard in tests.
+    if [ ! -t 0 ] && [ "${_CLAUDE_SAFE_TEST_INTERACTIVE:-0}" != "1" ]; then
         return
     fi
 
@@ -114,57 +115,22 @@ _offer_worktree_cleanup() {
         is_merged=1
     fi
 
-    # Read tickets directory from config (fallback: .tickets)
-    local tickets_dir
-    tickets_dir=$(_read_cfg tickets.directory 2>/dev/null) || true
-    tickets_dir="${tickets_dir:-.tickets}"
-
-    # Check for uncommitted changes (excluding tickets dir which syncs independently
-    # and contains .sync-state.json for Jira sync state).
-    # Build a grep-safe pattern for tickets_dir: escape any leading dot so the
-    # pattern works for both '.tickets' and 'custom-tickets'.
-    local tickets_dir_pat
-    tickets_dir_pat=$(printf '%s' "$tickets_dir" | sed 's/^\./\\./')
+    # Check for uncommitted changes — any dirty file blocks auto-removal.
+    # .tickets/ files are treated like any other uncommitted change.
     local is_clean=1
-    local dirty_non_tickets
-    dirty_non_tickets=$(git -C "$wt_path" status --porcelain 2>/dev/null | grep -v "^.. ${tickets_dir_pat}/" || true)
-    if [ -n "$dirty_non_tickets" ]; then
+    if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
         is_clean=0
-    fi
-
-    # Check if unmerged commits only touch tickets dir files already on main.
-    # The cross-worktree ticket sync hook pushes tickets dir changes directly to main
-    # via detached-index commits, so the branch won't be an ancestor of main even
-    # though the content is already there.
-    local tickets_only_unmerged=0
-    if [ "$is_merged" -eq 0 ]; then
-        local unmerged_non_tickets
-        unmerged_non_tickets=$(git -C "$wt_path" diff --name-only main..HEAD -- ":!${tickets_dir}/" 2>/dev/null || true)
-        if [ -z "$unmerged_non_tickets" ]; then
-            # All unmerged commits only touch tickets dir — verify content matches main
-            local tickets_diff
-            tickets_diff=$(git -C "$wt_path" diff main -- "${tickets_dir}/" 2>/dev/null || true)
-            if [ -z "$tickets_diff" ]; then
-                tickets_only_unmerged=1
-            fi
-        fi
     fi
 
     local can_remove=0
     if [ "$is_merged" -eq 1 ] && [ "$is_clean" -eq 1 ]; then
-        can_remove=1
-    elif [ "$tickets_only_unmerged" -eq 1 ] && [ "$is_clean" -eq 1 ]; then
         can_remove=1
     fi
 
     # Auto-remove if safe; show blocking details otherwise
     if [ "$can_remove" -eq 1 ]; then
         echo ""
-        if [ "$tickets_only_unmerged" -eq 1 ]; then
-            echo "Cleaning up worktree '$wt_name' (only ${tickets_dir}/ changes, already synced to main)..."
-        else
-            echo "Cleaning up worktree '$wt_name' (branch merged to main, working tree clean)..."
-        fi
+        echo "Cleaning up worktree '$wt_name' (branch merged to main, working tree clean)..."
 
         # Stop Docker containers/networks for this worktree
         _cleanup_docker_for_worktree "$wt_name" "$wt_path"
@@ -189,7 +155,7 @@ _offer_worktree_cleanup() {
     else
         echo ""
         echo "Worktree '$wt_name' cannot be auto-removed:"
-        if [ "$is_merged" -eq 0 ] && [ "$tickets_only_unmerged" -eq 0 ]; then
+        if [ "$is_merged" -eq 0 ]; then
             echo ""
             echo "  Branch '$branch' has unmerged commits:"
             git -C "$wt_path" log main..HEAD --oneline 2>/dev/null | sed 's/^/    /' || echo "    (unable to list commits)"
