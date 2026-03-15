@@ -211,9 +211,15 @@ _dispatcher_executable=0
 assert_eq "test_post_failure_dispatcher_calls_track_tool_errors: executable" "1" "$_dispatcher_executable"
 
 # Run with a minimal failure input — should exit 0 (informational, non-blocking)
+# Use isolated HOME so synthetic errors don't pollute ~/.claude/tool-error-counter.json
 _INPUT='{"tool_name":"Bash","error":"command not found: xyz","tool_input":{"command":"xyz"},"session_id":"test","is_interrupt":false}'
 _exit_code=0
+_post_failure_real_home="$HOME"
+_post_failure_test_home=$(mktemp -d)
+_CLEANUP_DIRS+=("$_post_failure_test_home")
+export HOME="$_post_failure_test_home"
 printf '%s' "$_INPUT" | bash "$POST_FAILURE_DISPATCHER" 2>/dev/null || _exit_code=$?
+export HOME="$_post_failure_real_home"
 assert_eq "test_post_failure_dispatcher_calls_track_tool_errors: exits 0 (non-blocking)" "0" "$_exit_code"
 
 # ============================================================
