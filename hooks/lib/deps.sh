@@ -646,6 +646,65 @@ atomic_write_file() {
     mv "$tmpf" "$target"
 }
 
+# --- create_managed_tempdir ---
+# Create a temporary directory and register an EXIT trap to clean it up.
+# Chains with any existing EXIT trap instead of replacing it.
+# Sets the given variable name to the created temp directory path in the calling scope.
+#
+# IMPORTANT: Must NOT be called via command substitution (e.g., VAR=$(create_managed_tempdir VAR))
+# because subshell execution causes the EXIT trap to fire immediately when the subshell exits,
+# deleting the directory before the caller can use it. Always call as:
+#
+#   create_managed_tempdir VARNAME
+#   # Now $VARNAME holds the path, and it will be removed on any exit (normal or error)
+#
+# Usage:
+#   create_managed_tempdir MY_TMPDIR
+#   echo "Using temp dir: $MY_TMPDIR"
+create_managed_tempdir() {
+    local _varname="${1:-_MANAGED_TMPDIR}"
+    local _tmpdir
+    _tmpdir=$(mktemp -d)
+
+    # Chain the cleanup with any existing EXIT trap.
+    # Capture the current trap action (if any) for this signal.
+    local _existing_trap
+    _existing_trap=$(trap -p EXIT 2>/dev/null | sed "s/^trap -- '\\(.*\\)' EXIT\$/\\1/" || true)
+
+    if [[ -n "$_existing_trap" ]]; then
+        # Chain: run existing trap first, then remove our temp dir
+        # shellcheck disable=SC2064
+        trap "${_existing_trap}; rm -rf '${_tmpdir}'" EXIT
+    else
+        # No existing trap — set a new one
+        # shellcheck disable=SC2064
+        trap "rm -rf '${_tmpdir}'" EXIT
+    fi
+
+    # Set the variable in the caller's scope using declare -g
+    # shellcheck disable=SC2140
+    declare -g "$_varname"="$_tmpdir"
+}
+
+# --- cleanup_stale_tmpdirs ---
+# Find and remove /tmp/lw-* and /tmp/test-batched-* directories/files
+# older than 24 hours. Safe to call at any time; tolerates missing entries.
+#
+# Usage:
+#   cleanup_stale_tmpdirs
+cleanup_stale_tmpdirs() {
+    local cutoff_hours="${1:-24}"
+    local min_cutoff="${cutoff_hours}"
+
+    # find -mmin: files older than N*60 minutes
+    local find_mmin=$(( min_cutoff * 60 ))
+
+    # Remove stale lw-* temp dirs/files
+    find /tmp -maxdepth 1 \( -name 'lw-*' -o -name 'test-batched-*' \) \
+        -mmin "+${find_mmin}" \
+        -exec rm -rf {} + 2>/dev/null || true
+}
+
 # --- retry_with_backoff ---
 # Retry a command with exponential backoff on failure.
 #

@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+# lockpick-workflow/tests/scripts/test-batched-state-integrity.sh
+# Tests for test-batched.sh state file integrity features:
+#   - command_hash validation (hash mismatch → warns + starts fresh)
+#   - created_at timestamp with TTL (expired state → warns + starts fresh)
+#   - corruption backup (corrupt state → renamed to *.corrupt.bak, not deleted)
+#
+# Usage: bash lockpick-workflow/tests/scripts/test-batched-state-integrity.sh
+# Returns: exit 0 if all tests pass, exit 1 if any fail
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
+SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/test-batched.sh"
+ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+
+if [ ! -f "$ASSERT_LIB" ]; then
+    echo "SKIP: test-batched-state-integrity.sh — assert.sh not found at: $ASSERT_LIB" >&2
+    exit 0
+fi
+source "$ASSERT_LIB"
+
+echo "=== test-batched-state-integrity.sh ==="
+
+# ── test_script_exists_and_executable ─────────────────────────────────────────
+echo ""
+echo "--- test_script_exists_and_executable ---"
+_snapshot_fail
+script_ok=0
+[ -x "$SCRIPT" ] && script_ok=1
+assert_eq "test_script_exists_and_executable: file exists and is executable" "1" "$script_ok"
+assert_pass_if_clean "test_script_exists_and_executable"
+
+if [ ! -x "$SCRIPT" ]; then
+    echo ""
+    echo "Skipping remaining tests — script not yet present."
+    echo ""
+    printf "PASSED: %d  FAILED: %d\n" "$PASS" "$FAIL"
+    exit 1
+fi
+
+# ── test_state_file_includes_command_hash ─────────────────────────────────────
+# When test-batched.sh creates a new state file (via timeout), it must include
+# a command_hash field.
+echo ""
+echo "--- test_state_file_includes_command_hash ---"
+_snapshot_fail
+TMPDIR_HASH="$(mktemp -d)"
+HASH_STATE="$TMPDIR_HASH/state.json"
+
+# Use timeout=1 with slow command so state file is written mid-run
+TEST_BATCHED_STATE_FILE="$HASH_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null || true
+
+has_command_hash=0
+if [ -f "$HASH_STATE" ]; then
+    python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    assert 'command_hash' in d, 'command_hash field missing'
+    assert d['command_hash'], 'command_hash is empty'
+    sys.exit(0)
+except Exception as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(1)
+" "$HASH_STATE" && has_command_hash=1 || true
+fi
+assert_eq "test_state_file_includes_command_hash: state file has command_hash field" \
+    "1" "$has_command_hash"
+rm -rf "$TMPDIR_HASH"
+assert_pass_if_clean "test_state_file_includes_command_hash"
+
+# ── test_state_file_includes_created_at ───────────────────────────────────────
+# When test-batched.sh creates a new state file, it must include a created_at field.
+echo ""
+echo "--- test_state_file_includes_created_at ---"
+_snapshot_fail
+TMPDIR_CAT="$(mktemp -d)"
+CAT_STATE="$TMPDIR_CAT/state.json"
+
+TEST_BATCHED_STATE_FILE="$CAT_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null || true
+
+has_created_at=0
+if [ -f "$CAT_STATE" ]; then
+    python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    assert 'created_at' in d, 'created_at field missing'
+    assert d['created_at'], 'created_at is empty'
+    sys.exit(0)
+except Exception as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(1)
+" "$CAT_STATE" && has_created_at=1 || true
+fi
+assert_eq "test_state_file_includes_created_at: state file has created_at field" \
+    "1" "$has_created_at"
+rm -rf "$TMPDIR_CAT"
+assert_pass_if_clean "test_state_file_includes_created_at"
+
+# ── test_hash_mismatch_warns_and_starts_fresh ──────────────────────────────────
+# When a state file exists with a different command_hash (e.g., state from a
+# different command), test-batched.sh must warn and start fresh rather than
+# resuming stale state.
+echo ""
+echo "--- test_hash_mismatch_warns_and_starts_fresh ---"
+_snapshot_fail
+TMPDIR_MISMATCH="$(mktemp -d)"
+MISMATCH_STATE="$TMPDIR_MISMATCH/state.json"
+
+# Write a state file with a fake/mismatched command_hash
+# The test ID for "bash -c 'exit 0'" would be "bash_-c_exit_0"
+python3 -c "
+import json, sys
+state = {
+    'runner': 'some_other_command',
+    'completed': ['bash_-c_exit_0'],
+    'results': {'bash_-c_exit_0': 'pass'},
+    'command_hash': 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    'created_at': 9999999999
+}
+with open(sys.argv[1], 'w') as f:
+    json.dump(state, f, indent=2)
+" "$MISMATCH_STATE"
+
+mismatch_out=""
+# Run with a different command so the hash won't match
+mismatch_out=$(TEST_BATCHED_STATE_FILE="$MISMATCH_STATE" bash "$SCRIPT" --timeout=30 \
+    "bash -c 'exit 0'" 2>&1) || true
+
+# Must warn about hash mismatch
+hash_warned=0
+echo "$mismatch_out" | grep -qiE 'hash|mismatch|stale|fresh' && hash_warned=1
+assert_eq "test_hash_mismatch_warns_and_starts_fresh: output warns about hash mismatch" \
+    "1" "$hash_warned"
+
+# Must NOT show "Resuming from state file" (should start fresh, not resume)
+resumed_stale=0
+echo "$mismatch_out" | grep -q "Resuming from state file" && resumed_stale=1
+assert_eq "test_hash_mismatch_warns_and_starts_fresh: does NOT resume stale state" \
+    "0" "$resumed_stale"
+
+# Must complete successfully (started fresh and ran the command)
+completed_ok=0
+echo "$mismatch_out" | grep -qiE 'passed|All tests done' && completed_ok=1
+assert_eq "test_hash_mismatch_warns_and_starts_fresh: completes successfully after fresh start" \
+    "1" "$completed_ok"
+
+rm -rf "$TMPDIR_MISMATCH"
+assert_pass_if_clean "test_hash_mismatch_warns_and_starts_fresh"
+
+# ── test_ttl_expiry_warns_and_starts_fresh ─────────────────────────────────────
+# When a state file has a created_at timestamp older than the TTL (default 4h),
+# test-batched.sh must warn and start fresh.
+echo ""
+echo "--- test_ttl_expiry_warns_and_starts_fresh ---"
+_snapshot_fail
+TMPDIR_TTL="$(mktemp -d)"
+TTL_STATE="$TMPDIR_TTL/state.json"
+
+# Compute the expected command_hash for "bash -c 'exit 0'" so the hash matches
+# but the timestamp is expired. This isolates the TTL test from hash-mismatch.
+CMD_FOR_TTL="bash -c 'exit 0'"
+CWD_FOR_TTL="$(pwd)"
+EXPECTED_HASH=$(echo -n "${CMD_FOR_TTL}:${CWD_FOR_TTL}" | sha256sum 2>/dev/null | awk '{print $1}' || echo -n "${CMD_FOR_TTL}:${CWD_FOR_TTL}" | python3 -c 'import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')
+
+python3 -c "
+import json, sys
+state = {
+    'runner': sys.argv[1],
+    'completed': ['bash_-c_exit_0'],
+    'results': {'bash_-c_exit_0': 'pass'},
+    'command_hash': sys.argv[2],
+    'created_at': 0
+}
+with open(sys.argv[3], 'w') as f:
+    json.dump(state, f, indent=2)
+" "$CMD_FOR_TTL" "$EXPECTED_HASH" "$TTL_STATE"
+
+ttl_out=""
+ttl_out=$(TEST_BATCHED_STATE_FILE="$TTL_STATE" bash "$SCRIPT" --timeout=30 \
+    "$CMD_FOR_TTL" 2>&1) || true
+
+# Must warn about TTL/stale/expired
+ttl_warned=0
+echo "$ttl_out" | grep -qiE 'TTL|expired|stale|old|fresh' && ttl_warned=1
+assert_eq "test_ttl_expiry_warns_and_starts_fresh: output warns about TTL expiry" \
+    "1" "$ttl_warned"
+
+# Must NOT resume (should start fresh)
+ttl_resumed=0
+echo "$ttl_out" | grep -q "Resuming from state file" && ttl_resumed=1
+assert_eq "test_ttl_expiry_warns_and_starts_fresh: does NOT resume expired state" \
+    "0" "$ttl_resumed"
+
+# Must complete successfully
+ttl_completed=0
+echo "$ttl_out" | grep -qiE 'passed|All tests done' && ttl_completed=1
+assert_eq "test_ttl_expiry_warns_and_starts_fresh: completes successfully after fresh start" \
+    "1" "$ttl_completed"
+
+rm -rf "$TMPDIR_TTL"
+assert_pass_if_clean "test_ttl_expiry_warns_and_starts_fresh"
+
+# ── test_ttl_configurable_via_state_ttl_env ────────────────────────────────────
+# STATE_TTL env var allows overriding the default 4-hour TTL.
+# When STATE_TTL=1 (1 second), a state file even 2 seconds old should be rejected.
+echo ""
+echo "--- test_ttl_configurable_via_state_ttl_env ---"
+_snapshot_fail
+TMPDIR_CUSTOM_TTL="$(mktemp -d)"
+CUSTOM_TTL_STATE="$TMPDIR_CUSTOM_TTL/state.json"
+
+CMD_FOR_CUSTOM="bash -c 'exit 0'"
+CWD_FOR_CUSTOM="$(pwd)"
+CUSTOM_HASH=$(echo -n "${CMD_FOR_CUSTOM}:${CWD_FOR_CUSTOM}" | sha256sum 2>/dev/null | awk '{print $1}' || echo -n "${CMD_FOR_CUSTOM}:${CWD_FOR_CUSTOM}" | python3 -c 'import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')
+
+# Set created_at to 2 seconds in the past; with STATE_TTL=1, it should expire
+PAST_TS=$(( $(date +%s) - 2 ))
+python3 -c "
+import json, sys
+state = {
+    'runner': sys.argv[1],
+    'completed': ['bash_-c_exit_0'],
+    'results': {'bash_-c_exit_0': 'pass'},
+    'command_hash': sys.argv[2],
+    'created_at': int(sys.argv[3])
+}
+with open(sys.argv[4], 'w') as f:
+    json.dump(state, f, indent=2)
+" "$CMD_FOR_CUSTOM" "$CUSTOM_HASH" "$PAST_TS" "$CUSTOM_TTL_STATE"
+
+custom_ttl_out=""
+custom_ttl_out=$(TEST_BATCHED_STATE_FILE="$CUSTOM_TTL_STATE" STATE_TTL=1 \
+    bash "$SCRIPT" --timeout=30 "$CMD_FOR_CUSTOM" 2>&1) || true
+
+# Must warn about TTL
+custom_ttl_warned=0
+echo "$custom_ttl_out" | grep -qiE 'TTL|expired|stale|old|fresh' && custom_ttl_warned=1
+assert_eq "test_ttl_configurable_via_state_ttl_env: custom STATE_TTL=1 causes expiry" \
+    "1" "$custom_ttl_warned"
+
+rm -rf "$TMPDIR_CUSTOM_TTL"
+assert_pass_if_clean "test_ttl_configurable_via_state_ttl_env"
+
+# ── test_corruption_renames_to_corrupt_bak ────────────────────────────────────
+# When a state file is corrupted (invalid JSON), it must be renamed to
+# *.corrupt.bak (not deleted with rm -f).
+echo ""
+echo "--- test_corruption_renames_to_corrupt_bak ---"
+_snapshot_fail
+TMPDIR_CORRUPT="$(mktemp -d)"
+CORRUPT_STATE="$TMPDIR_CORRUPT/state.json"
+CORRUPT_BAK="$CORRUPT_STATE.corrupt.bak"
+
+# Write corrupted JSON
+echo "NOT_VALID_JSON{{{" > "$CORRUPT_STATE"
+
+corrupt_out=""
+corrupt_out=$(TEST_BATCHED_STATE_FILE="$CORRUPT_STATE" bash "$SCRIPT" --timeout=30 \
+    "bash -c 'exit 0'" 2>&1) || true
+
+# The .corrupt.bak file must exist
+bak_exists=0
+[ -f "$CORRUPT_BAK" ] && bak_exists=1
+assert_eq "test_corruption_renames_to_corrupt_bak: *.corrupt.bak file was created" \
+    "1" "$bak_exists"
+
+# The original state.json must NOT exist (was renamed away)
+original_exists=0
+[ -f "$CORRUPT_STATE" ] && original_exists=1
+# Note: If a new valid state is written after fresh start + completion, that's ok.
+# What matters is the bak file was created (rename happened, not rm -f).
+# We check the bak explicitly above.
+
+# Must also warn about corruption
+corrupt_warned=0
+echo "$corrupt_out" | grep -qiE 'corrupt|corrupted|invalid|starting fresh|fresh' && corrupt_warned=1
+assert_eq "test_corruption_renames_to_corrupt_bak: warns about corruption" \
+    "1" "$corrupt_warned"
+
+# Must complete successfully (started fresh)
+corrupt_completed=0
+echo "$corrupt_out" | grep -qiE 'passed|All tests done' && corrupt_completed=1
+assert_eq "test_corruption_renames_to_corrupt_bak: completes successfully after backup" \
+    "1" "$corrupt_completed"
+
+rm -rf "$TMPDIR_CORRUPT"
+assert_pass_if_clean "test_corruption_renames_to_corrupt_bak"
+
+# ── test_valid_hash_allows_resume ──────────────────────────────────────────────
+# When a state file has a matching command_hash and is within TTL, resume must
+# succeed normally (no warning, shows "Resuming from state file").
+echo ""
+echo "--- test_valid_hash_allows_resume ---"
+_snapshot_fail
+TMPDIR_VALID="$(mktemp -d)"
+VALID_STATE="$TMPDIR_VALID/state.json"
+
+CMD_FOR_VALID="bash -c 'exit 0'"
+CWD_FOR_VALID="$(pwd)"
+VALID_HASH=$(echo -n "${CMD_FOR_VALID}:${CWD_FOR_VALID}" | sha256sum 2>/dev/null | awk '{print $1}' || echo -n "${CMD_FOR_VALID}:${CWD_FOR_VALID}" | python3 -c 'import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')
+CURRENT_TS=$(date +%s)
+
+# Write a state file with matching hash and fresh timestamp
+python3 -c "
+import json, sys
+state = {
+    'runner': sys.argv[1],
+    'completed': ['bash_-c_exit_0'],
+    'results': {'bash_-c_exit_0': 'pass'},
+    'command_hash': sys.argv[2],
+    'created_at': int(sys.argv[3])
+}
+with open(sys.argv[4], 'w') as f:
+    json.dump(state, f, indent=2)
+" "$CMD_FOR_VALID" "$VALID_HASH" "$CURRENT_TS" "$VALID_STATE"
+
+valid_out=""
+valid_out=$(TEST_BATCHED_STATE_FILE="$VALID_STATE" bash "$SCRIPT" --timeout=30 \
+    "$CMD_FOR_VALID" 2>&1) || true
+
+# Must resume (not start fresh)
+resumed_ok=0
+echo "$valid_out" | grep -q "Resuming from state file" && resumed_ok=1
+assert_eq "test_valid_hash_allows_resume: valid hash + fresh timestamp allows resume" \
+    "1" "$resumed_ok"
+
+# Must show "Skipping (already completed)"
+skipped_ok=0
+echo "$valid_out" | grep -q "Skipping (already completed)" && skipped_ok=1
+assert_eq "test_valid_hash_allows_resume: skips already-completed test" \
+    "1" "$skipped_ok"
+
+rm -rf "$TMPDIR_VALID"
+assert_pass_if_clean "test_valid_hash_allows_resume"
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+print_summary

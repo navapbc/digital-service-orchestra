@@ -159,7 +159,23 @@ TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-60}"  # GitHub API call — 60s headroom for 
 CLEANUP_PIDS=()
 
 # Cleanup function to kill any remaining processes on exit
+# Also writes "interrupted" to the status file if validate.sh exits unexpectedly
+# while still in the "in_progress" state (i.e., before success/fail is written).
 cleanup() {
+    # Write "interrupted" state if we are still in_progress (unexpected exit)
+    if [[ -f "$VALIDATION_STATE_FILE" ]]; then
+        local _current_state
+        _current_state=$(head -n 1 "$VALIDATION_STATE_FILE" 2>/dev/null || echo "")
+        if [[ "$_current_state" == "in_progress" ]]; then
+            local _interrupted_content="interrupted
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            if declare -f atomic_write_file &>/dev/null; then
+                atomic_write_file "$VALIDATION_STATE_FILE" "$_interrupted_content"
+            else
+                printf '%s\n' "$_interrupted_content" > "$VALIDATION_STATE_FILE" 2>/dev/null || true
+            fi
+        fi
+    fi
     for pid in "${CLEANUP_PIDS[@]}"; do
         kill -TERM "$pid" 2>/dev/null || true
         kill -KILL "$pid" 2>/dev/null || true
@@ -354,6 +370,21 @@ if [[ -f "$HOOK_LIB" ]]; then
     fi
 fi
 
+# ── Write in_progress state before launching any checks ──────────────────
+# This ensures that if validate.sh is killed or crashes, the EXIT trap can
+# detect the unfinished run and write "interrupted" instead of leaving a
+# stale "passed" or "failed" from the previous run.
+{
+    local_in_progress_content="in_progress
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    mkdir -p "$(dirname "$VALIDATION_STATE_FILE")" 2>/dev/null || true
+    if declare -f atomic_write_file &>/dev/null; then
+        atomic_write_file "$VALIDATION_STATE_FILE" "$local_in_progress_content"
+    else
+        printf '%s\n' "$local_in_progress_content" > "$VALIDATION_STATE_FILE" 2>/dev/null || true
+    fi
+}
+
 # ── Parallel Check Execution ─────────────────────────────────────────────
 # All independent checks run simultaneously. Results are collected and
 # reported after all complete. E2E depends on CI result so runs after.
@@ -370,11 +401,22 @@ verbose_print() {
     local name="$1" state="$2"
     local line="... ${name}: ${state}"
     if command -v flock &>/dev/null; then
-        # flock is available (macOS Homebrew or Linux) — use it for atomicity
+        # flock is available (macOS Homebrew or Linux) — use it for atomicity.
+        # Use -w 5 timeout: if a crashed parallel check holds the lock, we fall
+        # back to the temp-file path instead of blocking indefinitely.
+        local _flock_rc=0
         (
-            flock -x 9
+            flock -x -w 5 9 || exit 1
             printf '%s\n' "$line"
-        ) 9>"$VERBOSE_LOCK_FILE"
+        ) 9>"$VERBOSE_LOCK_FILE" || _flock_rc=$?
+        if [ "$_flock_rc" -ne 0 ]; then
+            # flock timed out or failed — fall back to temp-file output
+            local tmp
+            tmp=$(mktemp "$CHECK_DIR/verbose.tmp.XXXXXX")
+            printf '%s\n' "$line" > "$tmp"
+            cat "$tmp"
+            rm -f "$tmp"
+        fi
     else
         # Fallback: write to a temp file and move atomically (best-effort)
         local tmp

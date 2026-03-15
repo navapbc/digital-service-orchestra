@@ -81,13 +81,17 @@ print(json.dumps(items))
 " "${COMPLETED_LIST[@]+"${COMPLETED_LIST[@]}"}" 2>/dev/null || echo "[]")
         results_json="${RESULTS_JSON:-{\}}"
         local runner_val="${CMD:-}"
+        local cmd_hash_val="${CMD_HASH:-}"
+        local created_at_val="${SESSION_CREATED_AT:-$(date +%s)}"
         # Write state file with SIGNAL_INTERRUPTED marker using python3 for atomicity
         python3 -c "
-import json, sys, os, tempfile
+import json, sys, os, tempfile, time
 state = {
     'runner': sys.argv[1],
     'completed': json.loads(sys.argv[2]),
     'results': json.loads(sys.argv[3]),
+    'command_hash': sys.argv[5],
+    'created_at': int(sys.argv[6]) if sys.argv[6] else int(time.time()),
     'signal_interrupted': True,
     'SIGNAL_INTERRUPTED': True
 }
@@ -104,7 +108,7 @@ except Exception:
         os.unlink(tmp)
     except Exception:
         pass
-" "$runner_val" "$completed_json" "$results_json" "$STATE_FILE" 2>/dev/null || true
+" "$runner_val" "$completed_json" "$results_json" "$STATE_FILE" "$cmd_hash_val" "$created_at_val" 2>/dev/null || true
         echo "" >&2
         echo "test-batched: interrupted by signal $sig, state saved to $STATE_FILE" >&2
     fi
@@ -118,10 +122,12 @@ trap '_signal_handler URG'  SIGURG
 # ── Constants ─────────────────────────────────────────────────────────────────
 DEFAULT_TIMEOUT=50
 DEFAULT_STATE_FILE="${TEST_BATCHED_STATE_FILE:-/tmp/test-batched-state.json}"
+DEFAULT_STATE_TTL=14400  # 4 hours in seconds
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 TIMEOUT=$DEFAULT_TIMEOUT
 STATE_FILE="$DEFAULT_STATE_FILE"
+STATE_TTL="${STATE_TTL:-$DEFAULT_STATE_TTL}"
 CMD=""
 RUNNER=""
 TEST_DIR=""
@@ -178,6 +184,21 @@ fi
 # `command -v` on the first word would be a fragile heuristic that breaks on
 # all of the above. The non-empty check above is sufficient validation.
 
+# ── Command hash ──────────────────────────────────────────────────────────────
+# SHA256 of "<command>:<cwd>" — used to detect stale state from a different command.
+# Computed here so it's available for both state writing and resume validation.
+_compute_command_hash() {
+    local cmd="$1" cwd
+    cwd="$(pwd)"
+    echo -n "${cmd}:${cwd}" | sha256sum 2>/dev/null | awk '{print $1}' || \
+        echo -n "${cmd}:${cwd}" | python3 -c "import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())"
+}
+
+CMD_HASH=""
+if [ -n "$CMD" ]; then
+    CMD_HASH=$(_compute_command_hash "$CMD")
+fi
+
 # ── State file helpers ─────────────────────────────────────────────────────────
 
 # _state_read_field <file> <field>
@@ -201,19 +222,22 @@ except Exception:
 " "$file" "$field" 2>/dev/null || true
 }
 
-# _state_write <file> <runner> <completed_json_array> <results_json_obj>
+# _state_write <file> <runner> <completed_json_array> <results_json_obj> [command_hash] [created_at]
 _state_write() {
     local file="$1" runner="$2" completed="$3" results="$4"
+    local cmd_hash="${5:-}" created_at_ts="${6:-}"
     python3 -c "
-import json, sys
+import json, sys, time
 state = {
     'runner': sys.argv[1],
     'completed': json.loads(sys.argv[2]),
-    'results': json.loads(sys.argv[3])
+    'results': json.loads(sys.argv[3]),
+    'command_hash': sys.argv[4] if sys.argv[4] else '',
+    'created_at': int(sys.argv[5]) if sys.argv[5] else int(time.time())
 }
-with open(sys.argv[4], 'w') as f:
+with open(sys.argv[6], 'w') as f:
     json.dump(state, f, indent=2)
-" "$runner" "$completed" "$results" "$file" 2>/dev/null
+" "$runner" "$completed" "$results" "$cmd_hash" "$created_at_ts" "$file" 2>/dev/null
 }
 
 # _state_is_valid <file>
@@ -239,23 +263,51 @@ COMPLETED_LIST=()
 RESULTS_JSON="{}"
 RESUME_MODE=0
 
+_state_created_at=""
 if [ -f "$STATE_FILE" ]; then
     if _state_is_valid "$STATE_FILE"; then
-        # Resume: read completed tests
-        RESUME_MODE=1
-        _completed_raw=$(_state_read_field "$STATE_FILE" "completed") || true
-        if [ -n "$_completed_raw" ]; then
-            while IFS= read -r line; do
-                [ -n "$line" ] && COMPLETED_LIST+=("$line")
-            done <<< "$_completed_raw"
+        # Validate command_hash — warn and start fresh on mismatch
+        _state_cmd_hash=$(_state_read_field "$STATE_FILE" "command_hash") || true
+        _hash_ok=1
+        if [ -n "$_state_cmd_hash" ] && [ -n "$CMD_HASH" ] && [ "$_state_cmd_hash" != "$CMD_HASH" ]; then
+            echo "WARNING: State file command_hash mismatch — state is from a different command; starting fresh: $STATE_FILE" >&2
+            _hash_ok=0
         fi
-        RESULTS_JSON=$(_state_read_field "$STATE_FILE" "results") || RESULTS_JSON="{}"
-        echo "Resuming from state file: $STATE_FILE"
-        echo "Already completed: ${#COMPLETED_LIST[@]} tests"
+
+        # Validate TTL — warn and start fresh if state file is too old
+        _ttl_ok=1
+        if [ "$_hash_ok" -eq 1 ]; then
+            _state_created_at=$(_state_read_field "$STATE_FILE" "created_at") || true
+            if [ -n "$_state_created_at" ] && [[ "$_state_created_at" =~ ^[0-9]+$ ]]; then
+                _now=$(date +%s)
+                _age=$(( _now - _state_created_at ))
+                if [ "$_age" -gt "$STATE_TTL" ]; then
+                    echo "WARNING: State file TTL expired (age=${_age}s, TTL=${STATE_TTL}s); starting fresh: $STATE_FILE" >&2
+                    _ttl_ok=0
+                fi
+            fi
+        fi
+
+        if [ "$_hash_ok" -eq 1 ] && [ "$_ttl_ok" -eq 1 ]; then
+            # Resume: read completed tests
+            RESUME_MODE=1
+            _completed_raw=$(_state_read_field "$STATE_FILE" "completed") || true
+            if [ -n "$_completed_raw" ]; then
+                while IFS= read -r line; do
+                    [ -n "$line" ] && COMPLETED_LIST+=("$line")
+                done <<< "$_completed_raw"
+            fi
+            RESULTS_JSON=$(_state_read_field "$STATE_FILE" "results") || RESULTS_JSON="{}"
+            echo "Resuming from state file: $STATE_FILE"
+            echo "Already completed: ${#COMPLETED_LIST[@]} tests"
+        else
+            # Hash mismatch or TTL expired — discard stale state and start fresh
+            rm -f "$STATE_FILE"
+        fi
     else
-        # Corrupted — start fresh
+        # Corrupted — rename to *.corrupt.bak instead of deleting
         echo "WARNING: State file corrupted; starting fresh: $STATE_FILE" >&2
-        rm -f "$STATE_FILE"
+        mv "$STATE_FILE" "${STATE_FILE}.corrupt.bak" 2>/dev/null || rm -f "$STATE_FILE"
     fi
 fi
 
@@ -358,6 +410,9 @@ COMPLETED_BEFORE=${#COMPLETED_LIST[@]}
 
 # ── Time-bounded execution ─────────────────────────────────────────────────────
 START_TIME=$(date +%s)
+# Preserve created_at from existing state (if resuming), otherwise use now.
+# This ensures TTL is relative to the first run, not each resume.
+SESSION_CREATED_AT="${_state_created_at:-$START_TIME}"
 
 _elapsed() { echo $(( $(date +%s) - START_TIME )); }
 
@@ -365,7 +420,7 @@ _save_state_and_resume() {
     local completed_json results_json
     completed_json=$(_completed_to_json)
     results_json="$RESULTS_JSON"
-    _state_write "$STATE_FILE" "$CMD" "$completed_json" "$results_json" 2>/dev/null || {
+    _state_write "$STATE_FILE" "$CMD" "$completed_json" "$results_json" "$CMD_HASH" "$SESSION_CREATED_AT" 2>/dev/null || {
         echo "WARNING: Could not write state file: $STATE_FILE" >&2
     }
     local done_count=${#COMPLETED_LIST[@]}

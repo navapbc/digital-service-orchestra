@@ -270,8 +270,9 @@ _APP_DIR_NAME="${PATHS_APP_DIR:-app}"
 if [ -d "$MAIN_REPO/$_APP_DIR_NAME" ]; then
     echo "Running post-merge validation (format-check + lint in parallel)..."
     POST_MERGE_FAIL=false
-    _FMT_LOG=$(mktemp)
-    _LINT_LOG=$(mktemp)
+    create_managed_tempdir _VALIDATION_TMPDIR
+    _FMT_LOG="${_VALIDATION_TMPDIR}/fmt.log"
+    _LINT_LOG="${_VALIDATION_TMPDIR}/lint.log"
 
     # Run both checks concurrently as background jobs
     (cd "$MAIN_REPO/$_APP_DIR_NAME" && PY_RUN_APPROACH=local $CMD_FORMAT_CHECK 2>&1) > "$_FMT_LOG" &
@@ -324,8 +325,8 @@ fi
 
 # --- 4) Push ---
 echo "Pushing main..."
-if ! git push 2>&1; then
-    echo "ERROR: Push failed. Try: git pull --rebase && git push"
+if ! retry_with_backoff 4 2 git push 2>&1; then
+    echo "ERROR: Push failed after retries. Try: git pull --rebase && git push"
     exit 1
 fi
 echo "OK: Pushed main to remote."

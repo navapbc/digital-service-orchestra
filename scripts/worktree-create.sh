@@ -100,6 +100,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _wt_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
 [[ -f "$_wt_config_paths" ]] && source "$_wt_config_paths"
 
+# Source deps.sh for retry_with_backoff
+_wt_deps="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/deps.sh"
+[[ -f "$_wt_deps" ]] && source "$_wt_deps"
+
 if [ -x "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" ]; then
     READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 else
@@ -183,8 +187,14 @@ mkdir -p "$WORKTREE_DIR"
 CREATED=0
 
 printf "  Creating worktree..." >&2
-if git worktree add "$WORKTREE_PATH" -b "$WORKTREE_NAME" &>/dev/null; then
-    CREATED=1
+if type retry_with_backoff &>/dev/null; then
+    if retry_with_backoff 3 2 git worktree add "$WORKTREE_PATH" -b "$WORKTREE_NAME" &>/dev/null; then
+        CREATED=1
+    fi
+else
+    if git worktree add "$WORKTREE_PATH" -b "$WORKTREE_NAME" &>/dev/null; then
+        CREATED=1
+    fi
 fi
 
 if [ "$CREATED" -eq 0 ] || [ ! -d "$WORKTREE_PATH" ]; then

@@ -64,6 +64,16 @@ for arg in "$@"; do
     prev_arg="$arg"
 done
 
+# ---------------------------------------------------------------------------
+# Auth pre-flight check: verify gh is authenticated before making any API calls.
+# An unauthenticated gh silently fails on every API call, causing --wait mode
+# to enter an infinite polling loop. Fail fast with a clear message instead.
+# ---------------------------------------------------------------------------
+if ! gh auth status >/dev/null 2>&1; then
+    echo "ERROR: gh is not authenticated. Run 'gh auth login' to authenticate before using ci-status.sh." >&2
+    exit 1
+fi
+
 # --check-jobs: print one line per job for a given run ID
 if [ -n "$CHECK_JOBS_RUN_ID" ]; then
     run_json=$(gh run view "$CHECK_JOBS_RUN_ID" --json jobs,conclusion 2>/dev/null)
@@ -426,8 +436,20 @@ if [ $WAIT_MODE -eq 1 ]; then
         echo "Waiting for CI${BRANCH_LABEL}... [run: $RUN_ID, elapsed: ${ELAPSED}s]"
     fi
 
+    # Max-iteration ceiling: 60 iterations × 30s = 30 minutes maximum.
+    # Prevents infinite polling loops when CI status is stuck or never transitions.
+    MAX_POLL_ITERATIONS=60
+    _poll_iteration=0
+
     while true; do
         ELAPSED=$(( $(date +%s) - STARTED_EPOCH ))
+
+        # Max-iteration ceiling check (complements the time-based CEILING_SEC check)
+        _poll_iteration=$(( _poll_iteration + 1 ))
+        if [ "$_poll_iteration" -gt "$MAX_POLL_ITERATIONS" ]; then
+            echo "CI${BRANCH_LABEL}: TIMEOUT — run ${RUN_ID} still in_progress after ${_poll_iteration} poll iterations (max: ${MAX_POLL_ITERATIONS})"
+            exit 1
+        fi
 
         # Hard ceiling: bail if the run has exceeded the maximum possible duration
         if [ "$ELAPSED" -ge "$CEILING_SEC" ]; then
@@ -435,10 +457,51 @@ if [ $WAIT_MODE -eq 1 ]; then
             exit 1
         fi
 
-        # Poll the specific run by ID — avoids returning a different run from the branch
+        # Poll the specific run by ID — avoids returning a different run from the branch.
+        # Capture stderr to detect rate-limit responses (HTTP 429/403).
+        _gh_stderr_file=$(mktemp)
         RUN_JSON=$(gh run view "$RUN_ID" \
             --json status,conclusion,name \
-            2>/dev/null || echo "")
+            2>"$_gh_stderr_file" || echo "")
+        _gh_stderr=$(cat "$_gh_stderr_file" 2>/dev/null || echo "")
+        rm -f "$_gh_stderr_file"
+
+        # Rate-limit detection: if GitHub returns a 429 or rate limit error, back off
+        # and retry rather than treating it as an empty/failed response.
+        # backoff delays: 30s, 60s, 120s (max 3 retries before continuing normal polling)
+        if echo "$_gh_stderr $RUN_JSON" | grep -qiE "rate.limit|429|API rate"; then
+            echo "ci-status: GitHub API rate limit detected — backing off before next poll" >&2
+            _backoff_delay=30
+            _backoff_retries=0
+            while [ "$_backoff_retries" -lt 3 ]; do
+                # Check elapsed time before sleeping — rate-limit backoff must not
+                # bypass the overall CEILING_SEC timeout
+                ELAPSED=$(( $(date +%s) - START ))
+                if [ "$ELAPSED" -ge "$CEILING_SEC" ]; then
+                    echo "CI${BRANCH_LABEL}: TIMEOUT — ceiling ${CEILING_SEC}s reached during rate-limit backoff" >&2
+                    exit 1
+                fi
+                echo "ci-status: rate-limit backoff: sleeping ${_backoff_delay}s (retry $((_backoff_retries + 1))/3)" >&2
+                sleep "$_backoff_delay"
+                _backoff_delay=$(( _backoff_delay * 2 ))
+                _backoff_retries=$(( _backoff_retries + 1 ))
+                _gh_stderr_retry=$(mktemp)
+                RUN_JSON=$(gh run view "$RUN_ID" \
+                    --json status,conclusion,name \
+                    2>"$_gh_stderr_retry" || echo "")
+                _gh_stderr_retry_content=$(cat "$_gh_stderr_retry" 2>/dev/null || echo "")
+                rm -f "$_gh_stderr_retry"
+                # If no longer rate-limited, break out of backoff loop
+                if ! echo "$_gh_stderr_retry_content $RUN_JSON" | grep -qiE "rate.limit|429|API rate"; then
+                    break
+                fi
+            done
+            if [ "$_backoff_retries" -ge 3 ]; then
+                echo "ci-status: rate-limit backoff exhausted after 3 retries — exiting" >&2
+                exit 1
+            fi
+        fi
+
         STATUS=$(ci_parse_json "$RUN_JSON" '.status')
         CONCLUSION=$(ci_parse_json "$RUN_JSON" '.conclusion')
         NAME=$(ci_parse_json "$RUN_JSON" '.name')
