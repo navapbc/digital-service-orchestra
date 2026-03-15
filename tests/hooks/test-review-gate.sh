@@ -152,37 +152,52 @@ assert_eq \
 # When hook_review_gate() detects a hash mismatch, it should write a
 # diagnostic dump file to $ARTIFACTS_DIR/mismatch-diagnostics-*.log
 # before returning exit 2.
+#
+# ISOLATION: Uses a temp git repo so no files are staged in the real repo.
 # ============================================================
 
 # Source pre-bash-functions.sh to get hook_review_gate()
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
 
-# Set up: save original review-status, create one with a known bad hash
-_DIAG_ORIG_STATE=""
-if [[ -f "$REVIEW_STATE" ]]; then
-    _DIAG_ORIG_STATE=$(cat "$REVIEW_STATE")
-fi
+# Create isolated temp git repo for mismatch tests
+_DIAG_TMPDIR=$(mktemp -d)
+_DIAG_ARTIFACTS=$(mktemp -d)
+_MISMATCH_CLEANUP_DIRS=("$_DIAG_TMPDIR" "$_DIAG_ARTIFACTS")
+(
+    cd "$_DIAG_TMPDIR"
+    git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    echo "initial" > file.txt
+    git add file.txt
+    git commit -q -m "initial"
+) 2>/dev/null
 
-# Remove any pre-existing mismatch diagnostics so we can check for new ones
-rm -f "$ARTIFACTS_DIR"/mismatch-diagnostics-*.log
+# Run the mismatch diagnostic test in the isolated repo
+_DIAG_REVIEW_STATE="$_DIAG_ARTIFACTS/review-status"
+mkdir -p "$_DIAG_ARTIFACTS"
+printf "passed\ntimestamp=2026-01-01T00:00:00Z\ndiff_hash=FAKE_HASH_WILL_NOT_MATCH\nreview_hash=xyz\n" > "$_DIAG_REVIEW_STATE"
 
-# Write a review-status with "passed" status but a hash that won't match current
-mkdir -p "$ARTIFACTS_DIR"
-printf "passed\ntimestamp=2026-01-01T00:00:00Z\ndiff_hash=FAKE_HASH_WILL_NOT_MATCH\nreview_hash=xyz\n" > "$REVIEW_STATE"
-
-# Stage a dummy file to ensure this is not a ticket-only commit
-_DIAG_DUMMY_FILE="$REPO_ROOT/_test_review_gate_diag_dummy.txt"
-echo "dummy" > "$_DIAG_DUMMY_FILE"
-git -C "$REPO_ROOT" add "$_DIAG_DUMMY_FILE" 2>/dev/null
+# Stage a dummy file in the isolated repo
+echo "dummy" > "$_DIAG_TMPDIR/dummy.txt"
+git -C "$_DIAG_TMPDIR" add dummy.txt 2>/dev/null
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: trigger mismatch\""}}'
 _DIAG_EXIT=0
-hook_review_gate "$INPUT" 2>/dev/null || _DIAG_EXIT=$?
+(
+    cd "$_DIAG_TMPDIR"
+    export ARTIFACTS_DIR="$_DIAG_ARTIFACTS"
+    export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+    export _DEPS_LOADED=1
+    get_artifacts_dir() { echo "$_DIAG_ARTIFACTS"; }
+    export -f get_artifacts_dir
+    hook_review_gate "$INPUT" 2>/dev/null
+) || _DIAG_EXIT=$?
 
 assert_eq "test_review_gate_mismatch_writes_diagnostic_dump: exit code" "2" "$_DIAG_EXIT"
 
 # Check that a mismatch-diagnostics file was created
-_DIAG_FILES=( "$ARTIFACTS_DIR"/mismatch-diagnostics-*.log )
+_DIAG_FILES=( "$_DIAG_ARTIFACTS"/mismatch-diagnostics-*.log )
 _DIAG_FOUND="no"
 if [[ -f "${_DIAG_FILES[0]}" ]]; then
     _DIAG_FOUND="yes"
@@ -200,35 +215,52 @@ if [[ "$_DIAG_FOUND" == "yes" ]]; then
     assert_contains "test_review_gate_mismatch_writes_diagnostic_dump: has breadcrumb_log" "breadcrumb_log=" "$_DIAG_CONTENT"
 fi
 
-# Clean up staged dummy file
-git -C "$REPO_ROOT" reset HEAD "$_DIAG_DUMMY_FILE" 2>/dev/null || true
-rm -f "$_DIAG_DUMMY_FILE"
-
 # ============================================================
 # test_synthetic_mismatch_produces_complete_diagnostic_dump
 #
 # Validates that each field in the diagnostic dump has a non-empty value
 # (not just the key= prefix with nothing after it).
+#
+# ISOLATION: Uses a temp git repo so no files are staged in the real repo.
 # ============================================================
 
-# Remove any pre-existing mismatch diagnostics
-rm -f "$ARTIFACTS_DIR"/mismatch-diagnostics-*.log
+# Create a second isolated temp git repo
+_SYNTH_TMPDIR=$(mktemp -d)
+_SYNTH_ARTIFACTS=$(mktemp -d)
+_MISMATCH_CLEANUP_DIRS+=("$_SYNTH_TMPDIR" "$_SYNTH_ARTIFACTS")
+(
+    cd "$_SYNTH_TMPDIR"
+    git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    echo "initial" > file.txt
+    git add file.txt
+    git commit -q -m "initial"
+) 2>/dev/null
 
-# Write a fresh review-status with mismatched hash
-printf "passed\ntimestamp=2026-02-15T12:30:00Z\ndiff_hash=SYNTHETIC_MISMATCH_HASH\nreview_hash=abc\n" > "$REVIEW_STATE"
+_SYNTH_REVIEW_STATE="$_SYNTH_ARTIFACTS/review-status"
+mkdir -p "$_SYNTH_ARTIFACTS"
+printf "passed\ntimestamp=2026-02-15T12:30:00Z\ndiff_hash=SYNTHETIC_MISMATCH_HASH\nreview_hash=abc\n" > "$_SYNTH_REVIEW_STATE"
 
-# Stage a dummy file again
-_SYNTH_DUMMY_FILE="$REPO_ROOT/_test_review_gate_synth_dummy.txt"
-echo "synthetic" > "$_SYNTH_DUMMY_FILE"
-git -C "$REPO_ROOT" add "$_SYNTH_DUMMY_FILE" 2>/dev/null
+# Stage a dummy file in the isolated repo
+echo "synthetic" > "$_SYNTH_TMPDIR/synth.txt"
+git -C "$_SYNTH_TMPDIR" add synth.txt 2>/dev/null
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: synthetic mismatch\""}}'
 _SYNTH_EXIT=0
-hook_review_gate "$INPUT" 2>/dev/null || _SYNTH_EXIT=$?
+(
+    cd "$_SYNTH_TMPDIR"
+    export ARTIFACTS_DIR="$_SYNTH_ARTIFACTS"
+    export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+    export _DEPS_LOADED=1
+    get_artifacts_dir() { echo "$_SYNTH_ARTIFACTS"; }
+    export -f get_artifacts_dir
+    hook_review_gate "$INPUT" 2>/dev/null
+) || _SYNTH_EXIT=$?
 
 assert_eq "test_synthetic_mismatch_produces_complete_diagnostic_dump: exit code" "2" "$_SYNTH_EXIT"
 
-_SYNTH_FILES=( "$ARTIFACTS_DIR"/mismatch-diagnostics-*.log )
+_SYNTH_FILES=( "$_SYNTH_ARTIFACTS"/mismatch-diagnostics-*.log )
 _SYNTH_FOUND="no"
 if [[ -f "${_SYNTH_FILES[0]}" ]]; then
     _SYNTH_FOUND="yes"
@@ -261,19 +293,10 @@ if [[ "$_SYNTH_FOUND" == "yes" ]]; then
     _check_nonempty_field "test_synthetic: breadcrumb_log non-empty" "breadcrumb_log" "$_SYNTH_CONTENT"
 fi
 
-# Clean up staged dummy file
-git -C "$REPO_ROOT" reset HEAD "$_SYNTH_DUMMY_FILE" 2>/dev/null || true
-rm -f "$_SYNTH_DUMMY_FILE"
-
-# Restore original review-status
-if [[ -n "$_DIAG_ORIG_STATE" ]]; then
-    echo "$_DIAG_ORIG_STATE" > "$REVIEW_STATE"
-else
-    rm -f "$REVIEW_STATE"
-fi
-
-# Clean up mismatch diagnostics created by tests
-rm -f "$ARTIFACTS_DIR"/mismatch-diagnostics-*.log
+# Clean up all temp dirs from mismatch tests
+for _dir in "${_MISMATCH_CLEANUP_DIRS[@]}"; do
+    rm -rf "$_dir" 2>/dev/null || true
+done
 
 # Restore exported variables
 if [[ -n "$_OLD_CLAUDE_PLUGIN_ROOT" ]]; then

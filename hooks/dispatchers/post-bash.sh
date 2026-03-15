@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/post-bash.sh
-# PostToolUse Bash dispatcher: sources all 3 Bash post-hook functions and runs them.
+# PostToolUse Bash dispatcher: sources Bash post-hook functions and runs them.
 #
-# Replaces 3 separate settings.json entries with a single dispatcher entry:
+# Replaces separate settings.json entries with a single dispatcher entry:
 #   run-hook.sh dispatchers/post-bash.sh
 #
 # Hook execution order:
 #   1. hook_exit_144_forensic_logger
-#   2. hook_check_validation_failures
-#   3. hook_track_cascade_failures
-#   4. hook_tool_logging_post
+#   2. hook_check_validation_failures (only for test/lint/validate commands)
+#   3. hook_track_cascade_failures (only for test/lint/validate commands)
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -26,10 +25,14 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
+# Cache REPO_ROOT once for all hooks (avoids redundant git rev-parse calls)
+export REPO_ROOT
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+
 # Source the dispatcher framework (provides run_hooks)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
-# Source all post hook functions
+# Source post hook functions
 source "$HOOKS_LIB_DIR/post-functions.sh"
 
 # Run all Bash post-hook functions sequentially.
@@ -51,10 +54,21 @@ _post_bash_dispatch() {
     local INPUT
     INPUT=$(cat)
 
+    # Exit-144 forensics always runs (lightweight: checks exit_code field first)
     _run_post_fn hook_exit_144_forensic_logger "$INPUT"
-    _run_post_fn hook_check_validation_failures "$INPUT"
-    _run_post_fn hook_track_cascade_failures "$INPUT"
-    _run_post_fn hook_tool_logging_post "$INPUT"
+
+    # Early-exit: validation/cascade checks only matter for test/lint/validate commands
+    local _cmd=""
+    if [[ "$INPUT" =~ \"command\"[[:space:]]*:[[:space:]]*\" ]]; then
+        local _after="${INPUT#*\"command\"*:*\"}"
+        _cmd="${_after%%\"*}"
+    fi
+    case "$_cmd" in
+        *test*|*lint*|*pytest*|*ruff*|*mypy*|*validate*|*make*)
+            _run_post_fn hook_check_validation_failures "$INPUT"
+            _run_post_fn hook_track_cascade_failures "$INPUT"
+            ;;
+    esac
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

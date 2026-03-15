@@ -217,67 +217,65 @@ printf '%s' "$_INPUT" | bash "$POST_FAILURE_DISPATCHER" 2>/dev/null || _exit_cod
 assert_eq "test_post_failure_dispatcher_calls_track_tool_errors: exits 0 (non-blocking)" "0" "$_exit_code"
 
 # ============================================================
-# test_pre_all_dispatcher_calls_tool_logging_pre
+# test_pre_all_dispatcher_exits_0
 # The pre-all dispatcher must exist, be executable, and exit 0.
-# It handles tool-logging pre-phase.
 # ============================================================
-echo "--- test_pre_all_dispatcher_calls_tool_logging_pre ---"
+echo "--- test_pre_all_dispatcher_exits_0 ---"
 _dispatcher_exists=0
 [[ -f "$PRE_ALL_DISPATCHER" ]] && _dispatcher_exists=1
-assert_eq "test_pre_all_dispatcher_calls_tool_logging_pre: file exists" "1" "$_dispatcher_exists"
+assert_eq "test_pre_all_dispatcher_exits_0: file exists" "1" "$_dispatcher_exists"
 
 _dispatcher_executable=0
 [[ -x "$PRE_ALL_DISPATCHER" ]] && _dispatcher_executable=1
-assert_eq "test_pre_all_dispatcher_calls_tool_logging_pre: executable" "1" "$_dispatcher_executable"
+assert_eq "test_pre_all_dispatcher_exits_0: executable" "1" "$_dispatcher_executable"
 
-# Run with a basic Bash tool input — tool-logging is info-only, must exit 0
+# Run with a basic Bash tool input — must exit 0
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls"},"session_id":"test"}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$PRE_ALL_DISPATCHER" 2>/dev/null || _exit_code=$?
-assert_eq "test_pre_all_dispatcher_calls_tool_logging_pre: exits 0" "0" "$_exit_code"
+assert_eq "test_pre_all_dispatcher_exits_0: exits 0" "0" "$_exit_code"
 
 # ============================================================
-# test_pre_agent_calls_tool_logging_pre
-# The pre-agent dispatcher must source post-functions.sh and call
-# hook_tool_logging_pre before the guard hooks.
+# test_pre_agent_no_tool_logging
+# After optimization, pre-agent dispatcher must NOT reference tool_logging_pre.
 # ============================================================
-echo "--- test_pre_agent_calls_tool_logging_pre ---"
+echo "--- test_pre_agent_no_tool_logging ---"
 
 _has_logging=0
 grep -q 'hook_tool_logging_pre' "$PRE_AGENT_DISPATCHER" && _has_logging=1
-assert_eq "test_pre_agent_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+assert_eq "test_pre_agent_no_tool_logging: no hook_tool_logging_pre" "0" "$_has_logging"
 
 _has_source=0
 grep -q 'post-functions.sh' "$PRE_AGENT_DISPATCHER" && _has_source=1
-assert_eq "test_pre_agent_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+assert_eq "test_pre_agent_no_tool_logging: no post-functions.sh source" "0" "$_has_source"
 
 # ============================================================
-# test_pre_exitplanmode_calls_tool_logging_pre
-# The pre-exitplanmode dispatcher must call hook_tool_logging_pre.
+# test_pre_exitplanmode_no_tool_logging
+# After optimization, pre-exitplanmode must NOT reference tool_logging_pre.
 # ============================================================
-echo "--- test_pre_exitplanmode_calls_tool_logging_pre ---"
+echo "--- test_pre_exitplanmode_no_tool_logging ---"
 
 _has_logging=0
 grep -q 'hook_tool_logging_pre' "$PRE_EXITPLANMODE_DISPATCHER" && _has_logging=1
-assert_eq "test_pre_exitplanmode_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+assert_eq "test_pre_exitplanmode_no_tool_logging: no hook_tool_logging_pre" "0" "$_has_logging"
 
 _has_source=0
 grep -q 'post-functions.sh' "$PRE_EXITPLANMODE_DISPATCHER" && _has_source=1
-assert_eq "test_pre_exitplanmode_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+assert_eq "test_pre_exitplanmode_no_tool_logging: no post-functions.sh source" "0" "$_has_source"
 
 # ============================================================
-# test_pre_taskoutput_calls_tool_logging_pre
-# The pre-taskoutput dispatcher must call hook_tool_logging_pre.
+# test_pre_taskoutput_no_tool_logging
+# After optimization, pre-taskoutput must NOT reference tool_logging_pre.
 # ============================================================
-echo "--- test_pre_taskoutput_calls_tool_logging_pre ---"
+echo "--- test_pre_taskoutput_no_tool_logging ---"
 
 _has_logging=0
 grep -q 'hook_tool_logging_pre' "$PRE_TASKOUTPUT_DISPATCHER" && _has_logging=1
-assert_eq "test_pre_taskoutput_calls_tool_logging_pre: grep finds hook_tool_logging_pre" "1" "$_has_logging"
+assert_eq "test_pre_taskoutput_no_tool_logging: no hook_tool_logging_pre" "0" "$_has_logging"
 
 _has_source=0
 grep -q 'post-functions.sh' "$PRE_TASKOUTPUT_DISPATCHER" && _has_source=1
-assert_eq "test_pre_taskoutput_calls_tool_logging_pre: sources post-functions.sh" "1" "$_has_source"
+assert_eq "test_pre_taskoutput_no_tool_logging: no post-functions.sh source" "0" "$_has_source"
 
 # ============================================================
 # test_cleanup_orphaned_processes_function_defined

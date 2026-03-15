@@ -99,17 +99,14 @@ printf '%s' "$_INPUT" | bash "$POST_WRITE_DISPATCHER" >/dev/null 2>/dev/null || 
 assert_eq "test_post_write_dispatcher_exits_0: exits 0" "0" "$_exit_code"
 
 # ============================================================
-# test_post_all_dispatcher_calls_tool_logging_post
-# The post-all dispatcher must call hook_tool_logging_post.
-# Send any tool input — logging hook exits 0 when logging is disabled
-# (no ~/.claude/tool-logging-enabled file).
+# test_post_all_dispatcher_exits_0
+# After tool-logging removal, post-all is a no-op placeholder. Must exit 0.
 # ============================================================
-echo "--- test_post_all_dispatcher_calls_tool_logging_post ---"
+echo "--- test_post_all_dispatcher_exits_0 ---"
 _INPUT='{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.txt"},"tool_response":{"content":"data"}}'
 _exit_code=0
-# Ensure logging is disabled for this test (no sentinel file)
 printf '%s' "$_INPUT" | bash "$POST_ALL_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
-assert_eq "test_post_all_dispatcher_calls_tool_logging_post: exits 0" "0" "$_exit_code"
+assert_eq "test_post_all_dispatcher_exits_0: exits 0" "0" "$_exit_code"
 
 # ============================================================
 # test_tool_logging_wrapper_passes_mode_arg_correctly
@@ -180,13 +177,11 @@ _exec=0; [[ -x "$POST_ALL_DISPATCHER" ]] && _exec=1
 assert_eq "test_post_all_dispatcher_exists_and_is_executable: file executable" "1" "$_exec"
 
 # ============================================================
-# test_post_bash_calls_tool_logging_post
-# The post-bash dispatcher must call hook_tool_logging_post after
-# the tracking hooks. Enable tool logging and verify a JSONL log
-# entry is written when the dispatcher runs.
+# test_post_bash_no_tool_logging_post
+# After tool_logging removal, the post-bash dispatcher must NOT
+# call hook_tool_logging_post — no JSONL log entry should be created.
 # ============================================================
-echo "--- test_post_bash_calls_tool_logging_post ---"
-# Setup: enable logging via temp HOME so we can check the JSONL log
+echo "--- test_post_bash_no_tool_logging_post ---"
 _ORIG_HOME="$HOME"
 _TEST_HOME=$(mktemp -d)
 _CLEANUP_DIRS+=("$_TEST_HOME")
@@ -197,67 +192,32 @@ touch "$_TEST_HOME/.claude/tool-logging-enabled"
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"echo hello"},"tool_response":{"stdout":"hello","stderr":"","exit_code":0}}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$POST_BASH_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
-assert_eq "test_post_bash_calls_tool_logging_post: exits 0" "0" "$_exit_code"
+assert_eq "test_post_bash_no_tool_logging_post: exits 0" "0" "$_exit_code"
 
-# Check that a JSONL log file was created with a post-mode entry
+# Verify NO JSONL log file was created (tool logging removed from dispatchers)
 _LOG_FILE="$_TEST_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
 _log_found=0
 if [[ -f "$_LOG_FILE" ]]; then
-    # Look for a post-mode entry for Bash tool
     if grep -q '"hook_type":"post"' "$_LOG_FILE" 2>/dev/null; then
         _log_found=1
     fi
 fi
-assert_eq "test_post_bash_calls_tool_logging_post: JSONL log entry written" "1" "$_log_found"
+assert_eq "test_post_bash_no_tool_logging_post: no JSONL log entry written" "0" "$_log_found"
 
 # Teardown
 export HOME="$_ORIG_HOME"
 rm -rf "$_TEST_HOME"
 
 # ============================================================
-# test_post_all_timing_instrumentation
-# When ~/.claude/hook-timing-enabled exists, the post-all dispatcher
-# must write timing data to /tmp/hook-timing.log.
+# test_post_all_is_noop_after_optimization
+# After tool-logging removal, post-all has no hooks. Verify it exits 0
+# cleanly without producing timing entries.
 # ============================================================
-echo "--- test_post_all_timing_instrumentation ---"
-
-_timing_test_dir=$(mktemp -d)
-_CLEANUP_DIRS+=("$_timing_test_dir")
-mkdir -p "$_timing_test_dir/.claude/logs"
-# Enable both timing and tool logging
-touch "$_timing_test_dir/.claude/hook-timing-enabled"
-touch "$_timing_test_dir/.claude/tool-logging-enabled"
-
-# Save/restore /tmp/hook-timing.log to avoid interfering with real timing data.
-# The dispatcher hardcodes this path, so we isolate via save/restore + unique marker.
-_saved_timing_file="/tmp/hook-timing-saved-$$"
-cp /tmp/hook-timing.log "$_saved_timing_file" 2>/dev/null || true
-> /tmp/hook-timing.log 2>/dev/null || true
-
+echo "--- test_post_all_is_noop_after_optimization ---"
 _INPUT='{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.txt"},"tool_response":{"content":"data"}}'
 _exit_code=0
-printf '%s' "$_INPUT" | HOME="$_timing_test_dir" bash "$POST_ALL_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
-assert_eq "test_post_all_timing_instrumentation: exits 0" "0" "$_exit_code"
-
-# Check that timing log contains entries with ms timing data
-_has_timing=0
-if [[ -f /tmp/hook-timing.log ]]; then
-    if grep -qE '[0-9]+ms' /tmp/hook-timing.log 2>/dev/null; then
-        _has_timing=1
-    fi
-fi
-assert_eq "test_post_all_timing_instrumentation: timing log entries created" "1" "$_has_timing"
-
-# Restore previous timing log content
-if [[ -f "$_saved_timing_file" ]]; then
-    cp "$_saved_timing_file" /tmp/hook-timing.log
-    rm -f "$_saved_timing_file"
-else
-    rm -f /tmp/hook-timing.log
-fi
-
-# Cleanup
-rm -rf "$_timing_test_dir"
+printf '%s' "$_INPUT" | bash "$POST_ALL_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
+assert_eq "test_post_all_is_noop_after_optimization: exits 0" "0" "$_exit_code"
 
 # ============================================================
 # Summary

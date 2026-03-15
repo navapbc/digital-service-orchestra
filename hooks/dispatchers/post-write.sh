@@ -18,10 +18,14 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
+# Cache REPO_ROOT once for all hooks (avoids redundant git rev-parse calls)
+export REPO_ROOT
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+
 # Source the dispatcher framework (provides run_hooks)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
-# Source all post hook functions
+# Source post hook functions
 source "$HOOKS_LIB_DIR/post-functions.sh"
 
 # Run all Write post-hook functions sequentially.
@@ -42,7 +46,7 @@ _post_write_dispatch() {
     local INPUT
     INPUT=$(cat)
 
-    _run_post_fn hook_tool_logging_post "$INPUT"
+    # No Write-specific post-hooks remain. Kept for future hooks.
 }
 
 # Only execute dispatch logic when run as a script (not sourced).
