@@ -8,8 +8,8 @@
 # Enforces CLAUDE.md rule 11:
 #   "Never edit main repo files from a worktree session"
 #
-# Note: hook_validation_gate() and hook_worktree_edit_guard() are also reused
-# by Task 3's Edit/Write dispatchers (pre-edit.sh, pre-write.sh).
+# Note: hook_worktree_edit_guard() is also reused
+# by the Edit/Write dispatchers (pre-edit.sh, pre-write.sh).
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/pre-bash-functions.sh"

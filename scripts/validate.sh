@@ -7,8 +7,8 @@
 #
 # VALIDATION STATE TRACKING:
 #   Results are written to /tmp/lockpick-test-artifacts-<worktree-name>/status
-#   The validation-gate.sh PreToolUse hook reads this state to warn agents
-#   before they start work if validation hasn't passed.
+#   The hook_test_failure_guard reads test-status files to block commits
+#   when tests have failed in the current worktree session.
 #
 # WORKTREE SUPPORT:
 #   This script automatically detects and works correctly in Git worktrees.
@@ -370,7 +370,7 @@ if [[ -f "$HOOK_LIB" ]]; then
         fi
     fi
     # Redirect VALIDATION_STATE_FILE to the portable workflow-plugin path that
-    # validation-gate.sh reads via get_artifacts_dir(). The old lockpick-test-artifacts
+    # hooks read via get_artifacts_dir(). The old lockpick-test-artifacts
     # path is kept for log files; only the gate-readable status file moves.
     if declare -f get_artifacts_dir &>/dev/null; then
         VALIDATION_STATE_FILE="$(get_artifacts_dir)/status"

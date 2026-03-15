@@ -49,41 +49,6 @@ run_hook_with_input() {
 }
 
 # ============================================================
-# test_behavioral_equivalence_validation_gate_exempt
-#
-# The plugin validation-gate.sh should exit 0 for exempt commands
-# (e.g., non-Bash/Edit/Write tools). This verifies the plugin hook
-# behaves the same as the original .claude/hooks/validation-gate.sh.
-#
-# Pre-migration: uses .claude/hooks/ path (will work since files exist)
-# Post-migration: should use lockpick-workflow/hooks/ path
-# ============================================================
-
-PLUGIN_VALIDATION_GATE="$REPO_ROOT/lockpick-workflow/hooks/validation-gate.sh"
-
-if [[ -f "$PLUGIN_VALIDATION_GATE" ]]; then
-    # Test with a Read tool call (should be exempt from validation gate)
-    EXIT_CODE=$(run_hook_with_input "$PLUGIN_VALIDATION_GATE" "Read" "file_path" "/tmp/test.txt")
-    assert_eq \
-        "test_behavioral_equivalence_validation_gate_exempt: plugin validation-gate exits 0 for Read tool" \
-        "0" \
-        "$EXIT_CODE"
-
-    # Test with a WebSearch tool call (also exempt)
-    EXIT_CODE=$(run_hook_with_input "$PLUGIN_VALIDATION_GATE" "WebSearch" "" "")
-    assert_eq \
-        "test_behavioral_equivalence_validation_gate_exempt: plugin validation-gate exits 0 for WebSearch tool" \
-        "0" \
-        "$EXIT_CODE"
-else
-    # Plugin hook not found — expected to exist from Phase 1
-    assert_eq \
-        "test_behavioral_equivalence_validation_gate_exempt: plugin validation-gate.sh exists" \
-        "yes" \
-        "no"
-fi
-
-# ============================================================
 # test_behavioral_equivalence_review_gate_no_pending
 #
 # The plugin review-gate.sh should exit 0 when there is no

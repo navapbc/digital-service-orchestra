@@ -10,15 +10,13 @@
 #   stdout: permissionDecision message (only consumed when return 2)
 #
 # Functions defined:
-#   hook_validation_gate         — block sprint/new-work when validation not run
 #   hook_worktree_edit_guard     — block Edit/Write targeting main repo from worktree
 #   hook_cascade_circuit_breaker — block Edit/Write when cascade failure threshold reached
 #   hook_title_length_validator  — block Write/Edit setting ticket titles > 255 chars
 #
-# Note: hook_validation_gate and hook_worktree_edit_guard are defined here
-# as thin re-exports sourcing the canonical implementations from pre-bash-functions.sh.
-# This ensures both dispatchers (pre-bash and pre-edit/write) share the same
-# function body without duplication.
+# Note: hook_worktree_edit_guard is defined in pre-bash-functions.sh and re-exported
+# here via the source chain. This ensures both dispatchers (pre-bash and pre-edit/write)
+# share the same function body without duplication.
 #
 # Usage:
 #   source lockpick-workflow/hooks/lib/pre-edit-write-functions.sh
@@ -33,7 +31,7 @@ _PRE_EDIT_WRITE_FUNCTIONS_LOADED=1
 _PRE_EDIT_WRITE_FUNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_PRE_EDIT_WRITE_FUNC_DIR/deps.sh"
 
-# Source pre-bash-functions to get hook_validation_gate and hook_worktree_edit_guard
+# Source pre-bash-functions to get hook_worktree_edit_guard
 # (idempotent via its own guard)
 source "$_PRE_EDIT_WRITE_FUNC_DIR/pre-bash-functions.sh"
 
