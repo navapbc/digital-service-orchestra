@@ -8,7 +8,7 @@
 #
 # Hook execution order (per task spec):
 #   0. hook_tool_logging_pre (non-blocking, informational — from post-functions.sh)
-#   1. hook_validation_gate
+#   1. hook_test_failure_guard (block commit when test status files contain FAILED)
 #   2. hook_commit_failure_tracker
 #   3. hook_review_gate (skip_review for non-reviewable/ticket-only commits)
 #   4. hook_worktree_bash_guard
@@ -56,8 +56,7 @@ source "$HOOKS_LIB_DIR/post-functions.sh"
 # REVIEW-DEFENSE: Fail-open is deliberate — each hook's ERR trap (return 0)
 # ensures non-2 exits are safe. Blocking on unknown codes would break the
 # fail-open contract and risk false denials on transient errors.
-# Only executed when this script is run directly (not sourced), so that
-# 'source pre-bash.sh && type hook_validation_gate' works correctly.
+# Only executed when this script is run directly (not sourced).
 _run_hook_fn() {
     local fn_name="$1"
     local json_input="$2"
@@ -89,7 +88,7 @@ _pre_bash_dispatch() {
     hook_tool_logging_pre "$INPUT" || true
 
     for _HOOK_FN in \
-        hook_validation_gate \
+        hook_test_failure_guard \
         hook_commit_failure_tracker \
         hook_review_gate \
         hook_worktree_bash_guard \

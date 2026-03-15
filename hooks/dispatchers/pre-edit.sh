@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/pre-edit.sh
-# PreToolUse Edit dispatcher: sources all 4 Edit hook functions and runs them
+# PreToolUse Edit dispatcher: sources all 3 Edit hook functions and runs them
 # sequentially. Stops at the first function that returns 2 (block/deny).
 #
-# Replaces 4 separate settings.json Edit PreToolUse entries with a single dispatcher entry:
+# Replaces 3 separate settings.json Edit PreToolUse entries with a single dispatcher entry:
 #   run-hook.sh dispatchers/pre-edit.sh
 #
 # Hook execution order:
-#   1. hook_validation_gate         — block sprint/new-work when validation not run
-#   2. hook_worktree_edit_guard     — block Edit targeting main repo from worktree
-#   3. hook_cascade_circuit_breaker — block Edit when cascade failure threshold reached
-#   4. hook_title_length_validator  — block Edit setting ticket titles > 255 chars
+#   1. hook_worktree_edit_guard     — block Edit targeting main repo from worktree
+#   2. hook_cascade_circuit_breaker — block Edit when cascade failure threshold reached
+#   3. hook_title_length_validator  — block Edit setting ticket titles > 255 chars
 #
 # Returns: 0 if all hooks allow, 2 if any hook blocks.
 
@@ -24,13 +23,13 @@ HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 # Source the dispatcher framework (provides run_hooks — kept for reference/reuse)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
-# Source all 4 Edit hook functions (also sources pre-bash-functions.sh via chain)
+# Source all 3 Edit hook functions (also sources pre-bash-functions.sh via chain)
 source "$HOOKS_LIB_DIR/pre-edit-write-functions.sh"
 
 # Source post-functions.sh for hook_tool_logging_pre (non-blocking tool logging)
 source "$HOOKS_LIB_DIR/post-functions.sh"
 
-# Run all 4 hook functions sequentially.
+# Run all 3 hook functions sequentially.
 # Stops at first function that returns 2 (block).
 # Non-zero exit codes other than 2 are intentionally allowed to fall through
 # (fail-open design): each hook function has its own ERR trap that logs the
@@ -53,7 +52,6 @@ _pre_edit_dispatch() {
     hook_tool_logging_pre "$INPUT" || true
 
     for _HOOK_FN in \
-        hook_validation_gate \
         hook_worktree_edit_guard \
         hook_cascade_circuit_breaker \
         hook_title_length_validator

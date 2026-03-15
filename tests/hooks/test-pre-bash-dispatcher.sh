@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/hooks/test-pre-bash-dispatcher.sh
-# Unit tests for the pre-bash dispatcher and the 8 hook functions it sources.
+# Unit tests for the pre-bash dispatcher and the 7 hook functions it sources.
 #
 # Tests:
 #   test_pre_bash_dispatcher_exits_0_for_exempt_command
 #   test_pre_bash_dispatcher_exits_2_when_review_gate_blocks_commit_without_review
-#   test_pre_bash_dispatcher_validation_gate_blocks_sprint_when_not_run
-#   test_original_validation_gate_wrapper_still_works_standalone
 #
 # Usage: bash lockpick-workflow/tests/hooks/test-pre-bash-dispatcher.sh
 # Exit code: 0 if all pass, 1 if any fail
@@ -21,12 +19,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
 DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
-VALIDATION_GATE="$REPO_ROOT/lockpick-workflow/hooks/validation-gate.sh"
 
 # ============================================================
 # test_pre_bash_dispatcher_exits_0_for_exempt_command
 # The dispatcher must allow a simple read-only command (e.g., `ls`) with no
-# blocking conditions — all 8 hooks should pass through with exit 0.
+# blocking conditions — all 7 hooks should pass through with exit 0.
 # ============================================================
 echo "--- test_pre_bash_dispatcher_exits_0_for_exempt_command ---"
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
@@ -63,46 +60,6 @@ assert_contains "test_pre_bash_dispatcher_exits_2_when_review_gate_blocks_commit
     "BLOCKED" "$_output"
 
 # ============================================================
-# test_pre_bash_dispatcher_validation_gate_blocks_sprint_when_not_run
-# When a `sprint` command is issued and validation has not been run
-# (no status file), the dispatcher must exit 2 (blocked by validation-gate hook function).
-# ============================================================
-echo "--- test_pre_bash_dispatcher_validation_gate_blocks_sprint_when_not_run ---"
-
-# Use an isolated artifacts dir with no status file
-_sprint_artifacts_dir=$(mktemp -d)
-trap 'rm -rf "$_sprint_artifacts_dir"' EXIT
-
-_INPUT='{"tool_name":"Bash","tool_input":{"command":"sprint"}}'
-_exit_code=0
-_output=""
-# Run from the temp git repo; ARTIFACTS_DIR points to empty dir (no status file = not_run)
-_output=$(cd "$_test_git_repo" && printf '%s' "$_INPUT" | ARTIFACTS_DIR="$_sprint_artifacts_dir" bash "$DISPATCHER" 2>&1) || _exit_code=$?
-assert_eq "test_pre_bash_dispatcher_validation_gate_blocks_sprint_when_not_run: exit 2" "2" "$_exit_code"
-assert_contains "test_pre_bash_dispatcher_validation_gate_blocks_sprint_when_not_run: BLOCKED in output" \
-    "BLOCKED" "$_output"
-
-# ============================================================
-# test_original_validation_gate_wrapper_still_works_standalone
-# The original validation-gate.sh thin wrapper must remain intact and
-# executable, so it still works as a standalone hook.
-# ============================================================
-echo "--- test_original_validation_gate_wrapper_still_works_standalone ---"
-_wrapper_exists=0
-[[ -f "$VALIDATION_GATE" ]] && _wrapper_exists=1
-assert_eq "test_original_validation_gate_wrapper_still_works_standalone: file exists" "1" "$_wrapper_exists"
-
-_wrapper_executable=0
-[[ -x "$VALIDATION_GATE" ]] && _wrapper_executable=1
-assert_eq "test_original_validation_gate_wrapper_still_works_standalone: file executable" "1" "$_wrapper_executable"
-
-# Run the wrapper with an exempt command — must exit 0
-_INPUT='{"tool_name":"Bash","tool_input":{"command":"ls"}}'
-_exit_code=0
-printf '%s' "$_INPUT" | bash "$VALIDATION_GATE" 2>/dev/null || _exit_code=$?
-assert_eq "test_original_validation_gate_wrapper_still_works_standalone: exits 0 for exempt command" "0" "$_exit_code"
-
-# ============================================================
 # test_pre_bash_dispatcher_non_exit2_codes_pass_through
 # When a hook function returns a non-zero, non-2 exit code (e.g., 1 or 3),
 # the dispatcher must NOT block — the fail-open ERR trap inside each hook
@@ -114,8 +71,8 @@ _exit_code=0
 # Source the dispatcher to get hook functions, then override one to return 1
 (
     source "$DISPATCHER"
-    # Override hook_validation_gate to simulate a non-2 failure
-    hook_validation_gate() { return 1; }
+    # Override hook_commit_failure_tracker to simulate a non-2 failure
+    hook_commit_failure_tracker() { return 1; }
     printf '%s' "$_INPUT" | _pre_bash_dispatch
 ) 2>/dev/null || _exit_code=$?
 assert_eq "test_pre_bash_dispatcher_non_exit2_codes_pass_through: exit 0 (not blocked)" "0" "$_exit_code"

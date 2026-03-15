@@ -10,7 +10,7 @@
 #   stdout: permissionDecision message (only consumed when return 2)
 #
 # Functions defined:
-#   hook_validation_gate         — block sprint/new-work when validation not run
+#   hook_test_failure_guard      — block commit when test status files contain FAILED
 #   hook_commit_failure_tracker  — warn at commit time about untracked failures
 #   hook_review_gate             — block git commit when review is missing/stale
 #   hook_worktree_bash_guard     — block cd into main repo from worktree
@@ -21,7 +21,6 @@
 #
 # Usage:
 #   source lockpick-workflow/hooks/lib/pre-bash-functions.sh
-#   hook_validation_gate "$INPUT_JSON"
 #   hook_review_gate "$INPUT_JSON"
 
 # Guard: only load once
@@ -38,190 +37,72 @@ if [ -f "$_PRE_BASH_FUNC_DIR/config-paths.sh" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# hook_validation_gate
+# hook_test_failure_guard
 # ---------------------------------------------------------------------------
-# PreToolUse hook: force agents to see codebase health before starting work.
+# PreToolUse hook: block git commit when any test status file contains "FAILED".
 #
-# Three-state model:
-#   not_run  → HARD BLOCK for new-work commands; SILENT ALLOW for everything else
-#   failed   → WARNING for all commands (allows fixes)
-#   passed   → SILENT ALLOW
+# Reads $ARTIFACTS_DIR/test-status/*.status files. Each file's first line is
+# checked — only the exact string "FAILED" triggers a block. Missing files,
+# empty files, or other content (PASSED, ERROR, etc.) are silently allowed.
 #
-# New-work patterns (blocked when state=not_run or failed):
-#   sprint-list-epics, sprint (as first token)
-hook_validation_gate() {
+# Exempt commits: WIP, merge, pre-compact, checkpoint (same as review_gate).
+hook_test_failure_guard() {
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-    trap 'printf "{\"ts\":\"%s\",\"hook\":\"validation-gate\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"test-failure-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
 
-    # Only act on Edit, Write, and Bash tools
+    # Only act on Bash tool calls
     local TOOL_NAME
     TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
-    if [[ "$TOOL_NAME" != "Edit" ]] && [[ "$TOOL_NAME" != "Write" ]] && [[ "$TOOL_NAME" != "Bash" ]]; then
+    if [[ "$TOOL_NAME" != "Bash" ]]; then
         return 0
     fi
 
-    # Resolve repo root
-    local REPO_ROOT
-    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-    if [[ -z "$REPO_ROOT" ]]; then
+    # Only act on git commit commands
+    local COMMAND FIRST_LINE
+    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
+    FIRST_LINE=$(echo "$COMMAND" | head -1)
+    if ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+commit([[:space:]]|$) ]] && \
+       ! [[ "$FIRST_LINE" =~ (^|[[:space:]|&;])git[[:space:]]+-[^[:space:]]+.*[[:space:]]commit([[:space:]]|$) ]]; then
         return 0
     fi
 
-    # Determine artifacts dir (support override via env var for tests)
+    # Exempt: WIP, merge, pre-compact, checkpoint
+    if [[ "$COMMAND" =~ [Ww][Ii][Pp] ]] || [[ "$COMMAND" =~ --no-edit ]] || \
+       [[ "$COMMAND" =~ git[[:space:]].*merge[[:space:]] ]] || \
+       [[ "$COMMAND" =~ pre-compact ]] || [[ "$COMMAND" =~ checkpoint ]]; then
+        return 0
+    fi
+
+    # Resolve artifacts dir
     local ARTIFACTS_DIR_RESOLVED="${ARTIFACTS_DIR:-}"
     if [[ -z "$ARTIFACTS_DIR_RESOLVED" ]]; then
         ARTIFACTS_DIR_RESOLVED=$(get_artifacts_dir)
     fi
-    local VALIDATION_STATE_FILE="$ARTIFACTS_DIR_RESOLVED/status"
+    local STATUS_DIR="$ARTIFACTS_DIR_RESOLVED/test-status"
 
-    # Read validation state
-    local VALIDATION_STATUS=""
-    if [[ -f "$VALIDATION_STATE_FILE" ]]; then
-        VALIDATION_STATUS=$(head -n 1 "$VALIDATION_STATE_FILE" 2>/dev/null || echo "")
-    fi
-
-    # Lazily resolve validate command (avoid spawning Python unless needed)
-    local _VG_SCRIPTS_DIR=""
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
-        _VG_SCRIPTS_DIR="$CLAUDE_PLUGIN_ROOT/scripts"
-    fi
-    local VALIDATE_CMD=""
-    _vg_get_validate_cmd() {
-        if [[ -z "$VALIDATE_CMD" ]]; then
-            if [[ -n "$_VG_SCRIPTS_DIR" ]]; then
-                VALIDATE_CMD=$("$_VG_SCRIPTS_DIR/read-config.sh" commands.validate 2>/dev/null || echo 'validate.sh --ci')
-            fi
-            VALIDATE_CMD=${VALIDATE_CMD:-'validate.sh --ci'}
-        fi
-        echo "$VALIDATE_CMD"
-    }
-
-    # New-work guard helper
-    _vg_is_new_work_command() {
-        local cmd="$1"
-        cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-        [[ "$cmd" =~ sprint-list-epics($|[[:space:]]) ]] && return 0
-        [[ "$cmd" =~ ^sprint($|[[:space:]]) ]] && return 0
-        return 1
-    }
-
-    # Helper: emit hard-block for new-work commands
-    _vg_block_new_work() {
-        if [[ -z "$VALIDATION_STATUS" ]]; then
-            echo "BLOCKED: Validation has not been run yet. Run $(_vg_get_validate_cmd) first to check project health." >&2
-        else
-            echo "BLOCKED: Fix validation failures before sprint/epic discovery. Re-run $(_vg_get_validate_cmd) first." >&2
-        fi
-        return 2
-    }
-
-    # For Bash commands
-    if [[ "$TOOL_NAME" == "Bash" ]]; then
-        local COMMAND
-        COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
-
-        # Compound command guard
-        if [[ "$COMMAND" =~ \&\& ]] || [[ "$COMMAND" =~ \|\| ]] || [[ "$COMMAND" =~ \; ]]; then
-            if [[ "$COMMAND" =~ (^|[[:space:]/])validate\.sh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])ci-status\.sh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])agent-batch-lifecycle\.sh($|[[:space:]]) ]]; then
-                return 0
-            fi
-            local EXEMPT_PATTERN='^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd|lsof|docker|gh|git|tk|echo|printf|test|true|false|make|poetry|record-review\.sh)($|[[:space:]])'
-            local ALL_EXEMPT=true
-            local HAS_NEW_WORK=false
-            while IFS= read -r subcmd; do
-                subcmd="${subcmd#"${subcmd%%[![:space:]]*}"}"
-                [[ -z "$subcmd" ]] && continue
-                [[ "$subcmd" =~ ^(for|do|done|if|then|else|fi|while|until|in|case|esac|\[)($|[[:space:]]) ]] && continue
-                [[ "$subcmd" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
-                if [[ "$VALIDATION_STATUS" != "passed" ]] && _vg_is_new_work_command "$subcmd"; then
-                    HAS_NEW_WORK=true
-                    break
-                fi
-                if ! [[ "$subcmd" =~ $EXEMPT_PATTERN ]]; then
-                    ALL_EXEMPT=false
-                    break
-                fi
-            done <<< "$(echo "$COMMAND" | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g')"
-            if [[ "$HAS_NEW_WORK" == "true" ]]; then
-                _vg_block_new_work || true  # || true prevents ERR trap from firing on return 2
-                return 2
-            fi
-            if [[ "$ALL_EXEMPT" == "true" ]]; then
-                return 0
-            fi
-        elif [[ "$COMMAND" =~ \| ]]; then
-            if [[ "$VALIDATION_STATUS" != "passed" ]]; then
-                local FIRST_CMD="${COMMAND%%|*}"
-                if _vg_is_new_work_command "$FIRST_CMD"; then
-                    _vg_block_new_work || true  # || true prevents ERR trap from firing on return 2
-                    return 2
-                fi
-            fi
-            if [[ "$COMMAND" =~ ^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd|lsof|docker|gh|git|tk)($|[[:space:]]) ]]; then
-                return 0
-            fi
-            if [[ "$COMMAND" =~ (^|[[:space:]/])validate\.sh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])ci-status\.sh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])agent-batch-lifecycle\.sh($|[[:space:]]) ]]; then
-                return 0
-            fi
-            if [[ "$COMMAND" =~ (^|[[:space:]/])record-review\.sh($|[[:space:]]) ]]; then
-                return 0
-            fi
-        else
-            # Simple command
-            if [[ "$VALIDATION_STATUS" != "passed" ]] && _vg_is_new_work_command "$COMMAND"; then
-                _vg_block_new_work || true  # || true prevents ERR trap from firing on return 2
-                return 2
-            fi
-
-            # E2E failure guard for git push
-            if [[ "$COMMAND" =~ ^git[[:space:]]+push($|[[:space:]]) ]]; then
-                if [[ -f "$VALIDATION_STATE_FILE" ]] && grep -q '^e2e_failed=true' "$VALIDATION_STATE_FILE" 2>/dev/null; then
-                    echo "BLOCKED: E2E tests failed. Fix E2E failures before pushing. Run 'make test-e2e' to verify." >&2
-                    trap - ERR; return 2
-                fi
-            fi
-
-            # Simple command exemptions
-            if [[ "$COMMAND" =~ ^echo[[:space:]].*\>[[:space:]]*/tmp/ ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])validate\.sh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])ci-status\.sh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])agent-batch-lifecycle\.sh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ ^(pwd|ls|cat|head|tail|grep|find|tree|wc|file|stat|which|type|cd)($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ ^git($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ ^tk($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ ^make[[:space:]]+(format|lint|test|db-) ]] || \
-               [[ "$COMMAND" =~ ^poetry($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ ^docker($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ ^gh($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ ^lsof($|[[:space:]]) ]] || \
-               [[ "$COMMAND" =~ (^|[[:space:]/])record-review\.sh($|[[:space:]]) ]]; then
-                return 0
-            fi
-        fi
-    fi
-
-    # State: not_run — SILENT ALLOW (new-work already blocked above)
-    if [[ -z "$VALIDATION_STATUS" ]]; then
+    # No status directory or no status files → allow (tests never run — CI catches)
+    if [[ ! -d "$STATUS_DIR" ]]; then
         return 0
     fi
 
-    # State: failed — WARNING (allows fixes)
-    if [[ "$VALIDATION_STATUS" == "failed" ]]; then
-        if [[ "$TOOL_NAME" == "Bash" ]]; then
-            echo "WARNING: Validation failures exist. Fix before starting new work ($(_vg_get_validate_cmd))." >&2
-            return 0
-        else
-            echo "WARNING: $(_vg_get_validate_cmd) reported failures. Fix before starting new work." >&2
-            return 0
+    local -a FAILED_TARGETS=()
+    local status_file first_line
+    for status_file in "$STATUS_DIR"/*.status; do
+        [[ -f "$status_file" ]] || continue
+        first_line=$(head -n 1 "$status_file" 2>/dev/null || echo "")
+        if [[ "$first_line" == "FAILED" ]]; then
+            FAILED_TARGETS+=("$(basename "$status_file" .status)")
         fi
+    done
+
+    if [[ ${#FAILED_TARGETS[@]} -gt 0 ]]; then
+        echo "BLOCKED: Test failures detected. Fix before committing." >&2
+        echo "Failed targets: ${FAILED_TARGETS[*]}" >&2
+        echo "Status files: $STATUS_DIR/*.status" >&2
+        trap - ERR; return 2
     fi
 
-    # State: passed — SILENT ALLOW
     return 0
 }
 
