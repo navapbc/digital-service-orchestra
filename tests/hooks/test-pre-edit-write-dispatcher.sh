@@ -140,10 +140,9 @@ _fns_loaded=0
     source "$FUNCTIONS_LIB"
     type hook_cascade_circuit_breaker &>/dev/null && \
     type hook_title_length_validator &>/dev/null && \
-    type hook_validation_gate &>/dev/null && \
     type hook_worktree_edit_guard &>/dev/null
 ) 2>/dev/null && _fns_loaded=1
-assert_eq "test_pre_edit_write_functions_loaded_via_lib_file: all 4 functions defined" "1" "$_fns_loaded"
+assert_eq "test_pre_edit_write_functions_loaded_via_lib_file: all 3 functions defined" "1" "$_fns_loaded"
 
 # ============================================================
 # test_pre_edit_dispatcher_cascade_exempt_allows_tickets

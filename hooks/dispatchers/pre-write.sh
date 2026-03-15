@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/pre-write.sh
-# PreToolUse Write dispatcher: sources Write hook functions and runs them
+# PreToolUse Write dispatcher: sources all 3 Write hook functions and runs them
 # sequentially. Stops at the first function that returns 2 (block/deny).
 #
-# Replaces separate settings.json Write PreToolUse entries with a single dispatcher entry:
+# Replaces 3 separate settings.json Write PreToolUse entries with a single dispatcher entry:
 #   run-hook.sh dispatchers/pre-write.sh
 #
 # Hook execution order:
@@ -20,17 +20,16 @@ fi
 
 HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 
-# Cache REPO_ROOT once for all hooks (avoids redundant git rev-parse calls)
-export REPO_ROOT
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
-
 # Source the dispatcher framework (provides run_hooks — kept for reference/reuse)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
-# Source Write hook functions (also sources pre-bash-functions.sh via chain)
+# Source all 3 Write hook functions (also sources pre-bash-functions.sh via chain)
 source "$HOOKS_LIB_DIR/pre-edit-write-functions.sh"
 
-# Run hook functions sequentially.
+# Source post-functions.sh for hook_tool_logging_pre (non-blocking tool logging)
+source "$HOOKS_LIB_DIR/post-functions.sh"
+
+# Run all 3 hook functions sequentially.
 # Stops at first function that returns 2 (block).
 # Non-zero exit codes other than 2 are intentionally allowed to fall through
 # (fail-open design): each hook function has its own ERR trap that logs the
@@ -48,6 +47,9 @@ _pre_write_dispatch() {
     # Read hook input from stdin
     local INPUT
     INPUT=$(cat)
+
+    # Tool logging runs first (non-blocking, informational only — never returns 2)
+    hook_tool_logging_pre "$INPUT" || true
 
     for _HOOK_FN in \
         hook_worktree_edit_guard \
