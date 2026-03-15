@@ -7,7 +7,7 @@
 #
 # Hook execution order:
 #   1. hook_exit_144_forensic_logger
-#   2. hook_check_validation_failures
+#   2. (removed: hook_check_validation_failures — created spurious tickets from stale validation state)
 #   3. hook_track_cascade_failures
 #   4. hook_tool_logging_post
 #
@@ -52,7 +52,6 @@ _post_bash_dispatch() {
     INPUT=$(cat)
 
     _run_post_fn hook_exit_144_forensic_logger "$INPUT"
-    _run_post_fn hook_check_validation_failures "$INPUT"
     _run_post_fn hook_track_cascade_failures "$INPUT"
     _run_post_fn hook_tool_logging_post "$INPUT"
 }
