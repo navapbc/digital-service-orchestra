@@ -158,7 +158,7 @@ POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.s
 # Reset log file for dispatcher tests
 rm -f "$LOG_FILE"
 
-# test_tool_logging_via_pre_bash_dispatcher
+# test_tool_logging_NOT_in_pre_bash_dispatcher (removed per hook optimization)
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo dispatcher-test"},"session_id":"disp-pre-123"}'
 printf '%s' "$INPUT" | bash "$PRE_BASH_DISPATCHER" 2>/dev/null || true
 _DISP_LOG="$TEST_HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
@@ -166,15 +166,15 @@ _disp_pre_ok="no"
 if [[ -f "$_DISP_LOG" ]] && grep -q '"hook_type":"pre"' "$_DISP_LOG" 2>/dev/null; then
     _disp_pre_ok="yes"
 fi
-assert_eq "test_tool_logging_via_pre_bash_dispatcher" "yes" "$_disp_pre_ok"
+assert_eq "test_tool_logging_NOT_in_pre_bash_dispatcher" "no" "$_disp_pre_ok"
 
-# test_tool_logging_via_post_bash_dispatcher
+# test_tool_logging_NOT_in_post_bash_dispatcher (removed per hook optimization)
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo dispatcher-test"},"tool_response":{"stdout":"ok","exit_code":0},"session_id":"disp-post-456"}'
 printf '%s' "$INPUT" | bash "$POST_BASH_DISPATCHER" 2>/dev/null || true
 _disp_post_ok="no"
 if [[ -f "$_DISP_LOG" ]] && grep -q '"hook_type":"post"' "$_DISP_LOG" 2>/dev/null; then
     _disp_post_ok="yes"
 fi
-assert_eq "test_tool_logging_via_post_bash_dispatcher" "yes" "$_disp_post_ok"
+assert_eq "test_tool_logging_NOT_in_post_bash_dispatcher" "no" "$_disp_post_ok"
 
 print_summary

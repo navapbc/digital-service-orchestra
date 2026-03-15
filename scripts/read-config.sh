@@ -94,9 +94,9 @@ if [[ -z "$PYTHON" ]]; then
     # Derive actual repo root from script location (not necessarily CLAUDE_PLUGIN_ROOT)
     _actual_repo_root="$(cd "$_script_dir" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
     for candidate in \
-        "${_actual_repo_root:+$_actual_repo_root/$CFG_PYTHON_VENV}" \
+        "${_actual_repo_root:+$_actual_repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}}" \
         "${_actual_repo_root:+$_actual_repo_root/.venv/bin/python3}" \
-        "${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/$CFG_PYTHON_VENV}" \
+        "${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/${CFG_PYTHON_VENV:-app/.venv/bin/python3}}" \
         "python3"; do
         [[ -z "$candidate" ]] && continue
         [[ "$candidate" != "python3" ]] && [[ ! -f "$candidate" ]] && continue
