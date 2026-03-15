@@ -77,7 +77,12 @@ echo ""
 echo "--- test_resume_from_state_file ---"
 _snapshot_fail
 TMPDIR_RESUME="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR_RESUME"' EXIT
+existing_trap="$(trap -p EXIT | sed "s/trap -- '\\(.*\\)' EXIT/\\1/")"
+if [ -n "$existing_trap" ]; then
+    trap "$existing_trap; rm -rf \"\$TMPDIR_RESUME\"" EXIT
+else
+    trap 'rm -rf "$TMPDIR_RESUME"' EXIT
+fi
 
 RESUME_STATE="$TMPDIR_RESUME/test-batched-state.json"
 # First run: use a fast command that completes within timeout, creating a state entry
@@ -245,6 +250,339 @@ echo "$prog_out" | grep -qE '[0-9]+/[0-9]+' && nm_found=1
 assert_eq "test_progress_indicator_in_output: output contains N/M progress pattern" "1" "$nm_found"
 rm -rf "$TMPDIR_PROG"
 assert_pass_if_clean "test_progress_indicator_in_output"
+
+# ── test_trap_cleanup_chains ──────────────────────────────────────────────────
+# Verify that setting multiple EXIT traps via the chaining pattern causes both
+# cleanup functions to run — not just the last one set.
+echo ""
+echo "--- test_trap_cleanup_chains ---"
+_snapshot_fail
+
+CHAIN_LOG="$(mktemp)"
+# Subshell: set two chained EXIT traps and exit; both should append to CHAIN_LOG
+(
+    trap "echo first >> \"$CHAIN_LOG\"" EXIT
+    existing_trap="$(trap -p EXIT | sed "s/trap -- '\\(.*\\)' EXIT/\\1/")"
+    if [ -n "$existing_trap" ]; then
+        trap "$existing_trap; echo second >> \"$CHAIN_LOG\"" EXIT
+    else
+        trap "echo second >> \"$CHAIN_LOG\"" EXIT
+    fi
+    exit 0
+)
+chain_contents=""
+chain_contents="$(cat "$CHAIN_LOG" 2>/dev/null || true)"
+rm -f "$CHAIN_LOG"
+
+first_ran=0
+second_ran=0
+echo "$chain_contents" | grep -q 'first'  && first_ran=1
+echo "$chain_contents" | grep -q 'second' && second_ran=1
+assert_eq "test_trap_cleanup_chains: first cleanup ran" "1" "$first_ran"
+assert_eq "test_trap_cleanup_chains: second cleanup ran" "1" "$second_ran"
+assert_pass_if_clean "test_trap_cleanup_chains"
+
+# ── test_command_validation_compound_commands ─────────────────────────────────
+# Compound commands (pipes, &&, ||) must be accepted without error and produce
+# a valid summary line. This confirms the bash -c execution approach handles
+# shell operators that would break a naive "which first_word" heuristic.
+echo ""
+echo "--- test_command_validation_compound_commands ---"
+_snapshot_fail
+TMPDIR_COMPOUND="$(mktemp -d)"
+COMPOUND_STATE="$TMPDIR_COMPOUND/test-batched-state.json"
+compound_out=""
+compound_exit=0
+compound_out=$(TEST_BATCHED_STATE_FILE="$COMPOUND_STATE" bash "$SCRIPT" --timeout=10 \
+    "echo hello && echo world" 2>&1) || compound_exit=$?
+# Must produce a summary line (pass/complete/summary signal)
+compound_ok=0
+echo "$compound_out" | grep -qiE 'pass|complete|summary' && compound_ok=1
+assert_eq "test_command_validation_compound_commands: compound command produces summary" "1" "$compound_ok"
+# Exit must be 0 (both echo commands succeed)
+assert_eq "test_command_validation_compound_commands: compound command exits 0" "0" "$compound_exit"
+rm -rf "$TMPDIR_COMPOUND"
+assert_pass_if_clean "test_command_validation_compound_commands"
+
+# ── test_command_validation_env_var_prefix ────────────────────────────────────
+# Commands with environment variable prefixes (e.g., FOO=bar cmd) must be
+# accepted and executed successfully. A heuristic that uses `which FOO=bar`
+# would fail; bash -c handles this natively.
+echo ""
+echo "--- test_command_validation_env_var_prefix ---"
+_snapshot_fail
+TMPDIR_ENVVAR="$(mktemp -d)"
+ENVVAR_STATE="$TMPDIR_ENVVAR/test-batched-state.json"
+envvar_out=""
+envvar_exit=0
+envvar_out=$(TEST_BATCHED_STATE_FILE="$ENVVAR_STATE" bash "$SCRIPT" --timeout=10 \
+    "FOO=bar echo test" 2>&1) || envvar_exit=$?
+# Must produce a summary line
+envvar_ok=0
+echo "$envvar_out" | grep -qiE 'pass|complete|summary' && envvar_ok=1
+assert_eq "test_command_validation_env_var_prefix: env var prefix produces summary" "1" "$envvar_ok"
+# Exit must be 0
+assert_eq "test_command_validation_env_var_prefix: env var prefix exits 0" "0" "$envvar_exit"
+rm -rf "$TMPDIR_ENVVAR"
+assert_pass_if_clean "test_command_validation_env_var_prefix"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Node.js runner tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── test_runner_node_triggers_file_discovery ──────────────────────────────────
+# --runner=node should trigger .test.js / .test.mjs file discovery.
+# We create a temp dir with a trivial .test.js file so we can verify the
+# driver picked up the file.
+echo ""
+echo "--- test_runner_node_triggers_file_discovery ---"
+_snapshot_fail
+TMPDIR_NODE_DISC="$(mktemp -d)"
+NODE_DISC_STATE="$TMPDIR_NODE_DISC/state.json"
+
+cat > "$TMPDIR_NODE_DISC/sample.test.js" << 'JSEOF'
+process.exit(0);
+JSEOF
+
+node_disc_out=""
+node_disc_exit=0
+if command -v node >/dev/null 2>&1; then
+    node_disc_out=$(TEST_BATCHED_STATE_FILE="$NODE_DISC_STATE" \
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_NODE_DISC" --timeout=30 2>&1) \
+        || node_disc_exit=$?
+    assert_contains "test_runner_node_triggers_file_discovery: output mentions .test.js" \
+        ".test.js" "$node_disc_out"
+else
+    node_disc_out=$(TEST_BATCHED_STATE_FILE="$NODE_DISC_STATE" \
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_NODE_DISC" --timeout=30 2>&1) \
+        || node_disc_exit=$?
+    assert_contains "test_runner_node_triggers_file_discovery: no node — fallback message" \
+        "fallback" "$node_disc_out"
+fi
+rm -rf "$TMPDIR_NODE_DISC"
+assert_pass_if_clean "test_runner_node_triggers_file_discovery"
+
+# ── test_node_auto_detected_when_available ────────────────────────────────────
+# Auto-detect: when node is on PATH and .test.js or .test.mjs files exist,
+# the node driver should activate without an explicit --runner=node flag.
+# Both .test.js and .test.mjs extensions must be recognized.
+echo ""
+echo "--- test_node_auto_detected_when_available ---"
+_snapshot_fail
+TMPDIR_NODE_AUTO="$(mktemp -d)"
+NODE_AUTO_STATE="$TMPDIR_NODE_AUTO/state.json"
+
+cat > "$TMPDIR_NODE_AUTO/a.test.js" << 'JSEOF'
+process.exit(0);
+JSEOF
+cat > "$TMPDIR_NODE_AUTO/b.test.mjs" << 'JSEOF'
+process.exit(0);
+JSEOF
+
+node_auto_out=""
+node_auto_exit=0
+if command -v node >/dev/null 2>&1; then
+    node_auto_out=$(TEST_BATCHED_STATE_FILE="$NODE_AUTO_STATE" \
+        bash "$SCRIPT" --test-dir="$TMPDIR_NODE_AUTO" --timeout=30 2>&1) \
+        || node_auto_exit=$?
+    auto_detected=0
+    (echo "$node_auto_out" | grep -qE '\.test\.js|\.test\.mjs|node') && auto_detected=1
+    assert_eq "test_node_auto_detected_when_available: auto-detection ran node driver" \
+        "1" "$auto_detected"
+else
+    assert_eq "test_node_auto_detected_when_available: node not installed (skip)" "ok" "ok"
+fi
+rm -rf "$TMPDIR_NODE_AUTO"
+assert_pass_if_clean "test_node_auto_detected_when_available"
+
+# ── test_node_tests_batched_by_file ───────────────────────────────────────────
+# Node driver must batch tests by passing multiple files to one `node --test` call.
+# Verify: output mentions individual .test.js filenames (not a single glob).
+echo ""
+echo "--- test_node_tests_batched_by_file ---"
+_snapshot_fail
+TMPDIR_NODE_BATCH="$(mktemp -d)"
+NODE_BATCH_STATE="$TMPDIR_NODE_BATCH/state.json"
+
+cat > "$TMPDIR_NODE_BATCH/first.test.js" << 'JSEOF'
+process.exit(0);
+JSEOF
+cat > "$TMPDIR_NODE_BATCH/second.test.js" << 'JSEOF'
+process.exit(0);
+JSEOF
+
+node_batch_out=""
+node_batch_exit=0
+if command -v node >/dev/null 2>&1; then
+    node_batch_out=$(TEST_BATCHED_STATE_FILE="$NODE_BATCH_STATE" \
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_NODE_BATCH" --timeout=30 2>&1) \
+        || node_batch_exit=$?
+    assert_contains "test_node_tests_batched_by_file: first.test.js mentioned" \
+        "first.test.js" "$node_batch_out"
+    assert_contains "test_node_tests_batched_by_file: second.test.js mentioned" \
+        "second.test.js" "$node_batch_out"
+else
+    assert_eq "test_node_tests_batched_by_file: node not installed (skip)" "ok" "ok"
+fi
+rm -rf "$TMPDIR_NODE_BATCH"
+assert_pass_if_clean "test_node_tests_batched_by_file"
+
+# ── test_node_discovery_failure_falls_back ────────────────────────────────────
+# When --runner=node is requested but no .test.js/.test.mjs files are found,
+# the driver should fall back to the generic runner.
+echo ""
+echo "--- test_node_discovery_failure_falls_back ---"
+_snapshot_fail
+TMPDIR_NODE_NOFS="$(mktemp -d)"
+NODE_NOFS_STATE="$TMPDIR_NODE_NOFS/state.json"
+# Empty dir — no .test.js files
+
+node_nofs_out=""
+node_nofs_exit=0
+node_nofs_out=$(TEST_BATCHED_STATE_FILE="$NODE_NOFS_STATE" \
+    bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_NODE_NOFS" --timeout=30 \
+    "bash -c 'exit 0'" 2>&1) \
+    || node_nofs_exit=$?
+
+fallback_noted=0
+(echo "$node_nofs_out" | grep -qiE 'fallback|generic|no.*test.*file|passed') && fallback_noted=1
+assert_eq "test_node_discovery_failure_falls_back: fallback triggered when no files found" \
+    "1" "$fallback_noted"
+rm -rf "$TMPDIR_NODE_NOFS"
+assert_pass_if_clean "test_node_discovery_failure_falls_back"
+
+# ── test_node_not_installed_falls_back ────────────────────────────────────────
+# When node is not on PATH, the node driver must fall back to the generic runner
+# rather than crashing.
+echo ""
+echo "--- test_node_not_installed_falls_back ---"
+_snapshot_fail
+TMPDIR_NODE_NOBIN="$(mktemp -d)"
+NODE_NOBIN_STATE="$TMPDIR_NODE_NOBIN/state.json"
+
+cat > "$TMPDIR_NODE_NOBIN/x.test.js" << 'JSEOF'
+process.exit(0);
+JSEOF
+
+node_nobin_out=""
+node_nobin_exit=0
+# Override PATH to hide node but keep basic utilities
+node_nobin_out=$(TEST_BATCHED_STATE_FILE="$NODE_NOBIN_STATE" \
+    PATH="/usr/bin:/bin" \
+    bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_NODE_NOBIN" --timeout=30 \
+    "bash -c 'exit 0'" 2>&1) \
+    || node_nobin_exit=$?
+
+nobin_ok=0
+(echo "$node_nobin_out" | grep -qiE 'fallback|generic|node.*not|passed') && nobin_ok=1
+assert_eq "test_node_not_installed_falls_back: falls back when node not on PATH" \
+    "1" "$nobin_ok"
+rm -rf "$TMPDIR_NODE_NOBIN"
+assert_pass_if_clean "test_node_not_installed_falls_back"
+
+# ── test_interrupted_node_test_exits_nonzero ─────────────────────────────────
+# When a node test is killed due to timeout, the run records "interrupted" and
+# emits NEXT:. On a subsequent resume, the interrupted result must cause a
+# non-zero exit so callers know the run did not fully succeed.
+echo ""
+echo "--- test_interrupted_node_test_exits_nonzero ---"
+_snapshot_fail
+TMPDIR_INT_NODE="$(mktemp -d)"
+INT_NODE_STATE="$TMPDIR_INT_NODE/state.json"
+
+if command -v node >/dev/null 2>&1; then
+    # Create a .test.js that runs forever so the harness kills it on timeout
+    cat > "$TMPDIR_INT_NODE/slow.test.js" << 'JSEOF'
+const timer = setInterval(() => {}, 1000);
+JSEOF
+
+    # First run: timeout=1 with a slow node test → test gets killed → "interrupted" saved
+    int_node_first_out=""
+    int_node_first_out=$(TEST_BATCHED_STATE_FILE="$INT_NODE_STATE" \
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=1 2>&1) || true
+
+    # Verify the first run emitted a NEXT: resume command
+    assert_contains "test_interrupted_node_test_exits_nonzero: first run emits NEXT:" \
+        "NEXT:" "$int_node_first_out"
+
+    # Verify state file contains "interrupted" result
+    int_has_interrupted=0
+    if [ -f "$INT_NODE_STATE" ]; then
+        python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+vals = list(d.get('results', {}).values())
+sys.exit(0 if 'interrupted' in vals else 1)
+" "$INT_NODE_STATE" && int_has_interrupted=1 || true
+    fi
+    assert_eq "test_interrupted_node_test_exits_nonzero: state records interrupted result" \
+        "1" "$int_has_interrupted"
+
+    # Second run: resume from state file — all tests already "completed" (as interrupted)
+    # This resume should exit non-zero because interrupted tests are non-passing
+    int_node_resume_exit=0
+    int_node_resume_out=""
+    int_node_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_NODE_STATE" \
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=30 2>&1) \
+        || int_node_resume_exit=$?
+
+    assert_contains "test_interrupted_node_test_exits_nonzero: resume output contains 'interrupted'" \
+        "interrupted" "$int_node_resume_out"
+    assert_ne "test_interrupted_node_test_exits_nonzero: resume exits non-zero on all-interrupted run" \
+        "0" "$int_node_resume_exit"
+else
+    assert_eq "test_interrupted_node_test_exits_nonzero: node not installed (skip)" "ok" "ok"
+fi
+rm -rf "$TMPDIR_INT_NODE"
+assert_pass_if_clean "test_interrupted_node_test_exits_nonzero"
+
+# ── test_interrupted_generic_test_resume_exits_nonzero ───────────────────────
+# When a generic runner test is killed due to timeout, "interrupted" is recorded
+# in the state file. On resume, the script detects the interrupted result and
+# must exit non-zero.
+echo ""
+echo "--- test_interrupted_generic_test_resume_exits_nonzero ---"
+_snapshot_fail
+TMPDIR_INT_GEN="$(mktemp -d)"
+INT_GEN_STATE="$TMPDIR_INT_GEN/state.json"
+
+# First run: timeout=1 with a slow command → test gets killed → "interrupted" saved
+int_gen_first_out=""
+int_gen_first_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
+    bash "$SCRIPT" --timeout=1 "sleep 30" 2>&1) || true
+
+# Verify first run emits NEXT:
+assert_contains "test_interrupted_generic_test_resume_exits_nonzero: first run emits NEXT:" \
+    "NEXT:" "$int_gen_first_out"
+
+# Verify state file contains "interrupted"
+int_gen_has_interrupted=0
+if [ -f "$INT_GEN_STATE" ]; then
+    python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+vals = list(d.get('results', {}).values())
+sys.exit(0 if 'interrupted' in vals else 1)
+" "$INT_GEN_STATE" && int_gen_has_interrupted=1 || true
+fi
+assert_eq "test_interrupted_generic_test_resume_exits_nonzero: state records interrupted result" \
+    "1" "$int_gen_has_interrupted"
+
+# Second run: resume from the state file.
+# The test ID is already in "completed" list with result "interrupted".
+# The resume run skips the test (already done) and must exit non-zero.
+int_gen_resume_exit=0
+int_gen_resume_out=""
+int_gen_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
+    bash "$SCRIPT" --timeout=30 "sleep 30" 2>&1) \
+    || int_gen_resume_exit=$?
+
+assert_contains "test_interrupted_generic_test_resume_exits_nonzero: resume mentions interrupted" \
+    "interrupted" "$int_gen_resume_out"
+assert_ne "test_interrupted_generic_test_resume_exits_nonzero: resume exits non-zero" \
+    "0" "$int_gen_resume_exit"
+rm -rf "$TMPDIR_INT_GEN"
+assert_pass_if_clean "test_interrupted_generic_test_resume_exits_nonzero"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

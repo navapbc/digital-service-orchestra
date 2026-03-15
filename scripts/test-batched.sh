@@ -6,17 +6,25 @@
 # When all tests complete, prints a summary and cleans up the state file.
 #
 # Usage:
-#   test-batched.sh [OPTIONS] <command>
+#   test-batched.sh [OPTIONS] [<command>]
 #
 # Options:
 #   --help              Show this help and exit
 #   --timeout=N         Stop after N seconds (default: 50)
 #   --state-file=PATH   Path to JSON state file (default: /tmp/test-batched-state.json)
+#   --runner=RUNNER     Test runner driver: node, or generic (default: auto-detect)
+#   --test-dir=PATH     Directory to search for test files (used by runner drivers)
 #
-# The <command> is the test runner command to execute. It is run once; its
-# exit code determines pass (0) or fail (non-zero). For multi-test suites,
-# use a runner script that accepts a test name argument, or pass a shell
-# command string (e.g., "bash run-tests.sh").
+# Runner drivers:
+#   node      Discovers *.test.js and *.test.mjs files under --test-dir and runs
+#             each via: node --test <file>
+#             Auto-detected when: node is on PATH AND *.test.js / *.test.mjs
+#             files exist under --test-dir.
+#             Falls back to generic when: node not installed, or no test files found.
+#   generic   (default) Runs <command> as a single test item.
+#
+# The <command> positional argument is required for the generic runner.
+# For the node runner, <command> is optional (used as fallback command).
 #
 # Output format:
 #   Between batches: progress line + "NEXT: <resume command>"
@@ -36,6 +44,8 @@
 #   test-batched.sh "make test-unit-only"
 #   test-batched.sh --timeout=30 "bash run-tests.sh"
 #   test-batched.sh --timeout=1 "sleep 10"   # stops early; prints NEXT:
+#   test-batched.sh --runner=node --test-dir=./src
+#   test-batched.sh --runner=node --test-dir=./tests --timeout=30
 
 set -uo pipefail
 set -m  # Enable job control so background jobs get their own process group
@@ -48,11 +58,13 @@ DEFAULT_STATE_FILE="${TEST_BATCHED_STATE_FILE:-/tmp/test-batched-state.json}"
 TIMEOUT=$DEFAULT_TIMEOUT
 STATE_FILE="$DEFAULT_STATE_FILE"
 CMD=""
+RUNNER=""
+TEST_DIR=""
 
 for arg in "$@"; do
     case "$arg" in
         --help)
-            sed -n '2,/^$/s/^# \{0,1\}//p' "$0" | head -40
+            sed -n '2,/^$/s/^# \{0,1\}//p' "$0" | head -60
             exit 0
             ;;
         --timeout=*)
@@ -60,6 +72,12 @@ for arg in "$@"; do
             ;;
         --state-file=*)
             STATE_FILE="${arg#--state-file=}"
+            ;;
+        --runner=*)
+            RUNNER="${arg#--runner=}"
+            ;;
+        --test-dir=*)
+            TEST_DIR="${arg#--test-dir=}"
             ;;
         --*)
             echo "ERROR: Unknown option: $arg" >&2
@@ -79,16 +97,21 @@ for arg in "$@"; do
 done
 
 # ── Validate required argument ─────────────────────────────────────────────────
-if [ -z "$CMD" ]; then
+# CMD is required for generic runner; node runner can operate without it.
+if [ -z "$CMD" ] && [ "$RUNNER" != "node" ]; then
     echo "ERROR: Missing required argument: <command>" >&2
     echo ""
-    sed -n '2,/^$/s/^# \{0,1\}//p' "$0" | head -40 >&2
+    sed -n '2,/^$/s/^# \{0,1\}//p' "$0" | head -60 >&2
     exit 1
 fi
 
-# ── Validate command is non-empty ─────────────────────────────────────────────
-# CMD is always executed via bash -c, so any valid shell expression works.
-# No further validation needed beyond the non-empty check above.
+# ── Command validation: bash -c handles all valid shell expressions ────────────
+# CMD is always executed via `bash -c "$CMD"`, which means any valid shell
+# expression is accepted — including compound commands (e.g., "cmd1 && cmd2"),
+# pipes (e.g., "cmd | grep foo"), shell builtins (e.g., "exit 0"), and
+# environment-variable prefixes (e.g., "FOO=bar cmd"). Using `which` or
+# `command -v` on the first word would be a fragile heuristic that breaks on
+# all of the above. The non-empty check above is sufficient validation.
 
 # ── State file helpers ─────────────────────────────────────────────────────────
 
@@ -222,9 +245,26 @@ for k, v in d.items():
 " "$results_json" 2>/dev/null || true
 }
 
+
+# ── Node.js runner driver (sourced from runners/node-runner.sh) ───────────────
+# Sets USE_NODE_RUNNER and NODE_FILES; provides _node_runner_run function.
+# shellcheck source=runners/node-runner.sh
+source "$(dirname "$0")/runners/node-runner.sh"
+
+# ── Node runner execution path ────────────────────────────────────────────────
+if [ "$USE_NODE_RUNNER" -eq 1 ]; then
+    _node_runner_run
+fi
+
 # ── Generic fallback runner ───────────────────────────────────────────────────
 # Runs CMD as a single test item with an auto-generated ID.
 # This is the default mode — a generic harness for any command.
+
+# Ensure CMD is non-empty for generic runner (defensive check)
+if [ -z "$CMD" ]; then
+    echo "ERROR: Missing required argument: <command> (node runner fell back to generic but no command given)" >&2
+    exit 1
+fi
 
 # Assign a unique test ID for this run
 TEST_ID="${CMD// /_}"
@@ -265,9 +305,10 @@ if _is_completed "$TEST_ID"; then
     # All done — no more tests
     pass_count=$(_results_count "$RESULTS_JSON" "pass")
     fail_count=$(_results_count "$RESULTS_JSON" "fail")
+    interrupted_count=$(_results_count "$RESULTS_JSON" "interrupted")
     total_done=${#COMPLETED_LIST[@]}
     echo ""
-    echo "$total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed."
+    echo "$total_done/$TOTAL tests completed. $pass_count passed, $fail_count failed, $interrupted_count interrupted."
     if [ "$fail_count" -gt 0 ]; then
         echo ""
         echo "Failures:"
@@ -276,7 +317,8 @@ if _is_completed "$TEST_ID"; then
         done
     fi
     rm -f "$STATE_FILE"
-    [ "$fail_count" -gt 0 ] && exit 1 || exit 0
+    # Interrupted tests are non-passing — exit non-zero if any tests failed or were interrupted
+    [ "$fail_count" -gt 0 ] || [ "$interrupted_count" -gt 0 ] && exit 1 || exit 0
 fi
 
 # ── Check timeout before running ─────────────────────────────────────────────
