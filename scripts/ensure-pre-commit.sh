@@ -29,7 +29,7 @@ fi
 _ensure_precommit_plugin_scripts="${CLAUDE_PLUGIN_ROOT:-$_ensure_precommit_repo_root/lockpick-workflow}/scripts"
 
 # Source config-paths.sh for portable path resolution
-_ensure_precommit_config_paths="$_ensure_precommit_plugin_scripts/../hooks/lib/config-paths.sh"
+_ensure_precommit_config_paths="${CLAUDE_PLUGIN_ROOT:-$_ensure_precommit_plugin_scripts/..}/hooks/lib/config-paths.sh"
 if [ -f "$_ensure_precommit_config_paths" ]; then
     # shellcheck source=../hooks/lib/config-paths.sh
     source "$_ensure_precommit_config_paths"

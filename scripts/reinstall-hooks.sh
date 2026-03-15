@@ -28,7 +28,7 @@ set -euo pipefail
 
 # Source config-paths.sh for portable path resolution
 _REINSTALL_HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_REINSTALL_CONFIG_PATHS="$_REINSTALL_HOOKS_DIR/../hooks/lib/config-paths.sh"
+_REINSTALL_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT:-$_REINSTALL_HOOKS_DIR/..}/hooks/lib/config-paths.sh"
 if [ -f "$_REINSTALL_CONFIG_PATHS" ]; then
     # shellcheck source=../hooks/lib/config-paths.sh
     source "$_REINSTALL_CONFIG_PATHS"

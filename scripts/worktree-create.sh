@@ -96,7 +96,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source config-paths.sh for CFG_PYTHON_VENV
-_wt_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+_wt_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
 [[ -f "$_wt_config_paths" ]] && source "$_wt_config_paths"
 
 if [ -x "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" ]; then

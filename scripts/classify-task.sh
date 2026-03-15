@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Source config-paths.sh for CFG_APP_DIR
-_classify_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+_classify_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
 [[ -f "$_classify_config_paths" ]] && source "$_classify_config_paths"
 
 # Resolve Python — prefer poetry env, fall back to system python3

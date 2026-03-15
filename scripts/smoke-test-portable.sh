@@ -63,11 +63,11 @@ check() {
     "$@" >/dev/null 2>&1 || exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS: $label"
-        (( PASS++ ))
+        PASS=$(( PASS + 1 ))
     else
         if [[ "$required" == "required" ]]; then
             echo "  FAIL: $label (exit $exit_code)" >&2
-            (( FAIL++ ))
+            FAIL=$(( FAIL + 1 ))
         else
             echo "  SKIP: $label (optional, exit $exit_code)"
         fi
@@ -85,10 +85,10 @@ bash "$PLUGIN_COPY/hooks/dispatchers/pre-bash.sh" --smoke-check 2>/dev/null || h
 # Any non-catastrophic exit is acceptable (hooks may not support --smoke-check)
 if [ "$hook_exit" -ne 139 ] && [ "$hook_exit" -ne 137 ]; then  # not SIGSEGV/SIGKILL
     echo "  PASS: hook pre-bash.sh initialization (exit $hook_exit — non-catastrophic)"
-    (( PASS++ ))
+    PASS=$(( PASS + 1 ))
 else
     echo "  FAIL: hook pre-bash.sh crashed with fatal signal (exit $hook_exit)" >&2
-    (( FAIL++ ))
+    FAIL=$(( FAIL + 1 ))
 fi
 
 # ── Key script checks ─────────────────────────────────────────────────────────
@@ -119,10 +119,10 @@ bash "$PLUGIN_COPY/scripts/discover-agents.sh" \
 # graceful non-crash is acceptable
 if [ "$discover_exit" -ne 139 ] && [ "$discover_exit" -ne 137 ]; then
     echo "  PASS: discover-agents.sh non-catastrophic exit ($discover_exit)"
-    (( PASS++ ))
+    PASS=$(( PASS + 1 ))
 else
     echo "  FAIL: discover-agents.sh crashed with fatal signal (exit $discover_exit)" >&2
-    (( FAIL++ ))
+    FAIL=$(( FAIL + 1 ))
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────

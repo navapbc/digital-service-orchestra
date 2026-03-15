@@ -154,7 +154,7 @@ to_epoch() {
 }
 
 # Source config-paths.sh for CFG_PYTHON_VENV
-_ci_config_paths="$(cd "$(dirname "$0")" && pwd)/../hooks/lib/config-paths.sh"
+_ci_config_paths="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")" && pwd)/..}/hooks/lib/config-paths.sh"
 [[ -f "$_ci_config_paths" ]] && source "$_ci_config_paths"
 
 # Resolve a python3 interpreter that has PyYAML installed.
