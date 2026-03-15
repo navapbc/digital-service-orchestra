@@ -52,26 +52,6 @@ if [[ -n "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"
 fi
 
-<<<<<<< HEAD
-# Resolve Python with pyyaml for read-config.sh YAML mode.
-# read-config.sh uses pure bash for .conf files and only invokes Python when
-# parsing .yaml/.yml configs. Export CLAUDE_PLUGIN_PYTHON so read-config.sh
-# can find the interpreter without re-probing (relevant when a YAML config is used).
-if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
-    for _py_candidate in \
-        "$REPO_ROOT/$CFG_PYTHON_VENV" \
-        "$REPO_ROOT/.venv/bin/python3" \
-        "python3"; do
-        [[ "$_py_candidate" != "python3" ]] && [[ ! -f "$_py_candidate" ]] && continue
-        if "$_py_candidate" -c "import yaml" 2>/dev/null; then
-            export CLAUDE_PLUGIN_PYTHON="$_py_candidate"
-            break
-        fi
-    done
-fi
-
-=======
->>>>>>> origin/main
 # Config reader helper — respects WORKFLOW_CONFIG override (for tests)
 _read_cfg() {
     local key="$1"

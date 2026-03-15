@@ -155,6 +155,21 @@ fi
 
 Keep the primary `config-cache` file (no suffix) — only delete the hash-suffixed variants.
 
+### 5.75. Sweep Tool-Error Counter for Recurring Issues
+
+Check `~/.claude/tool-error-counter.json` for tool-error categories that have accumulated
+50 or more occurrences and create deduplicated bug tickets for them.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
+sweep_tool_errors
+```
+
+The sweep is **read-only** — it never writes to or resets the counter file. If the
+counter file is absent or malformed the step exits 0 silently. Tickets are only created
+when no open bug matching `"Recurring tool error: $CATEGORY"` already exists (dedup).
+
 ### 6. Report: Task Summary and Completion
 
 Display a comprehensive session summary:
