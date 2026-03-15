@@ -26,9 +26,6 @@ source "$HOOKS_LIB_DIR/dispatcher.sh"
 # Source all 3 Edit hook functions (also sources pre-bash-functions.sh via chain)
 source "$HOOKS_LIB_DIR/pre-edit-write-functions.sh"
 
-# Source post-functions.sh for hook_tool_logging_pre (non-blocking tool logging)
-source "$HOOKS_LIB_DIR/post-functions.sh"
-
 # Run all 3 hook functions sequentially.
 # Stops at first function that returns 2 (block).
 # Non-zero exit codes other than 2 are intentionally allowed to fall through
@@ -47,9 +44,6 @@ _pre_edit_dispatch() {
     # Read hook input from stdin
     local INPUT
     INPUT=$(cat)
-
-    # Tool logging runs first (non-blocking, informational only — never returns 2)
-    hook_tool_logging_pre "$INPUT" || true
 
     for _HOOK_FN in \
         hook_worktree_edit_guard \
