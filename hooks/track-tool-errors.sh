@@ -6,7 +6,6 @@
 #   1. Categorizes the error via pattern matching
 #   2. Appends a detail entry to the error counter JSON
 #   3. Increments the category count in the index
-#   4. Creates a tk ticket if any category reaches 50 occurrences
 #
 # Counter file: ~/.claude/tool-error-counter.json
 # Template: .claude/docs/TOOL-ERROR-TEMPLATE.md
@@ -129,11 +128,10 @@ print(json.dumps(data))
 
 echo "$COUNTER_DATA" > "$COUNTER_FILE"
 
-# --- Check threshold and create bug if needed ---
+# --- Check threshold and notify ---
 CURRENT_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('index',{}).get(sys.argv[1],0))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo 0)
-BUG_EXISTS=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('bugs_created',{}).get(sys.argv[1],'none'))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo "none")
 
-# Categories that are normal operational noise — track counts but never auto-create bugs
+# Categories that are normal operational noise — track counts but suppress notifications
 NOISE_CATEGORIES="file_not_found command_exit_nonzero"
 IS_NOISE=false
 for nc in $NOISE_CATEGORIES; do
@@ -144,35 +142,11 @@ if [[ "$IS_NOISE" == "true" ]]; then
     exit 0
 fi
 
-if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" && "$BUG_EXISTS" == "none" ]]; then
-    BUG_ID=""
-    if command -v tk &>/dev/null; then
-        BUG_ID=$(tk create "Investigate recurring tool error: $CATEGORY ($CURRENT_COUNT occurrences)" \
-            -t bug -p 2 \
-            -d "The '$CATEGORY' tool error has been observed $CURRENT_COUNT times across sessions. Recent example: $TOOL_NAME failed with: $ERROR_MSG. Review full log: $COUNTER_FILE" \
-            2>/dev/null || echo '')
-    fi
-
-    if [[ -n "$BUG_ID" ]]; then
-        # Record bug ID to prevent duplicates
-        COUNTER_DATA=$(python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-data.setdefault('bugs_created', {})[sys.argv[1]] = sys.argv[2]
-print(json.dumps(data))
-" "$CATEGORY" "$BUG_ID" < "$COUNTER_FILE" 2>/dev/null || cat "$COUNTER_FILE")
-        echo "$COUNTER_DATA" > "$COUNTER_FILE"
-    fi
-
+# Notify at threshold and each subsequent multiple to avoid spamming
+if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" ]] && (( CURRENT_COUNT % THRESHOLD == 0 )); then
     # Notify via hook output (becomes a system reminder)
     _HOOK_HAS_OUTPUT=1
-    echo "Recurring tool error detected: '$CATEGORY' has occurred $CURRENT_COUNT times (threshold: $THRESHOLD)."
-    if [[ -n "$BUG_ID" ]]; then
-        echo "Bug created: $BUG_ID — investigate root cause before continuing."
-    else
-        echo "Failed to create bug automatically. Create one manually:"
-        echo "  tk create \"Investigate recurring tool error: $CATEGORY\" -t bug -p 2"
-    fi
+    echo "Recurring tool error detected: '$CATEGORY' has occurred $CURRENT_COUNT times (threshold: $THRESHOLD). Review: $COUNTER_FILE"
 fi
 
 exit 0

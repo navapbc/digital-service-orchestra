@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 # .claude/hooks/session-safety-check.sh
-# SessionStart hook: analyze hook error log and create bugs for recurring errors
+# SessionStart hook: analyze hook error log and warn about recurring errors
 #
 # Reads ~/.claude/hook-error-log.jsonl, counts errors per hook in the last 24h.
-# If any hook exceeds the threshold, outputs a warning and creates a ticket bug.
-# Deduplicates bugs via a "bugs_created" marker in the log directory.
+# If any hook exceeds the threshold, outputs a warning.
 
 # Never surface errors to user — log and exit cleanly
 HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"session-safety-check.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
 
 THRESHOLD=10
-BUGS_DIR="$HOME/.claude/hook-error-bugs"
 
 # --- No log file? Nothing to analyze. ---
 if [[ ! -f "$HOOK_ERROR_LOG" ]]; then
@@ -81,9 +79,6 @@ if [[ -z "$COUNTS" ]]; then
     exit 0
 fi
 
-# --- Ensure bugs directory exists ---
-mkdir -p "$BUGS_DIR" 2>/dev/null || exit 0
-
 # --- Check each hook against threshold ---
 WARNINGS=""
 while IFS= read -r line; do
@@ -112,25 +107,6 @@ while IFS= read -r line; do
         fi
 
         WARNINGS="${WARNINGS}\n  - ${HOOK_NAME}: ${COUNT} errors in last 24h"
-
-        # Create bug if not already created for this hook
-        MARKER="$BUGS_DIR/${HOOK_NAME}.bug"
-        if [[ ! -f "$MARKER" ]]; then
-            if command -v tk &>/dev/null; then
-                # Write marker BEFORE tk create to prevent duplicates on timeout.
-                # If tk create times out (exit 144), the ticket is created but the
-                # ID is not captured — without this pre-write, no marker is saved
-                # and every subsequent session creates another duplicate.
-                echo "pending" > "$MARKER"
-                BUG_ID=$(tk create "Fix recurring hook errors: ${HOOK_NAME} (${COUNT} in 24h)" \
-                    -t bug -p 2 \
-                    -d "The hook '${HOOK_NAME}' has logged ${COUNT} errors in the last 24 hours (threshold: ${THRESHOLD}). Review ~/.claude/hook-error-log.jsonl for details. This bug was auto-created by session-safety-check.sh." \
-                    2>/dev/null || echo '')
-                if [[ -n "$BUG_ID" ]]; then
-                    echo "$BUG_ID" > "$MARKER"
-                fi
-            fi
-        fi
     fi
 done <<< "$COUNTS"
 
@@ -154,7 +130,6 @@ if [[ -n "$WARNINGS" ]]; then
     echo -e "$WARNINGS"
     echo ""
     echo "Review: ~/.claude/hook-error-log.jsonl"
-    echo "Bugs have been auto-created for investigation."
 fi
 
 exit 0

@@ -8,12 +8,12 @@
 #   test_missing_args_exits_nonzero — exits non-zero when args missing
 #   test_generic_runs_without_project_env — works without project-specific tools/env
 #   test_reads_artifact_prefix   — artifacts go to config-specified prefix dir
-#   test_reads_create_cmd        — warning emitted when issue_tracker.create_cmd absent
+#   test_slow_warning_emitted    — WARNING emitted on slow command
 #   test_exit_code_passthrough   — passes through command exit code
 #   test_timeout_exit_codes      — handles 124, 143, 137 exit codes
 #   test_timeout_logging         — logs timeout events to log file
-#   test_timeout_ticket_creation — creates ticket via configured create_cmd
-#   test_no_ticket_without_config — skips ticket creation when create_cmd absent
+#   test_timeout_log_file_created — artifact log created on timeout
+#   test_no_ticket_without_config — no external commands invoked, just logging
 #   test_fallback_artifact_prefix — falls back to repo-name derivation when config absent
 #
 # Usage:
@@ -183,13 +183,12 @@ fi
 rm -rf "$_T5_CFG" "/tmp/${_T5_PREFIX}-${_T5_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Test 6: wrapper consults issue_tracker.create_cmd from config at runtime
+# Test 6: wrapper logs timeout and emits WARNING on slow command
 #
-# Behavioral test: when create_cmd is absent from config and a timeout fires,
-# the wrapper emits a warning mentioning issue_tracker.create_cmd.
-# This proves the wrapper actually reads (and reports on) that config key.
+# Behavioral test: when a timeout fires, the wrapper emits a WARNING message
+# and logs to the timeout log. No ticket creation occurs.
 # ---------------------------------------------------------------------------
-echo "Test 6: wrapper warns about missing issue_tracker.create_cmd on timeout"
+echo "Test 6: wrapper emits WARNING and logs on slow command"
 _T6_CFG=$(mktemp -d)
 _CLEANUP_DIRS+=("$_T6_CFG")
 cat > "$_T6_CFG/workflow-config.conf" << EOF
@@ -199,10 +198,10 @@ _T6_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'de
 
 rc=0
 _t6_output=$(CLAUDE_PLUGIN_ROOT="$_T6_CFG" "$WRAPPER" cmd-check-hook 1 "sleep 2" 2>&1) || rc=$?
-# Wrapper should still succeed (command exit 0), just skip ticket creation
+# Wrapper should still succeed (command exit 0)
 assert_eq "test_reads_create_cmd_exit" "0" "$rc"
-# Warning should mention the config key so users know how to configure it
-assert_contains "test_reads_create_cmd_warning" "issue_tracker.create_cmd" "$_t6_output"
+# Warning should be emitted about the slow command
+assert_contains "test_slow_warning_emitted" "WARNING" "$_t6_output"
 
 rm -rf "$_T6_CFG" "/tmp/test-t6-nocmd-${_TEST_PID}-${_T6_WORKTREE}" 2>/dev/null || true
 
@@ -295,39 +294,33 @@ fi
 rm -rf "$TMPDIR_TEST" "$ARTIFACTS_DIR_TEST" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Test 10: timeout ticket creation via configured create_cmd
+# Test 10: timeout logs to artifact file (no ticket creation)
 # ---------------------------------------------------------------------------
-echo "Test 10: timeout ticket creation"
+echo "Test 10: timeout logs to artifact file without ticket creation"
 TMPDIR_TEST=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_TEST")
-MOCK_CREATE_DIR=$(mktemp -d)
-_CLEANUP_DIRS+=("$MOCK_CREATE_DIR")
-
-# Create a mock create command that logs calls
-cat > "$MOCK_CREATE_DIR/mock-create" << MOCK_SCRIPT
-#!/usr/bin/env bash
-echo "\$*" >> "$MOCK_CREATE_DIR/create_calls"
-echo "mock-ticket-001"
-exit 0
-MOCK_SCRIPT
-chmod +x "$MOCK_CREATE_DIR/mock-create"
 
 cat > "$TMPDIR_TEST/workflow-config.conf" << EOF
 session.artifact_prefix=test-wrapper-ticket-${_TEST_PID}
-issue_tracker.create_cmd=$MOCK_CREATE_DIR/mock-create
 EOF
+
+WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
+_T10_LOG="/tmp/test-wrapper-ticket-${_TEST_PID}-${WORKTREE_NAME_TEST}/precommit-timeouts.log"
+rm -f "$_T10_LOG" 2>/dev/null || true
 
 rc=0
 CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" ticket-hook 1 "sleep 2" 2>/dev/null || rc=$?
 
-create_called=0
-if [ -f "$MOCK_CREATE_DIR/create_calls" ]; then
-    create_called=1
+# Log file should be created
+if [ -f "$_T10_LOG" ]; then
+    assert_eq "test_timeout_log_file_created" "exists" "exists"
+    log_has_hook=$(grep -c 'ticket-hook' "$_T10_LOG" 2>/dev/null || true)
+    assert_ne "test_timeout_log_has_hook_name" "0" "$log_has_hook"
+else
+    assert_eq "test_timeout_log_file_created" "exists" "missing"
 fi
-assert_eq "test_timeout_ticket_creation" "1" "$create_called"
 
-WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
-rm -rf "$TMPDIR_TEST" "$MOCK_CREATE_DIR" "/tmp/test-wrapper-ticket-${_TEST_PID}-${WORKTREE_NAME_TEST}" 2>/dev/null || true
+rm -rf "$TMPDIR_TEST" "/tmp/test-wrapper-ticket-${_TEST_PID}-${WORKTREE_NAME_TEST}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Test 11: no ticket creation when create_cmd is absent

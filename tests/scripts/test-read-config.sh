@@ -468,4 +468,73 @@ fi
 
 rm -rf "$YAML_ONLY_DIR" "$YAML_MALFORMED_DIR"
 
+# ── Batch mode tests ──────────────────────────────────────────────────────────
+
+# Write a .conf fixture with known keys for batch mode tests
+BATCH_FIXTURE_DIR="$(mktemp -d)"
+cat > "$BATCH_FIXTURE_DIR/workflow-config.conf" <<'CONF'
+tickets.directory=.tickets
+merge.visual_baseline_path=snapshots
+merge.ci_workflow_name=CI
+commands.format_check=make format-check
+commands.lint=make lint
+CONF
+
+# ── test_batch_mode_returns_all_keys ─────────────────────────────────────────
+# --batch should output KEY=value lines (uppercase, dots to underscores) for all keys.
+_fail_before_bm=$FAIL
+batch_exit=0
+batch_output=""
+batch_output=$(bash "$SCRIPT" --batch "$BATCH_FIXTURE_DIR/workflow-config.conf" 2>&1) || batch_exit=$?
+assert_eq "test_batch_mode_returns_all_keys: exit 0" "0" "$batch_exit"
+# Must contain KEY=value lines (uppercase, dots to underscores)
+if echo "$batch_output" | grep -qE '^[A-Z_]+=.'; then
+    actual_format="has_uppercase_kv"
+else
+    actual_format="no_uppercase_kv"
+fi
+assert_eq "test_batch_mode_returns_all_keys: KEY=value lines (uppercase, dots-to-underscores)" "has_uppercase_kv" "$actual_format"
+# All 5 keys should appear
+if echo "$batch_output" | grep -q '^TICKETS_DIRECTORY='; then
+    actual_td="found"
+else
+    actual_td="missing"
+fi
+assert_eq "test_batch_mode_returns_all_keys: TICKETS_DIRECTORY key present" "found" "$actual_td"
+if echo "$batch_output" | grep -q '^COMMANDS_LINT='; then
+    actual_cl="found"
+else
+    actual_cl="missing"
+fi
+assert_eq "test_batch_mode_returns_all_keys: COMMANDS_LINT key present" "found" "$actual_cl"
+if [[ "$FAIL" -eq "$_fail_before_bm" ]]; then
+    echo "test_batch_mode_returns_all_keys ... PASS"
+fi
+
+# ── test_batch_mode_single_key_unchanged ─────────────────────────────────────
+# Single-key mode must still work after --batch is added.
+_fail_before_sk=$FAIL
+sk_exit=0
+sk_output=""
+sk_output=$(bash "$SCRIPT" commands.lint "$BATCH_FIXTURE_DIR/workflow-config.conf" 2>&1) || sk_exit=$?
+assert_eq "test_batch_mode_single_key_unchanged: exit 0" "0" "$sk_exit"
+assert_eq "test_batch_mode_single_key_unchanged: correct value" "make lint" "$sk_output"
+if [[ "$FAIL" -eq "$_fail_before_sk" ]]; then
+    echo "test_batch_mode_single_key_unchanged ... PASS"
+fi
+
+# ── test_batch_mode_eval_safe ─────────────────────────────────────────────────
+# eval of --batch output must set vars correctly in subshell.
+_fail_before_be=$FAIL
+eval_result=$(bash -c "
+  eval \"\$(bash '$SCRIPT' --batch '$BATCH_FIXTURE_DIR/workflow-config.conf' 2>/dev/null)\"
+  echo \"\$COMMANDS_LINT\"
+" 2>&1) || true
+assert_eq "test_batch_mode_eval_safe: eval sets COMMANDS_LINT" "make lint" "$eval_result"
+if [[ "$FAIL" -eq "$_fail_before_be" ]]; then
+    echo "test_batch_mode_eval_safe ... PASS"
+fi
+
+rm -rf "$BATCH_FIXTURE_DIR"
+
 print_summary

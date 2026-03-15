@@ -58,6 +58,20 @@ if [ -z "${_RUN_ALL_ACTIVE:-}" ] && [ -f "$SCRIPT_DIR/lib/process-cleanup.sh" ];
     ' EXIT
 fi
 
+# --- Process group / orphan cleanup on exit ---
+# Kill all child processes in this process group on exit so orphaned suite
+# runners (e.g., timed-out suites) do not linger after run-all.sh exits.
+# Appended AFTER any existing EXIT trap to avoid replacing it.
+_kill_children() {
+    # Kill direct child process group members; suppress errors for already-dead procs
+    kill -- -$$ 2>/dev/null || true
+}
+_prev_exit_for_pgid=$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//")
+trap '
+    _kill_children
+    '"${_prev_exit_for_pgid:+$_prev_exit_for_pgid}"'
+' EXIT
+
 # Mark ourselves as active so nested invocations (e.g., from test-run-all.sh)
 # skip process cleanup and don't kill us.
 export _RUN_ALL_ACTIVE=1
@@ -83,6 +97,30 @@ HOOKS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/hooks/run-hook-tests.sh"
 SCRIPTS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/scripts/run-script-tests.sh"
 EVALS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/evals/run-evals.sh"
 
+# --- Per-suite timeout (seconds). Override with --suite-timeout <N>. ---
+SUITE_TIMEOUT="${SUITE_TIMEOUT:-120}"
+
+# --- Resolve portable timeout command (gtimeout on macOS, timeout on Linux) ---
+# Falls back to a no-op wrapper when neither is available, so suites still run
+# (just without per-suite timeout enforcement).
+_TIMEOUT_CMD=""
+if command -v gtimeout >/dev/null 2>&1; then
+    _TIMEOUT_CMD="gtimeout"
+elif command -v timeout >/dev/null 2>&1; then
+    _TIMEOUT_CMD="timeout"
+fi
+
+# Portable wrapper: applies timeout if available, otherwise runs command directly.
+_run_with_timeout() {
+    if [ -n "$_TIMEOUT_CMD" ]; then
+        "$_TIMEOUT_CMD" "$@"
+    else
+        # Skip the timeout argument, run the rest directly
+        shift
+        "$@"
+    fi
+}
+
 # --- Parse optional overrides (for TDD mock injection) ---
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -92,14 +130,17 @@ while [[ $# -gt 0 ]]; do
             SCRIPTS_RUNNER="$2"; shift 2 ;;
         --evals-runner)
             EVALS_RUNNER="$2"; shift 2 ;;
+        --suite-timeout)
+            SUITE_TIMEOUT="$2"; shift 2 ;;
         *)
             echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
 done
 
-# --- Run a suite, capturing output to a temp file for clean sequential display ---
+# --- Run a suite with per-suite timeout, capturing output to a temp file ---
 # Usage: run_suite_to_file <label> <runner_path> <outfile> <exitfile>
 # Writes suite output to <outfile> and exit code to <exitfile>.
+# Exits 124 if the suite exceeds SUITE_TIMEOUT seconds (not 144/SIGURG).
 run_suite_to_file() {
     local label="$1"
     local runner="$2"
@@ -110,7 +151,7 @@ run_suite_to_file() {
         echo "========================================"
         echo "Suite: $label"
         echo "========================================"
-        bash "$runner" </dev/null
+        _run_with_timeout "$SUITE_TIMEOUT" bash "$runner" </dev/null
     } >"$outfile" 2>&1
     echo $? >"$exitfile"
 }
@@ -129,13 +170,13 @@ if [ "${SERIAL_SUITES:-0}" = "1" ]; then
     echo "========================================"
     echo "Suite: Hook Tests"
     echo "========================================"
-    bash "$HOOKS_RUNNER" </dev/null || HOOKS_EXIT=$?
+    _run_with_timeout "$SUITE_TIMEOUT" bash "$HOOKS_RUNNER" </dev/null || HOOKS_EXIT=$?
 
     echo ""
     echo "========================================"
     echo "Suite: Script Tests"
     echo "========================================"
-    bash "$SCRIPTS_RUNNER" </dev/null || SCRIPTS_EXIT=$?
+    _run_with_timeout "$SUITE_TIMEOUT" bash "$SCRIPTS_RUNNER" </dev/null || SCRIPTS_EXIT=$?
 else
     # --- Concurrent mode (local dev) ---
     _HOOKS_OUT=$(mktemp)
@@ -172,7 +213,7 @@ echo ""
 echo "========================================"
 echo "Suite: Evals"
 echo "========================================"
-bash "$EVALS_RUNNER" </dev/null || EVALS_EXIT=$?
+_run_with_timeout "$SUITE_TIMEOUT" bash "$EVALS_RUNNER" </dev/null || EVALS_EXIT=$?
 
 # --- Combined summary ---
 echo ""
