@@ -23,7 +23,8 @@
 #   1 — non-scalar value in scalar mode
 
 set -uo pipefail
-list_mode=""; [[ "${1:-}" == "--list" ]] && { list_mode=1; shift; }
+list_mode=""; batch_mode=""; [[ "${1:-}" == "--list" ]] && { list_mode=1; shift; }
+[[ "${1:-}" == "--batch" ]] && { batch_mode=1; shift; }
 
 # Detect config-first form: first arg contains '/' or ends with .conf/.yaml/.yml
 arg1="${1:-}"
@@ -54,7 +55,20 @@ fi
 # ── .conf format: flat KEY=VALUE lines ───────────────────────────────────────
 if [[ "$config_file" == *.conf ]]; then
     _conf_lines() { grep -v '^\s*#' "$config_file"; }
-    if [[ -n "$list_mode" ]]; then
+    if [[ -n "$batch_mode" ]]; then
+        # Output all keys as UPPER_CASE_WITH_UNDERSCORES=value lines (safe for eval)
+        while read -r line; do
+            [[ -z "$line" ]] && continue
+            raw_key="${line%%=*}"
+            raw_val="${line#*=}"
+            var_name="${raw_key^^}"        # uppercase
+            var_name="${var_name//./_}"    # dots to underscores
+            # Single-quote value for safe eval; escape any single quotes in value
+            safe_val="${raw_val//\'/\'\\\'\'}"
+            printf "%s='%s'\n" "$var_name" "$safe_val"
+        done < <(_conf_lines | grep -E '^[^=]+=')
+        exit 0
+    elif [[ -n "$list_mode" ]]; then
         results=$(_conf_lines | grep "^${key}=" | cut -d= -f2-)
         [[ -n "$results" ]] && { printf '%s\n' "$results"; exit 0; }; exit 1
     else
@@ -103,12 +117,14 @@ fi
 #   scalar mode:  print scalar value (str/int/bool/float), error on list/dict
 #   list mode:    print each list item on its own line, scalar on one line,
 #                 empty list → empty output, absent key → exit 1
+#   batch mode:   print all scalar leaf keys as UPPER_CASE_WITH_UNDERSCORES=value
 _PY_SCRIPT='
 import sys, yaml
 
 config_file = sys.argv[1]
 key_path    = sys.argv[2]
 list_mode   = sys.argv[3] == "1"
+batch_mode  = sys.argv[4] == "1"
 
 # Load and validate YAML
 try:
@@ -123,6 +139,22 @@ except Exception as e:
 
 if data is None:
     data = {}
+
+# Batch mode: walk all scalar leaves, output UPPER_CASE_WITH_UNDERSCORES=value
+if batch_mode:
+    def _walk(node, prefix=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                _walk(v, f"{prefix}{k}." if prefix else f"{k}.")
+        elif isinstance(node, list):
+            pass  # skip list values in batch mode
+        else:
+            key_name = prefix.rstrip(".").replace(".", "_").upper()
+            # Single-quote value for safe eval; escape embedded single quotes
+            safe_val = str(node).replace("'", "'\\''")
+            print(f"{key_name}='{safe_val}'")
+    _walk(data)
+    sys.exit(0)
 
 # Traverse dot-notation key path
 parts = key_path.split(".")
@@ -159,4 +191,4 @@ print(value, end="")
 sys.exit(0)
 '
 
-"$PYTHON" -c "$_PY_SCRIPT" "$config_file" "$key" "${list_mode:-0}"
+"$PYTHON" -c "$_PY_SCRIPT" "$config_file" "${key:-}" "${list_mode:-0}" "${batch_mode:-0}"

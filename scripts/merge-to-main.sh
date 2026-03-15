@@ -31,22 +31,19 @@ if [[ -f "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"
 fi
 
-# --- Load project config via read-config.sh ---
-TICKETS_DIR=$(bash "$_SCRIPT_DIR"/read-config.sh tickets.directory 2>/dev/null || true)
-TICKETS_DIR=${TICKETS_DIR:-.tickets}
+# --- Load project config (single batch call to read-config) ---
+eval "$(bash "$_SCRIPT_DIR"/read-config.sh --batch 2>/dev/null || true)"
+TICKETS_DIR="${TICKETS_DIRECTORY:-.tickets}"
 export LOCKPICK_TICKETS_DIR="$TICKETS_DIR"
 
-VISUAL_BASELINE_PATH=$(bash "$_SCRIPT_DIR"/read-config.sh merge.visual_baseline_path 2>/dev/null || true)
-CI_WORKFLOW_NAME=$(bash "$_SCRIPT_DIR"/read-config.sh merge.ci_workflow_name 2>/dev/null || true)
-MSG_EXCLUSION_PATTERN=$(bash "$_SCRIPT_DIR"/read-config.sh merge.message_exclusion_pattern 2>/dev/null || true)
+VISUAL_BASELINE_PATH="${MERGE_VISUAL_BASELINE_PATH:-}"
+CI_WORKFLOW_NAME="${MERGE_CI_WORKFLOW_NAME:-}"
+MSG_EXCLUSION_PATTERN="${MERGE_MESSAGE_EXCLUSION_PATTERN:-}"
 
 # Post-merge validation commands
 # Defaults: make format-check (commands.format_check), make lint (commands.lint)
-_FMT_TARGET="format-check"
-CMD_FORMAT_CHECK=$(bash "$_SCRIPT_DIR"/read-config.sh commands.format_check 2>/dev/null || true)
-CMD_FORMAT_CHECK=${CMD_FORMAT_CHECK:-make $_FMT_TARGET}
-CMD_LINT=$(bash "$_SCRIPT_DIR"/read-config.sh commands.lint 2>/dev/null || true)
-CMD_LINT=${CMD_LINT:-make lint}
+CMD_FORMAT_CHECK="${COMMANDS_FORMAT_CHECK:-make format-check}"
+CMD_LINT="${COMMANDS_LINT:-make lint}"
 
 # --- Verify worktree context ---
 if [ -d .git ]; then
@@ -249,8 +246,7 @@ echo "OK: Merged $BRANCH into main."
 # --- 3.5) Post-merge validation ---
 # Pre-commit hooks use stages: [commit] which excludes merge commits.
 # Run format-check and lint here to catch issues that bypass pre-commit via merge.
-_APP_DIR_NAME=$(bash "$_SCRIPT_DIR"/read-config.sh paths.app_dir 2>/dev/null || true)
-_APP_DIR_NAME=${_APP_DIR_NAME:-app}
+_APP_DIR_NAME="${PATHS_APP_DIR:-app}"
 if [ -d "$MAIN_REPO/$_APP_DIR_NAME" ]; then
     echo "Running post-merge validation (format-check + lint)..."
     POST_MERGE_FAIL=false

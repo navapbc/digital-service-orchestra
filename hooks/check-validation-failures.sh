@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 # .claude/hooks/check-validation-failures.sh
-# PostToolUse hook: auto-create tracking issues for validate.sh failures.
+# PostToolUse hook: report validate.sh failures to the agent.
 #
 # Fires after every Bash tool call. When the command was validate.sh and
 # produced FAIL lines, this hook:
 #   1. Parses failed check names from the output
 #   2. Searches .tickets/ for existing open issues matching each failure
-#   3. Auto-creates tracking issues for any untracked failures
-#   4. Reports what it created (or found) back to the agent
-#
-# Design: auto-creating bugs at validation time (not commit time) means
-# tracking issues exist before any other hook can block the workflow.
-# This removes the incentive for agents to circumvent blocking hooks.
+#   3. Logs untracked failures to the artifacts dir
+#   4. Reports what it found back to the agent
 
 # DEFENSE-IN-DEPTH: Guarantee exit 0, suppress stderr, and always produce output.
 # Claude Code bugs:
@@ -79,9 +75,8 @@ LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut 
 # TICKETS_DIR env var overrides ticket storage location (consistent with tk CLI).
 TICKETS_DIR="${TICKETS_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)/.tickets}"
 
-declare -a CREATED=()
 declare -a ALREADY_TRACKED=()
-declare -a FAILED_TO_CREATE=()
+declare -a UNTRACKED=()
 
 # Build search terms per category
 search_terms_for() {
@@ -144,8 +139,6 @@ extract_error_context() {
     echo "$context"
 }
 
-DESC_TMPFILE=$(mktemp "${TMPDIR:-/tmp}/validation-tracker-desc.XXXXXX")
-
 for category in "${FAILED_CATEGORIES[@]}"; do
     # Search for existing open issues
     IFS=';' read -ra TERMS <<< "$(search_terms_for "$category")"
@@ -172,47 +165,28 @@ for category in "${FAILED_CATEGORIES[@]}"; do
         continue
     fi
 
-    # Auto-create tracking issue
-    cat > "$DESC_TMPFILE" <<EODESC
-Auto-created by check-validation-failures hook.
-
-Validation log: ${LOGFILE:-unknown}
-
-Error output:
-EODESC
-    echo '```' >> "$DESC_TMPFILE"
-    extract_error_context "$category" "$LOGFILE" >> "$DESC_TMPFILE"
-    echo '```' >> "$DESC_TMPFILE"
-
-    ISSUE_ID=$(tk create "Fix $category failure" -t bug -p 1 -d "$(cat "$DESC_TMPFILE")" 2>/dev/null || echo "")
-    if [[ -n "$ISSUE_ID" ]]; then
-        CREATED+=("$category ($ISSUE_ID)")
-    else
-        FAILED_TO_CREATE+=("$category")
-    fi
+    # Log untracked failure to artifacts dir
+    UNTRACKED_LOG="$ARTIFACTS_DIR/untracked-validation-failures.log"
+    {
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) | UNTRACKED | $category | logfile: ${LOGFILE:-unknown}"
+    } >> "$UNTRACKED_LOG" 2>/dev/null || true
+    UNTRACKED+=("$category")
 done
 
-rm -f "$DESC_TMPFILE"
-
 # Report results to the agent — single-line CSV format, silent on zero failures
-# Format: "Created: format (tk-123), ruff (tk-456); Tracked: mypy (tk-789)"
+# Format: "Tracked: mypy (tk-789); Untracked (logged): format, ruff"
 # Only categories with results are included; output nothing when all arrays empty.
 
 PARTS=()
-
-if [[ ${#CREATED[@]} -gt 0 ]]; then
-    CREATED_CSV=$(IFS=', '; echo "${CREATED[*]}")
-    PARTS+=("Created: $CREATED_CSV")
-fi
 
 if [[ ${#ALREADY_TRACKED[@]} -gt 0 ]]; then
     TRACKED_CSV=$(IFS=', '; echo "${ALREADY_TRACKED[*]}")
     PARTS+=("Tracked: $TRACKED_CSV")
 fi
 
-if [[ ${#FAILED_TO_CREATE[@]} -gt 0 ]]; then
-    FAILED_CSV=$(IFS=', '; echo "${FAILED_TO_CREATE[*]}")
-    PARTS+=("WARNING could not create issues for: $FAILED_CSV — run: tk create \"Fix <check> failure\" -t bug -p 1")
+if [[ ${#UNTRACKED[@]} -gt 0 ]]; then
+    UNTRACKED_CSV=$(IFS=', '; echo "${UNTRACKED[*]}")
+    PARTS+=("Untracked (logged to artifacts): $UNTRACKED_CSV")
 fi
 
 if [[ ${#PARTS[@]} -gt 0 ]]; then

@@ -261,6 +261,128 @@ open('$file', 'w').writelines(result)
     fi
 }
 
+# Update a single ticket entry in .tickets/.index.json atomically.
+# Schema: { "<id>": { "title": "...", "status": "...", "type": "..." }, ... }
+#
+# If .index.json is missing or corrupt, rebuilds the full index from all
+# ticket files in TICKETS_DIR for this invocation, then writes it out.
+#
+# Uses atomic write: write to .index.json.tmp then mv to .index.json.
+#
+# Usage: _update_ticket_index <id> <title> <status> <type>
+_update_ticket_index() {
+    local id="$1"
+    local title="$2"
+    local status="$3"
+    local type="$4"
+
+    local index_file="$TICKETS_DIR/.index.json"
+    local tmp_file="$TICKETS_DIR/.index.json.tmp"
+
+    # Try to read existing index; rebuild if missing or corrupt
+    local existing_json="{}"
+    if [[ -f "$index_file" ]]; then
+        existing_json=$(python3 -c "
+import json, sys
+try:
+    data = json.load(open('$index_file'))
+    if not isinstance(data, dict):
+        raise ValueError('not a dict')
+    print(json.dumps(data))
+except Exception:
+    print('{}')
+" 2>/dev/null)
+        # If we got {}, check if the file was actually valid — if not, do a full rebuild
+        if [[ "$existing_json" == "{}" ]]; then
+            # Try to read at least one entry from existing tickets to detect empty vs corrupt
+            local file_content
+            file_content=$(cat "$index_file" 2>/dev/null || true)
+            if [[ -n "$file_content" && "$file_content" != "{}" ]]; then
+                # File had content but couldn't be parsed → full rebuild
+                existing_json=$(_tk_build_full_index)
+            fi
+        fi
+    fi
+
+    # Merge the updated entry into the existing index
+    TICKET_ID="$id" TICKET_TITLE="$title" TICKET_STATUS="$status" TICKET_TYPE="$type" \
+        EXISTING_JSON="$existing_json" python3 -c "
+import json, os
+idx = json.loads(os.environ['EXISTING_JSON'])
+idx[os.environ['TICKET_ID']] = {
+    'title':  os.environ['TICKET_TITLE'],
+    'status': os.environ['TICKET_STATUS'],
+    'type':   os.environ['TICKET_TYPE'],
+}
+print(json.dumps(idx, indent=2, sort_keys=True))
+" > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$index_file" || true
+}
+
+# Build a full index from all .md files in TICKETS_DIR.
+# Used for self-healing when .index.json is corrupt.
+_tk_build_full_index() {
+    python3 -c "
+import json, os, re, sys
+
+tickets_dir = os.environ.get('TICKETS_DIR', '.tickets')
+idx = {}
+
+try:
+    files = [f for f in os.listdir(tickets_dir) if f.endswith('.md')]
+except OSError:
+    files = []
+
+for fname in files:
+    fpath = os.path.join(tickets_dir, fname)
+    try:
+        content = open(fpath).read()
+    except OSError:
+        continue
+
+    # Parse YAML frontmatter between first pair of --- markers
+    lines = content.splitlines()
+    in_front = False
+    front_lines = []
+    count = 0
+    for line in lines:
+        if line.strip() == '---':
+            count += 1
+            if count == 1:
+                in_front = True
+                continue
+            elif count == 2:
+                in_front = False
+                break
+        if in_front:
+            front_lines.append(line)
+
+    def get_field(name):
+        for l in front_lines:
+            m = re.match(r'^' + re.escape(name) + r':\s*(.*)', l)
+            if m:
+                return m.group(1).strip()
+        return ''
+
+    ticket_id = get_field('id')
+    if not ticket_id:
+        ticket_id = fname[:-3]
+
+    status = get_field('status') or 'open'
+    type_ = get_field('type') or 'task'
+
+    # Extract title from first '# ' heading in body
+    title = ''
+    for line in lines:
+        if line.startswith('# '):
+            title = line[2:].strip()
+            break
+
+    idx[ticket_id] = {'title': title, 'status': status, 'type': type_}
+
+print(json.dumps(idx))
+" 2>/dev/null || echo "{}"
+}
+
 cmd_create() {
     ensure_dir
 
@@ -348,6 +470,8 @@ cmd_create() {
         fi
     } > "$file"
 
+    _update_ticket_index "$id" "$title" "open" "$issue_type"
+
     echo "$id"
 }
 
@@ -380,6 +504,12 @@ cmd_status() {
 
     update_yaml_field "$file" "status" "$status"
     echo "Updated $(basename "$file" .md) -> $status"
+
+    # Update the ticket index
+    local _idx_title _idx_type
+    _idx_title=$(sed -n '/^# /{s/^# //p;q;}' "$file" 2>/dev/null || true)
+    _idx_type=$(yaml_field "$file" "type" 2>/dev/null || true)
+    _update_ticket_index "$(basename "$file" .md)" "$_idx_title" "$status" "${_idx_type:-task}"
 }
 
 cmd_start() {
@@ -1315,6 +1445,13 @@ cmd_tag() {
         update_yaml_field "$file" "tags" "$new_tags"
     fi
     echo "Tagged $(basename "$file" .md) with $new_tag"
+
+    # Update the ticket index (tags don't change index schema, but keeps index fresh)
+    local _tag_title _tag_status _tag_type
+    _tag_title=$(sed -n '/^# /{s/^# //p;q;}' "$file" 2>/dev/null || true)
+    _tag_status=$(yaml_field "$file" "status" 2>/dev/null || true)
+    _tag_type=$(yaml_field "$file" "type" 2>/dev/null || true)
+    _update_ticket_index "$(basename "$file" .md)" "$_tag_title" "${_tag_status:-open}" "${_tag_type:-task}"
 }
 
 cmd_delete() {
