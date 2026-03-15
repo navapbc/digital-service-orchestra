@@ -61,41 +61,23 @@ rm -f "$COUNTER_FILE"
 EXIT_CODE=$(run_hook "not json {{")
 assert_eq "test_track_tool_errors_exits_zero_on_malformed_json" "0" "$EXIT_CODE"
 
-# test_track_tool_errors_creates_tk_bug
-# Stub tk in PATH. Feed hook an error that pushes counter to 50.
-# Assert tk create is called (FAILS now because hook calls bd create).
-_TTE_FAKE_BIN=$(mktemp -d)
-_TTE_TK_LOG="$_TTE_FAKE_BIN/tk.log"
-
-cat > "$_TTE_FAKE_BIN/tk" << 'MOCK_EOF'
-#!/usr/bin/env bash
-echo "$@" >> "$TK_LOG"
-echo "Created issue: tk-004"
-MOCK_EOF
-chmod +x "$_TTE_FAKE_BIN/tk"
-
-# Build a counter file where 'permission_denied' is at 49 occurrences (threshold is 50)
-# So the next call will push it to 50 and trigger bug creation.
-# NOTE: 'file_not_found' is in NOISE_CATEGORIES and is intentionally excluded from
-# auto-bug-creation. Use 'permission_denied' (not in NOISE_CATEGORIES) instead.
+# test_track_tool_errors_threshold_notification
+# Feed hook an error that pushes counter to 50 (threshold).
+# Assert the hook outputs a notification message.
 cat > "$COUNTER_FILE" << 'JSON_EOF'
-{"index":{"permission_denied":49},"errors":[],"bugs_created":{}}
+{"index":{"permission_denied":49},"errors":[]}
 JSON_EOF
 
 INPUT='{"tool_name":"Read","error":"permission denied: /tmp/trigger.txt","is_interrupt":false}'
-# REVIEW-DEFENSE: TK_LOG and PATH are prefixed to `bash "$HOOK"` (right side of pipe),
-# not to `echo` (left side). The env vars correctly reach the hook process.
-echo "$INPUT" | TK_LOG="$_TTE_TK_LOG" PATH="$_TTE_FAKE_BIN:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+_TTE_OUTPUT=$(echo "$INPUT" | bash "$HOOK" 2>/dev/null || true)
 
-# Check that tk create was called
-_TTE_TK_CALLED="no"
-if [[ -f "$_TTE_TK_LOG" ]] && grep -q "create" "$_TTE_TK_LOG" 2>/dev/null; then
-    _TTE_TK_CALLED="yes"
+_TTE_NOTIFIED="no"
+if echo "$_TTE_OUTPUT" | grep -q "Recurring tool error detected" 2>/dev/null; then
+    _TTE_NOTIFIED="yes"
 fi
-assert_eq "test_track_tool_errors_creates_tk_bug" "yes" "$_TTE_TK_CALLED"
+assert_eq "test_track_tool_errors_threshold_notification" "yes" "$_TTE_NOTIFIED"
 
 rm -f "$COUNTER_FILE"
-rm -rf "$_TTE_FAKE_BIN"
 
 # ============================================================
 # Group: jq removal
@@ -121,10 +103,9 @@ if [[ -f "$COUNTER_FILE" ]]; then
     _TTE_JSON_VALID=$(python3 -c "
 import json, sys
 d = json.load(open('$COUNTER_FILE'))
-# Must have index, errors, bugs_created
+# Must have index, errors
 assert isinstance(d.get('index'), dict), 'missing index'
 assert isinstance(d.get('errors'), list), 'missing errors'
-assert isinstance(d.get('bugs_created'), dict), 'missing bugs_created'
 # errors list must have at least one entry with correct fields
 if len(d['errors']) > 0:
     e = d['errors'][-1]
@@ -175,40 +156,6 @@ else:
 fi
 assert_eq "test_track_tool_errors_second_error_increments" "yes" "$_TTE_INCREMENT_OK"
 
-# test_track_tool_errors_bug_recorded_in_json
-# Prime counter at 49, trigger threshold, verify bugs_created is set in JSON
 rm -f "$COUNTER_FILE"
-cat > "$COUNTER_FILE" << 'JSON_EOF2'
-{"index":{"permission_denied":49},"errors":[],"bugs_created":{}}
-JSON_EOF2
-
-_TTE_FAKE_BIN2=$(mktemp -d)
-_TTE_TK_LOG2="$_TTE_FAKE_BIN2/tk.log"
-cat > "$_TTE_FAKE_BIN2/tk" << 'MOCK_EOF2'
-#!/usr/bin/env bash
-echo "$@" >> "$TK_LOG"
-echo "test-bug-id-999"
-MOCK_EOF2
-chmod +x "$_TTE_FAKE_BIN2/tk"
-
-INPUT3='{"tool_name":"Read","error":"permission denied: /tmp/x","tool_input":{},"session_id":"s1","is_interrupt":false}'
-echo "$INPUT3" | TK_LOG="$_TTE_TK_LOG2" PATH="$_TTE_FAKE_BIN2:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
-
-_TTE_BUG_RECORDED="no"
-if [[ -f "$COUNTER_FILE" ]]; then
-    _TTE_BUG_RECORDED=$(python3 -c "
-import json
-d = json.load(open('$COUNTER_FILE'))
-bug_id = d.get('bugs_created', {}).get('permission_denied', 'none')
-if bug_id != 'none' and len(bug_id) > 0:
-    print('yes')
-else:
-    print('no')
-" 2>/dev/null || echo "no")
-fi
-assert_eq "test_track_tool_errors_bug_recorded_in_json" "yes" "$_TTE_BUG_RECORDED"
-
-rm -f "$COUNTER_FILE"
-rm -rf "$_TTE_FAKE_BIN2"
 
 print_summary

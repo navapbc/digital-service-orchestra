@@ -11,7 +11,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CLAUDE_SAFE="$REPO_ROOT/lockpick-workflow/scripts/claude-safe"
 PLUGIN_SCRIPTS="$REPO_ROOT/lockpick-workflow/scripts"
 

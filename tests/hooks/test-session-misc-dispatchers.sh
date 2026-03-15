@@ -20,7 +20,7 @@ set -uo pipefail
 # Note: set -e omitted intentionally — tests call functions that return non-zero
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 

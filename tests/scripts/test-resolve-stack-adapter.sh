@@ -9,7 +9,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CANONICAL="$REPO_ROOT/lockpick-workflow/scripts/resolve-stack-adapter.sh"
 WRAPPER="$REPO_ROOT/scripts/resolve-stack-adapter.sh"
 UI_DISCOVER_SKILL="$REPO_ROOT/lockpick-workflow/skills/ui-discover/SKILL.md"

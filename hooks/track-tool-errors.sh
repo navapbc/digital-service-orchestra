@@ -53,7 +53,7 @@ fi
 
 # --- Initialize counter file if missing ---
 if [[ ! -f "$COUNTER_FILE" ]]; then
-    echo '{"index":{},"errors":[],"bugs_created":{}}' > "$COUNTER_FILE"
+    echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"
 fi
 
 # --- Categorize the error via pattern matching ---
@@ -94,12 +94,12 @@ INPUT_SUMMARY="$TOOL_NAME: $(json_summarize_input "$TOOL_INPUT" 2>/dev/null | he
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # --- Update counter file ---
-COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[],"bugs_created":{}}')
+COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[]}')
 
 # Guard against malformed JSON or missing .errors field before mutation
 _VALID=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'errors' in d" <<< "$COUNTER_DATA" 2>/dev/null && echo "ok" || echo "bad")
 if [[ "$_VALID" != "ok" ]]; then
-    COUNTER_DATA='{"index":{},"errors":[],"bugs_created":{}}'
+    COUNTER_DATA='{"index":{},"errors":[]}'
 fi
 
 # Append error detail and increment index count in a single python3 call

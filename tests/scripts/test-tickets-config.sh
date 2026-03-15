@@ -15,7 +15,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
 SCHEMA_FILE="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
 EXAMPLE_CONFIG="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.conf"

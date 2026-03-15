@@ -9,7 +9,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CANONICAL="$REPO_ROOT/lockpick-workflow/scripts/check-plugin-test-needed.sh"
 WRAPPER="$REPO_ROOT/scripts/check-plugin-test-needed.sh"
 WORKFLOW_FILE="$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md"

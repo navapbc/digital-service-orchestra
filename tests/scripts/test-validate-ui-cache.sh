@@ -12,7 +12,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CANONICAL_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/validate-ui-cache.sh"
 WRAPPER_SCRIPT="$REPO_ROOT/scripts/validate-ui-cache.sh"
 SKILL_FILE="$REPO_ROOT/lockpick-workflow/skills/ui-discover/SKILL.md"
