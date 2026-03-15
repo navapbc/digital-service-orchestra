@@ -95,7 +95,9 @@ REPO_ROOT_EARLY=$(git rev-parse --show-toplevel 2>/dev/null || true)
 # Deduplication guard: prevent double-firing when hook is registered via both
 # settings.json and hooks.json plugin manifest. Use a per-HEAD lockfile with a
 # 120-second TTL — the second sequential invocation exits immediately.
-_LOCK_KEY=$(git rev-parse HEAD 2>/dev/null | head -c 12 || echo "nohead")
+_LOCK_HEAD=$(git rev-parse HEAD 2>/dev/null | head -c 12 || echo "nohead")
+_LOCK_PATH=$(pwd -P 2>/dev/null | shasum -a 256 2>/dev/null | head -c 8 || echo "nopath")
+_LOCK_KEY="${_LOCK_HEAD}-${_LOCK_PATH}"
 _LOCK_FILE="${TMPDIR:-/tmp}/.precompact-lock-${_LOCK_KEY}"
 _NOW=$(date +%s 2>/dev/null || echo 0)
 if [[ -f "$_LOCK_FILE" ]]; then
