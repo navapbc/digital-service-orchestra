@@ -223,16 +223,10 @@ parse_phase_ceilings() {
     script_dir="$(cd "$(dirname "$0")" && pwd)"
     local _ci_repo_root
     _ci_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-    local candidate
-    for candidate in \
-        "${_ci_repo_root:+$_ci_repo_root/.github/workflows/ci.yml}"
-    do
-        [[ -z "$candidate" ]] && continue
-        if [ -f "$candidate" ]; then
-            yaml="$(cd "$(dirname "$candidate")" && pwd)/$(basename "$candidate")"
-            break
-        fi
-    done
+    local candidate="${_ci_repo_root:+$_ci_repo_root/.github/workflows/ci.yml}"
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+        yaml="$(cd "$(dirname "$candidate")" && pwd)/$(basename "$candidate")"
+    fi
 
     DEAD_ZONE_SEC=45
 

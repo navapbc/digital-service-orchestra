@@ -13,7 +13,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 DISCOVER_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/discover-agents.sh"
 CONF_FILE="$REPO_ROOT/lockpick-workflow/config/agent-routing.conf"
 PROMPTS_DIR="$REPO_ROOT/lockpick-workflow/prompts/fallback"

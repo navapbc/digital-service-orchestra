@@ -8,7 +8,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 FALLBACK_DIR="$REPO_ROOT/lockpick-workflow/prompts/fallback"
 
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"

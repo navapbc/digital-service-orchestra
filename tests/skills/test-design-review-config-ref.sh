@@ -13,7 +13,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 SKILL_MD="$REPO_ROOT/lockpick-workflow/skills/design-review/SKILL.md"
 SYMLINK_PATH="$REPO_ROOT/.claude/skills/design-review"
 

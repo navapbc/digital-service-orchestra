@@ -11,7 +11,7 @@ set -uo pipefail
 # and we handle failures via assert_eq/assert_contains, not exit-on-error.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 
 PASS=0

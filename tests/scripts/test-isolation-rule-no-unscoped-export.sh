@@ -8,7 +8,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 RULE="$REPO_ROOT/scripts/test-isolation-rules/no-unscoped-export.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
 

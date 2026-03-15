@@ -673,7 +673,7 @@ hook_track_tool_errors() {
     local THRESHOLD=50
 
     if [[ ! -f "$COUNTER_FILE" ]]; then
-        echo '{"index":{},"errors":[],"bugs_created":{}}' > "$COUNTER_FILE"
+        echo '{"index":{},"errors":[]}' > "$COUNTER_FILE"
     fi
 
     local CATEGORY="" INPUT_SUMMARY=""
@@ -713,13 +713,13 @@ hook_track_tool_errors() {
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     local COUNTER_DATA
-    COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[],"bugs_created":{}}')
+    COUNTER_DATA=$(cat "$COUNTER_FILE" 2>/dev/null || echo '{"index":{},"errors":[]}')
 
     # Guard against malformed JSON
     local _VALID
     _VALID=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'errors' in d" <<< "$COUNTER_DATA" 2>/dev/null && echo "ok" || echo "bad")
     if [[ "$_VALID" != "ok" ]]; then
-        COUNTER_DATA='{"index":{},"errors":[],"bugs_created":{}}'
+        COUNTER_DATA='{"index":{},"errors":[]}'
     fi
 
     # Append error detail and increment index count in a single python3 call

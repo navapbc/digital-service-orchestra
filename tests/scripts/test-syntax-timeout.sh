@@ -13,7 +13,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 VALIDATE_SH="$REPO_ROOT/lockpick-workflow/scripts/validate.sh"
 SYNTAX_PY="$REPO_ROOT/lockpick-workflow/scripts/check-file-syntax.py"
 
