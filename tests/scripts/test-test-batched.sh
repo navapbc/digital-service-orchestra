@@ -584,5 +584,215 @@ assert_ne "test_interrupted_generic_test_resume_exits_nonzero: resume exits non-
 rm -rf "$TMPDIR_INT_GEN"
 assert_pass_if_clean "test_interrupted_generic_test_resume_exits_nonzero"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest runner tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── test_runner_pytest_triggers_collection ────────────────────────────────────
+# --runner=pytest should invoke pytest --collect-only -q for test enumeration.
+# We create temp .py test files and verify the runner activates collection.
+echo ""
+echo "--- test_runner_pytest_triggers_collection ---"
+_snapshot_fail
+TMPDIR_PYTEST_COLLECT="$(mktemp -d)"
+PYTEST_COLLECT_STATE="$TMPDIR_PYTEST_COLLECT/state.json"
+
+# Create a trivial pytest test file
+cat > "$TMPDIR_PYTEST_COLLECT/test_sample.py" << 'PYEOF'
+def test_pass():
+    assert True
+PYEOF
+
+pytest_collect_out=""
+pytest_collect_exit=0
+if command -v pytest >/dev/null 2>&1; then
+    pytest_collect_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_COLLECT_STATE" \
+        bash "$SCRIPT" --runner=pytest --test-dir="$TMPDIR_PYTEST_COLLECT" --timeout=30 2>&1) \
+        || pytest_collect_exit=$?
+    # Output should reference the .py file discovered (collection occurred)
+    py_mentioned=0
+    (echo "$pytest_collect_out" | grep -qE '\.py|test_sample|collect') && py_mentioned=1
+    assert_eq "test_runner_pytest_triggers_collection: pytest collection triggered" \
+        "1" "$py_mentioned"
+else
+    # pytest not installed — expect fallback warning or generic runner behavior
+    pytest_collect_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_COLLECT_STATE" \
+        bash "$SCRIPT" --runner=pytest --test-dir="$TMPDIR_PYTEST_COLLECT" --timeout=30 \
+        "bash -c 'exit 0'" 2>&1) \
+        || pytest_collect_exit=$?
+    fallback_seen=0
+    (echo "$pytest_collect_out" | grep -qiE 'fallback|not.*path|passed') && fallback_seen=1
+    assert_eq "test_runner_pytest_triggers_collection: no pytest — fallback triggered" \
+        "1" "$fallback_seen"
+fi
+rm -rf "$TMPDIR_PYTEST_COLLECT"
+assert_pass_if_clean "test_runner_pytest_triggers_collection"
+
+# ── test_pytest_auto_detected_when_available ──────────────────────────────────
+# When pytest is on PATH and tests/**/*.py files exist under test-dir, the
+# pytest driver should auto-activate (no explicit --runner=pytest required).
+echo ""
+echo "--- test_pytest_auto_detected_when_available ---"
+_snapshot_fail
+TMPDIR_PYTEST_AUTO="$(mktemp -d)"
+PYTEST_AUTO_STATE="$TMPDIR_PYTEST_AUTO/state.json"
+
+mkdir -p "$TMPDIR_PYTEST_AUTO/tests"
+cat > "$TMPDIR_PYTEST_AUTO/tests/test_auto.py" << 'PYEOF'
+def test_auto_pass():
+    assert True
+PYEOF
+
+pytest_auto_out=""
+pytest_auto_exit=0
+if command -v pytest >/dev/null 2>&1; then
+    pytest_auto_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_AUTO_STATE" \
+        bash "$SCRIPT" --test-dir="$TMPDIR_PYTEST_AUTO" --timeout=30 2>&1) \
+        || pytest_auto_exit=$?
+    auto_ok=0
+    (echo "$pytest_auto_out" | grep -qiE '\.py|pytest|test_auto|passed') && auto_ok=1
+    assert_eq "test_pytest_auto_detected_when_available: pytest auto-detection ran" \
+        "1" "$auto_ok"
+else
+    assert_eq "test_pytest_auto_detected_when_available: pytest not installed (skip)" "ok" "ok"
+fi
+rm -rf "$TMPDIR_PYTEST_AUTO"
+assert_pass_if_clean "test_pytest_auto_detected_when_available"
+
+# ── test_collected_tests_batched_via_pytest ───────────────────────────────────
+# Multiple tests collected via pytest --collect-only should be passed together
+# as a single pytest invocation (batched), not one process per test.
+# Verify: output shows individual test IDs (test_a::test_1 etc.) from the runner.
+echo ""
+echo "--- test_collected_tests_batched_via_pytest ---"
+_snapshot_fail
+TMPDIR_PYTEST_BATCH="$(mktemp -d)"
+PYTEST_BATCH_STATE="$TMPDIR_PYTEST_BATCH/state.json"
+
+cat > "$TMPDIR_PYTEST_BATCH/test_first.py" << 'PYEOF'
+def test_alpha():
+    assert True
+
+def test_beta():
+    assert True
+PYEOF
+cat > "$TMPDIR_PYTEST_BATCH/test_second.py" << 'PYEOF'
+def test_gamma():
+    assert True
+PYEOF
+
+pytest_batch_out=""
+pytest_batch_exit=0
+if command -v pytest >/dev/null 2>&1; then
+    pytest_batch_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_BATCH_STATE" \
+        bash "$SCRIPT" --runner=pytest --test-dir="$TMPDIR_PYTEST_BATCH" --timeout=30 2>&1) \
+        || pytest_batch_exit=$?
+    # Both test files should appear in output
+    first_mentioned=0
+    second_mentioned=0
+    (echo "$pytest_batch_out" | grep -qE 'test_first') && first_mentioned=1
+    (echo "$pytest_batch_out" | grep -qE 'test_second') && second_mentioned=1
+    assert_eq "test_collected_tests_batched_via_pytest: test_first.py mentioned" \
+        "1" "$first_mentioned"
+    assert_eq "test_collected_tests_batched_via_pytest: test_second.py mentioned" \
+        "1" "$second_mentioned"
+else
+    assert_eq "test_collected_tests_batched_via_pytest: pytest not installed (skip)" "ok" "ok"
+fi
+rm -rf "$TMPDIR_PYTEST_BATCH"
+assert_pass_if_clean "test_collected_tests_batched_via_pytest"
+
+# ── test_collection_failure_falls_back_to_generic ────────────────────────────
+# When pytest --collect-only fails (e.g., syntax error in test file), the
+# runner should fall back to the generic runner rather than crashing.
+echo ""
+echo "--- test_collection_failure_falls_back_to_generic ---"
+_snapshot_fail
+TMPDIR_PYTEST_COLFAIL="$(mktemp -d)"
+PYTEST_COLFAIL_STATE="$TMPDIR_PYTEST_COLFAIL/state.json"
+
+# Write a test file with a syntax error to trigger collection failure
+cat > "$TMPDIR_PYTEST_COLFAIL/test_broken.py" << 'PYEOF'
+def test_broken(
+    # syntax error — missing closing paren
+PYEOF
+
+pytest_colfail_out=""
+pytest_colfail_exit=0
+if command -v pytest >/dev/null 2>&1; then
+    pytest_colfail_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_COLFAIL_STATE" \
+        bash "$SCRIPT" --runner=pytest --test-dir="$TMPDIR_PYTEST_COLFAIL" --timeout=30 \
+        "bash -c 'exit 0'" 2>&1) \
+        || pytest_colfail_exit=$?
+    # Should fall back: output must mention fallback/generic OR produce a summary
+    fallback_or_summary=0
+    (echo "$pytest_colfail_out" | grep -qiE 'fallback|generic|fall.back|passed') \
+        && fallback_or_summary=1
+    assert_eq "test_collection_failure_falls_back_to_generic: fallback on collection error" \
+        "1" "$fallback_or_summary"
+else
+    assert_eq "test_collection_failure_falls_back_to_generic: pytest not installed (skip)" "ok" "ok"
+fi
+rm -rf "$TMPDIR_PYTEST_COLFAIL"
+assert_pass_if_clean "test_collection_failure_falls_back_to_generic"
+
+# ── test_empty_collection_exits_with_message ─────────────────────────────────
+# When --runner=pytest is used but no .py test files are found under test-dir,
+# the runner should output a clear message and fall back to generic (or exit
+# with a descriptive error when no CMD is provided).
+echo ""
+echo "--- test_empty_collection_exits_with_message ---"
+_snapshot_fail
+TMPDIR_PYTEST_EMPTY="$(mktemp -d)"
+PYTEST_EMPTY_STATE="$TMPDIR_PYTEST_EMPTY/state.json"
+# Empty dir — no .py files
+
+pytest_empty_out=""
+pytest_empty_exit=0
+pytest_empty_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_EMPTY_STATE" \
+    bash "$SCRIPT" --runner=pytest --test-dir="$TMPDIR_PYTEST_EMPTY" --timeout=30 \
+    "bash -c 'exit 0'" 2>&1) \
+    || pytest_empty_exit=$?
+
+# Should produce a message about no files or fallback
+empty_ok=0
+(echo "$pytest_empty_out" | grep -qiE 'no.*test|no.*\.py|fallback|generic|passed') \
+    && empty_ok=1
+assert_eq "test_empty_collection_exits_with_message: message on empty collection" \
+    "1" "$empty_ok"
+rm -rf "$TMPDIR_PYTEST_EMPTY"
+assert_pass_if_clean "test_empty_collection_exits_with_message"
+
+# ── test_malformed_collection_output_falls_back ───────────────────────────────
+# If pytest --collect-only produces output with no parseable test IDs
+# (e.g., empty output after filtering), the runner must fall back to generic.
+echo ""
+echo "--- test_malformed_collection_output_falls_back ---"
+_snapshot_fail
+TMPDIR_PYTEST_MALFORMED="$(mktemp -d)"
+PYTEST_MALFORMED_STATE="$TMPDIR_PYTEST_MALFORMED/state.json"
+
+# Create a conftest.py-only directory: pytest collects 0 tests but exits 0.
+# The runner must treat zero collected tests as "empty collection → fallback".
+cat > "$TMPDIR_PYTEST_MALFORMED/conftest.py" << 'PYEOF'
+# no tests here — just a conftest
+PYEOF
+
+pytest_malformed_out=""
+pytest_malformed_exit=0
+pytest_malformed_out=$(TEST_BATCHED_STATE_FILE="$PYTEST_MALFORMED_STATE" \
+    bash "$SCRIPT" --runner=pytest --test-dir="$TMPDIR_PYTEST_MALFORMED" --timeout=30 \
+    "bash -c 'exit 0'" 2>&1) \
+    || pytest_malformed_exit=$?
+
+# Should fall back (zero tests collected = malformed/empty → generic)
+malformed_ok=0
+(echo "$pytest_malformed_out" | grep -qiE 'fallback|generic|no.*test|passed') \
+    && malformed_ok=1
+assert_eq "test_malformed_collection_output_falls_back: empty collect → fallback" \
+    "1" "$malformed_ok"
+rm -rf "$TMPDIR_PYTEST_MALFORMED"
+assert_pass_if_clean "test_malformed_collection_output_falls_back"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

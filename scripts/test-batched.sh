@@ -13,7 +13,7 @@ set -uo pipefail
 #   --help              Show this help and exit
 #   --timeout=N         Stop after N seconds (default: 50)
 #   --state-file=PATH   Path to JSON state file (default: /tmp/test-batched-state.json)
-#   --runner=RUNNER     Test runner driver: node, or generic (default: auto-detect)
+#   --runner=RUNNER     Test runner driver: node, pytest, or generic (default: auto-detect)
 #   --test-dir=PATH     Directory to search for test files (used by runner drivers)
 #
 # Runner drivers:
@@ -22,6 +22,12 @@ set -uo pipefail
 #             Auto-detected when: node is on PATH AND *.test.js / *.test.mjs
 #             files exist under --test-dir.
 #             Falls back to generic when: node not installed, or no test files found.
+#   pytest    Uses pytest --collect-only -q for upfront test enumeration, then
+#             runs each collected test ID via: pytest <test_id>
+#             Auto-detected when: pytest is on PATH AND test_*.py / *_test.py
+#             files exist under --test-dir.
+#             Falls back to generic when: pytest not installed, no test files found,
+#             collection fails, or collection yields no test IDs.
 #   generic   (default) Runs <command> as a single test item.
 #
 # The <command> positional argument is required for the generic runner.
@@ -47,6 +53,8 @@ set -uo pipefail
 #   test-batched.sh --timeout=1 "sleep 10"   # stops early; prints NEXT:
 #   test-batched.sh --runner=node --test-dir=./src
 #   test-batched.sh --runner=node --test-dir=./tests --timeout=30
+#   test-batched.sh --runner=pytest --test-dir=./tests
+#   test-batched.sh --runner=pytest --test-dir=./tests --timeout=30
 
 set -uo pipefail
 set -m  # Enable job control so background jobs get their own process group
@@ -154,8 +162,8 @@ for arg in "$@"; do
 done
 
 # ── Validate required argument ─────────────────────────────────────────────────
-# CMD is required for generic runner; node runner can operate without it.
-if [ -z "$CMD" ] && [ "$RUNNER" != "node" ]; then
+# CMD is required for generic runner; node and pytest runners can operate without it.
+if [ -z "$CMD" ] && [ "$RUNNER" != "node" ] && [ "$RUNNER" != "pytest" ]; then
     echo "ERROR: Missing required argument: <command>" >&2
     echo ""
     sed -n '2,/^$/s/^# \{0,1\}//p' "$0" | head -60 >&2
@@ -313,13 +321,24 @@ if [ "$USE_NODE_RUNNER" -eq 1 ]; then
     _node_runner_run
 fi
 
+# ── Pytest runner driver (sourced from runners/pytest-runner.sh) ──────────────
+# Sets USE_PYTEST_RUNNER and PYTEST_TESTS; provides _pytest_runner_run function.
+# Only sourced when RUNNER is "pytest" or auto-detect is in effect (RUNNER="").
+# shellcheck source=runners/pytest-runner.sh
+source "$(dirname "$0")/runners/pytest-runner.sh"
+
+# ── Pytest runner execution path ──────────────────────────────────────────────
+if [ "$USE_PYTEST_RUNNER" -eq 1 ]; then
+    _pytest_runner_run
+fi
+
 # ── Generic fallback runner ───────────────────────────────────────────────────
 # Runs CMD as a single test item with an auto-generated ID.
 # This is the default mode — a generic harness for any command.
 
 # Ensure CMD is non-empty for generic runner (defensive check)
 if [ -z "$CMD" ]; then
-    echo "ERROR: Missing required argument: <command> (node runner fell back to generic but no command given)" >&2
+    echo "ERROR: Missing required argument: <command> (runner fell back to generic but no command given)" >&2
     exit 1
 fi
 
