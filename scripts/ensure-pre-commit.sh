@@ -61,8 +61,14 @@ if [ -f "$_ensure_precommit_hook_shim" ]; then
     if [ -n "$_ensure_precommit_install_py" ] \
        && [ ! -x "$_ensure_precommit_install_py" ] \
        && [ "$_ensure_precommit_has_fallback" -eq 0 ]; then
-        echo "Stale INSTALL_PYTHON in hook shim — running reinstall-hooks.sh" >&2
-        WORKTREE_PATH="$_ensure_precommit_repo_root" "$_ensure_precommit_plugin_scripts/reinstall-hooks.sh" 2>&1 || true
+        # Only attempt reinstall when poetry is available; hooks depend on poetry-managed venv.
+        # When poetry is absent, skip reinstall to avoid installing broken hooks.
+        if command -v poetry >/dev/null 2>&1; then
+            echo "Stale INSTALL_PYTHON in hook shim — running reinstall-hooks.sh" >&2
+            WORKTREE_PATH="$_ensure_precommit_repo_root" "$_ensure_precommit_plugin_scripts/reinstall-hooks.sh" 2>&1 || true
+        else
+            echo "WARNING: Stale INSTALL_PYTHON in hook shim, but poetry is absent — skipping hook reinstall" >&2
+        fi
     fi
 fi
 

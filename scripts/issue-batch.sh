@@ -46,7 +46,12 @@ _batch_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
 [[ -f "$_batch_config_paths" ]] && source "$_batch_config_paths"
 
 # Resolve Python — prefer poetry env for PyYAML (used by classify-task.py)
-PYTHON="$(cd "$REPO_ROOT/${CFG_APP_DIR:-app}" && poetry env info -e 2>/dev/null || echo "python3")"
+# Fall back to system python3 when poetry is absent (graceful degradation).
+if command -v poetry >/dev/null 2>&1 && [ -f "$REPO_ROOT/${CFG_APP_DIR:-app}/poetry.lock" ]; then
+    PYTHON="$(cd "$REPO_ROOT/${CFG_APP_DIR:-app}" && poetry env info -e 2>/dev/null || echo "python3")"
+else
+    PYTHON="python3"
+fi
 SCORER="$REPO_ROOT/lockpick-workflow/scripts/classify-task.py"
 
 # --- Argument parsing ---
