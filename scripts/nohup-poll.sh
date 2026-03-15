@@ -85,32 +85,38 @@ elif kill -0 "$PID" 2>/dev/null; then
         wait "$PID" 2>/dev/null || true
         echo "completed:unknown"
     else
-        # Process alive and not zombie — check heartbeat for stall detection
-        HEARTBEAT_FILE="${OUTPUT_FILE}.heartbeat"
-        if [[ -n "$OUTPUT_FILE" ]] && [[ -f "$HEARTBEAT_FILE" ]]; then
-            last_heartbeat=$(cat "$HEARTBEAT_FILE" 2>/dev/null | tr -d '[:space:]')
-            now=$(date +%s)
-            if [[ -n "$last_heartbeat" ]] && (( now - last_heartbeat > NOHUP_STALL_THRESHOLD )); then
-                echo "stalled:$(( now - last_heartbeat ))s"
-            else
-                echo "running"
-            fi
+        # Re-check EXIT_CODE_FILE (may have been written between first check and kill -0)
+        if [[ -n "$EXIT_CODE_FILE" ]] && [[ -f "$EXIT_CODE_FILE" ]]; then
+            exit_code=$(cat "$EXIT_CODE_FILE" 2>/dev/null | tr -d '[:space:]')
+            echo "completed:${exit_code}"
         else
-            # Heartbeat file missing — process may have crashed before writing it.
-            # Use entry file age as a proxy: if it is older than NOHUP_STALL_THRESHOLD,
-            # the process has been running (without a heartbeat) for too long → stalled.
-            now=$(date +%s)
-            # Portable entry-file mtime: stat -c on Linux, stat -f on macOS
-            if stat --version 2>/dev/null | grep -q GNU; then
-                entry_mtime=$(stat -c '%Y' "$ENTRY_FILE" 2>/dev/null || echo "$now")
+            # Process alive and not zombie — check heartbeat for stall detection
+            HEARTBEAT_FILE="${OUTPUT_FILE}.heartbeat"
+            if [[ -n "$OUTPUT_FILE" ]] && [[ -f "$HEARTBEAT_FILE" ]]; then
+                last_heartbeat=$(cat "$HEARTBEAT_FILE" 2>/dev/null | tr -d '[:space:]')
+                now=$(date +%s)
+                if [[ -n "$last_heartbeat" ]] && (( now - last_heartbeat > NOHUP_STALL_THRESHOLD )); then
+                    echo "stalled:$(( now - last_heartbeat ))s"
+                else
+                    echo "running"
+                fi
             else
-                entry_mtime=$(stat -f '%m' "$ENTRY_FILE" 2>/dev/null || echo "$now")
-            fi
-            age=$(( now - entry_mtime ))
-            if (( age >= NOHUP_STALL_THRESHOLD )); then
-                echo "stalled:${age}s"
-            else
-                echo "running"
+                # Heartbeat file missing — process may have crashed before writing it.
+                # Use entry file age as a proxy: if it is older than NOHUP_STALL_THRESHOLD,
+                # the process has been running (without a heartbeat) for too long → stalled.
+                now=$(date +%s)
+                # Portable entry-file mtime: stat -c on Linux, stat -f on macOS
+                if stat --version 2>/dev/null | grep -q GNU; then
+                    entry_mtime=$(stat -c '%Y' "$ENTRY_FILE" 2>/dev/null || echo "$now")
+                else
+                    entry_mtime=$(stat -f '%m' "$ENTRY_FILE" 2>/dev/null || echo "$now")
+                fi
+                age=$(( now - entry_mtime ))
+                if (( age >= NOHUP_STALL_THRESHOLD )); then
+                    echo "stalled:${age}s"
+                else
+                    echo "running"
+                fi
             fi
         fi
     fi

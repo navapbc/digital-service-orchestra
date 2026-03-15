@@ -5,7 +5,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/assert.sh"
 
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../" && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TEST_BATCHED="$REPO_ROOT/lockpick-workflow/scripts/test-batched.sh"
 
 # Temporary directory for state files used in tests — isolated from other tests

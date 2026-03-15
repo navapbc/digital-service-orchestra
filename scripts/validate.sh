@@ -85,7 +85,7 @@ fi
 # All commands are read from workflow-config.conf via read-config.sh.
 # Fallback defaults preserve backward compatibility when config keys are absent.
 READ_CONFIG="$SCRIPT_DIR/read-config.sh"
-CONFIG_FILE="$REPO_ROOT/workflow-config.conf"
+CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/workflow-config.conf}"
 
 _cfg() {
     local key="$1" default="${2:-}"
@@ -111,6 +111,8 @@ CMD_LINT_RUFF=$(_cfg "commands.lint_ruff" "make lint-ruff")
 CMD_LINT_MYPY=$(_cfg "commands.lint_mypy" "make lint-mypy")
 CMD_TEST_UNIT=$(_cfg "commands.test_unit" "make test-unit-only")
 CMD_TEST_PLUGIN=$(_cfg "commands.test_plugin" "make test-plugin")
+SCRIPT_WRITE_SCAN_DIR=$(_cfg "checks.script_write_scan_dir" "")
+PLUGIN_SCRIPTS="$SCRIPT_DIR"
 CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
 
 # Detect if running in a worktree
@@ -350,7 +352,7 @@ fi
 # If docker CLI is available but daemon isn't running, attempt auto-start.
 # Source shared dependency library for try_start_docker.
 # Source deps.sh from lockpick-workflow plugin (canonical location)
-HOOK_LIB="$SCRIPT_DIR/../hooks/lib/deps.sh"
+HOOK_LIB="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 if [[ ! -f "$HOOK_LIB" ]]; then
     # Fallback: try legacy .claude/hooks path
     HOOK_LIB="$REPO_ROOT/.claude/hooks/lib/deps.sh"
@@ -607,6 +609,7 @@ cd "$APP_DIR"
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
 LAUNCHED_CHECKS="syntax format ruff mypy tests plugin migrate"
+[ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -617,6 +620,9 @@ run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
 run_check "tests" "$TIMEOUT_TESTS" $CMD_TEST_UNIT args="-q --tb=line" &
 (cd "$REPO_ROOT" && run_check "plugin" "$TIMEOUT_PLUGIN" $CMD_TEST_PLUGIN) &
 check_migrations &
+if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
+    (cd "$REPO_ROOT" && run_check "script-writes" "$TIMEOUT_SYNTAX" python3 "$PLUGIN_SCRIPTS/check-script-writes.py" --scan-dir="$SCRIPT_WRITE_SCAN_DIR") &
+fi
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
     # When CI definitively fails, start E2E immediately in parallel rather than
@@ -737,6 +743,7 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "mypy" "mypy" "$TIMEOUT_MYPY"
     report_check "tests" "tests" "$TIMEOUT_TESTS"
     report_check "plugin" "plugin" "$TIMEOUT_PLUGIN" "make -C $REPO_ROOT test-plugin"
+    [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
 else
     tally_check "syntax" "syntax"
     tally_check "format" "format"
@@ -744,6 +751,7 @@ else
     tally_check "mypy" "mypy"
     tally_check "tests" "tests"
     tally_check "plugin" "plugin"
+    [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
 fi
 
 # Migration result

@@ -28,7 +28,6 @@ source "$HOOK_DIR/lib/deps.sh"
 check_tool python3 || exit 0
 
 COUNTER_FILE="$HOME/.claude/tool-error-counter.json"
-THRESHOLD=50
 
 # --- Read hook input ---
 INPUT=$(cat)
@@ -128,9 +127,6 @@ print(json.dumps(data))
 
 echo "$COUNTER_DATA" > "$COUNTER_FILE"
 
-# --- Check threshold and notify ---
-CURRENT_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('index',{}).get(sys.argv[1],0))" "$CATEGORY" <<< "$COUNTER_DATA" 2>/dev/null || echo 0)
-
 # Categories that are normal operational noise — track counts but suppress notifications
 NOISE_CATEGORIES="file_not_found command_exit_nonzero"
 IS_NOISE=false
@@ -140,47 +136,6 @@ done
 
 if [[ "$IS_NOISE" == "true" ]]; then
     exit 0
-fi
-
-# Notify at threshold and each subsequent multiple to avoid spamming
-if [[ "$CURRENT_COUNT" -ge "$THRESHOLD" ]] && (( CURRENT_COUNT % THRESHOLD == 0 )); then
-    # Check if a bug has already been created for this category at this threshold
-    _ALREADY_BUGGED=$(python3 -c "
-import json,sys
-d=json.loads(sys.stdin.read())
-cat=sys.argv[1]
-cnt=int(sys.argv[2])
-bugs=d.get('bugs_created',{})
-# Check if already reported at this threshold level
-key=cat
-if key in bugs:
-    print('yes')
-else:
-    print('no')
-" "$CATEGORY" "$CURRENT_COUNT" <<< "$COUNTER_DATA" 2>/dev/null || echo "no")
-
-    if [[ "$_ALREADY_BUGGED" != "yes" ]]; then
-        # Create a bug ticket via tk
-        _BUG_ID=""
-        if command -v tk >/dev/null 2>&1; then
-            _BUG_ID=$(tk create "Recurring tool error: $CATEGORY ($CURRENT_COUNT occurrences)" -t bug -p 2 2>/dev/null | grep -oE '[a-z]+-[0-9]+' | head -1 || echo "")
-        fi
-
-        # Record in bugs_created to avoid duplicate tickets
-        COUNTER_DATA=$(python3 -c "
-import json,sys
-d=json.loads(sys.stdin.read())
-cat=sys.argv[1]
-bug_id=sys.argv[2] if len(sys.argv) > 2 else 'created'
-d.setdefault('bugs_created',{})[cat] = bug_id if bug_id else 'created'
-print(json.dumps(d))
-" "$CATEGORY" "${_BUG_ID:-created}" <<< "$COUNTER_DATA" 2>/dev/null || echo "$COUNTER_DATA")
-        echo "$COUNTER_DATA" > "$COUNTER_FILE"
-
-        # Notify via hook output (becomes a system reminder)
-        _HOOK_HAS_OUTPUT=1
-        echo "Recurring tool error detected: '$CATEGORY' has occurred $CURRENT_COUNT times. Bug ticket created. Review: $COUNTER_FILE"
-    fi
 fi
 
 exit 0

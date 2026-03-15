@@ -73,9 +73,52 @@ When `/sprint` is interrupted by context compaction or a control-flow issue, the
 **If released**: note it in the session summary.
 **If not found or belongs to another worktree**: skip silently (one-line report is fine).
 
+### 2.8. Extract Technical Learnings (pre-commit)
+
+Silently scan the git diff and conversation context to extract technical learnings before committing. Store the results for display in Step 6.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+# Gather diff context (unmerged commits + staged/unstaged changes)
+GIT_DIFF=$(git diff main..HEAD --stat 2>/dev/null; git diff --stat 2>/dev/null)
+```
+
+Review the diff output and conversation history for signal. Identify:
+- **Discoveries**: Non-obvious findings about how the system behaves (e.g., "The pipeline skips gap_analysis when document has no tables")
+- **Design decisions**: Choices made and why (e.g., "Used sentinel value max_tokens=0 instead of None to distinguish 'unset' from 'default'")
+- **Gotchas**: Edge cases, footguns, or surprising behavior that future sessions should know (e.g., "SQLAlchemy flushes on query, so tests must commit before asserting DB state")
+
+**Store the results in a named section** called `LEARNINGS_FROM_2_8` for use in Step 6. If nothing substantive is found, store an empty list.
+
+Focus on reusable knowledge. Exclude: workflow phases run, git operations performed, tool usage counts, issue IDs closed.
+
+**This step runs silently** — do not print the learnings here. Step 6 will display them.
+
+### 2.85. Create Bug Tickets from Learnings (pre-commit)
+
+Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Create a bug ticket (`tk create "<title>" -t bug -p <priority>`) for any learning that describes:
+- A defect, regression, or broken behavior that hasn't been fixed yet
+- A footgun or edge case that will bite users/developers again if not addressed
+- A workaround that was applied instead of a proper fix
+
+Do NOT create tickets for neutral observations, design decisions, or already-fixed issues.
+
+If no learnings qualify, skip silently. Any tickets created here will be committed and merged as part of the normal `/end` flow in Steps 3–4.
+
 ### 3. Commit Local Changes
 1. Run `git status`. If changes exist: read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
+
+### 3.25. Write Pre-Merge Sentinel (Disable Pre-Compact Checkpoint)
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+touch "$REPO_ROOT/.disable-precompact-checkpoint"
+```
+
+This sentinel prevents `pre-compact-checkpoint.sh` from creating unmerged checkpoint commits during the post-merge window (the brief period between merge and worktree removal when a context compaction could fire).
+
+**Note**: The sentinel is session-scoped — it is safe to delete manually if `/end` is interrupted before the cleanup step runs (Step 4.75 handles cleanup automatically). It must NOT be committed to git (it is a transient flag file and is excluded by `.gitignore`).
 
 ### 3.5. Visual Baseline Comparison
 
@@ -114,7 +157,44 @@ If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non
 
 Skip this step entirely.
 
+### 4.75. Final Worktree Verification (is_merged + is_clean)
+
+<!-- Mirrors the exact can_remove logic in claude-safe's _offer_worktree_cleanup function.
+     Keep these two in sync when either is changed. -->
+
+Remove the pre-compact checkpoint sentinel (its window is now closed):
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+rm -f "$REPO_ROOT/.disable-precompact-checkpoint"
+```
+
+Then verify the worktree satisfies both conditions that `claude-safe`'s `_offer_worktree_cleanup` requires for auto-removal:
+
+```bash
+BRANCH=$(git branch --show-current)
+
+# is_merged: exit 0 means the branch is a full ancestor of main
+git merge-base --is-ancestor "$BRANCH" main && echo "MERGED" || echo "NOT MERGED"
+
+# is_clean: empty output means no uncommitted changes
+git status --porcelain
+```
+
+**If both pass** (merge-base exits 0 AND `status --porcelain` is empty):
+
+Report: "Worktree verified clean and merged — claude-safe can auto-remove."
+
+**If either fails**, report the specific failure:
+
+- `merge-base --is-ancestor` returned non-zero → branch has unmerged commits. Show `git log main..HEAD --oneline`. Attempt to merge if the fix is obvious; otherwise ask the user.
+- `status --porcelain` is non-empty → uncommitted changes exist. Show the dirty files. Attempt to commit forgotten files if the fix is obvious; otherwise ask the user.
+
+Re-run both checks after any resolution attempt. Do not proceed to Step 5 until both pass.
+
 ### 5. Verify Clean Worktree State
+
+**Note**: The is_merged and is_clean checks in Step 4.75 subsume the core safety requirements of this step. Step 5's four-condition check provides additional granularity (distinguishing staged vs. unstaged vs. untracked changes) but is secondary to the Step 4.75 gate.
 
 **This step is mandatory — do not skip it.**
 
@@ -155,9 +235,31 @@ fi
 
 Keep the primary `config-cache` file (no suffix) — only delete the hash-suffixed variants.
 
+### 5.75. Sweep Tool-Error Counter for Recurring Issues
+
+Check `~/.claude/tool-error-counter.json` for tool-error categories that have accumulated
+50 or more occurrences and create deduplicated bug tickets for them.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
+sweep_tool_errors
+```
+
+The sweep is **read-only** — it never writes to or resets the counter file. If the
+counter file is absent or malformed the step exits 0 silently. Tickets are only created
+when no open bug matching `"Recurring tool error: $CATEGORY"` already exists (dedup).
+
 ### 6. Report: Task Summary and Completion
 
-Display a comprehensive session summary:
+Display a comprehensive session summary using stored learnings from Step 2.8.
+
+**Technical Learnings** — display the stored learnings generated in Step 2.8 (omit if empty). Do not re-scan the git diff or conversation — show what was captured before the commit.
+
+Display each category from `LEARNINGS_FROM_2_8`:
+- **Discoveries**: Non-obvious findings about how the system behaves
+- **Design decisions**: Choices made and why
+- **Gotchas**: Edge cases, footguns, or surprising behavior future sessions should know
 
 **Task Summary** (gathered from git log and tickets):
 - Epic ID and title (if a `/sprint` or `/debug-everything` was running)
@@ -172,19 +274,5 @@ Display a comprehensive session summary:
 - Commits made (count and final SHA on main)
 - Branch merged/pushed (or "already merged by prior phase")
 - Worktree cleanup status
-
-**Technical Learnings** (scan git diff and conversation for signal — omit if nothing substantive):
-- **Discoveries**: Non-obvious findings about how the system behaves (e.g., "The pipeline skips gap_analysis when document has no tables")
-- **Design decisions**: Choices made and why (e.g., "Used sentinel value max_tokens=0 instead of None to distinguish 'unset' from 'default'")
-- **Gotchas**: Edge cases, footguns, or surprising behavior that future sessions should know (e.g., "SQLAlchemy flushes on query, so tests must commit before asserting DB state")
-
-Focus on reusable knowledge. Exclude: workflow phases run, git operations performed, tool usage counts, issue IDs closed.
-
-**Bug ticket check** — after generating the Technical Learnings list, review each learning and ask: "Should this be a bug ticket?" Create a bug ticket (`tk create "<title>" -t bug -p <priority>`) for any learning that describes:
-- A defect, regression, or broken behavior that hasn't been fixed yet
-- A footgun or edge case that will bite users/developers again if not addressed
-- A workaround that was applied instead of a proper fix
-
-Do NOT create tickets for neutral observations, design decisions, or already-fixed issues.
 
 ### 7. Session Complete

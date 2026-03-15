@@ -64,7 +64,7 @@ assert_contains "--verbose output shows OK: per-command lines" "OK:" "$output_c"
 echo ""
 echo "--- Section D: wrapper script is thin and delegates via exec ---"
 
-REPO_ROOT="$(cd "$PLUGIN_ROOT/.." && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 WRAPPER_SCRIPT="$REPO_ROOT/scripts/audit-skill-resolution.sh"
 
 assert_eq "scripts/audit-skill-resolution.sh wrapper exists" "true" \

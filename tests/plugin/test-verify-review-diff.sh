@@ -86,7 +86,7 @@ assert_contains "no-hash reports cannot extract" "could not extract hash" "$outp
 echo ""
 echo "--- Test E: wrapper delegates to plugin ---"
 
-REPO_ROOT=$(cd "$PLUGIN_ROOT/.." && pwd)
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 WRAPPER="$REPO_ROOT/scripts/verify-review-diff.sh"
 
 assert_eq "wrapper exists" "true" \
