@@ -259,4 +259,59 @@ assert_pass_if_clean "test_missing_counter_graceful"
 trap - EXIT
 _teardown_test
 
+# ---------------------------------------------------------------------------
+# test_noise_category_file_not_found_skipped
+# Counter file_not_found=100 (noise). Assert tk create NOT called.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+_write_counter "file_not_found" 100
+_mock_tk_list_empty
+_run_sweep
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_noise_category_file_not_found_skipped" "0" "$create_calls"
+assert_pass_if_clean "test_noise_category_file_not_found_skipped"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_noise_category_command_exit_nonzero_skipped
+# Counter command_exit_nonzero=200 (noise). Assert tk create NOT called.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+_write_counter "command_exit_nonzero" 200
+_mock_tk_list_empty
+_run_sweep
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_noise_category_command_exit_nonzero_skipped" "0" "$create_calls"
+assert_pass_if_clean "test_noise_category_command_exit_nonzero_skipped"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_noise_mixed_with_real_category
+# Counter file_not_found=100 (noise) + permission_denied=50 (real).
+# Assert only 1 ticket created (for permission_denied, not file_not_found).
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+_write_counter "file_not_found" 100 "command_exit_nonzero" 75 "permission_denied" 50
+_mock_tk_list_empty
+_run_sweep
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_noise_mixed_with_real_category_count" "1" "$create_calls"
+if [[ -f "$TK_LOG" ]]; then
+    created_title=$(grep '^create ' "$TK_LOG" 2>/dev/null | head -1 || true)
+else
+    created_title=""
+fi
+assert_contains "test_noise_mixed_with_real_category_title" "permission_denied" "$created_title"
+assert_pass_if_clean "test_noise_mixed_with_real_category"
+trap - EXIT
+_teardown_test
+
 print_summary

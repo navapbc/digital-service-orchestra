@@ -15,6 +15,10 @@
 
 THRESHOLD=50
 
+# Categories that are normal operational noise — counts are tracked but no ticket is created.
+# Source of truth: lockpick-workflow/hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
+NOISE_CATEGORIES="file_not_found command_exit_nonzero"
+
 # sweep_tool_errors
 # Iterate all categories in ~/.claude/tool-error-counter.json with count >= THRESHOLD.
 # For each, check if an open bug ticket already exists (dedup). If not, create one.
@@ -59,6 +63,13 @@ PYEOF
 
     while IFS=$'\t' read -r category count; do
         [[ -z "$category" ]] && continue
+
+        # Skip noise categories — they are high-frequency operational events, not actionable bugs
+        local _is_noise=false
+        for _nc in $NOISE_CATEGORIES; do
+            if [[ "$category" == "$_nc" ]]; then _is_noise=true; break; fi
+        done
+        if [[ "$_is_noise" == "true" ]]; then continue; fi
 
         local ticket_title="Recurring tool error: $category ($count occurrences)"
 

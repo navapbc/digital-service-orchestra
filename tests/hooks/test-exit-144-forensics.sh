@@ -428,6 +428,15 @@ rm -rf "$_TEST13_DIR"
 #   (no .tool_response.exit_code field)
 # ============================================================
 
+# Isolate HOME for all Part 4 tests so synthetic errors don't pollute
+# ~/.claude/tool-error-counter.json (post-failure dispatcher calls track-tool-errors.sh)
+_PART4_REAL_HOME="$HOME"
+_PART4_TEST_HOME=$(mktemp -d)
+_CLEANUP_DIRS+=("$_PART4_TEST_HOME")
+export HOME="$_PART4_TEST_HOME"
+
+POST_FAILURE_HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-failure.sh"
+
 # ============================================================
 # test_post_failure_144_writes_jsonl
 # PostToolUseFailure input with "status code 144" in .error
@@ -445,7 +454,6 @@ echo "$_TEST14_START_MS" > "$_TEST14_DIR/bash-start-ts-${_TEST14_HASH}"
 
 _TEST14_INPUT='{"tool_name":"Bash","tool_input":{"command":"make test-unit-only"},"tool_use_id":"toolu_test","error":"Command exited with non-zero status code 144","is_interrupt":false}'
 
-POST_FAILURE_HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-failure.sh"
 echo "$_TEST14_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST14_DIR" bash "$POST_FAILURE_HOOK" 2>/dev/null || true
 
 _TEST14_JSONL="$_TEST14_DIR/exit-144-forensics.jsonl"
@@ -485,5 +493,8 @@ assert_eq "test_post_failure_non_144_no_jsonl: no file" "yes" "$_TEST15_NO_FILE"
 assert_pass_if_clean "test_post_failure_non_144_no_jsonl"
 
 rm -rf "$_TEST15_DIR"
+
+# Restore real HOME after Part 4 tests
+export HOME="$_PART4_REAL_HOME"
 
 print_summary
