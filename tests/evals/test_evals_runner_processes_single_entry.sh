@@ -18,9 +18,11 @@ source "$LIB_DIR/assert.sh"
 
 # --- Fixtures ---
 RUNNER="$SCRIPT_DIR/run-evals.sh"
-MINIMAL_JSON="$SCRIPT_DIR/fixtures/minimal_single_entry.json"
 
-mkdir -p "$SCRIPT_DIR/fixtures"
+# Write fixture to a temp dir (not the worktree) for test isolation
+TMPDIR_FIXTURE="$(mktemp -d "${TMPDIR:-/tmp}/test-evals-runner-XXXXXX")"
+trap 'rm -rf "$TMPDIR_FIXTURE"' EXIT
+MINIMAL_JSON="$TMPDIR_FIXTURE/minimal_single_entry.json"
 
 # Write a minimal evals.json with one file_exists entry targeting a skill that exists.
 cat > "$MINIMAL_JSON" <<'EOF'
