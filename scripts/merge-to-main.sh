@@ -325,8 +325,8 @@ fi
 
 # --- 4) Push ---
 echo "Pushing main..."
-if ! git push 2>&1; then
-    echo "ERROR: Push failed. Try: git pull --rebase && git push"
+if ! retry_with_backoff 4 2 git push 2>&1; then
+    echo "ERROR: Push failed after retries. Try: git pull --rebase && git push"
     exit 1
 fi
 echo "OK: Pushed main to remote."

@@ -366,11 +366,22 @@ verbose_print() {
     local name="$1" state="$2"
     local line="... ${name}: ${state}"
     if command -v flock &>/dev/null; then
-        # flock is available (macOS Homebrew or Linux) — use it for atomicity
+        # flock is available (macOS Homebrew or Linux) — use it for atomicity.
+        # Use -w 5 timeout: if a crashed parallel check holds the lock, we fall
+        # back to the temp-file path instead of blocking indefinitely.
+        local _flock_rc=0
         (
-            flock -x 9
+            flock -x -w 5 9 || exit 1
             printf '%s\n' "$line"
-        ) 9>"$VERBOSE_LOCK_FILE"
+        ) 9>"$VERBOSE_LOCK_FILE" || _flock_rc=$?
+        if [ "$_flock_rc" -ne 0 ]; then
+            # flock timed out or failed — fall back to temp-file output
+            local tmp
+            tmp=$(mktemp "$CHECK_DIR/verbose.tmp.XXXXXX")
+            printf '%s\n' "$line" > "$tmp"
+            cat "$tmp"
+            rm -f "$tmp"
+        fi
     else
         # Fallback: write to a temp file and move atomically (best-effort)
         local tmp
