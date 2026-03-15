@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-claude-safe-tickets-dir.sh
-# Unit tests for tickets.directory config path in _offer_worktree_cleanup
-# (lockpick-workflow/scripts/claude-safe).
+# Tests for _offer_worktree_cleanup behavior in lockpick-workflow/scripts/claude-safe.
 #
-# Verifies that _offer_worktree_cleanup reads tickets.directory from
-# workflow-config.conf via _read_cfg and uses it to filter dirty files,
-# rather than always using the hardcoded '.tickets' fallback.
+# Verifies:
+# - _read_cfg correctly reads tickets.directory from workflow-config.conf
+# - _offer_worktree_cleanup blocks auto-removal when .tickets/ files are dirty
+#   (any uncommitted changes, including .tickets/, prevent auto-removal)
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-claude-safe-tickets-dir.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -62,7 +62,7 @@ _read_cfg_from_config() {
 }
 
 # ── Create fixture config dirs ─────────────────────────────────────────────────
-# custom-tickets config (used by filter tests)
+# custom-tickets config (used by _read_cfg tests)
 cfg_custom_dir="$TMPDIR_BASE/custom-dir"
 mkdir -p "$cfg_custom_dir"
 cat > "$cfg_custom_dir/workflow-config.conf" <<CONF
@@ -165,114 +165,69 @@ assert_eq "test_tickets_directory_custom_value_passed_through: custom value surv
     "custom-tickets" "$passthrough_result"
 assert_pass_if_clean "test_tickets_directory_custom_value_passed_through"
 
-# ── test_grep_filter_excludes_custom_tickets_dir ─────────────────────────────
-# The dirty-file check in _offer_worktree_cleanup excludes the tickets dir via:
-#   tickets_dir_pat=$(printf '%s' "$tickets_dir" | sed 's/^\./\\./')
-#   dirty_non_tickets=$(git ... status --porcelain | grep -v "^.. ${tickets_dir_pat}/")
+# ── test_tickets_dir_dirty_blocks_auto_removal ───────────────────────────────
+# When a worktree has only .tickets/ files dirty (untracked), and the branch IS
+# merged to main, _offer_worktree_cleanup must still output 'cannot be auto-removed'
+# because git status --porcelain is non-empty.
 #
-# Test: simulate porcelain git status output with a dirty file ONLY in the
-# custom tickets directory (no leading dot). The grep filter should produce
-# empty output when tickets.directory='custom-tickets' is correctly applied.
+# Uses a real temp git repo (not PATH stubs) because _offer_worktree_cleanup
+# calls git -C $wt_path and git -C $main_root in subshells where function
+# overrides do not intercept.
 echo ""
-echo "--- test_grep_filter_excludes_custom_tickets_dir ---"
+echo "--- test_tickets_dir_dirty_blocks_auto_removal ---"
 _snapshot_fail
 
-_filter_custom_helper="$TMPDIR_BASE/filter-custom-helper.sh"
-cat > "$_filter_custom_helper" << 'HELPER_EOF'
-#!/usr/bin/env bash
-source "CLAUDE_SAFE_PLACEHOLDER"
-tickets_dir=$(_read_cfg tickets.directory 2>/dev/null) || true
-tickets_dir="${tickets_dir:-.tickets}"
-# Reproduce the exact dirty-file filter from _offer_worktree_cleanup:
-tickets_dir_pat=$(printf '%s' "$tickets_dir" | sed 's/^\./\\./')
-fake_status=" M custom-tickets/.sync-state.json
-?? custom-tickets/state.json"
-dirty_non_tickets=$(printf '%s\n' "$fake_status" | grep -v "^.. ${tickets_dir_pat}/" || true)
-echo "$dirty_non_tickets"
-HELPER_EOF
-# Substitute the actual CLAUDE_SAFE path (no special chars)
-sed -i '' "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_custom_helper" 2>/dev/null || sed -i "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_custom_helper"
+_main_repo="$TMPDIR_BASE/main-repo"
+_wt_path="$TMPDIR_BASE/wt-dirty-tickets"
+_test_branch="test-branch-tickets-dirty"
 
-filter_result=""
-filter_result=$(
-    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.conf" \
+mkdir -p "$_main_repo"
+(
+    set -e
+    cd "$_main_repo"
+    git init -q
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    git commit --allow-empty -q -m "init"
+    git checkout -q -b "$_test_branch"
+    git checkout -q main 2>/dev/null || git checkout -q -b main HEAD
+)
+
+# Ensure we have a 'main' branch
+(
+    cd "$_main_repo"
+    git branch 2>/dev/null | grep -q 'main' || git branch -m master main 2>/dev/null || true
+) 2>/dev/null || true
+
+# Add worktree on test branch
+(
+    cd "$_main_repo"
+    git worktree add -q "$_wt_path" "$_test_branch" 2>/dev/null || true
+)
+
+# Make the test branch an ancestor of main (already is since it branched from init)
+# merge-base --is-ancestor should return 0 since test-branch has no new commits yet
+
+# Create an untracked .tickets/ file in the worktree (makes porcelain non-empty)
+mkdir -p "$_wt_path/.tickets"
+touch "$_wt_path/.tickets/new-ticket.md"
+
+# Capture output of _offer_worktree_cleanup. The function guards with [ ! -t 0 ]
+# (stdin must be a terminal). We set _CLAUDE_SAFE_TEST_INTERACTIVE=1 to bypass
+# the terminal check so the function runs in non-interactive test contexts.
+# (This env var is honoured by the production function — see claude-safe source.)
+_cleanup_output=""
+_cleanup_output=$(
     _CLAUDE_SAFE_SOURCE_ONLY=1 \
+    _CLAUDE_SAFE_TEST_INTERACTIVE=1 \
     PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
     CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \
-    bash "$_filter_custom_helper"
-) || true
+    bash -c "source \"$CLAUDE_SAFE\"; _offer_worktree_cleanup 'test-wt' '$_wt_path'"
+) 2>&1 || true
 
-assert_eq "test_grep_filter_excludes_custom_tickets_dir: no non-tickets dirty files" \
-    "" "$filter_result"
-assert_pass_if_clean "test_grep_filter_excludes_custom_tickets_dir"
-
-# ── test_grep_filter_passes_through_non_tickets_dirty_files ──────────────────
-# When a dirty file is outside the tickets directory, the grep filter must NOT
-# exclude it — dirty_non_tickets is non-empty, is_clean=0, can_remove=0.
-echo ""
-echo "--- test_grep_filter_passes_through_non_tickets_dirty_files ---"
-_snapshot_fail
-
-_filter_mixed_helper="$TMPDIR_BASE/filter-mixed-helper.sh"
-cat > "$_filter_mixed_helper" << 'HELPER_EOF'
-#!/usr/bin/env bash
-source "CLAUDE_SAFE_PLACEHOLDER"
-tickets_dir=$(_read_cfg tickets.directory 2>/dev/null) || true
-tickets_dir="${tickets_dir:-.tickets}"
-tickets_dir_pat=$(printf '%s' "$tickets_dir" | sed 's/^\./\\./')
-fake_status=" M custom-tickets/.sync-state.json
- M src/app.py"
-dirty_non_tickets=$(printf '%s\n' "$fake_status" | grep -v "^.. ${tickets_dir_pat}/" || true)
-echo "$dirty_non_tickets"
-HELPER_EOF
-sed -i '' "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_mixed_helper" 2>/dev/null || sed -i "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_mixed_helper"
-
-filter_mixed_result=""
-filter_mixed_result=$(
-    WORKFLOW_CONFIG="$cfg_custom_dir/workflow-config.conf" \
-    _CLAUDE_SAFE_SOURCE_ONLY=1 \
-    PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
-    CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \
-    bash "$_filter_mixed_helper"
-) || true
-
-assert_contains "test_grep_filter_passes_through_non_tickets_dirty_files: src/app.py kept" \
-    "src/app.py" "$filter_mixed_result"
-assert_pass_if_clean "test_grep_filter_passes_through_non_tickets_dirty_files"
-
-# ── test_grep_filter_default_excludes_dottickets ─────────────────────────────
-# When tickets.directory is absent, the default '.tickets' filter correctly
-# excludes dirty files under .tickets/.
-echo ""
-echo "--- test_grep_filter_default_excludes_dottickets ---"
-_snapshot_fail
-
-_filter_default_helper="$TMPDIR_BASE/filter-default-helper.sh"
-cat > "$_filter_default_helper" << 'HELPER_EOF'
-#!/usr/bin/env bash
-source "CLAUDE_SAFE_PLACEHOLDER"
-tickets_dir=$(_read_cfg tickets.directory 2>/dev/null) || true
-tickets_dir="${tickets_dir:-.tickets}"
-tickets_dir_pat=$(printf '%s' "$tickets_dir" | sed 's/^\./\\./')
-fake_status=" M .tickets/.sync-state.json
-?? .tickets/state.json"
-dirty_non_tickets=$(printf '%s\n' "$fake_status" | grep -v "^.. ${tickets_dir_pat}/" || true)
-echo "$dirty_non_tickets"
-HELPER_EOF
-sed -i '' "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_default_helper" 2>/dev/null || sed -i "s|CLAUDE_SAFE_PLACEHOLDER|${CLAUDE_SAFE}|" "$_filter_default_helper"
-
-filter_default_result=""
-filter_default_result=$(
-    WORKFLOW_CONFIG="$cfg_absent_dir/workflow-config.conf" \
-    _CLAUDE_SAFE_SOURCE_ONLY=1 \
-    PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
-    CLAUDE_PLUGIN_PYTHON="$PLUGIN_PYTHON" \
-    bash "$_filter_default_helper"
-) || true
-
-assert_eq "test_grep_filter_default_excludes_dottickets: .tickets/ files excluded" \
-    "" "$filter_default_result"
-assert_pass_if_clean "test_grep_filter_default_excludes_dottickets"
+assert_contains "test_tickets_dir_dirty_blocks_auto_removal: output contains 'cannot be auto-removed'" \
+    "cannot be auto-removed" "$_cleanup_output"
+assert_pass_if_clean "test_tickets_dir_dirty_blocks_auto_removal"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
