@@ -41,14 +41,6 @@ database.base_port=5432
 inline.equals.value=a=b=c
 CONF
 
-# Write a .yaml fixture (for fallback / backward compat tests)
-FIXTURE_YAML="$TMPDIR_FIXTURE/workflow-config.yaml"
-cat > "$FIXTURE_YAML" <<'YAML'
-commands:
-  test: "make test"
-  lint: "make lint"
-stack: python-poetry
-YAML
 
 # ── test_scalar_read ─────────────────────────────────────────────────────────
 # Reads a scalar key from the .conf file.
@@ -106,12 +98,6 @@ actual=$(bash "$SCRIPT" "$FIXTURE_CONF" commands.test)
 assert_eq "test_config_first_form" "make test" "$actual"
 assert_pass_if_clean "test_config_first_form"
 
-# ── test_config_first_form_yaml ──────────────────────────────────────────────
-# Config-first form with .yaml extension still works (backward compat).
-_snapshot_fail
-actual=$(bash "$SCRIPT" "$FIXTURE_YAML" commands.test)
-assert_eq "test_config_first_form_yaml" "make test" "$actual"
-assert_pass_if_clean "test_config_first_form_yaml"
 
 # ── test_empty_list ──────────────────────────────────────────────────────────
 # A key that exists but has no repeated values in --list mode:
@@ -140,33 +126,33 @@ actual=$(bash "$SCRIPT" inline.equals.value "$FIXTURE_CONF")
 assert_eq "test_inline_values_with_equals" "a=b=c" "$actual"
 assert_pass_if_clean "test_inline_values_with_equals"
 
-# ── test_fallback_to_yaml ────────────────────────────────────────────────────
-# When .conf not found but .yaml exists in same dir, falls back to .yaml.
+# ── test_no_yaml_fallback ─────────────────────────────────────────────────────
+# When .conf not found and only .yaml exists, script exits 0 with empty output.
+# (YAML support has been removed — .yaml files are no longer read.)
 _snapshot_fail
-# Create a dir with only .yaml, no .conf
 FALLBACK_DIR="$TMPDIR_FIXTURE/fallback"
 mkdir -p "$FALLBACK_DIR"
-cp "$FIXTURE_YAML" "$FALLBACK_DIR/workflow-config.yaml"
+cat > "$FALLBACK_DIR/workflow-config.yaml" <<'YAML'
+commands:
+  test: "make test"
+YAML
 actual=$(CLAUDE_PLUGIN_ROOT="$FALLBACK_DIR" bash "$SCRIPT" commands.test)
-assert_eq "test_fallback_to_yaml" "make test" "$actual"
-assert_pass_if_clean "test_fallback_to_yaml"
+rc=$?
+assert_eq "test_no_yaml_fallback value" "" "$actual"
+assert_eq "test_no_yaml_fallback exit" "0" "$rc"
+assert_pass_if_clean "test_no_yaml_fallback"
 
-# ── test_conf_takes_precedence_over_yaml ─────────────────────────────────────
-# When BOTH .conf and .yaml exist, .conf is used (not .yaml).
+# ── test_conf_is_sole_format ──────────────────────────────────────────────────
+# .conf is the only supported format; the value from .conf is returned.
 _snapshot_fail
-BOTH_DIR="$TMPDIR_FIXTURE/both"
-mkdir -p "$BOTH_DIR"
-# .conf has a different value than .yaml for commands.test
-cat > "$BOTH_DIR/workflow-config.conf" <<'CONF'
+CONF_DIR="$TMPDIR_FIXTURE/confonly"
+mkdir -p "$CONF_DIR"
+cat > "$CONF_DIR/workflow-config.conf" <<'CONF'
 commands.test=make test-from-conf
 CONF
-cat > "$BOTH_DIR/workflow-config.yaml" <<'YAML'
-commands:
-  test: "make test-from-yaml"
-YAML
-actual=$(CLAUDE_PLUGIN_ROOT="$BOTH_DIR" bash "$SCRIPT" commands.test)
-assert_eq "test_conf_takes_precedence_over_yaml" "make test-from-conf" "$actual"
-assert_pass_if_clean "test_conf_takes_precedence_over_yaml"
+actual=$(CLAUDE_PLUGIN_ROOT="$CONF_DIR" bash "$SCRIPT" commands.test)
+assert_eq "test_conf_is_sole_format" "make test-from-conf" "$actual"
+assert_pass_if_clean "test_conf_is_sole_format"
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 print_summary
