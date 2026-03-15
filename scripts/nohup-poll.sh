@@ -29,6 +29,7 @@ PID="$1"
 
 # ── Configuration ────────────────────────────────────────────────────────────
 : "${NOHUP_PID_DIR:=/tmp/workflow-nohup-pids}"
+: "${NOHUP_STALL_THRESHOLD:=300}"  # 5 minutes — heartbeat older than this = stalled
 
 # ── Locate entry file ───────────────────────────────────────────────────────
 ENTRY_FILE="$NOHUP_PID_DIR/${PID}.entry"
@@ -38,13 +39,14 @@ if [[ ! -f "$ENTRY_FILE" ]]; then
     exit 0
 fi
 
-# ── Read exit code file path from entry ──────────────────────────────────────
+# ── Read entry fields ────────────────────────────────────────────────────────
 EXIT_CODE_FILE=""
+OUTPUT_FILE=""
 while IFS='=' read -r key value; do
-    if [[ "$key" == "EXIT_CODE_FILE" ]]; then
-        EXIT_CODE_FILE="$value"
-        break
-    fi
+    case "$key" in
+        EXIT_CODE_FILE) EXIT_CODE_FILE="$value" ;;
+        OUTPUT_FILE) OUTPUT_FILE="$value" ;;
+    esac
 done < "$ENTRY_FILE"
 
 # ── Determine status ────────────────────────────────────────────────────────
@@ -52,7 +54,19 @@ if [[ -n "$EXIT_CODE_FILE" ]] && [[ -f "$EXIT_CODE_FILE" ]]; then
     exit_code=$(cat "$EXIT_CODE_FILE" 2>/dev/null | tr -d '[:space:]')
     echo "completed:${exit_code}"
 elif kill -0 "$PID" 2>/dev/null; then
-    echo "running"
+    # Process alive — check heartbeat for stall detection
+    HEARTBEAT_FILE="${OUTPUT_FILE}.heartbeat"
+    if [[ -n "$OUTPUT_FILE" ]] && [[ -f "$HEARTBEAT_FILE" ]]; then
+        last_heartbeat=$(cat "$HEARTBEAT_FILE" 2>/dev/null | tr -d '[:space:]')
+        now=$(date +%s)
+        if [[ -n "$last_heartbeat" ]] && (( now - last_heartbeat > NOHUP_STALL_THRESHOLD )); then
+            echo "stalled:$(( now - last_heartbeat ))s"
+        else
+            echo "running"
+        fi
+    else
+        echo "running"
+    fi
 else
     # Process gone but no exit code file — assume completed abnormally
     echo "completed:unknown"

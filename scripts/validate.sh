@@ -135,6 +135,10 @@ CI_PASSED=0  # Set to 1 when CI check passes (used for E2E skip logic)
 E2E_RAN=0    # Set to 1 when E2E tests are actually executed
 E2E_FAILED=0 # Set to 1 when E2E tests fail
 
+# Track which checks were launched so we can detect silent crashes
+# (background process killed without writing .rc file)
+LAUNCHED_CHECKS=""
+
 # Validation state tracking (for validation gate hook)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 
@@ -293,7 +297,12 @@ fi
 # ── Pre-flight: Docker auto-start ────────────────────────────────────────
 # If docker CLI is available but daemon isn't running, attempt auto-start.
 # Source shared dependency library for try_start_docker.
-HOOK_LIB="$REPO_ROOT/.claude/hooks/lib/deps.sh"
+# Source deps.sh from lockpick-workflow plugin (canonical location)
+HOOK_LIB="$SCRIPT_DIR/../hooks/lib/deps.sh"
+if [[ ! -f "$HOOK_LIB" ]]; then
+    # Fallback: try legacy .claude/hooks path
+    HOOK_LIB="$REPO_ROOT/.claude/hooks/lib/deps.sh"
+fi
 if [[ -f "$HOOK_LIB" ]]; then
     source "$HOOK_LIB"
     if command -v docker &>/dev/null && ! docker info &>/dev/null 2>&1; then
@@ -516,6 +525,10 @@ check_ci() {
 
 # Launch all independent checks in parallel
 cd "$APP_DIR"
+# Track launched checks for crash detection (missing .rc file = process crash)
+# REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
+# Each name must match the first argument passed to run_check or check_*.
+LAUNCHED_CHECKS="syntax format ruff mypy tests plugin migrate"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -561,6 +574,12 @@ report_check() {
     local rc_file="$CHECK_DIR/${name}.rc"
 
     if [ ! -f "$rc_file" ]; then
+        # If this check was launched, missing .rc means the process crashed
+        if [[ " $LAUNCHED_CHECKS " == *" $name "* ]]; then
+            printf "  %-8s CRASH (check process did not report) - run '%s' to debug\n" "${label}:" "$hint_cmd"
+            FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}$label"
+            FAILED=1
+        fi
         return 0
     fi
 
@@ -615,6 +634,11 @@ tally_check() {
     local rc_file="$CHECK_DIR/${name}.rc"
 
     if [ ! -f "$rc_file" ]; then
+        # If this check was launched, missing .rc means the process crashed
+        if [[ " $LAUNCHED_CHECKS " == *" $name "* ]]; then
+            FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}$label"
+            FAILED=1
+        fi
         return 0
     fi
 
@@ -832,20 +856,33 @@ if [ $CHECK_CI -eq 1 ]; then
 fi
 
 if [ $FAILED -eq 0 ]; then
-    # Write validation state for validation gate hook
-    echo "passed" > "$VALIDATION_STATE_FILE"
-    echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$VALIDATION_STATE_FILE"
-    [ "$E2E_RAN" = "1" ] && echo "e2e_ran=true" >> "$VALIDATION_STATE_FILE"
+    # Write validation state atomically for validation gate hook
+    _state_content="passed
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    [ "$E2E_RAN" = "1" ] && _state_content="$_state_content
+e2e_ran=true"
+    if declare -f atomic_write_file &>/dev/null; then
+        atomic_write_file "$VALIDATION_STATE_FILE" "$_state_content"
+    else
+        echo "$_state_content" > "$VALIDATION_STATE_FILE"
+    fi
     rm -f "$LOGFILE"  # Clean up log on success
     exit 0
 else
     echo "Some checks failed. Details: $LOGFILE"
-    # Write failed state for validation gate hook
-    echo "failed" > "$VALIDATION_STATE_FILE"
-    echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$VALIDATION_STATE_FILE"
-    echo "logfile=$LOGFILE" >> "$VALIDATION_STATE_FILE"
-    echo "failed_checks=$FAILED_CHECKS" >> "$VALIDATION_STATE_FILE"
-    [ "$E2E_RAN" = "1" ] && echo "e2e_ran=true" >> "$VALIDATION_STATE_FILE"
-    [ "$E2E_FAILED" = "1" ] && echo "e2e_failed=true" >> "$VALIDATION_STATE_FILE"
+    # Write failed state atomically for validation gate hook
+    _state_content="failed
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+logfile=$LOGFILE
+failed_checks=$FAILED_CHECKS"
+    [ "$E2E_RAN" = "1" ] && _state_content="$_state_content
+e2e_ran=true"
+    [ "$E2E_FAILED" = "1" ] && _state_content="$_state_content
+e2e_failed=true"
+    if declare -f atomic_write_file &>/dev/null; then
+        atomic_write_file "$VALIDATION_STATE_FILE" "$_state_content"
+    else
+        echo "$_state_content" > "$VALIDATION_STATE_FILE"
+    fi
     exit 1
 fi

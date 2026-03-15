@@ -59,6 +59,7 @@ COMMAND_STR="${COMMAND_ARGS[*]}"
 : "${NOHUP_PROCESS_BUDGET:=3500}"
 : "${NOHUP_PID_DIR:=/tmp/workflow-nohup-pids}"
 : "${NOHUP_SESSION_ID:=$$}"
+: "${NOHUP_HEARTBEAT_INTERVAL:=60}"
 
 # ── Process budget check ────────────────────────────────────────────────────
 current_procs=$(ps -u "$(whoami)" 2>/dev/null | wc -l | tr -d ' ')
@@ -75,7 +76,23 @@ EXIT_CODE_FILE="${OUTPUT_FILE}.exitcode"
 LAUNCH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Launch via nohup: run command, capture exit code to file
-nohup bash -c '"${@:3}" > "$1" 2>&1; echo $? > "$2"' _ "$OUTPUT_FILE" "$EXIT_CODE_FILE" "${COMMAND_ARGS[@]}" &
+HEARTBEAT_FILE="${OUTPUT_FILE}.heartbeat"
+nohup bash -c '
+    # Write initial heartbeat
+    date +%s > "$4"
+    # Run the command
+    "${@:5}" > "$1" 2>&1 &
+    CMD_PID=$!
+    # Heartbeat loop: write timestamp every INTERVAL seconds while command runs
+    while kill -0 "$CMD_PID" 2>/dev/null; do
+        date +%s > "$4"
+        sleep "$3"
+    done
+    wait "$CMD_PID" 2>/dev/null
+    echo $? > "$2"
+    # Final heartbeat update
+    date +%s > "$4"
+' _ "$OUTPUT_FILE" "$EXIT_CODE_FILE" "$NOHUP_HEARTBEAT_INTERVAL" "$HEARTBEAT_FILE" "${COMMAND_ARGS[@]}" &
 TASK_PID=$!
 
 # ── Write entry file ────────────────────────────────────────────────────────

@@ -52,40 +52,57 @@ parse_json_field() {
     local field="${expr#.}"
 
     if [[ "$field" == *"."* ]]; then
-        # Nested field: e.g., "tool_input.command"
+        # Nested field: e.g., "tool_input.command" or "a.b.c"
         local parent="${field%%.*}"
         local child="${field#*.}"
 
         # Extract the parent object's value (everything between the outermost braces
         # after the parent key). This is a simplified parser for the known JSON shape.
         local parent_val=""
-        # Match "parent":{...} — find the opening brace after the key, then balance braces
-        if [[ "$json" =~ \"${parent}\"[[:space:]]*:[[:space:]]*\{ ]]; then
-            # Get everything after the match
-            local after="${json#*\"${parent}\"*:\{}"
-            # Now count braces to find the matching close
-            local depth=1
-            local i=0
-            local len=${#after}
-            while (( i < len && depth > 0 )); do
-                local ch="${after:$i:1}"
-                [[ "$ch" == "{" ]] && (( depth++ ))
-                [[ "$ch" == "}" ]] && (( depth-- ))
-                (( i++ ))
-            done
-            parent_val="{${after:0:$i}"
-        fi
+        parent_val=$(_deps_extract_object_field "$json" "$parent")
 
         if [[ -z "$parent_val" ]]; then
             echo ""
             return 0
         fi
 
-        # Now extract the child field from the parent object
-        _deps_extract_string_field "$parent_val" "$child"
+        # Recurse for multi-level nesting (e.g., "b.c" in parent_val)
+        if [[ "$child" == *"."* ]]; then
+            parse_json_field "$parent_val" ".$child"
+        else
+            _deps_extract_string_field "$parent_val" "$child"
+        fi
     else
-        # Top-level field
+        # Top-level field — check for array values and warn
+        if [[ "$json" =~ \"${field}\"[[:space:]]*:[[:space:]]*\[ ]]; then
+            echo "parse_json_field: field '.$field' contains an array value (not supported)" >&2
+            echo ""
+            return 0
+        fi
         _deps_extract_string_field "$json" "$field"
+    fi
+}
+
+# Internal: extract a JSON object value (brace-matched) from JSON by key.
+# Returns the full object including braces, or empty string.
+_deps_extract_object_field() {
+    local json="$1"
+    local key="$2"
+
+    if [[ "$json" =~ \"${key}\"[[:space:]]*:[[:space:]]*\{ ]]; then
+        local after="${json#*\"${key}\"*:\{}"
+        local depth=1
+        local i=0
+        local len=${#after}
+        while (( i < len && depth > 0 )); do
+            local ch="${after:$i:1}"
+            [[ "$ch" == "{" ]] && (( depth++ ))
+            [[ "$ch" == "}" ]] && (( depth-- ))
+            (( i++ ))
+        done
+        echo "{${after:0:$i}"
+    else
+        echo ""
     fi
 }
 
@@ -595,4 +612,77 @@ try_find_python() {
 
     echo ""
     return 1
+}
+
+# --- atomic_write_file ---
+# Write content to a file atomically using write-to-temp + rename.
+# Prevents partial reads during concurrent access.
+#
+# Usage: atomic_write_file <target_path> <content>
+#        echo "data" | atomic_write_file <target_path> -
+#
+# The second form reads content from stdin when the content arg is "-".
+# Creates parent directories if they don't exist.
+atomic_write_file() {
+    local target="$1"
+    local content="${2:-}"
+    local target_dir
+    target_dir=$(dirname "$target")
+
+    # Ensure parent directory exists
+    mkdir -p "$target_dir"
+
+    # Write to temp file in the same directory (same filesystem for atomic rename)
+    local tmpf
+    tmpf=$(mktemp "${target_dir}/$(basename "$target").tmp.XXXXXX")
+
+    if [[ "$content" == "-" ]]; then
+        cat > "$tmpf"
+    else
+        printf '%s\n' "$content" > "$tmpf"
+    fi
+
+    # Atomic rename (POSIX guarantees rename is atomic on same filesystem)
+    mv "$tmpf" "$target"
+}
+
+# --- retry_with_backoff ---
+# Retry a command with exponential backoff on failure.
+#
+# Usage: retry_with_backoff <max_retries> <initial_delay_sec> <command> [args...]
+#
+# Runs the command once. On failure, retries up to max_retries times with
+# exponential backoff (delay doubles each retry). Returns the command's exit
+# code on success, or the last failure exit code after exhausting retries.
+#
+# Example:
+#   retry_with_backoff 4 2 git push -u origin main
+#   # Tries once, then retries up to 4 times with delays: 2s, 4s, 8s, 16s
+retry_with_backoff() {
+    local max_retries="$1"
+    local delay="$2"
+    shift 2
+    local cmd=("$@")
+
+    local attempt=0
+    local exit_code=0
+
+    # Initial attempt
+    "${cmd[@]}" && return 0
+    exit_code=$?
+    attempt=1
+
+    # Retry loop
+    while (( attempt <= max_retries )); do
+        echo "retry_with_backoff: attempt $attempt/$max_retries failed (exit $exit_code), retrying in ${delay}s..." >&2
+        sleep "$delay"
+        delay=$(awk "BEGIN {printf \"%.2f\", $delay * 2}" 2>/dev/null || echo "$((${delay%.*} * 2))")
+        exit_code=0
+        "${cmd[@]}" && return 0
+        exit_code=$?
+        (( attempt++ ))
+    done
+
+    echo "retry_with_backoff: all $max_retries retries exhausted (exit $exit_code)" >&2
+    return "$exit_code"
 }
