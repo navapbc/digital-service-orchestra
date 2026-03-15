@@ -208,12 +208,33 @@ hook_commit_failure_tracker() {
         FAILED_CATEGORIES+=("validation")
     fi
 
+    # Resolve tickets directory (TICKETS_DIR_OVERRIDE allows test injection)
+    local TICKETS_DIR
+    TICKETS_DIR="${TICKETS_DIR_OVERRIDE:-$(git rev-parse --show-toplevel 2>/dev/null)/.tickets}"
+    local INDEX_FILE="$TICKETS_DIR/.index.json"
+
     # Quick check: do open issues exist for each category?
     local -a UNTRACKED=()
     local category
     for category in "${FAILED_CATEGORIES[@]}"; do
-        local RESULT
-        RESULT=$($_SEARCH_CMD "$category failure" "$(git rev-parse --show-toplevel)/.tickets" 2>/dev/null | head -1 || echo "")
+        local RESULT=""
+        # Fast path: search .index.json title field if available
+        if [[ -f "$INDEX_FILE" ]]; then
+            RESULT=$(python3 -c "
+import json, sys
+try:
+    idx = json.load(open(sys.argv[1]))
+    needle = sys.argv[2].lower()
+    matches = [k for k, v in idx.items() if needle in v.get('title', '').lower()]
+    print(matches[0] if matches else '', end='')
+except Exception:
+    pass
+" "$INDEX_FILE" "$category failure" 2>/dev/null || echo "")
+        fi
+        # Fallback: grep -rl over .tickets/ if index missing or no match found
+        if [[ -z "$RESULT" ]]; then
+            RESULT=$($_SEARCH_CMD "$category failure" "$TICKETS_DIR" 2>/dev/null | head -1 || echo "")
+        fi
         if [[ -z "$RESULT" ]]; then
             UNTRACKED+=("$category")
         fi
@@ -232,7 +253,7 @@ hook_commit_failure_tracker() {
     done
     echo "" >&2
     echo "Issues should have been auto-created by check-validation-failures.sh." >&2
-    echo "Search: $_SEARCH_CMD '<check> failure' $(git rev-parse --show-toplevel)/.tickets" >&2
+    echo "Search: $_SEARCH_CMD '<check> failure' $TICKETS_DIR" >&2
     echo "Create manually if needed: tk create \"Fix <check> failure\" -t bug -p 1" >&2
     echo "" >&2
 
