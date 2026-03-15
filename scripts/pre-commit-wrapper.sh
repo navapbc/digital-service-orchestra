@@ -2,21 +2,26 @@
 set -uo pipefail
 # lockpick-workflow/scripts/pre-commit-wrapper.sh — Generic pre-commit timeout wrapper
 #
-# Runs a command string with timeout detection and logging.
+# Runs a command string with hard timeout enforcement and logging.
 # This is a plugin-level generic script with no project-specific assumptions.
 #
 # Usage: pre-commit-wrapper.sh <hook_name> <timeout_secs> <command_string>
 #
 # Arguments:
 #   hook_name       — descriptive name for the hook (used in logs)
-#   timeout_secs    — threshold in seconds; if the command takes longer, it is logged as slow
+#   timeout_secs    — hard kill limit in seconds; command is killed if it exceeds this
 #   command_string  — the full command to run via bash -c
 #
 # Example:
 #   pre-commit-wrapper.sh format-check 30 "ruff check src/"
 #
-# Timeout detection:
-#   - If command exceeds timeout_secs, logs to <artifacts_dir>/precommit-timeouts.log
+# Timeout enforcement:
+#   - Uses `timeout` (Linux) or `gtimeout` (macOS via coreutils) to hard-kill
+#     commands that exceed timeout_secs. This prevents slow hooks from eating into
+#     the budget of subsequent hooks and causing the cumulative pre-commit suite to
+#     exceed Claude Code's ~73s tool timeout ceiling.
+#   - If command exceeds timeout_secs, exits 124 and logs to precommit-timeouts.log.
+#   - Falls back to unguarded execution if neither `timeout` nor `gtimeout` is available.
 #
 # Config keys read from workflow-config.conf via read-config.sh:
 #   session.artifact_prefix    — prefix for /tmp artifact dirs (fallback: <repo-name>-test-artifacts)
@@ -48,6 +53,16 @@ if [[ ! "$TIMEOUT_SECS" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT_SECS" -le 0 ]]; then
     exit 1
 fi
 
+# ── Resolve timeout command ──────────────────────────────────────────────────
+# macOS ships without GNU coreutils `timeout`; prefer `gtimeout` (brew coreutils),
+# fall back to `timeout` (Linux), and degrade gracefully if neither is available.
+_TIMEOUT_CMD=""
+if command -v gtimeout &>/dev/null; then
+    _TIMEOUT_CMD="gtimeout"
+elif command -v timeout &>/dev/null; then
+    _TIMEOUT_CMD="timeout"
+fi
+
 # ── Plugin scripts resolution ────────────────────────────────────────────────
 PLUGIN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -73,24 +88,33 @@ TIMEOUT_LOG="$ARTIFACTS_DIR/precommit-timeouts.log"
 # ── Run the command ──────────────────────────────────────────────────────────
 START_TIME=$(date +%s)
 
-bash -c "$COMMAND_STRING"
-EXIT_CODE=$?
+if [[ -n "$_TIMEOUT_CMD" ]]; then
+    # Hard timeout: command is killed after TIMEOUT_SECS seconds.
+    # This prevents slow hooks from eating into the budget of subsequent hooks
+    # and causing the cumulative pre-commit suite to exceed Claude Code's ~73s ceiling.
+    $_TIMEOUT_CMD "$TIMEOUT_SECS" bash -c "$COMMAND_STRING"
+    EXIT_CODE=$?
+else
+    # Fallback: no timeout command available; run unguarded and log if slow.
+    bash -c "$COMMAND_STRING"
+    EXIT_CODE=$?
+fi
 
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
-# ── Timeout detection: slow but completed ────────────────────────────────────
-if [[ "$DURATION" -gt "$TIMEOUT_SECS" ]]; then
-    TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
-    echo "$TIMESTAMP | SLOW | $HOOK_NAME | ${DURATION}s (limit: ${TIMEOUT_SECS}s) | command: $COMMAND_STRING" >> "$TIMEOUT_LOG"
-    echo "WARNING: $HOOK_NAME took ${DURATION}s (limit: ${TIMEOUT_SECS}s)"
-
-# ── Timeout detection: killed by signal ──────────────────────────────────────
-elif [[ $EXIT_CODE -eq 124 ]] || [[ $EXIT_CODE -eq 143 ]] || [[ $EXIT_CODE -eq 137 ]]; then
+# ── Timeout detection: killed by hard timeout (exit 124) ─────────────────────
+if [[ $EXIT_CODE -eq 124 ]] || [[ $EXIT_CODE -eq 143 ]] || [[ $EXIT_CODE -eq 137 ]]; then
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
     echo "$TIMESTAMP | KILLED | $HOOK_NAME | timeout at ${TIMEOUT_SECS}s | command: $COMMAND_STRING" >> "$TIMEOUT_LOG"
-    echo "TIMEOUT: $HOOK_NAME was killed after ${TIMEOUT_SECS}s"
+    echo "TIMEOUT: $HOOK_NAME was killed after ${TIMEOUT_SECS}s" >&2
     exit 124
+
+# ── Timeout detection: slow but completed (fallback path only) ───────────────
+elif [[ "$DURATION" -gt "$TIMEOUT_SECS" ]]; then
+    TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
+    echo "$TIMESTAMP | SLOW | $HOOK_NAME | ${DURATION}s (limit: ${TIMEOUT_SECS}s) | command: $COMMAND_STRING" >> "$TIMEOUT_LOG"
+    echo "WARNING: $HOOK_NAME took ${DURATION}s (limit: ${TIMEOUT_SECS}s)" >&2
 fi
 
 exit $EXIT_CODE

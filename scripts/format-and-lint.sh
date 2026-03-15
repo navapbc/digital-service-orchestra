@@ -2,20 +2,44 @@
 set -uo pipefail
 # lockpick-workflow/scripts/format-and-lint.sh — Combined format-check + lint pre-commit hook
 #
-# Runs format check (ruff format) then lint (ruff check + mypy) in sequence,
-# both via the pre-commit-wrapper.sh timeout/logging pattern.
+# Pre-commit: checks only staged .py files for fast feedback (~3-5s).
+# Pre-push:   full-tree checks run via the pre-push-lint hook in .pre-commit-config.yaml.
 #
 # Usage (invoked by .pre-commit-config.yaml via pre-commit-wrapper.sh):
-#   ./scripts/pre-commit-wrapper.sh format-and-lint 60 "lockpick-workflow/scripts/format-and-lint.sh"
+#   ./scripts/pre-commit-wrapper.sh format-and-lint 15 "lockpick-workflow/scripts/format-and-lint.sh"
 #
-# Debug commands:
+# Debug commands (full-tree, same as pre-push):
 #   cd app && PY_RUN_APPROACH=local make format-check
 #   cd app && PY_RUN_APPROACH=local make lint
 #
 # Exit codes:
-#   0 — both format-check and lint pass
+#   0 — all checks pass
 #   non-zero — first failing check's exit code
 
 set -uo pipefail
 
-cd app && PY_RUN_APPROACH=local make format-check && PY_RUN_APPROACH=local make lint
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Collect staged .py files (relative to repo root)
+STAGED_PY=$(cd "$REPO_ROOT" && git diff --cached --name-only --diff-filter=ACM -- '*.py' 2>/dev/null || true)
+
+if [[ -z "$STAGED_PY" ]]; then
+    # No staged Python files — nothing to check
+    exit 0
+fi
+
+# Build file list (absolute paths)
+FILES=()
+while IFS= read -r f; do
+    [[ -n "$f" ]] && FILES+=("$REPO_ROOT/$f")
+done <<< "$STAGED_PY"
+
+if [[ ${#FILES[@]} -eq 0 ]]; then
+    exit 0
+fi
+
+# Run ruff format check and lint on staged files only
+cd "$REPO_ROOT/app" || exit 1
+
+PY_RUN_APPROACH=local poetry run ruff format --check "${FILES[@]}" || exit $?
+PY_RUN_APPROACH=local poetry run ruff check "${FILES[@]}" || exit $?
