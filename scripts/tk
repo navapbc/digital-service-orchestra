@@ -48,7 +48,7 @@ _tk_read_config() {
             # Ensure read-config.sh can find Python with pyyaml by hinting
             # the venv from tk's own repo if not already set
             if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
-                local _py_candidate="$_tk_repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}"
+                local _py_candidate="$_tk_repo_root/$CFG_PYTHON_VENV"
                 if [[ -f "$_py_candidate" ]] && "$_py_candidate" -c "import yaml" 2>/dev/null; then
                     CLAUDE_PLUGIN_PYTHON="$_py_candidate" "$_read_config" "$_config_file" "$key" 2>/dev/null || true
                     return
@@ -430,11 +430,11 @@ _warn_if_venv_absent() {
     fi
     [[ -n "$repo_root" ]] || return 0
 
-    local venv_python="$repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}"
+    local venv_python="$repo_root/$CFG_PYTHON_VENV"
     # Also check without trailing '3' for backward compat
     local venv_python_alt="${venv_python%3}"
     if [[ ! -x "$venv_python" ]] && [[ ! -x "$venv_python_alt" ]]; then
-        echo "WARNING: Python venv not found at ${CFG_PYTHON_VENV:-app/.venv/bin/python3}" >&2
+        echo "WARNING: Python venv not found at $CFG_PYTHON_VENV" >&2
         echo "  Pre-commit hooks may fail when committing this change." >&2
         echo "  To complete the close, commit manually or run:" >&2
         echo "    merge-to-main.sh   (in worktree sessions)" >&2

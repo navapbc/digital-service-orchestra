@@ -57,7 +57,7 @@ fi
 # test skeleton that has no venv (avoids "no python3 with pyyaml" errors in tests).
 if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
     for _py_candidate in \
-        "$REPO_ROOT/${CFG_PYTHON_VENV:-app/.venv/bin/python3}" \
+        "$REPO_ROOT/$CFG_PYTHON_VENV" \
         "$REPO_ROOT/.venv/bin/python3" \
         "python3"; do
         [[ "$_py_candidate" != "python3" ]] && [[ ! -f "$_py_candidate" ]] && continue

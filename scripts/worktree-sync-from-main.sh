@@ -30,7 +30,7 @@ _sync_config_paths="$_SYNC_SCRIPT_DIR/../hooks/lib/config-paths.sh"
 # is not activated, `pre-commit` is not found and the merge commit fails.
 # Probe the conventional venv location and prepend it without activating the
 # full venv (activation changes PS1, sys.path, and other env state).
-_VENV_BIN="$REPO_ROOT/$(dirname "${CFG_PYTHON_VENV:-app/.venv/bin/python3}")"
+_VENV_BIN="$REPO_ROOT/$(dirname "$CFG_PYTHON_VENV")"
 if [[ -f "$_VENV_BIN/pre-commit" && ":$PATH:" != *":$_VENV_BIN:"* ]]; then
     export PATH="$_VENV_BIN:$PATH"
 fi

@@ -116,9 +116,9 @@ _resolve_plugin_python() {
     local script_repo_root
     script_repo_root="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
     for candidate in \
-        "$REPO_ROOT/${CFG_PYTHON_VENV:-app/.venv/bin/python3}" \
+        "$REPO_ROOT/$CFG_PYTHON_VENV" \
         "$REPO_ROOT/.venv/bin/python3" \
-        "${script_repo_root:+$script_repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}}" \
+        "${script_repo_root:+$script_repo_root/$CFG_PYTHON_VENV}" \
         "${script_repo_root:+$script_repo_root/.venv/bin/python3}" \
         "python3"; do
         [ -z "$candidate" ] && continue
