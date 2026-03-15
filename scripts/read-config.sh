@@ -81,7 +81,7 @@ fi
 # Source config-paths.sh for CFG_PYTHON_VENV (guard against circular sourcing:
 # config-paths.sh calls _cfg_read() which invokes read-config.sh as a subprocess)
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_config_paths="$_script_dir/../hooks/lib/config-paths.sh"
+_config_paths="${CLAUDE_PLUGIN_ROOT:-$_script_dir/..}/hooks/lib/config-paths.sh"
 if [[ -z "${_READ_CONFIG_IN_PROGRESS:-}" && -f "$_config_paths" ]]; then
     export _READ_CONFIG_IN_PROGRESS=1
     source "$_config_paths"

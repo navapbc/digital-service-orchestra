@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/dispatchers/pre-bash.sh
-# PreToolUse Bash dispatcher: sources all 8 Bash hook functions and runs them
+# PreToolUse Bash dispatcher: sources all Bash hook functions and runs them
 # sequentially. Stops at the first function that returns 2 (block/deny).
 #
-# Replaces 8 separate settings.json entries with a single dispatcher entry:
+# Replaces multiple separate settings.json entries with a single dispatcher entry:
 #   run-hook.sh dispatchers/pre-bash.sh
 #
 # Hook execution order (per task spec):
-#   0. hook_tool_logging_pre (non-blocking, informational — from post-functions.sh)
 #   1. hook_test_failure_guard (block commit when test status files contain FAILED)
 #   2. hook_commit_failure_tracker
 #   3. hook_review_gate (skip_review for non-reviewable/ticket-only commits)
 #   4. hook_worktree_bash_guard
 #   5. hook_worktree_edit_guard
 #   6. hook_bug_close_guard
-#   7. hook_tool_use_guard
-#   8. hook_review_integrity_guard
+#   7. hook_review_integrity_guard
+#
+# Removed (optimization): logging hook (moved to all-tools dispatcher), use-guard hook
 #
 # Returns: 0 if all hooks allow, 2 if any hook blocks.
 
@@ -41,13 +41,10 @@ _get_ms() {
 # Source the dispatcher framework (provides run_hooks — kept for reference/reuse)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
-# Source all 8 hook functions
+# Source all hook functions
 source "$HOOKS_LIB_DIR/pre-bash-functions.sh"
 
-# Source post-functions.sh for hook_tool_logging_pre (non-blocking tool logging)
-source "$HOOKS_LIB_DIR/post-functions.sh"
-
-# Run all 8 hook functions sequentially.
+# Run all hook functions sequentially.
 # Stops at first function that returns 2 (block).
 # Non-zero exit codes other than 2 are intentionally allowed to fall through
 # (fail-open design): each hook function has its own ERR trap that logs the
@@ -84,9 +81,6 @@ _pre_bash_dispatch() {
     local INPUT
     INPUT=$(cat)
 
-    # Tool logging runs first (non-blocking, informational only — never returns 2)
-    hook_tool_logging_pre "$INPUT" || true
-
     for _HOOK_FN in \
         hook_test_failure_guard \
         hook_commit_failure_tracker \
@@ -94,7 +88,6 @@ _pre_bash_dispatch() {
         hook_worktree_bash_guard \
         hook_worktree_edit_guard \
         hook_bug_close_guard \
-        hook_tool_use_guard \
         hook_review_integrity_guard
     do
         local _fn_exit=0

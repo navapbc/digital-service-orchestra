@@ -37,7 +37,7 @@ CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Source config-paths.sh for CFG_PYTHON_VENV
-_env_config_paths="$SCRIPT_DIR/../hooks/lib/config-paths.sh"
+_env_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
 [[ -f "$_env_config_paths" ]] && source "$_env_config_paths"
 
 # Source shared dependency library for try_start_docker, try_find_python, check_tool

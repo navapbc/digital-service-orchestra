@@ -16,7 +16,7 @@ set -uo pipefail
 
 # Source config-paths.sh for portable path resolution
 _SKIP_REVIEW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_CONFIG_PATHS="$_SKIP_REVIEW_DIR/../hooks/lib/config-paths.sh"
+_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT:-$_SKIP_REVIEW_DIR/..}/hooks/lib/config-paths.sh"
 if [ -f "$_CONFIG_PATHS" ]; then
     # shellcheck source=../hooks/lib/config-paths.sh
     source "$_CONFIG_PATHS"
