@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/hooks/lib/pre-bash-functions.sh
-# Sourceable function definitions for the 8 PreToolUse Bash hooks.
+# Sourceable function definitions for the PreToolUse Bash hooks.
 #
 # Each function follows the hook contract:
 #   Input:  JSON string passed as $1
@@ -16,7 +16,6 @@
 #   hook_worktree_bash_guard     — block cd into main repo from worktree
 #   hook_worktree_edit_guard     — block mkdir targeting main repo from worktree
 #   hook_bug_close_guard         — require --reason flag on bug ticket closes
-#   hook_tool_use_guard          — warn when cat/grep used instead of Read/Grep tools
 #   hook_review_integrity_guard  — block direct writes to review-status files
 #
 # Usage:
@@ -625,6 +624,11 @@ hook_bug_close_guard() {
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
     trap 'printf "{\"ts\":\"%s\",\"hook\":\"bug-close-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    # Early-exit: skip unless command contains 'tk' (substring match)
+    if [[ "$INPUT" != *"tk"* ]]; then
+        return 0
+    fi
 
     local COMMAND
     COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')

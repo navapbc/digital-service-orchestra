@@ -64,16 +64,25 @@ fi
 
 # ── YAML format: use Python/pyyaml for full YAML support ──────────────────────
 
+# Source config-paths.sh for CFG_PYTHON_VENV (guard against circular sourcing:
+# config-paths.sh calls _cfg_read() which invokes read-config.sh as a subprocess)
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_config_paths="$_script_dir/../hooks/lib/config-paths.sh"
+if [[ -z "${_READ_CONFIG_IN_PROGRESS:-}" && -f "$_config_paths" ]]; then
+    export _READ_CONFIG_IN_PROGRESS=1
+    source "$_config_paths"
+    unset _READ_CONFIG_IN_PROGRESS
+fi
+
 # Resolve Python interpreter (CLAUDE_PLUGIN_PYTHON env var or probe)
 PYTHON="${CLAUDE_PLUGIN_PYTHON:-}"
 if [[ -z "$PYTHON" ]]; then
     # Derive actual repo root from script location (not necessarily CLAUDE_PLUGIN_ROOT)
-    _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     _actual_repo_root="$(cd "$_script_dir" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
     for candidate in \
-        "${_actual_repo_root:+$_actual_repo_root/app/.venv/bin/python3}" \
+        "${_actual_repo_root:+$_actual_repo_root/$CFG_PYTHON_VENV}" \
         "${_actual_repo_root:+$_actual_repo_root/.venv/bin/python3}" \
-        "${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/app/.venv/bin/python3}" \
+        "${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/$CFG_PYTHON_VENV}" \
         "python3"; do
         [[ -z "$candidate" ]] && continue
         [[ "$candidate" != "python3" ]] && [[ ! -f "$candidate" ]] && continue

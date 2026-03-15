@@ -26,6 +26,15 @@
 
 set -euo pipefail
 
+# Source config-paths.sh for portable path resolution
+_REINSTALL_HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_REINSTALL_CONFIG_PATHS="$_REINSTALL_HOOKS_DIR/../hooks/lib/config-paths.sh"
+if [ -f "$_REINSTALL_CONFIG_PATHS" ]; then
+    # shellcheck source=../hooks/lib/config-paths.sh
+    source "$_REINSTALL_CONFIG_PATHS"
+fi
+_REINSTALL_APP_DIR_NAME="${CFG_APP_DIR:-app}"
+
 # ── Validate input ───────────────────────────────────────────────────────────
 
 if [ -z "${WORKTREE_PATH:-}" ]; then
@@ -33,7 +42,7 @@ if [ -z "${WORKTREE_PATH:-}" ]; then
     exit 1
 fi
 
-APP_DIR="$WORKTREE_PATH/app"
+APP_DIR="$WORKTREE_PATH/$_REINSTALL_APP_DIR_NAME"
 
 if [ ! -d "$APP_DIR" ]; then
     echo "ERROR: App directory not found at $APP_DIR" >&2
@@ -48,7 +57,7 @@ PRECOMMIT=""
 VENV_PRECOMMIT="$APP_DIR/.venv/bin/pre-commit"
 if [ -x "$VENV_PRECOMMIT" ]; then
     PRECOMMIT="$VENV_PRECOMMIT"
-elif command -v poetry > /dev/null 2>&1; then
+elif command -v poetry >/dev/null 2>&1; then
     # Fall back to poetry run — poetry will resolve the correct venv
     PRECOMMIT="poetry"
 elif command -v pre-commit > /dev/null 2>&1; then
@@ -149,7 +158,7 @@ patch_hook_shim() {
     #
     # We replace the bare `else` line (that precedes the "not found" error) with
     # new fallback branches:
-    #   1. Direct venv python: find app/.venv/bin/python relative to the repo root
+    #   1. Direct venv python: find <app_dir>/.venv/bin/python relative to the repo root
     #      (handles repos where pyproject.toml is in a subdirectory)
     #   2. Main repo venv python: resolve main repo via git-common-dir (handles
     #      worktrees that share hooks with the main repo — the worktree's toplevel
@@ -158,24 +167,24 @@ patch_hook_shim() {
     #
     # To do this safely, we match the `else` followed by the error echo — using a
     # two-line lookahead in awk to ensure we only modify the right `else`.
-    awk '
+    awk -v app_dir="$_REINSTALL_APP_DIR_NAME" '
     # Buffer the current line and look ahead
     {
         if (held != "") {
             # Check if held line is "else" and current line is the error echo
             if (held ~ /^else$/ && $0 ~ /echo .*pre-commit.*not found/) {
                 # Fallback 1: find venv python relative to repo root (worktree toplevel)
-                print "elif _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -x \"$_REPO_ROOT/app/.venv/bin/python\" ]; then"
-                print "    exec \"$_REPO_ROOT/app/.venv/bin/python\" -mpre_commit \"${ARGS[@]}\""
+                print "elif _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -x \"$_REPO_ROOT/" app_dir "/.venv/bin/python\" ]; then"
+                print "    exec \"$_REPO_ROOT/" app_dir "/.venv/bin/python\" -mpre_commit \"${ARGS[@]}\""
                 # Fallback 2: find venv python via main repo (git-common-dir)
                 # In worktrees, --show-toplevel returns the worktree path, but
                 # --git-common-dir returns the main repo .git dir. The main repo
                 # root is its parent. This handles stale worktree venvs.
-                print "elif _MAIN_GIT=\"$(git rev-parse --git-common-dir 2>/dev/null)\" && _MAIN_ROOT=\"$(cd \"$_MAIN_GIT/..\" 2>/dev/null && pwd)\" && [ -x \"$_MAIN_ROOT/app/.venv/bin/python\" ]; then"
-                print "    exec \"$_MAIN_ROOT/app/.venv/bin/python\" -mpre_commit \"${ARGS[@]}\""
+                print "elif _MAIN_GIT=\"$(git rev-parse --git-common-dir 2>/dev/null)\" && _MAIN_ROOT=\"$(cd \"$_MAIN_GIT/..\" 2>/dev/null && pwd)\" && [ -x \"$_MAIN_ROOT/" app_dir "/.venv/bin/python\" ]; then"
+                print "    exec \"$_MAIN_ROOT/" app_dir "/.venv/bin/python\" -mpre_commit \"${ARGS[@]}\""
                 # Fallback 3: poetry run from the app directory
-                print "elif command -v poetry > /dev/null && _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -f \"$_REPO_ROOT/app/pyproject.toml\" ]; then"
-                print "    cd \"$_REPO_ROOT/app\" && exec poetry run pre-commit \"${ARGS[@]}\""
+                print "elif command -v poetry > /dev/null && _REPO_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && [ -f \"$_REPO_ROOT/" app_dir "/pyproject.toml\" ]; then"
+                print "    cd \"$_REPO_ROOT/" app_dir "\" && exec poetry run pre-commit \"${ARGS[@]}\""
                 print "else"
                 print $0   # print the original error echo
                 held = ""

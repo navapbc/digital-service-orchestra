@@ -20,12 +20,17 @@ if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
     exit 1
 fi
 
+# Source config-paths.sh for CFG_PYTHON_VENV
+_SYNC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_sync_config_paths="$_SYNC_SCRIPT_DIR/../hooks/lib/config-paths.sh"
+[[ -f "$_sync_config_paths" ]] && source "$_sync_config_paths"
+
 # --- Ensure pre-commit is available in PATH ---
 # git merge --no-edit auto-commits, which runs pre-commit hooks. If the venv
 # is not activated, `pre-commit` is not found and the merge commit fails.
 # Probe the conventional venv location and prepend it without activating the
 # full venv (activation changes PS1, sys.path, and other env state).
-_VENV_BIN="$REPO_ROOT/app/.venv/bin"
+_VENV_BIN="$REPO_ROOT/$(dirname "$CFG_PYTHON_VENV")"
 if [[ -f "$_VENV_BIN/pre-commit" && ":$PATH:" != *":$_VENV_BIN:"* ]]; then
     export PATH="$_VENV_BIN:$PATH"
 fi

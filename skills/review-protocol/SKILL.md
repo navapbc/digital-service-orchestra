@@ -6,7 +6,7 @@ description: Use when a skill needs structured multi-perspective review with con
 # Review Protocol
 
 Standardized 3-stage review process producing schema-compliant JSON output.
-See `.claude/docs/REVIEW-SCHEMA.md` for the output schema.
+See `lockpick-workflow/docs/REVIEW-SCHEMA.md` for the output schema.
 
 ## Parameters
 

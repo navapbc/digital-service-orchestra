@@ -128,47 +128,46 @@ assert_eq \
     "$USES_OLD_HOOKS"
 
 # ============================================================
-# test_behavioral_equivalence_post_consolidation
+# test_behavioral_equivalence_post_optimization
 #
-# Post-consolidation: tool logging is now dispatched via per-tool
-# dispatchers (pre-bash, post-bash, etc.) rather than catch-all
-# empty-matcher hooks. Verify that:
-#   1. pre-bash dispatcher sources hook_tool_logging_pre
-#   2. post-bash dispatcher sources hook_tool_logging_post
+# Post-optimization: tool logging has been removed from all dispatchers
+# (epic put3/ild8). Verify that:
+#   1. pre-bash dispatcher does NOT reference tool_logging_pre
+#   2. post-bash dispatcher does NOT reference tool_logging_post
 #   3. No catch-all (empty-matcher) entries remain in settings.json
 # ============================================================
 
 PRE_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
 POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
 
-# Verify tool-logging dispatch is integrated into pre-bash
+# Verify tool-logging removed from pre-bash
 if [[ -f "$PRE_BASH_DISPATCHER" ]]; then
     if grep -q 'tool_logging_pre\|tool.logging.*pre' "$PRE_BASH_DISPATCHER" 2>/dev/null; then
-        actual="has_tool_logging_pre"
+        actual="still_has_tool_logging_pre"
     else
-        actual="missing_tool_logging_pre"
+        actual="tool_logging_removed"
     fi
 else
     actual="dispatcher_missing"
 fi
 assert_eq \
-    "test_behavioral_equivalence_post_consolidation: pre-bash dispatches tool-logging" \
-    "has_tool_logging_pre" \
+    "test_behavioral_equivalence_post_optimization: pre-bash tool-logging removed" \
+    "tool_logging_removed" \
     "$actual"
 
-# Verify tool-logging dispatch is integrated into post-bash
+# Verify tool-logging removed from post-bash
 if [[ -f "$POST_BASH_DISPATCHER" ]]; then
     if grep -q 'tool_logging_post\|tool.logging.*post' "$POST_BASH_DISPATCHER" 2>/dev/null; then
-        actual="has_tool_logging_post"
+        actual="still_has_tool_logging_post"
     else
-        actual="missing_tool_logging_post"
+        actual="tool_logging_removed"
     fi
 else
     actual="dispatcher_missing"
 fi
 assert_eq \
-    "test_behavioral_equivalence_post_consolidation: post-bash dispatches tool-logging" \
-    "has_tool_logging_post" \
+    "test_behavioral_equivalence_post_optimization: post-bash tool-logging removed" \
+    "tool_logging_removed" \
     "$actual"
 
 # Verify no catch-all empty-matcher in settings.json PreToolUse/PostToolUse
