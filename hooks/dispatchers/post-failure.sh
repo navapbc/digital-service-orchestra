@@ -6,7 +6,8 @@
 #   run-hook.sh dispatchers/post-failure.sh
 #
 # Hook execution order:
-#   1. hook_track_tool_errors — track, categorize, and count tool use errors
+#   1. hook_exit_144_forensic_logger — log forensic data on exit 144 (SIGURG timeout/cancellation)
+#   2. hook_track_tool_errors — track, categorize, and count tool use errors
 #
 # Returns: 0 always (non-blocking; tracks errors and emits warnings only)
 
@@ -28,6 +29,7 @@ source "$HOOKS_LIB_DIR/dispatcher.sh"
 
 # Source all post-failure hook functions
 source "$HOOKS_LIB_DIR/session-misc-functions.sh"
+source "$HOOKS_LIB_DIR/post-functions.sh"
 
 _run_hook_fn() {
     local fn_name="$1"
@@ -43,6 +45,7 @@ _post_failure_dispatch() {
     INPUT=$(cat)
 
     for _HOOK_FN in \
+        hook_exit_144_forensic_logger \
         hook_track_tool_errors
     do
         local _fn_exit=0
