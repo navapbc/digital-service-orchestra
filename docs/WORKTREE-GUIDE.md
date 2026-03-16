@@ -560,6 +560,54 @@ Notes have unique IDs, `origin` tracking (`agent` or `jira`), ISO timestamps, an
 
 ---
 
+## Merging a Worktree Branch to Main
+
+At the end of a worktree session, use `merge-to-main.sh` (not raw `git merge`) to merge the worktree branch into `main` and push. The `/end` skill calls this automatically.
+
+```bash
+# Standard usage (runs all phases sequentially)
+$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/merge-to-main.sh
+```
+
+### Phased Workflow
+
+`merge-to-main.sh` executes as a sequence of named phases:
+
+| Phase | Description |
+|-------|-------------|
+| `checkpoint_verify` | Verify worktree is clean and all commits are present |
+| `sync` | Sync ticket state from main before merging |
+| `merge` | Merge worktree branch into main |
+| `validate` | Run post-merge validation checks |
+| `push` | Push main to origin (idempotent if already up to date) |
+| `archive` | Archive worktree branch |
+| `ci_trigger` | Trigger CI workflow if configured |
+
+### Resuming an Interrupted Merge
+
+If `merge-to-main.sh` is interrupted mid-run (e.g., by a SIGURG timeout), the script saves the in-progress phase to a state file via a SIGURG trap. Re-run with `--resume` to continue from the last completed phase:
+
+```bash
+# Resume after interruption — reads state file and skips completed phases
+$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/merge-to-main.sh --resume
+```
+
+**State file**: `/tmp/merge-to-main-state-<branch>.json` — records completed phases. Expires after 4 hours (stale state files are removed on next run).
+
+**Lock file**: `/tmp/merge-to-main-lock-<hash>` — prevents concurrent merge runs against the same repo. If a stale lock exists (process died), it is automatically broken on the next run.
+
+### Running a Single Phase
+
+To re-run one specific phase (e.g., after a partial failure):
+
+```bash
+$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/merge-to-main.sh --phase=push
+```
+
+Valid phase names: `checkpoint_verify`, `sync`, `merge`, `validate`, `push`, `archive`, `ci_trigger`.
+
+---
+
 ## Reference
 
 - **CLAUDE.md**: Quick Reference section for development commands

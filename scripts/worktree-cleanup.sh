@@ -707,6 +707,8 @@ for idx in "${selected_indices[@]}"; do
             removed_count=$((removed_count + 1))
             total_freed_kb=$((total_freed_kb + size_kb))
             removed_branches+=("$branch")
+            # Clean up per-worktree merge state file to prevent stale state accumulation
+            rm -f "/tmp/merge-to-main-state-${name}.json"
         fi
     fi
 done

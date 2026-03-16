@@ -30,6 +30,21 @@ source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 
 echo "=== test-check-script-writes.sh ==="
 
+# Check if shfmt is available — tests that require AST parsing need it
+_shfmt_available=false
+if command -v shfmt >/dev/null 2>&1; then
+    _shfmt_available=true
+fi
+
+# Helper: skip test if shfmt is not available
+_require_shfmt() {
+    if [ "$_shfmt_available" = false ]; then
+        echo "test_$1 ... SKIP (shfmt not installed)"
+        return 1
+    fi
+    return 0
+}
+
 # ── test_no_shfmt_skips_gracefully ────────────────────────────────────────────
 # When --shfmt-path points to a nonexistent binary, exit 0 and output "shfmt not found"
 test_no_shfmt_skips_gracefully() {
@@ -45,6 +60,7 @@ test_no_shfmt_skips_gracefully() {
 # ── test_clean_script_passes ──────────────────────────────────────────────────
 # A script with no writes should exit 0
 test_clean_script_passes() {
+    _require_shfmt "clean_script_passes" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -66,6 +82,7 @@ EOF
 # ── test_redirect_to_repo_root_detected ──────────────────────────────────────
 # echo x > ./state/foo.txt → exit 1, FAIL [file:line] write to repo-root path:
 test_redirect_to_repo_root_detected() {
+    _require_shfmt "redirect_to_repo_root_detected" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -89,6 +106,7 @@ EOF
 # ── test_append_redirect_detected ─────────────────────────────────────────────
 # echo x >> ./log.txt → exit 1
 test_append_redirect_detected() {
+    _require_shfmt "append_redirect_detected" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -107,6 +125,7 @@ EOF
 # ── test_tee_to_repo_root_detected ───────────────────────────────────────────
 # echo x | tee ./out.txt → exit 1
 test_tee_to_repo_root_detected() {
+    _require_shfmt "tee_to_repo_root_detected" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -125,6 +144,7 @@ EOF
 # ── test_cp_to_repo_root_detected ────────────────────────────────────────────
 # cp /tmp/a ./b → exit 1
 test_cp_to_repo_root_detected() {
+    _require_shfmt "cp_to_repo_root_detected" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -143,6 +163,7 @@ EOF
 # ── test_mv_to_repo_root_detected ────────────────────────────────────────────
 # mv /tmp/a ./b → exit 1
 test_mv_to_repo_root_detected() {
+    _require_shfmt "mv_to_repo_root_detected" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -161,6 +182,7 @@ EOF
 # ── test_tmp_path_not_flagged ─────────────────────────────────────────────────
 # echo x > /tmp/foo → exit 0 (not a repo-root path)
 test_tmp_path_not_flagged() {
+    _require_shfmt "tmp_path_not_flagged" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -179,6 +201,7 @@ EOF
 # ── test_dev_null_not_flagged ─────────────────────────────────────────────────
 # echo x > /dev/null → exit 0
 test_dev_null_not_flagged() {
+    _require_shfmt "dev_null_not_flagged" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -197,6 +220,7 @@ EOF
 # ── test_write_ok_suppresses ──────────────────────────────────────────────────
 # Same-line # write-ok: reason → exit 0
 test_write_ok_suppresses() {
+    _require_shfmt "write_ok_suppresses" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -215,6 +239,7 @@ EOF
 # ── test_write_ok_adjacent_not_suppressed ─────────────────────────────────────
 # write-ok on line above does NOT suppress the write on the next line → exit 1
 test_write_ok_adjacent_not_suppressed() {
+    _require_shfmt "write_ok_adjacent_not_suppressed" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -234,6 +259,7 @@ EOF
 # ── test_variable_resolution_repo_root ───────────────────────────────────────
 # OUTDIR="./results"; echo x > "$OUTDIR/f" → exit 1 (Tier 1 literal resolution)
 test_variable_resolution_repo_root() {
+    _require_shfmt "variable_resolution_repo_root" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)
@@ -253,6 +279,7 @@ EOF
 # ── test_cross_file_variable_tracing ──────────────────────────────────────────
 # File A: STATE_DIR="./state", File B: echo x > "$STATE_DIR/f" → exit 1 (Tier 2)
 test_cross_file_variable_tracing() {
+    _require_shfmt "cross_file_variable_tracing" || return 0
     _snapshot_fail
     local _dir
     _dir=$(mktemp -d)

@@ -183,12 +183,12 @@ fi
 rm -rf "$_T5_CFG" "/tmp/${_T5_PREFIX}-${_T5_WORKTREE}" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Test 6: wrapper logs timeout and emits WARNING on slow command
+# Test 6: wrapper handles slow command (timeout or warning depending on timeout cmd)
 #
-# Behavioral test: when a timeout fires, the wrapper emits a WARNING message
-# and logs to the timeout log. No ticket creation occurs.
+# When timeout/gtimeout is available, the command is hard-killed (exit 124, TIMEOUT msg).
+# When neither is available (fallback path), it completes and emits WARNING.
 # ---------------------------------------------------------------------------
-echo "Test 6: wrapper emits WARNING and logs on slow command"
+echo "Test 6: wrapper handles slow command"
 _T6_CFG=$(mktemp -d)
 _CLEANUP_DIRS+=("$_T6_CFG")
 cat > "$_T6_CFG/workflow-config.conf" << EOF
@@ -198,10 +198,14 @@ _T6_WORKTREE=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo 'de
 
 rc=0
 _t6_output=$(CLAUDE_PLUGIN_ROOT="$_T6_CFG" "$WRAPPER" cmd-check-hook 1 "sleep 2" 2>&1) || rc=$?
-# Wrapper should still succeed (command exit 0)
-assert_eq "test_reads_create_cmd_exit" "0" "$rc"
-# Warning should be emitted about the slow command
-assert_contains "test_slow_warning_emitted" "WARNING" "$_t6_output"
+# With timeout cmd: exit 124 + TIMEOUT message; without: exit 0 + WARNING message
+if command -v gtimeout &>/dev/null || command -v timeout &>/dev/null; then
+    assert_eq "test_reads_create_cmd_exit" "124" "$rc"
+    assert_contains "test_slow_warning_emitted" "TIMEOUT" "$_t6_output"
+else
+    assert_eq "test_reads_create_cmd_exit" "0" "$rc"
+    assert_contains "test_slow_warning_emitted" "WARNING" "$_t6_output"
+fi
 
 rm -rf "$_T6_CFG" "/tmp/test-t6-nocmd-${_TEST_PID}-${_T6_WORKTREE}" 2>/dev/null || true
 
@@ -337,8 +341,12 @@ rc=0
 output=""
 output=$(CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" noticket-hook 1 "sleep 2" 2>&1) || rc=$?
 
-# Should NOT error out -- exit code from the command itself should be 0
-assert_eq "test_no_ticket_without_config_exit" "0" "$rc"
+# With timeout cmd: exit 124 (command killed); without: exit 0 (command completes)
+if command -v gtimeout &>/dev/null || command -v timeout &>/dev/null; then
+    assert_eq "test_no_ticket_without_config_exit" "124" "$rc"
+else
+    assert_eq "test_no_ticket_without_config_exit" "0" "$rc"
+fi
 
 WORKTREE_NAME_TEST=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
 rm -rf "$TMPDIR_TEST" "/tmp/test-wrapper-noticket-${_TEST_PID}-${WORKTREE_NAME_TEST}" 2>/dev/null || true
