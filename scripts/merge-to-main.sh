@@ -399,6 +399,172 @@ _check_push_needed() {
     return 0
 }
 
+# --- Squash-rebase recovery helper ---
+# Performs a squash-rebase sequence to linearize branch history before merge.
+# Inert: not called by any phase — wired in by a subsequent task.
+#
+# Prerequisites: BRANCH must be set (validated on entry).
+# Returns 0 on success, 1 on unrecoverable failure.
+#
+# Steps:
+#   1. Count commits ahead of origin/main. If <=1, skip to step 4 (rebase only).
+#   2. Capture pre-squash HEAD (_PRE_SQUASH_HEAD) for rollback on failure.
+#      Squash via: git reset --soft <merge-base> + git commit.
+#   3. If branch exists on origin: git push --force-with-lease.
+#      On force-push failure: restore HEAD via git reset --soft, return 1.
+#   4. GIT_EDITOR=: git rebase origin/main.
+#      On conflict:
+#        - If ONLY .tickets/.index.json conflicts: auto-resolve via merge-ticket-index.py
+#          (extracts clean :1:/:2:/:3: staging versions before running the driver).
+#        - Otherwise: print ACTION REQUIRED with conflicted file list, rebase --abort, return 1.
+#   5. Print RECOVERY: Squash-rebase succeeded. Return 0.
+_squash_rebase_recovery() {
+    # NOTE: This function is inert — not called by any phase yet.
+    # It will be wired into _phase_merge() by a subsequent task.
+
+    # Validate BRANCH is set
+    if [[ -z "${BRANCH:-}" ]]; then
+        echo "ERROR: _squash_rebase_recovery: BRANCH is not set." >&2
+        return 1
+    fi
+
+    local _COMMIT_COUNT
+    _COMMIT_COUNT=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+
+    if [[ "$_COMMIT_COUNT" -gt 1 ]]; then
+        # Step 2: Capture pre-squash HEAD for rollback
+        local _PRE_SQUASH_HEAD
+        _PRE_SQUASH_HEAD=$(git rev-parse HEAD)
+
+        # Squash all branch commits into one via soft-reset to merge-base
+        local _MERGE_BASE
+        _MERGE_BASE=$(git merge-base HEAD origin/main)
+        if ! git reset --soft "$_MERGE_BASE" 2>/dev/null; then
+            echo "ERROR: git reset --soft failed during squash." >&2
+            return 1
+        fi
+        if ! GIT_EDITOR=: git commit -m "Squashed branch commits for rebase" 2>/dev/null; then
+            echo "ERROR: git commit failed during squash — restoring HEAD." >&2
+            git reset --soft "$_PRE_SQUASH_HEAD" 2>/dev/null || true
+            return 1
+        fi
+
+        # Step 3: Force-push the squashed commit if branch is on origin
+        local _BRANCH_ON_ORIGIN=0
+        if git ls-remote --exit-code origin "refs/heads/${BRANCH}" >/dev/null 2>&1; then
+            _BRANCH_ON_ORIGIN=1
+        fi
+
+        if [[ "$_BRANCH_ON_ORIGIN" -eq 1 ]]; then
+            echo "INFO: Pushing squashed commit to origin/${BRANCH} with --force-with-lease."
+            if ! git push --force-with-lease origin "${BRANCH}" 2>/dev/null; then
+                echo "ERROR: force-with-lease push failed — restoring pre-squash HEAD." >&2
+                git reset --soft "$_PRE_SQUASH_HEAD" 2>/dev/null || true
+                return 1
+            fi
+        fi
+    fi
+
+    # Step 4: Rebase onto origin/main
+    # Fetch latest origin/main first so rebase sees up-to-date remote refs
+    git fetch origin main --quiet 2>/dev/null || true
+
+    if GIT_EDITOR=: git rebase origin/main 2>/dev/null; then
+        echo "RECOVERY: Squash-rebase succeeded."
+        return 0
+    fi
+
+    # Rebase failed — check which files conflict
+    local _CONFLICTED_FILES
+    _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+
+    # Filter out .tickets/.index.json to see if there are other conflicts
+    local _OTHER_CONFLICTS
+    _OTHER_CONFLICTS=$(echo "$_CONFLICTED_FILES" | grep -v '^\.tickets/\.index\.json$' || true)
+
+    if [[ -z "$_CONFLICTED_FILES" ]]; then
+        # No conflicts detected — unknown rebase failure
+        git rebase --abort 2>/dev/null || true
+        echo "ERROR: Rebase failed with no detectable conflicts." >&2
+        return 1
+    fi
+
+    if [[ -n "$_OTHER_CONFLICTS" ]]; then
+        # Unresolvable conflicts in non-index files
+        echo "ACTION REQUIRED: Rebase conflict in the following files:"
+        echo "$_OTHER_CONFLICTS"
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+
+    # Only .tickets/.index.json is conflicted — auto-resolve via merge-ticket-index.py
+    # Prefer CLAUDE_PLUGIN_ROOT (set at top-level in merge-to-main.sh and exported) so
+    # the driver path is stable even when this function is eval'd in test contexts.
+    local _MERGE_DRIVER
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py" ]]; then
+        _MERGE_DRIVER="${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py"
+    else
+        local _SCRIPT_DIR_LOCAL
+        _SCRIPT_DIR_LOCAL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        _MERGE_DRIVER="${_SCRIPT_DIR_LOCAL}/merge-ticket-index.py"
+    fi
+
+    if [[ ! -f "$_MERGE_DRIVER" ]]; then
+        echo "ERROR: merge-ticket-index.py not found at $_MERGE_DRIVER — cannot auto-resolve." >&2
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+
+    # Extract clean versions from the git staging area (no conflict markers)
+    local _TMP_RESOLVE
+    _TMP_RESOLVE=$(mktemp -d)
+    local _BASE_FILE="$_TMP_RESOLVE/base.json"
+    local _OURS_FILE="$_TMP_RESOLVE/ours.json"
+    local _THEIRS_FILE="$_TMP_RESOLVE/theirs.json"
+
+    # :1: = common ancestor (base), :2: = ours (current branch), :3: = theirs (incoming)
+    if ! git show :1:.tickets/.index.json > "$_BASE_FILE" 2>/dev/null; then
+        echo "ERROR: Could not extract base version of .tickets/.index.json." >&2
+        rm -rf "$_TMP_RESOLVE"
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+    if ! git show :2:.tickets/.index.json > "$_OURS_FILE" 2>/dev/null; then
+        echo "ERROR: Could not extract ours version of .tickets/.index.json." >&2
+        rm -rf "$_TMP_RESOLVE"
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+    if ! git show :3:.tickets/.index.json > "$_THEIRS_FILE" 2>/dev/null; then
+        echo "ERROR: Could not extract theirs version of .tickets/.index.json." >&2
+        rm -rf "$_TMP_RESOLVE"
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+
+    # Run the merge driver (writes result back to _OURS_FILE)
+    if ! python3 "$_MERGE_DRIVER" "$_BASE_FILE" "$_OURS_FILE" "$_THEIRS_FILE" 2>/dev/null; then
+        echo "ERROR: merge-ticket-index.py failed to auto-resolve .tickets/.index.json." >&2
+        rm -rf "$_TMP_RESOLVE"
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+
+    # Copy resolved result back into the working tree
+    cp "$_OURS_FILE" ".tickets/.index.json"
+    rm -rf "$_TMP_RESOLVE"
+
+    git add ".tickets/.index.json"
+    if ! GIT_EDITOR=: git rebase --continue 2>/dev/null; then
+        echo "ERROR: rebase --continue failed after auto-resolving .tickets/.index.json." >&2
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+
+    echo "RECOVERY: Squash-rebase succeeded."
+    return 0
+}
+
 # --- Load hooks/lib/deps.sh for get_artifacts_dir ---
 # Needed for checkpoint sentinel verification (see below).
 _HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
