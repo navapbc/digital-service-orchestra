@@ -311,6 +311,139 @@ test_hook_reads_from_shared_allowlist() {
     fi
 }
 
+# ============================================================
+# test_formatting_only_drift_self_heals
+#
+# When review passes and then ruff auto-formatting reformats a staged .py
+# file (whitespace/style only), the pre-commit hook should detect that the
+# drift is formatting-only, re-compute the hash, update review-status, and
+# allow the commit (exit 0) without requiring re-review.
+#
+# Simulates: review → ruff reformats file → commit attempt
+# Expected: self-heal → exit 0
+# ============================================================
+test_formatting_only_drift_self_heals() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Find ruff binary
+    local ruff_bin
+    ruff_bin=$(command -v ruff 2>/dev/null || echo "$REPO_ROOT/app/.venv/bin/ruff")
+    if [[ ! -x "$ruff_bin" ]]; then
+        echo "SKIP: test_formatting_only_drift_self_heals — ruff not available"
+        (( PASS++ ))
+        return
+    fi
+
+    # Commit an initial already-formatted Python file to HEAD so it has a base version
+    cat > "$_repo/mymodule.py" << 'PYEOF'
+def hello(name):
+    return "hello " + name
+PYEOF
+    git -C "$_repo" add "mymodule.py"
+    git -C "$_repo" commit -q -m "add mymodule"
+
+    # Now stage a modification that has ONLY poor formatting (as a developer might write).
+    # The logic is the same as HEAD — only whitespace/style changed, no new code.
+    # This is what the developer staged and got reviewed — unformatted.
+    cat > "$_repo/mymodule.py" << 'PYEOF'
+def hello( name ):
+    return "hello " + name
+PYEOF
+    git -C "$_repo" add "mymodule.py"
+
+    # Compute the diff hash in the current (unformatted) state — this simulates
+    # the hash captured at review time
+    local diff_hash_before
+    diff_hash_before=$(compute_hash_in_repo "$_repo" "$_artifacts")
+    write_valid_review_status "$_artifacts" "$diff_hash_before"
+
+    # Simulate ruff reformatting the staged file (like the auto-format pre-commit hook)
+    # Run ruff format on the file and re-stage it
+    "$ruff_bin" format "$_repo/mymodule.py" 2>/dev/null || true
+    git -C "$_repo" add "mymodule.py"
+
+    # At this point: review-status has the old hash, but staged content was ruff-formatted
+    # The hash will now differ. The hook should self-heal (formatting-only drift).
+    local exit_code
+    exit_code=$(
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+        export PATH="$(dirname "$ruff_bin"):$PATH"
+        bash "$HOOK" 2>/dev/null; echo $?
+    )
+
+    assert_eq "test_formatting_only_drift_self_heals: hook exits 0" "0" "$exit_code"
+}
+
+# ============================================================
+# test_code_change_after_review_blocked
+#
+# When review passes, then a substantive code change (not just formatting)
+# is made to a staged .py file, the pre-commit hook should still block the
+# commit (exit 1), even if the change happens to include ruff-formatted code.
+#
+# Simulates: review → real code change made → commit attempt
+# Expected: blocked → exit 1
+# ============================================================
+test_code_change_after_review_blocked() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Find ruff binary
+    local ruff_bin
+    ruff_bin=$(command -v ruff 2>/dev/null || echo "$REPO_ROOT/app/.venv/bin/ruff")
+    if [[ ! -x "$ruff_bin" ]]; then
+        echo "SKIP: test_code_change_after_review_blocked — ruff not available"
+        (( PASS++ ))
+        return
+    fi
+
+    # Commit an initial Python file to HEAD so it has a base version
+    cat > "$_repo/feature.py" << 'PYEOF'
+def compute(x):
+    return x * 2
+PYEOF
+    git -C "$_repo" add "feature.py"
+    git -C "$_repo" commit -q -m "add feature"
+
+    # Stage a modification with the same content (already formatted) — simulate review
+    # (developer stages the file in its original reviewed state)
+    git -C "$_repo" add "feature.py"
+
+    # Compute the diff hash in the current state — simulate review
+    local diff_hash_before
+    diff_hash_before=$(compute_hash_in_repo "$_repo" "$_artifacts")
+    write_valid_review_status "$_artifacts" "$diff_hash_before"
+
+    # Now simulate a real code change after review (new function added — not just formatting)
+    cat > "$_repo/feature.py" << 'PYEOF'
+def compute(x):
+    return x * 2
+
+
+def new_function(y):
+    return y + 100
+PYEOF
+    git -C "$_repo" add "feature.py"
+
+    # At this point: review-status has the old hash, real code was added after review.
+    # The hook should NOT self-heal — must block with exit 1.
+    local exit_code
+    exit_code=$(
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+        export PATH="$(dirname "$ruff_bin"):$PATH"
+        bash "$HOOK" 2>/dev/null; echo $?
+    )
+
+    assert_eq "test_code_change_after_review_blocked: hook exits 1" "1" "$exit_code"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlisted_only_commit_passes
 test_tickets_only_commit_passes
@@ -320,5 +453,7 @@ test_merge_head_allowlisted_commit_passes
 test_blocked_error_message_names_files
 test_blocked_error_message_directs_to_commit_or_review
 test_hook_reads_from_shared_allowlist
+test_formatting_only_drift_self_heals
+test_code_change_after_review_blocked
 
 print_summary

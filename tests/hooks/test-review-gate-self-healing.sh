@@ -25,6 +25,18 @@ source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
 
+# Skip guard for hook_review_gate integration tests.
+# hook_review_gate was removed in Story 1idf (migration to two-layer review gate).
+# The PreToolUse review gate has been replaced by:
+#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit)
+#   - Layer 2: lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
+# Integration tests for the new two-layer gate live in test-two-layer-review-gate.sh.
+# The is_formatting_only_change() unit tests below still run (function was kept).
+_REVIEW_GATE_INTEGRATION_SKIP=0
+if ! declare -f hook_review_gate >/dev/null 2>&1; then
+    _REVIEW_GATE_INTEGRATION_SKIP=1
+fi
+
 # ---------------------------------------------------------------------------
 # Unit tests for is_formatting_only_change()
 # ---------------------------------------------------------------------------
@@ -176,16 +188,24 @@ _run_self_healing_test() {
 # test_review_gate_self_heals_formatting_only_mismatch
 # When hash mismatch is caused only by formatting, the gate should auto-heal and allow (exit 0).
 echo "--- test_review_gate_self_heals_formatting_only_mismatch ---"
-EXIT_CODE=0
-_run_self_healing_test "formatting" || EXIT_CODE=$?
-assert_eq "test_review_gate_self_heals_formatting_only_mismatch" "0" "$EXIT_CODE"
+if [[ "$_REVIEW_GATE_INTEGRATION_SKIP" -eq 1 ]]; then
+    echo "SKIP: hook_review_gate removed (Story 1idf migration). See test-two-layer-review-gate.sh."
+else
+    EXIT_CODE=0
+    _run_self_healing_test "formatting" || EXIT_CODE=$?
+    assert_eq "test_review_gate_self_heals_formatting_only_mismatch" "0" "$EXIT_CODE"
+fi
 
 # test_review_gate_does_not_self_heal_substantive_mismatch
 # When hash mismatch is caused by substantive code changes, the gate should block (exit 2).
 echo "--- test_review_gate_does_not_self_heal_substantive_mismatch ---"
-EXIT_CODE=0
-_run_self_healing_test "substantive" || EXIT_CODE=$?
-assert_eq "test_review_gate_does_not_self_heal_substantive_mismatch" "2" "$EXIT_CODE"
+if [[ "$_REVIEW_GATE_INTEGRATION_SKIP" -eq 1 ]]; then
+    echo "SKIP: hook_review_gate removed (Story 1idf migration). See test-two-layer-review-gate.sh."
+else
+    EXIT_CODE=0
+    _run_self_healing_test "substantive" || EXIT_CODE=$?
+    assert_eq "test_review_gate_does_not_self_heal_substantive_mismatch" "2" "$EXIT_CODE"
+fi
 
 # test_is_formatting_only_change_function_exists
 # Verify that is_formatting_only_change is defined after sourcing pre-bash-functions.sh

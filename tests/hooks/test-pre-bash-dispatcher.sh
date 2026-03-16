@@ -4,7 +4,7 @@
 #
 # Tests:
 #   test_pre_bash_dispatcher_exits_0_for_exempt_command
-#   test_pre_bash_dispatcher_exits_2_when_review_gate_blocks_commit_without_review
+#   test_pre_bash_dispatcher_exits_0_for_plain_commit_no_bypass
 #
 # Usage: bash lockpick-workflow/tests/hooks/test-pre-bash-dispatcher.sh
 # Exit code: 0 if all pass, 1 if any fail
@@ -32,11 +32,14 @@ printf '%s' "$_INPUT" | bash "$DISPATCHER" 2>/dev/null || _exit_code=$?
 assert_eq "test_pre_bash_dispatcher_exits_0_for_exempt_command" "0" "$_exit_code"
 
 # ============================================================
-# test_pre_bash_dispatcher_exits_2_when_review_gate_blocks_commit_without_review
-# When a `git commit` command is issued with a staged non-tracker file and no
-# review-status file exists, the dispatcher must exit 2 (blocked by review-gate).
+# test_pre_bash_dispatcher_exits_0_for_plain_commit_no_bypass
+# After Story 1idf, the old hook_review_gate was removed from the PreToolUse dispatcher.
+# Review enforcement moved to Layer 1 (git pre-commit hook). The PreToolUse dispatcher
+# now exits 0 for a plain `git commit` (no bypass vectors) — the pre-commit hook handles
+# the review check at actual commit time.
+# The bypass sentinel (Layer 2) only blocks explicit bypass vectors (--no-verify, etc.).
 # ============================================================
-echo "--- test_pre_bash_dispatcher_exits_2_when_review_gate_blocks_commit_without_review ---"
+echo "--- test_pre_bash_dispatcher_exits_0_for_plain_commit_no_bypass ---"
 
 # Set up an isolated temp git repo with a staged non-tracker file
 _test_git_repo=$(mktemp -d)
@@ -46,18 +49,17 @@ trap 'rm -rf "$_test_git_repo" "$_test_artifacts_dir"' EXIT
 git -C "$_test_git_repo" init -q -b main 2>/dev/null || git -C "$_test_git_repo" init -q
 git -C "$_test_git_repo" config user.email "test@test.com"
 git -C "$_test_git_repo" config user.name "Test"
-# Stage a non-tracker file so review-gate doesn't exempt it
+# Stage a non-tracker file
 echo "test content" > "$_test_git_repo/app.py"
 git -C "$_test_git_repo" add app.py
 
 _INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"test\""}}'
 _exit_code=0
 _output=""
-# Run dispatcher from inside the temp git repo; override ARTIFACTS_DIR to isolated dir (no review-status)
+# Run dispatcher from inside the temp git repo; plain commit should pass through
+# (review check happens in pre-commit hook, not PreToolUse)
 _output=$(cd "$_test_git_repo" && printf '%s' "$_INPUT" | ARTIFACTS_DIR="$_test_artifacts_dir" bash "$DISPATCHER" 2>&1) || _exit_code=$?
-assert_eq "test_pre_bash_dispatcher_exits_2_when_review_gate_blocks_commit_without_review: exit 2" "2" "$_exit_code"
-assert_contains "test_pre_bash_dispatcher_exits_2_when_review_gate_blocks_commit_without_review: BLOCKED in output" \
-    "BLOCKED" "$_output"
+assert_eq "test_pre_bash_dispatcher_exits_0_for_plain_commit_no_bypass: exit 0" "0" "$_exit_code"
 
 # ============================================================
 # test_pre_bash_dispatcher_non_exit2_codes_pass_through

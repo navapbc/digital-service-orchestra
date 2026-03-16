@@ -12,15 +12,18 @@
 # Functions defined:
 #   hook_test_failure_guard      — block commit when test status files contain FAILED
 #   hook_commit_failure_tracker  — warn at commit time about untracked failures
-#   hook_review_gate             — block git commit when review is missing/stale
 #   hook_worktree_bash_guard     — block cd into main repo from worktree
 #   hook_worktree_edit_guard     — block mkdir targeting main repo from worktree
 #   hook_bug_close_guard         — require --reason flag on bug ticket closes
 #   hook_review_integrity_guard  — block direct writes to review-status files
 #
+# NOTE: The old PreToolUse review gate was removed in Story 1idf. Review gate
+#   enforcement is now handled by the two-layer gate:
+#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit hook)
+#   - Layer 2: lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
+#
 # Usage:
 #   source lockpick-workflow/hooks/lib/pre-bash-functions.sh
-#   hook_review_gate "$INPUT_JSON"
 
 # Guard: only load once
 [[ "${_PRE_BASH_FUNCTIONS_LOADED:-}" == "1" ]] && return 0
@@ -289,235 +292,6 @@ is_formatting_only_change() {
         return 0
     fi
     return 1
-}
-
-# ---------------------------------------------------------------------------
-# hook_review_gate
-# ---------------------------------------------------------------------------
-# PreToolUse hook: HARD GATE that blocks git commit if code review hasn't
-# passed for the current working tree state.
-hook_review_gate() {
-    local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-    trap 'printf "{\"ts\":\"%s\",\"hook\":\"review-gate\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
-
-    # Only act on Bash tool calls
-    local TOOL_NAME
-    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
-    if [[ "$TOOL_NAME" != "Bash" ]]; then
-        return 0
-    fi
-
-    # Only act on git commit commands
-    local COMMAND FIRST_LINE FIRST_LINE_UNQUOTED
-    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
-    FIRST_LINE=$(echo "$COMMAND" | head -1)
-    FIRST_LINE_UNQUOTED=$(echo "$FIRST_LINE" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
-    if ! [[ "$FIRST_LINE_UNQUOTED" =~ (^|[[:space:]|&;])git[[:space:]]+commit([[:space:]]|$) ]] && \
-       ! [[ "$FIRST_LINE_UNQUOTED" =~ (^|[[:space:]|&;])git[[:space:]]+-[^[:space:]]+.*[[:space:]]commit([[:space:]]|$) ]]; then
-        return 0
-    fi
-
-    # Exempt: WIP commits
-    if [[ "$COMMAND" =~ [Ww][Ii][Pp] ]]; then
-        return 0
-    fi
-
-    # Exempt: git merge commands
-    if [[ "$COMMAND" =~ git[[:space:]].*merge[[:space:]] ]]; then
-        return 0
-    fi
-
-    # Exempt: pre-compact checkpoint
-    if [[ "$COMMAND" =~ pre-compact ]] || [[ "$COMMAND" =~ checkpoint ]]; then
-        return 0
-    fi
-
-    # Exempt: completing a merge after conflict resolution (MERGE_HEAD exists)
-    local GIT_DIR_PATH
-    GIT_DIR_PATH=$(git rev-parse --git-dir 2>/dev/null || echo "")
-    if [[ -n "$GIT_DIR_PATH" && -f "$GIT_DIR_PATH/MERGE_HEAD" ]]; then
-        return 0
-    fi
-
-    # If command contains "git add" before "git commit", check targets and execute
-    if [[ "$FIRST_LINE" =~ git[[:space:]]+add[[:space:]] ]]; then
-        local GIT_ADD_CMD
-        GIT_ADD_CMD=$(echo "$FIRST_LINE" | sed 's/&&[[:space:]]*git[[:space:]].*commit.*//')
-
-        # Exempt: if ALL git add targets are .tickets/ paths, skip review entirely.
-        # This handles the PreToolUse timing issue: the hook fires BEFORE git add
-        # executes, so git diff --cached shows nothing staged. By inspecting the
-        # command's intended targets, we can exempt ticket-only commits without
-        # relying on index state.
-        if [[ -n "$GIT_ADD_CMD" ]]; then
-            local _ADD_TARGETS
-            # Extract paths from the git add command (strip flags like -A, -u, -f, --)
-            _ADD_TARGETS=$(echo "$GIT_ADD_CMD" | sed 's/git[[:space:]]*add//' | sed 's/[[:space:]]*--[[:space:]]*//' | sed 's/[[:space:]]*-[AufpneNv]*//g' | xargs 2>/dev/null || echo "")
-            if [[ -n "$_ADD_TARGETS" ]]; then
-                # Use skip-review-check.sh to determine if all targets are non-reviewable.
-                # This covers .tickets/, .claude/docs/, docs/, images, snapshots, etc.
-                local _SKIP_REVIEW_SCRIPT="$CLAUDE_PLUGIN_ROOT/scripts/skip-review-check.sh"
-                if [[ -x "$_SKIP_REVIEW_SCRIPT" ]] && echo "$_ADD_TARGETS" | tr ' ' '\n' | bash "$_SKIP_REVIEW_SCRIPT" 2>/dev/null; then
-                    return 0
-                fi
-            fi
-            eval "$GIT_ADD_CMD" 2>/dev/null || true
-        fi
-    fi
-
-    # Exempt: commits that only touch issue tracker metadata
-    local STAGED_ALL STAGED_NON_TRACKER
-    STAGED_ALL=$(git diff --cached --name-only 2>/dev/null || true)
-    STAGED_NON_TRACKER=$(echo "$STAGED_ALL" | grep -v '^\.tickets/' | grep -v '^\.sync-state\.json$' || true)
-    if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_TRACKER" ]]; then
-        return 0
-    fi
-
-    # Exempt: commits that only touch non-reviewable binary/snapshot files
-    local STAGED_NON_SNAPSHOTS
-    local _CFG_APP_D="${CFG_APP_DIR:-app}"
-    local _CFG_TEST_D="${CFG_TEST_DIR:-tests}"
-    STAGED_NON_SNAPSHOTS=$(echo "$STAGED_NON_TRACKER" \
-        | grep -v -E "^${_CFG_APP_D}/${_CFG_TEST_D}/e2e/snapshots/" \
-        | grep -v -E "^${_CFG_APP_D}/${_CFG_TEST_D}/unit/templates/snapshots/.*\.html$" \
-        | grep -v -E '\.(png|jpg|jpeg|gif|svg|ico|webp)$' \
-        | grep -v -E '\.(pdf|docx)$' \
-        || true)
-    if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_SNAPSHOTS" ]]; then
-        return 0
-    fi
-
-    # Exempt: commits that only touch docs/logs
-    local STAGED_NON_DOCS STAGED_AGENT_FILES
-    STAGED_NON_DOCS=$(echo "$STAGED_NON_SNAPSHOTS" | grep -v -E '^(\.claude/session-logs/|\.claude/docs/|docs/)' || true)
-    STAGED_AGENT_FILES=$(echo "$STAGED_ALL" | grep -E '^(\.claude/hooks/|\.claude/hookify\.|lockpick-workflow/skills/|lockpick-workflow/hooks/|lockpick-workflow/docs/workflows/|CLAUDE\.md)' || true)
-    if [[ -n "$STAGED_ALL" && -z "$STAGED_NON_DOCS" && -z "$STAGED_AGENT_FILES" ]]; then
-        return 0
-    fi
-
-    # Determine worktree and state file location
-    local REPO_ROOT
-    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-    if [[ -z "$REPO_ROOT" ]]; then
-        return 0
-    fi
-
-    local ARTIFACTS_DIR_RESOLVED="${ARTIFACTS_DIR:-}"
-    if [[ -z "$ARTIFACTS_DIR_RESOLVED" ]]; then
-        ARTIFACTS_DIR_RESOLVED=$(get_artifacts_dir)
-    fi
-    local REVIEW_STATE_FILE="$ARTIFACTS_DIR_RESOLVED/review-status"
-
-    # If no review has ever been recorded, block
-    if [[ ! -f "$REVIEW_STATE_FILE" ]]; then
-        echo "BLOCKED: No code review recorded. Use /commit (runs review automatically) or /review first." >&2
-        trap - ERR; return 2
-    fi
-
-    # Read review status
-    local REVIEW_STATUS
-    REVIEW_STATUS=$(head -n 1 "$REVIEW_STATE_FILE" 2>/dev/null || echo "")
-
-    # If review failed, block
-    if [[ "$REVIEW_STATUS" == "failed" ]]; then
-        local SCORE
-        SCORE=$(grep '^score=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-        echo "BLOCKED: Code review failed (score: ${SCORE:-unknown}). Fix issues, then use /commit." >&2
-        trap - ERR; return 2
-    fi
-
-    # Review passed — check if still current
-    local RECORDED_HASH CURRENT_HASH
-    RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-
-    local _HOOK_DIR_FOR_DIFF _SNAPSHOT_ARGS
-    _HOOK_DIR_FOR_DIFF="${CLAUDE_PLUGIN_ROOT:-}/hooks"
-    _SNAPSHOT_ARGS=()
-    # Reuse untracked snapshot if available for deterministic hashing
-    local _ARTIFACTS_DIR
-    _ARTIFACTS_DIR=$(get_artifacts_dir 2>/dev/null || echo "")
-    if [[ -n "$_ARTIFACTS_DIR" && -f "$_ARTIFACTS_DIR/untracked-snapshot.txt" ]]; then
-        _SNAPSHOT_ARGS=(--snapshot "$_ARTIFACTS_DIR/untracked-snapshot.txt")
-    fi
-    CURRENT_HASH=$("$_HOOK_DIR_FOR_DIFF/compute-diff-hash.sh" "${_SNAPSHOT_ARGS[@]}")
-
-    if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
-        local REVIEW_TS
-        REVIEW_TS=$(grep '^timestamp=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-
-        # --- Self-healing: check if mismatch is formatting-only ---
-        # If a stored review-diff.txt exists (saved by record-review.sh or test setup),
-        # compare it to the current diff. If the only differences are whitespace/blank
-        # lines, auto-heal by updating the hash and allowing the commit.
-        local _DIAG_DIR
-        _DIAG_DIR="${_ARTIFACTS_DIR:-$(get_artifacts_dir 2>/dev/null || echo "")}"
-        local _REVIEW_DIFF_FILE="${_DIAG_DIR}/review-diff.txt"
-        if [[ -f "$_REVIEW_DIFF_FILE" ]]; then
-            local _OLD_DIFF _CURR_DIFF
-            _OLD_DIFF=$(cat "$_REVIEW_DIFF_FILE" 2>/dev/null || echo "")
-            _CURR_DIFF=$(git diff HEAD -- 2>/dev/null || true)
-            if is_formatting_only_change "$_OLD_DIFF" "$_CURR_DIFF"; then
-                # Only whitespace changed — update the stored hash and allow the commit
-                if [[ -n "$_DIAG_DIR" ]]; then
-                    mkdir -p "$_DIAG_DIR" 2>/dev/null || true
-                    # Update the diff_hash line in the review-status file
-                    local _UPDATED_STATUS
-                    _UPDATED_STATUS=$(sed "s/^diff_hash=.*/diff_hash=${CURRENT_HASH}/" "$REVIEW_STATE_FILE" 2>/dev/null || cat "$REVIEW_STATE_FILE")
-                    printf '%s\n' "$_UPDATED_STATUS" > "$REVIEW_STATE_FILE" 2>/dev/null || true
-                    # Also update the stored review-diff.txt to the current diff
-                    printf '%s' "$_CURR_DIFF" > "$_REVIEW_DIFF_FILE" 2>/dev/null || true
-                    # Write audit log entry
-                    local _HEAL_LOG="$_DIAG_DIR/mismatch-diagnostics-$(date -u +%Y%m%dT%H%M%SZ).log"
-                    {
-                        printf 'self_healed=yes\n'
-                        printf 'recorded_hash=%s\n' "$RECORDED_HASH"
-                        printf 'current_hash=%s\n' "$CURRENT_HASH"
-                        printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-                        printf 'review_timestamp=%s\n' "${REVIEW_TS:-unknown}"
-                        printf 'reason=formatting-only change (whitespace/blank lines)\n'
-                    } > "$_HEAL_LOG" 2>/dev/null || true
-                fi
-                echo "Self-healed formatting-only hash mismatch (hash ${RECORDED_HASH:0:8}→${CURRENT_HASH:0:8})" >&2
-                trap - ERR; return 0
-            fi
-        fi
-
-        echo "BLOCKED: Review is stale (${REVIEW_TS:-unknown}; hash ${RECORDED_HASH:0:8}→${CURRENT_HASH:0:8}). Use /commit to re-run." >&2
-
-        # Write diagnostic dump for hash mismatch debugging
-        local _DIAG_FILE _DIAG_BREADCRUMB
-        if [[ -n "$_DIAG_DIR" ]]; then
-            mkdir -p "$_DIAG_DIR" 2>/dev/null || true
-            _DIAG_FILE="$_DIAG_DIR/mismatch-diagnostics-$(date -u +%Y%m%dT%H%M%SZ).log"
-            if [[ -f "$_DIAG_DIR/commit-breadcrumbs.log" ]]; then
-                _DIAG_BREADCRUMB=$(cat "$_DIAG_DIR/commit-breadcrumbs.log" 2>/dev/null || echo "READ ERROR")
-            else
-                _DIAG_BREADCRUMB="NOT FOUND"
-            fi
-            {
-                printf 'recorded_hash=%s\n' "$RECORDED_HASH"
-                printf 'current_hash=%s\n' "$CURRENT_HASH"
-                printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-                printf 'review_timestamp=%s\n' "${REVIEW_TS:-unknown}"
-                printf 'git_status=%s\n' "$(git status --short 2>/dev/null | tr '\n' ',' || echo "ERROR")"
-                printf 'git_diff_names=%s\n' "$(git diff --name-only 2>/dev/null | tr '\n' ',' || echo "ERROR")"
-                printf 'untracked_files=%s\n' "$(git ls-files --others --exclude-standard 2>/dev/null | tr '\n' ',' || echo "ERROR")"
-                printf 'breadcrumb_log=%s\n' "$(echo "$_DIAG_BREADCRUMB" | tr '\n' ',')"
-            } > "$_DIAG_FILE" 2>/dev/null || true
-        fi
-
-        # Debug: log hash mismatch details when hook timing is enabled
-        if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
-            {
-                printf '%s\treview-gate-mismatch\trecorded=%s\tcurrent=%s\tcwd=%s\n' \
-                    "$(date +%H:%M:%S)" "$RECORDED_HASH" "$CURRENT_HASH" "$(pwd)"
-            } >> /tmp/hook-timing.log 2>/dev/null
-        fi
-        trap - ERR; return 2
-    fi
-
-    return 0
 }
 
 # ---------------------------------------------------------------------------

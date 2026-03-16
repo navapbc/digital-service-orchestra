@@ -9,11 +9,18 @@
 # Hook execution order (per task spec):
 #   1. hook_test_failure_guard (block commit when test status files contain FAILED)
 #   2. hook_commit_failure_tracker
-#   3. hook_review_gate (skip_review for non-reviewable/ticket-only commits)
+#   3. hook_review_bypass_sentinel (block bypass vectors: --no-verify, hooksPath, commit-tree)
 #   4. hook_worktree_bash_guard
 #   5. hook_worktree_edit_guard
 #   6. hook_bug_close_guard
 #   7. hook_review_integrity_guard
+#
+# NOTE: hook_review_gate was removed in Story 1idf. Review gate enforcement is
+#   now two-layer:
+#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit hook)
+#     enforces allowlist + review-status + diff hash check at git commit time.
+#   - Layer 2: hook_review_bypass_sentinel (this dispatcher, step 3)
+#     blocks commands that attempt to bypass the git pre-commit hook.
 #
 # Removed (optimization): logging hook (moved to all-tools dispatcher), use-guard hook
 #
@@ -43,6 +50,9 @@ source "$HOOKS_LIB_DIR/dispatcher.sh"
 
 # Source all hook functions
 source "$HOOKS_LIB_DIR/pre-bash-functions.sh"
+
+# Source bypass sentinel (Layer 2 of the two-layer review gate)
+source "$HOOKS_LIB_DIR/review-gate-bypass-sentinel.sh"
 
 # Run all hook functions sequentially.
 # Stops at first function that returns 2 (block).
@@ -84,7 +94,7 @@ _pre_bash_dispatch() {
     for _HOOK_FN in \
         hook_test_failure_guard \
         hook_commit_failure_tracker \
-        hook_review_gate \
+        hook_review_bypass_sentinel \
         hook_worktree_bash_guard \
         hook_worktree_edit_guard \
         hook_bug_close_guard \

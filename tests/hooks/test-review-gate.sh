@@ -30,6 +30,17 @@ REVIEW_STATE="$ARTIFACTS_DIR/review-status"
 # pre-bash-functions.sh sources deps.sh idempotently via its own guard.
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
 
+# Skip guard: hook_review_gate was removed in Story 1idf (two-layer migration).
+# The PreToolUse review gate has been replaced by:
+#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit)
+#   - Layer 2: lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
+# Tests for the new two-layer gate live in test-two-layer-review-gate.sh.
+if ! declare -f hook_review_gate >/dev/null 2>&1; then
+    echo "SKIP: hook_review_gate removed (Story 1idf migration to two-layer gate)"
+    echo "PASSED: 0  FAILED: 0"
+    exit 0
+fi
+
 # call_review_gate: invoke hook_review_gate() directly (no subprocess).
 # Returns the exit code of hook_review_gate on stdout.
 # This is ~10x faster than run_hook() for simple/passthrough cases.
