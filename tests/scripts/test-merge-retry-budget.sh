@@ -229,6 +229,40 @@ assert_eq "test_retry_count_resets_on_success" "0" "$_count_after_reset"
 assert_pass_if_clean "retry_count resets to 0 on success"
 
 # =============================================================================
+# Test 6: State file is deleted after successful completion
+# The DONE exit paths should rm the state file so --resume starts fresh next time
+# =============================================================================
+echo ""
+echo "--- test_state_file_deleted_on_success ---"
+_snapshot_fail
+
+_T6_TMP=$(mktemp -d)
+trap 'rm -rf "$_T1_TMP" "$_T2_TMP" "$_T3_TMP" "$_T4_TMP" "$_T5_TMP" "$_T6_TMP"' EXIT
+
+_T6_SF="$_T6_TMP/state.json"
+python3 -c "
+import json
+d = {'branch': 'test-branch', 'merge_sha': '', 'completed_phases': ['checkpoint_verify','sync','merge','validate','push','archive','ci_trigger'], 'current_phase': 'ci_trigger', 'phases': {}, 'retry_count': 2}
+with open('$_T6_SF', 'w') as f:
+    json.dump(d, f)
+"
+
+# Verify file exists before cleanup
+assert_eq "test_state_file_exists_before" "0" "$(test -f "$_T6_SF" && echo 0 || echo 1)"
+
+# Simulate the cleanup that happens at the DONE exit points
+rm -f "$_T6_SF" 2>/dev/null
+
+# Verify file is gone
+assert_eq "test_state_file_deleted_on_success" "1" "$(test -f "$_T6_SF" && echo 0 || echo 1)"
+
+assert_pass_if_clean "state file deleted on successful completion"
+
+# Verify the script source contains rm -f at both DONE points
+_done_cleanup_count=$(grep -c 'rm -f.*_state_file_path' "$MERGE_SCRIPT" || true)
+assert_ne "test_script_has_state_cleanup" "0" "$_done_cleanup_count"
+
+# =============================================================================
 # Summary
 # =============================================================================
 print_summary

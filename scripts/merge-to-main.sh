@@ -1143,6 +1143,7 @@ for name, info in phases.items():
 
         echo "DONE: $BRANCH resumed, merged, committed, and pushed."
         _state_reset_retry_count
+        rm -f "$(_state_file_path)" 2>/dev/null
         exit 0
     fi
 fi
@@ -1161,4 +1162,5 @@ _phase_push
 _phase_archive
 _phase_ci_trigger
 
+rm -f "$(_state_file_path)" 2>/dev/null
 echo "DONE: $BRANCH merged, committed, and pushed."
