@@ -490,6 +490,7 @@ _phase_sync() {
         git stash push --quiet -m "merge-to-main: pre-pull stash"
         STASHED=true
     fi
+    _abort_stale_rebase
     if ! git pull --rebase 2>&1; then
         _abort_stale_rebase
         if $STASHED; then git stash pop --quiet 2>/dev/null || true; fi
@@ -628,11 +629,15 @@ _phase_push() {
     _state_write_phase "push"
 
     echo "Pushing main..."
-    if ! retry_with_backoff 4 2 git push 2>&1; then
-        echo "ERROR: Push failed after retries. Try: git pull --rebase && git push"
-        exit 1
+    if ! _check_push_needed; then
+        echo "INFO: Push skipped - already on origin/main."
+    else
+        if ! retry_with_backoff 4 2 git push 2>&1; then
+            echo "ERROR: Push failed after retries. Try: git pull --rebase && git push"
+            exit 1
+        fi
+        echo "OK: Pushed main to remote."
     fi
-    echo "OK: Pushed main to remote."
 
     _state_mark_complete "push"
 }

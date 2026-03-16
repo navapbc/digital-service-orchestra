@@ -80,3 +80,44 @@ assert_ne "test_pull_conflict_emits_conflict_data" "0" "$HAS_PULL_CONFLICT_DATA"
 PULL_SECTION=$(sed -n '/git pull --rebase/,/OK: Pulled remote/p' "$MERGE_SCRIPT")
 HAS_CONFLICT_STATE=$(echo "$PULL_SECTION" | grep -cE '_set_phase_status.*conflict|_set_phase_status.*pull_rebase' || true)
 assert_ne "test_pull_conflict_records_conflict_state" "0" "$HAS_CONFLICT_STATE"
+
+# =============================================================================
+# Test 10: Push section calls _check_push_needed before retry_with_backoff git push
+# The push phase should guard the retry_with_backoff push with _check_push_needed.
+# =============================================================================
+# Extract line numbers: _check_push_needed must appear BEFORE retry_with_backoff.*git push
+PUSH_CHECK_LINE=$(grep -n '_check_push_needed' "$MERGE_SCRIPT" | grep -v '()' | grep -v '^#' | head -1 | cut -d: -f1)
+PUSH_RETRY_LINE=$(grep -n 'retry_with_backoff.*git push' "$MERGE_SCRIPT" | head -1 | cut -d: -f1)
+if [[ -n "$PUSH_CHECK_LINE" && -n "$PUSH_RETRY_LINE" && "$PUSH_CHECK_LINE" -lt "$PUSH_RETRY_LINE" ]]; then
+    PUSH_ORDER_OK="yes"
+else
+    PUSH_ORDER_OK="no"
+fi
+assert_eq "test_push_section_calls_check_push_needed" "yes" "$PUSH_ORDER_OK"
+
+# =============================================================================
+# Test 11: Pull section calls _abort_stale_rebase before git pull --rebase
+# The sync phase should clean up stale rebase state BEFORE attempting git pull --rebase.
+# =============================================================================
+# Extract line numbers within _phase_sync: _abort_stale_rebase must appear BEFORE git pull --rebase
+# We need a call to _abort_stale_rebase that is BEFORE the git pull --rebase line (not just in the error handler)
+PHASE_SYNC_BODY=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT")
+# Get line numbers within the phase body
+ABORT_BEFORE_PULL_LINE=$(echo "$PHASE_SYNC_BODY" | grep -n '_abort_stale_rebase' | head -1 | cut -d: -f1)
+PULL_REBASE_LINE=$(echo "$PHASE_SYNC_BODY" | grep -n 'git pull --rebase' | head -1 | cut -d: -f1)
+if [[ -n "$ABORT_BEFORE_PULL_LINE" && -n "$PULL_REBASE_LINE" && "$ABORT_BEFORE_PULL_LINE" -lt "$PULL_REBASE_LINE" ]]; then
+    ABORT_ORDER_OK="yes"
+else
+    ABORT_ORDER_OK="no"
+fi
+assert_eq "test_pull_section_calls_abort_stale_rebase_on_entry" "yes" "$ABORT_ORDER_OK"
+
+# =============================================================================
+# Test 12: bash -n syntax check passes after all changes
+# =============================================================================
+if bash -n "$MERGE_SCRIPT" 2>/dev/null; then
+    SYNTAX_OK="pass"
+else
+    SYNTAX_OK="fail"
+fi
+assert_eq "test_bash_syntax_still_passes" "pass" "$SYNTAX_OK"
