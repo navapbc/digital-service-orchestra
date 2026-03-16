@@ -4,10 +4,10 @@
 #
 # Reads ~/.claude/tool-error-counter.json, iterates categories in .index where
 # count >= 50, and creates a deduplicated bug ticket via `tk create` for each.
+# Includes error details in the ticket description and removes processed entries
+# from the counter file to prevent re-creation.
 #
 # Counter JSON structure: {"index": {"category_name": count, ...}, "errors": [...]}
-#
-# READ-ONLY: this script never writes to or resets the counter file.
 #
 # Usage:
 #   source "$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
@@ -19,9 +19,80 @@ THRESHOLD=50
 # Source of truth: lockpick-workflow/hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
 NOISE_CATEGORIES="file_not_found command_exit_nonzero"
 
+# _extract_category_details: extract error details for a category as markdown
+# Args: $1=counter_file $2=category
+# Outputs markdown-formatted error details to stdout
+_extract_category_details() {
+    local counter_file="$1"
+    local category="$2"
+    python3 - "$counter_file" "$category" <<'PYEOF' 2>/dev/null
+import json, sys
+
+counter_path = sys.argv[1]
+category = sys.argv[2]
+
+try:
+    with open(counter_path, 'r') as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(0)
+
+errors = [e for e in data.get('errors', []) if e.get('category') == category]
+if not errors:
+    print("No detailed error entries recorded.")
+    sys.exit(0)
+
+# Show up to 20 most recent entries; note if truncated
+total = len(errors)
+shown = errors[-20:]
+if total > 20:
+    print(f"Showing most recent 20 of {total} occurrences.\n")
+
+print("| # | Timestamp | Tool | Input Summary | Error Message |")
+print("|---|-----------|------|---------------|---------------|")
+for i, e in enumerate(shown, 1):
+    ts = e.get('timestamp', 'N/A')
+    tool = e.get('tool_name', 'N/A')
+    summary = e.get('input_summary', 'N/A').replace('|', '\\|')[:80]
+    msg = e.get('error_message', 'N/A').replace('|', '\\|')[:120]
+    print(f"| {i} | {ts} | {tool} | {summary} | {msg} |")
+PYEOF
+}
+
+# _remove_category_from_counter: remove a category's entries and index from the counter file
+# Args: $1=counter_file $2=category
+_remove_category_from_counter() {
+    local counter_file="$1"
+    local category="$2"
+    local updated
+    updated=$(python3 - "$counter_file" "$category" <<'PYEOF' 2>/dev/null
+import json, sys
+
+counter_path = sys.argv[1]
+category = sys.argv[2]
+
+try:
+    with open(counter_path, 'r') as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(1)
+
+# Remove entries matching this category
+data['errors'] = [e for e in data.get('errors', []) if e.get('category') != category]
+
+# Remove category from index
+data.get('index', {}).pop(category, None)
+
+print(json.dumps(data))
+PYEOF
+    ) || return 0
+    echo "$updated" > "$counter_file"
+}
+
 # sweep_tool_errors
 # Iterate all categories in ~/.claude/tool-error-counter.json with count >= THRESHOLD.
-# For each, check if an open bug ticket already exists (dedup). If not, create one.
+# For each, check if an open bug ticket already exists (dedup). If not, create one
+# with error details in the description, then remove processed entries from the counter.
 # Exits 0 in all cases (missing/malformed counter file is not an error).
 sweep_tool_errors() {
     local counter_file="$HOME/.claude/tool-error-counter.json"
@@ -65,7 +136,11 @@ PYEOF
         for _nc in $NOISE_CATEGORIES; do
             if [[ "$category" == "$_nc" ]]; then _is_noise=true; break; fi
         done
-        if [[ "$_is_noise" == "true" ]]; then continue; fi
+        if [[ "$_is_noise" == "true" ]]; then
+            # Still drain noise entries to prevent unbounded growth
+            _remove_category_from_counter "$counter_file" "$category"
+            continue
+        fi
 
         local ticket_title="Recurring tool error: $category ($count occurrences)"
 
@@ -74,10 +149,23 @@ PYEOF
         local open_bugs
         open_bugs=$(tk list --type bug --status open 2>/dev/null || true)
         if echo "$open_bugs" | grep -qF "Recurring tool error: $category"; then
+            # Still drain entries to prevent re-creation on next sweep
+            _remove_category_from_counter "$counter_file" "$category"
             continue
         fi
 
-        tk create "$ticket_title" -t bug -p 2
+        # Extract error details for the ticket description
+        local details
+        details=$(_extract_category_details "$counter_file" "$category")
+
+        local description="## Error Details
+
+${details}"
+
+        tk create "$ticket_title" -t bug -p 2 -d "$description"
+
+        # Remove processed entries from counter to prevent re-creation
+        _remove_category_from_counter "$counter_file" "$category"
     done <<< "$categories_output"
 
     return 0

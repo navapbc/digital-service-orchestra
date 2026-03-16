@@ -45,7 +45,7 @@ _teardown_test() {
     fi
 }
 
-# _write_counter: writes counter JSON with given category->count mappings
+# _write_counter: writes counter JSON with given category->count mappings and optional errors
 # Usage: _write_counter category1 count1 [category2 count2 ...]
 _write_counter() {
     local index_entries=""
@@ -62,19 +62,14 @@ _write_counter() {
 EOF
 }
 
+# _write_counter_with_errors: writes counter JSON with index AND error detail entries
+# Usage: _write_counter_with_errors '<full json>'
+_write_counter_with_errors() {
+    echo "$1" > "$COUNTER_FILE"
+}
+
 # _mock_tk_list_empty: tk list returns empty (no matching open bugs)
 _mock_tk_list_empty() {
-    cat > "$TEST_BIN/tk" <<'MOCK'
-#!/usr/bin/env bash
-if [[ "$1" == "list" ]]; then
-    echo ""
-    exit 0
-fi
-echo "" >> "$TK_LOG" 2>/dev/null
-echo "$@" >> "$TK_LOG" 2>/dev/null
-exit 0
-MOCK
-    # Inline TK_LOG reference must use env var — rewrite with actual path
     cat > "$TEST_BIN/tk" <<MOCK
 #!/usr/bin/env bash
 if [[ "\$1" == "list" ]]; then
@@ -132,6 +127,11 @@ _count_tk_create_calls() {
     grep -c '^create ' "$TK_LOG" 2>/dev/null || echo "0"
 }
 
+# _get_tk_create_args: get the full create command args from the log
+_get_tk_create_args() {
+    grep '^create ' "$TK_LOG" 2>/dev/null | head -1 || true
+}
+
 # _run_sweep: source error-sweep.sh and call sweep_tool_errors in subshell
 # Captures exit code in SWEEP_EXIT
 _run_sweep() {
@@ -140,6 +140,29 @@ _run_sweep() {
         sweep_tool_errors
     )
     SWEEP_EXIT=$?
+}
+
+# _get_counter_index_count: read a category count from the counter file
+# Usage: _get_counter_index_count category
+_get_counter_index_count() {
+    local category="$1"
+    python3 -c "
+import json, sys
+with open('$COUNTER_FILE') as f:
+    data = json.load(f)
+print(data.get('index', {}).get('$category', 0))
+" 2>/dev/null || echo "error"
+}
+
+# _get_counter_error_count: count error entries for a category
+_get_counter_error_count() {
+    local category="$1"
+    python3 -c "
+import json, sys
+with open('$COUNTER_FILE') as f:
+    data = json.load(f)
+print(len([e for e in data.get('errors', []) if e.get('category') == '$category']))
+" 2>/dev/null || echo "error"
 }
 
 # ---------------------------------------------------------------------------
@@ -311,6 +334,90 @@ else
 fi
 assert_contains "test_noise_mixed_with_real_category_title" "permission_denied" "$created_title"
 assert_pass_if_clean "test_noise_mixed_with_real_category"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_ticket_includes_description
+# Counter with error details. Assert tk create includes -d flag with details.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+_write_counter_with_errors '{"index":{"permission_denied":50},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: rm /protected","error_message":"permission denied","session_id":"s1"}]}'
+_mock_tk_list_empty
+_run_sweep
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_ticket_includes_description_created" "1" "$create_calls"
+# Check that -d flag was passed (tk mock logs all args)
+create_args=$(_get_tk_create_args)
+assert_contains "test_ticket_includes_description_has_d_flag" "-d" "$create_args"
+# Description is multi-line — check full tk.log for table content
+tk_log_content=$(cat "$TK_LOG" 2>/dev/null || true)
+assert_contains "test_ticket_includes_description_has_table" "permission denied" "$tk_log_content"
+assert_pass_if_clean "test_ticket_includes_description"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_counter_cleaned_after_ticket_creation
+# Counter with errors. After sweep, category should be removed from counter.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+_write_counter_with_errors '{"index":{"permission_denied":50,"timeout":10},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"},{"category":"timeout","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: slow","error_message":"timed out","session_id":"s2"}]}'
+_mock_tk_list_empty
+_run_sweep
+# permission_denied (>=50) should be removed from counter
+pd_count=$(_get_counter_index_count "permission_denied")
+assert_eq "test_counter_cleaned_pd_index" "0" "$pd_count"
+pd_errors=$(_get_counter_error_count "permission_denied")
+assert_eq "test_counter_cleaned_pd_errors" "0" "$pd_errors"
+# timeout (<50) should still be in counter
+to_count=$(_get_counter_index_count "timeout")
+assert_eq "test_counter_cleaned_timeout_preserved" "10" "$to_count"
+to_errors=$(_get_counter_error_count "timeout")
+assert_eq "test_counter_cleaned_timeout_errors_preserved" "1" "$to_errors"
+assert_pass_if_clean "test_counter_cleaned_after_ticket_creation"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_noise_category_drained_from_counter
+# Noise categories should be removed from counter even though no ticket is created.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+_write_counter_with_errors '{"index":{"file_not_found":100,"command_exit_nonzero":200},"errors":[{"category":"file_not_found","timestamp":"2026-03-15T10:00:00Z","tool_name":"Read","input_summary":"Read: missing.py","error_message":"file not found","session_id":"s1"},{"category":"command_exit_nonzero","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: false","error_message":"exit code 1","session_id":"s2"}]}'
+_mock_tk_list_empty
+_run_sweep
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_noise_drained_no_ticket" "0" "$create_calls"
+fnf_count=$(_get_counter_index_count "file_not_found")
+assert_eq "test_noise_drained_fnf_index" "0" "$fnf_count"
+cen_count=$(_get_counter_index_count "command_exit_nonzero")
+assert_eq "test_noise_drained_cen_index" "0" "$cen_count"
+assert_pass_if_clean "test_noise_category_drained_from_counter"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_dedup_still_drains_counter
+# When a matching ticket already exists, entries should still be drained.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+_write_counter_with_errors '{"index":{"permission_denied":60},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"}]}'
+_mock_tk_list_with_match "permission_denied"
+_run_sweep
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_dedup_drains_no_ticket" "0" "$create_calls"
+pd_count=$(_get_counter_index_count "permission_denied")
+assert_eq "test_dedup_drains_counter_cleaned" "0" "$pd_count"
+assert_pass_if_clean "test_dedup_still_drains_counter"
 trap - EXIT
 _teardown_test
 
