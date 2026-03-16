@@ -537,6 +537,80 @@ print(', '.join(parts))
     echo "$result"
 }
 
+# --- _load_allowlist_patterns ---
+# Load glob patterns from an allowlist file, skipping comments and blank lines.
+# Outputs parsed patterns as newline-separated list on stdout.
+# Returns non-zero and prints warning to stderr if file not found.
+#
+# Usage: PATTERNS=$(_load_allowlist_patterns /path/to/allowlist.conf)
+_load_allowlist_patterns() {
+    local allowlist_path="$1"
+
+    if [[ ! -f "$allowlist_path" ]]; then
+        echo "WARNING: allowlist file not found: $allowlist_path" >&2
+        return 1
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip empty lines and comments
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        # Trim leading/trailing whitespace
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" ]] && continue
+        echo "$line"
+    done < "$allowlist_path"
+}
+
+# --- _allowlist_to_pathspecs ---
+# Convert newline-separated glob patterns to git pathspec exclusions (prefix :!).
+# Outputs one pathspec per line on stdout.
+#
+# Usage: PATHSPECS=$(_allowlist_to_pathspecs "$PATTERNS")
+#        git diff ... -- $PATHSPECS
+_allowlist_to_pathspecs() {
+    local patterns="$1"
+
+    while IFS= read -r pattern; do
+        [[ -z "$pattern" ]] && continue
+        echo ":!${pattern}"
+    done <<< "$patterns"
+}
+
+# --- _allowlist_to_grep_regex ---
+# Convert newline-separated glob patterns to a grep-compatible regex string.
+# Each pattern becomes a line-anchored regex. Handles:
+#   . → \., ** → .*, * → [^/]*, leading dot preserved with escape.
+# Outputs one regex line per pattern on stdout.
+#
+# Usage: REGEX=$(_allowlist_to_grep_regex "$PATTERNS")
+#        echo "$file" | grep -qE "$REGEX"
+_allowlist_to_grep_regex() {
+    local patterns="$1"
+
+    while IFS= read -r pattern; do
+        [[ -z "$pattern" ]] && continue
+        local regex="$pattern"
+        # Order matters: use placeholders to avoid substitution interference
+        # Step 1: Replace ** with placeholder before touching single *
+        regex="${regex//\*\*/@@DOUBLESTAR@@}"
+        # Step 2: Replace single * with [^/]* (match within path segment)
+        regex="${regex//\*/[^/]*}"
+        # Step 3: Replace placeholder with .* (match any path depth)
+        regex="${regex//@@DOUBLESTAR@@/.*}"
+        # Step 4: Escape literal dots (but not the .* we just inserted)
+        # We escape dots that are NOT followed by * (i.e., literal dots)
+        # Use a two-pass approach: protect .* first, escape dots, restore .*
+        regex="${regex//\.\*/@@DOTSTAR@@}"
+        regex="${regex//./\\.}"
+        regex="${regex//@@DOTSTAR@@/.*}"
+        # Step 5: Anchor to start of line
+        regex="^${regex}"
+        echo "$regex"
+    done <<< "$patterns"
+}
+
 # --- EXCLUDE_PATTERNS ---
 # Array of path patterns that hooks should skip.
 # Entries are substring patterns — a file path matching any entry is excluded.

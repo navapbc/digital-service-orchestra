@@ -139,6 +139,97 @@ else
     (( PASS++ ))
 fi
 
+# --- _load_allowlist_patterns ---
+echo "=== _load_allowlist_patterns ==="
+
+# Create a temp allowlist for testing
+ALLOWLIST_TMPDIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$ALLOWLIST_TMPDIR")
+
+cat > "$ALLOWLIST_TMPDIR/allowlist.conf" <<'ALLOWLIST_EOF'
+# This is a comment
+*.png
+*.jpg
+
+# Another comment
+.tickets/**
+
+docs/**
+ALLOWLIST_EOF
+
+# test_load_allowlist_patterns_reads_file
+PATTERNS=$(_load_allowlist_patterns "$ALLOWLIST_TMPDIR/allowlist.conf")
+PATTERN_COUNT=$(echo "$PATTERNS" | wc -l | tr -d ' ')
+assert_eq "load_allowlist: returns 4 patterns" "4" "$PATTERN_COUNT"
+
+# Verify specific patterns are present
+echo "$PATTERNS" | grep -q '^\*\.png$'
+assert_eq "load_allowlist: contains *.png" "0" "$?"
+echo "$PATTERNS" | grep -q '^\*\.jpg$'
+assert_eq "load_allowlist: contains *.jpg" "0" "$?"
+echo "$PATTERNS" | grep -q '^\.tickets/\*\*$'
+assert_eq "load_allowlist: contains .tickets/**" "0" "$?"
+echo "$PATTERNS" | grep -q '^docs/\*\*$'
+assert_eq "load_allowlist: contains docs/**" "0" "$?"
+
+# test_load_allowlist_patterns_skips_comments
+echo "$PATTERNS" | grep -q '^#'
+GREP_RC=$?
+assert_ne "load_allowlist: no comment lines" "0" "$GREP_RC"
+
+# Verify no blank lines in output
+BLANK_LINES=$(echo "$PATTERNS" | grep -c '^$' || true)
+assert_eq "load_allowlist: no blank lines" "0" "$BLANK_LINES"
+
+# test_load_allowlist_patterns_missing_file
+MISSING_STDERR=$(_load_allowlist_patterns "/tmp/nonexistent-allowlist-$$" 2>&1 1>/dev/null)
+MISSING_RC=$?
+assert_ne "load_allowlist: missing file returns non-zero" "0" "$MISSING_RC"
+echo "$MISSING_STDERR" | grep -qi 'warn\|not found'
+assert_eq "load_allowlist: missing file warns on stderr" "0" "$?"
+
+# --- _allowlist_to_pathspecs ---
+echo "=== _allowlist_to_pathspecs ==="
+
+# test_allowlist_to_pathspecs_prepends_exclude
+PATHSPECS=$(_allowlist_to_pathspecs "*.png
+*.jpg
+.tickets/**")
+echo "$PATHSPECS" | grep -q '^:!\*\.png$'
+assert_eq "pathspecs: *.png becomes :!*.png" "0" "$?"
+echo "$PATHSPECS" | grep -q '^:!\*\.jpg$'
+assert_eq "pathspecs: *.jpg becomes :!*.jpg" "0" "$?"
+echo "$PATHSPECS" | grep -q '^:!\.tickets/\*\*$'
+assert_eq "pathspecs: .tickets/** becomes :!.tickets/**" "0" "$?"
+
+PATHSPEC_COUNT=$(echo "$PATHSPECS" | wc -l | tr -d ' ')
+assert_eq "pathspecs: returns 3 pathspecs" "3" "$PATHSPEC_COUNT"
+
+# --- _allowlist_to_grep_regex ---
+echo "=== _allowlist_to_grep_regex ==="
+
+# test_allowlist_to_grep_regex_escapes_dots
+REGEX=$(_allowlist_to_grep_regex ".tickets/**
+.sync-state.json
+*.png
+docs/**")
+
+# Verify dot escaping: .tickets/ becomes \.tickets/
+echo "$REGEX" | grep -q '\\\.tickets/'
+assert_eq "grep_regex: escapes dot in .tickets/" "0" "$?"
+
+# Verify .sync-state.json dot escaping
+echo "$REGEX" | grep -q '\\\.sync-state\\\.json'
+assert_eq "grep_regex: escapes dots in .sync-state.json" "0" "$?"
+
+# Verify single glob * conversion (single * matches within path segment: [^/]*)
+echo "$REGEX" | grep -q '\[^/\]\*\\\.png'
+assert_eq "grep_regex: *.png glob converts correctly" "0" "$?"
+
+# Verify ** conversion
+echo "$REGEX" | grep -q 'docs/\.\*'
+assert_eq "grep_regex: docs/** converts to docs/.*" "0" "$?"
+
 # --- Summary ---
 echo ""
 echo "=== Results ==="
