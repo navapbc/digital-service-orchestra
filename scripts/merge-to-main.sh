@@ -128,6 +128,23 @@ with open('${_sf}.tmp', 'w') as f:
     return 0
 }
 
+_set_phase_status() {
+    local _phase="$1"
+    local _status="$2"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+d.setdefault('phases', {}).setdefault('$_phase', {})['status'] = '$_status'
+with open('${_sf}.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+    return 0
+}
+
 _state_record_merge_sha() {
     local _sha="$1"
     local _sf
@@ -252,6 +269,19 @@ _release_lock() {
 
     # Not owner — leave it alone
     return 1
+}
+
+# --- Abort stale rebase helper ---
+# Checks for leftover rebase state and aborts it before retrying a pull.
+# If REBASE_HEAD exists in the git dir, a prior rebase was interrupted.
+# No-op if no rebase state is present.
+_abort_stale_rebase() {
+    local _git_dir
+    _git_dir=$(git rev-parse --git-dir 2>/dev/null) || return 0
+    if [[ -f "$_git_dir/REBASE_HEAD" ]]; then
+        git rebase --abort 2>/dev/null || true
+        echo "INFO: Aborted stale rebase state before retry."
+    fi
 }
 
 # --- Push idempotency helper ---
@@ -461,7 +491,10 @@ _phase_sync() {
         STASHED=true
     fi
     if ! git pull --rebase 2>&1; then
+        _abort_stale_rebase
         if $STASHED; then git stash pop --quiet 2>/dev/null || true; fi
+        _set_phase_status "pull_rebase" "conflict"
+        echo "CONFLICT_DATA: phase=pull_rebase branch=$BRANCH"
         echo "ERROR: git pull --rebase failed. Resolve conflicts manually, then retry."
         exit 1
     fi

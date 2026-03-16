@@ -50,3 +50,33 @@ assert_ne "test_check_push_needed_skip_message" "0" "$HAS_SKIP_MSG"
 # =============================================================================
 HAS_FETCH_GUARD=$(echo "$FUNC_BODY" | grep -cE 'git fetch.*\|\||if.*git fetch' || true)
 assert_ne "test_check_push_needed_fetch_failure_returns_push_needed" "0" "$HAS_FETCH_GUARD"
+
+# =============================================================================
+# Test 6: _abort_stale_rebase function exists in merge-to-main.sh
+# =============================================================================
+HAS_ABORT_FUNC=$(grep -c '_abort_stale_rebase()' "$MERGE_SCRIPT" || true)
+assert_ne "test_abort_stale_rebase_exists_as_function" "0" "$HAS_ABORT_FUNC"
+
+# =============================================================================
+# Test 7: _abort_stale_rebase checks for REBASE_HEAD
+# The function should check for a stale rebase state file.
+# =============================================================================
+ABORT_FUNC_BODY=$(sed -n '/_abort_stale_rebase()/,/^}/p' "$MERGE_SCRIPT")
+HAS_REBASE_HEAD=$(echo "$ABORT_FUNC_BODY" | grep -c 'REBASE_HEAD' || true)
+assert_ne "test_abort_stale_rebase_checks_rebase_head" "0" "$HAS_REBASE_HEAD"
+
+# =============================================================================
+# Test 8: Pull conflict path emits CONFLICT_DATA with phase=pull_rebase
+# When git pull --rebase fails, structured conflict data should be emitted.
+# =============================================================================
+HAS_PULL_CONFLICT_DATA=$(grep -c 'CONFLICT_DATA.*phase=pull_rebase' "$MERGE_SCRIPT" || true)
+assert_ne "test_pull_conflict_emits_conflict_data" "0" "$HAS_PULL_CONFLICT_DATA"
+
+# =============================================================================
+# Test 9: Pull conflict path records conflict state via _set_phase_status
+# The pull failure path should record conflict status in the state file.
+# =============================================================================
+# Extract the pull --rebase failure block (from 'git pull --rebase' to the next phase)
+PULL_SECTION=$(sed -n '/git pull --rebase/,/OK: Pulled remote/p' "$MERGE_SCRIPT")
+HAS_CONFLICT_STATE=$(echo "$PULL_SECTION" | grep -cE '_set_phase_status.*conflict|_set_phase_status.*pull_rebase' || true)
+assert_ne "test_pull_conflict_records_conflict_state" "0" "$HAS_CONFLICT_STATE"
