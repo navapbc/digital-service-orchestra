@@ -1,0 +1,13 @@
+{
+    "name": "digital-service-orchestra",
+    "owner": {
+      "name": "Nava PBC"
+    },
+    "plugins": [
+      {
+        "name": "digital-service-orchestra",
+        "source": "./",
+        "description": "Workflow infrastructure plugin for Claude Code projects"
+      }
+    ]
+}

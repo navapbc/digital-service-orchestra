@@ -1,15 +1,7 @@
 {
-  "name": "lockpick-workflow",
+  "name": "digital-service-orchestra",
   "version": "0.2.0",
   "description": "Workflow infrastructure plugin for Claude Code projects",
-  "skills": "skills/",
-  "hooks": "hooks.json",
-  "externalDependencies": {
-    "tk": {
-      "required": true,
-      "description": "Ticket management CLI for issue tracking workflows",
-      "check": "command -v tk",
-      "installHint": "See https://github.com/lockpick/tk for installation"
-    }
-  }
+  "skills": "./skills/",
+  "hooks": "./hooks.json"
 }
