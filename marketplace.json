@@ -2,11 +2,11 @@
   "name": "digital-service-orchestra",
   "version": "0.2.0",
   "description": "Workflow infrastructure plugin for Claude Code projects \u2014 TDD-driven sprint management, review gates, hook parameterization, and multi-stack config",
-  "repository": "https://github.com/JoeOakhartNava/digital-service-orchestra",
-  "homepage": "https://github.com/JoeOakhartNava/digital-service-orchestra#readme",
+  "repository": "https://github.com/navapbc/digital-service-orchestra",
+  "homepage": "https://github.com/navapbc/digital-service-orchestra#readme",
   "license": "MIT",
   "install": {
-    "command": "claude plugin install github:JoeOakhartNava/digital-service-orchestra",
+    "command": "claude plugin install github:navapbc/digital-service-orchestra",
     "requires_env": "CLAUDE_PLUGIN_ROOT"
   },
   "compatibility": {

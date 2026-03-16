@@ -5,7 +5,7 @@ Workflow infrastructure plugin for Claude Code projects — TDD-driven sprint ma
 ## Installation
 
 ```bash
-claude plugin install github:JoeOakhartNava/digital-service-orchestra
+claude plugin install github:navapbc/digital-service-orchestra
 ```
 
 ## Requirements
@@ -36,4 +36,4 @@ See [`docs/CONFIG-RESOLUTION.md`](docs/CONFIG-RESOLUTION.md) for resolution orde
 
 ## Parent Project
 
-This plugin was developed as part of [lockpick-doc-to-logic](https://github.com/JoeOakhartNava/lockpick-doc-to-logic).
+This plugin was developed as part of [lockpick-doc-to-logic](https://github.com/navapbc/lockpick-doc-to-logic).
