@@ -422,4 +422,151 @@ assert_pass_if_clean "test_dedup_still_drains_counter"
 trap - EXIT
 _teardown_test
 
+# ---------------------------------------------------------------------------
+# Helpers for sweep_validation_failures tests
+# ---------------------------------------------------------------------------
+
+# _mock_tk_list_with_validation_match: tk list returns a line matching "Untracked validation failure: $1"
+_mock_tk_list_with_validation_match() {
+    local category="$1"
+    cat > "$TEST_BIN/tk" <<MOCK
+#!/usr/bin/env bash
+if [[ "\$1" == "list" ]]; then
+    echo "lockpick-doc-to-logic-xxxx  Untracked validation failure: ${category}"
+    exit 0
+fi
+echo "\$@" >> "$TK_LOG"
+exit 0
+MOCK
+    chmod +x "$TEST_BIN/tk"
+}
+
+# _run_sweep_validation: source error-sweep.sh and call sweep_validation_failures in subshell
+# Requires ARTIFACTS_DIR to be set in the test environment.
+# Captures exit code in SWEEP_EXIT
+_run_sweep_validation() {
+    (
+        source "$ERROR_SWEEP"
+        sweep_validation_failures
+    )
+    SWEEP_EXIT=$?
+}
+
+# ---------------------------------------------------------------------------
+# test_validation_sweep_creates_ticket_from_log
+# ARTIFACTS_DIR set, log contains one category. Assert tk create called once.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+echo "lint_failure" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
+_mock_tk_list_empty
+_run_sweep_validation
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_validation_sweep_creates_ticket_from_log_count" "1" "$create_calls"
+if [[ "$FAIL" -eq "$_fail_snapshot" ]]; then
+    echo "PASS: test_validation_sweep_creates_ticket_from_log"
+fi
+assert_pass_if_clean "test_validation_sweep_creates_ticket_from_log"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_validation_sweep_dedup_skips_existing
+# Log has category, matching open ticket exists. Assert tk create NOT called.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+echo "lint_failure" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
+_mock_tk_list_with_validation_match "lint_failure"
+_run_sweep_validation
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_validation_sweep_dedup_skips_existing" "0" "$create_calls"
+assert_pass_if_clean "test_validation_sweep_dedup_skips_existing"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_validation_sweep_missing_log_graceful
+# ARTIFACTS_DIR set but log file absent. Assert exits 0, no tk calls.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+# Do NOT create untracked-validation-failures.log
+_mock_tk_list_empty
+_run_sweep_validation
+exit_ok="no"
+if [[ "$SWEEP_EXIT" -eq 0 ]]; then exit_ok="yes"; fi
+assert_eq "test_validation_sweep_missing_log_graceful_exit" "yes" "$exit_ok"
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_validation_sweep_missing_log_graceful_no_tk" "0" "$create_calls"
+assert_pass_if_clean "test_validation_sweep_missing_log_graceful"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_validation_sweep_empty_log_graceful
+# Log exists but is empty. Assert exits 0, no tk calls.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+: > "$ARTIFACTS_DIR/untracked-validation-failures.log"
+_mock_tk_list_empty
+_run_sweep_validation
+exit_ok="no"
+if [[ "$SWEEP_EXIT" -eq 0 ]]; then exit_ok="yes"; fi
+assert_eq "test_validation_sweep_empty_log_graceful_exit" "yes" "$exit_ok"
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_validation_sweep_empty_log_graceful_no_tk" "0" "$create_calls"
+assert_pass_if_clean "test_validation_sweep_empty_log_graceful"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_validation_sweep_duplicate_log_entries_creates_one_ticket
+# Log has the same category repeated multiple times. Assert only 1 ticket created.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+printf "lint_failure\nlint_failure\nlint_failure\n" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
+_mock_tk_list_empty
+_run_sweep_validation
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_validation_sweep_duplicate_log_entries_creates_one_ticket" "1" "$create_calls"
+assert_pass_if_clean "test_validation_sweep_duplicate_log_entries_creates_one_ticket"
+trap - EXIT
+_teardown_test
+
+# ---------------------------------------------------------------------------
+# test_validation_sweep_unrecognized_category
+# Log has an unrecognized/arbitrary category name. Assert ticket still created.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+echo "some_unknown_failure_xyz" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
+_mock_tk_list_empty
+_run_sweep_validation
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_validation_sweep_unrecognized_category" "1" "$create_calls"
+assert_pass_if_clean "test_validation_sweep_unrecognized_category"
+trap - EXIT
+_teardown_test
+
 print_summary

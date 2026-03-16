@@ -170,3 +170,59 @@ ${details}"
 
     return 0
 }
+
+# sweep_validation_failures
+# Reads ARTIFACTS_DIR/untracked-validation-failures.log, extracts unique failure
+# categories, deduplicates against existing open bug tickets, and creates a bug
+# ticket for each untracked category.
+#
+# ARTIFACTS_DIR must be set by the caller (session-scoped; interrupted sessions
+# lose data — accepted limitation).
+# Exits 0 in all cases (missing/empty log is not an error).
+sweep_validation_failures() {
+    local log_file="${ARTIFACTS_DIR:-}/untracked-validation-failures.log"
+
+    # Gracefully skip if log file is absent
+    if [[ ! -f "$log_file" ]]; then
+        return 0
+    fi
+
+    # Collect unique non-empty categories from the log
+    local categories=()
+    while IFS= read -r line; do
+        # Strip leading/trailing whitespace
+        local trimmed="${line#"${line%%[![:space:]]*}"}"
+        trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+        [[ -z "$trimmed" ]] && continue
+
+        # Deduplicate in-array
+        local already=false
+        local c
+        for c in "${categories[@]+"${categories[@]}"}"; do
+            if [[ "$c" == "$trimmed" ]]; then already=true; break; fi
+        done
+        if [[ "$already" == "false" ]]; then
+            categories+=("$trimmed")
+        fi
+    done < "$log_file"
+
+    # Nothing to do if no categories found
+    if [[ "${#categories[@]}" -eq 0 ]]; then
+        return 0
+    fi
+
+    for category in "${categories[@]}"; do
+        local ticket_title="Untracked validation failure: $category"
+
+        # Dedup: check for existing open bug ticket before creating
+        local open_bugs
+        open_bugs=$(tk list --type bug --status open 2>/dev/null || true)
+        if echo "$open_bugs" | grep -qF "Untracked validation failure: $category"; then
+            continue
+        fi
+
+        tk create "$ticket_title" -t bug -p 2
+    done
+
+    return 0
+}
