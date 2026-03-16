@@ -93,9 +93,11 @@ if [[ -z "${RUN_ALL_TEST_TICKETS_DIR:-}" ]]; then
 fi
 
 # --- Default suite runner paths ---
-HOOKS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/hooks/run-hook-tests.sh"
-SCRIPTS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/scripts/run-script-tests.sh"
-EVALS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/evals/run-evals.sh"
+# Use SCRIPT_DIR-relative paths so this script works both when embedded in a
+# parent repo (lockpick-workflow/tests/) and when the plugin is the repo root.
+HOOKS_RUNNER="$SCRIPT_DIR/hooks/run-hook-tests.sh"
+SCRIPTS_RUNNER="$SCRIPT_DIR/scripts/run-script-tests.sh"
+EVALS_RUNNER="$SCRIPT_DIR/evals/run-evals.sh"
 
 # --- Per-suite timeout (seconds). Override with --suite-timeout <N>. ---
 SUITE_TIMEOUT="${SUITE_TIMEOUT:-180}"
