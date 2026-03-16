@@ -57,10 +57,6 @@ PYEOF
         return 0
     fi
 
-    # Get current open bug tickets once for dedup checks
-    local open_bugs
-    open_bugs=$(tk list --type bug --status open 2>/dev/null || true)
-
     while IFS=$'\t' read -r category count; do
         [[ -z "$category" ]] && continue
 
@@ -73,7 +69,10 @@ PYEOF
 
         local ticket_title="Recurring tool error: $category ($count occurrences)"
 
-        # Dedup: skip if an open bug already mentions this category
+        # Dedup: re-query open bugs immediately before create to minimize race window
+        # when concurrent sub-agents call sweep_tool_errors() simultaneously.
+        local open_bugs
+        open_bugs=$(tk list --type bug --status open 2>/dev/null || true)
         if echo "$open_bugs" | grep -qF "Recurring tool error: $category"; then
             continue
         fi
