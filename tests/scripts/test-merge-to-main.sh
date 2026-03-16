@@ -401,4 +401,37 @@ fi
 rm -rf "$_STATE_TMPDIR"
 
 # =============================================================================
+# SIGURG trap tests
+# =============================================================================
+
+# =============================================================================
+# Test: SIGURG trap is registered in merge-to-main.sh
+# =============================================================================
+HAS_SIGURG_TRAP=$(grep -cE "trap.*URG|trap.*_sigurg_handler" "$MERGE_SCRIPT" || true)
+assert_ne "test_sigurg_trap_is_registered" "0" "$HAS_SIGURG_TRAP"
+
+# =============================================================================
+# Test: _sigurg_handler function exists in merge-to-main.sh
+# =============================================================================
+_SIGURG_FN_BODY=$(_extract_fn "_sigurg_handler")
+if [[ -n "$_SIGURG_FN_BODY" ]]; then
+    _SIGURG_FN_EXISTS="true"
+else
+    _SIGURG_FN_EXISTS="false"
+fi
+assert_eq "test_sigurg_handler_function_exists" "true" "$_SIGURG_FN_EXISTS"
+
+# =============================================================================
+# Test: _sigurg_handler calls _state_write_phase
+# =============================================================================
+_SIGURG_CALLS_WRITE=$(awk '/^_sigurg_handler\(\)/,/^\}$/' "$MERGE_SCRIPT" | grep -c '_state_write_phase' || true)
+assert_ne "test_sigurg_handler_calls_state_write_phase" "0" "$_SIGURG_CALLS_WRITE"
+
+# =============================================================================
+# Test: _sigurg_handler uses explicit exit 0 (avoids set -e ERR cascade)
+# =============================================================================
+_SIGURG_HAS_EXIT=$(awk '/^_sigurg_handler\(\)/,/^\}$/' "$MERGE_SCRIPT" | grep -c 'exit 0' || true)
+assert_ne "test_sigurg_handler_uses_explicit_exit" "0" "$_SIGURG_HAS_EXIT"
+
+# =============================================================================
 print_summary

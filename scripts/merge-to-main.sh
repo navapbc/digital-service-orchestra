@@ -144,6 +144,13 @@ with open('${_sf}.tmp', 'w') as f:
     return 0
 }
 
+# --- SIGURG trap: save current phase to state file before exit ---
+_sigurg_handler() {
+    _state_write_phase "${_CURRENT_PHASE:-interrupted}" 2>/dev/null || true
+    exit 0
+}
+trap '_sigurg_handler' URG
+
 # --- Lock staleness check ---
 # Usage: _is_lock_stale <lock_file>
 # Returns 0 (true/stale) if the lock can be broken, 1 (false/valid) if the lock is held.
