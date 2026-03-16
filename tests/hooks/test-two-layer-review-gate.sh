@@ -392,6 +392,90 @@ test_hook_review_gate_removed_from_pre_bash_functions() {
     fi
 }
 
+# ============================================================
+# CRITERION: MERGE_HEAD exemption fires only when MERGE_HEAD actually exists
+# (security check — no false-positive bypass)
+# ============================================================
+
+# test_merge_head_present_allowlisted_commit_passes
+#
+# When MERGE_HEAD exists in the target worktree's git dir (in-progress merge)
+# and only allowlisted files are staged, Layer 1 must allow the commit.
+# This is the normal merge-resolution path (e.g., resolving .tickets/.index.json).
+test_merge_head_present_allowlisted_commit_passes() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Write MERGE_HEAD to simulate an in-progress merge in this repo
+    local head_sha
+    head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+    echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
+
+    # Stage only allowlisted files (ticket index merge resolution)
+    mkdir -p "$_repo/.tickets"
+    echo '{"version":2}' > "$_repo/.tickets/.index.json"
+    git -C "$_repo" add ".tickets/.index.json"
+
+    local exit_code
+    exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
+    assert_eq "test_merge_head_present_allowlisted_commit_passes" "0" "$exit_code"
+
+    rm -f "$_repo/.git/MERGE_HEAD"
+}
+
+# test_merge_head_absent_non_allowlisted_still_blocked
+#
+# When MERGE_HEAD does NOT exist (no in-progress merge), a non-allowlisted
+# file commit without review must still be blocked. This verifies there is
+# no false-positive bypass — the hook checks the actual git state.
+test_merge_head_absent_non_allowlisted_still_blocked() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Confirm MERGE_HEAD does NOT exist
+    if [[ -f "$_repo/.git/MERGE_HEAD" ]]; then
+        rm -f "$_repo/.git/MERGE_HEAD"
+    fi
+
+    # Stage a non-allowlisted file without a review
+    echo "x = 42" > "$_repo/no_merge_head.py"
+    git -C "$_repo" add "no_merge_head.py"
+
+    local exit_code
+    exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
+    assert_eq "test_merge_head_absent_non_allowlisted_still_blocked" "1" "$exit_code"
+}
+
+# test_merge_head_present_non_allowlisted_without_review_blocked
+#
+# When MERGE_HEAD exists but the staged non-allowlisted file has no valid
+# review, the commit must still be blocked. MERGE_HEAD alone does NOT
+# bypass the review requirement — only allowlisted files bypass it.
+# This is the security invariant: no false-positive bypass.
+test_merge_head_present_non_allowlisted_without_review_blocked() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Write MERGE_HEAD (simulating in-progress merge)
+    local head_sha
+    head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+    echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
+
+    # Stage a non-allowlisted file — no review recorded
+    echo "def merged_fn(): pass" > "$_repo/merged_code.py"
+    git -C "$_repo" add "merged_code.py"
+
+    # No review-status file → hook must block
+    local exit_code
+    exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
+    assert_eq "test_merge_head_present_non_allowlisted_without_review_blocked" "1" "$exit_code"
+
+    rm -f "$_repo/.git/MERGE_HEAD"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlist_pass_tickets_only
 test_allowlist_pass_docs_only
@@ -405,5 +489,8 @@ test_error_message_directs_to_commit_or_review
 test_formatting_self_heal_passes_whitespace_only_change
 test_telemetry_diagnostic_log_written_on_mismatch
 test_hook_review_gate_removed_from_pre_bash_functions
+test_merge_head_present_allowlisted_commit_passes
+test_merge_head_absent_non_allowlisted_still_blocked
+test_merge_head_present_non_allowlisted_without_review_blocked
 
 print_summary
