@@ -1,0 +1,39 @@
+# digital-service-orchestra
+
+Workflow infrastructure plugin for Claude Code projects — TDD-driven sprint management, review gates, hook parameterization, and multi-stack config.
+
+## Installation
+
+```bash
+claude plugin install github:JoeOakhartNava/digital-service-orchestra
+```
+
+## Requirements
+
+### External Dependencies
+
+- **`tk`** (required) — Ticket management CLI for issue tracking workflows. See [https://github.com/lockpick/tk](https://github.com/lockpick/tk) for installation.
+
+## Configuration
+
+After installation, create a `workflow-config.conf` file at the root of your project using the flat `KEY=VALUE` format. For the full list of supported keys and their types, see [`docs/workflow-config-schema.json`](docs/workflow-config-schema.json).
+
+Example minimal configuration:
+
+```
+paths.app_dir=app
+ci.workflow_name=ci.yml
+```
+
+See [`docs/CONFIG-RESOLUTION.md`](docs/CONFIG-RESOLUTION.md) for resolution order and defaults.
+
+## What's Included
+
+- **Skills** — Sprint management (`/sprint`), TDD workflow (`/tdd-workflow`), review gates (`/review`, `/commit`), plan review (`/plan-review`), and more.
+- **Hooks** — Pre-commit review gate (two-layer defense), post-tool formatting, validation gate.
+- **Scripts** — `tk` wrappers, CI status polling, worktree utilities, merge-to-main orchestration.
+- **Docs** — Workflow guides, architecture decisions, incident templates, and onboarding materials.
+
+## Parent Project
+
+This plugin was developed as part of [lockpick-doc-to-logic](https://github.com/JoeOakhartNava/lockpick-doc-to-logic).
