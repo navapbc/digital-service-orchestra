@@ -117,6 +117,9 @@ KNOWN_KEYS=(
     persistence.source_patterns
     persistence.test_patterns
 
+    # Checks
+    checks.script_write_scan_dir
+
     # Checkpoint
     checkpoint.marker_file
 
