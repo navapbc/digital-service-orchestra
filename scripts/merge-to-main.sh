@@ -144,6 +144,25 @@ with open('${_sf}.tmp', 'w') as f:
     return 0
 }
 
+# --- Push idempotency helper ---
+# Determines whether a push to origin/main is needed.
+# Returns 0 if push is needed (commits exist ahead of origin/main).
+# Returns 1 if push is not needed (origin/main already contains HEAD).
+# On fetch failure, returns 0 (push needed) to avoid suppressing a needed push.
+_check_push_needed() {
+    if ! git fetch origin main --quiet 2>/dev/null; then
+        echo "WARNING: git fetch origin main failed — assuming push is needed."
+        return 0
+    fi
+    local _ahead
+    _ahead=$(git log origin/main..HEAD --oneline 2>/dev/null || true)
+    if [[ -z "$_ahead" ]]; then
+        echo "INFO: Push skipped - origin/main already contains HEAD (idempotent)."
+        return 1
+    fi
+    return 0
+}
+
 # --- Load hooks/lib/deps.sh for get_artifacts_dir ---
 # Needed for checkpoint sentinel verification (see below).
 _HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
