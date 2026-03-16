@@ -14,8 +14,6 @@
 #   test_is_formatting_only_change_code_change_not_healed
 #   test_is_formatting_only_change_added_line_not_healed
 #   test_is_formatting_only_change_removed_line_not_healed
-#   test_review_gate_self_heals_formatting_only_mismatch
-#   test_review_gate_does_not_self_heal_substantive_mismatch
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -24,18 +22,6 @@ export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
 source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
 source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
-
-# Skip guard for hook_review_gate integration tests.
-# hook_review_gate was removed in Story 1idf (migration to two-layer review gate).
-# The PreToolUse review gate has been replaced by:
-#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit)
-#   - Layer 2: lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
-# Integration tests for the new two-layer gate live in test-two-layer-review-gate.sh.
-# The is_formatting_only_change() unit tests below still run (function was kept).
-_REVIEW_GATE_INTEGRATION_SKIP=0
-if ! declare -f hook_review_gate >/dev/null 2>&1; then
-    _REVIEW_GATE_INTEGRATION_SKIP=1
-fi
 
 # ---------------------------------------------------------------------------
 # Unit tests for is_formatting_only_change()
@@ -103,109 +89,6 @@ NEW_DIFF="$(printf -- '-foo(x)\n+foo(x, y)')"
 EXIT_CODE=0
 is_formatting_only_change "$OLD_DIFF" "$NEW_DIFF" 2>/dev/null || EXIT_CODE=$?
 assert_eq "test_is_formatting_only_change_removed_line_not_healed" "1" "$EXIT_CODE"
-
-# ---------------------------------------------------------------------------
-# Integration tests for hook_review_gate self-healing
-# ---------------------------------------------------------------------------
-
-# Helper: run hook_review_gate in a temp git repo with a stale-hash review-status
-# that was caused only by formatting changes vs. substantive changes.
-# Args: scenario — "formatting" or "substantive"
-# Returns the exit code of hook_review_gate.
-_run_self_healing_test() {
-    local scenario="$1"
-
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    (
-        cd "$tmpdir"
-        git init -q
-        git config user.email "test@test.com"
-        git config user.name "Test"
-        git config commit.gpgsign false
-
-        # Create initial committed file
-        printf 'def foo(x, y):\n    return x + y\n' > src_file.py
-        git add src_file.py
-        git commit -q -m "init"
-
-        # Set up artifacts dir
-        local ARTIFACTS_DIR
-        ARTIFACTS_DIR="$tmpdir/.artifacts"
-        mkdir -p "$ARTIFACTS_DIR"
-        export ARTIFACTS_DIR
-        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"
-
-        if [[ "$scenario" == "formatting" ]]; then
-            # Simulate: reviewed with trailing whitespace, then formatter cleaned it up.
-            # Step 1: Make change with trailing whitespace (review-time state)
-            printf 'def foo(x, y):\n    return x+y  \n' > src_file.py
-
-            # Compute review-time hash and save diff
-            local REVIEW_HASH
-            REVIEW_HASH=$("$CLAUDE_PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null || echo "deadbeef")
-            git diff HEAD -- > "$ARTIFACTS_DIR/review-diff.txt" 2>/dev/null
-
-            printf 'passed\nscore=9\ndiff_hash=%s\ntimestamp=2026-03-15T10:00:00Z\n' "$REVIEW_HASH" \
-                > "$ARTIFACTS_DIR/review-status"
-
-            # Step 2: Formatter strips trailing whitespace (same logic, different whitespace)
-            printf 'def foo(x, y):\n    return x+y\n' > src_file.py
-        else
-            # Make a working tree change (the "reviewed" state)
-            printf 'def foo(x, y):\n    return x+y\n' > src_file.py
-
-            # Compute review-time hash and save diff
-            local REVIEW_HASH
-            REVIEW_HASH=$("$CLAUDE_PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null || echo "deadbeef")
-            git diff HEAD -- > "$ARTIFACTS_DIR/review-diff.txt" 2>/dev/null
-
-            printf 'passed\nscore=9\ndiff_hash=%s\ntimestamp=2026-03-15T10:00:00Z\n' "$REVIEW_HASH" \
-                > "$ARTIFACTS_DIR/review-status"
-
-            # Simulate substantive change: actual logic changed
-            printf 'def foo(x, y):\n    return x * y\n' > src_file.py
-        fi
-
-        # Source the functions in subshell (reset load guard for clean subshell)
-        _DEPS_LOADED=""
-        _PRE_BASH_FUNCTIONS_LOADED=""
-        source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-        source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
-
-        local INPUT
-        INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: update foo\""}}'
-        local exit_code=0
-        hook_review_gate "$INPUT" 2>/dev/null || exit_code=$?
-        exit "$exit_code"
-    )
-    local result=$?
-    rm -rf "$tmpdir"
-    return $result
-}
-
-# test_review_gate_self_heals_formatting_only_mismatch
-# When hash mismatch is caused only by formatting, the gate should auto-heal and allow (exit 0).
-echo "--- test_review_gate_self_heals_formatting_only_mismatch ---"
-if [[ "$_REVIEW_GATE_INTEGRATION_SKIP" -eq 1 ]]; then
-    echo "SKIP: hook_review_gate removed (Story 1idf migration). See test-two-layer-review-gate.sh."
-else
-    EXIT_CODE=0
-    _run_self_healing_test "formatting" || EXIT_CODE=$?
-    assert_eq "test_review_gate_self_heals_formatting_only_mismatch" "0" "$EXIT_CODE"
-fi
-
-# test_review_gate_does_not_self_heal_substantive_mismatch
-# When hash mismatch is caused by substantive code changes, the gate should block (exit 2).
-echo "--- test_review_gate_does_not_self_heal_substantive_mismatch ---"
-if [[ "$_REVIEW_GATE_INTEGRATION_SKIP" -eq 1 ]]; then
-    echo "SKIP: hook_review_gate removed (Story 1idf migration). See test-two-layer-review-gate.sh."
-else
-    EXIT_CODE=0
-    _run_self_healing_test "substantive" || EXIT_CODE=$?
-    assert_eq "test_review_gate_does_not_self_heal_substantive_mismatch" "2" "$EXIT_CODE"
-fi
 
 # test_is_formatting_only_change_function_exists
 # Verify that is_formatting_only_change is defined after sourcing pre-bash-functions.sh
