@@ -24,7 +24,7 @@ make_test_repo() {
     _CLEANUP_DIRS+=("$tmpdir")
     (
         cd "$tmpdir"
-        git init -q
+        git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "initial" > README.md

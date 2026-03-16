@@ -49,7 +49,7 @@ TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 cd "$TMPDIR_TEST"
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test"
 

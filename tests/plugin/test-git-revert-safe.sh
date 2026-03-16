@@ -34,7 +34,7 @@ setup_test_repo() {
     _CLEANUP_DIRS+=("$tmpdir")
 
     cd "$tmpdir" || return 1
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test User"
 
@@ -177,7 +177,7 @@ echo "Test: test_revert_safe_no_tickets_in_revert"
 TMPDIR_3=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_3")
 cd "$TMPDIR_3" || { echo "  FAIL: test_revert_safe_no_tickets_in_revert (cd failed)"; ((FAIL++)); exit 1; }
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test User"
 
@@ -219,7 +219,7 @@ echo "Test: test_revert_safe_prints_warning_with_filenames"
 TMPDIR_4=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_4")
 cd "$TMPDIR_4" || { echo "  FAIL: test_revert_safe_prints_warning_with_filenames (cd failed)"; ((FAIL++)); exit 1; }
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test User"
 
@@ -264,7 +264,7 @@ echo "Test: test_revert_safe_tickets_only_commit_aborts_cleanly"
 TMPDIR_5=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_5")
 cd "$TMPDIR_5" || { echo "  FAIL: test_revert_safe_tickets_only_commit_aborts_cleanly (cd failed)"; ((FAIL++)); exit 1; }
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test User"
 

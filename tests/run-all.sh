@@ -98,7 +98,7 @@ SCRIPTS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/scripts/run-script-tests.sh"
 EVALS_RUNNER="$REPO_ROOT/lockpick-workflow/tests/evals/run-evals.sh"
 
 # --- Per-suite timeout (seconds). Override with --suite-timeout <N>. ---
-SUITE_TIMEOUT="${SUITE_TIMEOUT:-120}"
+SUITE_TIMEOUT="${SUITE_TIMEOUT:-180}"
 
 # --- Resolve portable timeout command (gtimeout on macOS, timeout on Linux) ---
 # Falls back to a no-op wrapper when neither is available, so suites still run

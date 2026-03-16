@@ -59,7 +59,7 @@ trap 'rm -rf "$TEST_GIT_1" "$TEST_ARTIFACTS_1"' EXIT
 
 (
     cd "$TEST_GIT_1"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "initial" > README.md
@@ -108,7 +108,7 @@ trap 'rm -rf "$TEST_GIT_2" "$TEST_ARTIFACTS_2"' EXIT
 
 (
     cd "$TEST_GIT_2"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "initial" > README.md
@@ -155,7 +155,7 @@ trap 'rm -rf "$TEST_GIT_3" "$TEST_ARTIFACTS_3"' EXIT
 
 (
     cd "$TEST_GIT_3"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "initial" > README.md

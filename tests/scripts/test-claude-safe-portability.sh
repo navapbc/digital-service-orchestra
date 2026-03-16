@@ -35,7 +35,7 @@ SENTINEL_FILE="$TMPDIR_MAIN/worktree-create-called"
 trap 'rm -rf "$TMPDIR_MAIN" "$TMPDIR_WORKTREE"' EXIT
 
 # Initialize a bare-minimum git repo (main repo, not a worktree)
-git init -q "$TMPDIR_MAIN"
+git init -q -b main "$TMPDIR_MAIN"
 git -C "$TMPDIR_MAIN" commit --allow-empty -m "init" -q
 
 # Copy minimal fixture config
@@ -89,7 +89,7 @@ chmod +x "$TMPDIR_MAIN/bin/claude"
 
 # Initialize the fake worktree path as a git repo with .git FILE (simulating a real worktree)
 # claude-safe checks: if [ -f "$REPO_ROOT/.git" ] → already in worktree → exec claude
-git init -q "$TMPDIR_WORKTREE"
+git init -q -b main "$TMPDIR_WORKTREE"
 git -C "$TMPDIR_WORKTREE" commit --allow-empty -m "init" -q
 
 # Export PATH so stubs take precedence

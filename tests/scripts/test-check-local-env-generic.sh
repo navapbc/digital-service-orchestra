@@ -43,7 +43,7 @@ _make_skeleton() {
     local name="$1" config_content="$2"
     local dir="$TMPDIR_BASE/$name"
     mkdir -p "$dir" || { echo "ERROR: mkdir failed for $dir" >&2; exit 1; }
-    git init -q "$dir" || { echo "ERROR: git init failed for $dir" >&2; exit 1; }
+    git init -q -b main "$dir" || { echo "ERROR: git init failed for $dir" >&2; exit 1; }
     git -C "$dir" config user.email "test@example.com" || { echo "ERROR: git config email failed for $dir" >&2; exit 1; }
     git -C "$dir" config user.name "Test User" || { echo "ERROR: git config name failed for $dir" >&2; exit 1; }
     # Export identity env vars explicitly: on CI runners with no global gitconfig, empty

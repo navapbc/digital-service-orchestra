@@ -185,7 +185,7 @@ mkdir -p "$_main_repo"
 (
     set -e
     cd "$_main_repo"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     git commit --allow-empty -q -m "init"

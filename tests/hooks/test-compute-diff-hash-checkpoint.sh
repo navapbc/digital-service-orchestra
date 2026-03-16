@@ -69,7 +69,7 @@ setup_test_repo() {
     _CLEANUP_DIRS+=("$dir")
     (
         cd "$dir"
-        git init -q
+        git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "initial content" > file.txt

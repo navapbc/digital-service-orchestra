@@ -46,7 +46,7 @@ mkdir -p "$REPO/scripts" "$REPO/hooks" "$REPO/lockpick-workflow/scripts"
 cd "$REPO"
 
 # Initialize git repo
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test"
 # Create main branch reference so REF="main" resolves
@@ -171,7 +171,7 @@ echo ""
 echo "Test d: Shebang filter — non-shebang .sh file is skipped"
 
 # Re-init the repo state for this test
-git init -q "$TMPDIR_BASE/repo2"
+git init -q -b main "$TMPDIR_BASE/repo2"
 REPO2="$TMPDIR_BASE/repo2"
 cd "$REPO2"
 git config user.email "test@test.com"
@@ -213,7 +213,7 @@ echo ""
 echo "Test e: Mode regression detected for .sh files UNDER scripts/ (regression test)"
 
 REPO3="$TMPDIR_BASE/repo3"
-git init -q "$REPO3"
+git init -q -b main "$REPO3"
 cd "$REPO3"
 git config user.email "test@test.com"
 git config user.name "Test"

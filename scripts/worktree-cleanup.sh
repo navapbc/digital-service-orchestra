@@ -76,7 +76,7 @@ CONFIG_TICKETS_DIR=$(bash "$PLUGIN_SCRIPTS/read-config.sh" tickets.directory 2>/
 CONFIG_BRANCH_PATTERN=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.branch_pattern 2>/dev/null || true)
 CONFIG_MAX_AGE_DAYS=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.max_age_days 2>/dev/null || true)
 
-AGE_DAYS=${CONFIG_MAX_AGE_DAYS:-2}  # worktrees must be older than this to be eligible for removal
+AGE_DAYS=${AGE_DAYS:-${CONFIG_MAX_AGE_DAYS:-2}}  # env var > config > default (2 days)
 
 # ── Partial Docker config detection ──────────────────────────────────────────
 # Warn when Docker config keys are inconsistently set, to prevent silent

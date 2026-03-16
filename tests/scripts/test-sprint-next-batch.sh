@@ -41,7 +41,7 @@ _t3_mock_dir=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t3_mock_dir")
 _t3_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t3_fake_repo")
-git init -q "$_t3_fake_repo"
+git init -q -b main "$_t3_fake_repo"
 mkdir -p "$_t3_fake_repo/.tickets" "$_t3_fake_repo/lockpick-workflow/scripts" "$_t3_fake_repo/scripts"
 printf -- "---\nid: t3-child\nstatus: open\ntype: task\npriority: 2\nparent: t3-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t3_fake_repo/.tickets/t3-child.md"
 
@@ -109,7 +109,7 @@ _t4_mock_dir=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t4_mock_dir")
 _t4_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t4_fake_repo")
-git init -q "$_t4_fake_repo"
+git init -q -b main "$_t4_fake_repo"
 mkdir -p "$_t4_fake_repo/.tickets" "$_t4_fake_repo/lockpick-workflow/scripts"
 printf -- "---\nid: t4-child\nstatus: open\ntype: task\npriority: 2\nparent: t4-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t4_fake_repo/.tickets/t4-child.md"
 cat > "$_t4_mock_dir/tk" << 'T4_TK'
@@ -169,7 +169,7 @@ _t5_mock_dir=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t5_mock_dir")
 _t5_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t5_fake_repo")
-git init -q "$_t5_fake_repo"
+git init -q -b main "$_t5_fake_repo"
 mkdir -p "$_t5_fake_repo/.tickets" "$_t5_fake_repo/lockpick-workflow/scripts"
 printf -- "---\nid: t5-child\nstatus: open\ntype: task\npriority: 2\nparent: t5-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t5_fake_repo/.tickets/t5-child.md"
 cat > "$_t5_mock_dir/tk" << 'T5_TK'

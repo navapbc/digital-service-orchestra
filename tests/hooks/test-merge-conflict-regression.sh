@@ -77,7 +77,7 @@ make_two_branch_repo() {
     tmpdir=$(mktemp -d)
     _TEST_TMPDIRS+=("$tmpdir")
 
-    git -C "$tmpdir" init -q
+    git -C "$tmpdir" init -b main -q
     git -C "$tmpdir" config user.email "test@test.com"
     git -C "$tmpdir" config user.name "Test"
 

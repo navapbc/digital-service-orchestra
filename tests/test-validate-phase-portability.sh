@@ -65,7 +65,7 @@ fi
 # clear error message from read-config.sh rather than a cryptic failure.
 
 # Initialize a minimal git repo (required by validate-phase.sh for git rev-parse)
-(cd "$TMPDIR" && git init -q && git config user.email "test@test.com" && git config user.name "Test")
+(cd "$TMPDIR" && git init -q -b main && git config user.email "test@test.com" && git config user.name "Test")
 
 # ---------------------------------------------------------------------------
 # Helper: write an all-pass stub workflow-config.conf

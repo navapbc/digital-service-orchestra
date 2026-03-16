@@ -38,7 +38,7 @@ setup_test_repo() {
     local realdir
     realdir=$(cd "$tmpdir" && pwd -P)
 
-    git init -q "$realdir/repo"
+    git init -q -b main "$realdir/repo"
     git -C "$realdir/repo" config user.email "test@test.com"
     git -C "$realdir/repo" config user.name "Test"
 

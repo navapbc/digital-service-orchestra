@@ -48,7 +48,7 @@ _run_in_temp_repo() {
 
     (
         cd "$tmpdir"
-        git init -q
+        git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "init" > README.md
@@ -148,7 +148,7 @@ echo "--- test_review_gate_allows_ticket_only_via_git_add_targets ---"
 TMPDIR_TEST=$(mktemp -d)
 (
     cd "$TMPDIR_TEST"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "init" > README.md
@@ -179,7 +179,7 @@ echo "--- test_review_gate_allows_non_reviewable_via_git_add_targets ---"
 TMPDIR_TEST=$(mktemp -d)
 (
     cd "$TMPDIR_TEST"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "init" > README.md

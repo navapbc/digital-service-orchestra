@@ -30,7 +30,7 @@ trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 # Initialise a minimal git repo with one commit so HEAD is valid
 cd "$TMPDIR_TEST"
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test"
 

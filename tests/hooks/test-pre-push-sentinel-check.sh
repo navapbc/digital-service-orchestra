@@ -23,7 +23,7 @@ trap 'rm -rf "$TEST_GIT_A"' EXIT
 
 (
     cd "$TEST_GIT_A"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     # Initial commit so HEAD exists
@@ -66,7 +66,7 @@ trap 'rm -rf "$TEST_GIT_B"' EXIT
 
 (
     cd "$TEST_GIT_B"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     # Normal commit — no sentinel

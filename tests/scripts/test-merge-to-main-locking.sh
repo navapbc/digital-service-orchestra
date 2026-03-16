@@ -297,7 +297,7 @@ _snapshot_fail
 
 # Create a temporary git repo to simulate stale rebase state
 _REBASE_REPO="$_TEST_TMP/rebase_test_repo"
-git init "$_REBASE_REPO" --quiet
+git init -b main "$_REBASE_REPO" --quiet
 # Create an initial commit so the repo is valid
 git -C "$_REBASE_REPO" commit --allow-empty -m "initial" --quiet
 # Simulate stale rebase state by creating REBASE_HEAD
@@ -338,7 +338,7 @@ echo "--- cleanup stale git state noop when clean ---"
 _snapshot_fail
 
 _CLEAN_REPO="$_TEST_TMP/clean_test_repo"
-git init "$_CLEAN_REPO" --quiet
+git init -b main "$_CLEAN_REPO" --quiet
 git -C "$_CLEAN_REPO" commit --allow-empty -m "initial" --quiet
 
 # Call _cleanup_stale_git_state — should not error

@@ -78,7 +78,7 @@ TMPDIR_1=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_1")
 
 cd "$TMPDIR_1" || { echo "  FAIL: test_install_git_aliases_registers_revert_safe (cd failed)"; ((FAIL++)); exit 1; }
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test User"
 
@@ -112,7 +112,7 @@ TMPDIR_2=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_2")
 
 cd "$TMPDIR_2" || { echo "  FAIL: test_install_prints_confirmation (cd failed)"; ((FAIL++)); exit 1; }
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test User"
 
@@ -143,7 +143,7 @@ TMPDIR_3=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_3")
 
 cd "$TMPDIR_3" || { echo "  FAIL: test_install_idempotent (cd failed)"; ((FAIL++)); exit 1; }
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test User"
 
@@ -176,7 +176,7 @@ TMPDIR_4=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_4")
 
 cd "$TMPDIR_4" || { echo "  FAIL: test_wrapper_delegates_to_canonical (cd failed)"; ((FAIL++)); exit 1; }
-git init -q
+git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test User"
 

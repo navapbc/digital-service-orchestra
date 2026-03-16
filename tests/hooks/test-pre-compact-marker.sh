@@ -35,7 +35,7 @@ test_marker_written_after_checkpoint_commit() {
 
     (
         cd "$TEST_DIR"
-        git init -q
+        git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "initial" > file.txt
@@ -92,7 +92,7 @@ test_marker_uses_default_when_config_absent() {
 
     (
         cd "$TEST_DIR"
-        git init -q
+        git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "initial" > file.txt
@@ -143,7 +143,7 @@ test_no_marker_written_when_no_changes() {
 
     (
         cd "$TEST_DIR"
-        git init -q
+        git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "initial" > file.txt

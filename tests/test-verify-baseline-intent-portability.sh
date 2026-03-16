@@ -82,7 +82,7 @@ fi
 # which means MERGE_BASE == HEAD and `git diff HEAD HEAD -- $BASELINE_DIR` returns empty.
 (
     cd "$TMPDIR"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     # Need at least one commit for git rev-parse HEAD to succeed

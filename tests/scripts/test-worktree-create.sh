@@ -121,7 +121,7 @@ _smoke_setup() {
     _CLEANUP_DIRS+=("$SMOKE_REPO")
     SMOKE_WORKTREES=$(mktemp -d)
     _CLEANUP_DIRS+=("$SMOKE_WORKTREES")
-    git init "$SMOKE_REPO" &>/dev/null
+    git init -b main "$SMOKE_REPO" &>/dev/null
     # Create an initial commit so worktree creation works
     git -C "$SMOKE_REPO" commit --allow-empty -m "init" &>/dev/null
 }

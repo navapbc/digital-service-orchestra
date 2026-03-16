@@ -114,7 +114,7 @@ trap 'rm -rf "$_TMPDIR"' EXIT
 _init_repo() {
     local dir="$1"
     mkdir -p "$dir"
-    git -C "$dir" init -q
+    git -C "$dir" init -b main -q
     git -C "$dir" config user.email "test@test.com"
     git -C "$dir" config user.name "Test"
     git -C "$dir" config commit.gpgsign false
@@ -413,7 +413,7 @@ T2_ORIGIN="$_TMPDIR/t2-origin.git"
 T2="$_TMPDIR/t2"
 
 # Create a bare repo as origin
-git init -q --bare "$T2_ORIGIN"
+git init -b main -q --bare "$T2_ORIGIN"
 
 # Clone the bare repo as "main" repo, add initial commit
 T2_MAIN="$_TMPDIR/t2-main"

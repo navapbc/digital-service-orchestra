@@ -248,7 +248,7 @@ _fail_before=$FAIL
 # Create a temp project with a git repo and workflow-config.conf
 TK_TEST_DIR="$TMPDIR_FIXTURE/test-project"
 mkdir -p "$TK_TEST_DIR/.tickets"
-(cd "$TK_TEST_DIR" && git init -q)
+(cd "$TK_TEST_DIR" && git init -q -b main)
 cat > "$TK_TEST_DIR/workflow-config.conf" <<'CONF'
 tickets.prefix=custom-prefix
 CONF
@@ -279,7 +279,7 @@ fi
 _fail_before=$FAIL
 TK_DIR_TEST="$TMPDIR_FIXTURE/dir-test-project"
 mkdir -p "$TK_DIR_TEST/.custom-tickets"
-(cd "$TK_DIR_TEST" && git init -q)
+(cd "$TK_DIR_TEST" && git init -q -b main)
 cat > "$TK_DIR_TEST/workflow-config.conf" <<'CONF'
 tickets.directory=.custom-tickets
 CONF
@@ -306,7 +306,7 @@ fi
 _fail_before=$FAIL
 TK_NOCONFIG_DIR="$TMPDIR_FIXTURE/noconfig-project"
 mkdir -p "$TK_NOCONFIG_DIR/.tickets"
-(cd "$TK_NOCONFIG_DIR" && git init -q)
+(cd "$TK_NOCONFIG_DIR" && git init -q -b main)
 # No workflow-config.conf
 
 tk_noconfig_output=$(cd "$TK_NOCONFIG_DIR" && CLAUDE_PLUGIN_PYTHON="$PYTHON" bash -c '

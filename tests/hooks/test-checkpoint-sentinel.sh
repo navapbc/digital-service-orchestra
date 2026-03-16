@@ -117,7 +117,7 @@ TEST_ARTIFACTS_A=$(mktemp -d)
 _CLEANUP_DIRS+=("$TEST_ARTIFACTS_A")
 (
     cd "$TEST_GIT_A"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "test" > file.txt
@@ -174,7 +174,7 @@ _CLEANUP_DIRS+=("$TEST_GIT_B")
 NONCE_B="testnonceabcd1234"
 (
     cd "$TEST_GIT_B"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "code change" > src.py
@@ -228,7 +228,7 @@ TEST_GIT_C=$(mktemp -d)
 _CLEANUP_DIRS+=("$TEST_GIT_C")
 (
     cd "$TEST_GIT_C"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "initial" > src.py
@@ -558,7 +558,7 @@ test_record_review_preserves_checkpoint_cleared_on_rerun() {
 
     (
         cd "$TEST_GIT_J"
-        git init -q
+        git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "initial" > src.py

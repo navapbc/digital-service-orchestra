@@ -54,7 +54,7 @@ TEST_GIT_DIR=$(mktemp -d)
 _CLEANUP_DIRS+=("$TEST_GIT_DIR")
 (
     cd "$TEST_GIT_DIR"
-    git init -q
+    git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "test" > file.txt

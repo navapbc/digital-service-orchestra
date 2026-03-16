@@ -51,7 +51,7 @@ cp -RL "$REPO_ROOT/lockpick-workflow" "$PORTABILITY_DIR/lockpick-workflow"
 
 # The copied plugin needs a minimal git repo context for scripts that call
 # git rev-parse. Initialize one at the portability root.
-(cd "$PORTABILITY_DIR" && git init -q && git config user.email "test@test.com" && git config user.name "Test")
+(cd "$PORTABILITY_DIR" && git init -q -b main && git config user.email "test@test.com" && git config user.name "Test")
 
 # Copy workflow-config.conf if it exists (some scripts need it)
 if [[ -f "$REPO_ROOT/workflow-config.conf" ]]; then

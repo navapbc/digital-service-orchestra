@@ -451,14 +451,16 @@ if [[ -n "$BASH4" ]]; then
     state_file="/tmp/merge-to-main-state-${wt_name}.json"
     echo '{"phase":"complete"}' > "$state_file"
 
-    # Backdate the worktree so it passes the age check (touch mtime -3 days)
-    touch -t "$(date -v-3d +%Y%m%d%H%M 2>/dev/null || date -d '3 days ago' +%Y%m%d%H%M 2>/dev/null || echo "202001010000")" "$wt_path" 2>/dev/null || true
+    # Set AGE_DAYS=0 so the freshly-created worktree passes the age check.
+    # touch -t only changes mtime, but the script uses stat -c %W (birth time)
+    # on Linux, which cannot be backdated. AGE_DAYS=0 is the correct fix.
 
     # Run removal via --all --force (worktree is merged since it was created from HEAD)
     SMOKE_LOG=$(mktemp)
     exit_code=0
     (
         cd "$TMP_STATE_REPO" && \
+        AGE_DAYS=0 \
         CLEANUP_LOG="$SMOKE_LOG" \
         "$BASH4" "$SCRIPT" --all --force 2>&1
     ) || exit_code=$?

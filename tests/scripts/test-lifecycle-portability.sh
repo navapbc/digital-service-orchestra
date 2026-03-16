@@ -30,7 +30,7 @@ TMPDIR_SKELETON="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_SKELETON"' EXIT
 
 # Initialize a bare-minimum git repo so the script's git rev-parse works
-git init -q "$TMPDIR_SKELETON"
+git init -q -b main "$TMPDIR_SKELETON"
 git -C "$TMPDIR_SKELETON" commit --allow-empty -m "init" -q
 
 # Stub workflow-config.conf with only version/stack (no optional sections)
