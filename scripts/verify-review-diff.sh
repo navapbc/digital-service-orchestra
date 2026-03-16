@@ -41,15 +41,9 @@ if [ -z "$file_hash" ]; then
     exit 1
 fi
 
-# Compute current working tree hash, reusing snapshot if available
+# Compute current working tree hash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-ARTIFACTS_DIR=$(get_artifacts_dir 2>/dev/null || echo "")
-SNAPSHOT_ARGS=()
-if [[ -n "$ARTIFACTS_DIR" && -f "$ARTIFACTS_DIR/untracked-snapshot.txt" ]]; then
-    SNAPSHOT_ARGS=(--snapshot "$ARTIFACTS_DIR/untracked-snapshot.txt")
-fi
-current_hash=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" "${SNAPSHOT_ARGS[@]}")
+current_hash=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
 current_hash_short="${current_hash:0:8}"
 
 # Compare

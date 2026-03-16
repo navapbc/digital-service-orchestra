@@ -278,13 +278,8 @@ fi
 REVIEW_STATE_FILE="$ARTIFACTS_DIR/review-status"
 
 # Compute a hash of the current diff (staged + unstaged) to fingerprint the code state.
-# Reuse untracked snapshot if available for deterministic hashing during review sessions.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_SNAPSHOT_ARGS=()
-if [[ -n "${ARTIFACTS_DIR:-}" && -f "$ARTIFACTS_DIR/untracked-snapshot.txt" ]]; then
-    _SNAPSHOT_ARGS=(--snapshot "$ARTIFACTS_DIR/untracked-snapshot.txt")
-fi
-DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh" "${_SNAPSHOT_ARGS[@]}")
+DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh")
 
 # If --expected-hash was provided, reject if the diff has changed since the caller captured it
 if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
@@ -326,8 +321,6 @@ if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
             printf 'source=record-review.sh\n'
             printf 'expected_hash=%s\n' "$EXPECTED_HASH"
             printf 'current_hash=%s\n' "$DIFF_HASH"
-            printf 'snapshot_used=%s\n' "${#_SNAPSHOT_ARGS[@]}"
-            printf 'snapshot_exists=%s\n' "$(test -f "$ARTIFACTS_DIR/untracked-snapshot.txt" && echo yes || echo no)"
             printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             printf 'git_status=%s\n' "$(git status --short 2>/dev/null | tr '\n' ',' || echo "ERROR")"
             printf 'git_diff_names=%s\n' "$(git diff --name-only 2>/dev/null | tr '\n' ',' || echo "ERROR")"
