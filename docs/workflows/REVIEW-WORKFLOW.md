@@ -23,7 +23,7 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ## Step 0: Clear Stale Review Artifacts
 
-**Always run this step first.** Clear any leftover review state and snapshot files from prior sessions or earlier review passes. This ensures the current review computes a fresh diff hash and does not accidentally reuse a stale `review-status` that would let a commit bypass the review gate.
+**Always run this step first.** Clear any leftover review state from prior sessions or earlier review passes. This ensures the current review computes a fresh diff hash and does not accidentally reuse a stale `review-status` that would let a commit bypass the review gate.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -31,7 +31,6 @@ source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_R
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 rm -f "$ARTIFACTS_DIR/review-status"
-rm -f "$ARTIFACTS_DIR/untracked-snapshot.txt"
 rm -f "$ARTIFACTS_DIR"/review-diff-*.txt
 rm -f "$ARTIFACTS_DIR"/review-stat-*.txt
 ```
@@ -83,32 +82,24 @@ If Docker is not available, use `python3 -m py_compile` on changed Python files 
 
 The diff hash is captured here — AFTER Step 1's format/lint/type-check pass — so it reflects the final post-auto-fix state. This prevents pre-commit hooks from invalidating the hash at commit time.
 
-1. **Initialize snapshot file**:
+1. **Capture the diff hash**:
    ```bash
-   SNAPSHOT_FILE="$ARTIFACTS_DIR/untracked-snapshot.txt"
-   ```
-
-2. **Capture the diff hash**:
-   ```bash
-   DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT_FILE")
+   DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
    DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
    ```
-   The `--snapshot` flag saves the untracked file list to `$SNAPSHOT_FILE` on the first call.
-   All subsequent calls in this review session reuse the saved list, making the hash
-   deterministic regardless of concurrent file creation by sub-agents.
 
-3. **Capture the diff to a hash-stamped file** (not inline in context):
+2. **Capture the diff to a hash-stamped file** (not inline in context):
    ```bash
    DIFF_FILE="$ARTIFACTS_DIR/review-diff-${DIFF_HASH_SHORT}.txt"
    STAT_FILE="$ARTIFACTS_DIR/review-stat-${DIFF_HASH_SHORT}.txt"
    "$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE"
    ```
 
-4. **Read only the stat file** into context (small). Do NOT cat/read the full diff file — the sub-agent reads it from disk.
+3. **Read only the stat file** into context (small). Do NOT cat/read the full diff file — the sub-agent reads it from disk.
 
-5. Store `DIFF_HASH`, `DIFF_FILE`, `STAT_FILE`, and `SNAPSHOT_FILE` paths for use in Steps 2-5.
+4. Store `DIFF_HASH`, `DIFF_FILE`, and `STAT_FILE` paths for use in Steps 2-5.
 
-**Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state. If you stage a new untracked file with `git add <file>` between review and commit, delete the snapshot file and re-run the review workflow to capture the updated hash.
+**Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state.
 
 ## Step 3: Determine Model (MANDATORY — run the command, do not evaluate mentally)
 
