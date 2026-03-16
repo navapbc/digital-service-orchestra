@@ -25,10 +25,14 @@ Ticket ID: {id}
    Get your parent ID from the `tk show {id}` output (PARENT field). Do NOT create tasks for work that IS your task. Only create tasks for genuinely out-of-scope discoveries. If `tk create` fails, note the error and continue — task creation is non-fatal.
 8a. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
-   cat > .agent-discoveries/{id}.json.tmp << 'DISC_EOF'
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+   DISC_DIR="$(get_artifacts_dir)/agent-discoveries"
+   mkdir -p "$DISC_DIR"
+   cat > "$DISC_DIR/{id}.json.tmp" << 'DISC_EOF'
    {"task_id": "{id}", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line description>", "affected_files": ["<absolute-path>", ...]}
    DISC_EOF
-   mv .agent-discoveries/{id}.json.tmp .agent-discoveries/{id}.json
+   mv "$DISC_DIR/{id}.json.tmp" "$DISC_DIR/{id}.json"
    ```
    - Only write if you have genuine discoveries — do not write an empty file
    - Use atomic write (write `.tmp`, then `mv`) to avoid partial reads
