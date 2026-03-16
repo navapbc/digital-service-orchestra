@@ -92,4 +92,92 @@ claude_md_nonzero=0
 assert_eq "test_skip_review_check_claude_md_exits_nonzero: CLAUDE.md requires review" "1" "$claude_md_nonzero"
 assert_pass_if_clean "test_skip_review_check_claude_md_exits_nonzero"
 
+# ── test_skip_review_check_reads_from_allowlist ──────────────────────────────
+# The script must read classification patterns from the shared allowlist file.
+_snapshot_fail
+
+# Sub-test 1: .tickets/ file → exit 0 (allowlist covers it)
+allowlist_tickets=1
+printf '.tickets/some-ticket.md\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_tickets=0
+assert_eq "test_skip_review_check_reads_from_allowlist: .tickets/ file exits 0" "0" "$allowlist_tickets"
+
+# Sub-test 2: docs/ file → exit 0 (allowlist covers it)
+allowlist_docs=1
+printf 'docs/architecture.md\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_docs=0
+assert_eq "test_skip_review_check_reads_from_allowlist: docs/ file exits 0" "0" "$allowlist_docs"
+
+# Sub-test 3: *.png file → exit 0 (allowlist covers it)
+allowlist_png=1
+printf 'assets/image.png\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_png=0
+assert_eq "test_skip_review_check_reads_from_allowlist: *.png file exits 0" "0" "$allowlist_png"
+
+# Sub-test 4: src/main.py → exit 1 (not in allowlist)
+allowlist_code_nonzero=0
+{ printf 'src/main.py\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null; test $? -ne 0; } && allowlist_code_nonzero=1
+assert_eq "test_skip_review_check_reads_from_allowlist: src/main.py exits 1" "1" "$allowlist_code_nonzero"
+
+# Sub-test 5: script references the allowlist file
+allowlist_ref=0
+grep -q 'review-gate-allowlist' "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_ref=1
+assert_eq "test_skip_review_check_reads_from_allowlist: script references allowlist" "1" "$allowlist_ref"
+
+assert_pass_if_clean "test_skip_review_check_reads_from_allowlist"
+
+# ── test_skip_review_check_allowlist_graceful_degradation ────────────────────
+# When the allowlist file is missing, the script must still work (fallback).
+_snapshot_fail
+fallback_exit=1
+printf '.tickets/x.md\n' | ALLOWLIST_OVERRIDE=/tmp/nonexistent-allowlist-$$ bash "$CANONICAL_SCRIPT" 2>/dev/null && fallback_exit=0
+assert_eq "test_skip_review_check_allowlist_graceful_degradation: falls back when allowlist missing" "0" "$fallback_exit"
+assert_pass_if_clean "test_skip_review_check_allowlist_graceful_degradation"
+
+# ── test_skip_review_check_allowlist_behavioral_equivalence ──────────────────
+# All previously-hardcoded patterns must produce the same classification result
+# when driven from the allowlist. This ensures no silent regression.
+_snapshot_fail
+
+# Files that should skip review (exit 0) — matching old hardcoded patterns
+equiv_pass=1
+for f in \
+    ".tickets/abc.md" \
+    ".sync-state.json" \
+    "screenshot.png" \
+    "photo.jpg" \
+    "photo.jpeg" \
+    "anim.gif" \
+    "icon.svg" \
+    "favicon.ico" \
+    "hero.webp" \
+    "manual.pdf" \
+    "report.docx" \
+    ".claude/session-logs/2024-01-01.log" \
+    ".claude/docs/GUIDE.md" \
+    "docs/README.md"; do
+    printf '%s\n' "$f" | bash "$CANONICAL_SCRIPT" 2>/dev/null
+    if [[ $? -ne 0 ]]; then
+        equiv_pass=0
+        echo "  regression: $f should skip review but got exit 1" >&2
+    fi
+done
+assert_eq "test_skip_review_check_allowlist_behavioral_equivalence: all non-reviewable files skip review" "1" "$equiv_pass"
+
+# Files that should require review (exit 1) — safeguards + code
+equiv_block=1
+for f in \
+    "CLAUDE.md" \
+    "lockpick-workflow/hooks/some-hook.sh" \
+    "lockpick-workflow/skills/my-skill.md" \
+    "lockpick-workflow/docs/workflows/WF.md" \
+    ".claude/hooks/hook.sh" \
+    "app/src/main.py"; do
+    printf '%s\n' "$f" | bash "$CANONICAL_SCRIPT" 2>/dev/null
+    if [[ $? -eq 0 ]]; then
+        equiv_block=0
+        echo "  regression: $f should require review but got exit 0" >&2
+    fi
+done
+assert_eq "test_skip_review_check_allowlist_behavioral_equivalence: all reviewable files require review" "1" "$equiv_block"
+
+assert_pass_if_clean "test_skip_review_check_allowlist_behavioral_equivalence"
+
 print_summary
