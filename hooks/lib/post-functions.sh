@@ -134,6 +134,36 @@ print(json.dumps(entry))
         printf '%s\n' "$ENTRY" >> "$JSONL_FILE"
     fi
 
+    # ── Agent-visible reminder: use test-batched.sh for long-running test commands ──
+    # Detect test commands that should have used test-batched.sh to avoid exit 144.
+    # Output goes to stdout → becomes agent feedback in Claude Code.
+    if [[ -n "$COMMAND" && "$CAUSE" == "timeout" ]]; then
+        local _IS_TEST_CMD=""
+        # Match broad test commands (make test*, validate.sh, broad pytest runs)
+        case "$COMMAND" in
+            *"make test"*|*"validate.sh"*) _IS_TEST_CMD=1 ;;
+        esac
+        # Match pytest/poetry run pytest — but NOT targeted single-test runs (file.py::test_name)
+        if [[ -z "$_IS_TEST_CMD" && "$COMMAND" == *"pytest"* && "$COMMAND" != *"::"* ]]; then
+            _IS_TEST_CMD=1
+        fi
+        if [[ -n "$_IS_TEST_CMD" ]]; then
+            local _REPO_ROOT
+            _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+            cat <<'REMINDER'
+
+⚠️  EXIT 144 (SIGURG timeout) on a test command.
+    Long-running test commands MUST use test-batched.sh to avoid this.
+
+    Example:
+      $(git rev-parse --show-toplevel)/lockpick-workflow/scripts/test-batched.sh --timeout=50 "make test-unit-only"
+
+    See CLAUDE.md rule #16: "Use test-batched.sh for test commands expected to exceed 60 seconds."
+    Re-run this command using test-batched.sh now.
+REMINDER
+        fi
+    fi
+
     trap - ERR
     return 0
 }

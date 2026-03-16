@@ -497,4 +497,161 @@ rm -rf "$_TEST15_DIR"
 # Restore real HOME after Part 4 tests
 export HOME="$_PART4_REAL_HOME"
 
+# ============================================================
+# Part 5: test-batched.sh reminder output tests
+# The forensic logger should emit a visible reminder to stdout
+# when a test command hits exit 144 due to timeout, nudging the
+# agent to use test-batched.sh.
+# ============================================================
+
+# ============================================================
+# test_reminder_emitted_for_make_test_timeout
+# A "make test-unit-only" command timing out (exit 144) should
+# produce a reminder message about test-batched.sh on stdout.
+# ============================================================
+_TEST16_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST16_DIR")
+_TEST16_COMMAND="make test-unit-only"
+_TEST16_HASH=$(echo -n "$_TEST16_COMMAND" | hash_stdin | cut -c1-8)
+
+# Simulate 80s elapsed (timeout)
+_TEST16_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST16_START_MS=$(( _TEST16_NOW_MS - 80000 ))
+echo "$_TEST16_START_MS" > "$_TEST16_DIR/bash-start-ts-${_TEST16_HASH}"
+
+_TEST16_INPUT='{"tool_name":"Bash","tool_input":{"command":"make test-unit-only"},"tool_response":{"exit_code":144}}'
+
+_TEST16_OUTPUT=$(echo "$_TEST16_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST16_DIR" bash "$POST_HOOK" 2>/dev/null) || true
+
+assert_contains "test_reminder_emitted_for_make_test_timeout: contains test-batched.sh" "test-batched.sh" "$_TEST16_OUTPUT"
+assert_contains "test_reminder_emitted_for_make_test_timeout: contains CLAUDE.md rule" "rule #16" "$_TEST16_OUTPUT"
+
+rm -rf "$_TEST16_DIR"
+
+# ============================================================
+# test_reminder_emitted_for_broad_pytest_timeout
+# A broad "poetry run pytest" (no ::test_name) timing out should
+# produce the reminder.
+# ============================================================
+_TEST17_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST17_DIR")
+_TEST17_COMMAND="cd app && poetry run pytest tests/unit/"
+_TEST17_HASH=$(echo -n "$_TEST17_COMMAND" | hash_stdin | cut -c1-8)
+
+_TEST17_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST17_START_MS=$(( _TEST17_NOW_MS - 75000 ))
+echo "$_TEST17_START_MS" > "$_TEST17_DIR/bash-start-ts-${_TEST17_HASH}"
+
+_TEST17_INPUT="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cd app && poetry run pytest tests/unit/\"},\"tool_response\":{\"exit_code\":144}}"
+
+_TEST17_OUTPUT=$(echo "$_TEST17_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST17_DIR" bash "$POST_HOOK" 2>/dev/null) || true
+
+assert_contains "test_reminder_emitted_for_broad_pytest_timeout: contains test-batched.sh" "test-batched.sh" "$_TEST17_OUTPUT"
+
+rm -rf "$_TEST17_DIR"
+
+# ============================================================
+# test_no_reminder_for_targeted_pytest
+# A targeted "pytest tests/unit/foo.py::test_bar" timing out should
+# NOT produce the reminder (targeted tests are fast; exit 144 is unusual).
+# ============================================================
+_TEST18_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST18_DIR")
+_TEST18_COMMAND="cd app && poetry run pytest tests/unit/test_foo.py::test_bar --tb=short -q"
+_TEST18_HASH=$(echo -n "$_TEST18_COMMAND" | hash_stdin | cut -c1-8)
+
+_TEST18_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST18_START_MS=$(( _TEST18_NOW_MS - 75000 ))
+echo "$_TEST18_START_MS" > "$_TEST18_DIR/bash-start-ts-${_TEST18_HASH}"
+
+_TEST18_INPUT="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cd app && poetry run pytest tests/unit/test_foo.py::test_bar --tb=short -q\"},\"tool_response\":{\"exit_code\":144}}"
+
+_TEST18_OUTPUT=$(echo "$_TEST18_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST18_DIR" bash "$POST_HOOK" 2>/dev/null) || true
+
+# Should NOT contain test-batched.sh reminder
+if [[ "$_TEST18_OUTPUT" == *"test-batched.sh"* ]]; then
+    _TEST18_HAS_REMINDER="yes"
+else
+    _TEST18_HAS_REMINDER="no"
+fi
+assert_eq "test_no_reminder_for_targeted_pytest: no reminder" "no" "$_TEST18_HAS_REMINDER"
+
+rm -rf "$_TEST18_DIR"
+
+# ============================================================
+# test_no_reminder_for_cancellation
+# A test command with exit 144 classified as "cancellation" (<70s)
+# should NOT produce the reminder — cancellations aren't timeouts.
+# ============================================================
+_TEST19_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST19_DIR")
+_TEST19_COMMAND="make test-unit-only"
+_TEST19_HASH=$(echo -n "$_TEST19_COMMAND" | hash_stdin | cut -c1-8)
+
+# 40s elapsed = cancellation, not timeout
+_TEST19_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST19_START_MS=$(( _TEST19_NOW_MS - 40000 ))
+echo "$_TEST19_START_MS" > "$_TEST19_DIR/bash-start-ts-${_TEST19_HASH}"
+
+_TEST19_INPUT='{"tool_name":"Bash","tool_input":{"command":"make test-unit-only"},"tool_response":{"exit_code":144}}'
+
+_TEST19_OUTPUT=$(echo "$_TEST19_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST19_DIR" bash "$POST_HOOK" 2>/dev/null) || true
+
+if [[ "$_TEST19_OUTPUT" == *"test-batched.sh"* ]]; then
+    _TEST19_HAS_REMINDER="yes"
+else
+    _TEST19_HAS_REMINDER="no"
+fi
+assert_eq "test_no_reminder_for_cancellation: no reminder" "no" "$_TEST19_HAS_REMINDER"
+
+rm -rf "$_TEST19_DIR"
+
+# ============================================================
+# test_reminder_for_validate_sh_timeout
+# A "validate.sh" command timing out should produce the reminder.
+# ============================================================
+_TEST20_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST20_DIR")
+_TEST20_COMMAND="./lockpick-workflow/scripts/validate.sh --ci"
+_TEST20_HASH=$(echo -n "$_TEST20_COMMAND" | hash_stdin | cut -c1-8)
+
+_TEST20_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST20_START_MS=$(( _TEST20_NOW_MS - 80000 ))
+echo "$_TEST20_START_MS" > "$_TEST20_DIR/bash-start-ts-${_TEST20_HASH}"
+
+_TEST20_INPUT="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"./lockpick-workflow/scripts/validate.sh --ci\"},\"tool_response\":{\"exit_code\":144}}"
+
+_TEST20_OUTPUT=$(echo "$_TEST20_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST20_DIR" bash "$POST_HOOK" 2>/dev/null) || true
+
+assert_contains "test_reminder_for_validate_sh_timeout: contains test-batched.sh" "test-batched.sh" "$_TEST20_OUTPUT"
+
+rm -rf "$_TEST20_DIR"
+
+# ============================================================
+# test_no_reminder_for_non_test_command
+# A non-test command (e.g., "git status") timing out should NOT
+# produce the test-batched.sh reminder.
+# ============================================================
+_TEST21_DIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_TEST21_DIR")
+_TEST21_COMMAND="git status"
+_TEST21_HASH=$(echo -n "$_TEST21_COMMAND" | hash_stdin | cut -c1-8)
+
+_TEST21_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
+_TEST21_START_MS=$(( _TEST21_NOW_MS - 80000 ))
+echo "$_TEST21_START_MS" > "$_TEST21_DIR/bash-start-ts-${_TEST21_HASH}"
+
+_TEST21_INPUT='{"tool_name":"Bash","tool_input":{"command":"git status"},"tool_response":{"exit_code":144}}'
+
+_TEST21_OUTPUT=$(echo "$_TEST21_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST21_DIR" bash "$POST_HOOK" 2>/dev/null) || true
+
+if [[ "$_TEST21_OUTPUT" == *"test-batched.sh"* ]]; then
+    _TEST21_HAS_REMINDER="yes"
+else
+    _TEST21_HAS_REMINDER="no"
+fi
+assert_eq "test_no_reminder_for_non_test_command: no reminder" "no" "$_TEST21_HAS_REMINDER"
+
+rm -rf "$_TEST21_DIR"
+
 print_summary
