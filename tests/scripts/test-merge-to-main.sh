@@ -196,4 +196,209 @@ fi
 rm -rf "$_TC_TMPDIR"
 
 # =============================================================================
+# State file helper function tests
+# =============================================================================
+
+# Helper: extract and eval state file functions from merge-to-main.sh
+# We extract each function by name, eval it, so we can test individually.
+_extract_fn() {
+    local fn_name="$1"
+    awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT"
+}
+
+_STATE_TMPDIR=$(mktemp -d)
+
+# =============================================================================
+# Test: _state_file_path is worktree-scoped
+# =============================================================================
+_SFP_BODY=$(_extract_fn "_state_file_path")
+if [[ -z "$_SFP_BODY" ]]; then
+    assert_eq "test_state_file_path_is_worktree_scoped" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    eval "$_SFP_BODY"
+    BRANCH="worktrees/test-branch"
+    _SFP_RESULT=$(_state_file_path)
+    assert_contains "test_state_file_path_starts_with_tmp" "/tmp/merge-to-main-state-" "$_SFP_RESULT"
+    assert_contains "test_state_file_path_contains_branch" "test-branch" "$_SFP_RESULT"
+fi
+
+# =============================================================================
+# Test: _state_init creates JSON with correct schema
+# =============================================================================
+_SI_BODY=$(_extract_fn "_state_init")
+_SSM_BODY=$(_extract_fn "_state_is_fresh")
+if [[ -z "$_SI_BODY" || -z "$_SFP_BODY" ]]; then
+    assert_eq "test_state_init_creates_json_with_schema" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    eval "$_SI_BODY"
+    eval "$_SSM_BODY" 2>/dev/null || true
+    BRANCH="test-task1"
+    _state_init
+    _STATE_FILE=$(_state_file_path)
+    # Assert file exists
+    if [[ -f "$_STATE_FILE" ]]; then
+        _INIT_EXISTS="true"
+    else
+        _INIT_EXISTS="false"
+    fi
+    assert_eq "test_state_init_creates_json_file_exists" "true" "$_INIT_EXISTS"
+    # Assert valid JSON with correct keys
+    _SCHEMA_OK=$(python3 -c "
+import json, sys
+with open('$_STATE_FILE') as f:
+    d = json.load(f)
+keys = {'branch', 'merge_sha', 'completed_phases', 'current_phase', 'phases'}
+if keys.issubset(set(d.keys())):
+    print('true')
+else:
+    print('false: missing ' + str(keys - set(d.keys())))
+" 2>/dev/null || echo "false: parse error")
+    assert_eq "test_state_init_creates_json_with_schema" "true" "$_SCHEMA_OK"
+    rm -f "$_STATE_FILE"
+fi
+
+# =============================================================================
+# Test: _state_is_fresh deletes stale files
+# =============================================================================
+if [[ -z "$_SSM_BODY" || -z "$_SFP_BODY" ]]; then
+    assert_eq "test_state_stale_file_is_deleted" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    BRANCH="test-stale"
+    _STATE_FILE=$(_state_file_path)
+    # Create a state file with content, then backdate it by 241 minutes
+    printf '{"branch":"test-stale","merge_sha":"","completed_phases":[],"current_phase":"","phases":{}}' > "$_STATE_FILE"
+    touch -t $(date -v-241M '+%Y%m%d%H%M' 2>/dev/null || date -d '241 minutes ago' '+%Y%m%d%H%M') "$_STATE_FILE"
+    _state_is_fresh
+    _STALE_RC=$?
+    if [[ ! -f "$_STATE_FILE" ]]; then
+        _STALE_DELETED="true"
+    else
+        _STALE_DELETED="false"
+        rm -f "$_STATE_FILE"
+    fi
+    assert_eq "test_state_stale_file_is_deleted_rc" "1" "$_STALE_RC"
+    assert_eq "test_state_stale_file_is_deleted" "true" "$_STALE_DELETED"
+fi
+
+# =============================================================================
+# Test: _state_is_fresh keeps fresh files
+# =============================================================================
+if [[ -z "$_SSM_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
+    assert_eq "test_state_fresh_file_is_kept" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    BRANCH="test-fresh"
+    _state_init
+    _STATE_FILE=$(_state_file_path)
+    _state_is_fresh
+    _FRESH_RC=$?
+    if [[ -f "$_STATE_FILE" ]]; then
+        _FRESH_KEPT="true"
+    else
+        _FRESH_KEPT="false"
+    fi
+    assert_eq "test_state_fresh_file_is_kept_rc" "0" "$_FRESH_RC"
+    assert_eq "test_state_fresh_file_is_kept" "true" "$_FRESH_KEPT"
+    rm -f "$_STATE_FILE"
+fi
+
+# =============================================================================
+# Test: _state_mark_complete appends phase to completed_phases
+# =============================================================================
+_SMC_BODY=$(_extract_fn "_state_mark_complete")
+if [[ -z "$_SMC_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
+    assert_eq "test_state_mark_complete_appends_phase" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    eval "$_SMC_BODY"
+    BRANCH="test-complete"
+    _state_init
+    _state_mark_complete "sync"
+    _STATE_FILE=$(_state_file_path)
+    _PHASE_OK=$(python3 -c "
+import json
+with open('$_STATE_FILE') as f:
+    d = json.load(f)
+if 'sync' in d.get('completed_phases', []):
+    print('true')
+else:
+    print('false')
+" 2>/dev/null || echo "false: parse error")
+    assert_eq "test_state_mark_complete_appends_phase" "true" "$_PHASE_OK"
+    # Also check phases dict has status=complete
+    _STATUS_OK=$(python3 -c "
+import json
+with open('$_STATE_FILE') as f:
+    d = json.load(f)
+if d.get('phases', {}).get('sync', {}).get('status') == 'complete':
+    print('true')
+else:
+    print('false')
+" 2>/dev/null || echo "false: parse error")
+    assert_eq "test_state_mark_complete_sets_phase_status" "true" "$_STATUS_OK"
+    rm -f "$_STATE_FILE"
+fi
+
+# =============================================================================
+# Test: _state_write_phase updates current_phase in state file
+# =============================================================================
+_SWP_BODY=$(_extract_fn "_state_write_phase")
+if [[ -z "$_SWP_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
+    assert_eq "test_state_write_phase_updates_current_phase" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    eval "$_SWP_BODY"
+    BRANCH="test-write-phase"
+    _state_init
+    _state_write_phase "merge"
+    _STATE_FILE=$(_state_file_path)
+    _PHASE_VAL=$(python3 -c "
+import json
+with open('$_STATE_FILE') as f:
+    d = json.load(f)
+print(d.get('current_phase', ''))
+" 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_state_write_phase_updates_current_phase" "merge" "$_PHASE_VAL"
+    # Write a second phase and verify it overwrites
+    _state_write_phase "push"
+    _PHASE_VAL2=$(python3 -c "
+import json
+with open('$_STATE_FILE') as f:
+    d = json.load(f)
+print(d.get('current_phase', ''))
+" 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_state_write_phase_overwrites_previous" "push" "$_PHASE_VAL2"
+    rm -f "$_STATE_FILE"
+fi
+
+# =============================================================================
+# Test: _state_record_merge_sha records SHA in state file
+# =============================================================================
+_SRMS_BODY=$(_extract_fn "_state_record_merge_sha")
+if [[ -z "$_SRMS_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
+    assert_eq "test_state_record_merge_sha_writes_sha" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    eval "$_SRMS_BODY"
+    BRANCH="test-merge-sha"
+    _state_init
+    _state_record_merge_sha "abc123def456"
+    _STATE_FILE=$(_state_file_path)
+    _SHA_VAL=$(python3 -c "
+import json
+with open('$_STATE_FILE') as f:
+    d = json.load(f)
+print(d.get('merge_sha', ''))
+" 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_state_record_merge_sha_writes_sha" "abc123def456" "$_SHA_VAL"
+    # Verify other fields are preserved
+    _BRANCH_VAL=$(python3 -c "
+import json
+with open('$_STATE_FILE') as f:
+    d = json.load(f)
+print(d.get('branch', ''))
+" 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_state_record_merge_sha_preserves_branch" "test-merge-sha" "$_BRANCH_VAL"
+    rm -f "$_STATE_FILE"
+fi
+
+rm -rf "$_STATE_TMPDIR"
+
+# =============================================================================
 print_summary

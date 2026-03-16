@@ -44,6 +44,106 @@ _count_closed_tickets() {
     echo "${_result:-0}"
 }
 
+# --- State file helpers (resumable merge support) ---
+
+_state_file_path() {
+    local _sanitized="${BRANCH//\//-}"
+    echo "/tmp/merge-to-main-state-${_sanitized}.json"
+}
+
+_state_is_fresh() {
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 1
+    if [[ ! -f "$_sf" ]]; then
+        return 1
+    fi
+    # Check if mtime > 4 hours (240 minutes) ago using python3 (portable across /tmp symlinks)
+    local _is_stale
+    _is_stale=$(python3 -c "
+import os, time
+try:
+    mtime = os.path.getmtime('$_sf')
+    if (time.time() - mtime) > 240 * 60:
+        print('stale')
+    else:
+        print('fresh')
+except Exception:
+    print('stale')
+" 2>/dev/null || echo "stale")
+    if [[ "$_is_stale" == "stale" ]]; then
+        rm -f "$_sf" 2>/dev/null
+        return 1
+    fi
+    return 0
+}
+
+_state_init() {
+    # Clean up any stale state files first
+    find /tmp -maxdepth 1 -name 'merge-to-main-state-*.json' -mmin +240 -delete 2>/dev/null
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    if ! _state_is_fresh; then
+        # Not fresh (missing or stale) — write fresh skeleton
+        python3 -c "
+import json
+d = {'branch': '$BRANCH', 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}}
+with open('${_sf}.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+    fi
+    return 0
+}
+
+_state_write_phase() {
+    local _phase="$1"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+d['current_phase'] = '$_phase'
+with open('${_sf}.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+    return 0
+}
+
+_state_mark_complete() {
+    local _phase="$1"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+if '$_phase' not in d.get('completed_phases', []):
+    d.setdefault('completed_phases', []).append('$_phase')
+d.setdefault('phases', {})['$_phase'] = {'status': 'complete'}
+with open('${_sf}.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+    return 0
+}
+
+_state_record_merge_sha() {
+    local _sha="$1"
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+d['merge_sha'] = '$_sha'
+with open('${_sf}.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+    return 0
+}
+
 # --- Load hooks/lib/deps.sh for get_artifacts_dir ---
 # Needed for checkpoint sentinel verification (see below).
 _HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
