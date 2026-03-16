@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-validate-ui-cache.sh
+# tests/scripts/test-validate-ui-cache.sh
 # TDD tests for validate-ui-cache.sh extraction from ui-discover/SKILL.md:
-#   1. lockpick-workflow/scripts/validate-ui-cache.sh exists and is executable
+#   1. scripts/validate-ui-cache.sh exists and is executable
 #   2. scripts/validate-ui-cache.sh wrapper exists and delegates to canonical
 #   3. ui-discover/SKILL.md inline block replaced with a one-liner
 #   4. All 6 cache validation steps present in the extracted script
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-validate-ui-cache.sh
+# Usage: bash tests/scripts/test-validate-ui-cache.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -23,7 +23,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-validate-ui-cache.sh ==="
 
 # ── test_canonical_script_exists ─────────────────────────────────────────────
-# lockpick-workflow/scripts/validate-ui-cache.sh must exist
+# scripts/validate-ui-cache.sh must exist
 _snapshot_fail
 if [[ -f "$CANONICAL_SCRIPT" ]]; then
     assert_eq "test_canonical_script_exists: file exists" "yes" "yes"
@@ -33,7 +33,7 @@ fi
 assert_pass_if_clean "test_canonical_script_exists"
 
 # ── test_canonical_script_is_executable ──────────────────────────────────────
-# lockpick-workflow/scripts/validate-ui-cache.sh must be executable
+# scripts/validate-ui-cache.sh must be executable
 _snapshot_fail
 if [[ -x "$CANONICAL_SCRIPT" ]]; then
     assert_eq "test_canonical_script_is_executable: executable" "yes" "yes"
@@ -55,7 +55,7 @@ assert_pass_if_clean "test_wrapper_script_exists"
 # ── test_wrapper_delegates_to_canonical ──────────────────────────────────────
 # scripts/validate-ui-cache.sh must reference the canonical script path
 _snapshot_fail
-if grep -q 'lockpick-workflow/scripts/validate-ui-cache.sh' "$WRAPPER_SCRIPT" 2>/dev/null; then
+if grep -q 'scripts/validate-ui-cache.sh' "$WRAPPER_SCRIPT" 2>/dev/null; then
     assert_eq "test_wrapper_delegates_to_canonical: references canonical path" "yes" "yes"
 else
     assert_eq "test_wrapper_delegates_to_canonical: references canonical path" "yes" "no"

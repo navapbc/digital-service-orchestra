@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-record-review.sh
-# Tests for lockpick-workflow/hooks/record-review.sh
+# tests/hooks/test-record-review.sh
+# Tests for hooks/record-review.sh
 #
 # record-review.sh reads directly from reviewer-findings.json (written by
 # the code-reviewer sub-agent). It requires --reviewer-hash and validates

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-aggregator-behavior.sh
+# tests/hooks/test-aggregator-behavior.sh
 # TDD tests for run-hook-tests.sh aggregator behavior.
 #
 # Tests:
@@ -7,7 +7,7 @@
 #   2. Aggregator exits zero when all test files pass
 #   3. Aggregator prints "Hook Tests: PASSED: N  FAILED: N" summary line
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-aggregator-behavior.sh
+# Usage: bash tests/hooks/test-aggregator-behavior.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -62,9 +62,9 @@ Apply the one-sentence test: can you describe the change in one sentence without
 
 ### 8. Classify
 
-Load the shared rubric dimensions from `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md` before scoring. Apply those dimension thresholds and scope_certainty guidance. Map your result to this file's output tier schema.
+Load the shared rubric dimensions from `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md` before scoring. Apply those dimension thresholds and scope_certainty guidance. Map your result to this file's output tier schema.
 
-**Sprint routing rule**: If the shared rubric returns MODERATE, classify this epic as COMPLEX for /sprint. This preserves the safety behavior of full preplanning when scope is not fully certain.
+**Sprint routing rule**: If the shared rubric returns MODERATE, classify this epic as COMPLEX for /dso:sprint. This preserves the safety behavior of full preplanning when scope is not fully certain.
 
 **File threshold note**: The shared rubric's MODERATE threshold (≤3 files) is more conservative than the old inline threshold (≤8 files). This is intentional — the tighter threshold ensures safe routing and avoids under-classifying epics with uncertain scope.
 

@@ -32,15 +32,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/inject-using-lockpick.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/inject-using-lockpick.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/session-safety-check.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/session-safety-check.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/post-compact-review-check.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/post-compact-review-check.sh"
           }
         ]
       }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/tool-logging.sh pre"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/tool-logging.sh pre"
           }
         ]
       },
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/pre-bash.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/dispatchers/pre-bash.sh"
           }
         ]
       },
@@ -69,19 +69,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/validation-gate.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/validation-gate.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/worktree-edit-guard.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/worktree-edit-guard.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/cascade-circuit-breaker.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/cascade-circuit-breaker.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/title-length-validator.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/title-length-validator.sh"
           }
         ]
       },
@@ -90,7 +90,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/plan-review-gate.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/plan-review-gate.sh"
           }
         ]
       },
@@ -99,19 +99,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/validation-gate.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/validation-gate.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/worktree-edit-guard.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/worktree-edit-guard.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/cascade-circuit-breaker.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/cascade-circuit-breaker.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/title-length-validator.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/title-length-validator.sh"
           }
         ]
       },
@@ -120,7 +120,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/worktree-isolation-guard.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/worktree-isolation-guard.sh"
           }
         ]
       },
@@ -129,7 +129,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/taskoutput-block-guard.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/taskoutput-block-guard.sh"
           }
         ]
       }
@@ -140,7 +140,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-all.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/dispatchers/post-all.sh"
           }
         ]
       },
@@ -149,7 +149,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-bash.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/dispatchers/post-bash.sh"
           }
         ]
       },
@@ -158,7 +158,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-edit.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/dispatchers/post-edit.sh"
           }
         ]
       },
@@ -167,7 +167,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/dispatchers/post-write.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/dispatchers/post-write.sh"
           }
         ]
       }
@@ -178,11 +178,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/review-stop-check.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/review-stop-check.sh"
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/tool-logging-summary.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/tool-logging-summary.sh"
           }
         ]
       }
@@ -193,7 +193,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && lockpick-workflow/hooks/run-hook.sh lockpick-workflow/hooks/track-tool-errors.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/track-tool-errors.sh"
           }
         ]
       }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-nohup-poll-zombie.sh
+# tests/scripts/test-nohup-poll-zombie.sh
 # Tests for zombie detection and heartbeat-missing behavior in nohup-poll.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-nohup-poll-zombie.sh
+# Usage: bash tests/scripts/test-nohup-poll-zombie.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

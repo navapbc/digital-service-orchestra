@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/analyze-exit-144.sh
+# scripts/analyze-exit-144.sh
 # Companion analysis script for exit-144 forensic logger.
 #
 # Parses the JSONL log produced by the PostToolUse forensic hook and reports:
@@ -35,8 +35,8 @@ done
 # Default log file location
 if [[ -z "$LOG_FILE" ]]; then
     # Source deps.sh for get_artifacts_dir if available
-    if [[ -f "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh" ]]; then
-        source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+    if [[ -f "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
+        source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
         LOG_FILE="$(get_artifacts_dir)/exit-144-forensics.jsonl"
     else
         LOG_FILE="${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-/tmp}/exit-144-forensics.jsonl"

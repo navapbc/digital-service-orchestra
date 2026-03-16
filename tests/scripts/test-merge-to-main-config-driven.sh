@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-to-main-config-driven.sh
+# tests/scripts/test-merge-to-main-config-driven.sh
 # Tests that merge-to-main.sh reads commands.format_check and commands.lint
 # from workflow-config.conf instead of using hardcoded make targets.
 #
@@ -11,7 +11,7 @@
 #   5. test_merge_to_main_default_format_check — fallback matches current value
 #   6. test_merge_to_main_default_lint — fallback matches current value
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main-config-driven.sh
+# Usage: bash tests/scripts/test-merge-to-main-config-driven.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

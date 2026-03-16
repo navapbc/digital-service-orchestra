@@ -14,13 +14,13 @@ Use Test-Driven Development to ensure bug fixes are correct and prevent regressi
 At activation, load project commands via read-config.sh before executing any steps:
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
 FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)
 ```
 
-Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
+Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test` in RED, GREEN, REFACTOR, and VALIDATE steps
@@ -100,14 +100,14 @@ make format-check && make lint && make test
 
 # Full CI validation (recommended before commit)
 # Use Bash timeout: 960000 (16 min) — smart CI wait can poll up to 15 min
-$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/validate.sh --ci
+${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci
 ```
 
 ## Example
 
 **Bug report**: "Email validation accepts `user@` without domain"
 
-### Step 1: RED - Write the failing test (/tdd-workflow)
+### Step 1: RED - Write the failing test (/dso:tdd-workflow)
 
 ```python
 # tests/unit/services/test_email_validation.py
@@ -128,7 +128,7 @@ make test
 
 The test fails because the current code does not validate the domain part.
 
-### Step 2: GREEN - Implement minimal fix (/tdd-workflow)
+### Step 2: GREEN - Implement minimal fix (/dso:tdd-workflow)
 
 ```python
 # src/services/validation.py
@@ -152,14 +152,14 @@ make test
 # PASSED tests/unit/services/test_email_validation.py::test_email_rejects_missing_domain
 ```
 
-### Step 3: VALIDATE - Full test suite (/tdd-workflow)
+### Step 3: VALIDATE - Full test suite (/dso:tdd-workflow)
 
 ```bash
 make format-check && make lint && make test
 # All checks pass
 
 # Use Bash timeout: 960000 (16 min) — smart CI wait can poll up to 15 min
-$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/validate.sh --full --ci
+${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --full --ci
 # Full validation passes
 ```
 
@@ -201,5 +201,5 @@ poetry run pytest -v -s
 poetry run pytest -x
 
 # Full validation (use Bash timeout: 960000 — smart CI wait can take up to 15 min)
-$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/validate.sh --full --ci
+${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --full --ci
 ```

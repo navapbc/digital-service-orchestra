@@ -25,7 +25,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    - Unfamiliar library behavior (e.g., SQLAlchemy session lifecycle, LangGraph state management)
    - Multiple valid approaches with non-obvious tradeoffs
    - 3+ tool calls without a clear path forward
-   Use WebSearch or read official docs; follow guidelines in `lockpick-workflow/docs/RESEARCH-PATTERN.md`.
+   Use WebSearch or read official docs; follow guidelines in `${CLAUDE_PLUGIN_ROOT}/docs/RESEARCH-PATTERN.md`.
    Include findings in the ROOT_CAUSE report line (e.g., "ROOT_CAUSE: ... — confirmed via SQLAlchemy docs: lazy loading requires active session").
 3. **RED — Write a failing test FIRST**:
    a. Create a test in the appropriate `tests/unit/` subdirectory
@@ -38,7 +38,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 6. Run full validation — capture verbose output to disk to keep the orchestrator's context lean:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    RESULT_FILE="$(get_artifacts_dir)/agent-result-{id}.md"
    mkdir -p "$(dirname "$RESULT_FILE")"
    { cd "$REPO_ROOT/app" && make format-check && make lint && make test-unit-only; } > "$RESULT_FILE" 2>&1
@@ -50,7 +50,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 7. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations outside your fix scope, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    DISC_DIR="$(get_artifacts_dir)/agent-discoveries"
    mkdir -p "$DISC_DIR"
    cat > "$DISC_DIR/{id}.json.tmp" << 'DISC_EOF'
@@ -75,7 +75,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    ```
 
 ### Rules
-Read `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
+Read `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
 - Do NOT: `git commit`, `git push`, `tk close`, `tk status`, `tk dep`
 - You MAY run: `tk create --parent=<parent-id>` for discovered work outside your fix scope
 - Do NOT skip, disable, or delete any tests

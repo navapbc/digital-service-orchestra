@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-config-paths.sh
+# tests/hooks/test-config-paths.sh
 # Unit tests for config-paths.sh shared config path resolver.
 #
 # Tests:
@@ -7,7 +7,7 @@
 #   test_config_paths_reads_custom_config
 #   test_config_paths_idempotent_sourcing
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-config-paths.sh
+# Usage: bash tests/hooks/test-config-paths.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

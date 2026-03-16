@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/tool-use-guard.sh
+# hooks/tool-use-guard.sh
 # PreToolUse hook (Bash matcher): warns when cat/head/tail/grep/rg are used
 # via Bash instead of the dedicated Read/Grep tools.
 #
 # This file is a thin wrapper. The hook logic lives in:
-#   lockpick-workflow/hooks/lib/pre-bash-functions.sh (hook_tool_use_guard)
+#   hooks/lib/pre-bash-functions.sh (hook_tool_use_guard)
 #
 # WARNING ONLY (exit 0 + stderr) — agents may have legitimate reasons to use
 # these commands (pipes, redirects, scripts).

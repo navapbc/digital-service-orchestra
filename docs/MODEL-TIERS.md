@@ -21,10 +21,10 @@ Sub-agents are dispatched at one of three model tiers. Each tier upgrade increas
 
 | Skill / Context | Task | Why Haiku Suffices |
 |-----------------|------|--------------------|
-| `/validate-work` | CI status polling (`gh run list` + JSON field extraction) | Single API call, parse one JSON field |
-| `/sprint` | File existence checks before dispatching sub-agents | Boolean check, no judgment needed |
-| `/sprint` | Classifying changed files into categories (test/src/config) | Pattern matching on file paths |
-| `/debug-everything` | Reading a single test's exit code and error line | Structured output, one error to extract |
+| `/dso:validate-work` | CI status polling (`gh run list` + JSON field extraction) | Single API call, parse one JSON field |
+| `/dso:sprint` | File existence checks before dispatching sub-agents | Boolean check, no judgment needed |
+| `/dso:sprint` | Classifying changed files into categories (test/src/config) | Pattern matching on file paths |
+| `/dso:debug-everything` | Reading a single test's exit code and error line | Structured output, one error to extract |
 | General | Checking if a string matches a known pattern | Regex-level classification |
 | General | Counting items in a list or summarizing a number | Arithmetic on structured input |
 
@@ -44,14 +44,14 @@ Haiku is ~10x cheaper than Sonnet. Use it aggressively for structured I/O tasks.
 
 | Skill / Context | Task | Why Sonnet Is Needed |
 |-----------------|------|----------------------|
-| `/sprint` | Code generation sub-agents (write implementation + tests) | Must produce syntactically and semantically correct code |
-| `/review-protocol` | Multi-perspective rubric review of code changes | Must evaluate code against multiple criteria simultaneously |
-| `/oscillation-check` | Structural diff analysis between fix attempts | Must identify semantic patterns in code changes, not just textual diffs |
-| `/plan-review` | Implementation plan review (sequencing, dependencies) | Must reason about task ordering and identify gaps |
-| `/debug-everything` | Routine bug fixes (single-file, clear root cause) | Must read error context and produce a targeted fix |
-| `/debug-everything` | Diagnostic sub-agent (Phase 1 failure inventory) | Must correlate failures across validation categories and cluster related errors |
-| `/debug-everything` | Triage sub-agent (Phase 2 issue creation) | Must cross-reference failure clusters with existing ticket issues and make severity judgments |
-| `/validate-work` | Staging deployment check with nested JSON responses | Must navigate nested structures and correlate fields |
+| `/dso:sprint` | Code generation sub-agents (write implementation + tests) | Must produce syntactically and semantically correct code |
+| `/dso:review-protocol` | Multi-perspective rubric review of code changes | Must evaluate code against multiple criteria simultaneously |
+| `/dso:oscillation-check` | Structural diff analysis between fix attempts | Must identify semantic patterns in code changes, not just textual diffs |
+| `/dso:plan-review` | Implementation plan review (sequencing, dependencies) | Must reason about task ordering and identify gaps |
+| `/dso:debug-everything` | Routine bug fixes (single-file, clear root cause) | Must read error context and produce a targeted fix |
+| `/dso:debug-everything` | Diagnostic sub-agent (Phase 1 failure inventory) | Must correlate failures across validation categories and cluster related errors |
+| `/dso:debug-everything` | Triage sub-agent (Phase 2 issue creation) | Must cross-reference failure clusters with existing ticket issues and make severity judgments |
+| `/dso:validate-work` | Staging deployment check with nested JSON responses | Must navigate nested structures and correlate fields |
 
 ### Cost/Quality Tradeoff
 
@@ -69,9 +69,9 @@ Sonnet is ~10x cheaper than Opus. It handles the vast majority of code generatio
 
 | Skill / Context | Task | Why Opus Is Needed |
 |-----------------|------|---------------------|
-| `/plan-review` | Design review (API contracts, data model changes) | Must evaluate architectural coherence across system boundaries |
-| `/debug-everything` Phase 5 | Complex multi-file bugs spanning multiple modules | Must hold full system context to trace subtle interaction bugs |
-| `/sprint` | Code review of high-blast-radius files (see list below) | Subtle errors in these files cascade across the entire project |
+| `/dso:plan-review` | Design review (API contracts, data model changes) | Must evaluate architectural coherence across system boundaries |
+| `/dso:debug-everything` Phase 5 | Complex multi-file bugs spanning multiple modules | Must hold full system context to trace subtle interaction bugs |
+| `/dso:sprint` | Code review of high-blast-radius files (see list below) | Subtle errors in these files cascade across the entire project |
 | General | Reviewing changes to pipeline stage ordering or dependencies | Must reason about 9-stage pipeline interactions |
 | General | Evaluating tradeoffs between competing design approaches | Must weigh multiple non-obvious factors simultaneously |
 
@@ -80,8 +80,8 @@ Sonnet is ~10x cheaper than Opus. It handles the vast majority of code generatio
 Changes to these files affect project-wide behavior. Code review sub-agents for these paths must use Opus:
 
 ```
-lockpick-workflow/skills/**
-lockpick-workflow/hooks/**
+.claude/skills/**
+.claude/hooks/**
 .claude/docs/**
 CLAUDE.md
 .github/workflows/**
@@ -104,11 +104,11 @@ These are real examples found during audit. Each shows a model assignment that i
 
 | Skill | Task | Problem | Correct Tier |
 |-------|------|---------|--------------|
-| `/debug-everything` | Critic review of complex multi-file fixes | Haiku misses subtle architectural issues in fix correctness | **Sonnet** |
-| `/debug-everything` | Post-batch validation parsing complex type errors | Initially flagged, but audit determined these agents relay structured PASS/FAIL output from scripts — no judgment needed | **Haiku** (confirmed) |
-| `/validate-work` | Local validation parsing structured script output | Runs validate.sh and parses structured PASS/FAIL lines — mechanical output relay | **Haiku** (confirmed) |
-| `/validate-work` | Ticket health running validate-issues.sh | Runs validate-issues.sh and tk commands that emit structured counts — no relationship reasoning needed | **Haiku** (confirmed) |
-| `/validate-work` | Staging deployment check with nested JSON | Nested JSON correlation requires structured reasoning | **Sonnet** |
+| `/dso:debug-everything` | Critic review of complex multi-file fixes | Haiku misses subtle architectural issues in fix correctness | **Sonnet** |
+| `/dso:debug-everything` | Post-batch validation parsing complex type errors | Initially flagged, but audit determined these agents relay structured PASS/FAIL output from scripts — no judgment needed | **Haiku** (confirmed) |
+| `/dso:validate-work` | Local validation parsing structured script output | Runs validate.sh and parses structured PASS/FAIL lines — mechanical output relay | **Haiku** (confirmed) |
+| `/dso:validate-work` | Ticket health running validate-issues.sh | Runs validate-issues.sh and tk commands that emit structured counts — no relationship reasoning needed | **Haiku** (confirmed) |
+| `/dso:validate-work` | Staging deployment check with nested JSON | Nested JSON correlation requires structured reasoning | **Sonnet** |
 
 ### The Pattern
 

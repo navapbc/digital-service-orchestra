@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-ticket-index.sh
-# Tests for lockpick-workflow/scripts/merge-ticket-index.py
+# tests/scripts/test-merge-ticket-index.sh
+# Tests for scripts/merge-ticket-index.py
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-ticket-index.sh
+# Usage: bash tests/scripts/test-merge-ticket-index.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

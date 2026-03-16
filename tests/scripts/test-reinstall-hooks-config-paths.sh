@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-reinstall-hooks-config-paths.sh
+# tests/scripts/test-reinstall-hooks-config-paths.sh
 # TDD tests verifying reinstall-hooks.sh uses config-derived app/ paths
 # instead of hardcoded app/.venv and app/pyproject.toml references.
 #
@@ -11,7 +11,7 @@
 #   test_reinstall_hooks_uses_cfg_app_dir — references CFG_APP_DIR variable
 #   test_reinstall_hooks_syntax_valid — script has valid bash syntax
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-reinstall-hooks-config-paths.sh
+# Usage: bash tests/scripts/test-reinstall-hooks-config-paths.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

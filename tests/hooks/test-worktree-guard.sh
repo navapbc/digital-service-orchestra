@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-worktree-guard.sh
+# tests/hooks/test-worktree-guard.sh
 # Tests for .claude/hooks/worktree-edit-guard.sh
 #
 # worktree-edit-guard.sh is a PreToolUse hook that blocks Edit/Write calls

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/pre-commit-format-fix.sh
+# scripts/pre-commit-format-fix.sh
 #
 # Pre-commit hook that auto-fixes formatting on staged Python files and re-stages them.
 #
@@ -16,7 +16,7 @@ set -uo pipefail
 # auto-fix cycle.
 #
 # Usage (in .pre-commit-config.yaml):
-#   entry: ./scripts/pre-commit-wrapper.sh format-fix 30 "./lockpick-workflow/scripts/pre-commit-format-fix.sh"
+#   entry: ./scripts/pre-commit-wrapper.sh format-fix 30 "./scripts/pre-commit-format-fix.sh"
 #
 # Exit codes:
 #   0  — all staged Python files are properly formatted (possibly after auto-fix)
@@ -28,7 +28,7 @@ set -uo pipefail
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
 # Source config-driven paths (CFG_APP_DIR defaults to "app")
-_CONFIG_PATHS="$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 if [[ -f "$_CONFIG_PATHS" ]]; then
     # shellcheck source=../../hooks/lib/config-paths.sh
     source "$_CONFIG_PATHS"
@@ -77,7 +77,7 @@ fi
 
 # ── Auto-fix formatting on staged files ───────────────────────────────────────
 # Run ruff import sorting (--fix) and ruff format on each staged file.
-# Files may be under app/src/, app/tests/, scripts/, tests/, or lockpick-workflow/scripts/.
+# Files may be under app/src/, app/tests/, scripts/, tests/, or scripts/.
 FIX_FAILED=0
 for file in "${STAGED_PY_FILES[@]}"; do
     abs_file="$REPO_ROOT/$file"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-poetry-graceful-degradation.sh
-# TDD tests for Poetry graceful degradation in lockpick-workflow scripts.
+# tests/scripts/test-poetry-graceful-degradation.sh
+# TDD tests for Poetry graceful degradation in plugin scripts.
 #
 # Covers:
 #   test_classify_task_no_poetry_uses_system_python
@@ -12,7 +12,7 @@
 #        poetry absent and no venv available
 #
 # Usage:
-#   bash lockpick-workflow/tests/scripts/test-poetry-graceful-degradation.sh
+#   bash tests/scripts/test-poetry-graceful-degradation.sh
 
 set -uo pipefail
 

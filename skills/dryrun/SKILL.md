@@ -11,9 +11,9 @@ Preview what a skill would do without making any changes.
 ## Usage
 
 ```
-/dryrun /roadmap
-/dryrun /dev-onboarding
-/dryrun /preplanning <epic-id>
+/dso:dryrun /dso:roadmap
+/dso:dryrun /dso:dev-onboarding
+/dso:dryrun /dso:preplanning <epic-id>
 ```
 
 ## Rules
@@ -56,5 +56,5 @@ Files that would be created/modified: [list]
 Ticket commands that would run: [list]
 Git operations that would run: [list]
 
-To execute for real, run the skill without /dryrun.
+To execute for real, run the skill without /dso:dryrun.
 ```

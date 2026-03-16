@@ -1,6 +1,6 @@
 #!/bin/bash
 set -uo pipefail
-# lockpick-workflow/scripts/cleanup-claude-session.sh
+# scripts/cleanup-claude-session.sh
 # Clean up orphaned processes, temp files, and stale state.
 #
 # This script cleans up:
@@ -18,15 +18,15 @@ set -uo pipefail
 #  12. (removed — Python tool cache cleanup is tech-stack specific)
 #  13. Playwright MCP state and worktree .tmp/ dirs
 #
-# NOT cleaned by this script (handled by /retro triage phase):
+# NOT cleaned by this script (handled by /dso:retro triage phase):
 #   - ~/.claude/hook-error-log.jsonl (must be triaged into bugs first)
 #   - Timeout logs (must be reviewed before reset)
 #
 # Usage:
-#   ./lockpick-workflow/scripts/cleanup-claude-session.sh                # Normal cleanup with summary
-#   ./lockpick-workflow/scripts/cleanup-claude-session.sh --quiet        # Silent mode (for automation)
-#   ./lockpick-workflow/scripts/cleanup-claude-session.sh --summary-only # Suppress headers/zero results; 1 line when clean
-#   ./lockpick-workflow/scripts/cleanup-claude-session.sh --dry-run      # Show what would be cleaned without doing it
+#   ./scripts/cleanup-claude-session.sh                # Normal cleanup with summary
+#   ./scripts/cleanup-claude-session.sh --quiet        # Silent mode (for automation)
+#   ./scripts/cleanup-claude-session.sh --summary-only # Suppress headers/zero results; 1 line when clean
+#   ./scripts/cleanup-claude-session.sh --dry-run      # Show what would be cleaned without doing it
 #
 # This script does NOT require LLM - it's pure bash for efficiency.
 # Run this between Claude sessions or when you notice orphaned processes.
@@ -44,7 +44,7 @@ for arg in "$@"; do
         --dry-run|-n) DRY_RUN=1 ;;
         --summary-only|-s) SUMMARY_ONLY=1 ;;
         --help|-h)
-            echo "Usage: ./lockpick-workflow/scripts/cleanup-claude-session.sh [--quiet] [--summary-only] [--dry-run]"
+            echo "Usage: ./scripts/cleanup-claude-session.sh [--quiet] [--summary-only] [--dry-run]"
             echo "  --quiet, -q        Silent mode (only errors)"
             echo "  --summary-only, -s Suppress headers/zero results; 1 line when clean"
             echo "  --dry-run, -n      Show what would be cleaned without doing it"
@@ -68,7 +68,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 WORKTREE_NAME=$(basename "$REPO_ROOT")
 
 # Source config-driven paths (CFG_APP_DIR defaults to "app")
-_CONFIG_PATHS="$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 if [ -f "$_CONFIG_PATHS" ]; then
     # shellcheck source=../../hooks/lib/config-paths.sh
     source "$_CONFIG_PATHS"
@@ -78,7 +78,7 @@ fi
 
 # Read session.artifact_prefix from workflow-config.conf via read-config.sh.
 # When absent, steps 4 (Docker filter) and 8 (artifact dirs) are skipped.
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 ARTIFACT_PREFIX=$(bash "$PLUGIN_SCRIPTS/read-config.sh" session.artifact_prefix 2>/dev/null || true)
 
 if [ -z "$ARTIFACT_PREFIX" ]; then
@@ -305,7 +305,7 @@ if [ $TIMEOUT_ENTRIES -eq 0 ]; then
     log "  No timeout events recorded"
 else
     log_action ""
-    log_action "  TIP: Run /retro to triage timeout logs into bugs before reset"
+    log_action "  TIP: Run /dso:retro to triage timeout logs into bugs before reset"
 fi
 
 # 6. Clean cascade circuit breaker state (>30 min old)
@@ -520,7 +520,7 @@ if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
         [ $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) -gt 0 ] && echo "  Dead worktree state removed: $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
         [ $DEBUG_LOGS_CLEANED -gt 0 ] && echo "  Debug logs removed: $DEBUG_LOGS_CLEANED"
         [ $WORKTREES_PRUNED -gt 0 ] && echo "  Worktrees pruned: $WORKTREES_PRUNED"
-        [ $TIMEOUT_ENTRIES -gt 0 ] && echo "  Timeout events found: $TIMEOUT_ENTRIES (use /retro to triage)"
+        [ $TIMEOUT_ENTRIES -gt 0 ] && echo "  Timeout events found: $TIMEOUT_ENTRIES (use /dso:retro to triage)"
     fi
 else
     log ""
@@ -535,7 +535,7 @@ else
     log "  Dead worktree state:      $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
     log "  Debug logs removed:       $DEBUG_LOGS_CLEANED"
     log "  Worktrees pruned:         $WORKTREES_PRUNED"
-    log "  Timeout events found:     $TIMEOUT_ENTRIES (not reset — use /retro to triage)"
+    log "  Timeout events found:     $TIMEOUT_ENTRIES (not reset — use /dso:retro to triage)"
     log "========================"
     if [ $TOTAL_CLEANED -eq 0 ]; then
         log ""

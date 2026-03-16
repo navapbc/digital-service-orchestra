@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/post-compact-review-check.sh
+# hooks/post-compact-review-check.sh
 # SessionStart hook: fires after compaction to warn about review state integrity.
 #
 # After context compaction, the pre-compact-checkpoint.sh hook auto-commits

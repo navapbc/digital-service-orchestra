@@ -3,7 +3,7 @@
 ## Overview
 
 The implementation plan is reviewed by a committee of five specialists using
-`/review-protocol` (Stage 1, multi-agent). Each reviewer has a self-contained
+`/dso:review-protocol` (Stage 1, multi-agent). Each reviewer has a self-contained
 prompt file in `docs/reviewers/plan/` that defines their persona, dimensions, and
 scoring rubric.
 
@@ -49,7 +49,7 @@ All five reviewer prompts must include these sub-agent prompt requirements:
 
 ## Score Aggregation Rules
 
-Per `/review-protocol` and `REVIEW-SCHEMA.md`:
+Per `/dso:review-protocol` and `REVIEW-SCHEMA.md`:
 
 1. Collect all dimension scores from all five reviewers.
 2. Any individual dimension score below 5 means the plan **fails** for that dimension.
@@ -59,7 +59,7 @@ Per `/review-protocol` and `REVIEW-SCHEMA.md`:
 
 ## Conflict Detection
 
-Per `/review-protocol`, scan findings for **direct contradictions** — pairs of
+Per `/dso:review-protocol`, scan findings for **direct contradictions** — pairs of
 suggestions targeting the same task or artifact but pulling in opposite directions.
 
 Common conflict patterns in plan review:
@@ -73,14 +73,14 @@ Common conflict patterns in plan review:
 | TDD: "Test targets implementation details" | Completeness: "Need test for this edge case" | `boundary_vs_coverage` |
 | TDD: "Test must fail before implementation" | Task Design: "Bundle migration + model as one concern" | `red_green_vs_atomicity` |
 
-**Resolution** (per `/review-protocol`):
+**Resolution** (per `/dso:review-protocol`):
 - Critical vs minor: critical finding wins, no escalation
 - Both critical/major: escalate to user immediately
 - Both minor: caller chooses direction
 
 ## Revision Protocol
 
-Per `/review-protocol`'s revision protocol:
+Per `/dso:review-protocol`'s revision protocol:
 
 1. Triage findings by severity (critical → major → minor).
 2. Resolve conflicts before revising.
@@ -94,12 +94,12 @@ After aggregating all reviewer outputs into the combined JSON (`subject`, `revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 REVIEW_OUT="$(get_artifacts_dir)/implementation-plan-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller implementation-plan
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller implementation-plan
 ```
 
 **Caller schema hash**: `ae8bfc7bd9a0d7e3` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.

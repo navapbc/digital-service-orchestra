@@ -11,12 +11,12 @@ Analyzes git merge or rebase conflicts, classifies them by complexity, auto-reso
 ## Invocation
 
 **Automatic** (called by other skills):
-- `/end-session` Step 4: when `merge-to-main.sh` exits with `CONFLICT_DATA:` output
-- `/debug-everything` Phase 10 Step 1: same trigger
+- `/dso:end-session` Step 4: when `merge-to-main.sh` exits with `CONFLICT_DATA:` output
+- `/dso:debug-everything` Phase 10 Step 1: same trigger
 
 **Manual** (user-invoked):
-- `/resolve-conflicts` — resolve conflicts in the current merge/rebase state
-- `/resolve-conflicts <branch>` — attempt merge of `<branch>` into current branch, then resolve
+- `/dso:resolve-conflicts` — resolve conflicts in the current merge/rebase state
+- `/dso:resolve-conflicts <branch>` — attempt merge of `<branch>` into current branch, then resolve
 
 ## Prerequisites
 
@@ -170,7 +170,7 @@ Based on sub-agent classifications:
 
 After successful resolution:
 - Report the final merge commit SHA
-- If called from `/end-session` or `/debug-everything`, return control to the calling skill
+- If called from `/dso:end-session` or `/dso:debug-everything`, return control to the calling skill
 
 If resolution was abandoned (user chose to resolve manually):
 - Ensure merge state is clean (`git merge --abort` if merge is still in progress)

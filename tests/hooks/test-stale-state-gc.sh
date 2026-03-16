@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-stale-state-gc.sh
+# tests/hooks/test-stale-state-gc.sh
 # TDD tests for gc_stale_state_files() in cleanup-claude-session.sh
 #
 # Tests:
@@ -11,7 +11,7 @@
 #   test_idempotent_on_missing_dir        — no error when /tmp has no plugin dirs
 #   test_gc_called_from_cleanup_script    — the main script calls gc_stale_state_files
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-stale-state-gc.sh
+# Usage: bash tests/hooks/test-stale-state-gc.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

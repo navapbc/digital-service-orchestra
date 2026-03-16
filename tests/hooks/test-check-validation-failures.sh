@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-check-validation-failures.sh
+# tests/hooks/test-check-validation-failures.sh
 # Tests for .claude/hooks/check-validation-failures.sh
 #
 # check-validation-failures.sh is a PostToolUse hook that auto-creates

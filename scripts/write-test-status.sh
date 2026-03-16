@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/write-test-status.sh
+# scripts/write-test-status.sh
 # Write test result status for the test-failure commit guard.
 #
 # Usage: write-test-status.sh <target-name> <exit-code>

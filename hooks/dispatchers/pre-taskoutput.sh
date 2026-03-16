@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/pre-taskoutput.sh
+# hooks/dispatchers/pre-taskoutput.sh
 # PreToolUse TaskOutput dispatcher: runs taskoutput-block-guard hook function.
 #
 # Replaces the PreToolUse TaskOutput matcher entry in settings.json:
@@ -11,7 +11,7 @@
 # Returns: 0 if allowed, 2 if blocked
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

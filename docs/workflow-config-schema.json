@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/lockpick/lockpick-workflow/workflow-config-schema.json",
+  "$id": "https://github.com/navapbc/digital-service-orchestra/workflow-config-schema.json",
   "title": "workflow-config",
-  "description": "Schema for workflow-config — configures commands and stack for the lockpick-workflow plugin. Note: the primary config format is now workflow-config.conf (flat KEY=VALUE). This JSON schema documents the logical key structure and types. For the flat format, use validate-config.sh.",
+  "description": "Schema for workflow-config — configures commands and stack for the Digital Service Orchestra plugin. Note: the primary config format is now workflow-config.conf (flat KEY=VALUE). This JSON schema documents the logical key structure and types. For the flat format, use validate-config.sh.",
   "type": "object",
   "required": ["version"],
   "additionalProperties": true,
@@ -181,7 +181,7 @@
           "type": "string",
           "description": "Full environment check command invoked by agent-batch-lifecycle.sh preflight step 1d. When absent, the env check step is skipped (ENV_CHECK: skipped). Exit 0 = environment healthy; exit non-zero = environment issues found (preflight exits 1). Invoked via eval with stdout and stderr suppressed.",
           "minLength": 1,
-          "examples": ["bash lockpick-workflow/scripts/check-local-env.sh --quiet", "make env-check", "scripts/check-env.sh --quiet"]
+          "examples": ["bash scripts/check-local-env.sh --quiet", "make env-check", "scripts/check-env.sh --quiet"]
         },
         "test_changed": {
           "type": "string",
@@ -326,7 +326,7 @@
         },
         "service_start_cmd": {
           "type": "string",
-          "description": "Command to run before launching Claude Code (e.g., start background services). Will be used by lockpick-workflow/scripts/claude-safe (pre-launch phase) once wiring is complete (see epic boak). When absent, claude-safe skips the service startup step.",
+          "description": "Command to run before launching Claude Code (e.g., start background services). Will be used by scripts/claude-safe (pre-launch phase) once wiring is complete (see epic boak). When absent, claude-safe skips the service startup step.",
           "minLength": 1,
           "examples": ["make start", "docker compose up -d"]
         },
@@ -411,7 +411,7 @@
         },
         "compose_files": {
           "type": "array",
-          "description": "Docker Compose files to shut down on session exit. Will be used by lockpick-workflow/scripts/claude-safe (post-exit Docker cleanup) once wiring is complete (see epic boak). When absent or Docker not on PATH, the cleanup step is skipped silently.",
+          "description": "Docker Compose files to shut down on session exit. Will be used by scripts/claude-safe (post-exit Docker cleanup) once wiring is complete (see epic boak). When absent or Docker not on PATH, the cleanup step is skipped silently.",
           "items": {
             "type": "string",
             "minLength": 1
@@ -436,6 +436,25 @@
           "description": "Prefix for /tmp artifact directories (e.g. lockpick-test-artifacts). When absent, derived from basename of git repo root + '-test-artifacts'.",
           "minLength": 1,
           "examples": ["lockpick-test-artifacts", "myproject-test-artifacts"]
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "description": "Optional quality check commands. When a key is absent, the corresponding check is skipped.",
+      "additionalProperties": false,
+      "properties": {
+        "script_write_scan_dir": {
+          "type": "string",
+          "description": "Directory to scan for coupling-lint violations. When absent, the script-writes check is skipped.",
+          "minLength": 1,
+          "examples": ["."]
+        },
+        "assertion_density_cmd": {
+          "type": "string",
+          "description": "Command to run assertion density analysis on test files. When absent, assertion_coverage is scored null in retro reviews.",
+          "minLength": 1,
+          "examples": ["python3 scripts/check_assertion_density.py", "./scripts/check_assertion_density.py"]
         }
       }
     },
@@ -472,7 +491,7 @@
       "properties": {
         "playwright_debug_reference": {
           "type": "string",
-          "description": "Path to the project-specific playwright-debug reference file, relative to the repo root. Read by the /playwright-debug skill for framework-specific symptom tables, code patterns, and worked examples. When omitted, the skill uses generic inline fallback guidance.",
+          "description": "Path to the project-specific playwright-debug reference file, relative to the repo root. Read by the /dso:playwright-debug skill for framework-specific symptom tables, code patterns, and worked examples. When omitted, the skill uses generic inline fallback guidance.",
           "minLength": 1,
           "examples": ["docs/playwright-debug-reference.md", "docs/testing/playwright-guide.md"]
         }

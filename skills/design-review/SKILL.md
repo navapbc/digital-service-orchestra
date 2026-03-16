@@ -13,11 +13,11 @@ Role: **Strict Design QA Lead.** Your only goal is to review proposed designs (c
 ## Usage
 
 ```
-/design-review               # Review current UI changes against DESIGN_NOTES.md
-/design-review <file-or-path> # Review a specific file or component
+/dso:design-review               # Review current UI changes against DESIGN_NOTES.md
+/dso:design-review <file-or-path> # Review a specific file or component
 ```
 
-**Supports dryrun mode.** Use `/dryrun /design-review` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:design-review` to preview without changes.
 
 ## Prerequisites
 
@@ -25,10 +25,10 @@ Before reviewing, you MUST have:
 
 1. The project's design notes document in your context. Resolve the path from config:
    ```bash
-   PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+   PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
    DESIGN_NOTES_PATH=$(bash "$PLUGIN_SCRIPTS/read-config.sh" design.design_notes_path)
    ```
-   Read the file at `$DESIGN_NOTES_PATH` (defaults to `DESIGN_NOTES.md` if not configured). If it does not exist, tell the user to run `/design-onboarding` first.
+   Read the file at `$DESIGN_NOTES_PATH` (defaults to `DESIGN_NOTES.md` if not configured). If it does not exist, tell the user to run `/dso:design-onboarding` first.
 2. A description or code of the *Proposed Design* to review. If none is provided, check `git diff` for UI-related changes.
 
 ---
@@ -38,7 +38,7 @@ Before reviewing, you MUST have:
 Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer
 roster, launch instructions, score aggregation rules, and conflict detection patterns.
 
-Invoke `/review-protocol` with:
+Invoke `/dso:review-protocol` with:
 
 - **subject**: "Design Review: {file or component being reviewed}"
 - **artifact**: The proposed design (code, wireframe description, or diff) plus the relevant sections of DESIGN_NOTES.md
@@ -60,7 +60,7 @@ Invoke `/review-protocol` with:
 
 ## Output Format: The Report Card
 
-After the review completes, render the `/review-protocol` JSON output as a human-readable report card:
+After the review completes, render the `/dso:review-protocol` JSON output as a human-readable report card:
 
 ### Design Score: [min of all dimension scores] / 5
 

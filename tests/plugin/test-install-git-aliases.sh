@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-install-git-aliases.sh
-# TDD tests for install-git-aliases.sh (canonical copy in lockpick-workflow/scripts/)
+# tests/plugin/test-install-git-aliases.sh
+# TDD tests for install-git-aliases.sh (canonical copy in scripts/)
 #
 # Output format: "PASS: <test_name>" or "FAIL: <test_name>"
 # Exit 0 iff FAIL==0
@@ -8,9 +8,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/install-git-aliases.sh"
-WRAPPER_SCRIPT="$REPO_ROOT/scripts/install-git-aliases.sh"
 
 PASS=0
 FAIL=0
@@ -40,21 +38,6 @@ if [ -x "$CANONICAL_SCRIPT" ]; then
     ((PASS++))
 else
     echo "  FAIL: test_canonical_script_executable (canonical script not executable)"
-    ((FAIL++))
-fi
-
-# ── Test: wrapper_exists_and_delegates ───────────────────────────────────────
-echo "Test: wrapper_exists_and_delegates"
-if [ -f "$WRAPPER_SCRIPT" ]; then
-    if grep -q 'exec.*lockpick-workflow/scripts/install-git-aliases.sh' "$WRAPPER_SCRIPT"; then
-        echo "  PASS: test_wrapper_exists_and_delegates"
-        ((PASS++))
-    else
-        echo "  FAIL: test_wrapper_exists_and_delegates (wrapper does not exec to plugin copy)"
-        ((FAIL++))
-    fi
-else
-    echo "  FAIL: test_wrapper_exists_and_delegates (wrapper not found at $WRAPPER_SCRIPT)"
     ((FAIL++))
 fi
 
@@ -166,39 +149,6 @@ else
 fi
 
 rm -rf "$TMPDIR_3"
-
-# ── Test: test_wrapper_delegates_to_canonical ─────────────────────────────────
-# Verify the wrapper at scripts/install-git-aliases.sh correctly delegates to
-# the canonical copy by running through the wrapper path.
-echo "Test: test_wrapper_delegates_to_canonical"
-
-TMPDIR_4=$(mktemp -d)
-_CLEANUP_DIRS+=("$TMPDIR_4")
-
-cd "$TMPDIR_4" || { echo "  FAIL: test_wrapper_delegates_to_canonical (cd failed)"; ((FAIL++)); exit 1; }
-git init -q -b main
-git config user.email "test@test.com"
-git config user.name "Test User"
-
-wrapper_exit=0
-wrapper_output=$(bash "$WRAPPER_SCRIPT" 2>&1) || wrapper_exit=$?
-
-if [ "$wrapper_exit" -ne 0 ]; then
-    echo "  FAIL: test_wrapper_delegates_to_canonical (wrapper exited $wrapper_exit: $wrapper_output)"
-    ((FAIL++))
-else
-    alias_value=$(git -C "$TMPDIR_4" config --get alias.revert-safe 2>/dev/null || true)
-    if echo "$alias_value" | grep -q "git-revert-safe.sh"; then
-        echo "  PASS: test_wrapper_delegates_to_canonical"
-        ((PASS++))
-    else
-        echo "  FAIL: test_wrapper_delegates_to_canonical (alias not registered via wrapper)"
-        echo "  alias value: '$alias_value'"
-        ((FAIL++))
-    fi
-fi
-
-rm -rf "$TMPDIR_4"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 

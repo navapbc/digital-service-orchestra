@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/write-blackboard.sh — Write .worktree-blackboard.json from batch JSON.
+# scripts/write-blackboard.sh — Write .worktree-blackboard.json from batch JSON.
 #
 # Reads batch JSON (output of `sprint-next-batch.sh --json`) from stdin and
 # writes `.worktree-blackboard.json` with atomic write semantics (write to

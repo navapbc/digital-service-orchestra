@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/post-write.sh
+# hooks/dispatchers/post-write.sh
 # PostToolUse Write dispatcher: placeholder after ticket-sync removal.
 # No Write-specific post-hooks remain. Kept for future hooks.
 #
@@ -12,7 +12,7 @@ trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
 trap 'exit 0' ERR
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

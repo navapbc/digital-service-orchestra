@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-config-callers-updated.sh
+# tests/scripts/test-config-callers-updated.sh
 # TDD tests verifying that script callers use .conf instead of .yaml.
 #
 # Tests:
 #   test_sprint_next_batch_uses_conf — sprint-next-batch.sh references .conf
 #   test_no_hardcoded_yaml_in_callers — no non-comment hardcoded workflow-config.yaml refs
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-config-callers-updated.sh
+# Usage: bash tests/scripts/test-config-callers-updated.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -35,7 +35,7 @@ assert_eq "sprint-next-batch.sh has no active .yaml refs" "0" "$yaml_active"
 assert_pass_if_clean "test_sprint_next_batch_uses_conf"
 
 # ── test_no_hardcoded_yaml_in_callers ────────────────────────────────────────
-# No non-comment references to workflow-config.yaml in lockpick-workflow/scripts/
+# No non-comment references to workflow-config.yaml in scripts/
 # (excluding backward-compat/fallback/migration comments and read-config.sh itself
 #  which has the .yaml fallback logic)
 _snapshot_fail

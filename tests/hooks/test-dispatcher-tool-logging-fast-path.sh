@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-dispatcher-tool-logging-fast-path.sh
+# tests/hooks/test-dispatcher-tool-logging-fast-path.sh
 # Tests that tool-logging has been removed from dispatchers (optimization)
 # and that the function-level defense-in-depth checks remain in post-functions.sh.
 #
@@ -9,7 +9,7 @@
 #   test_post_functions_defense_in_depth_pre
 #   test_post_functions_defense_in_depth_post
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-dispatcher-tool-logging-fast-path.sh
+# Usage: bash tests/hooks/test-dispatcher-tool-logging-fast-path.sh
 
 set -uo pipefail
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-record-review-config-exclusions.sh
+# tests/hooks/test-record-review-config-exclusions.sh
 # Tests that record-review.sh uses config-derived exclusion paths
 # instead of hardcoded app/tests/e2e/snapshots/ and app/tests/unit/templates/snapshots/*.html.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-record-review-config-exclusions.sh
+# Usage: bash tests/hooks/test-record-review-config-exclusions.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

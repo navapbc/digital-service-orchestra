@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-checkpoint-rollback.sh
+# tests/hooks/test-checkpoint-rollback.sh
 #
 # Tests for hook_checkpoint_rollback() in pre-all-functions.sh:
 #   (a) Rollback resets soft and removes marker when checkpoint at HEAD
 #   (b) No-op when marker is absent
 #   (c) Removes stale marker when HEAD does not match checkpoint label
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-checkpoint-rollback.sh
+# Usage: bash tests/hooks/test-checkpoint-rollback.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

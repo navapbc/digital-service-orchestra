@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-merge-no-sync-lib.sh
+# tests/hooks/test-merge-no-sync-lib.sh
 # TDD tests: verify merge-to-main.sh and worktree-sync-from-main.sh have no
 # ticket sync library references after the strip-ticket-logic task.
 #
@@ -14,7 +14,7 @@
 #     — grep worktree-sync-from-main.sh for tk-sync-lib|_clear_ticket_skip_worktree;
 #       assert zero matches.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-merge-no-sync-lib.sh
+# Usage: bash tests/hooks/test-merge-no-sync-lib.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

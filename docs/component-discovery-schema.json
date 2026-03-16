@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/lockpick/lockpick-workflow/component-discovery-schema.json",
+  "$id": "https://github.com/navapbc/digital-service-orchestra/component-discovery-schema.json",
   "title": "component-discovery-adapter",
   "description": "Stack-agnostic interface for component discovery in design skills (design-wireframe, ui-discover). Each web framework implements this interface as a JSON adapter file. Skills dispatch through adapters based on the design.template_engine config value.",
   "type": "object",

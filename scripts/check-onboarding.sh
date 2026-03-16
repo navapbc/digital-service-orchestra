@@ -4,8 +4,8 @@ set -euo pipefail
 # check-onboarding.sh - Check if design and dev onboarding artifacts exist
 #
 # Checks for:
-# - DESIGN_NOTES.md (produced by /design-onboarding)
-# - ARCH_ENFORCEMENT.md (produced by /dev-onboarding)
+# - DESIGN_NOTES.md (produced by /dso:design-onboarding)
+# - ARCH_ENFORCEMENT.md (produced by /dso:dev-onboarding)
 #
 # Usage: ./scripts/check-onboarding.sh [--json]
 #
@@ -61,13 +61,13 @@ if $JSON_OUTPUT; then
     "pass": $design_pass,
     "artifact": "DESIGN_NOTES.md",
     "path": "${design_notes:-not found}",
-    "skill": "/design-onboarding"
+    "skill": "/dso:design-onboarding"
   },
   "dev_onboarding": {
     "pass": $dev_pass,
     "artifact": "ARCH_ENFORCEMENT.md",
     "path": "${arch_enforcement:-not found}",
-    "skill": "/dev-onboarding"
+    "skill": "/dso:dev-onboarding"
   }
 }
 EOF
@@ -76,13 +76,13 @@ else
   if [[ -n "$design_notes" ]]; then
     echo "PASS: DESIGN_NOTES.md found at $design_notes"
   else
-    echo "FAIL: DESIGN_NOTES.md not found (run /design-onboarding)"
+    echo "FAIL: DESIGN_NOTES.md not found (run /dso:design-onboarding)"
   fi
 
   if [[ -n "$arch_enforcement" ]]; then
     echo "PASS: ARCH_ENFORCEMENT.md found at $arch_enforcement"
   else
-    echo "FAIL: ARCH_ENFORCEMENT.md not found (run /dev-onboarding)"
+    echo "FAIL: ARCH_ENFORCEMENT.md not found (run /dso:dev-onboarding)"
   fi
 fi
 

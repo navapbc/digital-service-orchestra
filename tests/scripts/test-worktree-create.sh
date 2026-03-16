@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-worktree-create.sh
-# Tests for lockpick-workflow/scripts/worktree-create.sh (plugin location)
+# tests/scripts/test-worktree-create.sh
+# Tests for scripts/worktree-create.sh (plugin location)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-worktree-create.sh
+# Usage: bash tests/scripts/test-worktree-create.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -24,10 +24,10 @@ echo "=== test-worktree-create.sh ==="
 # ── Test 1: Script exists at plugin location ─────────────────────────────────
 echo "Test 1: Script exists at plugin location"
 if [ -x "$SCRIPT" ]; then
-    echo "  PASS: script is executable at lockpick-workflow/scripts/"
+    echo "  PASS: script is executable at scripts/"
     (( PASS++ ))
 else
-    echo "  FAIL: script not found or not executable at lockpick-workflow/scripts/" >&2
+    echo "  FAIL: script not found or not executable at scripts/" >&2
     (( FAIL++ ))
 fi
 
@@ -167,9 +167,9 @@ _smoke_cleanup
 echo "Test 12: Portability hook-path — post_create_cmd creates marker file"
 _smoke_setup
 # Write workflow-config.conf with a post_create_cmd that creates a marker file
-mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
+mkdir -p "$SMOKE_REPO/scripts"
 # Copy read-config.sh so the script can find it in the temp repo
-cp "$PLUGIN_ROOT/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
+cp "$PLUGIN_ROOT/scripts/read-config.sh" "$SMOKE_REPO/scripts/read-config.sh"
 cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
 worktree.post_create_cmd=touch $WORKTREE_PATH/.setup-marker
 CONF
@@ -193,8 +193,8 @@ _smoke_cleanup
 # ── Test 13: Portability hook-failure — failing post_create_cmd causes non-zero exit ──
 echo "Test 13: Portability hook-failure — failing post_create_cmd exits non-zero"
 _smoke_setup
-mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
-cp "$PLUGIN_ROOT/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
+mkdir -p "$SMOKE_REPO/scripts"
+cp "$PLUGIN_ROOT/scripts/read-config.sh" "$SMOKE_REPO/scripts/read-config.sh"
 cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
 worktree.post_create_cmd=false
 CONF

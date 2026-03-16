@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-workflow-config-schema.sh
+# tests/scripts/test-workflow-config-schema.sh
 # Tests that workflow-config-schema.json contains expected properties.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-workflow-config-schema.sh
+# Usage: bash tests/scripts/test-workflow-config-schema.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-plugin-retro-gather.sh
-# Tests for lockpick-workflow/scripts/retro-gather.sh (plugin source of truth).
+# tests/scripts/test-plugin-retro-gather.sh
+# Tests for scripts/retro-gather.sh (plugin source of truth).
 #
 # TDD: Run BEFORE implementing — Test 1 fails (file does not exist yet).
 #      Run AFTER implementing — all tests pass.
 #
 # Tests:
-#   test_plugin_script_exists_and_executable  — lockpick-workflow/scripts/retro-gather.sh exists
+#   test_plugin_script_exists_and_executable  — scripts/retro-gather.sh exists
 #   test_plugin_syntax_ok                     — bash -n passes
 #   test_no_hardcoded_prefix                  — no 'lockpick-test-artifacts' literal in plugin copy
 #   test_reads_config_session_artifact_prefix — script references read-config.sh + session.artifact_prefix
@@ -18,7 +18,7 @@
 #   test_derived_prefix_underscores           — fallback derivation: underscores → hyphens
 #   test_derived_prefix_uppercase             — fallback derivation: uppercase → lowercase
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-plugin-retro-gather.sh
+# Usage: bash tests/scripts/test-plugin-retro-gather.sh
 
 set -uo pipefail
 
@@ -40,9 +40,9 @@ echo ""
 # ---------------------------------------------------------------------------
 # Test 1 (RED/GREEN): Plugin script exists and is executable
 # RED: fails before implementation (file not created yet).
-# GREEN: passes after lockpick-workflow/scripts/retro-gather.sh is created.
+# GREEN: passes after scripts/retro-gather.sh is created.
 # ---------------------------------------------------------------------------
-echo "Test 1: lockpick-workflow/scripts/retro-gather.sh exists and is executable"
+echo "Test 1: scripts/retro-gather.sh exists and is executable"
 plugin_script_ok=0
 [ -f "$PLUGIN_SCRIPT" ] && [ -x "$PLUGIN_SCRIPT" ] && plugin_script_ok=1
 assert_eq "test_plugin_script_exists_and_executable" "1" "$plugin_script_ok"
@@ -50,7 +50,7 @@ assert_eq "test_plugin_script_exists_and_executable" "1" "$plugin_script_ok"
 # ---------------------------------------------------------------------------
 # Test 2: bash -n syntax check
 # ---------------------------------------------------------------------------
-echo "Test 2: lockpick-workflow/scripts/retro-gather.sh passes bash -n"
+echo "Test 2: scripts/retro-gather.sh passes bash -n"
 syntax_exit=0
 if [ -f "$PLUGIN_SCRIPT" ]; then
     bash -n "$PLUGIN_SCRIPT" 2>&1 || syntax_exit=$?
@@ -203,7 +203,7 @@ make_fake_repo() {
     mkdir -p "$repo_dir/app/tests/integration"
     mkdir -p "$repo_dir/app/src"
     mkdir -p "$repo_dir/scripts"
-    mkdir -p "$repo_dir/lockpick-workflow/scripts"
+    mkdir -p "$repo_dir/scripts"
     mkdir -p "$repo_dir/.claude/docs"
     echo "$repo_dir"
 }

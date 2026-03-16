@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test_no_jq_in_hooks.sh
-# Regression guard: ensures no hook file in lockpick-workflow/hooks/ contains
+# tests/test_no_jq_in_hooks.sh
+# Regression guard: ensures no hook file in hooks/ contains
 # actual jq invocations. Comments referencing jq migration history and the
 # check_tool function definition itself are excluded.
 #
-# Usage: bash lockpick-workflow/tests/test_no_jq_in_hooks.sh
+# Usage: bash tests/test_no_jq_in_hooks.sh
 
 set -uo pipefail
 
@@ -27,7 +27,7 @@ source "$SCRIPT_DIR/lib/assert.sh"
 #   - command -v jq:         checking for jq availability to use it
 # ---------------------------------------------------------------------------
 
-echo "=== Test: zero jq invocations in lockpick-workflow/hooks/ ==="
+echo "=== Test: zero jq invocations in hooks/ ==="
 
 # Find all shell files in hooks directory
 VIOLATIONS=""

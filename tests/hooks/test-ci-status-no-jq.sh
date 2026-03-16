@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-ci-status-no-jq.sh
+# tests/hooks/test-ci-status-no-jq.sh
 # Tests that ci-status.sh JSON parsing works without jq by falling back to
 # parse_json_field from deps.sh.
 #

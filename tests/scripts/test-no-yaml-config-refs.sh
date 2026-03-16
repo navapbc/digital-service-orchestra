@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-no-yaml-config-refs.sh
+# tests/scripts/test-no-yaml-config-refs.sh
 # TDD tests verifying zero YAML config file references remain in scripts/hooks.
 #
 # "YAML config" means workflow-config.yaml or workflow-config.yml — NOT
@@ -11,7 +11,7 @@
 #   test_sample_yaml_fixture_removed        — evals/fixtures/sample-workflow-config.yaml gone
 #   test_schemastore_no_yaml_filematch      — submit-to-schemastore.sh only references .conf
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-no-yaml-config-refs.sh
+# Usage: bash tests/scripts/test-no-yaml-config-refs.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -25,7 +25,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-no-yaml-config-refs.sh ==="
 
 # ── test_no_workflow_config_yaml_in_scripts ───────────────────────────────────
-# No active (non-comment) lines in lockpick-workflow/scripts/ should reference
+# No active (non-comment) lines in scripts/ should reference
 # workflow-config.yaml or workflow-config.yml as a config file path.
 # Exclusions:
 #   tk — interpreter probe (fo76's responsibility) and YAML frontmatter functions

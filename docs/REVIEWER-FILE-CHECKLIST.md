@@ -1,7 +1,7 @@
 # Reviewer File Quality Checklist
 
-Standard for all `/review-protocol` reviewer prompt files, derived from auditing
-the reference implementation in `lockpick-workflow/skills/design-wireframe/docs/reviewers/`.
+Standard for all `/dso:review-protocol` reviewer prompt files, derived from auditing
+the reference implementation in `${CLAUDE_PLUGIN_ROOT}/skills/design-wireframe/docs/reviewers/`.
 
 ## File Structure
 
@@ -122,7 +122,7 @@ When migrating a skill's inline perspectives to separate files, the calling SKIL
 ### Directory Structure
 
 ```
-lockpick-workflow/skills/{skill-name}/
+${CLAUDE_PLUGIN_ROOT}/skills/{skill-name}/
   SKILL.md
   docs/
     review-criteria.md      # Overview of all reviewers + launch/aggregation instructions
@@ -138,7 +138,7 @@ Must contain:
 - [ ] "Launching Reviews" section: how to construct the sub-agent prompt from the file
 - [ ] "Score Aggregation Rules" section: pass/fail threshold and logging
 - [ ] "Conflict Detection" section: common conflict patterns specific to this review's domain
-- [ ] "Revision Protocol" section (can reference `/review-protocol` if standard)
+- [ ] "Revision Protocol" section (can reference `/dso:review-protocol` if standard)
 
 ### SKILL.md Updates
 

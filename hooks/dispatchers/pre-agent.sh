@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/pre-agent.sh
+# hooks/dispatchers/pre-agent.sh
 # PreToolUse Agent dispatcher: runs worktree-isolation-guard hook function.
 #
 # Replaces the PreToolUse Agent matcher entry in settings.json:
@@ -11,7 +11,7 @@
 # Returns: 0 always (the hook uses JSON-based deny, not exit code 2, per claude-code#26923)
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

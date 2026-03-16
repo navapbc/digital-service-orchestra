@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-hook-lib-no-relative-paths.sh
+# tests/hooks/test-hook-lib-no-relative-paths.sh
 # Regression guard: ensures hook library function files do not use ../
 # relative path navigation. All paths should use CLAUDE_PLUGIN_ROOT.
 #
 # Scans: post-functions.sh, pre-all-functions.sh, pre-bash-functions.sh
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-hook-lib-no-relative-paths.sh
+# Usage: bash tests/hooks/test-hook-lib-no-relative-paths.sh
 
 set -uo pipefail
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-cleanup-session-no-hardcoded-app.sh
+# tests/scripts/test-cleanup-session-no-hardcoded-app.sh
 # TDD tests verifying cleanup-claude-session.sh uses config-derived app/ paths
 # instead of hardcoded app/ references.
 #
@@ -7,7 +7,7 @@
 #   test_cleanup_session_sources_config_paths — script sources config-paths.sh
 #   test_cleanup_session_no_hardcoded_app — no hardcoded app/ in non-comment lines
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-cleanup-session-no-hardcoded-app.sh
+# Usage: bash tests/scripts/test-cleanup-session-no-hardcoded-app.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

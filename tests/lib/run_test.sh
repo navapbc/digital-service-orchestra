@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/lib/run_test.sh
+# tests/lib/run_test.sh
 # Shared test runner helper for plugin test suites.
 #
 # Usage:

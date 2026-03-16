@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-log-dispatch.sh
+# tests/scripts/test-log-dispatch.sh
 # Baseline tests for scripts/log-dispatch.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-log-dispatch.sh
+# Usage: bash tests/scripts/test-log-dispatch.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

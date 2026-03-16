@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-isolation-rule-no-repo-source-mktemp.sh
+# tests/scripts/test-isolation-rule-no-repo-source-mktemp.sh
 # Tests for scripts/test-isolation-rules/no-repo-source-mktemp.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-isolation-rule-no-repo-source-mktemp.sh
+# Usage: bash tests/scripts/test-isolation-rule-no-repo-source-mktemp.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

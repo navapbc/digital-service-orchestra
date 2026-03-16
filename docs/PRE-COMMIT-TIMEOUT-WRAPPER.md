@@ -1,6 +1,6 @@
 # Pre-Commit Timeout Wrapper
 
-Generic pre-commit hook wrapper that runs a command with timeout detection, logging, and optional auto-ticket creation. Lives at `lockpick-workflow/scripts/pre-commit-wrapper.sh`.
+Generic pre-commit hook wrapper that runs a command with timeout detection, logging, and optional auto-ticket creation. Lives at `scripts/pre-commit-wrapper.sh`.
 
 ## Interface
 
@@ -106,8 +106,8 @@ Projects should create a thin exec wrapper at `scripts/pre-commit-wrapper.sh` th
 
 ```bash
 #!/usr/bin/env bash
-# Thin exec wrapper -- canonical copy lives in lockpick-workflow/scripts/pre-commit-wrapper.sh
-exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lockpick-workflow/scripts/pre-commit-wrapper.sh" "$@"
+# Thin exec wrapper -- canonical copy lives in scripts/pre-commit-wrapper.sh
+exec "${CLAUDE_PLUGIN_ROOT}/scripts/pre-commit-wrapper.sh" "$@"
 ```
 
 This pattern keeps the canonical implementation in the plugin while allowing `.pre-commit-config.yaml` to reference a stable project-local path. See `SCRIPT-MIGRATION-PATTERNS.md` for the general exec wrapper pattern used across all migrated plugin scripts.

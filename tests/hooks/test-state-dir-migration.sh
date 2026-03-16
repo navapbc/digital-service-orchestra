@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-state-dir-migration.sh
-# RED PHASE tests for get_artifacts_dir() in lockpick-workflow/hooks/lib/deps.sh
+# tests/hooks/test-state-dir-migration.sh
+# RED PHASE tests for get_artifacts_dir() in hooks/lib/deps.sh
 #
 # These tests MUST FAIL until get_artifacts_dir() is implemented.
 # Once the function exists (task j46vp.3.2), these tests should all PASS.

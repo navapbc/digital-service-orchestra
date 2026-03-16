@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-reinstall-hooks.sh
-# Tests for lockpick-workflow/scripts/reinstall-hooks.sh
+# tests/scripts/test-reinstall-hooks.sh
+# Tests for scripts/reinstall-hooks.sh
 #
 # Tests:
 #   test_syntax_ok                  — bash -n passes on reinstall-hooks.sh
-#   test_script_exists              — reinstall-hooks.sh exists in lockpick-workflow/scripts/
+#   test_script_exists              — reinstall-hooks.sh exists in scripts/
 #   test_accepts_worktree_path      — WORKTREE_PATH env var is required
 #   test_missing_worktree_path      — exits non-zero when WORKTREE_PATH is unset
 #   test_missing_app_dir            — exits non-zero when app/ dir does not exist
@@ -16,7 +16,7 @@
 #   test_all_three_hook_types       — installs pre-commit, pre-push, prepare-commit-msg hooks
 #
 # Usage:
-#   bash lockpick-workflow/tests/scripts/test-reinstall-hooks.sh
+#   bash tests/scripts/test-reinstall-hooks.sh
 #
 set -uo pipefail
 
@@ -49,7 +49,7 @@ assert_eq "test_syntax_ok" "0" "$syntax_exit"
 # ---------------------------------------------------------------------------
 # Test 2: script exists
 # ---------------------------------------------------------------------------
-echo "Test 2: script exists in lockpick-workflow/scripts/"
+echo "Test 2: script exists in scripts/"
 if [ -f "$SCRIPT" ]; then
     assert_eq "test_script_exists" "exists" "exists"
 else

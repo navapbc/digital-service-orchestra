@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/pre-all-functions.sh
+# hooks/lib/pre-all-functions.sh
 # Sourceable function definitions for the PreToolUse empty-matcher (pre-all) hooks.
 #
 # Each function follows the hook contract:
@@ -13,7 +13,7 @@
 #   hook_checkpoint_rollback — unwind a pre-compact checkpoint commit at HEAD
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/pre-all-functions.sh
+#   source hooks/lib/pre-all-functions.sh
 #   hook_checkpoint_rollback "$INPUT_JSON"
 
 # Guard: only load once

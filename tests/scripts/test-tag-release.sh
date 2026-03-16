@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tag-release.sh
-# Tests for lockpick-workflow/scripts/tag-release.sh
+# tests/scripts/test-tag-release.sh
+# Tests for scripts/tag-release.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tag-release.sh
+# Usage: bash tests/scripts/test-tag-release.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -49,7 +49,7 @@ assert_eq "test_tag_release_rejects_v_prefix" "1" "$exit_code"
 
 # ── test_tag_release_dry_run_does_not_modify ──────────────────────────────────
 # Capture current plugin.json version before dry-run
-PLUGIN_JSON="$PLUGIN_ROOT/plugin.json"
+PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
 if [[ -f "$PLUGIN_JSON" ]]; then
     version_before=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null)
     exit_code=0

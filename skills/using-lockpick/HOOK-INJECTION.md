@@ -21,7 +21,7 @@ This is not negotiable. This is not optional. You cannot rationalize your way ou
 
 ## Skill Priority
 
-Process skills first (`/brainstorm`, `tdd-workflow`) — then implementation skills (`/sprint`, `/implementation-plan`).
+Process skills first (`/dso:brainstorm`, `tdd-workflow`) — then implementation skills (`/dso:sprint`, `/dso:implementation-plan`).
 
 ## Skill Types
 

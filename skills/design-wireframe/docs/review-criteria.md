@@ -2,7 +2,7 @@
 
 ## Overview
 
-The design is reviewed by a committee of four specialists using `/review-protocol`
+The design is reviewed by a committee of four specialists using `/dso:review-protocol`
 (Stage 2, multi-agent). Each reviewer has a self-contained prompt file in
 `docs/reviewers/` that defines their persona, dimensions, and scoring rubric.
 
@@ -34,7 +34,7 @@ Use the Task tool to launch all four reviewers **in parallel**. For each:
 
 ## Score Aggregation Rules
 
-Per `/review-protocol` and `REVIEW-SCHEMA.md`:
+Per `/dso:review-protocol` and `REVIEW-SCHEMA.md`:
 
 1. Collect all dimension scores from all four reviewers.
 2. Any individual dimension score below 4 means the design **fails** for that dimension.
@@ -44,7 +44,7 @@ Per `/review-protocol` and `REVIEW-SCHEMA.md`:
 
 ## Conflict Detection
 
-Per `/review-protocol`, scan findings for **direct contradictions** — pairs of
+Per `/dso:review-protocol`, scan findings for **direct contradictions** — pairs of
 suggestions targeting the same component/artifact but pulling in opposite directions.
 
 Common conflict patterns in design review:
@@ -56,14 +56,14 @@ Common conflict patterns in design review:
 | FE: "Simplify state management" | PM: "Add undo capability" | `strict_vs_flexible` |
 | PM: "Scope is too large" | FE: "Specification is incomplete" | `expand_vs_reduce` |
 
-**Resolution** (per `/review-protocol`):
+**Resolution** (per `/dso:review-protocol`):
 - Critical vs minor: critical finding wins, no escalation
 - Both critical/major: escalate to user immediately
 - Both minor: caller chooses direction
 
 ## Revision Protocol
 
-Per `/review-protocol`'s revision protocol:
+Per `/dso:review-protocol`'s revision protocol:
 
 1. Triage findings by severity (critical → major → minor).
 2. Resolve conflicts before revising.
@@ -77,7 +77,7 @@ After aggregating all reviewer outputs into the combined JSON (`subject`, `revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 REVIEW_OUT="$(get_artifacts_dir)/design-wireframe-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>

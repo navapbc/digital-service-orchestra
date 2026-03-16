@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tk-sync-timeout.sh
+# tests/scripts/test-tk-sync-timeout.sh
 #
 # Tests verifying tk sync timeout defaults and error message behavior.
 #
@@ -12,7 +12,7 @@
 #   3. JIRA_SYNC_TIMEOUT_SECONDS env var overrides the default
 #   4. Timeout produces a clean, human-readable error message
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tk-sync-timeout.sh
+# Usage: bash tests/scripts/test-tk-sync-timeout.sh
 
 set -uo pipefail
 

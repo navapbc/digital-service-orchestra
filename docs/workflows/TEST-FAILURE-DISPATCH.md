@@ -104,12 +104,12 @@ The orchestrator extracts the `RESULT` line to decide the next action:
 
 | Failure Signal | Template Path | Path Within Template |
 |---------------|---------------|---------------------|
-| Assertion failure (`AssertionError`, wrong value) | `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
-| Runtime error (`KeyError`, `TypeError`, `AttributeError`) | `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
-| Import error (`ModuleNotFoundError`, `ImportError`) | `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
-| Type annotation error (mypy) | `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
-| Lint violation (ruff) | `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
-| Config/env issue | `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
+| Assertion failure (`AssertionError`, wrong value) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
+| Runtime error (`KeyError`, `TypeError`, `AttributeError`) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | TDD path (RED -> GREEN) |
+| Import error (`ModuleNotFoundError`, `ImportError`) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
+| Type annotation error (mypy) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
+| Lint violation (ruff) | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
+| Config/env issue | `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md` | Mechanical path |
 
 ---
 
@@ -131,7 +131,7 @@ When `make test-unit-only` or `make lint` fails during commit validation:
 After a successful sub-agent fix, re-run the full validation suite before proceeding
 to the commit step. Do not assume the fix is clean -- validate.
 
-### /sprint (Sprint Workflow)
+### /dso:sprint (Sprint Workflow)
 
 **Phase 6 Step 4 (Post-batch validation failure)**:
 When `validate-phase.sh post-batch` reports test failures:
@@ -148,12 +148,12 @@ When E2E tests fail after all batches complete:
 3. Dispatch sub-agent with the E2E test command and stderr
 4. Follow standard escalation (sonnet -> opus -> user)
 
-### /debug-everything
+### /dso:debug-everything
 
-No changes needed. The existing `/debug-everything` workflow already uses
+No changes needed. The existing `/dso:debug-everything` workflow already uses
 `fix-task-tdd.md` and `fix-task-mechanical.md` directly. The test-failure
-dispatch protocol is a layer above these prompts, used by `/sprint` and
-`COMMIT-WORKFLOW.md` to automate what `/debug-everything` does manually.
+dispatch protocol is a layer above these prompts, used by `/dso:sprint` and
+`COMMIT-WORKFLOW.md` to automate what `/dso:debug-everything` does manually.
 
 ---
 

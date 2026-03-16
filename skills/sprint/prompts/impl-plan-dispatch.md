@@ -1,6 +1,6 @@
 # Implementation Plan Sub-Agent
 
-You are a sub-agent executing `/implementation-plan` for `{story-id}`.
+You are a sub-agent executing `/dso:implementation-plan` for `{story-id}`.
 
 ## Context
 
@@ -8,7 +8,7 @@ You are a sub-agent executing `/implementation-plan` for `{story-id}`.
 
 If `{evaluator-context}` is non-empty, it contains complexity-evaluator output (classification, layers_touched, interfaces_affected, files_estimated). Use it to shortcut Step 1's cross-cutting detection: reuse the `layers_touched` and `interfaces_affected` counts directly instead of performing the full grepping analysis. Sanity-check the counts against story context and apply the escalation rule.
 
-**Note:** The `{story-id}` placeholder may contain either a story ID or an epic ID. When it is an epic ID, `/implementation-plan` will detect this from the `type` field in `tk show` output and enter epic-direct mode (creating tasks as direct children of the epic, skipping parent-epic lookup).
+**Note:** The `{story-id}` placeholder may contain either a story ID or an epic ID. When it is an epic ID, `/dso:implementation-plan` will detect this from the `type` field in `tk show` output and enter epic-direct mode (creating tasks as direct children of the epic, skipping parent-epic lookup).
 
 ## Answers to Previous Questions
 
@@ -18,7 +18,7 @@ If `{answers-context}` is non-empty, it contains user answers to questions from 
 
 ## Your Task
 
-Execute Steps 1-6 of the `/implementation-plan` skill for `{story-id}`.
+Execute Steps 1-6 of the `/dso:implementation-plan` skill for `{story-id}`.
 
 ### Step 0: Load the Skill
 
@@ -33,9 +33,9 @@ Use the `Read` tool at that path to load the skill. Then execute Steps 1-6 as de
 ### Steps to Execute
 
 - **Step 1**: Contextual Discovery — load story context, resolve ambiguities, detect cross-cutting changes (or reuse evaluator context if provided above)
-- **Step 2**: Architectural Review — invoke `/review-protocol` if a new pattern is needed or cross-cutting thresholds are met; otherwise skip
+- **Step 2**: Architectural Review — invoke `/dso:review-protocol` if a new pattern is needed or cross-cutting thresholds are met; otherwise skip
 - **Step 3**: Atomic Task Drafting — draft tasks with TDD-first, E2E coverage, and docs coverage
-- **Step 4**: Plan Review — invoke `/review-protocol` with pass_threshold 5; iterate up to 3 times
+- **Step 4**: Plan Review — invoke `/dso:review-protocol` with pass_threshold 5; iterate up to 3 times
 - **Step 5**: Task Creation — create tasks in tickets, add dependencies, validate ticket health
 - **Step 6**: Gap Analysis — dispatch opus sub-agent for COMPLEX stories; skip for TRIVIAL (uses evaluator-context classification)
 
@@ -76,7 +76,7 @@ STATUS:blocked QUESTIONS:[{"text":"What is the expected response format for the 
 ### Rules
 - Do NOT: git commit, git push, tk close, tk status
 - You MAY use: tk create (with --acceptance, -d flags), tk dep (required for Step 5 dependency wiring), direct `.tickets/<id>.md` editing for post-creation updates
-- Do NOT use the Task tool to dispatch nested sub-agents. Skill tool invocations (e.g., /review-protocol) ARE permitted.
+- Do NOT use the Task tool to dispatch nested sub-agents. Skill tool invocations (e.g., /dso:review-protocol) ARE permitted.
 - Do NOT invoke `/commit`, `/review`, or any slash-command other than Skill tool invocations required by the implementation-plan steps
 - Do NOT modify files outside the scope of task creation (no source code changes — this is planning only)
 - Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path.

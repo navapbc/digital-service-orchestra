@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/lib/assert.sh
+# tests/lib/assert.sh
 # Shared bash assertion helpers for plugin/hook test files.
 #
 # Usage (source into test scripts):
 #   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/assert.sh"
 #
 # Usage (self-test):
-#   RUN_SELF_TESTS=1 bash lockpick-workflow/tests/lib/assert.sh
+#   RUN_SELF_TESTS=1 bash tests/lib/assert.sh
 #
 # Provides:
 #   assert_eq(label, expected, actual)   — PASS/FAIL with message

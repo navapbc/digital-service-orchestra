@@ -9,8 +9,8 @@ user-invocable: true
 ## When to Run
 
 ```bash
-./scripts/validate-issues.sh          # Standard check
-./scripts/validate-issues.sh --verbose # Detailed output
+${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh          # Standard check
+${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh --verbose # Detailed output
 ```
 
 **Run after**:
@@ -45,7 +45,7 @@ Score 1 (Critical)  → IMMEDIATE action required
    - Task belongs to multiple possible epics
    - Dependency direction is ambiguous
    - Task description conflicts with epic goals
-4. After fixing issues, re-run `./scripts/validate-issues.sh` to confirm score improves
+4. After fixing issues, re-run `${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh` to confirm score improves
 
 ## Common Issues and Fixes
 
@@ -76,11 +76,11 @@ tk add-note <task-id> "Parent epic: <epic-id> (was incorrectly set as dep)"
 Epic has no children or all children are closed.
 
 **Do NOT close empty epics.** Epics represent planned work that needs decomposition.
-Run `/preplanning <epic-id>` to break the epic into user stories and tasks.
+Run `/dso:preplanning <epic-id>` to break the epic into user stories and tasks.
 
 ```bash
 # Decompose the epic into child tasks
-/preplanning <epic-id>
+/dso:preplanning <epic-id>
 ```
 
 Only close an epic if the user explicitly confirms it is obsolete.

@@ -17,7 +17,7 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 **CRITICAL**: Steps 0-5 are mandatory and sequential. Step 0 clears stale artifacts — always start here, even when restarting. Step 1 runs auto-fixers (format/lint/type-check) BEFORE Step 2 captures the diff hash — this ordering prevents pre-commit hooks from invalidating the hash. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md rule #15 regardless of how "simple" the changes appear.
 
-**This workflow reviews CODE (diffs, commits). To review a PLAN or DESIGN, use `/plan-review` instead.** See CLAUDE.md "Always Do These" rule 10 for the review routing table.
+**This workflow reviews CODE (diffs, commits). To review a PLAN or DESIGN, use `/dso:plan-review` instead.** See CLAUDE.md "Always Do These" rule 10 for the review routing table.
 
 ---
 
@@ -27,7 +27,7 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 rm -f "$ARTIFACTS_DIR/review-status"
@@ -47,7 +47,7 @@ If restarting the review workflow after a failed attempt, this step guarantees a
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 VALIDATION_STATUS="$ARTIFACTS_DIR/validation-status"
@@ -84,7 +84,7 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 1. **Capture the diff hash**:
    ```bash
-   DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
+   DIFF_HASH=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
    DIFF_HASH_SHORT="${DIFF_HASH:0:8}"
    ```
 
@@ -92,7 +92,7 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
    ```bash
    DIFF_FILE="$ARTIFACTS_DIR/review-diff-${DIFF_HASH_SHORT}.txt"
    STAT_FILE="$ARTIFACTS_DIR/review-stat-${DIFF_HASH_SHORT}.txt"
-   "$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE"
    ```
 
 3. **Read only the stat file** into context (small). Do NOT cat/read the full diff file — the sub-agent reads it from disk.
@@ -108,7 +108,7 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 ```bash
 CHANGED_FILES=$({ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u)
 MODEL="sonnet"
-if echo "$CHANGED_FILES" | grep -qE '^(lockpick-workflow/skills/|\.claude/workflows/|lockpick-workflow/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
+if echo "$CHANGED_FILES" | grep -qE '^(\.claude/skills/|\.claude/workflows/|\.claude/hooks/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
     MODEL="opus"
 fi
 echo "REVIEW_MODEL=$MODEL"
@@ -124,14 +124,14 @@ Launch a `general-purpose` sub-agent using the Task tool. This agent type has fu
 
 **Do NOT use specialized sub-agent types** (e.g., `feature-dev:code-reviewer`). Those types lack the Bash tool, which is required to run `verify-review-diff.sh` and pipe JSON to `write-reviewer-findings.sh`. Using a non-general-purpose type will cause the review to fail with a malformed output and require a re-dispatch.
 
-Read the prompt template at `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
+Read the prompt template at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
 - `{working_directory}`: current working directory
 - `{diff_stat}`: content of the stat file from Step 2
 - `{diff_file_path}`: the `DIFF_FILE` path from Step 2
 - `{repo_root}`: `REPO_ROOT` value
 - `{issue_context}`: Issue context (see below)
 
-**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/sprint`, present in the task prompt, or tracked by the orchestrator), populate this placeholder with:
+**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/dso:sprint`, present in the task prompt, or tracked by the orchestrator), populate this placeholder with:
 
 ```
 === ISSUE CONTEXT ===
@@ -168,7 +168,7 @@ Task tool:
 3. If the review failed and you need finding details, read `reviewer-findings.json` from disk:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh
    ARTIFACTS_DIR=$(get_artifacts_dir)
    FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
    cat "$FINDINGS_FILE" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'[{f[\"severity\"]}] {f[\"category\"]}: {f[\"description\"]}') for f in d['findings'] if f['severity'] in ('critical','important')]"
@@ -190,7 +190,7 @@ Call `record-review.sh` with `--expected-hash` from Step 2 and `--reviewer-hash`
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-"$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
+"${CLAUDE_PLUGIN_ROOT}/hooks/record-review.sh" \
   --expected-hash "<DIFF_HASH from Step 2>" \
   --reviewer-hash "<REVIEWER_HASH from sub-agent>"
 ```
@@ -225,11 +225,11 @@ This design keeps nesting at one level (orchestrator → sub-agent) for both the
 
 ```bash
 DISPATCH_TIME=$(date +%s)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR="$(get_artifacts_dir)"
 ```
 
-Read `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
+Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
 - `{findings_file}`: `$(get_artifacts_dir)/reviewer-findings.json`
 - `{diff_file}`: the `DIFF_FILE` path from Step 2
 - `{repo_root}`: `REPO_ROOT` value
@@ -259,11 +259,11 @@ Task tool:
 
 1. Capture a fresh diff hash and diff file (the resolution sub-agent changed the code):
    ```bash
-   NEW_DIFF_HASH=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
+   NEW_DIFF_HASH=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
    NEW_DIFF_HASH_SHORT="${NEW_DIFF_HASH:0:8}"
    NEW_DIFF_FILE="$ARTIFACTS_DIR/review-diff-${NEW_DIFF_HASH_SHORT}.txt"
    NEW_STAT_FILE="$ARTIFACTS_DIR/review-stat-${NEW_DIFF_HASH_SHORT}.txt"
-   "$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
 2. Dispatch the re-review sub-agent using the same `code-review-dispatch.md` template:
@@ -282,7 +282,7 @@ Task tool:
 4. **If re-review passes** (MIN_SCORE ≥ 4 and no critical findings):
    Call `record-review.sh` with the NEW diff hash and re-review's REVIEWER_HASH:
    ```bash
-   "$REPO_ROOT/lockpick-workflow/hooks/record-review.sh" \
+   "${CLAUDE_PLUGIN_ROOT}/hooks/record-review.sh" \
      --expected-hash "<NEW_DIFF_HASH>" \
      --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
    ```
@@ -291,7 +291,7 @@ Task tool:
 5. **If re-review fails**: run the OSCILLATION GATE before dispatching another resolution sub-agent.
 
    **OSCILLATION GATE (mandatory on attempt 2+)**:
-   - If attempt >= 2: run `/oscillation-check` unconditionally. Do NOT skip based on whether findings appear new.
+   - If attempt >= 2: run `/dso:oscillation-check` unconditionally. Do NOT skip based on whether findings appear new.
    - If OSCILLATION detected: escalate immediately. Do NOT dispatch another resolution sub-agent.
    - If CLEAR: dispatch the next resolution sub-agent.
 

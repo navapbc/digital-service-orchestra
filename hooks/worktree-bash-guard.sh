@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/worktree-bash-guard.sh
+# hooks/worktree-bash-guard.sh
 # PreToolUse hook: block Bash commands that cd into the main repo from a worktree
 #
 # This file is a thin wrapper. The hook logic lives in:
-#   lockpick-workflow/hooks/lib/pre-bash-functions.sh (hook_worktree_bash_guard)
+#   hooks/lib/pre-bash-functions.sh (hook_worktree_bash_guard)
 #
 # Enforces CLAUDE.md rule 11:
 #   "Never edit main repo files from a worktree session"

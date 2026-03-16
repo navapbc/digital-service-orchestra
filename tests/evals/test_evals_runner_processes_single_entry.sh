@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/evals/test_evals_runner_processes_single_entry.sh
+# tests/evals/test_evals_runner_processes_single_entry.sh
 # TDD test: verifies run-evals.sh processes a single skill-activation entry.
 #
-# Usage: bash lockpick-workflow/tests/evals/test_evals_runner_processes_single_entry.sh
+# Usage: bash tests/evals/test_evals_runner_processes_single_entry.sh
 #
 # Assertion density: 4 assertions (exit_code, output PASS, output skill id, summary)
 
@@ -33,10 +33,10 @@ cat > "$MINIMAL_JSON" <<'EOF'
       "id": "skill-batch-overlap-check-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": ".claude/skills/batch-overlap-check/SKILL.md",
+      "hook": "skills/batch-overlap-check/SKILL.md",
       "setup": { "stdin": "", "state_files": {}, "env": {} },
       "assertions": [
-        { "type": "file_exists", "path": ".claude/skills/batch-overlap-check/SKILL.md" }
+        { "type": "file_exists", "path": "skills/batch-overlap-check/SKILL.md" }
       ]
     }
   ]

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/pre-commit-review-gate.sh
+# hooks/pre-commit-review-gate.sh
 # git pre-commit hook: default-deny allowlist check + review-status validation.
 #
 # DESIGN:

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-marketplace-json.sh
-# TDD red-phase tests for lockpick-workflow/marketplace.json schema validation
+# tests/scripts/test-marketplace-json.sh
+# TDD red-phase tests for .claude-plugin/marketplace.json schema validation
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-marketplace-json.sh
+# Usage: bash tests/scripts/test-marketplace-json.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # NOTE: These tests are expected to FAIL until marketplace.json is created.
@@ -12,15 +12,15 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-MARKETPLACE_JSON="$PLUGIN_ROOT/marketplace.json"
-PLUGIN_JSON="$PLUGIN_ROOT/plugin.json"
+MARKETPLACE_JSON="$PLUGIN_ROOT/.claude-plugin/marketplace.json"
+PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-marketplace-json.sh ==="
 
 # ── test_marketplace_json_exists ──────────────────────────────────────────────
-# marketplace.json must exist at lockpick-workflow/marketplace.json
+# marketplace.json must exist at .claude-plugin/marketplace.json
 if [[ -f "$MARKETPLACE_JSON" ]]; then
     actual_exists="exists"
 else

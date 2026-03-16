@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/issue-summary.sh
+# scripts/issue-summary.sh
 # Wrapper that produces a one-line summary from `tk show <id>`.
 # Use for orchestrator status checks instead of full `tk show` output.
 #

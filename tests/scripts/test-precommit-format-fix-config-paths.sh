@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-precommit-format-fix-config-paths.sh
+# tests/scripts/test-precommit-format-fix-config-paths.sh
 # TDD tests verifying pre-commit-format-fix.sh uses config-derived app/ paths
 # instead of hardcoded app/ references.
 #
@@ -8,7 +8,7 @@
 #   test_precommit_format_fix_no_hardcoded_app — no hardcoded app/ in non-comment lines
 #   test_precommit_format_fix_uses_cfg_app_dir — references CFG_APP_DIR variable
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-precommit-format-fix-config-paths.sh
+# Usage: bash tests/scripts/test-precommit-format-fix-config-paths.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

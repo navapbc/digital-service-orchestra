@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-test-batched.sh
+# tests/scripts/test-test-batched.sh
 # Tests for test-batched.sh — time-bounded test batching harness
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-test-batched.sh
+# Usage: bash tests/scripts/test-test-batched.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

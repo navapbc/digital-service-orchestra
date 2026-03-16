@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-adr-config-system.sh
+# tests/scripts/test-adr-config-system.sh
 # Verify that the ADR for the config system exists and contains required sections.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-adr-config-system.sh
+# Usage: bash tests/scripts/test-adr-config-system.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

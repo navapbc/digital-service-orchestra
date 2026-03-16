@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-isolation-check.sh
+# tests/scripts/test-isolation-check.sh
 # Regression tests for the test-isolation harness (scripts/check-test-isolation.sh)
 #
 # Verifies:
@@ -7,7 +7,7 @@
 #   2. The harness output contains the expected rule name
 #   3. The full scan of all test files shows zero violations (excluding fixtures)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-isolation-check.sh
+# Usage: bash tests/scripts/test-isolation-check.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

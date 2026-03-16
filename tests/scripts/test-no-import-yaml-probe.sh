@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-no-import-yaml-probe.sh
+# tests/scripts/test-no-import-yaml-probe.sh
 # TDD tests verifying that tk, worktree-create.sh, check-local-env.sh, and
 # issue-batch.sh do NOT contain 'import yaml' interpreter probes or pyyaml/PyYAML
 # references. These probes were used solely to find Python for read-config.sh,
@@ -11,7 +11,7 @@
 #   test_<script>_no_import_yaml_probe  — no 'import yaml' probe in script
 #   test_<script>_no_pyyaml_reference   — no 'pyyaml' or 'PyYAML' reference in script
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-no-import-yaml-probe.sh
+# Usage: bash tests/scripts/test-no-import-yaml-probe.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

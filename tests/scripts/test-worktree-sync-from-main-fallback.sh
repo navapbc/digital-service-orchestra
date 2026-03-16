@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-worktree-sync-from-main-fallback.sh
+# tests/scripts/test-worktree-sync-from-main-fallback.sh
 # TDD tests for the tickets-only conflict guard and fallback auto-resolve logic
-# in lockpick-workflow/scripts/worktree-sync-from-main.sh.
+# in scripts/worktree-sync-from-main.sh.
 #
 # Tests:
 #   1. test_fallback_guard_non_ticket_conflict — guard aborts when a non-ticket
@@ -23,7 +23,7 @@
 #   14. test_fallback_aborts_mixed_ticket_conflicts — guard aborts when both
 #       .tickets/.index.json and .tickets/foo.md are conflicted
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-worktree-sync-from-main-fallback.sh
+# Usage: bash tests/scripts/test-worktree-sync-from-main-fallback.sh
 
 set -uo pipefail
 

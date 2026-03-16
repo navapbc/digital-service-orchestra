@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/nohup-launch.sh
+# scripts/nohup-launch.sh
 # Launch a background task with process budget enforcement and PID registry.
 #
 # Replaces ad-hoc `nohup` commands across agents and skills with a managed

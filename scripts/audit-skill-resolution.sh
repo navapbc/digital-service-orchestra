@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/audit-skill-resolution.sh
+# scripts/audit-skill-resolution.sh
 #
 # Canonical location. The project-root wrapper at scripts/audit-skill-resolution.sh
 # delegates here.
@@ -10,11 +10,11 @@ set -euo pipefail
 #
 # Checks:
 #   1. Every command referenced in CLAUDE.md as /command resolves to a
-#      project-owned file (.claude/commands/, lockpick-workflow/commands/,
-#      or lockpick-workflow/skills/)
+#      project-owned file (.claude/commands/, commands/,
+#      or skills/)
 #   2. No external plugin silently shadows a project command
 #
-# Usage: lockpick-workflow/scripts/audit-skill-resolution.sh [--verbose]
+# Usage: scripts/audit-skill-resolution.sh [--verbose]
 # Exit: 0 if all commands resolve correctly, 1 if gaps found
 
 set -euo pipefail
@@ -29,8 +29,8 @@ REQUIRED_COMMANDS=(commit end review)
 # Directories where project-owned commands/skills can live
 PROJECT_PATHS=(
     "$REPO_ROOT/.claude/commands"
-    "$REPO_ROOT/lockpick-workflow/commands"
-    "$REPO_ROOT/lockpick-workflow/skills"
+    "${CLAUDE_PLUGIN_ROOT}/commands"
+    "${CLAUDE_PLUGIN_ROOT}/skills"
 )
 
 log() {

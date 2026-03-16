@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-validate-work-portability.sh
+# tests/plugin/test-validate-work-portability.sh
 # Portability integration test for the validate-work skill.
 #
 # Verifies that the skill's config resolution, dispatch logic, and graceful
@@ -17,7 +17,7 @@
 #   F. Fixture file structure validation
 #
 # Manual run:
-#   bash lockpick-workflow/tests/plugin/test-validate-work-portability.sh
+#   bash tests/plugin/test-validate-work-portability.sh
 #
 # Design note: This test validates config resolution and the dispatch logic
 # present in the orchestrator (SKILL.md) and prompt files. It cannot actually

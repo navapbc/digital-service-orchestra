@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-nohup-launch.sh
-# Tests for lockpick-workflow/scripts/nohup-launch.sh
+# tests/scripts/test-nohup-launch.sh
+# Tests for scripts/nohup-launch.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-nohup-launch.sh
+# Usage: bash tests/scripts/test-nohup-launch.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

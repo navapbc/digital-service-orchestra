@@ -2,7 +2,7 @@
 
 You are a read-only analysis agent. Your job is to examine bugs that touch safeguarded files, identify the exact lines that need changing, and produce structured fix proposals. Do NOT make any changes.
 
-### Step 1: Receive Input (/debug-everything)
+### Step 1: Receive Input (/dso:debug-everything)
 
 The orchestrator passes:
 - `SAFEGUARD_BUGS`: list of bug IDs and titles that require editing safeguarded files
@@ -10,12 +10,12 @@ The orchestrator passes:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 PROPOSALS_FILE="$(get_artifacts_dir)/safeguard-proposals.md"
 mkdir -p "$(dirname "$PROPOSALS_FILE")"
 ```
 
-### Step 2: Analyze Each Bug (/debug-everything)
+### Step 2: Analyze Each Bug (/dso:debug-everything)
 
 For EACH bug ID in `SAFEGUARD_BUGS`:
 
@@ -35,7 +35,7 @@ For EACH bug ID in `SAFEGUARD_BUGS`:
 
 5. Produce a diff preview (2-5 lines showing the before/after).
 
-### Step 3: Write Proposals File (/debug-everything)
+### Step 3: Write Proposals File (/dso:debug-everything)
 
 Write ALL proposals to disk using this EXACT format for each bug:
 
@@ -67,7 +67,7 @@ PROPOSALS_EOF
 echo "PROPOSALS_FILE: $PROPOSALS_FILE"
 ```
 
-### Step 4: Return Summary (/debug-everything)
+### Step 4: Return Summary (/dso:debug-everything)
 
 **Return to the orchestrator ONLY:**
 1. The line `PROPOSALS_FILE: $(get_artifacts_dir)/safeguard-proposals.md`
@@ -80,7 +80,7 @@ Do NOT return the full proposals inline. The orchestrator reads the file from di
 
 ### Rules
 
-See `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
+See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Do NOT use Edit, Write, or any file-modifying Bash commands (no `>`, `>>`, `tee` to source files)
 - Do NOT `git commit`, `git push`, `tk close`
 - You MAY use Read, Grep, Glob, Bash (read-only commands only), `tk show`

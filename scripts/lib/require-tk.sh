@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/scripts/lib/require-tk.sh
+# scripts/lib/require-tk.sh
 # Shared helper for tk CLI availability checking.
 #
 # Usage: source this file and call require_tk before using tk commands.
@@ -23,9 +23,9 @@ require_tk() {
 
     # If TK was explicitly set but doesn't exist, report that
     if [[ -n "${TK:-}" ]]; then
-        echo "lockpick-workflow: tk CLI is required but not found at '$TK'. Install tk or set TK= to its path." >&2
+        echo "dso: tk CLI is required but not found at '$TK'. Install tk or set TK= to its path." >&2
     else
-        echo "lockpick-workflow: tk CLI is required but not found. Install tk or set TK= to its path." >&2
+        echo "dso: tk CLI is required but not found. Install tk or set TK= to its path." >&2
     fi
     exit 1
 }

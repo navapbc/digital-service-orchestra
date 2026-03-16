@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-pre-push-sentinel-check.sh
-# Tests for lockpick-workflow/hooks/pre-push-sentinel-check.sh
+# tests/hooks/test-pre-push-sentinel-check.sh
+# Tests for hooks/pre-push-sentinel-check.sh
 #
 # pre-push-sentinel-check.sh blocks git push if .checkpoint-needs-review
 # is tracked in HEAD (HEAD-based check, not stdin parsing).
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-pre-push-sentinel-check.sh
+# Usage: bash tests/hooks/test-pre-push-sentinel-check.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

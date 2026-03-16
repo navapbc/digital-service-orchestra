@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-session-misc-dispatchers.sh
+# tests/hooks/test-session-misc-dispatchers.sh
 # Unit tests for session-start, stop, pre-agent, pre-exitplanmode, pre-taskoutput,
 # post-failure dispatchers and the session-misc-functions.sh library.
 #
@@ -13,7 +13,7 @@
 #   test_post_failure_dispatcher_calls_track_tool_errors
 #   test_pre_all_dispatcher_calls_tool_logging_pre
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-session-misc-dispatchers.sh
+# Usage: bash tests/hooks/test-session-misc-dispatchers.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-compute-diff-hash-checkpoint.sh
+# tests/hooks/test-compute-diff-hash-checkpoint.sh
 # Tests for checkpoint-aware diff hash computation in compute-diff-hash.sh.
 #
 # Verifies that compute-diff-hash.sh:
@@ -91,7 +91,7 @@ run_hook_in_repo() {
             # Override get_artifacts_dir to return our test dir
             export _TEST_ARTIFACTS_DIR="$test_artifacts_dir"
             bash -c '
-                source "'"$REPO_ROOT"'/lockpick-workflow/hooks/lib/deps.sh"
+                source "'"$REPO_ROOT"'/hooks/lib/deps.sh"
                 get_artifacts_dir() { echo "$_TEST_ARTIFACTS_DIR"; }
                 export -f get_artifacts_dir
                 source "'"$HOOK"'"

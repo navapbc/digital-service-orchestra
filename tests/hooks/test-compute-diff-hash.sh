@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-compute-diff-hash.sh
+# tests/hooks/test-compute-diff-hash.sh
 # Tests for .claude/hooks/compute-diff-hash.sh
 #
 # compute-diff-hash.sh is a utility script (not a hook per se) that outputs

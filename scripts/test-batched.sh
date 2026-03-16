@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/test-batched.sh — Time-bounded test batching harness
+# scripts/test-batched.sh — Time-bounded test batching harness
 #
 # Runs a test command in a time-bounded loop, saving progress to a state file.
 # When the time limit is reached, prints a NEXT: resume command and exits.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-lifecycle-noop-guards.sh
+# tests/scripts/test-lifecycle-noop-guards.sh
 # Tests that agent-batch-lifecycle.sh subcommands gracefully no-op when
 # database or infrastructure config sections are absent.
 #
@@ -10,7 +10,7 @@
 #   - Warning messages go to stderr (not stdout)
 #   - No-op paths do not set any_fail=true (exit 0)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-lifecycle-noop-guards.sh
+# Usage: bash tests/scripts/test-lifecycle-noop-guards.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

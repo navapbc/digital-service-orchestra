@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-orphaned-tasks.sh
+# tests/scripts/test-orphaned-tasks.sh
 # Test harness for orphaned-tasks.sh (post bd-to-tk migration).
 #
 # Tests verify orphaned-tasks.sh uses tk/file-based ticket storage.
@@ -9,7 +9,7 @@
 # Test 7 (RED): test_orphaned_tasks_uses_tickets_dir — FAILS until script reads TICKETS_DIR
 # Test 8 (RED): test_orphaned_tasks_json_flag_uses_file_based_source — FAILS until file-based
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-orphaned-tasks.sh
+# Usage: bash tests/scripts/test-orphaned-tasks.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

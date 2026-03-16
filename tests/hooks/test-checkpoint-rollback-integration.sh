@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-checkpoint-rollback-integration.sh
+# tests/hooks/test-checkpoint-rollback-integration.sh
 #
 # Integration tests for the full checkpoint -> rollback cycle:
 #   (a) Happy path: pre-compact-checkpoint.sh creates checkpoint commit + marker,
@@ -10,7 +10,7 @@
 #   (c) No-op rollback without marker: checkpoint commit at HEAD but no marker file
 #       -> rollback does nothing
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-checkpoint-rollback-integration.sh
+# Usage: bash tests/hooks/test-checkpoint-rollback-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

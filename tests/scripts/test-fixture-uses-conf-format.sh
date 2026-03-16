@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-fixture-uses-conf-format.sh
+# tests/scripts/test-fixture-uses-conf-format.sh
 # TDD sentinel: verifies no test file creates workflow-config.yaml fixtures.
 # All test fixtures should use the flat .conf format instead.
 #
-# This test greps lockpick-workflow/tests/ for lines that create
+# This test greps tests/ for lines that create
 # workflow-config.yaml files (cat > ... or printf ... > ... workflow-config.yaml)
 # and fails if any are found. Comments, compat/fallback references, and
 # read-only references are excluded.

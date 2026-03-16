@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-verify-baseline-intent.sh
+# tests/scripts/test-verify-baseline-intent.sh
 # TDD tests for verify-baseline-intent.sh config-driven behavior:
 #   1. workflow-config.conf contains the required keys:
 #      - visual.baseline_directory → 'app/tests/e2e/snapshots/'
 #      - design.manifest_patterns  → a list with exactly two entries
-#   2. lockpick-workflow/scripts/verify-baseline-intent.sh:
+#   2. scripts/verify-baseline-intent.sh:
 #      - reads visual.baseline_directory from config (not hardcoded)
 #      - reads design.manifest_patterns from config (not hardcoded)
 #      - exits 0 (no-op) when visual.baseline_directory is absent from config
 #      - is executable
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-verify-baseline-intent.sh
+# Usage: bash tests/scripts/test-verify-baseline-intent.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -62,7 +62,7 @@ assert_contains "test_design_manifest_patterns_values: contains designs/*/brief.
 assert_pass_if_clean "test_design_manifest_patterns_values"
 
 # ── test_plugin_script_exists ─────────────────────────────────────────────────
-# lockpick-workflow/scripts/verify-baseline-intent.sh must exist
+# scripts/verify-baseline-intent.sh must exist
 _snapshot_fail
 if [[ -f "$PLUGIN_SCRIPT" ]]; then
     assert_eq "test_plugin_script_exists: file exists" "yes" "yes"
@@ -72,7 +72,7 @@ fi
 assert_pass_if_clean "test_plugin_script_exists"
 
 # ── test_plugin_script_is_executable ─────────────────────────────────────────
-# lockpick-workflow/scripts/verify-baseline-intent.sh must be executable
+# scripts/verify-baseline-intent.sh must be executable
 _snapshot_fail
 if [[ -x "$PLUGIN_SCRIPT" ]]; then
     assert_eq "test_plugin_script_is_executable: executable" "yes" "yes"
@@ -148,50 +148,6 @@ assert_eq "test_absent_config_exits_0: exit code" "0" "$absent_exit"
 assert_contains "test_absent_config_exits_0: info message" \
     "not configured" "$absent_output"
 assert_pass_if_clean "absent_config_exits_0"
-
-# ── test_wrapper_delegation ───────────────────────────────────────────────────
-# scripts/verify-baseline-intent.sh must be a thin wrapper that delegates to
-# lockpick-workflow/scripts/verify-baseline-intent.sh (< 10 lines, references canonical path).
-_snapshot_fail
-WRAPPER_SCRIPT="$REPO_ROOT/scripts/verify-baseline-intent.sh"
-
-# Wrapper must exist
-if [[ -f "$WRAPPER_SCRIPT" ]]; then
-    assert_eq "test_wrapper_delegation: wrapper file exists" "yes" "yes"
-else
-    assert_eq "test_wrapper_delegation: wrapper file exists" "yes" "no"
-fi
-
-# Wrapper must be executable
-if [[ -x "$WRAPPER_SCRIPT" ]]; then
-    assert_eq "test_wrapper_delegation: wrapper is executable" "yes" "yes"
-else
-    assert_eq "test_wrapper_delegation: wrapper is executable" "yes" "no"
-fi
-
-# Wrapper must reference lockpick-workflow/scripts/verify-baseline-intent.sh
-if grep -q 'lockpick-workflow/scripts/verify-baseline-intent.sh' "$WRAPPER_SCRIPT" 2>/dev/null; then
-    assert_eq "test_wrapper_delegation: references canonical path" "yes" "yes"
-else
-    assert_eq "test_wrapper_delegation: references canonical path" "yes" "no"
-fi
-
-# Wrapper must pass $@ to the canonical script
-if grep -q '"$@"' "$WRAPPER_SCRIPT" 2>/dev/null; then
-    assert_eq "test_wrapper_delegation: passes args via \$@" "yes" "yes"
-else
-    assert_eq "test_wrapper_delegation: passes args via \$@" "yes" "no"
-fi
-
-# Wrapper must be < 10 lines
-wrapper_lines=$(wc -l < "$WRAPPER_SCRIPT")
-if [[ "$wrapper_lines" -lt 10 ]]; then
-    assert_eq "test_wrapper_delegation: < 10 lines" "yes" "yes"
-else
-    assert_eq "test_wrapper_delegation: < 10 lines (got $wrapper_lines)" "yes" "no"
-fi
-
-assert_pass_if_clean "test_wrapper_delegation"
 
 # ── Portability test helpers ──────────────────────────────────────────────────
 # All portability tests run against isolated git repos in temp directories.

@@ -47,7 +47,7 @@ Do not research in any of the following situations:
 
 ## How to Research: Orchestrators
 
-Orchestrators (main session, `/sprint`, `/debug-everything`, etc.) must not perform inline web searches — they manage concurrency budgets and doing research inline inflates their context cost.
+Orchestrators (main session, `/dso:sprint`, `/dso:debug-everything`, etc.) must not perform inline web searches — they manage concurrency budgets and doing research inline inflates their context cost.
 
 **Pattern: Spawn a general-purpose research sub-agent.**
 

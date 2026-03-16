@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-plugin-scripts.sh
-# Verify the 8 portable scripts were copied to lockpick-workflow/scripts/.
+# tests/scripts/test-plugin-scripts.sh
+# Verify the 8 portable scripts were copied to scripts/.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-plugin-scripts.sh
+# Usage: bash tests/scripts/test-plugin-scripts.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

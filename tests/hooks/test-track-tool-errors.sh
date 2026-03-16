@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-track-tool-errors.sh
+# tests/hooks/test-track-tool-errors.sh
 # Tests for .claude/hooks/track-tool-errors.sh
 #
 # track-tool-errors.sh is a PostToolUseFailure hook that categorizes and counts

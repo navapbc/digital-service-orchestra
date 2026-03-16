@@ -6,7 +6,7 @@ description: Use when a skill needs structured multi-perspective review with con
 # Review Protocol
 
 Standardized 3-stage review process producing schema-compliant JSON output.
-See `lockpick-workflow/docs/REVIEW-SCHEMA.md` for the output schema.
+See `${CLAUDE_PLUGIN_ROOT}/docs/REVIEW-SCHEMA.md` for the output schema.
 
 ## Parameters
 
@@ -41,13 +41,13 @@ Each perspective in the `perspectives` array:
 - `dimensions`: Map of dimension names to descriptions of what "passing" looks like
 - `context`: Optional extra context the reviewer should consider
 
-For complex reviewers with separate prompt files (e.g., `/design-wireframe`'s reviewer prompts), the caller reads the file and passes its content as `context`.
+For complex reviewers with separate prompt files (e.g., `/dso:design-wireframe`'s reviewer prompts), the caller reads the file and passes its content as `context`.
 
 ---
 
 ## Stage 1: Mental Pre-Review
 
-**Skip when**: `start_stage >= 2`. Use this when the calling skill has already performed its own self-validation (e.g., `/design-wireframe` Phase 4 artifact consistency check).
+**Skip when**: `start_stage >= 2`. Use this when the calling skill has already performed its own self-validation (e.g., `/dso:design-wireframe` Phase 4 artifact consistency check).
 
 The calling agent reviews the artifact against each perspective's dimensions. For each dimension, ask: "Would this score below {pass_threshold}?"
 
@@ -106,7 +106,7 @@ Return valid JSON matching this structure:
 
 #### Determine Review Model
 
-Check whether the artifact under review contains high-blast-radius content. For code reviews, use the pattern list in `REVIEW-WORKFLOW.md` Step 3. For non-code reviews (plans, designs), the caller specifies the model (e.g., `/plan-review` uses opus for designs, sonnet for implementation plans).
+Check whether the artifact under review contains high-blast-radius content. For code reviews, use the pattern list in `REVIEW-WORKFLOW.md` Step 3. For non-code reviews (plans, designs), the caller specifies the model (e.g., `/dso:plan-review` uses opus for designs, sonnet for implementation plans).
 
 If **any** high-blast-radius pattern matches → `model="opus"`. Otherwise → `model="sonnet"`.
 
@@ -123,17 +123,17 @@ After the sub-agent returns:
 2. Run the schema validator (schema-hash: 3053fa9a43e12b79):
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    REVIEW_OUT="$(get_artifacts_dir)/review-protocol-output.json"
    cat > "$REVIEW_OUT" <<'EOF'
    <sub-agent JSON output>
    EOF
 
    # Base schema check (always)
-   "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT"
 
    # Per-caller check (when caller_id is provided)
-   # "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
+   # "${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
    ```
 3. If `SCHEMA_VALID: no` — retry the sub-agent once with an explicit format correction prompt; do not proceed with invalid output
 4. If `SCHEMA_VALID: yes` — proceed to Stage 3

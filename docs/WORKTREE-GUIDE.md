@@ -336,7 +336,7 @@ The merge migration is a standard Alembic file with multiple `down_revision` val
 
 ### `claude-safe` Wrapper (Recommended)
 
-> **Script location** (migration in progress): canonical source will be at `lockpick-workflow/scripts/claude-safe`; `scripts/claude-safe` is a backward-compatible exec wrapper that delegates to the plugin location once migration is complete. Currently, `scripts/claude-safe` contains the full implementation.
+> **Script location**: canonical source is at `scripts/claude-safe`.
 
 Use `scripts/claude-safe` instead of `claude` to get automatic worktree isolation:
 
@@ -403,7 +403,7 @@ Steps to run at the start of each Claude Code session, depending on context.
 
 Check for stale worktrees and clean them up using the automated script:
 
-> **Script location**: canonical source at `lockpick-workflow/scripts/worktree-cleanup.sh`; `scripts/worktree-cleanup.sh` is a backward-compatible exec wrapper. Config-driven via `workflow-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_days`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
+> **Script location**: canonical source at `scripts/worktree-cleanup.sh`. Config-driven via `workflow-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_days`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
 
 ```bash
 # Preview what would be removed (safe, no changes made)
@@ -566,7 +566,7 @@ At the end of a worktree session, use `merge-to-main.sh` (not raw `git merge`) t
 
 ```bash
 # Standard usage (runs all phases sequentially)
-$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/merge-to-main.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh
 ```
 
 ### Phased Workflow
@@ -589,7 +589,7 @@ If `merge-to-main.sh` is interrupted mid-run (e.g., by a SIGURG timeout), the sc
 
 ```bash
 # Resume after interruption — reads state file and skips completed phases
-$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/merge-to-main.sh --resume
+${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --resume
 ```
 
 **State file**: `/tmp/merge-to-main-state-<branch>.json` — records completed phases. Expires after 4 hours (stale state files are removed on next run).
@@ -601,7 +601,7 @@ $(git rev-parse --show-toplevel)/lockpick-workflow/scripts/merge-to-main.sh --re
 To re-run one specific phase (e.g., after a partial failure):
 
 ```bash
-$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/merge-to-main.sh --phase=push
+${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --phase=push
 ```
 
 Valid phase names: `checkpoint_verify`, `sync`, `merge`, `validate`, `push`, `archive`, `ci_trigger`.

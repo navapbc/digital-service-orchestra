@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/scripts/runners/node-runner.sh — Node.js runner driver
+# scripts/runners/node-runner.sh — Node.js runner driver
 #
 # Sourced by test-batched.sh to provide Node.js test file discovery and
 # execution. Sets USE_NODE_RUNNER=1 and NODE_FILES array when activated.

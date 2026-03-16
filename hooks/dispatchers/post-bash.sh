@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/post-bash.sh
+# hooks/dispatchers/post-bash.sh
 # PostToolUse Bash dispatcher: sources all 3 Bash post-hook functions and runs them.
 #
 # Replaces 3 separate settings.json entries with a single dispatcher entry:
@@ -21,7 +21,7 @@ trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
 trap 'exit 0' ERR
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

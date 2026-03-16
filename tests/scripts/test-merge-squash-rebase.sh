@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-squash-rebase.sh
+# tests/scripts/test-merge-squash-rebase.sh
 # Tests for _squash_rebase_recovery() function in merge-to-main.sh
 #
 # TDD tests:
@@ -14,7 +14,7 @@
 # Each test creates an isolated temp git repo with a local "origin" remote.
 # Sets BRANCH, GIT_ATTR_NOSYSTEM=1, and unsets the custom merge driver.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-squash-rebase.sh
+# Usage: bash tests/scripts/test-merge-squash-rebase.sh
 
 set -uo pipefail
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-syntax-timeout.sh
+# tests/scripts/test-syntax-timeout.sh
 # Tests verifying that syntax check timeout is 60s and check_bash uses
 # parallel execution via ThreadPoolExecutor.
 #
@@ -8,7 +8,7 @@
 #   for 300+ .sh files, consistently exceeding the 30s timeout. Fix: parallel
 #   execution with ThreadPoolExecutor + timeout raised to 60s.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-syntax-timeout.sh
+# Usage: bash tests/scripts/test-syntax-timeout.sh
 
 set -uo pipefail
 

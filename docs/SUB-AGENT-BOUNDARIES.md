@@ -1,6 +1,6 @@
 # Sub-Agent Boundaries
 
-Rules for all sub-agents dispatched by orchestrators (`/sprint`, `/debug-everything`, ad-hoc Task calls). Orchestrators include this file in sub-agent prompts via reference or inline.
+Rules for all sub-agents dispatched by orchestrators (`/dso:sprint`, `/dso:debug-everything`, ad-hoc Task calls). Orchestrators include this file in sub-agent prompts via reference or inline.
 
 ## Prohibited Actions
 
@@ -43,7 +43,7 @@ Sub-agents MAY:
 - `tk create "..." --parent <parent-id>` for genuinely out-of-scope discovered work only
 - `tk add-note <id> "..."` for checkpoint progress notes
 - Read any file in the repo to understand context
-- Write discovery files to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json` (resolve via: `source lockpick-workflow/hooks/lib/deps.sh && get_artifacts_dir`) (atomic: write `.tmp`, then `mv`) when encountering bugs, missing dependencies, API changes, or convention violations during execution. Schema: `{"task_id": "<id>", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line>", "affected_files": ["<path>", ...]}`. Discovery writing is non-fatal — failures must not block task completion.
+- Write discovery files to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json` (resolve via: `source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir`) (atomic: write `.tmp`, then `mv`) when encountering bugs, missing dependencies, API changes, or convention violations during execution. Schema: `{"task_id": "<id>", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line>", "affected_files": ["<path>", ...]}`. Discovery writing is non-fatal — failures must not block task completion.
 - Read `.worktree-blackboard.json` for file ownership awareness (written by orchestrator before dispatch). Respect ownership boundaries: only modify files listed under your ownership; report concerns for files owned by other agents. If a required modification falls outside your listed `files_owned`, add a checkpoint note explaining the deviation before proceeding.
 
 ## Worktree Sessions
@@ -73,7 +73,7 @@ When a Task tool call returns an infrastructure-level dispatch failure (no `STAT
 
 This is distinct from task-level failures (where the agent ran but produced incorrect work). Task-level failures follow normal Step 9 handling (revert to open, record failure reason).
 
-Dispatch failure retries are sequential and do not count toward batch size limits. Both `/sprint` (Phase 6 Step 0) and `/debug-everything` (Phase 6 Step 0) implement this protocol.
+Dispatch failure retries are sequential and do not count toward batch size limits. Both `/dso:sprint` (Phase 6 Step 0) and `/dso:debug-everything` (Phase 6 Step 0) implement this protocol.
 
 ## Checkpoint Protocol
 

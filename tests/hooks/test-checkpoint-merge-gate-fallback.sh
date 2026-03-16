@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-checkpoint-merge-gate-fallback.sh
+# tests/hooks/test-checkpoint-merge-gate-fallback.sh
 #
 # Integration test: merge gate fallback when session terminates before rollback.
 #
@@ -12,7 +12,7 @@
 # This validates the safety net: even if the rollback hook never runs,
 # the merge gate catches the unreviewed checkpoint.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-checkpoint-merge-gate-fallback.sh
+# Usage: bash tests/hooks/test-checkpoint-merge-gate-fallback.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-discover-agents.sh
-# TDD tests for lockpick-workflow/scripts/discover-agents.sh
+# tests/scripts/test-discover-agents.sh
+# TDD tests for scripts/discover-agents.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-discover-agents.sh
+# Usage: bash tests/scripts/test-discover-agents.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-audit-skill-resolution.sh
+# tests/plugin/test-audit-skill-resolution.sh
 # Portability smoke test for audit-skill-resolution.sh.
 #
 # Verifies the script runs correctly from the plugin directory alone.
@@ -8,11 +8,9 @@
 #   A. Prerequisite: canonical script exists and is executable
 #   B. PASS output with valid repo context
 #   C. --verbose flag shows per-command output
-#   D. Wrapper script exists, is thin (< 15 lines), and contains exec delegation
-#   E. audit-skill-resolution.sh is listed in test-plugin-self-sufficiency.sh MIGRATED_SCRIPTS
 #
 # Manual run:
-#   bash lockpick-workflow/tests/plugin/test-audit-skill-resolution.sh
+#   bash tests/plugin/test-audit-skill-resolution.sh
 
 set -euo pipefail
 
@@ -57,42 +55,6 @@ exit_c=0
 output_c=$(bash "$CANONICAL_SCRIPT" --verbose 2>&1) || exit_c=$?
 assert_eq "audit-skill-resolution.sh --verbose exits 0" "0" "$exit_c"
 assert_contains "--verbose output shows OK: per-command lines" "OK:" "$output_c"
-
-# ---------------------------------------------------------------------------
-# Section D: Wrapper script exists, is thin (< 15 lines), and delegates via exec
-# ---------------------------------------------------------------------------
-echo ""
-echo "--- Section D: wrapper script is thin and delegates via exec ---"
-
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-WRAPPER_SCRIPT="$REPO_ROOT/scripts/audit-skill-resolution.sh"
-
-assert_eq "scripts/audit-skill-resolution.sh wrapper exists" "true" \
-    "$(test -f "$WRAPPER_SCRIPT" && echo true || echo false)"
-
-assert_eq "scripts/audit-skill-resolution.sh wrapper is executable" "true" \
-    "$(test -x "$WRAPPER_SCRIPT" && echo true || echo false)"
-
-wrapper_has_exec=$(grep -c 'exec.*audit-skill-resolution\.sh' "$WRAPPER_SCRIPT" 2>/dev/null || echo "0")
-assert_ne "wrapper contains exec delegation to plugin" "0" "$wrapper_has_exec"
-
-LINE_COUNT="$(wc -l < "$WRAPPER_SCRIPT" 2>/dev/null || echo 999)"
-assert_eq "wrapper is thin (< 15 lines)" "true" \
-    "$([ "$LINE_COUNT" -lt 15 ] && echo true || echo false)"
-
-# ---------------------------------------------------------------------------
-# Section E: audit-skill-resolution.sh is listed in MIGRATED_SCRIPTS
-# ---------------------------------------------------------------------------
-echo ""
-echo "--- Section E: listed in test-plugin-self-sufficiency.sh MIGRATED_SCRIPTS ---"
-
-SELF_SUFFICIENCY_TEST="$PLUGIN_ROOT/tests/test-plugin-self-sufficiency.sh"
-
-assert_eq "test-plugin-self-sufficiency.sh exists" "true" \
-    "$(test -f "$SELF_SUFFICIENCY_TEST" && echo true || echo false)"
-
-listed_count=$(grep -c 'audit-skill-resolution\.sh' "$SELF_SUFFICIENCY_TEST" 2>/dev/null || echo "0")
-assert_ne "audit-skill-resolution.sh listed in MIGRATED_SCRIPTS" "0" "$listed_count"
 
 # ---------------------------------------------------------------------------
 # Summary

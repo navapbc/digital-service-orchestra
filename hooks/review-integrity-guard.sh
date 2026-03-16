@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/review-integrity-guard.sh
+# hooks/review-integrity-guard.sh
 # PreToolUse hook (Bash matcher): blocks direct writes to review-status files.
 #
 # This file is a thin wrapper. The hook logic lives in:
-#   lockpick-workflow/hooks/lib/pre-bash-functions.sh (hook_review_integrity_guard)
+#   hooks/lib/pre-bash-functions.sh (hook_review_integrity_guard)
 #
 # The review-status file must only be written by record-review.sh after a real
 # code-reviewer sub-agent dispatch. Direct writes bypass review integrity.

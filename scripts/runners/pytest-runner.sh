@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/scripts/runners/pytest-runner.sh — Pytest runner driver
+# scripts/runners/pytest-runner.sh — Pytest runner driver
 #
 # Sourced by test-batched.sh to provide pytest test discovery and execution.
 # Uses `pytest --collect-only -q` for upfront test enumeration, then batches

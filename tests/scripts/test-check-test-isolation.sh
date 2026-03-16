@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-test-isolation.sh
+# tests/scripts/test-check-test-isolation.sh
 # Tests for scripts/check-test-isolation.sh — test isolation rule harness
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-test-isolation.sh
+# Usage: bash tests/scripts/test-check-test-isolation.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

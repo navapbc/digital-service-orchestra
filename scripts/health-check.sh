@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/health-check.sh
+# scripts/health-check.sh
 # Hook state health-check and auto-repair script.
 #
 # Scans all hook state files, reports their age/content/validity as JSON,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-python-resolver-config-driven.sh
+# tests/scripts/test-python-resolver-config-driven.sh
 # TDD tests verifying that 8 scripts use config-driven Python venv paths
 # instead of hardcoded app/.venv/bin/python3 references.
 #
@@ -8,7 +8,7 @@
 #   test_<script>_sources_config_paths    — script sources config-paths.sh
 #   test_classify_task_no_hardcoded_poetry_lock — no hardcoded app/poetry.lock
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-python-resolver-config-driven.sh
+# Usage: bash tests/scripts/test-python-resolver-config-driven.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

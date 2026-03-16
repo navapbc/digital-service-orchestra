@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test-process-cleanup.sh
+# tests/test-process-cleanup.sh
 # TDD tests for session-safe process cleanup in run-all.sh.
 #
 # Tests:

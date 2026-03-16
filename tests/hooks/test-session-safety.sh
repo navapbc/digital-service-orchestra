@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-session-safety.sh
+# tests/hooks/test-session-safety.sh
 # Tests for .claude/hooks/session-safety-check.sh
 #
 # session-safety-check.sh is a SessionStart hook that analyzes the

@@ -1,6 +1,6 @@
 # Complexity Evaluator
 
-Classify a ticket story as TRIVIAL or COMPLEX to determine whether `/implementation-plan` should run.
+Classify a ticket story as TRIVIAL or COMPLEX to determine whether `/dso:implementation-plan` should run.
 
 ## Input
 
@@ -33,9 +33,9 @@ Grep/Glob for files specifically mentioned or implied by the story description (
 
 ### 3. Delegate to Shared Rubric
 
-Load the shared rubric dimensions from `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md` before scoring. Apply those dimension thresholds and scope_certainty guidance. Map your result to this file's output tier schema.
+Load the shared rubric dimensions from `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md` before scoring. Apply those dimension thresholds and scope_certainty guidance. Map your result to this file's output tier schema.
 
-**Sprint routing rule**: If the shared rubric returns MODERATE, classify this story as COMPLEX for /sprint. The sprint workflow escalates MODERATE to COMPLEX for safety — triggering /implementation-plan ensures no planning gaps before sub-agents execute.
+**Sprint routing rule**: If the shared rubric returns MODERATE, classify this story as COMPLEX for /dso:sprint. The sprint workflow escalates MODERATE to COMPLEX for safety — triggering /dso:implementation-plan ensures no planning gaps before sub-agents execute.
 
 **TRIVIAL** — ALL dimension thresholds met (per shared rubric), no qualitative overrides triggered, confidence high.
 

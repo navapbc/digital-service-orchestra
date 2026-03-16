@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/install-git-aliases.sh
+# scripts/install-git-aliases.sh
 # Registers project-specific git aliases in the local repo config.
 #
 # Aliases installed:
@@ -8,7 +8,7 @@ set -euo pipefail
 #                       from the revert commit by default. See scripts/git-revert-safe.sh.
 #
 # Usage:
-#   bash lockpick-workflow/scripts/install-git-aliases.sh
+#   bash scripts/install-git-aliases.sh
 #
 # Idempotent — safe to run multiple times.
 set -euo pipefail

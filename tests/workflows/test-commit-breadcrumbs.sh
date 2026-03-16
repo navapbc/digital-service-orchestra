@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/workflows/test-commit-breadcrumbs.sh
+# tests/workflows/test-commit-breadcrumbs.sh
 # Tests that COMMIT-WORKFLOW.md contains breadcrumb echo calls and truncation.
 #
-# Usage: bash lockpick-workflow/tests/workflows/test-commit-breadcrumbs.sh
+# Usage: bash tests/workflows/test-commit-breadcrumbs.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

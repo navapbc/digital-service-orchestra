@@ -13,8 +13,8 @@ iteration -- preventing infinite fix-revert-fix loops.
 
 Invoke as a sub-agent from:
 - **CLAUDE.md review loop**: Before implementing `/review` feedback on iteration 2+
-- **`/sprint` Phase 8**: Before creating remediation tasks from re-validation
-- **`/debug-everything` Phase 6.1b**: Before retrying a fix after critic CONCERN
+- **`/dso:sprint` Phase 8**: Before creating remediation tasks from re-validation
+- **`/dso:debug-everything` Phase 6.1b**: Before retrying a fix after critic CONCERN
 
 ## Input
 
@@ -82,8 +82,8 @@ Recommendation: Stop loop. Present both positions to user.
 |---------|---------------|----------|
 | `/review` autonomous loop | 2 attempts | Escalate to user (findings + actions taken) |
 | `/review` total (with user) | 5 | Stop, report to user |
-| `/debug-everything` critic | 2 revert cycles per issue | Escalate to user |
-| `/sprint` remediation | 2 loops | Flag to user |
+| `/dso:debug-everything` critic | 2 revert cycles per issue | Escalate to user |
+| `/dso:sprint` remediation | 2 loops | Flag to user |
 
 ### Rules
 - Do NOT modify any code files

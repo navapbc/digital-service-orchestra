@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-tool-logging.sh
+# tests/hooks/test-tool-logging.sh
 # Tests for .claude/hooks/tool-logging.sh
 #
 # tool-logging.sh is a PreToolUse/PostToolUse hook that logs every tool call

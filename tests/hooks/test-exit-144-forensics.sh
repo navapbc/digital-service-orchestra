@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-exit-144-forensics.sh
+# tests/hooks/test-exit-144-forensics.sh
 # Tests for exit-144 forensic logger:
 #   Part 1 (Batch 1): PreToolUse dispatcher records Bash start timestamps.
 #   Part 2 (Batch 2): PostToolUse forensic logger writes JSONL on exit 144.
@@ -614,14 +614,14 @@ rm -rf "$_TEST19_DIR"
 # ============================================================
 _TEST20_DIR=$(mktemp -d)
 _CLEANUP_DIRS+=("$_TEST20_DIR")
-_TEST20_COMMAND="./lockpick-workflow/scripts/validate.sh --ci"
+_TEST20_COMMAND="./scripts/validate.sh --ci"
 _TEST20_HASH=$(echo -n "$_TEST20_COMMAND" | hash_stdin | cut -c1-8)
 
 _TEST20_NOW_MS=$(python3 -c 'import time;print(int(time.time()*1e3))')
 _TEST20_START_MS=$(( _TEST20_NOW_MS - 80000 ))
 echo "$_TEST20_START_MS" > "$_TEST20_DIR/bash-start-ts-${_TEST20_HASH}"
 
-_TEST20_INPUT="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"./lockpick-workflow/scripts/validate.sh --ci\"},\"tool_response\":{\"exit_code\":144}}"
+_TEST20_INPUT="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"./scripts/validate.sh --ci\"},\"tool_response\":{\"exit_code\":144}}"
 
 _TEST20_OUTPUT=$(echo "$_TEST20_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST20_DIR" bash "$POST_HOOK" 2>/dev/null) || true
 

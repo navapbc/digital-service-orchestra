@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-ensure-precommit-config-paths.sh
+# tests/scripts/test-ensure-precommit-config-paths.sh
 # TDD tests verifying ensure-pre-commit.sh uses config-derived app/ paths
 # instead of hardcoded app/.venv references.
 #
@@ -9,7 +9,7 @@
 #   test_ensure_precommit_uses_cfg_app_dir — references CFG_APP_DIR variable
 #   test_ensure_precommit_syntax_valid — script has valid bash syntax
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-ensure-precommit-config-paths.sh
+# Usage: bash tests/scripts/test-ensure-precommit-config-paths.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

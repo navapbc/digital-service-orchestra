@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-jq-to-parse-json-field.sh
+# tests/hooks/test-jq-to-parse-json-field.sh
 # Tests that track-cascade-failures.sh, check-validation-failures.sh,
 # and pre-bash-functions.sh (hook_commit_failure_tracker) work correctly
 # with parse_json_field instead of jq.

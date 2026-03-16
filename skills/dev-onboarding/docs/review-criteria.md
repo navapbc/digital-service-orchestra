@@ -1,7 +1,7 @@
 # Dev Onboarding: Architecture Blueprint Review Criteria
 
-This document defines the peer review configuration for Phase 4 of `/dev-onboarding`.
-The review evaluates the generated Architecture Blueprint using `/review-protocol`
+This document defines the peer review configuration for Phase 4 of `/dso:dev-onboarding`.
+The review evaluates the generated Architecture Blueprint using `/dso:review-protocol`
 with `pass_threshold: 4` and `start_stage: 1` (mental pre-review included).
 
 **Subject**: `"Architecture Blueprint for {project name}"`
@@ -44,7 +44,7 @@ Present both recommendations to the user and ask which tradeoff to make before r
 
 ## Revision Protocol
 
-Follow the standard `/review-protocol` revision protocol. After findings are presented:
+Follow the standard `/dso:review-protocol` revision protocol. After findings are presented:
 1. Ask the user which findings to address before generating the Repository Skeleton.
 2. Revise only the specific blueprint sections flagged by accepted findings.
 3. Re-run the affected reviewer(s) if changes are substantial enough to shift a score.
@@ -55,12 +55,12 @@ After aggregating all reviewer outputs into the combined JSON (`subject`, `revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 REVIEW_OUT="$(get_artifacts_dir)/dev-onboarding-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller dev-onboarding
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller dev-onboarding
 ```
 
 **Caller schema hash**: `9ec70789c77bcca2` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.

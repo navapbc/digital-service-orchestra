@@ -10,7 +10,7 @@ Replace commands below with values from your `workflow-config.conf`:
 - `commands.lint` (default: `make lint-ruff`)
 - `commands.type_check` (default: `make lint-mypy`)
 - `commands.format` (default: `make format-modified`)
-- `commands.test_changed` (default: `scripts/run-changed-tests.sh`)
+- `commands.test_changed` (optional — when absent, Step 1.5 is skipped)
 - `commands.validate` (default: `validate.sh --ci`)
 
 The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
@@ -25,10 +25,10 @@ Before running any git commands, run the pre-flight check script. It activates t
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/scripts/ensure-pre-commit.sh" || true
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
 ```
 
-If the script warns that `pre-commit` is not found, the commit hooks may fail later. See `lockpick-workflow/scripts/ensure-pre-commit.sh` for the full fallback chain.
+If the script warns that `pre-commit` is not found, the commit hooks may fail later. See `${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh` for the full fallback chain.
 
 ### Breadcrumb Init
 
@@ -36,7 +36,7 @@ Truncate the breadcrumb log to prevent unbounded growth, then initialize it for 
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 : > "$ARTIFACTS_DIR/commit-breadcrumbs.log"
@@ -63,7 +63,7 @@ Check if all changed files are non-reviewable. If every file matches a non-revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-git diff HEAD --name-only | bash "$REPO_ROOT/lockpick-workflow/scripts/skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
+git diff HEAD --name-only | bash "${CLAUDE_PLUGIN_ROOT}/scripts/skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
 ```
 
 **If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
@@ -137,7 +137,7 @@ CHANGED_FILES=$(git diff --name-only)
    - Lint violation (ruff): Resolve via `discover-agents.sh` routing category `code_simplify` (see `agent-routing.conf`)
    - Multi-file / complex (cross-module): `error-debugging:error-detective`
 
-4. **Select prompt template**: `lockpick-workflow/skills/debug-everything/prompts/test-failure-fix.md`
+4. **Select prompt template**: `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/prompts/test-failure-fix.md`
    - Behavioral failure (assertion, runtime error): TDD path
    - Mechanical failure (import, type, lint): Mechanical path
 
@@ -173,7 +173,7 @@ If any integration or e2e test files changed, run only those files now. This pre
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-TEST_CHANGED_CMD="$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" commands.test_changed)"
+TEST_CHANGED_CMD="$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" commands.test_changed)"
 if [ -z "$TEST_CHANGED_CMD" ]; then
     echo "commands.test_changed not configured — skipping changed-test step"
     # continue to Step 2
@@ -205,7 +205,7 @@ Follow the same dispatch procedure as Step 1, with these differences:
 1. **Build the input payload** using the integration/E2E test command that failed:
 
 ```bash
-TEST_CHANGED_CMD="$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" commands.test_changed)"
+TEST_CHANGED_CMD="$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" commands.test_changed)"
 TEST_COMMAND="$REPO_ROOT/$TEST_CHANGED_CMD"
 # EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
 # Do NOT re-run the tests — capture from the original failure.
@@ -315,7 +315,7 @@ After Steps 1-3 all pass, write a validation state file so the review workflow c
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 echo "passed" > "$ARTIFACTS_DIR/validation-status"
@@ -372,7 +372,7 @@ Create a single git commit following the repository's commit message conventions
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/debug-everything`, continue at the step after this commit invocation (Phase 4 Step 5 for auto-fix commits, or Phase 6 Step 6 for post-batch commits). If you were executing `/sprint`, continue at Phase 6 Step 10.5 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
+After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase 4 Step 5 for auto-fix commits, or Phase 6 Step 6 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase 6 Step 10.5 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
 
 ## After Commit: Merging to Main
 

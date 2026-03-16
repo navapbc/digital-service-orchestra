@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-review-gate-allowlist.sh
+# tests/hooks/test-review-gate-allowlist.sh
 # Tests for the shared review-gate-allowlist.conf file.
 #
 # Validates:

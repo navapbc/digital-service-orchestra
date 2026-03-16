@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/run-hook.sh
+# hooks/run-hook.sh
 # Parse-error resilient wrapper for hook scripts.
 # All hooks in hooks.json should be invoked through this wrapper.
 #

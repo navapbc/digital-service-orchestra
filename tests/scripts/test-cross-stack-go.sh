@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-cross-stack-go.sh
+# tests/scripts/test-cross-stack-go.sh
 # TDD red-phase integration tests for Go cross-stack fixture.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-cross-stack-go.sh
+# Usage: bash tests/scripts/test-cross-stack-go.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
-# NOTE: Tests 2-4 are expected to FAIL until lockpick-workflow/tests/fixtures/go-project/
+# NOTE: Tests 2-4 are expected to FAIL until tests/fixtures/go-project/
 #       workflow-config.conf is created (GREEN phase task: lockpick-doc-to-logic-ias2v).
 
 set -uo pipefail

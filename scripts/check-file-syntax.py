@@ -84,9 +84,9 @@ def check_json(repo_root: Path) -> tuple[list[str], int]:
 
 
 def main() -> None:
-    # Script lives at lockpick-workflow/scripts/check-file-syntax.py
-    # parents[0] = lockpick-workflow/scripts/
-    # parents[1] = lockpick-workflow/
+    # Script lives at scripts/check-file-syntax.py
+    # parents[0] = scripts/
+    # parents[1] = 
     # parents[2] = repo root
     repo_root = Path(__file__).resolve().parents[2]
 

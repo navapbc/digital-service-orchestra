@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/skills/test-quick-ref-skill.sh
-# Tests that /quick-ref SKILL.md exists, has valid structure, and uses auto-discovery.
+# tests/skills/test-quick-ref-skill.sh
+# Tests that /dso:quick-ref SKILL.md exists, has valid structure, and uses auto-discovery.
 #
 # Validates:
-#   - SKILL.md exists at lockpick-workflow/skills/quick-ref/SKILL.md
+#   - SKILL.md exists at skills/quick-ref/SKILL.md
 #   - Has valid YAML frontmatter with name: quick-ref and user-invocable: true
 #   - References CLAUDE_PLUGIN_ROOT for path resolution (not hardcoded)
 #   - Contains script auto-discovery command (not a hardcoded list)
 #   - Contains skills auto-discovery section
 #   - No broken internal references ($PLUGIN_ROOT/... paths exist)
 #
-# Usage: bash lockpick-workflow/tests/skills/test-quick-ref-skill.sh
+# Usage: bash tests/skills/test-quick-ref-skill.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

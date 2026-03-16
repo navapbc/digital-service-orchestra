@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-validate-background.sh
+# tests/scripts/test-validate-background.sh
 # TDD tests for --background self-daemonize mode in validate.sh.
 #
 # Tests:
@@ -9,7 +9,7 @@
 #   test_background_appears_in_help        -- --background appears in --help output
 #   test_background_graceful_without_bgrsh -- exits 0 with warning when bg-run.sh unavailable
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-validate-background.sh
+# Usage: bash tests/scripts/test-validate-background.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

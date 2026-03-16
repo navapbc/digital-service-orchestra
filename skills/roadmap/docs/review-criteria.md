@@ -2,7 +2,7 @@
 
 ## Overview
 
-Each drafted milestone is reviewed by three specialist reviewers using `/review-protocol`
+Each drafted milestone is reviewed by three specialist reviewers using `/dso:review-protocol`
 (Stage 1, pass_threshold 4). Each reviewer has a self-contained prompt file in
 `docs/reviewers/` that defines their persona, dimensions, and scoring rubric.
 The subject for every review is `"Milestone: {milestone title}"`.
@@ -33,7 +33,7 @@ Use the Task tool to launch all three reviewers **in parallel**. For each:
 
 ## Score Aggregation Rules
 
-Per `/review-protocol` and `REVIEW-SCHEMA.md`:
+Per `/dso:review-protocol` and `REVIEW-SCHEMA.md`:
 
 1. Collect all dimension scores from all three reviewers.
 2. Any individual dimension score below 4 means the milestone **fails** for that dimension.
@@ -43,7 +43,7 @@ Per `/review-protocol` and `REVIEW-SCHEMA.md`:
 
 ## Conflict Detection
 
-Per `/review-protocol`, scan findings for **direct contradictions** — pairs of
+Per `/dso:review-protocol`, scan findings for **direct contradictions** — pairs of
 suggestions targeting the same part of the milestone spec but pulling in opposite
 directions.
 
@@ -55,14 +55,14 @@ Common conflict patterns in milestone review:
 | Value: "Add dependency on prior milestone" | Scope: "This overlap means it should merge with that milestone" | `strict_vs_flexible` |
 | Agent Clarity: "Add more context to the spec" | Scope: "Scope is already too wide" | `more_vs_less` |
 
-**Resolution** (per `/review-protocol`):
+**Resolution** (per `/dso:review-protocol`):
 - Critical vs minor: critical finding wins, no escalation
 - Both critical/major: escalate to user immediately
 - Both minor: caller chooses direction
 
 ## Revision Protocol
 
-Per `/review-protocol`'s revision protocol:
+Per `/dso:review-protocol`'s revision protocol:
 
 1. Triage findings by severity (critical → major → minor).
 2. Resolve conflicts before revising.
@@ -75,12 +75,12 @@ After aggregating all reviewer outputs into the combined JSON (`subject`, `revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 REVIEW_OUT="$(get_artifacts_dir)/roadmap-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller roadmap
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller roadmap
 ```
 
 **Caller schema hash**: `f4e5f5a355e4c145` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.

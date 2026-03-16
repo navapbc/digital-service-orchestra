@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/taskoutput-block-guard.sh
+# hooks/taskoutput-block-guard.sh
 # PreToolUse hook: block TaskOutput calls with block=false
 #
 # Addresses ticket issue lxjiu:

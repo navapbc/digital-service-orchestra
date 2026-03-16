@@ -74,7 +74,7 @@ if [[ -z "$JIRA_PROJECT" ]]; then
     if [[ -n "${JIRA_PROJECT_OVERRIDE:-}" ]]; then
         JIRA_PROJECT="$JIRA_PROJECT_OVERRIDE"
     else
-        JIRA_PROJECT=$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" jira.project "$REPO_ROOT/workflow-config.conf" 2>/dev/null) || true
+        JIRA_PROJECT=$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" jira.project "$REPO_ROOT/workflow-config.conf" 2>/dev/null) || true
     fi
 fi
 
@@ -256,7 +256,7 @@ if [[ "$SKIP_JIRA" == "false" ]]; then
     # Without this, each of N tickets triggers an individual git push (N round-trips),
     # which causes hangs from rate limiting after ~196 pushes.
     TK_SYNC_SKIP_WORKTREE_PUSH=1 JIRA_PROJECT="$JIRA_PROJECT" \
-        "$REPO_ROOT/scripts/tk" sync 2>&1 | tail -10
+        "${CLAUDE_PLUGIN_ROOT}/scripts/tk" sync 2>&1 | tail -10
     echo "  Sync complete."
 
     # Batch commit+push: jira_key stamps were written to .tickets/ files during sync
@@ -275,7 +275,7 @@ EOF
     echo ""
     echo "Step 8/8: Verifying idempotency (second sync)..."
     SECOND_SYNC=$(TK_SYNC_SKIP_WORKTREE_PUSH=1 JIRA_PROJECT="$JIRA_PROJECT" \
-        "$REPO_ROOT/scripts/tk" sync 2>&1)
+        "${CLAUDE_PLUGIN_ROOT}/scripts/tk" sync 2>&1)
     CREATED_COUNT=$(echo "$SECOND_SYNC" | grep -c 'created' || true)
     if [[ "$CREATED_COUNT" -gt 0 ]]; then
         echo "  WARNING: Second sync created $CREATED_COUNT new issues — not idempotent!"

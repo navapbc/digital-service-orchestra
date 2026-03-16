@@ -15,7 +15,7 @@ _tk_read_config() {
     local key="$1"
     local _read_config=""
 
-    # Find read-config.sh relative to this script's location (lockpick-workflow/scripts/tk)
+    # Find read-config.sh relative to this script's location (scripts/tk)
     local _script_dir
     _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local _tk_repo_root
@@ -30,8 +30,8 @@ _tk_read_config() {
     if [[ -z "$_read_config" ]]; then
         local _repo_root
         _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-        if [[ -n "$_repo_root" ]] && [[ -x "$_repo_root/lockpick-workflow/scripts/read-config.sh" ]]; then
-            _read_config="$_repo_root/lockpick-workflow/scripts/read-config.sh"
+        if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -x "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" ]]; then
+            _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
         fi
     fi
 
@@ -5139,7 +5139,7 @@ cmd_sync() {
     # ── Resolve JIRA_PROJECT: env var > workflow-config.conf > error ─────────
     if [[ -z "${JIRA_PROJECT:-}" ]]; then
         local _cfg_project=""
-        local _read_config="$(git rev-parse --show-toplevel 2>/dev/null)/lockpick-workflow/scripts/read-config.sh"
+        local _read_config="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/scripts/read-config.sh"
         if [[ -x "$_read_config" ]]; then
             _cfg_project=$("$_read_config" "jira.project" 2>/dev/null) || true
         fi

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-worktree-compat.sh
-# Integration smoke tests for lockpick-workflow/scripts/merge-to-main.sh worktree path compatibility.
+# tests/scripts/test-merge-worktree-compat.sh
+# Integration smoke tests for scripts/merge-to-main.sh worktree path compatibility.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-worktree-compat.sh
+# Usage: bash tests/scripts/test-merge-worktree-compat.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Tests:

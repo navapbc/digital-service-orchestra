@@ -11,10 +11,10 @@ Role: **Google Senior Staff Software Architect** specializing in Evolutionary Ar
 ## Usage
 
 ```
-/dev-onboarding          # Start the full onboarding flow
+/dso:dev-onboarding          # Start the full onboarding flow
 ```
 
-**Supports dryrun mode.** Use `/dryrun /dev-onboarding` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:dev-onboarding` to preview without changes.
 
 ## Workflow Overview
 
@@ -26,7 +26,7 @@ Flow: P0 (Audit) → P1 (Design Doc Interview) → P2 (Blueprint)
 
 ---
 
-## Phase 0: The Architectural Audit (/dev-onboarding)
+## Phase 0: The Architectural Audit (/dso:dev-onboarding)
 
 *Before speaking to the user, scan the current project context/files.*
 
@@ -46,7 +46,7 @@ Flow: P0 (Audit) → P1 (Design Doc Interview) → P2 (Blueprint)
 
 ---
 
-## Phase 1: The Design Doc Interview (/dev-onboarding)
+## Phase 1: The Design Doc Interview (/dso:dev-onboarding)
 
 Engage the user in a dialogue to gather the constraints for a **Google-style Design Doc**. Ask these questions in small batches (2-3 at a time) using `AskUserQuestion` to manage cognitive load. Do not proceed until you have clarity.
 
@@ -74,7 +74,7 @@ These questions identify which anti-patterns (see Phase 3, Step 1) will apply to
 
 ---
 
-## Phase 2: The Blueprint (Iterative Validation) (/dev-onboarding)
+## Phase 2: The Blueprint (Iterative Validation) (/dso:dev-onboarding)
 
 Once requirements are clear, generate a **"System Design Blueprint."** Present this to the user and ask for approval before generating any code.
 
@@ -103,7 +103,7 @@ If the user requests adjustments, revise the blueprint and re-present. Do not pr
 
 ---
 
-## Phase 3: The Enforcer (Deterministic Guardrails) (/dev-onboarding)
+## Phase 3: The Enforcer (Deterministic Guardrails) (/dso:dev-onboarding)
 
 Treat "Architecture" as something that can be tested. Generate **Fitness Functions** and **enforcement infrastructure** using tools appropriate for the chosen stack. Architecture enforcement operates at multiple layers — each layer catches violations at a different point in the development cycle, from real-time editing to CI/CD.
 
@@ -145,8 +145,8 @@ Plugin Enforcement Inventory:
 | cascade-circuit-breaker.sh | PreToolUse hook | Already wired | None |
 | review-gate.sh | PreToolUse hook | Already wired | None |
 | validate.sh | Script | Available | Set commands.validate in workflow-config.yaml |
-| /tdd-workflow | Skill | Available | Reference in CLAUDE.md |
-| /fix-cascade-recovery | Skill | Available | Referenced by circuit breaker |
+| /dso:tdd-workflow | Skill | Available | Reference in CLAUDE.md |
+| /dso:fix-cascade-recovery | Skill | Available | Referenced by circuit breaker |
 | ... | ... | ... | ... |
 ```
 
@@ -252,7 +252,7 @@ Use `WebSearch` to find how the chosen stack enforces exhaustive matching (e.g.,
 |-----------|------|------|
 | **Commit-time test coverage gate** | Pre-commit | Block commits where changed source files lack corresponding test changes. Use coverage diff tools (`coverage-diff`, `diff-cover`) to require that new/modified lines have test coverage above a threshold. |
 | **Assertion density check** | Pre-commit/CI | Require a minimum number of assertions per test function. Tests with zero or one assertion are often smoke tests that don't verify behavior. Configure via `check-assertion-density` or equivalent. |
-| **TDD workflow skill** | Agent runtime | Require agents to invoke `/tdd-workflow` for bug fixes. The skill enforces RED (failing test) → GREEN (minimal fix) → REFACTOR → VALIDATE ordering. Wire this into CLAUDE.md's Quick Start table. |
+| **TDD workflow skill** | Agent runtime | Require agents to invoke `/dso:tdd-workflow` for bug fixes. The skill enforces RED (failing test) → GREEN (minimal fix) → REFACTOR → VALIDATE ordering. Wire this into CLAUDE.md's Quick Start table. |
 | **Test-before-fix gate** | Pre-commit hook | For files matching `src/**` patterns, check that corresponding `tests/**` files were also modified in the same commit. Exempt mechanical changes (imports, type annotations, config). |
 | **Red test verification** | Skill enforcement | The TDD workflow requires running the test and confirming it FAILS before writing fix code. If the test passes immediately, the agent must rethink — the test doesn't capture the bug. |
 
@@ -321,7 +321,7 @@ Anti-Pattern Risk Assessment:
 
 ### Layer 1: Architectural Invariants (Documentation as Enforcement)
 
-Document the project's structural boundaries as explicit, testable rules in `CLAUDE.md` (or equivalent project config). These guide both human developers and AI agents. Use `/init` to create a `workflow-config.yaml` for the detected stack, then `/generate-claude-md` to scaffold the `CLAUDE.md` with generated sections (Quick Reference, Never Do These, Always Do These). Add project-specific architectural invariants in the preserved sections.
+Document the project's structural boundaries as explicit, testable rules in `CLAUDE.md` (or equivalent project config). These guide both human developers and AI agents. Use `/dso:init` to create a `workflow-config.yaml` for the detected stack, then `/dso:generate-claude-md` to scaffold the `CLAUDE.md` with generated sections (Quick Reference, Never Do These, Always Do These). Add project-specific architectural invariants in the preserved sections.
 
 Each invariant should name:
 
@@ -352,13 +352,13 @@ Configure hooks that fire **before** an action executes and can **block** it. Th
 |------|-----------|---------------|
 | `validation-gate.sh` | **Validation Gate** | Blocks new work when codebase is unhealthy. Three-state model: `not_run` → hard block; `failed` → warn on edits, block new work; `passed` → allow all. Reads `commands.validate` from `workflow-config.yaml` |
 | `review-gate.sh` | **Review Gate** | Blocks commits without code review. Computes diff hash; stale reviews are rejected. Exempts WIP and emergency saves |
-| `cascade-circuit-breaker.sh` | **Circuit Breaker** | Blocks edits after N consecutive failures. Paired with `track-cascade-failures.sh` (PostToolUse). Forces `/fix-cascade-recovery` skill |
+| `cascade-circuit-breaker.sh` | **Circuit Breaker** | Blocks edits after N consecutive failures. Paired with `track-cascade-failures.sh` (PostToolUse). Forces `/dso:fix-cascade-recovery` skill |
 | `worktree-edit-guard.sh` | **Boundary Guard** | Blocks cross-worktree file edits |
 | `bug-close-guard.sh` | **Boundary Guard** | Blocks closing bugs without a code change |
-| `plan-review-gate.sh` | **Review Gate** | Blocks ExitPlanMode without `/plan-review` |
+| `plan-review-gate.sh` | **Review Gate** | Blocks ExitPlanMode without `/dso:plan-review` |
 | `review-integrity-guard.sh` | **Integrity Guard** | Blocks fabrication of review artifacts |
 
-If any of these are listed in `hooks.json` but need project-specific configuration (e.g., `validation-gate.sh` needs `commands.validate`), configure them via `workflow-config.yaml` or `/init`.
+If any of these are listed in `hooks.json` but need project-specific configuration (e.g., `validation-gate.sh` needs `commands.validate`), configure them via `workflow-config.yaml` or `/dso:init`.
 
 **Project-specific hooks to add** (only if gaps remain after plugin inventory):
 
@@ -474,21 +474,21 @@ Generate **skeleton architectural tests** based on the Step 1 anti-pattern asses
 
 Generate the following artifacts, leveraging plugin infrastructure where available:
 
-1. **`workflow-config.yaml`** — via `/init`; configures plugin hooks with project-specific commands (test, lint, format, validate)
-2. **`CLAUDE.md`** — via `/generate-claude-md` for generated sections; add project-specific architectural invariants (boundary rules with consequences) in the preserved sections
+1. **`workflow-config.yaml`** — via `/dso:init`; configures plugin hooks with project-specific commands (test, lint, format, validate)
+2. **`CLAUDE.md`** — via `/dso:generate-claude-md` for generated sections; add project-specific architectural invariants (boundary rules with consequences) in the preserved sections
 3. **Pre-commit configuration** — `.pre-commit-config.yaml` or equivalent with timeouts and debug commands
 4. **Project-specific hook scripts** — only for enforcement gaps not covered by plugin hooks (custom boundary guards, domain-specific gates)
-5. **`ARCH_ENFORCEMENT.md`** — document explaining all enforcement layers (plugin-provided and project-specific), how to run each check manually, and how to add new rules. Reference plugin skills by name (e.g., "`/tdd-workflow` for bug fixes," "`/fix-cascade-recovery` when circuit breaker triggers," "`/verification-before-completion` before claiming work is done")
+5. **`ARCH_ENFORCEMENT.md`** — document explaining all enforcement layers (plugin-provided and project-specific), how to run each check manually, and how to add new rules. Reference plugin skills by name (e.g., "`/dso:tdd-workflow` for bug fixes," "`/dso:fix-cascade-recovery` when circuit breaker triggers," "`/dso:verification-before-completion` before claiming work is done")
 6. **CI configuration** — pipeline that runs the full enforcement suite
 7. **Architectural test suite** — skeleton tests from Layer 7, placed in `tests/arch/` (or equivalent). These are generated based on the Step 1 anti-pattern assessment and the Phase 2 blueprint's interface contracts. They run as part of the unit test suite from Day 1.
 
 ---
 
-## Phase 4: Peer Review (/dev-onboarding)
+## Phase 4: Peer Review (/dso:dev-onboarding)
 
 Read [docs/review-criteria.md](docs/review-criteria.md) for full reviewer configuration, score aggregation rules, conflict detection guidance, and revision protocol.
 
-Invoke `/review-protocol` to critique the generated architecture:
+Invoke `/dso:review-protocol` to critique the generated architecture:
 
 - **subject**: "Architecture Blueprint for {project name}"
 - **artifact**: The full blueprint from Phase 2 (tech stack, API design, data model, deployment, anti-pattern-aware requirements) AND the Phase 3 enforcement infrastructure (plugin inventory, anti-pattern risk assessment, architectural invariants, pre-commit config, hook wiring, architectural test suite, CI config)

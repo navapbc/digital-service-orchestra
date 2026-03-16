@@ -1,4 +1,4 @@
-# Flaky Test Reporting — lockpick-workflow
+# Flaky Test Reporting — Digital Service Orchestra
 
 > **When to read this file**: Before wiring flaky test detection into your CI pipeline. Covers the `report-flaky-tests.sh` script: what patterns it detects, how to call it, and the output it produces.
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-`lockpick-workflow/scripts/report-flaky-tests.sh` parses a JUnit XML test results
+`scripts/report-flaky-tests.sh` parses a JUnit XML test results
 file and emits GitHub Actions warning annotations for any tests identified as
 flaky. The script is **informational-only**: it always exits 0 regardless of
 whether flaky tests are found, so it never blocks a CI job.
@@ -130,7 +130,7 @@ entries.
 ## Usage
 
 ```bash
-lockpick-workflow/scripts/report-flaky-tests.sh <results-file.xml>
+scripts/report-flaky-tests.sh <results-file.xml>
 ```
 
 **Arguments**:
@@ -210,7 +210,7 @@ jobs:
       - name: Report flaky tests
         if: always()   # run even if the test step fails
         run: |
-          lockpick-workflow/scripts/report-flaky-tests.sh app/test-results.xml
+          scripts/report-flaky-tests.sh app/test-results.xml
 
       - name: Upload test results
         if: always()
@@ -224,8 +224,7 @@ jobs:
 
 - `if: always()` ensures the reporting step runs even when tests fail, so you
   see flakiness annotations on failing runs too.
-- The script path assumes `lockpick-workflow/` is checked in as a submodule or
-  plugin directory at the repo root. Adjust if your layout differs.
+- The script path assumes the plugin is installed at the repo root. Adjust the path if your layout differs.
 - The `::warning::` annotations appear inline in the GitHub Actions step log and
   in the workflow summary. No additional configuration is required to surface
   them as PR annotations.

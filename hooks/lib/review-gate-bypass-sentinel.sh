@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh
+# hooks/lib/review-gate-bypass-sentinel.sh
 # Sourceable function library for the review-gate bypass sentinel.
 #
 # Detects and blocks commands that attempt to circumvent the review gate
@@ -16,7 +16,7 @@
 #   stderr: error messages (always allowed)
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh
+#   source hooks/lib/review-gate-bypass-sentinel.sh
 #   hook_review_bypass_sentinel "$INPUT_JSON"
 
 # Guard: only load once

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # UI Discovery Cache lock manager
-# Prevents concurrent /ui-discover runs from corrupting the cache.
+# Prevents concurrent /dso:ui-discover runs from corrupting the cache.
 #
 # Uses mkdir for atomic lock acquisition (race-free on POSIX filesystems).
 # Records owning PID for stale-lock detection.

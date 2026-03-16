@@ -9,12 +9,12 @@ user-invocable: true
 Proactive project health assessment focused on maintainability, workflow efficiency, and technical debt. Analyzes metrics, identifies improvements, and creates a structured remediation plan.
 
 
-**Supports dryrun mode.** Use `/dryrun /retro` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:retro` to preview without changes.
 
 ## Usage
 
 ```
-/retro    # Run full retrospective assessment
+/dso:retro    # Run full retrospective assessment
 ```
 
 ## Phases
@@ -27,12 +27,12 @@ Flow: P1 (Health Assessment) → P2 (Codebase Review) → P3 (Findings Report)
 
 ---
 
-## Phase 1: Health Assessment (/retro)
+## Phase 1: Health Assessment (/dso:retro)
 
 Run the data-collection script to gather all metrics in one pass:
 
 ```bash
-$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/retro-gather.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/retro-gather.sh
 ```
 
 Use `--quick` to skip slow checks (dependency freshness, plugin versions) when session usage is high.
@@ -53,9 +53,9 @@ After reviewing the script output:
 
 ---
 
-## Phase 2: Codebase Review (/retro)
+## Phase 2: Codebase Review (/dso:retro)
 
-Gather codebase metrics, then invoke `/review-protocol` for structured assessment.
+Gather codebase metrics, then invoke `/dso:review-protocol` for structured assessment.
 
 ### Data Collection
 
@@ -85,7 +85,7 @@ For the review, additionally check (not covered by the script):
 
 Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer configuration, launch instructions, and aggregation rules.
 
-Invoke `/review-protocol` with:
+Invoke `/dso:review-protocol` with:
 
 - **subject**: "Codebase Health Assessment"
 - **artifact**: The collected metrics from the data collection step above
@@ -103,11 +103,11 @@ Invoke `/review-protocol` with:
 
 ### Output
 
-Report the `/review-protocol` JSON output, categorized by perspective. Include raw counts and top offenders from data collection alongside the structured scores.
+Report the `/dso:review-protocol` JSON output, categorized by perspective. Include raw counts and top offenders from data collection alongside the structured scores.
 
 ---
 
-## Phase 3: Findings Report (/retro)
+## Phase 3: Findings Report (/dso:retro)
 
 Present consolidated findings for user scope confirmation.
 
@@ -125,7 +125,7 @@ Use AskUserQuestion to present findings by tier with estimated effort, then ask 
 
 ---
 
-## Phase 4: Epic Creation (/retro)
+## Phase 4: Epic Creation (/dso:retro)
 
 Create a ticket epic with remediation tasks based on user-confirmed scope.
 
@@ -143,7 +143,7 @@ Create a ticket epic with remediation tasks based on user-confirmed scope.
 
 ---
 
-## Phase 5: Quick Wins (Optional) (/retro)
+## Phase 5: Quick Wins (Optional) (/dso:retro)
 
 Fix trivial items immediately. Skip entirely if session usage is high.
 
@@ -177,4 +177,4 @@ If yes: execute sequentially, one commit per fix, close corresponding task after
 
 ## Output
 
-At the end of the retro, report: epic ID/title, findings summary (critical/improvement/cleanup counts), tasks created (ready/blocked counts), quick wins completed (if Phase 5 ran), current and target health scores, and next steps (`tk show`, `tk ready`, `/sprint`).
+At the end of the retro, report: epic ID/title, findings summary (critical/improvement/cleanup counts), tasks created (ready/blocked counts), quick wins completed (if Phase 5 ran), current and target health scores, and next steps (`tk show`, `tk ready`, `/dso:sprint`).

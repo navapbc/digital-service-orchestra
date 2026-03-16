@@ -5,7 +5,7 @@
     },
     "plugins": [
       {
-        "name": "digital-service-orchestra",
+        "name": "dso",
         "source": "./",
         "description": "Workflow infrastructure plugin for Claude Code projects"
       }

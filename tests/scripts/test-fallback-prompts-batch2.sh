@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-fallback-prompts-batch2.sh
+# tests/scripts/test-fallback-prompts-batch2.sh
 # Verify fallback prompt templates: test_fix_e_to_e, test_write, complex_debug.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-fallback-prompts-batch2.sh
+# Usage: bash tests/scripts/test-fallback-prompts-batch2.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

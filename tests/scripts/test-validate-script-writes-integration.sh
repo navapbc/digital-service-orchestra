@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-validate-script-writes-integration.sh
+# tests/scripts/test-validate-script-writes-integration.sh
 # Integration tests verifying that validate.sh wires check-script-writes.py
 # via the checks.script_write_scan_dir config key.
 #
@@ -12,7 +12,7 @@
 #
 # Uses CONFIG_FILE env var override for test isolation (no temp dirs write to repo root).
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-validate-script-writes-integration.sh
+# Usage: bash tests/scripts/test-validate-script-writes-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -25,7 +25,6 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 VALIDATE_SH="$PLUGIN_ROOT/scripts/validate.sh"
 READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
-REAL_CONFIG="$REPO_ROOT/workflow-config.conf"
 CHECK_SCRIPT_WRITES="$PLUGIN_ROOT/scripts/check-script-writes.py"
 
 echo "=== test-validate-script-writes-integration.sh ==="
@@ -123,14 +122,22 @@ CONF
 }
 
 # ── test_config_key_reads_correctly ───────────────────────────────────────────
-# read-config.sh checks.script_write_scan_dir returns "lockpick-workflow"
-# (the value set in workflow-config.conf).
+# read-config.sh checks.script_write_scan_dir returns the configured scan directory.
 test_config_key_reads_correctly() {
     _snapshot_fail
 
+    local _tmpd
+    _tmpd=$(mktemp -d)
+    trap 'rm -rf "$_tmpd"' RETURN
+
+    cat > "$_tmpd/wc.conf" << 'CONF'
+version=1.0.0
+checks.script_write_scan_dir=.
+CONF
+
     local _val=""
-    _val=$(bash "$READ_CONFIG" "checks.script_write_scan_dir" "$REAL_CONFIG" 2>/dev/null || true)
-    assert_eq "read-config resolves checks.script_write_scan_dir" "lockpick-workflow" "$_val"
+    _val=$(bash "$READ_CONFIG" "checks.script_write_scan_dir" "$_tmpd/wc.conf" 2>/dev/null || true)
+    assert_eq "read-config resolves checks.script_write_scan_dir" "." "$_val"
 
     assert_pass_if_clean "test_config_key_reads_correctly"
 }

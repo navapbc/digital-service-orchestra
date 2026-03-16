@@ -13,12 +13,12 @@ The root cause is rarely where errors appear. Read widely, edit narrowly — the
 At activation, load project commands via read-config.sh before executing any steps:
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
 ```
 
-Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
+Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test` in Step 1 (damage assessment) and Step 6 (EXECUTE)
@@ -26,7 +26,7 @@ Resolved commands used in this skill:
 
 ## Protocol
 
-### Step 0: Read Checkpoint Context (/fix-cascade-recovery)
+### Step 0: Read Checkpoint Context (/dso:fix-cascade-recovery)
 
 If a ticket issue ID is available for the task that triggered the cascade, read its checkpoint notes before doing git archaeology:
 
@@ -36,7 +36,7 @@ tk show <id> 2>/dev/null
 
 This is best-effort (non-mandatory). The CHECKPOINT notes reveal which substep the cascade started from and which files were already modified before things went wrong. Use this context to focus Step 1's damage assessment.
 
-### Step 1: STOP — Assess the Damage (/fix-cascade-recovery)
+### Step 1: STOP — Assess the Damage (/dso:fix-cascade-recovery)
 
 Do NOT touch any source files. First, understand the current state.
 
@@ -56,7 +56,7 @@ Write down (in a ticket note via `tk add-note <id> "..."`) :
 - How many distinct errors exist now
 - What the original task/bug was
 
-### Step 2: REVERT — Return to Known Good State (/fix-cascade-recovery)
+### Step 2: REVERT — Return to Known Good State (/dso:fix-cascade-recovery)
 
 Seriously consider whether a revert is the fastest path:
 
@@ -74,7 +74,7 @@ git stash  # Preserve changes in case you need to reference them
 - If the original error was a 1-2 line fix → definitely revert and start fresh
 - If some changes are correct but others aren't → use selective revert (`git checkout HEAD -- <file>`)
 
-### Step 3: RESEARCH — Understand the Actual Problem (/fix-cascade-recovery)
+### Step 3: RESEARCH — Understand the Actual Problem (/dso:fix-cascade-recovery)
 
 Read systematically. Do not skim. Do not jump to the error line.
 
@@ -90,7 +90,7 @@ Read systematically. Do not skim. Do not jump to the error line.
    grep -i "<keyword>" $(git rev-parse --show-toplevel)/.claude/docs/KNOWN-ISSUES.md || true
    ```
 
-### Step 4: DIAGNOSE — Identify the Root Cause (/fix-cascade-recovery)
+### Step 4: DIAGNOSE — Identify the Root Cause (/dso:fix-cascade-recovery)
 
 Before writing a single line of code, answer these questions (write the answers in a ticket note via `tk add-note`):
 
@@ -102,7 +102,7 @@ Before writing a single line of code, answer these questions (write the answers 
 
 If you cannot answer all 5 questions, you have not finished researching. Go back to Step 3.
 
-### Step 5: PLAN — Write the Fix Before Coding It (/fix-cascade-recovery)
+### Step 5: PLAN — Write the Fix Before Coding It (/dso:fix-cascade-recovery)
 
 Create a concrete plan:
 
@@ -116,7 +116,7 @@ Risk assessment: [what else could this affect?]
 
 Write this plan to the ticket issue via `tk add-note` before proceeding.
 
-### Step 6: EXECUTE — Apply the Fix (/fix-cascade-recovery)
+### Step 6: EXECUTE — Apply the Fix (/dso:fix-cascade-recovery)
 
 Now — and only now — make your changes. Follow these rules:
 
@@ -129,7 +129,7 @@ cd $(git rev-parse --show-toplevel)/app
 make lint && make test
 ```
 
-### Step 7: RESET — Clear the Circuit Breaker (/fix-cascade-recovery)
+### Step 7: RESET — Clear the Circuit Breaker (/dso:fix-cascade-recovery)
 
 Reset the counter after tests pass, **or** after completing Step 3 (RESEARCH) if your research revealed a fundamentally different understanding of the problem. The counter's purpose is to prevent blind fix attempts — once you've done real analysis and have a new mental model, resetting before applying the planned fix is appropriate.
 

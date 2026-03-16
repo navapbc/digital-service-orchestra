@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-commit-tracker.sh
+# tests/hooks/test-commit-tracker.sh
 # Tests for .claude/hooks/commit-failure-tracker.sh
 #
 # commit-failure-tracker.sh is a PreToolUse hook (Bash matcher) that

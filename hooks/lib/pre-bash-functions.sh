@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/pre-bash-functions.sh
+# hooks/lib/pre-bash-functions.sh
 # Sourceable function definitions for the PreToolUse Bash hooks.
 #
 # Each function follows the hook contract:
@@ -19,11 +19,11 @@
 #
 # NOTE: The old PreToolUse review gate was removed in Story 1idf. Review gate
 #   enforcement is now handled by the two-layer gate:
-#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit hook)
-#   - Layer 2: lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
+#   - Layer 1: hooks/pre-commit-review-gate.sh (git pre-commit hook)
+#   - Layer 2: hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/pre-bash-functions.sh
+#   source hooks/lib/pre-bash-functions.sh
 
 # Guard: only load once
 [[ "${_PRE_BASH_FUNCTIONS_LOADED:-}" == "1" ]] && return 0
@@ -149,7 +149,7 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
     local _CREATE_CMD="${CREATE_CMD:-tk create}"
     local _READ_CONFIG=""
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
+    if [[ -n "${CLAUDE_PLUGIN_ROOT}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
         _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
     fi
 
@@ -348,7 +348,7 @@ hook_worktree_bash_guard() {
     if [[ -n "$CMD_AFTER_CD" ]]; then
         if echo "$CMD_AFTER_CD" | grep -qE "^[[:space:]]*(cat|head|tail|less|more|ls|find|stat|wc|file) " || \
            echo "$CMD_AFTER_CD" | grep -qE "git[[:space:]]+(log|diff|show|status|rev-parse|branch|tag|ls-files|describe|remote|fetch|symbolic-ref|for-each-ref)" || \
-           echo "$CMD_AFTER_CD" | grep -qE "lockpick-workflow/scripts/(validate|ci-status|orphaned-tasks)"; then
+           echo "$CMD_AFTER_CD" | grep -qE "scripts/(validate|ci-status|orphaned-tasks)"; then
             return 0
         fi
     fi

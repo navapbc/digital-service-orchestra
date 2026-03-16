@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tk-index-rebuild.sh
+# tests/scripts/test-tk-index-rebuild.sh
 #
 # Tests for cmd_index_rebuild() in tk.
 #
@@ -7,7 +7,7 @@
 #   1. tk index-rebuild is a registered command (command exists in dispatch table)
 #   2. tk index-rebuild populates the index from all ticket files in TICKETS_DIR
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tk-index-rebuild.sh
+# Usage: bash tests/scripts/test-tk-index-rebuild.sh
 
 set -uo pipefail
 

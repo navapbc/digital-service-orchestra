@@ -43,7 +43,7 @@ JSON was considered but requires `jq` to parse from bash — better than Python 
 ### Example
 
 ```env
-# workflow-config.env — project configuration for lockpick-workflow plugin
+# workflow-config.env — project configuration for Digital Service Orchestra plugin
 # Format: key=value (dot-notation for nesting, repeated keys for lists)
 # Read by: read-config.sh via grep/cut (no Python required)
 
@@ -60,7 +60,7 @@ paths.test_unit_dir=tests/unit
 commands.test=make test
 commands.lint=make lint
 commands.format=make format
-commands.validate=./lockpick-workflow/scripts/validate.sh --ci
+commands.validate=./scripts/validate.sh --ci
 commands.test_unit=make test-unit-only
 commands.test_e2e=make test-e2e
 
@@ -110,7 +110,7 @@ config_file="${2:-}"
 
 # Resolution (same order as current)
 if [[ -z "$config_file" ]]; then
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.env" ]]; then
+    if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]] && [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.env" ]]; then
         config_file="${CLAUDE_PLUGIN_ROOT}/workflow-config.env"
     elif [[ -f "$(pwd)/workflow-config.env" ]]; then
         config_file="$(pwd)/workflow-config.env"

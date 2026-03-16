@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-behavioral-equivalence.sh
+# tests/hooks/test-behavioral-equivalence.sh
 # RED PHASE tests for behavioral equivalence between .claude/hooks/ and
-# lockpick-workflow/hooks/ after Phase 7 migration.
+# hooks/ after Phase 7 migration.
 #
 # Verifies that the plugin hooks produce identical exit codes to the
 # removed .claude/hooks/ scripts. Since the actual hooks already live
-# in lockpick-workflow/, this test verifies that settings.json references
+# in the plugin root, this test verifies that settings.json references
 # the plugin hooks and they produce correct behavior.
 #
 # Tests:
@@ -109,7 +109,7 @@ fi
 # ============================================================
 # Verify settings.json references plugin hooks (post-migration check)
 #
-# After migration, settings.json should reference lockpick-workflow/
+# After migration, settings.json should reference plugin paths
 # or CLAUDE_PLUGIN_ROOT paths. This is a behavioral equivalence
 # pre-condition: if settings.json still points to .claude/hooks/,
 # the plugin hooks are NOT being used.

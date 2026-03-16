@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-pre-edit-write-dispatcher.sh
+# tests/hooks/test-pre-edit-write-dispatcher.sh
 # Unit tests for the pre-edit and pre-write dispatchers and the functions they source.
 #
 # Tests:
@@ -11,7 +11,7 @@
 #   test_pre_edit_dispatcher_exits_2_worktree_edit_guard_blocks_main_repo
 #   test_pre_edit_write_functions_loaded_via_lib_file
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-pre-edit-write-dispatcher.sh
+# Usage: bash tests/hooks/test-pre-edit-write-dispatcher.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

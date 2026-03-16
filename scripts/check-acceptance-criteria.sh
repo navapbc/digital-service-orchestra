@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/scripts/check-acceptance-criteria.sh
+# scripts/check-acceptance-criteria.sh
 # Verify a ticket contains a structured ACCEPTANCE CRITERIA section before sub-agent dispatch.
 #
 # Usage: check-acceptance-criteria.sh <id>

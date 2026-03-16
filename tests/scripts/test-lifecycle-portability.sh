@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-lifecycle-portability.sh
+# tests/scripts/test-lifecycle-portability.sh
 # Portability smoke test: exercises all agent-batch-lifecycle.sh subcommands
 # against a minimal project skeleton (empty/stub workflow-config.conf with no
 # database, infrastructure, or session sections).
@@ -10,7 +10,7 @@
 #     emit WARN messages for absent config sections
 #   - Non-infrastructure subcommands produce expected structured output
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-lifecycle-portability.sh
+# Usage: bash tests/scripts/test-lifecycle-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

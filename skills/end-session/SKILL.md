@@ -20,11 +20,11 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 1. Run `tk ready` (lists open/in_progress tasks with resolved deps) and `git log main..HEAD --oneline`
 2. Cross-reference: which issues were completed based on commits?
 3. Ask user which to close. Close confirmed: `tk close <id>` for each
-4. **Skip if no in-progress issues** — this is common when called after `/debug-everything` or `/sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
+4. **Skip if no in-progress issues** — this is common when called after `/dso:debug-everything` or `/dso:sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
 ### 2.5. Close Orphaned Epics (safety net)
 
-When `/sprint` is interrupted by context compaction or a control-flow issue, the epic may remain `in_progress` even though all children are closed. This step catches that case.
+When `/dso:sprint` is interrupted by context compaction or a control-flow issue, the epic may remain `in_progress` even though all children are closed. This step catches that case.
 
 1. List in-progress epics:
    ```bash
@@ -49,13 +49,13 @@ When `/sprint` is interrupted by context compaction or a control-flow issue, the
    An epic is **session-related** if any of these match:
    - A commit message contains the epic ID or any child task ID
    - A commit message contains keywords from the epic title (match 2+ non-trivial words)
-   - The sprint context passed to `/end-session` names this epic
+   - The sprint context passed to `/dso:end-session` names this epic
 
    If no commits match, the epic is **not** related to this session — skip it.
 
 4. For each session-related candidate, close it:
    ```bash
-   tk close <epic-id> --reason="Epic complete: all children closed (safety-net close by /end-session)"
+   tk close <epic-id> --reason="Epic complete: all children closed (safety-net close by /dso:end-session)"
    ```
    Report: `"Closed orphaned epic <epic-id>: <title> (all children were already closed)."`
 
@@ -111,7 +111,7 @@ Run both error sweeps before committing so that any tickets created are included
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
+source "${CLAUDE_PLUGIN_ROOT}/skills/end-session/error-sweep.sh"
 sweep_tool_errors
 sweep_validation_failures
 ```
@@ -121,7 +121,7 @@ sweep_validation_failures
 `sweep_validation_failures` reads `$ARTIFACTS_DIR/untracked-validation-failures.log`, extracts unique failure categories, deduplicates against existing open bug tickets, and creates a bug ticket for each untracked category. If the log file is absent or empty the step exits 0 silently.
 
 ### 3. Commit Local Changes
-1. Run `git status`. If changes exist: read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/commit` via Skill tool — orchestrators execute the workflow directly).
+1. Run `git status`. If changes exist: read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
 
 ### 3.25. Write Pre-Merge Sentinel (Disable Pre-Compact Checkpoint)
@@ -137,10 +137,10 @@ This sentinel prevents `pre-compact-checkpoint.sh` from creating unmerged checkp
 
 ### 3.5. Visual Baseline Comparison
 
-1. Read baseline dir from config: `BASELINE_DIR=$("$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
+1. Read baseline dir from config: `BASELINE_DIR=$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
 2. Run `$REPO_ROOT/scripts/verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
-4. **Exit 2** → baseline changes with no design manifests. Debug using `/playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/design-wireframe` or create manifest retroactively.
+4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
 
 ### 4. Sync Tickets and Merge to Main
 
@@ -152,7 +152,7 @@ BRANCH=$(git branch --show-current)
 git log main..$BRANCH --oneline
 ```
 
-**If no unmerged commits** (output is empty): the branch was already merged to main by a prior phase (e.g., `/debug-everything` Phase 10). Skip the merge script. Report: "Branch already merged to main — skipping merge."
+**If no unmerged commits** (output is empty): the branch was already merged to main by a prior phase (e.g., `/dso:debug-everything` Phase 10). Skip the merge script. Report: "Branch already merged to main — skipping merge."
 
 **If unmerged commits exist**: run the merge script. It handles ticket sync, merge, and push internally. Do NOT prompt for confirmation — proceed directly.
 
@@ -160,7 +160,7 @@ git log main..$BRANCH --oneline
 "$REPO_ROOT/scripts/merge-to-main.sh"
 ```
 
-If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
+If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
 
 ### 4.5. Sync Tickets to Jira
 
@@ -239,7 +239,7 @@ Remove stale config-cache files from the workflow artifacts directory. These acc
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 CACHE_COUNT=$(find "$ARTIFACTS_DIR" -name 'config-cache-*' -type f 2>/dev/null | wc -l | tr -d ' ')
 if [ "$CACHE_COUNT" -gt 0 ]; then
@@ -262,12 +262,12 @@ Display each category from `LEARNINGS_FROM_2_8`:
 - **Gotchas**: Edge cases, footguns, or surprising behavior future sessions should know
 
 **Task Summary** (gathered from git log and tickets):
-- Epic ID and title (if a `/sprint` or `/debug-everything` was running)
+- Epic ID and title (if a `/dso:sprint` or `/dso:debug-everything` was running)
 - Tasks completed this session. Check both:
   - `git log main..HEAD --oneline` (unmerged commits on this branch)
   - If empty (already merged): `git log --oneline -20 main` and identify commits from this worktree branch by their merge commit messages
 - Tasks remaining (if context is available: IDs, titles, blocked status)
-- Resume command (if work remains): `/sprint <epic-id> --resume` or "Run `/debug-everything` again"
+- Resume command (if work remains): `/dso:sprint <epic-id> --resume` or "Run `/dso:debug-everything` again"
 
 **Session Summary**:
 - Issues closed (count, with IDs)

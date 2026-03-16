@@ -24,7 +24,7 @@ digraph skill_flow {
     "User message received" [shape=doublecircle];
     "About to EnterPlanMode?" [shape=doublecircle];
     "Already brainstormed?" [shape=diamond];
-    "Invoke /brainstorm skill" [shape=box];
+    "Invoke /dso:brainstorm skill" [shape=box];
     "Might any skill apply?" [shape=diamond];
     "Invoke Skill tool" [shape=box];
     "Announce: 'Using [skill] to [purpose]'" [shape=box];
@@ -34,9 +34,9 @@ digraph skill_flow {
     "Respond (including clarifications)" [shape=doublecircle];
 
     "About to EnterPlanMode?" -> "Already brainstormed?";
-    "Already brainstormed?" -> "Invoke /brainstorm skill" [label="no"];
+    "Already brainstormed?" -> "Invoke /dso:brainstorm skill" [label="no"];
     "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
-    "Invoke /brainstorm skill" -> "Might any skill apply?";
+    "Invoke /dso:brainstorm skill" -> "Might any skill apply?";
 
     "User message received" -> "Might any skill apply?";
     "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
@@ -70,7 +70,7 @@ These thoughts mean STOP—you're rationalizing:
 
 ## Skill Priority
 
-Process skills first (`/brainstorm`, `tdd-workflow`) — then implementation skills (`/sprint`, `/implementation-plan`).
+Process skills first (`/dso:brainstorm`, `tdd-workflow`) — then implementation skills (`/dso:sprint`, `/dso:implementation-plan`).
 
 ## Skill Types
 

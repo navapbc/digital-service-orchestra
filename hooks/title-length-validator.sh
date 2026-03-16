@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/title-length-validator.sh
+# hooks/title-length-validator.sh
 # PreToolUse hook: blocks Write or Edit tool calls that would set a ticket
 # title longer than 255 characters in a .tickets/ file.
 #

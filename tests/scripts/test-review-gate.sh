@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-review-gate.sh
+# tests/scripts/test-review-gate.sh
 # Script-suite entry point for review-gate.sh tests.
 #
 # Delegates to the canonical hook test suite in tests/hooks/.
@@ -7,7 +7,7 @@
 # mktemp) and isolated temp git repos so the real repo's review-status and
 # git index are never touched.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-review-gate.sh
+# Usage: bash tests/scripts/test-review-gate.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

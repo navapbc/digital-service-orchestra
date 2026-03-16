@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-plan-review-gate.sh
+# tests/hooks/test-plan-review-gate.sh
 # Tests for .claude/hooks/plan-review-gate.sh
 #
 # plan-review-gate.sh is a PreToolUse hook (ExitPlanMode matcher) that

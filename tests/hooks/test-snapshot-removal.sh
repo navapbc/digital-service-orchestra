@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-snapshot-removal.sh
+# tests/hooks/test-snapshot-removal.sh
 # TDD tests for removing snapshot references from review-stop-check.sh
 # and session-misc-functions.sh (ticket lockpick-doc-to-logic-21d0)
 

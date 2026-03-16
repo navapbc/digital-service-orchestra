@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-sprint-list-epics.sh
+# tests/scripts/test-sprint-list-epics.sh
 # Tests for scripts/sprint-list-epics.sh (index-based rewrite)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-sprint-list-epics.sh
+# Usage: bash tests/scripts/test-sprint-list-epics.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

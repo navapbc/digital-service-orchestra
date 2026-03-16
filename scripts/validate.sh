@@ -16,8 +16,8 @@ set -uo pipefail
 #   When running in a worktree, it reports the worktree name in output.
 #
 # Usage:
-#   ./lockpick-workflow/scripts/validate.sh           # Run all checks in parallel
-#   ./lockpick-workflow/scripts/validate.sh --ci      # Also check CI status + smart E2E skip
+#   ./scripts/validate.sh           # Run all checks in parallel
+#   ./scripts/validate.sh --ci      # Also check CI status + smart E2E skip
 #
 # CI STATUS BEHAVIOR (with --ci flag):
 #   - If CI is "completed:success": Reports PASS
@@ -66,7 +66,7 @@ set -uo pipefail
 #     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 60)
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
 #
-#   Example: VALIDATE_TIMEOUT_TESTS=900 ./lockpick-workflow/scripts/validate.sh
+#   Example: VALIDATE_TIMEOUT_TESTS=900 ./scripts/validate.sh
 
 set -e
 
@@ -283,7 +283,7 @@ for arg in "$@"; do
         --verbose) VERBOSE=1 ;;
         --background) BACKGROUND=1 ;;
         --help)
-            echo "Usage: ./lockpick-workflow/scripts/validate.sh [--ci] [--verbose] [--background]"
+            echo "Usage: ./scripts/validate.sh [--ci] [--verbose] [--background]"
             echo "  --ci         Include CI status check + smart E2E skip"
             echo "  --verbose    Print real-time dot-notation progress as each check runs"
             echo "               (suppresses batch summary output)"
@@ -351,8 +351,8 @@ fi
 # ── Pre-flight: Docker auto-start ────────────────────────────────────────
 # If docker CLI is available but daemon isn't running, attempt auto-start.
 # Source shared dependency library for try_start_docker.
-# Source deps.sh from lockpick-workflow plugin (canonical location)
-HOOK_LIB="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+# Source deps.sh from plugin (canonical location)
+HOOK_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 if [[ ! -f "$HOOK_LIB" ]]; then
     # Fallback: try legacy .claude/hooks path
     HOOK_LIB="$REPO_ROOT/.claude/hooks/lib/deps.sh"

@@ -3,7 +3,7 @@
 Run validation and report a compact summary.
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 $PLUGIN_SCRIPTS/validate-phase.sh post-batch
 ```
 

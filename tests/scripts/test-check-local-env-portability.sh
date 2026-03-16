@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-local-env-portability.sh
+# tests/scripts/test-check-local-env-portability.sh
 # Portability smoke test: verifies the generic check-local-env.sh works with
 # no env_check_app configured (i.e., no project-specific callback).
 #
@@ -12,7 +12,7 @@
 # All Docker/DB/pg_isready calls are intercepted via stub binaries injected into
 # PATH so this test runs without a real Docker daemon or database.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-local-env-portability.sh
+# Usage: bash tests/scripts/test-check-local-env-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 # REVIEW-DEFENSE: '-e' is intentionally omitted. The test harness captures

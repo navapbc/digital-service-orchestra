@@ -1,4 +1,4 @@
-# Changelog — lockpick-workflow Plugin
+# Changelog — Digital Service Orchestra
 
 All notable changes to this project will be documented in this file.
 
@@ -11,11 +11,11 @@ Versioning follows [Semantic Versioning](https://semver.org/) — see `docs/VERS
 
 ### Summary
 
-Config-driven validate-work migration. The `/validate-work` skill is now fully
+Config-driven validate-work migration. The `/dso:validate-work` skill is now fully
 parameterized via `workflow-config.yaml` — no hardcoded project-specific values
 remain in the skill itself.
 
-### Migrated: /validate-work → Config-Driven
+### Migrated: /dso:validate-work → Config-Driven
 
 - **Staging configuration**: All staging values (`url`, `deploy_check`, `test`,
   `routes`, `health_path`) are now read from `workflow-config.yaml` via
@@ -57,7 +57,7 @@ staging:
   health_path: "/health"                             # optional, default: "/health"
 ```
 
-See `lockpick-workflow/docs/INSTALL.md` for full configuration reference.
+See `docs/INSTALL.md` for full configuration reference.
 
 ---
 
@@ -82,7 +82,7 @@ infrastructure into a standalone, reusable Claude Code plugin.
 - Added `docs/workflow-config-schema.json` for config validation.
 - Implemented `scripts/read-config.sh` — reads a key from `workflow-config.yaml`.
 - Implemented `scripts/detect-stack.sh` — auto-detects project stack from repo contents.
-- Added `/init` skill that generates a starter `workflow-config.yaml` for new projects.
+- Added `/dso:init` skill that generates a starter `workflow-config.yaml` for new projects.
 - Updated 4 skills with config-system preambles so they read project config before acting.
 
 ### Phase 3 — Hook Parameterization
@@ -98,7 +98,7 @@ infrastructure into a standalone, reusable Claude Code plugin.
 
 ### Phase 4 — CLAUDE.md Generation
 
-- Added `/generate-claude-md` skill that produces a project-tailored `CLAUDE.md` from
+- Added `/dso:generate-claude-md` skill that produces a project-tailored `CLAUDE.md` from
   `workflow-config.yaml` and detected stack.
 - Added a corresponding Markdown template in `templates/`.
 

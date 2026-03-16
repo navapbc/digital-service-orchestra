@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-staging-smoke-test.sh
-# Tests for lockpick-workflow/scripts/staging-smoke-test.sh (canonical)
+# tests/scripts/test-staging-smoke-test.sh
+# Tests for scripts/staging-smoke-test.sh (canonical)
 # and scripts/staging-smoke-test.sh (exec wrapper).
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-staging-smoke-test.sh
+# Usage: bash tests/scripts/test-staging-smoke-test.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -22,10 +22,10 @@ echo "=== test-staging-smoke-test.sh ==="
 # ── Test 1: Script exists and is executable ───────────────────────────────────
 echo "Test 1: test_staging_smoke_test_script_exists — script exists and is executable"
 if [ -x "$SCRIPT" ]; then
-    echo "  PASS: lockpick-workflow/scripts/staging-smoke-test.sh exists and is executable"
+    echo "  PASS: scripts/staging-smoke-test.sh exists and is executable"
     (( PASS++ ))
 else
-    echo "  FAIL: lockpick-workflow/scripts/staging-smoke-test.sh missing or not executable" >&2
+    echo "  FAIL: scripts/staging-smoke-test.sh missing or not executable" >&2
     (( FAIL++ ))
 fi
 
@@ -50,13 +50,13 @@ else
 fi
 
 # ── Test 4: Exec wrapper delegates to canonical copy ─────────────────────────
-echo "Test 4: Exec wrapper delegates to lockpick-workflow/scripts/staging-smoke-test.sh"
+echo "Test 4: Exec wrapper delegates to scripts/staging-smoke-test.sh"
 if [ -f "$WRAPPER" ]; then
-    if grep -q 'exec' "$WRAPPER" && grep -q 'lockpick-workflow/scripts/staging-smoke-test.sh' "$WRAPPER"; then
+    if grep -q 'exec' "$WRAPPER" && grep -q 'scripts/staging-smoke-test.sh' "$WRAPPER"; then
         echo "  PASS: wrapper exec-delegates to canonical script"
         (( PASS++ ))
     else
-        echo "  FAIL: wrapper does not exec-delegate to lockpick-workflow/scripts/staging-smoke-test.sh" >&2
+        echo "  FAIL: wrapper does not exec-delegate to scripts/staging-smoke-test.sh" >&2
         (( FAIL++ ))
     fi
 else

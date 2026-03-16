@@ -12,16 +12,16 @@ Act as a Senior Product Manager (Google-style). Transform high-level vision into
 ## Usage
 
 ```
-/roadmap    # Interactive vision-to-roadmap process
+/dso:roadmap    # Interactive vision-to-roadmap process
 ```
 
 This command is always interactive. It guides you through 6 phases with explicit user confirmation between each phase.
 
-**Supports dryrun mode.** Use `/dryrun /roadmap` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:roadmap` to preview without changes.
 
 ## Execution Framework
 
-### Phase 0: Onboarding Prerequisite Check (/roadmap)
+### Phase 0: Onboarding Prerequisite Check (/dso:roadmap)
 
 **Goal**: Ensure design and architecture foundations exist before roadmap planning.
 
@@ -32,13 +32,13 @@ $(git rev-parse --show-toplevel)/scripts/check-onboarding.sh --json
 ```
 
 **If `DESIGN_NOTES.md` is missing** (design_onboarding.pass == false):
-- Tell the user: *"Before we build a roadmap, we need a Design North Star. I'll run `/design-onboarding` to establish one — this requires your input."*
-- Invoke `/design-onboarding` and complete the full interview flow with the user.
+- Tell the user: *"Before we build a roadmap, we need a Design North Star. I'll run `/dso:design-onboarding` to establish one — this requires your input."*
+- Invoke `/dso:design-onboarding` and complete the full interview flow with the user.
 - After `DESIGN_NOTES.md` is generated and approved, continue.
 
 **If `ARCH_ENFORCEMENT.md` is missing** (dev_onboarding.pass == false):
-- Tell the user: *"Before we build a roadmap, we need an architecture foundation. I'll run `/dev-onboarding` to establish one — this requires your input."*
-- Invoke `/dev-onboarding` and complete the full interview flow with the user.
+- Tell the user: *"Before we build a roadmap, we need an architecture foundation. I'll run `/dso:dev-onboarding` to establish one — this requires your input."*
+- Invoke `/dso:dev-onboarding` and complete the full interview flow with the user.
 - After the architecture artifacts are generated and approved, continue.
 
 **If both pass**: Proceed directly to Phase 1.
@@ -47,7 +47,7 @@ $(git rev-parse --show-toplevel)/scripts/check-onboarding.sh --json
 
 ---
 
-### Phase 1: Vision Expansion (The "Tell Me More" Sessions) (/roadmap)
+### Phase 1: Vision Expansion (The "Tell Me More" Sessions) (/dso:roadmap)
 
 **Goal**: Understand the user's vision in depth.
 
@@ -81,13 +81,13 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
 
 ---
 
-### Phase 2: Milestone Architecture (High Fidelity) (/roadmap)
+### Phase 2: Milestone Architecture (High Fidelity) (/dso:roadmap)
 
 **Goal**: Structure the vision into clear, actionable Milestones (Epics).
 
 1. **Drafting**: Synthesize the brainstorm into logical **Milestones** (Epics). Group related capabilities together.
 
-2. **Fidelity Check**: For each Milestone, draft a "Spec Definition" including Context (the narrative "Why"), Success Criteria (testable deliverables), then read [docs/review-criteria.md](docs/review-criteria.md) for reviewer configuration and invoke `/review-protocol` with:
+2. **Fidelity Check**: For each Milestone, draft a "Spec Definition" including Context (the narrative "Why"), Success Criteria (testable deliverables), then read [docs/review-criteria.md](docs/review-criteria.md) for reviewer configuration and invoke `/dso:review-protocol` with:
    - **subject**: "Milestone: {milestone title}"
    - **artifact**: The Milestone's spec definition (context + success criteria)
    - **pass_threshold**: 4
@@ -110,7 +110,7 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
 
 ---
 
-### Phase 3: Visual Prioritization & Dependency Logic (/roadmap)
+### Phase 3: Visual Prioritization & Dependency Logic (/dso:roadmap)
 
 **Goal**: Prioritize Milestones based on value and effort, accounting for dependencies.
 
@@ -166,7 +166,7 @@ AVOID/LATER (Low Impact, High Effort):
 
 ---
 
-### Phase 4: Lightweight Pre-Mortem (High-Priority Only) (/roadmap)
+### Phase 4: Lightweight Pre-Mortem (High-Priority Only) (/dso:roadmap)
 
 **Goal**: Identify risks for top priorities and build mitigation into the Success Criteria.
 
@@ -186,7 +186,7 @@ AVOID/LATER (Low Impact, High Effort):
 
 ---
 
-### Phase 5: Execution & Ticket Integration (/roadmap)
+### Phase 5: Execution & Ticket Integration (/dso:roadmap)
 
 **Goal**: Create the Epics in the ticket system with high-fidelity specifications.
 
@@ -245,8 +245,8 @@ AVOID/LATER (Low Impact, High Effort):
 **Phase Gate**: Present the report. Roadmap is complete.
 
 **Next steps for the user**:
-- Use `/preplanning <epic-id>` to decompose an epic into stories
-- Use `/sprint <epic-id>` to begin implementation (auto-triggers preplanning if needed)
+- Use `/dso:preplanning <epic-id>` to decompose an epic into stories
+- Use `/dso:sprint <epic-id>` to begin implementation (auto-triggers preplanning if needed)
 
 ---
 
@@ -262,7 +262,7 @@ AVOID/LATER (Low Impact, High Effort):
 
 ### Scope Control
 - **Do NOT create child tasks** under epics. Epics remain high-level strategic milestones.
-- Child tasks are created later via `/preplanning <epic-id>` or `/sprint <epic-id>`.
+- Child tasks are created later via `/dso:preplanning <epic-id>` or `/dso:sprint <epic-id>`.
 
 ### Fidelity Standard
 - **Agent Alignment Test**: Every Epic description must be clear enough for a developer agent to understand with no additional context.

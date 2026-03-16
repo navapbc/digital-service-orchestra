@@ -2,7 +2,7 @@
 
 You are a diagnostic agent. Your job is to run ALL diagnostic checks, collect verbose error output, cluster related failures, and return a structured failure inventory. Do NOT fix anything.
 
-### Step 1: Run Summary Diagnostics (/debug-everything)
+### Step 1: Run Summary Diagnostics (/dso:debug-everything)
 
 **If the orchestrator appended "Validation Gate Results" context below**, the summary
 diagnostics have already been run. Use the provided passing/failing categories instead
@@ -15,12 +15,12 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 cd $REPO_ROOT/app
 
 # Full validation — collects pass/fail per category
-$REPO_ROOT/lockpick-workflow/scripts/validate.sh --full --ci 2>&1
+${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --full --ci 2>&1
 ```
 
 **Bash timeout**: Use `timeout: 960000` (16 minutes). The smart CI wait can poll for up to 15 minutes.
 
-### Step 2: Collect Verbose Error Output (/debug-everything)
+### Step 2: Collect Verbose Error Output (/dso:debug-everything)
 
 **If validation gate results were provided**: Only run verbose diagnostics for the
 FAILING categories listed. Skip commands for passing categories entirely — report
@@ -59,7 +59,7 @@ make test-unit-only args="-v --tb=short" 2>&1
 make test-e2e args="-v --tb=short" 2>&1
 ```
 
-### Step 3: Collect Beads & Git State (/debug-everything)
+### Step 3: Collect Beads & Git State (/dso:debug-everything)
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -76,7 +76,7 @@ git status --short
 git log --oneline -5
 ```
 
-### Step 4: Cluster Related Failures (/debug-everything)
+### Step 4: Cluster Related Failures (/dso:debug-everything)
 
 Group failures together when ANY of these conditions hold:
 
@@ -95,7 +95,7 @@ Group failures together when ANY of these conditions hold:
 4. Group by dependency chain: if error A is in a file imported by files in errors B, C, D — A is likely root cause
 5. Merge overlapping clusters: if two clusters share 50%+ of their errors, merge them
 
-### Step 5: Report (/debug-everything)
+### Step 5: Report (/dso:debug-everything)
 
 Use this EXACT format:
 
@@ -137,13 +137,13 @@ Blocked issues: {count} ({ids})
 Open bugs: {count} ({ids and titles})
 ```
 
-### Save Report to Disk (/debug-everything)
+### Save Report to Disk (/dso:debug-everything)
 
 After producing the Step 5 report, write the FULL report to disk before returning:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 DIAG_FILE="$(get_artifacts_dir)/debug-diag.md"
 mkdir -p "$(dirname "$DIAG_FILE")"
 cat > "$DIAG_FILE" <<'DIAG_EOF'
@@ -159,7 +159,7 @@ echo "DIAGNOSTIC_FILE: $DIAG_FILE"
 Do NOT return the full failure inventory table in your response. The orchestrator reads it from disk.
 
 ### Rules
-See `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
+See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Do NOT fix anything — diagnostic only
 - Do NOT `git commit`, `git push`, `tk close`, `tk status`
 - Report ALL errors, even if they seem trivial

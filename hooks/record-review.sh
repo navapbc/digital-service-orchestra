@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/record-review.sh
+# hooks/record-review.sh
 # Utility: records that a code review passed for the current working tree state.
 #
 # Called after a successful /review run. Reads scores, findings, and summary

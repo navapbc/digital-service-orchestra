@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-compose-files-config.sh
+# tests/scripts/test-compose-files-config.sh
 # Tests that workflow-config.conf contains the infrastructure.compose_files key
 # readable by read-config.sh in --list mode.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-compose-files-config.sh
+# Usage: bash tests/scripts/test-compose-files-config.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -12,7 +12,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 SCRIPT="$PLUGIN_ROOT/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.conf"
+
+# Create an inline fixture config instead of depending on project config
+CONFIG="$(mktemp)"
+trap 'rm -f "$CONFIG"' EXIT
+cat > "$CONFIG" <<'FIXTURE'
+infrastructure.compose_files=app/docker-compose.yml
+infrastructure.compose_files=app/docker-compose.db.yml
+FIXTURE
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-plugin-scripts-no-relative-paths.sh
+# tests/scripts/test-plugin-scripts-no-relative-paths.sh
 # Verify no ../ path references remain in plugin scripts (excluding CLAUDE_PLUGIN_ROOT
 # fallback lines and comments).
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-plugin-scripts-no-relative-paths.sh
+# Usage: bash tests/scripts/test-plugin-scripts-no-relative-paths.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -18,7 +18,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-plugin-scripts-no-relative-paths.sh ==="
 
 # ── test_no_relative_paths ──────────────────────────────────────────────────
-# Grep all .sh files in lockpick-workflow/scripts/ for ../ references.
+# Grep all .sh files in scripts/ for ../ references.
 # Exclude:
 #   - Lines containing CLAUDE_PLUGIN_ROOT (fallback pattern)
 #   - Comment-only lines (leading # after optional whitespace)

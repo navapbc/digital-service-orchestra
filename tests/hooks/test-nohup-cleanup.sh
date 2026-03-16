@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-nohup-cleanup.sh
+# tests/hooks/test-nohup-cleanup.sh
 # Tests for hook_cleanup_stale_nohup in session-misc-functions.sh
 #
 # The cleanup function scans /tmp/workflow-nohup-pids/*.entry files at session
@@ -16,7 +16,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Source the function library (sets up deps.sh etc.)
-export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 source "$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh"
 
 # --- Test isolation: use a temp directory as the nohup PID registry ---

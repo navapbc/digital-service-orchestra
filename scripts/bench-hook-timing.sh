@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/bench-hook-timing.sh
+# scripts/bench-hook-timing.sh
 # Benchmark hook timing by enabling per-call timing, running sample hooks,
 # and reporting the results.
 #
 # Usage:
-#   bash lockpick-workflow/scripts/bench-hook-timing.sh
+#   bash scripts/bench-hook-timing.sh
 #
 # What it does:
 #   1. Enables hook timing (touch ~/.claude/hook-timing-enabled)
@@ -21,7 +21,7 @@ set -euo pipefail
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 TIMING_FLAG="$HOME/.claude/hook-timing-enabled"
 TIMING_LOG="/tmp/hook-timing.log"
 

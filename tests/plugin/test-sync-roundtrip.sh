@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-sync-roundtrip.sh
+# tests/plugin/test-sync-roundtrip.sh
 # Integration roundtrip test for `tk sync` — exercises push, pull, conflict
 # detection, dep/link sync against a stubbed acli wrapper (default) or a
 # live Jira instance (--live flag).
 #
-# Canonical location: lockpick-workflow/tests/plugin/test-sync-roundtrip.sh
+# Canonical location: tests/plugin/test-sync-roundtrip.sh
 # Thin wrapper:       scripts/test-sync-roundtrip.sh
 #
 # Covers:
@@ -36,8 +36,8 @@
 #    16.  ledger is valid JSON after mixed push/pull operations
 #
 # Usage:
-#   bash lockpick-workflow/tests/plugin/test-sync-roundtrip.sh           # uses stubbed acli (CI default)
-#   bash lockpick-workflow/tests/plugin/test-sync-roundtrip.sh --live    # uses real Jira (manual only)
+#   bash tests/plugin/test-sync-roundtrip.sh           # uses stubbed acli (CI default)
+#   bash tests/plugin/test-sync-roundtrip.sh --live    # uses real Jira (manual only)
 #
 # --live prerequisites: acli installed and authenticated, JIRA_PROJECT set
 #

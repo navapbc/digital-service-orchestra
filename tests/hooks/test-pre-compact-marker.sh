@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-pre-compact-marker.sh
+# tests/hooks/test-pre-compact-marker.sh
 #
 # Tests for the rollback marker written by pre-compact-checkpoint.sh:
 #   (a) Marker file is written after a successful checkpoint commit
 #   (b) Default marker filename used when config key is absent
 #   (c) No marker written on no-op path (no real changes)
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-pre-compact-marker.sh
+# Usage: bash tests/hooks/test-pre-compact-marker.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-generate-claude-md.sh
-# TDD red-phase tests for lockpick-workflow/templates/CLAUDE.md.template
+# tests/scripts/test-generate-claude-md.sh
+# TDD red-phase tests for templates/CLAUDE.md.template
 #
 # Verifies that the CLAUDE.md template file exists and contains the required
 # placeholder tokens and section headers used by the generate-claude-md skill.
@@ -8,7 +8,7 @@
 # RED PHASE: All tests are expected to FAIL until the template is created.
 #
 # Usage:
-#   bash lockpick-workflow/tests/scripts/test-generate-claude-md.sh
+#   bash tests/scripts/test-generate-claude-md.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -23,7 +23,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-generate-claude-md.sh ==="
 
 # ── test_generate_claude_md_template_file_exists ──────────────────────────────
-# The template file must exist at lockpick-workflow/templates/CLAUDE.md.template.
+# The template file must exist at templates/CLAUDE.md.template.
 if [[ -f "$TEMPLATE_FILE" ]]; then
     actual_exists="exists"
 else

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-example-doc-templates.sh
+# tests/scripts/test-example-doc-templates.sh
 # Verifies that example documentation templates exist under
-# lockpick-workflow/templates/ with expected section headers and
+# templates/ with expected section headers and
 # contain no lockpick-specific terms.
 #
 # Usage:
-#   bash lockpick-workflow/tests/scripts/test-example-doc-templates.sh
+#   bash tests/scripts/test-example-doc-templates.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

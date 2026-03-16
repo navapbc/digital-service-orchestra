@@ -6,6 +6,5 @@ Review current code diff using a code-reviewer sub-agent.
 
 ## Your task
 
-1. Resolve the repo root: run `git rev-parse --show-toplevel`
-2. Read the file at that path + `/lockpick-workflow/docs/workflows/REVIEW-WORKFLOW.md`
+1. Read the file at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-WORKFLOW.md`
 3. Execute every step in order.

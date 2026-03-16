@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test-suite-engine.sh
+# tests/test-suite-engine.sh
 # TDD tests for the suite-engine shared library (parallel runner, timeouts,
 # fail-fast, progress reporting).
 #

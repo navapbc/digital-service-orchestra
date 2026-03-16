@@ -24,7 +24,7 @@ trap 'exit 0' ERR
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}/scripts"
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT}/scripts"
 
 INPUT=$(cat)
 
@@ -53,7 +53,7 @@ APP_DIR="$REPO_ROOT/app"
 # commands.format   — project-wide format command (used to derive single-file command)
 
 CONFIG_FILE=""
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
     if [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
         CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
     fi

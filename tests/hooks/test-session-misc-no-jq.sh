@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-session-misc-no-jq.sh
+# tests/hooks/test-session-misc-no-jq.sh
 # Unit tests verifying session-misc-functions.sh contains zero jq calls
 # and that each function works correctly with python3/bash-native alternatives.
 #
@@ -10,7 +10,7 @@
 #   test_track_tool_errors_with_known_input
 #   test_taskoutput_block_guard_no_jq_branch
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-session-misc-no-jq.sh
+# Usage: bash tests/hooks/test-session-misc-no-jq.sh
 
 set -uo pipefail
 

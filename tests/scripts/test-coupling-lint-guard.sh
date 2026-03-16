@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-coupling-lint-guard.sh
+# tests/scripts/test-coupling-lint-guard.sh
 # TDD tests for coupling-lint-guard configuration and script.
 #
 # Tests:
@@ -9,7 +9,7 @@
 #   test_guard_detects_hardcoded_app — guard detects hardcoded app/ paths
 #   test_guard_passes_clean_code    — guard exits 0 for clean code
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-coupling-lint-guard.sh
+# Usage: bash tests/scripts/test-coupling-lint-guard.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail
@@ -26,7 +26,7 @@ GUARD="$PLUGIN_ROOT/scripts/coupling-lint-guard.sh"
 echo "=== test-coupling-lint-guard.sh ==="
 
 # ── test_config_exists ───────────────────────────────────────────────────────
-# Config file must exist at lockpick-workflow/config/coupling-lint-patterns.conf
+# Config file must exist at config/coupling-lint-patterns.conf
 _snapshot_fail
 if [[ -f "$CONFIG" ]]; then
     actual_config_exists="exists"
@@ -137,11 +137,11 @@ if [[ -x "$GUARD" && -f "$CONFIG" ]]; then
     _tmpdir="$(mktemp -d)"
     _CLEANUP_TMP="$_tmpdir"
     # Create a synthetic file with a hardcoded app/ path
-    mkdir -p "$_tmpdir/lockpick-workflow/scripts"
-    printf 'cd /app/src\n' > "$_tmpdir/lockpick-workflow/scripts/test-violation.sh"
+    mkdir -p "$_tmpdir/scripts"
+    printf 'cd /app/src\n' > "$_tmpdir/scripts/test-violation.sh"
     # Run guard against the synthetic dir; expect non-zero
     guard_exit=0
-    "$GUARD" --scan-dir "$_tmpdir/lockpick-workflow" 2>/dev/null || guard_exit=$?
+    "$GUARD" --scan-dir "$_tmpdir" 2>/dev/null || guard_exit=$?
     if [[ "$guard_exit" -ne 0 ]]; then
         actual_detects="detected"
     else
@@ -165,11 +165,11 @@ assert_pass_if_clean "test_guard_detects_hardcoded_app"
 _snapshot_fail
 if [[ -x "$GUARD" && -f "$CONFIG" ]]; then
     _tmpdir="$(mktemp -d)"
-    mkdir -p "$_tmpdir/lockpick-workflow/scripts"
+    mkdir -p "$_tmpdir/scripts"
     # Create a clean file with no coupling violations
-    printf '#!/usr/bin/env bash\necho "clean"\n' > "$_tmpdir/lockpick-workflow/scripts/clean.sh"
+    printf '#!/usr/bin/env bash\necho "clean"\n' > "$_tmpdir/scripts/clean.sh"
     clean_exit=0
-    "$GUARD" --scan-dir "$_tmpdir/lockpick-workflow" 2>/dev/null || clean_exit=$?
+    "$GUARD" --scan-dir "$_tmpdir" 2>/dev/null || clean_exit=$?
     if [[ "$clean_exit" -eq 0 ]]; then
         actual_clean="passed"
     else

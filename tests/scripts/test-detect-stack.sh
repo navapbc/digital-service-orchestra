@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-detect-stack.sh
-# TDD red-phase tests for lockpick-workflow/scripts/detect-stack.sh
+# tests/scripts/test-detect-stack.sh
+# TDD red-phase tests for scripts/detect-stack.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-detect-stack.sh
+# Usage: bash tests/scripts/test-detect-stack.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # NOTE: These tests are expected to FAIL until detect-stack.sh is implemented.

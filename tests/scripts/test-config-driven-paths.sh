@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-config-driven-paths.sh
+# tests/scripts/test-config-driven-paths.sh
 # Tests that validation/review/impact scripts use config-paths.sh
 # instead of hardcoded app/src, app/tests, and snapshot paths.
 #
@@ -10,7 +10,7 @@
 #   - pre-bash-functions.sh has no hardcoded app/tests/e2e/snapshots
 #   - All 4 scripts source config-paths.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-config-driven-paths.sh
+# Usage: bash tests/scripts/test-config-driven-paths.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

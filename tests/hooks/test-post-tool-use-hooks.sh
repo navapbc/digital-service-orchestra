@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-post-tool-use-hooks.sh
+# tests/hooks/test-post-tool-use-hooks.sh
 # Test that all PostToolUse hooks satisfy the Claude Code hook contract:
 #   1. Always exit 0 (any non-zero exit causes "hook error" visible to user)
 #   2. Never produce stderr output (stderr leaks cause error messages)
@@ -7,7 +7,7 @@
 # This test verifies the fix for the persistent "PostToolUse:Bash hook error"
 # caused by Claude Code bug #20334 (matcher doesn't filter tool types).
 #
-# Usage: ./lockpick-workflow/tests/hooks/test-post-tool-use-hooks.sh
+# Usage: ./tests/hooks/test-post-tool-use-hooks.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -euo pipefail

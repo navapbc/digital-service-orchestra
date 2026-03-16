@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/inject-using-lockpick.sh
+# hooks/inject-using-lockpick.sh
 # SessionStart hook: inject using-lockpick skill context into conversation
 #
 # Mirrors the superpowers:using-superpowers injection mechanism.
@@ -8,7 +8,7 @@
 # without requiring the superpowers plugin.
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 # Use slim hook injection (no flowchart/Red Flags table); full content in SKILL.md
 HOOK_FILE="$PLUGIN_ROOT/skills/using-lockpick/HOOK-INJECTION.md"
 SKILL_FILE="$PLUGIN_ROOT/skills/using-lockpick/SKILL.md"

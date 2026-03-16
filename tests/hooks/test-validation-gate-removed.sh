@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-validation-gate-removed.sh
+# tests/hooks/test-validation-gate-removed.sh
 # Verifies that hook_validation_gate has been fully removed from all dispatchers
 # and function libraries.
 

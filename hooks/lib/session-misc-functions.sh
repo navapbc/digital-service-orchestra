@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/session-misc-functions.sh
+# hooks/lib/session-misc-functions.sh
 # Sourceable function definitions for misc hook dispatchers.
 #
 # Each function follows the hook contract:
@@ -22,7 +22,7 @@
 #   hook_taskoutput_block_guard       — block TaskOutput calls with block=false
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/session-misc-functions.sh
+#   source hooks/lib/session-misc-functions.sh
 #   hook_inject_using_lockpick "$INPUT_JSON"
 
 # Guard: only load once
@@ -235,7 +235,7 @@ hook_cleanup_stale_nohup() {
 hook_inject_using_lockpick() {
     local REPO_ROOT
     REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
-    local PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}"
+    local PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
     local HOOK_FILE="$PLUGIN_ROOT/skills/using-lockpick/HOOK-INJECTION.md"
     local SKILL_FILE="$PLUGIN_ROOT/skills/using-lockpick/SKILL.md"
 
@@ -795,7 +795,7 @@ hook_plan_review_gate() {
         echo "**No plan review has been recorded for this session.**" >&2
         echo "" >&2
         echo "Before presenting a plan to the user, run the plan-review skill:" >&2
-        echo "  Invoke \`/plan-review\` with the plan content." >&2
+        echo "  Invoke \`/dso:plan-review\` with the plan content." >&2
         echo "" >&2
         echo "This ensures plans are reviewed by a sub-agent before user approval." >&2
         echo "" >&2
@@ -809,7 +809,7 @@ hook_plan_review_gate() {
         echo "" >&2
         echo "**The plan review did not pass.**" >&2
         echo "" >&2
-        echo "Address the review findings and re-run \`/plan-review\`." >&2
+        echo "Address the review findings and re-run \`/dso:plan-review\`." >&2
         echo "" >&2
         return 2
     fi

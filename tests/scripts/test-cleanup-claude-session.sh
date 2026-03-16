@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-cleanup-claude-session.sh
-# TDD tests for lockpick-workflow/scripts/cleanup-claude-session.sh (plugin canonical copy).
+# tests/scripts/test-cleanup-claude-session.sh
+# TDD tests for scripts/cleanup-claude-session.sh (plugin canonical copy).
 # These tests are written BEFORE the plugin script exists and will fail/skip until
 # Task 2 (lockpick-doc-to-logic-lx9y) creates the plugin script.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-cleanup-claude-session.sh
+# Usage: bash tests/scripts/test-cleanup-claude-session.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -25,7 +25,7 @@ if [ -x "$SCRIPT" ]; then
     echo "  PASS: script is executable"
     (( PASS++ ))
 else
-    echo "  FAIL: lockpick-workflow/scripts/cleanup-claude-session.sh is not executable (plugin script not yet created)" >&2
+    echo "  FAIL: scripts/cleanup-claude-session.sh is not executable (plugin script not yet created)" >&2
     (( FAIL++ ))
 fi
 

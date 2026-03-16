@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-no-unguarded-plugin-refs.sh
+# tests/scripts/test-no-unguarded-plugin-refs.sh
 # Regression guard: ensures debug-everything/SKILL.md does not contain
 # hard-coded subagent_type references to removed external plugin agents.
 #
@@ -8,7 +8,7 @@
 #   unit-testing, debugging-toolkit, code-simplifier,
 #   backend-api-security, commit-commands, claude-md-management
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-no-unguarded-plugin-refs.sh
+# Usage: bash tests/scripts/test-no-unguarded-plugin-refs.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -82,8 +82,8 @@ else
 fi
 
 
-# ── Test: No unguarded plugin refs in lockpick-workflow/scripts/ ─────────────
-# Scans .sh and .yaml files in lockpick-workflow/scripts/ for hard-coded
+# ── Test: No unguarded plugin refs in scripts/ ─────────────
+# Scans .sh and .yaml files in scripts/ for hard-coded
 # references to removed plugin names. Excludes:
 #   - plugin-reference-catalog.sh (canonical registry of removed plugins)
 #   - discover-agents.sh (routing system itself, references plugin names in docs)

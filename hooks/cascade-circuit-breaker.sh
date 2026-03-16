@@ -3,7 +3,7 @@
 # PreToolUse hook: block Edit/Write when fix cascade threshold is reached
 #
 # Enforces CLAUDE.md rule 13:
-#   "Never continue fixing after 5 cascading failures — run /fix-cascade-recovery"
+#   "Never continue fixing after 5 cascading failures — run /dso:fix-cascade-recovery"
 #
 # Reads the cascade counter from the worktree-scoped state directory.
 # If counter >= 5, blocks the edit (exit 2) with a message requiring
@@ -85,7 +85,7 @@ CASCADE_THRESHOLD=5
 
 if (( COUNTER >= CASCADE_THRESHOLD )); then
     echo "BLOCKED: Fix cascade (rule 13). $COUNTER consecutive fixes produced different errors." >&2
-    echo "Run /fix-cascade-recovery to analyze root cause and reset." >&2
+    echo "Run /dso:fix-cascade-recovery to analyze root cause and reset." >&2
     echo "Manual reset: echo 0 > $COUNTER_FILE" >&2
     exit 2
 fi

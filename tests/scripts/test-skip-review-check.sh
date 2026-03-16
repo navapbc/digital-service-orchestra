@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-skip-review-check.sh
-# Tests for lockpick-workflow/scripts/skip-review-check.sh extraction from COMMIT-WORKFLOW.md.
+# tests/scripts/test-skip-review-check.sh
+# Tests for scripts/skip-review-check.sh extraction from COMMIT-WORKFLOW.md.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-skip-review-check.sh
+# Usage: bash tests/scripts/test-skip-review-check.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -38,7 +38,7 @@ assert_pass_if_clean "test_skip_review_check_wrapper_exists"
 # The wrapper must delegate to the canonical script (exec pattern).
 _snapshot_fail
 wrapper_delegates=0
-grep -q 'lockpick-workflow/scripts/skip-review-check.sh' "$WRAPPER_SCRIPT" 2>/dev/null && wrapper_delegates=1
+grep -q 'scripts/skip-review-check.sh' "$WRAPPER_SCRIPT" 2>/dev/null && wrapper_delegates=1
 assert_eq "test_skip_review_check_wrapper_delegates: wrapper delegates to canonical" "1" "$wrapper_delegates"
 assert_pass_if_clean "test_skip_review_check_wrapper_delegates"
 
@@ -166,9 +166,9 @@ assert_eq "test_skip_review_check_allowlist_behavioral_equivalence: all non-revi
 equiv_block=1
 for f in \
     "CLAUDE.md" \
-    "lockpick-workflow/hooks/some-hook.sh" \
-    "lockpick-workflow/skills/my-skill.md" \
-    "lockpick-workflow/docs/workflows/WF.md" \
+    "hooks/some-hook.sh" \
+    "skills/my-skill.md" \
+    "docs/workflows/WF.md" \
     ".claude/hooks/hook.sh" \
     "app/src/main.py"; do
     printf '%s\n' "$f" | bash "$CANONICAL_SCRIPT" 2>/dev/null

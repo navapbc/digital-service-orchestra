@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/post-functions.sh
+# hooks/lib/post-functions.sh
 # Sourceable function definitions for the PostToolUse hooks.
 #
 # Each function follows the PostToolUse hook contract:
@@ -17,7 +17,7 @@
 #   hook_tool_logging_post         — log tool call (post mode, hardcoded MODE=post)
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/post-functions.sh
+#   source hooks/lib/post-functions.sh
 #   hook_check_validation_failures "$INPUT_JSON"
 #   hook_auto_format "$INPUT_JSON"
 
@@ -156,7 +156,7 @@ print(json.dumps(entry))
     Long-running test commands MUST use test-batched.sh to avoid this.
 
     Example:
-      $(git rev-parse --show-toplevel)/lockpick-workflow/scripts/test-batched.sh --timeout=50 "make test-unit-only"
+      ${CLAUDE_PLUGIN_ROOT}/scripts/test-batched.sh --timeout=50 "make test-unit-only"
 
     See CLAUDE.md rule #16: "Use test-batched.sh for test commands expected to exceed 60 seconds."
     Re-run this command using test-batched.sh now.

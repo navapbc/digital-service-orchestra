@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/capture-review-diff.sh
+# scripts/capture-review-diff.sh
 # Canonical diff capture for the review workflow.
 #
 # Usage: capture-review-diff.sh <diff-file> <stat-file> [extra-exclusion ...]

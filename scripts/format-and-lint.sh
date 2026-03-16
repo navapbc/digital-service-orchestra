@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/format-and-lint.sh — Combined format-check + lint pre-commit hook
+# scripts/format-and-lint.sh — Combined format-check + lint pre-commit hook
 #
 # Pre-commit: checks only staged .py files for fast feedback (~3-5s).
 # Pre-push:   full-tree checks run via the pre-push-lint hook in .pre-commit-config.yaml.
 #
 # Usage (invoked by .pre-commit-config.yaml via pre-commit-wrapper.sh):
-#   ./scripts/pre-commit-wrapper.sh format-and-lint 15 "lockpick-workflow/scripts/format-and-lint.sh"
+#   ./scripts/pre-commit-wrapper.sh format-and-lint 15 "scripts/format-and-lint.sh"
 #
 # Debug commands (full-tree, same as pre-push):
 #   cd app && PY_RUN_APPROACH=local make format-check

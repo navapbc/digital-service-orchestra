@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/resolve-stack-adapter.sh
+# scripts/resolve-stack-adapter.sh
 # Resolves the stack adapter file path for a project based on workflow-config.conf.
 #
 # Usage:
-#   ADAPTER_FILE=$(bash "$REPO_ROOT/lockpick-workflow/scripts/resolve-stack-adapter.sh")
+#   ADAPTER_FILE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-stack-adapter.sh")
 #
 # Output:
 #   stdout — absolute path to the matching adapter YAML file, or empty string if not found
@@ -14,7 +14,7 @@ set -uo pipefail
 #   REPO_ROOT — optional; if not set, derived from BASH_SOURCE location
 #
 # The script reads `stack` and `design.template_engine` from workflow-config.conf via
-# read-config.sh, then scans lockpick-workflow/config/stack-adapters/*.yaml for a file
+# read-config.sh, then scans config/stack-adapters/*.yaml for a file
 # whose selector.stack and selector.template_engine fields match the project config.
 
 set -uo pipefail
@@ -24,14 +24,14 @@ if [[ -z "${REPO_ROOT:-}" ]]; then
     REPO_ROOT="$(git rev-parse --show-toplevel)"
 fi
 
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
 
 # ── Read stack and template engine from workflow-config.conf ──────────────────
 STACK=$("$READ_CONFIG" stack 2>/dev/null || echo "")
 TEMPLATE_ENGINE=$("$READ_CONFIG" design.template_engine 2>/dev/null || echo "")
 
 # ── Resolve the adapter file ──────────────────────────────────────────────────
-ADAPTER_DIR="$REPO_ROOT/lockpick-workflow/config/stack-adapters"
+ADAPTER_DIR="${CLAUDE_PLUGIN_ROOT}/config/stack-adapters"
 ADAPTER_FILE=""
 
 if [[ -n "$TEMPLATE_ENGINE" ]]; then

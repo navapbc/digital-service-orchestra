@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-review-gate-self-healing.sh
+# tests/hooks/test-review-gate-self-healing.sh
 # Tests for the review gate self-healing logic for formatting-only hash mismatches.
 #
 # When the only difference between the review-time diff and the current diff
@@ -18,7 +18,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 source "$PLUGIN_ROOT/hooks/lib/deps.sh"

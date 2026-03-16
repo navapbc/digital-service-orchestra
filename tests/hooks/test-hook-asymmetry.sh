@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-hook-asymmetry.sh
+# tests/hooks/test-hook-asymmetry.sh
 # Verifies that hooks.json contains Agent PreToolUse entry with pre-agent.sh dispatcher,
 # preventing silent behavioral regression when settings.json hooks are removed during
 # Phase A of the GitHub plugin transition.
 #
 # Usage:
-#   bash lockpick-workflow/tests/hooks/test-hook-asymmetry.sh
+#   bash tests/hooks/test-hook-asymmetry.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

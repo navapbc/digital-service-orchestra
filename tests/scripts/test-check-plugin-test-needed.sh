@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-plugin-test-needed.sh
+# tests/scripts/test-check-plugin-test-needed.sh
 # Tests for check-plugin-test-needed.sh — detects whether plugin tests should run
 # based on the list of changed files.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-plugin-test-needed.sh
+# Usage: bash tests/scripts/test-check-plugin-test-needed.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CANONICAL="$PLUGIN_ROOT/scripts/check-plugin-test-needed.sh"
-WRAPPER="$REPO_ROOT/scripts/check-plugin-test-needed.sh"
 WORKFLOW_FILE="$PLUGIN_ROOT/docs/workflows/COMMIT-WORKFLOW.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -27,18 +25,6 @@ script_executable=0
 assert_eq "test_script_exists_and_executable: canonical exists and is executable" "1" "$script_executable"
 assert_pass_if_clean "test_script_exists_and_executable"
 
-# ── test_wrapper_exists ───────────────────────────────────────────────────────
-# (b) scripts/ wrapper exists and delegates to canonical
-_snapshot_fail
-wrapper_exists=0
-[ -f "$WRAPPER" ] && wrapper_exists=1
-assert_eq "test_wrapper_exists: scripts/ wrapper exists" "1" "$wrapper_exists"
-# Wrapper should contain exec delegation to lockpick-workflow/scripts/
-wrapper_delegates=0
-grep -q 'lockpick-workflow/scripts/check-plugin-test-needed.sh' "$WRAPPER" 2>/dev/null && wrapper_delegates=1
-assert_eq "test_wrapper_exists: wrapper delegates to canonical" "1" "$wrapper_delegates"
-assert_pass_if_clean "test_wrapper_exists"
-
 # ── test_commit_workflow_has_plugin_test_step ─────────────────────────────────
 # (c) COMMIT-WORKFLOW.md has a mandatory plugin test step (Step 1.75)
 _snapshot_fail
@@ -48,28 +34,28 @@ assert_eq "test_commit_workflow_has_plugin_test_step: COMMIT-WORKFLOW.md has mak
 assert_pass_if_clean "test_commit_workflow_has_plugin_test_step"
 
 # ── test_exits_zero_for_lockpick_workflow_scripts ─────────────────────────────
-# (d) exits 0 when lockpick-workflow/scripts/* file is in the changed list
+# (d) exits 0 when scripts/* file is in the changed list
 _snapshot_fail
 exit_code_lw_scripts=0
-echo 'lockpick-workflow/scripts/foo.sh' | bash "$CANONICAL" 2>/dev/null
+echo 'scripts/foo.sh' | bash "$CANONICAL" 2>/dev/null
 exit_code_lw_scripts=$?
-assert_eq "test_exits_zero_for_lockpick_workflow_scripts: exits 0 for lockpick-workflow/scripts/*" "0" "$exit_code_lw_scripts"
+assert_eq "test_exits_zero_for_lockpick_workflow_scripts: exits 0 for scripts/*" "0" "$exit_code_lw_scripts"
 assert_pass_if_clean "test_exits_zero_for_lockpick_workflow_scripts"
 
 # ── test_exits_zero_for_lockpick_workflow_hooks ──────────────────────────────
 _snapshot_fail
 exit_code_lw_hooks=0
-echo 'lockpick-workflow/hooks/pre-commit' | bash "$CANONICAL" 2>/dev/null
+echo 'hooks/pre-commit' | bash "$CANONICAL" 2>/dev/null
 exit_code_lw_hooks=$?
-assert_eq "test_exits_zero_for_lockpick_workflow_hooks: exits 0 for lockpick-workflow/hooks/*" "0" "$exit_code_lw_hooks"
+assert_eq "test_exits_zero_for_lockpick_workflow_hooks: exits 0 for hooks/*" "0" "$exit_code_lw_hooks"
 assert_pass_if_clean "test_exits_zero_for_lockpick_workflow_hooks"
 
 # ── test_exits_zero_for_lockpick_workflow_skills ──────────────────────────────
 _snapshot_fail
 exit_code_lw_skills=0
-echo 'lockpick-workflow/skills/some-skill.md' | bash "$CANONICAL" 2>/dev/null
+echo 'skills/some-skill.md' | bash "$CANONICAL" 2>/dev/null
 exit_code_lw_skills=$?
-assert_eq "test_exits_zero_for_lockpick_workflow_skills: exits 0 for lockpick-workflow/skills/*" "0" "$exit_code_lw_skills"
+assert_eq "test_exits_zero_for_lockpick_workflow_skills: exits 0 for skills/*" "0" "$exit_code_lw_skills"
 assert_pass_if_clean "test_exits_zero_for_lockpick_workflow_skills"
 
 # ── test_exits_zero_for_scripts_dir ──────────────────────────────────────────
@@ -121,12 +107,12 @@ assert_pass_if_clean "test_exits_nonzero_for_empty_input"
 
 # ── test_detects_workflow_file ────────────────────────────────────────────────
 # Script name matches what the task calls "test_check_plugin_test_needed_detects_workflow_file"
-# When a lockpick-workflow/scripts/* file is in the list, exits 0
+# When a scripts/* file is in the list, exits 0
 _snapshot_fail
 exit_code_detect=0
-echo 'lockpick-workflow/scripts/check-plugin-test-needed.sh' | bash "$CANONICAL" 2>/dev/null
+echo 'scripts/check-plugin-test-needed.sh' | bash "$CANONICAL" 2>/dev/null
 exit_code_detect=$?
-assert_eq "test_check_plugin_test_needed_detects_workflow_file: detects lockpick-workflow/scripts/* file" "0" "$exit_code_detect"
+assert_eq "test_check_plugin_test_needed_detects_workflow_file: detects scripts/* file" "0" "$exit_code_detect"
 assert_pass_if_clean "test_check_plugin_test_needed_detects_workflow_file"
 
 print_summary

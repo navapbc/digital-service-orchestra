@@ -1,6 +1,6 @@
-# Installation Guide — lockpick-workflow
+# Installation Guide — Digital Service Orchestra
 
-lockpick-workflow is a Claude Code plugin that provides workflow infrastructure
+Digital Service Orchestra is a Claude Code plugin that provides workflow infrastructure
 skills and hooks for software development projects.
 
 ---
@@ -22,7 +22,7 @@ skills and hooks for software development projects.
 ### Option A — Git-based (recommended)
 
 ```bash
-claude plugin install github:lockpick/lockpick-workflow
+claude plugin install github:navapbc/digital-service-orchestra
 ```
 
 This clones the plugin into Claude Code's plugin directory and registers it
@@ -31,7 +31,7 @@ automatically.
 ### Option B — Manual
 
 ```bash
-git clone https://github.com/lockpick/lockpick-workflow.git /path/to/lockpick-workflow
+git clone https://github.com/navapbc/digital-service-orchestra.git /path/to/digital-service-orchestra
 ```
 
 Then register the plugin in your project's `.claude/settings.json` (see
@@ -55,7 +55,7 @@ to your `.claude/settings.json`:
 ```json
 {
   "env": {
-    "CLAUDE_PLUGIN_ROOT": "/absolute/path/to/lockpick-workflow"
+    "CLAUDE_PLUGIN_ROOT": "/absolute/path/to/digital-service-orchestra"
   }
 }
 ```
@@ -69,14 +69,14 @@ Rust/Cargo, Go) without any configuration. For custom commands or explicit
 stack overrides, create a `workflow-config.conf` at your project root:
 
 ```bash
-cp /path/to/lockpick-workflow/docs/workflow-config.example.conf workflow-config.conf
+cp /path/to/digital-service-orchestra/docs/workflow-config.example.conf workflow-config.conf
 ```
 
 Edit the file to match your project's commands. All keys are optional —
 omitted keys fall back to stack-detected defaults. The format is flat
 KEY=VALUE with dot-notation for nesting (no Python dependency required).
 
-Schema reference: `lockpick-workflow/docs/workflow-config-schema.json`
+Schema reference: `docs/workflow-config-schema.json`
 
 Supported stack values: `python-poetry`, `node-npm`, `rust-cargo`, `golang`,
 `convention-based`
@@ -92,27 +92,27 @@ Auto-detection markers:
 
 ## Verify Installation
 
-After setting `CLAUDE_PLUGIN_ROOT`, run the `/init` skill inside a Claude Code
+After setting `CLAUDE_PLUGIN_ROOT`, run the `/dso:init` skill inside a Claude Code
 session:
 
 ```
-/init
+/dso:init
 ```
 
-The `/init` skill validates your setup by:
+The `/dso:init` skill validates your setup by:
 1. Confirming `CLAUDE_PLUGIN_ROOT` is set and points to a valid plugin directory
 2. Detecting or reading the project stack
 3. Reporting which commands will be used for `test`, `lint`, `format`, etc.
 
 Expected output: a summary table of detected commands and a confirmation that
 hooks are registered. If `CLAUDE_PLUGIN_ROOT` is not set or points to the
-wrong location, `/init` will report an error with remediation steps.
+wrong location, `/dso:init` will report an error with remediation steps.
 
 ---
 
 ## validate-work Configuration
 
-The `/validate-work` skill runs comprehensive project health checks across five
+The `/dso:validate-work` skill runs comprehensive project health checks across five
 domains: local validation, CI status, issue health, staging deployment, and
 staging environment tests.
 
@@ -216,7 +216,7 @@ checks are skipped.
 
 ## Optional Plugins
 
-lockpick-workflow works standalone with `general-purpose` agents for all task
+Digital Service Orchestra works standalone with `general-purpose` agents for all task
 categories. Installing optional Claude Code plugins adds specialized agents that
 are automatically discovered via `discover-agents.sh` and preferred when
 available:
@@ -243,7 +243,7 @@ claude plugin install github:<org>/<plugin-name>
 ## Upgrade
 
 ```bash
-cd /path/to/lockpick-workflow
+cd /path/to/digital-service-orchestra
 git pull
 ```
 

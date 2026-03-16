@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-estimate-context-load.sh
-# Tests for lockpick-workflow/scripts/estimate-context-load.sh
+# Tests for scripts/estimate-context-load.sh
 
 set -euo pipefail
 

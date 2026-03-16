@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/closed-parent-guard.sh
+# hooks/closed-parent-guard.sh
 # PreToolUse hook (Bash matcher): blocks creating or associating children on closed tickets.
 #
 # Triggers on:

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-claude-safe-tickets-dir.sh
-# Tests for _offer_worktree_cleanup behavior in lockpick-workflow/scripts/claude-safe.
+# tests/scripts/test-claude-safe-tickets-dir.sh
+# Tests for _offer_worktree_cleanup behavior in scripts/claude-safe.
 #
 # Verifies:
 # - _read_cfg correctly reads tickets.directory from workflow-config.conf
 # - _offer_worktree_cleanup blocks auto-removal when .tickets/ files are dirty
 #   (any uncommitted changes, including .tickets/, prevent auto-removal)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-claude-safe-tickets-dir.sh
+# Usage: bash tests/scripts/test-claude-safe-tickets-dir.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -9,6 +9,5 @@ Create a git commit with mandatory test, format, review gates.
 
 ## Your task
 
-1. Resolve the repo root: run `git rev-parse --show-toplevel`
-2. Read the file at that path + `/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md`
+1. Read the file at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`
 3. Execute every step in order.

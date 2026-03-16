@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-pre-compact-checkpoint-skip.sh
+# tests/hooks/test-pre-compact-checkpoint-skip.sh
 # Tests for the "skip commit when no real changes" fix in
-# lockpick-workflow/hooks/pre-compact-checkpoint.sh.
+# hooks/pre-compact-checkpoint.sh.
 #
 # Covers three behaviors:
 #   1. No real changes → skip commit entirely; sentinel NOT written to HEAD
 #   2. Real changes exist → commit created; sentinel committed alongside code
 #   3. Staged sentinel deletion preserved when real changes also exist
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-pre-compact-checkpoint-skip.sh
+# Usage: bash tests/hooks/test-pre-compact-checkpoint-skip.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

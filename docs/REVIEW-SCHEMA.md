@@ -1,6 +1,6 @@
 # Review Output Schema
 
-Standard JSON schema for structured reviews produced by `/review-protocol`.
+Standard JSON schema for structured reviews produced by `/dso:review-protocol`.
 
 ## Schema
 

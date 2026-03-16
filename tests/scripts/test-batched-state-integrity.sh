@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-batched-state-integrity.sh
+# tests/scripts/test-batched-state-integrity.sh
 # Tests for test-batched.sh state file integrity features:
 #   - command_hash validation (hash mismatch → warns + starts fresh)
 #   - created_at timestamp with TTL (expired state → warns + starts fresh)
 #   - corruption backup (corrupt state → renamed to *.corrupt.bak, not deleted)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-batched-state-integrity.sh
+# Usage: bash tests/scripts/test-batched-state-integrity.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

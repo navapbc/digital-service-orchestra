@@ -1,6 +1,6 @@
 ## Phase 10 Merge & Verify Sub-Agent
 
-You are a merge-and-verify sub-agent for `/debug-everything`. Your job is to merge the current branch to main, wait for CI, and run `/validate-work`. You do NOT close bugs or write final reports — the orchestrator handles those.
+You are a merge-and-verify sub-agent for `/dso:debug-everything`. Your job is to merge the current branch to main, wait for CI, and run `/dso:validate-work`. You do NOT close bugs or write final reports — the orchestrator handles those.
 
 ### Inputs (provided in your prompt)
 
@@ -17,7 +17,7 @@ You are a merge-and-verify sub-agent for `/debug-everything`. Your job is to mer
 ```bash
 "$REPO_ROOT/scripts/merge-to-main.sh"
 ```
-- ERROR with `CONFLICT_DATA:` prefix → invoke `/resolve-conflicts`. If unavailable or declined, output `MERGE_STATUS: conflict` and stop.
+- ERROR with `CONFLICT_DATA:` prefix → invoke `/dso:resolve-conflicts`. If unavailable or declined, output `MERGE_STATUS: conflict` and stop.
 - Non-conflict ERROR → output `MERGE_STATUS: error <message>` and stop. Do NOT proceed.
 - Success → output `MERGE_STATUS: ok`
 
@@ -50,7 +50,7 @@ CI_EXIT=$?
 
 ---
 
-### Step 2: Verify with /validate-work
+### Step 2: Verify with /dso:validate-work
 
 Write a scope file to skip domains already verified in Phase 8:
 
@@ -91,7 +91,7 @@ Then run the validation checks directly (do NOT use the Skill tool — it does n
 
 ```bash
 SCOPE_FILE="/tmp/validate-work-scope-${TIMESTAMP}.json"
-"$REPO_ROOT/lockpick-workflow/scripts/validate.sh" --ci --scope-file "$SCOPE_FILE"
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh" --ci --scope-file "$SCOPE_FILE"
 VALIDATE_EXIT=$?
 ```
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/skills/test-end-session-sentinel-write.sh
-# Tests for Step 3.25 sentinel write in lockpick-workflow/skills/end-session/SKILL.md
+# tests/skills/test-end-session-sentinel-write.sh
+# Tests for Step 3.25 sentinel write in skills/end-session/SKILL.md
 #
 # Validates that:
 #   1. Step 3.25 heading exists in the skill file
@@ -10,7 +10,7 @@
 #   4. sentinel cleanup (rm -f .disable-precompact-checkpoint) does NOT appear in Step 3.25
 #      section (cleanup belongs in Step 4.75)
 #
-# Usage: bash lockpick-workflow/tests/skills/test-end-session-sentinel-write.sh
+# Usage: bash tests/skills/test-end-session-sentinel-write.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

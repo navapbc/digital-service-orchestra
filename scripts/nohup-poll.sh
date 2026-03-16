@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/nohup-poll.sh
+# scripts/nohup-poll.sh
 # Check completion status of a background task launched by nohup-launch.sh.
 #
 # Usage:

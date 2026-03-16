@@ -96,7 +96,7 @@ while IFS= read -r line; do
     if (( COUNT >= THRESHOLD )); then
         # Skip phantom hooks — only create bugs for hooks that exist
         HOOK_EXISTS=false
-        for _HOOK_DIR in "$HOME/.claude/hooks" "$(git rev-parse --show-toplevel 2>/dev/null)/lockpick-workflow/hooks"; do
+        for _HOOK_DIR in "$HOME/.claude/hooks" "$(git rev-parse --show-toplevel 2>/dev/null)/hooks"; do
             if [[ -f "$_HOOK_DIR/$HOOK_NAME" ]]; then
                 HOOK_EXISTS=true
                 break

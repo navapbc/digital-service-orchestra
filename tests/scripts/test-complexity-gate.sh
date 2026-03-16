@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-complexity-gate.sh
+# tests/scripts/test-complexity-gate.sh
 # Smoke tests for the shared complexity evaluator and routing logic.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-complexity-gate.sh
+# Usage: bash tests/scripts/test-complexity-gate.sh
 # Returns: exit 0 if all non-PENDING tests pass, exit 1 otherwise
 # No live LLM calls — safe to run with ANTHROPIC_API_KEY unset.
 
@@ -237,11 +237,11 @@ else
 fi
 echo ""
 
-# ── Test case E: /brainstorm SKILL.md Phase 3 Step 4 complexity gate ─────────
-echo "Test case E: /brainstorm SKILL.md Phase 3 Step 4 complexity gate dispatch"
+# ── Test case E: /dso:brainstorm SKILL.md Phase 3 Step 4 complexity gate ─────────
+echo "Test case E: /dso:brainstorm SKILL.md Phase 3 Step 4 complexity gate dispatch"
 # TODO: This test case validates future work (stories fukt/zlop) that adds a
-# complexity gate dispatch to /brainstorm Phase 3 Step 4. Until that work is
-# done, Phase 3 Step 4 invokes /preplanning directly without a complexity gate.
+# complexity gate dispatch to /dso:brainstorm Phase 3 Step 4. Until that work is
+# done, Phase 3 Step 4 invokes /dso:preplanning directly without a complexity gate.
 # When the complexity gate is added, remove this PENDING block and implement:
 #   - grep for "complexity-evaluator" or "complexity gate" in Phase 3 Step 4
 #   - grep for "--lightweight" (TRIVIAL/MODERATE routing branch)
@@ -258,13 +258,13 @@ if grep -q "complexity-evaluator\|complexity gate" "$BRAINSTORM_SKILL" 2>/dev/nu
 fi
 
 if $has_complexity_gate; then
-  echo "  PASS E1: Complexity gate dispatch found in /brainstorm SKILL.md"
+  echo "  PASS E1: Complexity gate dispatch found in /dso:brainstorm SKILL.md"
   echo "  PASS E2: --lightweight routing branch present"
   echo "  PASS E3: Fallback prose present"
   echo "  → Test case E: PASS"
   (( PASS++ ))
 else
-  echo "  PENDING: /brainstorm SKILL.md Phase 3 Step 4 does not yet contain complexity gate"
+  echo "  PENDING: /dso:brainstorm SKILL.md Phase 3 Step 4 does not yet contain complexity gate"
   echo "           dispatch (stories fukt/zlop implement this). Skipping — not a failure."
   echo "  → Test case E: PENDING"
   (( PENDING++ ))

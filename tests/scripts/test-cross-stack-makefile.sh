@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-cross-stack-makefile.sh
+# tests/scripts/test-cross-stack-makefile.sh
 # TDD red-phase tests for Makefile zero-config cross-stack integration fixture.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-cross-stack-makefile.sh
+# Usage: bash tests/scripts/test-cross-stack-makefile.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # NOTE: These tests are expected to FAIL until the Makefile integration fixture
-# at lockpick-workflow/tests/fixtures/makefile-project/ is created with workflow-config.conf.
+# at tests/fixtures/makefile-project/ is created with workflow-config.conf.
 
 set -uo pipefail
 

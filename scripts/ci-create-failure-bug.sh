@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/ci-create-failure-bug.sh
+# scripts/ci-create-failure-bug.sh
 # Creates a tk issue when CI fails, then commits and pushes ticket files.
 #
 # Called by the CI workflow's create-failure-bug job when any job fails.
@@ -159,7 +159,7 @@ ${FAILURE_ENTRY}
 2. Read the CI logs: \`gh run view ${RUN_ID} --log-failed\`
 3. Write a **failing unit test** that reproduces the error locally
 4. Fix the code until the test passes
-5. Run the full local validation: \`./lockpick-workflow/scripts/validate.sh --ci\`
+5. Run the full local validation: \`./scripts/validate.sh --ci\`
 6. Commit the fix with the test
 
 ### 2. Investigate prevention

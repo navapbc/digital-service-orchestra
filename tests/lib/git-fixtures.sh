@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/lib/git-fixtures.sh
+# tests/lib/git-fixtures.sh
 # Shared git repo template for test files.
 #
 # Creates a template git repo once per process, then cp -r's it for each test

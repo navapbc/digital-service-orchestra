@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/check-persistence-coverage.sh
+# scripts/check-persistence-coverage.sh
 #
 # Verifies that changes to persistence-critical source files are accompanied
 # by changes to persistence test files. Exits non-zero if coverage is missing.
@@ -10,12 +10,12 @@ set -euo pipefail
 #   persistence.test_patterns   — extended regex patterns (grep -E)
 #
 # Usage:
-#   lockpick-workflow/scripts/check-persistence-coverage.sh          # diff against main
-#   lockpick-workflow/scripts/check-persistence-coverage.sh --base=develop  # custom base
+#   scripts/check-persistence-coverage.sh          # diff against main
+#   scripts/check-persistence-coverage.sh --base=develop  # custom base
 #
 # Runs in:
 #   - CI: lightweight job after fast-gate (<10s)
-#   - /sprint Phase 6: after lint/test, before commit
+#   - /dso:sprint Phase 6: after lint/test, before commit
 
 set -euo pipefail
 

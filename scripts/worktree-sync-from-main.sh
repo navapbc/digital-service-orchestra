@@ -7,7 +7,7 @@ set -euo pipefail
 # Exit codes: 0=success, 1=error (merge conflict)
 #
 # This script is called by:
-#   - /sprint Phase 4 (pre-batch update from main)
+#   - /dso:sprint Phase 4 (pre-batch update from main)
 #   - merge-to-main.sh (pre-merge sync)
 #   - Any worktree workflow needing to pull latest from main
 #
@@ -23,7 +23,7 @@ fi
 
 # Source config-paths.sh for CFG_PYTHON_VENV
 _SYNC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_sync_config_paths="${CLAUDE_PLUGIN_ROOT:-$_SYNC_SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
+_sync_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 [[ -f "$_sync_config_paths" ]] && source "$_sync_config_paths"
 
 # --- Ensure pre-commit is available in PATH ---

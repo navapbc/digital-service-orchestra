@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-commit-failure-tracker.sh
+# tests/scripts/test-commit-failure-tracker.sh
 #
 # Tests for hook_commit_failure_tracker() in pre-bash-functions.sh.
 #
@@ -10,7 +10,7 @@
 #   3. Stale entry: when .index.json has an entry but the .md file is absent,
 #      the entry is treated as found (index is authoritative; stale = tracked).
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-commit-failure-tracker.sh
+# Usage: bash tests/scripts/test-commit-failure-tracker.sh
 
 set -uo pipefail
 

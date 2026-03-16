@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-plugin-docs.sh
+# tests/hooks/test-plugin-docs.sh
 # Verifies that the 7 reference docs and 2 workflow docs have been copied
-# to the correct locations inside lockpick-workflow/.
+# to the correct locations in the plugin root.
 #
 # Usage:
-#   bash lockpick-workflow/tests/hooks/test-plugin-docs.sh
+#   bash tests/hooks/test-plugin-docs.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -16,7 +16,7 @@ PLUGIN_DOCS="$PLUGIN_ROOT/docs"
 PLUGIN_WORKFLOWS="$PLUGIN_ROOT/docs/workflows"
 
 # test_plugin_reference_docs_exist
-# All 7 reference docs must exist at lockpick-workflow/docs/.
+# All 7 reference docs must exist at docs/.
 reference_docs=(
     "MODEL-TIERS.md"
     "WORKTREE-GUIDE.md"
@@ -37,7 +37,7 @@ for doc in "${reference_docs[@]}"; do
 done
 
 # test_plugin_workflow_docs_exist
-# COMMIT-WORKFLOW.md and REVIEW-WORKFLOW.md must exist at lockpick-workflow/docs/workflows/.
+# COMMIT-WORKFLOW.md and REVIEW-WORKFLOW.md must exist at docs/workflows/.
 workflow_docs=(
     "COMMIT-WORKFLOW.md"
     "REVIEW-WORKFLOW.md"

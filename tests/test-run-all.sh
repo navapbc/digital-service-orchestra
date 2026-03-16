@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test-run-all.sh
-# TDD tests for lockpick-workflow/tests/run-all.sh
+# tests/test-run-all.sh
+# TDD tests for tests/run-all.sh
 #
 # Tests:
 #   1. test_run_all_exits_zero_when_all_suites_pass

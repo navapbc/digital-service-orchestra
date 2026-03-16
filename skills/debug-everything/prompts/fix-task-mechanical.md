@@ -13,12 +13,12 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 
 1. Run `pwd` to confirm working directory
 2. Read the failing code — understand what's wrong before changing anything
-2a. **Research if stuck** — if the fix isn't obvious after reading the code and multiple approaches are plausible, consult `lockpick-workflow/docs/RESEARCH-PATTERN.md` before guessing. Use `WebSearch` inline (≤3 searches, ≤2 fetches) only for external knowledge gaps (library API, framework behavior, third-party error). Skip if the answer is visible in the codebase.
+2a. **Research if stuck** — if the fix isn't obvious after reading the code and multiple approaches are plausible, consult `${CLAUDE_PLUGIN_ROOT}/docs/RESEARCH-PATTERN.md` before guessing. Use `WebSearch` inline (≤3 searches, ≤2 fetches) only for external knowledge gaps (library API, framework behavior, third-party error). Skip if the answer is visible in the codebase.
 3. Implement the minimal fix — change ONLY what is necessary
 4. Run full validation — capture verbose output to disk to keep the orchestrator's context lean:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    RESULT_FILE="$(get_artifacts_dir)/agent-result-{id}.md"
    mkdir -p "$(dirname "$RESULT_FILE")"
    { cd "$REPO_ROOT/app" && make format-check && make lint && make test-unit-only; } > "$RESULT_FILE" 2>&1
@@ -30,7 +30,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 5. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations outside your fix scope, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    DISC_DIR="$(get_artifacts_dir)/agent-discoveries"
    mkdir -p "$DISC_DIR"
    cat > "$DISC_DIR/{id}.json.tmp" << 'DISC_EOF'
@@ -53,7 +53,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    ```
 
 ### Rules
-Read `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
+Read `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
 - Do NOT: `git commit`, `git push`, `tk close`, `tk status`
 - Do NOT skip, disable, or delete any tests
 - Do NOT add `# type: ignore`, `# noqa`, `@pytest.mark.skip`, or any suppression comments

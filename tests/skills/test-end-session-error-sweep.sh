@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/skills/test-end-session-error-sweep.sh
-# Tests for lockpick-workflow/skills/end-session/error-sweep.sh sweep_tool_errors()
+# tests/skills/test-end-session-error-sweep.sh
+# Tests for skills/end-session/error-sweep.sh sweep_tool_errors()
 #
 # Each test:
 #   - Creates an isolated TEST_HOME=$(mktemp -d)
@@ -8,7 +8,7 @@
 #   - Mocks tk via a TEST_BIN directory prepended to PATH
 #   - Cleans up via trap EXIT
 #
-# Usage: bash lockpick-workflow/tests/skills/test-end-session-error-sweep.sh
+# Usage: bash tests/skills/test-end-session-error-sweep.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -576,7 +576,7 @@ _teardown_test
 # This verifies the sweep was relocated from Step 5.75 to Step 2.9.
 # ---------------------------------------------------------------------------
 _snapshot_fail
-SKILL_MD="$REPO_ROOT/lockpick-workflow/skills/end-session/SKILL.md"
+SKILL_MD="${CLAUDE_PLUGIN_ROOT}/skills/end-session/SKILL.md"
 # Step 2.9 must exist
 if grep -q '2\.9\.' "$SKILL_MD" 2>/dev/null; then
     has_step_29="found"
@@ -612,7 +612,7 @@ assert_pass_if_clean "test_skill_sweep_before_commit"
 # error-sweep.sh header comment must reference Step 2.9 (not Step 5.75).
 # ---------------------------------------------------------------------------
 _snapshot_fail
-ERROR_SWEEP_HEADER_FILE="$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
+ERROR_SWEEP_HEADER_FILE="${CLAUDE_PLUGIN_ROOT}/skills/end-session/error-sweep.sh"
 if grep -q '2\.9' "$ERROR_SWEEP_HEADER_FILE" 2>/dev/null; then
     has_step_29_ref="found"
 else

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-validation-gate-states.sh
+# tests/hooks/test-validation-gate-states.sh
 # Validates that hook_validation_gate has been fully removed from pre-bash-functions.sh.
 #
 # This test previously tested hook_validation_gate behavioral states. The function
@@ -7,7 +7,7 @@
 # moved to validate.sh state files). See test-validation-gate-removed.sh for the
 # comprehensive removal checks.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-validation-gate-states.sh
+# Usage: bash tests/hooks/test-validation-gate-states.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

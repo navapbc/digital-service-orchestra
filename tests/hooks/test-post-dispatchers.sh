@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-post-dispatchers.sh
+# tests/hooks/test-post-dispatchers.sh
 # Unit tests for the PostToolUse dispatchers and post-functions library.
 #
 # Tests:
@@ -10,7 +10,7 @@
 #   test_post_bash_calls_tool_logging_post
 #   test_tool_logging_wrapper_passes_mode_arg_correctly
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-post-dispatchers.sh
+# Usage: bash tests/hooks/test-post-dispatchers.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

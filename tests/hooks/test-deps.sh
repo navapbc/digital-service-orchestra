@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-deps.sh
+# tests/hooks/test-deps.sh
 # Unit tests for deps.sh shared dependency library.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-deps.sh
+# Usage: bash tests/hooks/test-deps.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

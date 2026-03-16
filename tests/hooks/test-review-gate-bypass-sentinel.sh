@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-review-gate-bypass-sentinel.sh
+# tests/hooks/test-review-gate-bypass-sentinel.sh
 # Tests for the review-gate bypass sentinel hook function.
 #
 # The bypass sentinel detects commands that attempt to circumvent the review gate

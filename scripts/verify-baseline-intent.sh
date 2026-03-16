@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/verify-baseline-intent.sh
+# scripts/verify-baseline-intent.sh
 #
 # Pre-merge check: verifies that visual baseline changes are intentional
 # by confirming the presence of design manifests on the branch.
@@ -13,7 +13,7 @@ set -euo pipefail
 #   1 = Error (script failure)
 #   2 = Unintended changes (baselines changed without design manifests)
 #
-# Usage: lockpick-workflow/scripts/verify-baseline-intent.sh
+# Usage: scripts/verify-baseline-intent.sh
 
 set -euo pipefail
 

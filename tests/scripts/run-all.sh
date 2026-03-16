@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/run-all.sh
+# tests/scripts/run-all.sh
 # Thin wrapper: delegates to the top-level run-all.sh orchestrator.
 #
 # This wrapper exists so that tests/scripts/test-run-all.sh has a stable
@@ -12,7 +12,7 @@
 #     child processes in the process group to prevent orphaned suite runners)
 #
 # Usage:
-#   bash lockpick-workflow/tests/scripts/run-all.sh [--suite-timeout N] \
+#   bash tests/scripts/run-all.sh [--suite-timeout N] \
 #       [--hooks-runner PATH] [--scripts-runner PATH] [--evals-runner PATH]
 
 set -uo pipefail

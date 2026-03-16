@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-claude-safe-portability.sh
+# tests/scripts/test-claude-safe-portability.sh
 # Portability smoke test: exercises the full claude-safe lifecycle against a
 # minimal fixture project, verifying no hardcoded project assumptions leak through.
 #
 # TDD RED state: test_plugin_script_exists will FAIL because
-# lockpick-workflow/scripts/claude-safe does not yet exist. The test suite
+# scripts/claude-safe does not yet exist. The test suite
 # becomes fully GREEN only after the migration (blockers 23lp, 0aas, muq8)
 # is complete.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-claude-safe-portability.sh
+# Usage: bash tests/scripts/test-claude-safe-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -66,7 +66,7 @@ chmod +x "$TMPDIR_MAIN/scripts/worktree-create.sh"
 
 # Stub: fake plugin scripts dir — claude-safe checks CLAUDE_PLUGIN_SCRIPTS/worktree-create.sh
 # first (before $REPO_ROOT/scripts/). Point CLAUDE_PLUGIN_SCRIPTS to a fake dir that
-# contains the sentinel-writing stub so the real lockpick-workflow/scripts/worktree-create.sh
+# contains the sentinel-writing stub so the real scripts/worktree-create.sh
 # is not used during the portability test.
 FAKE_PLUGIN_SCRIPTS="$TMPDIR_MAIN/fake-plugin-scripts"
 mkdir -p "$FAKE_PLUGIN_SCRIPTS"
@@ -106,7 +106,7 @@ _run_claude_safe() {
 }
 
 # ── test_plugin_script_exists ─────────────────────────────────────────────────
-# RED: lockpick-workflow/scripts/claude-safe does not yet exist.
+# RED: scripts/claude-safe does not yet exist.
 # This test will FAIL until the migration is complete.
 echo ""
 echo "--- test_plugin_script_exists ---"

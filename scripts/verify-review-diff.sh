@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/verify-review-diff.sh
+# scripts/verify-review-diff.sh
 # Validate that a review diff file matches the current working tree state.
 # Used by the code-review sub-agent before reading the diff.
 #
@@ -43,7 +43,7 @@ fi
 
 # Compute current working tree hash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-current_hash=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh")
+current_hash=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
 current_hash_short="${current_hash:0:8}"
 
 # Compare

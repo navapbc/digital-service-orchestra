@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-ci-status-timeout.sh
+# tests/scripts/test-ci-status-timeout.sh
 # Tests verifying that VALIDATE_TIMEOUT_CI default in validate.sh is 60s
 # (not 30s), preventing spurious timeout errors on slow GitHub API calls.
 #
@@ -8,7 +8,7 @@
 #   under rate limiting or slow network. Previous default of 30s was too
 #   tight; 60s provides sufficient headroom.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-ci-status-timeout.sh
+# Usage: bash tests/scripts/test-ci-status-timeout.sh
 
 set -uo pipefail
 

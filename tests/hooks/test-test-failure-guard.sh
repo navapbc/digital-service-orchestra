@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-test-failure-guard.sh
+# tests/hooks/test-test-failure-guard.sh
 # Tests for hook_test_failure_guard — blocks commits when test status files
 # contain "FAILED" on their first line.
 

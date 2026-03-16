@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-flat-config-e2e.sh
+# tests/scripts/test-flat-config-e2e.sh
 # End-to-end integration tests for the flat config migration.
 #
 # Validates:
@@ -8,7 +8,7 @@
 #   3. read-config.sh works without Python available (pure bash for .conf)
 #   4. Skill config resolution pattern works with .conf file
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-flat-config-e2e.sh
+# Usage: bash tests/scripts/test-flat-config-e2e.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -18,13 +18,49 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
 VALIDATE_CONFIG="$PLUGIN_ROOT/scripts/validate-config.sh"
-REAL_CONF="$REPO_ROOT/workflow-config.conf"
+
+# Create an inline fixture config instead of depending on project config.
+# Must have at least 23 unique keys and pass validate-config.sh.
+REAL_CONF="$(mktemp)"
+cat > "$REAL_CONF" <<'FIXTURE'
+version=1.0.0
+stack=python-poetry
+format.extensions=.py
+format.source_dirs=app/src
+format.source_dirs=app/tests
+commands.test=make test
+commands.lint=make lint
+commands.format=make format
+commands.format_check=make format-check
+commands.validate=./scripts/validate.sh --ci
+commands.test_unit=make test-unit-only
+commands.test_e2e=make test-e2e
+commands.test_visual=make test-visual
+database.ensure_cmd=make db-start && make db-status
+database.status_cmd=make db-status
+database.port_cmd=echo 5432
+database.base_port=5432
+infrastructure.container_prefix=myapp-db-worktree-
+infrastructure.compose_project=myapp-db-
+session.usage_check_cmd=$HOME/.claude/check-session-usage.sh
+jira.project=DTL
+issue_tracker.search_cmd=grep -rl
+issue_tracker.create_cmd=tk create
+design.system_name=USWDS 3.x
+design.component_library=uswds
+design.template_engine=jinja2
+design.design_notes_path=DESIGN_NOTES.md
+tickets.prefix=my-project
+tickets.directory=.tickets
+tickets.sync.jira_project_key=DTL
+tickets.sync.bidirectional_comments=true
+FIXTURE
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
-_cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
+_cleanup() { rm -f "$REAL_CONF"; for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
 echo "=== test-flat-config-e2e.sh ==="
@@ -126,10 +162,15 @@ _snapshot_fail
 
 plugin_scripts="$PLUGIN_ROOT/scripts"
 
+# Create a temp directory with our fixture config so CLAUDE_PLUGIN_ROOT resolution works
+_skill_tmpdir="$(mktemp -d)"
+_CLEANUP_DIRS+=("$_skill_tmpdir")
+cp "$REAL_CONF" "$_skill_tmpdir/workflow-config.conf"
+
 # Test the pattern that skills use: PLUGIN_SCRIPTS + read-config.sh + key
 value=$(
     PLUGIN_SCRIPTS="$plugin_scripts" \
-    CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
+    CLAUDE_PLUGIN_ROOT="$_skill_tmpdir" \
     bash "$plugin_scripts/read-config.sh" commands.test
 )
 rc=$?
@@ -140,7 +181,7 @@ assert_eq "test_skill_config_resolution value" "make test" "$value"
 # Also test a nested key to verify dot-notation works end-to-end
 value2=$(
     PLUGIN_SCRIPTS="$plugin_scripts" \
-    CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
+    CLAUDE_PLUGIN_ROOT="$_skill_tmpdir" \
     bash "$plugin_scripts/read-config.sh" tickets.sync.jira_project_key
 )
 rc2=$?

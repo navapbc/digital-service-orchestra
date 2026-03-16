@@ -97,15 +97,15 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source config-paths.sh for CFG_PYTHON_VENV
-_wt_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
+_wt_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 [[ -f "$_wt_config_paths" ]] && source "$_wt_config_paths"
 
 # Source deps.sh for retry_with_backoff
-_wt_deps="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/deps.sh"
+_wt_deps="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 [[ -f "$_wt_deps" ]] && source "$_wt_deps"
 
-if [ -x "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" ]; then
-    READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+if [ -x "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" ]; then
+    READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
 else
     READ_CONFIG="$SCRIPT_DIR/read-config.sh"
 fi
@@ -131,7 +131,7 @@ WORKTREE_COUNT=$(git worktree list 2>/dev/null | grep -c "worktree-" || true)
 if [ "$WORKTREE_COUNT" -ge 10 ]; then
     echo "You have $WORKTREE_COUNT worktrees. Running automatic cleanup..." >&2
     echo "" >&2
-    CLEANUP_SCRIPT="$REPO_ROOT/scripts/worktree-cleanup.sh"
+    CLEANUP_SCRIPT="${CLAUDE_PLUGIN_ROOT}/scripts/worktree-cleanup.sh"
     if [ -x "$CLEANUP_SCRIPT" ]; then
         "$CLEANUP_SCRIPT" --all --force --include-branches >&2 || true
     else

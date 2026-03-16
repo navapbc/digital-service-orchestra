@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-hooks-json-paths.sh
+# tests/hooks/test-hooks-json-paths.sh
 # Verifies hooks.json exists, is valid JSON, uses ${CLAUDE_PLUGIN_ROOT} paths,
 # and that run-hook.sh copy contains the CLAUDE_PLUGIN_ROOT fallback guard.
 #
 # Usage:
-#   bash lockpick-workflow/tests/hooks/test-hooks-json-paths.sh
+#   bash tests/hooks/test-hooks-json-paths.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -15,7 +15,7 @@ HOOKS_JSON="$PLUGIN_ROOT/hooks.json"
 
 # ─────────────────────────────────────────────────────────────
 # test_hooks_json_exists
-# lockpick-workflow/hooks.json must exist.
+# hooks.json must exist.
 # ─────────────────────────────────────────────────────────────
 if [[ -f "$HOOKS_JSON" ]]; then
     actual="exists"
@@ -113,7 +113,7 @@ assert_eq "test_hooks_json_no_absolute_paths" "no_absolute_paths" "$actual"
 
 # ─────────────────────────────────────────────────────────────
 # test_run_hook_fallback_guard
-# lockpick-workflow/hooks/run-hook.sh must contain CLAUDE_PLUGIN_ROOT fallback logic.
+# hooks/run-hook.sh must contain CLAUDE_PLUGIN_ROOT fallback logic.
 # ─────────────────────────────────────────────────────────────
 RUN_HOOK_COPY="$PLUGIN_ROOT/hooks/run-hook.sh"
 if [[ -f "$RUN_HOOK_COPY" ]] && grep -q "CLAUDE_PLUGIN_ROOT" "$RUN_HOOK_COPY"; then

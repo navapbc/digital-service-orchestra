@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-bulk-delete-stale-tickets.sh
+# tests/scripts/test-bulk-delete-stale-tickets.sh
 # Tests for scripts/bulk-delete-stale-tickets.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-bulk-delete-stale-tickets.sh
+# Usage: bash tests/scripts/test-bulk-delete-stale-tickets.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

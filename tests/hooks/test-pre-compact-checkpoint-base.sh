@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-pre-compact-checkpoint-base.sh
+# tests/hooks/test-pre-compact-checkpoint-base.sh
 # Tests that pre-compact-checkpoint.sh writes HEAD SHA to
 # $ARTIFACTS_DIR/pre-checkpoint-base before creating the checkpoint commit.
 
@@ -78,7 +78,7 @@ HOOK_OUTPUT=$(
     # Source deps.sh then override get_artifacts_dir, then source the hook
     bash -c '
         # Override get_artifacts_dir before the hook runs
-        source "'"$REPO_ROOT"'/lockpick-workflow/hooks/lib/deps.sh"
+        source "'"$REPO_ROOT"'/hooks/lib/deps.sh"
         get_artifacts_dir() { echo "$_TEST_ARTIFACTS_DIR"; }
         export -f get_artifacts_dir
         # Run the hook (it will source deps.sh but our function override persists

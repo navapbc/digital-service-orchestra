@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test-verify-baseline-intent-portability.sh
+# tests/test-verify-baseline-intent-portability.sh
 # Portability smoke test for verify-baseline-intent.sh.
 #
 # Verifies that verify-baseline-intent.sh is a no-op (exit 0, no stderr) when:
@@ -10,7 +10,7 @@
 # have no visual testing setup.
 #
 # Manual run:
-#   bash lockpick-workflow/tests/test-verify-baseline-intent-portability.sh
+#   bash tests/test-verify-baseline-intent-portability.sh
 #
 # Tests covered:
 #   a. no visual config (no visual section in workflow-config.conf) → exit 0, no stderr
@@ -45,12 +45,12 @@ fi
 # Temp dir structure:
 #   $TMPDIR/                             ← REPO_ROOT (fake git repo)
 #   $TMPDIR/workflow-config.conf         ← stub config (populated per scenario)
-#   $TMPDIR/lockpick-workflow/scripts/
+#   $TMPDIR/scripts/
 #       verify-baseline-intent.sh        ← symlink to canonical script
 #       read-config.sh                   ← symlink to real read-config.sh
 #
 # We symlink the canonical scripts into the fake repo so that SCRIPT_DIR
-# inside verify-baseline-intent.sh resolves to $TMPDIR/lockpick-workflow/scripts/
+# inside verify-baseline-intent.sh resolves to $TMPDIR/scripts/
 # and sibling script calls (read-config.sh) resolve correctly.
 # ---------------------------------------------------------------------------
 
@@ -58,11 +58,11 @@ TMPDIR_BASE=$(mktemp -d)
 trap "rm -rf '$TMPDIR_BASE'" EXIT
 
 TMPDIR="$TMPDIR_BASE/repo"
-mkdir -p "$TMPDIR/lockpick-workflow/scripts"
+mkdir -p "$TMPDIR/scripts"
 
 # Symlink canonical scripts into the fake repo
-ln -s "$CANONICAL_SCRIPT" "$TMPDIR/lockpick-workflow/scripts/verify-baseline-intent.sh"
-ln -s "$READ_CONFIG_SH" "$TMPDIR/lockpick-workflow/scripts/read-config.sh"
+ln -s "$CANONICAL_SCRIPT" "$TMPDIR/scripts/verify-baseline-intent.sh"
+ln -s "$READ_CONFIG_SH" "$TMPDIR/scripts/read-config.sh"
 
 # Provide a YAML interpreter for read-config.sh:
 # read-config.sh probes $REPO_ROOT/app/.venv/bin/python3 first.

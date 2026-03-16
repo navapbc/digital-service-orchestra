@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-worktree-cleanup.sh
-# Baseline tests for lockpick-workflow/scripts/worktree-cleanup.sh (canonical)
+# tests/scripts/test-worktree-cleanup.sh
+# Baseline tests for scripts/worktree-cleanup.sh (canonical)
 # and scripts/worktree-cleanup.sh (exec wrapper).
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-worktree-cleanup.sh
+# Usage: bash tests/scripts/test-worktree-cleanup.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -11,7 +11,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-# Canonical location is lockpick-workflow/scripts/; scripts/ is a thin exec wrapper.
+# Canonical location is scripts/; scripts/ is a thin exec wrapper.
 SCRIPT="$PLUGIN_ROOT/scripts/worktree-cleanup.sh"
 WRAPPER="$REPO_ROOT/scripts/worktree-cleanup.sh"
 
@@ -307,15 +307,15 @@ fi
 
 # ── Test 18: Exec wrapper delegation — scripts/worktree-cleanup.sh delegates ──
 # Verifies that the thin exec wrapper at scripts/worktree-cleanup.sh
-# delegates to the canonical copy in lockpick-workflow/scripts/.
+# delegates to the canonical copy in scripts/.
 echo "Test 18: Exec wrapper delegates to canonical plugin copy"
 if [[ -f "$WRAPPER" ]]; then
     # Verify the wrapper contains an exec call pointing to the plugin path
-    if grep -q 'exec' "$WRAPPER" && grep -q 'lockpick-workflow/scripts/worktree-cleanup.sh' "$WRAPPER"; then
-        echo "  PASS: scripts/worktree-cleanup.sh exec-delegates to lockpick-workflow/scripts/worktree-cleanup.sh"
+    if grep -q 'exec' "$WRAPPER" && grep -q 'scripts/worktree-cleanup.sh' "$WRAPPER"; then
+        echo "  PASS: scripts/worktree-cleanup.sh exec-delegates to scripts/worktree-cleanup.sh"
         (( PASS++ ))
     else
-        echo "  FAIL: scripts/worktree-cleanup.sh does not exec-delegate to lockpick-workflow/scripts/worktree-cleanup.sh" >&2
+        echo "  FAIL: scripts/worktree-cleanup.sh does not exec-delegate to scripts/worktree-cleanup.sh" >&2
         (( FAIL++ ))
     fi
 else

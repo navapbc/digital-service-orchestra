@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-retry-with-backoff.sh
-# Tests for retry_with_backoff() in lockpick-workflow/hooks/lib/deps.sh
+# tests/scripts/test-retry-with-backoff.sh
+# Tests for retry_with_backoff() in hooks/lib/deps.sh
 #
 # Tests:
 #   1. test_function_exists_in_deps_sh           — retry_with_backoff is defined in deps.sh
@@ -12,7 +12,7 @@
 #   7. test_worktree_create_uses_retry           — worktree-create.sh wraps git worktree add with retry_with_backoff
 #   8. test_attempt_count                        — retries exactly max_retries times before giving up
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-retry-with-backoff.sh
+# Usage: bash tests/scripts/test-retry-with-backoff.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-skill-path-refs.sh
+# tests/scripts/test-skill-path-refs.sh
 # Regression guard: ensures plugin skill files do not reference .claude/docs/
 # files that actually exist within the plugin itself. Such references should
-# use plugin-relative paths (e.g., lockpick-workflow/docs/...) instead.
+# use plugin-relative paths (e.g., docs/...) instead.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-skill-path-refs.sh
+# Usage: bash tests/scripts/test-skill-path-refs.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -16,7 +16,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
 echo "=== test-skill-path-refs (plugin skill .claude/docs/ references) ==="
 
-PLUGIN_DIR="$REPO_ROOT/lockpick-workflow"
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
 SKILLS_DIR="$PLUGIN_DIR/skills"
 
 # ── Test 1: Skills directory exists ──────────────────────────────────────────
@@ -36,7 +36,7 @@ fi
 # For each .claude/docs/<filename> reference found in plugin skill files:
 #   - If the file exists at .claude/docs/<filename> in the host project, it's OK
 #     (host-project-specific reference)
-#   - If the file exists at lockpick-workflow/docs/<filename> in the plugin,
+#   - If the file exists at docs/<filename> in the plugin,
 #     the reference is WRONG — it should use a plugin-relative path
 echo "Test 2: .claude/docs/ references do not point to plugin-internal files"
 bad_refs=()
@@ -59,7 +59,7 @@ while IFS= read -r match; do
     if [[ -f "$PLUGIN_DIR/docs/$basename_ref" ]]; then
         # File exists in plugin — this reference should use plugin-relative path
         rel_file="${file#"$REPO_ROOT"/}"
-        bad_refs+=("$rel_file:$linenum references $ref_file but file exists at lockpick-workflow/docs/$basename_ref")
+        bad_refs+=("$rel_file:$linenum references $ref_file but file exists at docs/$basename_ref")
     fi
 done < <(grep -rn '\.claude/docs/' "$SKILLS_DIR" --include='*.md' 2>/dev/null || true)
 
@@ -80,7 +80,7 @@ REVIEW_SKILL="$SKILLS_DIR/review-protocol/SKILL.md"
 if [[ ! -f "$REVIEW_SKILL" ]]; then
     echo "  FAIL: review-protocol/SKILL.md not found" >&2
     (( FAIL++ ))
-elif grep -qE 'lockpick-workflow/docs/REVIEW-SCHEMA|CLAUDE_PLUGIN_ROOT.*REVIEW-SCHEMA' "$REVIEW_SKILL"; then
+elif grep -qE 'docs/REVIEW-SCHEMA|CLAUDE_PLUGIN_ROOT.*REVIEW-SCHEMA' "$REVIEW_SKILL"; then
     echo "  PASS: REVIEW-SCHEMA.md referenced via plugin-relative path"
     (( PASS++ ))
 else

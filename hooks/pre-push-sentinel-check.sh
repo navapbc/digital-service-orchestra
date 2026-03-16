@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/pre-push-sentinel-check.sh
+# hooks/pre-push-sentinel-check.sh
 # Pre-push hook: blocks git push if .checkpoint-needs-review is tracked in HEAD.
 #
 # .checkpoint-needs-review is written during pre-compaction auto-saves to signal

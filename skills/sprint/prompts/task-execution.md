@@ -26,7 +26,7 @@ Ticket ID: {id}
 8a. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    DISC_DIR="$(get_artifacts_dir)/agent-discoveries"
    mkdir -p "$DISC_DIR"
    cat > "$DISC_DIR/{id}.json.tmp" << 'DISC_EOF'
@@ -47,7 +47,7 @@ Ticket ID: {id}
    DISCOVERIES_WRITTEN: yes|no|error
 
 ### Rules
-Read and follow `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format). Key points:
+Read and follow `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format). Key points:
 - DO write checkpoint notes after each substep: `tk add-note {id} "CHECKPOINT N/6: ..."`
 - Do NOT: git commit, git push, tk close, tk status, tk dep, slash-commands, nested Task calls
 - You MAY run: tk create --parent=<parent-id> (for discovered work only)

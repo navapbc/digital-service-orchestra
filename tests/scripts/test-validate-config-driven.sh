@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-validate-config-driven.sh
+# tests/scripts/test-validate-config-driven.sh
 # TDD tests verifying that validate.sh reads commands from config
 # instead of hardcoding make calls.
 #
@@ -10,7 +10,7 @@
 #   test_new_config_keys_exist — commands.syntax_check etc. exist in workflow-config.conf
 #   test_app_dir_uses_config — APP_DIR resolution uses config, not hardcoded app check
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-validate-config-driven.sh
+# Usage: bash tests/scripts/test-validate-config-driven.sh
 
 set -uo pipefail
 
@@ -21,7 +21,16 @@ REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 VALIDATE_SH="$PLUGIN_ROOT/scripts/validate.sh"
-CONFIG_FILE="$REPO_ROOT/workflow-config.conf"
+
+# Create an inline fixture config instead of depending on project config
+CONFIG_FILE="$(mktemp)"
+trap 'rm -f "$CONFIG_FILE"' EXIT
+cat > "$CONFIG_FILE" <<'FIXTURE'
+commands.syntax_check=make syntax-check
+commands.lint_ruff=make lint-ruff
+commands.lint_mypy=make lint-mypy
+commands.test_plugin=make test-plugin
+FIXTURE
 
 echo "=== test-validate-config-driven.sh ==="
 

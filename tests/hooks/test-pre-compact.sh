@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-pre-compact.sh
+# tests/hooks/test-pre-compact.sh
 # Tests for .claude/hooks/pre-compact-checkpoint.sh
 #
 # pre-compact-checkpoint.sh is a PreCompact hook that auto-saves work state

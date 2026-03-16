@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# sprint-list-epics.sh — List unblocked epics for /sprint Phase 1.
+# sprint-list-epics.sh — List unblocked epics for /dso:sprint Phase 1.
 #
 # Reads .tickets/.index.json in a single Python pass instead of per-file scanning.
 # Blocked/ready classification uses the deps field from the extended index schema.

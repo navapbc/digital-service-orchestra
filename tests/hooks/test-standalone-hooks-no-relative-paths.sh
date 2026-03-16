@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-standalone-hooks-no-relative-paths.sh
+# tests/hooks/test-standalone-hooks-no-relative-paths.sh
 # Regression guard: ensures standalone hook scripts use CLAUDE_PLUGIN_ROOT
 # instead of ../ relative path references.
 #
 # Each file is allowed at most 1 ../ reference — the CLAUDE_PLUGIN_ROOT
 # fallback line itself (e.g., cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd).
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-standalone-hooks-no-relative-paths.sh
+# Usage: bash tests/hooks/test-standalone-hooks-no-relative-paths.sh
 
 set -uo pipefail
 

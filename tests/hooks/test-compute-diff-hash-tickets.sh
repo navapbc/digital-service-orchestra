@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-compute-diff-hash-tickets.sh
+# tests/hooks/test-compute-diff-hash-tickets.sh
 # Tests that .tickets/ and .sync-state.json files are EXCLUDED from compute-diff-hash.sh.
 #
 # Ticket metadata changes (checkpoint notes, status updates) must not invalidate

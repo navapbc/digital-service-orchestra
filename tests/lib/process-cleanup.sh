@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/lib/process-cleanup.sh
+# tests/lib/process-cleanup.sh
 # Session-safe process cleanup for the plugin test suite.
 #
 # Uses PID files keyed by session ID (worktree name or "main") so that

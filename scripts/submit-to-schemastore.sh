@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/submit-to-schemastore.sh
+# scripts/submit-to-schemastore.sh
 # Prepares the schemastore.org contribution for workflow-config-schema.json.
 #
 # This is a dry-run preparation helper. It does NOT make any HTTP requests
@@ -11,7 +11,7 @@ set -uo pipefail
 #
 # Arguments:
 #   [schema-file]  optional path to workflow-config-schema.json
-#                  Defaults to the schema in lockpick-workflow/docs/ relative
+#                  Defaults to the schema in docs/ relative
 #                  to this script.
 #
 # Exit codes:
@@ -57,14 +57,14 @@ fi
 if echo "$SCHEMA_ID" | grep -qi "localhost"; then
     echo "ERROR: schema \$id points to localhost — must use a public GitHub URL" >&2
     echo "  Current \$id: $SCHEMA_ID" >&2
-    echo "  Expected:     https://raw.githubusercontent.com/lockpick/lockpick-workflow/main/docs/workflow-config-schema.json" >&2
+    echo "  Expected:     https://raw.githubusercontent.com/navapbc/digital-service-orchestra/main/docs/workflow-config-schema.json" >&2
     exit 1
 fi
 
 if ! echo "$SCHEMA_ID" | grep -q "github"; then
     echo "ERROR: schema \$id does not reference a GitHub URL" >&2
     echo "  Current \$id: $SCHEMA_ID" >&2
-    echo "  Expected:     https://raw.githubusercontent.com/lockpick/lockpick-workflow/main/docs/workflow-config-schema.json" >&2
+    echo "  Expected:     https://raw.githubusercontent.com/navapbc/digital-service-orchestra/main/docs/workflow-config-schema.json" >&2
     exit 1
 fi
 
@@ -75,7 +75,7 @@ if ! echo "$SCHEMA_META" | grep -q "draft-07"; then
 fi
 
 # --- Print the catalog.json entry ---
-SCHEMA_RAW_URL="https://raw.githubusercontent.com/lockpick/lockpick-workflow/main/docs/workflow-config-schema.json"
+SCHEMA_RAW_URL="https://raw.githubusercontent.com/navapbc/digital-service-orchestra/main/docs/workflow-config-schema.json"
 
 echo "Schema is valid and ready for schemastore.org submission."
 echo ""
@@ -83,7 +83,7 @@ echo "Add the following entry to src/api/json/catalog.json in the SchemaStore PR
 echo ""
 echo '{'
 echo '  "name": "workflow-config",'
-echo '  "description": "Schema for workflow-config.conf — lockpick-workflow plugin configuration",'
+echo '  "description": "Schema for workflow-config.conf — Digital Service Orchestra plugin configuration",'
 echo '  "fileMatch": ["workflow-config.conf"],'
 echo "  \"url\": \"$SCHEMA_RAW_URL\""
 echo '}'

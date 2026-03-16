@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-merge-to-main-portability.sh
+# tests/hooks/test-merge-to-main-portability.sh
 # Portability smoke test: merge-to-main.sh with a minimal workflow-config.conf
 # that has no merge: section (no visual_baseline_path, no ci_workflow_name).
 #
@@ -9,7 +9,7 @@
 # Also verifies that a custom tickets.directory (e.g. .issues) is respected
 # for the dirty-files exclusion check.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-merge-to-main-portability.sh
+# Usage: bash tests/hooks/test-merge-to-main-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

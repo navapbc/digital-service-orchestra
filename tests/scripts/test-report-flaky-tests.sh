@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-report-flaky-tests.sh
-# Tests for lockpick-workflow/scripts/report-flaky-tests.sh — multi-framework JUnit XML flaky detection.
+# tests/scripts/test-report-flaky-tests.sh
+# Tests for scripts/report-flaky-tests.sh — multi-framework JUnit XML flaky detection.
 #
 # Covers all 4 flaky detection patterns:
 #   1. <rerun> element (existing pattern)
@@ -10,7 +10,7 @@
 #
 # Plus negative case (clean.xml) and exit-0 contracts.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-report-flaky-tests.sh
+# Usage: bash tests/scripts/test-report-flaky-tests.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

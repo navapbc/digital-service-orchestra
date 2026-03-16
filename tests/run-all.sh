@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/run-all.sh
+# tests/run-all.sh
 # Top-level regression runner: orchestrates all plugin test suites.
 #
 # Runs (hooks and scripts concurrently, evals after both complete):
-#   1. lockpick-workflow/tests/hooks/run-hook-tests.sh  \  concurrent
-#   2. lockpick-workflow/tests/scripts/run-script-tests.sh  /
-#   3. lockpick-workflow/tests/evals/run-evals.sh
+#   1. tests/hooks/run-hook-tests.sh  \  concurrent
+#   2. tests/scripts/run-script-tests.sh  /
+#   3. tests/evals/run-evals.sh
 #
 # Produces a combined PASS/FAIL summary across all suites.
 # Exits 0 only if ALL suites exit 0; exits 1 otherwise.
@@ -13,17 +13,17 @@
 # Process cleanup: uses session-safe PID files so that killing a stale
 # run-all.sh doesn't affect other worktrees running concurrently.
 #
-# Note: test-estimate-context-load.sh (pre-existing in lockpick-workflow/tests/)
+# Note: test-estimate-context-load.sh (pre-existing in tests/)
 # uses its own pass/fail helpers, not assert.sh. It is excluded from this
 # orchestrator because it is a standalone test that predates the suite structure
 # and its output format is incompatible with the suite runner aggregation.
-# Run it separately: bash lockpick-workflow/tests/test-estimate-context-load.sh
+# Run it separately: bash tests/test-estimate-context-load.sh
 #
 # Usage:
-#   bash lockpick-workflow/tests/run-all.sh
+#   bash tests/run-all.sh
 #
 # Override individual suite runners (used by tests):
-#   bash lockpick-workflow/tests/run-all.sh \
+#   bash tests/run-all.sh \
 #     --hooks-runner /path/to/mock-hooks.sh \
 #     --scripts-runner /path/to/mock-scripts.sh \
 #     --evals-runner /path/to/mock-evals.sh
@@ -32,6 +32,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
+
+# Ensure CLAUDE_PLUGIN_ROOT is set for all tests
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT}"
 
 # --- Session-safe process cleanup (Fix 3) ---
 # Source the cleanup library and clear stale processes from prior runs
@@ -94,7 +97,7 @@ fi
 
 # --- Default suite runner paths ---
 # Use SCRIPT_DIR-relative paths so this script works both when embedded in a
-# parent repo (lockpick-workflow/tests/) and when the plugin is the repo root.
+# parent repo (tests/) and when the plugin is the repo root.
 HOOKS_RUNNER="$SCRIPT_DIR/hooks/run-hook-tests.sh"
 SCRIPTS_RUNNER="$SCRIPT_DIR/scripts/run-script-tests.sh"
 EVALS_RUNNER="$SCRIPT_DIR/evals/run-evals.sh"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/validate-config.sh
+# scripts/validate-config.sh
 # Validates a workflow-config.conf file against KNOWN_KEYS.
 #
 # Usage: validate-config.sh [config-file]
@@ -119,6 +119,7 @@ KNOWN_KEYS=(
 
     # Checks
     checks.script_write_scan_dir
+    checks.assertion_density_cmd
 
     # Checkpoint
     checkpoint.marker_file
@@ -144,7 +145,7 @@ KNOWN_LIST_KEYS=(
 # ── Resolve config file ─────────────────────────────────────────────────────
 config_file="${1:-}"
 if [[ -z "$config_file" ]]; then
-    root="${CLAUDE_PLUGIN_ROOT:-$(pwd)}"
+    root="${CLAUDE_PLUGIN_ROOT}"
     if [[ -f "$root/workflow-config.conf" ]]; then
         config_file="$root/workflow-config.conf"
     else

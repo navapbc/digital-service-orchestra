@@ -16,9 +16,9 @@ Comprehensive project health verification using parallel sub-agents. Detects iss
 
 ## When NOT to Use
 
-- To fix issues (use `/debug-everything` instead)
-- For initial project setup (use `/dev-onboarding`)
-- For ongoing task execution (use `/sprint`)
+- To fix issues (use `/dso:debug-everything` instead)
+- For initial project setup (use `/dso:dev-onboarding`)
+- For ongoing task execution (use `/dso:sprint`)
 
 ## Verification Architecture
 
@@ -36,7 +36,7 @@ Batch 2 (gated):                              Staging Test
 
 ## Execution
 
-### Step 0: Read Config (/validate-work)
+### Step 0: Read Config (/dso:validate-work)
 
 Before launching sub-agents, read all project-specific values from `workflow-config.yaml` via `read-config.sh`.
 
@@ -73,10 +73,10 @@ VISUAL_BASELINE_PATH=$("$READ_CONFIG" visual.baseline_directory "$CONFIG_FILE" 2
 
 If `STAGING_URL` is empty or absent, set `stagingConfigured = false`. All staging sub-agents (Sub-Agent 4 and Sub-Agent 5) will be SKIPPED with the message: "SKIPPED (staging not configured)".
 
-### Step 0b: Check for Domain Scope File (/validate-work)
+### Step 0b: Check for Domain Scope File (/dso:validate-work)
 
 Before launching sub-agents, check for a scope file that limits which domains
-to verify. This is written by callers (e.g., `/debug-everything`) that have
+to verify. This is written by callers (e.g., `/dso:debug-everything`) that have
 already verified some domains.
 
 1. Look for `/tmp/validate-work-scope-*.json` files. If multiple exist, use the
@@ -94,7 +94,7 @@ already verified some domains.
 3. **If no scope file exists or all files are stale**: run all 5 sub-agents as
    normal. Set `scopedDomains = all`. This is the backward-compatible path.
 
-### Step 0c: Check Staging Relevance (/validate-work)
+### Step 0c: Check Staging Relevance (/dso:validate-work)
 
 Skip this step entirely if `stagingConfigured = false` (staging URL absent).
 
@@ -126,7 +126,7 @@ metadata) do not need staging verification.
 4. Set `stagingRelevant = true/false` based on the result. Pass this flag to
    Step 1 and Step 3 to control sub-agent dispatch.
 
-### Step 1: Launch Batch 1 (4 parallel sub-agents) (/validate-work)
+### Step 1: Launch Batch 1 (4 parallel sub-agents) (/dso:validate-work)
 
 **Note**: If `scopedDomains` was set in Step 0b, only launch sub-agents for
 domains in the scoped list. Skip the others and record them as
@@ -194,7 +194,7 @@ Read prompt from: `$PLUGIN_ROOT/skills/validate-work/prompts/staging-deployment-
 
 When `STAGING_DEPLOY_CHECK` is absent, Sub-Agent 4 uses Mode D (generic HTTP health check) as described in the prompt.
 
-### Step 2: Collect Results and Gate (/validate-work)
+### Step 2: Collect Results and Gate (/dso:validate-work)
 
 After all Batch 1 sub-agents complete:
 
@@ -203,7 +203,7 @@ After all Batch 1 sub-agents complete:
 - **If Sub-Agent 4 was SKIPPED** (staging not configured or non-deployment changes) → skip Sub-Agent 5 as well; mark both as SKIPPED with the same reason
 - **If Sub-Agent 4 reports**: health endpoint UNREACHABLE → skip staging test, mark as SKIPPED with reason: "Staging site unreachable. Check environment health manually."
 
-### Step 2b: Visual Regression Pre-Check (/validate-work)
+### Step 2b: Visual Regression Pre-Check (/dso:validate-work)
 
 Before launching the browser-based staging test, check the visual regression
 baseline state. Skip this step if `TEST_VISUAL_CMD` is absent.
@@ -212,7 +212,7 @@ Visual tests only run on CI (Linux) — they always skip on macOS
 because font rendering differs ~11%, causing false pixel-diff failures.
 
 ```bash
-bash "$(git rev-parse --show-toplevel)/lockpick-workflow/scripts/check-visual-baseline.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-visual-baseline.sh"
 ```
 
 **If on macOS** (the common local case): Report `VISUAL_REGRESSION=skipped_macos`.
@@ -229,9 +229,9 @@ running the visual baseline workflow to generate them.
 
 > **Note**: The staging-environment-test.md prompt uses a tiered approach
 > (deterministic pre-checks, `browser_run_code` batching, API-driven checks where
-> possible). See `/playwright-debug` for the 3-tier process it follows.
+> possible). See `/dso:playwright-debug` for the 3-tier process it follows.
 
-### Step 3: Launch Batch 2 (1 sub-agent, gated) (/validate-work)
+### Step 3: Launch Batch 2 (1 sub-agent, gated) (/dso:validate-work)
 
 **Pre-check**: If `stagingConfigured = false` or `stagingRelevant = false` (from
 Step 0 or 0c), skip this entire step. Mark Sub-Agent 5 as
@@ -266,9 +266,9 @@ VISUAL_REGRESSION={pass|fail|skipped_macos|no_baselines|skipped}
 {if skipped: "Visual regression test command not configured — skipped."}
 ```
 
-**Append change scope context** to the sub-agent prompt when called from `/sprint` (or any caller that provides a `CHANGED_FILES` list):
+**Append change scope context** to the sub-agent prompt when called from `/dso:sprint` (or any caller that provides a `CHANGED_FILES` list):
 
-Check if the current invocation context contains a `### Sprint Change Scope` block (written by `/sprint` Phase 7 Step 1). If present, append it verbatim to the sub-agent prompt:
+Check if the current invocation context contains a `### Sprint Change Scope` block (written by `/dso:sprint` Phase 7 Step 1). If present, append it verbatim to the sub-agent prompt:
 ```
 ### Change Scope
 CHANGED_FILES:
@@ -277,7 +277,7 @@ CHANGED_FILES:
 
 If no `CHANGED_FILES` context was provided by the caller, omit the `### Change Scope` block entirely — the sub-agent will then default to full browser automation (safe fallback).
 
-### Step 4: Compile Final Report (/validate-work)
+### Step 4: Compile Final Report (/dso:validate-work)
 
 Aggregate all sub-agent results into a single report:
 
@@ -322,15 +322,15 @@ If Local checks = WARN:
 
 | Failure / Warning Domain | Recommended Action |
 |--------------------------|-------------------|
-| Local checks FAIL | Run `/debug-everything` |
+| Local checks FAIL | Run `/dso:debug-everything` |
 | Local checks WARN (E2E skipped) | Run the project's E2E command manually to close the gap, or push and wait for CI E2E results |
 | Local checks WARN (port conflict) | Identify and stop the conflicting process on the E2E port, then re-run the E2E command |
 | CI workflow fails | Check failed job logs via `gh run view`, fix locally, re-push |
-| Issue health fails | Run `/tickets-health` |
-| Staging deploy not ready | Deployment still in progress. Wait and re-run `/validate-work`, or check environment console manually |
+| Issue health fails | Run `/dso:tickets-health` |
+| Staging deploy not ready | Deployment still in progress. Wait and re-run `/dso:validate-work`, or check environment console manually |
 | Staging deploy unhealthy | Check environment health, review deployment logs |
 | Staging test fails | Run `/staging-test` to create bugs with TDD criteria and screenshot evidence |
-| Staging test inconclusive | Wait 5 minutes and re-run `/validate-work`, or run `/staging-test` for targeted investigation |
+| Staging test inconclusive | Wait 5 minutes and re-run `/dso:validate-work`, or run `/staging-test` for targeted investigation |
 | Playwright cannot reach staging | Site unreachable despite health endpoint passing. Check environment health manually |
 | Database not running | Run the project's database start command (see `database.ensure_cmd` in config) |
 | Unpushed commits | Push with `git push` before expecting CI/staging updates |

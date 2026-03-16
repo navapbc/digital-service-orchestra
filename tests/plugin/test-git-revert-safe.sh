@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-git-revert-safe.sh
-# TDD tests for git-revert-safe.sh (canonical copy in lockpick-workflow/scripts/)
+# tests/plugin/test-git-revert-safe.sh
+# TDD tests for git-revert-safe.sh (canonical copy in scripts/)
 #
 # Output format: "PASS: <test_name>" or "FAIL: <test_name>"
 # Exit 0 iff FAIL==0
@@ -8,9 +8,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/git-revert-safe.sh"
-WRAPPER_SCRIPT="$REPO_ROOT/scripts/git-revert-safe.sh"
 
 PASS=0
 FAIL=0
@@ -75,21 +73,6 @@ if [ -x "$CANONICAL_SCRIPT" ]; then
     ((PASS++))
 else
     echo "  FAIL: test_canonical_script_executable (canonical script not executable)"
-    ((FAIL++))
-fi
-
-# ── Test: wrapper_exists_and_delegates ───────────────────────────────────────
-echo "Test: wrapper_exists_and_delegates"
-if [ -f "$WRAPPER_SCRIPT" ]; then
-    if grep -q 'exec.*lockpick-workflow/scripts/git-revert-safe.sh' "$WRAPPER_SCRIPT"; then
-        echo "  PASS: test_wrapper_exists_and_delegates"
-        ((PASS++))
-    else
-        echo "  FAIL: test_wrapper_exists_and_delegates (wrapper does not exec to plugin copy)"
-        ((FAIL++))
-    fi
-else
-    echo "  FAIL: test_wrapper_exists_and_delegates (wrapper not found at $WRAPPER_SCRIPT)"
     ((FAIL++))
 fi
 
@@ -311,38 +294,6 @@ else
 fi
 
 rm -rf "$TMPDIR_5"
-
-# ── Test: test_wrapper_delegates_to_canonical ─────────────────────────────────
-# Verify the wrapper at scripts/git-revert-safe.sh correctly delegates to the
-# canonical copy by running a real revert through the wrapper path.
-echo "Test: test_wrapper_delegates_to_canonical"
-
-TMPDIR_6=$(setup_test_repo)
-_CLEANUP_DIRS+=("$TMPDIR_6")
-COMMIT2_SHA=$(git -C "$TMPDIR_6" rev-parse HEAD)
-
-cd "$TMPDIR_6" || { echo "  FAIL: test_wrapper_delegates_to_canonical (cd failed)"; ((FAIL++)); exit 1; }
-wrapper_exit=0
-wrapper_output=$(bash "$WRAPPER_SCRIPT" "$COMMIT2_SHA" 2>&1) || wrapper_exit=$?
-
-if [ "$wrapper_exit" -ne 0 ]; then
-    echo "  FAIL: test_wrapper_delegates_to_canonical (wrapper exited $wrapper_exit: $wrapper_output)"
-    ((FAIL++))
-else
-    revert_files=$(git -C "$TMPDIR_6" diff-tree --no-commit-id -r --name-only HEAD)
-    if ! echo "$revert_files" | grep -q "app/dummy.txt"; then
-        echo "  FAIL: test_wrapper_delegates_to_canonical (app/dummy.txt not in revert commit via wrapper)"
-        ((FAIL++))
-    elif echo "$revert_files" | grep -q "^\.tickets/"; then
-        echo "  FAIL: test_wrapper_delegates_to_canonical (.tickets/ in revert commit via wrapper)"
-        ((FAIL++))
-    else
-        echo "  PASS: test_wrapper_delegates_to_canonical"
-        ((PASS++))
-    fi
-fi
-
-rm -rf "$TMPDIR_6"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 

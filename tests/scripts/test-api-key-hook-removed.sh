@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-api-key-hook-removed.sh
+# tests/scripts/test-api-key-hook-removed.sh
 # Regression tests for the removal of check-api-key-env.sh and api-key-check pre-commit hook.
 # These tests verify the post-deletion invariants remain true:
 #   1. scripts/check-api-key-env.sh must NOT exist
@@ -8,7 +8,7 @@
 # This file intentionally references 'check-api-key-env' as a regression guard —
 # having the string here is correct: this test exists to verify the hook is gone.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-api-key-hook-removed.sh
+# Usage: bash tests/scripts/test-api-key-hook-removed.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

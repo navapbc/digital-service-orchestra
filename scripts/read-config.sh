@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/read-config.sh
+# scripts/read-config.sh
 # Config reader for workflow-config.conf and YAML config files.
 #
 # This is the foundation layer that config-paths.sh depends on to resolve
@@ -35,7 +35,7 @@ fi
 
 # Resolve config file when not specified (.conf only)
 if [[ -z "$config_file" ]]; then
-    root="${CLAUDE_PLUGIN_ROOT:-$(pwd)}"
+    root="${CLAUDE_PLUGIN_ROOT}"
     if [[ -f "$root/workflow-config.conf" ]]; then config_file="$root/workflow-config.conf"
     else exit 0; fi
 fi

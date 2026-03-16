@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-recovery-integration.sh
+# tests/scripts/test-merge-recovery-integration.sh
 # Integration tests for recovery wiring in _phase_merge() in merge-to-main.sh
 #
 # TDD tests:
@@ -19,12 +19,12 @@
 # hook that exits 1 when staged file count > 5. This causes git merge to fail
 # before the merge commit is recorded, triggering the recovery path.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-recovery-integration.sh
+# Usage: bash tests/scripts/test-merge-recovery-integration.sh
 
 set -uo pipefail
 
 # Resolve paths using CLAUDE_PLUGIN_ROOT if available (batch agent discovery)
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
     PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

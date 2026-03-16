@@ -57,7 +57,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    - Unfamiliar library behavior (e.g., SQLAlchemy session lifecycle, LangGraph state management)
    - Multiple valid approaches with non-obvious tradeoffs
    - 3+ tool calls without a clear path forward
-   Use WebSearch or read official docs; follow guidelines in `lockpick-workflow/docs/RESEARCH-PATTERN.md`.
+   Use WebSearch or read official docs; follow guidelines in `${CLAUDE_PLUGIN_ROOT}/docs/RESEARCH-PATTERN.md`.
    Include findings in the ROOT_CAUSE report line.
 3. **RED -- Write a failing test FIRST**:
    a. Create a test in the appropriate `tests/unit/` subdirectory
@@ -70,7 +70,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 6. Run full validation -- capture verbose output to disk to keep the orchestrator's context lean:
    ```bash
    _REPO=$(git rev-parse --show-toplevel)
-   source "$_REPO/lockpick-workflow/hooks/lib/deps.sh"
+   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    _RESULT="$(get_artifacts_dir)/agent-result-{task_id}.md"
    mkdir -p "$(dirname "$_RESULT")"
    { cd "$_REPO/app" && make format-check && make lint && make test-unit-only; } > "$_RESULT" 2>&1
@@ -89,7 +89,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 
 1m. Run `pwd` to confirm working directory
 2m. Read the failing code -- understand what's wrong before changing anything
-2ma. **Research if stuck** -- if the fix isn't obvious after reading the code and multiple approaches are plausible, consult `lockpick-workflow/docs/RESEARCH-PATTERN.md` before guessing. Use `WebSearch` inline (max 3 searches, max 2 fetches) only for external knowledge gaps. Skip if the answer is visible in the codebase.
+2ma. **Research if stuck** -- if the fix isn't obvious after reading the code and multiple approaches are plausible, consult `${CLAUDE_PLUGIN_ROOT}/docs/RESEARCH-PATTERN.md` before guessing. Use `WebSearch` inline (max 3 searches, max 2 fetches) only for external knowledge gaps. Skip if the answer is visible in the codebase.
 3m. Implement the minimal fix -- change ONLY what is necessary
 4m. Run full validation -- same as TDD path Step 6 above (capture to disk, show tail only)
    - If `TEST_EXIT != 0`: revert changes that broke tests, then report FAIL below.
@@ -121,7 +121,7 @@ $(get_artifacts_dir)/agent-result-{task_id}.md
 
 ### Rules
 
-Read `$(git rev-parse --show-toplevel)/lockpick-workflow/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
+Read `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
 - Do NOT: `git commit`, `git push`, `tk close`, `tk status`, `tk dep`
 - You MAY run: `tk create --parent={parent_task_id}` for discovered work outside your fix scope
 - Do NOT skip, disable, or delete any tests

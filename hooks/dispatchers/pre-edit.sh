@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/pre-edit.sh
+# hooks/dispatchers/pre-edit.sh
 # PreToolUse Edit dispatcher: sources all 3 Edit hook functions and runs them
 # sequentially. Stops at the first function that returns 2 (block/deny).
 #
@@ -14,7 +14,7 @@
 # Returns: 0 if all hooks allow, 2 if any hook blocks.
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

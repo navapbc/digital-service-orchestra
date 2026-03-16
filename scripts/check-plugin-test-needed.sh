@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/check-plugin-test-needed.sh
+# scripts/check-plugin-test-needed.sh
 # Determines whether plugin tests should run based on the list of changed files.
 #
 # Usage: git diff HEAD --name-only | bash check-plugin-test-needed.sh
@@ -9,9 +9,8 @@ set -uo pipefail
 # Exits 1 if no changed file matches (tests not needed).
 #
 # Patterns (extracted from COMMIT-WORKFLOW.md Step 1.75):
-#   lockpick-workflow/hooks/*
-#   lockpick-workflow/scripts/*
-#   lockpick-workflow/skills/*
+#   hooks/*
+#   skills/*
 #   scripts/*
 #   .pre-commit-config.yaml
 #   Makefile
@@ -23,7 +22,7 @@ PLUGIN_CHANGED=false
 
 while IFS= read -r f; do
     case "$f" in
-        lockpick-workflow/hooks/*|lockpick-workflow/scripts/*|lockpick-workflow/skills/*|scripts/*|.pre-commit-config.yaml|Makefile|app/Makefile)
+        hooks/*|skills/*|scripts/*|.pre-commit-config.yaml|Makefile|app/Makefile)
             PLUGIN_CHANGED=true; break ;;
     esac
 done

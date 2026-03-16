@@ -2,7 +2,7 @@
 set -euo pipefail
 # agent-batch-lifecycle.sh — Shared lifecycle operations for multi-agent orchestration.
 #
-# Consolidates deterministic sequences used by /debug-everything and /sprint.
+# Consolidates deterministic sequences used by /dso:debug-everything and /dso:sprint.
 # Config-driven: all project-specific values read from workflow-config.conf via read-config.sh.
 #
 # Subcommands:
@@ -62,7 +62,7 @@ _app_dir() {
 # ─── pre-check ───────────────────────────────────────────────────────────────
 #
 # Runs ALL pre-batch safety checks. Outputs structured report.
-# Used by: debug-everything Phase 5, /sprint Phase 4
+# Used by: debug-everything Phase 5, /dso:sprint Phase 4
 #
 # Options:
 #   --db    Also check database status (for DB-dependent batches)
@@ -139,7 +139,7 @@ cmd_pre_check() {
 # ─── file-overlap ────────────────────────────────────────────────────────────
 #
 # Detects file-level conflicts between multiple agents' modifications.
-# Used by: debug-everything Phase 6 Step 1a, /sprint Phase 6 Step 1a
+# Used by: debug-everything Phase 6 Step 1a, /dso:sprint Phase 6 Step 1a
 #
 # Usage:
 #   agent-batch-lifecycle.sh file-overlap agent1.files agent2.files [agent3.files ...]
@@ -597,7 +597,7 @@ cmd_preflight() {
 # ─── context-check ───────────────────────────────────────────────────────────
 #
 # Checks the current session context window usage level.
-# Used by: /sprint Phase 6 Step 7b (proactive compaction between batches)
+# Used by: /dso:sprint Phase 6 Step 7b (proactive compaction between batches)
 #
 # Detection strategy:
 #   1. First consult CLAUDE_CONTEXT_WINDOW_USAGE env var (fraction 0.0–1.0, set by some Claude Code

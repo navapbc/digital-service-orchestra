@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-cascade-breaker.sh
+# tests/hooks/test-cascade-breaker.sh
 # Tests for .claude/hooks/cascade-circuit-breaker.sh
 #
 # cascade-circuit-breaker.sh is a PreToolUse hook that blocks Edit/Write

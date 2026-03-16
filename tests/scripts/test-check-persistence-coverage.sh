@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-persistence-coverage.sh
+# tests/scripts/test-check-persistence-coverage.sh
 # TDD tests for check-persistence-coverage.sh config-driven behavior:
 #   1. workflow-config.conf contains the required keys:
 #      - persistence.source_patterns → non-empty list
 #      - persistence.test_patterns   → non-empty list
-#   2. lockpick-workflow/scripts/check-persistence-coverage.sh:
+#   2. scripts/check-persistence-coverage.sh:
 #      - exists and is executable
 #      - has zero hardcoded pattern arrays
 #      - has no TESTING-MIGRATION.md reference
@@ -14,7 +14,7 @@
 #      - exits 0 when no persistence-critical files are changed
 #      - exits 1 when persistence source files change without test changes
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-persistence-coverage.sh
+# Usage: bash tests/scripts/test-check-persistence-coverage.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -23,15 +23,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.conf"
 PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/check-persistence-coverage.sh"
+
+# Create an inline fixture config instead of depending on project config
+CONFIG="$(mktemp)"
+_fixture_cleanup() { rm -f "$CONFIG"; }
+cat > "$CONFIG" <<'FIXTURE'
+stack=python-poetry
+persistence.source_patterns=src/core/data_store.py
+persistence.source_patterns=src/adapters/db/
+persistence.test_patterns=tests/integration/.*test_.*_db_roundtrip
+persistence.test_patterns=tests/integration/.*test_.*persistence
+FIXTURE
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-check-persistence-coverage.sh ==="
 
 # ── test_plugin_script_exists ─────────────────────────────────────────────────
-# lockpick-workflow/scripts/check-persistence-coverage.sh must exist
+# scripts/check-persistence-coverage.sh must exist
 _snapshot_fail
 if [[ -f "$PLUGIN_SCRIPT" ]]; then
     assert_eq "test_plugin_script_exists: file exists" "yes" "yes"
@@ -41,7 +51,7 @@ fi
 assert_pass_if_clean "test_plugin_script_exists"
 
 # ── test_plugin_script_is_executable ─────────────────────────────────────────
-# lockpick-workflow/scripts/check-persistence-coverage.sh must be executable
+# scripts/check-persistence-coverage.sh must be executable
 _snapshot_fail
 if [[ -x "$PLUGIN_SCRIPT" ]]; then
     assert_eq "test_plugin_script_is_executable: executable" "yes" "yes"
@@ -141,7 +151,7 @@ assert_pass_if_clean "test_config_persistence_test_patterns_present"
 #   3. A proper `main` branch as merge-base target so git diff detects branch changes.
 
 PORTABILITY_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$PORTABILITY_TMPDIR"' EXIT
+trap '_fixture_cleanup; rm -rf "$PORTABILITY_TMPDIR"' EXIT
 
 # Resolve python3 with pyyaml: use the lockpick venv if available, else system python3.
 _PORTABILITY_PYTHON=""

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-tool-logging-summary.sh
+# tests/hooks/test-tool-logging-summary.sh
 # Tests for .claude/hooks/tool-logging-summary.sh
 #
 # tool-logging-summary.sh is a Stop hook that outputs a session summary

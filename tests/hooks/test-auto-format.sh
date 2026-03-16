@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-auto-format.sh
+# tests/hooks/test-auto-format.sh
 # Tests for .claude/hooks/auto-format.sh
 #
 # auto-format.sh is a PostToolUse hook that runs ruff on .py files

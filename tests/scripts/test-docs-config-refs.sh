@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-docs-config-refs.sh
+# tests/scripts/test-docs-config-refs.sh
 # Verify that documentation references are updated for the flat config migration.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-docs-config-refs.sh
+# Usage: bash tests/scripts/test-docs-config-refs.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

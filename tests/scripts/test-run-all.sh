@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-run-all.sh
+# tests/scripts/test-run-all.sh
 # TDD tests for per-suite timeout and orphan cleanup in run-all.sh.
 #
 # Tests:
 #   test_suite_timeout_produces_clean_exit  — mock slow suite, assert non-144 exit
 #   test_orphan_cleanup_on_exit             — sentinel process killed on EXIT via pgrep
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-run-all.sh
+# Usage: bash tests/scripts/test-run-all.sh
 
 set -uo pipefail
 

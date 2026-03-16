@@ -101,7 +101,7 @@ This matches how the pytest E2E tests work (`test_upload_flow.py`).
 
 ## Tiered Approach to Playwright MCP
 
-Always escalate through tiers rather than jumping to full MCP interaction. See `/playwright-debug` skill for the full protocol.
+Always escalate through tiers rather than jumping to full MCP interaction. See `/dso:playwright-debug` skill for the full protocol.
 
 | Tier | Method | Token Cost | When to Use |
 |------|--------|------------|-------------|

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/smoke-test-portable.sh
+# scripts/smoke-test-portable.sh
 # Plugin bootstrap validation: creates a minimal skeleton project, copies the
 # plugin, initializes a git repo, writes a minimal config, and runs key scripts
 # to confirm hooks, scripts, and skills initialize without error.
 #
 # Usage:
-#   CLAUDE_PLUGIN_ROOT=/path/to/lockpick-workflow bash smoke-test-portable.sh
+#   CLAUDE_PLUGIN_ROOT=/path/to/digital-service-orchestra bash smoke-test-portable.sh
 #
 # Env vars:
 #   CLAUDE_PLUGIN_ROOT  — path to the plugin root (required)
@@ -18,9 +18,9 @@ set -euo pipefail
 set -euo pipefail
 
 # ── Argument / env resolution ─────────────────────────────────────────────────
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     echo "Error: CLAUDE_PLUGIN_ROOT is required." >&2
-    echo "Usage: CLAUDE_PLUGIN_ROOT=/path/to/lockpick-workflow bash $(basename "$0")" >&2
+    echo "Usage: CLAUDE_PLUGIN_ROOT=/path/to/digital-service-orchestra bash $(basename "$0")" >&2
     exit 1
 fi
 
@@ -37,8 +37,8 @@ SMOKE_DIR=$(mktemp -d /tmp/lw-smoke-XXXXXX)
 trap 'rm -rf "$SMOKE_DIR"' EXIT
 
 # ── Copy plugin into temp dir ─────────────────────────────────────────────────
-cp -RL "$CLAUDE_PLUGIN_ROOT" "$SMOKE_DIR/lockpick-workflow"
-PLUGIN_COPY="$SMOKE_DIR/lockpick-workflow"
+cp -RL "$CLAUDE_PLUGIN_ROOT" "$SMOKE_DIR/dso"
+PLUGIN_COPY="$SMOKE_DIR/dso"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_COPY"
 
 # ── Initialize minimal git repo ───────────────────────────────────────────────

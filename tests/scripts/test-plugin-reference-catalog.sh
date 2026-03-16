@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-plugin-reference-catalog.sh
+# tests/scripts/test-plugin-reference-catalog.sh
 # Tests for plugin-reference-catalog.sh — scans for external plugin references
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-plugin-reference-catalog.sh
+# Usage: bash tests/scripts/test-plugin-reference-catalog.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

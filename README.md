@@ -29,7 +29,7 @@ See [`docs/CONFIG-RESOLUTION.md`](docs/CONFIG-RESOLUTION.md) for resolution orde
 
 ## What's Included
 
-- **Skills** — Sprint management (`/sprint`), TDD workflow (`/tdd-workflow`), review gates (`/review`, `/commit`), plan review (`/plan-review`), and more.
+- **Skills** — Sprint management (`/dso:sprint`), TDD workflow (`/dso:tdd-workflow`), review gates (`/review`, `/commit`), plan review (`/dso:plan-review`), and more.
 - **Hooks** — Pre-commit review gate (two-layer defense), post-tool formatting, validation gate.
 - **Scripts** — `tk` wrappers, CI status polling, worktree utilities, merge-to-main orchestration.
 - **Docs** — Workflow guides, architecture decisions, incident templates, and onboarding materials.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/pre-edit-write-functions.sh
+# hooks/lib/pre-edit-write-functions.sh
 # Sourceable function definitions for the PreToolUse Edit/Write hooks.
 #
 # Each function follows the hook contract:
@@ -19,7 +19,7 @@
 # share the same function body without duplication.
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/pre-edit-write-functions.sh
+#   source hooks/lib/pre-edit-write-functions.sh
 #   hook_cascade_circuit_breaker "$INPUT_JSON"
 #   hook_title_length_validator "$INPUT_JSON"
 
@@ -41,7 +41,7 @@ source "$_PRE_EDIT_WRITE_FUNC_DIR/pre-bash-functions.sh"
 # PreToolUse hook: block Edit/Write when fix cascade threshold is reached.
 #
 # Enforces CLAUDE.md rule 13:
-#   "Never continue fixing after 5 cascading failures — run /fix-cascade-recovery"
+#   "Never continue fixing after 5 cascading failures — run /dso:fix-cascade-recovery"
 #
 # Passthrough (never blocked):
 #   - .tickets/ files (issue tracking)
@@ -118,7 +118,7 @@ hook_cascade_circuit_breaker() {
 
     if (( COUNTER >= CASCADE_THRESHOLD )); then
         echo "BLOCKED: Fix cascade (rule 13). $COUNTER consecutive fixes produced different errors." >&2
-        echo "Run /fix-cascade-recovery to analyze root cause and reset." >&2
+        echo "Run /dso:fix-cascade-recovery to analyze root cause and reset." >&2
         echo "Manual reset: echo 0 > $COUNTER_FILE" >&2
         trap - ERR; return 2
     fi

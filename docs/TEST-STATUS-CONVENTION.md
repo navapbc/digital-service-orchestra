@@ -8,7 +8,7 @@ The test-failure commit guard (`hook_test_failure_guard`) blocks commits when te
 $ARTIFACTS_DIR/test-status/<target>.status
 ```
 
-`$ARTIFACTS_DIR` is resolved by `get_artifacts_dir()` in `lockpick-workflow/hooks/lib/deps.sh` — a hash-based temp directory scoped to the repo root (e.g., `/tmp/workflow-plugin-<hash>/`).
+`$ARTIFACTS_DIR` is resolved by `get_artifacts_dir()` in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh` — a hash-based temp directory scoped to the repo root (e.g., `/tmp/workflow-plugin-<hash>/`).
 
 ## File Content Format
 
@@ -59,7 +59,7 @@ The pattern captures the exit code, writes the status, then re-exits with the or
 
 ## Script Reference
 
-**Canonical**: `lockpick-workflow/scripts/write-test-status.sh`
+**Canonical**: `${CLAUDE_PLUGIN_ROOT}/scripts/write-test-status.sh`
 **Wrapper**: `scripts/write-test-status.sh` (backward-compatible exec wrapper)
 
 ```

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-init-skill.sh
-# Verifies that the /init skill file exists at lockpick-workflow/skills/init/SKILL.md
+# tests/hooks/test-init-skill.sh
+# Verifies that the /dso:init skill file exists at skills/init/SKILL.md
 # and contains the required content (frontmatter, script references, config defaults).
 #
 # Usage:
-#   bash lockpick-workflow/tests/hooks/test-init-skill.sh
+#   bash tests/hooks/test-init-skill.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

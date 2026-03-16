@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tk-dep-rm.sh
+# tests/scripts/test-tk-dep-rm.sh
 #
 # Tests for `tk dep rm A B` — removes dependency of A on B.
 #
@@ -7,7 +7,7 @@
 # because cmd_dep() had no branch for the `rm` subcommand, causing it to fall
 # through to the add logic with id="rm", dep_id="A".
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tk-dep-rm.sh
+# Usage: bash tests/scripts/test-tk-dep-rm.sh
 
 set -uo pipefail
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-cross-stack-node.sh
+# tests/scripts/test-cross-stack-node.sh
 # TDD red-phase tests for Node.js cross-stack integration fixture.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-cross-stack-node.sh
+# Usage: bash tests/scripts/test-cross-stack-node.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # NOTE: These tests are expected to FAIL until the Node.js integration fixture
-# at lockpick-workflow/tests/fixtures/node-project/ is created with workflow-config.conf.
+# at tests/fixtures/node-project/ is created with workflow-config.conf.
 
 set -uo pipefail
 

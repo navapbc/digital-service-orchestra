@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-test-isolation-baseline.sh
+# tests/scripts/test-check-test-isolation-baseline.sh
 # Tests for --baseline flag in scripts/check-test-isolation.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-test-isolation-baseline.sh
+# Usage: bash tests/scripts/test-check-test-isolation-baseline.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test_deps_json_helpers.sh
+# tests/test_deps_json_helpers.sh
 # Unit tests for JSON helper functions in deps.sh:
 #   parse_json_object, json_build, json_mutate, json_filter_jsonl, json_summarize_input
 #
-# Usage: bash lockpick-workflow/tests/test_deps_json_helpers.sh
+# Usage: bash tests/test_deps_json_helpers.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

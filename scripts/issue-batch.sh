@@ -43,7 +43,7 @@ if [ -z "$REPO_ROOT" ]; then
 fi
 
 # Source config-paths.sh for CFG_APP_DIR
-_batch_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
+_batch_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 [[ -f "$_batch_config_paths" ]] && source "$_batch_config_paths"
 
 # Resolve Python — prefer poetry env (classify-task.py needs its dependencies)
@@ -53,7 +53,7 @@ if command -v poetry >/dev/null 2>&1 && [ -f "$REPO_ROOT/${CFG_APP_DIR:-app}/poe
 else
     PYTHON="python3"
 fi
-SCORER="$REPO_ROOT/lockpick-workflow/scripts/classify-task.py"
+SCORER="${CLAUDE_PLUGIN_ROOT}/scripts/classify-task.py"
 
 # --- Argument parsing ---
 

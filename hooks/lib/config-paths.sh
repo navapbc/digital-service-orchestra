@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/config-paths.sh
+# hooks/lib/config-paths.sh
 # Shared config path resolver for hooks and scripts.
 #
 # Reads host-project path config keys via read-config.sh and exports
@@ -15,7 +15,7 @@
 #   CFG_UNIT_SNAPSHOT_PATH   — unit test snapshot path (default: ${CFG_APP_DIR}/tests/unit/templates/snapshots/)
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/config-paths.sh
+#   source hooks/lib/config-paths.sh
 #   echo "$CFG_APP_DIR"  # → "app" (or custom value from workflow-config.conf)
 
 # Guard: only load once
@@ -24,7 +24,7 @@ _CONFIG_PATHS_LOADED=1
 
 # Locate read-config.sh relative to this file
 _CONFIG_PATHS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_READ_CONFIG="$_CONFIG_PATHS_DIR/../../scripts/read-config.sh"
+_READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
 
 # Helper: read a config key with a default fallback
 _cfg_read() {

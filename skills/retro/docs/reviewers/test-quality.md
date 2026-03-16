@@ -47,7 +47,7 @@ remediation (e.g., "Add assertion `assert result.status == 'active'`" or "Rename
 
 Do NOT flag test helpers or fixture functions as assertion violations — only evaluate
 functions with the `test_` prefix. Score `null` for `assertion_coverage` if the
-assertion density check script (`scripts/check_assertion_density.py`) was not run.
+assertion density check command (`checks.assertion_density_cmd` in workflow-config.conf) was not configured or not run.
 Score `null` for `determinism` if no flaky test data is available (no CI history or
 rerun logs). Score `null` for `risk_coverage` if no risk classification of source
 modules is available.

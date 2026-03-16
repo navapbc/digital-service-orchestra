@@ -7,7 +7,7 @@
 set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-WORKFLOW_FILE="$REPO_ROOT/lockpick-workflow/docs/workflows/REVIEW-WORKFLOW.md"
+WORKFLOW_FILE="${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-WORKFLOW.md"
 
 pass=0
 fail=0

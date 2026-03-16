@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/report-flaky-tests.sh
+# scripts/report-flaky-tests.sh
 # Detects flaky tests from JUnit XML test results and emits GitHub Actions annotations.
 #
 # Supported detection patterns:

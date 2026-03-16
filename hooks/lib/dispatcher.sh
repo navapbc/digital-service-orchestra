@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/lib/dispatcher.sh
+# hooks/lib/dispatcher.sh
 # Dispatcher framework for Claude Code PreToolUse hook chains.
 #
 # Provides run_hooks() — a sequential hook runner that:
@@ -16,7 +16,7 @@
 #   stdout: permissionDecision JSON (only consumed when exit 2)
 #
 # Usage:
-#   source lockpick-workflow/hooks/lib/dispatcher.sh
+#   source hooks/lib/dispatcher.sh
 #   run_hooks "$INPUT_JSON" /path/to/hook1.sh /path/to/hook2.sh
 #
 # Returns: 0 if all hooks allowed, 2 if any hook blocked

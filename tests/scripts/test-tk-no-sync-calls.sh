@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tk-no-sync-calls.sh
+# tests/scripts/test-tk-no-sync-calls.sh
 #
 # Verifies that the tk CLI does not call any cross-worktree sync functions:
 #   - _sync_from_main
@@ -14,12 +14,12 @@
 # Test 1 (behavioral): Create a mock tk-sync-lib.sh that records invocations
 #   to a temp file, run `tk start <id>`, assert the mock was never invoked.
 #
-# Test 2 (regression grep): Grep lockpick-workflow/scripts/tk for sync
+# Test 2 (regression grep): Grep scripts/tk for sync
 #   function names; assert zero matches in non-comment, non-dead-code lines.
 #
 # Test 3 (smoke): tk ready and tk show <id> exit 0.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tk-no-sync-calls.sh
+# Usage: bash tests/scripts/test-tk-no-sync-calls.sh
 
 set -uo pipefail
 
@@ -129,7 +129,7 @@ unset TICKETS_DIR
 
 # ── Test 2: regression grep — zero sync references in tk ────────────────────
 
-echo "Test 2: grep lockpick-workflow/scripts/tk — no sync function calls"
+echo "Test 2: grep scripts/tk — no sync function calls"
 
 # Count lines that reference sync functions (excluding comment-only lines).
 # The acceptance criteria requires zero matches for these patterns.

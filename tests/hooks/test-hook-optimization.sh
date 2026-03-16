@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-hook-optimization.sh
+# tests/hooks/test-hook-optimization.sh
 # Tests for hook dispatcher optimization (Story ild8):
 #   - REPO_ROOT caching (at most 1 git rev-parse --show-toplevel per dispatcher)
 #   - tool_logging removed from all dispatchers
@@ -8,7 +8,7 @@
 #   - validation_gate removed from pre-edit.sh and pre-write.sh
 #   - preserved hooks: exit_144_forensic_logger, review_gate, commit_failure_tracker
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-hook-optimization.sh
+# Usage: bash tests/hooks/test-hook-optimization.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

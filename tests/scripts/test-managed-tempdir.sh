@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-managed-tempdir.sh
-# Tests for create_managed_tempdir() in lockpick-workflow/hooks/lib/deps.sh
+# tests/scripts/test-managed-tempdir.sh
+# Tests for create_managed_tempdir() in hooks/lib/deps.sh
 #
 # Tests:
 #   1. test_function_exists_in_deps_sh           — function is defined in deps.sh
@@ -11,7 +11,7 @@
 #   6. test_merge_to_main_uses_managed_tempdir   — merge-to-main.sh uses managed cleanup
 #   7. test_stale_tmp_cleanup_in_deps_sh         — cleanup_stale_tmpdirs function exists
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-managed-tempdir.sh
+# Usage: bash tests/scripts/test-managed-tempdir.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

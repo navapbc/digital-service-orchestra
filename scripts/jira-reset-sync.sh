@@ -27,7 +27,7 @@ done
 
 # ── Resolve JIRA_PROJECT ────────────────────────────────────────────────────
 if [[ -z "${JIRA_PROJECT:-}" ]]; then
-    _read_config="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+    _read_config="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
     if [[ -x "$_read_config" ]]; then
         JIRA_PROJECT=$("$_read_config" "jira.project" 2>/dev/null) || true
     fi

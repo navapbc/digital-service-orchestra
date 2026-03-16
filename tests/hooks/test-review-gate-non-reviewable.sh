@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-review-gate-non-reviewable.sh
+# tests/hooks/test-review-gate-non-reviewable.sh
 # Tests that the review gate skips review for non-reviewable file commits.
 #
 # Regression test for lockpick-doc-to-logic-vupb:
@@ -19,7 +19,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 source "$PLUGIN_ROOT/hooks/lib/deps.sh"
@@ -27,8 +27,8 @@ source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
 
 # Skip guard: hook_review_gate was removed in Story 1idf (two-layer migration).
 # The PreToolUse review gate has been replaced by:
-#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit)
-#   - Layer 2: lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
+#   - Layer 1: hooks/pre-commit-review-gate.sh (git pre-commit)
+#   - Layer 2: hooks/lib/review-gate-bypass-sentinel.sh (PreToolUse)
 # Tests for the new two-layer gate live in test-two-layer-review-gate.sh.
 if ! declare -f hook_review_gate >/dev/null 2>&1; then
     echo "SKIP: hook_review_gate removed (Story 1idf migration to two-layer gate)"

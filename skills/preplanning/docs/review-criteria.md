@@ -2,8 +2,8 @@
 
 ## Overview
 
-Each user story produced by `/preplanning` is reviewed by a virtual Architecture
-Board of six specialists using `/review-protocol` (Stage 1, per-story review).
+Each user story produced by `/dso:preplanning` is reviewed by a virtual Architecture
+Board of six specialists using `/dso:review-protocol` (Stage 1, per-story review).
 The Board evaluates the story's scope, done definitions, and considerations for
 cross-cutting risks before implementation begins.
 
@@ -41,7 +41,7 @@ Use the Task tool to launch all six reviewers **in parallel**. For each:
 
 ## Score Aggregation Rules
 
-Per `/review-protocol` and `REVIEW-SCHEMA.md`:
+Per `/dso:review-protocol` and `REVIEW-SCHEMA.md`:
 
 1. Collect all dimension scores from all six reviewers.
 2. Any individual dimension score below 4 means the story **fails** for that dimension.
@@ -51,7 +51,7 @@ Per `/review-protocol` and `REVIEW-SCHEMA.md`:
 
 ## Conflict Detection
 
-Per `/review-protocol`, scan findings for **direct contradictions** — pairs of
+Per `/dso:review-protocol`, scan findings for **direct contradictions** — pairs of
 suggestions targeting the same story element but pulling in opposite directions.
 
 Common conflict patterns in story-level review:
@@ -63,14 +63,14 @@ Common conflict patterns in story-level review:
 | Accessibility: "Add detailed WCAG done definitions" | Maintainability: "Story scope is too prescriptive" | `more_vs_less` |
 | Performance: "Batch operations to reduce API calls" | Reliability: "Add per-item retry with backoff" | `expand_vs_reduce` |
 
-**Resolution** (per `/review-protocol`):
+**Resolution** (per `/dso:review-protocol`):
 - Critical vs minor: critical finding wins, no escalation
 - Both critical/major: escalate to user immediately
 - Both minor: caller chooses direction
 
 ## Revision Protocol
 
-Per `/review-protocol`'s revision protocol:
+Per `/dso:review-protocol`'s revision protocol:
 
 1. Triage findings by severity (critical → major → minor).
 2. Resolve conflicts before revising.
@@ -85,12 +85,12 @@ After aggregating all reviewer outputs into the combined JSON (`subject`, `revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 REVIEW_OUT="$(get_artifacts_dir)/preplanning-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller preplanning
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller preplanning
 ```
 
 **Caller schema hash**: `dba581aa06265af0` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.

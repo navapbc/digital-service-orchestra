@@ -5,7 +5,7 @@ set -euo pipefail
 # Uses 4 chars ≈ 1 token approximation.
 #
 # Usage: estimate-context-load.sh <skill-name> [--window=<N>] [--threshold=<N>]
-#   <skill-name>     Required. Name of the skill directory under lockpick-workflow/skills/
+#   <skill-name>     Required. Name of the skill directory under skills/
 #   --window=<N>     Context window size in tokens (default: from env or 200k)
 #   --threshold=<N>  Warning threshold in tokens (default: from env or 10k)
 #   --help           Show this help message
@@ -18,7 +18,7 @@ usage() {
     echo "Estimates tokens consumed by static context before a skill starts."
     echo ""
     echo "Arguments:"
-    echo "  <skill-name>     Required. Name of the skill directory under lockpick-workflow/skills/"
+    echo "  <skill-name>     Required. Name of the skill directory under skills/"
     echo "  --window=<N>     Context window size in tokens (default: \${CONTEXT_WINDOW:-${DEFAULT_WINDOW}})"
     echo "  --threshold=<N>  Warning threshold in tokens (default: \${CONTEXT_THRESHOLD:-${DEFAULT_THRESHOLD}})"
     echo "  --help           Show this help message"
@@ -69,7 +69,7 @@ fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 count_tokens() {
     if [[ -f "$1" ]]; then

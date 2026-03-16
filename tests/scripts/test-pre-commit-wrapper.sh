@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-pre-commit-wrapper.sh
-# Tests for lockpick-workflow/scripts/pre-commit-wrapper.sh (generic timeout wrapper).
+# tests/scripts/test-pre-commit-wrapper.sh
+# Tests for scripts/pre-commit-wrapper.sh (generic timeout wrapper).
 #
 # Tests:
 #   test_syntax_ok               — bash -n passes
@@ -17,7 +17,7 @@
 #   test_fallback_artifact_prefix — falls back to repo-name derivation when config absent
 #
 # Usage:
-#   bash lockpick-workflow/tests/scripts/test-pre-commit-wrapper.sh
+#   bash tests/scripts/test-pre-commit-wrapper.sh
 #
 set -uo pipefail
 
@@ -409,7 +409,7 @@ rm -f "$_T12_EXPECTED_LOG" 2>/dev/null || true
 
 # Use a subdirectory inside the repo (so git rev-parse works) that has no
 # workflow-config.conf (so read-config.sh cwd fallback returns empty).
-# lockpick-workflow/tests/lib/ is a stable subdir with no workflow-config.conf.
+# tests/lib/ is a stable subdir with no workflow-config.conf.
 _T12_SUBDIR="$PLUGIN_ROOT/tests/lib"
 _T12_CFGDIR=$(mktemp -d)  # no workflow-config.conf inside
 _CLEANUP_DIRS+=("$_T12_CFGDIR")

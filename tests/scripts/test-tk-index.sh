@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tk-index.sh
+# tests/scripts/test-tk-index.sh
 #
 # Tests for _update_ticket_index() in tk.
 #
@@ -8,7 +8,7 @@
 #   2. Index self-heals when .index.json is corrupt
 #   3. Index schema is valid (id -> {title, status, type})
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tk-index.sh
+# Usage: bash tests/scripts/test-tk-index.sh
 
 set -uo pipefail
 

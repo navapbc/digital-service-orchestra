@@ -24,7 +24,7 @@ directory is renamed.
 Migration happens automatically the **first time** any hook calls
 `get_artifacts_dir()` after upgrading.
 
-The migration logic in `lockpick-workflow/hooks/lib/deps.sh`:
+The migration logic in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh`:
 
 1. Computes the new hash-based path from `REPO_ROOT`.
 2. Checks whether the old path (`/tmp/lockpick-test-artifacts-<worktree>/`)

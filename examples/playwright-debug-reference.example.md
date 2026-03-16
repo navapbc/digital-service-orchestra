@@ -11,9 +11,9 @@
        skills:
          playwright_debug_reference: docs/playwright-debug-reference.md
 
-  The /playwright-debug skill reads sections from this file by header name.
+  The /dso:playwright-debug skill reads sections from this file by header name.
   Section headers below define a contract with the plugin — do NOT rename them
-  without updating the plugin's Read call targets in lockpick-workflow/skills/playwright-debug/SKILL.md.
+  without updating the plugin's Read call targets in ${CLAUDE_PLUGIN_ROOT}/skills/playwright-debug/SKILL.md.
 
   Sections required by the plugin (all 7 must be present):
     - Symptom-to-Code-Path Table
@@ -28,13 +28,13 @@
 # Playwright Debug: Project-Specific Reference
 
 <!-- Replace this header comment with your project name and stack summary, e.g.:
-     "Project-specific companion to /playwright-debug for the Acme Rails app.
+     "Project-specific companion to /dso:playwright-debug for the Acme Rails app.
       Stack: Rails 7 / ERB / ActiveRecord / PostgreSQL."
 -->
 
 ## When NOT to Use (Project-Specific)
 
-<!-- List conditions where /playwright-debug is NOT the right tool for this project.
+<!-- List conditions where /dso:playwright-debug is NOT the right tool for this project.
      Examples:
        - The bug is confirmed server-side (check Rails logs, Sidekiq queue, Sentry)
        - You need to validate a full deployment pipeline — use your staging-test skill instead
@@ -375,5 +375,5 @@ Compared to a full browser walkthrough (navigate, screenshot, inspect): ~114k.
 
 ---
 
-*This file is part of the lockpick-workflow plugin. See `lockpick-workflow/skills/playwright-debug/SKILL.md`
+*This file is part of the Digital Service Orchestra plugin. See `${CLAUDE_PLUGIN_ROOT}/skills/playwright-debug/SKILL.md`
 for the generic 3-tier methodology that consumes this file.*

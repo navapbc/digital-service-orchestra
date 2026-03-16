@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-behavioral-equivalence-allowlist.sh
+# tests/hooks/test-behavioral-equivalence-allowlist.sh
 # Behavioral equivalence test: verifies that compute-diff-hash.sh and
 # skip-review-check.sh produce IDENTICAL classification results for every
 # pattern group in the shared review-gate-allowlist.conf.

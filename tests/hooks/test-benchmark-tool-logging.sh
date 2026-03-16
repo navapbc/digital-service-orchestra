@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-benchmark-tool-logging.sh
+# tests/hooks/test-benchmark-tool-logging.sh
 # Unit tests for benchmark-tool-logging.sh script and timing instrumentation
 # in pre-all.sh and post-all.sh dispatchers.
 #
@@ -14,7 +14,7 @@
 #   test_pre_all_still_exits_0_with_timing_enabled
 #   test_post_all_still_exits_0_with_timing_enabled
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-benchmark-tool-logging.sh
+# Usage: bash tests/hooks/test-benchmark-tool-logging.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

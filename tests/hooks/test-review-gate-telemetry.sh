@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-review-gate-telemetry.sh
-# Tests for telemetry logging in lockpick-workflow/hooks/pre-commit-review-gate.sh
+# tests/hooks/test-review-gate-telemetry.sh
+# Tests for telemetry logging in hooks/pre-commit-review-gate.sh
 #
 # The pre-commit hook logs each gate decision (block or pass) to a JSONL
 # telemetry file at $ARTIFACTS_DIR/review-gate-telemetry.jsonl.
@@ -84,7 +84,7 @@ run_hook_in_repo() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
         bash "$HOOK" 2>/dev/null
     ) || exit_code=$?
     echo "$exit_code"
@@ -106,7 +106,7 @@ compute_hash_in_repo() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
         bash "$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null
     )
 }

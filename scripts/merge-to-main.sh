@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/merge-to-main.sh
+# scripts/merge-to-main.sh
 # Merge worktree branch into main and push.
-# Called by /end-session after all worktree commits are done.
+# Called by /dso:end-session after all worktree commits are done.
 #
 # Replaces the old two-script flow (sprintend-sync.sh + merge-to-main.sh).
 # tk (the issue tracker) uses file-per-issue storage under .tickets/ and requires
@@ -45,7 +45,7 @@ cd "$REPO_ROOT"
 WORKTREE_DIR="$REPO_ROOT"
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 # --- Count closed tickets using a single awk pass over all .md files ---
 # Usage: _count_closed_tickets <tickets_dir>
@@ -546,7 +546,7 @@ _squash_rebase_recovery() {
     # Prefer CLAUDE_PLUGIN_ROOT (set at top-level in merge-to-main.sh and exported) so
     # the driver path is stable even when this function is eval'd in test contexts.
     local _MERGE_DRIVER
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py" ]]; then
+    if [[ -n "${CLAUDE_PLUGIN_ROOT}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py" ]]; then
         _MERGE_DRIVER="${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py"
     else
         local _SCRIPT_DIR_LOCAL
@@ -723,14 +723,14 @@ _phase_sync() {
 
     # Delegates to worktree-sync-from-main.sh which handles:
     #   - Fetching and merging origin/main
-    # This surfaces merge conflicts here (where /resolve-conflicts can operate)
+    # This surfaces merge conflicts here (where /dso:resolve-conflicts can operate)
     # rather than discovering them during the main-repo merge.
 
     # Fallback: try plugin dir first, then repo-root scripts/
     if [ -f "$_SCRIPT_DIR/worktree-sync-from-main.sh" ]; then
         source "$_SCRIPT_DIR/worktree-sync-from-main.sh"
-    elif [ -f "$REPO_ROOT/scripts/worktree-sync-from-main.sh" ]; then
-        source "$REPO_ROOT/scripts/worktree-sync-from-main.sh"
+    elif [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-sync-from-main.sh" ]; then
+        source "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-sync-from-main.sh"
     else
         echo "ERROR: worktree-sync-from-main.sh not found in $_SCRIPT_DIR or $REPO_ROOT/scripts/"
         exit 1
@@ -751,7 +751,7 @@ _phase_sync() {
         BASELINE_DIFF=$(git diff --name-only "$MERGE_BASE_ORIGIN" HEAD -- "$VISUAL_BASELINE_PATH" 2>/dev/null | grep '\.png$' || true)
         if [ -n "$BASELINE_DIFF" ]; then
             BASELINE_CHECK_EXIT=0
-            "$REPO_ROOT/scripts/verify-baseline-intent.sh" || BASELINE_CHECK_EXIT=$?
+            "${CLAUDE_PLUGIN_ROOT}/scripts/verify-baseline-intent.sh" || BASELINE_CHECK_EXIT=$?
             if [ "$BASELINE_CHECK_EXIT" -eq 2 ]; then
                 echo "ERROR: Visual baseline changes need review. See .claude/docs/VISUAL-BASELINES.md"
                 exit 1

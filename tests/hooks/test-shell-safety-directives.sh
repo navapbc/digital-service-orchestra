@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-shell-safety-directives.sh
-# Guard: all .sh files under lockpick-workflow/scripts/ must have a shell safety
+# tests/hooks/test-shell-safety-directives.sh
+# Guard: all .sh files under scripts/ must have a shell safety
 # directive (set -euo pipefail, set -uo pipefail, or equivalent) within the
 # first 10 lines.
 #
@@ -16,7 +16,7 @@
 #   - runners/node-runner.sh: Sourced by test-batched.sh as a runner driver;
 #     adding set options would interfere with the caller's error handling.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-shell-safety-directives.sh
+# Usage: bash tests/hooks/test-shell-safety-directives.sh
 
 set -uo pipefail
 

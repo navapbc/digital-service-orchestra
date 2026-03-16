@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/pre-exitplanmode.sh
+# hooks/dispatchers/pre-exitplanmode.sh
 # PreToolUse ExitPlanMode dispatcher: runs plan-review-gate hook function.
 #
 # Replaces the PreToolUse ExitPlanMode matcher entry in settings.json:
@@ -11,7 +11,7 @@
 # Returns: 0 if allowed, 2 if blocked by plan-review-gate
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

@@ -1,4 +1,4 @@
-# Versioning Guide — lockpick-workflow Plugin
+# Versioning Guide — Digital Service Orchestra
 
 ## Semver Convention
 
@@ -51,10 +51,10 @@ Consuming projects can pin to a specific version by referencing the git tag when
 
 ```bash
 # Pin to a specific release tag
-claude plugin install github:lockpick/lockpick-workflow@v0.2.0
+claude plugin install github:navapbc/digital-service-orchestra@v0.2.0
 
 # Pin to a branch (tracks latest on that branch — not recommended for production)
-claude plugin install github:lockpick/lockpick-workflow@main
+claude plugin install github:navapbc/digital-service-orchestra@main
 ```
 
 For reproducible environments, pin to a specific tag rather than a branch. Record the pinned version in your project's `CLAUDE.md` or a lockfile equivalent.
@@ -62,7 +62,7 @@ For reproducible environments, pin to a specific tag rather than a branch. Recor
 ## Release Workflow
 
 1. Determine the next version per the policy above.
-2. Run `lockpick-workflow/scripts/tag-release.sh <VERSION>` — this updates `plugin.json` and `marketplace.json` and prints the `git tag` command.
+2. Run `scripts/tag-release.sh <VERSION>` — this updates `plugin.json` and `marketplace.json` and prints the `git tag` command.
 3. Commit the version bump (`git commit -m "chore: bump version to vX.Y.Z"`).
 4. Run the printed `git tag` command to create the annotated tag.
 5. Push both the commit and the tag: `git push && git push --tags`.

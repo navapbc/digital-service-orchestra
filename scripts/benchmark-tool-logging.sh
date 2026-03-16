@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/benchmark-tool-logging.sh
+# scripts/benchmark-tool-logging.sh
 # Benchmark tool-logging.sh overhead by running it N times with synthetic input.
 #
 # Usage: benchmark-tool-logging.sh [iterations]

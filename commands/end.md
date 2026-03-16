@@ -1,1 +1,1 @@
-Invoke the `/end-session` skill, passing through any arguments: $ARGUMENTS
+Invoke the `/dso:end-session` skill, passing through any arguments: $ARGUMENTS

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/skip-review-check.sh
+# scripts/skip-review-check.sh
 # Classifies a list of changed files to determine if review can be skipped.
 #
 # Reads file list from stdin (one file per line).
@@ -8,7 +8,7 @@ set -uo pipefail
 # Exits 1  if SKIP_REVIEW=false (at least one reviewable file found — full review required).
 #
 # Usage:
-#   git diff HEAD --name-only | bash lockpick-workflow/scripts/skip-review-check.sh
+#   git diff HEAD --name-only | bash scripts/skip-review-check.sh
 #   echo '.tickets/abc.md' | bash scripts/skip-review-check.sh
 #
 # Classification logic extracted from COMMIT-WORKFLOW.md Step 0.5 (lines 48-74).
@@ -17,7 +17,7 @@ set -uo pipefail
 
 # Source config-paths.sh for portable path resolution
 _SKIP_REVIEW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT:-$_SKIP_REVIEW_DIR/..}/hooks/lib/config-paths.sh"
+_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 if [ -f "$_CONFIG_PATHS" ]; then
     # shellcheck source=../hooks/lib/config-paths.sh
     source "$_CONFIG_PATHS"
@@ -33,7 +33,7 @@ _E2E_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/e2e/snapshots/"
 _UNIT_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/unit/templates/snapshots/"
 
 # ── Load non-reviewable patterns from shared allowlist ──────────────────────
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$_SKIP_REVIEW_DIR/..}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 _ALLOWLIST_FILE="${ALLOWLIST_OVERRIDE:-$_PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf}"
 _ALLOWLIST_PATTERNS=()
 _ALLOWLIST_LOADED=false
@@ -80,7 +80,7 @@ while IFS= read -r file; do
     # Agent guidance always requires review (checked first, overrides allowlist)
     case "$file" in
         .claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
-        lockpick-workflow/skills/*|lockpick-workflow/hooks/*|lockpick-workflow/docs/workflows/*) SKIP_REVIEW=false; break ;;
+        .claude/skills/*|.claude/hooks/*) SKIP_REVIEW=false; break ;;
         CLAUDE.md) SKIP_REVIEW=false; break ;;
     esac
     # .checkpoint-needs-review always requires a full review (see COMMIT-WORKFLOW.md Note)

@@ -14,27 +14,27 @@ Generate a production-safe implementation plan for a User Story by decomposing i
 At activation, load project commands via read-config.sh before executing any steps:
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/lockpick-workflow}/scripts"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
 FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)
 ```
 
-Resolution order: See `lockpick-workflow/docs/CONFIG-RESOLUTION.md`.
+Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test-unit-only` in acceptance criteria templates generated during Step 3 (Task Drafting)
 - `LINT_CMD` — replaces `make lint` in acceptance criteria templates
 - `FORMAT_CHECK_CMD` — replaces `make format-check` in acceptance criteria templates
 
-**Supports dryrun mode.** Use `/dryrun /implementation-plan` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:implementation-plan` to preview without changes.
 
 ## Usage
 
 ```
-/implementation-plan                  # Interactive story selection
-/implementation-plan <story-id>       # Plan specific user story
-/implementation-plan <epic-id>        # Plan simple epic directly (when routed by /sprint)
+/dso:implementation-plan                  # Interactive story selection
+/dso:implementation-plan <story-id>       # Plan specific user story
+/dso:implementation-plan <epic-id>        # Plan simple epic directly (when routed by /dso:sprint)
 ```
 
 ## Arguments
@@ -43,16 +43,16 @@ Resolved commands used in this skill:
 
 ## Progress Checklist
 
-> **Task tracking rule**: Only create `TaskCreate` items from this checklist when `/implementation-plan` is invoked **standalone** (directly by the user). When invoked from `/sprint`, do NOT call `TaskCreate` — `/sprint` owns the task list and calling it here will add noise to the active sprint task list. Track progress through inline notes instead.
+> **Task tracking rule**: Only create `TaskCreate` items from this checklist when `/dso:implementation-plan` is invoked **standalone** (directly by the user). When invoked from `/dso:sprint`, do NOT call `TaskCreate` — `/dso:sprint` owns the task list and calling it here will add noise to the active sprint task list. Track progress through inline notes instead.
 
 Copy and track as you work (standalone only):
 
 ```
 Progress:
 - [ ] Step 1: Contextual Discovery (story loaded, context gathered, ambiguities resolved, cross-cutting detection done — layers: _, interfaces: _)
-- [ ] Step 2: Architectural Review via /review-protocol (passed / skipped — no new pattern)
+- [ ] Step 2: Architectural Review via /dso:review-protocol (passed / skipped — no new pattern)
 - [ ] Step 3: Task Drafting (tasks drafted with E2E + docs coverage)
-- [ ] Step 4: Plan Review via /review-protocol (all dimensions: 5, iteration: _/3)
+- [ ] Step 4: Plan Review via /dso:review-protocol (all dimensions: 5, iteration: _/3)
 - [ ] Step 5: Task Creation (tasks created, deps added, health validated)
 - [ ] Step 6: Gap Analysis (COMPLEX: opus sub-agent dispatched, findings processed; TRIVIAL: skipped)
 ```
@@ -79,7 +79,7 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
 
 ---
 
-## Step 1: Contextual Discovery (/implementation-plan)
+## Step 1: Contextual Discovery (/dso:implementation-plan)
 
 ### Select Story
 
@@ -172,14 +172,14 @@ Check for these signals:
 
 #### Evaluator Shortcut
 
-If complexity-evaluator output was provided (when invoked from `/sprint`):
+If complexity-evaluator output was provided (when invoked from `/dso:sprint`):
 
 1. **Reuse evaluator findings** — use `layers_touched` count and `interfaces_affected` count directly
 2. **Sanity-check** — verify the evaluator's layer/interface counts against the story context gathered in Architectural Alignment. If the counts seem wrong (e.g., evaluator missed a layer), note the discrepancy and proceed with corrected counts
 3. **Apply escalation rule** below using the verified counts
 4. **Skip** the full "How to detect cross-cutting changes" analysis (tracing data/control flow, grepping for interfaces)
 
-If no evaluator output (standalone `/implementation-plan` invocation):
+If no evaluator output (standalone `/dso:implementation-plan` invocation):
 - Perform full cross-cutting analysis as defined below (no change)
 
 After resolving ambiguities (or if none exist), assess whether the change cuts across multiple architectural layers before deciding whether to escalate to Step 2.
@@ -221,13 +221,13 @@ This annotation tells the Step 2 reviewer why a full review was triggered even i
 
 ---
 
-## Step 2: Consistency & Architectural Review (/implementation-plan)
+## Step 2: Consistency & Architectural Review (/dso:implementation-plan)
 
 Determine if the implementation requires a new architectural pattern or a modification to an existing one. If not, skip to Step 3.
 
-### Architectural Review via `/review-protocol`
+### Architectural Review via `/dso:review-protocol`
 
-If a pattern change is proposed, invoke `/review-protocol` with:
+If a pattern change is proposed, invoke `/dso:review-protocol` with:
 
 - **subject**: "Architectural Pattern: {pattern name}"
 - **artifact**: The proposed pattern description plus relevant architecture docs and existing patterns found in Step 1
@@ -244,7 +244,7 @@ If the review fails after autonomous resolution (2 fix/defend attempts) and user
 
 ---
 
-## Step 3: Atomic Task Drafting (/implementation-plan)
+## Step 3: Atomic Task Drafting (/dso:implementation-plan)
 
 Draft tasks that **collectively fulfill all success criteria** of the User Story. If a new pattern was approved in Step 2, include consistency tasks.
 
@@ -260,7 +260,7 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
   is acceptable — inert is not broken. The key test: after committing only this task,
   do all tests pass and is the system deployable?
 * **Acceptance Criteria:** Every task must include acceptance criteria set via the
-  `--acceptance` flag, composed from the template library (`lockpick-workflow/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
+  `--acceptance` flag, composed from the template library (`${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
   Read the library once at the start of Step 3. For each task:
   1. Start with Universal Criteria (always included)
   2. Select applicable category blocks based on task type
@@ -302,12 +302,12 @@ If no documentation updates needed, note the rationale (e.g., "No new patterns; 
 
 ---
 
-## Step 4: Implementation Plan Review (/implementation-plan)
+## Step 4: Implementation Plan Review (/dso:implementation-plan)
 
 Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer
 table, launch instructions, score aggregation rules, and conflict detection guidance.
 
-Invoke `/review-protocol` to evaluate the plan:
+Invoke `/dso:review-protocol` to evaluate the plan:
 
 - **subject**: "Implementation Plan for: {story title}"
 - **artifact**: The user story (title + full description) plus the numbered task list with titles, descriptions, TDD requirements, and dependencies
@@ -322,11 +322,11 @@ Invoke `/review-protocol` to evaluate the plan:
 
 ### Optimization
 
-The plan **must** achieve all dimension scores of **5**. `/review-protocol`'s revision protocol handles the iteration loop (max 3 cycles). After 3 attempts, present the plan at its current score with remaining issues to the user for judgment.
+The plan **must** achieve all dimension scores of **5**. `/dso:review-protocol`'s revision protocol handles the iteration loop (max 3 cycles). After 3 attempts, present the plan at its current score with remaining issues to the user for judgment.
 
 ---
 
-## Step 5: Task Creation (/implementation-plan)
+## Step 5: Task Creation (/dso:implementation-plan)
 
 Once the plan is approved (Score: 5 or user-approved), create tasks in the ticket system.
 
@@ -419,7 +419,7 @@ Output a **File Impact Summary** — a consolidated list of every file touched a
 | `tests/unit/test_auth.py` | Create | xxx-002 |
 | `src/routes/legacy_login.py` | Remove | xxx-004 |
 
-Actions: **Create**, **Edit**, or **Remove**. If multiple tasks touch the same file, list all task IDs — this signals overlap for `/batch-overlap-check`.
+Actions: **Create**, **Edit**, or **Remove**. If multiple tasks touch the same file, list all task IDs — this signals overlap for `/dso:batch-overlap-check`.
 
 Report:
 - Total tasks created
@@ -432,13 +432,13 @@ Report:
 
 ---
 
-## Step 6: Gap Analysis (/implementation-plan)
+## Step 6: Gap Analysis (/dso:implementation-plan)
 
 Review the complete task list for design gaps that would compound during sub-agent execution. This step dispatches an opus sub-agent to analyze the plan against a structured gap taxonomy.
 
 ### TRIVIAL Skip Gate
 
-Check the evaluator context passed via `{evaluator-context}` from `/sprint`:
+Check the evaluator context passed via `{evaluator-context}` from `/dso:sprint`:
 
 - **If `classification: "TRIVIAL"`**: Skip gap analysis entirely. Log: `"Skipping gap analysis — story classified as TRIVIAL"`. Proceed directly to the final summary presentation.
 - **If `classification: "COMPLEX"`** or **no evaluator context** (standalone invocation): Run gap analysis. The cost of an unnecessary gap analysis is low; the cost of a missed gap is high.
@@ -490,9 +490,9 @@ After processing findings (or skipping/failing), update the summary output to in
 | Step | Purpose | Key Commands |
 |------|---------|--------------|
 | 1 | Contextual Discovery | `tk show`, `tk dep tree`, Glob/Grep, clarify ambiguities, cross-cutting detection |
-| 2 | Architectural Review | `/review-protocol` (>= 4, max 3 iterations); forced if cross-cutting detected |
+| 2 | Architectural Review | `/dso:review-protocol` (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
-| 4 | Plan Review | `/review-protocol` (all dims = 5, max 3 iterations) |
+| 4 | Plan Review | `/dso:review-protocol` (all dims = 5, max 3 iterations) |
 | 5 | Task Creation | `tk create`, `tk dep`, `validate-issues.sh`, `tk ready` |
 | 6 | Gap Analysis | TRIVIAL skip gate, opus sub-agent via `prompts/gap-analysis.md`, parse findings |
 

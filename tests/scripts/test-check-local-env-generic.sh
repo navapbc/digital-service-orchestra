@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-local-env-generic.sh
+# tests/scripts/test-check-local-env-generic.sh
 # TDD RED phase: tests for the generic canonical check-local-env.sh behavior.
 #
 # Tests cover:
@@ -10,7 +10,7 @@
 #   5. Config-driven DB container name override
 #   6. Config-driven health timeout override
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-local-env-generic.sh
+# Usage: bash tests/scripts/test-check-local-env-generic.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 # REVIEW-DEFENSE: '-e' is intentionally omitted from set flags. The test harness must
@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # lockpick-doc-to-logic-sn0y creates the canonical script at this path. Per TDD workflow,
 # tests are written before the implementation exists. The reviewer's suggestion to point
 # at 'scripts/check-local-env.sh' (the project-specific script) is incorrect: this test
-# covers the generic canonical behavior that will live in lockpick-workflow/scripts/.
+# covers the generic canonical behavior that will live in scripts/.
 CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/check-local-env.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"

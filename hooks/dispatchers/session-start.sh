@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/session-start.sh
+# hooks/dispatchers/session-start.sh
 # SessionStart dispatcher: sources all 4 session-start hook functions and runs them.
 #
 # Replaces separate settings.json SessionStart entries with a single dispatcher:
@@ -15,7 +15,7 @@
 # Returns: 0 always (all 5 hooks are informational/output-only; none block)
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

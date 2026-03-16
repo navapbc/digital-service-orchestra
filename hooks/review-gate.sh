@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/review-gate.sh
+# hooks/review-gate.sh
 # PreToolUse hook (Bash matcher): Layer 2 of the two-layer review gate.
 #
 # Blocks commands that attempt to bypass the git pre-commit review gate:
@@ -16,7 +16,7 @@
 #   - Layer 2: this file (PreToolUse hook, blocks bypass vectors)
 #
 # The logic in this file is a thin wrapper around hook_review_bypass_sentinel
-# from lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh.
+# from hooks/lib/review-gate-bypass-sentinel.sh.
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/review-gate-bypass-sentinel.sh"

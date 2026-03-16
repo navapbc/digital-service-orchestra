@@ -28,10 +28,10 @@ If `DESIGN_SYSTEM_NAME` is non-empty, use it to populate example text and defaul
 ## Usage
 
 ```
-/design-onboarding          # Start the full onboarding flow
+/dso:design-onboarding          # Start the full onboarding flow
 ```
 
-**Supports dryrun mode.** Use `/dryrun /design-onboarding` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:design-onboarding` to preview without changes.
 
 ## Workflow Overview
 
@@ -43,11 +43,11 @@ Flow: Phase 1 (Intake Interview) -> Phase 2 (File Generation)
 
 ---
 
-## Phase 1: The Intake Interview (/design-onboarding)
+## Phase 1: The Intake Interview (/dso:design-onboarding)
 
 **Do not dump all questions at once.** Engage the user in a step-by-step extraction process to ensure high-fidelity answers. Use `AskUserQuestion` for each step.
 
-### Step 1: Strategy & User (/design-onboarding)
+### Step 1: Strategy & User (/dso:design-onboarding)
 
 Ask these questions one group at a time:
 
@@ -55,12 +55,12 @@ Ask these questions one group at a time:
 * **The Users:** "Define 2-3 specific User Archetypes. Not just demographics, but *behaviors* (e.g., 'The Panicked Auditor' vs. 'The Relaxed Browser')."
 * **Success Metrics:** "How will we know the design is successful? (e.g., Speed of completion, Low error rates, Discoverability?)"
 
-### Step 2: The Experience (HCD) (/design-onboarding)
+### Step 2: The Experience (HCD) (/dso:design-onboarding)
 
 * **Golden Paths:** "What are the top 2 workflows that *must* be frictionless? Describe them step-by-step."
 * **Anti-Patterns:** "What do we explicitly want to AVOID? (e.g., 'No pop-ups', 'No endless scrolling', 'No dark patterns')."
 
-### Step 3: The System (UI/Dev) (/design-onboarding)
+### Step 3: The System (UI/Dev) (/dso:design-onboarding)
 
 * **Tech Stack:** "What is the specific UI library/framework? (e.g., React + Tailwind + Shadcn/UI, or Angular + Material)."
 * **Design System / Component Library:** "Are you using an established design system or component library? (e.g., Material UI, Ant Design, Bootstrap, Chakra UI, a custom design system, or none)." If yes, this changes how visual tokens are defined — tokens, colors, spacing, typography, and icons should all derive from the design system rather than being defined from scratch. Note this in the generated file.
@@ -70,7 +70,7 @@ Ask these questions one group at a time:
 
 ---
 
-## Phase 2: File Generation (/design-onboarding)
+## Phase 2: File Generation (/dso:design-onboarding)
 
 Once the interview is complete, compile the answers into `DESIGN_NOTES.md` using the template below. Use Markdown strictly. Write the file to the project root.
 

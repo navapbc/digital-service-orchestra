@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-fallback-prompts.sh
+# tests/scripts/test-fallback-prompts.sh
 # TDD tests for fallback prompt templates (batch 1):
 #   test_fix_unit.md, mechanical_fix.md, code_simplify.md, security_audit.md
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-fallback-prompts.sh
+# Usage: bash tests/scripts/test-fallback-prompts.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # NOTE: These tests are expected to FAIL until prompt files are created.

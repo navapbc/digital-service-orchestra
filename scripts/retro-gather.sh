@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# retro-gather.sh — Collect all Phase 1 health metrics for /retro.
+# retro-gather.sh — Collect all Phase 1 health metrics for /dso:retro.
 #
 # Extracts the deterministic data-collection steps from retro SKILL.md Phase 1
 # into a single script that outputs structured sections. The LLM only needs to
@@ -46,8 +46,8 @@ section() {
 
 # --- Step 1: Cleanup + Validation ---
 section "CLEANUP"
-if [ -x "$REPO_ROOT/scripts/cleanup-claude-session.sh" ]; then
-    "$REPO_ROOT/scripts/cleanup-claude-session.sh" 2>&1 | tail -5
+if [ -x "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-claude-session.sh" ]; then
+    "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-claude-session.sh" 2>&1 | tail -5
 else
     echo "cleanup-claude-session.sh not found, skipping"
 fi
@@ -57,15 +57,15 @@ section "VALIDATION"
 # knows CI is still running), skip the --ci flag so validate.sh does not exit
 # non-zero and abort collection.  All other local checks still run.
 if [ "${CI_STATUS:-}" = "pending" ]; then
-    "$REPO_ROOT/lockpick-workflow/scripts/validate.sh" --full 2>&1 || true
+    "${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh" --full 2>&1 || true
     echo "ci: PENDING — skip CI check (CI_STATUS=pending)"
 else
-    "$REPO_ROOT/lockpick-workflow/scripts/validate.sh" --full --ci 2>&1 || true
+    "${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh" --full --ci 2>&1 || true
 fi
 
 # --- Step 2: Issues Health ---
 section "TICKETS_HEALTH"
-"$REPO_ROOT/scripts/validate-issues.sh" 2>&1 || true
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh" 2>&1 || true
 
 section "TICKETS_STATS"
 # Aggregate ticket stats from .tickets/ directory
@@ -114,8 +114,8 @@ section "TICKETS_BLOCKED"
 "$TK" blocked 2>/dev/null || echo "none"
 
 section "TICKETS_ORPHANED"
-if [ -x "$REPO_ROOT/lockpick-workflow/scripts/orphaned-tasks.sh" ]; then
-    "$REPO_ROOT/lockpick-workflow/scripts/orphaned-tasks.sh" 2>&1 || true
+if [ -x "${CLAUDE_PLUGIN_ROOT}/scripts/orphaned-tasks.sh" ]; then
+    "${CLAUDE_PLUGIN_ROOT}/scripts/orphaned-tasks.sh" 2>&1 || true
 else
     echo "orphaned-tasks.sh not found"
 fi
@@ -287,7 +287,7 @@ else
 fi
 
 section "CI_SHIFT_LEFT"
-# Raw CI failure data for the shift-left analysis in /retro Phase 2.
+# Raw CI failure data for the shift-left analysis in /dso:retro Phase 2.
 # Collects: recent run outcomes, failed job names, and failure rate.
 # The LLM maps each failure type to the earliest gate that could catch it.
 if ! command -v gh >/dev/null 2>&1; then

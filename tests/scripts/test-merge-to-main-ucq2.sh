@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-to-main-ucq2.sh
+# tests/scripts/test-merge-to-main-ucq2.sh
 # Tests for _check_push_needed helper in merge-to-main.sh
 #
 # TDD tests:
@@ -9,7 +9,7 @@
 #   4. test_check_push_needed_skip_message — function body contains 'Push skipped' message
 #   5. test_check_push_needed_fetch_failure_returns_push_needed — fetch failure returns 0 (push needed)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main-ucq2.sh
+# Usage: bash tests/scripts/test-merge-to-main-ucq2.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

@@ -31,7 +31,7 @@ regex patterns, and framework detection rules for the project's web stack.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-ADAPTER_FILE=$(bash "$REPO_ROOT/lockpick-workflow/scripts/resolve-stack-adapter.sh")
+ADAPTER_FILE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-stack-adapter.sh")
 ```
 
 ### Adapter loaded vs missing:
@@ -73,16 +73,16 @@ Determine mode from `$ARGUMENTS`:
 
 ---
 
-## Phase 0: Local Environment Preflight (/ui-discover)
+## Phase 0: Local Environment Preflight (/dso:ui-discover)
 
-### Step 0: Verify local environment (/ui-discover)
+### Step 0: Verify local environment (/dso:ui-discover)
 
 Before any discovery work, verify that the local development stack is running.
 The Playwright crawl (Phase 2 Step 8) requires Docker, Postgres, and the
 application to be healthy.
 
 ```
-$REPO_ROOT/lockpick-workflow/scripts/check-local-env.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/check-local-env.sh
 ```
 
 Where `$REPO_ROOT` is determined by `git rev-parse --show-toplevel`.
@@ -102,9 +102,9 @@ normally with static-analysis-only data.
 
 ---
 
-## Phase 1: Environment Detection & Cache Assessment (/ui-discover)
+## Phase 1: Environment Detection & Cache Assessment (/dso:ui-discover)
 
-### Step 1: Detect environment (/ui-discover)
+### Step 1: Detect environment (/dso:ui-discover)
 
 Gather project context by running these checks:
 
@@ -123,7 +123,7 @@ Note whether Playwright is available. If not, warn that route crawling will be
 skipped and the cache will be static-analysis-only.
 
 **Running application:** If Phase 0 passed, the app is confirmed healthy on its
-port. Use the port from `lockpick-workflow/scripts/check-local-env.sh` output or the `APP_PORT` env var
+port. Use the port from `${CLAUDE_PLUGIN_ROOT}/scripts/check-local-env.sh` output or the `APP_PORT` env var
 (default port depends on the framework — use the adapter's conventions or
 fall back to common defaults: 5000 for Flask, 3000 for Node, 8080 for Go).
 If Phase 0 was skipped with "Continue without live app", skip this probe
@@ -141,7 +141,7 @@ entirely.
   `requirements.txt`, `package.json`, `go.mod`, or `Gemfile` for common
   framework names. Report the detected framework or "unknown" if none found.
 
-### Step 2: Assess existing cache (/ui-discover)
+### Step 2: Assess existing cache (/dso:ui-discover)
 
 Check for `.ui-discovery-cache/manifest.json`.
 
@@ -161,7 +161,7 @@ Check for `.ui-discovery-cache/manifest.json`.
      (full generation).
 5. Run the lock acquisition script (see Lock Protocol below):
    ```
-   bash $REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh acquire
+   bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh acquire
    ```
    If it exits non-zero, another instance is running. Report the PID from
    its output and **stop** — do not proceed or ask the user to override.
@@ -175,11 +175,11 @@ exit. Do not generate or refresh anything.
 
 ---
 
-## Phase 2: Full Discovery (/ui-discover)
+## Phase 2: Full Discovery (/dso:ui-discover)
 
 Acquire the lock (skip if already acquired in Phase 1 Step 2):
 ```
-bash $REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh acquire
+bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh acquire
 ```
 If it exits non-zero, another instance is running — **stop**.
 
@@ -188,7 +188,7 @@ Create the cache directory structure:
 mkdir -p .ui-discovery-cache/global .ui-discovery-cache/components .ui-discovery-cache/routes .ui-discovery-cache/screenshots
 ```
 
-### Step 3: Discover UI file inventory (/ui-discover)
+### Step 3: Discover UI file inventory (/dso:ui-discover)
 
 Use Glob to find all UI files. Use the adapter's `component_file_patterns.glob_patterns`
 if available, otherwise use these generic patterns:
@@ -224,7 +224,7 @@ If **no UI files are found**, stop. Inform the user that no UI files were
 detected. Use AskUserQuestion to offer custom glob patterns or confirm the
 project structure.
 
-### Step 4: Component inventory (/ui-discover)
+### Step 4: Component inventory (/dso:ui-discover)
 
 Discover and analyze all component definitions across template/source files
 using the adapter's patterns.
@@ -277,7 +277,7 @@ using the adapter's patterns.
 
 Each component entry's `dependsOn` in the manifest: its source file path.
 
-### Step 5: Route discovery (/ui-discover)
+### Step 5: Route discovery (/dso:ui-discover)
 
 Detect routes and map them to templates/components using the adapter's
 `route_patterns` config.
@@ -334,7 +334,7 @@ cache-format-reference.md Section 4).
 If the number of discovered routes exceeds 50, warn the user. Use
 AskUserQuestion to ask whether to crawl all routes or select a subset.
 
-### Step 6: Theme & design token extraction (/ui-discover)
+### Step 6: Theme & design token extraction (/dso:ui-discover)
 
 Detect and parse theme configuration files:
 
@@ -366,7 +366,7 @@ Write `global/design-tokens.json` (see cache-format-reference.md Section 3).
 The design-tokens entry's `dependsOn` in the manifest: all theme/style config
 files parsed.
 
-### Step 7: App shell analysis (/ui-discover)
+### Step 7: App shell analysis (/dso:ui-discover)
 
 Find the root layout template/component for the application using the adapter's
 `template_syntax` config.
@@ -412,7 +412,7 @@ Write `global/app-shell.json` (see cache-format-reference.md Section 2).
 The app-shell entry's `dependsOn` in the manifest: root layout file (`base.html`
 or equivalent) + any included partial templates.
 
-### Step 8: Playwright route crawl (conditional) (/ui-discover)
+### Step 8: Playwright route crawl (conditional) (/dso:ui-discover)
 
 **If Playwright is available AND the app is running:**
 
@@ -504,7 +504,7 @@ Warn the user. Set `playwrightUsed: false` in the manifest. Route snapshots
 will contain only static-analysis data (no DOM structure, no screenshots, no
 observed prop values).
 
-### Step 9: Write route snapshot files (/ui-discover)
+### Step 9: Write route snapshot files (/dso:ui-discover)
 
 For each discovered route, combine all available data into a denormalized
 snapshot:
@@ -528,7 +528,7 @@ Section 7).
 Each route entry's `dependsOn` in the manifest: the template file + all
 imported component files + theme files (if Playwright visual data is included).
 
-### Step 10: Assemble manifest and validation script (/ui-discover)
+### Step 10: Assemble manifest and validation script (/dso:ui-discover)
 
 **Write manifest.json:**
 - `version`: 1
@@ -565,7 +565,7 @@ Check if the target project has a `.gitignore` file. If so, check whether
 
 **Release lock:**
 ```
-bash $REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh release
+bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh release
 ```
 
 **Report completion summary:**
@@ -574,22 +574,22 @@ bash $REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh release
 - Whether Playwright was used
 - Total cache files written
 - How to validate: `bash .ui-discovery-cache/validate-ui-cache.sh`
-- How to use: run `/design-wireframe <story-id>` and it will load from cache
+- How to use: run `/dso:design-wireframe <story-id>` and it will load from cache
 
 ---
 
-## Phase 3: Selective Regeneration (/ui-discover)
+## Phase 3: Selective Regeneration (/dso:ui-discover)
 
 Runs when validation (Step 2) identifies specific stale entries, or when
 `--refresh` mode is used with a valid cache.
 
 Acquire the lock (skip if already acquired in Phase 1 Step 2):
 ```
-bash $REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh acquire
+bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh acquire
 ```
 If it exits non-zero, another instance is running — **stop**.
 
-### Step 11: Categorize staleness scope (/ui-discover)
+### Step 11: Categorize staleness scope (/dso:ui-discover)
 
 Using the stale entry list from Step 2 (or the full entry list if `--refresh`)
 plus the manifest's `dependsOn` graph, categorize the refresh scope:
@@ -604,7 +604,7 @@ plus the manifest's `dependsOn` graph, categorize the refresh scope:
 Multiple scopes can apply simultaneously (e.g., a component changed AND a theme
 file changed).
 
-### Step 12: Regenerate stale entries only (/ui-discover)
+### Step 12: Regenerate stale entries only (/dso:ui-discover)
 
 For each stale entry, re-run only the relevant Step logic:
 
@@ -629,7 +629,7 @@ After regenerating stale entries:
 4. Set all regenerated entries to `valid: true`
 5. Regenerate `validate-ui-cache.sh` (since the embedded commit and dependency graph changed)
 
-### Step 13: Report refresh summary (/ui-discover)
+### Step 13: Report refresh summary (/dso:ui-discover)
 
 Present a summary showing:
 - Scope(s) detected
@@ -640,15 +640,15 @@ Present a summary showing:
 
 **Release lock:**
 ```
-bash $REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh release
+bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh release
 ```
 
 ---
 
 ## Lock Protocol
 
-The lock script at `$REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh`
-prevents concurrent `/ui-discover` runs from corrupting the cache. It uses
+The lock script at `${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh`
+prevents concurrent `/dso:ui-discover` runs from corrupting the cache. It uses
 `mkdir` for atomic lock acquisition (race-free on all filesystems) and records
 the owning PID for stale-lock detection.
 
@@ -681,12 +681,12 @@ script is self-contained, deterministic, and read-only.
 
 ### Logic Flow
 
-Generate the script by copying `lockpick-workflow/scripts/validate-ui-cache.sh` and
+Generate the script by copying `${CLAUDE_PLUGIN_ROOT}/scripts/validate-ui-cache.sh` and
 substituting placeholder values (`<SHORT_SHA>`, `<LIST_OF_THEME_FILES>`, etc.) with
 real values from the current cache state. Run validation with:
 
 ```bash
-bash lockpick-workflow/scripts/validate-ui-cache.sh
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-ui-cache.sh
 ```
 
 Every time the cache is refreshed, `validate-ui-cache.sh` is regenerated with the
@@ -708,6 +708,6 @@ updated commit, hashes, and dependency graph.
 | Cached commit not in git history | Full generation needed (commit likely rebased away). |
 | Route navigation timeout | Log warning for that route. Continue with remaining routes. |
 | Too many routes (>50) | Warn user. AskUserQuestion: crawl all routes or select a subset? |
-| Concurrent run detected (lock.sh fails) | **Stop.** Report the owning PID. User can force-release with `bash $REPO_ROOT/lockpick-workflow/skills/ui-discover/lock.sh release --force`. |
+| Concurrent run detected (lock.sh fails) | **Stop.** Report the owning PID. User can force-release with `bash ${CLAUDE_PLUGIN_ROOT}/skills/ui-discover/lock.sh release --force`. |
 | validate-ui-cache.sh missing | Treat as corrupt cache. Recommend full regeneration. |
 | No stack adapter found | Warn. Proceed with generic patterns. Note in manifest that adapter-specific detection was not used. |

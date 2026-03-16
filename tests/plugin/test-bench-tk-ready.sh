@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-bench-tk-ready.sh
-# Consolidated TDD test suite for lockpick-workflow/scripts/bench-tk-ready.sh
+# tests/plugin/test-bench-tk-ready.sh
+# Consolidated TDD test suite for scripts/bench-tk-ready.sh
 #
 # TDD order: Written BEFORE creating bench-tk-ready.sh to confirm RED state.
 # Run before the script exists to see failures; run after to confirm GREEN.
@@ -15,7 +15,7 @@
 #   test_bench_prints_warning_on_slow_tk  — stderr contains WARNING when threshold exceeded
 #
 # Usage:
-#   bash lockpick-workflow/tests/plugin/test-bench-tk-ready.sh
+#   bash tests/plugin/test-bench-tk-ready.sh
 #
 set -uo pipefail
 

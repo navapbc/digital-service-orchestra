@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-retry-budget.sh
+# tests/scripts/test-merge-retry-budget.sh
 # Tests for retry_count tracking and escalation gate in merge-to-main.sh
 #
 # TDD tests:
@@ -9,13 +9,13 @@
 #   4. test_fifth_resume_does_not_escalate (retry_count=4 -> passes)
 #   5. test_retry_count_resets_on_success
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-retry-budget.sh
+# Usage: bash tests/scripts/test-merge-retry-budget.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
 
 # Resolve paths using CLAUDE_PLUGIN_ROOT if available (batch agent discovery)
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
     PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

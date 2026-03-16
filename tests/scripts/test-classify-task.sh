@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-classify-task.sh
+# tests/scripts/test-classify-task.sh
 # Baseline tests for scripts/classify-task.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-classify-task.sh
+# Usage: bash tests/scripts/test-classify-task.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/git-revert-safe.sh
+# scripts/git-revert-safe.sh
 # Wrapper around `git revert` that strips .tickets/ files from the revert commit
 # by default. This prevents ticket sync state changes from contaminating reverts
 # of application code.

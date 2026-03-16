@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-read-config-flat.sh
+# tests/scripts/test-read-config-flat.sh
 # TDD tests for the flat KEY=VALUE config reader (read-config.sh rewrite).
 #
 # Tests the pure-bash read-config.sh against .conf fixture files.
 # No Python dependency required — tests exercise grep/cut logic only.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-read-config-flat.sh
+# Usage: bash tests/scripts/test-read-config-flat.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

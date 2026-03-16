@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/pre-all.sh
+# hooks/dispatchers/pre-all.sh
 # PreToolUse (empty matcher) dispatcher: handles tool-logging pre-phase.
 #
 # Replaces the PreToolUse empty-matcher entry in settings.json:
@@ -18,7 +18,7 @@
 # Tool logging remains available for Bash, Edit, and Write via their dedicated dispatchers.
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-validate-config.sh
+# tests/scripts/test-validate-config.sh
 # TDD tests for validate-config.sh (KNOWN_KEYS validator).
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-validate-config.sh
+# Usage: bash tests/scripts/test-validate-config.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

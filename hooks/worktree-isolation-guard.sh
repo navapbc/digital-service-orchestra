@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/worktree-isolation-guard.sh
+# hooks/worktree-isolation-guard.sh
 # PreToolUse hook for Agent tool calls.
 # Blocks any Agent dispatch that uses isolation: "worktree".
 #

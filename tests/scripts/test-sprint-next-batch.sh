@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-sprint-next-batch.sh
+# tests/scripts/test-sprint-next-batch.sh
 # Baseline tests for scripts/sprint-next-batch.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-sprint-next-batch.sh
+# Usage: bash tests/scripts/test-sprint-next-batch.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -43,7 +43,7 @@ _CLEANUP_DIRS+=("$_t3_mock_dir")
 _t3_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t3_fake_repo")
 git init -q -b main "$_t3_fake_repo"
-mkdir -p "$_t3_fake_repo/.tickets" "$_t3_fake_repo/lockpick-workflow/scripts" "$_t3_fake_repo/scripts"
+mkdir -p "$_t3_fake_repo/.tickets" "$_t3_fake_repo/scripts" "$_t3_fake_repo/scripts"
 printf -- "---\nid: t3-child\nstatus: open\ntype: task\npriority: 2\nparent: t3-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t3_fake_repo/.tickets/t3-child.md"
 
 # Mock tk
@@ -67,7 +67,7 @@ T3_TK
 chmod +x "$_t3_mock_dir/tk"
 
 # Minimal classify-task.py stub
-cat > "$_t3_fake_repo/lockpick-workflow/scripts/classify-task.py" << 'T3_SCORER'
+cat > "$_t3_fake_repo/scripts/classify-task.py" << 'T3_SCORER'
 import json, sys
 tasks = json.loads(sys.stdin.read())
 out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
@@ -77,7 +77,7 @@ print(json.dumps(out))
 T3_SCORER
 
 # Minimal read-config.sh stub
-cat > "$_t3_fake_repo/lockpick-workflow/scripts/read-config.sh" << 'T3_CFG'
+cat > "$_t3_fake_repo/scripts/read-config.sh" << 'T3_CFG'
 #!/usr/bin/env bash
 KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
 case "$KEY" in
@@ -88,13 +88,13 @@ case "$KEY" in
     *) echo -n "" ;;
 esac
 T3_CFG
-chmod +x "$_t3_fake_repo/lockpick-workflow/scripts/read-config.sh"
+chmod +x "$_t3_fake_repo/scripts/read-config.sh"
 printf '' > "$_t3_fake_repo/workflow-config.conf"
-cp "$PLUGIN_SCRIPT" "$_t3_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
-chmod +x "$_t3_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
+cp "$PLUGIN_SCRIPT" "$_t3_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t3_fake_repo/scripts/sprint-next-batch.sh"
 
 exit_code=0
-output=$(cd "$_t3_fake_repo" && TK="$_t3_mock_dir/tk" bash "$_t3_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh" "t3-epic" 2>&1) || exit_code=$?
+output=$(cd "$_t3_fake_repo" && TK="$_t3_mock_dir/tk" bash "$_t3_fake_repo/scripts/sprint-next-batch.sh" "t3-epic" 2>&1) || exit_code=$?
 rm -rf "$_t3_mock_dir" "$_t3_fake_repo"
 if [ "$exit_code" -eq 0 ] && echo "$output" | grep -qE "EPIC:|BATCH_SIZE:"; then
     echo "  PASS: plugin exits 0 with EPIC and BATCH_SIZE lines"
@@ -111,7 +111,7 @@ _CLEANUP_DIRS+=("$_t4_mock_dir")
 _t4_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t4_fake_repo")
 git init -q -b main "$_t4_fake_repo"
-mkdir -p "$_t4_fake_repo/.tickets" "$_t4_fake_repo/lockpick-workflow/scripts"
+mkdir -p "$_t4_fake_repo/.tickets" "$_t4_fake_repo/scripts"
 printf -- "---\nid: t4-child\nstatus: open\ntype: task\npriority: 2\nparent: t4-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t4_fake_repo/.tickets/t4-child.md"
 cat > "$_t4_mock_dir/tk" << 'T4_TK'
 #!/usr/bin/env bash
@@ -130,7 +130,7 @@ case "$SUBCMD" in
 esac
 T4_TK
 chmod +x "$_t4_mock_dir/tk"
-cat > "$_t4_fake_repo/lockpick-workflow/scripts/classify-task.py" << 'T4_SCORER'
+cat > "$_t4_fake_repo/scripts/classify-task.py" << 'T4_SCORER'
 import json, sys
 tasks = json.loads(sys.stdin.read())
 out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
@@ -138,7 +138,7 @@ out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
         "complexity": "low", "reason": "stub"} for t in tasks]
 print(json.dumps(out))
 T4_SCORER
-cat > "$_t4_fake_repo/lockpick-workflow/scripts/read-config.sh" << 'T4_CFG'
+cat > "$_t4_fake_repo/scripts/read-config.sh" << 'T4_CFG'
 #!/usr/bin/env bash
 KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
 case "$KEY" in
@@ -148,13 +148,13 @@ case "$KEY" in
     *) echo -n "" ;;
 esac
 T4_CFG
-chmod +x "$_t4_fake_repo/lockpick-workflow/scripts/read-config.sh"
+chmod +x "$_t4_fake_repo/scripts/read-config.sh"
 printf '' > "$_t4_fake_repo/workflow-config.conf"
-cp "$PLUGIN_SCRIPT" "$_t4_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
-chmod +x "$_t4_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
+cp "$PLUGIN_SCRIPT" "$_t4_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t4_fake_repo/scripts/sprint-next-batch.sh"
 
 json_exit=0
-json_output=$(cd "$_t4_fake_repo" && TK="$_t4_mock_dir/tk" bash "$_t4_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh" "t4-epic" --json 2>&1) || json_exit=$?
+json_output=$(cd "$_t4_fake_repo" && TK="$_t4_mock_dir/tk" bash "$_t4_fake_repo/scripts/sprint-next-batch.sh" "t4-epic" --json 2>&1) || json_exit=$?
 rm -rf "$_t4_mock_dir" "$_t4_fake_repo"
 if echo "$json_output" | python3 -c "import sys,json; data=json.load(sys.stdin)" 2>/dev/null; then
     echo "  PASS: --json produces valid JSON"
@@ -171,7 +171,7 @@ _CLEANUP_DIRS+=("$_t5_mock_dir")
 _t5_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t5_fake_repo")
 git init -q -b main "$_t5_fake_repo"
-mkdir -p "$_t5_fake_repo/.tickets" "$_t5_fake_repo/lockpick-workflow/scripts"
+mkdir -p "$_t5_fake_repo/.tickets" "$_t5_fake_repo/scripts"
 printf -- "---\nid: t5-child\nstatus: open\ntype: task\npriority: 2\nparent: t5-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t5_fake_repo/.tickets/t5-child.md"
 cat > "$_t5_mock_dir/tk" << 'T5_TK'
 #!/usr/bin/env bash
@@ -190,7 +190,7 @@ case "$SUBCMD" in
 esac
 T5_TK
 chmod +x "$_t5_mock_dir/tk"
-cat > "$_t5_fake_repo/lockpick-workflow/scripts/classify-task.py" << 'T5_SCORER'
+cat > "$_t5_fake_repo/scripts/classify-task.py" << 'T5_SCORER'
 import json, sys
 tasks = json.loads(sys.stdin.read())
 out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
@@ -198,7 +198,7 @@ out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
         "complexity": "low", "reason": "stub"} for t in tasks]
 print(json.dumps(out))
 T5_SCORER
-cat > "$_t5_fake_repo/lockpick-workflow/scripts/read-config.sh" << 'T5_CFG'
+cat > "$_t5_fake_repo/scripts/read-config.sh" << 'T5_CFG'
 #!/usr/bin/env bash
 KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
 case "$KEY" in
@@ -208,13 +208,13 @@ case "$KEY" in
     *) echo -n "" ;;
 esac
 T5_CFG
-chmod +x "$_t5_fake_repo/lockpick-workflow/scripts/read-config.sh"
+chmod +x "$_t5_fake_repo/scripts/read-config.sh"
 printf '' > "$_t5_fake_repo/workflow-config.conf"
-cp "$PLUGIN_SCRIPT" "$_t5_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
-chmod +x "$_t5_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh"
+cp "$PLUGIN_SCRIPT" "$_t5_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t5_fake_repo/scripts/sprint-next-batch.sh"
 
 limit_exit=0
-cd "$_t5_fake_repo" && TK="$_t5_mock_dir/tk" bash "$_t5_fake_repo/lockpick-workflow/scripts/sprint-next-batch.sh" "t5-epic" --limit=3 >/dev/null 2>&1 || limit_exit=$?
+cd "$_t5_fake_repo" && TK="$_t5_mock_dir/tk" bash "$_t5_fake_repo/scripts/sprint-next-batch.sh" "t5-epic" --limit=3 >/dev/null 2>&1 || limit_exit=$?
 cd "$REPO_ROOT"
 rm -rf "$_t5_mock_dir" "$_t5_fake_repo"
 if [ "$limit_exit" -eq 0 ]; then
@@ -257,16 +257,6 @@ else
     (( FAIL++ ))
 fi
 
-# ── Test 9: Wrapper delegates to plugin copy ──────────────────────────────────
-echo "Test 9: Wrapper delegates to plugin copy via exec"
-if grep -q 'exec bash.*lockpick-workflow/scripts/sprint-next-batch.sh' "$SCRIPT"; then
-    echo "  PASS: wrapper contains exec delegation to plugin copy"
-    (( PASS++ ))
-else
-    echo "  FAIL: wrapper missing exec delegation to lockpick-workflow/scripts/sprint-next-batch.sh" >&2
-    (( FAIL++ ))
-fi
-
 # ── Test 10: Plugin copy exists and is executable ────────────────────────────
 echo "Test 10: Plugin copy exists and is executable"
 if [ -x "$PLUGIN_SCRIPT" ]; then
@@ -294,18 +284,6 @@ if grep -qE 'REPO_ROOT.*scripts/tk|TK=' "$PLUGIN_SCRIPT" 2>/dev/null; then
     (( PASS++ ))
 else
     echo "  FAIL: TK does not resolve via REPO_ROOT in plugin copy" >&2
-    (( FAIL++ ))
-fi
-
-# ── Test 13: Wrapper passes through arguments correctly ──────────────────────
-echo "Test 13: Wrapper passes through arguments (--help)"
-exit_code=0
-output=$(bash "$SCRIPT" --help 2>&1) || exit_code=$?
-if [ "$exit_code" -eq 0 ] && echo "$output" | grep -qiE "usage|epic"; then
-    echo "  PASS: wrapper passes --help through correctly"
-    (( PASS++ ))
-else
-    echo "  FAIL: --help did not produce usage/epic output (exit=$exit_code)" >&2
     (( FAIL++ ))
 fi
 

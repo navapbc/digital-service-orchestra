@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tk-close-venv-warning.sh
+# tests/scripts/test-tk-close-venv-warning.sh
 #
 # Tests for `tk close` worktree/venv warning behavior.
 #
@@ -12,7 +12,7 @@
 # hooks may fail (venv absent), instructing the user to commit manually
 # or via merge-to-main.sh.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tk-close-venv-warning.sh
+# Usage: bash tests/scripts/test-tk-close-venv-warning.sh
 
 set -uo pipefail
 

@@ -1,7 +1,7 @@
 # Staging Environment Test
 
 Validate the staging environment using a tiered approach that minimizes Playwright MCP
-token usage. Follow the `/playwright-debug` 3-tier process: deterministic checks first,
+token usage. Follow the `/dso:playwright-debug` 3-tier process: deterministic checks first,
 targeted `browser_run_code` second, full MCP only as last resort.
 
 Do NOT create bugs or fix issues — only report findings.
@@ -115,7 +115,7 @@ Run local deterministic tests before any live environment interaction:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-STAGING_URL="{STAGING_URL}" HEALTH_PATH="{STAGING_HEALTH_PATH}" ROUTES="{STAGING_ROUTES}" bash "$REPO_ROOT/lockpick-workflow/scripts/staging-smoke-test.sh"
+STAGING_URL="{STAGING_URL}" HEALTH_PATH="{STAGING_HEALTH_PATH}" ROUTES="{STAGING_ROUTES}" bash "${CLAUDE_PLUGIN_ROOT}/scripts/staging-smoke-test.sh"
 ```
 
 **Interpret Tier 0 results:**

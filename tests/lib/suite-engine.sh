@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/lib/suite-engine.sh
+# tests/lib/suite-engine.sh
 # Shared parallel test suite runner with per-test timeouts, fail-fast,
 # and progress reporting.
 #

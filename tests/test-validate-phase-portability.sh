@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test-validate-phase-portability.sh
+# tests/test-validate-phase-portability.sh
 # Portability smoke test for validate-phase.sh with echo-command stub config.
 #
 # Verifies that validate-phase.sh produces correct structured output (PASS/FAIL
@@ -7,7 +7,7 @@
 # Proves the script is fully config-driven and portable to any stack.
 #
 # Manual run:
-#   bash lockpick-workflow/tests/test-validate-phase-portability.sh
+#   bash tests/test-validate-phase-portability.sh
 #
 # Tests covered:
 #   a. post-batch / all-pass config  → exit 0, FORMAT: PASS, LINT: PASS, TESTS: PASS
@@ -35,7 +35,7 @@ echo "=== Tests for validate-phase.sh portability ==="
 # Temp dir structure:
 #   $TMPDIR/                           ← REPO_ROOT (fake git repo)
 #   $TMPDIR/workflow-config.conf       ← stub config (populated per scenario)
-#   $TMPDIR/lockpick-workflow/scripts/
+#   $TMPDIR/scripts/
 #       validate-phase.sh              ← symlink to canonical script
 #       read-config.sh                 ← symlink to real read-config.sh
 # ---------------------------------------------------------------------------
@@ -44,12 +44,12 @@ TMPDIR_BASE=$(mktemp -d)
 trap "rm -rf '$TMPDIR_BASE'" EXIT
 
 TMPDIR="$TMPDIR_BASE/repo"
-mkdir -p "$TMPDIR/lockpick-workflow/scripts"
+mkdir -p "$TMPDIR/scripts"
 
 # Symlink canonical scripts into the fake repo so SCRIPT_DIR resolves correctly
 # (validate-phase.sh resolves read-config.sh as a sibling via SCRIPT_DIR)
-ln -s "$CANONICAL_SCRIPT" "$TMPDIR/lockpick-workflow/scripts/validate-phase.sh"
-ln -s "$READ_CONFIG_SH" "$TMPDIR/lockpick-workflow/scripts/read-config.sh"
+ln -s "$CANONICAL_SCRIPT" "$TMPDIR/scripts/validate-phase.sh"
+ln -s "$READ_CONFIG_SH" "$TMPDIR/scripts/read-config.sh"
 
 # Provide a YAML interpreter for read-config.sh:
 # read-config.sh auto-probes $REPO_ROOT/app/.venv/bin/interp-name first.

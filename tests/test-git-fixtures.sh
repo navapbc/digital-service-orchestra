@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/test-git-fixtures.sh
+# tests/test-git-fixtures.sh
 # TDD tests for the git-fixtures shared library (template repo caching).
 #
 # Tests:

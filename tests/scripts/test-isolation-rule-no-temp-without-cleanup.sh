@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-isolation-rule-no-temp-without-cleanup.sh
+# tests/scripts/test-isolation-rule-no-temp-without-cleanup.sh
 # Tests for scripts/test-isolation-rules/no-temp-without-cleanup.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-isolation-rule-no-temp-without-cleanup.sh
+# Usage: bash tests/scripts/test-isolation-rule-no-temp-without-cleanup.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

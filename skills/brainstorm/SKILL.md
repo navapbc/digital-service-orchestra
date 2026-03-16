@@ -9,17 +9,17 @@ user-invocable: true
 Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation.
 
 <HARD-GATE>
-Do NOT invoke /sprint, /preplanning, /implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
+Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
 </HARD-GATE>
 
 
-**Supports dryrun mode.** Use `/dryrun /brainstorm` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:brainstorm` to preview without changes.
 
 ## Usage
 
 ```
-/brainstorm                    # Start with a blank slate — describe the feature interactively
-/brainstorm <epic-id>          # Enrich an existing underdefined epic
+/dso:brainstorm                    # Start with a blank slate — describe the feature interactively
+/dso:brainstorm <epic-id>          # Enrich an existing underdefined epic
 ```
 
 When invoked without an epic ID, open with: *"What feature or capability are you trying to build?"* and proceed to Phase 1.
@@ -28,7 +28,7 @@ When invoked with an epic ID, load the epic first (`tk show <epic-id>`), summari
 
 ---
 
-## Phase 1: Context + Socratic Dialogue (/brainstorm)
+## Phase 1: Context + Socratic Dialogue (/dso:brainstorm)
 
 **Goal**: Understand the feature well enough to propose 2-3 implementation approaches.
 
@@ -72,7 +72,7 @@ Do NOT proceed to Phase 2 until the user confirms or adds more context.
 
 ---
 
-## Phase 2: Approach + Spec Definition (/brainstorm)
+## Phase 2: Approach + Spec Definition (/dso:brainstorm)
 
 **Goal**: Agree on an approach and produce a high-fidelity epic spec.
 
@@ -161,7 +161,7 @@ REVIEW_OUT="$(mktemp /tmp/brainstorm-review-XXXXXX.json)"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller brainstorm
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller brainstorm
 ```
 
 **Caller schema hash**: `f4e5f5a355e4c145`
@@ -200,7 +200,7 @@ Wait for explicit approval. If changes are requested, revise and re-run affected
 
 ---
 
-## Phase 3: Ticket Integration (/brainstorm)
+## Phase 3: Ticket Integration (/dso:brainstorm)
 
 **Goal**: Create the epic in the ticket system and hand off to the next step.
 
@@ -248,31 +248,31 @@ Fix any issues before finalizing.
 
 ### Step 4: Invoke Preplanning
 
-After the epic is created and ticket health passes, classify the epic's complexity before invoking `/preplanning`. This routes the epic to the appropriate preplanning mode so the decomposition depth matches the scope.
+After the epic is created and ticket health passes, classify the epic's complexity before invoking `/dso:preplanning`. This routes the epic to the appropriate preplanning mode so the decomposition depth matches the scope.
 
 #### Step 4a: Dispatch Haiku Complexity Evaluator
 
-Dispatch a haiku sub-agent to classify the epic. Use the Task tool with `model: "haiku"` and the prompt content from `lockpick-workflow/skills/shared/prompts/complexity-evaluator.md`. Pass the epic ID as the argument.
+Dispatch a haiku sub-agent to classify the epic. Use the Task tool with `model: "haiku"` and the prompt content from `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md`. Pass the epic ID as the argument.
 
 ```
 Task tool:
   model: "haiku"
-  prompt: <contents of lockpick-workflow/skills/shared/prompts/complexity-evaluator.md>
+  prompt: <contents of ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md>
   argument: <epic-id>
 ```
 
-If the haiku sub-agent fails or returns malformed JSON (not parseable or missing the `classification` key), log a warning and fall through to full `/preplanning` (full mode is the safe fallback default).
+If the haiku sub-agent fails or returns malformed JSON (not parseable or missing the `classification` key), log a warning and fall through to full `/dso:preplanning` (full mode is the safe fallback default).
 
 #### Step 4b: Route Based on Classification
 
-Apply the brainstorm routing rule to the shared rubric's output. The key insight: brainstorm produces specs at varying fidelity levels. When the spec already includes explicit file lists, a defined approach, and measurable success criteria, preplanning (story decomposition) is redundant — route directly to `/implementation-plan`.
+Apply the brainstorm routing rule to the shared rubric's output. The key insight: brainstorm produces specs at varying fidelity levels. When the spec already includes explicit file lists, a defined approach, and measurable success criteria, preplanning (story decomposition) is redundant — route directly to `/dso:implementation-plan`.
 
 | Classification | scope_certainty | Routing |
 |---|---|---|
-| TRIVIAL | High (always) | `/implementation-plan <epic-id>` |
-| MODERATE | High | `/implementation-plan <epic-id>` |
-| MODERATE | Medium | `/preplanning <epic-id> --lightweight` |
-| COMPLEX | any | `/preplanning <epic-id>` (full mode) |
+| TRIVIAL | High (always) | `/dso:implementation-plan <epic-id>` |
+| MODERATE | High | `/dso:implementation-plan <epic-id>` |
+| MODERATE | Medium | `/dso:preplanning <epic-id> --lightweight` |
+| COMPLEX | any | `/dso:preplanning <epic-id>` (full mode) |
 
 **Rationale**: TRIVIAL and MODERATE+High epics have named files, testable acceptance criteria, and bounded scope — the brainstorm dialogue already produced story-level detail. Preplanning would add overhead without value. MODERATE+Medium epics have a clear goal but implicit acceptance criteria that need decomposition. COMPLEX epics require full story decomposition regardless of spec fidelity.
 
@@ -293,21 +293,21 @@ Immediately invoke the routed skill — do NOT wait for user input after surfaci
 ```
 # TRIVIAL or MODERATE + scope_certainty High:
 Skill tool:
-  skill: "implementation-plan"
+  skill: "dso:implementation-plan"
   args: "<epic-id>"
 
 # MODERATE + scope_certainty Medium:
 Skill tool:
-  skill: "preplanning"
+  skill: "dso:preplanning"
   args: "<epic-id> --lightweight"
 
 # COMPLEX:
 Skill tool:
-  skill: "preplanning"
+  skill: "dso:preplanning"
   args: "<epic-id>"
 ```
 
-`/implementation-plan` will break the epic directly into atomic TDD tasks. `/preplanning` will decompose into user stories first, then each story gets `/implementation-plan`. Control returns here only if the invoked skill escalates (e.g., requires user clarification).
+`/dso:implementation-plan` will break the epic directly into atomic TDD tasks. `/dso:preplanning` will decompose into user stories first, then each story gets `/dso:implementation-plan`. Control returns here only if the invoked skill escalates (e.g., requires user clarification).
 
 Report the epic creation and skill handoff:
 
@@ -332,7 +332,7 @@ Epic classified as <TIER> (scope_certainty: <level>) — invoking /<skill>…
 
 **Fidelity gate** — the spec must pass all reviewer dimensions before presenting to the user.
 
-**No child tasks** — this skill creates the epic only. Stories and tasks are created by `/preplanning`.
+**No child tasks** — this skill creates the epic only. Stories and tasks are created by `/dso:preplanning`.
 
 ---
 
@@ -342,4 +342,4 @@ Epic classified as <TIER> (scope_certainty: <level>) — invoking /<skill>…
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), route: TRIVIAL/MODERATE+High → `/implementation-plan`, MODERATE+Medium → `/preplanning --lightweight`, COMPLEX → `/preplanning` |
+| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), route: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

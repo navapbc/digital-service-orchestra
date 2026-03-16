@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-read-config.sh
-# Tests for lockpick-workflow/scripts/read-config.sh
+# tests/scripts/test-read-config.sh
+# Tests for scripts/read-config.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-read-config.sh
+# Usage: bash tests/scripts/test-read-config.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

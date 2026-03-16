@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-validate-flock-timeout.sh
+# tests/scripts/test-validate-flock-timeout.sh
 # TDD tests for validate.sh verbose_print flock timeout handling.
 #
 # Tests:
@@ -8,7 +8,7 @@
 #   test_verbose_print_flock_unavail_unchanged — existing no-flock fallback still present
 #   test_validate_syntax_valid               — validate.sh passes bash -n
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-validate-flock-timeout.sh
+# Usage: bash tests/scripts/test-validate-flock-timeout.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -24,7 +24,7 @@ echo "=== test-validate-flock-timeout.sh ==="
 
 # ============================================================================
 # test_verbose_print_uses_flock_timeout
-# Acceptance criterion: grep -q "\-w 5\|--timeout" lockpick-workflow/scripts/validate.sh
+# Acceptance criterion: grep -q "\-w 5\|--timeout" scripts/validate.sh
 # ============================================================================
 echo ""
 echo "=== test_verbose_print_uses_flock_timeout ==="

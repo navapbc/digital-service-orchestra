@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-record-review-crossval.sh
+# tests/hooks/test-record-review-crossval.sh
 # Integration tests for record-review.sh.
 #
 # Tests the validation logic that reads scores, summary, and findings directly
 # from reviewer-findings.json (no stdin JSON is accepted).
 #
 # Usage:
-#   ./lockpick-workflow/tests/hooks/test-record-review-crossval.sh
+#   ./tests/hooks/test-record-review-crossval.sh
 #
 # Must be run from within a git repository (uses git rev-parse).
 
@@ -18,7 +18,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 SCRIPT_UNDER_TEST="$PLUGIN_ROOT/hooks/record-review.sh"
 
 # Source deps.sh so we use the same get_artifacts_dir() as the hook does at runtime.
-# shellcheck source=../../../lockpick-workflow/hooks/lib/deps.sh
+# shellcheck source=../../../hooks/lib/deps.sh
 source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 
 # Use an isolated temp directory so tests don't clobber production artifacts.

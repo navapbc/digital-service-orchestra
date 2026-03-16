@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-cross-stack-regression.sh
+# tests/scripts/test-cross-stack-regression.sh
 # Cross-stack regression tests: verifies detect-stack.sh produces the correct
 # stack identifier for each integration fixture directory.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-cross-stack-regression.sh
+# Usage: bash tests/scripts/test-cross-stack-regression.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # RED phase: test_cross_stack_lockpick_snapshot_detected is expected to FAIL
-# until lockpick-workflow/tests/fixtures/lockpick-snapshot is created (Task uf64v/GREEN).
+# until tests/fixtures/lockpick-snapshot is created (Task uf64v/GREEN).
 
 set -uo pipefail
 
@@ -22,7 +22,7 @@ DETECT="$PLUGIN_ROOT/scripts/detect-stack.sh"
 echo "=== test-cross-stack-regression.sh ==="
 
 # ── test_cross_stack_node_fixture_detected ────────────────────────────────────
-# detect-stack.sh on lockpick-workflow/tests/fixtures/node-project must output 'node-npm'.
+# detect-stack.sh on tests/fixtures/node-project must output 'node-npm'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
 NODE_FIXTURE="$PLUGIN_ROOT/tests/fixtures/node-project"
 if [[ ! -d "$NODE_FIXTURE" ]]; then
@@ -36,7 +36,7 @@ else
 fi
 
 # ── test_cross_stack_go_fixture_detected ─────────────────────────────────────
-# detect-stack.sh on lockpick-workflow/tests/fixtures/go-project must output 'golang'.
+# detect-stack.sh on tests/fixtures/go-project must output 'golang'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
 GO_FIXTURE="$PLUGIN_ROOT/tests/fixtures/go-project"
 if [[ ! -d "$GO_FIXTURE" ]]; then
@@ -50,7 +50,7 @@ else
 fi
 
 # ── test_cross_stack_makefile_fixture_detected ───────────────────────────────
-# detect-stack.sh on lockpick-workflow/tests/fixtures/makefile-project must output
+# detect-stack.sh on tests/fixtures/makefile-project must output
 # 'convention-based'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
 MAKE_FIXTURE="$PLUGIN_ROOT/tests/fixtures/makefile-project"
@@ -65,7 +65,7 @@ else
 fi
 
 # ── test_cross_stack_lockpick_snapshot_detected ───────────────────────────────
-# detect-stack.sh on lockpick-workflow/tests/fixtures/lockpick-snapshot must output
+# detect-stack.sh on tests/fixtures/lockpick-snapshot must output
 # 'python-poetry'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
 # NOTE: This test FAILS in RED phase until lockpick-snapshot fixture is created.
@@ -81,7 +81,7 @@ else
 fi
 
 # ── test_cross_stack_multi_marker_python_priority ────────────────────────────
-# detect-stack.sh on lockpick-workflow/tests/evals/fixtures/multi-marker-project
+# detect-stack.sh on tests/evals/fixtures/multi-marker-project
 # (has both pyproject.toml and package.json) must output 'python-poetry'
 # because Python takes priority over Node.
 MULTI_FIXTURE="$PLUGIN_ROOT/tests/evals/fixtures/multi-marker-project"

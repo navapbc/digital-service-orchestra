@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/plugin-reference-catalog.sh
-# Scans lockpick-workflow/ directories for references to 7 external plugins.
+# scripts/plugin-reference-catalog.sh
+# Scans  directories for references to 7 external plugins.
 #
 # Output: one line per reference found:
 #   <file>:<line-number>:<plugin-name>:<context-snippet>
 #
 # Followed by a summary section with per-plugin counts.
 #
-# Usage: bash lockpick-workflow/scripts/plugin-reference-catalog.sh
+# Usage: bash scripts/plugin-reference-catalog.sh
 
 set -uo pipefail
 
@@ -28,10 +28,10 @@ PLUGINS=(
 
 # Directories to scan (relative to REPO_ROOT)
 SCAN_DIRS=(
-    lockpick-workflow/skills
-    lockpick-workflow/docs
-    lockpick-workflow/hooks
-    lockpick-workflow/scripts
+    skills
+    docs
+    hooks
+    scripts
 )
 
 # Files to exclude (the catalog script itself and its test)

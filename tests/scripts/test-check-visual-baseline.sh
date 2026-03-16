@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-visual-baseline.sh
+# tests/scripts/test-check-visual-baseline.sh
 # TDD tests for check-visual-baseline.sh extraction from validate-work/SKILL.md Step 2b.
 #
 # Tests:
-#   1. lockpick-workflow/scripts/check-visual-baseline.sh exists and is executable
+#   1. scripts/check-visual-baseline.sh exists and is executable
 #   2. scripts/check-visual-baseline.sh exec wrapper delegates to canonical script
 #   3. validate-work/SKILL.md references check-visual-baseline.sh
 #   4. Script outputs a VISUAL_REGRESSION= line to stdout (macOS / VISUAL_BASELINE_PATH unset)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-visual-baseline.sh
+# Usage: bash tests/scripts/test-check-visual-baseline.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -25,7 +25,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-check-visual-baseline.sh ==="
 
 # ── test_canonical_script_exists ──────────────────────────────────────────────
-# lockpick-workflow/scripts/check-visual-baseline.sh must exist
+# scripts/check-visual-baseline.sh must exist
 _snapshot_fail
 if [[ -f "$CANONICAL_SCRIPT" ]]; then
     assert_eq "test_canonical_script_exists: file exists" "yes" "yes"
@@ -35,7 +35,7 @@ fi
 assert_pass_if_clean "test_canonical_script_exists"
 
 # ── test_canonical_script_is_executable ───────────────────────────────────────
-# lockpick-workflow/scripts/check-visual-baseline.sh must be executable
+# scripts/check-visual-baseline.sh must be executable
 _snapshot_fail
 if [[ -x "$CANONICAL_SCRIPT" ]]; then
     assert_eq "test_canonical_script_is_executable: executable" "yes" "yes"
@@ -49,8 +49,8 @@ assert_pass_if_clean "test_canonical_script_is_executable"
 _snapshot_fail
 if [[ -f "$WRAPPER_SCRIPT" ]]; then
     assert_eq "test_wrapper_delegates: wrapper exists" "yes" "yes"
-    # The wrapper must contain an exec call pointing to lockpick-workflow/scripts/check-visual-baseline.sh
-    if grep -q 'lockpick-workflow/scripts/check-visual-baseline.sh' "$WRAPPER_SCRIPT" 2>/dev/null; then
+    # The wrapper must contain an exec call pointing to scripts/check-visual-baseline.sh
+    if grep -q 'scripts/check-visual-baseline.sh' "$WRAPPER_SCRIPT" 2>/dev/null; then
         assert_eq "test_wrapper_delegates: wrapper references canonical" "yes" "yes"
     else
         assert_eq "test_wrapper_delegates: wrapper references canonical" "yes" "no"

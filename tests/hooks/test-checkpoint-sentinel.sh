@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-checkpoint-sentinel.sh
+# tests/hooks/test-checkpoint-sentinel.sh
 #
 # Tests for the checkpoint review sentinel mechanism (kg1n):
 #   (a) pre-compact-checkpoint.sh writes a nonce to .checkpoint-needs-review
@@ -7,7 +7,7 @@
 #   (c) merge-to-main.sh blocks if checkpoint_cleared is absent/mismatched
 #   (d) merge-to-main.sh passes after a legitimate review clears the sentinel
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-checkpoint-sentinel.sh
+# Usage: bash tests/hooks/test-checkpoint-sentinel.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

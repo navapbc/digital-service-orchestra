@@ -6,7 +6,7 @@ Type: {epic-type}
 {list of files from git diff --name-only main...HEAD}
 
 ### Context
-Project-wide validation (/validate-work) has already passed.
+Project-wide validation (/dso:validate-work) has already passed.
 Your job is epic-specific quality assessment only — do NOT re-run
 format, lint, or unit tests (already verified).
 
@@ -57,5 +57,5 @@ Report your findings exactly as:
 ### Rules
 - Do NOT: git commit, git push, tk close, tk status, edit .tickets/ files
 - Do NOT modify any code — this is a read-only review
-- Do NOT re-run format, lint, or unit tests (already verified by /validate-work)
+- Do NOT re-run format, lint, or unit tests (already verified by /dso:validate-work)
 - Be specific: include file paths, test names, exact error messages

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-tk-jira-stamp-preserves-parent.sh
+# tests/scripts/test-tk-jira-stamp-preserves-parent.sh
 #
 # RED tests for two bugs causing parent: field loss during Jira sync:
 #
@@ -9,7 +9,7 @@
 # Bug 2: _sync_push_ticket writes jira_hash="" to ledger, causing the pull
 #         phase to spuriously rewrite the file on the next sync run
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-tk-jira-stamp-preserves-parent.sh
+# Usage: bash tests/scripts/test-tk-jira-stamp-preserves-parent.sh
 
 set -uo pipefail
 

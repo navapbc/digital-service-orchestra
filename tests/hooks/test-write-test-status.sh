@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-write-test-status.sh
+# tests/hooks/test-write-test-status.sh
 # Tests for write-test-status.sh helper script.
 
 set -euo pipefail

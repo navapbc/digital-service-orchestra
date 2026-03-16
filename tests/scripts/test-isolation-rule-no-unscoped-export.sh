@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-isolation-rule-no-unscoped-export.sh
+# tests/scripts/test-isolation-rule-no-unscoped-export.sh
 # Tests for scripts/test-isolation-rules/no-unscoped-export.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-isolation-rule-no-unscoped-export.sh
+# Usage: bash tests/scripts/test-isolation-rule-no-unscoped-export.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

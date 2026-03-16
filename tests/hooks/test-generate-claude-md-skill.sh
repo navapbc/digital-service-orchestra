@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-generate-claude-md-skill.sh
-# Verifies that the /generate-claude-md skill file exists at
-# lockpick-workflow/skills/generate-claude-md/SKILL.md and contains the
+# tests/hooks/test-generate-claude-md-skill.sh
+# Verifies that the /dso:generate-claude-md skill file exists at
+# skills/generate-claude-md/SKILL.md and contains the
 # required frontmatter and content sections.
 #
 # RED PHASE: All tests are expected to FAIL until the skill is implemented.
 #
 # Usage:
-#   bash lockpick-workflow/tests/hooks/test-generate-claude-md-skill.sh
+#   bash tests/hooks/test-generate-claude-md-skill.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

@@ -50,13 +50,13 @@ if [ -z "$REPO_ROOT" ]; then
     exit 2
 fi
 
-TK="${TK:-$REPO_ROOT/scripts/tk}"
+TK="${TK:-${CLAUDE_PLUGIN_ROOT}/scripts/tk}"
 
-ISSUE_BATCH="$REPO_ROOT/lockpick-workflow/scripts/issue-batch.sh"
-ANALYZE_IMPACT="$REPO_ROOT/scripts/analyze-file-impact.py"
+ISSUE_BATCH="${CLAUDE_PLUGIN_ROOT}/scripts/issue-batch.sh"
+ANALYZE_IMPACT="${CLAUDE_PLUGIN_ROOT}/scripts/analyze-file-impact.py"
 
 # Resolve Python — prefer config-driven venv path; fallback to python3
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" # reads workflow-config.conf
+READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" # reads workflow-config.conf
 _config_python=""
 if [ -x "$READ_CONFIG" ]; then
     _config_python=$("$READ_CONFIG" interpreter.python_venv "$REPO_ROOT/workflow-config.conf" 2>/dev/null || true) # read-config.sh interpreter
@@ -67,7 +67,7 @@ if [ -x "$READ_CONFIG" ]; then
     fi
 fi
 PYTHON="${_config_python:-python3}"
-SCORER="$REPO_ROOT/lockpick-workflow/scripts/classify-task.py"
+SCORER="${CLAUDE_PLUGIN_ROOT}/scripts/classify-task.py"
 
 # Read config-driven path patterns for extract_files()
 CFG_SRC_DIR=""

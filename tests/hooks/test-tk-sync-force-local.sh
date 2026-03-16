@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-tk-sync-force-local.sh
+# tests/hooks/test-tk-sync-force-local.sh
 # Tests for tk sync --force-local conflict resolution.
 #
 # Verifies:
@@ -15,7 +15,7 @@
 # cannot be sourced (it has a main dispatch at the bottom) and cannot
 # be run end-to-end without acli/Jira credentials.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-tk-sync-force-local.sh
+# Usage: bash tests/hooks/test-tk-sync-force-local.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

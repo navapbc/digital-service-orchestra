@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/reinstall-hooks.sh — Reinstall git hook shims with resilient fallback
+# scripts/reinstall-hooks.sh — Reinstall git hook shims with resilient fallback
 #
 # Re-runs `pre-commit install` for all three hook types using the current venv,
 # then patches the generated shims to add a `poetry run pre-commit` fallback.
@@ -29,7 +29,7 @@ set -euo pipefail
 
 # Source config-paths.sh for portable path resolution
 _REINSTALL_HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_REINSTALL_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT:-$_REINSTALL_HOOKS_DIR/..}/hooks/lib/config-paths.sh"
+_REINSTALL_CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 if [ -f "$_REINSTALL_CONFIG_PATHS" ]; then
     # shellcheck source=../hooks/lib/config-paths.sh
     source "$_REINSTALL_CONFIG_PATHS"

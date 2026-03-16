@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-claude-safe-compose-cleanup.sh
-# Tests for _cleanup_docker_for_worktree in lockpick-workflow/scripts/claude-safe.
+# tests/scripts/test-claude-safe-compose-cleanup.sh
+# Tests for _cleanup_docker_for_worktree in scripts/claude-safe.
 #
 # Verifies that the function reads compose file paths from infrastructure.compose_files
 # via read-config.sh --list rather than using hardcoded paths.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-claude-safe-compose-cleanup.sh
+# Usage: bash tests/scripts/test-claude-safe-compose-cleanup.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

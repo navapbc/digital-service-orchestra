@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/skills/end-session/error-sweep.sh
+# skills/end-session/error-sweep.sh
 # Library providing sweep_tool_errors() and sweep_validation_failures() for the /end skill (Step 2.9).
 #
 # Reads ~/.claude/tool-error-counter.json, iterates categories in .index where
@@ -10,13 +10,13 @@
 # Counter JSON structure: {"index": {"category_name": count, ...}, "errors": [...]}
 #
 # Usage:
-#   source "$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
+#   source "${CLAUDE_PLUGIN_ROOT}/skills/end-session/error-sweep.sh"
 #   sweep_tool_errors
 
 THRESHOLD=50
 
 # Categories that are normal operational noise — counts are tracked but no ticket is created.
-# Source of truth: lockpick-workflow/hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
+# Source of truth: hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
 NOISE_CATEGORIES="file_not_found command_exit_nonzero"
 
 # _extract_category_details: extract error details for a category as markdown

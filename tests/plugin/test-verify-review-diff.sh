@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-verify-review-diff.sh
+# tests/plugin/test-verify-review-diff.sh
 # Tests for verify-review-diff.sh — validates review diff hash verification.
 #
 # Manual run:
-#   bash lockpick-workflow/tests/plugin/test-verify-review-diff.sh
+#   bash tests/plugin/test-verify-review-diff.sh
 
 set -euo pipefail
 
@@ -79,22 +79,6 @@ exit_d=0
 output_d=$(bash "$VERIFY_SCRIPT" "$NO_HASH_FILE" 2>&1) || exit_d=$?
 assert_eq "no-hash exits non-zero" "1" "$exit_d"
 assert_contains "no-hash reports cannot extract" "could not extract hash" "$output_d"
-
-# ---------------------------------------------------------------------------
-# Test E: Wrapper at scripts/ delegates to plugin copy
-# ---------------------------------------------------------------------------
-echo ""
-echo "--- Test E: wrapper delegates to plugin ---"
-
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-WRAPPER="$REPO_ROOT/scripts/verify-review-diff.sh"
-
-assert_eq "wrapper exists" "true" \
-    "$(test -f "$WRAPPER" && echo true || echo false)"
-
-# Check that the wrapper contains an exec line pointing to lockpick-workflow
-wrapper_has_exec=$(grep -c 'exec.*lockpick-workflow/scripts/verify-review-diff.sh' "$WRAPPER" 2>/dev/null || echo "0")
-assert_ne "wrapper has exec delegation to plugin" "0" "$wrapper_has_exec"
 
 # ---------------------------------------------------------------------------
 # Summary

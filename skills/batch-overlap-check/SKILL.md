@@ -11,10 +11,10 @@ the same files, preventing file-level conflicts between parallel sub-agents.
 
 ## When to Use
 
-Invoke as a sub-agent from `/debug-everything` Phase 3 before finalizing each
+Invoke as a sub-agent from `/dso:debug-everything` Phase 3 before finalizing each
 batch. Pass the candidate task IDs as input.
 
-> **Note**: `/sprint` Phase 3 now uses `sprint-next-batch.sh` instead, which
+> **Note**: `/dso:sprint` Phase 3 now uses `sprint-next-batch.sh` instead, which
 > handles story-level blocking propagation and file-overlap detection
 > deterministically in a single script call without spawning a sub-agent.
 
@@ -26,7 +26,7 @@ The orchestrator provides:
 
 ## Protocol
 
-### Step 1: Extract Target Files (/batch-overlap-check)
+### Step 1: Extract Target Files (/dso:batch-overlap-check)
 
 For each candidate task ID:
 1. Run `tk show <id>` to read the full description
@@ -37,12 +37,12 @@ For each candidate task ID:
    - **Shared config/init files** (e.g., `__init__.py`, `conftest.py` -- only flag if
      the task description explicitly mentions modifying exports or fixtures)
 
-### Step 2: Build File -> Tasks Mapping (/batch-overlap-check)
+### Step 2: Build File -> Tasks Mapping (/dso:batch-overlap-check)
 
 Create a mapping of each target file to the task(s) that reference it.
 Report the mapping for orchestrator visibility.
 
-### Step 3: Serialize Overlapping Tasks (/batch-overlap-check)
+### Step 3: Serialize Overlapping Tasks (/dso:batch-overlap-check)
 
 For each file that appears in 2+ tasks:
 1. Identify the higher-priority task (from ticket priority or batch priority class)
@@ -57,7 +57,7 @@ For each file that appears in 2+ tasks:
       existing circular dependency. Recommend: run A in this batch, defer B to next."
 4. If no cycle: run `tk dep <lower-priority> <higher-priority>`
 
-### Step 4: Report (/batch-overlap-check)
+### Step 4: Report (/dso:batch-overlap-check)
 
 Output in this exact format:
 

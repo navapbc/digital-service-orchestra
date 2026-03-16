@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-script-writes.sh
+# tests/scripts/test-check-script-writes.sh
 # TDD tests for check-script-writes.py — shfmt AST-based file-write detector.
 #
 # Tests:
@@ -17,7 +17,7 @@
 # 12. test_variable_resolution_repo_root   — OUTDIR="./results"; echo x > "$OUTDIR/f" → exit 1
 # 13. test_cross_file_variable_tracing     — File A: STATE_DIR="./state", File B: write to $STATE_DIR/f → exit 1
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-script-writes.sh
+# Usage: bash tests/scripts/test-check-script-writes.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -52,7 +52,7 @@ test_no_shfmt_skips_gracefully() {
     _snapshot_fail
     local _exit=0
     local _out=""
-    _out=$(python3 "$SCRIPT" --scan-dir="$REPO_ROOT/lockpick-workflow" --shfmt-path=/nonexistent 2>&1) || _exit=$?
+    _out=$(python3 "$SCRIPT" --scan-dir="${CLAUDE_PLUGIN_ROOT}" --shfmt-path=/nonexistent 2>&1) || _exit=$?
     assert_eq "test_no_shfmt_skips_gracefully: exit 0" "0" "$_exit"
     assert_contains "test_no_shfmt_skips_gracefully: output contains 'shfmt not found'" "shfmt not found" "$_out"
     assert_pass_if_clean "test_no_shfmt_skips_gracefully"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-validate-review-output.sh
-# Tests for lockpick-workflow/scripts/validate-review-output.sh
+# tests/hooks/test-validate-review-output.sh
+# Tests for scripts/validate-review-output.sh
 #
 # validate-review-output.sh validates review agent output against expected
 # schemas for prompt IDs: code-review-dispatch, review-protocol, plan-review.
@@ -47,7 +47,7 @@ write_fixture() {
 # ============================================================
 
 assert_eq \
-    "test_script_exists_in_plugin: validate-review-output.sh is present in lockpick-workflow/scripts/" \
+    "test_script_exists_in_plugin: validate-review-output.sh is present in scripts/" \
     "yes" \
     "$(test -f "$SCRIPT" && echo yes || echo no)"
 

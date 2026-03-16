@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-smoke-test-portable.sh
-# TDD tests for lockpick-workflow/scripts/smoke-test-portable.sh
+# tests/scripts/test-smoke-test-portable.sh
+# TDD tests for scripts/smoke-test-portable.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-smoke-test-portable.sh
+# Usage: bash tests/scripts/test-smoke-test-portable.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -19,10 +19,10 @@ echo "=== test-smoke-test-portable.sh ==="
 # ── Test 1: test_smoke_test_exists — script exists and is executable ──────────
 echo "Test 1: test_smoke_test_exists — script exists and is executable"
 if [ -x "$SCRIPT" ]; then
-    echo "  PASS: lockpick-workflow/scripts/smoke-test-portable.sh exists and is executable"
+    echo "  PASS: scripts/smoke-test-portable.sh exists and is executable"
     (( PASS++ ))
 else
-    echo "  FAIL: lockpick-workflow/scripts/smoke-test-portable.sh missing or not executable" >&2
+    echo "  FAIL: scripts/smoke-test-portable.sh missing or not executable" >&2
     (( FAIL++ ))
 fi
 
@@ -43,7 +43,7 @@ fi
 echo "Test 3: test_smoke_test_runs — script exits 0 with real plugin"
 if [ -x "$SCRIPT" ]; then
     exit_code=0
-    CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow" bash "$SCRIPT" >/dev/null 2>&1 || exit_code=$?
+    CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" bash "$SCRIPT" >/dev/null 2>&1 || exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS: script exited 0 when run against the real plugin"
         (( PASS++ ))
@@ -59,7 +59,7 @@ fi
 # ── Test 4: test_smoke_test_cleanup — no /tmp/lw-smoke-* dirs remain ─────────
 echo "Test 4: test_smoke_test_cleanup — /tmp/lw-smoke-* cleaned up after run"
 if [ -x "$SCRIPT" ]; then
-    CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow" bash "$SCRIPT" >/dev/null 2>&1 || true
+    CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" bash "$SCRIPT" >/dev/null 2>&1 || true
     leftover_count=$(ls -d /tmp/lw-smoke-* 2>/dev/null | wc -l | tr -d ' ')
     if [ "$leftover_count" -eq 0 ]; then
         echo "  PASS: no /tmp/lw-smoke-* dirs remain after script exits"
@@ -79,7 +79,7 @@ fi
 echo "Test 5: test_smoke_test_produces_summary — output contains PASS summary"
 if [ -x "$SCRIPT" ]; then
     output=""
-    output=$(CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow" bash "$SCRIPT" 2>&1) || true
+    output=$(CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" bash "$SCRIPT" 2>&1) || true
     if echo "$output" | grep -q "PASS"; then
         echo "  PASS: output contains PASS summary marker"
         (( PASS++ ))

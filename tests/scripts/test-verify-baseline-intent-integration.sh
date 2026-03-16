@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-verify-baseline-intent-integration.sh
+# tests/scripts/test-verify-baseline-intent-integration.sh
 # Integration tests for verify-baseline-intent.sh config-driven path reading.
 #
 # These are behavioral tests that run the script end-to-end in isolated git
@@ -11,7 +11,7 @@
 #   2. Custom baseline dir configured, PNG at old hardcoded path → exit 0 (ignored)
 #   3. Custom baseline dir with PNG AND manifest → exit 0 (intent confirmed)
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-verify-baseline-intent-integration.sh
+# Usage: bash tests/scripts/test-verify-baseline-intent-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

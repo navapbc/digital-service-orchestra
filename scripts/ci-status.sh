@@ -165,7 +165,7 @@ to_epoch() {
 }
 
 # Source deps.sh for parse_json_field (jq fallback) and other utilities.
-_ci_deps_sh="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")" && pwd)/..}/hooks/lib/deps.sh"
+_ci_deps_sh="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 [[ -f "$_ci_deps_sh" ]] && source "$_ci_deps_sh"
 
 # ci_parse_json <json> <field_expr>
@@ -191,7 +191,7 @@ ci_parse_json() {
 }
 
 # Source config-paths.sh for CFG_PYTHON_VENV
-_ci_config_paths="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")" && pwd)/..}/hooks/lib/config-paths.sh"
+_ci_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 [[ -f "$_ci_config_paths" ]] && source "$_ci_config_paths"
 
 # Resolve a python3 interpreter that has PyYAML installed.

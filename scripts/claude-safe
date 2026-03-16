@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/scripts/claude-safe — Launch Claude Code with automatic worktree isolation
+# scripts/claude-safe — Launch Claude Code with automatic worktree isolation
 #
 # Drop-in replacement for `claude` that always creates a fresh worktree
 # so every session gets its own isolated working directory.
@@ -18,7 +18,7 @@
 #   claude-safe --help-wrapper     # Show this script's help
 #
 # Source-only mode (for tests):
-#   _CLAUDE_SAFE_SOURCE_ONLY=1 source lockpick-workflow/scripts/claude-safe
+#   _CLAUDE_SAFE_SOURCE_ONLY=1 source scripts/claude-safe
 #   _cleanup_docker_for_worktree "wt-name" "/path/to/wt"
 #
 # Config keys read from workflow-config.yaml via read-config.sh:

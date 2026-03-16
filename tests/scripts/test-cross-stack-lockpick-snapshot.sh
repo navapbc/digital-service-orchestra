@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-cross-stack-lockpick-snapshot.sh
+# tests/scripts/test-cross-stack-lockpick-snapshot.sh
 # TDD red-phase tests for the Lockpick snapshot fixture used in cross-stack
 # integration testing.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-cross-stack-lockpick-snapshot.sh
+# Usage: bash tests/scripts/test-cross-stack-lockpick-snapshot.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # NOTE: These tests are expected to FAIL until the Lockpick snapshot fixture
-# is created (lockpick-workflow/tests/fixtures/lockpick-snapshot/ does not exist yet).
+# is created (tests/fixtures/lockpick-snapshot/ does not exist yet).
 
 set -uo pipefail
 
@@ -22,7 +22,7 @@ echo "=== test-cross-stack-lockpick-snapshot.sh ==="
 
 # ── test_lockpick_snapshot_fixture_dir_exists ─────────────────────────────────
 # The lockpick-snapshot fixture directory must exist.
-# FAILS until Task (GREEN) creates lockpick-workflow/tests/fixtures/lockpick-snapshot/
+# FAILS until Task (GREEN) creates tests/fixtures/lockpick-snapshot/
 if [ -d "$FIXTURE" ]; then
     assert_eq "test_lockpick_snapshot_fixture_dir_exists" "exists" "exists"
 else
@@ -46,7 +46,7 @@ assert_eq "test_lockpick_snapshot_detect_returns_python_poetry" "python-poetry" 
 
 # ── test_lockpick_snapshot_workflow_config_exists ────────────────────────────
 # The lockpick-snapshot fixture must contain a workflow-config.conf file.
-# FAILS until the GREEN task creates lockpick-workflow/tests/fixtures/lockpick-snapshot/workflow-config.conf
+# FAILS until the GREEN task creates tests/fixtures/lockpick-snapshot/workflow-config.conf
 if [ -f "$FIXTURE/workflow-config.conf" ]; then
     assert_eq "test_lockpick_snapshot_workflow_config_exists" "exists" "exists"
 else

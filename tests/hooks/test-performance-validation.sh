@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-performance-validation.sh
+# tests/hooks/test-performance-validation.sh
 # Performance validation tests for dispatcher consolidation (task 0tin)
 # Validates epic success criteria: subprocess count, config resolution,
 # no inline worktree detection, no duplicate exclusion patterns.
@@ -112,7 +112,7 @@ import json, sys
 
 with open('.claude/settings.json') as f:
     settings = json.load(f)
-with open('lockpick-workflow/hooks.json') as f:
+with open('hooks.json') as f:
     hooks_json = json.load(f)
 
 assert 'hooks' in settings, "settings.json missing 'hooks'"

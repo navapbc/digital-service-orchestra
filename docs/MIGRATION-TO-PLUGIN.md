@@ -1,18 +1,18 @@
-# Migration Guide: Switching from Embedded .claude/ Workflow to lockpick-workflow Plugin
+# Migration Guide: Switching from Embedded .claude/ Workflow to Digital Service Orchestra Plugin
 
 ## Overview
 
 ### What Changes
 
 This migration moves the Claude Code workflow infrastructure from project-embedded files
-to the standalone `lockpick-workflow` plugin:
+to the standalone Digital Service Orchestra plugin:
 
 | Component | Before (embedded) | After (plugin) |
 |-----------|-------------------|----------------|
-| Hooks | `.claude/hooks/` | `lockpick-workflow/hooks/` |
-| Skills | `.claude/skills/` | `lockpick-workflow/skills/` |
-| Scripts | `scripts/` (workflow-specific) | `lockpick-workflow/scripts/` |
-| Workflows | `.claude/workflows/` | `lockpick-workflow/docs/workflows/` |
+| Hooks | `.claude/hooks/` | `hooks/` |
+| Skills | `.claude/skills/` | `skills/` |
+| Scripts | `scripts/` (workflow-specific) | `scripts/` |
+| Workflows | `.claude/workflows/` | `docs/workflows/` |
 | CLAUDE.md | Manually maintained | Plugin-generated preamble + project sections |
 | Config | Hardcoded paths | `workflow-config.conf` at project root |
 
@@ -57,15 +57,15 @@ The following are **not** touched by this migration:
 
 ### Step 1: Install the Plugin
 
-Clone the `lockpick-workflow` plugin to a stable location outside your project directory:
+Clone the Digital Service Orchestra plugin to a stable location outside your project directory:
 
 ```bash
-git clone https://github.com/lockpick/lockpick-workflow /path/to/lockpick-workflow
+git clone https://github.com/navapbc/digital-service-orchestra /path/to/digital-service-orchestra
 ```
 
 Recommended locations:
-- `~/tools/lockpick-workflow` (user-level, shared across projects)
-- Adjacent to the project repo, e.g., `../lockpick-workflow`
+- `~/tools/digital-service-orchestra` (user-level, shared across projects)
+- Adjacent to the project repo, e.g., `../digital-service-orchestra`
 
 Set `CLAUDE_PLUGIN_ROOT` in your project's `.claude/settings.json` so all hooks and
 skills resolve paths correctly:
@@ -73,13 +73,13 @@ skills resolve paths correctly:
 ```json
 {
   "env": {
-    "CLAUDE_PLUGIN_ROOT": "/path/to/lockpick-workflow"
+    "CLAUDE_PLUGIN_ROOT": "/path/to/digital-service-orchestra"
   },
   "hooks": { ... }
 }
 ```
 
-Replace `/path/to/lockpick-workflow` with the actual absolute path where you cloned the plugin.
+Replace `/path/to/digital-service-orchestra` with the actual absolute path where you cloned the plugin.
 
 Update each hook command to reference the plugin location. The pattern changes from:
 
@@ -117,7 +117,7 @@ commands.test=make test
 commands.lint=make lint
 commands.format=make format
 commands.format_check=make format-check
-commands.validate=./lockpick-workflow/scripts/validate.sh --ci
+commands.validate=./scripts/validate.sh --ci
 commands.test_unit=make test-unit-only
 commands.test_e2e=make test-e2e
 commands.test_visual=make test-visual
@@ -153,7 +153,7 @@ rm -rf "${REPO_ROOT}/.claude/workflows/"
 The plugin can generate a standard workflow preamble for your CLAUDE.md. Run:
 
 ```
-/generate-claude-md
+/dso:generate-claude-md
 ```
 
 This produces a preamble block covering:
@@ -173,7 +173,7 @@ After generation, merge the preamble with your project-specific CLAUDE.md conten
 
 2. **Confirm plugin is active** by running:
    ```
-   /init
+   /dso:init
    ```
    This should detect your stack and confirm `CLAUDE_PLUGIN_ROOT` is set.
 
@@ -194,14 +194,14 @@ lockpick-specific path `/tmp/lockpick-test-artifacts-<worktree>/` is replaced
 by a hash-based path `/tmp/workflow-plugin-<16-char-hash>/`.
 
 This migration is **automatic**. On the first hook invocation after upgrading,
-`get_artifacts_dir()` (in `lockpick-workflow/hooks/lib/deps.sh`) detects the old
+`get_artifacts_dir()` (in `hooks/lib/deps.sh`) detects the old
 directory and copies its contents to the new location.
 
 For full details on the state directory change — including the derivation algorithm,
 idempotency guarantees, and in-flight session behavior — see:
 
 ```
-lockpick-workflow/docs/MIGRATION.md
+docs/MIGRATION.md
 ```
 
 ---
@@ -237,6 +237,6 @@ If you need to revert to the embedded workflow:
 |---------|--------------|-----|
 | `CLAUDE_PLUGIN_ROOT: unbound variable` | `env` block missing from `settings.json` | Add `"env": { "CLAUDE_PLUGIN_ROOT": "/path/..." }` |
 | Hook fires but cannot find `deps.sh` | Wrong `CLAUDE_PLUGIN_ROOT` path | Verify path with `echo $CLAUDE_PLUGIN_ROOT` in a Bash hook |
-| `/init` says stack not detected | Missing `workflow-config.conf` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
+| `/dso:init` says stack not detected | Missing `workflow-config.conf` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
 | Tests fail after migration | Unrelated pre-existing failures | Check `git diff HEAD~1` to confirm no app code was changed |
 | `run-hook.sh: No such file` | `CLAUDE_PLUGIN_ROOT` not set in hook command | Recheck `settings.json` hook commands to use `${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh` |

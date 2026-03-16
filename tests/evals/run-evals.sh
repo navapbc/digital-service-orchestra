@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/evals/run-evals.sh
+# tests/evals/run-evals.sh
 # Eval runner: processes evals.json manifest and evaluates each suite entry.
 #
 # Usage: bash run-evals.sh [path/to/evals.json]
@@ -38,7 +38,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Resolve REPO_ROOT: walk up from SCRIPT_DIR to find the git root.
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$REPO_ROOT" ]]; then
-    # Fallback: assume script is at lockpick-workflow/tests/evals/ inside the repo
+    # Fallback: assume script is at tests/evals/ inside the repo
     REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 fi
 

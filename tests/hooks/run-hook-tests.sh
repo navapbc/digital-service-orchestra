@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/run-hook-tests.sh
+# tests/hooks/run-hook-tests.sh
 # Aggregator: discovers and runs all hook test files in this directory.
 # Uses suite-engine for parallel execution, per-test timeouts, fail-fast,
 # and progress reporting.
 #
-# Usage: bash lockpick-workflow/tests/hooks/run-hook-tests.sh
+# Usage: bash tests/hooks/run-hook-tests.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Environment (passed through to suite-engine):

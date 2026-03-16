@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-to-main.sh
+# tests/scripts/test-merge-to-main.sh
 # Tests for merge-to-main.sh post-merge validation parallelization.
 #
 # TDD tests:
@@ -9,7 +9,7 @@
 #   4. test_parallel_validation_bash_syntax — bash -n passes
 #   5. test_parallel_validation_faster_than_serial — mock with sleep 1, assert <2s
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main.sh
+# Usage: bash tests/scripts/test-merge-to-main.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"

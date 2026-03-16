@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-retro-gather.sh
-# Baseline tests for lockpick-workflow/scripts/retro-gather.sh
+# tests/scripts/test-retro-gather.sh
+# Baseline tests for scripts/retro-gather.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-retro-gather.sh
+# Usage: bash tests/scripts/test-retro-gather.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

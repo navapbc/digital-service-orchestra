@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/plugin/test-commit-step1-5-skip.sh
+# tests/plugin/test-commit-step1-5-skip.sh
 # Tests the absent commands.test_changed skip path in COMMIT-WORKFLOW.md Step 1.5.
 #
-# Usage: bash lockpick-workflow/tests/plugin/test-commit-step1-5-skip.sh
+# Usage: bash tests/plugin/test-commit-step1-5-skip.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

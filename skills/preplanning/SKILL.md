@@ -11,20 +11,20 @@ allowed-tools:
 Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, and decompose a ticket Epic into prioritized User Stories with measurable Done Definitions that bridge the epic's vision to task-level acceptance criteria.
 
 
-**Supports dryrun mode.** Use `/dryrun /preplanning` to preview without changes.
+**Supports dryrun mode.** Use `/dso:dryrun /dso:preplanning` to preview without changes.
 
 ## Usage
 
 ```
-/preplanning                          # Interactive epic selection
-/preplanning <epic-id>                # Pre-plan specific epic
-/preplanning <epic-id> --lightweight  # Enrich epic without creating stories (used by /sprint for MODERATE epics)
+/dso:preplanning                          # Interactive epic selection
+/dso:preplanning <epic-id>                # Pre-plan specific epic
+/dso:preplanning <epic-id> --lightweight  # Enrich epic without creating stories (used by /dso:sprint for MODERATE epics)
 ```
 
 ## Arguments
 
 - `<epic-id>` (optional): The ticket epic to decompose. If omitted, presents an interactive list of open epics.
-- `--lightweight` (optional): Enrich the epic with done definitions and considerations without creating child stories. Returns `ENRICHED` or `ESCALATED`. Used by `/sprint` for MODERATE-complexity epics. If the scope scan discovers COMPLEX qualitative overrides, returns `ESCALATED` so the orchestrator can re-invoke in full mode.
+- `--lightweight` (optional): Enrich the epic with done definitions and considerations without creating child stories. Returns `ENRICHED` or `ESCALATED`. Used by `/dso:sprint` for MODERATE-complexity epics. If the scope scan discovers COMPLEX qualitative overrides, returns `ESCALATED` so the orchestrator can re-invoke in full mode.
 
 ## Process Overview
 
@@ -40,9 +40,9 @@ This skill implements a five-phase process to transform epics into implementable
 
 ---
 
-## Phase 1: Context Reconciliation & Discovery (/preplanning)
+## Phase 1: Context Reconciliation & Discovery (/dso:preplanning)
 
-### Step 1: Select and Load Epic (/preplanning)
+### Step 1: Select and Load Epic (/dso:preplanning)
 
 If `<epic-id>` was not provided:
 1. Run `tk ready` then filter results to epics only (cross-reference with `grep -l '^type: epic' .tickets/*.md`)
@@ -55,7 +55,7 @@ Load the epic:
 tk show <epic-id>
 ```
 
-### Lightweight Mode Gate (/preplanning)
+### Lightweight Mode Gate (/dso:preplanning)
 
 If `--lightweight` was passed:
 
@@ -95,7 +95,7 @@ If `--lightweight` was passed:
 
 If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
 
-### Step 2: Audit Existing Children (/preplanning)
+### Step 2: Audit Existing Children (/dso:preplanning)
 
 Gather all existing child items:
 ```bash
@@ -104,7 +104,7 @@ tk dep tree <epic-id>
 
 For each child, run `tk show <child-id>` to read full details.
 
-### Step 3: Reconcile Existing Work (/preplanning)
+### Step 3: Reconcile Existing Work (/dso:preplanning)
 
 ```
 For each existing child:
@@ -122,7 +122,7 @@ For each existing child, classify it:
 - "Tell me more about the intended scope for [Feature]... should it include [X]?"
 - "I see existing tasks for [Y]. Should these be absorbed into our new story map or kept separate?"
 
-### Step 4: Document Reconciliation Plan (/preplanning)
+### Step 4: Document Reconciliation Plan (/dso:preplanning)
 
 Before creating new stories, present a reconciliation summary:
 
@@ -140,7 +140,7 @@ If the user requests changes, iterate on the reconciliation plan and re-present.
 
 ---
 
-## Phase 2: Risk & Scope Scan (/preplanning)
+## Phase 2: Risk & Scope Scan (/dso:preplanning)
 
 Scan all drafted stories (new and modified) as a batch to flag cross-cutting concerns that individual tasks would be too granular to catch. This is a lightweight analysis — no sub-agent dispatch, no scored review, no revision cycles.
 
@@ -179,7 +179,7 @@ Produce a **Risk Register** — a flat list of one-line flags, each referencing 
 | 3 | Accessibility | Z | New interactive page — WCAG 2.1 AA compliance |
 ```
 
-Flags are added to the affected stories' descriptions as **Considerations** — context for `/implementation-plan` to incorporate into task-level acceptance criteria. They are not hard requirements at the story level.
+Flags are added to the affected stories' descriptions as **Considerations** — context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria. They are not hard requirements at the story level.
 
 ### Split Candidates
 
@@ -193,13 +193,13 @@ Mark these stories as **split candidates**. Phase 3 evaluates whether a Foundati
 
 ---
 
-## Phase 2.5: Adversarial Review (/preplanning)
+## Phase 2.5: Adversarial Review (/dso:preplanning)
 
 ### Threshold Gate
 
 **Skip this phase if fewer than 3 stories exist** after Phase 2 completes. Adversarial review adds value only when there are enough stories for cross-story interactions to matter. If skipped, log: `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase 3.
 
-### Step 1: Red Team Dispatch (/preplanning)
+### Step 1: Red Team Dispatch (/dso:preplanning)
 
 Dispatch an **opus** sub-agent using the red team prompt template. Fill all placeholders from Phase 2 output:
 
@@ -215,7 +215,7 @@ The red team sub-agent returns a JSON `findings` array. Parse the response and v
 
 **Fallback**: If the red team sub-agent times out, returns malformed output, or fails to produce valid JSON, log a warning: `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase 3."` and skip directly to Phase 3.
 
-### Step 2: Blue Team Dispatch (/preplanning)
+### Step 2: Blue Team Dispatch (/dso:preplanning)
 
 If the red team returns a non-empty findings array, dispatch a **sonnet** sub-agent using the blue team prompt template:
 
@@ -232,7 +232,7 @@ The blue team sub-agent returns a filtered JSON object with `findings` (accepted
 
 **Partial failure**: If the red team succeeds but the blue team fails (timeout, malformed output, or error), **discard all unfiltered findings** and proceed to Phase 3. Do NOT apply unfiltered red team findings -- the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase 3."`
 
-### Step 3: Apply Surviving Findings (/preplanning)
+### Step 3: Apply Surviving Findings (/dso:preplanning)
 
 Parse the blue team's accepted findings and apply each one based on its `type`:
 
@@ -257,9 +257,9 @@ Proceed to Phase 3 (Walking Skeleton & Vertical Slicing) with the updated story 
 
 ---
 
-## Phase 3: Walking Skeleton & Vertical Slicing (/preplanning)
+## Phase 3: Walking Skeleton & Vertical Slicing (/dso:preplanning)
 
-### Step 1: Identify the Walking Skeleton (/preplanning)
+### Step 1: Identify the Walking Skeleton (/dso:preplanning)
 
 The Walking Skeleton is the absolute minimum end-to-end path required to prove the technical concept.
 
@@ -267,7 +267,7 @@ Ask: "What is the simplest possible flow that demonstrates this feature works?"
 
 **Prioritize these stories first** - they unblock all downstream work.
 
-### Step 2: Apply INVEST Framework (/preplanning)
+### Step 2: Apply INVEST Framework (/dso:preplanning)
 
 Ensure each story follows **INVEST** principles:
 
@@ -280,7 +280,7 @@ Ensure each story follows **INVEST** principles:
 | **S**mall | Can this be completed in one sub-agent session? | Split into smaller stories |
 | **T**estable | Are success criteria measurable? | Add specific acceptance criteria |
 
-### Step 3: Vertical Slicing (/preplanning)
+### Step 3: Vertical Slicing (/dso:preplanning)
 
 Focus on functional "slices" of value, not horizontal technical layers.
 
@@ -294,7 +294,7 @@ Focus on functional "slices" of value, not horizontal technical layers.
 
 The vertical slice includes all layers necessary to deliver value.
 
-### Step 4: Foundation/Enhancement Splitting (/preplanning)
+### Step 4: Foundation/Enhancement Splitting (/dso:preplanning)
 
 For each story flagged as a **split candidate** in Phase 2, evaluate whether splitting delivers better outcomes than keeping it as a single story.
 
@@ -327,13 +327,13 @@ For each split:
 - Add dependency: `tk dep <enhancement-id> <foundation-id>`
 - Both trace to the same epic criterion
 
-**Note**: `/design-wireframe` has its own Pragmatic Scope Splitter (Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope.
+**Note**: `/dso:design-wireframe` has its own Pragmatic Scope Splitter (Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope.
 
 ---
 
-## Phase 4: Verification & Traceability (/preplanning)
+## Phase 4: Verification & Traceability (/dso:preplanning)
 
-### Step 1: Create/Modify Stories in Tickets (/preplanning)
+### Step 1: Create/Modify Stories in Tickets (/dso:preplanning)
 
 For new stories, use `--parent` at creation time (single command — avoids the child not appearing under the epic if the update step is skipped):
 ```bash
@@ -353,7 +353,7 @@ For stories to delete:
 tk close <id>
 ```
 
-### Step 2: Story Structure Requirements (/preplanning)
+### Step 2: Story Structure Requirements (/dso:preplanning)
 
 Each story must contain:
 
@@ -367,13 +367,13 @@ Include:
 - **Why**: How this advances the epic's vision
 - **Scope**: What's explicitly in and out of this story
 
-Do NOT include: specific file paths, technical implementation details, error codes, or testing requirements. Those belong in `/implementation-plan`.
+Do NOT include: specific file paths, technical implementation details, error codes, or testing requirements. Those belong in `/dso:implementation-plan`.
 
 #### Done Definitions
 Observable outcomes that bridge the epic's vision to task-level acceptance criteria. Each definition must be:
 
 - **Observable**: Describes what a user sees, does, or what the system does — not internal implementation
-- **Measurable**: `/implementation-plan` can decompose it into tasks with specific `Verify:` commands
+- **Measurable**: `/dso:implementation-plan` can decompose it into tasks with specific `Verify:` commands
 - **Traceable**: Links upward to an epic criterion
 
 Format:
@@ -408,7 +408,7 @@ Done Definitions:
 - "The ReviewService calls the ExportService with the approved rule IDs"
 
 #### Considerations
-Notes from the Risk & Scope Scan (Phase 2). These provide context for `/implementation-plan` to incorporate into task-level acceptance criteria:
+Notes from the Risk & Scope Scan (Phase 2). These provide context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria:
 
 ```
 Considerations:
@@ -440,7 +440,7 @@ When creating the documentation update story via `tk create`, add a note with th
 tk add-note <story-id> "Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions."
 ```
 
-### Step 3: Present Story Dashboard (/preplanning)
+### Step 3: Present Story Dashboard (/dso:preplanning)
 
 Display a summary table:
 
@@ -450,7 +450,7 @@ Display a summary table:
 | xxx-127 | As a user... | P2 | pending | - | Enhancement of xxx-126 | Epic criterion 1 |
 | xxx-128 | As a dev... | P1 | pending | - | - | Epic criterion 2 |
 
-### Step 4: Validate Dependencies (/preplanning)
+### Step 4: Validate Dependencies (/dso:preplanning)
 
 After creating all stories and dependencies:
 ```bash
@@ -459,7 +459,7 @@ $(git rev-parse --show-toplevel)/scripts/validate-issues.sh
 
 If score < 5, fix issues before presenting to user.
 
-### Step 5: Final Review Prompt (/preplanning)
+### Step 5: Final Review Prompt (/dso:preplanning)
 
 Present the plan to the user with:
 
@@ -486,9 +486,9 @@ Use `AskUserQuestion` to get user approval:
 
 If the user requests changes, iterate on the plan and re-present. Once the user selects "Approve — finalize and proceed", immediately continue to Step 5a, Step 6, and Step 7 without pausing for additional input — approval is the signal to proceed, not a stopping point.
 
-### Step 5a: Write Planning Context File (/preplanning)
+### Step 5a: Write Planning Context File (/dso:preplanning)
 
-Write the accumulated context to `/tmp/preplanning-context-<epic-id>.json` so that `/implementation-plan` can load richer context when planning individual stories from this epic.
+Write the accumulated context to `/tmp/preplanning-context-<epic-id>.json` so that `/dso:implementation-plan` can load richer context when planning individual stories from this epic.
 
 **File path**: `/tmp/preplanning-context-<epic-id>.json`
 
@@ -536,13 +536,13 @@ Write the accumulated context to `/tmp/preplanning-context-<epic-id>.json` so th
 - **Story dashboard**: total story count, UI story count, critical path order
 - **`generatedAt`**: Current ISO-8601 timestamp for staleness detection
 
-Write the file using the Write tool. If `/preplanning` runs again on the same epic, the file is overwritten (newer context wins).
+Write the file using the Write tool. If `/dso:preplanning` runs again on the same epic, the file is overwritten (newer context wins).
 
 Log: `"Planning context written to /tmp/preplanning-context-<epic-id>.json"`
 
-### Step 6: Design Wireframes for UI Stories (/preplanning)
+### Step 6: Design Wireframes for UI Stories (/dso:preplanning)
 
-After the user approves the story map, invoke `/design-wireframe` for **any story that involves UI changes**. The `/design-wireframe` skill will determine whether new UI components, layouts, or wireframes are actually needed — your job is only to identify candidates and pass them through.
+After the user approves the story map, invoke `/dso:design-wireframe` for **any story that involves UI changes**. The `/dso:design-wireframe` skill will determine whether new UI components, layouts, or wireframes are actually needed — your job is only to identify candidates and pass them through.
 
 A story is a candidate if it:
 - Mentions user-facing screens, pages, views, or components
@@ -557,7 +557,7 @@ Stories that are purely backend, infrastructure, testing-only, or documentation 
 #### Wireframe Session File Lifecycle
 
 When multiple UI stories need wireframes, create a **session file** to avoid
-redundant reads across serial `/design-wireframe` invocations.
+redundant reads across serial `/dso:design-wireframe` invocations.
 
 **Before the first wireframe invocation**:
 
@@ -579,13 +579,13 @@ redundant reads across serial `/design-wireframe` invocations.
 3. Log: `"Created wireframe session file for epic <epic-id> with <N> UI stories
    to process."`
 
-**For each qualifying story**, invoke `/design-wireframe`:
+**For each qualifying story**, invoke `/dso:design-wireframe`:
 
 ```
-/design-wireframe <story-id>
+/dso:design-wireframe <story-id>
 ```
 
-**After each `/design-wireframe` completes**:
+**After each `/dso:design-wireframe` completes**:
 
 1. Read the design manifest path from the story's `design` field:
    `tk show <story-id>`
@@ -605,7 +605,7 @@ redundant reads across serial `/design-wireframe` invocations.
 then stories that depend on them). This ensures base wireframes exist before
 dependent designs reference them.
 
-### Step 7: Sync Tickets (/preplanning)
+### Step 7: Sync Tickets (/dso:preplanning)
 
 After wireframe phase completes (or is skipped), confirm all ticket state is
 up to date and report completion.
@@ -624,13 +624,13 @@ Focus on requirements, constraints, and outcomes. Avoid dictating specific imple
 Check for existing items before creating new ones to prevent backlog pollution. Always run Phase 1 reconciliation before creating stories.
 
 ### Story-Level Fidelity
-Stories should be detailed enough that `/implementation-plan` can decompose them without further human clarification. Include:
+Stories should be detailed enough that `/dso:implementation-plan` can decompose them without further human clarification. Include:
 - Clear scope boundaries (what's in, what's explicitly out)
 - Concrete behavioral examples (what the user sees or experiences)
 - Measurable done definitions (observable outcomes, not technical criteria)
 - Considerations from the Risk & Scope Scan (context, not requirements)
 
-Do NOT include: file paths, code snippets, database schemas, API response formats, or testing strategies. Those are `/implementation-plan` concerns.
+Do NOT include: file paths, code snippets, database schemas, API response formats, or testing strategies. Those are `/dso:implementation-plan` concerns.
 
 #### Verify Scoping Assumptions
 
@@ -652,7 +652,7 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `tk dep` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `tk create`, `tk dep`, `.tickets/<id>.md` editing, `validate-issues.sh`, `/design-wireframe` |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `tk create`, `tk dep`, `.tickets/<id>.md` editing, `validate-issues.sh`, `/dso:design-wireframe` |
 
 ## Example: Reconciliation + Story Creation
 

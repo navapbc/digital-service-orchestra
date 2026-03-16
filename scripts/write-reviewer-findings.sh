@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# lockpick-workflow/scripts/write-reviewer-findings.sh
+# scripts/write-reviewer-findings.sh
 #
 # Validate-then-write gate for reviewer-findings.json.
 #
@@ -9,10 +9,10 @@ set -euo pipefail
 # to obtain a valid REVIEWER_HASH without passing schema validation.
 #
 # Usage:
-#   cat findings.json | "$REPO_ROOT/lockpick-workflow/scripts/write-reviewer-findings.sh"
+#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
 #
 #   Or with a heredoc:
-#   cat <<'EOF' | "$REPO_ROOT/lockpick-workflow/scripts/write-reviewer-findings.sh"
+#   cat <<'EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
 #   { "scores": {...}, "findings": [...], "summary": "..." }
 #   EOF
 #

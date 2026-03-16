@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-health-check.sh
-# Tests for lockpick-workflow/scripts/health-check.sh
+# tests/scripts/test-health-check.sh
+# Tests for scripts/health-check.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-health-check.sh
+# Usage: bash tests/scripts/test-health-check.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

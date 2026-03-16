@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-ci-status.sh
-# Tests for the get_job_timeout_min helper in lockpick-workflow/scripts/ci-status.sh.
+# tests/scripts/test-ci-status.sh
+# Tests for the get_job_timeout_min helper in scripts/ci-status.sh.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-ci-status.sh
+# Usage: bash tests/scripts/test-ci-status.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

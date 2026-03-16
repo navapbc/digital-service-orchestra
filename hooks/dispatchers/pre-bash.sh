@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/pre-bash.sh
+# hooks/dispatchers/pre-bash.sh
 # PreToolUse Bash dispatcher: sources all Bash hook functions and runs them
 # sequentially. Stops at the first function that returns 2 (block/deny).
 #
@@ -17,7 +17,7 @@
 #
 # NOTE: hook_review_gate was removed in Story 1idf. Review gate enforcement is
 #   now two-layer:
-#   - Layer 1: lockpick-workflow/hooks/pre-commit-review-gate.sh (git pre-commit hook)
+#   - Layer 1: hooks/pre-commit-review-gate.sh (git pre-commit hook)
 #     enforces allowlist + review-status + diff hash check at git commit time.
 #   - Layer 2: hook_review_bypass_sentinel (this dispatcher, step 3)
 #     blocks commands that attempt to bypass the git pre-commit hook.
@@ -27,7 +27,7 @@
 # Returns: 0 if all hooks allow, 2 if any hook blocks.
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

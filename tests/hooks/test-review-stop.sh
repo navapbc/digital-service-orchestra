@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-review-stop.sh
+# tests/hooks/test-review-stop.sh
 # Tests for .claude/hooks/review-stop-check.sh
 #
 # review-stop-check.sh is a Stop hook (SOFT GATE) that outputs a reminder

@@ -1,7 +1,7 @@
 # Acceptance Criteria Template Library
 
 > Composable criteria blocks for sub-agent task verification.
-> Read once by `/implementation-plan` Step 3; sub-agents never read this file.
+> Read once by `/dso:implementation-plan` Step 3; sub-agents never read this file.
 
 ## Universal Criteria (applied to ALL tasks)
 

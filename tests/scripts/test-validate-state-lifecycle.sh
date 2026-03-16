@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-validate-state-lifecycle.sh
+# tests/scripts/test-validate-state-lifecycle.sh
 # TDD tests for validate.sh in_progress/interrupted state lifecycle.
 #
 # Tests:
@@ -9,7 +9,7 @@
 #   test_validate_interrupted_grep_present      — grep -q "interrupted" finds it in validate.sh
 #   test_validate_syntax_valid                  — validate.sh passes bash -n
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-validate-state-lifecycle.sh
+# Usage: bash tests/scripts/test-validate-state-lifecycle.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -25,7 +25,7 @@ echo "=== test-validate-state-lifecycle.sh ==="
 
 # ============================================================================
 # test_validate_in_progress_grep_present
-# Acceptance criterion: grep -q "in_progress" lockpick-workflow/scripts/validate.sh
+# Acceptance criterion: grep -q "in_progress" scripts/validate.sh
 # ============================================================================
 echo ""
 echo "=== test_validate_in_progress_grep_present ==="
@@ -42,7 +42,7 @@ assert_pass_if_clean "test_validate_in_progress_grep_present"
 
 # ============================================================================
 # test_validate_interrupted_grep_present
-# Acceptance criterion: grep -q "interrupted" lockpick-workflow/scripts/validate.sh
+# Acceptance criterion: grep -q "interrupted" scripts/validate.sh
 # ============================================================================
 echo ""
 echo "=== test_validate_interrupted_grep_present ==="

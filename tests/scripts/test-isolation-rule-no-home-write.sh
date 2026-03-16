@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-isolation-rule-no-home-write.sh
+# tests/scripts/test-isolation-rule-no-home-write.sh
 # Tests for scripts/test-isolation-rules/no-home-write.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-isolation-rule-no-home-write.sh
+# Usage: bash tests/scripts/test-isolation-rule-no-home-write.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

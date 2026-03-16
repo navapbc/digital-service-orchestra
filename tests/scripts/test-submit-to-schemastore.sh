@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-submit-to-schemastore.sh
-# Tests for lockpick-workflow/scripts/submit-to-schemastore.sh
+# tests/scripts/test-submit-to-schemastore.sh
+# Tests for scripts/submit-to-schemastore.sh
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-submit-to-schemastore.sh
+# Usage: bash tests/scripts/test-submit-to-schemastore.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -75,7 +75,7 @@ assert_eq "test_schemastore_rejects_localhost_id" "1" "$exit_code"
 TEMP_VALID=$(mktemp)
 _CLEANUP_DIRS+=("$TEMP_VALID")
 cat > "$TEMP_VALID" <<'EOF'
-{"$id": "https://raw.githubusercontent.com/lockpick/lockpick-workflow/main/docs/workflow-config-schema.json", "$schema": "http://json-schema.org/draft-07/schema#", "type": "object"}
+{"$id": "https://raw.githubusercontent.com/navapbc/digital-service-orchestra/main/docs/workflow-config-schema.json", "$schema": "http://json-schema.org/draft-07/schema#", "type": "object"}
 EOF
 exit_code=0
 output=$(bash "$SCRIPT" "$TEMP_VALID" 2>&1) || exit_code=$?

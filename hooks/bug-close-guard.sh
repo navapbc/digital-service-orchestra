@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/bug-close-guard.sh
+# hooks/bug-close-guard.sh
 # PreToolUse hook (Bash matcher): enforces --reason flag on bug ticket closes.
 #
 # This file is a thin wrapper. The hook logic lives in:
-#   lockpick-workflow/hooks/lib/pre-bash-functions.sh (hook_bug_close_guard)
+#   hooks/lib/pre-bash-functions.sh (hook_bug_close_guard)
 #
 # Logic:
 #   1. Only fires on `tk close` commands

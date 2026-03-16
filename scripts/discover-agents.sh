@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/discover-agents.sh
+# scripts/discover-agents.sh
 # Agent discovery pipeline: reads enabledPlugins from .claude/settings.json,
 # walks agent-routing.conf preference chains, outputs resolved routing.
 #
@@ -9,7 +9,7 @@ set -uo pipefail
 #
 # Options:
 #   --settings <path>  Path to .claude/settings.json (default: $REPO_ROOT/.claude/settings.json)
-#   --routing <path>   Path to agent-routing.conf (default: $REPO_ROOT/lockpick-workflow/config/agent-routing.conf)
+#   --routing <path>   Path to agent-routing.conf (default: ${CLAUDE_PLUGIN_ROOT}/config/agent-routing.conf)
 #
 # Output (stdout): <category>=<resolved-agent> pairs, one per line
 # Logging (stderr): [agent-dispatch] category=<cat> routed=<type> reason=<available|fallback>
@@ -26,7 +26,7 @@ REPO_ROOT="$(cd "$_script_dir" && git rev-parse --show-toplevel)"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 settings_file="$REPO_ROOT/.claude/settings.json"
-routing_file="$REPO_ROOT/lockpick-workflow/config/agent-routing.conf"
+routing_file="${CLAUDE_PLUGIN_ROOT:-}/config/agent-routing.conf"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -43,7 +43,7 @@ if [[ ! -f "$routing_file" ]]; then
 fi
 
 # ── Extract enabledPlugins from settings.json ────────────────────────────────
-# Uses Python (no jq dependency, matching lockpick-workflow conventions)
+# Uses Python (no jq dependency, matching plugin conventions)
 _EXTRACT_PLUGINS='
 import json, sys
 

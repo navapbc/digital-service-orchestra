@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-resolve-stack-adapter.sh
+# tests/scripts/test-resolve-stack-adapter.sh
 # Tests for resolve-stack-adapter.sh — resolves the stack adapter file path
 # based on workflow-config.yaml stack and template engine settings.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-resolve-stack-adapter.sh
+# Usage: bash tests/scripts/test-resolve-stack-adapter.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -12,7 +12,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CANONICAL="$PLUGIN_ROOT/scripts/resolve-stack-adapter.sh"
-WRAPPER="$REPO_ROOT/scripts/resolve-stack-adapter.sh"
 UI_DISCOVER_SKILL="$PLUGIN_ROOT/skills/ui-discover/SKILL.md"
 DESIGN_WIREFRAME_SKILL="$PLUGIN_ROOT/skills/design-wireframe/SKILL.md"
 
@@ -27,18 +26,6 @@ script_executable=0
 [ -x "$CANONICAL" ] && script_executable=1
 assert_eq "test_script_exists_and_executable: canonical exists and is executable" "1" "$script_executable"
 assert_pass_if_clean "test_script_exists_and_executable"
-
-# ── test_wrapper_exists ───────────────────────────────────────────────────────
-# (b) scripts/ wrapper exists and delegates to canonical
-_snapshot_fail
-wrapper_exists=0
-[ -f "$WRAPPER" ] && wrapper_exists=1
-assert_eq "test_wrapper_exists: scripts/ wrapper exists" "1" "$wrapper_exists"
-# Wrapper should contain exec delegation to lockpick-workflow/scripts/
-wrapper_delegates=0
-grep -q 'lockpick-workflow/scripts/resolve-stack-adapter.sh' "$WRAPPER" 2>/dev/null && wrapper_delegates=1
-assert_eq "test_wrapper_exists: wrapper delegates to canonical" "1" "$wrapper_delegates"
-assert_pass_if_clean "test_wrapper_exists"
 
 # ── test_ui_discover_skill_references_script ──────────────────────────────────
 # (c) ui-discover/SKILL.md references resolve-stack-adapter.sh

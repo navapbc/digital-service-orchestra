@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/run-script-tests.sh
+# tests/scripts/run-script-tests.sh
 # Aggregator: discovers and runs all script test files in this directory
 # and the plugin/ directory. Uses suite-engine for parallel execution,
 # per-test timeouts, fail-fast, and progress reporting.
 #
-# Usage: bash lockpick-workflow/tests/scripts/run-script-tests.sh
+# Usage: bash tests/scripts/run-script-tests.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Environment (passed through to suite-engine):
@@ -17,6 +17,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../plugin" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
+
+# Ensure CLAUDE_PLUGIN_ROOT is set for all tests
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT}"
 
 # Bump timeout for heavyweight tests (e.g., test-sync-roundtrip.sh: 941 lines)
 : "${TEST_TIMEOUT:=60}"

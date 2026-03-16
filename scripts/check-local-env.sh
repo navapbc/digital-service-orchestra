@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/check-local-env.sh
+# scripts/check-local-env.sh
 # Generic local environment verification script.
 #
 # Checks: Docker daemon, DB container detection (config-driven), port connectivity,
@@ -34,19 +34,19 @@ set -uo pipefail
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Source config-paths.sh for CFG_PYTHON_VENV
-_env_config_paths="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/config-paths.sh"
+_env_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 [[ -f "$_env_config_paths" ]] && source "$_env_config_paths"
 
 # Source shared dependency library for try_start_docker, try_find_python, check_tool
 _HOOK_LIB=""
 if [[ -f "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
     _HOOK_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-elif [[ -f "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh" ]]; then
-    _HOOK_LIB="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+elif [[ -f "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh" ]]; then
+    _HOOK_LIB="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 fi
 if [[ -n "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"

@@ -22,9 +22,9 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 ## Usage
 
 ```
-/debug-everything                  # Full diagnostic + fix cycle
-/debug-everything --dry-run        # Diagnose only — create issues, no fixes
-/debug-everything --aws            # Include proactive AWS infrastructure scan in Phase 1
+/dso:debug-everything                  # Full diagnostic + fix cycle
+/dso:debug-everything --dry-run        # Diagnose only — create issues, no fixes
+/dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase 1
 ```
 
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase 1. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag. If AWS auth is not configured, infrastructure checks are skipped gracefully.
@@ -40,38 +40,38 @@ Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: present proposals �
 Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
   → Phase 6 (Checkpoint) → [more in tier: Phase 5] [tier clear: Phase 7]
 Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
-Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/end-session)] [FAIL: Phase 2]
-Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/end-session)]
+Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/dso:end-session)] [FAIL: Phase 2]
+Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/dso:end-session)]
 ```
 
 ---
 
 ## Epic Lifecycle
 
-`/debug-everything` creates a "Project Health Restoration" epic to track all discovered bugs for a session. The epic follows this lifecycle:
+`/dso:debug-everything` creates a "Project Health Restoration" epic to track all discovered bugs for a session. The epic follows this lifecycle:
 
-1. **Creation** (Phase 2): The triage sub-agent creates the epic via `/brainstorm` and sets all discovered issues as children via `tk parent <issue-id> <epic-id>`.
+1. **Creation** (Phase 2): The triage sub-agent creates the epic via `/dso:brainstorm` and sets all discovered issues as children via `tk parent <issue-id> <epic-id>`.
 2. **Resume** (Phase 1, on re-entry): If a "Project Health Restoration" epic already exists from a previous session, it is reused — no new epic is created. New issues are added as children of the existing epic.
 3. **Closure on success** (Phase 9, "On Success"): When all checks pass and zero open bugs remain, the epic is closed with `tk close <epic-id>` after adding a "Health restored." note.
 4. **Left open on graceful shutdown** (Phase 9, "On Graceful Shutdown"): When the session shuts down with work remaining, the epic is left open with a summary note listing resolved vs. remaining issues. The next session resumes it.
 
 ---
 
-## Phase 1: Full Diagnostic Scan + Clustering (/debug-everything)
+## Phase 1: Full Diagnostic Scan + Clustering (/dso:debug-everything)
 
 Run ALL diagnostic checks and cluster related failures. The orchestrator runs only Step 1 (session lock). Everything else is delegated.
 
-### Step 1: Initialize & Acquire Session Lock (/debug-everything)
+### Step 1: Initialize & Acquire Session Lock (/dso:debug-everything)
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 STAGING_URL="${STAGING_URL:-http://nava-lockpick-doc-to-logic-env-stage.eba-m8tugimv.us-east-2.elasticbeanstalk.com}"
 EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 ```
 
-**Session lock** — prevents multiple `/debug-everything` sessions from running concurrently:
+**Session lock** — prevents multiple `/dso:debug-everything` sessions from running concurrently:
 
 ```bash
 $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"
@@ -80,7 +80,7 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"
 The script outputs `LOCK_ID: <id>` on success, `LOCK_BLOCKED: <id>` with `LOCK_WORKTREE: <path>` if another session holds the lock, or `LOCK_STALE: <id>` if a stale lock was reclaimed before acquiring.
 
 - **`LOCK_ID`**: Save for release in Phase 9.
-- **`LOCK_BLOCKED`**: **STOP.** Report to user: "Another `/debug-everything` session is running from `<worktree>`. Wait for it to finish, or close `<lock-id>` to force-release."
+- **`LOCK_BLOCKED`**: **STOP.** Report to user: "Another `/dso:debug-everything` session is running from `<worktree>`. Wait for it to finish, or close `<lock-id>` to force-release."
 - **`LOCK_STALE`**: Stale lock was auto-reclaimed. Proceed — the script acquired a new lock (printed on the next `LOCK_ID` line).
 
 **Discovery cleanup** — remove stale discoveries from any previous session:
@@ -103,7 +103,7 @@ This ensures a fresh start — no stale discoveries from a previous session. Cle
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early; revert to open: `tk status <id> open`
    - **No CHECKPOINT lines or malformed/ambiguous lines** — revert to open: `tk status <id> open`
 
-### Step 0.5: Context Budget Check (/debug-everything)
+### Step 0.5: Context Budget Check (/dso:debug-everything)
 
 Before launching diagnostics, estimate context load:
 
@@ -114,24 +114,24 @@ $REPO_ROOT/scripts/estimate-context-load.sh debug-everything 2>/dev/null | tail 
 
 If the static context load is >10,000 tokens, trim `MEMORY.md` before continuing to avoid premature compaction (per CLAUDE.md). Removing stale/redundant entries from `MEMORY.md` is sufficient — aim to bring the static load under 10,000 tokens before proceeding.
 
-### Step 1a: Run Validation Gate (/debug-everything)
+### Step 1a: Run Validation Gate (/dso:debug-everything)
 
 Run `validate.sh --ci` to populate the validation state file. This serves two purposes:
 1. Seeds the gate state file so sub-agents aren't blocked by the validation gate hook
 2. Produces per-category pass/fail results that the diagnostic sub-agent can use to skip passing categories
 
 ```bash
-$REPO_ROOT/lockpick-workflow/scripts/validate.sh --ci 2>&1 || true
+${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci 2>&1 || true
 ```
 
 **Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
 
-**Note**: The `|| true` ensures we continue regardless of outcome — `/debug-everything` is the skill that *fixes* validation failures, so it must not stop here.
+**Note**: The `|| true` ensures we continue regardless of outcome — `/dso:debug-everything` is the skill that *fixes* validation failures, so it must not stop here.
 
 **Parse the state file** to extract passing and failing categories:
 
 ```bash
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 VALIDATION_STATE_FILE="$(get_artifacts_dir)/status"
 ```
 
@@ -149,7 +149,7 @@ Known check names: `format`, `ruff`, `mypy`, `tests`, `migrate`, `ci`, `e2e`. (`
 
 Pass these to the diagnostic sub-agent in Step 2.
 
-### Step 1b: Pre-Flight Infrastructure Check (/debug-everything)
+### Step 1b: Pre-Flight Infrastructure Check (/dso:debug-everything)
 
 Before launching diagnostics, verify that Docker Desktop and the database are running. The diagnostic sub-agent runs E2E tests which require both.
 
@@ -164,14 +164,14 @@ The script outputs structured key-value pairs:
 Exit 0 means all checks pass. Exit 1 means at least one check failed.
 
 **Action on failure:**
-- `DOCKER_STATUS: not_running` → Release session lock (`lock-release <lock-id> "Docker Desktop not running"`), report to user: "Docker Desktop is not running. Please start it and re-run `/debug-everything`." **STOP.**
+- `DOCKER_STATUS: not_running` → Release session lock (`lock-release <lock-id> "Docker Desktop not running"`), report to user: "Docker Desktop is not running. Please start it and re-run `/dso:debug-everything`." **STOP.**
 - `DB_STATUS: failed_to_start` → Release session lock, report to user: "Database failed to start. Check Docker Desktop and run `make db-start` manually." **STOP.**
 - Both passing → proceed to Step 2.
 
-### Step 1c: Check for Sprint Validation State (/debug-everything)
+### Step 1c: Check for Sprint Validation State (/dso:debug-everything)
 
 Before launching the full diagnostic scan, check for a validation state file
-written by `/sprint` that indicates which categories already passed:
+written by `/dso:sprint` that indicates which categories already passed:
 
 1. Look for `/tmp/sprint-validation-*.json` files. If multiple exist, use the
    most recent one (highest `generatedAt` timestamp).
@@ -188,7 +188,7 @@ written by `/sprint` that indicates which categories already passed:
 3. **If no file exists or all files are stale (>1 hour)**: proceed with full
    diagnostics. Set `sprintContext = false`.
 
-### Step 2: Launch Diagnostic & Clustering Sub-Agent (/debug-everything)
+### Step 2: Launch Diagnostic & Clustering Sub-Agent (/dso:debug-everything)
 
 Launch a **single sub-agent** that runs all diagnostics, collects verbose output, clusters related failures, and returns a structured failure inventory.
 
@@ -253,7 +253,7 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 ---
 
-## Phase 2: Triage & Issue Creation (/debug-everything)
+## Phase 2: Triage & Issue Creation (/dso:debug-everything)
 
 Delegate ALL triage work to a sub-agent. The orchestrator passes the diagnostic report and receives back issue IDs.
 
@@ -286,11 +286,11 @@ If resuming an existing tracker, append: `Existing epic ID: <epic-id>. Do NOT cr
 
 ---
 
-## Phase 2.5: Complexity Gate (/debug-everything)
+## Phase 2.5: Complexity Gate (/dso:debug-everything)
 
 After triage, classify each bug's complexity before dispatching fix sub-agents. This gate prevents solo fix sub-agents from attempting repairs that require multi-agent planning.
 
-### Step 1: Tier 0-1 Bypass (/debug-everything)
+### Step 1: Tier 0-1 Bypass (/dso:debug-everything)
 
 Bugs classified at **Tier 0 or Tier 1** (format errors, lint violations, import errors, mechanical type fixes) skip Phase 2.5 entirely and proceed directly to fix dispatch. Do NOT dispatch a complexity evaluator for these bugs — mechanical fixes are always autonomous.
 
@@ -300,7 +300,7 @@ Partition the triage list:
 
 If `GATE_BUGS` is empty, skip to Phase 2.6.
 
-### Step 2: Haiku Evaluator Dispatch (/debug-everything)
+### Step 2: Haiku Evaluator Dispatch (/dso:debug-everything)
 
 For each bug in `GATE_BUGS`, dispatch a haiku sub-agent to classify its complexity using the shared evaluator prompt.
 
@@ -308,7 +308,7 @@ For each bug in `GATE_BUGS`, dispatch a haiku sub-agent to classify its complexi
 
 ```
 Read the shared complexity evaluator prompt at:
-  lockpick-workflow/skills/shared/prompts/complexity-evaluator.md
+  ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md
 
 Use its rubric to evaluate the following bug ticket: <bug-id>
 
@@ -325,30 +325,30 @@ WARNING: Complexity evaluator failed for <bug-id> — falling through to fix dis
 ```
 Treat the bug as TRIVIAL and add it to the fix-dispatch queue. Do NOT block the session.
 
-### Step 3: Apply /debug-everything Routing Rules (/debug-everything)
+### Step 3: Apply /dso:debug-everything Routing Rules (/dso:debug-everything)
 
-For each evaluated bug, apply the `/debug-everything` routing rule (user-confirmed):
+For each evaluated bug, apply the `/dso:debug-everything` routing rule (user-confirmed):
 
 | Classification | Routing |
 |---|---|
 | TRIVIAL | Pass through to fix dispatch unchanged |
-| MODERATE | **De-escalate → TRIVIAL** — pass through to fix dispatch (MODERATE bugs are well-understood enough for a solo fix sub-agent in /debug-everything) |
+| MODERATE | **De-escalate → TRIVIAL** — pass through to fix dispatch (MODERATE bugs are well-understood enough for a solo fix sub-agent in /dso:debug-everything) |
 | COMPLEX | Route to epic (see Step 4) |
 
-### Step 4: COMPLEX Routing (/debug-everything)
+### Step 4: COMPLEX Routing (/dso:debug-everything)
 
-For each bug classified as COMPLEX, create an epic using `/brainstorm`:
+For each bug classified as COMPLEX, create an epic using `/dso:brainstorm`:
 
-1. Invoke `/brainstorm` to create the epic:
+1. Invoke `/dso:brainstorm` to create the epic:
    ```
-   /brainstorm
+   /dso:brainstorm
    ```
    Provide the following context when brainstorm asks "What feature or capability are you trying to build?":
    > Fix (complex): <bug title>. This is a complex bug fix that requires multi-agent planning. Bug ID: <bug-id>. Complexity classification: COMPLEX. The evaluator found: <reasoning from complexity evaluator>. Priority: P2.
 
-   Follow the `/brainstorm` phases (Socratic dialogue, approach design, spec validation) to create a well-defined epic.
+   Follow the `/dso:brainstorm` phases (Socratic dialogue, approach design, spec validation) to create a well-defined epic.
 
-2. After `/brainstorm` Phase 3 creates the epic, set a dependency from the bug to the new epic:
+2. After `/dso:brainstorm` Phase 3 creates the epic, set a dependency from the bug to the new epic:
    ```bash
    tk dep <bug-id> <new-epic-id>
    ```
@@ -360,7 +360,7 @@ For each bug classified as COMPLEX, create an epic using `/brainstorm`:
 
 Track all COMPLEX-routed bugs in `COMPLEX_BUGS` list (entries: `{bug_id, epic_id, title}`) for inclusion in the session summary.
 
-### Step 5: Build Final Fix Queue (/debug-everything)
+### Step 5: Build Final Fix Queue (/dso:debug-everything)
 
 Merge the remaining bugs into a single fix-dispatch list:
 - `BYPASS_BUGS` (Tier 0-1, no evaluation needed)
@@ -372,14 +372,14 @@ Proceed to Phase 2.6 with the final fix queue.
 
 ---
 
-## Phase 2.6: Safeguard Bug Analysis (/debug-everything)
+## Phase 2.6: Safeguard Bug Analysis (/dso:debug-everything)
 
 After the complexity gate, identify which issues touch safeguarded files and route them through user-approval before fixing.
 
-### Step 1: Detect Safeguarded Issues (/debug-everything)
+### Step 1: Detect Safeguarded Issues (/dso:debug-everything)
 
 Safeguarded file patterns (from CLAUDE.md rule 20):
-- `lockpick-workflow/skills/**`, `lockpick-workflow/hooks/**`, `lockpick-workflow/docs/workflows/**`
+- `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`, `${CLAUDE_PLUGIN_ROOT}/docs/workflows/**`
 - `.claude/settings.json`, `.claude/docs/**`
 - `scripts/**`, `CLAUDE.md`
 
@@ -389,7 +389,7 @@ For each issue from the Phase 2 triage report, check if the issue description, t
 
 If `SAFEGUARD_BUGS` is empty, skip to Phase 3.
 
-### Step 2: Launch Analysis Sub-Agent (/debug-everything)
+### Step 2: Launch Analysis Sub-Agent (/dso:debug-everything)
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/safeguard-analysis.md` and use its contents as the sub-agent prompt. Pass the `SAFEGUARD_BUGS` list (IDs and titles) and `WORKTREE` name as context.
 
@@ -399,7 +399,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/safeguard-a
 
 The sub-agent returns: path to proposals file + summary (count + per-bug one-liner).
 
-### Step 3: Present Proposals to User (/debug-everything)
+### Step 3: Present Proposals to User (/dso:debug-everything)
 
 Read the proposals file from disk. Present each proposal to the user:
 
@@ -419,7 +419,7 @@ SAFEGUARD BUG PROPOSALS (require approval per CLAUDE.md rule 20)
 
 Wait for user response. The user may approve all, approve specific bugs, or defer.
 
-### Step 4: Route Approved Bugs (/debug-everything)
+### Step 4: Route Approved Bugs (/dso:debug-everything)
 
 - **Approved bugs**: Add to `NORMAL_BUGS` list with the proposal as fix guidance.
   ```bash
@@ -435,7 +435,7 @@ Proceed to Phase 3 with the combined list of normal + approved bugs.
 
 ---
 
-## Phase 3: Fix Planning (/debug-everything)
+## Phase 3: Fix Planning (/dso:debug-everything)
 
 ### Fix Tiers (Dependency Order)
 
@@ -467,7 +467,7 @@ Tier 7: Open ticket bugs — pre-existing tracked bugs not covered by tiers 0-6
 
 **Load bug classification rules**: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/bug-accountability-guide.md` now. You will need these rules in Phase 10 Step 4; loading here avoids loading them when context is tighter.
 
-**Research complex fixes**: For any Tier 3+ fix where the failure involves unfamiliar library behavior, a non-obvious tradeoff, or an external system whose current behavior you cannot derive from the codebase — spawn a research sub-agent before choosing a fix strategy. Pass findings as a `Research Context` section in the fix sub-agent prompt. See `lockpick-workflow/docs/RESEARCH-PATTERN.md` for trigger criteria, guardrails, and sub-agent prompt template.
+**Research complex fixes**: For any Tier 3+ fix where the failure involves unfamiliar library behavior, a non-obvious tradeoff, or an external system whose current behavior you cannot derive from the codebase — spawn a research sub-agent before choosing a fix strategy. Pass findings as a `Research Context` section in the fix sub-agent prompt. See `${CLAUDE_PLUGIN_ROOT}/docs/RESEARCH-PATTERN.md` for trigger criteria, guardrails, and sub-agent prompt template.
 
 **After completing each tier**, re-run the relevant diagnostics for subsequent tiers. Update the failure inventory. Close issues that resolved themselves.
 
@@ -506,7 +506,7 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
 
 ---
 
-## Phase 4: Auto-Fix Sub-Agent (Tiers 0-1) (/debug-everything)
+## Phase 4: Auto-Fix Sub-Agent (Tiers 0-1) (/dso:debug-everything)
 
 ### Launch Auto-Fix Sub-Agent
 
@@ -521,12 +521,12 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 3. Update the failure inventory with remaining errors
 4. **CONTEXT ANCHOR**: After the commit workflow completes, continue immediately at Step 5 below (Phase 4). Do NOT stop or wait for user input after committing.
 
-   Read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/commit` Skill tool — nested skill invocations do not return control to the orchestrator.
+   Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/commit` Skill tool — nested skill invocations do not return control to the orchestrator.
 5. Remaining ruff violations that couldn't be auto-fixed become sub-agent tasks in Phase 5
 
 ---
 
-## Phase 5: Sub-Agent Fix Batches (/debug-everything)
+## Phase 5: Sub-Agent Fix Batches (/dso:debug-everything)
 
 For remaining failures (Tiers 2-7), launch sub-agent batches.
 
@@ -636,11 +636,11 @@ If AWS auth is not configured, report this and recommend: `aws sso login`
 
 ---
 
-## Phase 6: Post-Batch Checkpoint (/debug-everything)
+## Phase 6: Post-Batch Checkpoint (/dso:debug-everything)
 
 After ALL sub-agents in a batch return:
 
-### Step 0: Dispatch Failure Recovery (/debug-everything)
+### Step 0: Dispatch Failure Recovery (/dso:debug-everything)
 
 Before verifying results, check whether any sub-agent Task call returned an **infrastructure-level dispatch failure** (no `STATUS:` line, no `FILES_MODIFIED:` line, error message references agent type or internal errors — as opposed to task-level failures where the agent ran but produced incorrect work).
 
@@ -651,14 +651,14 @@ Before verifying results, check whether any sub-agent Task call returned an **in
 
 Dispatch failure retries are sequential (error recovery, not planned work) and do not count toward batch size limits.
 
-### Step 1: Verify Results (/debug-everything)
+### Step 1: Verify Results (/dso:debug-everything)
 
 For each sub-agent (including any that succeeded on retry), check the Task result:
 - Did it report success?
 - Were the expected files modified? (spot-check with Glob)
 - Did it follow TDD? (check for new test files)
 
-### Step 1a: File Overlap Check (Safety Net) (/debug-everything)
+### Step 1a: File Overlap Check (Safety Net) (/dso:debug-everything)
 
 Sub-agents may modify files beyond what their task description predicts. Check for actual file-level conflicts:
 
@@ -677,7 +677,7 @@ Sub-agents may modify files beyond what their task description predicts. Check f
    - After each re-run: if agent only touched non-conflicting files → success. If it overwrote the same files again → escalate to user, do not retry.
 4. No conflicts → proceed to Step 1b
 
-### Step 1b: Critic Review (Complex Fixes Only) (/debug-everything)
+### Step 1b: Critic Review (Complex Fixes Only) (/dso:debug-everything)
 
 For fixes that meet ANY of these criteria, launch a critic sub-agent before committing:
 - Required `model: "opus"` (complex multi-file bugs)
@@ -700,11 +700,11 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-revi
 - `CONCERN` → evaluate. If valid: revert changes (`git checkout -- <files>`), reopen the issue with the concern noted in description for the next fix attempt. If false positive: proceed to Step 2.
 
 **Oscillation guard**: Track critic outcomes per issue ID. On the 2nd CONCERN for
-the same issue, invoke `/oscillation-check` (sub-agent, model="sonnet"  # Tier 2: must compare structural diffs across fix iterations to detect oscillation patterns) with
+the same issue, invoke `/dso:oscillation-check` (sub-agent, model="sonnet"  # Tier 2: must compare structural diffs across fix iterations to detect oscillation patterns) with
 context=critic. If it returns OSCILLATION, escalate to user with both fix
 approaches and both critic concerns. Do NOT retry.
 
-### Step 2: Validate via Sub-Agent (/debug-everything)
+### Step 2: Validate via Sub-Agent (/dso:debug-everything)
 
 **Do NOT run validation directly in the orchestrator.** Launch a validation sub-agent:
 
@@ -712,7 +712,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 
 **Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`), `model="haiku"`  # Tier 1: runs validate-phase.sh post-batch and relays output verbatim — pure command execution with one bounded LIKELY_CAUSE inference from provided file list
 
-### Step 3: Handle Failures (/debug-everything)
+### Step 3: Handle Failures (/dso:debug-everything)
 
 | Sub-agent outcome | Action |
 |------------------|--------|
@@ -726,7 +726,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 - `tk add-note <id> "Escalated to user: code path is correct, no fix possible"` (escalation)
 - Do NOT close with only `tk add-note <id> "Investigated: code path is correct"` — use add-note for findings, then escalate or fix before closing
 
-### Step 4: Decision Log (/debug-everything)
+### Step 4: Decision Log (/dso:debug-everything)
 
 Record the batch decisions and outcomes on the epic for observability:
 
@@ -740,7 +740,7 @@ Outcome: {N} fixed, {M} failed, {K} reverted
 Remaining in tier: {count}"
 ```
 
-### Step 5: Semantic Conflict Check (/debug-everything)
+### Step 5: Semantic Conflict Check (/dso:debug-everything)
 
 Before committing, run the semantic conflict check on the combined diff:
 
@@ -753,11 +753,11 @@ Parse the JSON output:
 - `"clean": false` — log conflicts, present to orchestrator for review. If any conflict has `"severity": "high"`, revert the conflicting files and re-dispatch the responsible sub-agent. If all conflicts are medium/low, note them in ticket and proceed.
 - `"error"` field present — log warning, proceed with commit (graceful degradation). Semantic conflict check failure is non-fatal.
 
-### Step 6: Commit & Sync (/debug-everything)
+### Step 6: Commit & Sync (/dso:debug-everything)
 
 **CONTEXT ANCHOR**: After the commit workflow completes, continue immediately at Step 7 (Discovery Collection) below. Do NOT stop or wait for user input after committing.
 
-Read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/commit` Skill tool — nested skill invocations do not return control to the orchestrator, causing the debug-everything workflow to stall waiting for user input.
+Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/commit` Skill tool — nested skill invocations do not return control to the orchestrator, causing the debug-everything workflow to stall waiting for user input.
 
 **Blackboard cleanup**: After the commit, run `write-blackboard.sh --clean` to remove the blackboard file:
 ```bash
@@ -765,7 +765,7 @@ Read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md
 ```
 If blackboard cleanup fails, log a warning and continue — cleanup failure is non-fatal and must not block the next batch or graceful shutdown.
 
-### Step 7: Discovery Collection (/debug-everything)
+### Step 7: Discovery Collection (/dso:debug-everything)
 
 After the commit completes and before launching the next batch, collect discoveries from sub-agents:
 
@@ -777,7 +777,7 @@ If discoveries exist (non-empty and not just `"None."`), inject the `## PRIOR_BA
 
 If `collect-discoveries.sh` fails, log a warning and proceed without discovery propagation (graceful degradation).
 
-### Step 8: Continuation Decision (/debug-everything)
+### Step 8: Continuation Decision (/dso:debug-everything)
 
 - If context compaction occurred → Phase 9 (graceful shutdown)
 - If session usage >90% → Phase 9 (graceful shutdown)
@@ -786,11 +786,11 @@ If `collect-discoveries.sh` fails, log a warning and proceed without discovery p
 
 ---
 
-## Phase 7: Re-Diagnose & Next Tier (/debug-everything)
+## Phase 7: Re-Diagnose & Next Tier (/dso:debug-everything)
 
 After completing a tier, re-validate to check for transitive resolutions.
 
-### Step 1: Launch Re-Diagnosis Sub-Agent (/debug-everything)
+### Step 1: Launch Re-Diagnosis Sub-Agent (/dso:debug-everything)
 
 Same pattern as Phase 6 Step 2, but run the full diagnostic set:
 
@@ -798,21 +798,21 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/tier-transi
 
 **Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`), `model="haiku"`  # Tier 1: runs validate-phase.sh tier-transition and relays structured output verbatim — no interpretation required, pass/fail reporting only
 
-### Step 2: Update Failure Inventory (/debug-everything)
+### Step 2: Update Failure Inventory (/dso:debug-everything)
 
 Compare sub-agent report against the inventory:
 - Resolved without direct fix (transitive resolution) → close their issues
 - New failures not in original inventory (regressions) → treat as P0
 - Remaining failures → proceed to next tier
 
-### Step 3: Continue or Finish (/debug-everything)
+### Step 3: Continue or Finish (/dso:debug-everything)
 
 - If failures remain in higher tiers → return to Phase 3
 - If all tiers are clear → proceed to Phase 8 (Full Validation)
 
 ---
 
-## Phase 8: Full Validation (/debug-everything)
+## Phase 8: Full Validation (/dso:debug-everything)
 
 When all known issues across all tiers are addressed, delegate validation to a sub-agent.
 
@@ -833,7 +833,7 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
 
 ---
 
-## Phase 9: Issue Closure & Graceful Shutdown (/debug-everything)
+## Phase 9: Issue Closure & Graceful Shutdown (/dso:debug-everything)
 
 ### On Success (All Checks Pass + Zero Open Bugs)
 
@@ -878,16 +878,16 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
    # Add a note summarizing what remains
    tk add-note <epic-id> "Graceful shutdown. Resolved: <N resolved>/<M total> issues. Remaining open: <list IDs and titles>. Next session should resume with tk ready."
    ```
-   The epic stays open so the next `/debug-everything` session can resume it (see [Epic Lifecycle](#epic-lifecycle)).
+   The epic stays open so the next `/dso:debug-everything` session can resume it (see [Epic Lifecycle](#epic-lifecycle)).
 7. Commit partial work and proceed to **Phase 10** (Merge to Main & Verify). After Phase 10 completes successfully, check context usage:
    - If context usage <70% AND remaining open bugs exist: return to **Phase 2** (continue fixing — do NOT go to Phase 11)
-   - If context usage ≥70% OR no remaining bugs: proceed to **Phase 11** (/end-session)
+   - If context usage ≥70% OR no remaining bugs: proceed to **Phase 11** (/dso:end-session)
 
 ---
 
-## Phase 10: Merge to Main & Verify (/debug-everything)
+## Phase 10: Merge to Main & Verify (/dso:debug-everything)
 
-This phase is REQUIRED for both success and graceful shutdown. The `/debug-everything` command is NOT complete until changes are merged to main and CI passes.
+This phase is REQUIRED for both success and graceful shutdown. The `/dso:debug-everything` command is NOT complete until changes are merged to main and CI passes.
 
 ### Steps 1, 1b, 2: Merge + CI + Validate (sub-agent)
 
@@ -909,7 +909,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/phase-10-me
 - `VALIDATE_STATUS: staging-fail` → follow the recommendation in DETAILS
 - All `ok/pass` → proceed to Step 4
 
-### Step 4: Report Completion (/debug-everything)
+### Step 4: Report Completion (/dso:debug-everything)
 
 #### Open Bug Accountability (required — both success and shutdown paths)
 
@@ -939,11 +939,11 @@ For every open bug, apply the three-outcome classification (Fixed / Escalated / 
 - Current tier and progress within it
 - Merge status: checkpoint merged to main, pushed
 - CI status: passing/failing on main (with run ID)
-- Instruction: "Run `/debug-everything` again to continue — it will find the existing epic and pick up where this session left off"
+- Instruction: "Run `/dso:debug-everything` again to continue — it will find the existing epic and pick up where this session left off"
 
 ### Cross-Session Learning (Both Paths)
 
-After Phase 10 completes (or after Phase 10 is skipped due to unrecoverable errors), write a session summary to auto-memory for future `/debug-everything` sessions to consult during Phase 3 (fix planning):
+After Phase 10 completes (or after Phase 10 is skipped due to unrecoverable errors), write a session summary to auto-memory for future `/dso:debug-everything` sessions to consult during Phase 3 (fix planning):
 
 ```
 ## Debug Session: {date}
@@ -973,17 +973,17 @@ Write to: `{auto-memory-dir}/debug-sessions.md` (append, don't overwrite).
 
 ---
 
-## Phase 11: End Session (/debug-everything)
+## Phase 11: End Session (/dso:debug-everything)
 
-After Phase 10 completes (both success and graceful shutdown paths), invoke `/end-session` to close out the worktree session:
+After Phase 10 completes (both success and graceful shutdown paths), invoke `/dso:end-session` to close out the worktree session:
 
 ```
-/end-session
+/dso:end-session
 ```
 
 This handles any remaining session cleanup: closing in-progress issues, committing straggling changes, syncing tickets, and producing a final task summary.
 
-**If not in a worktree** (`test -d .git`): skip this phase — `/end-session` is only for ephemeral worktree sessions.
+**If not in a worktree** (`test -d .git`): skip this phase — `/dso:end-session` is only for ephemeral worktree sessions.
 
 ---
 
@@ -1015,15 +1015,15 @@ The orchestrator uses this table to decide whether to include TDD instructions i
 | Situation | Action |
 |-----------|--------|
 | Sub-agent introduces regression | Revert its changes (`git checkout -- <files>`), reopen issue, note the regression |
-| Fix cascade (5+ different errors) | **STOP.** Run `/fix-cascade-recovery`. Do not continue patching. |
+| Fix cascade (5+ different errors) | **STOP.** Run `/dso:fix-cascade-recovery`. Do not continue patching. |
 | AWS auth expired (Phase 1 scan) | Skip proactive scan. Report to user: `aws sso login` |
 | AWS auth expired (Tier 6 fix) | Sub-agent cannot proceed with infra fix. Report to user, recommend `aws sso login`, move to next task |
 | DB not running | `make db-start` from app/. Wait for health check. |
 | All sub-agents fail in a batch | Do not retry same session. Graceful shutdown. |
 | Context compaction | Immediate graceful shutdown. Checkpoint everything. |
 | Git push fails (no upstream) | This is an ephemeral worktree branch — push is not required. Commit locally. |
-| Merge to main fails (conflict) | Invoke `/resolve-conflicts` to analyze and propose resolutions. Trivial conflicts (imports, whitespace, non-overlapping additions) are auto-resolved if validation passes. Semantic/ambiguous conflicts require human approval. If `/resolve-conflicts` is unavailable or the user declines all proposals, relay the conflict error for manual resolution. |
+| Merge to main fails (conflict) | Invoke `/dso:resolve-conflicts` to analyze and propose resolutions. Trivial conflicts (imports, whitespace, non-overlapping additions) are auto-resolved if validation passes. Semantic/ambiguous conflicts require human approval. If `/dso:resolve-conflicts` is unavailable or the user declines all proposals, relay the conflict error for manual resolution. |
 | CI fails on main after merge | Return to Phase 2. Maximum 2 retries, then report to user for manual intervention. |
-| Staging fails (Phase 10) | `/validate-work` handles retry logic, screenshot evidence, and specific recommendations for all staging failure modes (deploy not ready, test fails, Playwright unreachable, AWS auth expired). Follow its report. For staging bug investigation, use `/playwright-debug` 3-tier process (code analysis -> targeted browser_run_code -> full MCP only as last resort). |
+| Staging fails (Phase 10) | `/dso:validate-work` handles retry logic, screenshot evidence, and specific recommendations for all staging failure modes (deploy not ready, test fails, Playwright unreachable, AWS auth expired). Follow its report. For staging bug investigation, use `/dso:playwright-debug` 3-tier process (code analysis -> targeted browser_run_code -> full MCP only as last resort). |
 | Concurrent session detected | `lock-acquire` returns `LOCK_BLOCKED`. STOP. Report lock issue ID and worktree path to user. |
 | Stale lock found | `lock-acquire` returns `LOCK_STALE` (auto-reclaimed), then acquires new lock. Proceed. |

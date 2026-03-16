@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-fallback-integration.sh
+# tests/scripts/test-fallback-integration.sh
 # Integration test: routing table → discover-agents.sh → fallback prompt coverage
 #
 # Validates the complete chain from agent routing through prompt dispatch.
@@ -7,7 +7,7 @@
 # dispatch contract, placeholder substitution, error-detective preference,
 # and single-plugin routing.
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-fallback-integration.sh
+# Usage: bash tests/scripts/test-fallback-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

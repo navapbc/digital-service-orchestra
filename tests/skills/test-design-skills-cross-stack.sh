@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/skills/test-design-skills-cross-stack.sh
+# tests/skills/test-design-skills-cross-stack.sh
 # Tests that abstracted design skills (design-wireframe, ui-discover) work
 # correctly with non-Flask/Jinja2 stack configurations.
 #
@@ -9,7 +9,7 @@
 #   AC3: Both skills produce full output with Flask/Jinja2 adapter
 #   AC4: No hardcoded Flask/Jinja2 references remain in either skill's SKILL.md
 #
-# Usage: bash lockpick-workflow/tests/skills/test-design-skills-cross-stack.sh
+# Usage: bash tests/skills/test-design-skills-cross-stack.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail

@@ -33,7 +33,7 @@ Launch a **single sub-agent** with the plan content and review rubric.
 - `artifact_type: "design"` → `opus` (architectural reasoning)
 - `artifact_type: "implementation_plan"` → `sonnet` (structural analysis)
 
-**Sub-agent prompt:** Read and fill placeholders in `$REPO_ROOT/lockpick-workflow/docs/workflows/prompts/plan-review-dispatch.md`. Replace `{artifact_type}` and `{artifact content}` with actual values.
+**Sub-agent prompt:** Read and fill placeholders in `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/plan-review-dispatch.md`. Replace `{artifact_type}` and `{artifact content}` with actual values.
 
 Launch with:
 ```
@@ -58,12 +58,12 @@ First, validate the sub-agent's output schema (schema-hash: 9dba6875b85b7bc3):
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 PLAN_OUT="$(get_artifacts_dir)/plan-review-output.txt"
 cat > "$PLAN_OUT" <<'EOF'
 <sub-agent output>
 EOF
-"${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/scripts/validate-review-output.sh" plan-review "$PLAN_OUT"
+"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" plan-review "$PLAN_OUT"
 ```
 
 If `SCHEMA_VALID: no` — send a correction prompt to the sub-agent requesting the exact format; do not proceed until validation passes.
@@ -89,7 +89,7 @@ After the review completes (pass or revise-then-fix), write the marker:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}/hooks/lib/deps.sh"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 
@@ -113,4 +113,4 @@ The `ExitPlanMode` hook checks for this file.
 
 ## Common Mistake: Do NOT Use Code Review for Plans
 
-`/review` reviews **completed code** (diffs, test coverage, bugs). It is wrong for plans. Use this skill (`/plan-review`) for plans and designs. See CLAUDE.md rule 17 and the review routing table in "Always Do These".
+`/review` reviews **completed code** (diffs, test coverage, bugs). It is wrong for plans. Use this skill (`/dso:plan-review`) for plans and designs. See CLAUDE.md rule 17 and the review routing table in "Always Do These".

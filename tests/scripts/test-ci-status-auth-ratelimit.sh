@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-ci-status-auth-ratelimit.sh
+# tests/scripts/test-ci-status-auth-ratelimit.sh
 # Tests for auth pre-flight check, rate-limit detection, and max-iteration ceiling
-# in lockpick-workflow/scripts/ci-status.sh.
+# in scripts/ci-status.sh.
 #
 # Ticket: lockpick-doc-to-logic-vphc
 #
@@ -13,7 +13,7 @@
 #   5. test_max_iterations_ceiling   — polling loop exits after max iterations (not infinite)
 #   6. test_rate_limit_grep_patterns — acceptance criteria grep patterns pass
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-ci-status-auth-ratelimit.sh
+# Usage: bash tests/scripts/test-ci-status-auth-ratelimit.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
@@ -230,15 +230,15 @@ echo ""
 echo "--- acceptance criteria grep patterns ---"
 _snapshot_fail
 
-# grep -q "gh auth" lockpick-workflow/scripts/ci-status.sh
+# grep -q "gh auth" scripts/ci-status.sh
 GH_AUTH_MATCH=$(grep -c "gh auth" "$CI_STATUS_SH" || echo "0")
 assert_ne "acceptance_criteria_gh_auth" "0" "$GH_AUTH_MATCH"
 
-# grep -q "rate.limit\|429\|backoff" lockpick-workflow/scripts/ci-status.sh
+# grep -q "rate.limit\|429\|backoff" scripts/ci-status.sh
 RATELIMIT_MATCH=$(grep -cE "rate.limit|429|backoff" "$CI_STATUS_SH" || echo "0")
 assert_ne "acceptance_criteria_ratelimit_429_backoff" "0" "$RATELIMIT_MATCH"
 
-# grep -q "MAX_POLL_ITERATIONS\|max_iterations" lockpick-workflow/scripts/ci-status.sh
+# grep -q "MAX_POLL_ITERATIONS\|max_iterations" scripts/ci-status.sh
 MAXITER_MATCH=$(grep -cE "MAX_POLL_ITERATIONS|max_iterations" "$CI_STATUS_SH" || echo "0")
 assert_ne "acceptance_criteria_max_poll_iterations" "0" "$MAXITER_MATCH"
 

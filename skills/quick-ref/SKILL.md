@@ -11,9 +11,9 @@ Auto-discovers all available scripts and skills in the workflow plugin at invoca
 ## Usage
 
 ```
-/quick-ref              # Show all scripts and skills
-/quick-ref scripts      # Show only scripts
-/quick-ref skills       # Show only skills
+/dso:quick-ref              # Show all scripts and skills
+/dso:quick-ref scripts      # Show only scripts
+/dso:quick-ref skills       # Show only skills
 ```
 
 ## Execution
@@ -22,7 +22,7 @@ Auto-discovers all available scripts and skills in the workflow plugin at invoca
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/lockpick-workflow}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 ```
 
 ### Step 2: Discover Plugin Scripts

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/hooks/dispatchers/stop.sh
+# hooks/dispatchers/stop.sh
 # Stop dispatcher: sources all Stop hook functions and runs them sequentially.
 #
 # Replaces 2 separate settings.json Stop entries with a single dispatcher:
@@ -12,7 +12,7 @@
 # Returns: 0 always (Stop hooks are informational; they output warnings but never block)
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

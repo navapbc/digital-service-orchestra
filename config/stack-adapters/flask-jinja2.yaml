@@ -1,14 +1,14 @@
 # Flask/Jinja2 Stack Adapter
 #
 # Implements the component discovery interface defined in:
-#   lockpick-workflow/docs/component-discovery-schema.json
+#   docs/component-discovery-schema.json
 #
 # Selection: activated when workflow-config.yaml has:
 #   stack: python-poetry
 #   design:
 #     template_engine: jinja2
 #
-# Reference JSON adapter: lockpick-workflow/docs/adapters/flask-jinja2.json
+# Reference JSON adapter: docs/adapters/flask-jinja2.json
 
 name: flask-jinja2
 

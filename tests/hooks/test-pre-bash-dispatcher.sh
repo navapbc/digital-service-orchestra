@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-pre-bash-dispatcher.sh
+# tests/hooks/test-pre-bash-dispatcher.sh
 # Unit tests for the pre-bash dispatcher and the 7 hook functions it sources.
 #
 # Tests:
 #   test_pre_bash_dispatcher_exits_0_for_exempt_command
 #   test_pre_bash_dispatcher_exits_0_for_plain_commit_no_bypass
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-pre-bash-dispatcher.sh
+# Usage: bash tests/hooks/test-pre-bash-dispatcher.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

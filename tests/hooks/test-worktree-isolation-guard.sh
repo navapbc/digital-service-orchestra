@@ -11,7 +11,7 @@
 #   test_allows_non_agent_tools
 #   test_handles_null_tool_input
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-worktree-isolation-guard.sh
+# Usage: bash tests/hooks/test-worktree-isolation-guard.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

@@ -41,7 +41,7 @@ if [[ ! -f "$REVIEW_STATE_FILE" ]]; then
     echo "**No plan review has been recorded for this session.**" >&2
     echo "" >&2
     echo "Before presenting a plan to the user, run the plan-review skill:" >&2
-    echo "  Invoke \`/plan-review\` with the plan content." >&2
+    echo "  Invoke \`/dso:plan-review\` with the plan content." >&2
     echo "" >&2
     echo "This ensures plans are reviewed by a sub-agent before user approval." >&2
     echo "" >&2
@@ -55,7 +55,7 @@ if [[ "$REVIEW_STATUS" != "passed" ]]; then
     echo "" >&2
     echo "**The plan review did not pass.**" >&2
     echo "" >&2
-    echo "Address the review findings and re-run \`/plan-review\`." >&2
+    echo "Address the review findings and re-run \`/dso:plan-review\`." >&2
     echo "" >&2
     exit 2
 fi

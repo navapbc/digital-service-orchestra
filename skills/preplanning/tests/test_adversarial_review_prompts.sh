@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SKILL_DIR="$REPO_ROOT/lockpick-workflow/skills/preplanning"
+SKILL_DIR="${CLAUDE_PLUGIN_ROOT}/skills/preplanning"
 RED_TEAM="$SKILL_DIR/prompts/red-team-review.md"
 BLUE_TEAM="$SKILL_DIR/prompts/blue-team-review.md"
 SKILL_MD="$SKILL_DIR/SKILL.md"

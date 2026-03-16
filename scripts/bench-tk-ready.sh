@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/bench-tk-ready.sh
+# scripts/bench-tk-ready.sh
 # Measures wall-clock time of `tk ready` and exits non-zero if it exceeds the threshold.
 #
 # Usage:
-#   bash lockpick-workflow/scripts/bench-tk-ready.sh
-#   BENCH_THRESHOLD_SECONDS=5 bash lockpick-workflow/scripts/bench-tk-ready.sh
+#   bash scripts/bench-tk-ready.sh
+#   BENCH_THRESHOLD_SECONDS=5 bash scripts/bench-tk-ready.sh
 #
 # Timing method: uses $SECONDS bash builtin (integer second resolution).
 #   This is sufficient for a 3-second performance gate. Sub-second precision

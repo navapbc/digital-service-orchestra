@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-dispatcher-framework.sh
+# tests/hooks/test-dispatcher-framework.sh
 # Unit tests for dispatcher.sh and is_worktree()/EXCLUDE_PATTERNS additions to deps.sh.
 #
-# Usage: bash lockpick-workflow/tests/hooks/test-dispatcher-framework.sh
+# Usage: bash tests/hooks/test-dispatcher-framework.sh
 # Exit code: 0 if all pass, 1 if any fail
 
 set -uo pipefail

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-write-reviewer-findings.sh
-# Tests for lockpick-workflow/scripts/write-reviewer-findings.sh
+# tests/scripts/test-write-reviewer-findings.sh
+# Tests for scripts/write-reviewer-findings.sh
 #
 # Verifies the validate-then-write gate for reviewer-findings.json:
 #   - Valid JSON produces a hash and writes findings file

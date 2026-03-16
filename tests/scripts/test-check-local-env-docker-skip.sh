@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-check-local-env-docker-skip.sh
+# tests/scripts/test-check-local-env-docker-skip.sh
 # TDD tests for graceful Docker/DB skip behavior in check-local-env.sh.
 #
 # Tests cover:
@@ -7,7 +7,7 @@
 #   2. Docker available but infrastructure.db_container not set => DB check skipped
 #   3. Docker available + infrastructure.db_container set => DB check runs normally
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-check-local-env-docker-skip.sh
+# Usage: bash tests/scripts/test-check-local-env-docker-skip.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 # REVIEW-DEFENSE: '-e' is intentionally omitted. The test harness captures

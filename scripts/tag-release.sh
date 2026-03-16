@@ -82,8 +82,8 @@ TAG="v${VERSION}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-PLUGIN_JSON="${PLUGIN_ROOT}/plugin.json"
-MARKETPLACE_JSON="${PLUGIN_ROOT}/marketplace.json"
+PLUGIN_JSON="${PLUGIN_ROOT}/.claude-plugin/plugin.json"
+MARKETPLACE_JSON="${PLUGIN_ROOT}/.claude-plugin/marketplace.json"
 
 for f in "$PLUGIN_JSON" "$MARKETPLACE_JSON"; do
   if [[ ! -f "$f" ]]; then

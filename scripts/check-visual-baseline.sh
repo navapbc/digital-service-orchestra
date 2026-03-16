@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# lockpick-workflow/scripts/check-visual-baseline.sh
+# scripts/check-visual-baseline.sh
 # Checks the visual regression baseline state before running browser-based tests.
 #
-# Extracted from lockpick-workflow/skills/validate-work/SKILL.md Step 2b.
+# Extracted from skills/validate-work/SKILL.md Step 2b.
 #
 # Env vars (or positional args):
 #   VISUAL_BASELINE_PATH  — relative path (from repo root) to the baseline snapshots dir

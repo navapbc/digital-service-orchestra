@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-agent-routing-conf.sh
-# TDD tests for lockpick-workflow/config/agent-routing.conf
+# tests/scripts/test-agent-routing-conf.sh
+# TDD tests for config/agent-routing.conf
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-agent-routing-conf.sh
+# Usage: bash tests/scripts/test-agent-routing-conf.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # NOTE: These tests are expected to FAIL until agent-routing.conf is created.
@@ -19,7 +19,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-agent-routing-conf.sh ==="
 
 # ── test_routing_conf_exists ─────────────────────────────────────────────────
-# agent-routing.conf must exist at lockpick-workflow/config/agent-routing.conf
+# agent-routing.conf must exist at config/agent-routing.conf
 _snapshot_fail
 if [[ -f "$CONF_FILE" ]]; then
     actual_exists="exists"

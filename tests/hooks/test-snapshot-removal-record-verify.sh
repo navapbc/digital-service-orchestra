@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-snapshot-removal-record-verify.sh
+# tests/hooks/test-snapshot-removal-record-verify.sh
 # TDD tests for removing snapshot references from record-review.sh
 # and verify-review-diff.sh (ticket lockpick-doc-to-logic-4za8)
 

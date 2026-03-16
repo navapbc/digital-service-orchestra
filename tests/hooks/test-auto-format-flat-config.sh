@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/hooks/test-auto-format-flat-config.sh
+# tests/hooks/test-auto-format-flat-config.sh
 # Tests for auto-format.sh migration from inline Python YAML reads to read-config.sh calls.
 # Validates that auto-format.sh reads format.extensions and format.source_dirs
 # from workflow-config.conf via read-config.sh instead of inline Python.

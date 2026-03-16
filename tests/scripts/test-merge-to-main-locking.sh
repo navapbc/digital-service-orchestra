@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# lockpick-workflow/tests/scripts/test-merge-to-main-locking.sh
-# Tests for _is_lock_stale(), _acquire_lock(), _release_lock() in lockpick-workflow/scripts/merge-to-main.sh
+# tests/scripts/test-merge-to-main-locking.sh
+# Tests for _is_lock_stale(), _acquire_lock(), _release_lock() in scripts/merge-to-main.sh
 #
 # Tests:
 #   1. test_is_lock_stale_returns_true_for_dead_pid — dead PID means lock is stale
@@ -14,7 +14,7 @@
 #  14. test_concurrent_merge_second_waits_then_succeeds — second session waits for first, then acquires
 #  15. test_dead_lock_holder_lock_broken_and_acquired — stale lock broken and re-acquired by current session
 #
-# Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main-locking.sh
+# Usage: bash tests/scripts/test-merge-to-main-locking.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
