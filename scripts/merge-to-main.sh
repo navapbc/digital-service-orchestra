@@ -182,6 +182,71 @@ _is_lock_stale() {
     return 1
 }
 
+# --- Lock acquire/release primitives ---
+# Usage: _acquire_lock [lock_file]
+# Creates a lock file atomically containing "PID|merge-to-main".
+# If lock_file is omitted, derives path from MAIN_REPO hash:
+#   /tmp/merge-to-main-lock-<hash>
+# Returns 0 on success, 1 if lock is already held by a valid process.
+# If the existing lock is stale, it is broken and re-acquired.
+_acquire_lock() {
+    local lock_file="${1:-}"
+    if [[ -z "$lock_file" ]]; then
+        local _lock_hash
+        _lock_hash=$(echo -n "${MAIN_REPO:-unknown}" | shasum 2>/dev/null | cut -c1-8 || echo -n "${MAIN_REPO:-unknown}" | sha256sum 2>/dev/null | cut -c1-8 || echo "default")
+        lock_file="/tmp/merge-to-main-lock-${_lock_hash}"
+    fi
+
+    # If a lock file exists, check staleness
+    if [[ -f "$lock_file" ]]; then
+        if _is_lock_stale "$lock_file"; then
+            # Stale lock — remove it and proceed
+            rm -f "$lock_file" 2>/dev/null
+        else
+            # Valid lock held by another process
+            return 1
+        fi
+    fi
+
+    # Write lock atomically using noclobber
+    local _lock_content="$$|merge-to-main"
+    (
+        set -C
+        echo "$_lock_content" > "$lock_file"
+    ) 2>/dev/null
+    local _rc=$?
+
+    if [[ $_rc -ne 0 ]]; then
+        # Race condition: another process created the file between our check and write
+        return 1
+    fi
+
+    return 0
+}
+
+# Usage: _release_lock <lock_file>
+# Removes the lock file only if the current process ($$) is the owner.
+# Returns 0 on success, 1 if not owner (no-ops silently).
+_release_lock() {
+    local lock_file="$1"
+
+    if [[ ! -f "$lock_file" ]]; then
+        return 0
+    fi
+
+    # Read PID from lock file
+    local lock_pid
+    lock_pid=$(cut -d'|' -f1 < "$lock_file" 2>/dev/null || echo "")
+
+    if [[ "$lock_pid" == "$$" ]]; then
+        rm -f "$lock_file" 2>/dev/null
+        return 0
+    fi
+
+    # Not owner — leave it alone
+    return 1
+}
+
 # --- Push idempotency helper ---
 # Determines whether a push to origin/main is needed.
 # Returns 0 if push is needed (commits exist ahead of origin/main).

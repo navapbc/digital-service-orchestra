@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # lockpick-workflow/tests/scripts/test-merge-to-main-locking.sh
-# Tests for _is_lock_stale() in lockpick-workflow/scripts/merge-to-main.sh
+# Tests for _is_lock_stale(), _acquire_lock(), _release_lock() in lockpick-workflow/scripts/merge-to-main.sh
 #
 # Tests:
 #   1. test_is_lock_stale_returns_true_for_dead_pid — dead PID means lock is stale
 #   2. test_is_lock_stale_returns_false_for_live_matching_pid — live PID + matching command = valid lock
 #   3. test_is_lock_stale_returns_true_for_pid_recycled_command_mismatch — live PID + wrong command = stale
 #   4. test_is_lock_stale_returns_true_for_missing_lock_file — absent lock file = stale
+#   5. test_acquire_lock_creates_lock_file_with_pid — acquire creates lock with PID|merge-to-main
+#   6. test_acquire_lock_fails_when_lock_exists — acquire returns 1 if lock already held
+#   7. test_release_lock_removes_file_when_owner — release removes lock when PID matches
+#   8. test_release_lock_noop_when_not_owner — release no-ops when PID does not match
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main-locking.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -28,12 +32,14 @@ echo "=== test-merge-to-main-locking.sh ==="
 _TEST_TMP=$(mktemp -d)
 trap 'rm -rf "$_TEST_TMP"' EXIT
 
-# Extract _is_lock_stale function definition from the script
+# Extract lock-related function definitions from the script
 # Use sed to pull from function declaration to the closing brace
-sed -n '/_is_lock_stale()/,/^}/p' "$MERGE_SCRIPT" > "$_TEST_TMP/is_lock_stale_func.sh"
+sed -n '/_is_lock_stale()/,/^}/p' "$MERGE_SCRIPT" > "$_TEST_TMP/lock_funcs.sh"
+sed -n '/_acquire_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
+sed -n '/_release_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
 
-# Source the extracted function
-source "$_TEST_TMP/is_lock_stale_func.sh"
+# Source the extracted functions
+source "$_TEST_TMP/lock_funcs.sh"
 
 # =============================================================================
 # Test 1: test_is_lock_stale_returns_true_for_dead_pid
@@ -104,6 +110,108 @@ _RC=$?
 assert_eq "test_is_lock_stale_returns_true_for_missing_lock_file" "0" "$_RC"
 
 assert_pass_if_clean "missing lock file is stale"
+
+# =============================================================================
+# Test 5: test_acquire_lock_creates_lock_file_with_pid
+# Acquiring a lock should create a file containing PID|merge-to-main.
+# =============================================================================
+echo ""
+echo "--- acquire lock creates file with PID ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_acquire.lock"
+rm -f "$_LOCK_FILE"
+
+_acquire_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_acquire_lock_creates_lock_file_with_pid: returns 0" "0" "$_RC"
+
+# File must exist
+if [[ -f "$_LOCK_FILE" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: test_acquire_lock_creates_lock_file_with_pid: lock file not created" >&2
+fi
+
+# Content must be PID|merge-to-main
+_LOCK_CONTENT=$(cat "$_LOCK_FILE")
+assert_eq "test_acquire_lock_creates_lock_file_with_pid: content" "$$|merge-to-main" "$_LOCK_CONTENT"
+
+assert_pass_if_clean "acquire lock creates file with PID"
+
+# =============================================================================
+# Test 6: test_acquire_lock_fails_when_lock_exists
+# Acquiring a lock when a valid lock already exists should return 1.
+# =============================================================================
+echo ""
+echo "--- acquire lock fails when lock exists ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_acquire_exists.lock"
+# Create a lock held by current process (valid lock — not stale)
+_MY_CMD=$(ps -p $$ -o comm= 2>/dev/null || echo "bash")
+echo "$$|${_MY_CMD}" > "$_LOCK_FILE"
+
+_acquire_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_acquire_lock_fails_when_lock_exists: returns 1" "1" "$_RC"
+
+# Original lock content should be preserved (not overwritten)
+_LOCK_CONTENT=$(cat "$_LOCK_FILE")
+assert_eq "test_acquire_lock_fails_when_lock_exists: content unchanged" "$$|${_MY_CMD}" "$_LOCK_CONTENT"
+
+assert_pass_if_clean "acquire lock fails when lock exists"
+
+# =============================================================================
+# Test 7: test_release_lock_removes_file_when_owner
+# Releasing a lock owned by current PID should remove the file.
+# =============================================================================
+echo ""
+echo "--- release lock removes file when owner ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_release_owner.lock"
+echo "$$|merge-to-main" > "$_LOCK_FILE"
+
+_release_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_release_lock_removes_file_when_owner: returns 0" "0" "$_RC"
+
+# File must be gone
+if [[ ! -f "$_LOCK_FILE" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: test_release_lock_removes_file_when_owner: lock file still exists" >&2
+fi
+
+assert_pass_if_clean "release lock removes file when owner"
+
+# =============================================================================
+# Test 8: test_release_lock_noop_when_not_owner
+# Releasing a lock owned by a different PID should leave it in place.
+# =============================================================================
+echo ""
+echo "--- release lock noop when not owner ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_release_not_owner.lock"
+echo "999999999|merge-to-main" > "$_LOCK_FILE"
+
+_release_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_release_lock_noop_when_not_owner: returns 1" "1" "$_RC"
+
+# File must still exist
+if [[ -f "$_LOCK_FILE" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: test_release_lock_noop_when_not_owner: lock file was removed" >&2
+fi
+
+assert_pass_if_clean "release lock noop when not owner"
 
 # =============================================================================
 # Summary
