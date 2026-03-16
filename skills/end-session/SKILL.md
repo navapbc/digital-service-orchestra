@@ -105,6 +105,21 @@ Do NOT create tickets for neutral observations, design decisions, or already-fix
 
 If no learnings qualify, skip silently. Any tickets created here will be committed and merged as part of the normal `/end` flow in Steps 3–4.
 
+### 2.9. Sweep Error Counters and Validation Failures (pre-commit)
+
+Run both error sweeps before committing so that any tickets created are included in the same commit.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
+sweep_tool_errors
+sweep_validation_failures
+```
+
+`sweep_tool_errors` checks `~/.claude/tool-error-counter.json` for tool-error categories that have accumulated 50 or more occurrences and creates deduplicated bug tickets for them. If the counter file is absent or malformed the step exits 0 silently.
+
+`sweep_validation_failures` reads `$ARTIFACTS_DIR/untracked-validation-failures.log`, extracts unique failure categories, deduplicates against existing open bug tickets, and creates a bug ticket for each untracked category. If the log file is absent or empty the step exits 0 silently.
+
 ### 3. Commit Local Changes
 1. Run `git status`. If changes exist: read and execute `$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
@@ -234,21 +249,6 @@ fi
 ```
 
 Keep the primary `config-cache` file (no suffix) — only delete the hash-suffixed variants.
-
-### 5.75. Sweep Tool-Error Counter for Recurring Issues
-
-Check `~/.claude/tool-error-counter.json` for tool-error categories that have accumulated
-50 or more occurrences and create deduplicated bug tickets for them.
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-source "$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
-sweep_tool_errors
-```
-
-The sweep is **read-only** — it never writes to or resets the counter file. If the
-counter file is absent or malformed the step exits 0 silently. Tickets are only created
-when no open bug matching `"Recurring tool error: $CATEGORY"` already exists (dedup).
 
 ### 6. Report: Task Summary and Completion
 
