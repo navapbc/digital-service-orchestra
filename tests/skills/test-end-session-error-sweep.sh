@@ -569,4 +569,56 @@ assert_pass_if_clean "test_validation_sweep_unrecognized_category"
 trap - EXIT
 _teardown_test
 
+# ---------------------------------------------------------------------------
+# test_skill_sweep_before_commit
+# SKILL.md must have Step 2.9 containing both sweep function calls
+# (sweep_tool_errors and sweep_validation_failures) before Step 3 (Commit).
+# This verifies the sweep was relocated from Step 5.75 to Step 2.9.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+SKILL_MD="$REPO_ROOT/lockpick-workflow/skills/end-session/SKILL.md"
+# Step 2.9 must exist
+if grep -q '2\.9\.' "$SKILL_MD" 2>/dev/null; then
+    has_step_29="found"
+else
+    has_step_29="missing"
+fi
+assert_eq "test_skill_sweep_step_2_9_exists" "found" "$has_step_29"
+# Both sweep functions must appear under Step 2.9 (before Step 3)
+step_29_to_step3=$(awk '/2\.9\./,/^### 3\./' "$SKILL_MD" 2>/dev/null || true)
+if echo "$step_29_to_step3" | grep -q 'sweep_tool_errors'; then
+    has_tool_errors="found"
+else
+    has_tool_errors="missing"
+fi
+assert_eq "test_skill_sweep_before_commit_tool_errors" "found" "$has_tool_errors"
+if echo "$step_29_to_step3" | grep -q 'sweep_validation_failures'; then
+    has_validation_failures="found"
+else
+    has_validation_failures="missing"
+fi
+assert_eq "test_skill_sweep_before_commit_validation_failures" "found" "$has_validation_failures"
+# Step 5.75 must NOT remain in SKILL.md
+if grep -q '5\.75\.' "$SKILL_MD" 2>/dev/null; then
+    still_has_5_75="yes"
+else
+    still_has_5_75="no"
+fi
+assert_eq "test_skill_no_step_5_75" "no" "$still_has_5_75"
+assert_pass_if_clean "test_skill_sweep_before_commit"
+
+# ---------------------------------------------------------------------------
+# test_error_sweep_header_references_step_2_9
+# error-sweep.sh header comment must reference Step 2.9 (not Step 5.75).
+# ---------------------------------------------------------------------------
+_snapshot_fail
+ERROR_SWEEP_HEADER_FILE="$REPO_ROOT/lockpick-workflow/skills/end-session/error-sweep.sh"
+if grep -q '2\.9' "$ERROR_SWEEP_HEADER_FILE" 2>/dev/null; then
+    has_step_29_ref="found"
+else
+    has_step_29_ref="missing"
+fi
+assert_eq "test_error_sweep_header_references_step_2_9" "found" "$has_step_29_ref"
+assert_pass_if_clean "test_error_sweep_header_references_step_2_9"
+
 print_summary

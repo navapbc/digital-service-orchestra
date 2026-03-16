@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lockpick-workflow/skills/end-session/error-sweep.sh
-# Library providing sweep_tool_errors() for the /end skill (Step 5.75).
+# Library providing sweep_tool_errors() and sweep_validation_failures() for the /end skill (Step 2.9).
 #
 # Reads ~/.claude/tool-error-counter.json, iterates categories in .index where
 # count >= 50, and creates a deduplicated bug ticket via `tk create` for each.
