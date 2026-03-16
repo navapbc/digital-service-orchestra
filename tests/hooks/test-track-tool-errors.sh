@@ -8,10 +8,12 @@
 #
 # All tests use an isolated $HOME (temp dir) so no real user files are touched.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/track-tool-errors.sh"
+HOOK="$PLUGIN_ROOT/hooks/track-tool-errors.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # --- Test isolation: override HOME to a temp directory ---
 _REAL_HOME="$HOME"

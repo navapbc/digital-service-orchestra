@@ -13,11 +13,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SKILL_MD="$REPO_ROOT/lockpick-workflow/skills/design-review/SKILL.md"
+SKILL_MD="$PLUGIN_ROOT/skills/design-review/SKILL.md"
 SYMLINK_PATH="$REPO_ROOT/.claude/skills/design-review"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-design-review-config-ref.sh ==="
 

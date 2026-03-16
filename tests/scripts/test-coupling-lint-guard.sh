@@ -15,12 +15,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-CONFIG="$REPO_ROOT/lockpick-workflow/config/coupling-lint-patterns.conf"
-GUARD="$REPO_ROOT/lockpick-workflow/scripts/coupling-lint-guard.sh"
+CONFIG="$PLUGIN_ROOT/config/coupling-lint-patterns.conf"
+GUARD="$PLUGIN_ROOT/scripts/coupling-lint-guard.sh"
 
 echo "=== test-coupling-lint-guard.sh ==="
 

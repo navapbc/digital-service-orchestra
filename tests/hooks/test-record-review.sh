@@ -6,13 +6,15 @@
 # the code-reviewer sub-agent). It requires --reviewer-hash and validates
 # the findings file's integrity and schema. No stdin JSON is accepted.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/record-review.sh"
+HOOK="$PLUGIN_ROOT/hooks/record-review.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Source deps.sh to use get_artifacts_dir()
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 
 # Use an isolated temp directory so tests don't clobber production artifacts.
 # Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so record-review.sh (via get_artifacts_dir())

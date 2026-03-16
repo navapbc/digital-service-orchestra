@@ -12,10 +12,12 @@
 #   test_tickets_exclusion_pathspec_exists
 #   test_sync_state_exclusion_pathspec_exists
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
+HOOK="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Skip if not in a git repo with a working tree
 if ! git rev-parse --is-inside-work-tree &>/dev/null; then
@@ -95,7 +97,7 @@ assert_eq "sync-state change does not alter hash" "$HASH_BEFORE_SYNC" "$HASH_AFT
 echo "--- test_non_reviewable_pattern_includes_tickets ---"
 
 PATTERN_MATCH=$(grep 'review-gate-allowlist' \
-    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
+    "$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
     "$( [[ $PATTERN_MATCH -ge 1 ]] && echo true || echo false )"
 
@@ -105,7 +107,7 @@ assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
 # ============================================================
 echo "--- test_tickets_exclusion_pathspec_exists ---"
 
-ALLOWLIST="$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-allowlist.conf"
+ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
 PATHSPEC_MATCH=$(grep '\.tickets/' "$ALLOWLIST" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "review-gate-allowlist.conf contains .tickets/ pattern" "true" \
     "$( [[ $PATHSPEC_MATCH -ge 1 ]] && echo true || echo false )"
@@ -117,7 +119,7 @@ assert_eq "review-gate-allowlist.conf contains .tickets/ pattern" "true" \
 echo "--- test_sync_state_exclusion_pathspec_exists ---"
 
 PATHSPEC_MATCH=$(grep "':!\.sync-state\.json'" \
-    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
+    "$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "EXCLUDE_PATHSPECS contains :!.sync-state.json" "1" "$PATHSPEC_MATCH"
 
 # ============================================================
@@ -127,7 +129,7 @@ assert_eq "EXCLUDE_PATHSPECS contains :!.sync-state.json" "1" "$PATHSPEC_MATCH"
 echo "--- test_capture_review_diff_excludes_tickets ---"
 
 _TICKETS_PATHSPEC=":!.tickets/"
-CAPTURE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh"
+CAPTURE_SCRIPT="$PLUGIN_ROOT/scripts/capture-review-diff.sh"
 CAPTURE_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "capture-review-diff excludes .tickets/" "1" "$CAPTURE_TICKETS"
 
@@ -140,7 +142,7 @@ assert_eq "capture-review-diff excludes .sync-state.json" "1" "$CAPTURE_SYNC"
 # ============================================================
 echo "--- test_record_review_excludes_tickets ---"
 
-RECORD_SCRIPT="$REPO_ROOT/lockpick-workflow/hooks/record-review.sh"
+RECORD_SCRIPT="$PLUGIN_ROOT/hooks/record-review.sh"
 RECORD_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 # Should appear in git diff --name-only lines (at least 2: unstaged + cached)
 assert_eq "record-review.sh excludes .tickets/ in diff queries (>=2 occurrences)" "true" \

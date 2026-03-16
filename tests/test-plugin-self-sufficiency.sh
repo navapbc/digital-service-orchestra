@@ -12,8 +12,10 @@
 #   test_required_skills_resolvable
 #   test_migrated_scripts_in_plugin
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # ============================================================
 # (A) test_no_skill_duplication
@@ -111,7 +113,7 @@ REQUIRED_DOCS=(
 
 MISSING_DOCS=()
 for doc in "${REQUIRED_DOCS[@]}"; do
-    if [[ ! -f "$REPO_ROOT/lockpick-workflow/docs/$doc" ]]; then
+    if [[ ! -f "$PLUGIN_ROOT/docs/$doc" ]]; then
         MISSING_DOCS+=("$doc")
     fi
 done
@@ -130,7 +132,7 @@ REQUIRED_WORKFLOW_DOCS=(
 
 MISSING_WF_DOCS=()
 for doc in "${REQUIRED_WORKFLOW_DOCS[@]}"; do
-    if [[ ! -f "$REPO_ROOT/lockpick-workflow/docs/workflows/$doc" ]]; then
+    if [[ ! -f "$PLUGIN_ROOT/docs/workflows/$doc" ]]; then
         MISSING_WF_DOCS+=("$doc")
     fi
 done
@@ -149,7 +151,7 @@ fi
 
 echo "--- test_config_schema_complete ---"
 
-SCHEMA_FILE="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
+SCHEMA_FILE="$PLUGIN_ROOT/docs/workflow-config-schema.json"
 REQUIRED_SECTIONS=(commands tickets design jira)
 
 MISSING_SECTIONS=()
@@ -228,7 +230,7 @@ MIGRATED_SCRIPTS=(
 # 1. Check each script exists in plugin and is executable
 for script in "${MIGRATED_SCRIPTS[@]}"; do
     assert_eq "migrated script $script in plugin" "true" \
-        "$(test -x "$REPO_ROOT/lockpick-workflow/scripts/$script" && echo true || echo false)"
+        "$(test -x "$PLUGIN_ROOT/scripts/$script" && echo true || echo false)"
 done
 
 # 2. Check each wrapper in scripts/ is thin (< 15 lines)
@@ -269,8 +271,8 @@ for cmd in "${REQUIRED_COMMANDS[@]}"; do
     # Check all locations where a project command can live
     for path in \
         "$REPO_ROOT/.claude/commands/$cmd.md" \
-        "$REPO_ROOT/lockpick-workflow/commands/$cmd.md" \
-        "$REPO_ROOT/lockpick-workflow/skills/$cmd/SKILL.md"; do
+        "$PLUGIN_ROOT/commands/$cmd.md" \
+        "$PLUGIN_ROOT/skills/$cmd/SKILL.md"; do
         if [[ -f "$path" ]]; then
             found=true
             break
@@ -298,14 +300,14 @@ echo "--- test_plugin_internal_references_use_plugin_paths ---"
 
 # agent-batch-lifecycle.sh: no $REPO_ROOT/scripts/ references in skills or hooks
 WRAPPER_REFS=$(grep -r '\$REPO_ROOT/scripts/agent-batch-lifecycle\.sh' \
-    "$REPO_ROOT/lockpick-workflow/skills/" \
-    "$REPO_ROOT/lockpick-workflow/hooks/" 2>/dev/null | wc -l | tr -d ' ')
+    "$PLUGIN_ROOT/skills/" \
+    "$PLUGIN_ROOT/hooks/" 2>/dev/null | wc -l | tr -d ' ')
 
 assert_eq "no wrapper-path references to agent-batch-lifecycle.sh in plugin skills/hooks" "0" "$WRAPPER_REFS"
 if [[ "$WRAPPER_REFS" -gt 0 ]]; then
     grep -rn '\$REPO_ROOT/scripts/agent-batch-lifecycle\.sh' \
-        "$REPO_ROOT/lockpick-workflow/skills/" \
-        "$REPO_ROOT/lockpick-workflow/hooks/" 2>/dev/null | head -5 >&2
+        "$PLUGIN_ROOT/skills/" \
+        "$PLUGIN_ROOT/hooks/" 2>/dev/null | head -5 >&2
 fi
 
 # ============================================================

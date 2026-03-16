@@ -20,18 +20,19 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
-BENCHMARK_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/benchmark-tool-logging.sh"
-PRE_ALL_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-all.sh"
-POST_ALL_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-all.sh"
+BENCHMARK_SCRIPT="$PLUGIN_ROOT/scripts/benchmark-tool-logging.sh"
+PRE_ALL_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-all.sh"
+POST_ALL_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-all.sh"
 
 # ============================================================
 # test_benchmark_script_exists_and_executable

@@ -17,11 +17,13 @@
 # Usage: bash lockpick-workflow/tests/hooks/test-merge-no-sync-lib.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-MERGE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/merge-to-main.sh"
-SYNC_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-sync-from-main.sh"
+MERGE_SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
+SYNC_SCRIPT="$PLUGIN_ROOT/scripts/worktree-sync-from-main.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # =============================================================================
 # Test 1: merge-to-main.sh has no sync lib references

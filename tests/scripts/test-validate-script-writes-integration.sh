@@ -18,14 +18,15 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-VALIDATE_SH="$REPO_ROOT/lockpick-workflow/scripts/validate.sh"
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+VALIDATE_SH="$PLUGIN_ROOT/scripts/validate.sh"
+READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
 REAL_CONFIG="$REPO_ROOT/workflow-config.conf"
-CHECK_SCRIPT_WRITES="$REPO_ROOT/lockpick-workflow/scripts/check-script-writes.py"
+CHECK_SCRIPT_WRITES="$PLUGIN_ROOT/scripts/check-script-writes.py"
 
 echo "=== test-validate-script-writes-integration.sh ==="
 

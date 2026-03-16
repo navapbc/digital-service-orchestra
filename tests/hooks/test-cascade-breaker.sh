@@ -5,10 +5,12 @@
 # cascade-circuit-breaker.sh is a PreToolUse hook that blocks Edit/Write
 # when the cascade failure counter reaches >= 5.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/cascade-circuit-breaker.sh"
+HOOK="$PLUGIN_ROOT/hooks/cascade-circuit-breaker.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Compute the same hash the hook would compute for this worktree
 if command -v md5 &>/dev/null; then

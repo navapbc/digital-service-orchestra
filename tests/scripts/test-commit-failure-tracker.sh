@@ -15,8 +15,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-FUNCS="$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
+FUNCS="$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 

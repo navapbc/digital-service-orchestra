@@ -6,10 +6,12 @@
 # a SHA-256 hex hash of the current working tree diff. It uses set -euo pipefail.
 # It is invoked directly (not via stdin), so tests call it as a command.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
+HOOK="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # test_compute_diff_hash_exits_zero_on_valid_input
 # When called in a git repo, should exit 0 and produce a hash
@@ -52,7 +54,7 @@ fi
 # ============================================================
 echo "--- test_compute_diff_hash_uses_allowlist_patterns ---"
 
-ALLOWLIST="$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-allowlist.conf"
+ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
 
 # 1. The script must reference review-gate-allowlist
 USES_ALLOWLIST=$(grep -c 'review-gate-allowlist' "$HOOK" 2>/dev/null | tail -1 || echo "0")

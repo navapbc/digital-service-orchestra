@@ -15,18 +15,19 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Cleanup temp directories on any exit path
 TMPFILES=()
 trap 'rm -rf "${TMPFILES[@]}"' EXIT
 
-DESIGN_WIREFRAME_SKILL="$REPO_ROOT/lockpick-workflow/skills/design-wireframe/SKILL.md"
-UI_DISCOVER_SKILL="$REPO_ROOT/lockpick-workflow/skills/ui-discover/SKILL.md"
-ADAPTER_DIR="$REPO_ROOT/lockpick-workflow/config/stack-adapters"
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+DESIGN_WIREFRAME_SKILL="$PLUGIN_ROOT/skills/design-wireframe/SKILL.md"
+UI_DISCOVER_SKILL="$PLUGIN_ROOT/skills/ui-discover/SKILL.md"
+ADAPTER_DIR="$PLUGIN_ROOT/config/stack-adapters"
+READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
 
 # Resolve a python3 with pyyaml (mirrors read-config.sh logic)
 PYTHON=""

@@ -9,10 +9,12 @@
 #   - Does NOT contain code file patterns (security guard)
 #   - CLAUDE.md safeguard rule 20 references the file
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-ALLOWLIST="$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-allowlist.conf"
+ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
 
 # --- Test: file exists ---
 test_allowlist_file_exists() {

@@ -6,11 +6,11 @@
 # Usage:
 #   bash lockpick-workflow/tests/hooks/test-hooks-json-paths.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-
-PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 HOOKS_JSON="$PLUGIN_ROOT/hooks.json"
 
 # ─────────────────────────────────────────────────────────────

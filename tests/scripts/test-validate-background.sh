@@ -15,11 +15,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-VALIDATE_SH="$REPO_ROOT/lockpick-workflow/scripts/validate.sh"
+VALIDATE_SH="$PLUGIN_ROOT/scripts/validate.sh"
 
 echo "=== test-validate-background.sh ==="
 

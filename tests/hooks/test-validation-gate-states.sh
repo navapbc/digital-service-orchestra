@@ -12,9 +12,11 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo ""
 echo "=== test-validation-gate-states.sh ==="
@@ -24,7 +26,7 @@ echo "=== Group 1: hook_validation_gate removed ==="
 
 # Verify the function is no longer defined after sourcing pre-bash-functions.sh
 _snapshot_fail
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
+source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
 if type hook_validation_gate &>/dev/null; then
     actual_defined="still_defined"
 else
@@ -35,13 +37,13 @@ assert_pass_if_clean "hook_validation_gate is removed from pre-bash-functions.sh
 
 # Verify no references to the function in the hooks lib directory
 _snapshot_fail
-refs_in_hooks=$(grep -r 'hook_validation_gate' "$REPO_ROOT/lockpick-workflow/hooks/" 2>/dev/null | grep -v '^\s*#' | wc -l | tr -d ' ')
+refs_in_hooks=$(grep -r 'hook_validation_gate' "$PLUGIN_ROOT/hooks/" 2>/dev/null | grep -v '^\s*#' | wc -l | tr -d ' ')
 assert_eq "no non-comment references to hook_validation_gate in hooks/" "0" "$refs_in_hooks"
 assert_pass_if_clean "no non-comment references to hook_validation_gate in hooks/"
 
 # Verify no dispatcher calls the function
 _snapshot_fail
-dispatcher_refs=$(grep -r 'hook_validation_gate' "$REPO_ROOT/lockpick-workflow/hooks/dispatchers/" 2>/dev/null | wc -l | tr -d ' ')
+dispatcher_refs=$(grep -r 'hook_validation_gate' "$PLUGIN_ROOT/hooks/dispatchers/" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "no dispatcher references to hook_validation_gate" "0" "$dispatcher_refs"
 assert_pass_if_clean "no dispatcher references to hook_validation_gate"
 

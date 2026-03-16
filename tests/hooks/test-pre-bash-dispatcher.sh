@@ -14,11 +14,12 @@ set -uo pipefail
 # and we handle failures via assert_eq/assert_contains, not exit-on-error.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
+DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-bash.sh"
 
 # ============================================================
 # test_pre_bash_dispatcher_exits_0_for_exempt_command

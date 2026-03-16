@@ -14,10 +14,12 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/ensure-pre-commit.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/ensure-pre-commit.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-ensure-precommit-config-paths.sh ==="
 

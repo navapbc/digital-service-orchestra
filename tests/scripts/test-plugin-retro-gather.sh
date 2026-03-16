@@ -23,8 +23,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/retro-gather.sh"
+PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/retro-gather.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
 
@@ -216,7 +217,7 @@ if [ -f "$PLUGIN_SCRIPT" ]; then
         fi
     done
 
-    PLUGIN_READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+    PLUGIN_READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
 
     # --- Test 12: Fallback prefix derived from repo dir name ---
     # Tests the ARTIFACT_PREFIX resolution logic from the plugin script in isolation.

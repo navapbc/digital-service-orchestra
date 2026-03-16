@@ -13,12 +13,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 HARNESS="$REPO_ROOT/scripts/check-test-isolation.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
 REGRESSION_FIXTURE="$FIXTURES_DIR/regression-violation.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-isolation-check.sh ==="
 

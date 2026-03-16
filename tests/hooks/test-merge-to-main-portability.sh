@@ -12,10 +12,12 @@
 # Usage: bash lockpick-workflow/tests/hooks/test-merge-to-main-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 MERGE_SCRIPT="$REPO_ROOT/scripts/merge-to-main.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()

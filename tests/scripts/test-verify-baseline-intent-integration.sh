@@ -17,10 +17,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/verify-baseline-intent.sh"
+PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/verify-baseline-intent.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-verify-baseline-intent-integration.sh ==="
 

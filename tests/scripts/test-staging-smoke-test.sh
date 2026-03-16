@@ -9,10 +9,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/staging-smoke-test.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/staging-smoke-test.sh"
 WRAPPER="$REPO_ROOT/scripts/staging-smoke-test.sh"
-PROMPT="$REPO_ROOT/lockpick-workflow/skills/validate-work/prompts/staging-environment-test.md"
+PROMPT="$PLUGIN_ROOT/skills/validate-work/prompts/staging-environment-test.md"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 

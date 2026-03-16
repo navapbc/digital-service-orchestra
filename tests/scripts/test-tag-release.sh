@@ -8,10 +8,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/tag-release.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/tag-release.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-tag-release.sh ==="
 
@@ -48,7 +49,7 @@ assert_eq "test_tag_release_rejects_v_prefix" "1" "$exit_code"
 
 # ── test_tag_release_dry_run_does_not_modify ──────────────────────────────────
 # Capture current plugin.json version before dry-run
-PLUGIN_JSON="$REPO_ROOT/lockpick-workflow/plugin.json"
+PLUGIN_JSON="$PLUGIN_ROOT/plugin.json"
 if [[ -f "$PLUGIN_JSON" ]]; then
     version_before=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null)
     exit_code=0

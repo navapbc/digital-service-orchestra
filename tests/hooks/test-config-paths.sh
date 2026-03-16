@@ -13,6 +13,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 # Temp dir cleanup on exit
@@ -55,7 +56,7 @@ result=$(
     tmpdir=$(mktemp -d)
     cd "$tmpdir"
     # Source the config-paths helper
-    source "$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+    source "$PLUGIN_ROOT/hooks/lib/config-paths.sh"
     echo "CFG_APP_DIR=$CFG_APP_DIR"
     echo "CFG_PYTHON_VENV=$CFG_PYTHON_VENV"
     echo "CFG_FORMAT_SOURCE_DIRS=$CFG_FORMAT_SOURCE_DIRS"
@@ -98,7 +99,7 @@ result=$(
     export CLAUDE_PLUGIN_ROOT="$tmpdir"
     # Reset the guard so config-paths.sh can be sourced fresh
     unset _CONFIG_PATHS_LOADED
-    source "$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+    source "$PLUGIN_ROOT/hooks/lib/config-paths.sh"
     echo "CFG_APP_DIR=$CFG_APP_DIR"
     echo "CFG_PYTHON_VENV=$CFG_PYTHON_VENV"
     echo "CFG_SRC_DIR=$CFG_SRC_DIR"
@@ -124,10 +125,10 @@ result=$(
     unset _CONFIG_PATHS_LOADED
     tmpdir2=$(mktemp -d)
     cd "$tmpdir2"
-    source "$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+    source "$PLUGIN_ROOT/hooks/lib/config-paths.sh"
     first_app_dir="$CFG_APP_DIR"
     # Source again — should be guarded
-    source "$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+    source "$PLUGIN_ROOT/hooks/lib/config-paths.sh"
     second_app_dir="$CFG_APP_DIR"
     echo "first=$first_app_dir"
     echo "second=$second_app_dir"
@@ -156,7 +157,7 @@ EOF
 result=$(
     export CLAUDE_PLUGIN_ROOT="$tmpdir3"
     unset _CONFIG_PATHS_LOADED
-    source "$REPO_ROOT/lockpick-workflow/hooks/lib/config-paths.sh"
+    source "$PLUGIN_ROOT/hooks/lib/config-paths.sh"
     echo "CFG_VISUAL_BASELINE_PATH=$CFG_VISUAL_BASELINE_PATH"
 )
 

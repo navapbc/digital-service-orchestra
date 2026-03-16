@@ -9,9 +9,11 @@
 #   0 — test passed (or skipped because claude binary is unavailable)
 #   1 — test failed
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 PLUGIN_DIR="$REPO_ROOT/lockpick-workflow"
 

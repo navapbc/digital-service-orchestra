@@ -12,13 +12,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 echo "=== test-write-reviewer-findings.sh ==="
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/write-reviewer-findings.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/write-reviewer-findings.sh"
 
 # Use an isolated temp directory so tests don't clobber production artifacts.
 # Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so write-reviewer-findings.sh (via

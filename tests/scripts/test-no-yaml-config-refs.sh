@@ -17,9 +17,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-no-yaml-config-refs.sh ==="
 
@@ -44,8 +45,8 @@ _snapshot_fail
 # in scripts that are within my ownership scope
 scripts_hits=$(
     grep -rn 'workflow-config\.yaml\|workflow-config\.yml' \
-        "$REPO_ROOT/lockpick-workflow/scripts/" \
-        "$REPO_ROOT/lockpick-workflow/hooks/" \
+        "$PLUGIN_ROOT/scripts/" \
+        "$PLUGIN_ROOT/hooks/" \
     | grep -v '/scripts/tk:' \
     | grep -v '/scripts/read-config\.sh:' \
     | grep -v '/scripts/claude-safe:' \
@@ -77,7 +78,7 @@ assert_pass_if_clean "test_no_workflow_config_yaml_in_scripts"
 # evals/fixtures/sample-workflow-config.yaml must not exist.
 _snapshot_fail
 
-FIXTURE="$REPO_ROOT/lockpick-workflow/tests/evals/fixtures/sample-workflow-config.yaml"
+FIXTURE="$PLUGIN_ROOT/tests/evals/fixtures/sample-workflow-config.yaml"
 fixture_exists="absent"
 if [[ -f "$FIXTURE" ]]; then
     fixture_exists="present"
@@ -92,7 +93,7 @@ assert_pass_if_clean "test_sample_yaml_fixture_removed"
 # AC verify: { grep -q 'workflow-config.yaml\|workflow-config.yml' submit-to-schemastore.sh; test $? -ne 0; }
 _snapshot_fail
 
-SCHEMASTORE="$REPO_ROOT/lockpick-workflow/scripts/submit-to-schemastore.sh"
+SCHEMASTORE="$PLUGIN_ROOT/scripts/submit-to-schemastore.sh"
 yaml_filematch="absent"
 if grep -q 'workflow-config\.yaml\|workflow-config\.yml' "$SCHEMASTORE" 2>/dev/null; then
     yaml_filematch="present"

@@ -12,8 +12,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOKS_DIR="$REPO_ROOT/lockpick-workflow/hooks"
+HOOKS_DIR="$PLUGIN_ROOT/hooks"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()

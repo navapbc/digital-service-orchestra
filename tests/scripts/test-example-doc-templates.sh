@@ -7,11 +7,13 @@
 # Usage:
 #   bash lockpick-workflow/tests/scripts/test-example-doc-templates.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-TEMPLATES="$REPO_ROOT/lockpick-workflow/templates"
+TEMPLATES="$PLUGIN_ROOT/templates"
 
 # --- KNOWN-ISSUES.example.md ---
 

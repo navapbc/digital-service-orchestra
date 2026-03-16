@@ -14,13 +14,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-DISPATCHERS_DIR="$REPO_ROOT/lockpick-workflow/hooks/dispatchers"
-PRE_BASH_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
-POST_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/post-functions.sh"
+DISPATCHERS_DIR="$PLUGIN_ROOT/hooks/dispatchers"
+PRE_BASH_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+POST_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/post-functions.sh"
 
 # ============================================================
 # AC: Each dispatcher has at most 1 git rev-parse --show-toplevel call

@@ -14,10 +14,12 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CONFIG="$REPO_ROOT/.pre-commit-config.yaml"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Locate a python3 with pyyaml available.
 _find_python_with_yaml() {
@@ -92,7 +94,7 @@ print(matching[0]['id'] if matching else 'none')
     assert_eq "combined hook id is format-and-lint" "format-and-lint" "$HOOK_ID"
 
     # 3. The combined hook script must pass bash -n (syntax check).
-    SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/format-and-lint.sh"
+    SCRIPT="$PLUGIN_ROOT/scripts/format-and-lint.sh"
     if [[ -f "$SCRIPT" ]]; then
         bash -n "$SCRIPT" 2>/dev/null
         SYNTAX_EXIT=$?

@@ -10,14 +10,16 @@
 # Usage: bash lockpick-workflow/tests/hooks/test-checkpoint-sentinel.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-COMPACT_HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-compact-checkpoint.sh"
-RECORD_HOOK="$REPO_ROOT/lockpick-workflow/hooks/record-review.sh"
+COMPACT_HOOK="$PLUGIN_ROOT/hooks/pre-compact-checkpoint.sh"
+RECORD_HOOK="$PLUGIN_ROOT/hooks/record-review.sh"
 MERGE_SCRIPT="$REPO_ROOT/scripts/merge-to-main.sh"
-DEPS_SH="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-COMPUTE_HASH="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
+DEPS_SH="$PLUGIN_ROOT/hooks/lib/deps.sh"
+COMPUTE_HASH="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()

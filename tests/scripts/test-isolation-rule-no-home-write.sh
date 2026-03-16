@@ -8,11 +8,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 RULE="$REPO_ROOT/scripts/test-isolation-rules/no-home-write.sh"
 FIXTURES="$SCRIPT_DIR/fixtures/isolation-rules"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-isolation-rule-no-home-write.sh ==="
 

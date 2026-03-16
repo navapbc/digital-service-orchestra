@@ -6,6 +6,8 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Temp dir cleanup on exit
@@ -52,16 +54,16 @@ if [ $? -eq 0 ]; then pass "hook_chain_subprocess_count_equals_1"; else fail "ho
 echo ""
 echo "--- test_no_inline_worktree_detection_in_hooks ---"
 # Guard: verify target files exist to prevent vacuous pass
-func_count=$(find "$REPO_ROOT/lockpick-workflow/hooks/lib/" -name "*-functions.sh" | wc -l)
-disp_count=$(find "$REPO_ROOT/lockpick-workflow/hooks/dispatchers/" -name "*.sh" | wc -l)
+func_count=$(find "$PLUGIN_ROOT/hooks/lib/" -name "*-functions.sh" | wc -l)
+disp_count=$(find "$PLUGIN_ROOT/hooks/dispatchers/" -name "*.sh" | wc -l)
 if [ "$func_count" -eq 0 ] || [ "$disp_count" -eq 0 ]; then
     echo "  No function files ($func_count) or dispatchers ($disp_count) found"
     fail "no_inline_worktree_detection_in_hooks (no files to scan)"
 else
     echo "  Scanning $func_count function files and $disp_count dispatchers"
     inline_checks=$(grep -rn '\[ -d \.git \]\|test -d \.git' \
-        "$REPO_ROOT/lockpick-workflow/hooks/lib/"*-functions.sh \
-        "$REPO_ROOT/lockpick-workflow/hooks/dispatchers/"*.sh 2>/dev/null || true)
+        "$PLUGIN_ROOT/hooks/lib/"*-functions.sh \
+        "$PLUGIN_ROOT/hooks/dispatchers/"*.sh 2>/dev/null || true)
     if [ -z "$inline_checks" ]; then
         pass "no_inline_worktree_detection_in_hooks"
     else
@@ -79,8 +81,8 @@ if [ "$func_count" -eq 0 ] || [ "$disp_count" -eq 0 ]; then
     fail "no_duplicate_exclusion_patterns_in_hooks (no files to scan)"
 else
     dup_patterns=$(grep -rn "EXCLUDE_PATHSPECS\|':!\\.tickets/'" \
-        "$REPO_ROOT/lockpick-workflow/hooks/lib/"*-functions.sh \
-        "$REPO_ROOT/lockpick-workflow/hooks/dispatchers/"*.sh 2>/dev/null || true)
+        "$PLUGIN_ROOT/hooks/lib/"*-functions.sh \
+        "$PLUGIN_ROOT/hooks/dispatchers/"*.sh 2>/dev/null || true)
     if [ -z "$dup_patterns" ]; then
         pass "no_duplicate_exclusion_patterns_in_hooks"
     else
@@ -93,7 +95,7 @@ fi
 # Test 4: All dispatchers are executable
 echo ""
 echo "--- test_all_dispatchers_executable ---"
-non_exec=$(find "$REPO_ROOT/lockpick-workflow/hooks/dispatchers/" -name "*.sh" ! -perm -u+x 2>/dev/null || true)
+non_exec=$(find "$PLUGIN_ROOT/hooks/dispatchers/" -name "*.sh" ! -perm -u+x 2>/dev/null || true)
 if [ -z "$non_exec" ]; then
     pass "all_dispatchers_executable"
 else
@@ -144,8 +146,8 @@ echo "--- test_snapshot_flag_deterministic ---"
 TMPDIR_TEST=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_TEST")
 SNAPSHOT="$TMPDIR_TEST/snapshot.txt"
-H1=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
-H2=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
+H1=$("$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
+H2=$("$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
 if [ "$H1" = "$H2" ] && [ -n "$H1" ]; then
     pass "snapshot_flag_deterministic"
 else
@@ -159,7 +161,7 @@ echo "--- test_snapshot_hash_sensitivity ---"
 # Create a temp file to change the hash
 TEMP_FILE="$TMPDIR_TEST/sensitivity-test.txt"
 echo "test content" > "$TEMP_FILE"
-H3=$("$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
+H3=$("$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
 rm -f "$TEMP_FILE"
 rm -rf "$TMPDIR_TEST"
 # H3 may or may not differ from H1 (depends on whether the temp file is in the repo)

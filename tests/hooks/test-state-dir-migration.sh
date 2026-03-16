@@ -10,10 +10,12 @@
 #   test_artifacts_dir_backward_compat_fallback
 #   test_artifacts_dir_migration_is_idempotent
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-DEPS="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+DEPS="$PLUGIN_ROOT/hooks/lib/deps.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temporary directory for test isolation
 TEST_TMP=$(mktemp -d)

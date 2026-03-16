@@ -22,9 +22,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-WRAPPER="$REPO_ROOT/lockpick-workflow/scripts/pre-commit-wrapper.sh"
+ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
+WRAPPER="$PLUGIN_ROOT/scripts/pre-commit-wrapper.sh"
 
 # Source shared assert helpers
 # shellcheck source=../lib/assert.sh
@@ -409,7 +410,7 @@ rm -f "$_T12_EXPECTED_LOG" 2>/dev/null || true
 # Use a subdirectory inside the repo (so git rev-parse works) that has no
 # workflow-config.conf (so read-config.sh cwd fallback returns empty).
 # lockpick-workflow/tests/lib/ is a stable subdir with no workflow-config.conf.
-_T12_SUBDIR="$REPO_ROOT/lockpick-workflow/tests/lib"
+_T12_SUBDIR="$PLUGIN_ROOT/tests/lib"
 _T12_CFGDIR=$(mktemp -d)  # no workflow-config.conf inside
 _CLEANUP_DIRS+=("$_T12_CFGDIR")
 rc=0

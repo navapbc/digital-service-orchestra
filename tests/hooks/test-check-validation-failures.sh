@@ -6,10 +6,12 @@
 # ticket tracking issues when validate.sh outputs FAIL lines.
 # It always exits 0 (non-blocking).
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/check-validation-failures.sh"
+HOOK="$PLUGIN_ROOT/hooks/check-validation-failures.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()

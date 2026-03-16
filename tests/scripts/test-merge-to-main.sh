@@ -12,9 +12,10 @@
 # Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main.sh
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-MERGE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/merge-to-main.sh"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+MERGE_SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # =============================================================================
 # Test 1: Post-merge validation runs format-check as a background job

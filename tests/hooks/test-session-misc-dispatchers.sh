@@ -20,23 +20,24 @@ set -uo pipefail
 # Note: set -e omitted intentionally — tests call functions that return non-zero
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
-SESSION_START_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/session-start.sh"
-STOP_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/stop.sh"
-POST_FAILURE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-failure.sh"
-PRE_ALL_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-all.sh"
-PRE_EXITPLANMODE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-exitplanmode.sh"
-PRE_AGENT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-agent.sh"
-PRE_TASKOUTPUT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-taskoutput.sh"
-SESSION_MISC_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/session-misc-functions.sh"
+SESSION_START_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/session-start.sh"
+STOP_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/stop.sh"
+POST_FAILURE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-failure.sh"
+PRE_ALL_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-all.sh"
+PRE_EXITPLANMODE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-exitplanmode.sh"
+PRE_AGENT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-agent.sh"
+PRE_TASKOUTPUT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-taskoutput.sh"
+SESSION_MISC_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh"
 
 # ============================================================
 # test_session_start_dispatcher_runs_all_4_hooks

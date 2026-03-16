@@ -8,9 +8,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-docs-config-refs.sh ==="
 
@@ -32,7 +33,7 @@ while IFS= read -r line; do
     echo "$content" | grep -qiE 'legacy|fallback|old format|migration' && continue
     yaml_refs_outside_adr="$yaml_refs_outside_adr
 $line"
-done < <(grep -rn 'workflow-config\.yaml' "$REPO_ROOT/lockpick-workflow/docs/" "$REPO_ROOT/docs/" 2>/dev/null || true)
+done < <(grep -rn 'workflow-config\.yaml' "$PLUGIN_ROOT/docs/" "$REPO_ROOT/docs/" 2>/dev/null || true)
 
 if [[ -z "${yaml_refs_outside_adr// /}" || -z "$(echo "$yaml_refs_outside_adr" | tr -d '[:space:]')" ]]; then
     actual="clean"
@@ -46,7 +47,7 @@ assert_pass_if_clean "test_no_yaml_refs_in_docs"
 
 # ── test_example_conf_exists ──────────────────────────────────────────────────
 _snapshot_fail
-if [ -f "$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.conf" ]; then
+if [ -f "$PLUGIN_ROOT/docs/workflow-config.example.conf" ]; then
     actual="exists"
 else
     actual="missing"
@@ -66,7 +67,7 @@ assert_pass_if_clean "test_old_yaml_removed"
 
 # ── test_cache_tests_removed ──────────────────────────────────────────────────
 _snapshot_fail
-if [ -f "$REPO_ROOT/lockpick-workflow/tests/scripts/test-read-config-cache.sh" ]; then
+if [ -f "$PLUGIN_ROOT/tests/scripts/test-read-config-cache.sh" ]; then
     actual="still_exists"
 else
     actual="removed"

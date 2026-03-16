@@ -10,9 +10,10 @@
 #   4. Verify the fallback warning is emitted to stderr when jq is unavailable
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-ci-status-no-jq ==="
 
@@ -38,7 +39,7 @@ ORIGINAL_PATH="$PATH"
 # the same way ci-status.sh does. This lets us unit-test the helper without
 # running ci-status.sh's main body (which needs gh CLI).
 # ---------------------------------------------------------------------------
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 
 # Source the ci_parse_json function from ci-status.sh.
 # We do this by extracting it: temporarily run the script with a sentinel
@@ -183,7 +184,7 @@ PATH="$ORIGINAL_PATH"
 echo ""
 echo "--- ci-status.sh: contains ci_parse_json and sources deps.sh ---"
 
-CI_STATUS_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/ci-status.sh"
+CI_STATUS_SCRIPT="$PLUGIN_ROOT/scripts/ci-status.sh"
 
 # Check that deps.sh is sourced
 deps_sourced=$(grep -c 'deps\.sh' "$CI_STATUS_SCRIPT" 2>/dev/null || echo "0")

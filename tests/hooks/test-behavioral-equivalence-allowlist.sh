@@ -23,12 +23,14 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-COMPUTE_DIFF_HASH="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
-SKIP_REVIEW_CHECK="$REPO_ROOT/lockpick-workflow/scripts/skip-review-check.sh"
-ALLOWLIST="$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-allowlist.conf"
+COMPUTE_DIFF_HASH="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
+SKIP_REVIEW_CHECK="$PLUGIN_ROOT/scripts/skip-review-check.sh"
+ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
 
 # --- Prerequisite checks ---
 if [[ ! -f "$COMPUTE_DIFF_HASH" ]]; then

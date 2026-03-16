@@ -9,11 +9,13 @@
 # Usage:
 #   bash lockpick-workflow/tests/hooks/test-generate-claude-md-skill.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-SKILL_FILE="$REPO_ROOT/lockpick-workflow/skills/generate-claude-md/SKILL.md"
+SKILL_FILE="$PLUGIN_ROOT/skills/generate-claude-md/SKILL.md"
 
 echo "=== test-generate-claude-md-skill.sh ==="
 

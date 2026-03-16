@@ -8,8 +8,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-create.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/worktree-create.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
@@ -168,7 +169,7 @@ _smoke_setup
 # Write workflow-config.conf with a post_create_cmd that creates a marker file
 mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
 # Copy read-config.sh so the script can find it in the temp repo
-cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
+cp "$PLUGIN_ROOT/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
 cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
 worktree.post_create_cmd=touch $WORKTREE_PATH/.setup-marker
 CONF
@@ -193,7 +194,7 @@ _smoke_cleanup
 echo "Test 13: Portability hook-failure — failing post_create_cmd exits non-zero"
 _smoke_setup
 mkdir -p "$SMOKE_REPO/lockpick-workflow/scripts"
-cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
+cp "$PLUGIN_ROOT/scripts/read-config.sh" "$SMOKE_REPO/lockpick-workflow/scripts/read-config.sh"
 cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
 worktree.post_create_cmd=false
 CONF

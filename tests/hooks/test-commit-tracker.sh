@@ -6,11 +6,13 @@
 # warns (but never blocks) if validation failures exist at git commit time
 # without corresponding open ticket issues. Always exits 0.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/commit-failure-tracker.sh"
+HOOK="$PLUGIN_ROOT/hooks/commit-failure-tracker.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
@@ -141,7 +143,7 @@ run_hook_stderr() {
 # MUST FAIL — hook currently hardcodes bd search
 _CT_PLUGIN_ROOT=$(mktemp -d)
 _CLEANUP_DIRS+=("$_CT_PLUGIN_ROOT")
-ln -s "$REPO_ROOT/lockpick-workflow/scripts" "$_CT_PLUGIN_ROOT/scripts"
+ln -s "$PLUGIN_ROOT/scripts" "$_CT_PLUGIN_ROOT/scripts"
 cat > "$_CT_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
 issue_tracker.search_cmd=gh issue list --search
 CONF_EOF

@@ -9,10 +9,12 @@
 # touched. Previous versions wrote to the real ~/.claude/ — if cleanup
 # failed, stale entries caused phantom bug tickets (see bug 0glp, y86r).
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/session-safety-check.sh"
+HOOK="$PLUGIN_ROOT/hooks/session-safety-check.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # --- Test isolation: override HOME to a temp directory ---
 _REAL_HOME="$HOME"

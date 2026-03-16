@@ -13,11 +13,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-VALIDATE_SH="$REPO_ROOT/lockpick-workflow/scripts/validate.sh"
-SYNTAX_PY="$REPO_ROOT/lockpick-workflow/scripts/check-file-syntax.py"
+VALIDATE_SH="$PLUGIN_ROOT/scripts/validate.sh"
+SYNTAX_PY="$PLUGIN_ROOT/scripts/check-file-syntax.py"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-syntax-timeout.sh ==="
 

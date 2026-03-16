@@ -14,11 +14,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-PLUGIN_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/claude-safe"
-FIXTURE_CONFIG="$REPO_ROOT/lockpick-workflow/tests/fixtures/minimal-plugin-consumer/workflow-config.conf"
+PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/claude-safe"
+FIXTURE_CONFIG="$PLUGIN_ROOT/tests/fixtures/minimal-plugin-consumer/workflow-config.conf"
 
-ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
 if [ ! -f "$ASSERT_LIB" ]; then
     echo "SKIP: test-claude-safe-portability.sh — assert.sh not found at: $ASSERT_LIB" >&2
     exit 0
@@ -77,7 +78,7 @@ echo "$TMPDIR_WORKTREE"
 EOF
 chmod +x "$FAKE_PLUGIN_SCRIPTS/worktree-create.sh"
 # Copy read-config.sh from real plugin scripts so config reads still work
-cp "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" "$FAKE_PLUGIN_SCRIPTS/read-config.sh" 2>/dev/null || true
+cp "$PLUGIN_ROOT/scripts/read-config.sh" "$FAKE_PLUGIN_SCRIPTS/read-config.sh" 2>/dev/null || true
 
 # Stub: claude — exits 0 immediately (simulates real Claude binary)
 cat > "$TMPDIR_MAIN/bin/claude" <<'EOF'

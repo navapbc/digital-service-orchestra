@@ -11,9 +11,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/test-batched.sh"
-ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/test-batched.sh"
+ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
 
 if [ ! -f "$ASSERT_LIB" ]; then
     echo "SKIP: test-batched-state-integrity.sh — assert.sh not found at: $ASSERT_LIB" >&2

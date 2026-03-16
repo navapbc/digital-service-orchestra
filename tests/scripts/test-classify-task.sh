@@ -8,8 +8,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/classify-task.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/classify-task.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
@@ -120,7 +121,7 @@ echo "Test: Bug-type tasks never route to code-explorer (read-only)"
     # Feed a bug-type task with "investigate" keywords to classify-task.py
     # and verify it does NOT get assigned to code-explorer
     PYTHON="$(cd "$REPO_ROOT/app" && poetry env info -e 2>/dev/null || echo "python3")"
-    SCORER="$REPO_ROOT/lockpick-workflow/scripts/classify-task.py"
+    SCORER="$PLUGIN_ROOT/scripts/classify-task.py"
 
     bug_task='[{"id":"test-bug","title":"Investigate timeout in ci-status.sh","description":"Trace and fix the timeout handling","task_type":"bug"}]'
     output=$(echo "$bug_task" | "$PYTHON" "$SCORER" 2>&1) || true

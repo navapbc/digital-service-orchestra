@@ -9,9 +9,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # Canonical location is lockpick-workflow/scripts/; scripts/ is a thin exec wrapper.
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-cleanup.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/worktree-cleanup.sh"
 WRAPPER="$REPO_ROOT/scripts/worktree-cleanup.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"

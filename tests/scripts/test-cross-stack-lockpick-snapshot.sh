@@ -12,10 +12,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-FIXTURE="$REPO_ROOT/lockpick-workflow/tests/fixtures/lockpick-snapshot"
+FIXTURE="$PLUGIN_ROOT/tests/fixtures/lockpick-snapshot"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-cross-stack-lockpick-snapshot.sh ==="
 
@@ -36,7 +37,7 @@ fi
 detect_output=""
 detect_exit=0
 if [ -d "$FIXTURE" ]; then
-    detect_output=$(bash "$REPO_ROOT/lockpick-workflow/scripts/detect-stack.sh" "$FIXTURE" 2>/dev/null) || detect_exit=$?
+    detect_output=$(bash "$PLUGIN_ROOT/scripts/detect-stack.sh" "$FIXTURE" 2>/dev/null) || detect_exit=$?
 else
     detect_output="missing"
     detect_exit=1
@@ -57,7 +58,7 @@ fi
 # 'python-poetry'.
 config_output=""
 config_exit=0
-config_output=$(bash "$REPO_ROOT/lockpick-workflow/scripts/read-config.sh" stack "$FIXTURE/workflow-config.conf" 2>/dev/null) || config_exit=$?
+config_output=$(bash "$PLUGIN_ROOT/scripts/read-config.sh" stack "$FIXTURE/workflow-config.conf" 2>/dev/null) || config_exit=$?
 assert_eq "test_lockpick_snapshot_workflow_config_stack" "python-poetry" "$config_output"
 
 print_summary

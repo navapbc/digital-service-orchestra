@@ -14,6 +14,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
@@ -22,7 +23,7 @@ echo "=== test-plugin-self-sufficiency (scripts) ==="
 
 # ── Test 1: worktree-cleanup.sh is present in lockpick-workflow/scripts/ ──────
 echo "Test 1: worktree-cleanup.sh is in lockpick-workflow/scripts/"
-if [[ -f "$REPO_ROOT/lockpick-workflow/scripts/worktree-cleanup.sh" ]]; then
+if [[ -f "$PLUGIN_ROOT/scripts/worktree-cleanup.sh" ]]; then
     echo "  PASS: worktree-cleanup.sh exists in lockpick-workflow/scripts/"
     (( PASS++ ))
 else
@@ -32,7 +33,7 @@ fi
 
 # ── Test 2: worktree-cleanup.sh is executable in plugin ───────────────────────
 echo "Test 2: worktree-cleanup.sh is executable in lockpick-workflow/scripts/"
-if [[ -x "$REPO_ROOT/lockpick-workflow/scripts/worktree-cleanup.sh" ]]; then
+if [[ -x "$PLUGIN_ROOT/scripts/worktree-cleanup.sh" ]]; then
     echo "  PASS: worktree-cleanup.sh is executable"
     (( PASS++ ))
 else

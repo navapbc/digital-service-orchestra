@@ -11,12 +11,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-FIXTURE="$REPO_ROOT/lockpick-workflow/tests/fixtures/go-project"
-DETECT_STACK="$REPO_ROOT/lockpick-workflow/scripts/detect-stack.sh"
+FIXTURE="$PLUGIN_ROOT/tests/fixtures/go-project"
+DETECT_STACK="$PLUGIN_ROOT/scripts/detect-stack.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-cross-stack-go.sh ==="
 

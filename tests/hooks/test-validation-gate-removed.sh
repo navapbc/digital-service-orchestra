@@ -5,10 +5,12 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOKS_DIR="$REPO_ROOT/lockpick-workflow/hooks"
+HOOKS_DIR="$PLUGIN_ROOT/hooks"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo ""
 echo "=== Test: hook_validation_gate removed from all dispatchers ==="
@@ -44,7 +46,7 @@ WRITE_REF=$(grep 'hook_validation_gate' "$HOOKS_DIR/dispatchers/pre-write.sh" ||
 assert_eq "pre-write.sh dispatch loop clean" "" "$WRITE_REF"
 
 # Test 7: Old test file deleted
-if [[ -f "$REPO_ROOT/lockpick-workflow/tests/hooks/test-validation-gate.sh" ]]; then
+if [[ -f "$PLUGIN_ROOT/tests/hooks/test-validation-gate.sh" ]]; then
     (( ++FAIL ))
     echo "FAIL: Old test file test-validation-gate.sh still exists" >&2
 else

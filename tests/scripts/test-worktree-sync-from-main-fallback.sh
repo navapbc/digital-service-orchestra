@@ -28,8 +28,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SYNC_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/worktree-sync-from-main.sh"
+SYNC_SCRIPT="$PLUGIN_ROOT/scripts/worktree-sync-from-main.sh"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
 

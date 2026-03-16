@@ -6,11 +6,13 @@
 # Usage:
 #   bash lockpick-workflow/tests/hooks/test-design-wireframe-migration.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-PLUGIN_SKILL="$REPO_ROOT/lockpick-workflow/skills/design-wireframe"
+PLUGIN_SKILL="$PLUGIN_ROOT/skills/design-wireframe"
 SOURCE_SKILL="$REPO_ROOT/.claude/skills/design-wireframe"
 SKILL_MD="$PLUGIN_SKILL/SKILL.md"
 

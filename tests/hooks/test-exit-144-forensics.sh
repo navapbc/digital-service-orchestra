@@ -15,12 +15,14 @@
 #   - Boundary classification: 69999ms=cancellation, 70000ms=timeout
 #   - Missing exit_code field is handled gracefully
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
-POST_HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
+HOOK="$PLUGIN_ROOT/hooks/dispatchers/pre-bash.sh"
+POST_HOOK="$PLUGIN_ROOT/hooks/dispatchers/post-bash.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
@@ -328,7 +330,7 @@ rm -rf "$_TEST9_DIR"
 # ============================================================
 # Part 3: Companion analysis script tests
 # ============================================================
-ANALYZE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/analyze-exit-144.sh"
+ANALYZE_SCRIPT="$PLUGIN_ROOT/scripts/analyze-exit-144.sh"
 
 # ============================================================
 # test_analyze_script_handles_missing_file
@@ -435,7 +437,7 @@ _PART4_TEST_HOME=$(mktemp -d)
 _CLEANUP_DIRS+=("$_PART4_TEST_HOME")
 export HOME="$_PART4_TEST_HOME"
 
-POST_FAILURE_HOOK="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-failure.sh"
+POST_FAILURE_HOOK="$PLUGIN_ROOT/hooks/dispatchers/post-failure.sh"
 
 # ============================================================
 # test_post_failure_144_writes_jsonl

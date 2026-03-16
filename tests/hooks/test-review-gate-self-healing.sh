@@ -16,12 +16,13 @@
 #   test_is_formatting_only_change_removed_line_not_healed
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
 
 # ---------------------------------------------------------------------------
 # Unit tests for is_formatting_only_change()

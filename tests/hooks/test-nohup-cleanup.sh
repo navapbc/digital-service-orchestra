@@ -10,12 +10,14 @@
 # All tests use an isolated temp directory for the registry so no real
 # processes or registry files are affected.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Source the function library (sets up deps.sh etc.)
 export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/session-misc-functions.sh"
+source "$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh"
 
 # --- Test isolation: use a temp directory as the nohup PID registry ---
 TEST_REGISTRY=$(mktemp -d)
@@ -191,7 +193,7 @@ assert_contains "test_multiple_cleanup_count" "2" "$OUTPUT"
 # Test: session-start dispatcher calls the cleanup function
 # ============================================================
 _DISPATCHER_CALLS_CLEANUP="no"
-if grep -q 'cleanup_stale_nohup' "$REPO_ROOT/lockpick-workflow/hooks/dispatchers/session-start.sh" 2>/dev/null; then
+if grep -q 'cleanup_stale_nohup' "$PLUGIN_ROOT/hooks/dispatchers/session-start.sh" 2>/dev/null; then
     _DISPATCHER_CALLS_CLEANUP="yes"
 fi
 assert_eq "test_session_start_calls_cleanup" "yes" "$_DISPATCHER_CALLS_CLEANUP"
@@ -200,7 +202,7 @@ assert_eq "test_session_start_calls_cleanup" "yes" "$_DISPATCHER_CALLS_CLEANUP"
 # Test: function scans workflow-nohup-pids path
 # ============================================================
 _SCANS_REGISTRY="no"
-if grep -q 'workflow-nohup-pids' "$REPO_ROOT/lockpick-workflow/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
+if grep -q 'workflow-nohup-pids' "$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
     _SCANS_REGISTRY="yes"
 fi
 assert_eq "test_scans_nohup_pid_registry" "yes" "$_SCANS_REGISTRY"
@@ -209,7 +211,7 @@ assert_eq "test_scans_nohup_pid_registry" "yes" "$_SCANS_REGISTRY"
 # Test: function checks command match (PID recycling protection)
 # ============================================================
 _CHECKS_CMD="no"
-if grep -qE 'command|cmd' "$REPO_ROOT/lockpick-workflow/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
+if grep -qE 'command|cmd' "$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
     _CHECKS_CMD="yes"
 fi
 assert_eq "test_checks_command_match" "yes" "$_CHECKS_CMD"
@@ -218,7 +220,7 @@ assert_eq "test_checks_command_match" "yes" "$_CHECKS_CMD"
 # Test: function removes entry files
 # ============================================================
 _REMOVES_ENTRY="no"
-if grep -qE 'rm.*entry|remove.*entry' "$REPO_ROOT/lockpick-workflow/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
+if grep -qE 'rm.*entry|remove.*entry' "$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
     _REMOVES_ENTRY="yes"
 fi
 assert_eq "test_removes_entry_files" "yes" "$_REMOVES_ENTRY"

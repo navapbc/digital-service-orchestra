@@ -9,12 +9,14 @@
 # Usage: bash lockpick-workflow/tests/hooks/test-pre-compact-marker.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-COMPACT_HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-compact-checkpoint.sh"
-DEPS_SH="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+COMPACT_HOOK="$PLUGIN_ROOT/hooks/pre-compact-checkpoint.sh"
+DEPS_SH="$PLUGIN_ROOT/hooks/lib/deps.sh"
+READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()

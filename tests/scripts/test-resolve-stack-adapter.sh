@@ -9,13 +9,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CANONICAL="$REPO_ROOT/lockpick-workflow/scripts/resolve-stack-adapter.sh"
+CANONICAL="$PLUGIN_ROOT/scripts/resolve-stack-adapter.sh"
 WRAPPER="$REPO_ROOT/scripts/resolve-stack-adapter.sh"
-UI_DISCOVER_SKILL="$REPO_ROOT/lockpick-workflow/skills/ui-discover/SKILL.md"
-DESIGN_WIREFRAME_SKILL="$REPO_ROOT/lockpick-workflow/skills/design-wireframe/SKILL.md"
+UI_DISCOVER_SKILL="$PLUGIN_ROOT/skills/ui-discover/SKILL.md"
+DESIGN_WIREFRAME_SKILL="$PLUGIN_ROOT/skills/design-wireframe/SKILL.md"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-resolve-stack-adapter.sh ==="
 

@@ -6,10 +6,12 @@
 # Usage: bash lockpick-workflow/tests/hooks/test-compute-diff-hash-config-exclusions.sh
 # Exit code: 0 if all pass, 1 if any fail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh"
+HOOK="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Helper: check if a pattern exists in the hook file
 _hook_has() { grep -q "$1" "$HOOK" 2>/dev/null && echo "yes" || echo "no"; }

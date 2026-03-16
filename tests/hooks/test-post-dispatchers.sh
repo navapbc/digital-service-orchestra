@@ -18,20 +18,21 @@ set -uo pipefail
 # and we handle failures via assert_eq/assert_contains, not exit-on-error.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
-POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
-POST_EDIT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-edit.sh"
-POST_WRITE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-write.sh"
-POST_ALL_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-all.sh"
-POST_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/post-functions.sh"
+POST_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-bash.sh"
+POST_EDIT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-edit.sh"
+POST_WRITE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-write.sh"
+POST_ALL_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-all.sh"
+POST_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/post-functions.sh"
 
 # ============================================================
 # test_post_bash_dispatcher_exists_and_is_executable

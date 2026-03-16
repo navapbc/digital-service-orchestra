@@ -8,10 +8,12 @@
 # under /tmp/, never in the real repo's app/src/. The hook resolves REPO_ROOT
 # via git rev-parse from the fake repo's working directory.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/auto-format.sh"
+HOOK="$PLUGIN_ROOT/hooks/auto-format.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Single temp directory for all test artifacts — cleaned up on exit
 _TEST_ARTIFACTS=$(mktemp -d "${TMPDIR:-/tmp}/test-auto-format-flat-XXXXXX")

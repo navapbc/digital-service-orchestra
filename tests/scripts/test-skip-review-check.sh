@@ -8,12 +8,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CANONICAL_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/skip-review-check.sh"
+CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/skip-review-check.sh"
 WRAPPER_SCRIPT="$REPO_ROOT/scripts/skip-review-check.sh"
-WORKFLOW_FILE="$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md"
+WORKFLOW_FILE="$PLUGIN_ROOT/docs/workflows/COMMIT-WORKFLOW.md"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-skip-review-check.sh ==="
 

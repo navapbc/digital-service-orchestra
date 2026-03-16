@@ -6,7 +6,7 @@
 # that needs a fresh repo. ~10x faster than git init + add + commit per test.
 #
 # Usage:
-#   source "$REPO_ROOT/lockpick-workflow/tests/lib/git-fixtures.sh"
+#   source "$PLUGIN_ROOT/tests/lib/git-fixtures.sh"
 #   clone_test_repo "$dest_path"
 #
 # Provides:

@@ -5,11 +5,13 @@
 # The bypass sentinel detects commands that attempt to circumvent the review gate
 # (e.g., --no-verify, core.hooksPath override, git plumbing commands).
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/hooks/lib/review-gate-bypass-sentinel.sh"
 
 # call_sentinel: invoke hook_review_bypass_sentinel() directly (no subprocess).
 # Returns the exit code on stdout.

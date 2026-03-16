@@ -12,12 +12,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CANONICAL_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/validate-ui-cache.sh"
+CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/validate-ui-cache.sh"
 WRAPPER_SCRIPT="$REPO_ROOT/scripts/validate-ui-cache.sh"
-SKILL_FILE="$REPO_ROOT/lockpick-workflow/skills/ui-discover/SKILL.md"
+SKILL_FILE="$PLUGIN_ROOT/skills/ui-discover/SKILL.md"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-validate-ui-cache.sh ==="
 

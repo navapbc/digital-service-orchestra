@@ -13,9 +13,11 @@
 #   test_behavioral_equivalence_review_gate_no_pending
 #   test_behavioral_equivalence_auto_format_non_py
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temporary directory for test isolation
 TEST_TMP=$(mktemp -d)
@@ -56,7 +58,7 @@ run_hook_with_input() {
 # equivalence with the original .claude/hooks/review-gate.sh.
 # ============================================================
 
-PLUGIN_REVIEW_GATE="$REPO_ROOT/lockpick-workflow/hooks/review-gate.sh"
+PLUGIN_REVIEW_GATE="$PLUGIN_ROOT/hooks/review-gate.sh"
 
 if [[ -f "$PLUGIN_REVIEW_GATE" ]]; then
     # Create a clean environment where no review is pending
@@ -81,7 +83,7 @@ fi
 # .claude/hooks/auto-format.sh.
 # ============================================================
 
-PLUGIN_AUTO_FORMAT="$REPO_ROOT/lockpick-workflow/hooks/auto-format.sh"
+PLUGIN_AUTO_FORMAT="$PLUGIN_ROOT/hooks/auto-format.sh"
 
 if [[ -f "$PLUGIN_AUTO_FORMAT" ]]; then
     # Edit a non-.py file — auto-format should pass through (exit 0)
@@ -137,8 +139,8 @@ assert_eq \
 #   3. No catch-all (empty-matcher) entries remain in settings.json
 # ============================================================
 
-PRE_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
-POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
+PRE_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-bash.sh"
+POST_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-bash.sh"
 
 # Verify tool-logging removed from pre-bash
 if [[ -f "$PRE_BASH_DISPATCHER" ]]; then

@@ -19,13 +19,14 @@ set -uo pipefail
 # and we handle failures via assert_eq/assert_contains, not exit-on-error.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-PRE_EDIT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-edit.sh"
-PRE_WRITE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-write.sh"
-FUNCTIONS_LIB="$REPO_ROOT/lockpick-workflow/hooks/lib/pre-edit-write-functions.sh"
+PRE_EDIT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-edit.sh"
+PRE_WRITE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-write.sh"
+FUNCTIONS_LIB="$PLUGIN_ROOT/hooks/lib/pre-edit-write-functions.sh"
 
 # ============================================================
 # Helper: compute cascade state dir (same hash logic as cascade-circuit-breaker)
@@ -231,7 +232,7 @@ assert_eq "test_pre_write_no_tool_logging: exits 0" "0" "$_exit_code"
 # ============================================================
 echo "--- test_post_edit_no_tool_logging_post ---"
 
-POST_EDIT_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-edit.sh"
+POST_EDIT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-edit.sh"
 _has_logging=0
 grep -q 'hook_tool_logging_post' "$POST_EDIT_DISPATCHER" && _has_logging=1
 assert_eq "test_post_edit_no_tool_logging_post: no hook_tool_logging_post" "0" "$_has_logging"
@@ -248,7 +249,7 @@ assert_eq "test_post_edit_no_tool_logging_post: exits 0" "0" "$_exit_code"
 # ============================================================
 echo "--- test_post_write_no_tool_logging_post ---"
 
-POST_WRITE_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-write.sh"
+POST_WRITE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-write.sh"
 _has_logging=0
 grep -q 'hook_tool_logging_post' "$POST_WRITE_DISPATCHER" && _has_logging=1
 assert_eq "test_post_write_no_tool_logging_post: no hook_tool_logging_post" "0" "$_has_logging"

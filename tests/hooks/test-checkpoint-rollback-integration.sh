@@ -13,12 +13,14 @@
 # Usage: bash lockpick-workflow/tests/hooks/test-checkpoint-rollback-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-CHECKPOINT_HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-compact-checkpoint.sh"
-PRE_ALL_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/pre-all-functions.sh"
-DEPS_SH="$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+CHECKPOINT_HOOK="$PLUGIN_ROOT/hooks/pre-compact-checkpoint.sh"
+PRE_ALL_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/pre-all-functions.sh"
+DEPS_SH="$PLUGIN_ROOT/hooks/lib/deps.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()

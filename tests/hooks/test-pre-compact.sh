@@ -5,10 +5,12 @@
 # pre-compact-checkpoint.sh is a PreCompact hook that auto-saves work state
 # before context compaction. Always exits 0. Outputs structured markdown.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-compact-checkpoint.sh"
+HOOK="$PLUGIN_ROOT/hooks/pre-compact-checkpoint.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()

@@ -17,12 +17,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
 
-CLASSIFY_TASK_SH="$REPO_ROOT/lockpick-workflow/scripts/classify-task.sh"
-ENSURE_PRECOMMIT_SH="$REPO_ROOT/lockpick-workflow/scripts/ensure-pre-commit.sh"
-REINSTALL_HOOKS_SH="$REPO_ROOT/lockpick-workflow/scripts/reinstall-hooks.sh"
+CLASSIFY_TASK_SH="$PLUGIN_ROOT/scripts/classify-task.sh"
+ENSURE_PRECOMMIT_SH="$PLUGIN_ROOT/scripts/ensure-pre-commit.sh"
+REINSTALL_HOOKS_SH="$PLUGIN_ROOT/scripts/reinstall-hooks.sh"
 
 source "$ASSERT_LIB"
 
@@ -81,7 +82,7 @@ echo "Test 2: test_classify_task_no_poetry_uses_system_python"
 # ---------------------------------------------------------------------------
 echo "Test 3: issue-batch.sh does not crash when poetry absent"
 {
-    ISSUE_BATCH_SH="$REPO_ROOT/lockpick-workflow/scripts/issue-batch.sh"
+    ISSUE_BATCH_SH="$PLUGIN_ROOT/scripts/issue-batch.sh"
     no_poetry_path="$(_path_without_poetry)"
     rc=0
     PATH="$no_poetry_path" bash "$ISSUE_BATCH_SH" 2>/dev/null || rc=$?

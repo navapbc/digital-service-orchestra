@@ -16,10 +16,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SKILL_MD="$REPO_ROOT/lockpick-workflow/skills/quick-ref/SKILL.md"
+SKILL_MD="$PLUGIN_ROOT/skills/quick-ref/SKILL.md"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-quick-ref-skill.sh ==="
 
@@ -87,7 +88,7 @@ assert_pass_if_clean "test_skills_discovery"
 _snapshot_fail
 broken_count=0
 while IFS= read -r ref_path; do
-    resolved="$REPO_ROOT/lockpick-workflow/${ref_path#\$PLUGIN_ROOT/}"
+    resolved="$PLUGIN_ROOT/${ref_path#\$PLUGIN_ROOT/}"
     if [[ ! -e "$resolved" ]]; then
         broken_count=$((broken_count + 1))
         echo "  BROKEN REF: $ref_path -> $resolved" >&2

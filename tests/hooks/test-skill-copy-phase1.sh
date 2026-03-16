@@ -6,11 +6,13 @@
 # Usage:
 #   bash lockpick-workflow/tests/hooks/test-skill-copy-phase1.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-PLUGIN_SKILLS="$REPO_ROOT/lockpick-workflow/skills"
+PLUGIN_SKILLS="$PLUGIN_ROOT/skills"
 SOURCE_SKILLS="$REPO_ROOT/.claude/skills"
 
 # The 14 workflow-generic skills that must be copied

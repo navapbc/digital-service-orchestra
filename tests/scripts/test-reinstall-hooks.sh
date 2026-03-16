@@ -21,9 +21,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-ASSERT_LIB="$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/reinstall-hooks.sh"
+ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/reinstall-hooks.sh"
 
 # Source shared assert helpers
 # shellcheck source=../lib/assert.sh

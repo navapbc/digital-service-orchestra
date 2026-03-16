@@ -12,18 +12,19 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-DETECT="$REPO_ROOT/lockpick-workflow/scripts/detect-stack.sh"
+DETECT="$PLUGIN_ROOT/scripts/detect-stack.sh"
 
 echo "=== test-cross-stack-regression.sh ==="
 
 # ── test_cross_stack_node_fixture_detected ────────────────────────────────────
 # detect-stack.sh on lockpick-workflow/tests/fixtures/node-project must output 'node-npm'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
-NODE_FIXTURE="$REPO_ROOT/lockpick-workflow/tests/fixtures/node-project"
+NODE_FIXTURE="$PLUGIN_ROOT/tests/fixtures/node-project"
 if [[ ! -d "$NODE_FIXTURE" ]]; then
     assert_eq "test_cross_stack_node_fixture_detected: fixture dir exists" "exists" "missing"
 else
@@ -37,7 +38,7 @@ fi
 # ── test_cross_stack_go_fixture_detected ─────────────────────────────────────
 # detect-stack.sh on lockpick-workflow/tests/fixtures/go-project must output 'golang'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
-GO_FIXTURE="$REPO_ROOT/lockpick-workflow/tests/fixtures/go-project"
+GO_FIXTURE="$PLUGIN_ROOT/tests/fixtures/go-project"
 if [[ ! -d "$GO_FIXTURE" ]]; then
     assert_eq "test_cross_stack_go_fixture_detected: fixture dir exists" "exists" "missing"
 else
@@ -52,7 +53,7 @@ fi
 # detect-stack.sh on lockpick-workflow/tests/fixtures/makefile-project must output
 # 'convention-based'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
-MAKE_FIXTURE="$REPO_ROOT/lockpick-workflow/tests/fixtures/makefile-project"
+MAKE_FIXTURE="$PLUGIN_ROOT/tests/fixtures/makefile-project"
 if [[ ! -d "$MAKE_FIXTURE" ]]; then
     assert_eq "test_cross_stack_makefile_fixture_detected: fixture dir exists" "exists" "missing"
 else
@@ -68,7 +69,7 @@ fi
 # 'python-poetry'.
 # Guard: if fixture dir doesn't exist, force a fail with explicit assert.
 # NOTE: This test FAILS in RED phase until lockpick-snapshot fixture is created.
-LOCKPICK_FIXTURE="$REPO_ROOT/lockpick-workflow/tests/fixtures/lockpick-snapshot"
+LOCKPICK_FIXTURE="$PLUGIN_ROOT/tests/fixtures/lockpick-snapshot"
 if [[ ! -d "$LOCKPICK_FIXTURE" ]]; then
     assert_eq "test_cross_stack_lockpick_snapshot_detected: fixture dir exists" "exists" "missing"
 else
@@ -83,7 +84,7 @@ fi
 # detect-stack.sh on lockpick-workflow/tests/evals/fixtures/multi-marker-project
 # (has both pyproject.toml and package.json) must output 'python-poetry'
 # because Python takes priority over Node.
-MULTI_FIXTURE="$REPO_ROOT/lockpick-workflow/tests/evals/fixtures/multi-marker-project"
+MULTI_FIXTURE="$PLUGIN_ROOT/tests/evals/fixtures/multi-marker-project"
 if [[ ! -d "$MULTI_FIXTURE" ]]; then
     assert_eq "test_cross_stack_multi_marker_python_priority: fixture dir exists" "exists" "missing"
 else

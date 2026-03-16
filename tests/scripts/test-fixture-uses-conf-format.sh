@@ -11,9 +11,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-fixture-uses-conf-format.sh ==="
 
@@ -22,7 +23,7 @@ echo "=== test-fixture-uses-conf-format.sh ==="
 # the test-read-config-flat.sh backward-compat test (which intentionally tests .yaml fallback),
 # and this file itself.
 _snapshot_fail
-offenders=$(grep -rn 'workflow-config\.yaml' "$REPO_ROOT/lockpick-workflow/tests/" \
+offenders=$(grep -rn 'workflow-config\.yaml' "$PLUGIN_ROOT/tests/" \
     --include='*.sh' \
     | grep -v '^\s*#\|\.conf\|#.*workflow-config\|fallback\|compat\|backward' \
     | grep -v 'test-fixture-uses-conf-format\.sh' \

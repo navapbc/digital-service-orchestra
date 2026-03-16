@@ -5,11 +5,13 @@
 # plan-review-gate.sh is a PreToolUse hook (ExitPlanMode matcher) that
 # blocks ExitPlanMode if no plan review has been recorded for this session.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/plan-review-gate.sh"
+HOOK="$PLUGIN_ROOT/hooks/plan-review-gate.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 
 ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE="$ARTIFACTS_DIR/plan-review-status"

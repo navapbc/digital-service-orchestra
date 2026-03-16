@@ -11,10 +11,12 @@
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main-ucq2.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-MERGE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/merge-to-main.sh"
+MERGE_SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # =============================================================================
 # Test 1: _check_push_needed function exists in merge-to-main.sh

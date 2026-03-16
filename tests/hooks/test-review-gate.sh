@@ -9,7 +9,9 @@
 # Tests for the new two-layer gate live in test-two-layer-review-gate.sh.
 # is_formatting_only_change() unit tests live in test-review-gate-self-healing.sh.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 print_summary

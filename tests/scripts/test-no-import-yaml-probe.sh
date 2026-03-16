@@ -17,13 +17,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-no-import-yaml-probe.sh ==="
 
-SCRIPTS_DIR="$REPO_ROOT/lockpick-workflow/scripts"
+SCRIPTS_DIR="$PLUGIN_ROOT/scripts"
 
 # The 4 scripts that must NOT contain import yaml probes
 TARGET_SCRIPTS=(

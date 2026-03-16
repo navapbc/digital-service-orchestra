@@ -7,10 +7,12 @@
 #
 # All tests use an isolated $HOME (temp dir) so no real user files are touched.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/tool-logging.sh"
+HOOK="$PLUGIN_ROOT/hooks/tool-logging.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # --- Test isolation: override HOME to a temp directory ---
 _REAL_HOME="$HOME"
@@ -152,8 +154,8 @@ assert_eq "test_jsonl_summary_within_500_chars" "yes" "$WITHIN_LIMIT"
 # Verify tool logging works when invoked via per-tool dispatchers
 # (post-consolidation: dispatchers replaced catch-all empty-matcher hooks)
 
-PRE_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-bash.sh"
-POST_BASH_DISPATCHER="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-bash.sh"
+PRE_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-bash.sh"
+POST_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-bash.sh"
 
 # Reset log file for dispatcher tests
 rm -f "$LOG_FILE"

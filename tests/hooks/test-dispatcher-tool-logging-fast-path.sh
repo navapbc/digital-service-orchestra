@@ -14,13 +14,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-PRE_ALL="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/pre-all.sh"
-POST_ALL="$REPO_ROOT/lockpick-workflow/hooks/dispatchers/post-all.sh"
-POST_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/post-functions.sh"
+PRE_ALL="$PLUGIN_ROOT/hooks/dispatchers/pre-all.sh"
+POST_ALL="$PLUGIN_ROOT/hooks/dispatchers/post-all.sh"
+POST_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/post-functions.sh"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo test"}}'
 

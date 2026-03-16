@@ -8,12 +8,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-WORKFLOW_FILE="$REPO_ROOT/lockpick-workflow/docs/workflows/COMMIT-WORKFLOW.md"
-FIXTURE_CONFIG="$REPO_ROOT/lockpick-workflow/tests/fixtures/commit-workflow-skip/workflow-config-no-test-changed.yaml"
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+WORKFLOW_FILE="$PLUGIN_ROOT/docs/workflows/COMMIT-WORKFLOW.md"
+FIXTURE_CONFIG="$PLUGIN_ROOT/tests/fixtures/commit-workflow-skip/workflow-config-no-test-changed.yaml"
+READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-commit-step1-5-skip.sh ==="
 

@@ -8,11 +8,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-LAUNCH_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/nohup-launch.sh"
+LAUNCH_SCRIPT="$PLUGIN_ROOT/scripts/nohup-launch.sh"
 
 echo "=== test-nohup-launch.sh ==="
 

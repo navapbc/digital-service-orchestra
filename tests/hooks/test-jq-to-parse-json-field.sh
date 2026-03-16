@@ -6,9 +6,11 @@
 #
 # Verifies: valid JSON, malformed JSON, missing fields, null values.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 
 echo "=== test-jq-to-parse-json-field ==="
 
@@ -56,7 +58,7 @@ fi
 echo ""
 echo "--- track-cascade-failures.sh field extraction ---"
 
-TRACK_HOOK="$REPO_ROOT/lockpick-workflow/hooks/track-cascade-failures.sh"
+TRACK_HOOK="$PLUGIN_ROOT/hooks/track-cascade-failures.sh"
 
 # Non-Bash tool should exit silently (produces {} from trap)
 output=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"test.py"}}' | bash "$TRACK_HOOK" 2>/dev/null)
@@ -93,7 +95,7 @@ assert_eq "track-cascade: malformed JSON exits gracefully" "{}" "$output"
 echo ""
 echo "--- check-validation-failures.sh field extraction ---"
 
-CHECK_HOOK="$REPO_ROOT/lockpick-workflow/hooks/check-validation-failures.sh"
+CHECK_HOOK="$PLUGIN_ROOT/hooks/check-validation-failures.sh"
 
 # Non-Bash tool should exit silently
 output=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"test.py"}}' | bash "$CHECK_HOOK" 2>/dev/null)
@@ -117,7 +119,7 @@ assert_eq "check-validation: malformed JSON exits gracefully" "{}" "$output"
 echo ""
 echo "--- hook_commit_failure_tracker field extraction ---"
 
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
+source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
 
 # Non-Bash tool should return 0
 hook_commit_failure_tracker '{"tool_name":"Edit","tool_input":{"file_path":"test.py"}}' 2>/dev/null
@@ -145,7 +147,7 @@ jq_in_check=$(grep -cE '^\s*(check_tool jq|.*\| jq |jq -)' "$CHECK_HOOK" 2>/dev/
 jq_in_check=${jq_in_check:-0}
 assert_eq "check-validation: zero jq calls" "0" "$jq_in_check"
 
-PRE_BASH="$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
+PRE_BASH="$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
 jq_in_prebash=$(grep -cE '(check_tool jq|.*\| jq |jq -)' "$PRE_BASH" 2>/dev/null || true)
 jq_in_prebash=${jq_in_prebash:-0}
 assert_eq "pre-bash-functions: zero jq calls" "0" "$jq_in_prebash"

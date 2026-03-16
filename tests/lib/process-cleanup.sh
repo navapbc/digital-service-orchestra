@@ -7,7 +7,7 @@
 # other concurrent worktree sessions running their own test suites.
 #
 # Usage:
-#   source "$REPO_ROOT/lockpick-workflow/tests/lib/process-cleanup.sh"
+#   source "$PLUGIN_ROOT/tests/lib/process-cleanup.sh"
 #
 # Provides:
 #   _write_pidfile <path> <pid> <session_id>

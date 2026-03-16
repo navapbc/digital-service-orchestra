@@ -19,11 +19,12 @@ set -uo pipefail
 # and we handle failures via assert_eq/assert_contains, not exit-on-error.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/worktree-isolation-guard.sh"
+HOOK="$PLUGIN_ROOT/hooks/worktree-isolation-guard.sh"
 
 # Helper: run hook with given JSON input, return exit code via echo
 run_hook_exit() {

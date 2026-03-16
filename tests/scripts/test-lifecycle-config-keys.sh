@@ -11,13 +11,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
+SCRIPT="$PLUGIN_ROOT/scripts/read-config.sh"
 CONFIG="$REPO_ROOT/workflow-config.conf"
-SCHEMA="$REPO_ROOT/lockpick-workflow/docs/workflow-config-schema.json"
-EXAMPLE="$REPO_ROOT/lockpick-workflow/docs/workflow-config.example.conf"
+SCHEMA="$PLUGIN_ROOT/docs/workflow-config-schema.json"
+EXAMPLE="$PLUGIN_ROOT/docs/workflow-config.example.conf"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Resolve Python with pyyaml
 PYTHON=""

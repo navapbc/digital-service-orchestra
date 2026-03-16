@@ -21,6 +21,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # REVIEW-DEFENSE: This path points to the future canonical script location inside the
 # workflow plugin. The test is intentionally RED — it will pass only after task
@@ -28,9 +29,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # tests are written before the implementation exists. The reviewer's suggestion to point
 # at 'scripts/check-local-env.sh' (the project-specific script) is incorrect: this test
 # covers the generic canonical behavior that will live in lockpick-workflow/scripts/.
-CANONICAL_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/check-local-env.sh"
+CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/check-local-env.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-check-local-env-generic.sh ==="
 

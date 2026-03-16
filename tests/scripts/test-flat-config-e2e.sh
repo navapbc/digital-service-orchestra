@@ -14,12 +14,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-READ_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/read-config.sh"
-VALIDATE_CONFIG="$REPO_ROOT/lockpick-workflow/scripts/validate-config.sh"
+READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
+VALIDATE_CONFIG="$PLUGIN_ROOT/scripts/validate-config.sh"
 REAL_CONF="$REPO_ROOT/workflow-config.conf"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
@@ -123,7 +124,7 @@ assert_pass_if_clean "test_no_python_dependency_on_config_path"
 # This simulates how skills resolve config values at runtime.
 _snapshot_fail
 
-plugin_scripts="$REPO_ROOT/lockpick-workflow/scripts"
+plugin_scripts="$PLUGIN_ROOT/scripts"
 
 # Test the pattern that skills use: PLUGIN_SCRIPTS + read-config.sh + key
 value=$(

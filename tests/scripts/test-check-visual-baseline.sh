@@ -14,12 +14,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CANONICAL_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/check-visual-baseline.sh"
+CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/check-visual-baseline.sh"
 WRAPPER_SCRIPT="$REPO_ROOT/scripts/check-visual-baseline.sh"
-SKILL_MD="$REPO_ROOT/lockpick-workflow/skills/validate-work/SKILL.md"
+SKILL_MD="$PLUGIN_ROOT/skills/validate-work/SKILL.md"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-check-visual-baseline.sh ==="
 

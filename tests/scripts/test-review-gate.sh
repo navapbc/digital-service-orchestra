@@ -13,9 +13,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-HOOK_TEST="$REPO_ROOT/lockpick-workflow/tests/hooks/test-review-gate.sh"
+HOOK_TEST="$PLUGIN_ROOT/tests/hooks/test-review-gate.sh"
 
 if [[ ! -x "$HOOK_TEST" ]]; then
     echo "ERROR: hook test not found or not executable: $HOOK_TEST" >&2

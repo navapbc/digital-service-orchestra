@@ -38,13 +38,15 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-PRE_COMMIT_HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-commit-review-gate.sh"
-PRE_BASH_FUNCTIONS="$REPO_ROOT/lockpick-workflow/hooks/lib/pre-bash-functions.sh"
+PRE_COMMIT_HOOK="$PLUGIN_ROOT/hooks/pre-commit-review-gate.sh"
+PRE_BASH_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
-source "$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$PLUGIN_ROOT/hooks/lib/review-gate-bypass-sentinel.sh"
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 _TEST_TMPDIRS=()
@@ -127,7 +129,7 @@ compute_hash_in_repo() {
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/lockpick-workflow"
-        bash "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null
+        bash "$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null
     )
 }
 

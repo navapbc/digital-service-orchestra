@@ -8,10 +8,12 @@
 # Usage: bash lockpick-workflow/tests/hooks/test-pre-push-sentinel-check.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$REPO_ROOT/lockpick-workflow/hooks/pre-push-sentinel-check.sh"
+HOOK="$PLUGIN_ROOT/hooks/pre-push-sentinel-check.sh"
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # ── test_push_blocked_when_sentinel_in_head ──────────────────────────────────
 # When .checkpoint-needs-review is committed to HEAD, the hook must exit

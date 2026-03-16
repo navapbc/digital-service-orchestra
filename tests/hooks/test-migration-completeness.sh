@@ -11,6 +11,8 @@
 #   test_migration_completeness_settings_uses_plugin_paths
 #   test_migration_completeness_script_paths_exist
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Skip unless explicitly requested — these are RED PHASE tests that track migration progress.
@@ -22,7 +24,7 @@ if [[ "${RUN_RED_PHASE:-}" != "true" ]]; then
     exit 0
 fi
 
-source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # ============================================================
 # (A) test_migration_completeness_no_generic_skills
