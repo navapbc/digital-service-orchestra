@@ -71,6 +71,7 @@ make_test_repo() {
     git -C "$tmpdir" init -q
     git -C "$tmpdir" config user.email "test@test.com"
     git -C "$tmpdir" config user.name "Test"
+    git -C "$tmpdir" config commit.gpgsign false
     echo "initial" > "$tmpdir/README.md"
     git -C "$tmpdir" add -A
     git -C "$tmpdir" commit -q -m "init"

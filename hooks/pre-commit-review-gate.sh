@@ -58,21 +58,12 @@ log_decision() {
     local _ts
     _ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
 
-    # Build staged_files JSON array; use python3 for reliable string escaping
-    local _files_json="["
-    local _first_file=1
-    local _sf
-    for _sf in "${STAGED_FILES[@]+"${STAGED_FILES[@]}"}"; do
-        local _esc
-        _esc=$(printf '%s' "$_sf" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()),end='')" 2>/dev/null || printf '"%s"' "$_sf")
-        if (( _first_file )); then
-            _files_json="${_files_json}${_esc}"
-            _first_file=0
-        else
-            _files_json="${_files_json},${_esc}"
-        fi
-    done
-    _files_json="${_files_json}]"
+    # Build staged_files JSON array; single python3 call for all files
+    # (avoids per-file subprocess spawning which is O(N) forks)
+    local _files_json
+    _files_json=$(printf '%s\n' "${STAGED_FILES[@]+"${STAGED_FILES[@]}"}" | \
+        python3 -c "import json,sys; print(json.dumps([f for f in sys.stdin.read().splitlines() if f]),end='')" \
+        2>/dev/null || echo "[]")
 
     printf '{"timestamp":"%s","outcome":"%s","staged_files":%s,"review_status_present":%s,"hash_match":%s}\n' \
         "$_ts" \
@@ -175,10 +166,13 @@ ALLOWLIST_PATH="${CONF_OVERRIDE:-$HOOK_DIR/lib/review-gate-allowlist.conf}"
 # In a merge commit (MERGE_HEAD present), this still returns only the files
 # explicitly staged, which is the correct set to classify.
 STAGED_FILES=()
-while IFS= read -r f; do
-    [[ -z "$f" ]] && continue
-    STAGED_FILES+=("$f")
-done < <(git diff --cached --name-only 2>/dev/null || true)
+_staged_output=$(git diff --cached --name-only 2>/dev/null || true)
+if [[ -n "$_staged_output" ]]; then
+    while IFS= read -r f; do
+        [[ -z "$f" ]] && continue
+        STAGED_FILES+=("$f")
+    done <<< "$_staged_output"
+fi
 
 # No staged files → nothing to check; let git handle it
 if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
@@ -209,18 +203,20 @@ fi
 # ── Classify staged files ────────────────────────────────────────────────────
 # A file is "allowlisted" (non-reviewable) if it matches the regex.
 # All others require review.
+# Uses a single grep invocation instead of per-file subprocess spawning
+# for O(1) process forks regardless of staged file count.
 NON_ALLOWLISTED_FILES=()
-for staged_file in "${STAGED_FILES[@]}"; do
-    is_allowlisted=0
-    if [[ -n "$NON_REVIEWABLE_REGEX" ]]; then
-        if echo "$staged_file" | grep -qE "$NON_REVIEWABLE_REGEX" 2>/dev/null; then
-            is_allowlisted=1
-        fi
+if [[ -z "$NON_REVIEWABLE_REGEX" ]]; then
+    # No allowlist loaded — everything requires review (fail-safe)
+    NON_ALLOWLISTED_FILES=("${STAGED_FILES[@]}")
+else
+    _non_allowlisted=$(printf '%s\n' "${STAGED_FILES[@]}" | grep -vE "$NON_REVIEWABLE_REGEX" 2>/dev/null || true)
+    if [[ -n "$_non_allowlisted" ]]; then
+        while IFS= read -r _classified_file; do
+            [[ -n "$_classified_file" ]] && NON_ALLOWLISTED_FILES+=("$_classified_file")
+        done <<< "$_non_allowlisted"
     fi
-    if [[ "$is_allowlisted" -eq 0 ]]; then
-        NON_ALLOWLISTED_FILES+=("$staged_file")
-    fi
-done
+fi
 
 # ── All staged files are allowlisted → allow without review ──────────────────
 if [[ ${#NON_ALLOWLISTED_FILES[@]} -eq 0 ]]; then
