@@ -22,12 +22,14 @@ Usage: merge-to-main.sh [--phase=<name>|--resume|--help]
 
   --phase=<name>  Run a single named phase and exit. Valid phase names:
                     checkpoint_verify  sync  merge  validate  push  archive  ci_trigger
-  --resume        Read state file, find last incomplete phase, continue from there.
-                  If a phase is in conflict state, a fresh attempt is made at that phase.
+  --resume        Resume from last incomplete phase. On merge failure, squash-rebase
+                  recovery runs automatically before retrying (up to 5 retries).
   --help          Print this usage message and exit.
 
-  (no args)       Print a warning showing --phase and --resume usage, then run
-                  all phases sequentially (backward compatible).
+  (no args)       Run all phases sequentially (backward compatible).
+
+Merge recovery: on git merge failure the script squash-rebases the branch onto
+main and retries. If recovery fails, run --resume (retry budget: 5 attempts).
 USAGE
         exit 0
     fi
@@ -40,6 +42,7 @@ if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
     exit 1
 fi
 cd "$REPO_ROOT"
+WORKTREE_DIR="$REPO_ROOT"
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
@@ -446,7 +449,7 @@ _check_push_needed() {
 
 # --- Squash-rebase recovery helper ---
 # Performs a squash-rebase sequence to linearize branch history before merge.
-# Inert: not called by any phase — wired in by a subsequent task.
+# Called by the merge phase on failure to recover from merge conflicts.
 #
 # Prerequisites: BRANCH must be set (validated on entry).
 # Returns 0 on success, 1 on unrecoverable failure.
@@ -464,9 +467,6 @@ _check_push_needed() {
 #        - Otherwise: print ACTION REQUIRED with conflicted file list, rebase --abort, return 1.
 #   5. Print RECOVERY: Squash-rebase succeeded. Return 0.
 _squash_rebase_recovery() {
-    # NOTE: This function is inert — not called by any phase yet.
-    # It will be wired into _phase_merge() by a subsequent task.
-
     # Validate BRANCH is set
     if [[ -z "${BRANCH:-}" ]]; then
         echo "ERROR: _squash_rebase_recovery: BRANCH is not set." >&2
@@ -827,6 +827,8 @@ _phase_sync() {
 
 # --- 3) Merge worktree branch ---
 _phase_merge() {
+    # _phase_merge() — calls _squash_rebase_recovery on failure, then retries merge.
+    # On unrecoverable failure: _state_increment_retry, directive to run --resume.
     _CURRENT_PHASE="merge"
     _state_write_phase "merge"
 
@@ -850,18 +852,42 @@ _phase_merge() {
 
     echo "Merging $BRANCH into main..."
     if ! git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
-        CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+        # First attempt failed — abort the merge and try squash-rebase recovery
         git merge --abort 2>/dev/null || true
-        echo "ERROR: Merge conflict. Aborted merge."
-        # Lock held via EXIT trap through conflict resolution
-        # Structured output for /resolve-conflicts skill consumption
-        echo "CONFLICT_DATA: branch=$BRANCH merge_base=$(git merge-base main "$BRANCH" 2>/dev/null || echo unknown)"
-        if [ -n "$CONFLICTED" ]; then
-            echo "CONFLICT_FILES: $CONFLICTED"
+        echo "INFO: Merge failed. Attempting squash-rebase recovery..."
+
+        # Save current directory and cd back to worktree for squash-rebase
+        _MERGE_SAVED_DIR="$(pwd)"
+        cd "$WORKTREE_DIR"
+
+        _RECOVERY_RC=0
+        _squash_rebase_recovery 2>&1 || _RECOVERY_RC=$?
+
+        if [ "$_RECOVERY_RC" -eq 0 ]; then
+            # Recovery succeeded — return to main repo and retry the merge
+            cd "$_MERGE_SAVED_DIR"
+            echo "INFO: Squash-rebase recovery succeeded. Retrying merge..."
+            if git merge --no-ff "$BRANCH" -m "$MERGE_MSG" --quiet 2>&1; then
+                echo "OK: Merged $BRANCH into main (after squash-rebase recovery)."
+            else
+                # Retry also failed — increment retry count and exit with directive
+                git merge --abort 2>/dev/null || true
+                _state_increment_retry
+                echo "ERROR: Merge retry failed after squash-rebase recovery."
+                echo "  Run: merge-to-main.sh --resume"
+                exit 1
+            fi
+        else
+            # Recovery failed — return to main repo, increment retry, exit with directive
+            cd "$_MERGE_SAVED_DIR"
+            _state_increment_retry
+            echo "ERROR: Squash-rebase recovery failed. Cannot resolve automatically."
+            echo "  Run: merge-to-main.sh --resume"
+            exit 1
         fi
-        exit 1
+    else
+        echo "OK: Merged $BRANCH into main."
     fi
-    echo "OK: Merged $BRANCH into main."
 
     _state_record_merge_sha "$(git rev-parse HEAD)"
     _state_mark_complete "merge"
@@ -1116,6 +1142,7 @@ for name, info in phases.items():
         fi
 
         echo "DONE: $BRANCH resumed, merged, committed, and pushed."
+        _state_reset_retry_count
         exit 0
     fi
 fi
