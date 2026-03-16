@@ -271,6 +271,54 @@ _release_lock() {
     return 1
 }
 
+# --- Lock wait with exponential backoff ---
+# Usage: _wait_for_lock <lock_file> [ceiling_seconds]
+# Polls for lock availability using _acquire_lock, with exponential backoff.
+# If the existing lock is stale, removes it and retries immediately.
+# Args:
+#   lock_file       — path to the lock file
+#   ceiling_seconds — max wait time (default: $LOCK_WAIT_CEILING or 300s = 5 minutes)
+# Returns 0 on successful acquisition, 1 on timeout.
+_wait_for_lock() {
+    local lock_file="$1"
+    local ceiling="${2:-${LOCK_WAIT_CEILING:-300}}"
+    local elapsed=0
+    local backoff=2
+
+    while true; do
+        # Try to acquire the lock
+        if _acquire_lock "$lock_file"; then
+            return 0
+        fi
+
+        # Lock exists and acquire failed — check staleness
+        if _is_lock_stale "$lock_file"; then
+            rm -f "$lock_file" 2>/dev/null
+            # Retry immediately after clearing stale lock
+            continue
+        fi
+
+        # Check if we've exceeded the ceiling
+        if [[ "$elapsed" -ge "$ceiling" ]]; then
+            echo "ERROR: Lock wait timed out after ${ceiling}s" >&2
+            return 1
+        fi
+
+        # Report progress
+        local holder_pid
+        holder_pid=$(cut -d'|' -f1 < "$lock_file" 2>/dev/null || echo "unknown")
+        echo "Waiting for merge lock... (${elapsed}s elapsed, held by PID ${holder_pid})" >&2
+
+        # Sleep with exponential backoff (capped at 30s)
+        sleep "$backoff"
+        elapsed=$(( elapsed + backoff ))
+        backoff=$(( backoff * 2 ))
+        if [[ "$backoff" -gt 30 ]]; then
+            backoff=30
+        fi
+    done
+}
+
 # --- Abort stale rebase helper ---
 # Checks for leftover rebase state and aborts it before retrying a pull.
 # If REBASE_HEAD exists in the git dir, a prior rebase was interrupted.

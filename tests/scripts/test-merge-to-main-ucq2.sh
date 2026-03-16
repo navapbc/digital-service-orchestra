@@ -121,3 +121,233 @@ else
     SYNTAX_OK="fail"
 fi
 assert_eq "test_bash_syntax_still_passes" "pass" "$SYNTAX_OK"
+
+# =============================================================================
+# INTEGRATION TESTS — real temp git repos
+# =============================================================================
+
+echo ""
+echo "=== Integration tests (temp git repos) ==="
+
+# --- Helper: extract a function from merge-to-main.sh by name ---
+_extract_fn() {
+    local fn_name="$1"
+    awk "/^${fn_name}\\(\\)/{found=1} found{print; if(/^\\}$/){exit}}" "$MERGE_SCRIPT"
+}
+
+# --- Helper: create a bare "origin" repo and a cloned working repo ---
+# Sets globals: _TEST_BASE, _ORIGIN_DIR, _WORK_DIR
+_setup_git_pair() {
+    _TEST_BASE=$(mktemp -d)
+    _ORIGIN_DIR="$_TEST_BASE/origin.git"
+    _WORK_DIR="$_TEST_BASE/work"
+
+    git init --bare "$_ORIGIN_DIR" --quiet 2>/dev/null
+    git clone "$_ORIGIN_DIR" "$_WORK_DIR" --quiet 2>/dev/null
+    (
+        cd "$_WORK_DIR"
+        git config user.email "test@test.com"
+        git config user.name "Test"
+        echo "init" > README.md
+        git add README.md
+        git commit -m "initial commit" --quiet
+        git push origin main --quiet 2>/dev/null
+    )
+}
+
+# Source the functions under test
+eval "$(_extract_fn "_check_push_needed")"
+eval "$(_extract_fn "_abort_stale_rebase")"
+eval "$(_extract_fn "_set_phase_status")"
+eval "$(_extract_fn "_state_file_path")"
+eval "$(_extract_fn "_state_is_fresh")"
+eval "$(_extract_fn "_state_init")"
+eval "$(_extract_fn "_state_write_phase")"
+eval "$(_extract_fn "_state_mark_complete")"
+
+# =============================================================================
+# Test 13: test_push_skipped_when_origin_already_contains_head
+# Setup: push a commit so origin already contains HEAD. _check_push_needed
+# should return 1 (push not needed) and emit "Push skipped".
+# =============================================================================
+echo ""
+echo "--- test_push_skipped_when_origin_already_contains_head ---"
+_snapshot_fail
+
+_setup_git_pair
+
+# Run _check_push_needed in the work dir where HEAD matches origin/main
+_T13_RC=0
+_T13_OUTPUT=$(cd "$_WORK_DIR" && _check_push_needed 2>&1) || _T13_RC=$?
+
+# _check_push_needed returns 1 when push is NOT needed
+assert_eq "test_push_skipped_returns_exit_1" "1" "$_T13_RC"
+assert_contains "test_push_skipped_message" "Push skipped" "$_T13_OUTPUT"
+
+assert_pass_if_clean "test_push_skipped_when_origin_already_contains_head"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
+# Test 14: test_push_proceeds_when_commits_pending
+# Setup: make a local commit that is NOT pushed. _check_push_needed should
+# return 0 (push needed).
+# =============================================================================
+echo ""
+echo "--- test_push_proceeds_when_commits_pending ---"
+_snapshot_fail
+
+_setup_git_pair
+(
+    cd "$_WORK_DIR"
+    echo "new content" > newfile.txt
+    git add newfile.txt
+    git commit -m "local-only commit" --quiet
+) 2>/dev/null
+
+_T14_RC=0
+_T14_OUTPUT=$(cd "$_WORK_DIR" && _check_push_needed 2>&1) || _T14_RC=$?
+
+# _check_push_needed returns 0 when push IS needed
+assert_eq "test_push_proceeds_returns_exit_0" "0" "$_T14_RC"
+
+assert_pass_if_clean "test_push_proceeds_when_commits_pending"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
+# Test 15: test_pull_conflict_records_conflict_state
+# Verify that when git pull --rebase fails, the conflict path records
+# conflict status via _set_phase_status and emits CONFLICT_DATA.
+# =============================================================================
+echo ""
+echo "--- test_pull_conflict_records_conflict_state ---"
+_snapshot_fail
+
+_setup_git_pair
+
+# Create divergent history: push a conflicting commit to origin from a second clone
+_WORK2="$_TEST_BASE/work2"
+git clone "$_ORIGIN_DIR" "$_WORK2" --quiet 2>/dev/null
+(
+    cd "$_WORK2"
+    git config user.email "test@test.com"
+    git config user.name "Test2"
+    echo "origin change" > README.md
+    git add README.md
+    git commit -m "origin diverge" --quiet
+    git push origin main --quiet 2>/dev/null
+) 2>/dev/null
+
+# Make a conflicting local commit (same file, different content)
+(
+    cd "$_WORK_DIR"
+    echo "local change" > README.md
+    git add README.md
+    git commit -m "local diverge" --quiet
+) 2>/dev/null
+
+# Set up state file so _set_phase_status has something to write to
+BRANCH="test-conflict-integ"
+_state_init
+_STATE_FILE=$(_state_file_path)
+
+# Simulate the conflict path from merge-to-main.sh _phase_sync
+_T15_OUTPUT=$(
+    cd "$_WORK_DIR"
+    _abort_stale_rebase
+    if ! git pull --rebase 2>&1; then
+        _abort_stale_rebase
+        _set_phase_status "pull_rebase" "conflict"
+        echo "CONFLICT_DATA: phase=pull_rebase branch=$BRANCH"
+        git rebase --abort 2>/dev/null || true
+    fi
+) 2>&1
+
+# Verify CONFLICT_DATA was emitted
+assert_contains "test_pull_conflict_emits_conflict_data_integration" "CONFLICT_DATA" "$_T15_OUTPUT"
+assert_contains "test_pull_conflict_emits_phase_pull_rebase" "phase=pull_rebase" "$_T15_OUTPUT"
+
+# Verify state file recorded conflict status
+_T15_STATUS=$(python3 -c "
+import json
+try:
+    with open('$_STATE_FILE') as f:
+        d = json.load(f)
+    print(d.get('phases', {}).get('pull_rebase', {}).get('status', ''))
+except Exception as e:
+    print('error: ' + str(e))
+" 2>/dev/null || echo "error")
+assert_eq "test_pull_conflict_state_file_has_conflict_status" "conflict" "$_T15_STATUS"
+
+assert_pass_if_clean "test_pull_conflict_records_conflict_state"
+rm -f "$_STATE_FILE"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
+# Test 16: test_abort_stale_rebase_aborts_when_rebase_head_present
+# Setup: create a fake REBASE_HEAD file in .git/. _abort_stale_rebase should
+# remove it and emit "Aborted stale rebase".
+# =============================================================================
+echo ""
+echo "--- test_abort_stale_rebase_aborts_when_rebase_head_present ---"
+_snapshot_fail
+
+_setup_git_pair
+(
+    cd "$_WORK_DIR"
+    _GIT_DIR=$(git rev-parse --git-dir)
+    # Create minimal rebase state so git rebase --abort can proceed
+    mkdir -p "$_GIT_DIR/rebase-merge"
+    echo "refs/heads/main" > "$_GIT_DIR/rebase-merge/head-name"
+    echo "$(git rev-parse HEAD)" > "$_GIT_DIR/rebase-merge/orig-head"
+    echo "$(git rev-parse HEAD)" > "$_GIT_DIR/rebase-merge/onto"
+    echo "0" > "$_GIT_DIR/rebase-merge/msgnum"
+    echo "0" > "$_GIT_DIR/rebase-merge/end"
+    touch "$_GIT_DIR/REBASE_HEAD"
+) 2>/dev/null
+
+_T16_OUTPUT=$(cd "$_WORK_DIR" && _abort_stale_rebase 2>&1)
+
+# Verify REBASE_HEAD is gone
+_T16_GIT_DIR=$(cd "$_WORK_DIR" && git rev-parse --git-dir)
+if [[ ! -f "$_T16_GIT_DIR/REBASE_HEAD" ]]; then
+    _REBASE_HEAD_GONE="true"
+else
+    _REBASE_HEAD_GONE="false"
+fi
+assert_eq "test_abort_stale_rebase_removes_rebase_head" "true" "$_REBASE_HEAD_GONE"
+assert_contains "test_abort_stale_rebase_emits_message" "Aborted stale rebase" "$_T16_OUTPUT"
+
+assert_pass_if_clean "test_abort_stale_rebase_aborts_when_rebase_head_present"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
+# Test 17: test_abort_stale_rebase_noop_when_no_rebase_head
+# Setup: no REBASE_HEAD file. _abort_stale_rebase should exit 0 silently.
+# =============================================================================
+echo ""
+echo "--- test_abort_stale_rebase_noop_when_no_rebase_head ---"
+_snapshot_fail
+
+_setup_git_pair
+
+# Ensure no REBASE_HEAD exists
+_T17_GIT_DIR=$(cd "$_WORK_DIR" && git rev-parse --git-dir)
+rm -f "$_T17_GIT_DIR/REBASE_HEAD" 2>/dev/null
+
+_T17_RC=0
+_T17_OUTPUT=$(cd "$_WORK_DIR" && _abort_stale_rebase 2>&1) || _T17_RC=$?
+
+assert_eq "test_abort_stale_rebase_noop_exits_0" "0" "$_T17_RC"
+# Should NOT contain the abort message (no-op case)
+if [[ "$_T17_OUTPUT" == *"Aborted stale rebase"* ]]; then
+    _T17_NO_MSG="false"
+else
+    _T17_NO_MSG="true"
+fi
+assert_eq "test_abort_stale_rebase_noop_no_abort_message" "true" "$_T17_NO_MSG"
+
+assert_pass_if_clean "test_abort_stale_rebase_noop_when_no_rebase_head"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
+print_summary
