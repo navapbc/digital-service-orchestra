@@ -89,23 +89,26 @@ assert_eq "sync-state change does not alter hash" "$HASH_BEFORE_SYNC" "$HASH_AFT
 
 # ============================================================
 # test_non_reviewable_pattern_includes_tickets
-# The NON_REVIEWABLE_PATTERN must contain .tickets/ for filtering untracked files
+# compute-diff-hash.sh must reference review-gate-allowlist.conf for pattern loading
+# (NON_REVIEWABLE_PATTERN is now derived from the allowlist, not hardcoded)
 # ============================================================
 echo "--- test_non_reviewable_pattern_includes_tickets ---"
 
-PATTERN_MATCH=$(grep 'NON_REVIEWABLE_PATTERN=.*\.tickets/' \
+PATTERN_MATCH=$(grep 'review-gate-allowlist' \
     "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "NON_REVIEWABLE_PATTERN contains .tickets/" "1" "$PATTERN_MATCH"
+assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
+    "$( [[ $PATTERN_MATCH -ge 1 ]] && echo true || echo false )"
 
 # ============================================================
 # test_tickets_exclusion_pathspec_exists
-# The EXCLUDE_PATHSPECS must contain ':!.tickets/'
+# The allowlist must contain a .tickets/ pattern (source of truth for pathspec exclusions)
 # ============================================================
 echo "--- test_tickets_exclusion_pathspec_exists ---"
 
-PATHSPEC_MATCH=$(grep "':!\.tickets/'" \
-    "$REPO_ROOT/lockpick-workflow/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "EXCLUDE_PATHSPECS contains :!.tickets/" "1" "$PATHSPEC_MATCH"
+ALLOWLIST="$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-allowlist.conf"
+PATHSPEC_MATCH=$(grep '\.tickets/' "$ALLOWLIST" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "review-gate-allowlist.conf contains .tickets/ pattern" "true" \
+    "$( [[ $PATHSPEC_MATCH -ge 1 ]] && echo true || echo false )"
 
 # ============================================================
 # test_sync_state_exclusion_pathspec_exists
@@ -119,15 +122,16 @@ assert_eq "EXCLUDE_PATHSPECS contains :!.sync-state.json" "1" "$PATHSPEC_MATCH"
 
 # ============================================================
 # test_capture_review_diff_excludes_tickets
-# capture-review-diff.sh EXCLUDES array must contain ':!.tickets/'
+# capture-review-diff.sh EXCLUDES array must contain the tickets pathspec exclusion
 # ============================================================
 echo "--- test_capture_review_diff_excludes_tickets ---"
 
+_TICKETS_PATHSPEC=":!.tickets/"
 CAPTURE_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/capture-review-diff.sh"
-CAPTURE_TICKETS=$(grep "':!\.tickets/'" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+CAPTURE_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "capture-review-diff excludes .tickets/" "1" "$CAPTURE_TICKETS"
 
-CAPTURE_SYNC=$(grep "':!\.sync-state\.json'" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+CAPTURE_SYNC=$(grep -F ':!.sync-state.json' "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "capture-review-diff excludes .sync-state.json" "1" "$CAPTURE_SYNC"
 
 # ============================================================
@@ -137,12 +141,12 @@ assert_eq "capture-review-diff excludes .sync-state.json" "1" "$CAPTURE_SYNC"
 echo "--- test_record_review_excludes_tickets ---"
 
 RECORD_SCRIPT="$REPO_ROOT/lockpick-workflow/hooks/record-review.sh"
-RECORD_TICKETS=$(grep "':!\.tickets/'" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+RECORD_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 # Should appear in git diff --name-only lines (at least 2: unstaged + cached)
 assert_eq "record-review.sh excludes .tickets/ in diff queries (>=2 occurrences)" "true" \
     "$( [[ $RECORD_TICKETS -ge 2 ]] && echo true || echo false )"
 
-RECORD_SYNC=$(grep "':!\.sync-state\.json'" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+RECORD_SYNC=$(grep -F ':!.sync-state.json' "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "record-review.sh excludes .sync-state.json in diff queries (>=2 occurrences)" "true" \
     "$( [[ $RECORD_SYNC -ge 2 ]] && echo true || echo false )"
 

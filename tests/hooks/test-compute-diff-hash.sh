@@ -45,4 +45,79 @@ else
     assert_eq "test_compute_diff_hash_is_executable (file not yet +x)" "skip" "skip"
 fi
 
+# ============================================================
+# test_compute_diff_hash_uses_allowlist_patterns
+# Verifies that compute-diff-hash.sh reads exclusion patterns from the
+# shared review-gate-allowlist.conf instead of hardcoded arrays.
+# ============================================================
+echo "--- test_compute_diff_hash_uses_allowlist_patterns ---"
+
+ALLOWLIST="$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-allowlist.conf"
+
+# 1. The script must reference review-gate-allowlist
+USES_ALLOWLIST=$(grep -c 'review-gate-allowlist' "$HOOK" 2>/dev/null | tail -1 || echo "0")
+assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
+    "$( [[ $USES_ALLOWLIST -ge 1 ]] && echo true || echo false )"
+
+# 2. The script must NOT have a hardcoded EXCLUDE_PATHSPECS=( array with inline entries
+#    (EXCLUDE_PATHSPECS=() empty init is OK; EXCLUDE_PATHSPECS=(\n  ':!...' is not)
+HAS_HARDCODED=$(grep -cE "EXCLUDE_PATHSPECS=\([^)]" "$HOOK" 2>/dev/null | tail -1 || echo "0")
+assert_eq "no hardcoded EXCLUDE_PATHSPECS=( in compute-diff-hash.sh" "0" "$HAS_HARDCODED"
+
+# 3. Behavioral: .tickets/ files are excluded (hash stable across ticket changes)
+TMPDIR_ALLOWLIST_TEST=$(mktemp -d)
+trap 'rm -rf "$TMPDIR_ALLOWLIST_TEST"' EXIT
+
+cd "$TMPDIR_ALLOWLIST_TEST"
+git init -q
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "init" > README.md
+git add README.md
+git commit -q -m "init"
+
+# Create and commit a .tickets/ file
+mkdir -p .tickets
+echo "status: open" > .tickets/test-ticket.md
+git add .tickets/test-ticket.md
+git commit -q -m "add ticket"
+
+HASH_BEFORE_TICKET=$(bash "$HOOK" 2>/dev/null)
+echo "status: closed" >> .tickets/test-ticket.md
+HASH_AFTER_TICKET=$(bash "$HOOK" 2>/dev/null)
+assert_eq "ticket change does not alter hash (allowlist)" "$HASH_BEFORE_TICKET" "$HASH_AFTER_TICKET"
+git checkout -- .tickets/test-ticket.md
+
+# 4. Behavioral: *.png files are excluded from untracked file list
+HASH_BEFORE_PNG=$(bash "$HOOK" 2>/dev/null)
+echo "fake png data" > screenshot.png
+HASH_AFTER_PNG=$(bash "$HOOK" 2>/dev/null)
+assert_eq "untracked png does not alter hash (allowlist)" "$HASH_BEFORE_PNG" "$HASH_AFTER_PNG"
+rm -f screenshot.png
+
+# 5. Hash is stable (deterministic with same input)
+HASH_STABLE_1=$(bash "$HOOK" 2>/dev/null)
+HASH_STABLE_2=$(bash "$HOOK" 2>/dev/null)
+assert_eq "hash is stable across runs (allowlist)" "$HASH_STABLE_1" "$HASH_STABLE_2"
+
+# 6. NON_REVIEWABLE_PATTERN covers key allowlist types
+# After refactoring, the pattern should still exclude .tickets/, *.png, *.jpg, *.pdf, *.docx, .sync-state.json
+# We verify by checking that untracked files of these types don't affect the hash
+for ext in jpg pdf docx; do
+    HASH_BEFORE_EXT=$(bash "$HOOK" 2>/dev/null)
+    echo "fake data" > "testfile.${ext}"
+    HASH_AFTER_EXT=$(bash "$HOOK" 2>/dev/null)
+    assert_eq "untracked .${ext} does not alter hash (allowlist)" "$HASH_BEFORE_EXT" "$HASH_AFTER_EXT"
+    rm -f "testfile.${ext}"
+done
+
+# 7. Graceful degradation: script should still work when allowlist is overridden to missing path
+EXIT_CODE_FALLBACK=0
+HASH_FALLBACK=$(CONF_OVERRIDE=/tmp/nonexistent-allowlist-$$ bash "$HOOK" 2>/dev/null) || EXIT_CODE_FALLBACK=$?
+assert_eq "graceful degradation with missing allowlist" "0" "$EXIT_CODE_FALLBACK"
+assert_ne "fallback produces non-empty hash" "" "$HASH_FALLBACK"
+
+# Return to repo root for print_summary
+cd "$REPO_ROOT"
+
 print_summary

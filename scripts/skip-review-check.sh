@@ -32,10 +32,52 @@ _CFG_TEST="${CFG_TEST_DIR:-tests}"
 _E2E_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/e2e/snapshots/"
 _UNIT_SNAP_PREFIX="${_CFG_APP}/${_CFG_TEST}/unit/templates/snapshots/"
 
+# ── Load non-reviewable patterns from shared allowlist ──────────────────────
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$_SKIP_REVIEW_DIR/..}"
+_ALLOWLIST_FILE="${ALLOWLIST_OVERRIDE:-$_PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf}"
+_ALLOWLIST_PATTERNS=()
+_ALLOWLIST_LOADED=false
+
+if [[ -f "$_ALLOWLIST_FILE" ]]; then
+    _ALLOWLIST_LOADED=true
+    while IFS= read -r _line; do
+        # Skip empty lines and comments
+        [[ -z "$_line" || "$_line" == \#* ]] && continue
+        # Convert glob patterns: ** → * for bash pattern matching
+        # e.g., .tickets/** → .tickets/*
+        _pat="${_line/\*\*/*}"
+        _ALLOWLIST_PATTERNS+=("$_pat")
+    done < "$_ALLOWLIST_FILE"
+else
+    # Graceful degradation: fall back to hardcoded patterns when allowlist is missing
+    _ALLOWLIST_PATTERNS=(
+        ".tickets/*"
+        ".sync-state.json"
+        ".checkpoint-needs-review"
+        "*.png" "*.jpg" "*.jpeg" "*.gif" "*.svg" "*.ico" "*.webp"
+        "*.pdf" "*.docx"
+        ".claude/session-logs/*" ".claude/docs/*" "docs/*"
+    )
+fi
+
+# Add config-driven snapshot patterns dynamically (not in allowlist)
+_ALLOWLIST_PATTERNS+=("${_E2E_SNAP_PREFIX}*")
+_ALLOWLIST_PATTERNS+=("${_UNIT_SNAP_PREFIX}*.html")
+
+# _matches_allowlist: check if a file matches any non-reviewable pattern
+_matches_allowlist() {
+    local f="$1"
+    for _pat in "${_ALLOWLIST_PATTERNS[@]}"; do
+        # shellcheck disable=SC2254
+        case "$f" in $_pat) return 0 ;; esac
+    done
+    return 1
+}
+
 SKIP_REVIEW=true
 while IFS= read -r file; do
     [[ -z "$file" ]] && continue
-    # Agent guidance always requires review (checked first, overrides docs/* below)
+    # Agent guidance always requires review (checked first, overrides allowlist)
     case "$file" in
         .claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
         lockpick-workflow/skills/*|lockpick-workflow/hooks/*|lockpick-workflow/docs/workflows/*) SKIP_REVIEW=false; break ;;
@@ -45,16 +87,10 @@ while IFS= read -r file; do
     case "$file" in
         .checkpoint-needs-review) SKIP_REVIEW=false; break ;;
     esac
-    # Non-reviewable files
-    case "$file" in
-        .tickets/*) ;;                                                              # ticket metadata
-        .sync-state.json) ;;                                                       # sync state metadata
-        ${_E2E_SNAP_PREFIX}*|${_UNIT_SNAP_PREFIX}*.html) ;;                       # visual snapshots
-        *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp) ;;                            # images
-        *.pdf|*.docx) ;;                                                           # binary docs
-        .claude/session-logs/*|.claude/docs/*|docs/*) ;;                          # logs and non-agent docs
-        *) SKIP_REVIEW=false; break ;;
-    esac
+    # Non-reviewable files — driven by shared review-gate-allowlist.conf
+    if ! _matches_allowlist "$file"; then
+        SKIP_REVIEW=false; break
+    fi
 done
 
 if [[ "$SKIP_REVIEW" == "true" ]]; then

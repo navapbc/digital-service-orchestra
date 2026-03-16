@@ -108,30 +108,81 @@ if [[ "$DIFF_BASE" == "HEAD" ]]; then
     done
 fi
 
-# Pathspec exclusions for non-reviewable files (binary, snapshots, images, docs)
-EXCLUDE_PATHSPECS=(
+# --- Load exclusion patterns from shared review-gate-allowlist.conf ---
+# The allowlist is the single source of truth for non-reviewable file patterns.
+# Falls back to hardcoded defaults if the allowlist is missing or helper functions
+# are unavailable (graceful degradation for isolated test environments).
+_ALLOWLIST_PATH="${CONF_OVERRIDE:-$SCRIPT_DIR/lib/review-gate-allowlist.conf}"
+_ALLOWLIST_PATTERNS=""
+_ALLOWLIST_LOADED=false
+_HELPERS_AVAILABLE=false
+
+# Check if the allowlist helper functions from deps.sh are available
+if declare -f _load_allowlist_patterns &>/dev/null && \
+   declare -f _allowlist_to_pathspecs &>/dev/null && \
+   declare -f _allowlist_to_grep_regex &>/dev/null; then
+    _HELPERS_AVAILABLE=true
+fi
+
+if [[ "$_HELPERS_AVAILABLE" == "true" ]]; then
+    if _ALLOWLIST_PATTERNS=$(_load_allowlist_patterns "$_ALLOWLIST_PATH" 2>/dev/null); then
+        _ALLOWLIST_LOADED=true
+    fi
+fi
+
+# Fallback defaults when allowlist or helpers are unavailable
+_FALLBACK_PATHSPECS=(
     ':!.checkpoint-needs-review'
-    ':!.tickets/'
+    ':!.tickets/**'
     ':!.sync-state.json'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
     ':!*.pdf' ':!*.docx'
+    ':!docs/**'
+    ':!.claude/docs/**'
+    ':!.claude/session-logs/**'
 )
-# Add config-driven snapshot exclusions (visual baselines and unit snapshots)
-if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
+_FALLBACK_PATTERN='^\.checkpoint-needs-review$|^\.tickets/|^\.sync-state\.json$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$|^docs/|^\.claude/docs/|^\.claude/session-logs/'
+
+if [[ "$_ALLOWLIST_LOADED" == "true" ]] && [[ -n "$_ALLOWLIST_PATTERNS" ]]; then
+    # Build EXCLUDE_PATHSPECS array from allowlist patterns
+    declare -a EXCLUDE_PATHSPECS
+    while IFS= read -r _pathspec; do
+        [[ -z "$_pathspec" ]] && continue
+        EXCLUDE_PATHSPECS+=("$_pathspec")
+    done <<< "$(_allowlist_to_pathspecs "$_ALLOWLIST_PATTERNS")"
+
+    # Build NON_REVIEWABLE_PATTERN regex from allowlist patterns
+    _REGEX_LINES=$(_allowlist_to_grep_regex "$_ALLOWLIST_PATTERNS")
+    NON_REVIEWABLE_PATTERN=""
+    while IFS= read -r _regex_line; do
+        [[ -z "$_regex_line" ]] && continue
+        if [[ -z "$NON_REVIEWABLE_PATTERN" ]]; then
+            NON_REVIEWABLE_PATTERN="$_regex_line"
+        else
+            NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|${_regex_line}"
+        fi
+    done <<< "$_REGEX_LINES"
+else
+    # Graceful degradation: use hardcoded fallback patterns
+    declare -a EXCLUDE_PATHSPECS
+    EXCLUDE_PATHSPECS+=("${_FALLBACK_PATHSPECS[@]}")
+    NON_REVIEWABLE_PATTERN="$_FALLBACK_PATTERN"
+fi
+
+# Add config-driven snapshot exclusions (visual baselines and unit snapshots) — ADDITIVE
+if [[ -n "${CFG_VISUAL_BASELINE_PATH:-}" ]]; then
     EXCLUDE_PATHSPECS+=(":!${CFG_VISUAL_BASELINE_PATH}")
 fi
-if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
+if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     EXCLUDE_PATHSPECS+=(":!${CFG_UNIT_SNAPSHOT_PATH}*.html")
 fi
 
-# Grep pattern to filter untracked non-reviewable files
-# Build pattern dynamically from config-driven paths
-NON_REVIEWABLE_PATTERN='^\.checkpoint-needs-review$|^\.tickets/|^\.sync-state\.json$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$'
-if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
+# Add config-driven paths to grep pattern — ADDITIVE
+if [[ -n "${CFG_VISUAL_BASELINE_PATH:-}" ]]; then
     _VBP_ESCAPED="${CFG_VISUAL_BASELINE_PATH//./\\.}"
     NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_VBP_ESCAPED}"
 fi
-if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
+if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     _USP_ESCAPED="${CFG_UNIT_SNAPSHOT_PATH//./\\.}"
     NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_USP_ESCAPED}.*\\.html$"
 fi
