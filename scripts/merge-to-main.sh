@@ -332,6 +332,35 @@ _abort_stale_rebase() {
     fi
 }
 
+# --- Clean up stale git state (rebase/merge) on entry ---
+# Usage: _cleanup_stale_git_state <repo_path>
+# Aborts any leftover REBASE_HEAD or MERGE_HEAD state from a prior interrupted run.
+# Safe to call on any repo — no-op if no stale state is present.
+_cleanup_stale_git_state() {
+    local repo_path="$1"
+    local _git_dir
+    _git_dir=$(git -C "$repo_path" rev-parse --git-dir 2>/dev/null) || return 0
+    # Make absolute if relative
+    if [[ "$_git_dir" != /* ]]; then
+        _git_dir="$repo_path/$_git_dir"
+    fi
+
+    if [[ -f "$_git_dir/REBASE_HEAD" ]]; then
+        git -C "$repo_path" rebase --abort 2>/dev/null || git -C "$repo_path" reset --merge 2>/dev/null || true
+        # If git commands didn't clear it (e.g., corrupted state), remove directly
+        rm -f "$_git_dir/REBASE_HEAD" 2>/dev/null || true
+        echo "INFO: Cleaned up stale rebase state in $repo_path"
+    fi
+
+    if [[ -f "$_git_dir/MERGE_HEAD" ]]; then
+        git -C "$repo_path" merge --abort 2>/dev/null || git -C "$repo_path" reset --merge 2>/dev/null || true
+        rm -f "$_git_dir/MERGE_HEAD" 2>/dev/null || true
+        echo "INFO: Cleaned up stale merge state in $repo_path"
+    fi
+
+    return 0
+}
+
 # --- Push idempotency helper ---
 # Determines whether a push to origin/main is needed.
 # Returns 0 if push is needed (commits exist ahead of origin/main).
@@ -512,6 +541,9 @@ _phase_sync() {
         exit 1
     fi
     cd "$MAIN_REPO"
+    # --- 2.3) Derive lock file path and clean stale git state ---
+    LOCK_FILE="/tmp/merge-to-main-lock-$(echo -n "$MAIN_REPO" | shasum 2>/dev/null | cut -c1-8 || echo "default")"
+    _cleanup_stale_git_state "$MAIN_REPO"
 
     # Verify main is checked out
     MAIN_BRANCH=$(git branch --show-current)
@@ -520,14 +552,13 @@ _phase_sync() {
         exit 1
     fi
 
-    # --- 2.5) Recover from incomplete merge state on main ---
-    # If a prior run left main with MERGE_HEAD (e.g., stash pop conflict), abort it
-    # so this run can proceed cleanly. The worktree merge (step 3) will re-apply
-    # the correct changes.
-    if [ -f "$(git rev-parse --git-dir)/MERGE_HEAD" ]; then
-        echo "WARNING: Main has incomplete merge state (MERGE_HEAD). Aborting it..."
-        git merge --abort 2>/dev/null || git reset --merge 2>/dev/null || true
+    # --- 2.4) Acquire merge lock (per-main-repo isolation) ---
+    if ! _wait_for_lock "$LOCK_FILE"; then
+        echo "ERROR: Could not acquire merge lock after timeout. Another merge may be in progress."
+        exit 1
     fi
+    # Release lock on any exit path (including CONFLICT_DATA exits)
+    trap '_release_lock "$LOCK_FILE"' EXIT
 
     # --- 2.6) Pull remote changes before merging ---
     echo "Pulling remote changes..."
@@ -543,6 +574,7 @@ _phase_sync() {
         _abort_stale_rebase
         if $STASHED; then git stash pop --quiet 2>/dev/null || true; fi
         _set_phase_status "pull_rebase" "conflict"
+        # Lock held via EXIT trap through conflict resolution
         echo "CONFLICT_DATA: phase=pull_rebase branch=$BRANCH"
         echo "ERROR: git pull --rebase failed. Resolve conflicts manually, then retry."
         exit 1
@@ -591,6 +623,7 @@ _phase_merge() {
         CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
         git merge --abort 2>/dev/null || true
         echo "ERROR: Merge conflict. Aborted merge."
+        # Lock held via EXIT trap through conflict resolution
         # Structured output for /resolve-conflicts skill consumption
         echo "CONFLICT_DATA: branch=$BRANCH merge_base=$(git merge-base main "$BRANCH" 2>/dev/null || echo unknown)"
         if [ -n "$CONFLICTED" ]; then

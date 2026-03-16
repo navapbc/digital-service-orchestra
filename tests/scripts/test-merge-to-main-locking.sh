@@ -38,6 +38,7 @@ sed -n '/_is_lock_stale()/,/^}/p' "$MERGE_SCRIPT" > "$_TEST_TMP/lock_funcs.sh"
 sed -n '/_acquire_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
 sed -n '/_release_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
 sed -n '/_wait_for_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
+sed -n '/_cleanup_stale_git_state()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
 
 # Source the extracted functions
 source "$_TEST_TMP/lock_funcs.sh"
@@ -283,6 +284,67 @@ _LOCK_CONTENT=$(cat "$_LOCK_FILE")
 assert_eq "test_wait_for_lock_acquires_immediately_when_no_lock: content" "$$|merge-to-main" "$_LOCK_CONTENT"
 
 assert_pass_if_clean "wait_for_lock acquires immediately when no lock"
+
+# =============================================================================
+# Test 12: test_rebase_state_cleaned_on_main_entry
+# A stale REBASE_HEAD in .git/ should be cleaned up by _cleanup_stale_git_state.
+# =============================================================================
+echo ""
+echo "--- rebase state cleaned on main entry ---"
+_snapshot_fail
+
+# Create a temporary git repo to simulate stale rebase state
+_REBASE_REPO="$_TEST_TMP/rebase_test_repo"
+git init "$_REBASE_REPO" --quiet
+# Create an initial commit so the repo is valid
+git -C "$_REBASE_REPO" commit --allow-empty -m "initial" --quiet
+# Simulate stale rebase state by creating REBASE_HEAD
+_GIT_DIR=$(git -C "$_REBASE_REPO" rev-parse --git-dir)
+# Make _GIT_DIR absolute if relative
+if [[ "$_GIT_DIR" != /* ]]; then
+    _GIT_DIR="$_REBASE_REPO/$_GIT_DIR"
+fi
+touch "$_GIT_DIR/REBASE_HEAD"
+
+# Verify REBASE_HEAD exists before cleanup
+if [[ -f "$_GIT_DIR/REBASE_HEAD" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: test_rebase_state_cleaned_on_main_entry: REBASE_HEAD not created" >&2
+fi
+
+# Call _cleanup_stale_git_state — should remove stale rebase state
+_cleanup_stale_git_state "$_REBASE_REPO"
+
+# REBASE_HEAD should be gone after cleanup
+if [[ ! -f "$_GIT_DIR/REBASE_HEAD" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: test_rebase_state_cleaned_on_main_entry: REBASE_HEAD still present after cleanup" >&2
+fi
+
+assert_pass_if_clean "rebase state cleaned on main entry"
+
+# =============================================================================
+# Test 13: test_cleanup_stale_git_state_noop_when_clean
+# _cleanup_stale_git_state should be a no-op when no stale state exists.
+# =============================================================================
+echo ""
+echo "--- cleanup stale git state noop when clean ---"
+_snapshot_fail
+
+_CLEAN_REPO="$_TEST_TMP/clean_test_repo"
+git init "$_CLEAN_REPO" --quiet
+git -C "$_CLEAN_REPO" commit --allow-empty -m "initial" --quiet
+
+# Call _cleanup_stale_git_state — should not error
+_cleanup_stale_git_state "$_CLEAN_REPO"
+_RC=$?
+assert_eq "test_cleanup_stale_git_state_noop_when_clean: returns 0" "0" "$_RC"
+
+assert_pass_if_clean "cleanup stale git state noop when clean"
 
 # =============================================================================
 # Summary
