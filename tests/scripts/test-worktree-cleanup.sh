@@ -413,6 +413,71 @@ else
     echo "  SKIP: no bash 4+ available (portability smoke test)"
 fi
 
+# ── Test 20: State file cleanup — script deletes /tmp/merge-to-main-state-<name>.json ──
+# Two-part test:
+#   a) Static: the script contains the rm -f /tmp/merge-to-main-state-... line in the
+#      worktree removal section (i.e., inside the remove_ok block).
+#   b) Integration: create a fake state file, run a smoke removal, verify it is deleted.
+echo "Test 20: Worktree removal deletes associated /tmp/merge-to-main-state-<name>.json"
+
+# Part a: static assertion — rm -f for the state file must appear in the script
+if grep -qE 'rm -f.*/tmp/merge-to-main-state-' "$SCRIPT"; then
+    echo "  PASS: script contains rm -f for /tmp/merge-to-main-state-<name>.json"
+    (( PASS++ ))
+else
+    echo "  FAIL: script does not contain rm -f /tmp/merge-to-main-state-<name>.json" >&2
+    (( FAIL++ ))
+fi
+
+# Part b: integration smoke — actual state file deletion on worktree removal
+if [[ -n "$BASH4" ]]; then
+    TMP_STATE_REPO=$(mktemp -d)
+    TMP_STATE_WT=$(mktemp -d)
+    cleanup_state_test() { rm -rf "$TMP_STATE_REPO" "$TMP_STATE_WT"; }
+
+    # Build a minimal git repo with a linked worktree that is safe to remove
+    git -C "$TMP_STATE_REPO" init -q
+    git -C "$TMP_STATE_REPO" config user.email "test@test.com"
+    git -C "$TMP_STATE_REPO" config user.name "Test"
+    touch "$TMP_STATE_REPO/file.txt"
+    git -C "$TMP_STATE_REPO" add . && git -C "$TMP_STATE_REPO" commit -q -m "init"
+
+    # Create a linked worktree on a branch that is an ancestor of main (merged)
+    wt_name="worktree-test-state-cleanup-$$"
+    wt_path="$TMP_STATE_WT/$wt_name"
+    git -C "$TMP_STATE_REPO" worktree add -b "$wt_name" "$wt_path" 2>/dev/null
+
+    # Write a fake merge state file for this worktree
+    state_file="/tmp/merge-to-main-state-${wt_name}.json"
+    echo '{"phase":"complete"}' > "$state_file"
+
+    # Backdate the worktree so it passes the age check (touch mtime -3 days)
+    touch -t "$(date -v-3d +%Y%m%d%H%M 2>/dev/null || date -d '3 days ago' +%Y%m%d%H%M 2>/dev/null || echo "202001010000")" "$wt_path" 2>/dev/null || true
+
+    # Run removal via --all --force (worktree is merged since it was created from HEAD)
+    SMOKE_LOG=$(mktemp)
+    exit_code=0
+    (
+        cd "$TMP_STATE_REPO" && \
+        CLEANUP_LOG="$SMOKE_LOG" \
+        "$BASH4" "$SCRIPT" --all --force 2>&1
+    ) || exit_code=$?
+    rm -f "$SMOKE_LOG"
+    cleanup_state_test
+
+    # Verify the state file was deleted
+    if [[ ! -f "$state_file" ]]; then
+        echo "  PASS: /tmp/merge-to-main-state-${wt_name}.json was deleted on worktree removal"
+        (( PASS++ ))
+    else
+        echo "  FAIL: /tmp/merge-to-main-state-${wt_name}.json still exists after worktree removal" >&2
+        rm -f "$state_file"  # cleanup even on failure
+        (( FAIL++ ))
+    fi
+else
+    echo "  SKIP: no bash 4+ available (state file integration test)"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 echo "PASSED: $PASS  FAILED: $FAIL"

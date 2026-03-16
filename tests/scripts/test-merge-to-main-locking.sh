@@ -11,6 +11,8 @@
 #   6. test_acquire_lock_fails_when_lock_exists — acquire returns 1 if lock already held
 #   7. test_release_lock_removes_file_when_owner — release removes lock when PID matches
 #   8. test_release_lock_noop_when_not_owner — release no-ops when PID does not match
+#  14. test_concurrent_merge_second_waits_then_succeeds — second session waits for first, then acquires
+#  15. test_dead_lock_holder_lock_broken_and_acquired — stale lock broken and re-acquired by current session
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main-locking.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -345,6 +347,89 @@ _RC=$?
 assert_eq "test_cleanup_stale_git_state_noop_when_clean: returns 0" "0" "$_RC"
 
 assert_pass_if_clean "cleanup stale git state noop when clean"
+
+# =============================================================================
+# Test 14: test_concurrent_merge_second_waits_then_succeeds
+# A second session waits while the first holds the lock, then succeeds after
+# the first releases. Uses real background processes.
+# =============================================================================
+echo ""
+echo "--- concurrent merge: second waits then succeeds ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_concurrent.lock"
+rm -f "$_LOCK_FILE"
+
+# Simulate first session holding the lock: write lock with current PID and matching command
+_MY_CMD=$(ps -p $$ -o comm= 2>/dev/null || echo "bash")
+echo "$$|${_MY_CMD}" > "$_LOCK_FILE"
+
+# Start background job that waits to acquire the lock
+_BG_RESULT="$_TEST_TMP/concurrent_result"
+rm -f "$_BG_RESULT"
+(
+    # Source the extracted functions in the subshell
+    source "$_TEST_TMP/lock_funcs.sh"
+    LOCK_WAIT_CEILING=10 _wait_for_lock "$_LOCK_FILE"
+    echo $? > "$_BG_RESULT"
+) &
+_BG_PID=$!
+
+# Let the background job start and attempt to acquire (it should be waiting)
+sleep 1
+
+# Release the lock by removing the file (simulating first session completing)
+rm -f "$_LOCK_FILE"
+
+# Wait for background job to finish
+wait "$_BG_PID" 2>/dev/null
+
+# Read result: background job should have acquired the lock (exit 0)
+if [[ -f "$_BG_RESULT" ]]; then
+    _RC=$(cat "$_BG_RESULT")
+    assert_eq "test_concurrent_merge_second_waits_then_succeeds: exit code" "0" "$_RC"
+else
+    (( ++FAIL ))
+    echo "FAIL: test_concurrent_merge_second_waits_then_succeeds: result file not created" >&2
+fi
+
+# Lock file should exist and be owned by the background job's PID (or already released).
+# Since the background job exited, the lock file may still exist with its PID.
+# We just verify the wait succeeded (exit 0 above).
+
+assert_pass_if_clean "concurrent merge: second waits then succeeds"
+
+# =============================================================================
+# Test 15: test_dead_lock_holder_lock_broken_and_acquired
+# A session recovers from a dead lock holder by detecting the stale lock,
+# breaking it, and acquiring the lock for itself.
+# =============================================================================
+echo ""
+echo "--- dead lock holder: lock broken and acquired ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_dead_holder.lock"
+rm -f "$_LOCK_FILE"
+
+# Find a guaranteed-dead PID: start from a high number and verify it's not alive
+_DEAD_PID=4000000
+while kill -0 "$_DEAD_PID" 2>/dev/null; do
+    _DEAD_PID=$(( _DEAD_PID + 1 ))
+done
+
+# Write lock file with the dead PID
+echo "${_DEAD_PID}|merge-to-main" > "$_LOCK_FILE"
+
+# _wait_for_lock should detect the stale lock, break it, and acquire immediately
+_wait_for_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_dead_lock_holder_lock_broken_and_acquired: returns 0" "0" "$_RC"
+
+# Lock file should now contain current PID ($$)
+_LOCK_CONTENT=$(cat "$_LOCK_FILE")
+assert_eq "test_dead_lock_holder_lock_broken_and_acquired: PID is $$" "$$|merge-to-main" "$_LOCK_CONTENT"
+
+assert_pass_if_clean "dead lock holder: lock broken and acquired"
 
 # =============================================================================
 # Summary
