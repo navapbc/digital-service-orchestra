@@ -444,6 +444,96 @@ PYEOF
     assert_eq "test_code_change_after_review_blocked: hook exits 1" "1" "$exit_code"
 }
 
+# ============================================================
+# test_cross_worktree_merge_commit_passes
+#
+# Cross-worktree scenario: a merge commit in worktree B, where MERGE_HEAD
+# exists in worktree B's git dir, and the hook runs in worktree B's context.
+# This mirrors the production scenario where Claude Code session in worktree A
+# runs `git -C worktree_B commit` — git executes the pre-commit hook in
+# worktree B's git context, where MERGE_HEAD is natively visible.
+#
+# Tests:
+#   a) Merge in worktree B with MERGE_HEAD + allowlisted files → passes (exit 0)
+#   b) No MERGE_HEAD in worktree B + non-allowlisted file → still blocked (exit 1)
+#      (security: no false-positive bypass from external context)
+# ============================================================
+test_cross_worktree_merge_commit_passes() {
+    # ── Scenario A: merge in worktree B, only allowlisted files staged ─────────
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Simulate MERGE_HEAD existing in worktree B's git dir
+    # (this is what git writes when `git merge` is in progress in that repo)
+    local head_sha
+    head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+    echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
+
+    # Stage only allowlisted files (merge resolution of ticket index)
+    mkdir -p "$_repo/.tickets"
+    echo '{"version":2}' > "$_repo/.tickets/.index.json"
+    git -C "$_repo" add ".tickets/.index.json"
+
+    # Hook runs in worktree B's context — MERGE_HEAD is natively visible
+    local exit_code
+    exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
+    assert_eq "test_cross_worktree_merge_commit_passes: merge+allowlisted passes" "0" "$exit_code"
+
+    # Cleanup
+    rm -f "$_repo/.git/MERGE_HEAD"
+
+    # ── Scenario B: no MERGE_HEAD, non-allowlisted file, no review → blocked ───
+    # Security check: a commit targeting a different dir (no MERGE_HEAD) must
+    # NOT bypass the review gate — the hook checks git state, not caller context.
+    local _repo2 _artifacts2
+    _repo2=$(make_test_repo)
+    _artifacts2=$(make_artifacts_dir)
+
+    # No MERGE_HEAD set — normal commit scenario from an external session
+    echo "print('cross worktree code')" > "$_repo2/cross_worktree.py"
+    git -C "$_repo2" add "cross_worktree.py"
+
+    local exit_code2
+    exit_code2=$(run_hook_in_repo "$_repo2" "$_artifacts2")
+    assert_eq "test_cross_worktree_merge_commit_passes: no-MERGE_HEAD non-allowlisted blocked" "1" "$exit_code2"
+}
+
+# ============================================================
+# test_merge_head_with_non_allowlisted_and_valid_review_passes
+#
+# During a merge commit with MERGE_HEAD, if non-allowlisted files are staged
+# as part of the merge resolution and a valid review exists for them, the
+# hook should pass (exit 0). The MERGE_HEAD alone does not bypass the review
+# requirement — only allowlisted files bypass it.
+# ============================================================
+test_merge_head_with_non_allowlisted_and_valid_review_passes() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Simulate MERGE_HEAD (in-progress merge)
+    local head_sha
+    head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+    echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
+
+    # Stage a non-allowlisted file as part of merge resolution
+    echo "print('merged code')" > "$_repo/merged_module.py"
+    git -C "$_repo" add "merged_module.py"
+
+    # Compute hash and write valid review-status
+    local diff_hash
+    diff_hash=$(compute_hash_in_repo "$_repo" "$_artifacts")
+    write_valid_review_status "$_artifacts" "$diff_hash"
+
+    local exit_code
+    exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
+    assert_eq "test_merge_head_with_non_allowlisted_and_valid_review_passes" "0" "$exit_code"
+
+    # Cleanup
+    rm -f "$_repo/.git/MERGE_HEAD"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlisted_only_commit_passes
 test_tickets_only_commit_passes
@@ -455,5 +545,7 @@ test_blocked_error_message_directs_to_commit_or_review
 test_hook_reads_from_shared_allowlist
 test_formatting_only_drift_self_heals
 test_code_change_after_review_blocked
+test_cross_worktree_merge_commit_passes
+test_merge_head_with_non_allowlisted_and_valid_review_passes
 
 print_summary
