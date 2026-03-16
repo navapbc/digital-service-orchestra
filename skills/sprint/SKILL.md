@@ -617,7 +617,7 @@ discoveries from the current batch are collected in Phase 6:
 $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
 ```
 
-The script removes any leftover `.agent-discoveries/*.json` files from the previous batch
+The script removes any leftover `$ARTIFACTS_DIR/agent-discoveries/*.json` files from the previous batch (dir resolved via `get_artifacts_dir()`)
 and ensures the directory exists so agents can write to it immediately. Output:
 `DISCOVERIES_CLEANED: <N>`. Exit 0 always (cleanup is best-effort).
 
