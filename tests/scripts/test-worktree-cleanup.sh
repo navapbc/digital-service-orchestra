@@ -360,7 +360,7 @@ if [[ -n "$BASH4" ]]; then
     trap cleanup_smoke EXIT
 
     # Build a minimal git repo to run the script against
-    git -C "$TMP_SMOKE_REPO" init -q
+    git -C "$TMP_SMOKE_REPO" init -b main -q
     git -C "$TMP_SMOKE_REPO" config user.email "test@test.com"
     git -C "$TMP_SMOKE_REPO" config user.name "Test"
     touch "$TMP_SMOKE_REPO/file.txt"
@@ -436,7 +436,7 @@ if [[ -n "$BASH4" ]]; then
     cleanup_state_test() { rm -rf "$TMP_STATE_REPO" "$TMP_STATE_WT"; }
 
     # Build a minimal git repo with a linked worktree that is safe to remove
-    git -C "$TMP_STATE_REPO" init -q
+    git -C "$TMP_STATE_REPO" init -b main -q
     git -C "$TMP_STATE_REPO" config user.email "test@test.com"
     git -C "$TMP_STATE_REPO" config user.name "Test"
     touch "$TMP_STATE_REPO/file.txt"
