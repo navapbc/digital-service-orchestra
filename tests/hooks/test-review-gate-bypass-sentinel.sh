@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# lockpick-workflow/tests/hooks/test-review-gate-bypass-sentinel.sh
+# Tests for the review-gate bypass sentinel hook function.
+#
+# The bypass sentinel detects commands that attempt to circumvent the review gate
+# (e.g., --no-verify, core.hooksPath override, git plumbing commands).
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/deps.sh"
+source "$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-bypass-sentinel.sh"
+
+# call_sentinel: invoke hook_review_bypass_sentinel() directly (no subprocess).
+# Returns the exit code on stdout.
+call_sentinel() {
+    local input="$1"
+    local exit_code=0
+    hook_review_bypass_sentinel "$input" 2>/dev/null || exit_code=$?
+    echo "$exit_code"
+}
+
+# ============================================================
+# Block tests (should return exit 2)
+# ============================================================
+
+# test_sentinel_blocks_no_verify
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_no_verify" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_short_n_flag
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -n -m msg"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_short_n_flag" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_n_flag_at_end_of_command
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m msg -n"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_n_flag_at_end_of_command" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_hooks_path_override
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git -c core.hooksPath=/dev/null commit -m msg"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_hooks_path_override" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_commit_tree
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit-tree abc123 -m msg"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_commit_tree" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_update_ref
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git update-ref refs/heads/main abc123"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_update_ref" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_git_hooks_write
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo bypass > .git/hooks/pre-commit"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_git_hooks_write" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_no_verify_in_and_chain
+INPUT='{"tool_name":"Bash","tool_input":{"command":"make test && git commit --no-verify -m msg"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_no_verify_in_and_chain" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_hooks_path_in_semicolon_chain
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cd app; git -c core.hooksPath=/tmp commit -m msg"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_hooks_path_in_semicolon_chain" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_no_verify_in_subshell
+INPUT='{"tool_name":"Bash","tool_input":{"command":"(git commit -n -m msg)"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_no_verify_in_subshell" "2" "$EXIT_CODE"
+
+# ============================================================
+# Allow tests (should return exit 0)
+# ============================================================
+
+# test_sentinel_allows_normal_git_commit
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m normal commit"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_normal_git_commit" "0" "$EXIT_CODE"
+
+# test_sentinel_allows_non_commit_bash
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo hello"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_non_commit_bash" "0" "$EXIT_CODE"
+
+# test_sentinel_allows_non_bash_tool
+INPUT='{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.py"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_non_bash_tool" "0" "$EXIT_CODE"
+
+# test_sentinel_allows_update_ref_in_merge_script
+INPUT='{"tool_name":"Bash","tool_input":{"command":"scripts/merge-to-main.sh --branch feature"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_update_ref_in_merge_script" "0" "$EXIT_CODE"
+
+# test_sentinel_allows_git_hooks_read
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cat .git/hooks/pre-commit"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_git_hooks_read" "0" "$EXIT_CODE"
+
+# test_sentinel_allows_wip_commit
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m WIP: save progress"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_wip_commit" "0" "$EXIT_CODE"
+
+# test_sentinel_blocks_no_verify_with_wip_substring (e.g., "wiper" is not WIP)
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m \"fix wiper module\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_no_verify_with_wip_substring" "2" "$EXIT_CODE"
+
+# test_sentinel_allows_wip_with_colon (common format: "WIP:")
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m \"WIP: checkpoint\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_wip_with_colon" "0" "$EXIT_CODE"
+
+# test_sentinel_allows_lowercase_wip
+INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m \"wip save\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_lowercase_wip" "0" "$EXIT_CODE"
+
+print_summary

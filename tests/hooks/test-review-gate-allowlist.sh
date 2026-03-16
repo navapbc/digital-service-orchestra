@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# lockpick-workflow/tests/hooks/test-review-gate-allowlist.sh
+# Tests for the shared review-gate-allowlist.conf file.
+#
+# Validates:
+#   - File exists at expected path
+#   - File is non-empty and parseable
+#   - Contains required pattern groups
+#   - Does NOT contain code file patterns (security guard)
+#   - CLAUDE.md safeguard rule 20 references the file
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+source "$REPO_ROOT/lockpick-workflow/tests/lib/assert.sh"
+
+ALLOWLIST="$REPO_ROOT/lockpick-workflow/hooks/lib/review-gate-allowlist.conf"
+
+# --- Test: file exists ---
+test_allowlist_file_exists() {
+    if [[ -f "$ALLOWLIST" ]]; then
+        assert_eq "allowlist file exists" "true" "true"
+    else
+        assert_eq "allowlist file exists" "true" "false"
+    fi
+}
+
+# --- Test: file is non-empty ---
+test_allowlist_file_non_empty() {
+    if [[ -s "$ALLOWLIST" ]]; then
+        assert_eq "allowlist file is non-empty" "true" "true"
+    else
+        assert_eq "allowlist file is non-empty" "true" "false"
+    fi
+}
+
+# --- Test: file is parseable (non-empty lines excluding comments) ---
+test_allowlist_file_parseable() {
+    local pattern_count
+    pattern_count=$(grep -cE '^[^#[:space:]]' "$ALLOWLIST" 2>/dev/null || echo "0")
+    if [[ "$pattern_count" -gt 0 ]]; then
+        assert_eq "allowlist has parseable patterns" "true" "true"
+    else
+        assert_eq "allowlist has parseable patterns" "true" "false"
+    fi
+}
+
+# --- Test: contains required pattern groups ---
+test_allowlist_contains_tickets_pattern() {
+    if grep -q '\.tickets/' "$ALLOWLIST" 2>/dev/null; then
+        assert_eq "contains .tickets/ pattern" "true" "true"
+    else
+        assert_eq "contains .tickets/ pattern" "true" "false"
+    fi
+}
+
+test_allowlist_contains_sync_state_pattern() {
+    if grep -q 'sync-state' "$ALLOWLIST" 2>/dev/null; then
+        assert_eq "contains sync-state pattern" "true" "true"
+    else
+        assert_eq "contains sync-state pattern" "true" "false"
+    fi
+}
+
+test_allowlist_contains_image_patterns() {
+    local has_png has_jpg
+    has_png=$(grep -c '\.png' "$ALLOWLIST" 2>/dev/null || echo "0")
+    has_jpg=$(grep -c '\.jpg' "$ALLOWLIST" 2>/dev/null || echo "0")
+    if [[ "$has_png" -gt 0 && "$has_jpg" -gt 0 ]]; then
+        assert_eq "contains image patterns (png, jpg)" "true" "true"
+    else
+        assert_eq "contains image patterns (png, jpg)" "true" "false"
+    fi
+}
+
+test_allowlist_contains_docs_patterns() {
+    local has_docs has_claude_docs
+    has_docs=$(grep -c '^docs/' "$ALLOWLIST" 2>/dev/null || echo "0")
+    has_claude_docs=$(grep -c '\.claude/docs/' "$ALLOWLIST" 2>/dev/null || echo "0")
+    if [[ "$has_docs" -gt 0 && "$has_claude_docs" -gt 0 ]]; then
+        assert_eq "contains docs patterns" "true" "true"
+    else
+        assert_eq "contains docs patterns" "true" "false"
+    fi
+}
+
+# --- Test: does NOT contain code file patterns (security) ---
+test_allowlist_no_code_patterns() {
+    # Must not contain .py or .sh patterns on non-comment lines
+    local code_patterns
+    code_patterns=$(grep -E '^[^#].*\.(py|sh)\b' "$ALLOWLIST" 2>/dev/null || true)
+    if [[ -z "$code_patterns" ]]; then
+        assert_eq "no code file patterns (.py, .sh)" "true" "true"
+    else
+        assert_eq "no code file patterns (.py, .sh)" "true" "false"
+    fi
+}
+
+# --- Test: CLAUDE.md safeguard rule 20 references the file ---
+test_claude_md_references_allowlist() {
+    if grep -q 'review-gate-allowlist' "$REPO_ROOT/CLAUDE.md" 2>/dev/null; then
+        assert_eq "CLAUDE.md references review-gate-allowlist" "true" "true"
+    else
+        assert_eq "CLAUDE.md references review-gate-allowlist" "true" "false"
+    fi
+}
+
+# --- Run all tests ---
+test_allowlist_file_exists
+test_allowlist_file_non_empty
+test_allowlist_file_parseable
+test_allowlist_contains_tickets_pattern
+test_allowlist_contains_sync_state_pattern
+test_allowlist_contains_image_patterns
+test_allowlist_contains_docs_patterns
+test_allowlist_no_code_patterns
+test_claude_md_references_allowlist
+
+print_summary
