@@ -144,6 +144,44 @@ with open('${_sf}.tmp', 'w') as f:
     return 0
 }
 
+# --- Lock staleness check ---
+# Usage: _is_lock_stale <lock_file>
+# Returns 0 (true/stale) if the lock can be broken, 1 (false/valid) if the lock is held.
+# Lock file format: PID|command_name
+# Checks:
+#   1. Lock file does not exist → stale (absent = can acquire)
+#   2. PID is not alive → stale (process died)
+#   3. PID is alive but command name doesn't match → stale (PID was recycled)
+#   4. PID is alive and command matches → not stale (valid lock)
+_is_lock_stale() {
+    local lock_file="$1"
+
+    # No lock file → stale (can acquire)
+    if [[ ! -f "$lock_file" ]]; then
+        return 0
+    fi
+
+    # Read PID and command from lock file
+    local lock_pid lock_cmd
+    lock_pid=$(cut -d'|' -f1 < "$lock_file")
+    lock_cmd=$(cut -d'|' -f2 < "$lock_file")
+
+    # Check if PID is alive
+    if ! kill -0 "$lock_pid" 2>/dev/null; then
+        return 0  # PID is dead → stale
+    fi
+
+    # PID is alive — check command name to guard against PID recycling
+    local current_cmd
+    current_cmd=$(ps -p "$lock_pid" -o comm= 2>/dev/null || echo "")
+    if [[ "$current_cmd" != "$lock_cmd" ]]; then
+        return 0  # Command mismatch → PID was recycled → stale
+    fi
+
+    # PID is alive AND command matches → valid lock
+    return 1
+}
+
 # --- Push idempotency helper ---
 # Determines whether a push to origin/main is needed.
 # Returns 0 if push is needed (commits exist ahead of origin/main).
