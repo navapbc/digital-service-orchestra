@@ -7,32 +7,10 @@
 #
 # Usage:
 #   HASH=$(.claude/hooks/compute-diff-hash.sh)
-#   HASH=$(.claude/hooks/compute-diff-hash.sh --snapshot /tmp/untracked-snapshot.txt)
-#
-# Options:
-#   --snapshot <file>  Save the untracked file list to <file> on first run.
-#                      On subsequent runs, reuse the saved list instead of
-#                      live `git ls-files --others`. This makes the hash
-#                      deterministic within a review session regardless of
-#                      concurrent file creation by sub-agents.
 #
 # Output: a single SHA-256 hex string on stdout
 
 set -euo pipefail
-
-# Parse optional --snapshot flag
-SNAPSHOT_FILE=""
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --snapshot)
-            SNAPSHOT_FILE="$2"
-            shift 2
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
 
 # Source shared dependency library for hash_stdin and get_artifacts_dir
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -187,21 +165,9 @@ if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_USP_ESCAPED}.*\\.html$"
 fi
 
-# Build the untracked file list — either from snapshot or live query
+# Build the untracked file list from live git query
 _get_untracked_files() {
-    if [[ -n "$SNAPSHOT_FILE" && -f "$SNAPSHOT_FILE" ]]; then
-        # Reuse saved snapshot for deterministic hashing across calls
-        cat "$SNAPSHOT_FILE"
-    else
-        # Live query
-        local _live_list
-        _live_list=$(git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$NON_REVIEWABLE_PATTERN" || true; })
-        # Save snapshot if requested and this is the first run (empty list is valid)
-        if [[ -n "$SNAPSHOT_FILE" && ! -f "$SNAPSHOT_FILE" ]]; then
-            echo "$_live_list" > "$SNAPSHOT_FILE"
-        fi
-        echo "$_live_list"
-    fi
+    git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$NON_REVIEWABLE_PATTERN" || true; }
 }
 
 {

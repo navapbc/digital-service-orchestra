@@ -140,36 +140,18 @@ else:
 PYEOF
 if [ $? -eq 0 ]; then pass "settings_hooks_use_dispatchers"; else fail "settings_hooks_use_dispatchers"; fi
 
-# Test 6: Snapshot flag produces deterministic hashes
+# Test 6: Passing --snapshot does NOT create a snapshot file
 echo ""
-echo "--- test_snapshot_flag_deterministic ---"
-TMPDIR_TEST=$(mktemp -d)
-_CLEANUP_DIRS+=("$TMPDIR_TEST")
-SNAPSHOT="$TMPDIR_TEST/snapshot.txt"
-H1=$("$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
-H2=$("$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
-if [ "$H1" = "$H2" ] && [ -n "$H1" ]; then
-    pass "snapshot_flag_deterministic"
+echo "--- test_no_snapshot_file_created ---"
+SNAP="/tmp/test-snapshot-verify-$$"
+rm -f "$SNAP"
+"$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAP" >/dev/null 2>&1 || true
+if [ ! -f "$SNAP" ]; then
+    pass "no_snapshot_file_created"
 else
-    echo "  H1=$H1, H2=$H2"
-    fail "snapshot_flag_deterministic"
-fi
-
-# Test 6b: Hash changes when content changes (sensitivity check)
-echo ""
-echo "--- test_snapshot_hash_sensitivity ---"
-# Create a temp file to change the hash
-TEMP_FILE="$TMPDIR_TEST/sensitivity-test.txt"
-echo "test content" > "$TEMP_FILE"
-H3=$("$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAPSHOT")
-rm -f "$TEMP_FILE"
-rm -rf "$TMPDIR_TEST"
-# H3 may or may not differ from H1 (depends on whether the temp file is in the repo)
-# But H1 and H2 must be equal (determinism is the primary property)
-if [ -n "$H1" ] && [ -n "$H3" ]; then
-    pass "snapshot_hash_sensitivity (hashes computed successfully)"
-else
-    fail "snapshot_hash_sensitivity (empty hash output)"
+    echo "  Snapshot file was created at $SNAP (should not exist)"
+    rm -f "$SNAP"
+    fail "no_snapshot_file_created"
 fi
 
 echo ""
