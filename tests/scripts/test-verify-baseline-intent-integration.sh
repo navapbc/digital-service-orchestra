@@ -78,6 +78,7 @@ _run_integration() {
     local repo_dir="$1"
     (
         export CLAUDE_PLUGIN_PYTHON="${_INTEGRATION_PYTHON:-python3}"
+        export CLAUDE_PLUGIN_ROOT="$repo_dir"
         cd "$repo_dir"
         bash "$PLUGIN_SCRIPT" 2>&1
     )

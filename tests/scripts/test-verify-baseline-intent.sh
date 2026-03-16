@@ -19,12 +19,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
-CONFIG="$REPO_ROOT/workflow-config.conf"
 PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/verify-baseline-intent.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-verify-baseline-intent.sh ==="
+
+# ── Inline fixture for config tests ──────────────────────────────────────────
+_UNIT_TMPDIR="$(mktemp -d)"
+CONFIG="$_UNIT_TMPDIR/workflow-config.conf"
+cat > "$CONFIG" <<'CONF'
+visual.baseline_directory=app/tests/e2e/snapshots/
+design.manifest_patterns=designs/*/manifest.md
+design.manifest_patterns=designs/*/brief.md
+CONF
 
 # ── test_visual_baseline_directory ───────────────────────────────────────────
 # visual.baseline_directory must return 'app/tests/e2e/snapshots/'
@@ -126,7 +134,7 @@ assert_pass_if_clean "test_reads_design_manifest_patterns"
 # We test this by passing a config that has no visual section.
 _snapshot_fail
 TMPDIR_FIXTURE="$(mktemp -d)"
-_CLEANUP_DIRS="$TMPDIR_FIXTURE"
+_CLEANUP_DIRS="$_UNIT_TMPDIR $TMPDIR_FIXTURE"
 trap 'rm -rf $_CLEANUP_DIRS' EXIT
 
 EMPTY_CONFIG="$TMPDIR_FIXTURE/workflow-config.conf"
@@ -136,10 +144,10 @@ CONF
 
 absent_exit=0
 absent_output=""
-# Run the plugin script with the empty config, passing it via CLAUDE_PLUGIN_ROOT
-# (which read-config.sh checks first), but our fixture is not in that structure.
-# Instead, we run from the tmpdir so read-config.sh finds the empty config via pwd.
+# Run the plugin script with CLAUDE_PLUGIN_ROOT pointing to the tmpdir so
+# read-config.sh finds the empty config (no visual.baseline_directory).
 absent_output=$(
+    export CLAUDE_PLUGIN_ROOT="$TMPDIR_FIXTURE"
     cd "$TMPDIR_FIXTURE" && \
     bash "$PLUGIN_SCRIPT" 2>&1
 ) || absent_exit=$?
@@ -203,6 +211,7 @@ _run_portability() {
     local repo_dir="$1"
     (
         export CLAUDE_PLUGIN_PYTHON="${_PORTABILITY_PYTHON:-python3}"
+        export CLAUDE_PLUGIN_ROOT="$repo_dir"
         cd "$repo_dir"
         bash "$PLUGIN_SCRIPT" 2>&1
     )
