@@ -434,4 +434,79 @@ _SIGURG_HAS_EXIT=$(awk '/^_sigurg_handler\(\)/,/^\}$/' "$MERGE_SCRIPT" | grep -c
 assert_ne "test_sigurg_handler_uses_explicit_exit" "0" "$_SIGURG_HAS_EXIT"
 
 # =============================================================================
+# Phase function refactor tests (ibok)
+# =============================================================================
+
+# =============================================================================
+# Test: All 7 phase functions exist in merge-to-main.sh
+# =============================================================================
+_PHASE_FNS="_phase_sync _phase_checkpoint_verify _phase_merge _phase_validate _phase_push _phase_archive _phase_ci_trigger"
+for _fn in $_PHASE_FNS; do
+    _FN_FOUND=$(grep -c "^${_fn}()" "$MERGE_SCRIPT" || true)
+    assert_ne "test_phase_functions_exist_${_fn}" "0" "$_FN_FOUND"
+done
+
+# =============================================================================
+# Test: _phase_sync sets _CURRENT_PHASE to "sync"
+# Extract _phase_sync, mock dependencies, eval, and check _CURRENT_PHASE.
+# =============================================================================
+_PS_BODY=$(_extract_fn "_phase_sync")
+if [[ -z "$_PS_BODY" ]]; then
+    assert_eq "test_phase_function_sets_current_phase" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
+else
+    # Mock dependencies
+    _worktree_sync_from_main() { return 0; }
+    _state_write_phase() { return 0; }
+    _state_mark_complete() { return 0; }
+    _PHASE_TEST_DIR=$(mktemp -d)
+    # Create a mock worktree-sync-from-main.sh so the source check passes
+    echo '# mock' > "$_PHASE_TEST_DIR/worktree-sync-from-main.sh"
+    REPO_ROOT="$_PHASE_TEST_DIR"
+    _SCRIPT_DIR="$_PHASE_TEST_DIR"
+    VISUAL_BASELINE_PATH=""
+    MERGE_BASE_ORIGIN=""
+    _CURRENT_PHASE=""
+    eval "$_PS_BODY"
+    # _phase_sync uses git commands that won't work outside a repo, so just
+    # check that _CURRENT_PHASE is set at the very start of the function body.
+    # We verify structurally that _CURRENT_PHASE="sync" is in the function.
+    _HAS_CURRENT_PHASE=$(awk '/^_phase_sync\(\)/,/^\}$/' "$MERGE_SCRIPT" | grep -c '_CURRENT_PHASE="sync"' || true)
+    assert_ne "test_phase_function_sets_current_phase" "0" "$_HAS_CURRENT_PHASE"
+    rm -rf "$_PHASE_TEST_DIR"
+    unset -f _worktree_sync_from_main _state_write_phase _state_mark_complete
+fi
+
+# =============================================================================
+# Test: Each phase function calls _state_write_phase (structural check)
+# =============================================================================
+for _fn in $_PHASE_FNS; do
+    _phase_name="${_fn#_phase_}"
+    _SWP_IN_FN=$(awk "/^${_fn}\\(\\)/,/^\\}$/" "$MERGE_SCRIPT" | grep -c '_state_write_phase' || true)
+    assert_ne "test_phase_function_calls_state_write_phase_${_fn}" "0" "$_SWP_IN_FN"
+done
+
+# =============================================================================
+# Test: Each phase function calls _state_mark_complete (structural check)
+# =============================================================================
+for _fn in $_PHASE_FNS; do
+    _SMC_IN_FN=$(awk "/^${_fn}\\(\\)/,/^\\}$/" "$MERGE_SCRIPT" | grep -c '_state_mark_complete' || true)
+    assert_ne "test_phase_function_calls_state_mark_complete_${_fn}" "0" "$_SMC_IN_FN"
+done
+
+# =============================================================================
+# Test: Sequential phase calls present in main script body (after functions)
+# Each _phase_* function should appear as a standalone call line.
+# =============================================================================
+for _fn in $_PHASE_FNS; do
+    _CALL_FOUND=$(grep -c "^${_fn}$" "$MERGE_SCRIPT" || true)
+    assert_ne "test_sequential_phase_calls_present_${_fn}" "0" "$_CALL_FOUND"
+done
+
+# =============================================================================
+# Test: _state_init is called after BRANCH is set
+# =============================================================================
+_STATE_INIT_AFTER_BRANCH=$(awk '/^BRANCH=/{found=1} found && /^_state_init/{print; exit}' "$MERGE_SCRIPT" | grep -c '_state_init' || true)
+assert_ne "test_state_init_called_after_branch" "0" "$_STATE_INIT_AFTER_BRANCH"
+
+# =============================================================================
 print_summary
