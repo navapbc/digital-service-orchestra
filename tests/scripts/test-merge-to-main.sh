@@ -11,6 +11,7 @@
 #
 # Usage: bash lockpick-workflow/tests/scripts/test-merge-to-main.sh
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MERGE_SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
