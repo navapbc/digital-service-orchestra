@@ -37,6 +37,7 @@ trap 'rm -rf "$_TEST_TMP"' EXIT
 sed -n '/_is_lock_stale()/,/^}/p' "$MERGE_SCRIPT" > "$_TEST_TMP/lock_funcs.sh"
 sed -n '/_acquire_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
 sed -n '/_release_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
+sed -n '/_wait_for_lock()/,/^}/p' "$MERGE_SCRIPT" >> "$_TEST_TMP/lock_funcs.sh"
 
 # Source the extracted functions
 source "$_TEST_TMP/lock_funcs.sh"
@@ -212,6 +213,76 @@ else
 fi
 
 assert_pass_if_clean "release lock noop when not owner"
+
+# =============================================================================
+# Test 9: test_wait_for_lock_times_out_after_ceiling
+# A held lock that never releases should cause _wait_for_lock to time out.
+# =============================================================================
+echo ""
+echo "--- wait_for_lock times out after ceiling ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_wait_timeout.lock"
+# Write a lock held by current PID with matching command (valid, non-stale lock)
+_MY_CMD=$(ps -p $$ -o comm= 2>/dev/null || echo "bash")
+echo "$$|${_MY_CMD}" > "$_LOCK_FILE"
+
+# Override ceiling to 3 seconds for test speed
+LOCK_WAIT_CEILING=3 _wait_for_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_wait_for_lock_times_out_after_ceiling: returns non-zero" "1" "$_RC"
+
+assert_pass_if_clean "wait_for_lock times out after ceiling"
+
+# =============================================================================
+# Test 10: test_wait_for_lock_breaks_stale_lock_and_acquires
+# A stale lock (dead PID + wrong command) should be broken and lock acquired.
+# =============================================================================
+echo ""
+echo "--- wait_for_lock breaks stale lock and acquires ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_wait_stale.lock"
+# Write a lock with a dead PID and wrong command
+echo "999999999|some-dead-process" > "$_LOCK_FILE"
+
+_wait_for_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_wait_for_lock_breaks_stale_lock_and_acquires: returns 0" "0" "$_RC"
+
+# Lock file should now contain current PID
+_LOCK_CONTENT=$(cat "$_LOCK_FILE")
+assert_eq "test_wait_for_lock_breaks_stale_lock_and_acquires: content" "$$|merge-to-main" "$_LOCK_CONTENT"
+
+assert_pass_if_clean "wait_for_lock breaks stale lock and acquires"
+
+# =============================================================================
+# Test 11: test_wait_for_lock_acquires_immediately_when_no_lock
+# No pre-existing lock file should result in immediate acquisition.
+# =============================================================================
+echo ""
+echo "--- wait_for_lock acquires immediately when no lock ---"
+_snapshot_fail
+
+_LOCK_FILE="$_TEST_TMP/test_wait_no_lock.lock"
+rm -f "$_LOCK_FILE"
+
+_wait_for_lock "$_LOCK_FILE"
+_RC=$?
+assert_eq "test_wait_for_lock_acquires_immediately_when_no_lock: returns 0" "0" "$_RC"
+
+# Lock file should exist with current PID
+if [[ -f "$_LOCK_FILE" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: test_wait_for_lock_acquires_immediately_when_no_lock: lock file not created" >&2
+fi
+
+_LOCK_CONTENT=$(cat "$_LOCK_FILE")
+assert_eq "test_wait_for_lock_acquires_immediately_when_no_lock: content" "$$|merge-to-main" "$_LOCK_CONTENT"
+
+assert_pass_if_clean "wait_for_lock acquires immediately when no lock"
 
 # =============================================================================
 # Summary
