@@ -142,7 +142,7 @@ _setup_git_pair() {
     _ORIGIN_DIR="$_TEST_BASE/origin.git"
     _WORK_DIR="$_TEST_BASE/work"
 
-    git init --bare "$_ORIGIN_DIR" --quiet 2>/dev/null
+    git init --bare "$_ORIGIN_DIR" -b main --quiet 2>/dev/null
     git clone "$_ORIGIN_DIR" "$_WORK_DIR" --quiet 2>/dev/null
     (
         cd "$_WORK_DIR"
