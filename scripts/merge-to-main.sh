@@ -180,6 +180,51 @@ with open('${_sf}.tmp', 'w') as f:
     return 0
 }
 
+# Maximum number of --resume retries before escalating to the user
+MAX_MERGE_RETRIES=5
+
+_state_get_retry_count() {
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || { echo "0"; return 0; }
+    [[ -f "$_sf" ]] || { echo "0"; return 0; }
+    python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+print(d.get('retry_count', 0))
+" 2>/dev/null || echo "0"
+}
+
+_state_increment_retry() {
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+d['retry_count'] = d.get('retry_count', 0) + 1
+with open('${_sf}.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+    return 0
+}
+
+_state_reset_retry_count() {
+    local _sf
+    _sf=$(_state_file_path) 2>/dev/null || return 0
+    [[ -f "$_sf" ]] || return 0
+    python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+d['retry_count'] = 0
+with open('${_sf}.tmp', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+    return 0
+}
+
 # --- SIGURG trap: save current phase to state file before exit ---
 # Registered after _state_init is called (see below, after BRANCH is set).
 _sigurg_handler() {
@@ -1019,6 +1064,12 @@ fi
 # --- Dispatch: --resume ---
 if [[ "$_CLI_RESUME" == "true" ]]; then
     _sf=$(_state_file_path)
+    # Escalation gate: check retry budget before attempting anything
+    _resume_retry_count=$(_state_get_retry_count 2>/dev/null || echo "0")
+    if [[ "$_resume_retry_count" -ge "$MAX_MERGE_RETRIES" ]]; then
+        echo "ESCALATE: Merge has failed 5 times. Stop and ask the user for help. Do NOT retry."
+        exit 1
+    fi
     if [[ ! -f "$_sf" ]]; then
         echo "WARNING: No state file found at '$_sf'. Starting from the beginning."
         # Fall through to run all phases
