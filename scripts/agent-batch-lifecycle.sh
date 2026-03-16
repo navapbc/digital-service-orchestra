@@ -445,7 +445,14 @@ cmd_cleanup_stale_containers() {
 # Exit 0 always (cleanup is best-effort).
 
 cmd_cleanup_discoveries() {
-    local discoveries_dir="$REPO_ROOT/.agent-discoveries"
+    # Resolve discoveries dir via get_artifacts_dir (same source of truth as collect-discoveries.sh).
+    # AGENT_DISCOVERIES_DIR env var overrides for test isolation.
+    local _deps_sh="$SCRIPT_DIR/../hooks/lib/deps.sh"
+    if [ -f "$_deps_sh" ]; then
+        # shellcheck source=../hooks/lib/deps.sh
+        source "$_deps_sh"
+    fi
+    local discoveries_dir="${AGENT_DISCOVERIES_DIR:-$(get_artifacts_dir)/agent-discoveries}"
     local cleaned=0
 
     # Remove existing discovery files (JSON artifacts from previous batch)

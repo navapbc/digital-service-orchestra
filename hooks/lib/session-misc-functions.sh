@@ -429,13 +429,7 @@ hook_review_stop_check() {
         if [[ "$REVIEW_STATUS" == "passed" ]]; then
             local RECORDED_HASH CURRENT_HASH
             RECORDED_HASH=$(grep '^diff_hash=' "$REVIEW_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-            local _SNAPSHOT_ARGS=()
-            local _ART_DIR
-            _ART_DIR=$(get_artifacts_dir 2>/dev/null || echo "")
-            if [[ -n "$_ART_DIR" && -f "$_ART_DIR/untracked-snapshot.txt" ]]; then
-                _SNAPSHOT_ARGS=(--snapshot "$_ART_DIR/untracked-snapshot.txt")
-            fi
-            CURRENT_HASH=$("$HOOK_DIR/compute-diff-hash.sh" "${_SNAPSHOT_ARGS[@]}")
+            CURRENT_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
             if [[ "$RECORDED_HASH" == "$CURRENT_HASH" ]]; then
                 return 0
             fi

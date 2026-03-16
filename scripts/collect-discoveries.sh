@@ -20,7 +20,7 @@ set -euo pipefail
 #
 # Environment:
 #   AGENT_DISCOVERIES_DIR   Override the discoveries directory path
-#                           (default: .agent-discoveries/ relative to repo root)
+#                           (default: $ARTIFACTS_DIR/agent-discoveries/ via get_artifacts_dir)
 #
 # Behavior:
 #   - Empty directory (no .json files): output empty JSON array [] (or empty
@@ -37,8 +37,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
+# Source deps.sh for get_artifacts_dir
+# shellcheck source=../hooks/lib/deps.sh
+source "$SCRIPT_DIR/../hooks/lib/deps.sh"
+
 # Resolve discoveries directory
-DISCOVERIES_DIR="${AGENT_DISCOVERIES_DIR:-$REPO_ROOT/.agent-discoveries}"
+DISCOVERIES_DIR="${AGENT_DISCOVERIES_DIR:-$(get_artifacts_dir)/agent-discoveries}"
 
 # Parse arguments
 FORMAT="json"
