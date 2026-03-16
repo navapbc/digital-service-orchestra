@@ -14,6 +14,25 @@ set -euo pipefail
 
 set -euo pipefail
 
+# --- CLI: --help (early exit before any context checks) ---
+for _arg in "$@"; do
+    if [[ "$_arg" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: merge-to-main.sh [--phase=<name>|--resume|--help]
+
+  --phase=<name>  Run a single named phase and exit. Valid phase names:
+                    checkpoint_verify  sync  merge  validate  push  archive  ci_trigger
+  --resume        Read state file, find last incomplete phase, continue from there.
+                  If a phase is in conflict state, a fresh attempt is made at that phase.
+  --help          Print this usage message and exit.
+
+  (no args)       Print a warning showing --phase and --resume usage, then run
+                  all phases sequentially (backward compatible).
+USAGE
+        exit 0
+    fi
+done
+
 # --- Resolve repo root and cd into it ---
 # This ensures relative path checks work regardless of where the script is called from
 if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
@@ -790,8 +809,106 @@ _phase_ci_trigger() {
 }
 
 # =============================================================================
-# Sequential phase execution
+# CLI argument dispatch
 # =============================================================================
+
+# Ordered list of all phase names (used by --resume to find next incomplete phase)
+_ALL_PHASES=(checkpoint_verify sync merge validate push archive ci_trigger)
+
+# --- Parse CLI arguments ---
+_CLI_PHASE=""
+_CLI_RESUME=false
+
+for _arg in "$@"; do
+    case "$_arg" in
+        --phase=*)
+            _CLI_PHASE="${_arg#--phase=}"
+            ;;
+        --resume)
+            _CLI_RESUME=true
+            ;;
+        --help)
+            # Already handled above (before worktree checks); should not reach here
+            exit 0
+            ;;
+        *)
+            echo "WARNING: Unknown argument '$_arg'. See --help for usage." >&2
+            ;;
+    esac
+done
+
+# --- Dispatch: --phase=<name> ---
+if [[ -n "$_CLI_PHASE" ]]; then
+    _DISPATCH_FN="_phase_${_CLI_PHASE}"
+    if declare -f "$_DISPATCH_FN" > /dev/null 2>&1; then
+        "$_DISPATCH_FN"
+        echo "DONE: phase '$_CLI_PHASE' completed."
+        exit 0
+    else
+        echo "ERROR: Unknown phase '$_CLI_PHASE'. Valid phases: ${_ALL_PHASES[*]}" >&2
+        exit 1
+    fi
+fi
+
+# --- Dispatch: --resume ---
+if [[ "$_CLI_RESUME" == "true" ]]; then
+    _sf=$(_state_file_path)
+    if [[ ! -f "$_sf" ]]; then
+        echo "WARNING: No state file found at '$_sf'. Starting from the beginning."
+        # Fall through to run all phases
+    else
+        # Read completed_phases and find the first incomplete phase
+        _COMPLETED=$(python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+print(' '.join(d.get('completed_phases', [])))
+" 2>/dev/null || echo "")
+        # Find the first phase with conflict state (fresh attempt)
+        _CONFLICT_PHASE=$(python3 -c "
+import json
+with open('$_sf') as f:
+    d = json.load(f)
+phases = d.get('phases', {})
+for name, info in phases.items():
+    if info.get('status') == 'conflict':
+        print(name)
+        break
+" 2>/dev/null || echo "")
+
+        _FOUND_RESUME_START=false
+        for _pname in "${_ALL_PHASES[@]}"; do
+            # If this phase has a conflict, start fresh from here
+            if [[ -n "$_CONFLICT_PHASE" && "$_pname" == "$_CONFLICT_PHASE" ]]; then
+                echo "INFO: Resuming from phase '$_pname' (conflict state — fresh attempt)."
+                _FOUND_RESUME_START=true
+            fi
+            if [[ "$_FOUND_RESUME_START" == "true" ]]; then
+                "_phase_${_pname}"
+            elif ! echo " $_COMPLETED " | grep -q " $_pname "; then
+                # Not in completed_phases — start here
+                echo "INFO: Resuming from phase '$_pname' (first incomplete phase)."
+                _FOUND_RESUME_START=true
+                "_phase_${_pname}"
+            fi
+            # else: phase is already complete — skip it
+        done
+
+        if [[ "$_FOUND_RESUME_START" == "false" ]]; then
+            echo "INFO: All phases already complete (nothing to resume)."
+        fi
+
+        echo "DONE: $BRANCH resumed, merged, committed, and pushed."
+        exit 0
+    fi
+fi
+
+# --- No-args (or state file missing for --resume): run all phases sequentially ---
+if [[ $# -eq 0 ]]; then
+    echo "WARNING: Running all phases sequentially. Use --phase=<name> to run a single phase" \
+         "or --resume to continue from the last incomplete phase." >&2
+fi
+
 _phase_checkpoint_verify
 _phase_sync
 _phase_merge
