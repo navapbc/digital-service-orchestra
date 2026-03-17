@@ -1,6 +1,6 @@
 ---
 id: dso-a33b
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-17T20:21:06Z
@@ -69,3 +69,28 @@ Create tests/scripts/test-shim-smoke.sh with failing tests that verify the dso s
 - All tests are expected to FAIL (RED) until templates/host-project/dso is created in the next task
 - Script must be executable: chmod +x tests/scripts/test-shim-smoke.sh
 
+## ACCEPTANCE CRITERIA
+
+- [ ] tests/scripts/test-shim-smoke.sh exists and is executable
+  Verify: test -x $(git rev-parse --show-toplevel)/tests/scripts/test-shim-smoke.sh
+- [ ] Test file contains at least 6 test functions
+  Verify: grep -c "^test_" $(git rev-parse --show-toplevel)/tests/scripts/test-shim-smoke.sh | awk '{exit ($1 < 6)}'
+- [ ] Tests fail (RED) before shim template exists — confirmed by running the test
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-shim-smoke.sh 2>&1 | grep -q "FAIL\|fail"
+- [ ] ruff check passes on Python files
+  Verify: ruff check $(git rev-parse --show-toplevel)/scripts/*.py $(git rev-parse --show-toplevel)/tests/**/*.py
+
+
+<!-- note-id: 36vawfxz -->
+<!-- timestamp: 2026-03-17T20:27:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/scripts/test-shim-smoke.sh. 8 tests written, all FAIL (RED phase confirmed). Tests: n/a (RED phase — tests expected to fail).
+
+<!-- note-id: bntd5scn -->
+<!-- timestamp: 2026-03-17T20:27:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: tests/scripts/test-shim-smoke.sh with 8 failing RED-phase tests for shim template

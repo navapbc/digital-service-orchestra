@@ -108,7 +108,7 @@
   "dso-a33b": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "Write failing tests for dso shim template (RED)",
     "type": "task"
   },
