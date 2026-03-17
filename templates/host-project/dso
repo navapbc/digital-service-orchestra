@@ -44,6 +44,14 @@ if [ -z "$DSO_ROOT" ]; then
     exit 1
 fi
 
+# ── Library mode ──────────────────────────────────────────────────────────────
+
+# Library mode: export DSO_ROOT and return without dispatching
+if [ "${1:-}" = "--lib" ]; then
+    export DSO_ROOT="$DSO_ROOT"
+    return 0 2>/dev/null || exit 0
+fi
+
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
 if [ $# -eq 0 ]; then
