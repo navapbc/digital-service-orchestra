@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# retype-epic-children.sh — Retype task-type tickets whose parent is an epic to feature.
+# retype-epic-children.sh — Retype task-type tickets whose parent is an epic to story.
 #
 # Finds all .tickets/*.md files where:
 #   - YAML frontmatter type == "task"
 #   - YAML frontmatter parent field is set AND the referenced parent ticket has type == "epic"
 #
-# For matching tickets, changes `type: task` to `type: feature` in-place.
+# For matching tickets, changes `type: task` to `type: story` in-place.
 # The operation is idempotent: re-running produces zero changes when all eligible
-# tickets are already type=feature.
+# tickets are already type=story.
 #
 # Usage:
 #   ./scripts/retype-epic-children.sh [--dry-run]
@@ -116,19 +116,19 @@ while IFS= read -r ticket_file; do
         continue
     fi
 
-    # This ticket qualifies — retype from task to feature
+    # This ticket qualifies — retype from task to story
     ticket_name="$(basename "$ticket_file")"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         echo "[dry-run] Would retype: $ticket_name (parent: $parent_id)"
         ((retyped++))
     else
-        # Replace `type: task` with `type: feature` only within the frontmatter block.
+        # Replace `type: task` with `type: story` only within the frontmatter block.
         # We use awk to limit the substitution to lines before the second `---` delimiter.
         tmp_file="${ticket_file}.tmp.$$"
         awk '
             /^---$/ { n++ }
-            n == 1 && /^type:[[:space:]]*task[[:space:]]*$/ { sub(/^type:[[:space:]]*task/, "type: feature") }
+            n == 1 && /^type:[[:space:]]*task[[:space:]]*$/ { sub(/^type:[[:space:]]*task/, "type: story") }
             { print }
         ' "$ticket_file" > "$tmp_file"
 

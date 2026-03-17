@@ -112,11 +112,11 @@ import json, sys
 
 with open('.claude/settings.json') as f:
     settings = json.load(f)
-with open('hooks.json') as f:
+with open('.claude-plugin/plugin.json') as f:
     hooks_json = json.load(f)
 
 assert 'hooks' in settings, "settings.json missing 'hooks'"
-assert 'hooks' in hooks_json, "hooks.json missing 'hooks'"
+assert 'hooks' in hooks_json, "plugin.json missing 'hooks'"
 
 # Verify all settings.json hook commands point to dispatchers or run-hook.sh
 non_dispatcher = []

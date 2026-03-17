@@ -497,7 +497,7 @@ for line in ready_lines:
 
 # ── Identify stories and check which are blocked ──────────────────────────────
 
-STORY_TYPES = {"story", "feature"}
+STORY_TYPES = {"story"}
 CLOSED = {"closed", "done", "completed"}
 
 status_cache  = {}   # issue_id -> status string

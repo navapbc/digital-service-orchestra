@@ -47,7 +47,7 @@ cat > "$_MOCK_TICKETS_DIR/mock-test-ticket-abc12.md" <<'TICKET'
 ---
 id: mock-test-ticket-abc12
 status: ready
-type: feature
+type: story
 ---
 # Implement widget configuration parser
 

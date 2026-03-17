@@ -1,0 +1,335 @@
+{
+  "dso-0k2k": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system upgrade",
+    "type": "epic"
+  },
+  "dso-0wi2": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Project level config flags to modify behavior",
+    "type": "epic"
+  },
+  "dso-0y9j": {
+    "deps": [
+      "dso-awoz"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "As a DSO hook or script author, I can source the shim in library mode to get DSO_ROOT without depending on CLAUDE_PLUGIN_ROOT",
+    "type": "story"
+  },
+  "dso-1fnl": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Implement review guidance related to code reuse",
+    "type": "epic"
+  },
+  "dso-2x3c": {
+    "deps": [
+      "dso-awoz"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a Claude agent in a host project, I receive consistent DSO script invocation instructions across all skills and workflow docs",
+    "type": "story"
+  },
+  "dso-3xhk": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Create a KNOWN ISSUES for this project",
+    "type": "epic"
+  },
+  "dso-42eg": {
+    "deps": [
+      "dso-qii9"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "Provide a method for client projects to conveniently call dso scripts ",
+    "type": "epic"
+  },
+  "dso-4s8r": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Cleanup tests",
+    "type": "epic"
+  },
+  "dso-6524": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Separate DSO plugin from DSO project",
+    "type": "epic"
+  },
+  "dso-8g5p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "18 pre-existing test failures in test_precompact_telemetry and test_analyze_precompact_telemetry",
+    "type": "task"
+  },
+  "dso-94ya": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add a preflight check to sprint that validates current project state",
+    "type": "epic"
+  },
+  "dso-9fgn": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Limit tool use by sub-agents",
+    "type": "epic"
+  },
+  "dso-9l2x": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
+    "type": "epic"
+  },
+  "dso-ag1b": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Display Task titles during sprint batch execution",
+    "type": "epic"
+  },
+  "dso-awoz": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "As a developer in a host project, I can invoke any DSO script via .claude/scripts/dso",
+    "type": "story"
+  },
+  "dso-fbky": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Add full autonomous mode session override",
+    "type": "epic"
+  },
+  "dso-ffzi": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Integrate TDD into implementation plan skill",
+    "type": "epic"
+  },
+  "dso-g10j": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Using-lockpicks brainstorm enforcement",
+    "type": "epic"
+  },
+  "dso-gkct": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Implementation planning tradeoffs",
+    "type": "epic"
+  },
+  "dso-igoj": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Improve setup documentation",
+    "type": "epic"
+  },
+  "dso-iwb4": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Don't merge to main between batches",
+    "type": "epic"
+  },
+  "dso-khl2": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Using-lockpicks guidance to encourage using sub-agents",
+    "type": "epic"
+  },
+  "dso-lwcp": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Retro skill should include an overall visual review",
+    "type": "epic"
+  },
+  "dso-p2d3": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Remove plugin testing as a separate step",
+    "type": "epic"
+  },
+  "dso-ppwp": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Add test gate enforcement",
+    "type": "epic"
+  },
+  "dso-pxos": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Update end-session to display a list of pre-existing failures encountered.",
+    "type": "epic"
+  },
+  "dso-q0lo": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Prevent the explosion of documentation created by LLMs",
+    "type": "epic"
+  },
+  "dso-qii9": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Create a setup skill",
+    "type": "epic"
+  },
+  "dso-qo0x": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Incorporate OpenRewrite",
+    "type": "epic"
+  },
+  "dso-r97p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Implementation planning schema validation ",
+    "type": "epic"
+  },
+  "dso-r9fa": {
+    "deps": [
+      "dso-awoz"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "As a host project maintainer, I can bootstrap DSO script access via one-time setup",
+    "type": "story"
+  },
+  "dso-s12s": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Generic agent invocations should be given descriptive names",
+    "type": "epic"
+  },
+  "dso-s991": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Integrate TDD into preplanning",
+    "type": "epic"
+  },
+  "dso-soyt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Incorporate Semantic Search & MCP (Model Context Protocol)",
+    "type": "epic"
+  },
+  "dso-sq4k": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Research and investigation in pre-planning ",
+    "type": "epic"
+  },
+  "dso-t4k8": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Don't cover up problems",
+    "type": "epic"
+  },
+  "dso-t7af": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Remove 5-sub-agent cap for orchestration",
+    "type": "epic"
+  },
+  "dso-tmmj": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Methodical debugging improvements",
+    "type": "epic"
+  },
+  "dso-to7x": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Allow coding sub-agents to use worktree isolation",
+    "type": "epic"
+  },
+  "dso-uu13": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Remove CI ticket creation pattern",
+    "type": "epic"
+  },
+  "dso-uvyl": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Make implementation plan migration aware",
+    "type": "epic"
+  },
+  "dso-v558": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Figma integration for human design input",
+    "type": "epic"
+  },
+  "dso-y1y6": {
+    "deps": [
+      "dso-awoz",
+      "dso-0y9j",
+      "dso-r9fa",
+      "dso-y9sz",
+      "dso-2x3c"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update project docs to reflect DSO script invocation via shim",
+    "type": "story"
+  },
+  "dso-y9sz": {
+    "deps": [
+      "dso-awoz",
+      "dso-0y9j",
+      "dso-r9fa"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO contributor, I can verify shim reliability via automated cross-context smoke test",
+    "type": "story"
+  },
+  "dso-zj3r": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Optimize skills and prompts for token usage",
+    "type": "epic"
+  }
+}

@@ -78,10 +78,10 @@ else
 fi
 
 # A3: Bug and Feature sub-sections in scope_certainty
-if grep -q "type: bug" "$SHARED_EVALUATOR" && grep -q "type: feature" "$SHARED_EVALUATOR"; then
-  echo "  PASS A3: Bug and Feature sub-sections present"
+if grep -q "type: bug" "$SHARED_EVALUATOR" && grep -q "type: story" "$SHARED_EVALUATOR"; then
+  echo "  PASS A3: Bug and Story sub-sections present"
 else
-  echo "  FAIL A3: Missing 'type: bug' or 'type: feature' sub-sections in $SHARED_EVALUATOR" >&2
+  echo "  FAIL A3: Missing 'type: bug' or 'type: story' sub-sections in $SHARED_EVALUATOR" >&2
   test_case_A_pass=false
 fi
 

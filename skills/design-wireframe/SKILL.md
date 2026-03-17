@@ -817,7 +817,7 @@ tk add-note $ARGUMENTS "Design Manifest: designs/<uuid>/manifest.md | Spatial La
 
 If the story was split in Step 10, also create the enhancement story:
 ```
-tk create "Enhancement: <title>" -t feature -p <same priority> -d "<description referencing foundation story $ARGUMENTS>"
+tk create "Enhancement: <title>" -t story -p <same priority> -d "<description referencing foundation story $ARGUMENTS>"
 tk dep <new-story-id> $ARGUMENTS
 ```
 

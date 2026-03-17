@@ -276,19 +276,15 @@ Apply the brainstorm routing rule to the shared rubric's output. The key insight
 
 **Rationale**: TRIVIAL and MODERATE+High epics have named files, testable acceptance criteria, and bounded scope — the brainstorm dialogue already produced story-level detail. Preplanning would add overhead without value. MODERATE+Medium epics have a clear goal but implicit acceptance criteria that need decomposition. COMPLEX epics require full story decomposition regardless of spec fidelity.
 
-#### Step 4c: Surface Classification to User
+#### Step 4c: Invoke Next Skill
 
-Before invoking the next skill, output to the user:
+Output the classification line and invoke the Skill tool **in the same response** — do not yield to the user between them:
 
 ```
 Epic classified as <TIER> (scope_certainty: <HIGH|MEDIUM|LOW>) — invoking /<skill> [mode]
 ```
 
-where `<skill>` is `implementation-plan` for TRIVIAL or MODERATE+High, `preplanning --lightweight` for MODERATE+Medium, and `preplanning` (full) for COMPLEX.
-
-#### Step 4d: Invoke Next Skill
-
-Immediately invoke the routed skill — do NOT wait for user input after surfacing the classification:
+Then immediately (same response, no pause):
 
 ```
 # TRIVIAL or MODERATE + scope_certainty High:
@@ -308,15 +304,6 @@ Skill tool:
 ```
 
 `/dso:implementation-plan` will break the epic directly into atomic TDD tasks. `/dso:preplanning` will decompose into user stories first, then each story gets `/dso:implementation-plan`. Control returns here only if the invoked skill escalates (e.g., requires user clarification).
-
-Report the epic creation and skill handoff:
-
-```
-=== Brainstorm Complete ===
-
-Epic created: <epic-id> — "<title>"
-Epic classified as <TIER> (scope_certainty: <level>) — invoking /<skill>…
-```
 
 ---
 
@@ -342,4 +329,4 @@ Epic classified as <TIER> (scope_certainty: <level>) — invoking /<skill>…
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), route: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
+| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

@@ -124,13 +124,13 @@ ls "${CLAUDE_PLUGIN_ROOT}/scripts/"*.sh 2>/dev/null
 ls "${CLAUDE_PLUGIN_ROOT}/skills/"*/SKILL.md 2>/dev/null
 
 # Read the plugin's hook wiring to see what's already active
-cat "${CLAUDE_PLUGIN_ROOT}/hooks.json" 2>/dev/null
+cat "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null
 ```
 
 **Classify each discovered component** into the enforcement layers below. For each, determine:
 
-1. **Already wired** — listed in `hooks.json` and active for this project (no action needed)
-2. **Available but unwired** — exists in the plugin but not in `hooks.json`; may need project-specific activation (e.g., adding to `.claude/settings.json` or `hooks.json`)
+1. **Already wired** — listed in `.claude-plugin/plugin.json` and active for this project (no action needed)
+2. **Available but unwired** — exists in the plugin but not in `.claude-plugin/plugin.json`; may need project-specific activation (e.g., adding to `.claude/settings.json` or `.claude-plugin/plugin.json`)
 3. **Needs project configuration** — exists but requires a `workflow-config.yaml` value or environment variable (e.g., `validate.sh` needs a `commands.validate` entry; `auto-format.sh` needs the project's formatter command)
 4. **Not applicable** — doesn't match this project's stack or workflow (skip, note why)
 
@@ -358,7 +358,7 @@ Configure hooks that fire **before** an action executes and can **block** it. Th
 | `plan-review-gate.sh` | **Review Gate** | Blocks ExitPlanMode without `/dso:plan-review` |
 | `review-integrity-guard.sh` | **Integrity Guard** | Blocks fabrication of review artifacts |
 
-If any of these are listed in `hooks.json` but need project-specific configuration (e.g., `validation-gate.sh` needs `commands.validate`), configure them via `workflow-config.yaml` or `/dso:init`.
+If any of these are listed in `.claude-plugin/plugin.json` but need project-specific configuration (e.g., `validation-gate.sh` needs `commands.validate`), configure them via `workflow-config.yaml` or `/dso:init`.
 
 **Project-specific hooks to add** (only if gaps remain after plugin inventory):
 
@@ -370,7 +370,7 @@ If any of these are listed in `hooks.json` but need project-specific configurati
 | Platform | Pre-action hooks |
 |----------|-----------------|
 | Git | `pre-commit` hooks (lint, format, security scan, import cycles) |
-| AI coding tools | `PreToolUse` hooks on Edit/Write/Bash (Claude Code, Cursor, etc.) — see `hooks.json` |
+| AI coding tools | `PreToolUse` hooks on Edit/Write/Bash (Claude Code, Cursor, etc.) — see `.claude-plugin/plugin.json` |
 | CI/CD | Required status checks, branch protection rules |
 | Build systems | Pre-build validation tasks (Gradle, Make, Turborepo) |
 | Editor/IDE | Save-time linting, error squiggles, format-on-save |

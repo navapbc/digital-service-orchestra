@@ -45,7 +45,7 @@ Task type → Action:
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
-**Ticket type terminology**: `epic` = container for a feature area; `feature` = user story (epic children, written as "As a [user], [goal]"); `task` = implementation work item. Ticket titles must be ≤ 255 characters (Jira sync limit).
+**Ticket type terminology**: `epic` = container for a feature area; `story` = user story (epic children, written as "As a [user], [goal]"); `task` = implementation work item. Ticket titles must be ≤ 255 characters (Jira sync limit).
 
 ## Architecture
 

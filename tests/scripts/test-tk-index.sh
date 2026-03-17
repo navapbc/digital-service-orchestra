@@ -54,7 +54,7 @@ TMPDIR_T1=$(mktemp -d)
 export TICKETS_DIR="$TMPDIR_T1"
 
 # Create a ticket via tk create
-output=$("$TK_SCRIPT" create "My Test Ticket" -t feature -p 2 2>&1)
+output=$("$TK_SCRIPT" create "My Test Ticket" -t story -p 2 2>&1)
 created_id=$(echo "$output" | tr -d '[:space:]')
 
 index_file="$TMPDIR_T1/.index.json"
@@ -75,7 +75,7 @@ else:
     print(entry.get('status',''), entry.get('type',''), entry.get('title',''))
 " 2>&1)
 
-    if echo "$entry" | grep -q "open" && echo "$entry" | grep -q "feature"; then
+    if echo "$entry" | grep -q "open" && echo "$entry" | grep -q "story"; then
         echo "  PASS: test_index_incremental_update — index entry created with correct status/type"
         (( PASS++ ))
     else

@@ -238,7 +238,7 @@ Parse the blue team's accepted findings and apply each one based on its `type`:
 
 | Finding Type | Action |
 |-------------|--------|
-| `new_story` | Create a new story: `tk create "<title>" -t feature --parent=<epic-id>`. Add the finding's description and rationale to the story description. Add appropriate done definitions and considerations. |
+| `new_story` | Create a new story: `tk create "<title>" -t story --parent=<epic-id>`. Add the finding's description and rationale to the story description. Add appropriate done definitions and considerations. |
 | `modify_done_definition` | Edit the target story's ticket file (`.tickets/<target_story_id>.md`) to add or modify done definitions per the finding's description. |
 | `add_dependency` | Add the dependency: `tk dep <target_story_id> <dependency_id>` (extract dependency ID from the finding's description). |
 | `add_consideration` | Edit the target story's ticket file to append the consideration to its Considerations section. |
@@ -337,7 +337,7 @@ For each split:
 
 For new stories, use `--parent` at creation time (single command — avoids the child not appearing under the epic if the update step is skipped):
 ```bash
-tk create "As a [persona], [goal]" -t feature -p <priority> --parent=<epic-id>
+tk create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id>
 ```
 
 For modified stories:

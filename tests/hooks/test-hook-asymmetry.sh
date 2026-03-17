@@ -13,7 +13,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-HOOKS_JSON="$PLUGIN_ROOT/hooks.json"
+HOOKS_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
 
 # ─────────────────────────────────────────────────────────────
 # test_hooks_json_has_agent_pretooluse

@@ -67,7 +67,7 @@ Example B-2 (Medium): `"Users sometimes see stale extraction results after re-up
 Example B-3 (Low): `"The pipeline sometimes crashes. Need to investigate."`
 → No repro, no fix scope. scope_certainty: Low → forces COMPLEX.
 
-#### For `type: feature`, `type: epic`, `type: story` tickets
+#### For `type: story`, `type: epic` tickets
 
 | Rating | Criteria |
 |--------|---------|

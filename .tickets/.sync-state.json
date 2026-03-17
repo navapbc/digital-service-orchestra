@@ -1,0 +1,232 @@
+{
+  "dso-s991": {
+    "jira_key": "DIG-1",
+    "local_hash": "60e92f08a1ad9e043a9768be3264a68a",
+    "jira_hash": "60e92f08a1ad9e043a9768be3264a68a",
+    "last_synced": "2026-03-17T18:33:25Z"
+  },
+  "dso-ffzi": {
+    "jira_key": "DIG-2",
+    "local_hash": "dead1b6e6549aa6b05162a305bcafe21",
+    "jira_hash": "dead1b6e6549aa6b05162a305bcafe21",
+    "last_synced": "2026-03-17T18:33:27Z"
+  },
+  "dso-t7af": {
+    "jira_key": "DIG-3",
+    "local_hash": "0047fe3649462d13a934302d0d338a0c",
+    "jira_hash": "0047fe3649462d13a934302d0d338a0c",
+    "last_synced": "2026-03-17T18:33:29Z"
+  },
+  "dso-iwb4": {
+    "jira_key": "DIG-4",
+    "local_hash": "0f7b04ead8778669fbed335ea632c122",
+    "jira_hash": "0f7b04ead8778669fbed335ea632c122",
+    "last_synced": "2026-03-17T18:33:31Z"
+  },
+  "dso-v558": {
+    "jira_key": "DIG-5",
+    "local_hash": "d7831a8ddf2ddfa9012080036479bfd2",
+    "jira_hash": "d7831a8ddf2ddfa9012080036479bfd2",
+    "last_synced": "2026-03-17T18:33:33Z"
+  },
+  "dso-gkct": {
+    "jira_key": "DIG-6",
+    "local_hash": "4ff0d8cf33d5efe6809d1e99e376da60",
+    "jira_hash": "4ff0d8cf33d5efe6809d1e99e376da60",
+    "last_synced": "2026-03-17T18:33:35Z"
+  },
+  "dso-g10j": {
+    "jira_key": "DIG-7",
+    "local_hash": "43b2b4654a453ab7e5f4f8e8597ce570",
+    "jira_hash": "43b2b4654a453ab7e5f4f8e8597ce570",
+    "last_synced": "2026-03-17T18:33:37Z"
+  },
+  "dso-tmmj": {
+    "jira_key": "DIG-8",
+    "local_hash": "dff795cbd65c444891c454893e71aea9",
+    "jira_hash": "dff795cbd65c444891c454893e71aea9",
+    "last_synced": "2026-03-17T18:33:39Z"
+  },
+  "dso-0wi2": {
+    "jira_key": "DIG-9",
+    "local_hash": "5a9a175d446279351c4a926f2bbcb581",
+    "jira_hash": "5a9a175d446279351c4a926f2bbcb581",
+    "last_synced": "2026-03-17T18:33:41Z"
+  },
+  "dso-fbky": {
+    "jira_key": "DIG-10",
+    "local_hash": "a1e248003c8df0e1bb1fa2904f6f3630",
+    "jira_hash": "a1e248003c8df0e1bb1fa2904f6f3630",
+    "last_synced": "2026-03-17T18:33:43Z"
+  },
+  "dso-9fgn": {
+    "jira_key": "DIG-11",
+    "local_hash": "e7c271f609e191f6921fd7172b391d1b",
+    "jira_hash": "e7c271f609e191f6921fd7172b391d1b",
+    "last_synced": "2026-03-17T18:33:44Z"
+  },
+  "dso-sq4k": {
+    "jira_key": "DIG-12",
+    "local_hash": "32eeb65392e2d6fa4dc49c4220eb0cff",
+    "jira_hash": "32eeb65392e2d6fa4dc49c4220eb0cff",
+    "last_synced": "2026-03-17T18:33:46Z"
+  },
+  "dso-pxos": {
+    "jira_key": "DIG-13",
+    "local_hash": "4153f912c988e0b39624e5a19d5f32f6",
+    "jira_hash": "4153f912c988e0b39624e5a19d5f32f6",
+    "last_synced": "2026-03-17T18:33:48Z"
+  },
+  "dso-lwcp": {
+    "jira_key": "DIG-14",
+    "local_hash": "d092c0fc6663449a6a246a8025b79ab7",
+    "jira_hash": "d092c0fc6663449a6a246a8025b79ab7",
+    "last_synced": "2026-03-17T18:33:50Z"
+  },
+  "dso-to7x": {
+    "jira_key": "DIG-15",
+    "local_hash": "fbc46c312e9727ab81dc70abf462f1ee",
+    "jira_hash": "fbc46c312e9727ab81dc70abf462f1ee",
+    "last_synced": "2026-03-17T18:33:52Z"
+  },
+  "dso-khl2": {
+    "jira_key": "DIG-16",
+    "local_hash": "c98c186eb47a7525bca31118fa3e7bed",
+    "jira_hash": "c98c186eb47a7525bca31118fa3e7bed",
+    "last_synced": "2026-03-17T18:33:54Z"
+  },
+  "dso-9l2x": {
+    "jira_key": "DIG-17",
+    "local_hash": "d37403afd8d78dbabad6ce3690f22cbc",
+    "jira_hash": "d37403afd8d78dbabad6ce3690f22cbc",
+    "last_synced": "2026-03-17T18:33:56Z"
+  },
+  "dso-94ya": {
+    "jira_key": "DIG-18",
+    "local_hash": "ecd903a2ee5eadfdb04bb4b0aa704962",
+    "jira_hash": "ecd903a2ee5eadfdb04bb4b0aa704962",
+    "last_synced": "2026-03-17T18:33:58Z"
+  },
+  "dso-qo0x": {
+    "jira_key": "DIG-19",
+    "local_hash": "02403f13d4aedf07d89743dc7ed6bc16",
+    "jira_hash": "02403f13d4aedf07d89743dc7ed6bc16",
+    "last_synced": "2026-03-17T18:33:59Z"
+  },
+  "dso-soyt": {
+    "jira_key": "DIG-20",
+    "local_hash": "aaca94c67843c2f0ee516623332526ac",
+    "jira_hash": "aaca94c67843c2f0ee516623332526ac",
+    "last_synced": "2026-03-17T18:34:01Z"
+  },
+  "dso-q0lo": {
+    "jira_key": "DIG-23",
+    "local_hash": "5cb78692dd4157021c7553f743a4f4de",
+    "jira_hash": "5cb78692dd4157021c7553f743a4f4de",
+    "last_synced": "2026-03-17T18:34:03Z"
+  },
+  "dso-s12s": {
+    "jira_key": "DIG-24",
+    "local_hash": "7580558c1bbecb65a44ebae34de3cd56",
+    "jira_hash": "7580558c1bbecb65a44ebae34de3cd56",
+    "last_synced": "2026-03-17T18:34:05Z"
+  },
+  "dso-ag1b": {
+    "jira_key": "DIG-25",
+    "local_hash": "7788d3953263c5ecaa240c20232ea075",
+    "jira_hash": "7788d3953263c5ecaa240c20232ea075",
+    "last_synced": "2026-03-17T18:34:07Z"
+  },
+  "dso-ppwp": {
+    "jira_key": "DIG-26",
+    "local_hash": "c9315e201f6eb91f9ae0a2a718bfc85d",
+    "jira_hash": "c9315e201f6eb91f9ae0a2a718bfc85d",
+    "last_synced": "2026-03-17T18:34:10Z"
+  },
+  "dso-p2d3": {
+    "jira_key": "DIG-27",
+    "local_hash": "fa848f89bfec94e96a2f9dfe30340219",
+    "jira_hash": "fa848f89bfec94e96a2f9dfe30340219",
+    "last_synced": "2026-03-17T18:34:11Z"
+  },
+  "dso-4s8r": {
+    "jira_key": "DIG-28",
+    "local_hash": "9ac64174bb3902f9a74f8831420350e3",
+    "jira_hash": "9ac64174bb3902f9a74f8831420350e3",
+    "last_synced": "2026-03-17T18:34:13Z"
+  },
+  "dso-uvyl": {
+    "jira_key": "DIG-29",
+    "local_hash": "c0ac65cf3c3991b16a05e02c3479d4d9",
+    "jira_hash": "c0ac65cf3c3991b16a05e02c3479d4d9",
+    "last_synced": "2026-03-17T18:34:15Z"
+  },
+  "dso-igoj": {
+    "jira_key": "DIG-30",
+    "local_hash": "ba1e882359e985feadde23261e2f0dbd",
+    "jira_hash": "ba1e882359e985feadde23261e2f0dbd",
+    "last_synced": "2026-03-17T18:34:17Z"
+  },
+  "dso-3xhk": {
+    "jira_key": "DIG-31",
+    "local_hash": "a4fc39c6371ca9a2968c59879f757360",
+    "jira_hash": "a4fc39c6371ca9a2968c59879f757360",
+    "last_synced": "2026-03-17T18:34:19Z"
+  },
+  "dso-42eg": {
+    "jira_key": "DIG-32",
+    "local_hash": "eebdb81a8f4812d40dcb679ac3ddb32f",
+    "jira_hash": "eebdb81a8f4812d40dcb679ac3ddb32f",
+    "last_synced": "2026-03-17T18:34:21Z"
+  },
+  "dso-qii9": {
+    "jira_key": "DIG-33",
+    "local_hash": "d287111af9a89a7a046b3ea3adaa677d",
+    "jira_hash": "d287111af9a89a7a046b3ea3adaa677d",
+    "last_synced": "2026-03-17T18:34:23Z"
+  },
+  "dso-zj3r": {
+    "jira_key": "DIG-34",
+    "local_hash": "22a07b03634bb4a6155e358d308f1235",
+    "jira_hash": "22a07b03634bb4a6155e358d308f1235",
+    "last_synced": "2026-03-17T18:34:25Z"
+  },
+  "dso-uu13": {
+    "jira_key": "DIG-35",
+    "local_hash": "cc5151b8cdf3cd35b8090ad28d6e38aa",
+    "jira_hash": "cc5151b8cdf3cd35b8090ad28d6e38aa",
+    "last_synced": "2026-03-17T18:34:27Z"
+  },
+  "dso-0k2k": {
+    "jira_key": "DIG-36",
+    "local_hash": "f5d646fc039133d922037af57fea81e5",
+    "jira_hash": "f5d646fc039133d922037af57fea81e5",
+    "last_synced": "2026-03-17T18:34:29Z"
+  },
+  "dso-r97p": {
+    "jira_key": "DIG-37",
+    "local_hash": "7d9c7097531deb7131e38b2c94d9951f",
+    "jira_hash": "7d9c7097531deb7131e38b2c94d9951f",
+    "last_synced": "2026-03-17T18:34:31Z"
+  },
+  "dso-t4k8": {
+    "jira_key": "DIG-38",
+    "local_hash": "2f079852bfe860c9f85805249f08671f",
+    "jira_hash": "2f079852bfe860c9f85805249f08671f",
+    "last_synced": "2026-03-17T18:34:32Z"
+  },
+  "dso-1fnl": {
+    "jira_key": "DIG-39",
+    "local_hash": "5ccad6a41d0007dd241c7840eb4d3c26",
+    "jira_hash": "5ccad6a41d0007dd241c7840eb4d3c26",
+    "last_synced": "2026-03-17T18:34:34Z"
+  },
+  "dso-6524": {
+    "jira_key": "DIG-40",
+    "local_hash": "b2fcb1e44695c32874c75055e4b8c9e8",
+    "jira_hash": "b2fcb1e44695c32874c75055e4b8c9e8",
+    "last_synced": "2026-03-17T18:34:36Z"
+  },
+  "last_sync_commit": "771ac4d45e0fbd022c2c83fece87d584a02df6f9",
+  "last_pull_timestamp": "2026-03-17T18:34:38Z"
+}

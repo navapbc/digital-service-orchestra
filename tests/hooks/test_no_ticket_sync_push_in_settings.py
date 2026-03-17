@@ -8,7 +8,7 @@ import pathlib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SETTINGS_JSON = REPO_ROOT / ".claude" / "settings.json"
-HOOKS_JSON = REPO_ROOT / "hooks.json"
+HOOKS_JSON = REPO_ROOT / ".claude-plugin" / "plugin.json"
 
 
 def test_no_ticket_sync_push_in_settings() -> None:
@@ -21,9 +21,9 @@ def test_no_ticket_sync_push_in_settings() -> None:
 
 
 def test_no_ticket_sync_push_in_hooks_json() -> None:
-    """lockpick-workflow/hooks.json must not reference ticket-sync-push."""
+    """plugin.json hooks must not reference ticket-sync-push."""
     content = HOOKS_JSON.read_text()
     assert "ticket-sync-push" not in content, (
-        "lockpick-workflow/hooks.json still contains ticket-sync-push reference(s). "
+        ".claude-plugin/plugin.json still contains ticket-sync-push reference(s). "
         "These should have been removed as part of removing the automatic ticket sync hook."
     )

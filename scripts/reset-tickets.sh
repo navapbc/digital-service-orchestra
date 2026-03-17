@@ -8,7 +8,7 @@ set -euo pipefail
 #   1. Validates preconditions (on main, clean working tree, commit exists)
 #   2. Deletes ALL existing issues from the target Jira project
 #   3. Restores .tickets/ from the specified commit
-#   4. Applies type hierarchy fixes (task→feature for epic children)
+#   4. Applies type hierarchy fixes (task→story for epic children)
 #   5. Deletes .sync-state.json to force a full resync
 #   6. Commits the reset
 #   7. Runs tk sync to push all tickets to the clean Jira project
@@ -146,7 +146,7 @@ echo "This will:"
 echo "  1. Delete ALL existing issues from Jira project '$JIRA_PROJECT'"
 echo "  2. Remove all files in .tickets/"
 echo "  3. Restore .tickets/ from commit $COMMIT_SHA ($BASELINE_COUNT files)"
-echo "  4. Fix type hierarchy (task→feature for epic children)"
+echo "  4. Fix type hierarchy (task→story for epic children)"
 echo "  5. Delete .sync-state.json"
 echo "  6. Commit the reset"
 echo "  7. Run tk sync to push $BASELINE_COUNT tickets to Jira"
@@ -206,7 +206,7 @@ echo "  Restored $RESTORED_COUNT ticket files."
 # ── Step 4: Type hierarchy fixes ────────────────────────────────────────────
 
 echo ""
-echo "Step 4/8: Fixing type hierarchy (task→feature for epic children)..."
+echo "Step 4/8: Fixing type hierarchy (task→story for epic children)..."
 FIX_COUNT=0
 for f in "$REPO_ROOT"/.tickets/*.md; do
     [[ -f "$f" ]] || continue
@@ -217,7 +217,7 @@ for f in "$REPO_ROOT"/.tickets/*.md; do
         if [[ -n "$parent_file" ]]; then
             parent_type=$(awk '/^---$/{n++; next} n==1 && /^type:/{print $2}' "$parent_file")
             if [[ "$parent_type" == "epic" ]]; then
-                sed -i '' '/^---$/,/^---$/s/^type: task$/type: feature/' "$f"
+                sed -i '' '/^---$/,/^---$/s/^type: task$/type: story/' "$f"
                 FIX_COUNT=$((FIX_COUNT + 1))
             fi
         fi

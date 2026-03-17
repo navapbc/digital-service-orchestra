@@ -2687,8 +2687,9 @@ except Exception as e:
                 "Epic")    tk_type="epic" ;;
                 "Bug")     tk_type="bug" ;;
                 "Task")    tk_type="task" ;;
-                "Feature") tk_type="feature" ;;
-                *)         tk_type="feature" ;;
+                "Story")   tk_type="story" ;;
+                "Feature") tk_type="story" ;;
+                *)         tk_type="story" ;;
             esac
         fi
 
@@ -2923,10 +2924,11 @@ _sync_push_ticket() {
     if [[ -z "$jira_type" ]]; then
         case "$type" in
             epic)    jira_type="Epic" ;;
-            feature) jira_type="Feature" ;;
+            story)   jira_type="Story" ;;
+            feature) jira_type="Story" ;;
             task)    jira_type="Task" ;;
             bug)     jira_type="Bug" ;;
-            *)       jira_type="Feature" ;;
+            *)       jira_type="Story" ;;
         esac
     fi
 
@@ -3135,8 +3137,9 @@ except Exception:
                         "Epic")    _jf_tk_type="epic" ;;
                         "Bug")    _jf_tk_type="bug" ;;
                         "Task")   _jf_tk_type="task" ;;
-                        "Feature") _jf_tk_type="feature" ;;
-                        *)        _jf_tk_type="feature" ;;
+                        "Story")   _jf_tk_type="story" ;;
+                        "Feature") _jf_tk_type="story" ;;
+                        *)        _jf_tk_type="story" ;;
                     esac
                 fi
                 if [[ -n "${JIRA_PRIORITY_MAP:-}" ]]; then
@@ -3627,8 +3630,9 @@ except Exception as e:
             "Epic")    tk_type="epic" ;;
             "Bug")    tk_type="bug" ;;
             "Task")   tk_type="task" ;;
-            "Feature") tk_type="feature" ;;
-            *)        tk_type="feature" ;;
+            "Story")   tk_type="story" ;;
+            "Feature") tk_type="story" ;;
+            *)        tk_type="story" ;;
         esac
     fi
 
@@ -5359,7 +5363,7 @@ Commands:
     -d, --description      Description text
     --design               Design notes
     --acceptance           Acceptance criteria
-    -t, --type             Type (bug|feature|task|epic|chore) [default: task]
+    -t, --type             Type (bug|story|task|epic|chore) [default: task]
     -p, --priority         Priority 0-4, 0=highest [default: 2]
     -a, --assignee         Assignee
     --external-ref         External reference (e.g., gh-123, JIRA-456)
@@ -5378,7 +5382,7 @@ Commands:
   ready [-a X] [-T X]      List open/in-progress tickets with deps resolved
   blocked [-a X] [-T X]    List open/in-progress tickets with unresolved deps
   list [options]           List tickets (non-closed by default)
-    --type <type>          Filter by type (bug|task|epic|feature|chore)
+    --type <type>          Filter by type (bug|task|epic|story|chore)
     --status <status>      Filter by status (open|in_progress|closed)
     --priority <N>         Filter by priority (0-4)
     -a <name>              Filter by assignee

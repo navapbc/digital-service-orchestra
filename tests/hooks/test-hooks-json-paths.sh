@@ -11,7 +11,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-HOOKS_JSON="$PLUGIN_ROOT/hooks.json"
+HOOKS_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
 
 # ─────────────────────────────────────────────────────────────
 # test_hooks_json_exists
@@ -26,7 +26,7 @@ assert_eq "test_hooks_json_exists" "exists" "$actual"
 
 # ─────────────────────────────────────────────────────────────
 # test_hooks_json_valid
-# hooks.json must be valid JSON.
+# plugin.json must be valid JSON.
 # ─────────────────────────────────────────────────────────────
 if [[ -f "$HOOKS_JSON" ]] && python3 -m json.tool "$HOOKS_JSON" > /dev/null 2>&1; then
     actual="valid"
@@ -37,7 +37,7 @@ assert_eq "test_hooks_json_valid" "valid" "$actual"
 
 # ─────────────────────────────────────────────────────────────
 # test_hooks_json_plugin_root_refs
-# All 'command' values in hooks.json must contain '${CLAUDE_PLUGIN_ROOT}'.
+# All 'command' values in plugin.json hooks must contain '${CLAUDE_PLUGIN_ROOT}'.
 # ─────────────────────────────────────────────────────────────
 if [[ -f "$HOOKS_JSON" ]]; then
     # Extract all command values and check each contains ${CLAUDE_PLUGIN_ROOT}
@@ -76,7 +76,7 @@ assert_eq "test_hooks_json_plugin_root_refs" "all_have_plugin_root" "$actual"
 
 # ─────────────────────────────────────────────────────────────
 # test_hooks_json_no_absolute_paths
-# No 'command' values in hooks.json may contain '/Users/' or '/home/'.
+# No 'command' values in plugin.json hooks may contain '/Users/' or '/home/'.
 # ─────────────────────────────────────────────────────────────
 if [[ -f "$HOOKS_JSON" ]]; then
     abs_cmds=$(HOOKS_JSON_PATH="$HOOKS_JSON" python3 -c "
@@ -214,7 +214,7 @@ assert_eq "test_no_post_all_in_settings_json" "no_post_all" "$actual"
 
 # ─────────────────────────────────────────────────────────────
 # test_no_catch_all_empty_matcher_hooks_json
-# hooks.json must NOT have empty-matcher PreToolUse or PostToolUse entries
+# plugin.json hooks must NOT have empty-matcher PreToolUse or PostToolUse entries
 # (catch-all dispatchers were removed to reduce process count per tool call).
 # ─────────────────────────────────────────────────────────────
 if [[ -f "$HOOKS_JSON" ]]; then

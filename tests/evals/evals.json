@@ -409,23 +409,6 @@
       ]
     },
     {
-      "id": "plugin-scaffold-hooks-json-exists",
-      "category": "plugin-scaffold-phase1",
-      "phase_introduced": 1,
-      "hook": "hooks.json",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "hooks/hooks.json"
-        }
-      ]
-    },
-    {
       "id": "plugin-scaffold-skill-sprint-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
@@ -643,23 +626,6 @@
         {
           "type": "file_exists",
           "path": "hooks/run-hook.sh"
-        }
-      ]
-    },
-    {
-      "id": "plugin-scaffold-hooks-hooks-json-exists",
-      "category": "plugin-scaffold-phase1",
-      "phase_introduced": 1,
-      "hook": "hooks.json",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "hooks/hooks.json"
         }
       ]
     },

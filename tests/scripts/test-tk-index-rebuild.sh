@@ -81,7 +81,7 @@ export TICKETS_DIR="$TMPDIR_T2"
 
 # Create ticket files directly (bypassing tk create so there is no index yet)
 make_ticket "$TMPDIR_T2" "rebuild-aaa" "open"        "task"    "Alpha Task"
-make_ticket "$TMPDIR_T2" "rebuild-bbb" "in_progress" "feature" "Beta Feature"
+make_ticket "$TMPDIR_T2" "rebuild-bbb" "in_progress" "story" "Beta Story"
 make_ticket "$TMPDIR_T2" "rebuild-ccc" "closed"      "epic"    "Gamma Epic"
 
 # Confirm there is no index yet
@@ -108,7 +108,7 @@ import json, sys
 idx = json.load(open('$index_file'))
 expected = {
     'rebuild-aaa': {'title': 'Alpha Task',    'status': 'open',        'type': 'task'},
-    'rebuild-bbb': {'title': 'Beta Feature',  'status': 'in_progress', 'type': 'feature'},
+    'rebuild-bbb': {'title': 'Beta Story',  'status': 'in_progress', 'type': 'story'},
     'rebuild-ccc': {'title': 'Gamma Epic',    'status': 'closed',      'type': 'epic'},
 }
 errors = []
