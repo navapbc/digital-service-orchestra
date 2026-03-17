@@ -1,6 +1,6 @@
 ---
 id: dso-0sjt
-status: open
+status: closed
 deps: [dso-jl2z]
 links: []
 created: 2026-03-17T21:07:16Z
@@ -38,3 +38,12 @@ Run dso-setup.sh in this repo to bootstrap the plugin repo's own shim. Creates .
 - [ ] dso tk --help exits 0 without CLAUDE_PLUGIN_ROOT
   Verify: (cd $(git rev-parse --show-toplevel) && unset CLAUDE_PLUGIN_ROOT && ./.claude/scripts/dso tk --help)
 
+
+## Notes
+
+<!-- note-id: ii1m120u -->
+<!-- timestamp: 2026-03-17T22:20:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: .claude/scripts/dso installed via dso-setup.sh; dso tk --help exits 0 without CLAUDE_PLUGIN_ROOT

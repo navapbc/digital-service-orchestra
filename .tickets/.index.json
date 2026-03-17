@@ -15,6 +15,15 @@
     "title": "Ticket system upgrade",
     "type": "epic"
   },
+  "dso-0sjt": {
+    "deps": [
+      "dso-jl2z"
+    ],
+    "priority": 0,
+    "status": "closed",
+    "title": "Self-apply dso-setup.sh to plugin repo",
+    "type": "task"
+  },
   "dso-0wi2": {
     "deps": [],
     "priority": 2,
@@ -162,6 +171,13 @@
     "status": "open",
     "title": "Implementation planning tradeoffs",
     "type": "epic"
+  },
+  "dso-hq8y": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Pre-existing test failures in run-all.sh suites (hook/script tests)",
+    "type": "task"
   },
   "dso-igoj": {
     "deps": [],
