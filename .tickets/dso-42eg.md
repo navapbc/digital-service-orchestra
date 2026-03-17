@@ -1,6 +1,6 @@
 ---
 id: dso-42eg
-status: in_progress
+status: closed
 deps: [dso-qii9]
 links: []
 created: 2026-03-17T18:34:22Z
@@ -40,3 +40,10 @@ Claude/agents and human developers working in host projects that use the DSO plu
 ## Approach
 The shim template lives in the DSO plugin at templates/host-project/dso and is copied verbatim to .claude/scripts/dso during setup. Setup writes dso.plugin_root=<absolute-path> to workflow-config.conf. Plugin-internal hooks and self-locating scripts retain their existing CLAUDE_PLUGIN_ROOT/BASH_SOURCE patterns.
 
+
+<!-- note-id: if6tpboq -->
+<!-- timestamp: 2026-03-17T22:52:22Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: All 6 stories complete: shim template, setup script, doc migration, self-apply, cross-context smoke test, CLAUDE.md docs
