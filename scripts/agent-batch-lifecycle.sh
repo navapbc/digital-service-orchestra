@@ -447,9 +447,9 @@ cmd_cleanup_stale_containers() {
 cmd_cleanup_discoveries() {
     # Resolve discoveries dir via get_artifacts_dir (same source of truth as collect-discoveries.sh).
     # AGENT_DISCOVERIES_DIR env var overrides for test isolation.
-    local _deps_sh="$SCRIPT_DIR/../hooks/lib/deps.sh"
+    local _deps_sh="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/deps.sh"
     if [ -f "$_deps_sh" ]; then
-        # shellcheck source=../hooks/lib/deps.sh
+        # shellcheck source=hooks/lib/deps.sh
         source "$_deps_sh"
     fi
     local discoveries_dir="${AGENT_DISCOVERIES_DIR:-$(get_artifacts_dir)/agent-discoveries}"

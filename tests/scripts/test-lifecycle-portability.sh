@@ -108,19 +108,21 @@ assert_contains "test_lock_status_exit_0: UNLOCKED" "UNLOCKED" "$lock_status_out
 assert_pass_if_clean "test_lock_status_exit_0"
 
 # ── test_cleanup_discoveries_exit_0 ─────────────────────────────────────────
-# cleanup-discoveries should exit 0 and create the .agent-discoveries directory
+# cleanup-discoveries should exit 0 and create the agent-discoveries directory
 _snapshot_fail
+_disc_tmpdir=$(mktemp -d)
 discoveries_exit=0
 discoveries_output=""
-discoveries_output=$(_run cleanup-discoveries 2>&1) || discoveries_exit=$?
+discoveries_output=$(AGENT_DISCOVERIES_DIR="$_disc_tmpdir/agent-discoveries" _run cleanup-discoveries 2>&1) || discoveries_exit=$?
 assert_eq "test_cleanup_discoveries_exit_0: exit code" "0" "$discoveries_exit"
 assert_contains "test_cleanup_discoveries_exit_0: DISCOVERIES_CLEANED" "DISCOVERIES_CLEANED:" "$discoveries_output"
-# Verify the directory was created
-if [ -d "$TMPDIR_SKELETON/.agent-discoveries" ]; then
+# Verify the directory was created via AGENT_DISCOVERIES_DIR override
+if [ -d "$_disc_tmpdir/agent-discoveries" ]; then
     assert_eq "test_cleanup_discoveries_exit_0: dir created" "1" "1"
 else
     assert_eq "test_cleanup_discoveries_exit_0: dir created" "1" "0"
 fi
+rm -rf "$_disc_tmpdir"
 assert_pass_if_clean "test_cleanup_discoveries_exit_0"
 
 # ── test_cleanup_stale_containers_exit_0 ────────────────────────────────────

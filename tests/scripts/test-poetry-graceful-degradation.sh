@@ -161,13 +161,18 @@ echo "Test 7: reinstall-hooks.sh degrades gracefully when no venv and no poetry"
 # ---------------------------------------------------------------------------
 echo "Test 8: classify-task.sh with task ID falls back to system python3"
 {
-    no_poetry_path="$(_path_without_poetry)"
-    output=""
-    output=$(PATH="$no_poetry_path" bash "$CLASSIFY_TASK_SH" "lockpick-doc-to-logic-9o48" 2>/dev/null) || true
-    if echo "$output" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
-        assert_eq "test_classify_task_outputs_json_without_poetry" "json-output" "json-output"
+    if ! python3 -c "import yaml" 2>/dev/null; then
+        echo "  SKIP: classify-task.py requires PyYAML for JSON output"
+        (( PASS++ ))
     else
-        assert_eq "test_classify_task_outputs_json_without_poetry" "json-output" "non-json-output"
+        no_poetry_path="$(_path_without_poetry)"
+        output=""
+        output=$(PATH="$no_poetry_path" bash "$CLASSIFY_TASK_SH" "lockpick-doc-to-logic-9o48" 2>/dev/null) || true
+        if echo "$output" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+            assert_eq "test_classify_task_outputs_json_without_poetry" "json-output" "json-output"
+        else
+            assert_eq "test_classify_task_outputs_json_without_poetry" "json-output" "non-json-output"
+        fi
     fi
 }
 

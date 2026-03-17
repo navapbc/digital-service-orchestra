@@ -125,6 +125,11 @@ _smoke_setup() {
     git init -b main "$SMOKE_REPO" &>/dev/null
     # Create an initial commit so worktree creation works
     git -C "$SMOKE_REPO" commit --allow-empty -m "init" &>/dev/null
+    # Export CLAUDE_PLUGIN_ROOT so subshells in isolated temp repos can resolve
+    # hooks/lib and scripts paths (the variable is required by worktree-create.sh
+    # under set -u).  Point at the smoke repo so read-config.sh finds the
+    # workflow-config.conf copied there by individual tests.
+    export CLAUDE_PLUGIN_ROOT="$SMOKE_REPO"
 }
 
 _smoke_cleanup() {

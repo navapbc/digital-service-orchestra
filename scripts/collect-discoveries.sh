@@ -38,8 +38,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Source deps.sh for get_artifacts_dir
-# shellcheck source=../hooks/lib/deps.sh
-source "$SCRIPT_DIR/../hooks/lib/deps.sh"
+# shellcheck source=hooks/lib/deps.sh
+source "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/deps.sh"
 
 # Resolve discoveries directory
 DISCOVERIES_DIR="${AGENT_DISCOVERIES_DIR:-$(get_artifacts_dir)/agent-discoveries}"
