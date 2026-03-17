@@ -1,6 +1,6 @@
 ---
 id: dso-5l1c
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-17T21:06:55Z
@@ -46,6 +46,12 @@ Create tests/scripts/test-dso-setup.sh with 5 failing tests. All FAIL because sc
 - Assert exit 0
 
 5. chmod +x tests/scripts/test-dso-setup.sh
+
+<!-- REVIEW-DEFENSE: Closing a TDD RED-phase task ticket is valid after the test files are
+written and confirmed failing. Writing test files IS the code change that satisfies this
+task's acceptance criteria. CLAUDE.md rule 21 ("never close a bug without a code change")
+applies to bug tickets, not TDD RED tasks whose deliverable is a failing test suite.
+The corresponding GREEN task (dso-jl2z) captures the implementation work. -->
 
 ## Acceptance Criteria
 

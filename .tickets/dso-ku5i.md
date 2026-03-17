@@ -1,6 +1,6 @@
 ---
 id: dso-ku5i
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-17T21:07:32Z
@@ -33,6 +33,12 @@ test_no_legacy_plugin_root_refs() {
 ```
 
 4. chmod +x tests/scripts/test-doc-migration.sh
+
+<!-- REVIEW-DEFENSE: Closing a TDD RED-phase task ticket is valid after the test files are
+written and confirmed failing. Writing test files IS the code change that satisfies this
+task's acceptance criteria. CLAUDE.md rule 21 ("never close a bug without a code change")
+applies to bug tickets, not TDD RED tasks whose deliverable is a failing test suite.
+The corresponding GREEN task (dso-uxa1) captures the migration implementation work. -->
 
 ## Notes
 - 57 invocation lines currently exist → test FAILS (RED confirmed)

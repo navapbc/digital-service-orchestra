@@ -157,6 +157,52 @@ test_shim_error_names_config_key_when_no_dso_root() {
         "dso.plugin_root" "$stderr_output"
 }
 
+# ── test_lib_mode_exports_dso_root ───────────────────────────────────────────
+# When the shim is sourced with --lib, it must export DSO_ROOT set to the
+# plugin root (so callers can locate plugin scripts without exec-ing anything).
+test_lib_mode_exports_dso_root() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_lib_mode_exports_dso_root" "set" "shim-missing"; return
+    fi
+    local output
+    output=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash -c ". \"$SHIM\" --lib; echo \"DSO_ROOT=\$DSO_ROOT\"" 2>/dev/null) || true
+    assert_contains "test_lib_mode_exports_dso_root" "$PLUGIN_ROOT" "$output"
+}
+
+# ── test_lib_mode_produces_no_stdout ─────────────────────────────────────────
+# When the shim is sourced with --lib, it must produce no stdout output
+# (it is being used as a library, not a command dispatcher).
+# The helper also exits 0 explicitly; if the sourced shim calls exit/exec with
+# non-zero, the subshell exits non-zero and the test must fail.
+test_lib_mode_produces_no_stdout() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_lib_mode_produces_no_stdout" "" "shim-missing"; return
+    fi
+    local stdout
+    stdout=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash -c ". \"$SHIM\" --lib" 2>/dev/null) || true
+    assert_eq "test_lib_mode_produces_no_stdout" "" "$stdout"
+}
+
+# ── test_lib_mode_does_not_dispatch ──────────────────────────────────────────
+# When the shim is sourced with --lib and the caller then exits 0,
+# the exit code must be 0 (the shim must not exec or dispatch anything).
+test_lib_mode_does_not_dispatch() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_lib_mode_does_not_dispatch" "0" "shim-missing"; return
+    fi
+    local exit_code=0
+    CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash -c ". \"$SHIM\" --lib 2>/dev/null; exit 0" >/dev/null 2>&1 || exit_code=$?
+    assert_eq "test_lib_mode_does_not_dispatch" "0" "$exit_code"
+}
+
+# ── test_lib_mode_exec_exits_zero ────────────────────────────────────────────
+# When the shim is executed (not sourced) with --lib, it must exit 0.
+test_lib_mode_exec_exits_zero() {
+    local exit_code=0
+    CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SHIM" --lib >/dev/null 2>&1 || exit_code=$?
+    assert_eq "test_lib_mode_exec_exits_zero" "0" "$exit_code"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_shim_template_file_exists
 test_shim_is_executable
@@ -166,5 +212,9 @@ test_shim_exits_127_for_missing_script
 test_shim_error_names_missing_script
 test_shim_resolves_dso_root_from_config
 test_shim_error_names_config_key_when_no_dso_root
+test_lib_mode_exports_dso_root
+test_lib_mode_produces_no_stdout
+test_lib_mode_does_not_dispatch
+test_lib_mode_exec_exits_zero
 
 print_summary

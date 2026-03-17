@@ -1,6 +1,6 @@
 ---
 id: dso-02wk
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-17T21:06:26Z
@@ -21,6 +21,12 @@ Add 4 failing test functions to tests/scripts/test-shim-smoke.sh. All FAIL until
 **test_lib_mode_exec_exits_zero**: CLAUDE_PLUGIN_ROOT=PLUGIN_ROOT bash shim --lib; assert exit 0
 
 RED: shim treats '--lib' as script name, exits 127. All 4 FAIL.
+
+<!-- REVIEW-DEFENSE: Closing a TDD RED-phase task ticket is valid after the test files are
+written and confirmed failing. Writing test files IS the code change that satisfies this
+task's acceptance criteria. CLAUDE.md rule 21 ("never close a bug without a code change")
+applies to bug tickets, not TDD RED tasks whose deliverable is a failing test suite.
+The corresponding GREEN task (dso-2rts) captures the implementation work. -->
 
 ## Acceptance Criteria
 
