@@ -36,7 +36,7 @@
       "dso-awoz"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO hook or script author, I can source the shim in library mode to get DSO_ROOT without depending on CLAUDE_PLUGIN_ROOT",
     "type": "story"
   },
@@ -61,7 +61,7 @@
       "dso-awoz"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a Claude agent in a host project, I receive consistent DSO script invocation instructions across all skills and workflow docs",
     "type": "story"
   },
@@ -270,7 +270,7 @@
       "dso-awoz"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "As a host project maintainer, I can bootstrap DSO script access via one-time setup",
     "type": "story"
   },

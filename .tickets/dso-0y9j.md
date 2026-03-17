@@ -1,6 +1,6 @@
 ---
 id: dso-0y9j
-status: open
+status: closed
 deps: [dso-awoz]
 links: []
 created: 2026-03-17T19:51:55Z
@@ -36,3 +36,10 @@ OUT: The dispatch logic itself [S1], error handling for missing plugin (same cas
   ← Satisfies: 'Library mode exports only DSO_ROOT and produces no stdout'
 - When this story is complete, DSO_ROOT is exported and readable by the sourcing script
   ← Satisfies: 'A DSO hook or script can obtain DSO_ROOT...and reading the exported DSO_ROOT variable'
+
+<!-- note-id: 0itg4q53 -->
+<!-- timestamp: 2026-03-17T22:20:57Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: --lib flag in templates/host-project/dso; all lib-mode tests pass

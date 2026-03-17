@@ -1,6 +1,6 @@
 ---
 id: dso-r9fa
-status: open
+status: closed
 deps: [dso-awoz]
 links: []
 created: 2026-03-17T19:51:56Z
@@ -39,3 +39,10 @@ OUT: Shim logic itself [S1], library mode [S2], smoke tests [S4]
 
 ## Considerations
 - [Reliability] Setup must handle the case where workflow-config.conf already has a dso.plugin_root key — idempotent re-run required
+
+<!-- note-id: 8cez533h -->
+<!-- timestamp: 2026-03-17T22:20:58Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: scripts/dso-setup.sh; .claude/scripts/dso installed in plugin repo

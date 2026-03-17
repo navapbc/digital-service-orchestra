@@ -1,6 +1,6 @@
 ---
 id: dso-2x3c
-status: open
+status: closed
 deps: [dso-awoz]
 links: []
 created: 2026-03-17T19:51:57Z
@@ -37,3 +37,10 @@ OUT: Plugin-internal `hooks/hooks.json` configs (keep ${CLAUDE_PLUGIN_ROOT} — 
 
 ## Considerations
 - [Maintainability] 60+ files require migration — implementation plan should batch the changes and run the verification grep as a final step to confirm completeness
+
+<!-- note-id: 6i6obny5 -->
+<!-- timestamp: 2026-03-17T22:20:58Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: migrated 56 legacy invocations to .claude/scripts/dso <name>; test-doc-migration.sh passes
