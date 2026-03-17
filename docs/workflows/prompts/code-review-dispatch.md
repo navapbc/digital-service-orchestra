@@ -137,7 +137,7 @@ schema first and only writes the file if validation passes — you cannot obtain
 hash without passing schema validation. If it exits non-zero, fix the JSON and retry.
 
   REPO_ROOT={repo_root}
-  REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
+  REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | ".claude/scripts/dso write-reviewer-findings.sh"
   <your complete JSON here>
   FINDINGS_EOF
   )

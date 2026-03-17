@@ -48,7 +48,7 @@ regex patterns, and framework detection rules for the project's web stack.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-ADAPTER_FILE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-stack-adapter.sh")
+ADAPTER_FILE=$(bash ".claude/scripts/dso resolve-stack-adapter.sh")
 ```
 
 ### Adapter loaded vs missing:
@@ -462,7 +462,7 @@ Based on the story context, identify which application pages are relevant:
 
 Run the local environment preflight check:
 ```
-${CLAUDE_PLUGIN_ROOT}/scripts/check-local-env.sh
+.claude/scripts/dso check-local-env.sh
 ```
 
 - **If exits 0**: The app is running. Use the `APP_PORT` (default 3000) for

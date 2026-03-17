@@ -15,7 +15,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 cd $REPO_ROOT/app
 
 # Full validation — collects pass/fail per category
-${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --full --ci 2>&1
+.claude/scripts/dso validate.sh --full --ci 2>&1
 ```
 
 **Bash timeout**: Use `timeout: 960000` (16 minutes). The smart CI wait can poll for up to 15 minutes.

@@ -26,7 +26,7 @@ Set up a new project to use Digital Service Orchestra by auto-detecting the stac
 Run `detect-stack.sh` to identify the project type:
 
 ```bash
-STACK=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stack.sh" "${PROJECT_DIR:-.}")
+STACK=$(bash ".claude/scripts/dso detect-stack.sh" "${PROJECT_DIR:-.}")
 ```
 
 The script inspects marker files and returns one of:
@@ -50,14 +50,14 @@ Use the detected stack to populate sensible command defaults:
 | `convention-based` | `make test` | `make lint` | `make format` | — |
 
 Additional defaults for `python-poetry`:
-- `validate`: `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci`
+- `validate`: `.claude/scripts/dso validate.sh --ci`
 
 ### Step 3: Check for Existing Config
 
 Before proposing, check if `workflow-config.yaml` already exists using `read-config.sh`:
 
 ```bash
-EXISTING_STACK=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" stack "${PROJECT_DIR:-.}/workflow-config.yaml")
+EXISTING_STACK=$(bash ".claude/scripts/dso read-config.sh" stack "${PROJECT_DIR:-.}/workflow-config.yaml")
 ```
 
 If the file exists, warn the user and ask for confirmation before overwriting.
@@ -121,7 +121,7 @@ commands:
   lint: make lint
   format: make format
   format_check: make format-check
-  validate: ${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci
+  validate: .claude/scripts/dso validate.sh --ci
 ```
 
 ### node-npm

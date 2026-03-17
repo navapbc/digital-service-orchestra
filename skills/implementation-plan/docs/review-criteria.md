@@ -99,7 +99,7 @@ REVIEW_OUT="$(get_artifacts_dir)/implementation-plan-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller implementation-plan
+".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller implementation-plan
 ```
 
 **Caller schema hash**: `ae8bfc7bd9a0d7e3` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.

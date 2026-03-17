@@ -91,7 +91,7 @@ Then run the validation checks directly (do NOT use the Skill tool — it does n
 
 ```bash
 SCOPE_FILE="/tmp/validate-work-scope-${TIMESTAMP}.json"
-"${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh" --ci --scope-file "$SCOPE_FILE"
+".claude/scripts/dso validate.sh" --ci --scope-file "$SCOPE_FILE"
 VALIDATE_EXIT=$?
 ```
 

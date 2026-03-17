@@ -137,7 +137,7 @@ This sentinel prevents `pre-compact-checkpoint.sh` from creating unmerged checkp
 
 ### 3.5. Visual Baseline Comparison
 
-1. Read baseline dir from config: `BASELINE_DIR=$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
+1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
 2. Run `$REPO_ROOT/scripts/verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
 4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.

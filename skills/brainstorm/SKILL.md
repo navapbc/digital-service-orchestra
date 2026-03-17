@@ -161,7 +161,7 @@ REVIEW_OUT="$(mktemp /tmp/brainstorm-review-XXXXXX.json)"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller brainstorm
+".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller brainstorm
 ```
 
 **Caller schema hash**: `f4e5f5a355e4c145`

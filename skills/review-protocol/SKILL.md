@@ -130,10 +130,10 @@ After the sub-agent returns:
    EOF
 
    # Base schema check (always)
-   "${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT"
+   ".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT"
 
    # Per-caller check (when caller_id is provided)
-   # "${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
+   # ".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller <caller_id>
    ```
 3. If `SCHEMA_VALID: no` — retry the sub-agent once with an explicit format correction prompt; do not proceed with invalid output
 4. If `SCHEMA_VALID: yes` — proceed to Stage 3

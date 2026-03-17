@@ -22,7 +22,7 @@ Generate or update a project's `CLAUDE.md` by rendering the Digital Service Orch
 
 ### Step 1: Read Config
 
-Load the project's command values via `read-config.sh` (located at `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh`):
+Load the project's command values via `read-config.sh` (located at `.claude/scripts/dso read-config.sh`):
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
@@ -67,7 +67,7 @@ The Quick Reference table in the rendered output maps each workflow action to th
 
 | Action | Command | When Run |
 |--------|---------|----------|
-| Validate all | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci` | Runs automatically at start of `/dso:sprint` |
+| Validate all | `.claude/scripts/dso validate.sh --ci` | Runs automatically at start of `/dso:sprint` |
 | Format code | `make format` | Only if auto-format hook reports failure |
 | Run tests | `make test` | Before pushing, CI |
 | Lint | `make lint` | After creating classes |

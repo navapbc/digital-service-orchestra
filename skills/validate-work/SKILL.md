@@ -212,7 +212,7 @@ Visual tests only run on CI (Linux) — they always skip on macOS
 because font rendering differs ~11%, causing false pixel-diff failures.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-visual-baseline.sh"
+bash ".claude/scripts/dso check-visual-baseline.sh"
 ```
 
 **If on macOS** (the common local case): Report `VISUAL_REGRESSION=skipped_macos`.

@@ -60,7 +60,7 @@ REVIEW_OUT="$(get_artifacts_dir)/dev-onboarding-review-output.json"
 cat > "$REVIEW_OUT" <<'EOF'
 <assembled review JSON>
 EOF
-"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller dev-onboarding
+".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller dev-onboarding
 ```
 
 **Caller schema hash**: `9ec70789c77bcca2` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.

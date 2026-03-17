@@ -172,7 +172,7 @@ if [ -f "$STATE_FILE" ]; then
   echo "Validation state file found at $STATE_FILE — reusing existing result."
   cat "$STATE_FILE"
 else
-  ${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci
+  .claude/scripts/dso validate.sh --ci
 fi
 ```
 
@@ -918,7 +918,7 @@ DB models, DB clients), run the persistence coverage check:
 $REPO_ROOT/scripts/check-persistence-coverage.sh
 ```
 
-> **Canonical location**: `${CLAUDE_PLUGIN_ROOT}/scripts/check-persistence-coverage.sh` — `scripts/check-persistence-coverage.sh` is a backward-compatible exec wrapper that delegates to the canonical copy.
+> **Canonical location**: `.claude/scripts/dso check-persistence-coverage.sh` — `scripts/check-persistence-coverage.sh` is a backward-compatible exec wrapper that delegates to the canonical copy.
 
 If the check fails:
 1. Log: `"Persistence coverage check failed — persistence source changed without test coverage."`
@@ -947,7 +947,7 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this 
 
 **Snapshot exclusion**: When generating the diff files for review (Steps 1 and 2.5 of REVIEW-WORKFLOW.md), exclude snapshot baseline files from the diff so reviewers focus on code changes:
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE" \
+".claude/scripts/dso capture-review-diff.sh" "$DIFF_FILE" "$STAT_FILE" \
   ':!app/tests/unit/templates/snapshots/*.html'
 ```
 
@@ -1131,7 +1131,7 @@ If `CODE_FILES` is empty (all changes are documentation, tickets, or config):
 If `CODE_FILES` is non-empty: use `ci-status.sh --wait` which handles SHA-anchored polling, worktree auto-detection (falls back to `main` branch), and 30-minute timeout:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/ci-status.sh --wait
+.claude/scripts/dso ci-status.sh --wait
 ```
 
 | CI Result | Action |

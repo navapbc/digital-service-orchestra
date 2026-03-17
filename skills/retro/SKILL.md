@@ -32,7 +32,7 @@ Flow: P1 (Health Assessment) → P2 (Codebase Review) → P3 (Findings Report)
 Run the data-collection script to gather all metrics in one pass:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/retro-gather.sh
+.claude/scripts/dso retro-gather.sh
 ```
 
 Use `--quick` to skip slow checks (dependency freshness, plugin versions) when session usage is high.

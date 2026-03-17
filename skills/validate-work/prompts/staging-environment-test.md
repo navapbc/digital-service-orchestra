@@ -115,7 +115,7 @@ Run local deterministic tests before any live environment interaction:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-STAGING_URL="{STAGING_URL}" HEALTH_PATH="{STAGING_HEALTH_PATH}" ROUTES="{STAGING_ROUTES}" bash "${CLAUDE_PLUGIN_ROOT}/scripts/staging-smoke-test.sh"
+STAGING_URL="{STAGING_URL}" HEALTH_PATH="{STAGING_HEALTH_PATH}" ROUTES="{STAGING_ROUTES}" bash ".claude/scripts/dso staging-smoke-test.sh"
 ```
 
 **Interpret Tier 0 results:**

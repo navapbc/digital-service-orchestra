@@ -31,7 +31,7 @@ regex patterns, and framework detection rules for the project's web stack.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-ADAPTER_FILE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-stack-adapter.sh")
+ADAPTER_FILE=$(bash ".claude/scripts/dso resolve-stack-adapter.sh")
 ```
 
 ### Adapter loaded vs missing:
@@ -82,7 +82,7 @@ The Playwright crawl (Phase 2 Step 8) requires Docker, Postgres, and the
 application to be healthy.
 
 ```
-${CLAUDE_PLUGIN_ROOT}/scripts/check-local-env.sh
+.claude/scripts/dso check-local-env.sh
 ```
 
 Where `$REPO_ROOT` is determined by `git rev-parse --show-toplevel`.
@@ -123,7 +123,7 @@ Note whether Playwright is available. If not, warn that route crawling will be
 skipped and the cache will be static-analysis-only.
 
 **Running application:** If Phase 0 passed, the app is confirmed healthy on its
-port. Use the port from `${CLAUDE_PLUGIN_ROOT}/scripts/check-local-env.sh` output or the `APP_PORT` env var
+port. Use the port from `.claude/scripts/dso check-local-env.sh` output or the `APP_PORT` env var
 (default port depends on the framework — use the adapter's conventions or
 fall back to common defaults: 5000 for Flask, 3000 for Node, 8080 for Go).
 If Phase 0 was skipped with "Continue without live app", skip this probe
@@ -681,12 +681,12 @@ script is self-contained, deterministic, and read-only.
 
 ### Logic Flow
 
-Generate the script by copying `${CLAUDE_PLUGIN_ROOT}/scripts/validate-ui-cache.sh` and
+Generate the script by copying `.claude/scripts/dso validate-ui-cache.sh` and
 substituting placeholder values (`<SHORT_SHA>`, `<LIST_OF_THEME_FILES>`, etc.) with
 real values from the current cache state. Run validation with:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-ui-cache.sh
+bash .claude/scripts/dso validate-ui-cache.sh
 ```
 
 Every time the cache is refreshed, `validate-ui-cache.sh` is regenerated with the

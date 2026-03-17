@@ -63,7 +63,7 @@ PLAN_OUT="$(get_artifacts_dir)/plan-review-output.txt"
 cat > "$PLAN_OUT" <<'EOF'
 <sub-agent output>
 EOF
-"${CLAUDE_PLUGIN_ROOT}/scripts/validate-review-output.sh" plan-review "$PLAN_OUT"
+".claude/scripts/dso validate-review-output.sh" plan-review "$PLAN_OUT"
 ```
 
 If `SCHEMA_VALID: no` — send a correction prompt to the sub-agent requesting the exact format; do not proceed until validation passes.

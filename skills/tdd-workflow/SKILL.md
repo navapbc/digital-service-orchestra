@@ -100,7 +100,7 @@ make format-check && make lint && make test
 
 # Full CI validation (recommended before commit)
 # Use Bash timeout: 960000 (16 min) — smart CI wait can poll up to 15 min
-${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci
+.claude/scripts/dso validate.sh --ci
 ```
 
 ## Example
@@ -159,7 +159,7 @@ make format-check && make lint && make test
 # All checks pass
 
 # Use Bash timeout: 960000 (16 min) — smart CI wait can poll up to 15 min
-${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --full --ci
+.claude/scripts/dso validate.sh --full --ci
 # Full validation passes
 ```
 
@@ -201,5 +201,5 @@ poetry run pytest -v -s
 poetry run pytest -x
 
 # Full validation (use Bash timeout: 960000 — smart CI wait can take up to 15 min)
-${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --full --ci
+.claude/scripts/dso validate.sh --full --ci
 ```

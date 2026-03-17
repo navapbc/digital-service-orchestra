@@ -59,9 +59,9 @@ if [[ -f "$SKILL_FILE" ]]; then
 fi
 
 # test_init_skill_references_detect_stack
-# Must reference detect-stack.sh via ${CLAUDE_PLUGIN_ROOT}.
+# Must reference detect-stack.sh (via dso shim or ${CLAUDE_PLUGIN_ROOT}).
 if [[ -f "$SKILL_FILE" ]]; then
-    if grep -q 'CLAUDE_PLUGIN_ROOT.*detect-stack' "$SKILL_FILE"; then
+    if grep -qE 'CLAUDE_PLUGIN_ROOT.*detect-stack|dso detect-stack' "$SKILL_FILE"; then
         actual="present"
     else
         actual="missing"
@@ -70,9 +70,9 @@ if [[ -f "$SKILL_FILE" ]]; then
 fi
 
 # test_init_skill_references_read_config
-# Must reference read-config.sh via ${CLAUDE_PLUGIN_ROOT}.
+# Must reference read-config.sh (via dso shim or ${CLAUDE_PLUGIN_ROOT}).
 if [[ -f "$SKILL_FILE" ]]; then
-    if grep -qE 'CLAUDE_PLUGIN_ROOT.*read-config|read-config.*CLAUDE_PLUGIN_ROOT' "$SKILL_FILE"; then
+    if grep -qE 'CLAUDE_PLUGIN_ROOT.*read-config|read-config.*CLAUDE_PLUGIN_ROOT|dso read-config' "$SKILL_FILE"; then
         actual="present"
     else
         actual="missing"

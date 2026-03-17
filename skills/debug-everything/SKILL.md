@@ -121,7 +121,7 @@ Run `validate.sh --ci` to populate the validation state file. This serves two pu
 2. Produces per-category pass/fail results that the diagnostic sub-agent can use to skip passing categories
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --ci 2>&1 || true
+.claude/scripts/dso validate.sh --ci 2>&1 || true
 ```
 
 **Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.

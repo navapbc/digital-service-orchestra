@@ -9,8 +9,8 @@ user-invocable: true
 ## When to Run
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh          # Standard check
-${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh --verbose # Detailed output
+.claude/scripts/dso validate-issues.sh          # Standard check
+.claude/scripts/dso validate-issues.sh --verbose # Detailed output
 ```
 
 **Run after**:
@@ -45,7 +45,7 @@ Score 1 (Critical)  → IMMEDIATE action required
    - Task belongs to multiple possible epics
    - Dependency direction is ambiguous
    - Task description conflicts with epic goals
-4. After fixing issues, re-run `${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh` to confirm score improves
+4. After fixing issues, re-run `.claude/scripts/dso validate-issues.sh` to confirm score improves
 
 ## Common Issues and Fixes
 

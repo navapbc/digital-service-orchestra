@@ -27,7 +27,7 @@ Structured browser debugging that reduces Playwright MCP token usage by 4x by ge
 <!-- PROJECT-SPECIFIC: Load additional "When NOT to Use" guidance from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## When NOT to Use (Project-Specific)` section from that file for additional project-specific exclusions.
@@ -74,7 +74,7 @@ Tier 3 (Full MCP Interaction) → browser_navigate, browser_click, browser_hover
 <!-- PROJECT-SPECIFIC: Load symptom-to-code-path table from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Symptom-to-Code-Path Table` section from that file for the project-specific symptom table.
@@ -101,7 +101,7 @@ Map the symptom to its source:
 <!-- PROJECT-SPECIFIC: Load code reading patterns from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Code Reading Patterns` section from that file for project-specific Grep patterns and file locations.
@@ -131,7 +131,7 @@ H3: <lower-likelihood alternative>
 <!-- PROJECT-SPECIFIC: Load example hypotheses from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Example Hypotheses` section from that file for project-specific worked hypothesis examples.
@@ -198,7 +198,7 @@ async (page) => {
 <!-- PROJECT-SPECIFIC: Load Tier 2 evidence examples from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Tier 2 Evidence Examples` section from that file for project-specific batched JS examples using real selectors.
@@ -273,7 +273,7 @@ A JS exception can silently disable event handlers and is missed by DOM inspecti
 <!-- PROJECT-SPECIFIC: Load framework-specific Tier 3 constraints from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Framework-Specific Constraints` section from that file for project-specific Tier 3 interaction patterns (e.g., file upload handling, custom widget interaction).
@@ -281,7 +281,7 @@ If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Framework-Specific Constrai
 <!-- PROJECT-SPECIFIC: Load staging/environment configuration from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Staging Configuration` section from that file for environment-specific URLs, timeouts, and wait conditions.
@@ -325,7 +325,7 @@ The default 5s timeout may be insufficient for operations involving network call
 <!-- PROJECT-SPECIFIC: Load worked example from reference file if configured -->
 
 ```bash
-PLAYWRIGHT_DEBUG_REF=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
+PLAYWRIGHT_DEBUG_REF=$(bash ".claude/scripts/dso read-config.sh" skills.playwright_debug_reference 2>/dev/null || echo "")
 ```
 
 If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Worked Example` section from that file for a project-specific end-to-end debugging walkthrough using real routes, selectors, and data shapes.

@@ -25,10 +25,10 @@ Before running any git commands, run the pre-flight check script. It activates t
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
+source ".claude/scripts/dso ensure-pre-commit.sh" || true
 ```
 
-If the script warns that `pre-commit` is not found, the commit hooks may fail later. See `${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh` for the full fallback chain.
+If the script warns that `pre-commit` is not found, the commit hooks may fail later. See `.claude/scripts/dso ensure-pre-commit.sh` for the full fallback chain.
 
 ### Breadcrumb Init
 
@@ -63,7 +63,7 @@ Check if all changed files are non-reviewable. If every file matches a non-revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-git diff HEAD --name-only | bash "${CLAUDE_PLUGIN_ROOT}/scripts/skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
+git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
 ```
 
 **If `SKIP_REVIEW` is true**: Skip Steps 1-3a entirely. Go directly to Step 4 (Stage).
@@ -173,7 +173,7 @@ If any integration or e2e test files changed, run only those files now. This pre
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-TEST_CHANGED_CMD="$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" commands.test_changed)"
+TEST_CHANGED_CMD="$(".claude/scripts/dso read-config.sh" commands.test_changed)"
 if [ -z "$TEST_CHANGED_CMD" ]; then
     echo "commands.test_changed not configured — skipping changed-test step"
     # continue to Step 2
@@ -205,7 +205,7 @@ Follow the same dispatch procedure as Step 1, with these differences:
 1. **Build the input payload** using the integration/E2E test command that failed:
 
 ```bash
-TEST_CHANGED_CMD="$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" commands.test_changed)"
+TEST_CHANGED_CMD="$(".claude/scripts/dso read-config.sh" commands.test_changed)"
 TEST_COMMAND="$REPO_ROOT/$TEST_CHANGED_CMD"
 # EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
 # Do NOT re-run the tests — capture from the original failure.
