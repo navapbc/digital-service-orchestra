@@ -435,7 +435,7 @@ check_stale_blockers() {
         stale_count=1
     fi
 
-    echo $stale_count
+    echo "$stale_count"
 }
 
 # Check for child->parent dependencies (anti-pattern)
@@ -898,7 +898,7 @@ main() {
     score=$(calculate_score)
 
     if $JSON_OUTPUT; then
-        output_json $score
+        output_json "$score"
     elif $TERSE_MODE; then
         # Terse mode: single line on clean, multi-line only when issues exist
         local critical=${#CRITICAL_ISSUES[@]}

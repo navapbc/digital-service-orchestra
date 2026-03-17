@@ -22,6 +22,7 @@
 _ensure_precommit_repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [[ -z "$_ensure_precommit_repo_root" ]]; then
     echo "WARNING: Not in a git repository — skipping pre-commit check" >&2
+    # shellcheck disable=SC2317
     return 0 2>/dev/null || exit 0
 fi
 
