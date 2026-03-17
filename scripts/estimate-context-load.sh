@@ -69,7 +69,7 @@ fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+: "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 
 count_tokens() {
     if [[ -f "$1" ]]; then

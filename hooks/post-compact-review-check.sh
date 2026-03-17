@@ -43,7 +43,7 @@ WORKTREE_NAME=$(basename "$REPO_ROOT")
 ARTIFACTS_GLOB="/tmp/workflow-plugin-*/review-diff-*.txt"
 REVIEW_DIFF_EXISTS=false
 # shellcheck disable=SC2086
-ls $ARTIFACTS_GLOB 2>/dev/null | head -1 | grep -q . && REVIEW_DIFF_EXISTS=true
+find /tmp -maxdepth 2 -path '/tmp/workflow-plugin-*/review-diff-*.txt' 2>/dev/null | head -1 | grep -q . && REVIEW_DIFF_EXISTS=true
 
 if [[ "$CONTAINS_REVIEWER_FINDINGS" == "true" ]]; then
     cat <<'WARNING'

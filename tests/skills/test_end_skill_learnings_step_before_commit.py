@@ -38,9 +38,9 @@ def test_step_2_8_before_step_3_commit() -> None:
     pos_3 = _get_line_number(content, r"###\s+3\.\s+Commit")
     assert pos_2_8 != -1, "Step 2.8 heading not found."
     assert pos_3 != -1, "Step 3 Commit heading not found."
-    assert (
-        pos_2_8 < pos_3
-    ), f"Step 2.8 (line {pos_2_8}) must appear before Step 3 Commit (line {pos_3})."
+    assert pos_2_8 < pos_3, (
+        f"Step 2.8 (line {pos_2_8}) must appear before Step 3 Commit (line {pos_3})."
+    )
 
 
 def test_step_6_no_longer_scans_git_diff() -> None:
@@ -68,7 +68,9 @@ def test_step_6_references_step_2_8_learnings() -> None:
 
     # Check the next 20 lines after Step 6 heading for a reference to Step 2.8 learnings
     step_6_block = "\n".join(lines[step_6_line : step_6_line + 20])
-    has_reference = re.search(r"Step 2\.8|generated earlier|stored learnings", step_6_block)
+    has_reference = re.search(
+        r"Step 2\.8|generated earlier|stored learnings", step_6_block
+    )
     assert has_reference, (
         "Step 6 does not reference learnings from Step 2.8. "
         "It should mention 'Step 2.8', 'generated earlier', or 'stored learnings' "

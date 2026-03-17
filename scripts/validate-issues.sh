@@ -216,6 +216,7 @@ print(json.dumps(issues))
 }
 
 # Get all open issues as JSON for processing (kept for any standalone callers)
+# shellcheck disable=SC2329
 get_issues_json() {
     get_shared_issues_json
 }
@@ -227,6 +228,7 @@ check_orphaned_tasks() {
 
     local tmpfile
     tmpfile=$(mktemp)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     get_shared_issues_json | python3 -c "
@@ -329,7 +331,7 @@ check_circular_dependencies() {
         log_verbose "No circular dependencies found"
     fi
 
-    echo $cycle_count
+    echo "$cycle_count"
 }
 
 # Check for epics with 0 children
@@ -339,6 +341,7 @@ check_empty_epics() {
     local empty_count=0
     local tmpfile
     tmpfile=$(mktemp)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     # Get all open issues from shared cache, find epics and check for children
@@ -418,6 +421,7 @@ check_mislinked_dependencies() {
 }
 
 # Check for blocked issues with all blockers closed
+# shellcheck disable=SC2329
 check_stale_blockers() {
     log_verbose "Checking for issues with stale blockers..."
 
@@ -440,6 +444,7 @@ check_child_parent_deps() {
 
     local tmpfile
     tmpfile=$(mktemp)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     get_shared_issues_json | python3 -c "
@@ -505,6 +510,7 @@ check_cross_epic_child_deps() {
 
     local tmpfile
     tmpfile=$(mktemp)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     get_shared_issues_json | python3 -c "
@@ -609,6 +615,7 @@ check_missing_descriptions() {
     local missing_count=0
     local tmpfile
     tmpfile=$(mktemp)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     get_shared_issues_json | python3 -c "
@@ -656,6 +663,7 @@ check_interface_contracts() {
     local missing_docs_count=0
     local tmpfile
     tmpfile=$(mktemp)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     get_shared_issues_json | python3 -c "
@@ -740,6 +748,7 @@ check_in_progress_without_notes() {
     local missing_notes_count=0
     local tmpfile
     tmpfile=$(mktemp)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     get_shared_issues_json | python3 -c "

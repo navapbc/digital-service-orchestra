@@ -163,13 +163,15 @@ CLEANUP_PIDS=()
 # Cleanup function to kill any remaining processes on exit
 # Also writes "interrupted" to the status file if validate.sh exits unexpectedly
 # while still in the "in_progress" state (i.e., before success/fail is written).
+# shellcheck disable=SC2329
 cleanup() {
     # Write "interrupted" state if we are still in_progress (unexpected exit)
     if [[ -f "$VALIDATION_STATE_FILE" ]]; then
         local _current_state
         _current_state=$(head -n 1 "$VALIDATION_STATE_FILE" 2>/dev/null || echo "")
         if [[ "$_current_state" == "in_progress" ]]; then
-            local _interrupted_content="interrupted
+            local _interrupted_content
+            _interrupted_content="interrupted
 timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             if declare -f atomic_write_file &>/dev/null; then
                 atomic_write_file "$VALIDATION_STATE_FILE" "$_interrupted_content"
@@ -392,6 +394,7 @@ timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # reported after all complete. E2E depends on CI result so runs after.
 
 CHECK_DIR=$(mktemp -d)
+# shellcheck disable=SC2064
 trap "rm -rf '$CHECK_DIR'; cleanup" EXIT
 
 # Verbose print helper: serializes output lines using a lock file to prevent
@@ -509,6 +512,7 @@ check_ci() {
     local ci_json
     ci_json=$(
         (
+            # shellcheck disable=SC2086
             run_with_timeout "$TIMEOUT_CI" "ci-status" \
                 gh run list --workflow=CI $gh_branch_flag --limit 10 \
                 --json status,conclusion,databaseId,headSha,createdAt \
@@ -613,11 +617,17 @@ LAUNCHED_CHECKS="syntax format ruff mypy tests plugin migrate"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
+# shellcheck disable=SC2086
 run_check "syntax" "$TIMEOUT_SYNTAX" $CMD_SYNTAX_CHECK &
+# shellcheck disable=SC2086
 run_check "format" "$TIMEOUT_FORMAT" $CMD_FORMAT_CHECK &
+# shellcheck disable=SC2086
 run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
+# shellcheck disable=SC2086
 run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
+# shellcheck disable=SC2086
 run_check "tests" "$TIMEOUT_TESTS" $CMD_TEST_UNIT args="-q --tb=line" &
+# shellcheck disable=SC2086
 (cd "$REPO_ROOT" && run_check "plugin" "$TIMEOUT_PLUGIN" $CMD_TEST_PLUGIN) &
 check_migrations &
 if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
@@ -639,6 +649,7 @@ if [ $CHECK_CI -eq 1 ]; then
         if [ "$local_ci_rc" != "0" ] && [ "$local_ci_rc" != "skip" ] && \
            [[ "$local_e2e_result" == completed:* ]] && [ -z "$CI" ]; then
             [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running (parallel, CI failed)"
+            # shellcheck disable=SC2086
             run_check "e2e" "$TIMEOUT_E2E" $CMD_TEST_E2E
             echo "parallel" > "$CHECK_DIR/e2e.mode"
         fi
@@ -839,6 +850,7 @@ if [ $CHECK_CI -eq 1 ]; then
         # In CI environment: always run E2E tests
         E2E_RAN=1
         [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"
+        # shellcheck disable=SC2086
         if run_with_timeout "$TIMEOUT_E2E" "test-e2e" $CMD_TEST_E2E >> "$LOGFILE" 2>&1; then
             if [ "$VERBOSE" = "0" ]; then
                 echo "  e2e:     PASS"
@@ -912,6 +924,7 @@ if [ $CHECK_CI -eq 1 ]; then
             # CI still running/pending — run E2E locally to catch issues early
             E2E_RAN=1
             [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"
+            # shellcheck disable=SC2086
             if run_with_timeout "$TIMEOUT_E2E" "test-e2e" $CMD_TEST_E2E >> "$LOGFILE" 2>&1; then
                 if [ "$VERBOSE" = "0" ]; then
                     echo "  e2e:     PASS"

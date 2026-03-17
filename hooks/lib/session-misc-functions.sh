@@ -359,7 +359,7 @@ hook_post_compact_review_check() {
     local ARTIFACTS_GLOB="/tmp/workflow-plugin-*/review-diff-*.txt"
     local REVIEW_DIFF_EXISTS=false
     # shellcheck disable=SC2086
-    ls $ARTIFACTS_GLOB 2>/dev/null | head -1 | grep -q . && REVIEW_DIFF_EXISTS=true
+    find /tmp -maxdepth 2 -path '/tmp/workflow-plugin-*/review-diff-*.txt' 2>/dev/null | head -1 | grep -q . && REVIEW_DIFF_EXISTS=true
 
     if [[ "$CONTAINS_REVIEWER_FINDINGS" == "true" ]]; then
         cat <<'WARNING'
@@ -442,7 +442,7 @@ hook_review_stop_check() {
             echo "$CHANGED_FILES"
             echo "$STAGED_FILES"
             echo "$UNTRACKED_FILES"
-        } | sort -u | grep -v '^$' | wc -l | tr -d ' '
+        } | sort -u | grep -cv '^$'
     )
 
     if [[ ! -f "$REVIEW_STATE_FILE" ]]; then
@@ -499,7 +499,8 @@ hook_tool_logging_summary() {
         return 0
     fi
 
-    local LOG_FILE="$HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
+    local LOG_FILE
+    LOG_FILE="$HOME/.claude/logs/tool-use-$(date +%Y-%m-%d).jsonl"
     if [[ ! -f "$LOG_FILE" ]]; then
         return 0
     fi

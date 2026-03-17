@@ -159,6 +159,7 @@ cmd_file_overlap() {
     # Build a flat list of "file|agent" pairs using a temp file (bash 3 compatible)
     local tmpfile
     tmpfile=$(mktemp /tmp/file-overlap.XXXXXX)
+    # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
     local agent_count=0
@@ -190,7 +191,7 @@ cmd_file_overlap() {
         esac
     done
 
-    if [ $agent_count -lt 2 ]; then
+    if [ "$agent_count" -lt 2 ]; then
         echo "CONFLICTS: 0"
         return 0
     fi
@@ -409,7 +410,7 @@ cmd_cleanup_stale_containers() {
         # Extract worktree dir name by stripping the container prefix
         # Strip the container prefix to get the worktree directory name
         local worktree_dir
-        worktree_dir=$(echo "$container_name" | sed "s/^${container_prefix}//")
+        worktree_dir="${container_name#"$container_prefix"}"
         local worktree_path="$worktrees_parent/$worktree_dir"
 
         if [ ! -d "$worktree_path" ]; then

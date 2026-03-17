@@ -28,9 +28,9 @@ show_status() {
     if is_enabled; then
         echo "Tool-use logging: ENABLED"
         echo "Flag file: $FLAG_FILE"
-        if ls "$LOG_DIR"/tool-use-*.jsonl 2>/dev/null | head -1 | grep -q .; then
+        if find "$LOG_DIR" -maxdepth 1 -name 'tool-use-*.jsonl' 2>/dev/null | head -1 | grep -q .; then
             echo "Log files:"
-            ls -lh "$LOG_DIR"/tool-use-*.jsonl 2>/dev/null | awk '{print "  " $NF " (" $5 ")"}'
+            find "$LOG_DIR" -maxdepth 1 -name 'tool-use-*.jsonl' -exec ls -lh {} + 2>/dev/null | awk '{print "  " $NF " (" $5 ")"}'
         else
             echo "Log files: none yet (logs appear in $LOG_DIR/)"
         fi

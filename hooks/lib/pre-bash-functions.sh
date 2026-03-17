@@ -179,7 +179,8 @@ hook_commit_failure_tracker() {
     local VALIDATION_STATE_FILE="$ARTIFACTS_DIR_RESOLVED/status"
 
     # Backward-compat: also check old-style artifacts path
-    local _OLD_ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")"
+    local _OLD_ARTIFACTS_DIR
+    _OLD_ARTIFACTS_DIR="/tmp/lockpick-test-artifacts-$(basename "$REPO_ROOT")"
     if [[ ! -f "$VALIDATION_STATE_FILE" ]] && [[ -f "$_OLD_ARTIFACTS_DIR/status" ]]; then
         VALIDATION_STATE_FILE="$_OLD_ARTIFACTS_DIR/status"
     elif [[ -f "$VALIDATION_STATE_FILE" ]] && [[ -f "$_OLD_ARTIFACTS_DIR/status" ]]; then

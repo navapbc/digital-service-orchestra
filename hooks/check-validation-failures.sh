@@ -95,6 +95,7 @@ search_terms_for() {
 }
 
 # Extract error context from the combined validation log
+# shellcheck disable=SC2329
 extract_error_context() {
     local category="$1"
     local logfile="$2"

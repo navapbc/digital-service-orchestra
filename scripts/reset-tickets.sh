@@ -130,7 +130,7 @@ fi
 
 # ── Display plan and confirm ────────────────────────────────────────────────
 
-CURRENT_COUNT=$(ls "$REPO_ROOT/.tickets/"*.md 2>/dev/null | wc -l | tr -d ' ')
+CURRENT_COUNT=$(find "$REPO_ROOT/.tickets" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 
 echo ""
 echo "=== Ticket Reset Plan ==="
@@ -198,7 +198,7 @@ rm -rf "$REPO_ROOT/.tickets/"
 echo "Step 3/8: Restoring .tickets/ from $COMMIT_SHA..."
 git -C "$REPO_ROOT" checkout "$COMMIT_SHA" -- .tickets/
 
-RESTORED_COUNT=$(ls "$REPO_ROOT/.tickets/"*.md 2>/dev/null | wc -l | tr -d ' ')
+RESTORED_COUNT=$(find "$REPO_ROOT/.tickets" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 echo "  Restored $RESTORED_COUNT ticket files."
 
 # ── Step 4: Type hierarchy fixes ────────────────────────────────────────────
@@ -211,7 +211,7 @@ for f in "$REPO_ROOT"/.tickets/*.md; do
     type=$(awk '/^---$/{n++; next} n==1 && /^type:/{print $2}' "$f")
     parent=$(awk '/^---$/{n++; next} n==1 && /^parent:/{print $2}' "$f")
     if [[ "$type" == "task" && -n "$parent" ]]; then
-        parent_file=$(ls "$REPO_ROOT"/.tickets/${parent}*.md 2>/dev/null | head -1) || true
+        parent_file=$(find "$REPO_ROOT/.tickets" -maxdepth 1 -name "${parent}*.md" 2>/dev/null | head -1) || true
         if [[ -n "$parent_file" ]]; then
             parent_type=$(awk '/^---$/{n++; next} n==1 && /^type:/{print $2}' "$parent_file")
             if [[ "$parent_type" == "epic" ]]; then
@@ -292,7 +292,7 @@ fi
 # ── Final verification ──────────────────────────────────────────────────────
 
 echo ""
-FINAL_COUNT=$(ls "$REPO_ROOT/.tickets/"*.md 2>/dev/null | wc -l | tr -d ' ')
+FINAL_COUNT=$(find "$REPO_ROOT/.tickets" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 echo "=== Reset Complete ==="
 echo "  Ticket files: $FINAL_COUNT"
 echo "  Jira project: ${JIRA_PROJECT:-N/A}"

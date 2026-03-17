@@ -87,7 +87,7 @@ if [[ "${STAGED_ONLY:-false}" == "true" ]]; then
     FILTERED=()
     for f in "${TARGET_FILES[@]}"; do
         # Normalize to repo-relative path for comparison
-        rel_path="${f#$REPO_ROOT/}"
+        rel_path="${f#"$REPO_ROOT"/}"
         if echo "$STAGED" | grep -qxF "$rel_path"; then
             FILTERED+=("$f")
         fi

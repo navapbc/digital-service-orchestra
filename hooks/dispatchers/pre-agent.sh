@@ -36,15 +36,11 @@ _pre_agent_dispatch() {
     local INPUT
     INPUT=$(cat)
 
-    for _HOOK_FN in \
-        hook_worktree_isolation_guard
-    do
-        local _fn_exit=0
-        _run_hook_fn "$_HOOK_FN" "$INPUT" || _fn_exit=$?
-        if [[ "$_fn_exit" -eq 2 ]]; then
-            return 2
-        fi
-    done
+    local _fn_exit=0
+    _run_hook_fn "hook_worktree_isolation_guard" "$INPUT" || _fn_exit=$?
+    if [[ "$_fn_exit" -eq 2 ]]; then
+        return 2
+    fi
 
     return 0
 }

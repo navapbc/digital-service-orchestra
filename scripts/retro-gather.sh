@@ -184,7 +184,7 @@ else
 fi
 
 section "TIMEOUT_LOGS"
-for log_dir in /tmp/${ARTIFACT_PREFIX}-*/; do
+for log_dir in /tmp/"${ARTIFACT_PREFIX}"-*/; do
     [ -d "$log_dir" ] || continue
     for log_file in "$log_dir"validation-timeouts.log "$log_dir"precommit-timeouts.log; do
         if [ -f "$log_file" ] && [ -s "$log_file" ]; then
@@ -195,7 +195,7 @@ for log_dir in /tmp/${ARTIFACT_PREFIX}-*/; do
         fi
     done
 done
-if ! ls /tmp/${ARTIFACT_PREFIX}-*/ >/dev/null 2>&1; then
+if ! ls /tmp/"${ARTIFACT_PREFIX}"-*/ >/dev/null 2>&1; then
     echo "No timeout logs found for prefix ${ARTIFACT_PREFIX}"
 fi
 
@@ -205,7 +205,8 @@ if [ "$QUICK" != "--quick" ]; then
     PLUGIN_CACHE="$HOME/.claude/plugins/cache"
     if [ -d "$PLUGIN_CACHE" ]; then
         echo "Installed plugins:"
-        ls -1 "$PLUGIN_CACHE" 2>/dev/null | while IFS= read -r plugin; do
+        find "$PLUGIN_CACHE" -maxdepth 1 -mindepth 1 2>/dev/null | while IFS= read -r _plugin_path; do
+            plugin=$(basename "$_plugin_path")
             echo "  $plugin"
         done
     else

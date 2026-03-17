@@ -54,7 +54,9 @@ def test_step_4_75_contains_is_merged_check() -> None:
     """Step 4.75 must contain the is_merged check using merge-base --is-ancestor."""
     content = SKILL_MD.read_text()
     section = _get_section_content(content, r"###\s+4\.75\.", r"###\s+5\.")
-    assert section, "Step 4.75 section not found (or Step 5 heading not found after it)."
+    assert section, (
+        "Step 4.75 section not found (or Step 5 heading not found after it)."
+    )
     assert "merge-base --is-ancestor" in section, (
         "Step 4.75 must include the is_merged check: "
         "'git merge-base --is-ancestor \"$BRANCH\" main'. "
@@ -66,7 +68,9 @@ def test_step_4_75_contains_is_clean_check() -> None:
     """Step 4.75 must contain the is_clean check using status --porcelain."""
     content = SKILL_MD.read_text()
     section = _get_section_content(content, r"###\s+4\.75\.", r"###\s+5\.")
-    assert section, "Step 4.75 section not found (or Step 5 heading not found after it)."
+    assert section, (
+        "Step 4.75 section not found (or Step 5 heading not found after it)."
+    )
     assert "status --porcelain" in section, (
         "Step 4.75 must include the is_clean check: "
         "'git status --porcelain' (empty output = clean). "
@@ -78,7 +82,9 @@ def test_step_4_75_references_claude_safe() -> None:
     """Step 4.75 must reference claude-safe or _offer_worktree_cleanup to signal sync intent."""
     content = SKILL_MD.read_text()
     section = _get_section_content(content, r"###\s+4\.75\.", r"###\s+5\.")
-    assert section, "Step 4.75 section not found (or Step 5 heading not found after it)."
+    assert section, (
+        "Step 4.75 section not found (or Step 5 heading not found after it)."
+    )
     assert re.search(r"claude-safe|_offer_worktree_cleanup", section), (
         "Step 4.75 must reference 'claude-safe' or '_offer_worktree_cleanup' "
         "as the canonical source of the is_merged+is_clean logic, "
@@ -93,6 +99,6 @@ def test_step_4_75_before_step_6() -> None:
     pos_6 = _get_line_number(content, r"###\s+6\.")
     assert pos_4_75 != -1, "Step 4.75 heading not found."
     assert pos_6 != -1, "Step 6 heading not found."
-    assert (
-        pos_4_75 < pos_6
-    ), f"Step 4.75 (line {pos_4_75}) must appear before Step 6 (line {pos_6})."
+    assert pos_4_75 < pos_6, (
+        f"Step 4.75 (line {pos_4_75}) must appear before Step 6 (line {pos_6})."
+    )

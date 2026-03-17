@@ -36,7 +36,9 @@ class TestFixtureConfigContainsOnlyVersion:
         All non-comment, non-empty lines must consist solely of the version key.
         No project-specific sections (database, infrastructure, worktree, session) are present.
         """
-        assert FIXTURE_CONFIG_PATH.exists(), f"Fixture file not found at {FIXTURE_CONFIG_PATH}"
+        assert FIXTURE_CONFIG_PATH.exists(), (
+            f"Fixture file not found at {FIXTURE_CONFIG_PATH}"
+        )
 
         content = FIXTURE_CONFIG_PATH.read_text()
         lines = content.splitlines()
@@ -46,16 +48,18 @@ class TestFixtureConfigContainsOnlyVersion:
             line for line in lines if line.strip() and not line.strip().startswith("#")
         ]
 
-        assert (
-            len(substantive_lines) == 1
-        ), f"Expected exactly 1 substantive line, got {len(substantive_lines)}: {substantive_lines}"
-        assert (
-            substantive_lines[0].strip() == 'version: "1.0.0"'
-        ), f"Expected 'version: \"1.0.0\"', got '{substantive_lines[0].strip()}'"
+        assert len(substantive_lines) == 1, (
+            f"Expected exactly 1 substantive line, got {len(substantive_lines)}: {substantive_lines}"
+        )
+        assert substantive_lines[0].strip() == 'version: "1.0.0"', (
+            f"Expected 'version: \"1.0.0\"', got '{substantive_lines[0].strip()}'"
+        )
 
     def test_fixture_config_has_no_project_specific_keys(self):
         """Fixture workflow-config.yaml contains no project-specific section keys."""
-        assert FIXTURE_CONFIG_PATH.exists(), f"Fixture file not found at {FIXTURE_CONFIG_PATH}"
+        assert FIXTURE_CONFIG_PATH.exists(), (
+            f"Fixture file not found at {FIXTURE_CONFIG_PATH}"
+        )
 
         content = FIXTURE_CONFIG_PATH.read_text()
         forbidden_pattern = re.compile(

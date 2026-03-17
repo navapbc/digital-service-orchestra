@@ -286,12 +286,14 @@ def detect_bash_file_ops(
                 display_cmd = command[:120].replace("\n", " ").strip()
                 if len(command) > 120:
                     display_cmd += "..."
-                findings.append({
-                    "session": entry.session_id,
-                    "ts": entry.ts,
-                    "command": display_cmd,
-                    "recommended": recommended,
-                })
+                findings.append(
+                    {
+                        "session": entry.session_id,
+                        "ts": entry.ts,
+                        "command": display_cmd,
+                        "recommended": recommended,
+                    }
+                )
                 already_flagged = True
                 break  # Only report once per entry
 
@@ -303,12 +305,14 @@ def detect_bash_file_ops(
                 display_cmd = command[:120].replace("\n", " ").strip()
                 if len(command) > 120:
                     display_cmd += "..."
-                findings.append({
-                    "session": entry.session_id,
-                    "ts": entry.ts,
-                    "command": display_cmd,
-                    "recommended": "Write tool",
-                })
+                findings.append(
+                    {
+                        "session": entry.session_id,
+                        "ts": entry.ts,
+                        "command": display_cmd,
+                        "recommended": "Write tool",
+                    }
+                )
 
     return findings
 
@@ -365,11 +369,13 @@ def detect_write_without_read(
 
             # File was seen before — was it Read?
             if fp not in session_reads[sid]:
-                findings.append({
-                    "session": entry.session_id,
-                    "ts": entry.ts,
-                    "file_path": fp,
-                })
+                findings.append(
+                    {
+                        "session": entry.session_id,
+                        "ts": entry.ts,
+                        "file_path": fp,
+                    }
+                )
 
             session_seen[sid].add(fp)
 
@@ -409,16 +415,20 @@ def detect_same_error_retry(
                 if sim >= SIMILARITY_THRESHOLD:
                     # Check if there was an intervening different-tool call
                     # (look at last 3 entries in history for a different tool type)
-                    interleaved = any(h.tool_name != entry.tool_name for h in history[-3:])
+                    interleaved = any(
+                        h.tool_name != entry.tool_name for h in history[-3:]
+                    )
                     if not interleaved:
                         cmd_preview = entry.tool_input_summary[:100].replace("\n", " ")
-                        findings.append({
-                            "session": entry.session_id,
-                            "ts": entry.ts,
-                            "tool": entry.tool_name,
-                            "similarity": f"{sim:.0%}",
-                            "input_preview": cmd_preview,
-                        })
+                        findings.append(
+                            {
+                                "session": entry.session_id,
+                                "ts": entry.ts,
+                                "tool": entry.tool_name,
+                                "similarity": f"{sim:.0%}",
+                                "input_preview": cmd_preview,
+                            }
+                        )
 
         history.append(entry)
         # Keep history bounded to last 10 entries per session
@@ -449,7 +459,9 @@ def detect_search_sprawl(
             cluster: list[LogEntry] = []
 
             j = i
-            while j < len(session_entries) and session_entries[j].epoch_ms <= window_end:
+            while (
+                j < len(session_entries) and session_entries[j].epoch_ms <= window_end
+            ):
                 cluster.append(session_entries[j])
                 j += 1
 
@@ -466,9 +478,9 @@ def detect_search_sprawl(
                     terms.append(term)
 
                 # Only report if terms are related OR cluster is very large
-                related = (len(terms) >= 2 and word_overlap(terms[0], terms[-1]) > 0.2) or len(
-                    cluster
-                ) > SEARCH_SPRAWL_MIN_COUNT + 2
+                related = (
+                    len(terms) >= 2 and word_overlap(terms[0], terms[-1]) > 0.2
+                ) or len(cluster) > SEARCH_SPRAWL_MIN_COUNT + 2
 
                 if related:
                     start_ts = cluster[0].ts
@@ -476,13 +488,15 @@ def detect_search_sprawl(
                     term_summary = "; ".join(t[:40] for t in terms[:5])
                     if len(terms) > 5:
                         term_summary += f" ... +{len(terms) - 5} more"
-                    findings.append({
-                        "session": sid,
-                        "start_ts": start_ts,
-                        "end_ts": end_ts,
-                        "count": str(len(cluster)),
-                        "terms_preview": term_summary,
-                    })
+                    findings.append(
+                        {
+                            "session": sid,
+                            "start_ts": start_ts,
+                            "end_ts": end_ts,
+                            "count": str(len(cluster)),
+                            "terms_preview": term_summary,
+                        }
+                    )
                     # Advance past this cluster to avoid double-reporting
                     i = j
                     continue
@@ -510,14 +524,16 @@ def detect_redundant_calls(
             last_epoch, last_ts = last
             if entry.epoch_ms - last_epoch <= REDUNDANT_WINDOW_MS:
                 input_preview = entry.tool_input_summary[:100].replace("\n", " ")
-                findings.append({
-                    "session": sid,
-                    "ts": entry.ts,
-                    "tool": entry.tool_name,
-                    "first_ts": last_ts,
-                    "elapsed_s": f"{(entry.epoch_ms - last_epoch) / 1000:.0f}s",
-                    "input_preview": input_preview,
-                })
+                findings.append(
+                    {
+                        "session": sid,
+                        "ts": entry.ts,
+                        "tool": entry.tool_name,
+                        "first_ts": last_ts,
+                        "elapsed_s": f"{(entry.epoch_ms - last_epoch) / 1000:.0f}s",
+                        "input_preview": input_preview,
+                    }
+                )
 
         session_last[sid][key] = (entry.epoch_ms, entry.ts)
 
@@ -543,12 +559,21 @@ def detect_suboptimal_ordering(
             # Skip when fewer than ORDERING_LOOKBACK_WRITE_EDIT preceding calls
             # (session start) or when Write targets a path not previously seen
             # (new file creation — aligned with Pattern 2's exemption).
-            if entry.tool_name in ("Write", "Edit") and idx >= ORDERING_LOOKBACK_WRITE_EDIT:
+            if (
+                entry.tool_name in ("Write", "Edit")
+                and idx >= ORDERING_LOOKBACK_WRITE_EDIT
+            ):
                 lookback = preceding[-ORDERING_LOOKBACK_WRITE_EDIT:]
-                has_glob_or_read = any(e.tool_name in ("Glob", "Read") for e in lookback)
+                has_glob_or_read = any(
+                    e.tool_name in ("Glob", "Read") for e in lookback
+                )
                 if not has_glob_or_read:
                     parsed = entry.parsed_input()
-                    fp = parsed.get("file_path", "") or parsed.get("path", "") or "unknown"
+                    fp = (
+                        parsed.get("file_path", "")
+                        or parsed.get("path", "")
+                        or "unknown"
+                    )
                     # Check if this path was seen before (skip new file creation)
                     seen_paths: set[str] = set()
                     for prev_e in preceding:
@@ -558,12 +583,14 @@ def detect_suboptimal_ordering(
                             if p:
                                 seen_paths.add(p)
                     if fp in seen_paths:
-                        findings.append({
-                            "session": sid,
-                            "ts": entry.ts,
-                            "issue": f"{entry.tool_name} without prior Glob/Read",
-                            "detail": f"file_path={fp[:80]}",
-                        })
+                        findings.append(
+                            {
+                                "session": sid,
+                                "ts": entry.ts,
+                                "issue": f"{entry.tool_name} without prior Glob/Read",
+                                "detail": f"file_path={fp[:80]}",
+                            }
+                        )
 
             # --- 6b: git commit without prior git status ---
             elif entry.tool_name == "Bash":
@@ -581,12 +608,14 @@ def detect_suboptimal_ordering(
                         if e.tool_name == "Bash"
                     )
                     if not has_status:
-                        findings.append({
-                            "session": sid,
-                            "ts": entry.ts,
-                            "issue": "git commit without prior git status",
-                            "detail": command[:80].replace("\n", " "),
-                        })
+                        findings.append(
+                            {
+                                "session": sid,
+                                "ts": entry.ts,
+                                "issue": "git commit without prior git status",
+                                "detail": command[:80].replace("\n", " "),
+                            }
+                        )
 
                 # --- 6c: git push without prior CI check ---
                 is_push = "git push" in command
@@ -607,14 +636,18 @@ def detect_suboptimal_ordering(
                             )
                         )
 
-                    has_ci = any(is_ci_check(e) for e in lookback if e.tool_name == "Bash")
+                    has_ci = any(
+                        is_ci_check(e) for e in lookback if e.tool_name == "Bash"
+                    )
                     if not has_ci:
-                        findings.append({
-                            "session": sid,
-                            "ts": entry.ts,
-                            "issue": "git push without prior CI check",
-                            "detail": command[:80].replace("\n", " "),
-                        })
+                        findings.append(
+                            {
+                                "session": sid,
+                                "ts": entry.ts,
+                                "issue": "git push without prior CI check",
+                                "detail": command[:80].replace("\n", " "),
+                            }
+                        )
 
     return findings
 
@@ -792,29 +825,39 @@ def detect_domain_mismatch(
             # Only flag mismatch if the assigned agent doesn't match ANY
             # file in the session (accounting for overlapping patterns).
             if assigned not in all_session_profiles:
-                findings.append({
-                    "session": sid,
-                    "assigned": assigned,
-                    "actual": dominant,
-                    "actual_pct": f"{dominant_frac:.0%}",
-                    "file_count": str(len(files)),
-                    "distribution": ", ".join(
-                        f"{a}: {c}" for a, c in sorted(domain_counts.items(), key=lambda x: -x[1])
-                    ),
-                })
+                findings.append(
+                    {
+                        "session": sid,
+                        "assigned": assigned,
+                        "actual": dominant,
+                        "actual_pct": f"{dominant_frac:.0%}",
+                        "file_count": str(len(files)),
+                        "distribution": ", ".join(
+                            f"{a}: {c}"
+                            for a, c in sorted(
+                                domain_counts.items(), key=lambda x: -x[1]
+                            )
+                        ),
+                    }
+                )
         else:
             # Mode 2: no dispatch log — flag mixed-domain sessions
             if dominant_frac < DOMAIN_DOMINANCE_THRESHOLD and len(domain_counts) > 1:
-                findings.append({
-                    "session": sid,
-                    "assigned": "(unknown)",
-                    "actual": f"mixed ({dominant} {dominant_frac:.0%})",
-                    "actual_pct": f"{dominant_frac:.0%}",
-                    "file_count": str(len(files)),
-                    "distribution": ", ".join(
-                        f"{a}: {c}" for a, c in sorted(domain_counts.items(), key=lambda x: -x[1])
-                    ),
-                })
+                findings.append(
+                    {
+                        "session": sid,
+                        "assigned": "(unknown)",
+                        "actual": f"mixed ({dominant} {dominant_frac:.0%})",
+                        "actual_pct": f"{dominant_frac:.0%}",
+                        "file_count": str(len(files)),
+                        "distribution": ", ".join(
+                            f"{a}: {c}"
+                            for a, c in sorted(
+                                domain_counts.items(), key=lambda x: -x[1]
+                            )
+                        ),
+                    }
+                )
 
     return findings
 
@@ -875,7 +918,9 @@ def render_report(
 
     lines.append("# Tool-Use Analysis Report")
     lines.append(f"Generated: {now}")
-    lines.append(f"Sessions analyzed: {len(sessions)} | Date range: {date_start} - {date_end}")
+    lines.append(
+        f"Sessions analyzed: {len(sessions)} | Date range: {date_start} - {date_end}"
+    )
     lines.append(f"Log files read: {len(files)}")
     lines.append("")
 
@@ -912,7 +957,9 @@ def render_report(
         lines.append("| Session | Timestamp | File Path |")
         lines.append("|---------|-----------|-----------|")
         for f in blind_writes:
-            lines.append(f"| {_session_short(f['session'])} | {f['ts']} | `{f['file_path']}` |")
+            lines.append(
+                f"| {_session_short(f['session'])} | {f['ts']} | `{f['file_path']}` |"
+            )
         lines.append("")
 
     # 3. Same-error retry
@@ -954,8 +1001,12 @@ def render_report(
     if redundant:
         lines.append(f"### 5. Redundant tool calls ({len(redundant)} occurrences)")
         lines.append("")
-        lines.append("| Session | Timestamp | Tool | First Call | Elapsed | Input Preview |")
-        lines.append("|---------|-----------|------|-----------|---------|---------------|")
+        lines.append(
+            "| Session | Timestamp | Tool | First Call | Elapsed | Input Preview |"
+        )
+        lines.append(
+            "|---------|-----------|------|-----------|---------|---------------|"
+        )
         for f in redundant:
             lines.append(
                 f"| {_session_short(f['session'])} "
@@ -1112,7 +1163,9 @@ def main() -> None:
 
     if not files:
         print("No log files found. Is tool logging enabled?", file=sys.stderr)
-        print(f"  Expected location: {LOG_DIR}/tool-use-YYYY-MM-DD.jsonl", file=sys.stderr)
+        print(
+            f"  Expected location: {LOG_DIR}/tool-use-YYYY-MM-DD.jsonl", file=sys.stderr
+        )
         print("  Enable with: scripts/toggle-tool-logging.sh", file=sys.stderr)
         # Still emit an empty report
         entries: list[LogEntry] = []

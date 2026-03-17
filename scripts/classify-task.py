@@ -79,7 +79,9 @@ def score_task_against_profile(text: str, profile: dict) -> int:
     return score
 
 
-def compute_complexity(passing_profile_count: int, blocks_count: int, description: str) -> str:
+def compute_complexity(
+    passing_profile_count: int, blocks_count: int, description: str
+) -> str:
     """Compute complexity based on three signals; any 2 of 3 → 'high'.
 
     Signal 1: 3+ profiles pass min_score (task spans multiple domains)
@@ -167,7 +169,9 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
             model = winner["model"]["complex"]
         else:
             model = winner["model"]["default"]
-        reason = f"Matched profile {winner['_file']} with score " f"{scores.get(subagent, 0)}"
+        reason = (
+            f"Matched profile {winner['_file']} with score {scores.get(subagent, 0)}"
+        )
     else:
         subagent = "general-purpose"
         category = None
@@ -176,7 +180,9 @@ def classify_task(task: dict, profiles: list[dict]) -> dict:
 
     # Detect interface-contract tasks from text keywords (priority override)
     interface_keywords = ["interface", "contract", "abstract", "protocol", "base class"]
-    is_interface = any(kw in text for kw in interface_keywords) or bool(re.search(r"\babc\b", text))
+    is_interface = any(kw in text for kw in interface_keywords) or bool(
+        re.search(r"\babc\b", text)
+    )
 
     # Assign priority (integer 1-4 for backward compat with sprint consumer)
     if is_interface or category == "interface-contract":
@@ -237,7 +243,9 @@ def run_test(profiles_dir: Path) -> int:
         expected_complexity = case.get("expected_complexity")
 
         agent_ok = result["subagent"] == expected_agent
-        complexity_ok = expected_complexity is None or result["complexity"] == expected_complexity
+        complexity_ok = (
+            expected_complexity is None or result["complexity"] == expected_complexity
+        )
 
         if agent_ok and complexity_ok:
             print(f"PASS [{i}] {case['title'][:60]}")
@@ -246,7 +254,8 @@ def run_test(profiles_dir: Path) -> int:
             print(f"FAIL [{i}] {case['title'][:60]}")
             if not agent_ok:
                 print(
-                    f"     agent:      got={result['subagent']!r}  " f"expected={expected_agent!r}"
+                    f"     agent:      got={result['subagent']!r}  "
+                    f"expected={expected_agent!r}"
                 )
             if not complexity_ok:
                 print(

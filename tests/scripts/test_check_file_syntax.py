@@ -84,7 +84,9 @@ def _git_add(path: Path, *files: Path) -> None:
 class TestGitTrackedFiles:
     """git_tracked_files returns only staged files matching the requested suffixes."""
 
-    def test_returns_staged_files_matching_suffix(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_returns_staged_files_matching_suffix(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         sh_file = tmp_path / "script.sh"
         py_file = tmp_path / "helper.py"
@@ -96,7 +98,9 @@ class TestGitTrackedFiles:
         assert sh_file in result
         assert py_file not in result
 
-    def test_excludes_files_with_wrong_suffix(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_excludes_files_with_wrong_suffix(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         json_file = tmp_path / "config.json"
         json_file.write_text("{}\n")
@@ -105,7 +109,9 @@ class TestGitTrackedFiles:
         result = cfs.git_tracked_files(tmp_path, (".yml", ".yaml"))
         assert json_file not in result
 
-    def test_returns_empty_for_empty_repo(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_returns_empty_for_empty_repo(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         result = cfs.git_tracked_files(tmp_path, (".sh",))
         assert result == []
@@ -121,7 +127,9 @@ class TestGitTrackedFiles:
         result = cfs.git_tracked_files(tmp_path, (".sh",))
         assert result == sorted(result)
 
-    def test_includes_untracked_non_ignored_files(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_includes_untracked_non_ignored_files(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         """--others flag means untracked (not gitignored) files are also returned."""
         _git_init(tmp_path)
         staged = tmp_path / "staged.sh"
@@ -156,7 +164,9 @@ class TestCheckBash:
         assert errors == []
         assert count == 1
 
-    def test_bash_file_with_syntax_error_reported(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_bash_file_with_syntax_error_reported(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         sh_file = tmp_path / "bad.sh"
         # Unclosed if — bash -n will reject this
@@ -168,7 +178,9 @@ class TestCheckBash:
         assert "bad.sh" in errors[0]
         assert count == 1
 
-    def test_conflict_markers_cause_bash_error(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_conflict_markers_cause_bash_error(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         sh_file = tmp_path / "conflict.sh"
         sh_file.write_text(
@@ -186,7 +198,9 @@ class TestCheckBash:
         assert len(errors) >= 1
         assert count == 1
 
-    def test_no_sh_files_returns_zero_count(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_no_sh_files_returns_zero_count(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         json_file = tmp_path / "data.json"
         json_file.write_text("{}\n")
@@ -196,7 +210,9 @@ class TestCheckBash:
         assert errors == []
         assert count == 0
 
-    def test_multiple_sh_files_all_checked(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_multiple_sh_files_all_checked(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         ok_file = tmp_path / "ok.sh"
         bad_file = tmp_path / "bad.sh"
@@ -258,7 +274,9 @@ class TestCheckYaml:
         assert errors == [], f"CloudFormation YAML should pass, got: {errors}"
         assert count == 1
 
-    def test_conflict_markers_cause_yaml_error(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_conflict_markers_cause_yaml_error(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         yml_file = tmp_path / "conflict.yml"
         yml_file.write_text(
@@ -297,7 +315,9 @@ class TestCheckYaml:
         assert errors == []
         assert count == 1
 
-    def test_no_yaml_files_returns_zero_count(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_no_yaml_files_returns_zero_count(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         errors, count = cfs.check_yaml(tmp_path)
         assert errors == []
@@ -334,7 +354,9 @@ class TestCheckJson:
         assert len(errors) == 1
         assert "bad.json" in errors[0]
 
-    def test_conflict_markers_cause_json_error(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_conflict_markers_cause_json_error(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         json_file = tmp_path / "conflict.json"
         json_file.write_text(
@@ -356,13 +378,17 @@ class TestCheckJson:
         assert errors == []
         assert count == 1
 
-    def test_no_json_files_returns_zero_count(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_no_json_files_returns_zero_count(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         errors, count = cfs.check_json(tmp_path)
         assert errors == []
         assert count == 0
 
-    def test_multiple_json_files_all_checked(self, tmp_path: Path, cfs: ModuleType) -> None:
+    def test_multiple_json_files_all_checked(
+        self, tmp_path: Path, cfs: ModuleType
+    ) -> None:
         _git_init(tmp_path)
         ok_file = tmp_path / "ok.json"
         bad_file = tmp_path / "bad.json"

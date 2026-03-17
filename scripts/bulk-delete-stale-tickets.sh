@@ -33,7 +33,7 @@ echo "Marker dir:   $HOOK_ERROR_BUGS_DIR"
 echo ""
 
 # ── Count before ──────────────────────────────────────────────────────────────
-before_count=$(ls "$TICKETS_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+before_count=$(find "$TICKETS_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 echo "Ticket files before: $before_count"
 
 # ── Find and delete auto-created tickets ──────────────────────────────────────
@@ -87,7 +87,7 @@ else
 fi
 
 # ── Count after ───────────────────────────────────────────────────────────────
-after_count=$(ls "$TICKETS_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+after_count=$(find "$TICKETS_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 echo ""
 echo "Ticket files after:  $after_count"
 echo "Net reduction:       $(( before_count - after_count ))"

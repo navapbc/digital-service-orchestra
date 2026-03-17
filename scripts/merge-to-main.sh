@@ -45,7 +45,7 @@ cd "$REPO_ROOT"
 WORKTREE_DIR="$REPO_ROOT"
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+: "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 
 # --- Count closed tickets using a single awk pass over all .md files ---
 # Usage: _count_closed_tickets <tickets_dir>
@@ -53,8 +53,8 @@ CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 _count_closed_tickets() {
     local dir="$1"
     local _result
-    _result=$(find "$dir" -maxdepth 1 -name "*.md" -type f \
-        | xargs awk '
+    _result=$(find "$dir" -maxdepth 1 -name "*.md" -type f -print0 \
+        | xargs -0 awk '
             FILENAME != _prev {
                 if (_prev != "" && _found) count++
                 _prev=FILENAME; _found=0; _n=0

@@ -100,6 +100,7 @@ for file in "${STAGED_PY_FILES[@]}"; do
     if [[ "$file" != "${CFG_APP_DIR}/"* ]]; then
         CONFIG_FLAG="--config $APP_DIR/pyproject.toml"
     fi
+    # shellcheck disable=SC2086
     if ! (cd "$WORK_DIR" && run_ruff check --select I --fix $CONFIG_FLAG "$REL_FILE" 2>/dev/null && run_ruff format $CONFIG_FLAG "$REL_FILE" 2>/dev/null); then
         echo "format-fix: failed to format $file (syntax error or ruff issue)" >&2
         FIX_FAILED=1
@@ -134,6 +135,7 @@ for file in "${STAGED_PY_FILES[@]}"; do
     if [[ "$file" != "${CFG_APP_DIR}/"* ]]; then
         CONFIG_FLAG="--config $APP_DIR/pyproject.toml"
     fi
+    # shellcheck disable=SC2086
     if ! (cd "$WORK_DIR" && run_ruff check --select I $CONFIG_FLAG "$REL_FILE" >/dev/null 2>&1 && run_ruff format --check $CONFIG_FLAG "$REL_FILE" >/dev/null 2>&1); then
         echo "format-fix: $file still has formatting issues after auto-fix" >&2
         VERIFY_FAILED=1

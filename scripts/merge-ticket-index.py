@@ -64,7 +64,8 @@ def load_json(path: str) -> dict[str, Any]:
 
     if not isinstance(data, dict):
         print(
-            f"ERROR: Expected a JSON object (dict) in '{path}', " f"got {type(data).__name__}",
+            f"ERROR: Expected a JSON object (dict) in '{path}', "
+            f"got {type(data).__name__}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -158,7 +159,10 @@ def main() -> None:
     try:
         Path(args.ours).write_text(output, encoding="utf-8")
     except OSError as exc:
-        print(f"ERROR: Cannot write merged result to '{args.ours}': {exc}", file=sys.stderr)
+        print(
+            f"ERROR: Cannot write merged result to '{args.ours}': {exc}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Emit structured log line to stderr

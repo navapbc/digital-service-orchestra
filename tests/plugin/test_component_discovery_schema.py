@@ -14,9 +14,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO_ROOT / "docs" / "component-discovery-schema.json"
-WORKFLOW_CONFIG_SCHEMA_PATH = (
-    REPO_ROOT / "docs" / "workflow-config-schema.json"
-)
+WORKFLOW_CONFIG_SCHEMA_PATH = REPO_ROOT / "docs" / "workflow-config-schema.json"
 FLASK_ADAPTER_PATH = REPO_ROOT / "docs" / "adapters" / "flask-jinja2.json"
 
 
@@ -31,7 +29,9 @@ def schema():
 @pytest.fixture
 def flask_adapter():
     """Load the Flask/Jinja2 reference adapter."""
-    assert FLASK_ADAPTER_PATH.exists(), f"Flask adapter not found at {FLASK_ADAPTER_PATH}"
+    assert FLASK_ADAPTER_PATH.exists(), (
+        f"Flask adapter not found at {FLASK_ADAPTER_PATH}"
+    )
     with open(FLASK_ADAPTER_PATH) as f:
         return json.load(f)
 
@@ -130,7 +130,9 @@ class TestFlaskJinja2Adapter:
         # Must include the Blueprint route decorator pattern
         decorator_strs = [d["pattern"] for d in decorators]
         has_blueprint_route = any("route" in p for p in decorator_strs)
-        assert has_blueprint_route, "Flask adapter must include blueprint.route decorator pattern"
+        assert has_blueprint_route, (
+            "Flask adapter must include blueprint.route decorator pattern"
+        )
 
     def test_route_patterns_template_render(self, flask_adapter):
         """Flask adapter defines render_template pattern."""
@@ -296,7 +298,9 @@ class TestExtensibility:
         # Validate all required fields exist
         required = schema.get("required", [])
         for field in required:
-            assert field in mock_react, f"Mock React adapter missing required field: {field}"
+            assert field in mock_react, (
+                f"Mock React adapter missing required field: {field}"
+            )
 
     def test_adapter_structure_is_pure_data(self, flask_adapter):
         """Adapter is pure data (JSON) — no code, no logic."""
@@ -315,9 +319,9 @@ class TestExtensibility:
                 assert "exec(" not in obj, f"Exec call at {path}: {obj}"
                 assert "eval(" not in obj, f"Eval call at {path}: {obj}"
             else:
-                assert isinstance(
-                    obj, (int, float, bool, type(None))
-                ), f"Non-JSON-primitive at {path}: {type(obj)}"
+                assert isinstance(obj, (int, float, bool, type(None))), (
+                    f"Non-JSON-primitive at {path}: {type(obj)}"
+                )
 
         check_pure_data(flask_adapter)
 
@@ -342,5 +346,6 @@ class TestWorkflowConfigSchemaIntegration:
             # Verify the schema is extensible (additionalProperties or
             # the design section can be added)
             pytest.skip(
-                "design section not yet in workflow-config-schema.json " "(blocked by v9l9w.9)"
+                "design section not yet in workflow-config-schema.json "
+                "(blocked by v9l9w.9)"
             )

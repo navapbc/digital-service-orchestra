@@ -14,9 +14,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-YAML_ADAPTER_PATH = (
-    REPO_ROOT / "config" / "stack-adapters" / "flask-jinja2.yaml"
-)
+YAML_ADAPTER_PATH = REPO_ROOT / "config" / "stack-adapters" / "flask-jinja2.yaml"
 JSON_ADAPTER_PATH = REPO_ROOT / "docs" / "adapters" / "flask-jinja2.json"
 SCHEMA_PATH = REPO_ROOT / "docs" / "component-discovery-schema.json"
 
@@ -148,7 +146,9 @@ class TestYamlAdapterAcceptanceCriteria:
 
     def test_ac_route_patterns(self, yaml_adapter):
         """AC: route pattern includes @blueprint.route and @app.route."""
-        patterns = [p["pattern"] for p in yaml_adapter["route_patterns"]["decorator_patterns"]]
+        patterns = [
+            p["pattern"] for p in yaml_adapter["route_patterns"]["decorator_patterns"]
+        ]
         has_blueprint = any("route" in p and "\\w+" in p for p in patterns)
         has_app = any("app" in p and "route" in p for p in patterns)
         assert has_blueprint, "Must include @blueprint.route pattern"

@@ -44,7 +44,7 @@ COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
 # Match test and lint commands that indicate a fix-then-verify cycle
 IS_TEST_CMD=false
 case "$COMMAND" in
-    *"make test"*|*"make lint"*|*"make format-check"*|*"pytest"*|*"validate.sh"*|*"make test-unit"*|*"make test-unit-only"*|*"make lint-ruff"*|*"make lint-mypy"*)
+    *"make test"*|*"make lint"*|*"make format-check"*|*"pytest"*|*"validate.sh"*)
         IS_TEST_CMD=true
         ;;
 esac

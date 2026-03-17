@@ -111,7 +111,9 @@ class TestStaleLockDetection:
         """)
         result = _run_bash(script)
         assert result.returncode == 0, f"Script failed: {result.stderr}"
-        assert "FRESH" in result.stdout, f"Fresh lock detected as stale: {result.stdout}"
+        assert "FRESH" in result.stdout, (
+            f"Fresh lock detected as stale: {result.stdout}"
+        )
 
     def test_old_lock_is_stale(self):
         """A lock older than threshold should be considered stale."""
@@ -134,7 +136,9 @@ class TestStaleLockDetection:
         """)
         result = _run_bash(script)
         assert result.returncode == 0, f"Script failed: {result.stderr}"
-        assert "STALE" in result.stdout, f"Old lock not detected as stale: {result.stdout}"
+        assert "STALE" in result.stdout, (
+            f"Old lock not detected as stale: {result.stdout}"
+        )
 
     def test_stale_detection_uses_tk_function(self):
         """_sync_lock_is_stale function in tk must detect stale locks correctly."""
@@ -178,18 +182,26 @@ class TestSyncLockAcquireRelease:
         """Create a bare git repo with a .tickets/ directory on main."""
         repo = tmp_path / "repo"
         repo.mkdir()
-        subprocess.run(["git", "init", "--initial-branch=main"], cwd=str(repo), capture_output=True)
         subprocess.run(
-            ["git", "config", "user.email", "test@test.com"], cwd=str(repo), capture_output=True
+            ["git", "init", "--initial-branch=main"], cwd=str(repo), capture_output=True
         )
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=str(repo), capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=str(repo),
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"], cwd=str(repo), capture_output=True
+        )
 
         # Create .tickets/ dir with an initial file
         tickets = repo / ".tickets"
         tickets.mkdir()
         (tickets / "test.md").write_text("test ticket\n")
         subprocess.run(["git", "add", ".tickets/"], cwd=str(repo), capture_output=True)
-        subprocess.run(["git", "commit", "-m", "init"], cwd=str(repo), capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"], cwd=str(repo), capture_output=True
+        )
         return repo
 
     def test_lock_file_written_to_tickets_dir(self, git_repo):
@@ -236,12 +248,12 @@ class TestSyncLockAcquireRelease:
             git show HEAD:.tickets/.sync-lock > /dev/null 2>&1 && echo "EXISTS_AFTER" || echo "MISSING_AFTER"
         """)
         result = _run_bash(script)
-        assert (
-            "EXISTS_BEFORE" in result.stdout
-        ), f"Lock should exist before release: {result.stdout}"
-        assert (
-            "MISSING_AFTER" in result.stdout
-        ), f"Lock should be removed after release: {result.stdout}"
+        assert "EXISTS_BEFORE" in result.stdout, (
+            f"Lock should exist before release: {result.stdout}"
+        )
+        assert "MISSING_AFTER" in result.stdout, (
+            f"Lock should be removed after release: {result.stdout}"
+        )
 
 
 class TestSyncFromMainSkipsLockFile:
@@ -252,9 +264,9 @@ class TestSyncFromMainSkipsLockFile:
         Verify that _sync_from_main is not present in tk (it was the function
         that used to pull .tickets/ from main on read commands)."""
         tk_content = TK_SCRIPT.read_text()
-        assert (
-            "_sync_from_main" not in tk_content
-        ), "scripts/tk must not reference _sync_from_main after sync infrastructure removal"
+        assert "_sync_from_main" not in tk_content, (
+            "scripts/tk must not reference _sync_from_main after sync infrastructure removal"
+        )
 
 
 class TestSyncLockConstantsPresent:
@@ -280,16 +292,16 @@ class TestSyncLockConstantsPresent:
     def test_old_v1_stale_seconds_removed(self):
         """After v1 cleanup, SYNC_LOCK_STALE_SECONDS should be removed."""
         tk_content = TK_SCRIPT.read_text()
-        assert (
-            "SYNC_LOCK_STALE_SECONDS=" not in tk_content
-        ), "SYNC_LOCK_STALE_SECONDS (v1) should be removed after cleanup"
+        assert "SYNC_LOCK_STALE_SECONDS=" not in tk_content, (
+            "SYNC_LOCK_STALE_SECONDS (v1) should be removed after cleanup"
+        )
 
     def test_old_v1_max_retries_removed(self):
         """After v1 cleanup, SYNC_LOCK_MAX_RETRIES should be removed."""
         tk_content = TK_SCRIPT.read_text()
-        assert (
-            "SYNC_LOCK_MAX_RETRIES=" not in tk_content
-        ), "SYNC_LOCK_MAX_RETRIES (v1) should be removed after cleanup"
+        assert "SYNC_LOCK_MAX_RETRIES=" not in tk_content, (
+            "SYNC_LOCK_MAX_RETRIES (v1) should be removed after cleanup"
+        )
 
     def test_old_v1_initial_backoff_removed(self):
         """After v1 cleanup, SYNC_LOCK_INITIAL_BACKOFF (non-v2) should be removed."""
@@ -298,27 +310,31 @@ class TestSyncLockConstantsPresent:
         import re
 
         matches = re.findall(r"SYNC_LOCK_INITIAL_BACKOFF(?!_V2)=", tk_content)
-        assert len(matches) == 0, "SYNC_LOCK_INITIAL_BACKOFF (v1) should be removed after cleanup"
+        assert len(matches) == 0, (
+            "SYNC_LOCK_INITIAL_BACKOFF (v1) should be removed after cleanup"
+        )
 
     def test_no_jira_sync_lock_summary(self):
         """After migration, SYNC_LOCK_SUMMARY constant should be removed."""
         tk_content = TK_SCRIPT.read_text()
-        assert (
-            "SYNC_LOCK_SUMMARY=" not in tk_content
-        ), "SYNC_LOCK_SUMMARY should be removed after git-based lock migration"
+        assert "SYNC_LOCK_SUMMARY=" not in tk_content, (
+            "SYNC_LOCK_SUMMARY should be removed after git-based lock migration"
+        )
 
     def test_no_jira_lock_references(self):
         """No references to Jira-based SYNC-LOCK pattern should remain."""
         tk_content = TK_SCRIPT.read_text()
         # The string "SYNC-LOCK" (the Jira issue title) should not appear
-        assert "SYNC-LOCK" not in tk_content, "References to SYNC-LOCK Jira issue should be removed"
+        assert "SYNC-LOCK" not in tk_content, (
+            "References to SYNC-LOCK Jira issue should be removed"
+        )
 
     def test_sync_lock_ref_path(self):
         """The script should reference the CAS sync-lock ref."""
         tk_content = TK_SCRIPT.read_text()
-        assert (
-            "refs/tk/sync-lock" in tk_content
-        ), "scripts/tk must reference refs/tk/sync-lock for the CAS-based lock"
+        assert "refs/tk/sync-lock" in tk_content, (
+            "scripts/tk must reference refs/tk/sync-lock for the CAS-based lock"
+        )
 
     def test_pull_side_sync_lock_cleanup_retained(self):
         """Pull-side .sync-lock cleanup was in _sync_from_main; now that
@@ -326,6 +342,6 @@ class TestSyncLockConstantsPresent:
         tk_content = TK_SCRIPT.read_text()
         # _sync_from_main and its .sync-lock cleanup were removed together;
         # the .sync-lock sentinel is managed by the Jira sync lock in _sync_body.
-        assert (
-            "_sync_from_main" not in tk_content
-        ), "_sync_from_main (and its pull-side sync-lock cleanup) must be removed"
+        assert "_sync_from_main" not in tk_content, (
+            "_sync_from_main (and its pull-side sync-lock cleanup) must be removed"
+        )

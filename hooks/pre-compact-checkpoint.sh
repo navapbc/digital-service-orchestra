@@ -254,7 +254,7 @@ else
     git commit -m "$CHECKPOINT_LABEL" --no-verify 2>/dev/null || true
     # Write rollback marker so downstream hooks know a checkpoint needs unwinding.
     # The marker is .gitignore'd — it lives only in the working tree, never committed.
-    echo "$(git rev-parse HEAD 2>/dev/null || echo unknown)" > "$REPO_ROOT/$CHECKPOINT_MARKER_FILE" 2>/dev/null || true
+    { git rev-parse HEAD 2>/dev/null || echo unknown; } > "$REPO_ROOT/$CHECKPOINT_MARKER_FILE" 2>/dev/null || true
     _HOOK_OUTCOME="committed"
     _EXIT_REASON="committed"
 fi

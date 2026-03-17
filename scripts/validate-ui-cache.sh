@@ -46,8 +46,7 @@ if [ "$CACHED_COMMIT" = "$CURRENT_COMMIT" ]; then
 fi
 
 # --- Step 2: Get changed files ---
-CHANGED_FILES=$(git diff "$CACHED_COMMIT" "$CURRENT_COMMIT" --name-only 2>/dev/null)
-if [ $? -ne 0 ]; then
+if ! CHANGED_FILES=$(git diff "$CACHED_COMMIT" "$CURRENT_COMMIT" --name-only 2>/dev/null); then
   echo '{"status":"error","reason":"cached commit not in git history"}'
   exit 1
 fi
@@ -62,6 +61,7 @@ UI_CHANGED=()
 while IFS= read -r file; do
   is_excluded=false
   for pat in "${EXCLUDE_PATTERNS[@]}"; do
+    # shellcheck disable=SC2254
     case "$file" in
       $pat) is_excluded=true; break ;;
     esac
@@ -70,6 +70,7 @@ while IFS= read -r file; do
 
   is_ui=false
   for pat in "${UI_PATTERNS[@]}"; do
+    # shellcheck disable=SC2254
     case "$file" in
       *$pat) is_ui=true; break ;;
     esac
@@ -77,6 +78,7 @@ while IFS= read -r file; do
   # Also match exact theme/config filenames
   basename_file=$(basename "$file")
   for pat in "${UI_PATTERNS[@]}"; do
+    # shellcheck disable=SC2254
     case "$basename_file" in
       $pat) is_ui=true; break ;;
     esac

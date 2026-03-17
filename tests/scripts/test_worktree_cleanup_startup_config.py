@@ -47,7 +47,9 @@ def _make_mock_read_config(tmpdir: Path, return_value: str = "mock-value") -> Pa
     """Create a mock read-config.sh that echoes a fixed value for any key."""
     mock_script = tmpdir / "read-config.sh"
     mock_script.write_text(
-        f"#!/usr/bin/env bash\n" f"# Mock read-config.sh for testing\n" f"echo '{return_value}'\n"
+        f"#!/usr/bin/env bash\n"
+        f"# Mock read-config.sh for testing\n"
+        f"echo '{return_value}'\n"
     )
     mock_script.chmod(mock_script.stat().st_mode | stat.S_IEXEC)
     return mock_script
@@ -117,7 +119,8 @@ class TestStartupConfigBlock:
 
             test_script = fake_scripts_dir / "test_config_block.sh"
             var_prints = "\n".join(
-                'echo "' + var + "=${" + var + ':-__UNSET__}"' for var in REQUIRED_CONFIG_VARS
+                'echo "' + var + "=${" + var + ':-__UNSET__}"'
+                for var in REQUIRED_CONFIG_VARS
             )
             test_script.write_text(
                 "#!/usr/bin/env bash\n"
@@ -149,10 +152,11 @@ class TestStartupConfigBlock:
         output = result.stdout
         for var in REQUIRED_CONFIG_VARS:
             assert f"{var}=" in output, (
-                f"Variable {var} was not printed — block may not define it.\n" f"stdout: {output}"
+                f"Variable {var} was not printed — block may not define it.\n"
+                f"stdout: {output}"
             )
             assert f"{var}=__UNSET__" not in output, (
-                f"Variable {var} was not set by the config block.\n" f"stdout: {output}"
+                f"Variable {var} was not set by the config block.\nstdout: {output}"
             )
 
     def test_config_block_falls_back_gracefully_on_missing_read_config(self) -> None:
@@ -178,7 +182,8 @@ class TestStartupConfigBlock:
             fake_scripts_dir.mkdir(parents=True)
 
             var_prints = "\n".join(
-                'echo "' + var + "=${" + var + ':-__UNSET__}"' for var in REQUIRED_CONFIG_VARS
+                'echo "' + var + "=${" + var + ':-__UNSET__}"'
+                for var in REQUIRED_CONFIG_VARS
             )
             # Script lives in lockpick-workflow/scripts/ so dirname(BASH_SOURCE[0])
             # = tmpdir/lockpick-workflow/scripts/ = PLUGIN_SCRIPTS (no read-config.sh present)
@@ -211,7 +216,9 @@ class TestStartupConfigBlock:
         # Variables should be set (to empty string) — __UNSET__ means unset, not empty
         output = result.stdout
         for var in REQUIRED_CONFIG_VARS:
-            assert f"{var}=" in output, f"Variable {var} was not printed at all.\nstdout: {output}"
+            assert f"{var}=" in output, (
+                f"Variable {var} was not printed at all.\nstdout: {output}"
+            )
 
     def test_read_config_called_exactly_six_times(self) -> None:
         """read-config.sh is called exactly once per config key (6 total).
@@ -221,7 +228,9 @@ class TestStartupConfigBlock:
         content = SCRIPT.read_text()
         # Count lines that call bash ...read-config.sh
         lines_with_calls = [
-            line for line in content.splitlines() if "read-config.sh" in line and "bash" in line
+            line
+            for line in content.splitlines()
+            if "read-config.sh" in line and "bash" in line
         ]
         assert len(lines_with_calls) == 6, (
             f"Expected exactly 6 'bash ... read-config.sh' calls, found {len(lines_with_calls)}.\n"
@@ -231,15 +240,19 @@ class TestStartupConfigBlock:
     def test_plugin_scripts_derived_from_bash_source(self) -> None:
         """PLUGIN_SCRIPTS must be derived relative to BASH_SOURCE[0], not hardcoded."""
         content = SCRIPT.read_text()
-        assert "PLUGIN_SCRIPTS" in content, "PLUGIN_SCRIPTS variable not found in script"
-        assert "BASH_SOURCE[0]" in content, "BASH_SOURCE[0] not referenced for PLUGIN_SCRIPTS"
+        assert "PLUGIN_SCRIPTS" in content, (
+            "PLUGIN_SCRIPTS variable not found in script"
+        )
+        assert "BASH_SOURCE[0]" in content, (
+            "BASH_SOURCE[0] not referenced for PLUGIN_SCRIPTS"
+        )
 
         # Find the PLUGIN_SCRIPTS= line and ensure BASH_SOURCE[0] appears there
         for line in content.splitlines():
             if "PLUGIN_SCRIPTS=" in line:
-                assert (
-                    "BASH_SOURCE" in line
-                ), f"PLUGIN_SCRIPTS= line does not reference BASH_SOURCE:\n{line}"
+                assert "BASH_SOURCE" in line, (
+                    f"PLUGIN_SCRIPTS= line does not reference BASH_SOURCE:\n{line}"
+                )
                 break
 
     def test_all_six_config_vars_present_in_script(self) -> None:
@@ -258,12 +271,14 @@ class TestStartupConfigBlock:
         """All six read-config.sh calls use '2>/dev/null || true' for graceful fallback."""
         content = SCRIPT.read_text()
         lines_with_calls = [
-            line for line in content.splitlines() if "read-config.sh" in line and "bash" in line
+            line
+            for line in content.splitlines()
+            if "read-config.sh" in line and "bash" in line
         ]
         for line in lines_with_calls:
-            assert (
-                "2>/dev/null || true" in line
-            ), f"read-config.sh call missing '2>/dev/null || true' graceful fallback:\n{line}"
+            assert "2>/dev/null || true" in line, (
+                f"read-config.sh call missing '2>/dev/null || true' graceful fallback:\n{line}"
+            )
 
 
 @pytest.mark.scripts
@@ -283,18 +298,18 @@ class TestDockerTeardownConfig:
             "replace with $CONFIG_COMPOSE_DB_FILE"
         )
         # Must reference CONFIG_COMPOSE_DB_FILE in the compose_file construction
-        assert (
-            "CONFIG_COMPOSE_DB_FILE" in content
-        ), "CONFIG_COMPOSE_DB_FILE variable not found in script"
+        assert "CONFIG_COMPOSE_DB_FILE" in content, (
+            "CONFIG_COMPOSE_DB_FILE variable not found in script"
+        )
         # compose_file must be built from $path + $CONFIG_COMPOSE_DB_FILE
         compose_file_lines = [
             line
             for line in content.splitlines()
             if "compose_file" in line and "CONFIG_COMPOSE_DB_FILE" in line
         ]
-        assert (
-            len(compose_file_lines) >= 1
-        ), "No line found that constructs compose_file using CONFIG_COMPOSE_DB_FILE"
+        assert len(compose_file_lines) >= 1, (
+            "No line found that constructs compose_file using CONFIG_COMPOSE_DB_FILE"
+        )
 
     def test_docker_teardown_skips_when_config_compose_db_file_empty(self) -> None:
         """Docker Compose teardown is skipped when CONFIG_COMPOSE_DB_FILE is empty.
@@ -309,7 +324,10 @@ class TestDockerTeardownConfig:
             or "CONFIG_COMPOSE_DB_FILE.*-n" in content
             or "-n.*CONFIG_COMPOSE_DB_FILE" in content
         ) or any(
-            ("CONFIG_COMPOSE_DB_FILE" in line and ("if" in line or "-n" in line or "-z" in line))
+            (
+                "CONFIG_COMPOSE_DB_FILE" in line
+                and ("if" in line or "-n" in line or "-z" in line)
+            )
             for line in content.splitlines()
         ), (
             "No guard found for empty CONFIG_COMPOSE_DB_FILE — "
@@ -329,9 +347,9 @@ class TestDockerTeardownConfig:
             "replace with a filter derived from $CONFIG_COMPOSE_PROJECT"
         )
         # Must reference CONFIG_COMPOSE_PROJECT
-        assert (
-            "CONFIG_COMPOSE_PROJECT" in content
-        ), "CONFIG_COMPOSE_PROJECT variable not found in script"
+        assert "CONFIG_COMPOSE_PROJECT" in content, (
+            "CONFIG_COMPOSE_PROJECT variable not found in script"
+        )
 
     def test_docker_teardown_requires_both_config_vars(self) -> None:
         """Docker teardown guard requires BOTH CONFIG_COMPOSE_DB_FILE and CONFIG_COMPOSE_PROJECT.
@@ -352,9 +370,9 @@ class TestDockerTeardownConfig:
             and ("DRY_RUN" in line or "docker" in line)
             and ("if" in line or "[[ -n" in line)
         ]
-        assert (
-            guard_lines
-        ), "Could not find the Docker teardown guard line referencing CONFIG_COMPOSE_DB_FILE"
+        assert guard_lines, (
+            "Could not find the Docker teardown guard line referencing CONFIG_COMPOSE_DB_FILE"
+        )
         guard_line = guard_lines[0]
         # The guard must also require CONFIG_COMPOSE_PROJECT to be non-empty
         assert "CONFIG_COMPOSE_PROJECT" in guard_line, (
@@ -498,14 +516,17 @@ class TestBranchPatternConfig:
         ]
         # Must NOT have 'branch --list' with hardcoded 'worktree-*' glob
         hardcoded_list = any(
-            "branch --list" in line and "'worktree-*'" in line for line in non_comment_lines
+            "branch --list" in line and "'worktree-*'" in line
+            for line in non_comment_lines
         )
         assert not hardcoded_list, (
             "Found 'git branch --list' with hardcoded 'worktree-*' glob — "
             "replace with '${CONFIG_BRANCH_PATTERN:-worktree-*}' to use the config var."
         )
         # CONFIG_BRANCH_PATTERN must appear near the branch --list call
-        branch_list_lines = [line for line in non_comment_lines if "branch --list" in line]
+        branch_list_lines = [
+            line for line in non_comment_lines if "branch --list" in line
+        ]
         assert branch_list_lines, "No 'git branch --list' call found in script."
         config_used = any("CONFIG_BRANCH_PATTERN" in line for line in branch_list_lines)
         assert config_used, (
@@ -529,9 +550,9 @@ class TestBranchPatternConfig:
             if "Clean up" in line and "gitignore" in line.lower():
                 gitignore_section_start = i
                 break
-        assert (
-            gitignore_section_start is not None
-        ), "Could not find '# Clean up .gitignore' section header in script."
+        assert gitignore_section_start is not None, (
+            "Could not find '# Clean up .gitignore' section header in script."
+        )
         # Check the next 20 lines of the section for CONFIG_BRANCH_PATTERN usage
         section_lines = lines[gitignore_section_start : gitignore_section_start + 20]
         config_used = any("CONFIG_BRANCH_PATTERN" in line for line in section_lines)
@@ -552,11 +573,14 @@ class TestBranchPatternConfig:
             line for line in content.splitlines() if not line.lstrip().startswith("#")
         ]
         violations = [
-            line for line in non_comment_lines if "branch --list" in line and "'worktree-*'" in line
+            line
+            for line in non_comment_lines
+            if "branch --list" in line and "'worktree-*'" in line
         ]
         assert not violations, (
             "Found git branch --list with hardcoded 'worktree-*' in functional lines — "
-            "replace with '${CONFIG_BRANCH_PATTERN:-worktree-*}':\n" + "\n".join(violations)
+            "replace with '${CONFIG_BRANCH_PATTERN:-worktree-*}':\n"
+            + "\n".join(violations)
         )
 
 
@@ -572,11 +596,13 @@ class TestAgeDaysConfig:
         """
         content = SCRIPT.read_text()
         # Must contain CONFIG_MAX_AGE_DAYS in the AGE_DAYS assignment
-        assert (
-            "AGE_DAYS" in content and "CONFIG_MAX_AGE_DAYS" in content
-        ), "Script must assign AGE_DAYS using CONFIG_MAX_AGE_DAYS"
+        assert "AGE_DAYS" in content and "CONFIG_MAX_AGE_DAYS" in content, (
+            "Script must assign AGE_DAYS using CONFIG_MAX_AGE_DAYS"
+        )
         age_days_lines = [
-            line for line in content.splitlines() if line.strip().startswith("AGE_DAYS=")
+            line
+            for line in content.splitlines()
+            if line.strip().startswith("AGE_DAYS=")
         ]
         assert age_days_lines, "No AGE_DAYS= assignment line found in script"
         # The assignment must reference CONFIG_MAX_AGE_DAYS
@@ -596,7 +622,9 @@ class TestAgeDaysConfig:
         content = SCRIPT.read_text()
         # AGE_DAYS=2 as a bare assignment (not inside ${...}) must not exist
         violations = [
-            line for line in content.splitlines() if re.match(r"^AGE_DAYS=2\b", line.strip())
+            line
+            for line in content.splitlines()
+            if re.match(r"^AGE_DAYS=2\b", line.strip())
         ]
         assert not violations, (
             "Found bare 'AGE_DAYS=2' assignment — replace with 'AGE_DAYS=${CONFIG_MAX_AGE_DAYS:-2}':\n"
@@ -650,7 +678,9 @@ class TestAgeDaysConfig:
         # Now verify the actual script uses the pattern
         content = SCRIPT.read_text()
         age_days_assignment = [
-            line for line in content.splitlines() if line.strip().startswith("AGE_DAYS=")
+            line
+            for line in content.splitlines()
+            if line.strip().startswith("AGE_DAYS=")
         ]
         assert any("CONFIG_MAX_AGE_DAYS" in line for line in age_days_assignment), (
             "The script's AGE_DAYS assignment must use CONFIG_MAX_AGE_DAYS.\n"

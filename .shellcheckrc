@@ -1,0 +1,7 @@
+# ShellCheck configuration for the DSO plugin
+#
+# Disabled checks:
+# SC1090 - Can't follow non-constant source (dynamic source paths are intentional)
+# SC1091 - Not following: file not found (sourced files resolved at runtime via CLAUDE_PLUGIN_ROOT)
+# SC2034 - Variable appears unused (variables exported to/used by sourced scripts)
+disable=SC1090,SC1091,SC2034

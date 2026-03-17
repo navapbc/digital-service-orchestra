@@ -9,8 +9,12 @@ import os
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-COMPACT_HOOK = os.path.join(REPO_ROOT, "lockpick-workflow/hooks/pre-compact-checkpoint.sh")
+REPO_ROOT = subprocess.check_output(
+    ["git", "rev-parse", "--show-toplevel"], text=True
+).strip()
+COMPACT_HOOK = os.path.join(
+    REPO_ROOT, "lockpick-workflow/hooks/pre-compact-checkpoint.sh"
+)
 
 REQUIRED_FIELDS = {
     "timestamp",
@@ -32,7 +36,9 @@ def _setup_test_repo(tmpdir: Path) -> Path:
     repo = tmpdir / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
-    subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@test.com"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@test.com"], check=True
+    )
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
     (repo / "README.md").write_text("initial")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -133,7 +139,9 @@ class TestPrecompactTelemetryWritesJsonl:
         repo = _setup_test_repo(tmp_path)
         fake_home = tmp_path / "fakehome"
 
-        telemetry_file = _run_hook(repo, fake_home, extra_env={"LOCKPICK_DISABLE_PRECOMPACT": "1"})
+        telemetry_file = _run_hook(
+            repo, fake_home, extra_env={"LOCKPICK_DISABLE_PRECOMPACT": "1"}
+        )
 
         assert telemetry_file.exists()
         entry = _read_last_entry(telemetry_file)
@@ -212,7 +220,11 @@ class TestPrecompactTelemetryOverhead:
         fake_home = tmp_path / "fakehome"
 
         # Use env_var_disabled for fastest exit
-        telemetry_file = _run_hook(repo, fake_home, extra_env={"LOCKPICK_DISABLE_PRECOMPACT": "1"})
+        telemetry_file = _run_hook(
+            repo, fake_home, extra_env={"LOCKPICK_DISABLE_PRECOMPACT": "1"}
+        )
 
         entry = _read_last_entry(telemetry_file)
-        assert entry["duration_ms"] < 100, f"Telemetry overhead too high: {entry['duration_ms']}ms"
+        assert entry["duration_ms"] < 100, (
+            f"Telemetry overhead too high: {entry['duration_ms']}ms"
+        )

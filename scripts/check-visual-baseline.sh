@@ -26,7 +26,7 @@ if [ "$(uname)" = "Darwin" ]; then
     # macOS: visual tests skip by design (font rendering differs ~11%)
     # Check if baselines exist using the configured path (or skip if not configured)
     if [ -n "${VISUAL_BASELINE_PATH:-}" ]; then
-        BASELINE_COUNT=$(ls "$REPO_ROOT/$VISUAL_BASELINE_PATH"*.png 2>/dev/null | wc -l | tr -d ' ')
+        BASELINE_COUNT=$(find "$REPO_ROOT/$VISUAL_BASELINE_PATH" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
         if [ "$BASELINE_COUNT" -gt 0 ]; then
             echo "VISUAL_REGRESSION=skipped_macos (${BASELINE_COUNT} baselines exist, verified on CI only)"
         else

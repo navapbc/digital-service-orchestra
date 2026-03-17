@@ -193,7 +193,7 @@ if [ -n "$ORPHAN_PIDS" ]; then
     PROCS_KILLED=$(echo "$ORPHAN_PIDS" | wc -l | tr -d ' ')
     if [ $DRY_RUN -eq 1 ]; then
         log_action "  Would kill $PROCS_KILLED orphaned shell process(es)"
-        log_action "  PIDs: $(echo $ORPHAN_PIDS | tr '\n' ' ')"
+        log_action "  PIDs: $(echo "$ORPHAN_PIDS" | tr '\n' ' ')"
     else
         echo "$ORPHAN_PIDS" | xargs kill 2>/dev/null || true
         log_action "  Killed $PROCS_KILLED orphaned shell process(es)"
@@ -359,10 +359,10 @@ log "Checking for test artifacts of dead worktrees..."
 if [ -z "$ARTIFACT_PREFIX" ]; then
     log "  Skipping artifact dir check (session.artifact_prefix not configured)"
 else
-    for dir in /tmp/${ARTIFACT_PREFIX}-*/ ; do
+    for dir in /tmp/"${ARTIFACT_PREFIX}"-*/ ; do
         [ -d "$dir" ] || continue
         wt_name=$(basename "$dir")
-        wt_name="${wt_name#${ARTIFACT_PREFIX}-}"
+        wt_name="${wt_name#"${ARTIFACT_PREFIX}"-}"
         # Keep "app" (main repo) and any active worktree
         if [ "$wt_name" = "app" ]; then
             continue
@@ -513,14 +513,14 @@ if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
     if [ $TOTAL_CLEANED -eq 0 ] && [ $TIMEOUT_ENTRIES -eq 0 ]; then
         echo "Environment is clean!"
     else
-        [ $PROCS_KILLED -gt 0 ] && echo "  Processes killed: $PROCS_KILLED"
-        [ $LOGS_CLEANED -gt 0 ] && echo "  Validation logs removed: $LOGS_CLEANED"
-        [ $TASKS_CLEANED -gt 0 ] && echo "  Task outputs removed: $TASKS_CLEANED"
-        [ $CASCADE_CLEANED -gt 0 ] && echo "  Cascade state removed: $CASCADE_CLEANED"
+        [ "$PROCS_KILLED" -gt 0 ] && echo "  Processes killed: $PROCS_KILLED"
+        [ "$LOGS_CLEANED" -gt 0 ] && echo "  Validation logs removed: $LOGS_CLEANED"
+        [ "$TASKS_CLEANED" -gt 0 ] && echo "  Task outputs removed: $TASKS_CLEANED"
+        [ "$CASCADE_CLEANED" -gt 0 ] && echo "  Cascade state removed: $CASCADE_CLEANED"
         [ $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) -gt 0 ] && echo "  Dead worktree state removed: $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
-        [ $DEBUG_LOGS_CLEANED -gt 0 ] && echo "  Debug logs removed: $DEBUG_LOGS_CLEANED"
-        [ $WORKTREES_PRUNED -gt 0 ] && echo "  Worktrees pruned: $WORKTREES_PRUNED"
-        [ $TIMEOUT_ENTRIES -gt 0 ] && echo "  Timeout events found: $TIMEOUT_ENTRIES (use /dso:retro to triage)"
+        [ "$DEBUG_LOGS_CLEANED" -gt 0 ] && echo "  Debug logs removed: $DEBUG_LOGS_CLEANED"
+        [ "$WORKTREES_PRUNED" -gt 0 ] && echo "  Worktrees pruned: $WORKTREES_PRUNED"
+        [ "$TIMEOUT_ENTRIES" -gt 0 ] && echo "  Timeout events found: $TIMEOUT_ENTRIES (use /dso:retro to triage)"
     fi
 else
     log ""

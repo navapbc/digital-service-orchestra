@@ -116,6 +116,7 @@ unset -f _cfg; unset _val
 
 # Get latest CI workflow run — includes startedAt/createdAt for elapsed calculation
 get_status() {
+    # shellcheck disable=SC2086
     gh run list --workflow=CI $GH_BRANCH_FLAG --limit 1 \
         --json databaseId,status,conclusion,name,startedAt,createdAt \
         | jq '.[0]'
@@ -130,6 +131,7 @@ find_run_for_sha() {
     local deadline=$(( $(date +%s) + 90 ))
     while true; do
         local run_json
+        # shellcheck disable=SC2086
         run_json=$(gh run list --workflow=CI $GH_BRANCH_FLAG --limit 5 \
             --json databaseId,status,conclusion,name,startedAt,createdAt,headSha \
             2>/dev/null | jq --arg sha "$target_sha" \
@@ -179,8 +181,9 @@ ci_parse_json() {
     local json="$1"
     local expr="$2"
     local result
-    result=$(echo "$json" | jq -r "$expr" 2>/dev/null)
-    if [ $? -ne 0 ]; then
+    local _jq_rc=0
+    result=$(echo "$json" | jq -r "$expr" 2>/dev/null) || _jq_rc=$?
+    if [ "$_jq_rc" -ne 0 ]; then
         if [ "$_CI_JQ_WARNED" -eq 0 ]; then
             echo "ci-status: jq not found, using parse_json_field fallback" >&2
             _CI_JQ_WARNED=1
@@ -347,6 +350,7 @@ check_fast_gate_failed() {
 
 # Get run ID only
 if [ $ID_ONLY -eq 1 ]; then
+    # shellcheck disable=SC2086
     gh run list --workflow=CI $GH_BRANCH_FLAG --limit 1 --json databaseId | jq -r '.[0].databaseId'
     exit 0
 fi

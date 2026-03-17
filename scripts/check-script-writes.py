@@ -39,7 +39,9 @@ def find_shfmt(shfmt_path=None):
             return candidate
     # Try PATH
     try:
-        result = subprocess.run(["which", "shfmt"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            ["which", "shfmt"], capture_output=True, text=True, timeout=5
+        )
         if result.returncode == 0:
             path = result.stdout.strip()
             if path:
@@ -239,7 +241,16 @@ def collect_assignments(ast):
                     assignments[var_name].append((line, value_word))
 
         for key, val in node.items():
-            if key in ("Pos", "End", "OpPos", "Hash", "Left", "Right", "ValuePos", "ValueEnd"):
+            if key in (
+                "Pos",
+                "End",
+                "OpPos",
+                "Hash",
+                "Left",
+                "Right",
+                "ValuePos",
+                "ValueEnd",
+            ):
                 continue
             if isinstance(val, dict):
                 walk(val)
@@ -420,7 +431,13 @@ def find_violations_in_ast(ast, filepath, var_map):
             inner_stmts = cmd.get("Stmts", [])
             walk_stmts(inner_stmts)
 
-        elif cmd_type in ("IfClause", "WhileClause", "ForClause", "CaseClause", "Block"):
+        elif cmd_type in (
+            "IfClause",
+            "WhileClause",
+            "ForClause",
+            "CaseClause",
+            "Block",
+        ):
             walk_nested(cmd)
 
         elif cmd_type == "FuncDecl":

@@ -67,6 +67,7 @@ echo "Collecting failure details..."
 FAILED_STEP_DETAILS=""
 while IFS= read -r job_name; do
     [ -z "$job_name" ] && continue
+    # shellcheck disable=SC2016
     STEP_INFO=$(gh run view "$RUN_ID" --json jobs \
         --arg jname "$job_name" \
         --jq '.jobs[] | select(.name == $jname) | .steps[] | select(.conclusion == "failure") | "  - Step: \(.name)"' \

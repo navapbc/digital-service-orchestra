@@ -90,7 +90,7 @@ _deps_extract_object_field() {
     local key="$2"
 
     if [[ "$json" =~ \"${key}\"[[:space:]]*:[[:space:]]*\{ ]]; then
-        local after="${json#*\"${key}\"*:\{}"
+        local after="${json#*\""${key}"\"*:\{}"
         local depth=1
         local i=0
         local len=${#after}
@@ -115,7 +115,7 @@ _deps_extract_string_field() {
     # Match "key" : "value" — capture the value (handle escaped quotes)
     # Use a simple approach: find the key, then extract between the next pair of quotes
     if [[ "$json" =~ \"${key}\"[[:space:]]*:[[:space:]]*\" ]]; then
-        local after="${json#*\"${key}\"*:*\"}"
+        local after="${json#*\""${key}"\"*:*\"}"
         # Read until unescaped quote (handle \\" correctly — count consecutive backslashes)
         local result=""
         local i=0
@@ -144,7 +144,7 @@ _deps_extract_string_field() {
         echo "$result"
     elif [[ "$json" =~ \"${key}\"[[:space:]]*:[[:space:]]*([0-9.]+|true|false|null) ]]; then
         # Non-string value (number, boolean, null)
-        local after="${json#*\"${key}\"*:}"
+        local after="${json#*\""${key}"\"*:}"
         after="${after#"${after%%[![:space:]]*}"}"  # trim leading whitespace
         # Read until comma, brace, or bracket
         local result=""
@@ -345,7 +345,7 @@ parse_json_object() {
     # Find "field":{
     if [[ "$json" =~ \"${field}\"[[:space:]]*:[[:space:]]*\{ ]]; then
         # Get everything starting from the opening brace
-        local after="${json#*\"${field}\"*:}"
+        local after="${json#*\""${field}"\"*:}"
         # Trim leading whitespace
         after="${after#"${after%%[![:space:]]*}"}"
         # Now balance braces, respecting strings

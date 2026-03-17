@@ -89,7 +89,9 @@ class TestIssueQualityCheckFileImpact:
             f.write(content)
         return path
 
-    def test_file_impact_section_contributes_to_quality_pass(self, tmp_path: object) -> None:
+    def test_file_impact_section_contributes_to_quality_pass(
+        self, tmp_path: object
+    ) -> None:
         """A ticket with a file impact section should pass quality gate even without AC."""
         content = (
             "---\n"
@@ -125,13 +127,13 @@ class TestEnrichFileImpactScript:
 
     SCRIPT_PATH = os.path.join(WORKTREE_ROOT, "scripts", "enrich-file-impact.sh")
     # Content-inspection tests use the canonical plugin copy (wrapper is thin)
-    CANONICAL_PATH = os.path.join(
-        WORKTREE_ROOT, "scripts", "enrich-file-impact.sh"
-    )
+    CANONICAL_PATH = os.path.join(WORKTREE_ROOT, "scripts", "enrich-file-impact.sh")
 
     def test_script_exists_and_is_executable(self) -> None:
         assert os.path.isfile(self.SCRIPT_PATH), "enrich-file-impact.sh must exist"
-        assert os.access(self.SCRIPT_PATH, os.X_OK), "enrich-file-impact.sh must be executable"
+        assert os.access(self.SCRIPT_PATH, os.X_OK), (
+            "enrich-file-impact.sh must be executable"
+        )
 
     def test_exits_gracefully_without_api_key(self, tmp_path: object) -> None:
         """Without ANTHROPIC_API_KEY, script should exit 0 with warning."""
@@ -228,7 +230,8 @@ class TestEnrichFileImpactScript:
                 violations.append(f"Line {i}: {stripped}")
 
         assert violations == [], (
-            "Found hardcoded app/src or app/tests in active code:\n" + "\n".join(violations)
+            "Found hardcoded app/src or app/tests in active code:\n"
+            + "\n".join(violations)
         )
 
     def test_enrich_dry_run_includes_config_paths(self, tmp_path: object) -> None:
@@ -265,9 +268,9 @@ class TestEnrichFileImpactScript:
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
         # Confirm prompt length is reported (> 0 means directory discovery succeeded)
-        assert "prompt" in combined.lower() and any(
-            c.isdigit() for c in combined
-        ), f"Expected prompt length report in output, got:\n{combined}"
+        assert "prompt" in combined.lower() and any(c.isdigit() for c in combined), (
+            f"Expected prompt length report in output, got:\n{combined}"
+        )
 
     def test_enrich_uses_read_config(self) -> None:
         """enrich-file-impact.sh must reference read-config.sh for directory discovery.
@@ -277,6 +280,6 @@ class TestEnrichFileImpactScript:
         with open(self.CANONICAL_PATH) as f:
             content = f.read()
 
-        assert (
-            "read-config.sh" in content
-        ), "enrich-file-impact.sh must use read-config.sh for config-driven directory discovery"
+        assert "read-config.sh" in content, (
+            "enrich-file-impact.sh must use read-config.sh for config-driven directory discovery"
+        )

@@ -64,7 +64,7 @@ TOTAL_CHANGED=$(
         echo "$CHANGED_FILES"
         echo "$STAGED_FILES"
         echo "$UNTRACKED_FILES"
-    } | sort -u | grep -v '^$' | wc -l | tr -d ' '
+    } | sort -u | grep -cv '^$'
 )
 
 # Case 1: No review recorded

@@ -65,9 +65,9 @@ def test_step_2_85_before_step_3_commit() -> None:
     pos_3 = _get_line_number(content, r"###\s+3\.\s+Commit")
     assert pos_2_85 != -1, "Step 2.85 heading not found."
     assert pos_3 != -1, "Step 3 Commit heading not found."
-    assert (
-        pos_2_85 < pos_3
-    ), f"Step 2.85 (line {pos_2_85}) must appear before Step 3 Commit (line {pos_3})."
+    assert pos_2_85 < pos_3, (
+        f"Step 2.85 (line {pos_2_85}) must appear before Step 3 Commit (line {pos_3})."
+    )
 
 
 def test_step_6_no_longer_contains_bug_ticket_creation() -> None:
