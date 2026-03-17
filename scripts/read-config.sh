@@ -34,10 +34,14 @@ else
 fi
 
 # Resolve config file when not specified (.conf only)
+# workflow-config.conf is a project-level file at the git repo root, not a plugin file.
 if [[ -z "$config_file" ]]; then
-    root="${CLAUDE_PLUGIN_ROOT}"
-    if [[ -f "$root/workflow-config.conf" ]]; then config_file="$root/workflow-config.conf"
-    else exit 0; fi
+    _git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [[ -n "$_git_root" && -f "$_git_root/workflow-config.conf" ]]; then
+        config_file="$_git_root/workflow-config.conf"
+    else
+        exit 0
+    fi
 fi
 # Missing file: exit 0 (graceful degradation)
 if [[ ! -f "$config_file" ]]; then
