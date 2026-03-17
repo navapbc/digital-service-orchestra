@@ -1,0 +1,50 @@
+# Digital Service Orchestra (DSO) plugin pre-commit configuration
+# These hooks enforce code quality and safety checks for the DSO plugin repository.
+fail_fast: true
+
+repos:
+  - repo: local
+    hooks:
+      # --- commit-stage hooks ---
+
+      - id: executable-guard
+        name: Executable Bit Guard (5s timeout)
+        entry: ./scripts/pre-commit-executable-guard.sh
+        language: system
+        pass_filenames: false
+        stages: [commit]
+        files: \.sh$
+
+      - id: format-and-lint
+        name: Format + Lint - Ruff (15s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh format-and-lint 15 "ruff check scripts/*.py tests/**/*.py && ruff format --check scripts/*.py tests/**/*.py"
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
+      - id: isolation-check
+        name: Test Isolation Check (60s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh isolation-check 60 "STAGED_ONLY=true scripts/check-test-isolation.sh"
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
+      # --- push-stage hooks ---
+
+      - id: block-sentinel-push
+        name: Block checkpoint sentinel push
+        language: system
+        entry: "bash -c 'git cat-file -t HEAD:.checkpoint-needs-review >/dev/null 2>&1 && exit 1; exit 0'"
+        pass_filenames: false
+        always_run: true
+        stages: [push]
+
+      - id: pre-push-lint
+        name: Pre-push format + lint check
+        language: system
+        entry: ./scripts/pre-commit-wrapper.sh pre-push-lint 60 "ruff check scripts/*.py tests/**/*.py && ruff format --check scripts/*.py tests/**/*.py"
+        pass_filenames: false
+        always_run: true
+        stages: [push]
