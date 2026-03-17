@@ -31,6 +31,18 @@ repos:
         types: [python]
         stages: [pre-commit]
 
+      # Review gate (timeout: 10s)
+      # Blocks commits containing non-allowlisted files without a valid review-status.
+      # Since this repo IS the DSO plugin, we call the hook directly.
+      # Debug command: ./hooks/pre-commit-review-gate.sh
+      - id: pre-commit-review-gate
+        name: Review Gate (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-review-gate 10 "./hooks/pre-commit-review-gate.sh"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       # --- push-stage hooks ---
 
       - id: block-sentinel-push
