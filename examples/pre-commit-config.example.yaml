@@ -54,7 +54,7 @@ repos:
         pass_filenames: false
         exclude: '^\\.tickets/'
         types: [python]
-        stages: [commit]
+        stages: [pre-commit]
 
       # Poetry lock validation (timeout: 10s)
       # Debug command: cd app && poetry check --lock
@@ -64,7 +64,7 @@ repos:
         language: system
         pass_filenames: false
         exclude: '^\\.tickets/'
-        stages: [commit]
+        stages: [pre-commit]
 
       # Format check + lint: ruff on staged .py files only (timeout: 15s)
       # Checks only staged files for fast pre-commit feedback (~3-5s).
@@ -79,7 +79,7 @@ repos:
         pass_filenames: false
         exclude: '^\\.tickets/'
         types: [python]
-        stages: [commit]
+        stages: [pre-commit]
 
       # Security scan: bandit (timeout: 15s)
       # Debug command: cd app && PY_RUN_APPROACH=local make lint-security
@@ -90,7 +90,7 @@ repos:
         pass_filenames: false
         exclude: '^\\.tickets/'
         types: [python]
-        stages: [commit]
+        stages: [pre-commit]
 
       # Pytest marker validation (timeout: 5s)
       # Debug command: ./scripts/check-pytest-markers.sh
@@ -101,7 +101,7 @@ repos:
         pass_filenames: false
         exclude: '^\\.tickets/'
         types: [python]
-        stages: [commit]
+        stages: [pre-commit]
 
       # Visual baseline existence check (timeout: 5s)
       # Fails if test_visual_regression.py references snapshots that don't have baseline PNGs.
@@ -111,7 +111,7 @@ repos:
         entry: ./scripts/check-visual-baselines.sh
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         files: (app/tests/e2e/|app/src/templates/|app/src/static/)
 
       # Persistence coverage check (timeout: 5s)
@@ -122,7 +122,7 @@ repos:
         entry: ./scripts/check-persistence-coverage.sh
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         files: (job_store|document_processor|db/models|db/clients)
 
       # Migration heads check (timeout: 5s)
@@ -133,7 +133,7 @@ repos:
         entry: ./scripts/check-migration-heads.sh
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         files: app/src/db/migrations/
 
       # Circular import detection (timeout: 10s)
@@ -145,7 +145,7 @@ repos:
         pass_filenames: false
         exclude: '^\\.tickets/'
         types: [python]
-        stages: [commit]
+        stages: [pre-commit]
 
       # Executable bit guard (timeout: 5s)
       # Prevents scripts from silently losing their executable permission.
@@ -155,7 +155,7 @@ repos:
         entry: ./scripts/pre-commit-executable-guard.sh
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         files: \.sh$
 
       # Assertion density check
@@ -166,7 +166,7 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh check-assertion-density 15 "cd app && PY_RUN_APPROACH=local make check-assertion-density"
         pass_filenames: false
         exclude: '^\\.tickets/'
-        stages: [commit]
+        stages: [pre-commit]
         types: [python]
 
       # Pre-push format and lint check (read-only)
@@ -179,7 +179,7 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh pre-push-lint 60 "cd app && PY_RUN_APPROACH=local make format-check && PY_RUN_APPROACH=local make lint-ruff"
         pass_filenames: false
         always_run: true
-        stages: [push]
+        stages: [pre-push]
 
       # Pre-push sentinel check
       # Blocks git push if .checkpoint-needs-review is tracked in HEAD.
@@ -196,4 +196,4 @@ repos:
         entry: "bash -c 'git cat-file -t HEAD:.checkpoint-needs-review >/dev/null 2>&1 && exit 1; exit 0'"
         pass_filenames: false
         always_run: true
-        stages: [push]
+        stages: [pre-push]

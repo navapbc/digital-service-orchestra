@@ -8,6 +8,15 @@ Workflow infrastructure plugin for Claude Code projects — TDD-driven sprint ma
 claude plugin install github:navapbc/digital-service-orchestra
 ```
 
+## Setup
+
+After cloning the repo, install the pre-commit hooks so the review gate is active:
+
+```bash
+pip install pre-commit   # or: brew install pre-commit
+pre-commit install       # installs hooks from .pre-commit-config.yaml
+```
+
 ## Requirements
 
 ### External Dependencies

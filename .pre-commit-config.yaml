@@ -12,7 +12,7 @@ repos:
         entry: ./scripts/pre-commit-executable-guard.sh
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         files: \.sh$
 
       - id: format-and-lint
@@ -21,7 +21,7 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
-        stages: [commit]
+        stages: [pre-commit]
 
       - id: isolation-check
         name: Test Isolation Check (60s timeout)
@@ -29,7 +29,7 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
-        stages: [commit]
+        stages: [pre-commit]
 
       # --- push-stage hooks ---
 
@@ -39,7 +39,7 @@ repos:
         entry: "bash -c 'git cat-file -t HEAD:.checkpoint-needs-review >/dev/null 2>&1 && exit 1; exit 0'"
         pass_filenames: false
         always_run: true
-        stages: [push]
+        stages: [pre-push]
 
       - id: pre-push-lint
         name: Pre-push format + lint check
@@ -47,4 +47,4 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh pre-push-lint 60 "ruff check scripts/*.py tests/**/*.py && ruff format --check scripts/*.py tests/**/*.py"
         pass_filenames: false
         always_run: true
-        stages: [push]
+        stages: [pre-push]
