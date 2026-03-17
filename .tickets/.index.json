@@ -216,6 +216,13 @@
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
   },
+  "dso-o8bw": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Write cross-context smoke test for dso shim",
+    "type": "task"
+  },
   "dso-p2d3": {
     "deps": [],
     "priority": 0,
