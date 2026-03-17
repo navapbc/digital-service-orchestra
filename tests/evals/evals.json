@@ -341,23 +341,6 @@
       ]
     },
     {
-      "id": "skill-staging-test-exists",
-      "category": "skill-activation",
-      "phase_introduced": 0,
-      "hook": "skills/staging-test/SKILL.md",
-      "setup": {
-        "stdin": "",
-        "state_files": {},
-        "env": {}
-      },
-      "assertions": [
-        {
-          "type": "file_exists",
-          "path": "skills/staging-test/SKILL.md"
-        }
-      ]
-    },
-    {
       "id": "skill-tdd-workflow-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
@@ -438,7 +421,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "hooks.json"
+          "path": "hooks/hooks.json"
         }
       ]
     },
@@ -676,7 +659,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "hooks.json"
+          "path": "hooks/hooks.json"
         }
       ]
     },
