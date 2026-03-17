@@ -173,11 +173,13 @@ if [[ "$SKIP_JIRA" == "false" ]]; then
     echo ""
     echo "Step 1/8: Deleting all issues from Jira project '$JIRA_PROJECT'..."
 
+    # shellcheck disable=SC2097,SC2098
     JIRA_COUNT=$(JIRA_PROJECT="$JIRA_PROJECT" acli jira workitem search \
         --jql "project = $JIRA_PROJECT" --count 2>/dev/null | grep -o '[0-9]*' | head -1) || JIRA_COUNT=0
 
     if [[ "$JIRA_COUNT" -gt 0 ]]; then
         echo "  Found $JIRA_COUNT issues to delete..."
+        # shellcheck disable=SC2097,SC2098
         JIRA_PROJECT="$JIRA_PROJECT" acli jira workitem delete \
             --jql "project = $JIRA_PROJECT" --yes --ignore-errors 2>&1 | tail -5
         echo "  Jira issues deleted."

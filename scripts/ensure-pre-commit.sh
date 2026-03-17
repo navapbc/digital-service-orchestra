@@ -80,12 +80,15 @@ if ! command -v pre-commit &>/dev/null; then
     if [ -x "$_ensure_precommit_repo_root/$_ensure_precommit_app_dir/.venv/bin/python" ]; then
         if "$_ensure_precommit_repo_root/$_ensure_precommit_app_dir/.venv/bin/python" -c "import pre_commit" &>/dev/null; then
             export PATH="$_ensure_precommit_repo_root/$_ensure_precommit_app_dir/.venv/bin:$PATH"
+            # shellcheck disable=SC2317
             return 0 2>/dev/null || exit 0
         fi
     fi
     echo "WARNING: pre-commit not found on PATH — git commit hooks may fail" >&2
     echo "  Fix: cd app && poetry install" >&2
+    # shellcheck disable=SC2317
     return 1 2>/dev/null || exit 1
 fi
 
+# shellcheck disable=SC2317
 return 0 2>/dev/null || exit 0

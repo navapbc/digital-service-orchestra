@@ -78,6 +78,7 @@ LAUNCH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Launch via nohup: run command, capture exit code to file
 HEARTBEAT_FILE="${OUTPUT_FILE}.heartbeat"
+# shellcheck disable=SC2016
 nohup bash -c '
     # Write initial heartbeat
     date +%s > "$4"

@@ -19,7 +19,7 @@ LOCK_STATUS=$("${CLAUDE_PLUGIN_ROOT}/scripts/agent-batch-lifecycle.sh" lock-stat
 }
 
 if echo "$LOCK_STATUS" | grep -q "^LOCKED:"; then
-    LOCK_ID=$(echo "$LOCK_STATUS" | sed 's/^LOCKED: *//')
+    LOCK_ID="${LOCK_STATUS#LOCKED: }"
 
     # Verify the lock belongs to this worktree session
     LOCK_WORKTREE=$(tk show "$LOCK_ID" 2>/dev/null | grep -oE 'Worktree: [^ ]+' | sed 's/Worktree: //' || true)

@@ -80,7 +80,7 @@ while IFS= read -r file; do
     # Agent guidance always requires review (checked first, overrides allowlist)
     case "$file" in
         .claude/hooks/*|.claude/hookify.*) SKIP_REVIEW=false; break ;;
-        .claude/skills/*|.claude/hooks/*) SKIP_REVIEW=false; break ;;
+        .claude/skills/*) SKIP_REVIEW=false; break ;;
         hooks/*|skills/*|docs/workflows/*) SKIP_REVIEW=false; break ;;
         CLAUDE.md) SKIP_REVIEW=false; break ;;
     esac

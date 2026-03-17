@@ -20,6 +20,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # ── Register aliases ──────────────────────────────────────────────────────────
 
+# shellcheck disable=SC2016
 git config alias.revert-safe \
     '!REPO_ROOT=$(git rev-parse --show-toplevel) && bash "$REPO_ROOT/scripts/git-revert-safe.sh" "$@"'
 

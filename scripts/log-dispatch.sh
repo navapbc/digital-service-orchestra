@@ -42,6 +42,7 @@ if command -v jq >/dev/null 2>&1; then
 else
     # Fallback without jq: sanitize values to prevent malformed JSON.
     # Strip quotes/backslashes since these values come from orchestrator.
+    # shellcheck disable=SC1003
     _sanitize() { printf '%s' "$1" | tr -d '"\\'; }
     ENTRY=$(printf '{"ts":"%s","session_id":"%s","assigned_agent":"%s","task_id":"%s"}' \
         "$(_sanitize "$TS")" "$(_sanitize "$SESSION_ID")" \

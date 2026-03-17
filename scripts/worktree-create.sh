@@ -198,7 +198,7 @@ if [ -n "$POST_CREATE_CMD" ]; then
         echo "  ERROR: Post-create hook failed (exit $HOOK_RC)" >&2
         if [ -n "$HOOK_STDERR" ]; then
             echo "  Hook stderr:" >&2
-            echo "$HOOK_STDERR" | sed 's/^/    /' >&2
+            printf '%s\n' "$HOOK_STDERR" | sed 's/^/    /' >&2
         fi
         echo "" >&2
         echo "  The worktree was created but the hook failed." >&2
