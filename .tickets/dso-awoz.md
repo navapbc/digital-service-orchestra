@@ -44,3 +44,25 @@ OUT: Library mode (--lib) [S2], setup bootstrapping [S3], smoke tests [S4], doc 
 ## Considerations
 - [Reliability] Error messages must name the config key and file — vague 'plugin not found' errors will confuse users
 - [Reliability] git rev-parse --show-toplevel returns the worktree root in a worktree, not the main repo root — workflow-config.conf must be found relative to it (it is a tracked file, so it will be present)
+
+<!-- note-id: 2qcoyneo -->
+<!-- timestamp: 2026-03-17T20:17:20Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+COMPLEXITY_CLASSIFICATION: COMPLEX
+
+## ACCEPTANCE CRITERIA
+
+- [ ] `templates/host-project/dso` exists in the DSO plugin repo
+  Verify: test -f $(git rev-parse --show-toplevel)/templates/host-project/dso
+- [ ] Shim is executable and has no non-POSIX constructs (no readlink -f, realpath)
+  Verify: grep -qvE 'readlink -f|realpath' $(git rev-parse --show-toplevel)/templates/host-project/dso
+- [ ] `dso tk --help` exits 0 when DSO_ROOT is resolvable
+  Verify: CLAUDE_PLUGIN_ROOT=$(git rev-parse --show-toplevel) bash $(git rev-parse --show-toplevel)/templates/host-project/dso tk --help
+- [ ] `dso nonexistent` exits 127 with descriptive error message
+  Verify: CLAUDE_PLUGIN_ROOT=$(git rev-parse --show-toplevel) bash $(git rev-parse --show-toplevel)/templates/host-project/dso nonexistent 2>&1; test $? -eq 127
+- [ ] Shim resolves DSO_ROOT from workflow-config.conf when CLAUDE_PLUGIN_ROOT is unset
+  Verify: unset CLAUDE_PLUGIN_ROOT; bash $(git rev-parse --show-toplevel)/templates/host-project/dso tk --help 2>&1 | grep -q "Usage"
+- [ ] Shim exits with error naming dso.plugin_root key when neither CLAUDE_PLUGIN_ROOT nor config entry is available
+  Verify: unset CLAUDE_PLUGIN_ROOT; REPO_ROOT=$(git rev-parse --show-toplevel); bash "$REPO_ROOT/templates/host-project/dso" tk 2>&1 | grep -q "dso.plugin_root"

@@ -1,4 +1,13 @@
 {
+  "dso-0ifj": {
+    "deps": [
+      "dso-a33b"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "Implement templates/host-project/dso shim script (GREEN)",
+    "type": "task"
+  },
   "dso-0k2k": {
     "deps": [],
     "priority": 1,
@@ -50,7 +59,7 @@
       "dso-qii9"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "in_progress",
     "title": "Provide a method for client projects to conveniently call dso scripts ",
     "type": "epic"
   },
@@ -95,6 +104,13 @@
     "status": "open",
     "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
     "type": "epic"
+  },
+  "dso-a33b": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Write failing tests for dso shim template (RED)",
+    "type": "task"
   },
   "dso-ag1b": {
     "deps": [],
