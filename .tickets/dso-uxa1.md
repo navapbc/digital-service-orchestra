@@ -1,6 +1,6 @@
 ---
 id: dso-uxa1
-status: open
+status: closed
 deps: [dso-ku5i]
 links: []
 created: 2026-03-17T21:07:49Z
@@ -52,3 +52,10 @@ perl -pi -e 's|\$\{CLAUDE_PLUGIN_ROOT\}/scripts/([\w][\w.-]*)|.claude/scripts/ds
 - [ ] New .claude/scripts/dso references are present (at least 47 replaced invocations)
   Verify: COUNT=$(grep -r '\.claude/scripts/dso' $(git rev-parse --show-toplevel)/skills $(git rev-parse --show-toplevel)/docs/workflows $(git rev-parse --show-toplevel)/CLAUDE.md 2>/dev/null | wc -l | tr -d ' '); [ "$COUNT" -ge 47 ]
 
+
+<!-- note-id: v1iotoax -->
+<!-- timestamp: 2026-03-17T22:07:44Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: migrated legacy script invocations to .claude/scripts/dso <name>

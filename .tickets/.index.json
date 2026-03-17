@@ -328,6 +328,15 @@
     "title": "Make implementation plan migration aware",
     "type": "epic"
   },
+  "dso-uxa1": {
+    "deps": [
+      "dso-ku5i"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "Migrate skill/workflow doc script invocations to use dso shim (GREEN)",
+    "type": "task"
+  },
   "dso-v558": {
     "deps": [],
     "priority": 3,
