@@ -219,7 +219,7 @@
   "dso-o8bw": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Write cross-context smoke test for dso shim",
     "type": "task"
   },
@@ -387,7 +387,7 @@
       "dso-r9fa"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO contributor, I can verify shim reliability via automated cross-context smoke test",
     "type": "story"
   },

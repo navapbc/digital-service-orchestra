@@ -1,6 +1,6 @@
 ---
 id: dso-y9sz
-status: open
+status: closed
 deps: [dso-awoz, dso-0y9j, dso-r9fa]
 links: []
 created: 2026-03-17T19:51:56Z
@@ -37,3 +37,10 @@ OUT: Unit tests for individual shim functions (those live alongside S1's impleme
 
 ## Considerations
 - [Testing] CI may not have git worktree support or pre-existing worktrees — test must create its own temp worktree and clean it up, or detect the unavailability and skip with a non-zero-but-expected warning
+
+<!-- note-id: 7myq6z9j -->
+<!-- timestamp: 2026-03-17T22:49:15Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: all done definitions satisfied — bash tests/smoke-test-dso-shim.sh exits 0, test auto-discovered by run-script-tests.sh (SHA fb6cde4)
