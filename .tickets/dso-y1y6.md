@@ -1,6 +1,6 @@
 ---
 id: dso-y1y6
-status: open
+status: closed
 deps: [dso-awoz, dso-0y9j, dso-r9fa, dso-y9sz, dso-2x3c]
 links: []
 created: 2026-03-17T19:51:57Z
@@ -31,3 +31,10 @@ OUT: Creating new documentation files
 ## Done Definitions
 - When this story is complete, CLAUDE.md accurately describes shim invocation (.claude/scripts/dso) as the standard method for running DSO scripts from host projects
   ← Satisfies: overall epic goal of consistent, convenient DSO script invocation
+
+<!-- note-id: zo1tehrn -->
+<!-- timestamp: 2026-03-17T22:51:54Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: CLAUDE.md architecture section updated with shim invocation docs (SHA 565149b)

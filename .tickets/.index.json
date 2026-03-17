@@ -376,7 +376,7 @@
       "dso-2x3c"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Update project docs to reflect DSO script invocation via shim",
     "type": "story"
   },
