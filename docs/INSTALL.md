@@ -90,6 +90,22 @@ Auto-detection markers:
 
 ---
 
+## Git Hooks and CI
+
+The plugin provides pre-commit hook scripts (timeout wrapper, review gate, format/lint)
+that integrate with the standard `pre-commit` framework. Example configurations for
+a Python/Poetry project:
+
+- **Pre-commit hooks**: `examples/pre-commit-config.example.yaml` — copy to `.pre-commit-config.yaml`
+- **GitHub Actions CI**: `examples/ci.example.yml` — copy to `.github/workflows/ci.yml`
+
+Both examples are project-specific templates. Customize hook entries, timeouts, and
+CI job steps to match your project's stack and commands.
+
+See `docs/PRE-COMMIT-TIMEOUT-WRAPPER.md` for the timeout wrapper interface.
+
+---
+
 ## Verify Installation
 
 After setting `CLAUDE_PLUGIN_ROOT`, run the `/dso:init` skill inside a Claude Code
