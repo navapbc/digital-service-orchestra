@@ -5136,16 +5136,14 @@ cmd_sync() {
         return 1
     fi
 
-    # ── Resolve JIRA_PROJECT: env var > workflow-config.conf > error ─────────
-    if [[ -z "${JIRA_PROJECT:-}" ]]; then
-        local _cfg_project=""
-        local _read_config="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/scripts/read-config.sh"
-        if [[ -x "$_read_config" ]]; then
-            _cfg_project=$("$_read_config" "jira.project" 2>/dev/null) || true
-        fi
-        if [[ -n "$_cfg_project" ]]; then
-            JIRA_PROJECT="$_cfg_project"
-        fi
+    # ── Resolve JIRA_PROJECT: workflow-config.conf > env var > error ─────────
+    local _cfg_project=""
+    local _read_config="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/scripts/read-config.sh"
+    if [[ -x "$_read_config" ]]; then
+        _cfg_project=$("$_read_config" "jira.project" 2>/dev/null) || true
+    fi
+    if [[ -n "$_cfg_project" ]]; then
+        JIRA_PROJECT="$_cfg_project"
     fi
 
     # ── Check 2: JIRA_PROJECT must be resolved ────────────────────────────────
