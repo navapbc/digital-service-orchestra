@@ -462,7 +462,7 @@ echo "Running: $CMD"
 test_exit=0
 
 # Use mktemp for the exit code file to avoid PID-based collisions
-_exit_code_file=$(mktemp /tmp/test-batched-exit-XXXXXX.txt)
+_exit_code_file=$(mktemp /tmp/test-batched-exit-XXXXXX)
 trap 'rm -f "$_exit_code_file"' EXIT
 
 # Use a background job to enforce timeout during execution

@@ -132,7 +132,7 @@ _node_runner_run() {
         echo "Running: node --test $node_file"
 
         local _exit_code_file
-        _exit_code_file=$(mktemp "$_node_tmpdir/test-batched-exit-XXXXXX.txt")
+        _exit_code_file=$(mktemp "$_node_tmpdir/test-batched-exit-XXXXXX")
 
         (
             node --test "$node_file"

@@ -795,5 +795,32 @@ assert_eq "test_malformed_collection_output_falls_back: empty collect → fallba
 rm -rf "$TMPDIR_PYTEST_MALFORMED"
 assert_pass_if_clean "test_malformed_collection_output_falls_back"
 
+# ── test_mktemp_randomizes_exit_code_filename ─────────────────────────────────
+# mktemp template must end with X characters for randomization to work on macOS.
+# If the template has a suffix after the Xs (e.g., XXXXXX.txt), macOS mktemp
+# creates a file with literal "XXXXXX.txt" — no randomization occurs.
+echo ""
+echo "--- test_mktemp_randomizes_exit_code_filename ---"
+_snapshot_fail
+TMPDIR_MKTEMP="$(mktemp -d)"
+MKTEMP_STATE="$TMPDIR_MKTEMP/test-batched-state.json"
+
+# Run a simple passing command through test-batched.sh
+mktemp_out=""
+mktemp_exit=0
+mktemp_out=$(TEST_BATCHED_STATE_FILE="$MKTEMP_STATE" bash "$SCRIPT" --timeout=10 \
+    "bash -c 'exit 0'" 2>&1) || mktemp_exit=$?
+
+# After the run, the literal file /tmp/test-batched-exit-XXXXXX.txt should NOT exist.
+# If mktemp failed to randomize (macOS bug with .txt suffix), this literal file is created.
+literal_file_exists=0
+[ -f "/tmp/test-batched-exit-XXXXXX.txt" ] && literal_file_exists=1
+# Clean up in case the literal file was created
+rm -f "/tmp/test-batched-exit-XXXXXX.txt"
+rm -rf "$TMPDIR_MKTEMP"
+assert_eq "test_mktemp_randomizes_exit_code_filename: no literal XXXXXX.txt file created" \
+    "0" "$literal_file_exists"
+assert_pass_if_clean "test_mktemp_randomizes_exit_code_filename"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

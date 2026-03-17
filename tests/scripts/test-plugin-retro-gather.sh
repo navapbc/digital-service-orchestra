@@ -232,6 +232,7 @@ if [ -f "$PLUGIN_SCRIPT" ]; then
         # Simulate the ARTIFACT_PREFIX resolution from retro-gather.sh
         prefix12_result=$(cd "$repo_dir12" && \
             CLAUDE_PLUGIN_PYTHON="$_YAML_PYTHON" \
+            CLAUDE_PLUGIN_ROOT="$repo_dir12" \
             bash "$PLUGIN_READ_CONFIG" session.artifact_prefix 2>/dev/null || true)
         if [ -z "$prefix12_result" ]; then
             # Fallback derivation (same as in retro-gather.sh)
@@ -261,6 +262,7 @@ CONFIGEOF
     if [ -n "$_YAML_PYTHON" ]; then
         prefix13_result=$(cd "$repo_dir13" && \
             CLAUDE_PLUGIN_PYTHON="$_YAML_PYTHON" \
+            CLAUDE_PLUGIN_ROOT="$repo_dir13" \
             bash "$PLUGIN_READ_CONFIG" session.artifact_prefix 2>/dev/null || true)
         if [ -z "$prefix13_result" ]; then
             prefix13_result="$(basename "$repo_dir13" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-' | sed 's/-$//')-test-artifacts"
