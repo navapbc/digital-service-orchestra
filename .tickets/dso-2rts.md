@@ -1,6 +1,6 @@
 ---
 id: dso-2rts
-status: open
+status: closed
 deps: [dso-02wk]
 links: []
 created: 2026-03-17T21:06:39Z
@@ -46,3 +46,12 @@ The `return 0 2>/dev/null || exit 0` idiom handles both sourced and exec invocat
 - [ ] All lib-mode tests pass
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-shim-smoke.sh 2>&1 | grep -q 'FAILED: 0'
 
+
+## Notes
+
+<!-- note-id: ks1kc6l4 -->
+<!-- timestamp: 2026-03-17T21:48:53Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: --lib flag in templates/host-project/dso

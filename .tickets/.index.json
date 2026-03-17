@@ -38,6 +38,15 @@
     "title": "Implement review guidance related to code reuse",
     "type": "epic"
   },
+  "dso-2rts": {
+    "deps": [
+      "dso-02wk"
+    ],
+    "priority": 0,
+    "status": "closed",
+    "title": "Add --lib flag to shim template (GREEN)",
+    "type": "task"
+  },
   "dso-2x3c": {
     "deps": [
       "dso-awoz"
@@ -167,6 +176,15 @@
     "status": "open",
     "title": "Don't merge to main between batches",
     "type": "epic"
+  },
+  "dso-jl2z": {
+    "deps": [
+      "dso-5l1c"
+    ],
+    "priority": 0,
+    "status": "closed",
+    "title": "Create scripts/dso-setup.sh (GREEN)",
+    "type": "task"
   },
   "dso-khl2": {
     "deps": [],
