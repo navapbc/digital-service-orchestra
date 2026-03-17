@@ -1,6 +1,6 @@
 ---
 id: dso-0ifj
-status: open
+status: closed
 deps: [dso-a33b]
 links: []
 created: 2026-03-17T20:21:27Z
@@ -82,3 +82,19 @@ All 8 tests should pass (GREEN).
 - [ ] bash tests/run-all.sh passes (exit 0)
   Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh
 
+
+## Notes
+
+<!-- note-id: ohevxc6e -->
+<!-- timestamp: 2026-03-17T20:35:44Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — Files: templates/host-project/dso. Tests: PASSED 9/9 (all shim smoke tests pass).
+
+<!-- note-id: nwkj0e4l -->
+<!-- timestamp: 2026-03-17T20:35:45Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Implemented: templates/host-project/dso — POSIX shim with cascading DSO_ROOT resolution, exit 127 for missing scripts

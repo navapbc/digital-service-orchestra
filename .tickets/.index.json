@@ -4,7 +4,7 @@
       "dso-a33b"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "Implement templates/host-project/dso shim script (GREEN)",
     "type": "task"
   },
