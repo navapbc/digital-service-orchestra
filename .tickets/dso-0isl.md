@@ -1,6 +1,6 @@
 ---
 id: dso-0isl
-status: open
+status: closed
 deps: [dso-wo1i]
 links: []
 created: 2026-03-18T02:38:20Z
