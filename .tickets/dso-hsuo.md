@@ -33,3 +33,27 @@ parent: dso-4g8u
 - [Maintainability] `skills/sprint/SKILL.md` is a protected file (CLAUDE.md rule 20) — user approval required at implementation time before editing
 - [Reliability] The epic completion sequence must stage the bumped version file before the epic completion commit. If the commit step invokes the commit workflow (Story dso-bvna), the sprint-skip guidance must suppress a redundant patch bump in the same commit.
 
+
+**2026-03-18T00:40:08Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-18T00:40:39Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — bump-version.sh --minor increments minor + resets patch to 0; COMMIT-WORKFLOW.md step 3b already has sprint-skip guidance; Phase 9 On Success in SKILL.md is at line 1283-1293
+
+**2026-03-18T00:40:43Z**
+
+CHECKPOINT 3/6: Tests written (none required — docs-only change) ✓
+
+**2026-03-18T00:41:11Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — Added step 2 in Phase 9 On Success: calls scripts/bump-version.sh --minor, stages with git add -u, explains minor bump precedence over patch, references existing sprint-skip guidance in COMMIT-WORKFLOW.md Step 3b
+
+**2026-03-18T00:41:18Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — Read updated Phase 9 On Success section; guidance matches done definition: bump-version.sh --minor called, increments minor+resets patch, version file staged, sprint-skip note references COMMIT-WORKFLOW.md Step 3b to suppress redundant patch bump
+
+**2026-03-18T00:41:21Z**
+
+CHECKPOINT 6/6: Done ✓ — Sprint skill epic completion step now calls scripts/bump-version.sh --minor (Phase 9 On Success, step 2), incrementing the minor version and resetting patch to 0
