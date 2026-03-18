@@ -7,7 +7,13 @@ REPO_ROOT = Path(
     subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
 )
 TEMPLATE_PATH = (
-    REPO_ROOT / "skills" / "debug-everything" / "prompts" / "test-failure-fix.md"
+    REPO_ROOT
+    / "plugins"
+    / "dso"
+    / "skills"
+    / "debug-everything"
+    / "prompts"
+    / "test-failure-fix.md"
 )
 
 

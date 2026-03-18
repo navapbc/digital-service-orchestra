@@ -1,6 +1,6 @@
 ---
 id: dso-anlb
-status: in_progress
+status: closed
 deps: [dso-2oyj]
 links: []
 created: 2026-03-18T19:38:24Z
@@ -46,3 +46,7 @@ CHECKPOINT 3/6: Tests written (RED phase tests from dso-2oyj already exist) ✓
 **2026-03-18T20:24:16Z**
 
 CHECKPOINT 4/6: Implementation complete ✓ - Moved skills/, hooks/, commands/, scripts/, docs/, .claude-plugin/ to plugins/dso/. Updated .gitignore and git-tracked workflow-config.conf. Created .claude-plugin/marketplace.json at repo root with git-subdir. Updated .pre-commit-config.yaml, check-skill-refs.sh, validate.sh, evals.json, run-all.sh, run-script-tests.sh. Bulk-updated 171+ test files to use DSO_PLUGIN_DIR=/plugins/dso. Updated dso-setup.sh DIST_ROOT for templates/examples.
+
+**2026-03-18T21:10:45Z**
+
+CHECKPOINT 6/6: Done ✓ — 545 files moved to plugins/dso/. workflow-config.conf tracked. All 13 TDD structure tests GREEN. Full suite: 948+1619+53 tests pass.

@@ -162,6 +162,13 @@
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
   },
+  "dso-4f1i": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "RED: Write failing tests for tdd.md reviewer new dimensions",
+    "type": "task"
+  },
   "dso-4g8u": {
     "deps": [],
     "priority": 2,
@@ -287,6 +294,15 @@
     "status": "closed",
     "title": "As a developer in a host project, I can invoke any DSO script via .claude/scripts/dso",
     "type": "story"
+  },
+  "dso-awsv": {
+    "deps": [
+      "dso-tk5c"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "GREEN: Update SKILL.md Step 3 with TDD task structure, escape hatch, and behavioral-content definition",
+    "type": "task"
   },
   "dso-blah": {
     "deps": [],
@@ -434,11 +450,27 @@
     "title": "Implementation planning tradeoffs",
     "type": "epic"
   },
+  "dso-gp00": {
+    "deps": [
+      "dso-gsqg"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "GREEN: Add RED test task and test-exempt categories to ACCEPTANCE-CRITERIA-LIBRARY.md",
+    "type": "task"
+  },
   "dso-gpuu": {
     "deps": [],
     "priority": 1,
     "status": "closed",
     "title": "test task",
+    "type": "task"
+  },
+  "dso-gsqg": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "RED: Write failing tests for ACCEPTANCE-CRITERIA-LIBRARY.md new categories",
     "type": "task"
   },
   "dso-gul1": {
@@ -523,6 +555,15 @@
     "status": "open",
     "title": "Fix: add clarifying parenthetical for /dso:init in INSTALL.md Step 5",
     "type": "bug"
+  },
+  "dso-j700": {
+    "deps": [
+      "dso-4f1i"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "GREEN: Add red_test_dependency and exemption_justification dimensions to tdd.md; update review-criteria.md schema hash",
+    "type": "task"
   },
   "dso-jbcp": {
     "deps": [],
@@ -804,6 +845,13 @@
     "priority": 2,
     "status": "closed",
     "title": "Implement --dryrun flag in scripts/dso-setup.sh (TDD GREEN)",
+    "type": "task"
+  },
+  "dso-tk5c": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "RED: Write failing tests for SKILL.md TDD enforcement language",
     "type": "task"
   },
   "dso-tmmj": {

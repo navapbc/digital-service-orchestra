@@ -26,7 +26,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_PATH = REPO_ROOT / "scripts" / "check-file-syntax.py"
+SCRIPT_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "check-file-syntax.py"
 
 
 def _load_module() -> ModuleType:

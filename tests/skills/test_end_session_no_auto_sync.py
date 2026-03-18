@@ -7,7 +7,7 @@ comments/notes; assert zero matches.
 import pathlib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-SKILL_MD = REPO_ROOT / "skills" / "end-session" / "SKILL.md"
+SKILL_MD = REPO_ROOT / "plugins" / "dso" / "skills" / "end-session" / "SKILL.md"
 
 
 def test_end_session_no_auto_sync() -> None:

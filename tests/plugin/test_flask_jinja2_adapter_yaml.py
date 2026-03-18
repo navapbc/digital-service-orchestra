@@ -14,9 +14,10 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+DSO_PLUGIN_DIR = REPO_ROOT / "plugins" / "dso"
 YAML_ADAPTER_PATH = REPO_ROOT / "config" / "stack-adapters" / "flask-jinja2.yaml"
-JSON_ADAPTER_PATH = REPO_ROOT / "docs" / "adapters" / "flask-jinja2.json"
-SCHEMA_PATH = REPO_ROOT / "docs" / "component-discovery-schema.json"
+JSON_ADAPTER_PATH = DSO_PLUGIN_DIR / "docs" / "adapters" / "flask-jinja2.json"
+SCHEMA_PATH = DSO_PLUGIN_DIR / "docs" / "component-discovery-schema.json"
 
 
 @pytest.fixture

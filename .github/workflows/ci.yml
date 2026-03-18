@@ -40,7 +40,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Run shellcheck
-        run: shellcheck --severity=warning scripts/*.sh hooks/*.sh hooks/**/*.sh
+        run: shellcheck --severity=warning plugins/dso/scripts/*.sh plugins/dso/hooks/*.sh plugins/dso/hooks/**/*.sh
 
       - name: Job timing report
         if: always()
@@ -57,10 +57,10 @@ jobs:
         run: pip install ruff
 
       - name: Ruff check
-        run: ruff check scripts/*.py tests/**/*.py
+        run: ruff check plugins/dso/scripts/*.py tests/**/*.py
 
       - name: Ruff format check
-        run: ruff format --check scripts/*.py tests/**/*.py
+        run: ruff format --check plugins/dso/scripts/*.py tests/**/*.py
 
       - name: Job timing report
         if: always()
@@ -112,7 +112,7 @@ jobs:
         run: pip install tk
 
       - name: Create failure bug
-        run: bash scripts/ci-create-failure-bug.sh "${{ github.run_id }}"
+        run: bash plugins/dso/scripts/ci-create-failure-bug.sh "${{ github.run_id }}"
 
       - name: Job timing report
         if: always()

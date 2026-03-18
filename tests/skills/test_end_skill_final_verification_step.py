@@ -12,7 +12,7 @@ import pathlib
 import re
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-SKILL_MD = REPO_ROOT / "skills" / "end-session" / "SKILL.md"
+SKILL_MD = REPO_ROOT / "plugins" / "dso" / "skills" / "end-session" / "SKILL.md"
 
 
 def _get_section_content(content: str, start_pattern: str, end_pattern: str) -> str:

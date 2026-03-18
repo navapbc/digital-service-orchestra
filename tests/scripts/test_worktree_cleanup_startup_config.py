@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = REPO_ROOT / "scripts" / "worktree-cleanup.sh"
+SCRIPT = REPO_ROOT / "plugins" / "dso" / "scripts" / "worktree-cleanup.sh"
 
 # The six CONFIG_* variables that must be declared by the startup config block
 REQUIRED_CONFIG_VARS = [

@@ -78,7 +78,9 @@ This is a task about something.
 class TestIssueQualityCheckFileImpact:
     """Test that issue-quality-check.sh includes file impact in quality gate."""
 
-    SCRIPT_PATH = os.path.join(WORKTREE_ROOT, "scripts", "issue-quality-check.sh")
+    SCRIPT_PATH = os.path.join(
+        WORKTREE_ROOT, "plugins", "dso", "scripts", "issue-quality-check.sh"
+    )
 
     def _create_ticket(self, tmpdir: str, ticket_id: str, content: str) -> str:
         """Create a mock ticket file and return path."""
@@ -125,9 +127,13 @@ class TestIssueQualityCheckFileImpact:
 class TestEnrichFileImpactScript:
     """Test enrich-file-impact.sh behavior."""
 
-    SCRIPT_PATH = os.path.join(WORKTREE_ROOT, "scripts", "enrich-file-impact.sh")
+    SCRIPT_PATH = os.path.join(
+        WORKTREE_ROOT, "plugins", "dso", "scripts", "enrich-file-impact.sh"
+    )
     # Content-inspection tests use the canonical plugin copy (wrapper is thin)
-    CANONICAL_PATH = os.path.join(WORKTREE_ROOT, "scripts", "enrich-file-impact.sh")
+    CANONICAL_PATH = os.path.join(
+        WORKTREE_ROOT, "plugins", "dso", "scripts", "enrich-file-impact.sh"
+    )
 
     def test_script_exists_and_is_executable(self) -> None:
         assert os.path.isfile(self.SCRIPT_PATH), "enrich-file-impact.sh must exist"

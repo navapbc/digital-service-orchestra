@@ -8,7 +8,7 @@ import pathlib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SETTINGS_JSON = REPO_ROOT / ".claude" / "settings.json"
-HOOKS_JSON = REPO_ROOT / ".claude-plugin" / "plugin.json"
+HOOKS_JSON = REPO_ROOT / "plugins" / "dso" / ".claude-plugin" / "plugin.json"
 
 
 def test_no_ticket_sync_push_in_settings() -> None:

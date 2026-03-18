@@ -20,7 +20,7 @@ import pytest
 REPO_ROOT = Path(
     subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
 )
-TK_SCRIPT = REPO_ROOT / "scripts" / "tk"
+TK_SCRIPT = REPO_ROOT / "plugins" / "dso" / "scripts" / "tk"
 
 
 def _run_bash(

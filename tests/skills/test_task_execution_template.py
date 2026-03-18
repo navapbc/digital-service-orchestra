@@ -9,6 +9,8 @@ import os
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TEMPLATE_PATH = os.path.join(
     REPO_ROOT,
+    "plugins",
+    "dso",
     "skills",
     "sprint",
     "prompts",

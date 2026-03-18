@@ -13,9 +13,10 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = REPO_ROOT / "docs" / "component-discovery-schema.json"
-WORKFLOW_CONFIG_SCHEMA_PATH = REPO_ROOT / "docs" / "workflow-config-schema.json"
-FLASK_ADAPTER_PATH = REPO_ROOT / "docs" / "adapters" / "flask-jinja2.json"
+DSO_PLUGIN_DIR = REPO_ROOT / "plugins" / "dso"
+SCHEMA_PATH = DSO_PLUGIN_DIR / "docs" / "component-discovery-schema.json"
+WORKFLOW_CONFIG_SCHEMA_PATH = DSO_PLUGIN_DIR / "docs" / "workflow-config-schema.json"
+FLASK_ADAPTER_PATH = DSO_PLUGIN_DIR / "docs" / "adapters" / "flask-jinja2.json"
 
 
 @pytest.fixture

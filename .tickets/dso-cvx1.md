@@ -1,6 +1,6 @@
 ---
 id: dso-cvx1
-status: open
+status: closed
 deps: [dso-anlb]
 links: []
 created: 2026-03-18T19:38:41Z
