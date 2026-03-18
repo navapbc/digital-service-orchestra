@@ -26,7 +26,7 @@ shift 2
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Build exclusion list ---
-EXCLUDES=(':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json')
+EXCLUDES=(':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json' ':!.worktree-blackboard.json')
 
 # Read visual baseline directory from config (e.g., app/tests/e2e/snapshots/)
 BASELINE_DIR=$("$SCRIPT_DIR/read-config.sh" visual.baseline_directory 2>/dev/null || true)

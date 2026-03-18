@@ -12,18 +12,30 @@ This skill is the primary entry point for onboarding a new project to Digital Se
 
 ## Step 1: Run dso-setup.sh
 
-Determine the target repository:
+Determine the target repository and detect --dryrun mode:
 
 ```bash
 # If already in the target repo or a git repo exists:
 TARGET_REPO=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+# Detect --dryrun flag from skill arguments
+DRYRUN=false
+if echo "$SKILL_ARGS" | grep -q -- '--dryrun'; then
+  DRYRUN=true
+fi
 ```
 
-Then run the setup script:
+Then run the setup script (passing `--dryrun` when in dryrun mode):
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/scripts/dso-setup.sh" "$TARGET_REPO"
-SETUP_EXIT=$?
+# In dryrun mode, capture preview output; in normal mode, run as usual
+if [ "$DRYRUN" = "true" ]; then
+  SETUP_PREVIEW=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/dso-setup.sh" "$TARGET_REPO" --dryrun 2>&1)
+  SETUP_EXIT=$?
+else
+  bash "$CLAUDE_PLUGIN_ROOT/scripts/dso-setup.sh" "$TARGET_REPO"
+  SETUP_EXIT=$?
+fi
 ```
 
 Handle exit codes as follows:
@@ -35,6 +47,7 @@ Handle exit codes as follows:
 | 2 | Warnings only (non-fatal prerequisites missing) | Print the warnings from `dso-setup.sh`. Ask the user: "One or more optional prerequisites are missing (see above). Continue with setup? (yes/no)". If yes, proceed to Step 2. If no, stop. |
 
 > **Exit 1 (fatal)**: Print the error, stop immediately, do NOT proceed to the wizard.
+> **Dryrun note**: In dryrun mode, `SETUP_PREVIEW` holds what `dso-setup.sh --dryrun` would do. Exit codes are handled identically — exit 1 still stops the skill.
 
 ---
 
@@ -115,9 +128,34 @@ Ask: "Would you like install instructions for these optional tools? (yes/no)" Sh
 
 ## Step 4: Write workflow-config.conf
 
-Write the confirmed key=value pairs to `$TARGET_REPO/workflow-config.conf`.
+**In normal mode**: Write the confirmed key=value pairs to `$TARGET_REPO/workflow-config.conf`.
 
-Rules:
+**In dryrun mode**: Do NOT write the file. Instead, display what would be written:
+
+```
+[dryrun] workflow-config.conf preview:
+KEY1=value1
+KEY2=value2
+... (all collected key=value pairs)
+```
+
+Then show the combined dryrun preview and prompt to proceed:
+
+```
+=== Dryrun Preview ===
+
+[Script actions that would run:]
+<SETUP_PREVIEW output>
+
+[workflow-config.conf that would be written:]
+<key=value pairs collected in Step 3>
+```
+
+Ask: "Proceed with setup? (yes/no)"
+- If **yes**: re-run Steps 1–4 without `--dryrun` (set `DRYRUN=false`), reusing all answers collected during the wizard — do NOT re-prompt the user for values already confirmed.
+- If **no**: stop gracefully with the message "Setup cancelled. No changes were made."
+
+Rules (normal mode):
 - Format: `KEY=VALUE` (flat, one per line, dot-notation keys).
 - If the file already exists: **add or update** only the keys the user confirmed in Step 3. Do not remove or overwrite other existing keys.
 - The `dso.plugin_root` key is already written by `dso-setup.sh` in Step 1 — do NOT duplicate it.
@@ -133,7 +171,19 @@ Check for missing starter files and offer to copy them:
 
 2. **Known issues doc**: If `$TARGET_REPO/.claude/docs/` does not exist or does not contain `KNOWN-ISSUES.md`, offer to copy `$CLAUDE_PLUGIN_ROOT/templates/KNOWN-ISSUES.example.md` to `$TARGET_REPO/.claude/docs/KNOWN-ISSUES.md`.
 
-For each offer, ask the user "Copy <file>? (yes/no)" before copying. Never copy without confirmation.
+**In normal mode**: For each offer, ask the user "Copy <file>? (yes/no)" before copying. Never copy without confirmation.
+
+**In dryrun mode**: Do NOT copy any files. Instead, list which templates would be copied:
+
+```
+[dryrun] Templates that would be copied:
+  - CLAUDE.md.template → <TARGET_REPO>/CLAUDE.md  (if confirmed)
+  - KNOWN-ISSUES.example.md → <TARGET_REPO>/.claude/docs/KNOWN-ISSUES.md  (if confirmed)
+```
+
+Ask: "Proceed with template copy? (yes/no)"
+- If **yes** and this is the first dryrun pass: re-run Steps 1–5 without `--dryrun`, reusing all confirmed answers.
+- If **no**: skip template copy and continue to Step 6 summary.
 
 ---
 
@@ -183,3 +233,5 @@ Full documentation: docs/INSTALL.md
 | `workflow-config.conf` exists | Add/update only confirmed keys; preserve existing keys |
 | User declines template copy | Skip the copy; continue to next step |
 | User declines to continue after exit 2 | Stop gracefully |
+| User says "no" to dryrun Proceed prompt | Stop gracefully — "Setup cancelled. No changes were made." |
+| User says "yes" to dryrun Proceed prompt | Re-run Steps 1–5 without `--dryrun`, reusing collected answers |

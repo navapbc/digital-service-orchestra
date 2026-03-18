@@ -1,6 +1,6 @@
 ---
 id: dso-g3vq
-status: open
+status: in_progress
 deps: [dso-tisu]
 links: []
 created: 2026-03-18T16:05:41Z
@@ -56,3 +56,33 @@ Changes to SKILL.md:
 - [ ] ruff check passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && ruff check scripts/*.py tests/**/*.py
 
+
+## Notes
+
+**2026-03-18T16:44:03Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-18T16:44:10Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-18T16:44:13Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-18T16:45:00Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-18T16:45:15Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-18T16:45:46Z**
+
+CHECKPOINT 6/6: Done ✓ — AC1: pass, AC2: pass, AC3: pass, AC4: pass, AC5: pass (check-skill-refs exits 0, no FAIL output; grep-qv false negative on empty stdout), AC6: pass (ruff exits 0)
+
+**2026-03-18T16:59:33Z**
+
+CHECKPOINT 6/6: Done ✓ — Batch 3 complete, review passed.

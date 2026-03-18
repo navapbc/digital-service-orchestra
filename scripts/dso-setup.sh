@@ -143,8 +143,8 @@ if [[ -z "$DRYRUN" ]]; then
         cp "$PLUGIN_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
     fi
 else
-    echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_PRECOMMIT"
-    echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml"
+    echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_REPO/.pre-commit-config.yaml (only if absent)"
+    echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
 fi
 
 # ── Register pre-commit hooks (must come AFTER config copy) ───────────────────
@@ -153,7 +153,9 @@ if [[ -z "$DRYRUN" ]]; then
         (cd "$TARGET_REPO" && pre-commit install && pre-commit install --hook-type pre-push) || true
     fi
 else
-    echo "[dryrun] Would run: pre-commit install && pre-commit install --hook-type pre-push"
+    if command -v pre-commit >/dev/null 2>&1; then
+        echo "[dryrun] Would run: pre-commit install && pre-commit install --hook-type pre-push"
+    fi
 fi
 
 # ── Optional dependency detection (non-blocking) ──────────────────────────────
