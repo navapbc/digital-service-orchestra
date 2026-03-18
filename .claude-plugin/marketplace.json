@@ -6,8 +6,7 @@
     "plugins": [
       {
         "name": "dso",
-        "source": "./",
-        "git-subdir": "plugins/dso",
+        "source": "./plugins/dso",
         "description": "Workflow infrastructure plugin for Claude Code projects"
       }
     ]
