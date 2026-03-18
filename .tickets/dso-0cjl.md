@@ -1,6 +1,6 @@
 ---
 id: dso-0cjl
-status: in_progress
+status: closed
 deps: [dso-ff9f]
 links: []
 created: 2026-03-18T04:37:01Z
