@@ -177,6 +177,13 @@
     "title": "As a developer in a host project, I can invoke any DSO script via .claude/scripts/dso",
     "type": "story"
   },
+  "dso-cma6": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
+    "type": "bug"
+  },
   "dso-fbky": {
     "deps": [],
     "priority": 3,

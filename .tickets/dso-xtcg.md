@@ -1,6 +1,6 @@
 ---
 id: dso-xtcg
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T04:37:01Z

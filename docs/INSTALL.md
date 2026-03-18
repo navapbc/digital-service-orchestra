@@ -1,258 +1,196 @@
 # Installation Guide — Digital Service Orchestra
 
-Digital Service Orchestra is a Claude Code plugin that provides workflow infrastructure
-skills and hooks for software development projects.
+Digital Service Orchestra (DSO) is a Claude Code plugin that provides workflow infrastructure,
+skills, and hooks for software development projects.
 
 ---
 
 ## Prerequisites
 
 - **Claude Code** >= 1.0.0 (the `claude` CLI)
-- **bash** >= 4.0
-- **GNU coreutils** — provides `gtimeout` (macOS) / `timeout` (Linux), used by
-  workflow scripts for command timeouts. Install on macOS: `brew install coreutils`
-- **python3** with PyYAML installed — only required if using the legacy YAML
-  config format. The recommended `workflow-config.conf` format (flat KEY=VALUE)
-  requires no Python dependency.
+- **bash** >= 4.0 — macOS ships bash 3.2; see [macOS note](#macos) below
+- **git**
+- **GNU coreutils** — provides `gtimeout` (macOS) / `timeout` (Linux), used by workflow scripts.
+  Install on macOS: `brew install coreutils`
+- **pre-commit** — required to activate commit hooks.
+  Install: `pip install pre-commit` or `brew install pre-commit`
+- **python3** — used by hooks for JSON parsing (stdlib only; no extra packages required)
 
 ---
 
 ## Installation
 
-### Option A — Git-based (recommended)
-
-```bash
-claude plugin install github:navapbc/digital-service-orchestra
-```
-
-This clones the plugin into Claude Code's plugin directory and registers it
-automatically.
-
-### Option B — Manual
+### Step 1 — Clone the plugin
 
 ```bash
 git clone https://github.com/navapbc/digital-service-orchestra.git /path/to/digital-service-orchestra
 ```
 
-Then register the plugin in your project's `.claude/settings.json` (see
-Required Configuration below).
+> **Note — `claude plugin install` (aspirational):** The `claude plugin install github:navapbc/digital-service-orchestra`
+> command is not yet supported. Use the git clone method above.
 
----
+### Step 2 — Run dso-setup.sh in your host project
 
-## Path Resolution
-
-Hooks in this plugin use `${CLAUDE_PLUGIN_ROOT}` to locate bundled scripts.
-
-**`claude plugin install` (Option A):** Claude Code sets `CLAUDE_PLUGIN_ROOT`
-automatically to the plugin's installation directory. No configuration needed.
-
-**Manual git clone (Option B):** `run-hook.sh` self-locates via
-`$(dirname "$0")` when `CLAUDE_PLUGIN_ROOT` is unset, so no manual
-configuration is needed in most cases. If any hook script references
-`$CLAUDE_PLUGIN_ROOT` directly (outside of `run-hook.sh`), add an `env` block
-to your `.claude/settings.json`:
-
-```json
-{
-  "env": {
-    "CLAUDE_PLUGIN_ROOT": "/absolute/path/to/digital-service-orchestra"
-  }
-}
-```
-
----
-
-## Optional: workflow-config.conf
-
-The plugin auto-detects common project stacks (Python/Poetry, Node/npm,
-Rust/Cargo, Go) without any configuration. For custom commands or explicit
-stack overrides, create a `workflow-config.conf` at your project root:
+From the DSO plugin directory, run the setup script against your host project:
 
 ```bash
-cp /path/to/digital-service-orchestra/docs/workflow-config.example.conf workflow-config.conf
+bash /path/to/digital-service-orchestra/scripts/dso-setup.sh /path/to/your-project
 ```
 
-Edit the file to match your project's commands. All keys are optional —
-omitted keys fall back to stack-detected defaults. The format is flat
-KEY=VALUE with dot-notation for nesting (no Python dependency required).
+This script:
+1. Installs the `.claude/scripts/dso` shim into your project (used by hooks and scripts to locate the plugin)
+2. Writes `dso.plugin_root=<plugin-path>` to your project's `workflow-config.conf`
 
-Schema reference: `docs/workflow-config-schema.json`
+The `dso.plugin_root` key tells the shim where the plugin lives when `CLAUDE_PLUGIN_ROOT` is not set as an
+environment variable. See [dso.plugin_root in the Configuration Reference](CONFIGURATION-REFERENCE.md#dsoplugin_root).
 
-Supported stack values: `python-poetry`, `node-npm`, `rust-cargo`, `golang`,
-`convention-based`
+### Step 3 — Copy example configuration files
 
-Auto-detection markers:
-- `pyproject.toml` → `python-poetry`
-- `package.json` → `node-npm`
-- `Cargo.toml` → `rust-cargo`
-- `go.mod` → `golang`
-- `Makefile` (fallback) → `convention-based`
+Copy the pre-commit config and workflow-config.conf template (skip any that already exist):
 
----
+```bash
+# Pre-commit hook configuration (skip if .pre-commit-config.yaml already exists)
+cp $CLAUDE_PLUGIN_ROOT/examples/pre-commit-config.example.yaml .pre-commit-config.yaml
 
-## Git Hooks and CI
+# Workflow config (skip if workflow-config.conf already exists)
+cp $CLAUDE_PLUGIN_ROOT/docs/workflow-config.example.conf workflow-config.conf
+```
 
-The plugin provides pre-commit hook scripts (timeout wrapper, review gate, format/lint)
-that integrate with the standard `pre-commit` framework. Example configurations for
-a Python/Poetry project:
+If `CLAUDE_PLUGIN_ROOT` is not set, replace it with the absolute path to the plugin directory.
 
-- **Pre-commit hooks**: `examples/pre-commit-config.example.yaml` — copy to `.pre-commit-config.yaml`
-- **GitHub Actions CI**: `examples/ci.example.yml` — copy to `.github/workflows/ci.yml`
+Edit `workflow-config.conf` to match your project. All keys are optional except `version` — omitted
+keys fall back to stack-detected defaults. See [Configuration Reference](CONFIGURATION-REFERENCE.md).
 
-Both examples are project-specific templates. Customize hook entries, timeouts, and
-CI job steps to match your project's stack and commands.
+### Step 4 — Install pre-commit hooks
 
-See `docs/PRE-COMMIT-TIMEOUT-WRAPPER.md` for the timeout wrapper interface.
+```bash
+pre-commit install
+pre-commit install --hook-type pre-push
+```
 
----
+This activates both commit-time and push-time hook stages.
 
-## Verify Installation
+### Step 5 — Invoke /dso:init
 
-After setting `CLAUDE_PLUGIN_ROOT`, run the `/dso:init` skill inside a Claude Code
-session:
+Open a Claude Code session in your project and run:
 
 ```
 /dso:init
 ```
 
-The `/dso:init` skill validates your setup by:
-1. Confirming `CLAUDE_PLUGIN_ROOT` is set and points to a valid plugin directory
-2. Detecting or reading the project stack
-3. Reporting which commands will be used for `test`, `lint`, `format`, etc.
-
-Expected output: a summary table of detected commands and a confirmation that
-hooks are registered. If `CLAUDE_PLUGIN_ROOT` is not set or points to the
-wrong location, `/dso:init` will report an error with remediation steps.
+`/dso:init` interactively validates your setup, detects or confirms your project stack,
+and reports which commands will be used for `test`, `lint`, `format`, etc. It is the canonical
+entry point for completing and verifying onboarding.
 
 ---
 
-## validate-work Configuration
+## Path Resolution
 
-The `/dso:validate-work` skill runs comprehensive project health checks across five
-domains: local validation, CI status, issue health, staging deployment, and
-staging environment tests.
+DSO hooks and scripts locate plugin resources via two mechanisms, in order:
 
-### Staging Keys
+1. **`CLAUDE_PLUGIN_ROOT` environment variable** — highest priority. Set this in your
+   `.claude/settings.json` `env` block if needed:
+   ```json
+   {
+     "env": {
+       "CLAUDE_PLUGIN_ROOT": "/absolute/path/to/digital-service-orchestra"
+     }
+   }
+   ```
+2. **`dso.plugin_root` in workflow-config.conf** — written automatically by `dso-setup.sh`.
+   Used by the `.claude/scripts/dso` shim when `CLAUDE_PLUGIN_ROOT` is not set.
 
-All staging configuration lives under the `staging.*` keys in
-`workflow-config.conf`. All keys are optional — when `staging.url` is absent,
-all staging sub-agents are skipped with the message "SKIPPED (staging not
-configured)".
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `url` | string | Base URL of the staging environment (e.g. `https://staging.example.com`). Required for any staging checks to run. |
-| `deploy_check` | string | Path to a deploy-check file (see dispatch rules below). |
-| `test` | string | Path to a smoke/acceptance test file (see dispatch rules below). |
-| `routes` | string | Comma-separated URL paths to health-check (e.g. `/,/upload,/health`). Default: `/`. |
-| `health_path` | string | URL path for the primary health endpoint. Default: `/health`. |
-
-Example configuration:
-
-```conf
-staging.url=https://my-app-env-stage.us-east-2.elasticbeanstalk.com
-staging.deploy_check=scripts/check-staging-deploy.sh
-staging.test=scripts/smoke-test-staging.sh
-staging.routes=/,/upload,/history
-staging.health_path=/health
-```
-
-### .sh vs .md Dispatch Mechanism
-
-The `deploy_check` and `test` keys each accept either a shell script (`.sh`)
-or a Markdown prompt file (`.md`). The file extension determines how
-validate-work uses the file:
-
-- **`.sh` — shell script**: Executed directly. Exit codes are interpreted as:
-  - `0` = healthy / all tests passed
-  - `1` = unhealthy / one or more tests failed
-  - `2` (deploy_check only) = deployment still in progress; staging sub-agent
-    retries up to 10 times (5-minute window) before reporting NOT_READY
-
-- **`.md` — sub-agent prompt**: Read as a prompt file for the staging
-  sub-agent. Use this when the check requires judgment, browser interaction,
-  or multi-step logic beyond a simple shell script.
-
-Examples:
-
-```conf
-# Shell script dispatch
-staging.deploy_check=scripts/check-staging-deploy.sh
-staging.test=scripts/smoke-test-staging.sh
-
-# Sub-agent prompt dispatch
-staging.deploy_check=docs/staging-deploy-check.md
-staging.test=docs/staging-test-prompt.md
-```
-
-When a key is absent, validate-work uses a built-in fallback:
-- **`deploy_check` absent**: falls back to a generic HTTP health check using
-  `curl` against `staging.url` + `staging.health_path`
-- **`test` absent**: falls back to a tiered validation sequence (deterministic
-  pre-checks → API-driven checks → Playwright) using the generic
-  `staging-environment-test.md` prompt template
-
-### Graceful Degradation
-
-validate-work degrades gracefully when staging configuration is absent or
-incomplete:
-
-- **`staging.url` absent**: Both staging sub-agents (deploy check and staging
-  test) are skipped entirely. The final report marks them as
-  `SKIPPED (staging not configured)`. This is the expected state for projects
-  that do not have a deployed staging environment.
-
-- **`staging.deploy_check` absent**: Sub-Agent 4 uses the built-in generic
-  HTTP health check against `staging.url` + `staging.health_path`. No custom
-  deploy script is required.
-
-- **`staging.test` absent**: Sub-Agent 5 runs the built-in generic tiered
-  validation (HTTP checks, page load, basic interaction). No custom test
-  script is required.
-
-- **Non-deployment changes**: If `staging.relevance_script` is configured and
-  classifies the current change as non-deployment (exit 1), staging sub-agents
-  are skipped automatically with the message
-  `SKIPPED (non-deployment changes only)`.
-
-### ci.integration_workflow (Optional)
-
-When your project runs integration tests in a separate GitHub Actions workflow,
-set `ci.integration_workflow` to the workflow name:
-
-```conf
-ci.integration_workflow=Integration Tests
-```
-
-When set, validate-work's CI sub-agent polls the integration workflow
-separately from the main CI workflow. When absent, integration workflow status
-checks are skipped.
+For most setups, `dso-setup.sh` handles this automatically and no manual configuration is needed.
 
 ---
 
-## Optional Plugins
+## Key Configuration Summary
 
-Digital Service Orchestra works standalone with `general-purpose` agents for all task
-categories. Installing optional Claude Code plugins adds specialized agents that
-are automatically discovered via `discover-agents.sh` and preferred when
-available:
+`workflow-config.conf` is a flat `KEY=VALUE` file at your project root. All keys are optional
+except `version`. Below are the most commonly needed keys for initial setup:
+
+| Key | What it does |
+|-----|-------------|
+| `version` | Config schema version (required, e.g. `1.0.0`) |
+| `stack` | Project stack (`python-poetry`, `node-npm`, `rust-cargo`, `golang`, `convention-based`). Auto-detected if absent. |
+| `commands.test` | Full test suite command (default: stack-derived) |
+| `commands.lint` | Linter command (default: stack-derived) |
+| `commands.format` | Auto-formatter command (default: stack-derived) |
+| `dso.plugin_root` | Absolute path to DSO plugin. Written by `dso-setup.sh`; rarely set manually. |
+| `jira.project` | Jira project key for `tk sync` (e.g. `DIG`) |
+
+For the full key reference including staging, CI, design, infrastructure, and worktree keys,
+see **[docs/CONFIGURATION-REFERENCE.md](CONFIGURATION-REFERENCE.md)**.
+
+### Required environment variables for Jira sync
+
+| Variable | Description |
+|----------|-------------|
+| `JIRA_URL` | Base URL of your Jira instance (e.g. `https://myorg.atlassian.net`) |
+| `JIRA_USER` | Jira account email address |
+| `JIRA_API_TOKEN` | Jira API token (generate at https://id.atlassian.com/manage-profile/security/api-tokens) |
+
+These are only required when using `tk sync`. For the full environment variable reference, see
+**[docs/CONFIGURATION-REFERENCE.md — Section 2](CONFIGURATION-REFERENCE.md#section-2--environment-variables)**.
+
+---
+
+## Optional Dependencies
+
+### acli (Atlassian CLI)
+
+`acli` enables Jira ticket management from the command line as part of `tk sync` remote link
+creation workflows. It is not required for core DSO functionality.
+
+Install:
+```bash
+# macOS
+brew install acli
+
+# Linux / WSL
+# Download from https://acli.atlassian.com and add to PATH
+```
+
+### PyYAML
+
+PyYAML is only required if your project uses the legacy YAML config format
+(`workflow-config.yaml`). The recommended format is the flat KEY=VALUE `workflow-config.conf`
+which has no Python dependency beyond stdlib.
+
+Install if needed:
+```bash
+pip install PyYAML
+# or
+pip3 install PyYAML
+```
+
+---
+
+## Optional Agent Plugins
+
+DSO works standalone with `general-purpose` agents for all task categories. Installing optional
+Claude Code plugins adds specialized agents that are automatically discovered:
 
 | Plugin | Enhancement |
 |--------|-------------|
-| **feature-dev** | Specialized code review (`code-reviewer`), architecture exploration (`code-explorer`, `code-architect`) |
+| **feature-dev** | Code review (`code-reviewer`), architecture exploration (`code-explorer`, `code-architect`) |
 | **error-debugging** | Error pattern detection (`error-detective`), structured debugging (`debugger`) |
 | **playwright** | Browser automation for visual regression testing and staging verification |
 
-When a plugin is not installed, `discover-agents.sh` falls back to
-`general-purpose` with a category-specific prompt from
-`prompts/fallback/<category>.md`. No manual configuration is required — the
-routing system in `agent-routing.conf` handles resolution automatically.
+When a plugin is not installed, DSO falls back to `general-purpose` with a category-specific
+prompt. No manual configuration is required.
 
-To install an optional plugin:
+---
 
-```bash
-claude plugin install github:<org>/<plugin-name>
-```
+## Git Hooks and CI
+
+After running `pre-commit install` (Step 4), the plugin's hooks are active. The example
+configurations in `examples/` are starting points — customize to match your project:
+
+- **Pre-commit hooks**: `examples/pre-commit-config.example.yaml`
+- **GitHub Actions CI**: `examples/ci.example.yml` → copy to `.github/workflows/ci.yml`
+
+See `docs/PRE-COMMIT-TIMEOUT-WRAPPER.md` for the timeout wrapper interface.
 
 ---
 
@@ -266,6 +204,79 @@ git pull
 No configuration migration is required for patch or minor version bumps
 (e.g., `0.1.0` → `0.1.1` or `0.2.0`).
 
-For major version bumps (e.g., `0.x` → `1.0`), check `CHANGELOG.md` in the
-plugin repository for breaking changes and any required updates to
-`workflow-config.conf` or `.claude/settings.json`.
+For major version bumps (e.g., `0.x` → `1.0`), check `CHANGELOG.md` for breaking changes and
+any required updates to `workflow-config.conf` or `.claude/settings.json`.
+
+---
+
+## Troubleshooting
+
+### macOS
+
+**bash version too old**: macOS ships bash 3.2 at `/bin/bash`. DSO requires bash >= 4.0.
+
+```bash
+brew install bash
+# Verify: bash --version
+```
+
+The DSO scripts use `#!/bin/sh` where possible and `#!/usr/bin/env bash` with bash 4+ features
+only where required. If you see `syntax error near unexpected token` in a hook, confirm your
+`PATH` places the Homebrew bash first.
+
+**GNU coreutils not installed**: Scripts that use `gtimeout` will fail silently or with
+`command not found`.
+
+```bash
+brew install coreutils
+# Adds gtimeout, gstat, gdate etc. to /usr/local/bin or /opt/homebrew/bin
+```
+
+**pre-commit not found**: If `pre-commit install` fails with "command not found":
+
+```bash
+brew install pre-commit
+# or: pip3 install pre-commit
+```
+
+**CLAUDE_PLUGIN_ROOT not set**: If hooks report "cannot find plugin resources", confirm
+`dso.plugin_root` is set in `workflow-config.conf` (written by `dso-setup.sh`), or set
+`CLAUDE_PLUGIN_ROOT` explicitly in `.claude/settings.json`.
+
+### Linux
+
+**timeout command**: Linux ships with GNU `timeout` from coreutils (no extra install needed).
+If missing: `sudo apt-get install coreutils` (Debian/Ubuntu) or `sudo yum install coreutils`.
+
+**bash version**: Most modern Linux distributions ship bash >= 4.0. Verify with `bash --version`.
+
+**python3**: Required for hook JSON parsing. Install with your package manager if absent:
+`sudo apt-get install python3` or `sudo yum install python3`.
+
+### WSL / Ubuntu
+
+**Line endings**: If scripts were checked out with Windows line endings (`\r\n`), hooks will fail
+with `bad interpreter: No such file or directory`. Fix:
+
+```bash
+cd /path/to/digital-service-orchestra
+git config core.autocrlf false
+git checkout -- scripts/ hooks/
+```
+
+**File permissions**: Ensure hook scripts are executable after cloning:
+
+```bash
+chmod +x /path/to/digital-service-orchestra/scripts/*
+chmod +x /path/to/digital-service-orchestra/hooks/*.sh
+```
+
+**PATH**: The WSL `PATH` may not include `/home/<user>/.local/bin` where `pip`-installed tools
+(including `pre-commit`) land. Add it to your `~/.bashrc`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**GNU coreutils**: Available by default on Ubuntu/Debian. If `timeout` is missing:
+`sudo apt-get install coreutils`.
