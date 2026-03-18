@@ -1,6 +1,6 @@
 ---
 id: dso-bvna
-status: open
+status: closed
 deps: [dso-1e6j]
 links: []
 created: 2026-03-17T23:38:36Z
