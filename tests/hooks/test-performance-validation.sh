@@ -29,10 +29,12 @@ echo "=== Performance Validation Tests ==="
 echo ""
 echo "--- test_hook_chain_subprocess_count_equals_1 ---"
 python3 << 'PYEOF'
-import json, sys
-with open('.claude/settings.json') as f:
+import json, sys, os
+# In the plugin model, hooks are defined in plugin.json (not settings.json)
+plugin_json_path = os.path.join(os.path.dirname(os.path.abspath('.claude-plugin/plugin.json')), '.claude-plugin/plugin.json')
+with open('.claude-plugin/plugin.json') as f:
     data = json.load(f)
-hooks = data['hooks']
+hooks = data.get('hooks', {})
 failures = []
 for event, matchers in hooks.items():
     for m in matchers:
@@ -104,29 +106,27 @@ else
     fail "all_dispatchers_executable"
 fi
 
-# Test 5: settings.json hooks all use dispatchers
+# Test 5: plugin.json hooks all use dispatchers or run-hook.sh
+# (In the plugin model, hooks are defined in plugin.json, not settings.json)
 echo ""
 echo "--- test_settings_hooks_use_dispatchers ---"
 python3 << 'PYEOF'
 import json, sys
 
-with open('.claude/settings.json') as f:
-    settings = json.load(f)
 with open('.claude-plugin/plugin.json') as f:
     hooks_json = json.load(f)
 
-assert 'hooks' in settings, "settings.json missing 'hooks'"
 assert 'hooks' in hooks_json, "plugin.json missing 'hooks'"
 
-# Verify all settings.json hook commands point to dispatchers or run-hook.sh
+# Verify all plugin.json hook commands point to run-hook.sh + dispatchers or run-hook.sh alone
 non_dispatcher = []
-for event, matchers in settings['hooks'].items():
+for event, matchers in hooks_json['hooks'].items():
     for m in matchers:
         for h in m.get('hooks', []):
             cmd = h.get('command', '')
-            if 'dispatchers/' in cmd:
+            if 'run-hook.sh' in cmd:
                 continue
-            # PreCompact is not consolidated (only 1 hook, kept as-is)
+            # Any hook not going through run-hook.sh is a violation
             non_dispatcher.append(f"{event}/{m.get('matcher', '(all)')}: {cmd}")
 
 if non_dispatcher:
@@ -135,7 +135,7 @@ if non_dispatcher:
         print(f"    {nd}")
     sys.exit(1)
 else:
-    print("  All hook entries point to dispatchers")
+    print("  All hook entries go through run-hook.sh")
     sys.exit(0)
 PYEOF
 if [ $? -eq 0 ]; then pass "settings_hooks_use_dispatchers"; else fail "settings_hooks_use_dispatchers"; fi

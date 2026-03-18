@@ -288,9 +288,9 @@ test_blocked_error_message_directs_to_commit_or_review() {
     local stderr_output
     stderr_output=$(run_hook_stderr "$_repo" "$_artifacts")
 
-    # Error message must mention /commit or /review
+    # Error message must mention /dso:commit or /dso:review (qualified skill refs)
     local found_directive=0
-    if [[ "$stderr_output" == */commit* ]] || [[ "$stderr_output" == */review* ]]; then
+    if [[ "$stderr_output" == *dso:commit* ]] || [[ "$stderr_output" == *dso:review* ]]; then
         found_directive=1
     fi
     assert_eq "test_blocked_error_message_directs_to_commit_or_review" "1" "$found_directive"

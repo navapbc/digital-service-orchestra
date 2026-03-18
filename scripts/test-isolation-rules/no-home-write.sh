@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # no-home-write.sh — Test isolation rule
 #
 # Detects writes targeting $HOME or ~ paths without a preceding temp HOME override.

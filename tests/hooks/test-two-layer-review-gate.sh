@@ -294,7 +294,7 @@ test_error_message_directs_to_commit_or_review() {
     stderr_output=$(run_pre_commit_hook_stderr "$_repo" "$_artifacts")
 
     local found_directive=0
-    if [[ "$stderr_output" == */commit* ]] || [[ "$stderr_output" == */review* ]]; then
+    if [[ "$stderr_output" == *dso:commit* ]] || [[ "$stderr_output" == *dso:review* ]]; then
         found_directive=1
     fi
     assert_eq "test_error_message_directs_to_commit_or_review" "1" "$found_directive"

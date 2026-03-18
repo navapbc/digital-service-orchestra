@@ -22,16 +22,28 @@
 [[ "${_CONFIG_PATHS_LOADED:-}" == "1" ]] && return 0
 _CONFIG_PATHS_LOADED=1
 
-# Locate read-config.sh relative to this file
+# Locate read-config.sh relative to this file (always from the plugin root, not CLAUDE_PLUGIN_ROOT)
 _CONFIG_PATHS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+_READ_CONFIG="$(cd "$_CONFIG_PATHS_DIR/../.." && pwd)/scripts/read-config.sh"
+
+# Config file: when CLAUDE_PLUGIN_ROOT is set (e.g. in tests), read from that dir's
+# workflow-config.conf; otherwise let read-config.sh resolve via git rev-parse.
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
+    _CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
+else
+    _CONFIG_FILE=""
+fi
 
 # Helper: read a config key with a default fallback
 _cfg_read() {
     local key="$1"
     local default="$2"
     local val
-    val=$("$_READ_CONFIG" "$key" 2>/dev/null) || true
+    if [[ -n "$_CONFIG_FILE" ]]; then
+        val=$("$_READ_CONFIG" "$key" "$_CONFIG_FILE" 2>/dev/null) || true
+    else
+        val=$("$_READ_CONFIG" "$key" 2>/dev/null) || true
+    fi
     if [[ -n "$val" ]]; then
         echo "$val"
     else
@@ -44,7 +56,11 @@ _cfg_read_list() {
     local key="$1"
     local default="$2"
     local val
-    val=$("$_READ_CONFIG" --list "$key" 2>/dev/null) || true
+    if [[ -n "$_CONFIG_FILE" ]]; then
+        val=$("$_READ_CONFIG" --list "$key" "$_CONFIG_FILE" 2>/dev/null) || true
+    else
+        val=$("$_READ_CONFIG" --list "$key" 2>/dev/null) || true
+    fi
     if [[ -n "$val" ]]; then
         echo "$val"
     else

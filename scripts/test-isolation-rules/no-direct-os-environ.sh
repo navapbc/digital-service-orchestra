@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Rule: no-direct-os-environ
 #
 # Scans Python test files (test_*.py) for direct os.environ mutation

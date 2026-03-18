@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # check-test-isolation.sh — Test isolation rule harness
 #
 # Scans scripts/test-isolation-rules/ for executable rule files (*.sh),

@@ -60,7 +60,7 @@ print_summary() {
 
 # ── Resolve script under test ─────────────────────────────────────────────────
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-FORMAT_FIX_SCRIPT="$REPO_ROOT/lockpick-workflow/scripts/pre-commit-format-fix.sh"
+FORMAT_FIX_SCRIPT="$REPO_ROOT/scripts/pre-commit-format-fix.sh"
 
 if [[ ! -f "$FORMAT_FIX_SCRIPT" ]]; then
     echo "SKIP: $FORMAT_FIX_SCRIPT not found" >&2

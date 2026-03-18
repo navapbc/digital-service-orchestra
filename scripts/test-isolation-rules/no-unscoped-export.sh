@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # no-unscoped-export.sh — Test isolation rule
 #
 # Detects `export VAR=value` in bash test files without containment

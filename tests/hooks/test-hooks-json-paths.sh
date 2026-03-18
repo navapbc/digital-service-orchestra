@@ -162,12 +162,13 @@ assert_eq "test_settings_json_no_empty_matcher_post" "no_empty_matcher_post" "$a
 
 # ─────────────────────────────────────────────────────────────
 # test_bash_only_two_hook_entries
-# settings.json must have exactly 1 PreToolUse Bash entry and 1 PostToolUse Bash entry.
+# plugin.json must have exactly 1 PreToolUse Bash entry and 1 PostToolUse Bash entry.
+# (In the plugin model, hooks are defined in plugin.json, not settings.json.)
 # ─────────────────────────────────────────────────────────────
-if [[ -f "$SETTINGS_JSON" ]]; then
-    bash_counts=$(SETTINGS_JSON_PATH="$SETTINGS_JSON" python3 -c "
+if [[ -f "$HOOKS_JSON" ]]; then
+    bash_counts=$(HOOKS_JSON_PATH="$HOOKS_JSON" python3 -c "
 import json, os, sys
-with open(os.environ['SETTINGS_JSON_PATH']) as f:
+with open(os.environ['HOOKS_JSON_PATH']) as f:
     d = json.load(f)
 pre = [h for h in d.get('hooks', {}).get('PreToolUse', []) if h.get('matcher') == 'Bash']
 post = [h for h in d.get('hooks', {}).get('PostToolUse', []) if h.get('matcher') == 'Bash']

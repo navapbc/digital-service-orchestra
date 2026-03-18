@@ -12,9 +12,7 @@ from pathlib import Path
 REPO_ROOT = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-COMPACT_HOOK = os.path.join(
-    REPO_ROOT, "lockpick-workflow/hooks/pre-compact-checkpoint.sh"
-)
+COMPACT_HOOK = os.path.join(REPO_ROOT, "hooks/pre-compact-checkpoint.sh")
 
 REQUIRED_FIELDS = {
     "timestamp",

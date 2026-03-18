@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Rule: no-repo-source-mktemp
 # Detects mktemp calls that create temp files inside the repo's source tree
 # (e.g., mktemp "$REPO_ROOT/app/src/..."). Tests should create temp files

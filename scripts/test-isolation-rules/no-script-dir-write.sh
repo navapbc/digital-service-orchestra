@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Rule: no-script-dir-write
 # Detects file-creation operations targeting $SCRIPT_DIR (the test file's own
 # directory inside the worktree). Tests should create files in mktemp dirs, not

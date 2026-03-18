@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # scripts/qualify-skill-refs.sh
 # Rewrite unqualified DSO skill references to fully-qualified form.
 #

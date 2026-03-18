@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # scripts/check-skill-refs.sh
 # Detect unqualified DSO skill references in workflow files.
 #

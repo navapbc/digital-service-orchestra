@@ -149,19 +149,33 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
     local _CREATE_CMD="${CREATE_CMD:-tk create}"
     local _READ_CONFIG=""
-    if [[ -n "${CLAUDE_PLUGIN_ROOT}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
         _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+    fi
+    # Config file: prefer CLAUDE_PLUGIN_ROOT/workflow-config.conf when set and present,
+    # so tests can pass an isolated config without affecting the real repo config.
+    local _CT_CONFIG_FILE=""
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
+        _CT_CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
     fi
 
     # Apply config overrides (defer Python spawn; don't override caller-supplied env vars)
     if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_SEARCH_CMD_FROM_ENV" ]]; then
         local _SEARCH
-        _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
+        if [[ -n "$_CT_CONFIG_FILE" ]]; then
+            _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd "$_CT_CONFIG_FILE" 2>/dev/null || echo '')
+        else
+            _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
+        fi
         [[ -n "$_SEARCH" ]] && _SEARCH_CMD="$_SEARCH"
     fi
     if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_CREATE_CMD_FROM_ENV" ]]; then
         local _CREATE
-        _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
+        if [[ -n "$_CT_CONFIG_FILE" ]]; then
+            _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd "$_CT_CONFIG_FILE" 2>/dev/null || echo '')
+        else
+            _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
+        fi
         [[ -n "$_CREATE" ]] && _CREATE_CMD="$_CREATE"
     fi
 

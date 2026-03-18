@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Rule: no-temp-without-cleanup
 # Detects mktemp usage in bash/shell test files without a corresponding
 # trap ... EXIT cleanup handler.

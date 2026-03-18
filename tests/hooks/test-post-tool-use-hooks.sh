@@ -206,18 +206,19 @@ echo ""
 echo -e "${YELLOW}Test Group 4: Settings validation${NC}"
 echo ""
 
-# Verify settings.json PostToolUse hooks use scoped matchers (Bash, Task)
+# Verify plugin.json PostToolUse hooks use scoped matchers (Bash, Edit, Write)
 # Note: scoped matchers are intentional — they avoid running hooks on read-only
 # tools (Read, Grep, Glob) where they have no effect, saving ~85ms per call.
-SETTINGS_FILE="$REPO_ROOT/.claude/settings.json"
-if [[ -f "$SETTINGS_FILE" ]]; then
+# (In the plugin model, hooks are defined in plugin.json, not settings.json.)
+PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+if [[ -f "$PLUGIN_JSON" ]]; then
     MATCHER_CHECK=$(python3 -c "
 import json, sys
-with open('$SETTINGS_FILE') as f:
-    settings = json.load(f)
-post_hooks = settings.get('hooks', {}).get('PostToolUse', [])
+with open('$PLUGIN_JSON') as f:
+    plugin = json.load(f)
+post_hooks = plugin.get('hooks', {}).get('PostToolUse', [])
 matchers = [h['matcher'] for h in post_hooks]
-# Catch-all matcher ('') is expected for tool-logging; scoped matchers for the rest
+# Only scoped matchers (no empty-matcher catch-alls in PostToolUse)
 scoped = [m for m in matchers if m]
 if not matchers:
     print('No PostToolUse hooks configured')
@@ -236,7 +237,7 @@ print('PostToolUse matchers: ' + label)
         echo "    $MATCHER_CHECK"
     fi
 else
-    echo -e "  ${YELLOW}SKIP${NC} Settings file not found: $SETTINGS_FILE"
+    echo -e "  ${YELLOW}SKIP${NC} Plugin file not found: $PLUGIN_JSON"
 fi
 
 echo ""

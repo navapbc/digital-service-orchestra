@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # scripts/bulk-delete-stale-tickets.sh
 # Bulk-delete auto-created duplicate bug tickets and stale marker files.
 #

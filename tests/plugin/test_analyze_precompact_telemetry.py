@@ -14,9 +14,7 @@ import pytest
 REPO_ROOT = subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True
 ).strip()
-ANALYZE_SCRIPT = os.path.join(
-    REPO_ROOT, "lockpick-workflow/scripts/analyze-precompact-telemetry.sh"
-)
+ANALYZE_SCRIPT = os.path.join(REPO_ROOT, "scripts/analyze-precompact-telemetry.sh")
 
 # 5-entry fixture across 2 sessions:
 #   Session A (sess-A): 2 skipped + 1 committed = 3

@@ -51,7 +51,10 @@ _write_telemetry() {
 
     local active_task_count=-1
     if command -v tk &>/dev/null; then
-        active_task_count=$(tk list 2>/dev/null | grep -c in_progress 2>/dev/null || echo -1)
+        local _tk_list
+        if _tk_list=$(tk list 2>/dev/null); then
+            active_task_count=$(echo "$_tk_list" | grep -c in_progress 2>/dev/null || echo 0)
+        fi
     fi
 
     local git_dirty=false
@@ -127,21 +130,36 @@ fi
 # Read config-driven checkpoint label (with fallback default)
 CHECKPOINT_LABEL='checkpoint: pre-compaction auto-save'
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
 fi
-# Always use the read-config.sh from the actual plugin scripts dir (not from
+# Always use read-config.sh from the actual plugin scripts dir (not from
 # CLAUDE_PLUGIN_ROOT, which tests may override to a temp dir for config isolation).
-_READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+_READ_CONFIG="$HOOK_DIR/../scripts/read-config.sh"
+# Config file: prefer CLAUDE_PLUGIN_ROOT/workflow-config.conf (for test isolation),
+# otherwise let read-config.sh resolve via git rev-parse.
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
+    _CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
+else
+    _CONFIG_FILE=""
+fi
 if [[ -f "$_READ_CONFIG" ]]; then
-    _LABEL=$("$_READ_CONFIG" checkpoint.commit_label 2>/dev/null || echo '')
+    if [[ -n "$_CONFIG_FILE" ]]; then
+        _LABEL=$("$_READ_CONFIG" checkpoint.commit_label "$_CONFIG_FILE" 2>/dev/null || echo '')
+    else
+        _LABEL=$("$_READ_CONFIG" checkpoint.commit_label 2>/dev/null || echo '')
+    fi
     [[ -n "$_LABEL" ]] && CHECKPOINT_LABEL="$_LABEL"
 fi
 
 # Read config-driven rollback marker filename (with fallback default)
 CHECKPOINT_MARKER_FILE='.checkpoint-pending-rollback'
 if [[ -f "$_READ_CONFIG" ]]; then
-    _MARKER=$("$_READ_CONFIG" checkpoint.marker_file 2>/dev/null || echo '')
+    if [[ -n "$_CONFIG_FILE" ]]; then
+        _MARKER=$("$_READ_CONFIG" checkpoint.marker_file "$_CONFIG_FILE" 2>/dev/null || echo '')
+    else
+        _MARKER=$("$_READ_CONFIG" checkpoint.marker_file 2>/dev/null || echo '')
+    fi
     [[ -n "$_MARKER" ]] && CHECKPOINT_MARKER_FILE="$_MARKER"
 fi
 
