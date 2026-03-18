@@ -242,6 +242,13 @@
     "title": "Using-lockpicks guidance to encourage using sub-agents",
     "type": "epic"
   },
+  "dso-l35x": {
+    "deps": [],
+    "priority": 0,
+    "status": "in_progress",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
   "dso-lwcp": {
     "deps": [],
     "priority": 2,
