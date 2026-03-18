@@ -390,7 +390,7 @@ for issue in issues:
     while IFS='|' read -r level epic_id epic_title; do
         case "$level" in
             EMPTY)
-                log_minor "Epic with 0 children: $epic_id - $epic_title (run /dso:preplanning to decompose — do NOT close)"
+                log_verbose "Epic with 0 children: $epic_id - $epic_title (run /dso:preplanning to decompose when ready)"
                 ((empty_count++)) || true
                 ;;
         esac
@@ -398,9 +398,36 @@ for issue in issues:
 
     if [[ $empty_count -eq 0 ]]; then
         log_verbose "All open epics have children"
+    else
+        log_verbose "$empty_count epic(s) with 0 children (normal for backlog items)"
     fi
 
     echo $empty_count
+}
+
+# Check total unarchived ticket count (warn >300, error >600)
+check_ticket_count() {
+    log_verbose "Checking total ticket count..."
+
+    local total_count
+    total_count=$(get_shared_issues_json | python3 -c "
+import json, sys
+try:
+    issues = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    issues = []
+print(len(issues))
+")
+
+    if [[ $total_count -ge 600 ]]; then
+        log_major "Total ticket count is $total_count (≥600) — consider archiving closed tickets to keep the tracker manageable"
+    elif [[ $total_count -ge 300 ]]; then
+        log_warning "Total ticket count is $total_count (≥300) — consider archiving older closed tickets"
+    else
+        log_verbose "Total ticket count: $total_count (within healthy range)"
+    fi
+
+    echo $total_count
 }
 
 # Check for tasks that are dependencies but should be children
@@ -875,6 +902,7 @@ main() {
         check_circular_dependencies > /dev/null
         check_orphaned_tasks > /dev/null
         check_empty_epics > /dev/null
+        check_ticket_count > /dev/null
         check_child_parent_deps > /dev/null
         check_cross_epic_child_deps > /dev/null
         check_duplicate_titles > /dev/null
@@ -883,6 +911,7 @@ main() {
         check_circular_dependencies > /dev/null
         check_orphaned_tasks > /dev/null
         check_empty_epics > /dev/null
+        check_ticket_count > /dev/null
         check_mislinked_dependencies > /dev/null
         check_child_parent_deps > /dev/null
         check_cross_epic_child_deps > /dev/null
