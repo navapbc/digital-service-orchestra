@@ -30,7 +30,6 @@ cat > "$CONFIG_FILE" <<'FIXTURE'
 commands.syntax_check=make syntax-check
 commands.lint_ruff=make lint-ruff
 commands.lint_mypy=make lint-mypy
-commands.test_plugin=make test-plugin
 FIXTURE
 
 echo "=== test-validate-config-driven.sh ==="
@@ -65,7 +64,7 @@ assert_pass_if_clean "test_validate_sources_read_config"
 # New command keys must exist in workflow-config.conf
 _snapshot_fail
 
-for key in commands.syntax_check commands.lint_ruff commands.lint_mypy commands.test_plugin; do
+for key in commands.syntax_check commands.lint_ruff commands.lint_mypy; do
     found=$(grep -c "^${key}=" "$CONFIG_FILE" || true)
     assert_ne "config key $key exists in workflow-config.conf" "0" "$found"
 done
@@ -80,12 +79,10 @@ _snapshot_fail
 syntax_check=$(grep "^commands.syntax_check=" "$CONFIG_FILE" | cut -d= -f2-)
 lint_ruff=$(grep "^commands.lint_ruff=" "$CONFIG_FILE" | cut -d= -f2-)
 lint_mypy=$(grep "^commands.lint_mypy=" "$CONFIG_FILE" | cut -d= -f2-)
-test_plugin=$(grep "^commands.test_plugin=" "$CONFIG_FILE" | cut -d= -f2-)
 
 assert_eq "commands.syntax_check value" "make syntax-check" "$syntax_check"
 assert_eq "commands.lint_ruff value" "make lint-ruff" "$lint_ruff"
 assert_eq "commands.lint_mypy value" "make lint-mypy" "$lint_mypy"
-assert_eq "commands.test_plugin value" "make test-plugin" "$test_plugin"
 
 assert_pass_if_clean "test_validate_defaults_match_current_make_targets"
 
@@ -110,7 +107,7 @@ _snapshot_fail
 
 REAL_CONFIG="$PLUGIN_ROOT/workflow-config.conf"
 
-for key in commands.syntax_check commands.lint_ruff commands.lint_mypy commands.test_plugin; do
+for key in commands.syntax_check commands.lint_ruff commands.lint_mypy; do
     found=$(grep -c "^${key}=" "$REAL_CONFIG" || true)
     assert_ne "workflow-config.conf has key $key" "0" "$found"
 done
@@ -127,5 +124,16 @@ found=$(grep -c '"\$APP_DIR" \]; then' "$VALIDATE_SH" || true)
 assert_ne "validate_sh_guards_cd_to_app_dir" "0" "$found"
 
 assert_pass_if_clean "test_validate_handles_missing_app_dir"
+
+# ── test_no_test_plugin_in_config ────────────────────────────────────────
+# commands.test_plugin is a vestigial key and must NOT be present in
+# the real workflow-config.conf.
+_snapshot_fail
+
+REAL_CONFIG_NTP="$PLUGIN_ROOT/workflow-config.conf"
+test_plugin_count=$(grep -c "^commands.test_plugin=" "$REAL_CONFIG_NTP" || true)
+assert_eq "commands.test_plugin absent from workflow-config.conf" "0" "$test_plugin_count"
+
+assert_pass_if_clean "test_no_test_plugin_in_config"
 
 print_summary
