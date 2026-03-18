@@ -1,6 +1,6 @@
 ---
 id: dso-igoj
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-17T18:34:18Z
