@@ -8,6 +8,15 @@
     "title": "Implement templates/host-project/dso shim script (GREEN)",
     "type": "task"
   },
+  "dso-0isl": {
+    "deps": [
+      "dso-wo1i"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO contributor, I can run scripts/qualify-skill-refs.sh to bulk-rewrite unqualified DSO skill references across the codebase",
+    "type": "story"
+  },
   "dso-0k2k": {
     "deps": [],
     "priority": 1,
@@ -23,6 +32,16 @@
     "status": "closed",
     "title": "Self-apply dso-setup.sh to plugin repo",
     "type": "task"
+  },
+  "dso-0vyd": {
+    "deps": [
+      "dso-wo1i",
+      "dso-0isl"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update project docs to reflect check-skill-refs.sh, qualify-skill-refs.sh, and the qualified DSO skill namespace",
+    "type": "story"
   },
   "dso-0wi2": {
     "deps": [],
@@ -88,6 +107,13 @@
     "title": "Cleanup tests",
     "type": "epic"
   },
+  "dso-60hd": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a DSO plugin maintainer, I can detect unqualified DSO skill references via check-skill-refs.sh",
+    "type": "feature"
+  },
   "dso-6524": {
     "deps": [],
     "priority": 2,
@@ -101,6 +127,13 @@
     "status": "open",
     "title": "18 pre-existing test failures in test_precompact_telemetry and test_analyze_precompact_telemetry",
     "type": "task"
+  },
+  "dso-8qvu": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Qualify all DSO skill references to /dso: namespace",
+    "type": "epic"
   },
   "dso-94ya": {
     "deps": [],
@@ -367,6 +400,29 @@
     "title": "Figma integration for human design input",
     "type": "epic"
   },
+  "dso-w1s1": {
+    "deps": [
+      "dso-60hd"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a DSO plugin maintainer, I can bulk-qualify all unqualified skill references and integrate the linter into CI",
+    "type": "feature"
+  },
+  "dso-wlwa": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Create scripts/check-skill-refs.sh linter and tests/scripts/test-check-skill-refs.sh test suite",
+    "type": "task"
+  },
+  "dso-wo1i": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO contributor, I can run scripts/check-skill-refs.sh to detect unqualified DSO skill references in workflow files",
+    "type": "story"
+  },
   "dso-y1y6": {
     "deps": [
       "dso-awoz",
@@ -390,6 +446,16 @@
     "status": "closed",
     "title": "As a DSO contributor, I can verify shim reliability via automated cross-context smoke test",
     "type": "story"
+  },
+  "dso-zc6s": {
+    "deps": [
+      "dso-60hd",
+      "dso-w1s1"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Update project docs to reflect new check-skill-refs.sh and qualify-skill-refs.sh scripts",
+    "type": "feature"
   },
   "dso-zj3r": {
     "deps": [],
