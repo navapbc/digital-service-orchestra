@@ -24,3 +24,9 @@ Tests to add:
 
 Pattern: follow existing test structure using mktemp -d + git init, assert_eq. Each test uses isolated temp dir.
 
+
+## Notes
+
+**2026-03-18T16:25:24Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/scripts/test-dso-setup.sh (5 new TDD RED tests). Tests: 21 existing pass, 5 new fail (expected RED).
