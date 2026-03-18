@@ -169,7 +169,7 @@ DEAD_PID2=9999998
 ENTRY1="$TEST_REGISTRY/${DEAD_PID2}.entry"
 cat > "$ENTRY1" << EOF
 pid=$DEAD_PID2
-command=timeout 300 make test-plugin
+command=timeout 300 make test-e2e
 started=$(date +%s)
 EOF
 
@@ -225,5 +225,12 @@ if grep -qE 'rm.*entry|remove.*entry' "$DSO_PLUGIN_DIR/hooks/lib/session-misc-fu
     _REMOVES_ENTRY="yes"
 fi
 assert_eq "test_removes_entry_files" "yes" "$_REMOVES_ENTRY"
+
+# ============================================================
+# Test: 'test-plugin' orphan pattern is NOT in session-misc-functions.sh
+# ============================================================
+_NO_PLUGIN_PATTERN='yes'
+grep -q 'test-plugin' "$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh" && _NO_PLUGIN_PATTERN='no' || true
+assert_eq 'test_no_test_plugin_orphan_pattern' 'yes' "$_NO_PLUGIN_PATTERN"
 
 print_summary
