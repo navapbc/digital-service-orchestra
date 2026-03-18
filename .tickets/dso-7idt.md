@@ -1,6 +1,6 @@
 ---
 id: dso-7idt
-status: open
+status: closed
 deps: [dso-hmb3]
 parent: dso-6524
 links: []
@@ -37,3 +37,10 @@ OUT: CLAUDE.md updates (dso-zse0); behavioral changes to dso-setup.sh beyond pat
 - [Reliability] dso-setup.sh may hardcode paths relative to its former repo-root location — run a grep scan for scripts/, hooks/, skills/ in dso-setup.sh before making targeted fixes
 - [Reliability] Verify that the marketplace.json git-subdir value (plugins/dso) aligns with what Claude Code sets as CLAUDE_PLUGIN_ROOT in production — the smoke test manually overrides this value; confirm real Claude Code plugin loading would set the same path
 
+
+<!-- note-id: mbzxhdik -->
+<!-- timestamp: 2026-03-18T21:53:28Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: dso-setup.sh already works correctly from plugins/dso/scripts/; all 26 smoke tests pass; CLAUDE_PLUGIN_ROOT shim forwarding verified

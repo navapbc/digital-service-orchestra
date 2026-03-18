@@ -165,7 +165,7 @@
   "dso-4f1i": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Write failing tests for tdd.md reviewer new dimensions",
     "type": "task"
   },
@@ -217,6 +217,15 @@
     "status": "closed",
     "title": "Fix: guard PyYAML check in dso-setup.sh against missing python3",
     "type": "bug"
+  },
+  "dso-7idt": {
+    "deps": [
+      "dso-hmb3"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a client project developer installing DSO, dso-setup.sh works correctly from its new location in plugins/dso/scripts/",
+    "type": "story"
   },
   "dso-8fc5": {
     "deps": [],
@@ -469,7 +478,7 @@
   "dso-gsqg": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Write failing tests for ACCEPTANCE-CRITERIA-LIBRARY.md new categories",
     "type": "task"
   },
@@ -850,7 +859,7 @@
   "dso-tk5c": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Write failing tests for SKILL.md TDD enforcement language",
     "type": "task"
   },
