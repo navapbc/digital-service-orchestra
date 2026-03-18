@@ -432,6 +432,89 @@ test_setup_is_still_idempotent_with_new_features() {
     assert_eq "test_setup_is_still_idempotent_with_new_features" "1" "$count"
 }
 
+# ── --dryrun flag tests (dso-ojbb) ────────────────────────────────────────────
+
+# test_setup_dryrun_no_shim_created: --dryrun must NOT create .claude/scripts/dso
+test_setup_dryrun_no_shim_created() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+
+    if [[ ! -f "$T/.claude/scripts/dso" ]]; then
+        assert_eq "test_setup_dryrun_no_shim_created" "not-created" "not-created"
+    else
+        assert_eq "test_setup_dryrun_no_shim_created" "not-created" "created"
+    fi
+}
+
+# test_setup_dryrun_no_config_written: --dryrun must NOT write workflow-config.conf
+test_setup_dryrun_no_config_written() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+
+    if [[ ! -f "$T/workflow-config.conf" ]]; then
+        assert_eq "test_setup_dryrun_no_config_written" "not-written" "not-written"
+    else
+        assert_eq "test_setup_dryrun_no_config_written" "not-written" "written"
+    fi
+}
+
+# test_setup_dryrun_no_precommit_copied: --dryrun must NOT copy .pre-commit-config.yaml
+test_setup_dryrun_no_precommit_copied() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+
+    if [[ ! -f "$T/.pre-commit-config.yaml" ]]; then
+        assert_eq "test_setup_dryrun_no_precommit_copied" "not-copied" "not-copied"
+    else
+        assert_eq "test_setup_dryrun_no_precommit_copied" "not-copied" "copied"
+    fi
+}
+
+# test_setup_dryrun_output_contains_shim_preview: --dryrun stdout must contain '[dryrun]'
+test_setup_dryrun_output_contains_shim_preview() {
+    local T output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+
+    if [[ "$output" == *"[dryrun]"* ]]; then
+        assert_eq "test_setup_dryrun_output_contains_shim_preview" "found" "found"
+    else
+        assert_eq "test_setup_dryrun_output_contains_shim_preview" "found" "missing"
+    fi
+}
+
+# test_setup_dryrun_flag_position_independent: --dryrun works as 3rd positional arg
+test_setup_dryrun_flag_position_independent() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # --dryrun is already the 3rd arg (after TARGET_REPO and PLUGIN_ROOT)
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+
+    if [[ ! -f "$T/.claude/scripts/dso" ]]; then
+        assert_eq "test_setup_dryrun_flag_position_independent" "not-created" "not-created"
+    else
+        assert_eq "test_setup_dryrun_flag_position_independent" "not-created" "created"
+    fi
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_setup_creates_shim
 test_setup_shim_executable
@@ -453,5 +536,10 @@ test_setup_outputs_success_summary
 test_setup_outputs_optional_dep_guidance
 test_pyyaml_check_skipped_when_python3_absent
 test_setup_is_still_idempotent_with_new_features
+test_setup_dryrun_no_shim_created
+test_setup_dryrun_no_config_written
+test_setup_dryrun_no_precommit_copied
+test_setup_dryrun_output_contains_shim_preview
+test_setup_dryrun_flag_position_independent
 
 print_summary
