@@ -219,6 +219,13 @@
     "title": "Implementation planning tradeoffs",
     "type": "epic"
   },
+  "dso-gul1": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: exclude .worktree-blackboard.json timestamp churn from review diffs",
+    "type": "bug"
+  },
   "dso-hq8y": {
     "deps": [],
     "priority": 2,
@@ -276,6 +283,13 @@
     "status": "open",
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
+  },
+  "dso-meet": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: dso-setup.sh dryrun messages should reflect conditional copy logic (only if absent)",
+    "type": "bug"
   },
   "dso-o8bw": {
     "deps": [],
@@ -474,6 +488,13 @@
     "status": "closed",
     "title": "As a DSO contributor, I can verify shim reliability via automated cross-context smoke test",
     "type": "story"
+  },
+  "dso-yh8q": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: dso-setup.sh dryrun pre-commit message should check pre-commit availability",
+    "type": "bug"
   },
   "dso-zc6s": {
     "deps": [

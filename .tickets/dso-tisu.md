@@ -1,6 +1,6 @@
 ---
 id: dso-tisu
-status: open
+status: in_progress
 deps: [dso-yncv]
 links: []
 created: 2026-03-18T16:05:22Z
@@ -44,3 +44,33 @@ Implementation:
 - [ ] ruff check passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && ruff check scripts/*.py tests/**/*.py
 
+
+## Notes
+
+**2026-03-18T16:32:02Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-18T16:32:05Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-18T16:32:24Z**
+
+CHECKPOINT 3/6: Tests written ✓ (already from TDD RED — confirmed 5 dryrun tests failing)
+
+**2026-03-18T16:32:50Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-18T16:33:11Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — 26/26 tests pass, ruff clean
+
+**2026-03-18T16:33:37Z**
+
+CHECKPOINT 6/6: Done ✓ — All 5 AC verified: AC1 pass, AC2 pass, AC3 pass, AC4 pass, AC5 pass
+
+**2026-03-18T16:41:33Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: scripts/dso-setup.sh. Tests: 26 passed, 0 failed. Review passed after fix (git init guard added).

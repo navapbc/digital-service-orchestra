@@ -86,41 +86,74 @@ detect_prerequisites() {
 
 _prereq_warnings=$(detect_prerequisites)
 
+# ── Parse --dryrun flag (position-independent) ────────────────────────────────
+DRYRUN=''
+_args_filtered=()
+for _arg in "$@"; do
+    if [[ "$_arg" == '--dryrun' ]]; then
+        DRYRUN=1
+    else
+        _args_filtered+=("$_arg")
+    fi
+done
+set -- "${_args_filtered[@]+"${_args_filtered[@]}"}"
+
 TARGET_REPO="${1:-$(git rev-parse --show-toplevel)}"
 PLUGIN_ROOT="${2:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 # Ensure TARGET_REPO is a git repository so the dso shim can locate
 # workflow-config.conf via `git rev-parse --show-toplevel`.
 if ! git -C "$TARGET_REPO" rev-parse --show-toplevel >/dev/null 2>&1; then
-    git -C "$TARGET_REPO" init -q
+    if [[ -z "$DRYRUN" ]]; then
+        git -C "$TARGET_REPO" init -q
+    else
+        echo "[dryrun] Would run: git init -q in $TARGET_REPO"
+    fi
 fi
 
-mkdir -p "$TARGET_REPO/.claude/scripts/"
-cp "$PLUGIN_ROOT/templates/host-project/dso" "$TARGET_REPO/.claude/scripts/dso"
-chmod +x "$TARGET_REPO/.claude/scripts/dso"
+if [[ -z "$DRYRUN" ]]; then
+    mkdir -p "$TARGET_REPO/.claude/scripts/"
+    cp "$PLUGIN_ROOT/templates/host-project/dso" "$TARGET_REPO/.claude/scripts/dso"
+    chmod +x "$TARGET_REPO/.claude/scripts/dso"
+else
+    echo "[dryrun] Would copy $PLUGIN_ROOT/templates/host-project/dso -> $TARGET_REPO/.claude/scripts/dso (chmod +x)"
+fi
 
 CONFIG="$TARGET_REPO/workflow-config.conf"
-if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
-    # Update existing entry (idempotent)
-    sed -i.bak "s|^dso\.plugin_root=.*|dso.plugin_root=$PLUGIN_ROOT|" "$CONFIG" && rm -f "$CONFIG.bak"
+if [[ -z "$DRYRUN" ]]; then
+    if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
+        # Update existing entry (idempotent)
+        sed -i.bak "s|^dso\.plugin_root=.*|dso.plugin_root=$PLUGIN_ROOT|" "$CONFIG" && rm -f "$CONFIG.bak"
+    else
+        printf 'dso.plugin_root=%s\n' "$PLUGIN_ROOT" >> "$CONFIG"
+    fi
 else
-    printf 'dso.plugin_root=%s\n' "$PLUGIN_ROOT" >> "$CONFIG"
+    echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG"
 fi
 
 # ── Copy example config files (only if absent — never overwrite) ──────────────
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
-if [ ! -f "$TARGET_PRECOMMIT" ]; then
-    cp "$PLUGIN_ROOT/examples/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
-fi
+if [[ -z "$DRYRUN" ]]; then
+    if [ ! -f "$TARGET_PRECOMMIT" ]; then
+        cp "$PLUGIN_ROOT/examples/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
+    fi
 
-mkdir -p "$TARGET_REPO/.github/workflows"
-if [ ! -f "$TARGET_REPO/.github/workflows/ci.yml" ]; then
-    cp "$PLUGIN_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+    mkdir -p "$TARGET_REPO/.github/workflows"
+    if [ ! -f "$TARGET_REPO/.github/workflows/ci.yml" ]; then
+        cp "$PLUGIN_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+    fi
+else
+    echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_PRECOMMIT"
+    echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml"
 fi
 
 # ── Register pre-commit hooks (must come AFTER config copy) ───────────────────
-if command -v pre-commit >/dev/null 2>&1 && [ -f "$TARGET_PRECOMMIT" ]; then
-    (cd "$TARGET_REPO" && pre-commit install && pre-commit install --hook-type pre-push) || true
+if [[ -z "$DRYRUN" ]]; then
+    if command -v pre-commit >/dev/null 2>&1 && [ -f "$TARGET_PRECOMMIT" ]; then
+        (cd "$TARGET_REPO" && pre-commit install && pre-commit install --hook-type pre-push) || true
+    fi
+else
+    echo "[dryrun] Would run: pre-commit install && pre-commit install --hook-type pre-push"
 fi
 
 # ── Optional dependency detection (non-blocking) ──────────────────────────────
