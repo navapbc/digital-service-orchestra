@@ -89,6 +89,16 @@
     "title": "As a plugin developer, I can run scripts/bump-version.sh to increment a semver version in any configured version file",
     "type": "story"
   },
+  "dso-1f7p": {
+    "deps": [
+      "dso-hmb3",
+      "dso-7idt"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Update project docs to reflect the plugin/project separation",
+    "type": "story"
+  },
   "dso-1fnl": {
     "deps": [],
     "priority": 2,
@@ -205,9 +215,12 @@
     "type": "feature"
   },
   "dso-6524": {
-    "deps": [],
+    "deps": [
+      "dso-3z2v",
+      "dso-q523"
+    ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Separate DSO plugin from DSO project",
     "type": "epic"
   },
@@ -411,7 +424,7 @@
   "dso-ffzi": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "Integrate TDD into implementation plan skill",
     "type": "epic"
   },
