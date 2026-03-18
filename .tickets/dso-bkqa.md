@@ -1,6 +1,6 @@
 ---
 id: dso-bkqa
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-18T23:13:57Z
@@ -43,3 +43,47 @@ Files: workflow-config.conf, tests/scripts/test-validate-config-driven.sh
 ## File Impact
 - `workflow-config.conf` - Remove the `commands.test_plugin=true` key and its associated comment
 - `tests/scripts/test-validate-config-driven.sh` - Add new test `test_no_test_plugin_in_config`, remove fixture definition, remove `test_plugin` from key validation loops, and remove related assertions and variable assignments
+
+## Notes
+
+<!-- note-id: dzwj5xvm -->
+<!-- timestamp: 2026-03-18T23:41:50Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: am91eevz -->
+<!-- timestamp: 2026-03-18T23:41:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — workflow-config.conf line 58 has commands.test_plugin=true; test file has fixture at line 33, for-loop keys at line 68 and 113, test_plugin variable at line 83, assert_eq at line 88
+
+<!-- note-id: tkgt1ce2 -->
+<!-- timestamp: 2026-03-18T23:42:10Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — test_no_test_plugin_in_config added; confirmed RED: 'commands.test_plugin absent from workflow-config.conf' fails (expected 0, actual 1)
+
+<!-- note-id: ogn09ru2 -->
+<!-- timestamp: 2026-03-18T23:42:47Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — removed commands.test_plugin from workflow-config.conf; removed fixture entry, two for-loop references, variable assignment, and assert_eq from test-validate-config-driven.sh; targeted test: 14 PASSED, 0 FAILED
+
+<!-- note-id: 7kcw82on -->
+<!-- timestamp: 2026-03-18T23:44:50Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — bash tests/run-all.sh: 949 hook tests + 1617 script tests + 53 evals = all green, 0 failures
+
+<!-- note-id: b3itlcvm -->
+<!-- timestamp: 2026-03-18T23:45:24Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All AC verified: run-all.sh PASS, ruff check PASS, ruff format --check PASS, commands.test_plugin absent from workflow-config.conf PASS, test_no_test_plugin_in_config exists PASS. NOTE: AC 'no test_plugin refs' is inherently contradicted by the required test function name test_no_test_plugin_in_config (which contains test_plugin as a substring); old vestigial refs (fixture, for-loops, variable assignment, assert_eq) are all removed.
