@@ -1,6 +1,6 @@
 ---
 id: dso-gp00
-status: open
+status: closed
 deps: [dso-gsqg]
 links: []
 created: 2026-03-18T21:11:46Z
@@ -28,3 +28,12 @@ Edit plugins/dso/docs/ACCEPTANCE-CRITERIA-LIBRARY.md. Add 'Category: RED Test Ta
 - [ ] 'Category: Test-Exempt Task' section present in ACCEPTANCE-CRITERIA-LIBRARY.md
   Verify: grep -q "Category: Test-Exempt Task" $(git rev-parse --show-toplevel)/plugins/dso/docs/ACCEPTANCE-CRITERIA-LIBRARY.md
 
+
+## Notes
+
+<!-- note-id: 9o9lj7g4 -->
+<!-- timestamp: 2026-03-18T22:00:59Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: AC library new categories (RED Test Task, Test-Exempt Task) added; all 3 tests pass GREEN

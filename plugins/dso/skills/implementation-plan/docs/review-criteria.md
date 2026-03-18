@@ -102,7 +102,7 @@ EOF
 ".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller implementation-plan
 ```
 
-**Caller schema hash**: `ae8bfc7bd9a0d7e3` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
+**Caller schema hash**: `ef19e23acbcfc5b4` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
 
 If `SCHEMA_VALID: no` is printed:
 1. Read the listed errors — they identify exactly which perspective, dimension, or finding field is missing or wrong.

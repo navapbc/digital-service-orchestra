@@ -273,6 +273,37 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
     3. **UI/Frontend Updates:** Consume the new API/version.
     4. **Cleanup:** Remove legacy fields, deprecated API versions, or bridge code.
 
+### TDD Task Structure
+
+**Behavioral content** is defined as code that contains conditional logic, data transformation, or decision points — any code where the output varies based on inputs or state. Every task whose implementation adds or modifies behavioral content must have a preceding **RED test task** as a declared dependency before any implementation task.
+
+A RED test task:
+- Writes a failing test that asserts the expected behavior
+- Must fail (RED) before the implementation task runs
+- Is a standalone task in the plan, not embedded in the implementation task description
+- Uses `TEST_CMD` (resolved from `commands.test` in workflow-config) as the verify command
+
+#### Unit Test Exemption Criteria
+
+A task may omit the RED test task dependency (unit test level) only if **all** of the following apply:
+
+1. The code has **no conditional logic** — it is purely structural (e.g., a class definition with no branching)
+2. Any test written for it would be a **change-detector test** — a test that only asserts the code exists, not that it behaves correctly
+3. The task is **infrastructure-boundary-only** — it touches only configuration wiring, dependency injection setup, or module registration with no business logic
+
+All three criteria must be documented as a **justification requirement** in the task description, and the plan reviewer must validate the exemption during Step 4 review.
+
+#### Integration Test Task Rule
+
+For tasks that cross an external boundary (database, external API, message queue, file system), include a dedicated **integration test task** that verifies the boundary interaction end-to-end. The integration test task does not require a RED-first dependency — it may be written after the implementation task.
+
+An integration test task may be omitted only if one of the following applies:
+
+1. **existing coverage** — an existing integration test already exercises this boundary in a way that would fail if the task's behavior were broken
+2. **no test environment** — the external boundary is unavailable in CI and no suitable mock or contract test is feasible
+
+Either exemption requires a justification requirement documented in the task description and validated by the plan reviewer in Step 4.
+
 ### E2E Testing Requirement
 
 If the story introduces or modifies user-facing behavior, API endpoints, or cross-component flows, include a dedicated E2E test task:

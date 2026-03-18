@@ -1,13 +1,11 @@
 """Tests for new dimensions in the implementation-plan TDD reviewer (tdd.md).
 
-All tests are xfail(strict=True) — they must fail until task dso-j700 adds the
-'red_test_dependency' and 'exemption_justification' dimensions to tdd.md and
-updates the review-criteria.md schema hash.
+These tests verify that task dso-j700 has added the 'red_test_dependency' and
+'exemption_justification' dimensions to tdd.md and updated the review-criteria.md
+schema hash.
 """
 
 import pathlib
-
-import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 TDD_REVIEWER = (
@@ -32,43 +30,33 @@ REVIEW_CRITERIA = (
 )
 
 
-@pytest.mark.xfail(
-    strict=True, reason="dso-j700: red_test_dependency not yet added to tdd.md"
-)
 def test_tdd_reviewer_contains_red_test_dependency() -> None:
     """tdd.md must define a 'red_test_dependency' dimension.
 
-    This dimension will flag plans where a task's specified failing test
+    This dimension flags plans where a task's specified failing test
     depends on another task's code being written first (i.e., the test
     cannot be run RED in isolation).
     """
     content = TDD_REVIEWER.read_text()
     assert "red_test_dependency" in content, (
         "tdd.md is missing the 'red_test_dependency' dimension. "
-        "Task dso-j700 must add it."
+        "Task dso-j700 must add it to the dimensions table and JSON block."
     )
 
 
-@pytest.mark.xfail(
-    strict=True, reason="dso-j700: exemption_justification not yet added to tdd.md"
-)
 def test_tdd_reviewer_contains_exemption_justification() -> None:
     """tdd.md must define an 'exemption_justification' dimension.
 
-    This dimension will require reviewers to flag tasks that claim a TDD
+    This dimension requires reviewers to flag tasks that claim a TDD
     exemption without providing a written justification.
     """
     content = TDD_REVIEWER.read_text()
     assert "exemption_justification" in content, (
         "tdd.md is missing the 'exemption_justification' dimension. "
-        "Task dso-j700 must add it."
+        "Task dso-j700 must add it to the dimensions table and JSON block."
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="dso-j700: exemption criteria description not yet added to tdd.md",
-)
 def test_tdd_reviewer_describes_exemption_criteria() -> None:
     """tdd.md must describe when TDD exemptions are acceptable.
 
@@ -84,18 +72,11 @@ def test_tdd_reviewer_describes_exemption_criteria() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="dso-j700: review-criteria.md still contains old hash ae8bfc7bd9a0d7e3",
-)
 def test_review_criteria_old_hash_absent() -> None:
     """review-criteria.md must not contain the stale schema hash 'ae8bfc7bd9a0d7e3'.
 
     Precondition: the file exists and is non-empty (guards against vacuous pass
     if the file is deleted).
-
-    # NOTE: This test passes vacuously if review-criteria.md is deleted.
-    # Acceptable risk — file deletion would fail other tests.
     """
     assert REVIEW_CRITERIA.exists(), (
         "review-criteria.md does not exist — cannot assert hash absence."

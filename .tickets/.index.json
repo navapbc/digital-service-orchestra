@@ -309,7 +309,7 @@
       "dso-tk5c"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Update SKILL.md Step 3 with TDD task structure, escape hatch, and behavioral-content definition",
     "type": "task"
   },
@@ -464,7 +464,7 @@
       "dso-gsqg"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Add RED test task and test-exempt categories to ACCEPTANCE-CRITERIA-LIBRARY.md",
     "type": "task"
   },
@@ -570,7 +570,7 @@
       "dso-4f1i"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Add red_test_dependency and exemption_justification dimensions to tdd.md; update review-criteria.md schema hash",
     "type": "task"
   },
@@ -1005,5 +1005,14 @@
     "status": "closed",
     "title": "Add prerequisite checks, platform detection, and exit code contract to dso-setup.sh",
     "type": "task"
+  },
+  "dso-zse0": {
+    "deps": [
+      "dso-hmb3"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a DSO developer, all path references in CLAUDE.md reflect the post-restructure layout so the guide remains accurate",
+    "type": "story"
   }
 }

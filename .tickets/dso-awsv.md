@@ -1,6 +1,6 @@
 ---
 id: dso-awsv
-status: open
+status: closed
 deps: [dso-tk5c]
 links: []
 created: 2026-03-18T21:11:12Z
@@ -32,3 +32,12 @@ Edit plugins/dso/skills/implementation-plan/SKILL.md. Add 'TDD Task Structure' s
 - [ ] SKILL.md contains TEST_CMD substitution instruction
   Verify: grep -q "TEST_CMD" $(git rev-parse --show-toplevel)/plugins/dso/skills/implementation-plan/SKILL.md
 
+
+## Notes
+
+<!-- note-id: eiqhvy6d -->
+<!-- timestamp: 2026-03-18T22:00:59Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: TDD task structure section added to implementation-plan SKILL.md; all 9 tests pass GREEN

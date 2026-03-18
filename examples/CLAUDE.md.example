@@ -1,0 +1,71 @@
+# Claude Code Project Configuration (DSO Plugin Example)
+#
+# EXAMPLE: Copy to your project root as CLAUDE.md and customize.
+# This template is for projects that have installed the DSO plugin via
+# `bash .claude/scripts/dso dso-setup.sh .` (shim form).
+#
+# All DSO scripts are invoked through the shim: `.claude/scripts/dso <script-name>`
+# The shim resolves DSO_ROOT from CLAUDE_PLUGIN_ROOT env var or workflow-config.conf.
+
+**Repo root**: `<your-repo-root>` — all script paths below are relative to this.
+
+## Working Directory & Paths
+
+**ALWAYS run `pwd` first** to confirm your working directory before running commands.
+
+**Worktree sessions**: If in a worktree (`test -f .git`), use `REPO_ROOT=$(git rev-parse --show-toplevel)`. See `.claude/scripts/dso docs WORKTREE-GUIDE.md`.
+
+## Quick Reference
+
+| Action | Command | When Run |
+|--------|---------|----------|
+| Run epics end-to-end | `/dso:sprint` | Starting a feature epic |
+| Feature ideation to epic spec | `/dso:brainstorm` | New feature exploration |
+| Epic decomposition into stories | `/dso:preplanning` | After epic creation |
+| Story to task breakdown | `/dso:implementation-plan` | Before coding a story |
+| TDD development cycle | `/dso:tdd-workflow` | Bug fixes, code changes |
+| Diagnose and fix failures | `/dso:debug-everything` | Test/CI/runtime failures |
+| Commit with review gates | `/dso:commit` | Ready to commit |
+| Code review via sub-agent | `/dso:review` | Pre-commit review |
+| Review plans/designs | `/dso:plan-review` | Before presenting a plan |
+| Clean session close | `/dso:end` | End of session |
+| Full validation suite | `.claude/scripts/dso validate.sh --ci` | Before merge / after epic |
+| Check unqualified skill refs | `.claude/scripts/dso check-skill-refs.sh` | After editing in-scope files |
+| Bulk-qualify skill refs | `.claude/scripts/dso qualify-skill-refs.sh` | One-shot migration (run once) |
+| Merge worktree to main | `.claude/scripts/dso merge-to-main.sh` | Worktree session complete |
+| Check CI status | `.claude/scripts/dso ci-status.sh --wait` | After git push |
+| Estimate context load | `.claude/scripts/dso estimate-context-load.sh debug-everything` | Before /dso:debug-everything |
+| Run batched tests | `.claude/scripts/dso test-batched.sh --timeout=50 "make test"` | Long-running test suites |
+| Validate ticket health | `.claude/scripts/dso validate-issues.sh --quick --terse` | After creating/updating tickets |
+| List ready tickets | `tk ready` | Check what to work on |
+| Show ticket details | `tk show <id>` | Inspect a specific ticket |
+
+Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
+
+## Architecture
+
+**Hook architecture**: DSO hooks run via the plugin root. See your `workflow-config.conf` for `dso.plugin_root` configuration.
+
+**Validation gate**: `.claude/scripts/dso validate.sh` writes state; hooks block sprint/epic if validation hasn't passed.
+
+**Host project script invocation**: All DSO scripts are called via `.claude/scripts/dso <script-name>` (shim). The shim resolves DSO_ROOT from `CLAUDE_PLUGIN_ROOT` env var or `dso.plugin_root` in `workflow-config.conf`.
+
+## Critical Rules
+
+1. **Never close tasks before CI passes** — fix if you broke it; create tracking issue if pre-existing.
+2. **Never use `--no-verify`** without human approval.
+3. **Never skip issue validation after creating issues or adding deps** — run `.claude/scripts/dso validate-issues.sh --quick --terse`.
+4. **Never create more than 5 sub-agents at a time** — batch into groups of 5.
+5. **Never use raw `git commit`** — use `/dso:commit` or the commit workflow. Review gate blocks raw commits.
+6. **Never bypass the review gate** — run `/dso:commit` to satisfy it.
+
+## Task Completion Workflow
+
+```bash
+# 1. /dso:commit — auto-runs /dso:review if needed, then commits.
+# 2. git push (or .claude/scripts/dso merge-to-main.sh in worktree sessions)
+# 3. .claude/scripts/dso ci-status.sh --wait — must return "success"
+# 4. tk close <id> --reason="Fixed: <summary>" (--reason is REQUIRED)
+```
+
+**Session close**: Use `/dso:end`.

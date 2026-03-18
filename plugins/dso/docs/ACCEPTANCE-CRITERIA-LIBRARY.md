@@ -110,3 +110,19 @@ Use when a task removes, moves, or replaces a command, skill, script, or other w
   Verify: test -f {skill_path}
 - [ ] No broken internal references (file paths in skill exist)
   Verify: grep -oE '\$REPO_ROOT/[^ )`]+' {skill_path} | while read p; do test -e "$(git rev-parse --show-toplevel)/${p#\$REPO_ROOT/}" || echo "MISSING: $p"; done | grep -c MISSING | awk '{exit ($1 > 0)}'
+
+## Category: RED Test Task
+
+- [ ] Test file exists at expected path
+  Verify: test -f {test_path}
+- [ ] Test function exists by name
+  Verify: grep -q 'def {test_name}' {test_path}
+- [ ] Running the test returns non-zero exit pre-implementation
+  Verify: python -m pytest {test_path}::{test_name} 2>&1; test $? -ne 0
+
+## Category: Test-Exempt Task
+
+Use when a task has no testable implementation artifact (e.g., documentation, configuration, skill files). Must include a justification citing one of the defined exemption criteria.
+
+- [ ] Task description contains test-exempt justification citing one of the defined criteria
+  Verify: grep -q 'test-exempt:' {ticket_path}

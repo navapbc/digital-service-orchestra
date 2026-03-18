@@ -1,6 +1,6 @@
 ---
 id: dso-zse0
-status: open
+status: closed
 deps: [dso-hmb3]
 parent: dso-6524
 links: []
@@ -38,3 +38,10 @@ OUT: Updating docs/ subdirectory files (dso-1f7p); changes to dso-setup.sh (dso-
 - [Maintainability] Systematic scan: run grep across CLAUDE.md first to inventory all references before updating
 - [Reliability] After removing direct path references, confirm the DSO development repo can bootstrap the shim locally (run bash plugins/dso/scripts/dso-setup.sh . or document an alternative bootstrap path for developers)
 
+
+<!-- note-id: drx1y4d3 -->
+<!-- timestamp: 2026-03-18T21:59:28Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: CLAUDE.md updated with plugins/dso/ prefix for all bare path refs; examples/CLAUDE.md.example created with 16 shim-form commands
