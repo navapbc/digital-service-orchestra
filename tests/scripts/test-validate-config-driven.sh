@@ -116,14 +116,15 @@ done
 
 assert_pass_if_clean "test_workflow_config_has_all_validate_keys"
 
-# ── test_workflow_config_has_paths_app_dir ────────────────────────────────
-# workflow-config.conf must define paths.app_dir so validate.sh does not
-# default to "app" (which does not exist in the DSO plugin repo).
+# ── test_validate_handles_missing_app_dir ────────────────────────────────
+# validate.sh must not fail with "cd: app: No such file" when APP_DIR
+# does not exist (e.g. DSO plugin repo has no app/ subdirectory).
+# The guard in validate.sh falls back to REPO_ROOT when APP_DIR is absent.
 _snapshot_fail
 
-found=$(grep -c "^paths\.app_dir=" "$REAL_CONFIG" || true)
-assert_ne "workflow-config.conf has paths.app_dir" "0" "$found"
+found=$(grep -c '"\$APP_DIR" \]; then' "$VALIDATE_SH" || true)
+assert_ne "validate_sh_guards_cd_to_app_dir" "0" "$found"
 
-assert_pass_if_clean "test_workflow_config_has_paths_app_dir"
+assert_pass_if_clean "test_validate_handles_missing_app_dir"
 
 print_summary

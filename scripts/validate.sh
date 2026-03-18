@@ -180,7 +180,7 @@ timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             fi
         fi
     fi
-    for pid in "${CLEANUP_PIDS[@]}"; do
+    for pid in "${CLEANUP_PIDS[@]+"${CLEANUP_PIDS[@]}"}"; do
         kill -TERM "$pid" 2>/dev/null || true
         kill -KILL "$pid" 2>/dev/null || true
     done
@@ -608,7 +608,13 @@ check_ci() {
 }
 
 # Launch all independent checks in parallel
-cd "$APP_DIR"
+# Guard: if APP_DIR doesn't exist (e.g. DSO plugin repo has no app/ subdir),
+# fall back to running checks from REPO_ROOT.
+if [ -d "$APP_DIR" ]; then
+    cd "$APP_DIR"
+else
+    cd "$REPO_ROOT"
+fi
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
@@ -626,7 +632,7 @@ run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
 # shellcheck disable=SC2086
 run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
 # shellcheck disable=SC2086
-run_check "tests" "$TIMEOUT_TESTS" $CMD_TEST_UNIT args="-q --tb=line" &
+run_check "tests" "$TIMEOUT_TESTS" $CMD_TEST_UNIT &
 # shellcheck disable=SC2086
 (cd "$REPO_ROOT" && run_check "plugin" "$TIMEOUT_PLUGIN" $CMD_TEST_PLUGIN) &
 check_migrations &
@@ -648,7 +654,7 @@ if [ $CHECK_CI -eq 1 ]; then
         # Only trigger when CI definitively completed with failure and we are not
         # already inside a CI environment (where the E2E block above handles it).
         if [ "$local_ci_rc" != "0" ] && [ "$local_ci_rc" != "skip" ] && \
-           [[ "$local_e2e_result" == completed:* ]] && [ -z "$CI" ]; then
+           [[ "$local_e2e_result" == completed:* ]] && [ -z "${CI:-}" ]; then
             [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running (parallel, CI failed)"
             # shellcheck disable=SC2086
             run_check "e2e" "$TIMEOUT_E2E" $CMD_TEST_E2E
@@ -848,8 +854,8 @@ if [ $CHECK_CI -eq 1 ]; then
     fi
 
     # E2E tests: skip if CI passed for main, always run in CI environment
-    cd "$APP_DIR"
-    if [ -n "$CI" ]; then
+    if [ -d "$APP_DIR" ]; then cd "$APP_DIR"; else cd "$REPO_ROOT"; fi
+    if [ -n "${CI:-}" ]; then
         # In CI environment: always run E2E tests
         E2E_RAN=1
         [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"
