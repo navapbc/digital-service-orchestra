@@ -1,6 +1,6 @@
 ---
 id: dso-1e6j
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-17T23:38:32Z
