@@ -12,8 +12,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/test-batched.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/test-batched.sh"
 ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
 
 if [ ! -f "$ASSERT_LIB" ]; then

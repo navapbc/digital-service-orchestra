@@ -15,13 +15,14 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-PRE_ALL="$PLUGIN_ROOT/hooks/dispatchers/pre-all.sh"
-POST_ALL="$PLUGIN_ROOT/hooks/dispatchers/post-all.sh"
-POST_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/post-functions.sh"
+PRE_ALL="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-all.sh"
+POST_ALL="$DSO_PLUGIN_DIR/hooks/dispatchers/post-all.sh"
+POST_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/post-functions.sh"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"echo test"}}'
 

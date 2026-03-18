@@ -21,7 +21,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-TARGET_SCRIPT="$PLUGIN_ROOT/scripts/bench-tk-ready.sh"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+TARGET_SCRIPT="$DSO_PLUGIN_DIR/scripts/bench-tk-ready.sh"
 
 # Initialize pass/fail counters
 PASS=0

@@ -11,6 +11,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -39,7 +40,7 @@ ORIGINAL_PATH="$PATH"
 # the same way ci-status.sh does. This lets us unit-test the helper without
 # running ci-status.sh's main body (which needs gh CLI).
 # ---------------------------------------------------------------------------
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 # Source the ci_parse_json function from ci-status.sh.
 # We do this by extracting it: temporarily run the script with a sentinel
@@ -184,7 +185,7 @@ PATH="$ORIGINAL_PATH"
 echo ""
 echo "--- ci-status.sh: contains ci_parse_json and sources deps.sh ---"
 
-CI_STATUS_SCRIPT="$PLUGIN_ROOT/scripts/ci-status.sh"
+CI_STATUS_SCRIPT="$DSO_PLUGIN_DIR/scripts/ci-status.sh"
 
 # Check that deps.sh is sourced
 deps_sourced=$(grep -c 'deps\.sh' "$CI_STATUS_SCRIPT" 2>/dev/null || echo "0")

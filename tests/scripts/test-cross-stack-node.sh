@@ -12,6 +12,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 FIXTURE="$PLUGIN_ROOT/tests/fixtures/node-project"
 
@@ -25,7 +26,7 @@ echo "=== test-cross-stack-node.sh ==="
 # the workflow-config tests below still fail until workflow-config.conf is added.
 detect_output=""
 detect_exit=0
-detect_output=$(bash "$PLUGIN_ROOT/scripts/detect-stack.sh" "$FIXTURE" 2>&1) || detect_exit=$?
+detect_output=$(bash "$DSO_PLUGIN_DIR/scripts/detect-stack.sh" "$FIXTURE" 2>&1) || detect_exit=$?
 assert_eq "test_node_stack_detect_returns_node_npm" "node-npm" "$detect_output"
 
 # ── test_node_stack_workflow_config_has_npm_test ──────────────────────────────
@@ -52,7 +53,7 @@ fi
 # When CLAUDE_PLUGIN_ROOT points to the node fixture, auto-format.sh should
 # process .ts files (because the fixture's workflow-config.conf declares
 # format.extensions: ['.ts']). The hook must exit 0 (non-blocking).
-HOOK="$PLUGIN_ROOT/hooks/auto-format.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/auto-format.sh"
 TEMP_TS="/tmp/test_fixture_$$.ts"
 
 # Create a temp .ts file to reference in the Edit JSON

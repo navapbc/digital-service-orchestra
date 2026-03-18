@@ -4,7 +4,7 @@
       "id": "skill-batch-overlap-check-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/batch-overlap-check/SKILL.md",
+      "hook": "plugins/dso/skills/batch-overlap-check/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -13,7 +13,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/batch-overlap-check/SKILL.md"
+          "path": "plugins/dso/skills/batch-overlap-check/SKILL.md"
         }
       ]
     },
@@ -21,7 +21,7 @@
       "id": "skill-debug-everything-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/debug-everything/SKILL.md",
+      "hook": "plugins/dso/skills/debug-everything/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -30,7 +30,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/debug-everything/SKILL.md"
+          "path": "plugins/dso/skills/debug-everything/SKILL.md"
         }
       ]
     },
@@ -38,7 +38,7 @@
       "id": "skill-design-onboarding-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/design-onboarding/SKILL.md",
+      "hook": "plugins/dso/skills/design-onboarding/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -47,7 +47,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/design-onboarding/SKILL.md"
+          "path": "plugins/dso/skills/design-onboarding/SKILL.md"
         }
       ]
     },
@@ -55,7 +55,7 @@
       "id": "skill-design-review-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/design-review/SKILL.md",
+      "hook": "plugins/dso/skills/design-review/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -64,7 +64,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/design-review/SKILL.md"
+          "path": "plugins/dso/skills/design-review/SKILL.md"
         }
       ]
     },
@@ -72,7 +72,7 @@
       "id": "skill-design-wireframe-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/design-wireframe/SKILL.md",
+      "hook": "plugins/dso/skills/design-wireframe/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -81,7 +81,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/design-wireframe/SKILL.md"
+          "path": "plugins/dso/skills/design-wireframe/SKILL.md"
         }
       ]
     },
@@ -89,7 +89,7 @@
       "id": "skill-dev-onboarding-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/dev-onboarding/SKILL.md",
+      "hook": "plugins/dso/skills/dev-onboarding/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -98,7 +98,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/dev-onboarding/SKILL.md"
+          "path": "plugins/dso/skills/dev-onboarding/SKILL.md"
         }
       ]
     },
@@ -106,7 +106,7 @@
       "id": "skill-dryrun-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/dryrun/SKILL.md",
+      "hook": "plugins/dso/skills/dryrun/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -115,7 +115,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/dryrun/SKILL.md"
+          "path": "plugins/dso/skills/dryrun/SKILL.md"
         }
       ]
     },
@@ -123,7 +123,7 @@
       "id": "skill-end-session-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/end-session/SKILL.md",
+      "hook": "plugins/dso/skills/end-session/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -132,7 +132,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/end-session/SKILL.md"
+          "path": "plugins/dso/skills/end-session/SKILL.md"
         }
       ]
     },
@@ -140,7 +140,7 @@
       "id": "skill-fix-cascade-recovery-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/fix-cascade-recovery/SKILL.md",
+      "hook": "plugins/dso/skills/fix-cascade-recovery/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -149,7 +149,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/fix-cascade-recovery/SKILL.md"
+          "path": "plugins/dso/skills/fix-cascade-recovery/SKILL.md"
         }
       ]
     },
@@ -157,7 +157,7 @@
       "id": "skill-implementation-plan-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/implementation-plan/SKILL.md",
+      "hook": "plugins/dso/skills/implementation-plan/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -166,7 +166,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/implementation-plan/SKILL.md"
+          "path": "plugins/dso/skills/implementation-plan/SKILL.md"
         }
       ]
     },
@@ -174,7 +174,7 @@
       "id": "skill-interface-contracts-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/interface-contracts/SKILL.md",
+      "hook": "plugins/dso/skills/interface-contracts/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -183,7 +183,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/interface-contracts/SKILL.md"
+          "path": "plugins/dso/skills/interface-contracts/SKILL.md"
         }
       ]
     },
@@ -191,7 +191,7 @@
       "id": "skill-oscillation-check-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/oscillation-check/SKILL.md",
+      "hook": "plugins/dso/skills/oscillation-check/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -200,7 +200,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/oscillation-check/SKILL.md"
+          "path": "plugins/dso/skills/oscillation-check/SKILL.md"
         }
       ]
     },
@@ -208,7 +208,7 @@
       "id": "skill-plan-review-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/plan-review/SKILL.md",
+      "hook": "plugins/dso/skills/plan-review/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -217,7 +217,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/plan-review/SKILL.md"
+          "path": "plugins/dso/skills/plan-review/SKILL.md"
         }
       ]
     },
@@ -225,7 +225,7 @@
       "id": "skill-playwright-debug-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/playwright-debug/SKILL.md",
+      "hook": "plugins/dso/skills/playwright-debug/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -234,7 +234,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/playwright-debug/SKILL.md"
+          "path": "plugins/dso/skills/playwright-debug/SKILL.md"
         }
       ]
     },
@@ -242,7 +242,7 @@
       "id": "skill-preplanning-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/preplanning/SKILL.md",
+      "hook": "plugins/dso/skills/preplanning/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -251,7 +251,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/preplanning/SKILL.md"
+          "path": "plugins/dso/skills/preplanning/SKILL.md"
         }
       ]
     },
@@ -259,7 +259,7 @@
       "id": "skill-resolve-conflicts-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/resolve-conflicts/SKILL.md",
+      "hook": "plugins/dso/skills/resolve-conflicts/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -268,7 +268,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/resolve-conflicts/SKILL.md"
+          "path": "plugins/dso/skills/resolve-conflicts/SKILL.md"
         }
       ]
     },
@@ -276,7 +276,7 @@
       "id": "skill-retro-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/retro/SKILL.md",
+      "hook": "plugins/dso/skills/retro/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -285,7 +285,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/retro/SKILL.md"
+          "path": "plugins/dso/skills/retro/SKILL.md"
         }
       ]
     },
@@ -293,7 +293,7 @@
       "id": "skill-review-protocol-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/review-protocol/SKILL.md",
+      "hook": "plugins/dso/skills/review-protocol/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -302,7 +302,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/review-protocol/SKILL.md"
+          "path": "plugins/dso/skills/review-protocol/SKILL.md"
         }
       ]
     },
@@ -310,7 +310,7 @@
       "id": "skill-roadmap-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/roadmap/SKILL.md",
+      "hook": "plugins/dso/skills/roadmap/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -319,7 +319,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/roadmap/SKILL.md"
+          "path": "plugins/dso/skills/roadmap/SKILL.md"
         }
       ]
     },
@@ -327,7 +327,7 @@
       "id": "skill-sprint-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/sprint/SKILL.md",
+      "hook": "plugins/dso/skills/sprint/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -336,7 +336,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/sprint/SKILL.md"
+          "path": "plugins/dso/skills/sprint/SKILL.md"
         }
       ]
     },
@@ -344,7 +344,7 @@
       "id": "skill-tdd-workflow-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/tdd-workflow/SKILL.md",
+      "hook": "plugins/dso/skills/tdd-workflow/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -353,7 +353,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/tdd-workflow/SKILL.md"
+          "path": "plugins/dso/skills/tdd-workflow/SKILL.md"
         }
       ]
     },
@@ -361,7 +361,7 @@
       "id": "skill-ui-discover-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/ui-discover/SKILL.md",
+      "hook": "plugins/dso/skills/ui-discover/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -370,7 +370,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/ui-discover/SKILL.md"
+          "path": "plugins/dso/skills/ui-discover/SKILL.md"
         }
       ]
     },
@@ -378,7 +378,7 @@
       "id": "skill-validate-work-exists",
       "category": "skill-activation",
       "phase_introduced": 0,
-      "hook": "skills/validate-work/SKILL.md",
+      "hook": "plugins/dso/skills/validate-work/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -387,7 +387,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/validate-work/SKILL.md"
+          "path": "plugins/dso/skills/validate-work/SKILL.md"
         }
       ]
     },
@@ -395,7 +395,7 @@
       "id": "plugin-scaffold-plugin-json-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": ".claude-plugin/plugin.json",
+      "hook": "plugins/dso/.claude-plugin/plugin.json",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -404,7 +404,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": ".claude-plugin/plugin.json"
+          "path": "plugins/dso/.claude-plugin/plugin.json"
         }
       ]
     },
@@ -412,7 +412,7 @@
       "id": "plugin-scaffold-skill-sprint-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/sprint/SKILL.md",
+      "hook": "plugins/dso/skills/sprint/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -421,7 +421,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/sprint/SKILL.md"
+          "path": "plugins/dso/skills/sprint/SKILL.md"
         }
       ]
     },
@@ -429,7 +429,7 @@
       "id": "plugin-scaffold-skill-plan-review-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/plan-review/SKILL.md",
+      "hook": "plugins/dso/skills/plan-review/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -438,7 +438,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/plan-review/SKILL.md"
+          "path": "plugins/dso/skills/plan-review/SKILL.md"
         }
       ]
     },
@@ -446,7 +446,7 @@
       "id": "plugin-scaffold-skill-review-protocol-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/review-protocol/SKILL.md",
+      "hook": "plugins/dso/skills/review-protocol/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -455,7 +455,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/review-protocol/SKILL.md"
+          "path": "plugins/dso/skills/review-protocol/SKILL.md"
         }
       ]
     },
@@ -463,7 +463,7 @@
       "id": "plugin-scaffold-skill-tdd-workflow-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/tdd-workflow/SKILL.md",
+      "hook": "plugins/dso/skills/tdd-workflow/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -472,7 +472,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/tdd-workflow/SKILL.md"
+          "path": "plugins/dso/skills/tdd-workflow/SKILL.md"
         }
       ]
     },
@@ -480,7 +480,7 @@
       "id": "plugin-scaffold-skill-fix-cascade-recovery-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/fix-cascade-recovery/SKILL.md",
+      "hook": "plugins/dso/skills/fix-cascade-recovery/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -489,7 +489,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/fix-cascade-recovery/SKILL.md"
+          "path": "plugins/dso/skills/fix-cascade-recovery/SKILL.md"
         }
       ]
     },
@@ -497,7 +497,7 @@
       "id": "plugin-scaffold-skill-oscillation-check-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/oscillation-check/SKILL.md",
+      "hook": "plugins/dso/skills/oscillation-check/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -506,7 +506,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/oscillation-check/SKILL.md"
+          "path": "plugins/dso/skills/oscillation-check/SKILL.md"
         }
       ]
     },
@@ -514,7 +514,7 @@
       "id": "plugin-scaffold-skill-implementation-plan-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/implementation-plan/SKILL.md",
+      "hook": "plugins/dso/skills/implementation-plan/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -523,7 +523,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/implementation-plan/SKILL.md"
+          "path": "plugins/dso/skills/implementation-plan/SKILL.md"
         }
       ]
     },
@@ -531,7 +531,7 @@
       "id": "plugin-scaffold-skill-roadmap-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/roadmap/SKILL.md",
+      "hook": "plugins/dso/skills/roadmap/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -540,7 +540,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/roadmap/SKILL.md"
+          "path": "plugins/dso/skills/roadmap/SKILL.md"
         }
       ]
     },
@@ -548,7 +548,7 @@
       "id": "plugin-scaffold-skill-dryrun-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/dryrun/SKILL.md",
+      "hook": "plugins/dso/skills/dryrun/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -557,7 +557,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/dryrun/SKILL.md"
+          "path": "plugins/dso/skills/dryrun/SKILL.md"
         }
       ]
     },
@@ -565,7 +565,7 @@
       "id": "plugin-scaffold-skill-batch-overlap-check-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/batch-overlap-check/SKILL.md",
+      "hook": "plugins/dso/skills/batch-overlap-check/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -574,7 +574,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/batch-overlap-check/SKILL.md"
+          "path": "plugins/dso/skills/batch-overlap-check/SKILL.md"
         }
       ]
     },
@@ -582,7 +582,7 @@
       "id": "plugin-scaffold-skill-retro-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/retro/SKILL.md",
+      "hook": "plugins/dso/skills/retro/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -591,7 +591,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/retro/SKILL.md"
+          "path": "plugins/dso/skills/retro/SKILL.md"
         }
       ]
     },
@@ -599,7 +599,7 @@
       "id": "plugin-scaffold-skill-end-session-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "skills/end-session/SKILL.md",
+      "hook": "plugins/dso/skills/end-session/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -608,7 +608,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/end-session/SKILL.md"
+          "path": "plugins/dso/skills/end-session/SKILL.md"
         }
       ]
     },
@@ -616,7 +616,7 @@
       "id": "plugin-scaffold-hooks-run-hook-exists",
       "category": "plugin-scaffold-phase1",
       "phase_introduced": 1,
-      "hook": "hooks/run-hook.sh",
+      "hook": "plugins/dso/hooks/run-hook.sh",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -625,7 +625,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "hooks/run-hook.sh"
+          "path": "plugins/dso/hooks/run-hook.sh"
         }
       ]
     },
@@ -633,7 +633,7 @@
       "id": "init-skill-exists",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "skills/init/SKILL.md",
+      "hook": "plugins/dso/skills/init/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -642,7 +642,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/init/SKILL.md"
+          "path": "plugins/dso/skills/init/SKILL.md"
         }
       ]
     },
@@ -650,7 +650,7 @@
       "id": "read-config-script-exists",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "scripts/read-config.sh",
+      "hook": "plugins/dso/scripts/read-config.sh",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -659,7 +659,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "scripts/read-config.sh"
+          "path": "plugins/dso/scripts/read-config.sh"
         }
       ]
     },
@@ -667,7 +667,7 @@
       "id": "detect-stack-script-exists",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "scripts/detect-stack.sh",
+      "hook": "plugins/dso/scripts/detect-stack.sh",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -676,7 +676,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "scripts/detect-stack.sh"
+          "path": "plugins/dso/scripts/detect-stack.sh"
         }
       ]
     },
@@ -684,7 +684,7 @@
       "id": "workflow-config-schema-exists",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "docs/workflow-config-schema.json",
+      "hook": "plugins/dso/docs/workflow-config-schema.json",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -693,7 +693,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "docs/workflow-config-schema.json"
+          "path": "plugins/dso/docs/workflow-config-schema.json"
         }
       ]
     },
@@ -701,7 +701,7 @@
       "id": "sprint-skill-reads-config",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "skills/sprint/SKILL.md",
+      "hook": "plugins/dso/skills/sprint/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -710,7 +710,7 @@
       "assertions": [
         {
           "type": "file_contains",
-          "path": "skills/sprint/SKILL.md",
+          "path": "plugins/dso/skills/sprint/SKILL.md",
           "pattern": "read-config"
         }
       ]
@@ -719,7 +719,7 @@
       "id": "tdd-workflow-skill-reads-config",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "skills/tdd-workflow/SKILL.md",
+      "hook": "plugins/dso/skills/tdd-workflow/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -728,7 +728,7 @@
       "assertions": [
         {
           "type": "file_contains",
-          "path": "skills/tdd-workflow/SKILL.md",
+          "path": "plugins/dso/skills/tdd-workflow/SKILL.md",
           "pattern": "read-config"
         }
       ]
@@ -737,7 +737,7 @@
       "id": "fix-cascade-recovery-skill-reads-config",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "skills/fix-cascade-recovery/SKILL.md",
+      "hook": "plugins/dso/skills/fix-cascade-recovery/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -746,7 +746,7 @@
       "assertions": [
         {
           "type": "file_contains",
-          "path": "skills/fix-cascade-recovery/SKILL.md",
+          "path": "plugins/dso/skills/fix-cascade-recovery/SKILL.md",
           "pattern": "read-config"
         }
       ]
@@ -755,7 +755,7 @@
       "id": "implementation-plan-skill-reads-config",
       "category": "plugin-config-phase2",
       "phase_introduced": 2,
-      "hook": "skills/implementation-plan/SKILL.md",
+      "hook": "plugins/dso/skills/implementation-plan/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -764,7 +764,7 @@
       "assertions": [
         {
           "type": "file_contains",
-          "path": "skills/implementation-plan/SKILL.md",
+          "path": "plugins/dso/skills/implementation-plan/SKILL.md",
           "pattern": "read-config"
         }
       ]
@@ -773,7 +773,7 @@
       "id": "generate-claude-md-skill-exists",
       "category": "skill-activation",
       "phase_introduced": 4,
-      "hook": "skills/generate-claude-md/SKILL.md",
+      "hook": "plugins/dso/skills/generate-claude-md/SKILL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -782,7 +782,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "skills/generate-claude-md/SKILL.md"
+          "path": "plugins/dso/skills/generate-claude-md/SKILL.md"
         }
       ]
     },
@@ -807,7 +807,7 @@
       "id": "install-docs-exist",
       "category": "marketplace-distribution-phase6",
       "phase_introduced": 6,
-      "hook": "docs/INSTALL.md",
+      "hook": "plugins/dso/docs/INSTALL.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -816,7 +816,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "docs/INSTALL.md"
+          "path": "plugins/dso/docs/INSTALL.md"
         }
       ]
     },
@@ -824,7 +824,7 @@
       "id": "migration-guide-exists",
       "category": "marketplace-distribution-phase6",
       "phase_introduced": 6,
-      "hook": "docs/MIGRATION-TO-PLUGIN.md",
+      "hook": "plugins/dso/docs/MIGRATION-TO-PLUGIN.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -833,7 +833,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "docs/MIGRATION-TO-PLUGIN.md"
+          "path": "plugins/dso/docs/MIGRATION-TO-PLUGIN.md"
         }
       ]
     },
@@ -841,7 +841,7 @@
       "id": "schemastore-pr-script-exists",
       "category": "marketplace-distribution-phase6",
       "phase_introduced": 6,
-      "hook": "scripts/submit-to-schemastore.sh",
+      "hook": "plugins/dso/scripts/submit-to-schemastore.sh",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -850,7 +850,7 @@
       "assertions": [
         {
           "type": "file_exists",
-          "path": "scripts/submit-to-schemastore.sh"
+          "path": "plugins/dso/scripts/submit-to-schemastore.sh"
         }
       ]
     },
@@ -876,7 +876,7 @@
       "id": "resolution-sub-agent-no-nested-task-review-fix-dispatch",
       "category": "agent-nesting-guard",
       "phase_introduced": 7,
-      "hook": "docs/workflows/prompts/review-fix-dispatch.md",
+      "hook": "plugins/dso/docs/workflows/prompts/review-fix-dispatch.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -885,7 +885,7 @@
       "assertions": [
         {
           "type": "file_contains",
-          "path": "docs/workflows/prompts/review-fix-dispatch.md",
+          "path": "plugins/dso/docs/workflows/prompts/review-fix-dispatch.md",
           "pattern": "NESTING PROHIBITION"
         }
       ]
@@ -894,7 +894,7 @@
       "id": "resolution-sub-agent-no-nested-task-sub-agent-boundaries",
       "category": "agent-nesting-guard",
       "phase_introduced": 7,
-      "hook": "docs/SUB-AGENT-BOUNDARIES.md",
+      "hook": "plugins/dso/docs/SUB-AGENT-BOUNDARIES.md",
       "setup": {
         "stdin": "",
         "state_files": {},
@@ -903,7 +903,7 @@
       "assertions": [
         {
           "type": "file_contains",
-          "path": "docs/SUB-AGENT-BOUNDARIES.md",
+          "path": "plugins/dso/docs/SUB-AGENT-BOUNDARIES.md",
           "pattern": "Resolution sub-agents"
         }
       ]

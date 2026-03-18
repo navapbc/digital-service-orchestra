@@ -14,12 +14,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-SCRIPT_UNDER_TEST="$PLUGIN_ROOT/hooks/record-review.sh"
+SCRIPT_UNDER_TEST="$DSO_PLUGIN_DIR/hooks/record-review.sh"
 
 # Source deps.sh so we use the same get_artifacts_dir() as the hook does at runtime.
 # shellcheck source=../../../hooks/lib/deps.sh
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 # Use an isolated temp directory so tests don't clobber production artifacts.
 # Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so record-review.sh (via get_artifacts_dir())

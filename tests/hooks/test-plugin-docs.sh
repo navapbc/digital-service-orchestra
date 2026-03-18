@@ -8,12 +8,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-PLUGIN_DOCS="$PLUGIN_ROOT/docs"
-PLUGIN_WORKFLOWS="$PLUGIN_ROOT/docs/workflows"
+PLUGIN_DOCS="$DSO_PLUGIN_DIR/docs"
+PLUGIN_WORKFLOWS="$DSO_PLUGIN_DIR/docs/workflows"
 
 # test_plugin_reference_docs_exist
 # All 7 reference docs must exist at docs/.

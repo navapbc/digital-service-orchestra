@@ -20,8 +20,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-MERGE_SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
-MERGE_TICKET_SCRIPT="$PLUGIN_ROOT/scripts/merge-ticket-index.py"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
+MERGE_TICKET_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-ticket-index.py"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -73,7 +74,7 @@ _setup_git_pair() {
 # Exports CLAUDE_PLUGIN_ROOT so the function can locate merge-ticket-index.py
 # when eval'd outside the normal merge-to-main.sh execution context.
 _load_recovery_fn() {
-    export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
+    export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
     eval "$(_extract_fn "_squash_rebase_recovery")"
 }
 

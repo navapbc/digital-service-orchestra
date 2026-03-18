@@ -10,7 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-HARNESS="$REPO_ROOT/scripts/check-test-isolation.sh"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+HARNESS="$DSO_PLUGIN_DIR/scripts/check-test-isolation.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -100,7 +101,7 @@ assert_pass_if_clean "test_harness_exists_and_executable"
 # ── test_rules_directory_exists ──────────────────────────────────────────────
 _snapshot_fail
 rules_dir_exists=0
-[ -d "$REPO_ROOT/scripts/test-isolation-rules" ] && rules_dir_exists=1
+[ -d "$DSO_PLUGIN_DIR/scripts/test-isolation-rules" ] && rules_dir_exists=1
 assert_eq "test_rules_directory_exists" "1" "$rules_dir_exists"
 assert_pass_if_clean "test_rules_directory_exists"
 

@@ -18,9 +18,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../plugin" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 
-# Ensure CLAUDE_PLUGIN_ROOT is set for all tests
+# Ensure CLAUDE_PLUGIN_ROOT points to the plugin subdir for all tests.
+# Plugin files live under plugins/dso/ after the dso-anlb restructure.
+# Force-set to plugins/dso/ so dispatchers find hooks/lib/ at the right path.
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
-export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT}"
+export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
 
 # Bump timeout for heavyweight tests (e.g., test-sync-roundtrip.sh: 941 lines)
 : "${TEST_TIMEOUT:=60}"

@@ -7,11 +7,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/review-stop-check.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/review-stop-check.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE="$ARTIFACTS_DIR/review-status"
@@ -38,7 +39,7 @@ assert_eq "test_review_stop_exits_zero_always" "0" "$EXIT_CODE"
 
 # test_review_stop_exits_zero_with_passed_current_review
 # If review is passed and diff hash is current, no warning → silent exit 0
-CURRENT_HASH=$("$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null || echo "testhash")
+CURRENT_HASH=$("$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null || echo "testhash")
 mkdir -p "$ARTIFACTS_DIR"
 ORIG_STATE=""
 if [[ -f "$REVIEW_STATE" ]]; then

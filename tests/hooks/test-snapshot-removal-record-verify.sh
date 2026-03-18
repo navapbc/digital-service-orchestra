@@ -5,11 +5,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-RECORD_REVIEW="$PLUGIN_ROOT/hooks/record-review.sh"
-VERIFY_DIFF="$PLUGIN_ROOT/scripts/verify-review-diff.sh"
+RECORD_REVIEW="$DSO_PLUGIN_DIR/hooks/record-review.sh"
+VERIFY_DIFF="$DSO_PLUGIN_DIR/scripts/verify-review-diff.sh"
 
 # --- test_record_review_no_snapshot_reference ---
 # record-review.sh must NOT contain 'untracked-snapshot'

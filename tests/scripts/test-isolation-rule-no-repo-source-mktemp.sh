@@ -10,7 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-RULE="$REPO_ROOT/scripts/test-isolation-rules/no-repo-source-mktemp.sh"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+RULE="$DSO_PLUGIN_DIR/scripts/test-isolation-rules/no-repo-source-mktemp.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -58,6 +59,7 @@ _TEMP_SH=$(mktemp /tmp/test-isolation-XXXXXX.sh)
 cat > "$_TEMP_SH" << 'SHEOF'
 #!/usr/bin/env bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 _F=$(mktemp "$REPO_ROOT/app/src/fake_XXXXXX.py") # isolation-ok: required for hook path matching
 SHEOF
 output=$("$RULE" "$_TEMP_SH" 2>/dev/null)

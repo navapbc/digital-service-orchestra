@@ -10,8 +10,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CANONICAL="$PLUGIN_ROOT/scripts/check-plugin-test-needed.sh"
-WORKFLOW_FILE="$PLUGIN_ROOT/docs/workflows/COMMIT-WORKFLOW.md"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+CANONICAL="$DSO_PLUGIN_DIR/scripts/check-plugin-test-needed.sh"
+WORKFLOW_FILE="$DSO_PLUGIN_DIR/docs/workflows/COMMIT-WORKFLOW.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

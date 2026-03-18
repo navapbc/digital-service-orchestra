@@ -11,10 +11,11 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
+ALLOWLIST="$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf"
 
 # --- Test: file exists ---
 test_allowlist_file_exists() {

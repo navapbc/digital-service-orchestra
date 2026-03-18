@@ -15,9 +15,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
-VALIDATE_CONFIG="$PLUGIN_ROOT/scripts/validate-config.sh"
+READ_CONFIG="$DSO_PLUGIN_DIR/scripts/read-config.sh"
+VALIDATE_CONFIG="$DSO_PLUGIN_DIR/scripts/validate-config.sh"
 
 # Create an inline fixture config instead of depending on project config.
 # Must have at least 23 unique keys and pass validate-config.sh.
@@ -160,7 +161,7 @@ assert_pass_if_clean "test_no_python_dependency_on_config_path"
 # This simulates how skills resolve config values at runtime.
 _snapshot_fail
 
-plugin_scripts="$PLUGIN_ROOT/scripts"
+plugin_scripts="$DSO_PLUGIN_DIR/scripts"
 
 # Create a temp file with our fixture config for WORKFLOW_CONFIG_FILE isolation
 _skill_tmpdir="$(mktemp -d)"

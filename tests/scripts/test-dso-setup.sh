@@ -15,7 +15,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SETUP_SCRIPT="$PLUGIN_ROOT/scripts/dso-setup.sh"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+SETUP_SCRIPT="$DSO_PLUGIN_DIR/scripts/dso-setup.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -111,12 +112,12 @@ test_setup_dso_tk_help_works() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
 
-    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
     local exit_code=0
     (
         cd "$T"
-        unset CLAUDE_PLUGIN_ROOT
+        unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
         "./.claude/scripts/dso" tk --help >/dev/null 2>&1
     ) || exit_code=$?
     assert_eq "test_setup_dso_tk_help_works" "0" "$exit_code"

@@ -11,11 +11,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-SKILL_FILE="$PLUGIN_ROOT/skills/generate-claude-md/SKILL.md"
+SKILL_FILE="$DSO_PLUGIN_DIR/skills/generate-claude-md/SKILL.md"
 
 echo "=== test-generate-claude-md-skill.sh ==="
 

@@ -5,11 +5,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-REVIEW_STOP="$PLUGIN_ROOT/hooks/review-stop-check.sh"
-SESSION_MISC="$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh"
+REVIEW_STOP="$DSO_PLUGIN_DIR/hooks/review-stop-check.sh"
+SESSION_MISC="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
 
 # --- test_review_stop_check_no_snapshot_reference ---
 # review-stop-check.sh must NOT contain 'untracked-snapshot'

@@ -9,10 +9,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-WORKFLOW_FILE="$PLUGIN_ROOT/docs/workflows/COMMIT-WORKFLOW.md"
+WORKFLOW_FILE="$DSO_PLUGIN_DIR/docs/workflows/COMMIT-WORKFLOW.md"
 FIXTURE_CONFIG="$PLUGIN_ROOT/tests/fixtures/commit-workflow-skip/workflow-config-no-test-changed.yaml"
-READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
+READ_CONFIG="$DSO_PLUGIN_DIR/scripts/read-config.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

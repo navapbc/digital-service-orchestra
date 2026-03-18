@@ -13,6 +13,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -22,7 +23,7 @@ echo "=== test-config-callers-updated.sh ==="
 # ── test_sprint_next_batch_uses_conf ─────────────────────────────────────────
 # sprint-next-batch.sh should pass .conf paths (not .yaml) to read-config.sh
 _snapshot_fail
-SPRINT_SCRIPT="$PLUGIN_ROOT/scripts/sprint-next-batch.sh"
+SPRINT_SCRIPT="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
 
 # Check that .conf is referenced in config path lines
 conf_refs=$(grep -c 'workflow-config\.conf' "$SPRINT_SCRIPT" || true)
@@ -39,7 +40,7 @@ assert_pass_if_clean "test_sprint_next_batch_uses_conf"
 # (excluding backward-compat/fallback/migration comments and read-config.sh itself
 #  which has the .yaml fallback logic)
 _snapshot_fail
-SCRIPTS_DIR="$PLUGIN_ROOT/scripts"
+SCRIPTS_DIR="$DSO_PLUGIN_DIR/scripts"
 
 # Mirror the AC verify command: grep for workflow-config.yaml, exclude comments
 # and fallback/backward/compat/migration lines.

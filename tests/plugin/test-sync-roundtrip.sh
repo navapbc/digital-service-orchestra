@@ -45,8 +45,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-TK="$PLUGIN_ROOT/scripts/tk"
+TK="$DSO_PLUGIN_DIR/scripts/tk"
 STUBS_DIR="$PLUGIN_ROOT/tests/plugin/fixtures/stubs"
 PASS=0
 FAIL=0

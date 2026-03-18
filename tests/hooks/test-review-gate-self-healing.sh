@@ -17,12 +17,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
-source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
 # ---------------------------------------------------------------------------
 # Unit tests for is_formatting_only_change()

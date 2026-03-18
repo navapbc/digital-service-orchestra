@@ -24,6 +24,12 @@ export GIT_CONFIG_VALUE_0=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 
+# Ensure CLAUDE_PLUGIN_ROOT points to the plugin subdir for all tests.
+# Plugin files live under plugins/dso/ after the dso-anlb restructure.
+# Force-set so dispatchers find hooks/lib/ at the right path.
+_RUN_HOOK_REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
+export CLAUDE_PLUGIN_ROOT="$_RUN_HOOK_REPO_ROOT/plugins/dso"
+
 # Source the suite engine
 source "$LIB_DIR/suite-engine.sh"
 

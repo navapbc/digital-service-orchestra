@@ -81,9 +81,11 @@ TAG="v${VERSION}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# DIST_ROOT is the repo root — marketplace.json stays at repo root (not inside plugins/dso/)
+DIST_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null)"
 
 PLUGIN_JSON="${PLUGIN_ROOT}/.claude-plugin/plugin.json"
-MARKETPLACE_JSON="${PLUGIN_ROOT}/.claude-plugin/marketplace.json"
+MARKETPLACE_JSON="${DIST_ROOT}/.claude-plugin/marketplace.json"
 
 for f in "$PLUGIN_JSON" "$MARKETPLACE_JSON"; do
   if [[ ! -f "$f" ]]; then

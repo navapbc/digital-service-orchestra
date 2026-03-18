@@ -96,7 +96,10 @@ while IFS= read -r line; do
     if (( COUNT >= THRESHOLD )); then
         # Skip phantom hooks — only create bugs for hooks that exist
         HOOK_EXISTS=false
-        for _HOOK_DIR in "$HOME/.claude/hooks" "$(git rev-parse --show-toplevel 2>/dev/null)/hooks"; do
+        _REPO_ROOT_SS="$(git rev-parse --show-toplevel 2>/dev/null)"
+        for _HOOK_DIR in "$HOME/.claude/hooks" \
+                         "$_REPO_ROOT_SS/hooks" \
+                         "${CLAUDE_PLUGIN_ROOT:-$_REPO_ROOT_SS/plugins/dso}/hooks"; do
             if [[ -f "$_HOOK_DIR/$HOOK_NAME" ]]; then
                 HOOK_EXISTS=true
                 break

@@ -10,7 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-RULE="$REPO_ROOT/scripts/test-isolation-rules/no-direct-os-environ.sh"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+RULE="$DSO_PLUGIN_DIR/scripts/test-isolation-rules/no-direct-os-environ.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"

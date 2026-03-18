@@ -12,9 +12,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CLAUDE_SAFE="$PLUGIN_ROOT/scripts/claude-safe"
-PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
+CLAUDE_SAFE="$DSO_PLUGIN_DIR/scripts/claude-safe"
+PLUGIN_SCRIPTS="$DSO_PLUGIN_DIR/scripts"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

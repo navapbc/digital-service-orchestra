@@ -11,8 +11,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+# marketplace.json stays at repo root; plugin.json is inside the plugin subdir
 MARKETPLACE_JSON="$PLUGIN_ROOT/.claude-plugin/marketplace.json"
-PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+PLUGIN_JSON="$DSO_PLUGIN_DIR/.claude-plugin/plugin.json"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

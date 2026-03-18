@@ -16,8 +16,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/ensure-pre-commit.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/ensure-pre-commit.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

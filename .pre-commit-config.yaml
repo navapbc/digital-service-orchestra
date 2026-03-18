@@ -9,7 +9,7 @@ repos:
 
       - id: executable-guard
         name: Executable Bit Guard (5s timeout)
-        entry: ./scripts/pre-commit-executable-guard.sh
+        entry: ./plugins/dso/scripts/pre-commit-executable-guard.sh
         language: system
         pass_filenames: false
         stages: [pre-commit]
@@ -17,7 +17,7 @@ repos:
 
       - id: format-and-lint
         name: Format + Lint - Ruff (15s timeout)
-        entry: ./scripts/pre-commit-wrapper.sh format-and-lint 15 "ruff check scripts/*.py tests/**/*.py && ruff format --check scripts/*.py tests/**/*.py"
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh format-and-lint 15 "ruff check plugins/dso/scripts/*.py tests/**/*.py && ruff format --check plugins/dso/scripts/*.py tests/**/*.py"
         language: system
         pass_filenames: false
         types: [python]
@@ -25,7 +25,7 @@ repos:
 
       - id: isolation-check
         name: Test Isolation Check (60s timeout)
-        entry: ./scripts/pre-commit-wrapper.sh isolation-check 60 "STAGED_ONLY=true scripts/check-test-isolation.sh"
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh isolation-check 60 "STAGED_ONLY=true plugins/dso/scripts/check-test-isolation.sh"
         language: system
         pass_filenames: false
         types: [python]
@@ -34,10 +34,10 @@ repos:
       # Review gate (timeout: 10s)
       # Blocks commits containing non-allowlisted files without a valid review-status.
       # Since this repo IS the DSO plugin, we call the hook directly.
-      # Debug command: ./hooks/pre-commit-review-gate.sh
+      # Debug command: ./plugins/dso/hooks/pre-commit-review-gate.sh
       - id: pre-commit-review-gate
         name: Review Gate (10s timeout)
-        entry: ./scripts/pre-commit-wrapper.sh pre-commit-review-gate 10 "./hooks/pre-commit-review-gate.sh"
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-review-gate 10 "./plugins/dso/hooks/pre-commit-review-gate.sh"
         language: system
         pass_filenames: false
         always_run: true
@@ -48,7 +48,7 @@ repos:
       - id: pre-push-lint
         name: Pre-push format + lint check
         language: system
-        entry: ./scripts/pre-commit-wrapper.sh pre-push-lint 60 "ruff check scripts/*.py tests/**/*.py && ruff format --check scripts/*.py tests/**/*.py"
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-push-lint 60 "ruff check plugins/dso/scripts/*.py tests/**/*.py && ruff format --check plugins/dso/scripts/*.py tests/**/*.py"
         pass_filenames: false
         always_run: true
         stages: [pre-push]

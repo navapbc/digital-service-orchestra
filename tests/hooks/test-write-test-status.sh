@@ -6,8 +6,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/write-test-status.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/write-test-status.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -83,7 +84,7 @@ rm -rf "$_dir4"
 echo ""
 echo "--- Group 5: Exec wrapper ---"
 _dir5=$(mktemp -d)
-WRAPPER="$REPO_ROOT/scripts/write-test-status.sh"
+WRAPPER="$DSO_PLUGIN_DIR/scripts/write-test-status.sh"
 if [[ -x "$WRAPPER" ]]; then
     ARTIFACTS_DIR="$_dir5" bash "$WRAPPER" "test-unit-only" "0"
     content=$(cat "$_dir5/test-status/test-unit-only.status")

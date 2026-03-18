@@ -15,11 +15,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-bash.sh"
+DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-bash.sh"
 
 # ============================================================
 # test_pre_bash_dispatcher_exits_0_for_exempt_command

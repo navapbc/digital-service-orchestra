@@ -16,6 +16,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -25,7 +26,7 @@ _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
-SESSION_MISC_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh"
+SESSION_MISC_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
 
 # ============================================================
 # test_no_jq_calls_in_session_misc_functions

@@ -14,8 +14,9 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -97,7 +98,7 @@ assert_eq "sync-state change does not alter hash" "$HASH_BEFORE_SYNC" "$HASH_AFT
 echo "--- test_non_reviewable_pattern_includes_tickets ---"
 
 PATTERN_MATCH=$(grep 'review-gate-allowlist' \
-    "$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
+    "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
     "$( [[ $PATTERN_MATCH -ge 1 ]] && echo true || echo false )"
 
@@ -107,7 +108,7 @@ assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
 # ============================================================
 echo "--- test_tickets_exclusion_pathspec_exists ---"
 
-ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
+ALLOWLIST="$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf"
 PATHSPEC_MATCH=$(grep '\.tickets/' "$ALLOWLIST" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "review-gate-allowlist.conf contains .tickets/ pattern" "true" \
     "$( [[ $PATHSPEC_MATCH -ge 1 ]] && echo true || echo false )"
@@ -119,7 +120,7 @@ assert_eq "review-gate-allowlist.conf contains .tickets/ pattern" "true" \
 echo "--- test_sync_state_exclusion_pathspec_exists ---"
 
 PATHSPEC_MATCH=$(grep "':!\.sync-state\.json'" \
-    "$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
+    "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "EXCLUDE_PATHSPECS contains :!.sync-state.json" "1" "$PATHSPEC_MATCH"
 
 # ============================================================
@@ -129,7 +130,7 @@ assert_eq "EXCLUDE_PATHSPECS contains :!.sync-state.json" "1" "$PATHSPEC_MATCH"
 echo "--- test_capture_review_diff_excludes_tickets ---"
 
 _TICKETS_PATHSPEC=":!.tickets/"
-CAPTURE_SCRIPT="$PLUGIN_ROOT/scripts/capture-review-diff.sh"
+CAPTURE_SCRIPT="$DSO_PLUGIN_DIR/scripts/capture-review-diff.sh"
 CAPTURE_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "capture-review-diff excludes .tickets/" "1" "$CAPTURE_TICKETS"
 
@@ -142,7 +143,7 @@ assert_eq "capture-review-diff excludes .sync-state.json" "1" "$CAPTURE_SYNC"
 # ============================================================
 echo "--- test_record_review_excludes_tickets ---"
 
-RECORD_SCRIPT="$PLUGIN_ROOT/hooks/record-review.sh"
+RECORD_SCRIPT="$DSO_PLUGIN_DIR/hooks/record-review.sh"
 RECORD_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 # Should appear in git diff --name-only lines (at least 2: unstaged + cached)
 assert_eq "record-review.sh excludes .tickets/ in diff queries (>=2 occurrences)" "true" \

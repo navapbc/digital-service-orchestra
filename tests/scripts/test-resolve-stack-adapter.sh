@@ -10,10 +10,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CANONICAL="$PLUGIN_ROOT/scripts/resolve-stack-adapter.sh"
-UI_DISCOVER_SKILL="$PLUGIN_ROOT/skills/ui-discover/SKILL.md"
-DESIGN_WIREFRAME_SKILL="$PLUGIN_ROOT/skills/design-wireframe/SKILL.md"
+CANONICAL="$DSO_PLUGIN_DIR/scripts/resolve-stack-adapter.sh"
+UI_DISCOVER_SKILL="$DSO_PLUGIN_DIR/skills/ui-discover/SKILL.md"
+DESIGN_WIREFRAME_SKILL="$DSO_PLUGIN_DIR/skills/design-wireframe/SKILL.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

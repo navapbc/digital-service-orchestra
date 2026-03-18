@@ -14,8 +14,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-DISCOVER_SCRIPT="$PLUGIN_ROOT/scripts/discover-agents.sh"
+DISCOVER_SCRIPT="$DSO_PLUGIN_DIR/scripts/discover-agents.sh"
 CONF_FILE="$PLUGIN_ROOT/config/agent-routing.conf"
 PROMPTS_DIR="$PLUGIN_ROOT/prompts/fallback"
 

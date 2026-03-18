@@ -18,6 +18,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 SHIM="$PLUGIN_ROOT/.claude/scripts/dso"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -41,7 +42,7 @@ test_shim_works_from_repo_root() {
 # regardless of the caller's CWD.
 test_shim_works_from_subdirectory() {
     local exit_code=0
-    (cd "$PLUGIN_ROOT/hooks" && bash "$SHIM" --lib >/dev/null 2>&1) || exit_code=$?
+    (cd "$DSO_PLUGIN_DIR/hooks" && bash "$SHIM" --lib >/dev/null 2>&1) || exit_code=$?
     assert_eq "test_shim_works_from_subdirectory" "0" "$exit_code"
 }
 

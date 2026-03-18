@@ -21,6 +21,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -30,14 +31,14 @@ _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
-SESSION_START_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/session-start.sh"
-STOP_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/stop.sh"
-POST_FAILURE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-failure.sh"
-PRE_ALL_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-all.sh"
-PRE_EXITPLANMODE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-exitplanmode.sh"
-PRE_AGENT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-agent.sh"
-PRE_TASKOUTPUT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-taskoutput.sh"
-SESSION_MISC_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/session-misc-functions.sh"
+SESSION_START_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/session-start.sh"
+STOP_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/stop.sh"
+POST_FAILURE_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-failure.sh"
+PRE_ALL_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-all.sh"
+PRE_EXITPLANMODE_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-exitplanmode.sh"
+PRE_AGENT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-agent.sh"
+PRE_TASKOUTPUT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-taskoutput.sh"
+SESSION_MISC_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
 
 # ============================================================
 # test_session_start_dispatcher_runs_all_4_hooks

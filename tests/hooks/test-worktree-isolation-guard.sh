@@ -20,11 +20,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-HOOK="$PLUGIN_ROOT/hooks/worktree-isolation-guard.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/worktree-isolation-guard.sh"
 
 # Helper: run hook with given JSON input, return exit code via echo
 run_hook_exit() {

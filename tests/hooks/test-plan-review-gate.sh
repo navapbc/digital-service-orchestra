@@ -7,11 +7,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/plan-review-gate.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/plan-review-gate.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 ARTIFACTS_DIR=$(get_artifacts_dir)
 REVIEW_STATE="$ARTIFACTS_DIR/plan-review-status"

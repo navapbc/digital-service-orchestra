@@ -10,7 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-ADR_PATH="$REPO_ROOT/docs/decisions/adr-config-system.md"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+ADR_PATH="$DSO_PLUGIN_DIR/docs/decisions/adr-config-system.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

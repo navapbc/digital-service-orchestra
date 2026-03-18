@@ -15,13 +15,14 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 
 echo "=== test-no-unguarded-plugin-refs (debug-everything) ==="
 
-SKILL_FILE="$PLUGIN_ROOT/skills/debug-everything/SKILL.md"
+SKILL_FILE="$DSO_PLUGIN_DIR/skills/debug-everything/SKILL.md"
 
 # List of removed plugin agent types that should NOT appear as hard-coded
 # subagent_type values in the dispatch table or elsewhere in SKILL.md
@@ -95,7 +96,7 @@ test_scripts_no_unguarded_removed_plugins() {
     echo ""
     echo "=== test-no-unguarded-plugin-refs (scripts) ==="
 
-    local scripts_dir="$PLUGIN_ROOT/scripts"
+    local scripts_dir="$DSO_PLUGIN_DIR/scripts"
     local removed_plugins=("unit-testing" "debugging-toolkit" "code-simplifier" "backend-api-security" "commit-commands" "claude-md-management")
     local excluded_files=("plugin-reference-catalog.sh" "discover-agents.sh")
 
@@ -154,8 +155,8 @@ test_sprint_review_no_unguarded_removed_plugins() {
     echo ""
     echo "=== test-no-unguarded-plugin-refs (sprint + review-workflow) ==="
 
-    local sprint_file="$PLUGIN_ROOT/skills/sprint/SKILL.md"
-    local review_file="$PLUGIN_ROOT/docs/workflows/REVIEW-WORKFLOW.md"
+    local sprint_file="$DSO_PLUGIN_DIR/skills/sprint/SKILL.md"
+    local review_file="$DSO_PLUGIN_DIR/docs/workflows/REVIEW-WORKFLOW.md"
     local removed_plugins=("unit-testing" "debugging-toolkit" "code-simplifier" "backend-api-security" "commit-commands" "claude-md-management")
 
     # Test: sprint/SKILL.md exists
@@ -219,8 +220,8 @@ test_workflow_docs_no_unguarded_removed_plugins() {
     echo ""
     echo "=== test-no-unguarded-plugin-refs (commit-workflow + test-failure-dispatch) ==="
 
-    local commit_file="$PLUGIN_ROOT/docs/workflows/COMMIT-WORKFLOW.md"
-    local dispatch_file="$PLUGIN_ROOT/docs/workflows/TEST-FAILURE-DISPATCH.md"
+    local commit_file="$DSO_PLUGIN_DIR/docs/workflows/COMMIT-WORKFLOW.md"
+    local dispatch_file="$DSO_PLUGIN_DIR/docs/workflows/TEST-FAILURE-DISPATCH.md"
     # Only the 3 removed plugins referenced in these docs as dispatch targets
     local removed_dispatch_plugins=("unit-testing" "debugging-toolkit" "code-simplifier")
 
@@ -315,7 +316,7 @@ test_install_doc_optional_plugins_section() {
     echo ""
     echo "=== test-no-unguarded-plugin-refs (install-docs) ==="
 
-    local install_file="$PLUGIN_ROOT/docs/INSTALL.md"
+    local install_file="$DSO_PLUGIN_DIR/docs/INSTALL.md"
     local removed_plugins=("unit-testing" "debugging-toolkit" "code-simplifier" "backend-api-security" "commit-commands" "claude-md-management")
 
     # Test: INSTALL.md exists

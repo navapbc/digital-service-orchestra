@@ -8,6 +8,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Temp dir cleanup on exit
@@ -28,11 +29,12 @@ echo "=== Performance Validation Tests ==="
 # Test 1: Hook chain subprocess count equals 1 per matcher
 echo ""
 echo "--- test_hook_chain_subprocess_count_equals_1 ---"
-python3 << 'PYEOF'
+PLUGIN_JSON_PATH="$DSO_PLUGIN_DIR/.claude-plugin/plugin.json"
+python3 - "$PLUGIN_JSON_PATH" << 'PYEOF'
 import json, sys, os
+plugin_json_path = sys.argv[1]
 # In the plugin model, hooks are defined in plugin.json (not settings.json)
-plugin_json_path = os.path.join(os.path.dirname(os.path.abspath('.claude-plugin/plugin.json')), '.claude-plugin/plugin.json')
-with open('.claude-plugin/plugin.json') as f:
+with open(plugin_json_path) as f:
     data = json.load(f)
 hooks = data.get('hooks', {})
 failures = []
@@ -56,16 +58,16 @@ if [ $? -eq 0 ]; then pass "hook_chain_subprocess_count_equals_1"; else fail "ho
 echo ""
 echo "--- test_no_inline_worktree_detection_in_hooks ---"
 # Guard: verify target files exist to prevent vacuous pass
-func_count=$(find "$PLUGIN_ROOT/hooks/lib/" -name "*-functions.sh" | wc -l)
-disp_count=$(find "$PLUGIN_ROOT/hooks/dispatchers/" -name "*.sh" | wc -l)
+func_count=$(find "$DSO_PLUGIN_DIR/hooks/lib/" -name "*-functions.sh" | wc -l)
+disp_count=$(find "$DSO_PLUGIN_DIR/hooks/dispatchers/" -name "*.sh" | wc -l)
 if [ "$func_count" -eq 0 ] || [ "$disp_count" -eq 0 ]; then
     echo "  No function files ($func_count) or dispatchers ($disp_count) found"
     fail "no_inline_worktree_detection_in_hooks (no files to scan)"
 else
     echo "  Scanning $func_count function files and $disp_count dispatchers"
     inline_checks=$(grep -rn '\[ -d \.git \]\|test -d \.git' \
-        "$PLUGIN_ROOT/hooks/lib/"*-functions.sh \
-        "$PLUGIN_ROOT/hooks/dispatchers/"*.sh 2>/dev/null || true)
+        "$DSO_PLUGIN_DIR/hooks/lib/"*-functions.sh \
+        "$DSO_PLUGIN_DIR/hooks/dispatchers/"*.sh 2>/dev/null || true)
     if [ -z "$inline_checks" ]; then
         pass "no_inline_worktree_detection_in_hooks"
     else
@@ -83,8 +85,8 @@ if [ "$func_count" -eq 0 ] || [ "$disp_count" -eq 0 ]; then
     fail "no_duplicate_exclusion_patterns_in_hooks (no files to scan)"
 else
     dup_patterns=$(grep -rn "EXCLUDE_PATHSPECS\|':!\\.tickets/'" \
-        "$PLUGIN_ROOT/hooks/lib/"*-functions.sh \
-        "$PLUGIN_ROOT/hooks/dispatchers/"*.sh 2>/dev/null || true)
+        "$DSO_PLUGIN_DIR/hooks/lib/"*-functions.sh \
+        "$DSO_PLUGIN_DIR/hooks/dispatchers/"*.sh 2>/dev/null || true)
     if [ -z "$dup_patterns" ]; then
         pass "no_duplicate_exclusion_patterns_in_hooks"
     else
@@ -97,7 +99,7 @@ fi
 # Test 4: All dispatchers are executable
 echo ""
 echo "--- test_all_dispatchers_executable ---"
-non_exec=$(find "$PLUGIN_ROOT/hooks/dispatchers/" -name "*.sh" ! -perm -u+x 2>/dev/null || true)
+non_exec=$(find "$DSO_PLUGIN_DIR/hooks/dispatchers/" -name "*.sh" ! -perm -u+x 2>/dev/null || true)
 if [ -z "$non_exec" ]; then
     pass "all_dispatchers_executable"
 else
@@ -110,10 +112,10 @@ fi
 # (In the plugin model, hooks are defined in plugin.json, not settings.json)
 echo ""
 echo "--- test_settings_hooks_use_dispatchers ---"
-python3 << 'PYEOF'
+python3 - "$PLUGIN_JSON_PATH" << 'PYEOF'
 import json, sys
 
-with open('.claude-plugin/plugin.json') as f:
+with open(sys.argv[1]) as f:
     hooks_json = json.load(f)
 
 assert 'hooks' in hooks_json, "plugin.json missing 'hooks'"
@@ -145,7 +147,7 @@ echo ""
 echo "--- test_no_snapshot_file_created ---"
 SNAP="/tmp/test-snapshot-verify-$$"
 rm -f "$SNAP"
-"$PLUGIN_ROOT/hooks/compute-diff-hash.sh" --snapshot "$SNAP" >/dev/null 2>&1 || true
+"$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" --snapshot "$SNAP" >/dev/null 2>&1 || true
 if [ ! -f "$SNAP" ]; then
     pass "no_snapshot_file_created"
 else

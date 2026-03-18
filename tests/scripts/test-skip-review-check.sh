@@ -9,10 +9,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/skip-review-check.sh"
-WRAPPER_SCRIPT="$REPO_ROOT/scripts/skip-review-check.sh"
-WORKFLOW_FILE="$PLUGIN_ROOT/docs/workflows/COMMIT-WORKFLOW.md"
+CANONICAL_SCRIPT="$DSO_PLUGIN_DIR/scripts/skip-review-check.sh"
+WRAPPER_SCRIPT="$DSO_PLUGIN_DIR/scripts/skip-review-check.sh"
+WORKFLOW_FILE="$DSO_PLUGIN_DIR/docs/workflows/COMMIT-WORKFLOW.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

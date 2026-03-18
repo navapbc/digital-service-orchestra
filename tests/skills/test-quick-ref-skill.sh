@@ -17,8 +17,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SKILL_MD="$PLUGIN_ROOT/skills/quick-ref/SKILL.md"
+SKILL_MD="$DSO_PLUGIN_DIR/skills/quick-ref/SKILL.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

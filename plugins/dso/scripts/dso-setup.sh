@@ -100,6 +100,15 @@ set -- "${_args_filtered[@]+"${_args_filtered[@]}"}"
 
 TARGET_REPO="${1:-$(git rev-parse --show-toplevel)}"
 PLUGIN_ROOT="${2:-$(cd "$(dirname "$0")/.." && pwd)}"
+# DIST_ROOT: the repository root containing shared assets (templates/, examples/)
+# that live outside the plugin subdir. Falls back to PLUGIN_ROOT for backward
+# compatibility when this script is called with the repo root as PLUGIN_ROOT.
+# Resolve from git rev-parse (always reliable) rather than relative paths.
+DIST_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || DIST_ROOT="$PLUGIN_ROOT"
+# Verify DIST_ROOT has the expected assets; fall back to PLUGIN_ROOT otherwise
+if [ ! -d "$DIST_ROOT/templates" ] && [ -d "$PLUGIN_ROOT/templates" ]; then
+    DIST_ROOT="$PLUGIN_ROOT"
+fi
 
 # Ensure TARGET_REPO is a git repository so the dso shim can locate
 # workflow-config.conf via `git rev-parse --show-toplevel`.
@@ -113,10 +122,10 @@ fi
 
 if [[ -z "$DRYRUN" ]]; then
     mkdir -p "$TARGET_REPO/.claude/scripts/"
-    cp "$PLUGIN_ROOT/templates/host-project/dso" "$TARGET_REPO/.claude/scripts/dso"
+    cp "$DIST_ROOT/templates/host-project/dso" "$TARGET_REPO/.claude/scripts/dso"
     chmod +x "$TARGET_REPO/.claude/scripts/dso"
 else
-    echo "[dryrun] Would copy $PLUGIN_ROOT/templates/host-project/dso -> $TARGET_REPO/.claude/scripts/dso (chmod +x)"
+    echo "[dryrun] Would copy $DIST_ROOT/templates/host-project/dso -> $TARGET_REPO/.claude/scripts/dso (chmod +x)"
 fi
 
 CONFIG="$TARGET_REPO/workflow-config.conf"
@@ -135,12 +144,12 @@ fi
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 if [[ -z "$DRYRUN" ]]; then
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
-        cp "$PLUGIN_ROOT/examples/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
+        cp "$DIST_ROOT/examples/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
     fi
 
     mkdir -p "$TARGET_REPO/.github/workflows"
     if [ ! -f "$TARGET_REPO/.github/workflows/ci.yml" ]; then
-        cp "$PLUGIN_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+        cp "$DIST_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
     fi
 else
     echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_REPO/.pre-commit-config.yaml (only if absent)"

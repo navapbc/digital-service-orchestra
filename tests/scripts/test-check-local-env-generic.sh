@@ -22,6 +22,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # REVIEW-DEFENSE: This path points to the future canonical script location inside the
 # workflow plugin. The test is intentionally RED — it will pass only after task
@@ -29,7 +30,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 # tests are written before the implementation exists. The reviewer's suggestion to point
 # at 'scripts/check-local-env.sh' (the project-specific script) is incorrect: this test
 # covers the generic canonical behavior that will live in scripts/.
-CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/check-local-env.sh"
+CANONICAL_SCRIPT="$DSO_PLUGIN_DIR/scripts/check-local-env.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

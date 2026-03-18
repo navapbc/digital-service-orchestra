@@ -8,8 +8,9 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -54,7 +55,7 @@ fi
 # ============================================================
 echo "--- test_compute_diff_hash_uses_allowlist_patterns ---"
 
-ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
+ALLOWLIST="$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf"
 
 # 1. The script must reference review-gate-allowlist
 USES_ALLOWLIST=$(grep -c 'review-gate-allowlist' "$HOOK" 2>/dev/null | tail -1 || echo "0")

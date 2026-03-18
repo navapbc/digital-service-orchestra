@@ -19,8 +19,6 @@ env/
 # Node
 node_modules/
 
-# Project-specific config (created from docs/workflow-config.example.conf)
-workflow-config.conf
 
 # macOS
 .DS_Store

@@ -11,11 +11,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
-source "$PLUGIN_ROOT/hooks/lib/dispatcher.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/dispatcher.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
@@ -187,7 +188,7 @@ assert_eq "test_exclude_patterns_contains_tickets_dir" "1" "$_matched"
 # We verify the dispatcher.sh itself does not inline worktree detection.
 # ============================================================
 echo "--- test_no_duplicate_worktree_detection_in_hook_files ---"
-_dispatcher_path="$PLUGIN_ROOT/hooks/lib/dispatcher.sh"
+_dispatcher_path="$DSO_PLUGIN_DIR/hooks/lib/dispatcher.sh"
 # Check that dispatcher.sh does NOT contain the old inline pattern
 # '[[ -f "$..../\.git" ]]' directly (it should call is_worktree instead).
 # We allow the is_worktree function definition in deps.sh.

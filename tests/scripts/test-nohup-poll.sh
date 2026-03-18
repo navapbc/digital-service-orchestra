@@ -9,12 +9,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-POLL_SCRIPT="$PLUGIN_ROOT/scripts/nohup-poll.sh"
-LAUNCH_SCRIPT="$PLUGIN_ROOT/scripts/nohup-launch.sh"
+POLL_SCRIPT="$DSO_PLUGIN_DIR/scripts/nohup-poll.sh"
+LAUNCH_SCRIPT="$DSO_PLUGIN_DIR/scripts/nohup-launch.sh"
 
 echo "=== test-nohup-poll.sh ==="
 

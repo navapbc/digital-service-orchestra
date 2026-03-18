@@ -24,12 +24,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-COMPUTE_DIFF_HASH="$PLUGIN_ROOT/hooks/compute-diff-hash.sh"
-SKIP_REVIEW_CHECK="$PLUGIN_ROOT/scripts/skip-review-check.sh"
-ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
+COMPUTE_DIFF_HASH="$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh"
+SKIP_REVIEW_CHECK="$DSO_PLUGIN_DIR/scripts/skip-review-check.sh"
+ALLOWLIST="$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf"
 
 # --- Prerequisite checks ---
 if [[ ! -f "$COMPUTE_DIFF_HASH" ]]; then

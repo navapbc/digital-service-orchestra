@@ -7,6 +7,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -21,8 +22,8 @@ test_no_legacy_plugin_root_refs() {
     # argument (e.g. ls "${CLAUDE_PLUGIN_ROOT}/scripts/"*.sh) to avoid over-excluding.
     # If that line is ever reformatted (e.g. single-quoted), update this pattern to match.
     COUNT=$(grep -r '${CLAUDE_PLUGIN_ROOT}/scripts/' \
-        "$PLUGIN_ROOT/skills" \
-        "$PLUGIN_ROOT/docs/workflows" \
+        "$DSO_PLUGIN_DIR/skills" \
+        "$DSO_PLUGIN_DIR/docs/workflows" \
         "$PLUGIN_ROOT/CLAUDE.md" \
         2>/dev/null \
         | grep -v 'PLUGIN_SCRIPTS=' \

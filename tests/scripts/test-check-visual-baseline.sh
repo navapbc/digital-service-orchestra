@@ -15,10 +15,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/check-visual-baseline.sh"
-WRAPPER_SCRIPT="$REPO_ROOT/scripts/check-visual-baseline.sh"
-SKILL_MD="$PLUGIN_ROOT/skills/validate-work/SKILL.md"
+CANONICAL_SCRIPT="$DSO_PLUGIN_DIR/scripts/check-visual-baseline.sh"
+WRAPPER_SCRIPT="$DSO_PLUGIN_DIR/scripts/check-visual-baseline.sh"
+SKILL_MD="$DSO_PLUGIN_DIR/skills/validate-work/SKILL.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

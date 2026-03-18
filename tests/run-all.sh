@@ -33,8 +33,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 
-# Ensure CLAUDE_PLUGIN_ROOT is set for all tests
-export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT}"
+# Ensure CLAUDE_PLUGIN_ROOT points to the plugin subdir for all tests.
+# Plugin files live under plugins/dso/ after the dso-anlb restructure.
+# Force-set to plugins/dso/ so dispatchers find hooks/lib/ at the right path.
+export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
 
 # --- Session-safe process cleanup (Fix 3) ---
 # Source the cleanup library and clear stale processes from prior runs

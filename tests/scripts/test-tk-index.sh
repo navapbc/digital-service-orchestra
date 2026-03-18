@@ -14,8 +14,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-TK_SCRIPT="$PLUGIN_ROOT/scripts/tk"
+TK_SCRIPT="$DSO_PLUGIN_DIR/scripts/tk"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 

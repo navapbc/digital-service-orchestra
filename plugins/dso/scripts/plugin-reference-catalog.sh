@@ -27,11 +27,12 @@ PLUGINS=(
 )
 
 # Directories to scan (relative to REPO_ROOT)
+# Plugin files live under plugins/dso/ after restructure
 SCAN_DIRS=(
-    skills
-    docs
-    hooks
-    scripts
+    plugins/dso/skills
+    plugins/dso/docs
+    plugins/dso/hooks
+    plugins/dso/scripts
 )
 
 # Files to exclude (the catalog script itself and its test)

@@ -18,6 +18,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -45,8 +46,8 @@ _snapshot_fail
 # in scripts that are within my ownership scope
 scripts_hits=$(
     grep -rn 'workflow-config\.yaml\|workflow-config\.yml' \
-        "$PLUGIN_ROOT/scripts/" \
-        "$PLUGIN_ROOT/hooks/" \
+        "$DSO_PLUGIN_DIR/scripts/" \
+        "$DSO_PLUGIN_DIR/hooks/" \
     | grep -v '/scripts/tk:' \
     | grep -v '/scripts/read-config\.sh:' \
     | grep -v '/scripts/claude-safe:' \
@@ -93,7 +94,7 @@ assert_pass_if_clean "test_sample_yaml_fixture_removed"
 # AC verify: { grep -q 'workflow-config.yaml\|workflow-config.yml' submit-to-schemastore.sh; test $? -ne 0; }
 _snapshot_fail
 
-SCHEMASTORE="$PLUGIN_ROOT/scripts/submit-to-schemastore.sh"
+SCHEMASTORE="$DSO_PLUGIN_DIR/scripts/submit-to-schemastore.sh"
 yaml_filematch="absent"
 if grep -q 'workflow-config\.yaml\|workflow-config\.yml' "$SCHEMASTORE" 2>/dev/null; then
     yaml_filematch="present"

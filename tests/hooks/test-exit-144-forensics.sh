@@ -17,12 +17,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/dispatchers/pre-bash.sh"
-POST_HOOK="$PLUGIN_ROOT/hooks/dispatchers/post-bash.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-bash.sh"
+POST_HOOK="$DSO_PLUGIN_DIR/hooks/dispatchers/post-bash.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
@@ -330,7 +331,7 @@ rm -rf "$_TEST9_DIR"
 # ============================================================
 # Part 3: Companion analysis script tests
 # ============================================================
-ANALYZE_SCRIPT="$PLUGIN_ROOT/scripts/analyze-exit-144.sh"
+ANALYZE_SCRIPT="$DSO_PLUGIN_DIR/scripts/analyze-exit-144.sh"
 
 # ============================================================
 # test_analyze_script_handles_missing_file
@@ -437,7 +438,7 @@ _PART4_TEST_HOME=$(mktemp -d)
 _CLEANUP_DIRS+=("$_PART4_TEST_HOME")
 export HOME="$_PART4_TEST_HOME"
 
-POST_FAILURE_HOOK="$PLUGIN_ROOT/hooks/dispatchers/post-failure.sh"
+POST_FAILURE_HOOK="$DSO_PLUGIN_DIR/hooks/dispatchers/post-failure.sh"
 
 # ============================================================
 # test_post_failure_144_writes_jsonl

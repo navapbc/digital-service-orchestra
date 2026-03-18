@@ -60,7 +60,8 @@ print_summary() {
 
 # ── Resolve script under test ─────────────────────────────────────────────────
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-FORMAT_FIX_SCRIPT="$REPO_ROOT/scripts/pre-commit-format-fix.sh"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+FORMAT_FIX_SCRIPT="$DSO_PLUGIN_DIR/scripts/pre-commit-format-fix.sh"
 
 if [[ ! -f "$FORMAT_FIX_SCRIPT" ]]; then
     echo "SKIP: $FORMAT_FIX_SCRIPT not found" >&2

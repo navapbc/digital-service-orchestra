@@ -9,8 +9,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/read-config.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/read-config.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -136,7 +137,7 @@ assert_eq "test_read_config_returns_empty_for_unknown_key: output is empty" "" "
 
 # ── test_schema_allows_unknown_top_level_section ─────────────────────────────
 # The schema must NOT have additionalProperties: false at root.
-SCHEMA_FILE="$PLUGIN_ROOT/docs/workflow-config-schema.json"
+SCHEMA_FILE="$DSO_PLUGIN_DIR/docs/workflow-config-schema.json"
 schema_additional=$(python3 -c "
 import json, sys
 s = json.load(open(sys.argv[1]))
@@ -262,7 +263,7 @@ fi
 
 # ── test_example_config_contains_jira_section ────────────────────────────────
 _fail_before_ecj=$FAIL
-EXAMPLE_CONFIG="$PLUGIN_ROOT/docs/workflow-config.example.conf"
+EXAMPLE_CONFIG="$DSO_PLUGIN_DIR/docs/workflow-config.example.conf"
 if grep -q "^jira\." "$EXAMPLE_CONFIG" 2>/dev/null; then
     example_has_jira="has_jira"
 else

@@ -9,8 +9,9 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/tool-logging.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/tool-logging.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -154,8 +155,8 @@ assert_eq "test_jsonl_summary_within_500_chars" "yes" "$WITHIN_LIMIT"
 # Verify tool logging works when invoked via per-tool dispatchers
 # (post-consolidation: dispatchers replaced catch-all empty-matcher hooks)
 
-PRE_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/pre-bash.sh"
-POST_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-bash.sh"
+PRE_BASH_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-bash.sh"
+POST_BASH_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-bash.sh"
 
 # Reset log file for dispatcher tests
 rm -f "$LOG_FILE"

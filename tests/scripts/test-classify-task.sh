@@ -9,8 +9,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/classify-task.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/classify-task.sh"
 
 # Ensure CLAUDE_PLUGIN_ROOT is set (normally done by tests/run-all.sh)
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
@@ -58,7 +59,7 @@ TICKET
 export TICKETS_DIR="$_MOCK_TICKETS_DIR"
 
 # Put the plugin's scripts dir on PATH so classify-task.sh finds tk
-export PATH="$PLUGIN_ROOT/scripts:$PATH"
+export PATH="$DSO_PLUGIN_DIR/scripts:$PATH"
 
 # Use the mock ticket ID for tests that need a valid task
 _MOCK_TASK_ID="mock-test-ticket-abc12"
@@ -184,7 +185,7 @@ else
     # Feed a bug-type task with "investigate" keywords to classify-task.py
     # and verify it does NOT get assigned to code-explorer
     PYTHON="python3"
-    SCORER="$PLUGIN_ROOT/scripts/classify-task.py"
+    SCORER="$DSO_PLUGIN_DIR/scripts/classify-task.py"
 
     bug_task='[{"id":"test-bug","title":"Investigate timeout in ci-status.sh","description":"Trace and fix the timeout handling","task_type":"bug"}]'
     output=$(echo "$bug_task" | "$PYTHON" "$SCORER" 2>&1) || true
@@ -211,7 +212,7 @@ if ! $_HAS_PYYAML; then
 else
 {
     PYTHON="python3"
-    SCORER="$PLUGIN_ROOT/scripts/classify-task.py"
+    SCORER="$DSO_PLUGIN_DIR/scripts/classify-task.py"
 
     nonbug_task='[{"id":"test-nonbug","title":"Investigate how the pipeline graph topology works","description":"Trace the pipeline graph topology to understand the execution flow"}]'
     output=$(echo "$nonbug_task" | "$PYTHON" "$SCORER" 2>&1) || true

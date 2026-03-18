@@ -7,11 +7,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
-source "$PLUGIN_ROOT/hooks/lib/review-gate-bypass-sentinel.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/review-gate-bypass-sentinel.sh"
 
 # call_sentinel: invoke hook_review_bypass_sentinel() directly (no subprocess).
 # Returns the exit code on stdout.

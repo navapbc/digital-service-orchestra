@@ -7,8 +7,9 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/cascade-circuit-breaker.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/cascade-circuit-breaker.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

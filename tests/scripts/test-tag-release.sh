@@ -9,8 +9,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/tag-release.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/tag-release.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -49,7 +50,7 @@ assert_eq "test_tag_release_rejects_v_prefix" "1" "$exit_code"
 
 # ── test_tag_release_dry_run_does_not_modify ──────────────────────────────────
 # Capture current plugin.json version before dry-run
-PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+PLUGIN_JSON="$DSO_PLUGIN_DIR/.claude-plugin/plugin.json"
 if [[ -f "$PLUGIN_JSON" ]]; then
     version_before=$(python3 -c "import json; print(json.load(open('$PLUGIN_JSON'))['version'])" 2>/dev/null)
     exit_code=0

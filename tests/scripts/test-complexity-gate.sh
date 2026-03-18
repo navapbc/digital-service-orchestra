@@ -10,12 +10,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 FIXTURE_DIR="$SCRIPT_DIR/fixtures/complexity-gate"
-SHARED_EVALUATOR="$PLUGIN_ROOT/skills/shared/prompts/complexity-evaluator.md"
-SPRINT_EVALUATOR="$PLUGIN_ROOT/skills/sprint/prompts/complexity-evaluator.md"
-EPIC_EVALUATOR="$PLUGIN_ROOT/skills/sprint/prompts/epic-complexity-evaluator.md"
-BRAINSTORM_SKILL="$PLUGIN_ROOT/skills/brainstorm/SKILL.md"
+SHARED_EVALUATOR="$DSO_PLUGIN_DIR/skills/shared/prompts/complexity-evaluator.md"
+SPRINT_EVALUATOR="$DSO_PLUGIN_DIR/skills/sprint/prompts/complexity-evaluator.md"
+EPIC_EVALUATOR="$DSO_PLUGIN_DIR/skills/sprint/prompts/epic-complexity-evaluator.md"
+BRAINSTORM_SKILL="$DSO_PLUGIN_DIR/skills/brainstorm/SKILL.md"
 
 PASS=0
 FAIL=0

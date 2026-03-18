@@ -8,8 +8,9 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/validate-review-output.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/validate-review-output.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

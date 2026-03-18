@@ -9,11 +9,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-HEALTH_CHECK="$PLUGIN_ROOT/scripts/health-check.sh"
+HEALTH_CHECK="$DSO_PLUGIN_DIR/scripts/health-check.sh"
 
 echo "=== test-health-check.sh ==="
 

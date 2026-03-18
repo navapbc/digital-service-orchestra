@@ -9,8 +9,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCHEMA="$PLUGIN_ROOT/docs/workflow-config-schema.json"
+SCHEMA="$DSO_PLUGIN_DIR/docs/workflow-config-schema.json"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

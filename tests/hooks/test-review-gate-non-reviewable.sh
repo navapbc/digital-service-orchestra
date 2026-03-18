@@ -18,12 +18,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
-source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
 # Skip guard: hook_review_gate was removed in Story 1idf (two-layer migration).
 # The PreToolUse review gate has been replaced by:
@@ -65,8 +66,8 @@ _run_in_temp_repo() {
         done
 
         # Source the functions again in this subshell context
-        source "$PLUGIN_ROOT/hooks/lib/deps.sh"
-        source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+        source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+        source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
         local exit_code=0
         hook_review_gate "$input" 2>/dev/null || exit_code=$?
@@ -159,8 +160,8 @@ TMPDIR_TEST=$(mktemp -d)
     mkdir -p .tickets
     echo "status: open" > .tickets/test-ticket.md
 
-    source "$PLUGIN_ROOT/hooks/lib/deps.sh"
-    source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+    source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+    source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
     INPUT='{"tool_name":"Bash","tool_input":{"command":"git add .tickets/test-ticket.md && git commit -m \"chore: update ticket\""}}'
     exit_code=0
@@ -192,8 +193,8 @@ TMPDIR_TEST=$(mktemp -d)
     echo "# Doc" > docs/guide.md
     echo "# Notes" > .claude/docs/NOTES.md
 
-    source "$PLUGIN_ROOT/hooks/lib/deps.sh"
-    source "$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+    source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+    source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
     INPUT='{"tool_name":"Bash","tool_input":{"command":"git add .tickets/test-ticket.md docs/guide.md .claude/docs/NOTES.md && git commit -m \"chore: update non-reviewable files\""}}'
     exit_code=0
@@ -212,7 +213,7 @@ assert_eq "test_review_gate_allows_non_reviewable_via_git_add_targets" "0" "$EXI
 echo "--- test_review_gate_skip_review_check_integration ---"
 
 # Verify that the hook function references non-reviewable/skip-review logic
-HOOK_FUNCTIONS_FILE="$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+HOOK_FUNCTIONS_FILE="$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 SKIP_REVIEW_REF=$(grep -c 'skip.review\|non.reviewable\|SKIP_REVIEW\|skip_review_check' "$HOOK_FUNCTIONS_FILE" 2>/dev/null || echo "0")
 assert_ne "test_review_gate_skip_review_check_integration: hook references skip-review logic" "0" "$SKIP_REVIEW_REF"
 

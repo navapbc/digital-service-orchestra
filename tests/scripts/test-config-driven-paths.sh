@@ -17,16 +17,17 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-config-driven-paths.sh ==="
 
-VALIDATE_PHASE="$PLUGIN_ROOT/scripts/validate-phase.sh"
-ENRICH_IMPACT="$PLUGIN_ROOT/scripts/enrich-file-impact.sh"
-SKIP_REVIEW="$PLUGIN_ROOT/scripts/skip-review-check.sh"
-PRE_BASH_FUNCS="$PLUGIN_ROOT/hooks/lib/pre-bash-functions.sh"
+VALIDATE_PHASE="$DSO_PLUGIN_DIR/scripts/validate-phase.sh"
+ENRICH_IMPACT="$DSO_PLUGIN_DIR/scripts/enrich-file-impact.sh"
+SKIP_REVIEW="$DSO_PLUGIN_DIR/scripts/skip-review-check.sh"
+PRE_BASH_FUNCS="$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
 # ── test_validate_phase_no_hardcoded_app_src ─────────────────────────────────
 # validate-phase.sh must not contain hardcoded "$REPO_ROOT/app/src" or "$REPO_ROOT/app/tests".

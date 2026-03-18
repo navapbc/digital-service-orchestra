@@ -19,13 +19,14 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-VALIDATE_SH="$PLUGIN_ROOT/scripts/validate.sh"
-READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
-CHECK_SCRIPT_WRITES="$PLUGIN_ROOT/scripts/check-script-writes.py"
+VALIDATE_SH="$DSO_PLUGIN_DIR/scripts/validate.sh"
+READ_CONFIG="$DSO_PLUGIN_DIR/scripts/read-config.sh"
+CHECK_SCRIPT_WRITES="$DSO_PLUGIN_DIR/scripts/check-script-writes.py"
 
 echo "=== test-validate-script-writes-integration.sh ==="
 

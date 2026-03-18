@@ -19,6 +19,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -28,11 +29,11 @@ _CLEANUP_DIRS=()
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
-POST_BASH_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-bash.sh"
-POST_EDIT_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-edit.sh"
-POST_WRITE_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-write.sh"
-POST_ALL_DISPATCHER="$PLUGIN_ROOT/hooks/dispatchers/post-all.sh"
-POST_FUNCTIONS="$PLUGIN_ROOT/hooks/lib/post-functions.sh"
+POST_BASH_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-bash.sh"
+POST_EDIT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-edit.sh"
+POST_WRITE_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-write.sh"
+POST_ALL_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-all.sh"
+POST_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/post-functions.sh"
 
 # ============================================================
 # test_post_bash_dispatcher_exists_and_is_executable

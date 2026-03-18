@@ -16,12 +16,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 CONFIG="$PLUGIN_ROOT/config/coupling-lint-patterns.conf"
-GUARD="$PLUGIN_ROOT/scripts/coupling-lint-guard.sh"
+GUARD="$DSO_PLUGIN_DIR/scripts/coupling-lint-guard.sh"
 
 echo "=== test-coupling-lint-guard.sh ==="
 

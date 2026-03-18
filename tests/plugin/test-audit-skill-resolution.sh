@@ -16,7 +16,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CANONICAL_SCRIPT="$PLUGIN_ROOT/scripts/audit-skill-resolution.sh"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+CANONICAL_SCRIPT="$DSO_PLUGIN_DIR/scripts/audit-skill-resolution.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

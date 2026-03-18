@@ -17,9 +17,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
-PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/verify-baseline-intent.sh"
+READ_CONFIG="$DSO_PLUGIN_DIR/scripts/read-config.sh"
+PLUGIN_SCRIPT="$DSO_PLUGIN_DIR/scripts/verify-baseline-intent.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

@@ -9,7 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-VERIFY_SCRIPT="$PLUGIN_ROOT/scripts/verify-review-diff.sh"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+VERIFY_SCRIPT="$DSO_PLUGIN_DIR/scripts/verify-review-diff.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

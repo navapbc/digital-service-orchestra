@@ -9,9 +9,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/scripts/sprint-next-batch.sh"
-PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/sprint-next-batch.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
+PLUGIN_SCRIPT="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/run_test.sh"
 

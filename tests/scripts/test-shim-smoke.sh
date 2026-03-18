@@ -15,6 +15,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 SHIM="$PLUGIN_ROOT/templates/host-project/dso"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -69,7 +70,7 @@ test_shim_exits_0_with_valid_dso_root() {
         return
     fi
     local exit_code=0
-    CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SHIM" tk --help >/dev/null 2>&1 || exit_code=$?
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$SHIM" tk --help >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_shim_exits_0_with_valid_dso_root" "0" "$exit_code"
 }
 
@@ -111,7 +112,7 @@ test_shim_resolves_dso_root_from_config() {
     local fake_repo="$TMPDIR_BASE/fake-repo"
     mkdir -p "$fake_repo"
     git -C "$fake_repo" init -q
-    printf 'dso.plugin_root=%s\n' "$PLUGIN_ROOT" > "$fake_repo/workflow-config.conf"
+    printf 'dso.plugin_root=%s\n' "$DSO_PLUGIN_DIR" > "$fake_repo/workflow-config.conf"
     git -C "$fake_repo" add workflow-config.conf
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 

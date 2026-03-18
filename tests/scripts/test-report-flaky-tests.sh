@@ -17,9 +17,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 FIXTURES="$SCRIPT_DIR/fixtures"
-SCRIPT="$PLUGIN_ROOT/scripts/report-flaky-tests.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/report-flaky-tests.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

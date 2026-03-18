@@ -11,7 +11,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOKS_DIR="$SCRIPT_DIR/../../hooks"
+HOOKS_DIR="$SCRIPT_DIR/../../plugins/dso/hooks"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
 

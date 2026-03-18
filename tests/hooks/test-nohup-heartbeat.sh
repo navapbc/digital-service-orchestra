@@ -4,11 +4,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 source "$SCRIPT_DIR/../lib/assert.sh"
 
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-LAUNCH_SCRIPT="$PLUGIN_ROOT/scripts/nohup-launch.sh"
-POLL_SCRIPT="$PLUGIN_ROOT/scripts/nohup-poll.sh"
+LAUNCH_SCRIPT="$DSO_PLUGIN_DIR/scripts/nohup-launch.sh"
+POLL_SCRIPT="$DSO_PLUGIN_DIR/scripts/nohup-poll.sh"
 
 TEST_DIR=$(mktemp -d)
 trap "rm -rf '$TEST_DIR'" EXIT

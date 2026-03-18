@@ -12,6 +12,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 FIXTURE="$PLUGIN_ROOT/tests/fixtures/makefile-project"
 
@@ -26,7 +27,7 @@ echo "=== test-cross-stack-makefile.sh ==="
 # workflow-config.conf is added.
 detect_output=""
 detect_exit=0
-detect_output=$(bash "$PLUGIN_ROOT/scripts/detect-stack.sh" "$FIXTURE" 2>&1) || detect_exit=$?
+detect_output=$(bash "$DSO_PLUGIN_DIR/scripts/detect-stack.sh" "$FIXTURE" 2>&1) || detect_exit=$?
 assert_eq "test_makefile_stack_detect_returns_convention_based" "convention-based" "$detect_output"
 
 # ── test_makefile_stack_workflow_config_has_make_test ─────────────────────────

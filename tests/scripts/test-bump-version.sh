@@ -16,7 +16,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SCRIPT="$PLUGIN_ROOT/scripts/bump-version.sh"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/bump-version.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

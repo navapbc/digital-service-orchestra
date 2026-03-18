@@ -16,8 +16,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
 source "$SCRIPT_DIR/../lib/run_test.sh"
 

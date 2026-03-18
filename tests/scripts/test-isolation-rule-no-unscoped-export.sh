@@ -10,7 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-RULE="$REPO_ROOT/scripts/test-isolation-rules/no-unscoped-export.sh"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
+RULE="$DSO_PLUGIN_DIR/scripts/test-isolation-rules/no-unscoped-export.sh"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -72,7 +73,7 @@ assert_pass_if_clean "test_output_format_is_structured"
 # ── test_integration_with_harness ────────────────────────────────────────────
 # Verify the rule works when invoked via the harness
 _snapshot_fail
-harness="$REPO_ROOT/scripts/check-test-isolation.sh"
+harness="$DSO_PLUGIN_DIR/scripts/check-test-isolation.sh"
 if [ -x "$harness" ]; then
     harness_output=$(bash "$harness" "$FIXTURES_DIR/bad-unscoped-export.sh" 2>/dev/null)
     harness_exit=$?

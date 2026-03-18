@@ -10,12 +10,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-bulk-delete-stale-tickets.sh ==="
 
-SCRIPT="$REPO_ROOT/scripts/bulk-delete-stale-tickets.sh"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/bulk-delete-stale-tickets.sh"
 
 if [[ ! -f "$SCRIPT" ]]; then
     echo "FAIL: $SCRIPT not found"

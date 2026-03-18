@@ -9,6 +9,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -33,7 +34,7 @@ while IFS= read -r line; do
     echo "$content" | grep -qiE 'legacy|fallback|old format|migration' && continue
     yaml_refs_outside_adr="$yaml_refs_outside_adr
 $line"
-done < <(grep -rn 'workflow-config\.yaml' "$PLUGIN_ROOT/docs/" "$REPO_ROOT/docs/" 2>/dev/null || true)
+done < <(grep -rn 'workflow-config\.yaml' "$DSO_PLUGIN_DIR/docs/" "$DSO_PLUGIN_DIR/docs/" 2>/dev/null || true)
 
 if [[ -z "${yaml_refs_outside_adr// /}" || -z "$(echo "$yaml_refs_outside_adr" | tr -d '[:space:]')" ]]; then
     actual="clean"
@@ -47,7 +48,7 @@ assert_pass_if_clean "test_no_yaml_refs_in_docs"
 
 # ── test_example_conf_exists ──────────────────────────────────────────────────
 _snapshot_fail
-if [ -f "$PLUGIN_ROOT/docs/workflow-config.example.conf" ]; then
+if [ -f "$DSO_PLUGIN_DIR/docs/workflow-config.example.conf" ]; then
     actual="exists"
 else
     actual="missing"

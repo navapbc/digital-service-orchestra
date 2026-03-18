@@ -8,10 +8,11 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-HOOKS_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+HOOKS_JSON="$DSO_PLUGIN_DIR/.claude-plugin/plugin.json"
 
 # ─────────────────────────────────────────────────────────────
 # test_hooks_json_exists
@@ -115,7 +116,7 @@ assert_eq "test_hooks_json_no_absolute_paths" "no_absolute_paths" "$actual"
 # test_run_hook_fallback_guard
 # hooks/run-hook.sh must contain CLAUDE_PLUGIN_ROOT fallback logic.
 # ─────────────────────────────────────────────────────────────
-RUN_HOOK_COPY="$PLUGIN_ROOT/hooks/run-hook.sh"
+RUN_HOOK_COPY="$DSO_PLUGIN_DIR/hooks/run-hook.sh"
 if [[ -f "$RUN_HOOK_COPY" ]] && grep -q "CLAUDE_PLUGIN_ROOT" "$RUN_HOOK_COPY"; then
     actual="has_fallback_guard"
 else

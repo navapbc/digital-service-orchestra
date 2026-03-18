@@ -18,12 +18,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-DEPS_SH="$PLUGIN_ROOT/hooks/lib/deps.sh"
-MERGE_SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
+DEPS_SH="$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
 echo "=== test-managed-tempdir.sh ==="
 

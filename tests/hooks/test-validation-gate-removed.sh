@@ -7,8 +7,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOKS_DIR="$PLUGIN_ROOT/hooks"
+HOOKS_DIR="$DSO_PLUGIN_DIR/hooks"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

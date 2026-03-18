@@ -23,9 +23,10 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
-WRAPPER="$PLUGIN_ROOT/scripts/pre-commit-wrapper.sh"
+WRAPPER="$DSO_PLUGIN_DIR/scripts/pre-commit-wrapper.sh"
 
 # Source shared assert helpers
 # shellcheck source=../lib/assert.sh

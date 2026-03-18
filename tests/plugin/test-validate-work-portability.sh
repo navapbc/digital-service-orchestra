@@ -29,11 +29,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 FIXTURES_DIR="$PLUGIN_ROOT/tests/fixtures/validate-work-portability"
-READ_CONFIG="$PLUGIN_ROOT/scripts/read-config.sh"
-SKILL_FILE="$PLUGIN_ROOT/skills/validate-work/SKILL.md"
-DEPLOY_CHECK_PROMPT="$PLUGIN_ROOT/skills/validate-work/prompts/staging-deployment-check.md"
-STAGING_TEST_PROMPT="$PLUGIN_ROOT/skills/validate-work/prompts/staging-environment-test.md"
+READ_CONFIG="$DSO_PLUGIN_DIR/scripts/read-config.sh"
+SKILL_FILE="$DSO_PLUGIN_DIR/skills/validate-work/SKILL.md"
+DEPLOY_CHECK_PROMPT="$DSO_PLUGIN_DIR/skills/validate-work/prompts/staging-deployment-check.md"
+STAGING_TEST_PROMPT="$DSO_PLUGIN_DIR/skills/validate-work/prompts/staging-environment-test.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -236,7 +237,7 @@ SKILL_HAS_INTEGRATION_WORKFLOW=$(grep -c "INTEGRATION_WORKFLOW" "$SKILL_FILE" 2>
 assert_ne "SKILL.md reads ci.integration_workflow from config" "0" "$SKILL_HAS_INTEGRATION_WORKFLOW"
 
 # Verify the CI sub-agent prompt references the integration workflow config value
-CI_PROMPT="$PLUGIN_ROOT/skills/validate-work/prompts/ci-status.md"
+CI_PROMPT="$DSO_PLUGIN_DIR/skills/validate-work/prompts/ci-status.md"
 assert_eq "ci-status.md prompt exists" "true" \
     "$(test -f "$CI_PROMPT" && echo true || echo false)"
 

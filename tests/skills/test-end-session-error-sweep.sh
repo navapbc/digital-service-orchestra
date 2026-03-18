@@ -15,8 +15,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-ERROR_SWEEP="$PLUGIN_ROOT/skills/end-session/error-sweep.sh"
+ERROR_SWEEP="$DSO_PLUGIN_DIR/skills/end-session/error-sweep.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

@@ -14,15 +14,11 @@
 
 set -uo pipefail
 
-# Resolve paths using CLAUDE_PLUGIN_ROOT if available (batch agent discovery)
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-    PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
-else
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 
-MERGE_SCRIPT="$PLUGIN_ROOT/scripts/merge-to-main.sh"
+MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

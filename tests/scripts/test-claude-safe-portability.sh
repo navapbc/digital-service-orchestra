@@ -15,8 +15,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-PLUGIN_SCRIPT="$PLUGIN_ROOT/scripts/claude-safe"
+PLUGIN_SCRIPT="$DSO_PLUGIN_DIR/scripts/claude-safe"
 FIXTURE_CONFIG="$PLUGIN_ROOT/tests/fixtures/minimal-plugin-consumer/workflow-config.conf"
 
 ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -65,7 +66,7 @@ EOF
 chmod +x "$TMPDIR_MAIN/scripts/worktree-create.sh"
 
 # Stub: fake plugin scripts dir — claude-safe checks CLAUDE_PLUGIN_SCRIPTS/worktree-create.sh
-# first (before $REPO_ROOT/scripts/). Point CLAUDE_PLUGIN_SCRIPTS to a fake dir that
+# first (before $DSO_PLUGIN_DIR/scripts/). Point CLAUDE_PLUGIN_SCRIPTS to a fake dir that
 # contains the sentinel-writing stub so the real scripts/worktree-create.sh
 # is not used during the portability test.
 FAKE_PLUGIN_SCRIPTS="$TMPDIR_MAIN/fake-plugin-scripts"
@@ -78,7 +79,7 @@ echo "$TMPDIR_WORKTREE"
 EOF
 chmod +x "$FAKE_PLUGIN_SCRIPTS/worktree-create.sh"
 # Copy read-config.sh from real plugin scripts so config reads still work
-cp "$PLUGIN_ROOT/scripts/read-config.sh" "$FAKE_PLUGIN_SCRIPTS/read-config.sh" 2>/dev/null || true
+cp "$DSO_PLUGIN_DIR/scripts/read-config.sh" "$FAKE_PLUGIN_SCRIPTS/read-config.sh" 2>/dev/null || true
 
 # Stub: claude — exits 0 immediately (simulates real Claude binary)
 cat > "$TMPDIR_MAIN/bin/claude" <<'EOF'

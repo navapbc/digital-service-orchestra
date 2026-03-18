@@ -8,13 +8,14 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/record-review.sh"
+HOOK="$DSO_PLUGIN_DIR/hooks/record-review.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Source deps.sh to use get_artifacts_dir()
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 # Use an isolated temp directory so tests don't clobber production artifacts.
 # Export WORKFLOW_PLUGIN_ARTIFACTS_DIR so record-review.sh (via get_artifacts_dir())

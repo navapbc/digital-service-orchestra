@@ -22,12 +22,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK="$PLUGIN_ROOT/hooks/pre-commit-review-gate.sh"
-ALLOWLIST="$PLUGIN_ROOT/hooks/lib/review-gate-allowlist.conf"
+HOOK="$DSO_PLUGIN_DIR/hooks/pre-commit-review-gate.sh"
+ALLOWLIST="$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
-source "$PLUGIN_ROOT/hooks/lib/deps.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 _TEST_TMPDIRS=()
@@ -128,7 +129,7 @@ compute_hash_in_repo() {
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-        bash "$PLUGIN_ROOT/hooks/compute-diff-hash.sh" 2>/dev/null
+        bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null
     )
 }
 
