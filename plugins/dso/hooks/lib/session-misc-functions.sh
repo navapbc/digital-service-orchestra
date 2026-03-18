@@ -47,7 +47,6 @@ hook_cleanup_orphaned_processes() {
 
     # Patterns for known nohup-orphaned commands
     local PATTERNS=(
-        "timeout.*make.*test-plugin"
         "timeout.*make.*test-e2e"
         "timeout.*make.*test-unit"
         "timeout.*make.*test-integration"

@@ -1,6 +1,6 @@
 ---
 id: dso-p2d3
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-17T18:34:12Z

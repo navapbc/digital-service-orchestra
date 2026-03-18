@@ -172,6 +172,15 @@
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
   },
+  "dso-4clm": {
+    "deps": [
+      "dso-bkqa"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "Remove commands.test_plugin from validate-config.sh KNOWN_KEYS",
+    "type": "task"
+  },
   "dso-4f1i": {
     "deps": [],
     "priority": 0,
@@ -303,6 +312,13 @@
     "title": "Write failing tests for dso shim template (RED)",
     "type": "task"
   },
+  "dso-a5aa": {
+    "deps": [],
+    "priority": 0,
+    "status": "in_progress",
+    "title": "Remove dead test-plugin orphan pattern from session-misc-functions.sh and update test-nohup-cleanup.sh fixture",
+    "type": "task"
+  },
   "dso-ag1b": {
     "deps": [],
     "priority": 1,
@@ -324,6 +340,24 @@
     "priority": 0,
     "status": "closed",
     "title": "GREEN: Update SKILL.md Step 3 with TDD task structure, escape hatch, and behavioral-content definition",
+    "type": "task"
+  },
+  "dso-baje": {
+    "deps": [
+      "dso-guxa",
+      "dso-l24u",
+      "dso-wglr"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update project docs to reflect removal of plugin test step",
+    "type": "story"
+  },
+  "dso-bkqa": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Remove commands.test_plugin from workflow-config.conf and update test-validate-config-driven.sh",
     "type": "task"
   },
   "dso-blah": {
@@ -502,6 +536,13 @@
     "title": "Fix: exclude .worktree-blackboard.json timestamp churn from review diffs",
     "type": "bug"
   },
+  "dso-guxa": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "As a developer, the separate plugin test check is removed from validate.sh and its configuration",
+    "type": "story"
+  },
   "dso-h7su": {
     "deps": [
       "dso-1e6j",
@@ -613,6 +654,22 @@
     "title": "As a DSO developer, shared test files no longer assert checkpoint behaviors",
     "type": "story"
   },
+  "dso-jqin": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Remove Step 1.75 (Plugin Tests) from COMMIT-WORKFLOW.md and flip test assertion",
+    "type": "task"
+  },
+  "dso-kexc": {
+    "deps": [
+      "dso-bkqa"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "Remove plugin check from validate.sh (CMD_TEST_PLUGIN, TIMEOUT_PLUGIN, run_check, report_check, tally_check, LAUNCHED_CHECKS, --help)",
+    "type": "task"
+  },
   "dso-khl2": {
     "deps": [],
     "priority": 2,
@@ -634,6 +691,15 @@
     "priority": 2,
     "status": "open",
     "title": "As a DSO developer, shared hook support scripts are free of checkpoint-specific dead code",
+    "type": "story"
+  },
+  "dso-l24u": {
+    "deps": [
+      "dso-guxa"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, the plugin test detection script and its test suite are retired",
     "type": "story"
   },
   "dso-l2ct": {
@@ -721,7 +787,7 @@
   "dso-p2d3": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "in_progress",
     "title": "Remove plugin testing as a separate step",
     "type": "epic"
   },
@@ -928,6 +994,13 @@
     "status": "closed",
     "title": "As a DSO plugin maintainer, I can bulk-qualify all unqualified skill references and integrate the linter into CI",
     "type": "feature"
+  },
+  "dso-wglr": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, validate.sh runs all project tests through the configured test command",
+    "type": "story"
   },
   "dso-wlwa": {
     "deps": [],
