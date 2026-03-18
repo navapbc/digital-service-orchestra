@@ -144,9 +144,9 @@ rm -rf "${REPO_ROOT}/.claude/workflows/"
 - `.claude/docs/` (project-specific documentation, not part of the plugin)
 - Any custom project files you added to `.claude/`
 
-**Do not remove** project-level scripts that are not part of the workflow infrastructure
-(e.g., `scripts/validate.sh`, `scripts/ci-status.sh`). Only the workflow plugin scripts
-(auto-format, review-gate, etc.) move to the plugin.
+**Do not remove** project-level scripts that are not part of the workflow infrastructure.
+Only the workflow plugin scripts (auto-format, review-gate, validate, etc.) move to the plugin;
+they are now invoked via `.claude/scripts/dso <script-name>`.
 
 ### Step 4: Regenerate CLAUDE.md
 
@@ -194,7 +194,7 @@ lockpick-specific path `/tmp/lockpick-test-artifacts-<worktree>/` is replaced
 by a hash-based path `/tmp/workflow-plugin-<16-char-hash>/`.
 
 This migration is **automatic**. On the first hook invocation after upgrading,
-`get_artifacts_dir()` (in `hooks/lib/deps.sh`) detects the old
+`get_artifacts_dir()` (in `plugins/dso/hooks/lib/deps.sh`) detects the old
 directory and copies its contents to the new location.
 
 For full details on the state directory change — including the derivation algorithm,

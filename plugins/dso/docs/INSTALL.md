@@ -34,7 +34,7 @@ git clone https://github.com/navapbc/digital-service-orchestra.git /path/to/digi
 From the DSO plugin directory, run the setup script against your host project:
 
 ```bash
-bash /path/to/digital-service-orchestra/scripts/dso-setup.sh /path/to/your-project
+bash /path/to/digital-service-orchestra/plugins/dso/scripts/dso-setup.sh /path/to/your-project
 ```
 
 This script:
@@ -262,14 +262,14 @@ with `bad interpreter: No such file or directory`. Fix:
 ```bash
 cd /path/to/digital-service-orchestra
 git config core.autocrlf false
-git checkout -- scripts/ hooks/
+git checkout -- plugins/dso/scripts/ plugins/dso/hooks/
 ```
 
 **File permissions**: Ensure hook scripts are executable after cloning:
 
 ```bash
-chmod +x /path/to/digital-service-orchestra/scripts/*
-chmod +x /path/to/digital-service-orchestra/hooks/*.sh
+chmod +x /path/to/digital-service-orchestra/plugins/dso/scripts/*
+chmod +x /path/to/digital-service-orchestra/plugins/dso/hooks/*.sh
 ```
 
 **PATH**: The WSL `PATH` may not include `/home/<user>/.local/bin` where `pip`-installed tools

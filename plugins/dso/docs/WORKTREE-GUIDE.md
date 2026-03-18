@@ -8,7 +8,7 @@
 
 ## Overview
 
-Git worktrees allow you to check out multiple branches of the same repository simultaneously, each in its own directory. This project uses `git worktree` commands (and the `scripts/worktree-create.sh` wrapper) to manage parallel development environments.
+Git worktrees allow you to check out multiple branches of the same repository simultaneously, each in its own directory. This project uses `git worktree` commands (and the `.claude/scripts/dso worktree-create.sh` wrapper) to manage parallel development environments.
 
 ### Config-Driven Post-Create Hook
 
@@ -19,7 +19,7 @@ Worktree creation supports a config-driven post-create hook via `worktree.post_c
 worktree.post_create_cmd=./scripts/worktree-setup-env.sh
 ```
 
-The `scripts/worktree-setup-env.sh` script detects Python 3.13 (Homebrew first, then `command -v`), removes any existing `.venv`, and runs `poetry env use` + `poetry install` in the worktree's `app/` directory. If `worktree.post_create_cmd` is absent from config, the worktree is created without any post-create setup (portability guarantee for other projects using the plugin).
+The `.claude/scripts/dso worktree-setup-env.sh` script detects Python 3.13 (Homebrew first, then `command -v`), removes any existing `.venv`, and runs `poetry env use` + `poetry install` in the worktree's `app/` directory. If `worktree.post_create_cmd` is absent from config, the worktree is created without any post-create setup (portability guarantee for other projects using the plugin).
 
 ### When to Use Worktrees
 
@@ -307,7 +307,7 @@ Migration head conflicts are automatically detected by:
 
 3. **Merge from main frequently**: Pull the latest migrations from `main` before creating new ones:
    ```bash
-   "$(git rev-parse --show-toplevel)/scripts/worktree-sync-from-main.sh"
+   "$(git rev-parse --show-toplevel)/.claude/scripts/dso" worktree-sync-from-main.sh
    ```
    Never run bare `git merge origin/main` — the sync script handles skip-worktree flag clearing required for `.tickets/` files.
 
@@ -336,9 +336,9 @@ The merge migration is a standard Alembic file with multiple `down_revision` val
 
 ### `claude-safe` Wrapper (Recommended)
 
-> **Script location**: canonical source is at `scripts/claude-safe`.
+> **Script location**: canonical source is at `plugins/dso/scripts/claude-safe`.
 
-Use `scripts/claude-safe` instead of `claude` to get automatic worktree isolation:
+Use `.claude/scripts/dso claude-safe` instead of `claude` to get automatic worktree isolation:
 
 ```bash
 claude-safe          # Launch claude (auto-isolates if a session is already active)
@@ -354,11 +354,11 @@ claude-safe --resume # All claude flags pass through
 
 ```bash
 # Option 1: Alias (replaces claude for this project)
-# scripts/claude-safe is the backward-compatible exec wrapper
-alias claude-safe='/path/to/lockpick-doc-to-logic/scripts/claude-safe'
+# plugins/dso/scripts/claude-safe is the backward-compatible exec wrapper
+alias claude-safe='/path/to/digital-service-orchestra/plugins/dso/scripts/claude-safe'
 
 # Option 2: Symlink to PATH
-ln -s /path/to/lockpick-doc-to-logic/scripts/claude-safe ~/.local/bin/claude-safe
+ln -s /path/to/digital-service-orchestra/plugins/dso/scripts/claude-safe ~/.local/bin/claude-safe
 ```
 
 ### SessionStart Hook (Fallback)
@@ -403,17 +403,17 @@ Steps to run at the start of each Claude Code session, depending on context.
 
 Check for stale worktrees and clean them up using the automated script:
 
-> **Script location**: canonical source at `scripts/worktree-cleanup.sh`. Config-driven via `workflow-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_days`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
+> **Script location**: canonical source at `.claude/scripts/dso worktree-cleanup.sh`. Config-driven via `workflow-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_days`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
 
 ```bash
 # Preview what would be removed (safe, no changes made)
-scripts/worktree-cleanup.sh --dry-run
+.claude/scripts/dso worktree-cleanup.sh --dry-run
 
 # Interactive cleanup (prompts before each removal)
-scripts/worktree-cleanup.sh
+.claude/scripts/dso worktree-cleanup.sh
 
 # Remove all safe candidates without prompting
-scripts/worktree-cleanup.sh --all --force
+.claude/scripts/dso worktree-cleanup.sh --all --force
 ```
 
 The script checks all 6 safety criteria before removing any worktree:
@@ -429,7 +429,7 @@ Actions are logged to `~/.claude-safe-cleanup.log`.
 **Scheduled cleanup (cron/launchd)**: Set `WORKTREE_CLEANUP_ENABLED=1` to enable non-interactive mode:
 
 ```bash
-WORKTREE_CLEANUP_ENABLED=1 scripts/worktree-cleanup.sh --non-interactive --all --force
+WORKTREE_CLEANUP_ENABLED=1 .claude/scripts/dso worktree-cleanup.sh --non-interactive --all --force
 ```
 
 ### Worktree Only
@@ -522,7 +522,7 @@ gh pr create --title "feat: auth redesign" --body "..."
 ### 5. Wait for CI
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/ci-status.sh --wait
+"$(git rev-parse --show-toplevel)/.claude/scripts/dso" ci-status.sh --wait
 ```
 
 ### 6. Clean Up After Merge
@@ -549,7 +549,7 @@ Ticket files (`.tickets/`) flow through normal git commits. There is no automati
 Use `worktree-sync-from-main.sh` to pull the latest ticket state from main:
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/worktree-sync-from-main.sh
+"$(git rev-parse --show-toplevel)/.claude/scripts/dso" worktree-sync-from-main.sh
 ```
 
 This merges main into the worktree branch. Run it before launching sub-agent batches to ensure ticket state is current.

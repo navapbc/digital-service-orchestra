@@ -1,6 +1,6 @@
 # Pre-Commit Timeout Wrapper
 
-Generic pre-commit hook wrapper that runs a command with timeout detection, logging, and optional auto-ticket creation. Lives at `scripts/pre-commit-wrapper.sh`.
+Generic pre-commit hook wrapper that runs a command with timeout detection, logging, and optional auto-ticket creation. Lives at `plugins/dso/scripts/pre-commit-wrapper.sh`.
 
 ## Interface
 
@@ -106,7 +106,7 @@ Projects should create a thin exec wrapper at `scripts/pre-commit-wrapper.sh` th
 
 ```bash
 #!/usr/bin/env bash
-# Thin exec wrapper -- canonical copy lives in scripts/pre-commit-wrapper.sh
+# Thin exec wrapper -- canonical copy lives in plugins/dso/scripts/pre-commit-wrapper.sh
 exec "${CLAUDE_PLUGIN_ROOT}/scripts/pre-commit-wrapper.sh" "$@"
 ```
 

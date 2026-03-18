@@ -85,9 +85,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Drain stdin silently if anything was piped (backward compatibility — don't
-# error on callers that still pipe, but don't use the input)
+# error on callers that still pipe, but don't use the input).
+# Use timeout to avoid hanging when called from non-interactive shells (e.g.,
+# Claude Code background task runner) that have no tty but also no piped data.
 if [[ ! -t 0 ]]; then
-    cat > /dev/null 2>&1 || true
+    timeout 1 cat > /dev/null 2>&1 || true
 fi
 
 # Determine worktree name and artifacts directory

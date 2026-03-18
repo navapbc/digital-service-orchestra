@@ -49,7 +49,7 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
 
 **Step 1 — Validate and read the diff file**
 
-Run `{repo_root}/scripts/verify-review-diff.sh {diff_file_path}`.
+Run `{repo_root}/plugins/dso/scripts/verify-review-diff.sh {diff_file_path}`.
 - If it returns non-zero: STOP and return `REVIEW_RESULT: error` with the mismatch details.
 - If the file is missing or empty: STOP and return `REVIEW_RESULT: error`.
 

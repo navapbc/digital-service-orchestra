@@ -11,7 +11,7 @@ Replace commands below with values from your `workflow-config.conf`:
 - `commands.type_check` (default: `make lint-mypy`)
 - `commands.test_unit` (default: `make test-unit-only`)
 
-The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
+The artifacts directory is computed by `get_artifacts_dir()` in `plugins/dso/hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
 
 ---
 

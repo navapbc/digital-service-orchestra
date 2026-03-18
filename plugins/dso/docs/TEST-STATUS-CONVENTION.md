@@ -45,12 +45,12 @@ Wire your Makefile test targets using `write-test-status.sh`:
 ```makefile
 test-unit: ## Run unit tests
 	@_exit=0; cd app && poetry run pytest tests/unit/ || _exit=$$?; \
-	bash scripts/write-test-status.sh test-unit $$_exit 2>/dev/null || true; \
+	bash .claude/scripts/dso write-test-status.sh test-unit $$_exit 2>/dev/null || true; \
 	exit $$_exit
 
 test-e2e: ## Run end-to-end tests
 	@_exit=0; cd app && poetry run pytest tests/e2e/ || _exit=$$?; \
-	bash scripts/write-test-status.sh test-e2e $$_exit 2>/dev/null || true; \
+	bash .claude/scripts/dso write-test-status.sh test-e2e $$_exit 2>/dev/null || true; \
 	exit $$_exit
 ```
 
@@ -59,7 +59,7 @@ The pattern captures the exit code, writes the status, then re-exits with the or
 ## Script Reference
 
 **Canonical**: `${CLAUDE_PLUGIN_ROOT}/scripts/write-test-status.sh`
-**Wrapper**: `scripts/write-test-status.sh` (backward-compatible exec wrapper)
+**Wrapper**: `.claude/scripts/dso write-test-status.sh` (backward-compatible exec wrapper)
 
 ```
 Usage: write-test-status.sh <target-name> <exit-code>

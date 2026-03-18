@@ -13,7 +13,7 @@ Replace commands below with values from your `workflow-config.conf`:
 - `commands.test_changed` (optional — when absent, Step 1.5 is skipped)
 - `commands.validate` (default: `validate.sh --ci`)
 
-The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
+The artifacts directory is computed by `get_artifacts_dir()` in `plugins/dso/hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
 
 ---
 
@@ -331,7 +331,7 @@ Bump the patch version and stage the modified version file so it is included in 
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-bash "$REPO_ROOT/scripts/bump-version.sh" --patch
+bash "$REPO_ROOT/plugins/dso/scripts/bump-version.sh" --patch
 ```
 
 `bump-version.sh` exits 0 with no changes when `version.file_path` is not configured in `workflow-config.conf`. In that case, the `git add -u` below is a no-op for the version file (safe to run regardless).
@@ -391,7 +391,7 @@ After committing, report the SHA and **immediately return control to the caller*
 If you need to merge the worktree branch to main and push, use `merge-to-main.sh` instead of manual `git merge` + `git push`. It handles ticket sync, merge, and push in a single step, avoiding the review-gate and pre-push hook issues that arise from ticket file changes on main.
 
 ```bash
-"$REPO_ROOT/scripts/merge-to-main.sh"
+".claude/scripts/dso merge-to-main.sh"
 ```
 
 Do NOT manually `cd` to the main repo and run `git merge` / `git commit` / `git push` — the review gate hook runs in the worktree context and will block commits on main that aren't ticket-tracking-only.

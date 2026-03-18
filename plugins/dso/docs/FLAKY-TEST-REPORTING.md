@@ -6,7 +6,7 @@
 
 ## Overview
 
-`scripts/report-flaky-tests.sh` parses a JUnit XML test results
+`.claude/scripts/dso report-flaky-tests.sh` parses a JUnit XML test results
 file and emits GitHub Actions warning annotations for any tests identified as
 flaky. The script is **informational-only**: it always exits 0 regardless of
 whether flaky tests are found, so it never blocks a CI job.
@@ -130,7 +130,7 @@ entries.
 ## Usage
 
 ```bash
-scripts/report-flaky-tests.sh <results-file.xml>
+.claude/scripts/dso report-flaky-tests.sh <results-file.xml>
 ```
 
 **Arguments**:
@@ -210,7 +210,7 @@ jobs:
       - name: Report flaky tests
         if: always()   # run even if the test step fails
         run: |
-          scripts/report-flaky-tests.sh app/test-results.xml
+          .claude/scripts/dso report-flaky-tests.sh app/test-results.xml
 
       - name: Upload test results
         if: always()

@@ -16,7 +16,7 @@ v<MAJOR>.<MINOR>.<PATCH>
 
 Examples: `v0.2.0`, `v1.0.0` — **not** `0.2.0` or `0.2`.
 
-The `'v'` prefix is required. Tools and scripts in this repo (e.g., `scripts/tag-release.sh`) enforce this convention.
+The `'v'` prefix is required. Tools and scripts in this repo (e.g., `.claude/scripts/dso tag-release.sh`) enforce this convention.
 
 ## Breaking Change Policy
 
@@ -43,7 +43,7 @@ The authoritative version is stored in `plugin.json` and `marketplace.json` at t
 }
 ```
 
-Both files must stay in sync. Use `scripts/tag-release.sh` to update both at once.
+Both files must stay in sync. Use `.claude/scripts/dso tag-release.sh` to update both at once.
 
 ## Consuming Project Pinning
 
@@ -62,7 +62,7 @@ For reproducible environments, pin to a specific tag rather than a branch. Recor
 ## Release Workflow
 
 1. Determine the next version per the policy above.
-2. Run `scripts/tag-release.sh <VERSION>` — this updates `plugin.json` and `marketplace.json` and prints the `git tag` command.
+2. Run `.claude/scripts/dso tag-release.sh <VERSION>` — this updates `plugin.json` and `marketplace.json` and prints the `git tag` command.
 3. Commit the version bump (`git commit -m "chore: bump version to vX.Y.Z"`).
 4. Run the printed `git tag` command to create the annotated tag.
 5. Push both the commit and the tag: `git push && git push --tags`.
