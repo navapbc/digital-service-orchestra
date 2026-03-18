@@ -1,6 +1,6 @@
 ---
 id: dso-g3vq
-status: in_progress
+status: closed
 deps: [dso-tisu]
 links: []
 created: 2026-03-18T16:05:41Z
