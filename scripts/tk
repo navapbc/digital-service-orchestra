@@ -4275,6 +4275,7 @@ _sync_body() {
     local _pull_fetch_exit=0
     _windowed_jira_issues=$(acli jira workitem search \
         --jql "$_pull_jql" \
+        --fields "key,summary,description,issuetype,priority,status,assignee" \
         --paginate --json 2>/dev/null) || _pull_fetch_exit=$?
     if [[ $_pull_fetch_exit -ne 0 || -z "$_windowed_jira_issues" ]]; then
         echo "warning: failed to fetch Jira issues (exit=$_pull_fetch_exit) — pull phase will be skipped" >&2

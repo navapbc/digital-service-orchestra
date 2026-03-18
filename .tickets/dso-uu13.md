@@ -11,3 +11,5 @@ jira_key: DIG-35
 ---
 # Remove CI ticket creation pattern
 
+Because our scripts are in a plugin, CI does not have access to tk to create tickets. Remove any functionality intended to create a ticket as part of CI
+

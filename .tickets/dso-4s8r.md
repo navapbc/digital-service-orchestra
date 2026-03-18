@@ -11,3 +11,5 @@ jira_key: DIG-28
 ---
 # Cleanup tests
 
+Our tests have accumulated over time. Many tests check for the absence of behavior we have removed from the application. We should eliminate tests that do not meaningfully check for regression or validate desired behavior.
+

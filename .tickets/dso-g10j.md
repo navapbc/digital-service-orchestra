@@ -11,3 +11,5 @@ jira_key: DIG-7
 ---
 # Using-lockpicks brainstorm enforcement
 
+Using-lockpicks should direct the agent to use the brainstorm skill whenever the user requests than an epic be created.
+

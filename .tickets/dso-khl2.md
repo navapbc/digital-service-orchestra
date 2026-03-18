@@ -11,3 +11,5 @@ jira_key: DIG-16
 ---
 # Using-lockpicks guidance to encourage using sub-agents
 
+The main session is an orchestrator. It should be defensive of its context window by using sub-agents for research tasks, code changes, investigation, and implementation
+
