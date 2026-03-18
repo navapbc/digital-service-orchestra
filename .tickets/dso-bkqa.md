@@ -1,6 +1,6 @@
 ---
 id: dso-bkqa
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T23:13:57Z
@@ -87,3 +87,17 @@ CHECKPOINT 5/6: Validation passed ✓ — bash tests/run-all.sh: 949 hook tests 
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — All AC verified: run-all.sh PASS, ruff check PASS, ruff format --check PASS, commands.test_plugin absent from workflow-config.conf PASS, test_no_test_plugin_in_config exists PASS. NOTE: AC 'no test_plugin refs' is inherently contradicted by the required test function name test_no_test_plugin_in_config (which contains test_plugin as a substring); old vestigial refs (fixture, for-loops, variable assignment, assert_eq) are all removed.
+
+<!-- note-id: hiewznow -->
+<!-- timestamp: 2026-03-18T23:59:46Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — Files: workflow-config.conf, tests/scripts/test-validate-config-driven.sh, plugins/dso/scripts/validate.sh, plugins/dso/scripts/validate-config.sh. Tests: 53/53 pass.
+
+<!-- note-id: qdoc0soa -->
+<!-- timestamp: 2026-03-18T23:59:46Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: removed commands.test_plugin=true from workflow-config.conf; updated test-validate-config-driven.sh with negative assertion test
