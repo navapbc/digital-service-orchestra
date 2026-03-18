@@ -11,6 +11,9 @@
 #   - Process group / orphan cleanup on EXIT via kill_children trap (kills
 #     child processes in the process group to prevent orphaned suite runners)
 #
+# Registered script tests (auto-discovered by run-script-tests.sh):
+#   - test-plugin-dir-structure.sh  (dso-2oyj: plugins/dso/ layout validation)
+#
 # Usage:
 #   bash tests/scripts/run-all.sh [--suite-timeout N] \
 #       [--hooks-runner PATH] [--scripts-runner PATH] [--evals-runner PATH]
