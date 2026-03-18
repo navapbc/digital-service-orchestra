@@ -1,6 +1,6 @@
 ---
 id: dso-5lb8
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T17:15:25Z

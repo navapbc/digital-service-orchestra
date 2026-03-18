@@ -1,6 +1,6 @@
 ---
 id: dso-dnq2
-status: in_progress
+status: closed
 deps: [dso-oqto]
 links: []
 created: 2026-03-18T17:30:10Z

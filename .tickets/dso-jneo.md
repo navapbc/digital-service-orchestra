@@ -1,6 +1,6 @@
 ---
 id: dso-jneo
-status: open
+status: closed
 deps: [dso-l19q, dso-5lb8]
 links: []
 created: 2026-03-18T17:15:25Z
