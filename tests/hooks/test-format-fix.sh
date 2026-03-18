@@ -75,7 +75,7 @@ if [[ -x "$REAL_APP_VENV/ruff" ]]; then
     export PATH="$REAL_APP_VENV:$PATH"
 elif ! command -v ruff >/dev/null 2>&1; then
     echo "SKIP: ruff not found (install in app venv or add to PATH)" >&2
-    exit 1
+    exit 0
 fi
 
 # ── Helper: create a temp git repo with poetry/ruff available ─────────────────

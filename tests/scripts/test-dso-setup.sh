@@ -201,7 +201,7 @@ test_prereq_missing_coreutils_fatal() {
     fake_dir=$(_make_tool_path timeout gtimeout)
 
     local exit_code=0
-    PATH="$fake_dir:/bin" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || exit_code=$?
+    PATH="$fake_dir" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_prereq_missing_coreutils_fatal" "1" "$exit_code"
 }
 

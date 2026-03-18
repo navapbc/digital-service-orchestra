@@ -17,7 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# shfmt redirect Op codes: 54 = '>', 55 = '>>'
+# shfmt redirect Op codes: auto-discovered at runtime (see discover_write_redirect_ops).
+# Fallback values {54, 55} are used only if discovery fails.
 WRITE_REDIRECT_OPS = {54, 55}
 
 # Commands whose last positional arg is a write target
@@ -25,6 +26,39 @@ WRITE_COMMANDS = {"tee", "cp", "mv"}
 
 # Paths that are NOT repo-root (should not be flagged)
 SAFE_PATH_PREFIXES = ("/tmp", "/var", "/dev/null", "/dev/")
+
+
+def discover_write_redirect_ops(shfmt_path):
+    """
+    Discover the integer Op codes shfmt uses for '>' and '>>' by probing it
+    with a simple test script.  Returns a set of op codes, or falls back to
+    {54, 55} if discovery fails.
+    """
+    ops = set()
+    test_cases = [
+        "echo x > /tmp/shfmt_probe_write",
+        "echo x >> /tmp/shfmt_probe_write",
+    ]
+    for script in test_cases:
+        try:
+            result = subprocess.run(
+                [shfmt_path, "--tojson"],
+                input=script,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode != 0:
+                continue
+            ast = json.loads(result.stdout)
+            for stmt in ast.get("Stmts", []):
+                for redir in stmt.get("Redirs", []):
+                    op = redir.get("Op")
+                    if op is not None:
+                        ops.add(op)
+        except Exception:
+            continue
+    return ops if ops else {54, 55}
 
 
 def find_shfmt(shfmt_path=None):
@@ -504,6 +538,10 @@ def main():
     if not shfmt:
         print("INFO: shfmt not found — skipping check-script-writes analysis")
         sys.exit(0)
+
+    # Discover the actual redirect op codes for this shfmt version
+    global WRITE_REDIRECT_OPS
+    WRITE_REDIRECT_OPS = discover_write_redirect_ops(shfmt)
 
     scan_dir = args.scan_dir
     if not os.path.isdir(scan_dir):

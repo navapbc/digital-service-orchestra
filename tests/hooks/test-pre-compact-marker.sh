@@ -40,7 +40,7 @@ test_marker_written_after_checkpoint_commit() {
         git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
-        echo "initial" > file.txt
+        echo "initial-test-a" > file.txt
         git add file.txt
         git commit -q -m "initial"
         # Add uncommitted work so _HAS_REAL_CHANGES is non-empty
@@ -97,7 +97,7 @@ test_marker_uses_default_when_config_absent() {
         git init -q -b main
         git config user.email "test@test.com"
         git config user.name "Test"
-        echo "initial" > file.txt
+        echo "initial-test-b" > file.txt
         git add file.txt
         git commit -q -m "initial"
         # Create a workflow-config.conf WITHOUT checkpoint.marker_file

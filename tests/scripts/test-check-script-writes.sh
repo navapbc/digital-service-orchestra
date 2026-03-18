@@ -16,6 +16,9 @@
 # 11. test_write_ok_adjacent_not_suppressed — write-ok on prior line, write on next → exit 1
 # 12. test_variable_resolution_repo_root   — OUTDIR="./results"; echo x > "$OUTDIR/f" → exit 1
 # 13. test_cross_file_variable_tracing     — File A: STATE_DIR="./state", File B: write to $STATE_DIR/f → exit 1
+# 14. test_discover_ops_happy_path          — real shfmt discovers Op codes → redirect detected
+# 15. test_discover_ops_shfmt_error_fallback — fake shfmt errors → fallback, no crash
+# 16. test_discover_ops_uses_discovered_codes — fake shfmt returns Op=999 → discovery uses it
 #
 # Usage: bash tests/scripts/test-check-script-writes.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -300,6 +303,92 @@ EOF
     assert_pass_if_clean "test_cross_file_variable_tracing"
 }
 
+# ── test_discover_ops_happy_path ──────────────────────────────────────────────
+# When a working shfmt is provided via --shfmt-path, discover_write_redirect_ops
+# finds the correct Op codes, so redirects to repo-root paths are detected.
+test_discover_ops_happy_path() {
+    _require_shfmt "discover_ops_happy_path" || return 0
+    _snapshot_fail
+    local _dir
+    _dir=$(mktemp -d)
+    trap 'rm -rf "$_dir"' RETURN
+    # Create a script with a redirect that should be caught
+    cat > "$_dir/write.sh" << 'EOF'
+#!/usr/bin/env bash
+echo data > ./output.txt
+EOF
+    local _exit=0
+    local _out=""
+    # Use the real shfmt — discovery should find the right Op codes
+    _out=$(python3 "$SCRIPT" --scan-dir="$_dir" 2>&1) || _exit=$?
+    assert_eq "test_discover_ops_happy_path: exit 1 (redirect detected)" "1" "$_exit"
+    assert_contains "test_discover_ops_happy_path: FAIL in output" "FAIL" "$_out"
+    assert_pass_if_clean "test_discover_ops_happy_path"
+}
+
+# ── test_discover_ops_shfmt_error_fallback ───────────────────────────────────
+# When --shfmt-path points to a program that always errors, the script falls back
+# to hardcoded Op codes {54, 55} and does not crash.
+test_discover_ops_shfmt_error_fallback() {
+    _snapshot_fail
+    local _dir
+    _dir=$(mktemp -d)
+    trap 'rm -rf "$_dir"' RETURN
+    # Create a fake shfmt that always fails
+    cat > "$_dir/fake_shfmt" << 'SHFMT'
+#!/usr/bin/env bash
+exit 1
+SHFMT
+    chmod +x "$_dir/fake_shfmt"
+    # Create a script with a redirect
+    cat > "$_dir/write.sh" << 'EOF'
+#!/usr/bin/env bash
+echo data > ./output.txt
+EOF
+    local _exit=0
+    local _out=""
+    # The fake shfmt errors on discovery AND on parsing — so no AST, no violations, exit 0
+    # Key: it should NOT crash (no unhandled exception)
+    _out=$(python3 "$SCRIPT" --scan-dir="$_dir" --shfmt-path="$_dir/fake_shfmt" 2>&1) || _exit=$?
+    assert_eq "test_discover_ops_shfmt_error_fallback: exit 0 (no crash)" "0" "$_exit"
+    assert_pass_if_clean "test_discover_ops_shfmt_error_fallback"
+}
+
+# ── test_discover_ops_uses_discovered_codes ──────────────────────────────────
+# A fake shfmt that returns a custom Op code for '>' proves discovery works:
+# the script uses the discovered code (not hardcoded {54, 55}).
+test_discover_ops_uses_discovered_codes() {
+    _snapshot_fail
+    local _dir
+    _dir=$(mktemp -d)
+    trap 'rm -rf "$_dir"' RETURN
+    # Create a fake shfmt that:
+    # - For discovery probes: returns AST with a custom Op code (999)
+    # - For actual file parsing: returns AST with Op=999 for the redirect
+    cat > "$_dir/fake_shfmt" << 'SHFMT'
+#!/usr/bin/env bash
+# Read stdin
+input=$(cat)
+# Return a minimal AST with a redirect Op=999
+cat << 'AST'
+{"Stmts":[{"Pos":{"Line":2},"Cmd":{"Type":"CallExpr","Args":[{"Parts":[{"Type":"Lit","Value":"echo"}]},{"Parts":[{"Type":"Lit","Value":"data"}]}]},"Redirs":[{"Op":999,"Pos":{"Line":2},"Word":{"Parts":[{"Type":"Lit","Value":"./output.txt"}]}}]}]}
+AST
+SHFMT
+    chmod +x "$_dir/fake_shfmt"
+    # Create a script with a redirect
+    cat > "$_dir/write.sh" << 'EOF'
+#!/usr/bin/env bash
+echo data > ./output.txt
+EOF
+    local _exit=0
+    local _out=""
+    # The fake shfmt returns Op=999 — discovery should pick it up, then detect the violation
+    _out=$(python3 "$SCRIPT" --scan-dir="$_dir" --shfmt-path="$_dir/fake_shfmt" 2>&1) || _exit=$?
+    assert_eq "test_discover_ops_uses_discovered_codes: exit 1 (custom op detected)" "1" "$_exit"
+    assert_contains "test_discover_ops_uses_discovered_codes: FAIL in output" "FAIL" "$_out"
+    assert_pass_if_clean "test_discover_ops_uses_discovered_codes"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_no_shfmt_skips_gracefully
 test_clean_script_passes
@@ -314,5 +403,8 @@ test_write_ok_suppresses
 test_write_ok_adjacent_not_suppressed
 test_variable_resolution_repo_root
 test_cross_file_variable_tracing
+test_discover_ops_happy_path
+test_discover_ops_shfmt_error_fallback
+test_discover_ops_uses_discovered_codes
 
 print_summary
