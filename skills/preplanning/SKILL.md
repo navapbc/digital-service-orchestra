@@ -251,7 +251,7 @@ Parse the blue team's accepted findings and apply each one based on its `type`:
 
 | Finding Type | Action |
 |-------------|--------|
-| `new_story` | Create a new story: `tk create "<title>" -t story --parent=<epic-id>`. Add the finding's description and rationale to the story description. Add appropriate done definitions and considerations. |
+| `new_story` | Create a new story with the full body at creation time: `tk create "<title>" -t story --parent=<epic-id> --description "<finding description and rationale, done definitions, and considerations>"`. Do not create a bare-title ticket and backfill later — pass `--description` with the assembled content at creation time. |
 | `modify_done_definition` | Edit the target story's ticket file (`.tickets/<target_story_id>.md`) to add or modify done definitions per the finding's description. |
 | `add_dependency` | Add the dependency: `tk dep <target_story_id> <dependency_id>` (extract dependency ID from the finding's description). |
 | `add_consideration` | Edit the target story's ticket file to append the consideration to its Considerations section. |
@@ -348,18 +348,47 @@ For each split:
 
 ### Step 1: Create/Modify Stories in Tickets (/dso:preplanning)
 
-For new stories, use `--parent` at creation time to get the ID, then immediately write the full story body to the ticket file:
+For new stories, pass the full story body at creation time via `--description` and `--acceptance`, then verify the ticket file contains the expected content:
 
 ```bash
-# Step 1: create and capture ID
-STORY_ID=$(tk create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id>)
+# Step 1: assemble the story body from earlier phases
+# - Description: What/Why/Scope from Phase 2 analysis
+# - Done Definitions: assembled during Phase 3
+# - Considerations: flags from Phase 2 Risk & Scope Scan
+# - Escalation Policy: selected in Phase 1 Step 1b (omit if Autonomous)
 
-# Step 2: write the full structured body to the ticket file
-# Use the Write or Edit tool to set the content below the frontmatter
-# Include: Description (what/why/scope), Done Definitions, Considerations, Escalation Policy
+# Step 2: create the ticket with full body — capture the generated ID
+STORY_ID=$(tk create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id> \
+  --description "$(cat <<'BODY'
+## Description
+
+**What**: <what the feature or change is>
+**Why**: <how this advances the epic's vision>
+**Scope**:
+- IN: <items explicitly in scope>
+- OUT: <items explicitly out of scope>
+
+## Done Definitions
+
+- When this story is complete, <observable outcome 1>
+  ← Satisfies: "<quoted epic criterion>"
+- When this story is complete, <observable outcome 2>
+  ← Satisfies: "<quoted epic criterion>"
+
+## Considerations
+
+- [<Area>] <concern from Risk & Scope Scan>
+
+## Escalation Policy
+
+**Escalation policy**: <verbatim escalation policy text from Phase 1 Step 1b>
+BODY
+)")
 ```
 
-Write the story body using the story structure defined in Step 2 below. The ticket file is `.tickets/<story-id>.md`. Preserve the YAML frontmatter (lines 1–N ending with `---`) and replace everything after it with the structured markdown body.
+The `--description` flag writes the full story body into the ticket file at creation time, ensuring the ticket is never a bare title. Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b.
+
+If the story body is too long to pass inline, use the Write or Edit tool immediately after `tk create` to set the content below the frontmatter. The ticket file is `.tickets/<story-id>.md`. Preserve the YAML frontmatter (lines 1–N ending with `---`) and replace everything after it with the structured markdown body.
 
 For modified stories, edit `.tickets/<existing-id>.md` directly to update the title heading and body sections.
 

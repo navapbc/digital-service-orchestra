@@ -211,7 +211,7 @@ echo "custom tickets dir feature" > "$WT3/custom-dir.txt"
 make_ticket_file "$WT3" "dirty-issue-test" ".issues"
 
 MERGE_OUTPUT3=$(cd "$WT3" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
-    bash "$MERGE_SCRIPT" 2>&1 || true)
+    WORKFLOW_CONFIG_FILE="$WT3/workflow-config.conf" bash "$MERGE_SCRIPT" 2>&1 || true)
 
 # Merge must succeed — the custom tickets dir must be properly excluded
 assert_contains "test_portability_custom_dir_merge_succeeds" "DONE" "$MERGE_OUTPUT3"

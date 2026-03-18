@@ -1,6 +1,6 @@
 ---
 id: dso-472x
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-18T04:41:08Z
@@ -15,5 +15,8 @@ During Phase 4 (Create Stories), the preplanning skill instructs the agent to ru
 
 ## Acceptance Criteria
 
-preplanning Phase 4 passes the done definition and user story body to tk create (via --description and/or --acceptance) so stories are complete at creation time
+- [ ] `skills/preplanning/SKILL.md` Phase 4 Create Stories step includes `--description` and/or `--acceptance` flags on the `tk create` call
+  Verify: grep -A5 "tk create" /Users/joeoakhart/digital-service-orchestra/skills/preplanning/SKILL.md | grep -q "\-\-description\|\-\-acceptance"
+- [ ] Story tickets created by preplanning contain the user story body in their description field (not empty)
+  Verify: bash tests/run-all.sh 2>&1 | grep -q "Results:.*0 failed"
 
