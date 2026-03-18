@@ -206,4 +206,71 @@ test_marker_in_gitignore() {
 
 test_marker_in_gitignore
 
+# =============================================================================
+# TEST F: Dedup lock key is stable across a checkpoint commit (HEAD change)
+#   Pre-creates a lock file using only the CWD-based key (the fixed format).
+#   With the current (buggy) code the lock key includes HEAD, so the hook
+#   ignores the pre-created lock and makes a new commit.
+#   With the fix the hook finds the lock and exits early — no new commit.
+# =============================================================================
+
+test_dedup_lock_stable_after_head_change() {
+    local TEST_DIR TEST_ARTIFACTS
+    TEST_DIR=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_DIR")
+    TEST_ARTIFACTS=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TEST_ARTIFACTS")
+
+    (
+        cd "$TEST_DIR"
+        git init -q -b main
+        git config user.email "test@test.com"
+        git config user.name "Test"
+        echo "initial-test-f" > file.txt
+        git add file.txt
+        git commit -q -m "initial"
+        echo "work-in-progress" > work.py
+    ) 2>/dev/null
+
+    # Compute the CWD-based lock key exactly as the fixed hook code does:
+    #   _LOCK_PATH=$(pwd -P | shasum -a 256 | head -c 8)  [empty if shasum absent]
+    #   _LOCK_KEY="${_LOCK_PATH}"   (no HEAD)
+    local LOCK_PATH LOCK_FILE NOW
+    LOCK_PATH=$(cd "$TEST_DIR" && pwd -P 2>/dev/null | shasum -a 256 2>/dev/null | head -c 8)
+    LOCK_FILE="${TMPDIR:-/tmp}/.precompact-lock-${LOCK_PATH}"
+
+    # Simulate a concurrent first invocation: write the lock file
+    NOW=$(date +%s 2>/dev/null || echo 0)
+    echo "$NOW" > "$LOCK_FILE"
+
+    local commits_before
+    commits_before=$(cd "$TEST_DIR" && git log --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+    # Run the hook — it should detect the lock and exit early (dedup)
+    (
+        cd "$TEST_DIR"
+        export _DEPS_LOADED=1
+        get_artifacts_dir() { echo "$TEST_ARTIFACTS"; }
+        export -f get_artifacts_dir
+        bash "$COMPACT_HOOK" 2>/dev/null
+    ) || true
+
+    rm -f "$LOCK_FILE"
+
+    local commits_after
+    commits_after=$(cd "$TEST_DIR" && git log --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ "$commits_before" -eq "$commits_after" ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_dedup_lock_stable_after_head_change\n  Expected %s commits (dedup should fire), got %s\n" \
+            "$commits_before" "$commits_after" >&2
+    fi
+
+    rm -rf "$TEST_DIR" "$TEST_ARTIFACTS"
+}
+
+test_dedup_lock_stable_after_head_change
+
 print_summary

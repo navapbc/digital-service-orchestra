@@ -96,11 +96,12 @@ REPO_ROOT_EARLY=$(git rev-parse --show-toplevel 2>/dev/null || true)
 [[ -n "$REPO_ROOT_EARLY" && -f "$REPO_ROOT_EARLY/.disable-precompact-subagent" ]] && { _write_telemetry "exited_early" "subagent_guard"; exit 0; }
 
 # Deduplication guard: prevent double-firing when hook is registered via both
-# settings.json and hooks.json plugin manifest. Use a per-HEAD lockfile with a
-# 120-second TTL — the second sequential invocation exits immediately.
-_LOCK_HEAD=$(git rev-parse HEAD 2>/dev/null | head -c 12 || echo "nohead")
+# settings.json and hooks.json plugin manifest. Use a per-CWD lockfile with a
+# 120-second TTL — the second concurrent invocation exits immediately.
+# NOTE: Lock key is CWD-based only (not HEAD) so it remains stable after the
+# checkpoint commit changes HEAD mid-flight.
 _LOCK_PATH=$(pwd -P 2>/dev/null | shasum -a 256 2>/dev/null | head -c 8 || echo "nopath")
-_LOCK_KEY="${_LOCK_HEAD}-${_LOCK_PATH}"
+_LOCK_KEY="${_LOCK_PATH}"
 _LOCK_FILE="${TMPDIR:-/tmp}/.precompact-lock-${_LOCK_KEY}"
 _NOW=$(date +%s 2>/dev/null || echo 0)
 if [[ -f "$_LOCK_FILE" ]]; then

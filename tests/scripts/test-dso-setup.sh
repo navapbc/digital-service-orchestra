@@ -398,6 +398,25 @@ test_setup_outputs_optional_dep_guidance() {
     fi
 }
 
+# test_pyyaml_check_skipped_when_python3_absent: when python3 is not on PATH,
+# the PyYAML optional-dep message should NOT appear (guard against missing python3)
+test_pyyaml_check_skipped_when_python3_absent() {
+    local T fake_dir output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    # Build fake PATH without python3 (exclusive PATH to avoid system stubs)
+    fake_dir=$(_make_tool_path python3)
+
+    output=$(PATH="$fake_dir" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+
+    if [[ "$output" != *"PyYAML"* ]]; then
+        assert_eq "test_pyyaml_check_skipped_when_python3_absent" "not_found" "not_found"
+    else
+        assert_eq "test_pyyaml_check_skipped_when_python3_absent" "not_found" "found"
+    fi
+}
+
 # test_setup_is_still_idempotent_with_new_features: running twice produces same state
 test_setup_is_still_idempotent_with_new_features() {
     local T
@@ -432,6 +451,7 @@ test_setup_ci_yml_not_overwritten
 test_setup_outputs_env_var_guidance
 test_setup_outputs_success_summary
 test_setup_outputs_optional_dep_guidance
+test_pyyaml_check_skipped_when_python3_absent
 test_setup_is_still_idempotent_with_new_features
 
 print_summary

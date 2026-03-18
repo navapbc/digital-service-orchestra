@@ -127,7 +127,7 @@ fi
 if ! command -v acli >/dev/null 2>&1; then
     echo '[optional] acli not found. Install: brew install acli (enables Jira integration in DSO)'
 fi
-if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+if command -v python3 >/dev/null 2>&1 && ! python3 -c 'import yaml' >/dev/null 2>&1; then
     echo '[optional] PyYAML not found. Install: pip3 install pyyaml (enables legacy YAML config path)'
 fi
 

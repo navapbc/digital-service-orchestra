@@ -1,6 +1,6 @@
 ---
 id: dso-pmaj
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-18T04:49:51Z
