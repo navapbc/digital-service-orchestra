@@ -55,6 +55,19 @@ Load the epic:
 tk show <epic-id>
 ```
 
+### Step 1b: Select Escalation Policy (/dso:preplanning)
+
+Use `AskUserQuestion` to ask the user which escalation policy should apply to all stories in this epic. Skip this step in `--lightweight` mode.
+
+- **Question**: "Which escalation policy should agents apply when working on stories in this epic?"
+- **Header**: "Escalation"
+- **Options**:
+  1. **Autonomous** — Agents proceed with best judgment at all times. Reasonable assumptions are made and documented. No escalation for uncertainty.
+  2. **Escalate when blocked** — Agents proceed unless a significant assumption is required to continue — one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. All assumptions made without escalating are documented.
+  3. **Escalate unless confident** — Agents escalate whenever high confidence is absent. "High confidence" means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess.
+
+Store the selected policy label and its full text as `{escalation_policy_label}` and `{escalation_policy_text}` for use in Phase 4 Step 2.
+
 ### Lightweight Mode Gate (/dso:preplanning)
 
 If `--lightweight` was passed:
@@ -335,18 +348,20 @@ For each split:
 
 ### Step 1: Create/Modify Stories in Tickets (/dso:preplanning)
 
-For new stories, use `--parent` at creation time (single command — avoids the child not appearing under the epic if the update step is skipped):
+For new stories, use `--parent` at creation time to get the ID, then immediately write the full story body to the ticket file:
+
 ```bash
-tk create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id>
+# Step 1: create and capture ID
+STORY_ID=$(tk create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id>)
+
+# Step 2: write the full structured body to the ticket file
+# Use the Write or Edit tool to set the content below the frontmatter
+# Include: Description (what/why/scope), Done Definitions, Considerations, Escalation Policy
 ```
 
-For modified stories:
-```bash
-# Edit the ticket file directly to update title/description
-# Title is the first heading line; description is the DESCRIPTION section
-TICKET_FILE=$(find .tickets/ -name "*<existing-id>*" -print -quit)
-# Edit $TICKET_FILE to update title and description sections
-```
+Write the story body using the story structure defined in Step 2 below. The ticket file is `.tickets/<story-id>.md`. Preserve the YAML frontmatter (lines 1–N ending with `---`) and replace everything after it with the structured markdown body.
+
+For modified stories, edit `.tickets/<existing-id>.md` directly to update the title heading and body sections.
 
 For stories to delete:
 ```bash
@@ -416,6 +431,18 @@ Considerations:
 - [Testing] New LLM interaction — ensure mock-compatible interface
 - [Accessibility] New interactive page — WCAG 2.1 AA compliance required
 ```
+
+#### Escalation Policy
+
+Include the policy selected in Phase 1 Step 1b. Use the exact text for each label:
+
+| Label | Text to include verbatim |
+|-------|--------------------------|
+| Autonomous | **Escalation policy**: Proceed with best judgment. Make and document reasonable assumptions. Do not escalate for uncertainty — use your best assessment of the intent and move forward. |
+| Escalate when blocked | **Escalation policy**: Proceed unless a significant assumption is required to continue — one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating. |
+| Escalate unless confident | **Escalation policy**: Escalate to the user whenever you do not have high confidence in your understanding of the work, approach, or intent. "High confidence" means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess. |
+
+Omit this section entirely if the user selected **Autonomous** — the absence of a policy section signals unrestricted autonomy.
 
 #### Dependencies
 Add blocking relationships:
