@@ -1,6 +1,6 @@
 ---
 id: dso-hmb3
-status: open
+status: closed
 deps: []
 parent: dso-6524
 links: []

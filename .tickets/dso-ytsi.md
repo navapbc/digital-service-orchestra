@@ -1,6 +1,6 @@
 ---
 id: dso-ytsi
-status: open
+status: closed
 deps: [dso-9k0z, dso-cvx1, dso-63ez]
 links: []
 created: 2026-03-18T19:38:59Z
