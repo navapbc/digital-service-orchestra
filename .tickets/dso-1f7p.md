@@ -1,6 +1,6 @@
 ---
 id: dso-1f7p
-status: open
+status: closed
 deps: [dso-hmb3, dso-7idt]
 parent: dso-6524
 links: []
@@ -37,3 +37,10 @@ OUT: CLAUDE.md (covered in dso-zse0); plugin-internal docs that move with the pl
 
 Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions.
 
+
+<!-- note-id: 9fbte4ng -->
+<!-- timestamp: 2026-03-18T22:33:43Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: all bare scripts/, hooks/ path refs in plugins/dso/docs/ updated to plugins/dso/ prefix or .claude/scripts/dso shim form (commit 3ff022c)
