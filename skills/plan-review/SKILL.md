@@ -113,4 +113,4 @@ The `ExitPlanMode` hook checks for this file.
 
 ## Common Mistake: Do NOT Use Code Review for Plans
 
-`/review` reviews **completed code** (diffs, test coverage, bugs). It is wrong for plans. Use this skill (`/dso:plan-review`) for plans and designs. See CLAUDE.md rule 17 and the review routing table in "Always Do These".
+`/dso:review` reviews **completed code** (diffs, test coverage, bugs). It is wrong for plans. Use this skill (`/dso:plan-review`) for plans and designs. See CLAUDE.md rule 17 and the review routing table in "Always Do These".

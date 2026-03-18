@@ -1001,7 +1001,7 @@ Do NOT use `git push` directly — it only pushes the worktree branch and does n
 **After completion, continue with Step 11 below.** Do not stop here.
 
 > **CONTROL FLOW WARNING**: After the commit workflow and `merge-to-main.sh` complete, continue
-> IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/commit` Skill tool
+> IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/dso:commit` Skill tool
 > here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that
 > may not return control. If you find yourself waiting for user input after pushing, you are
 > experiencing a known control-flow regression (project-specific-bug-id). Type "continue"

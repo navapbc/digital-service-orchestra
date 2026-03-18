@@ -232,7 +232,7 @@ else
     echo "$NONCE" > "$REPO_ROOT/.checkpoint-needs-review"
 
     # Capture the index state of the sentinel BEFORE git add -A so we can
-    # restore a staged deletion (written by record-review.sh during /commit)
+    # restore a staged deletion (written by record-review.sh during /dso:commit)
     # that git add -A would otherwise silently un-stage.
     _SENTINEL_INDEX=$(git status --porcelain -- .checkpoint-needs-review 2>/dev/null | head -1)
 
@@ -242,7 +242,7 @@ else
 
     # Restore sentinel index state:
     if [[ "${_SENTINEL_INDEX:0:2}" == "D " ]]; then
-        # record-review.sh had staged a deletion — preserve it so /commit can commit it.
+        # record-review.sh had staged a deletion — preserve it so /dso:commit can commit it.
         # REVIEW-DEFENSE: git add -A above would re-stage the file from working tree,
         # un-doing the staged deletion. We must restore the deletion explicitly.
         git rm --cached .checkpoint-needs-review 2>/dev/null || true

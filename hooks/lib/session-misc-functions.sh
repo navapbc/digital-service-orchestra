@@ -451,7 +451,7 @@ hook_review_stop_check() {
         echo "There are **${TOTAL_CHANGED} changed file(s)** that have not been code-reviewed."
         echo ""
         echo "Before completing this task, follow the Task Completion Workflow:"
-        echo "  1. Run \`/review\` to review your changes"
+        echo "  1. Run \`/dso:review\` to review your changes"
         echo "  2. Fix any issues (scores must be >= 4)"
         echo "  3. Commit and push"
         echo "  4. Wait for CI to pass"
@@ -466,7 +466,7 @@ hook_review_stop_check() {
         echo ""
         echo "There are **${TOTAL_CHANGED} changed file(s)** and the last review **failed**."
         echo ""
-        echo "Fix review issues, re-run \`/review\`, then commit."
+        echo "Fix review issues, re-run \`/dso:review\`, then commit."
         echo ""
         return 0
     fi
@@ -475,7 +475,7 @@ hook_review_stop_check() {
     echo ""
     echo "There are **${TOTAL_CHANGED} changed file(s)** modified after the last review."
     echo ""
-    echo "Re-run \`/review\` before committing."
+    echo "Re-run \`/dso:review\` before committing."
     echo ""
     return 0
 }

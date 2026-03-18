@@ -77,7 +77,7 @@ STATUS:blocked QUESTIONS:[{"text":"What is the expected response format for the 
 - Do NOT: git commit, git push, tk close, tk status
 - You MAY use: tk create (with --acceptance, -d flags), tk dep (required for Step 5 dependency wiring), direct `.tickets/<id>.md` editing for post-creation updates
 - Do NOT use the Task tool to dispatch nested sub-agents. Skill tool invocations (e.g., /dso:review-protocol) ARE permitted.
-- Do NOT invoke `/commit`, `/review`, or any slash-command other than Skill tool invocations required by the implementation-plan steps
+- Do NOT invoke `/dso:commit`, `/dso:review`, or any slash-command other than Skill tool invocations required by the implementation-plan steps
 - Do NOT modify files outside the scope of task creation (no source code changes — this is planning only)
 - Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path.
 - Follow existing code patterns and naming conventions

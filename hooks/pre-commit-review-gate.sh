@@ -75,7 +75,7 @@ log_decision() {
 }
 
 # ── Helper: print actionable error message ───────────────────────────────────
-# Called before each exit 1; names the non-allowlisted files and directs to /commit or /review.
+# Called before each exit 1; names the non-allowlisted files and directs to /dso:commit or /dso:review.
 _print_block_error() {
     local reason="$1"
     echo "" >&2
@@ -88,7 +88,7 @@ _print_block_error() {
         echo "    - ${_f}" >&2
     done
     echo "" >&2
-    echo "  To unblock: run /commit or /review to perform a code review," >&2
+    echo "  To unblock: run /dso:commit or /dso:review to perform a code review," >&2
     echo "  then retry your commit." >&2
     echo "" >&2
 }

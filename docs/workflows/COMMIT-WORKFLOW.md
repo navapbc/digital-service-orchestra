@@ -74,7 +74,7 @@ git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && S
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-**Note on `.checkpoint-needs-review`**: This file is written when code is auto-committed during a context-compaction event. It signals that the code has never been reviewed. The only correct path through is to run `/commit` from the beginning — Steps 1-3a must execute so the review can read the sentinel nonce and delete the file. Skipping to Step 4 or later will cause the commit to be blocked; restart from Step 1.
+**Note on `.checkpoint-needs-review`**: This file is written when code is auto-committed during a context-compaction event. It signals that the code has never been reviewed. The only correct path through is to run `/dso:commit` from the beginning — Steps 1-3a must execute so the review can read the sentinel nonce and delete the file. Skipping to Step 4 or later will cause the commit to be blocked; restart from Step 1.
 
 ## Step 1: Test
 
@@ -327,7 +327,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3a-validation-state" >> "$ARTIFACTS_DI
 
 ## Step 3b: Version Bump
 
-> **Skip this step when executing COMMIT-WORKFLOW.md inline from within the `/sprint` skill.** The sprint skill manages version bumping separately — it calls `bump-version.sh --minor` at epic completion and coordinates increments across all stories. Running Step 3b during a sprint-orchestrated commit would produce duplicate or conflicting version increments. When this workflow is being executed as part of `/sprint` batch execution or epic completion, proceed directly to Step 4.
+> **Skip this step when executing COMMIT-WORKFLOW.md inline from within the `/dso:sprint` skill.** The sprint skill manages version bumping separately — it calls `bump-version.sh --minor` at epic completion and coordinates increments across all stories. Running Step 3b during a sprint-orchestrated commit would produce duplicate or conflicting version increments. When this workflow is being executed as part of `/dso:sprint` batch execution or epic completion, proceed directly to Step 4.
 
 Bump the patch version and stage the modified version file so it is included in the commit. This step runs after format/lint/type-check (Steps 2-3) so the version file write happens after all other file edits are complete.
 

@@ -1,16 +1,16 @@
 # Test-Failure Sub-Agent Strategy
 
-Design document for reusing and adapting `/debug-everything` debugging patterns
-in `/sprint` (post-batch) and `COMMIT-WORKFLOW.md` (commit-time) contexts.
+Design document for reusing and adapting `/dso:debug-everything` debugging patterns
+in `/dso:sprint` (post-batch) and `COMMIT-WORKFLOW.md` (commit-time) contexts.
 
 Parent epic: `lockpick-doc-to-logic-vs5gl` — Add automated test-failure debugging
-sub-agents to /sprint, /commit, and /debug-everything.
+sub-agents to /dso:sprint, /dso:commit, and /dso:debug-everything.
 
 ---
 
 ## Section 1: Existing Pattern Catalog
 
-The table below maps each existing `/debug-everything` pattern to a reuse decision
+The table below maps each existing `/dso:debug-everything` pattern to a reuse decision
 for the commit-time and sprint-time sub-agent protocols.
 
 | Pattern | Source File | Decision | Rationale |
@@ -22,7 +22,7 @@ for the commit-time and sprint-time sub-agent protocols.
 | Anti-patterns table | `fix-task-tdd.md` lines 73-81, `fix-task-mechanical.md` lines 49-57 | **Reuse** | The 7 anti-patterns (no `# type: ignore`, no `@pytest.mark.skip`, no scope creep, etc.) are universal. Include in every fix sub-agent prompt regardless of context. |
 | Two-file protocol (report on disk + compact summary) | `fix-task-tdd.md` lines 38-48, `diagnostic-and-cluster.md` lines 140-158 | **Adapt** | At commit-time, a single failure rarely produces enough output to justify disk I/O. Use the two-file protocol only when stderr exceeds 100 lines; otherwise inline the compact RESULT directly. Sprint-time should always use disk reports (batches produce verbose output). |
 | Model escalation (sonnet default, opus on retry) | `SKILL.md` Phase 5 "Escalation" (line 468) | **Reuse** | The pattern "try sonnet first, retry with opus on failure" applies everywhere. Commit-time starts with sonnet; sprint-time starts with sonnet; both escalate to opus if the first attempt returns FAIL. |
-| Subagent type selection table | `SKILL.md` Phase 5 lines 442-455 | **Adapt** | The 12-row table covers all `/debug-everything` tiers. Commit-time and sprint-time need a subset: unit-test failures use `unit-testing:debugger`, type errors use `debugging-toolkit:debugger`, lint uses `code-simplifier:code-simplifier`. Complex multi-file bugs escalate to `error-debugging:error-detective` with opus. |
+| Subagent type selection table | `SKILL.md` Phase 5 lines 442-455 | **Adapt** | The 12-row table covers all `/dso:debug-everything` tiers. Commit-time and sprint-time need a subset: unit-test failures use `unit-testing:debugger`, type errors use `debugging-toolkit:debugger`, lint uses `code-simplifier:code-simplifier`. Complex multi-file bugs escalate to `error-debugging:error-detective` with opus. |
 | Checkpoint protocol | `SKILL.md` Phase 6 Steps 1-6 | **Adapt** | Full checkpoint (verify, file-overlap, critic, validate, commit) is designed for multi-agent batches. Commit-time uses a single sub-agent, so skip file-overlap and critic review. Sprint-time already has Phase 6 Steps 3-10 for post-batch validation; the test-failure sub-agent slots into the existing failure-handling path (Step 9). |
 | Validation gate skip map | `diagnostic-and-cluster.md` lines 35-41 | **New** | Commit-time needs a lightweight variant: the caller already knows which test command failed and has stderr. No skip map needed — pass the failure directly. Sprint-time can reuse the skip map when re-validating after a fix. |
 
@@ -47,7 +47,7 @@ for the commit-time and sprint-time sub-agent protocols.
 | CI-only failure (passes locally, fails in CI) | `opus` | Environment-dependent failures require deeper reasoning about CI vs local differences (Docker, DB, env vars). |
 | Post-E2E failure (Step 0.5b) | `sonnet` | E2E failures are typically DOM/route-level; sonnet handles template + route fixes well. Escalate to opus if the failure spans multiple blueprints. |
 
-### /debug-everything
+### /dso:debug-everything
 
 No changes needed. The existing model selection table in `SKILL.md` Phase 5 (lines 442-455) already covers all tiers with appropriate model assignments. The escalation rule (line 468: "retry with opus before investigating manually") remains the fallback.
 
@@ -138,9 +138,9 @@ Parse RESULT line:
 
 ### Commit-Time vs Sprint-Time vs Project-Health
 
-| Dimension | Commit-Time | Sprint Post-Batch | Project-Health (/debug-everything) |
+| Dimension | Commit-Time | Sprint Post-Batch | Project-Health (/dso:debug-everything) |
 |-----------|------------|-------------------|-----------------------------------|
-| **Trigger** | `make test-unit-only` fails in COMMIT-WORKFLOW Step 1 | `validate-phase.sh post-batch` fails in Sprint Phase 6 Step 4 | Explicit `/debug-everything` invocation |
+| **Trigger** | `make test-unit-only` fails in COMMIT-WORKFLOW Step 1 | `validate-phase.sh post-batch` fails in Sprint Phase 6 Step 4 | Explicit `/dso:debug-everything` invocation |
 | **Typical failure count** | 1-2 tests | 1-10 tests across batch | 0-50+ across all categories |
 | **Failure source** | Current uncommitted changes | One or more sub-agents in the batch | Accumulated project-wide issues |
 | **Triage step** | None (failure is self-evident) | Minimal — identify which sub-agent broke what | Full diagnostic scan + clustering + issue creation |

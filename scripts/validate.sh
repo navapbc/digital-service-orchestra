@@ -612,7 +612,7 @@ cd "$APP_DIR"
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
-LAUNCHED_CHECKS="syntax format ruff mypy tests plugin migrate"
+LAUNCHED_CHECKS="syntax format ruff mypy tests plugin migrate skill-refs"
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
@@ -633,6 +633,7 @@ check_migrations &
 if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
     (cd "$REPO_ROOT" && run_check "script-writes" "$TIMEOUT_SYNTAX" python3 "$PLUGIN_SCRIPTS/check-script-writes.py" --scan-dir="$SCRIPT_WRITE_SCAN_DIR") &
 fi
+(cd "$REPO_ROOT" && run_check "skill-refs" "$TIMEOUT_SYNTAX" bash "$REPO_ROOT/scripts/check-skill-refs.sh") &
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
     # When CI definitively fails, start E2E immediately in parallel rather than
@@ -755,6 +756,7 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "tests" "tests" "$TIMEOUT_TESTS"
     report_check "plugin" "plugin" "$TIMEOUT_PLUGIN" "make -C $REPO_ROOT test-plugin"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
+    report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $REPO_ROOT/scripts/check-skill-refs.sh"
 else
     tally_check "syntax" "syntax"
     tally_check "format" "format"
@@ -763,6 +765,7 @@ else
     tally_check "tests" "tests"
     tally_check "plugin" "plugin"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
+    tally_check "skill-refs" "skill-refs"
 fi
 
 # Migration result

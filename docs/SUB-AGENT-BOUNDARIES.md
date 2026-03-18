@@ -7,7 +7,7 @@ Rules for all sub-agents dispatched by orchestrators (`/dso:sprint`, `/dso:debug
 Sub-agents must NOT:
 - `git commit`, `git push` — orchestrator handles all commits
 - `tk close`, `tk dep`, `tk status <id> <status>` — orchestrator manages issue lifecycle
-- Invoke `/commit`, `/review`, or any slash-command — sub-agents are workers, not orchestrators
+- Invoke `/dso:commit`, `/dso:review`, or any slash-command — sub-agents are workers, not orchestrators
 - Dispatch nested Task tool calls or code-review sub-agents
 - **NEVER set `isolation: "worktree"` on this sub-agent.** Code-review and fix-resolution
   sub-agents must share the orchestrator's working directory. Worktree isolation gives the

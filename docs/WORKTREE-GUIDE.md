@@ -562,7 +562,7 @@ Notes have unique IDs, `origin` tracking (`agent` or `jira`), ISO timestamps, an
 
 ## Merging a Worktree Branch to Main
 
-At the end of a worktree session, use `merge-to-main.sh` (not raw `git merge`) to merge the worktree branch into `main` and push. The `/end` skill calls this automatically.
+At the end of a worktree session, use `merge-to-main.sh` (not raw `git merge`) to merge the worktree branch into `main` and push. The `/dso:end` skill calls this automatically.
 
 ```bash
 # Standard usage (runs all phases sequentially)

@@ -103,7 +103,7 @@ Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask:
 
 Do NOT create tickets for neutral observations, design decisions, or already-fixed issues.
 
-If no learnings qualify, skip silently. Any tickets created here will be committed and merged as part of the normal `/end` flow in Steps 3–4.
+If no learnings qualify, skip silently. Any tickets created here will be committed and merged as part of the normal `/dso:end` flow in Steps 3–4.
 
 ### 2.9. Sweep Error Counters and Validation Failures (pre-commit)
 
@@ -121,7 +121,7 @@ sweep_validation_failures
 `sweep_validation_failures` reads `$ARTIFACTS_DIR/untracked-validation-failures.log`, extracts unique failure categories, deduplicates against existing open bug tickets, and creates a bug ticket for each untracked category. If the log file is absent or empty the step exits 0 silently.
 
 ### 3. Commit Local Changes
-1. Run `git status`. If changes exist: read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/commit` via Skill tool — orchestrators execute the workflow directly).
+1. Run `git status`. If changes exist: read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/dso:commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
 
 ### 3.25. Write Pre-Merge Sentinel (Disable Pre-Compact Checkpoint)
@@ -133,7 +133,7 @@ touch "$REPO_ROOT/.disable-precompact-checkpoint"
 
 This sentinel prevents `pre-compact-checkpoint.sh` from creating unmerged checkpoint commits during the post-merge window (the brief period between merge and worktree removal when a context compaction could fire).
 
-**Note**: The sentinel is session-scoped — it is safe to delete manually if `/end` is interrupted before the cleanup step runs (Step 4.75 handles cleanup automatically). It must NOT be committed to git (it is a transient flag file and is excluded by `.gitignore`).
+**Note**: The sentinel is session-scoped — it is safe to delete manually if `/dso:end` is interrupted before the cleanup step runs (Step 4.75 handles cleanup automatically). It must NOT be committed to git (it is a transient flag file and is excluded by `.gitignore`).
 
 ### 3.5. Visual Baseline Comparison
 

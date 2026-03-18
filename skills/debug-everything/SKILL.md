@@ -521,7 +521,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 3. Update the failure inventory with remaining errors
 4. **CONTEXT ANCHOR**: After the commit workflow completes, continue immediately at Step 5 below (Phase 4). Do NOT stop or wait for user input after committing.
 
-   Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/commit` Skill tool — nested skill invocations do not return control to the orchestrator.
+   Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/dso:commit` Skill tool — nested skill invocations do not return control to the orchestrator.
 5. Remaining ruff violations that couldn't be auto-fixed become sub-agent tasks in Phase 5
 
 ---
@@ -757,7 +757,7 @@ Parse the JSON output:
 
 **CONTEXT ANCHOR**: After the commit workflow completes, continue immediately at Step 7 (Discovery Collection) below. Do NOT stop or wait for user input after committing.
 
-Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/commit` Skill tool — nested skill invocations do not return control to the orchestrator, causing the debug-everything workflow to stall waiting for user input.
+Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline. Do NOT use the `/dso:commit` Skill tool — nested skill invocations do not return control to the orchestrator, causing the debug-everything workflow to stall waiting for user input.
 
 **Blackboard cleanup**: After the commit, run `write-blackboard.sh --clean` to remove the blackboard file:
 ```bash

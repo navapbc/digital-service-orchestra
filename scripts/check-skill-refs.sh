@@ -40,11 +40,13 @@ for _skill in $DSO_SKILLS; do
 done
 
 # Perl regex pattern (applied after URL stripping):
-#   (?<!dso:)/(<skill>)(?![a-zA-Z0-9_:-])
+#   (?<![a-zA-Z0-9_\/])(?<!dso:)/(<skill>)(?![a-zA-Z0-9_:-])
+# - (?<![a-zA-Z0-9_\/])  — not preceded by word char or slash (excludes filesystem paths)
+#                           Note: \/ escapes / so it doesn't terminate the // match operator
 # - (?<!dso:)             — not preceded by dso: (excludes /dso:sprint)
 # - (?![a-zA-Z0-9_:-])   — not followed by word chars/hyphen/colon (excludes /sprint-extra)
 # URLs are stripped via s|https?://\S+||g before pattern matching.
-_PERL_PATTERN="(?<!dso:)\\/($_skill_alternation)(?![a-zA-Z0-9_:-])"
+_PERL_PATTERN="(?<![a-zA-Z0-9_\\/])(?<!dso:)\\/($_skill_alternation)(?![a-zA-Z0-9_:-])"
 
 # ── Determine file set ────────────────────────────────────────────────────────
 _scan_targets=()

@@ -118,7 +118,7 @@ if [[ -n "$REPO_ROOT_CHECK" && -f "$REPO_ROOT_CHECK/.checkpoint-needs-review" ]]
     echo "# Unreviewed Checkpoint Detected"
     echo ""
     echo "A pre-compaction auto-save committed code without review."
-    echo "Run /commit (which includes /review) to review and clear the checkpoint before starting new work."
+    echo "Run /dso:commit (which includes /dso:review) to review and clear the checkpoint before starting new work."
     echo ""
 fi
 

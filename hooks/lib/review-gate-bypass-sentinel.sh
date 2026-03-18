@@ -54,7 +54,7 @@ hook_review_bypass_sentinel() {
 
     # --- Pattern a: --no-verify ---
     if [[ "$COMMAND" == *"--no-verify"* ]]; then
-        echo "BLOCKED [bypass-sentinel]: --no-verify flag detected. Use /commit instead." >&2
+        echo "BLOCKED [bypass-sentinel]: --no-verify flag detected. Use /dso:commit instead." >&2
         trap - ERR; return 2
     fi
 
@@ -64,27 +64,27 @@ hook_review_bypass_sentinel() {
     # and has -n as a standalone flag.
     if [[ "$COMMAND" =~ git[[:space:]]+(commit|[^[:space:]]*[[:space:]]+commit) ]]; then
         if [[ "$COMMAND" =~ (^|[[:space:]])-n([[:space:]]|$) ]]; then
-            echo "BLOCKED [bypass-sentinel]: -n flag (--no-verify shorthand) detected on git commit. Use /commit instead." >&2
+            echo "BLOCKED [bypass-sentinel]: -n flag (--no-verify shorthand) detected on git commit. Use /dso:commit instead." >&2
             trap - ERR; return 2
         fi
     fi
 
     # --- Pattern c: git -c core.hooksPath= ---
     if [[ "$COMMAND" == *"core.hooksPath="* ]]; then
-        echo "BLOCKED [bypass-sentinel]: core.hooksPath override detected. Use /commit instead." >&2
+        echo "BLOCKED [bypass-sentinel]: core.hooksPath override detected. Use /dso:commit instead." >&2
         trap - ERR; return 2
     fi
 
     # --- Pattern d: git commit-tree ---
     if [[ "$COMMAND" =~ git[[:space:]]+commit-tree ]]; then
-        echo "BLOCKED [bypass-sentinel]: git commit-tree (low-level plumbing) detected. Use /commit instead." >&2
+        echo "BLOCKED [bypass-sentinel]: git commit-tree (low-level plumbing) detected. Use /dso:commit instead." >&2
         trap - ERR; return 2
     fi
 
     # --- Pattern e: git update-ref (unless in merge-to-main.sh) ---
     if [[ "$COMMAND" =~ git[[:space:]]+update-ref ]]; then
         if [[ "$COMMAND" != *"merge-to-main.sh"* ]]; then
-            echo "BLOCKED [bypass-sentinel]: git update-ref detected. Use /commit instead." >&2
+            echo "BLOCKED [bypass-sentinel]: git update-ref detected. Use /dso:commit instead." >&2
             trap - ERR; return 2
         fi
     fi
@@ -97,7 +97,7 @@ hook_review_bypass_sentinel() {
         if [[ "$COMMAND" =~ (\>|tee)[[:space:]]*[^[:space:]]*\.git/hooks/ ]] || \
            [[ "$COMMAND" =~ (cp|mv|chmod|install)[[:space:]].*\.git/hooks/ ]] || \
            [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>[[:space:]]*[^[:space:]]*\.git/hooks/ ]]; then
-            echo "BLOCKED [bypass-sentinel]: write to .git/hooks/ detected. Use /commit instead." >&2
+            echo "BLOCKED [bypass-sentinel]: write to .git/hooks/ detected. Use /dso:commit instead." >&2
             trap - ERR; return 2
         fi
     fi

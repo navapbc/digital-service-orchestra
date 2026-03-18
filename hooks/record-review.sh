@@ -2,7 +2,7 @@
 # hooks/record-review.sh
 # Utility: records that a code review passed for the current working tree state.
 #
-# Called after a successful /review run. Reads scores, findings, and summary
+# Called after a successful /dso:review run. Reads scores, findings, and summary
 # directly from reviewer-findings.json (written by the code-reviewer sub-agent
 # via write-reviewer-findings.sh). This ensures that only genuine sub-agent
 # reviews can produce a valid review state — no orchestrator-constructed JSON
@@ -107,7 +107,7 @@ if [[ ! -f "$FINDINGS_FILE" ]]; then
     echo "  Expected at: $FINDINGS_FILE" >&2
     echo "" >&2
     echo "The code-reviewer sub-agent writes this file via write-reviewer-findings.sh." >&2
-    echo "Run /review to dispatch a sub-agent review." >&2
+    echo "Run /dso:review to dispatch a sub-agent review." >&2
     exit 1
 fi
 
@@ -309,7 +309,7 @@ if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
         echo "  Expected: ${EXPECTED_HASH:0:12}..." >&2
         echo "  Current:  ${DIFF_HASH:0:12}..." >&2
         echo "" >&2
-        echo "Do NOT re-record. Fix the issue and re-run /review from the start." >&2
+        echo "Do NOT re-record. Fix the issue and re-run /dso:review from the start." >&2
 
         # Write diagnostic dump (same format as hook_review_gate in pre-bash-functions.sh)
         _DIAG_FILE="$ARTIFACTS_DIR/mismatch-diagnostics-$(date -u +%Y%m%dT%H%M%SZ).log"

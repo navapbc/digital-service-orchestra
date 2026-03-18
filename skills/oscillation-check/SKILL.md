@@ -12,7 +12,7 @@ iteration -- preventing infinite fix-revert-fix loops.
 ## When to Use
 
 Invoke as a sub-agent from:
-- **CLAUDE.md review loop**: Before implementing `/review` feedback on iteration 2+
+- **CLAUDE.md review loop**: Before implementing `/dso:review` feedback on iteration 2+
 - **`/dso:sprint` Phase 8**: Before creating remediation tasks from re-validation
 - **`/dso:debug-everything` Phase 6.1b**: Before retrying a fix after critic CONCERN
 
@@ -80,8 +80,8 @@ Recommendation: Stop loop. Present both positions to user.
 
 | Context | Max Iterations | On Limit |
 |---------|---------------|----------|
-| `/review` autonomous loop | 2 attempts | Escalate to user (findings + actions taken) |
-| `/review` total (with user) | 5 | Stop, report to user |
+| `/dso:review` autonomous loop | 2 attempts | Escalate to user (findings + actions taken) |
+| `/dso:review` total (with user) | 5 | Stop, report to user |
 | `/dso:debug-everything` critic | 2 revert cycles per issue | Escalate to user |
 | `/dso:sprint` remediation | 2 loops | Flag to user |
 
