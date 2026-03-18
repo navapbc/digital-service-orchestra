@@ -121,6 +121,13 @@
     "title": "Separate DSO plugin from DSO project",
     "type": "epic"
   },
+  "dso-7h4i": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: guard PyYAML check in dso-setup.sh against missing python3",
+    "type": "bug"
+  },
   "dso-8g5p": {
     "deps": [],
     "priority": 2,
@@ -232,6 +239,13 @@
     "status": "open",
     "title": "Don't merge to main between batches",
     "type": "epic"
+  },
+  "dso-j48b": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: add clarifying parenthetical for /dso:init in INSTALL.md Step 5",
+    "type": "bug"
   },
   "dso-jl2z": {
     "deps": [

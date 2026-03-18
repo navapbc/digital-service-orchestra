@@ -44,19 +44,21 @@ This script:
 The `dso.plugin_root` key tells the shim where the plugin lives when `CLAUDE_PLUGIN_ROOT` is not set as an
 environment variable. See [dso.plugin_root in the Configuration Reference](CONFIGURATION-REFERENCE.md#dsoplugin_root).
 
-### Step 3 — Copy example configuration files
+### Step 3 — Customize configuration files
 
-Copy the pre-commit config and workflow-config.conf template (skip any that already exist):
+`dso-setup.sh` (Step 2) already copies default `.pre-commit-config.yaml` and `.github/workflows/ci.yml`
+into your project if they don't exist. This step is about reviewing and customizing them.
+
+If you ran a manual install (without `dso-setup.sh`), copy the defaults first:
 
 ```bash
-# Pre-commit hook configuration (skip if .pre-commit-config.yaml already exists)
-cp $CLAUDE_PLUGIN_ROOT/examples/pre-commit-config.example.yaml .pre-commit-config.yaml
+# Pre-commit hook configuration (if not already present)
+cp "$CLAUDE_PLUGIN_ROOT/examples/pre-commit-config.example.yaml" .pre-commit-config.yaml
 
-# Workflow config (skip if workflow-config.conf already exists)
-cp $CLAUDE_PLUGIN_ROOT/docs/workflow-config.example.conf workflow-config.conf
+# CI workflow (if not already present)
+mkdir -p .github/workflows
+cp "$CLAUDE_PLUGIN_ROOT/examples/ci.example.yml" .github/workflows/ci.yml
 ```
-
-If `CLAUDE_PLUGIN_ROOT` is not set, replace it with the absolute path to the plugin directory.
 
 Edit `workflow-config.conf` to match your project. All keys are optional except `version` — omitted
 keys fall back to stack-detected defaults. See [Configuration Reference](CONFIGURATION-REFERENCE.md).

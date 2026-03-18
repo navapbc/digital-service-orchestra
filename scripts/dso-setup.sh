@@ -134,7 +134,7 @@ fi
 
 # ── Environment variable guidance ─────────────────────────────────────────────
 echo '=== Environment Variables (add to your shell profile) ==='
-echo 'CLAUDE_PLUGIN_ROOT=  # Required: DSO plugin path'
+echo 'CLAUDE_PLUGIN_ROOT=  # Optional: overrides dso.plugin_root from workflow-config.conf'
 echo 'JIRA_URL=https://your-org.atlassian.net  # Required for Jira sync'
 echo 'JIRA_USER=you@example.com  # Required for Jira sync'
 echo 'JIRA_API_TOKEN=...  # Required for Jira sync'
