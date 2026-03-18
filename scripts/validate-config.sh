@@ -123,6 +123,13 @@ KNOWN_KEYS=(
 
     # Checkpoint
     checkpoint.marker_file
+    checkpoint.commit_label
+
+    # DSO plugin self-reference (plugin repo only)
+    dso.plugin_root
+
+    # Version
+    version.file_path
 
     # Tickets
     tickets.prefix

@@ -128,8 +128,8 @@ assert_eq "test_inline_values_with_equals" "a=b=c" "$actual"
 assert_pass_if_clean "test_inline_values_with_equals"
 
 # ── test_no_yaml_fallback ─────────────────────────────────────────────────────
-# When .conf not found and only .yaml exists, script exits 0 with empty output.
-# (YAML support has been removed — .yaml files are no longer read.)
+# When the specified config file does not exist, script exits 0 with empty output.
+# (YAML support has been removed — .yaml files are no longer read as default config.)
 _snapshot_fail
 FALLBACK_DIR="$TMPDIR_FIXTURE/fallback"
 mkdir -p "$FALLBACK_DIR"
@@ -137,7 +137,8 @@ cat > "$FALLBACK_DIR/workflow-config.yaml" <<'YAML'
 commands:
   test: "make test"
 YAML
-actual=$(CLAUDE_PLUGIN_ROOT="$FALLBACK_DIR" bash "$SCRIPT" commands.test)
+# Point WORKFLOW_CONFIG_FILE at the .conf path (which doesn't exist — only .yaml does).
+actual=$(WORKFLOW_CONFIG_FILE="$FALLBACK_DIR/workflow-config.conf" bash "$SCRIPT" commands.test)
 rc=$?
 assert_eq "test_no_yaml_fallback value" "" "$actual"
 assert_eq "test_no_yaml_fallback exit" "0" "$rc"
@@ -151,7 +152,7 @@ mkdir -p "$CONF_DIR"
 cat > "$CONF_DIR/workflow-config.conf" <<'CONF'
 commands.test=make test-from-conf
 CONF
-actual=$(CLAUDE_PLUGIN_ROOT="$CONF_DIR" bash "$SCRIPT" commands.test)
+actual=$(WORKFLOW_CONFIG_FILE="$CONF_DIR/workflow-config.conf" bash "$SCRIPT" commands.test)
 assert_eq "test_conf_is_sole_format" "make test-from-conf" "$actual"
 assert_pass_if_clean "test_conf_is_sole_format"
 

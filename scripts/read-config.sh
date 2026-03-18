@@ -34,13 +34,18 @@ else
 fi
 
 # Resolve config file when not specified (.conf only)
-# workflow-config.conf is a project-level file at the git repo root, not a plugin file.
+# WORKFLOW_CONFIG_FILE may be set by tests for isolation (points to a fixture .conf directly).
+# Otherwise fall back to the git repo root's workflow-config.conf.
 if [[ -z "$config_file" ]]; then
-    _git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-    if [[ -n "$_git_root" && -f "$_git_root/workflow-config.conf" ]]; then
-        config_file="$_git_root/workflow-config.conf"
+    if [[ -n "${WORKFLOW_CONFIG_FILE:-}" ]]; then
+        config_file="${WORKFLOW_CONFIG_FILE}"
     else
-        exit 0
+        _git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+        if [[ -n "$_git_root" && -f "$_git_root/workflow-config.conf" ]]; then
+            config_file="$_git_root/workflow-config.conf"
+        else
+            exit 0
+        fi
     fi
 fi
 # Missing file: exit 0 (graceful degradation)

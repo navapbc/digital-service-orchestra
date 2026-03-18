@@ -162,15 +162,16 @@ _snapshot_fail
 
 plugin_scripts="$PLUGIN_ROOT/scripts"
 
-# Create a temp directory with our fixture config so CLAUDE_PLUGIN_ROOT resolution works
+# Create a temp file with our fixture config for WORKFLOW_CONFIG_FILE isolation
 _skill_tmpdir="$(mktemp -d)"
 _CLEANUP_DIRS+=("$_skill_tmpdir")
 cp "$REAL_CONF" "$_skill_tmpdir/workflow-config.conf"
+_fixture_conf="$_skill_tmpdir/workflow-config.conf"
 
 # Test the pattern that skills use: PLUGIN_SCRIPTS + read-config.sh + key
 value=$(
     PLUGIN_SCRIPTS="$plugin_scripts" \
-    CLAUDE_PLUGIN_ROOT="$_skill_tmpdir" \
+    WORKFLOW_CONFIG_FILE="$_fixture_conf" \
     bash "$plugin_scripts/read-config.sh" commands.test
 )
 rc=$?
@@ -181,7 +182,7 @@ assert_eq "test_skill_config_resolution value" "make test" "$value"
 # Also test a nested key to verify dot-notation works end-to-end
 value2=$(
     PLUGIN_SCRIPTS="$plugin_scripts" \
-    CLAUDE_PLUGIN_ROOT="$_skill_tmpdir" \
+    WORKFLOW_CONFIG_FILE="$_fixture_conf" \
     bash "$plugin_scripts/read-config.sh" tickets.sync.jira_project_key
 )
 rc2=$?
