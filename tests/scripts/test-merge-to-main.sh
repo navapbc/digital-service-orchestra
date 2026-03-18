@@ -440,9 +440,9 @@ assert_ne "test_sigurg_handler_uses_explicit_exit" "0" "$_SIGURG_HAS_EXIT"
 # =============================================================================
 
 # =============================================================================
-# Test: All 7 phase functions exist in merge-to-main.sh
+# Test: All 6 phase functions exist in merge-to-main.sh
 # =============================================================================
-_PHASE_FNS="_phase_sync _phase_checkpoint_verify _phase_merge _phase_validate _phase_push _phase_archive _phase_ci_trigger"
+_PHASE_FNS="_phase_sync _phase_merge _phase_validate _phase_push _phase_archive _phase_ci_trigger"
 for _fn in $_PHASE_FNS; do
     _FN_FOUND=$(grep -c "^${_fn}()" "$MERGE_SCRIPT" || true)
     assert_ne "test_phase_functions_exist_${_fn}" "0" "$_FN_FOUND"

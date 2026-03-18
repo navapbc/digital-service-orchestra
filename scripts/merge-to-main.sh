@@ -21,7 +21,7 @@ for _arg in "$@"; do
 Usage: merge-to-main.sh [--phase=<name>|--resume|--help]
 
   --phase=<name>  Run a single named phase and exit. Valid phase names:
-                    checkpoint_verify  sync  merge  validate  push  archive  ci_trigger
+                    sync  merge  validate  push  archive  ci_trigger
   --resume        Resume from last incomplete phase. On merge failure, squash-rebase
                   recovery runs automatically before retrying (up to 5 retries).
   --help          Print this usage message and exit.
@@ -670,52 +670,6 @@ trap '_sigurg_handler' URG
 # Phase functions — each wraps a sequential phase with state recording
 # =============================================================================
 
-# --- 1.7) Verify checkpoint review sentinel ---
-_phase_checkpoint_verify() {
-    _CURRENT_PHASE="checkpoint_verify"
-    _state_write_phase "checkpoint_verify"
-
-    # Run BEFORE the sync (step 1.5) so that compaction events or fetch operations
-    # during the sync cannot introduce new checkpoint commits that postdate the last
-    # deletion and cause a false positive.
-    #
-    # If any commit in this worktree branch added or modified .checkpoint-needs-review
-    # (written by pre-compact-checkpoint.sh during compaction), verify that a subsequent
-    # commit DELETED the sentinel — proving it was cleared via /review + /commit.
-    #
-    # On multi-session branches the sentinel may be added, cleared, and re-added multiple
-    # times; we only require that the most recent ADD/MODIFY is an ancestor of the most
-    # recent DELETE — meaning every checkpoint was ultimately reviewed before merge.
-    #
-    # Uses HEAD as the upper bound (not origin/main) because origin/main has not been
-    # fetched yet at this point — the pre-sync HEAD is the stable reference.
-    _PRESYNC_HEAD=$(git rev-parse HEAD)
-    _PRESYNC_MERGE_BASE=$(git merge-base HEAD origin/main 2>/dev/null || echo "")
-    _SENTINEL_RANGE="${_PRESYNC_MERGE_BASE:+${_PRESYNC_MERGE_BASE}..}${_PRESYNC_HEAD}"
-    _LAST_CHECKPOINT_ADD=$(git log "$_SENTINEL_RANGE" --diff-filter=AM --format="%H" -- .checkpoint-needs-review 2>/dev/null | head -1 || true)
-    if [[ -n "$_LAST_CHECKPOINT_ADD" ]]; then
-        _LAST_CHECKPOINT_DEL=$(git log "$_SENTINEL_RANGE" --diff-filter=D --format="%H" -- .checkpoint-needs-review 2>/dev/null | head -1 || true)
-        if [[ -z "$_LAST_CHECKPOINT_DEL" ]]; then
-            echo "ERROR: Unreviewed checkpoint commit detected."
-            echo "  A pre-compaction auto-save exists but the sentinel was never deleted."
-            echo "  Run /commit (which includes /review) to review and clear the sentinel."
-            echo "  Checkpoint commit: ${_LAST_CHECKPOINT_ADD:0:12}"
-            exit 1
-        fi
-        # Verify the deletion is a descendant of the last addition (deletion came after add).
-        if ! git merge-base --is-ancestor "$_LAST_CHECKPOINT_ADD" "$_LAST_CHECKPOINT_DEL" 2>/dev/null; then
-            echo "ERROR: Unreviewed checkpoint commit detected."
-            echo "  A checkpoint was added after the last sentinel deletion."
-            echo "  Run /commit (which includes /review) to review and clear the sentinel."
-            echo "  Checkpoint commit: ${_LAST_CHECKPOINT_ADD:0:12}"
-            exit 1
-        fi
-        echo "OK: Checkpoint sentinel was cleared (deletion at ${_LAST_CHECKPOINT_DEL:0:12} follows last add at ${_LAST_CHECKPOINT_ADD:0:12})."
-    fi
-
-    _state_mark_complete "checkpoint_verify"
-}
-
 # --- 1.5) Sync worktree with main ---
 _phase_sync() {
     _CURRENT_PHASE="sync"
@@ -1050,7 +1004,7 @@ _phase_ci_trigger() {
 # =============================================================================
 
 # Ordered list of all phase names (used by --resume to find next incomplete phase)
-_ALL_PHASES=(checkpoint_verify sync merge validate push archive ci_trigger)
+_ALL_PHASES=(sync merge validate push archive ci_trigger)
 
 # --- Parse CLI arguments ---
 _CLI_PHASE=""
@@ -1154,7 +1108,6 @@ if [[ $# -eq 0 ]]; then
          "or --resume to continue from the last incomplete phase." >&2
 fi
 
-_phase_checkpoint_verify
 _phase_sync
 _phase_merge
 _phase_validate

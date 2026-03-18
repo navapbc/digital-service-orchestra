@@ -242,7 +242,7 @@ trap 'rm -rf "$_T1_TMP" "$_T2_TMP" "$_T3_TMP" "$_T4_TMP" "$_T5_TMP" "$_T6_TMP"' 
 _T6_SF="$_T6_TMP/state.json"
 python3 -c "
 import json
-d = {'branch': 'test-branch', 'merge_sha': '', 'completed_phases': ['checkpoint_verify','sync','merge','validate','push','archive','ci_trigger'], 'current_phase': 'ci_trigger', 'phases': {}, 'retry_count': 2}
+d = {'branch': 'test-branch', 'merge_sha': '', 'completed_phases': ['sync','merge','validate','push','archive','ci_trigger'], 'current_phase': 'ci_trigger', 'phases': {}, 'retry_count': 2}
 with open('$_T6_SF', 'w') as f:
     json.dump(d, f)
 "

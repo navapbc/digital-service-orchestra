@@ -15,14 +15,11 @@ set -uo pipefail
 # --fix mode repairs:
 #   - Resets cascade counter to 0
 #   - Removes orphaned test-status/*.status files (dead PIDs)
-#   - Removes .checkpoint-pending-rollback and .checkpoint-needs-review if present
 #
 # State files scanned:
 #   $ARTIFACTS_DIR/review-status
 #   $ARTIFACTS_DIR/test-status/*.status
 #   /tmp/claude-cascade-<worktree-hash>/counter
-#   $REPO_ROOT/.checkpoint-pending-rollback
-#   $REPO_ROOT/.checkpoint-needs-review
 #
 # Exit codes:
 #   0  Always (non-blocking diagnostic)
@@ -178,24 +175,6 @@ if [[ -n "$REPO_ROOT" ]]; then
         _append_entry "$COUNTER_FILE" "$status" "$age" "$counter_val"
     fi
 fi
-
-# ── Scan: checkpoint markers ──────────────────────────────────────────────────
-for marker in ".checkpoint-pending-rollback" ".checkpoint-needs-review"; do
-    marker_path="${REPO_ROOT:-/tmp}/${marker}"
-    if [[ -f "$marker_path" ]]; then
-        mtime=$(_file_mtime "$marker_path")
-        age=$(( NOW - mtime ))
-        content=$(cat "$marker_path" 2>/dev/null || echo "")
-
-        status="orphaned"
-
-        if [[ "$FIX_MODE" == "true" ]]; then
-            rm -f "$marker_path"
-        fi
-
-        _append_entry "$marker_path" "$status" "$age" "$content"
-    fi
-done
 
 # ── Emit JSON report ──────────────────────────────────────────────────────────
 python3 -c "

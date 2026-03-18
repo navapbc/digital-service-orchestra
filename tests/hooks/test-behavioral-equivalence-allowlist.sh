@@ -11,7 +11,6 @@
 # Tests:
 #   test_tickets_non_reviewable_both_consumers
 #   test_sync_state_non_reviewable_both_consumers
-#   test_checkpoint_sentinel_non_reviewable_both_consumers
 #   test_images_non_reviewable_both_consumers
 #   test_binary_docs_non_reviewable_both_consumers
 #   test_docs_non_reviewable_both_consumers
@@ -135,30 +134,6 @@ test_sync_state_non_reviewable_both_consumers() {
     assert_eq "sync-state: compute-diff-hash excludes file" "0" "$hash_rc"
 
     assert_eq "sync-state: both consumers agree (non-reviewable)" "$skip_rc" "$hash_rc"
-}
-
-# ============================================================
-# Pattern group 3: .checkpoint-needs-review
-# NOTE: skip-review-check has a special override that makes
-# .checkpoint-needs-review REQUIRE review (exit 1), while
-# compute-diff-hash excludes it from the hash. This is by design:
-# the checkpoint sentinel triggers review but doesn't affect the hash.
-# We test that compute-diff-hash excludes it (the allowlist behavior).
-# ============================================================
-test_checkpoint_sentinel_non_reviewable_both_consumers() {
-    local file=".checkpoint-needs-review"
-
-    # compute-diff-hash should exclude this file (per allowlist)
-    local hash_rc=0
-    compute_diff_hash_excludes_file "$file" || hash_rc=$?
-    assert_eq "checkpoint-sentinel: compute-diff-hash excludes file" "0" "$hash_rc"
-
-    # skip-review-check has a special override: .checkpoint-needs-review always requires review
-    # This is intentional behavior (see skip-review-check.sh line 87-89).
-    # We verify the override exists and works as expected.
-    local skip_rc=0
-    skip_review_classifies_non_reviewable "$file" || skip_rc=$?
-    assert_eq "checkpoint-sentinel: skip-review-check forces review (special override)" "1" "$skip_rc"
 }
 
 # ============================================================
@@ -304,7 +279,6 @@ test_javascript_file_reviewable_both_consumers() {
 # --- Run all tests ---
 test_tickets_non_reviewable_both_consumers
 test_sync_state_non_reviewable_both_consumers
-test_checkpoint_sentinel_non_reviewable_both_consumers
 test_images_non_reviewable_both_consumers
 test_binary_docs_non_reviewable_both_consumers
 test_docs_non_reviewable_both_consumers

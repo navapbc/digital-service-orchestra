@@ -258,42 +258,6 @@ fi
 
 assert_pass_if_clean "--fix removes orphaned test-status files"
 
-# ── Test: --fix clears orphaned checkpoint markers ────────────────────────────
-echo ""
-echo "--- --fix clears checkpoint markers ---"
-_snapshot_fail
-
-# Create fake checkpoint markers in a test repo root dir
-FAKE_REPO="$TMPDIR_TEST/repo-chk"
-mkdir -p "$FAKE_REPO"
-# Initialize a bare git repo so we can check commit presence
-touch "$FAKE_REPO/.checkpoint-pending-rollback"
-touch "$FAKE_REPO/.checkpoint-needs-review"
-
-ARTIFACTS8="$TMPDIR_TEST/artifacts8"
-mkdir -p "$ARTIFACTS8"
-
-WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS8" REPO_ROOT="$FAKE_REPO" \
-    bash "$HEALTH_CHECK" --fix >/dev/null 2>&1
-
-if [[ ! -f "$FAKE_REPO/.checkpoint-pending-rollback" ]]; then
-    (( ++PASS ))
-    echo "--fix removed .checkpoint-pending-rollback ... PASS"
-else
-    (( ++FAIL ))
-    echo "FAIL: --fix did not remove .checkpoint-pending-rollback" >&2
-fi
-
-if [[ ! -f "$FAKE_REPO/.checkpoint-needs-review" ]]; then
-    (( ++PASS ))
-    echo "--fix removed .checkpoint-needs-review ... PASS"
-else
-    (( ++FAIL ))
-    echo "FAIL: --fix did not remove .checkpoint-needs-review" >&2
-fi
-
-assert_pass_if_clean "--fix clears checkpoint markers"
-
 # ── Test: --fix does not modify code files ────────────────────────────────────
 echo ""
 echo "--- --fix only modifies hook-managed files ---"
@@ -316,24 +280,6 @@ CONTENT_AFTER=$(cat "$CODE_FILE" 2>/dev/null || echo "MISSING")
 assert_eq "--fix does not modify code files" "$ORIGINAL_CONTENT" "$CONTENT_AFTER"
 
 assert_pass_if_clean "--fix only modifies hook-managed files"
-
-# ── Test: checkpoint markers detected in report ───────────────────────────────
-echo ""
-echo "--- checkpoint markers reported ---"
-_snapshot_fail
-
-ARTIFACTS10="$TMPDIR_TEST/artifacts10"
-mkdir -p "$ARTIFACTS10"
-FAKE_REPO3="$TMPDIR_TEST/repo-marker"
-mkdir -p "$FAKE_REPO3"
-touch "$FAKE_REPO3/.checkpoint-pending-rollback"
-
-OUTPUT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS10" REPO_ROOT="$FAKE_REPO3" \
-    bash "$HEALTH_CHECK" 2>/dev/null)
-
-assert_contains "checkpoint-pending-rollback in report" "checkpoint-pending-rollback" "$OUTPUT"
-
-assert_pass_if_clean "checkpoint markers reported"
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 print_summary

@@ -113,10 +113,6 @@ result=$(run_guard "$_dir6" 'git commit -m "wip save"')
 assert_eq "wip (lowercase) commit with FAILED → exempt" "0" "$result"
 result=$(run_guard "$_dir6" 'git merge feature-branch --no-edit')
 assert_eq "git merge with FAILED → exempt" "0" "$result"
-result=$(run_guard "$_dir6" 'git commit -m "pre-compact checkpoint"')
-assert_eq "pre-compact commit with FAILED → exempt" "0" "$result"
-result=$(run_guard "$_dir6" 'git commit -m "checkpoint save"')
-assert_eq "checkpoint commit with FAILED → exempt" "0" "$result"
 rm -rf "$_dir6"
 
 # ============================================================

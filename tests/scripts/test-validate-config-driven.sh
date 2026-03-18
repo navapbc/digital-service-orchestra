@@ -102,4 +102,28 @@ assert_eq "no hardcoded app dir check" "" "$hardcoded_app_check"
 
 assert_pass_if_clean "test_app_dir_uses_config"
 
+# ── test_workflow_config_has_all_validate_keys ────────────────────────────
+# The real workflow-config.conf must define all command keys that validate.sh
+# reads, so running validate.sh from the DSO repo root works without make.
+_snapshot_fail
+
+REAL_CONFIG="$PLUGIN_ROOT/workflow-config.conf"
+
+for key in commands.syntax_check commands.lint_ruff commands.lint_mypy commands.test_plugin; do
+    found=$(grep -c "^${key}=" "$REAL_CONFIG" || true)
+    assert_ne "workflow-config.conf has key $key" "0" "$found"
+done
+
+assert_pass_if_clean "test_workflow_config_has_all_validate_keys"
+
+# ── test_workflow_config_has_paths_app_dir ────────────────────────────────
+# workflow-config.conf must define paths.app_dir so validate.sh does not
+# default to "app" (which does not exist in the DSO plugin repo).
+_snapshot_fail
+
+found=$(grep -c "^paths\.app_dir=" "$REAL_CONFIG" || true)
+assert_ne "workflow-config.conf has paths.app_dir" "0" "$found"
+
+assert_pass_if_clean "test_workflow_config_has_paths_app_dir"
+
 print_summary

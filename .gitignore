@@ -22,9 +22,6 @@ node_modules/
 # Project-specific config (created from docs/workflow-config.example.conf)
 workflow-config.conf
 
-# Checkpoint marker — written by pre-compact-checkpoint.sh, cleaned after merge/review
-.checkpoint-pending-rollback
-
 # macOS
 .DS_Store
 

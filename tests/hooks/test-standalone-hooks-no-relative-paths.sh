@@ -21,7 +21,6 @@ echo "=== Test: standalone hooks use CLAUDE_PLUGIN_ROOT (no excess ../ refs) ===
 STANDALONE_HOOKS=(
     "auto-format.sh"
     "compute-diff-hash.sh"
-    "pre-compact-checkpoint.sh"
     "write-reviewer-findings.sh"
 )
 
