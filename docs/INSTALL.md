@@ -155,9 +155,8 @@ brew install acli
 
 ### PyYAML
 
-PyYAML is only required if your project uses the legacy YAML config format
-(`workflow-config.yaml`). The recommended format is the flat KEY=VALUE `workflow-config.conf`
-which has no Python dependency beyond stdlib.
+PyYAML is only required if your project uses the legacy YAML config format (`workflow-config.yaml`);
+the recommended `workflow-config.conf` format (flat KEY=VALUE) has no Python dependency beyond stdlib.
 
 Install if needed:
 ```bash
@@ -168,7 +167,7 @@ pip3 install PyYAML
 
 ---
 
-## Optional Agent Plugins
+## Optional Plugins — Agent Enhancements
 
 DSO works standalone with `general-purpose` agents for all task categories. Installing optional
 Claude Code plugins adds specialized agents that are automatically discovered:

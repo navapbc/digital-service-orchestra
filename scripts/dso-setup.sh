@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -eu
 # scripts/dso-setup.sh
 # Install the DSO shim into a host project's .claude/scripts/ directory.
 #
@@ -7,8 +8,6 @@
 #   PLUGIN_ROOT: plugin directory; defaults to parent of this script's directory
 #
 # Exit codes: 0=success, 1=fatal error (abort setup), 2=warnings-only (continue with caution)
-
-set -eu
 
 # ── Prerequisite detection ────────────────────────────────────────────────────
 # Prints warnings/errors to stderr. Exits 1 on fatal errors. Returns the number

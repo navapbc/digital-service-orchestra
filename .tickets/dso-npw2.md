@@ -1,6 +1,6 @@
 ---
 id: dso-npw2
-status: in_progress
+status: closed
 deps: [dso-xtcg]
 links: []
 created: 2026-03-18T04:37:05Z
