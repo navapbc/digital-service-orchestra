@@ -1,6 +1,6 @@
 ---
 id: dso-a5aa
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T23:14:39Z
@@ -48,3 +48,19 @@ Files: plugins/dso/hooks/lib/session-misc-functions.sh, tests/hooks/test-nohup-c
 ## File Impact
 - `plugins/dso/hooks/lib/session-misc-functions.sh` - Remove dead 'timeout.*make.*test-plugin' pattern from hook_cleanup_orphaned_processes PATTERNS array
 - `tests/hooks/test-nohup-cleanup.sh` - Update fixture from 'make test-plugin' to 'make test-e2e', add new test_no_test_plugin_orphan_pattern test assertion
+
+## Notes
+
+<!-- note-id: lvkbd0qs -->
+<!-- timestamp: 2026-03-18T23:39:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/hooks/lib/session-misc-functions.sh, tests/hooks/test-nohup-cleanup.sh. Tests: pass (53/53). Review: pass (score=5). Merged to main: 50173f6.
+
+<!-- note-id: enf8ni83 -->
+<!-- timestamp: 2026-03-18T23:39:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: removed dead test-plugin orphan pattern from session-misc-functions.sh PATTERNS array; updated test fixture and added test_no_test_plugin_orphan_pattern in test-nohup-cleanup.sh
