@@ -39,8 +39,6 @@ If restarting the review workflow after a failed attempt, this step guarantees a
 
 ## Step 1: Pre-commit Auto-fix Pass (format/lint/type-check before hash capture)
 
-> **Pre-compaction checkpoint detection**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the diff-hash infrastructure already handles this correctly — `compute-diff-hash.sh` uses the checkpoint commit as the diff base. Proceed normally.
-
 **Why this step exists**: Pre-commit hooks run format, lint, and type-check on commit. If the diff hash is captured before these auto-fixers run, any file modifications they make will invalidate the hash, forcing a re-review. Running the same checks here — before hash capture — ensures the hash reflects the final post-auto-fix state.
 
 **Skip check**: If a validation state file exists and is fresh (< 60 seconds old), skip Step 1 and go directly to Step 2:

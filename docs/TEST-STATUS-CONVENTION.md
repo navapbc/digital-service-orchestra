@@ -35,7 +35,6 @@ The guard does not fire on:
 - Non-commit commands (only `git commit` is checked)
 - WIP commits (`git commit -m "WIP: ..."`)
 - Merge commits (`git merge ...`)
-- Pre-compact checkpoints (`git commit -m "pre-compact ..."`)
 
 When no `.status` files exist (tests never run in this session), commits are allowed — CI catches regressions.
 

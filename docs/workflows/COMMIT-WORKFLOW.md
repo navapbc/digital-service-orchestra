@@ -74,8 +74,6 @@ git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && S
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-**Note on `.checkpoint-needs-review`**: This file is written when code is auto-committed during a context-compaction event. It signals that the code has never been reviewed. The only correct path through is to run `/dso:commit` from the beginning — Steps 1-3a must execute so the review can read the sentinel nonce and delete the file. Skipping to Step 4 or later will cause the commit to be blocked; restart from Step 1.
-
 ## Step 1: Test
 
 Run unit tests to catch breakage before investing in review.
@@ -363,15 +361,6 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-stage" >> "$ARTIFACTS_DIR/commit-bre
 ```
 
 ## Step 5: Review Gate
-
-> **Pre-compaction checkpoint recovery**: If the working tree is unexpectedly clean when you expected uncommitted changes, check `git log --oneline -3` for a checkpoint commit (message contains "pre-compaction auto-save" or "checkpoint:"). If found, the checkpoint contains unreviewed code that was auto-saved during compaction. Recover with these exact steps:
->
-> ```bash
-> git reset --soft HEAD~1                    # undo the checkpoint commit, re-stage the changes
-> git rm --cached .checkpoint-needs-review   # un-stage the sentinel (leave the file in the working tree)
-> ```
->
-> Then restart from **Step 1** of this workflow. Leave `.checkpoint-needs-review` in the working tree — `record-review.sh` reads the nonce from it during review and removes it automatically. Do NOT skip to Step 4 or Step 5; the code was committed without review and must go through the complete workflow.
 
 Decide whether a review is needed:
 

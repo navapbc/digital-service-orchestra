@@ -1,6 +1,6 @@
 ---
 id: dso-jbcp
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-18T17:15:25Z
@@ -26,3 +26,24 @@ parent: dso-fel5
 
 **Done Definitions:**
 - When complete, none of the listed documentation files reference `checkpoint.marker_file`, `checkpoint.commit_label`, `LOCKPICK_DISABLE_PRECOMPACT`, `checkpoint_verify`, `.disable-precompact-checkpoint`, or `pre-compaction auto-save` ← Epic crits 16, 26-32
+
+## ACCEPTANCE CRITERIA
+
+- [ ] `grep -r 'checkpoint\.marker_file' docs/ CLAUDE.md skills/ examples/ 2>/dev/null` returns no output
+  - Verify: `! grep -rq 'checkpoint\.marker_file' docs/ CLAUDE.md skills/ examples/ 2>/dev/null`
+- [ ] `grep -r 'checkpoint\.commit_label' docs/ CLAUDE.md skills/ examples/ 2>/dev/null` returns no output
+  - Verify: `! grep -rq 'checkpoint\.commit_label' docs/ CLAUDE.md skills/ examples/ 2>/dev/null`
+- [ ] `grep -r 'LOCKPICK_DISABLE_PRECOMPACT' docs/ CLAUDE.md skills/ examples/ 2>/dev/null` returns no output
+  - Verify: `! grep -rq 'LOCKPICK_DISABLE_PRECOMPACT' docs/ CLAUDE.md skills/ examples/ 2>/dev/null`
+- [ ] `grep -r 'checkpoint_verify' docs/ CLAUDE.md skills/ examples/ 2>/dev/null` returns no output
+  - Verify: `! grep -rq 'checkpoint_verify' docs/ CLAUDE.md skills/ examples/ 2>/dev/null`
+- [ ] `grep -r '\.disable-precompact-checkpoint' docs/ CLAUDE.md skills/ examples/ 2>/dev/null` returns no output
+  - Verify: `! grep -rq '\.disable-precompact-checkpoint' docs/ CLAUDE.md skills/ examples/ 2>/dev/null`
+- [ ] `grep -r 'pre-compaction auto-save' docs/ CLAUDE.md skills/ examples/ 2>/dev/null` returns no output
+  - Verify: `! grep -rq 'pre-compaction auto-save' docs/ CLAUDE.md skills/ examples/ 2>/dev/null`
+- [ ] `grep -r 'block-sentinel-push' examples/ 2>/dev/null` returns no output
+  - Verify: `! grep -rq 'block-sentinel-push' examples/ 2>/dev/null`
+
+**2026-03-18T17:44:01Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: docs/CONFIGURATION-REFERENCE.md, docs/workflows/REVIEW-WORKFLOW.md, docs/WORKTREE-GUIDE.md, docs/TEST-STATUS-CONVENTION.md, docs/workflows/COMMIT-WORKFLOW.md, CLAUDE.md, skills/end-session/SKILL.md, skills/sprint/SKILL.md, examples/pre-commit-config.example.yaml. All 7 ACs pass. Tests: pass.

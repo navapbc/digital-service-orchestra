@@ -34,3 +34,7 @@ parent: dso-fel5
 
 **Considerations:**
 - [Reliability] Deregistering PreCompact in plugin.json is the single step that guarantees no hook fires — verify this is the only registration point (no settings.json override)
+
+**2026-03-18T17:26:09Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX

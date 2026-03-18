@@ -45,14 +45,6 @@ repos:
 
       # --- push-stage hooks ---
 
-      - id: block-sentinel-push
-        name: Block checkpoint sentinel push
-        language: system
-        entry: "bash -c 'git cat-file -t HEAD:.checkpoint-needs-review >/dev/null 2>&1 && exit 1; exit 0'"
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
-
       - id: pre-push-lint
         name: Pre-push format + lint check
         language: system

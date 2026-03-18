@@ -195,19 +195,3 @@ repos:
         always_run: true
         stages: [pre-push]
 
-      # Pre-push sentinel check
-      # Blocks git push if .checkpoint-needs-review is tracked in HEAD.
-      # That file signals code auto-committed during context compaction without review.
-      # Recovery:
-      #   1. git reset --soft HEAD~1            (re-stage the checkpoint changes)
-      #   2. git rm --cached .checkpoint-needs-review && rm -f .checkpoint-needs-review
-      #   3. Run /commit from Step 1            (tests → review → proper commit)
-      #   4. git push                           (retry after sentinel is cleared)
-      # Requires: pre-commit install --hook-type pre-push  (see scripts/worktree-setup-env.sh)
-      - id: block-sentinel-push
-        name: Block checkpoint sentinel push
-        language: system
-        entry: "bash -c 'git cat-file -t HEAD:.checkpoint-needs-review >/dev/null 2>&1 && exit 1; exit 0'"
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]

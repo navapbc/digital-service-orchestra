@@ -721,28 +721,6 @@ Schema: `docs/workflow-config-schema.json`
 
 ---
 
-### `checkpoint.marker_file`
-
-| | |
-|---|---|
-| **Description** | Filename (not path) of the marker file written after a pre-compaction auto-save commit. Used by `hooks/pre-compact-checkpoint.sh`. |
-| **Accepted values** | Filename string (e.g., `.checkpoint-pending-rollback`) |
-| **Default** | `.checkpoint-pending-rollback` |
-| **Used by** | `hooks/pre-compact-checkpoint.sh` |
-
----
-
-### `checkpoint.commit_label`
-
-| | |
-|---|---|
-| **Description** | Git commit message for pre-compaction auto-save commits. |
-| **Accepted values** | Commit message string |
-| **Default** | `checkpoint: auto-save` |
-| **Used by** | `hooks/pre-compact-checkpoint.sh` |
-
----
-
 ### `version.file_path`
 
 | | |
@@ -777,7 +755,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Absolute path to the DSO plugin installation directory. All hook and script path resolution begins here. When set, `read-config.sh` and all hook dispatchers prefer `$CLAUDE_PLUGIN_ROOT/workflow-config.conf` over the git-root config. When not set, scripts self-locate via `$(dirname "$0")`. |
 | **Required** | Recommended; auto-set by `claude plugin install`. Manually required for Option B installs if any hook references `$CLAUDE_PLUGIN_ROOT` directly. |
-| **Usage context** | All hooks (`hooks/dispatchers/`, `hooks/lib/`, `hooks/auto-format.sh`, `hooks/pre-compact-checkpoint.sh`), all scripts that locate plugin resources, all skills that reference plugin paths. Set in `.claude/settings.json` under `env` block for manual installs. |
+| **Usage context** | All hooks (`hooks/dispatchers/`, `hooks/lib/`, `hooks/auto-format.sh`), all scripts that locate plugin resources, all skills that reference plugin paths. Set in `.claude/settings.json` under `env` block for manual installs. |
 
 ---
 
@@ -962,56 +940,6 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Description** | Override for the worktree parent directory. When set, `scripts/worktree-create.sh` places new worktrees here instead of the default (`<repo-parent>/<repo-name>-worktrees`). Also superseded by the `--dir=` flag. |
 | **Required** | Optional |
 | **Usage context** | `scripts/worktree-create.sh` |
-
----
-
-### `LOCKPICK_DISABLE_PRECOMPACT`
-
-| | |
-|---|---|
-| **Description** | When set to any non-empty value, disables the pre-compaction checkpoint hook entirely. Useful in CI environments or when the checkpoint behavior is not desired. |
-| **Required** | Optional |
-| **Usage context** | `hooks/pre-compact-checkpoint.sh` |
-
----
-
-### `CLAUDE_SESSION_ID`
-
-| | |
-|---|---|
-| **Description** | Current Claude Code session identifier. Injected by Claude Code into hook environments. Used by `hooks/pre-compact-checkpoint.sh` for telemetry attribution. |
-| **Required** | Set automatically by Claude Code — do not set manually |
-| **Usage context** | `hooks/pre-compact-checkpoint.sh` (telemetry) |
-
----
-
-### `CLAUDE_PARENT_SESSION_ID`
-
-| | |
-|---|---|
-| **Description** | Parent session identifier when running inside a sub-agent. Injected by Claude Code. Used by `hooks/pre-compact-checkpoint.sh` for telemetry to track parent/child session relationships. |
-| **Required** | Set automatically by Claude Code — do not set manually |
-| **Usage context** | `hooks/pre-compact-checkpoint.sh` (telemetry) |
-
----
-
-### `CLAUDE_CONTEXT_WINDOW_TOKENS`
-
-| | |
-|---|---|
-| **Description** | Current number of tokens used in the context window. Injected by Claude Code into pre-compact hook environments. Used for telemetry. |
-| **Required** | Set automatically by Claude Code — do not set manually |
-| **Usage context** | `hooks/pre-compact-checkpoint.sh` (telemetry) |
-
----
-
-### `CLAUDE_CONTEXT_WINDOW_LIMIT`
-
-| | |
-|---|---|
-| **Description** | Maximum token limit for the current context window. Injected by Claude Code into pre-compact hook environments. Used for telemetry. |
-| **Required** | Set automatically by Claude Code — do not set manually |
-| **Usage context** | `hooks/pre-compact-checkpoint.sh` (telemetry) |
 
 ---
 

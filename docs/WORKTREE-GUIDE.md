@@ -575,7 +575,6 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh
 
 | Phase | Description |
 |-------|-------------|
-| `checkpoint_verify` | Verify worktree is clean and all commits are present |
 | `sync` | Sync ticket state from main before merging |
 | `merge` | Merge worktree branch into main |
 | `validate` | Run post-merge validation checks |
@@ -604,7 +603,7 @@ To re-run one specific phase (e.g., after a partial failure):
 ${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --phase=push
 ```
 
-Valid phase names: `checkpoint_verify`, `sync`, `merge`, `validate`, `push`, `archive`, `ci_trigger`.
+Valid phase names: `sync`, `merge`, `validate`, `push`, `archive`, `ci_trigger`.
 
 ---
 

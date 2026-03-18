@@ -44,7 +44,7 @@ Sub-agents MAY:
 - `tk add-note <id> "..."` for checkpoint progress notes
 - Read any file in the repo to understand context
 - Write discovery files to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json` (resolve via: `source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir`) (atomic: write `.tmp`, then `mv`) when encountering bugs, missing dependencies, API changes, or convention violations during execution. Schema: `{"task_id": "<id>", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line>", "affected_files": ["<path>", ...]}`. Discovery writing is non-fatal — failures must not block task completion.
-- Read `.worktree-blackboard.json` for file ownership awareness (written by orchestrator before dispatch). Respect ownership boundaries: only modify files listed under your ownership; report concerns for files owned by other agents. If a required modification falls outside your listed `files_owned`, add a checkpoint note explaining the deviation before proceeding.
+- Read `${TMPDIR:-/tmp}/dso-blackboard-<worktree-name>/blackboard.json` for file ownership awareness (written by orchestrator before dispatch). Respect ownership boundaries: only modify files listed under your ownership; report concerns for files owned by other agents. If a required modification falls outside your listed `files_owned`, add a checkpoint note explaining the deviation before proceeding.
 
 ## Worktree Sessions
 

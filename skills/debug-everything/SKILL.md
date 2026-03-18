@@ -577,9 +577,9 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
    The top-level key must be `batch`. Each entry must use `id` (the ticket ID) and `files` (list of files_likely_modified). Do not use `tasks`, `agents`, `task_id`, or `files_owned` — those are internal blackboard schema keys, not input keys.
    If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
 
-2. **Read the blackboard and build file ownership context**: Read `.worktree-blackboard.json` and construct a per-agent ownership string for each sub-agent:
+2. **Read the blackboard and build file ownership context**: Read the blackboard and construct a per-agent ownership string for each sub-agent:
    ```bash
-   BLACKBOARD="$REPO_ROOT/.worktree-blackboard.json"
+   BLACKBOARD="${TMPDIR:-/tmp}/dso-blackboard-$(basename "$REPO_ROOT")/blackboard.json"
    ```
    For each agent (task), build a `file_ownership_context` string with the format:
    ```

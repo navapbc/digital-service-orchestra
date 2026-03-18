@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# scripts/write-blackboard.sh — Write .worktree-blackboard.json from batch JSON.
+# scripts/write-blackboard.sh — Write blackboard.json to /tmp from batch JSON.
 #
 # Reads batch JSON (output of `sprint-next-batch.sh --json`) from stdin and
-# writes `.worktree-blackboard.json` with atomic write semantics (write to
-# `.worktree-blackboard.json.tmp`, then `mv`).
+# writes blackboard.json to /tmp/dso-blackboard-<worktree-name>/ with atomic
+# write semantics (write to blackboard.json.tmp, then `mv`).
 #
 # Flags:
-#   --clean   Remove .worktree-blackboard.json (idempotent)
+#   --clean   Remove blackboard.json (idempotent)
 #   --help    Print usage and exit 0
 #
 # Environment:
-#   BLACKBOARD_DIR  Override directory for blackboard file (default: repo root)
+#   BLACKBOARD_DIR  Override directory for blackboard file (default: /tmp/dso-blackboard-<worktree-name>)
 #
 # Schema (version 1):
 # {
@@ -41,19 +41,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
+# Store blackboard in /tmp to avoid polluting the working tree.
+# Pattern: /tmp/dso-blackboard-<worktree-name>/ (same convention as other tmp dirs)
+_WORKTREE_NAME="$(basename "$REPO_ROOT")"
+_DEFAULT_BLACKBOARD_DIR="${TMPDIR:-/tmp}/dso-blackboard-${_WORKTREE_NAME}"
+
 # Allow override for testing
-BLACKBOARD_DIR="${BLACKBOARD_DIR:-$REPO_ROOT}"
-BLACKBOARD_FILE="$BLACKBOARD_DIR/.worktree-blackboard.json"
-BLACKBOARD_TMP="$BLACKBOARD_DIR/.worktree-blackboard.json.tmp"
+BLACKBOARD_DIR="${BLACKBOARD_DIR:-$_DEFAULT_BLACKBOARD_DIR}"
+BLACKBOARD_FILE="$BLACKBOARD_DIR/blackboard.json"
+BLACKBOARD_TMP="$BLACKBOARD_DIR/blackboard.json.tmp"
 
 usage() {
     cat <<EOF
 Usage: write-blackboard.sh [--clean] [--help]
 
   Reads batch JSON from stdin (sprint-next-batch.sh --json output) and writes
-  .worktree-blackboard.json with atomic write semantics.
+  blackboard.json to /tmp/dso-blackboard-<worktree-name>/ with atomic write semantics.
 
-  --clean   Remove .worktree-blackboard.json (idempotent)
+  --clean   Remove blackboard.json (idempotent)
   --help    Print this message and exit 0
 
   Environment:
@@ -131,6 +136,7 @@ blackboard_json=$(echo "$input" | jq \
 # ---------------------------------------------------------------------------
 # Atomic write: tmp + mv
 # ---------------------------------------------------------------------------
+mkdir -p "$BLACKBOARD_DIR"
 echo "$blackboard_json" > "$BLACKBOARD_TMP"
 mv "$BLACKBOARD_TMP" "$BLACKBOARD_FILE"
 

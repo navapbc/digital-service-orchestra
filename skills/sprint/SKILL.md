@@ -663,9 +663,9 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
    ```
    If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
 
-2. **Read the blackboard and build file ownership context**: Read `.worktree-blackboard.json` and construct a per-agent ownership string for each sub-agent:
+2. **Read the blackboard and build file ownership context**: Read the blackboard and construct a per-agent ownership string for each sub-agent:
    ```bash
-   BLACKBOARD="$REPO_ROOT/.worktree-blackboard.json"
+   BLACKBOARD="${TMPDIR:-/tmp}/dso-blackboard-$(basename "$REPO_ROOT")/blackboard.json"
    ```
    For each agent (task), build a `file_ownership_context` string with the format:
    ```
@@ -1043,11 +1043,8 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?
    ```
    /compact
    ```
-5. The PreCompact hook fires automatically: it captures active ticket tasks, git state, and auto-commits any remaining uncommitted work as a safety checkpoint
-6. After compaction, the recovery summary is injected into the new context. Check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` (using the epic ID from the log/recovery summary). **Continue directly to Phase 3** — ticket task state and git history are intact. Do NOT go to Phase 9.
-7. **Agent-count after compact (`high` case)**: If context was at `high` (>90%), Phase 4's pre-check re-runs `check-session-usage.sh` for the next batch. If it still signals high, Phase 4 will set `MAX_AGENTS: 1` automatically. No special action is needed in this step — Phase 4 handles it.
-
-**Why this is safe**: Unlike involuntary mid-work compaction, this checkpoint happens after commit+push. The PreCompact hook's auto-commit is a belt-and-suspenders safety net, not the primary save mechanism.
+5. After compaction, the recovery summary is injected into the new context. Check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` (using the epic ID from the log/recovery summary). **Continue directly to Phase 3** — ticket task state and git history are intact. Do NOT go to Phase 9.
+6. **Agent-count after compact (`high` case)**: If context was at `high` (>90%), Phase 4's pre-check re-runs `check-session-usage.sh` for the next batch. If it still signals high, Phase 4 will set `MAX_AGENTS: 1` automatically. No special action is needed in this step — Phase 4 handles it.
 
 ---
 

@@ -124,17 +124,6 @@ sweep_validation_failures
 1. Run `git status`. If changes exist: read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/dso:commit` via Skill tool — orchestrators execute the workflow directly).
 2. **If clean: skip.** Report: "Working tree clean — nothing to commit."
 
-### 3.25. Write Pre-Merge Sentinel (Disable Pre-Compact Checkpoint)
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-touch "$REPO_ROOT/.disable-precompact-checkpoint"
-```
-
-This sentinel prevents `pre-compact-checkpoint.sh` from creating unmerged checkpoint commits during the post-merge window (the brief period between merge and worktree removal when a context compaction could fire).
-
-**Note**: The sentinel is session-scoped — it is safe to delete manually if `/dso:end` is interrupted before the cleanup step runs (Step 4.75 handles cleanup automatically). It must NOT be committed to git (it is a transient flag file and is excluded by `.gitignore`).
-
 ### 3.5. Visual Baseline Comparison
 
 1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
@@ -177,14 +166,7 @@ Skip this step entirely.
 <!-- Mirrors the exact can_remove logic in claude-safe's _offer_worktree_cleanup function.
      Keep these two in sync when either is changed. -->
 
-Remove the pre-compact checkpoint sentinel (its window is now closed):
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-rm -f "$REPO_ROOT/.disable-precompact-checkpoint"
-```
-
-Then verify the worktree satisfies both conditions that `claude-safe`'s `_offer_worktree_cleanup` requires for auto-removal:
+Verify the worktree satisfies both conditions that `claude-safe`'s `_offer_worktree_cleanup` requires for auto-removal:
 
 ```bash
 BRANCH=$(git branch --show-current)

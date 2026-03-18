@@ -1,4 +1,27 @@
 {
+  "dso-02wk": {
+    "deps": [],
+    "priority": 0,
+    "status": "closed",
+    "title": "Write failing tests for shim --lib mode (RED)",
+    "type": "task"
+  },
+  "dso-0cjl": {
+    "deps": [
+      "dso-ff9f"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Create dso:project-setup skill: call dso-setup.sh, interactive wizard, workflow-config.conf generation",
+    "type": "story"
+  },
+  "dso-0gqr": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: validate-phase.sh should skip or fail gracefully when commands.lint_fix is not configured",
+    "type": "bug"
+  },
   "dso-0ifj": {
     "deps": [
       "dso-a33b"
@@ -13,7 +36,7 @@
       "dso-wo1i"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO contributor, I can run scripts/qualify-skill-refs.sh to bulk-rewrite unqualified DSO skill references across the codebase",
     "type": "story"
   },
@@ -39,7 +62,7 @@
       "dso-0isl"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Update project docs to reflect check-skill-refs.sh, qualify-skill-refs.sh, and the qualified DSO skill namespace",
     "type": "story"
   },
@@ -59,12 +82,26 @@
     "title": "As a DSO hook or script author, I can source the shim in library mode to get DSO_ROOT without depending on CLAUDE_PLUGIN_ROOT",
     "type": "story"
   },
+  "dso-1e6j": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a plugin developer, I can run scripts/bump-version.sh to increment a semver version in any configured version file",
+    "type": "story"
+  },
   "dso-1fnl": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Implement review guidance related to code reuse",
     "type": "epic"
+  },
+  "dso-2k2h": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Create skills/project-setup/SKILL.md with dso-setup.sh invocation and interactive wizard",
+    "type": "task"
   },
   "dso-2rts": {
     "deps": [
@@ -91,13 +128,45 @@
     "title": "Create a KNOWN ISSUES for this project",
     "type": "epic"
   },
+  "dso-3z2v": {
+    "deps": [
+      "dso-zq4q"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Add pre-commit hook installation and example config scaffolding to dso-setup.sh",
+    "type": "task"
+  },
   "dso-42eg": {
     "deps": [
       "dso-qii9"
     ],
     "priority": 0,
     "status": "closed",
-    "title": "Provide a method for client projects to conveniently call dso scripts ",
+    "title": "Provide a method for client projects to conveniently call dso scripts",
+    "type": "epic"
+  },
+  "dso-472x": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "preplanning: tk create calls omit story description and done definition",
+    "type": "bug"
+  },
+  "dso-47gy": {
+    "deps": [
+      "dso-d8gi"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
+    "type": "story"
+  },
+  "dso-4g8u": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Automatic Plugin Version Bumping",
     "type": "epic"
   },
   "dso-4s8r": {
@@ -106,6 +175,20 @@
     "status": "open",
     "title": "Cleanup tests",
     "type": "epic"
+  },
+  "dso-5l1c": {
+    "deps": [],
+    "priority": 0,
+    "status": "closed",
+    "title": "Write failing tests for dso-setup command (RED)",
+    "type": "task"
+  },
+  "dso-5lb8": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO developer, the merge workflow and health check have checkpoint phases removed",
+    "type": "story"
   },
   "dso-60hd": {
     "deps": [],
@@ -124,21 +207,42 @@
   "dso-7h4i": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: guard PyYAML check in dso-setup.sh against missing python3",
     "type": "bug"
+  },
+  "dso-8fc5": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO developer, all dedicated checkpoint test files are deleted",
+    "type": "story"
   },
   "dso-8g5p": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "18 pre-existing test failures in test_precompact_telemetry and test_analyze_precompact_telemetry",
+    "type": "task"
+  },
+  "dso-8jf6": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Assess and align acceptance criteria standards: preplanning stories vs implementation-plan tasks",
+    "type": "bug"
+  },
+  "dso-8pih": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "test parent",
     "type": "task"
   },
   "dso-8qvu": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Qualify all DSO skill references to /dso: namespace",
     "type": "epic"
   },
@@ -180,8 +284,31 @@
   "dso-awoz": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "As a developer in a host project, I can invoke any DSO script via .claude/scripts/dso",
+    "type": "story"
+  },
+  "dso-blah": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "test task",
+    "type": "task"
+  },
+  "dso-bvna": {
+    "deps": [
+      "dso-1e6j"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a plugin developer, patch version increments automatically on code commits outside of sprint",
+    "type": "story"
+  },
+  "dso-bxd0": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Audit current DSO setup path on macOS post-plugin-transition",
     "type": "story"
   },
   "dso-cma6": {
@@ -191,12 +318,70 @@
     "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
     "type": "bug"
   },
+  "dso-d8gi": {
+    "deps": [
+      "dso-x1jt",
+      "dso-dghs"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering",
+    "type": "story"
+  },
+  "dso-d8xe": {
+    "deps": [
+      "dso-oqto"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Remove block-sentinel-push from .pre-commit-config.yaml and .checkpoint-pending-rollback from .gitignore",
+    "type": "task"
+  },
+  "dso-dghs": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the sprint skill contains no explanatory prose or motivation framing",
+    "type": "story"
+  },
+  "dso-dnq2": {
+    "deps": [
+      "dso-oqto"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Delete hooks/pre-compact-checkpoint.sh, post-compact-review-check.sh, and pre-push-sentinel-check.sh",
+    "type": "task"
+  },
+  "dso-dsa8": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
+    "type": "bug"
+  },
   "dso-fbky": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Add full autonomous mode session override",
     "type": "epic"
+  },
+  "dso-fel5": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Remove pre-compact checkpoint hook from DSO",
+    "type": "epic"
+  },
+  "dso-ff9f": {
+    "deps": [
+      "dso-bxd0"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Expand dso-setup.sh: prerequisites, pre-commit hooks, example configs, optional deps, cross-platform",
+    "type": "story"
   },
   "dso-ffzi": {
     "deps": [],
@@ -205,12 +390,42 @@
     "title": "Integrate TDD into implementation plan skill",
     "type": "epic"
   },
+  "dso-fxib": {
+    "deps": [
+      "dso-x1jt",
+      "dso-dghs",
+      "dso-d8gi",
+      "dso-47gy"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect dso:sprint optimization",
+    "type": "story"
+  },
   "dso-g10j": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
+  },
+  "dso-g3vq": {
+    "deps": [
+      "dso-tisu"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Update skills/project-setup/SKILL.md for --dryrun mode",
+    "type": "task"
+  },
+  "dso-ghcp": {
+    "deps": [
+      "dso-zq4q"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Add optional dep detection, env var guidance, and success summary to dso-setup.sh",
+    "type": "task"
   },
   "dso-gkct": {
     "deps": [],
@@ -219,25 +434,66 @@
     "title": "Implementation planning tradeoffs",
     "type": "epic"
   },
+  "dso-gpuu": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "test task",
+    "type": "task"
+  },
   "dso-gul1": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: exclude .worktree-blackboard.json timestamp churn from review diffs",
+    "type": "bug"
+  },
+  "dso-h7su": {
+    "deps": [
+      "dso-1e6j",
+      "dso-bvna",
+      "dso-hsuo"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Update project docs to reflect automatic version bumping",
+    "type": "story"
+  },
+  "dso-hdeb": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "pre-compact dedup lock defeated by HEAD change after checkpoint commit",
     "type": "bug"
   },
   "dso-hq8y": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Pre-existing test failures in run-all.sh suites (hook/script tests)",
+    "type": "task"
+  },
+  "dso-hsuo": {
+    "deps": [
+      "dso-1e6j"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a plugin developer, minor version increments automatically when a sprint epic completes",
+    "type": "story"
+  },
+  "dso-i0fh": {
+    "deps": [],
+    "priority": null,
+    "status": "closed",
+    "title": "test title",
     "type": "task"
   },
   "dso-igoj": {
     "deps": [],
     "priority": 0,
-    "status": "open",
-    "title": "Improve setup documentation",
+    "status": "closed",
+    "title": "DSO project setup \u2014 automated script, interactive skill, and complete documentation",
     "type": "epic"
   },
   "dso-iwb4": {
@@ -247,12 +503,33 @@
     "title": "Don't merge to main between batches",
     "type": "epic"
   },
+  "dso-j1kw": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Remove checkpoint marker cleanup from scripts/health-check.sh",
+    "type": "task"
+  },
+  "dso-j3gm": {
+    "deps": [],
+    "priority": 0,
+    "status": "closed",
+    "title": "Write failing tests for shim --lib mode (RED)",
+    "type": "task"
+  },
   "dso-j48b": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Fix: add clarifying parenthetical for /dso:init in INSTALL.md Step 5",
     "type": "bug"
+  },
+  "dso-jbcp": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a DSO developer, documentation and skills no longer reference the checkpoint system",
+    "type": "story"
   },
   "dso-jl2z": {
     "deps": [
@@ -263,11 +540,47 @@
     "title": "Create scripts/dso-setup.sh (GREEN)",
     "type": "task"
   },
+  "dso-jneo": {
+    "deps": [
+      "dso-l19q",
+      "dso-5lb8"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO developer, shared test files no longer assert checkpoint behaviors",
+    "type": "story"
+  },
   "dso-khl2": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Using-lockpicks guidance to encourage using sub-agents",
+    "type": "epic"
+  },
+  "dso-ku5i": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Write failing doc migration completeness test (RED)",
+    "type": "task"
+  },
+  "dso-l19q": {
+    "deps": [
+      "dso-mjdp"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO developer, shared hook support scripts are free of checkpoint-specific dead code",
+    "type": "story"
+  },
+  "dso-l2ct": {
+    "deps": [
+      "dso-ag1b",
+      "dso-iwb4"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-l35x": {
@@ -287,9 +600,39 @@
   "dso-meet": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: dso-setup.sh dryrun messages should reflect conditional copy logic (only if absent)",
     "type": "bug"
+  },
+  "dso-mjdp": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, context compaction no longer triggers checkpoint commits or review-gate checks",
+    "type": "story"
+  },
+  "dso-n5dr": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Pre-existing hook and script test failures in CI",
+    "type": "bug"
+  },
+  "dso-npw2": {
+    "deps": [
+      "dso-xtcg"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Rewrite docs/INSTALL.md: two-step flow, config/env summary with links, troubleshooting, remove stale content",
+    "type": "story"
+  },
+  "dso-o2vi": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "test task 3",
+    "type": "task"
   },
   "dso-o8bw": {
     "deps": [],
@@ -298,12 +641,40 @@
     "title": "Write cross-context smoke test for dso shim",
     "type": "task"
   },
+  "dso-ojbb": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Add --dryrun flag to dso-setup.sh and /dso:project-setup",
+    "type": "epic"
+  },
+  "dso-oqto": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Deregister PreCompact hook block from .claude-plugin/plugin.json",
+    "type": "task"
+  },
   "dso-p2d3": {
     "deps": [],
     "priority": 0,
     "status": "open",
     "title": "Remove plugin testing as a separate step",
     "type": "epic"
+  },
+  "dso-p5rv": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Pre-existing pytest failures: test_analyze_precompact_telemetry + test_precompact_telemetry (18 failures)",
+    "type": "bug"
+  },
+  "dso-pmaj": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Fix pre-existing precompact telemetry test failures (18 pytest failures)",
+    "type": "bug"
   },
   "dso-ppwp": {
     "deps": [],
@@ -319,6 +690,13 @@
     "title": "Update end-session to display a list of pre-existing failures encountered.",
     "type": "epic"
   },
+  "dso-q0df": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Remove _phase_checkpoint_verify from scripts/merge-to-main.sh",
+    "type": "task"
+  },
   "dso-q0lo": {
     "deps": [],
     "priority": 2,
@@ -326,10 +704,24 @@
     "title": "Prevent the explosion of documentation created by LLMs",
     "type": "epic"
   },
-  "dso-qii9": {
+  "dso-q523": {
     "deps": [],
     "priority": 1,
     "status": "open",
+    "title": "validate.sh hardcodes app/ directory \u2014 should pull project-specific paths from config",
+    "type": "bug"
+  },
+  "dso-q9z9": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
+    "type": "bug"
+  },
+  "dso-qii9": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
     "title": "Create a setup skill",
     "type": "epic"
   },
@@ -344,7 +736,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Implementation planning schema validation ",
+    "title": "Implementation planning schema validation",
     "type": "epic"
   },
   "dso-r9fa": {
@@ -355,6 +747,13 @@
     "status": "closed",
     "title": "As a host project maintainer, I can bootstrap DSO script access via one-time setup",
     "type": "story"
+  },
+  "dso-rsfe": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "test p2",
+    "type": "task"
   },
   "dso-s12s": {
     "deps": [],
@@ -381,7 +780,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Research and investigation in pre-planning ",
+    "title": "Research and investigation in pre-planning",
     "type": "epic"
   },
   "dso-t4k8": {
@@ -397,6 +796,15 @@
     "status": "open",
     "title": "Remove 5-sub-agent cap for orchestration",
     "type": "epic"
+  },
+  "dso-tisu": {
+    "deps": [
+      "dso-yncv"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement --dryrun flag in scripts/dso-setup.sh (TDD GREEN)",
+    "type": "task"
   },
   "dso-tmmj": {
     "deps": [],
@@ -454,15 +862,29 @@
   "dso-wlwa": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Create scripts/check-skill-refs.sh linter and tests/scripts/test-check-skill-refs.sh test suite",
     "type": "task"
   },
   "dso-wo1i": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO contributor, I can run scripts/check-skill-refs.sh to detect unqualified DSO skill references in workflow files",
+    "type": "story"
+  },
+  "dso-x1jt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
+    "type": "story"
+  },
+  "dso-xtcg": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Document workflow-config.conf keys and environment variables used by hooks, scripts, and skills",
     "type": "story"
   },
   "dso-y1y6": {
@@ -492,9 +914,16 @@
   "dso-yh8q": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: dso-setup.sh dryrun pre-commit message should check pre-commit availability",
     "type": "bug"
+  },
+  "dso-yncv": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Write failing dryrun tests for dso-setup.sh (TDD RED)",
+    "type": "task"
   },
   "dso-zc6s": {
     "deps": [
@@ -512,5 +941,12 @@
     "status": "open",
     "title": "Optimize skills and prompts for token usage",
     "type": "epic"
+  },
+  "dso-zq4q": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Add prerequisite checks, platform detection, and exit code contract to dso-setup.sh",
+    "type": "task"
   }
 }
