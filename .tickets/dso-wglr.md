@@ -1,6 +1,6 @@
 ---
 id: dso-wglr
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-18T22:59:19Z
@@ -45,3 +45,54 @@ Note: `commands.test=bash tests/run-all.sh` already exists and is correct. Only 
 - `workflow-config.conf` - Update `commands.test_unit` from `python3 -m pytest tests/plugin/ tests/scripts/ tests/skills/ -q` to `bash tests/run-all.sh`
 - `tests/run-all.sh` - Verify it correctly runs all test suites (hooks, scripts, evals) as the authoritative test runner
 - `validate.sh` - Verify it correctly invokes the updated `commands.test_unit` configuration and that timeout values are adequate (TIMEOUT_TESTS=600s vs SUITE_TIMEOUT=180s per suite)
+
+## Notes
+
+<!-- note-id: yosdin55 -->
+<!-- timestamp: 2026-03-19T00:32:54Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: t1dvtuh4 -->
+<!-- timestamp: 2026-03-19T00:32:58Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: 6l6b21re -->
+<!-- timestamp: 2026-03-19T00:33:02Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (none required — config-only change) ✓
+
+<!-- note-id: 1r8w2oe5 -->
+<!-- timestamp: 2026-03-19T00:33:09Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: oopfpmlq -->
+<!-- timestamp: 2026-03-19T00:39:18Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — 166 pytest tests passed; bash tests/run-all.sh ran hook+script+eval suites successfully
+
+<!-- note-id: 7qg03f7c -->
+<!-- timestamp: 2026-03-19T00:39:24Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — commands.test_unit=bash tests/run-all.sh confirmed in workflow-config.conf; validate.sh line 110 reads this via _cfg('commands.test_unit')
+
+<!-- note-id: bv2rc1h6 -->
+<!-- timestamp: 2026-03-19T00:43:30Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: updated commands.test_unit to bash tests/run-all.sh — validate.sh now runs all test suites
