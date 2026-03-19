@@ -1,6 +1,6 @@
 ---
 id: dso-4clm
-status: in_progress
+status: closed
 deps: [dso-bkqa]
 links: []
 created: 2026-03-18T23:14:04Z
@@ -78,3 +78,17 @@ CHECKPOINT 5/6: Validation passed ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+<!-- note-id: 1wd1e2ng -->
+<!-- timestamp: 2026-03-19T00:05:30Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — Files: validate-config.sh, test-validate-config.sh. Tests: 2620 pass.
+
+<!-- note-id: ry66a16z -->
+<!-- timestamp: 2026-03-19T00:05:30Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: removed commands.test_plugin from validate-config.sh KNOWN_KEYS; added regression test
