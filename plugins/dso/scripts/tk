@@ -3714,6 +3714,55 @@ except Exception:
         fi
     fi
 
+    # ── Title dedup: check for existing local ticket with matching title ────────
+    # When existing_tk_id is still empty (neither ledger nor frontmatter matched),
+    # check if any local ticket has the same title as the Jira summary.
+    # Comparison is case-insensitive. If found, skip creation to avoid duplicates.
+    # Primary source: .index.json (fast); fallback: scan .md files for # heading.
+    if [[ -z "$existing_tk_id" ]]; then
+        local match_id=""
+        local index_file="$tickets_dir/.index.json"
+        if [[ -f "$index_file" ]]; then
+            match_id=$(SUMMARY="$summary" INDEX="$index_file" python3 -c "
+import json, os, sys
+summary = os.environ['SUMMARY'].lower()
+index_path = os.environ['INDEX']
+try:
+    with open(index_path) as f:
+        data = json.load(f)
+except (OSError, json.JSONDecodeError):
+    sys.exit(0)
+for tid, entry in data.items():
+    if isinstance(entry, dict) and entry.get('title', '').lower() == summary:
+        print(tid)
+        break
+" 2>/dev/null)
+        fi
+        # Fallback: scan .md files directly for matching # Title heading
+        # REVIEW-DEFENSE: files without YAML frontmatter (no --- delimiters) are safely
+        # skipped — the awk counter n never reaches 2, so the title check never fires.
+        if [[ -z "$match_id" ]] && compgen -G "$tickets_dir/*.md" > /dev/null 2>&1; then
+            match_id=$(awk -v s="$summary" '
+                FNR == 1 { n = 0 }
+                /^---$/ { n++; next }
+                n >= 2 && /^# / {
+                    title = substr($0, 3)
+                    if (tolower(title) == tolower(s)) {
+                        p = split(FILENAME, parts, "/")
+                        f = parts[p]
+                        sub(/\.md$/, "", f)
+                        print f
+                        exit
+                    }
+                }
+            ' "$tickets_dir"/*.md 2>/dev/null || true)
+        fi
+        if [[ -n "$match_id" ]]; then
+            echo "warning: Jira $jira_key has matching title with local ticket $match_id — linking for update" >&2
+            existing_tk_id="$match_id"
+        fi
+    fi
+
     local now
     now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
 
