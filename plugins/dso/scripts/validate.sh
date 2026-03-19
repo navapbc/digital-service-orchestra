@@ -50,7 +50,6 @@ set -uo pipefail
 #   Ruff lint (60s):     cd app && make lint-ruff
 #   MyPy check (120s):   cd app && make lint-mypy
 #   Tests (600s/10min):  cd app && make test-unit-only
-#   Plugin/hook tests (120s): make test-plugin (from repo root)
 #   E2E tests (600s):    cd app && make test-e2e
 #   CI status (30s):     gh run list --workflow=CI --limit 1 --json status,conclusion
 #
@@ -61,7 +60,6 @@ set -uo pipefail
 #     VALIDATE_TIMEOUT_RUFF    - Ruff lint timeout (default: 60)
 #     VALIDATE_TIMEOUT_MYPY    - MyPy type check timeout (default: 120)
 #     VALIDATE_TIMEOUT_TESTS   - Test suite timeout (default: 600)
-#     VALIDATE_TIMEOUT_PLUGIN  - Plugin/hook test suite timeout (default: 300)
 #     VALIDATE_TIMEOUT_E2E     - E2E test timeout (default: 900)
 #     VALIDATE_TIMEOUT_CI      - CI status check timeout (default: 60)
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
@@ -110,11 +108,6 @@ CMD_FORMAT_CHECK=$(_cfg "commands.format_check" "make format-check")
 CMD_LINT_RUFF=$(_cfg "commands.lint_ruff" "make lint-ruff")
 CMD_LINT_MYPY=$(_cfg "commands.lint_mypy" "make lint-mypy")
 CMD_TEST_UNIT=$(_cfg "commands.test_unit" "make test-unit-only")
-# REVIEW-DEFENSE: commands.test_plugin key was removed from workflow-config.conf in dso-bkqa.
-# This consumer line (and the KNOWN_KEYS entry in validate-config.sh:65) are cleaned up in
-# companion story dso-kexc. Until then, validate.sh falls back to the hard-coded default
-# "make test-plugin", which is the pre-existing behavior and introduces no regression.
-CMD_TEST_PLUGIN=$(_cfg "commands.test_plugin" "make test-plugin")
 SCRIPT_WRITE_SCAN_DIR=$(_cfg "checks.script_write_scan_dir" "")
 PLUGIN_SCRIPTS="$SCRIPT_DIR"
 CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
@@ -157,7 +150,6 @@ TIMEOUT_FORMAT="${VALIDATE_TIMEOUT_FORMAT:-30}"
 TIMEOUT_RUFF="${VALIDATE_TIMEOUT_RUFF:-60}"
 TIMEOUT_MYPY="${VALIDATE_TIMEOUT_MYPY:-120}"
 TIMEOUT_TESTS="${VALIDATE_TIMEOUT_TESTS:-600}"  # 10 minutes default - test suite is large
-TIMEOUT_PLUGIN="${VALIDATE_TIMEOUT_PLUGIN:-300}"   # plugin/hook shell test suite (safety buffer for slow tests)
 TIMEOUT_E2E="${VALIDATE_TIMEOUT_E2E:-900}"      # 15 minutes for E2E tests (local is ~2-3x slower than CI ~180s)
 TIMEOUT_CI="${VALIDATE_TIMEOUT_CI:-60}"  # GitHub API call — 60s headroom for rate limiting/slow network
 
@@ -310,7 +302,7 @@ for arg in "$@"; do
             echo ""
             echo "Timeouts (in seconds):"
             echo "  syntax: $TIMEOUT_SYNTAX, format: $TIMEOUT_FORMAT, ruff: $TIMEOUT_RUFF, mypy: $TIMEOUT_MYPY"
-            echo "  tests: $TIMEOUT_TESTS, plugin: $TIMEOUT_PLUGIN"
+            echo "  tests: $TIMEOUT_TESTS"
             echo "  e2e: $TIMEOUT_E2E, ci: $TIMEOUT_CI"
             echo ""
             echo "Timeout log: $TIMEOUT_LOG"
@@ -622,7 +614,7 @@ fi
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
-LAUNCHED_CHECKS="syntax format ruff mypy tests plugin migrate skill-refs"
+LAUNCHED_CHECKS="syntax format ruff mypy tests migrate skill-refs"
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
@@ -637,8 +629,6 @@ run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
 run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
 # shellcheck disable=SC2086
 run_check "tests" "$TIMEOUT_TESTS" $CMD_TEST_UNIT &
-# shellcheck disable=SC2086
-(cd "$REPO_ROOT" && run_check "plugin" "$TIMEOUT_PLUGIN" $CMD_TEST_PLUGIN) &
 check_migrations &
 if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
     (cd "$REPO_ROOT" && run_check "script-writes" "$TIMEOUT_SYNTAX" python3 "$PLUGIN_SCRIPTS/check-script-writes.py" --scan-dir="$SCRIPT_WRITE_SCAN_DIR") &
@@ -764,7 +754,6 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "ruff" "ruff" "$TIMEOUT_RUFF"
     report_check "mypy" "mypy" "$TIMEOUT_MYPY"
     report_check "tests" "tests" "$TIMEOUT_TESTS"
-    report_check "plugin" "plugin" "$TIMEOUT_PLUGIN" "make -C $REPO_ROOT test-plugin"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
     report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-skill-refs.sh"
 else
@@ -773,7 +762,6 @@ else
     tally_check "ruff" "ruff"
     tally_check "mypy" "mypy"
     tally_check "tests" "tests"
-    tally_check "plugin" "plugin"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
     tally_check "skill-refs" "skill-refs"
 fi

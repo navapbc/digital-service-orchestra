@@ -136,4 +136,13 @@ assert_eq "commands.test_plugin absent from workflow-config.conf" "0" "$test_plu
 
 assert_pass_if_clean "test_no_test_plugin_in_config"
 
+# ── test_validate_sh_no_cmd_test_plugin ──────────────────────────────────
+# CMD_TEST_PLUGIN must NOT appear in validate.sh (plugin check infrastructure removed)
+_snapshot_fail
+
+cmd_test_plugin_count=$(grep -c 'CMD_TEST_PLUGIN' "$VALIDATE_SH" || true)
+assert_eq "CMD_TEST_PLUGIN absent from validate.sh" "0" "$cmd_test_plugin_count"
+
+assert_pass_if_clean "test_validate_sh_no_cmd_test_plugin"
+
 print_summary
