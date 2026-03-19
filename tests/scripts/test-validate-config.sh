@@ -142,5 +142,13 @@ rc=$?
 assert_eq "test_blank_key_exits_1 exit" "1" "$rc"
 assert_pass_if_clean "test_blank_key_exits_1"
 
+# -- test_validate_config_does_not_know_test_plugin ---------------------------
+# commands.test_plugin must not appear in KNOWN_KEYS in validate-config.sh.
+_snapshot_fail
+{ grep -q 'commands\.test_plugin' "$SCRIPT"; test $? -ne 0; }
+rc=$?
+assert_eq "test_validate_config_does_not_know_test_plugin" "0" "$rc"
+assert_pass_if_clean "test_validate_config_does_not_know_test_plugin"
+
 # -- Summary -------------------------------------------------------------------
 print_summary
