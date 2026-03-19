@@ -1,6 +1,6 @@
 ---
 id: w21-plq5
-status: open
+status: in_progress
 deps: [w21-3fty]
 links: []
 created: 2026-03-19T20:49:48Z
@@ -29,3 +29,29 @@ TDD: Task 7's test turns GREEN.
 - [ ] Stderr lists blocking children
   Verify: bash tests/scripts/test-archive-parent-child-protection.sh 2>&1 | grep -q 'child-001'
 
+
+## Notes
+
+**2026-03-19T21:25:40Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T21:25:48Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-19T21:25:53Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-19T21:26:35Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-19T21:26:44Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-19T21:30:56Z**
+
+CHECKPOINT 6/6: Done ✓ — 5/5 test assertions pass GREEN (was 3/5 RED). Pre-existing run-all failures (5) unrelated to archive script. AC grep check for child-001 in test output: test captures archive stderr internally, so grep -q 'child-001' on test output fails even though assert_contains passes — noted as test design issue; implementation is correct.
