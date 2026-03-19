@@ -237,4 +237,147 @@ assert_eq "test_track_tool_errors_second_error_increments" "yes" "$_TTE_INCREMEN
 
 rm -f "$COUNTER_FILE"
 
+# ============================================================
+# Group: monitoring.tool_errors guard (feature flag)
+# ============================================================
+# These tests verify the guard that checks monitoring.tool_errors config
+# before writing the error counter. Without the guard (RED state), tests
+# that expect no-write will FAIL; tests that expect write will PASS.
+
+test_tracking_disabled_when_flag_absent() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/workflow-config.conf"
+    # No monitoring.tool_errors key in config
+    echo "# empty config" > "$tmpconf"
+    rm -f "$COUNTER_FILE"
+
+    echo '{"tool_name":"Read","error":"file not found: /tmp/test.txt","is_interrupt":false}' \
+        | WORKFLOW_CONFIG_FILE="$tmpconf" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+    local counter_written="no"
+    if [[ -f "$COUNTER_FILE" ]]; then counter_written="yes"; fi
+
+    rm -rf "$tmpdir"
+    rm -f "$COUNTER_FILE"
+    # Guard (not yet implemented) should return early → no counter write
+    assert_eq "test_tracking_disabled_when_flag_absent" "no" "$counter_written"
+}
+test_tracking_disabled_when_flag_absent
+
+test_tracking_disabled_when_flag_false() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/workflow-config.conf"
+    echo "monitoring.tool_errors=false" > "$tmpconf"
+    rm -f "$COUNTER_FILE"
+
+    echo '{"tool_name":"Read","error":"file not found: /tmp/test.txt","is_interrupt":false}' \
+        | WORKFLOW_CONFIG_FILE="$tmpconf" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+    local counter_written="no"
+    if [[ -f "$COUNTER_FILE" ]]; then counter_written="yes"; fi
+
+    rm -rf "$tmpdir"
+    rm -f "$COUNTER_FILE"
+    # Guard should return early when flag is explicitly false → no counter write
+    assert_eq "test_tracking_disabled_when_flag_false" "no" "$counter_written"
+}
+test_tracking_disabled_when_flag_false
+
+test_tracking_enabled_when_flag_true() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/workflow-config.conf"
+    echo "monitoring.tool_errors=true" > "$tmpconf"
+    rm -f "$COUNTER_FILE"
+
+    echo '{"tool_name":"Read","error":"file not found: /tmp/test.txt","is_interrupt":false}' \
+        | WORKFLOW_CONFIG_FILE="$tmpconf" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+    local counter_written="no"
+    if [[ -f "$COUNTER_FILE" ]]; then counter_written="yes"; fi
+
+    rm -rf "$tmpdir"
+    rm -f "$COUNTER_FILE"
+    # Guard should allow through when flag is true → counter file written
+    assert_eq "test_tracking_enabled_when_flag_true" "yes" "$counter_written"
+}
+test_tracking_enabled_when_flag_true
+
+test_standalone_hook_disabled_when_flag_absent() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/workflow-config.conf"
+    # No monitoring.tool_errors key in config
+    echo "# empty config" > "$tmpconf"
+    rm -f "$COUNTER_FILE"
+
+    echo '{"tool_name":"Read","error":"permission denied: /tmp/test.txt","is_interrupt":false}' \
+        | WORKFLOW_CONFIG_FILE="$tmpconf" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+    local counter_written="no"
+    if [[ -f "$COUNTER_FILE" ]]; then counter_written="yes"; fi
+
+    rm -rf "$tmpdir"
+    rm -f "$COUNTER_FILE"
+    # Standalone hook should exit 0 without writing counter when flag is absent
+    assert_eq "test_standalone_hook_disabled_when_flag_absent" "no" "$counter_written"
+}
+test_standalone_hook_disabled_when_flag_absent
+
+test_standalone_hook_enabled_when_flag_true() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/workflow-config.conf"
+    echo "monitoring.tool_errors=true" > "$tmpconf"
+    rm -f "$COUNTER_FILE"
+
+    echo '{"tool_name":"Bash","error":"command not found: fooguard","is_interrupt":false}' \
+        | WORKFLOW_CONFIG_FILE="$tmpconf" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+    local counter_written="no"
+    if [[ -f "$COUNTER_FILE" ]]; then counter_written="yes"; fi
+
+    rm -rf "$tmpdir"
+    rm -f "$COUNTER_FILE"
+    # Standalone hook should write counter when flag is true
+    assert_eq "test_standalone_hook_enabled_when_flag_true" "yes" "$counter_written"
+}
+test_standalone_hook_enabled_when_flag_true
+
+test_tracking_disabled_when_read_config_fails() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    # Point WORKFLOW_CONFIG_FILE to a nonexistent file so read-config returns empty (graceful fallback)
+    local tmpconf="$tmpdir/nonexistent-workflow-config.conf"
+    rm -f "$COUNTER_FILE"
+
+    echo '{"tool_name":"Read","error":"file not found: /tmp/test.txt","is_interrupt":false}' \
+        | WORKFLOW_CONFIG_FILE="$tmpconf" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+    local counter_written="no"
+    if [[ -f "$COUNTER_FILE" ]]; then counter_written="yes"; fi
+
+    rm -rf "$tmpdir"
+    rm -f "$COUNTER_FILE"
+    # When read-config fails/returns empty, guard should default to false → no counter write
+    assert_eq "test_tracking_disabled_when_read_config_fails" "no" "$counter_written"
+}
+test_tracking_disabled_when_read_config_fails
+
+test_tracking_disabled_when_flag_invalid_value() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/workflow-config.conf"
+    # "yes" is not a valid truthy value — only "true" enables tracking
+    echo "monitoring.tool_errors=yes" > "$tmpconf"
+    rm -f "$COUNTER_FILE"
+
+    echo '{"tool_name":"Read","error":"file not found: /tmp/test.txt","is_interrupt":false}' \
+        | WORKFLOW_CONFIG_FILE="$tmpconf" bash "$HOOK" >/dev/null 2>/dev/null || true
+
+    local counter_written="no"
+    if [[ -f "$COUNTER_FILE" ]]; then counter_written="yes"; fi
+
+    rm -rf "$tmpdir"
+    rm -f "$COUNTER_FILE"
+    # Only exact "true" enables tracking; "yes" should be treated as disabled
+    assert_eq "test_tracking_disabled_when_flag_invalid_value" "no" "$counter_written"
+}
+test_tracking_disabled_when_flag_invalid_value
+
 print_summary

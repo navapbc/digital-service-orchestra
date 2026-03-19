@@ -18,7 +18,7 @@
   "dso-0gqr": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "Fix: validate-phase.sh should skip or fail gracefully when commands.lint_fix is not configured",
     "type": "bug"
   },
@@ -131,13 +131,6 @@
     "title": "As a Claude agent in a host project, I receive consistent DSO script invocation instructions across all skills and workflow docs",
     "type": "story"
   },
-  "dso-3v94": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: command_exit_nonzero (173 occurrences)",
-    "type": "bug"
-  },
   "dso-3xhk": {
     "deps": [],
     "priority": 2,
@@ -223,13 +216,6 @@
     "title": "As a DSO developer, the merge workflow and health check have checkpoint phases removed",
     "type": "story"
   },
-  "dso-5syi": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
-    "type": "bug"
-  },
   "dso-60hd": {
     "deps": [],
     "priority": 2,
@@ -246,13 +232,6 @@
     "status": "closed",
     "title": "Separate DSO plugin from DSO project",
     "type": "epic"
-  },
-  "dso-6ea2": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: file_not_found (61 occurrences)",
-    "type": "bug"
   },
   "dso-7h4i": {
     "deps": [],
@@ -287,7 +266,7 @@
   "dso-8jf6": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "Assess and align acceptance criteria standards: preplanning stories vs implementation-plan tasks",
     "type": "bug"
   },
@@ -366,10 +345,11 @@
   "dso-baje": {
     "deps": [
       "dso-guxa",
+      "dso-l24u",
       "dso-wglr"
     ],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "Update project docs to reflect removal of plugin test step",
     "type": "story"
   },
@@ -559,7 +539,7 @@
   "dso-guxa": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "open",
     "title": "As a developer, the separate plugin test check is removed from validate.sh and its configuration",
     "type": "story"
   },
@@ -573,13 +553,6 @@
     "status": "closed",
     "title": "Update project docs to reflect automatic version bumping",
     "type": "story"
-  },
-  "dso-hbcd": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
-    "type": "bug"
   },
   "dso-hdeb": {
     "deps": [],
@@ -684,23 +657,16 @@
   "dso-jqin": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "in_progress",
     "title": "Remove Step 1.75 (Plugin Tests) from COMMIT-WORKFLOW.md and flip test assertion",
     "type": "task"
-  },
-  "dso-k8lr": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
-    "type": "bug"
   },
   "dso-kexc": {
     "deps": [
       "dso-bkqa"
     ],
     "priority": 0,
-    "status": "closed",
+    "status": "open",
     "title": "Remove plugin check from validate.sh (CMD_TEST_PLUGIN, TIMEOUT_PLUGIN, run_check, report_check, tally_check, LAUNCHED_CHECKS, --help)",
     "type": "task"
   },
@@ -710,13 +676,6 @@
     "status": "open",
     "title": "Using-lockpicks guidance to encourage using sub-agents",
     "type": "epic"
-  },
-  "dso-kmti": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
-    "type": "bug"
   },
   "dso-ku5i": {
     "deps": [],
@@ -804,13 +763,6 @@
     "title": "test task 3",
     "type": "task"
   },
-  "dso-o79p": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "Untitled",
-    "type": "task"
-  },
   "dso-o8bw": {
     "deps": [],
     "priority": 1,
@@ -835,7 +787,7 @@
   "dso-p2d3": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "in_progress",
     "title": "Remove plugin testing as a separate step",
     "type": "epic"
   },
@@ -942,7 +894,7 @@
   "dso-s991": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "open",
     "title": "Integrate TDD into preplanning",
     "type": "epic"
   },
@@ -1046,7 +998,7 @@
   "dso-wglr": {
     "deps": [],
     "priority": 1,
-    "status": "closed",
+    "status": "open",
     "title": "As a developer, validate.sh runs all project tests through the configured test command",
     "type": "story"
   },
@@ -1149,20 +1101,25 @@
     "title": "As a DSO developer, all path references in CLAUDE.md reflect the post-restructure layout so the guide remains accurate",
     "type": "story"
   },
-  "w21-i8qa": {
+  "w21-3hgc": {
     "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "Write failing structural test for TDD story requirements in preplanning SKILL.md",
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Write RED Tests for Tool Error Hook Guard",
     "type": "task"
   },
-  "w21-u4q4": {
-    "deps": [
-      "w21-i8qa"
-    ],
-    "priority": 0,
-    "status": "closed",
-    "title": "Add TDD story requirements to preplanning SKILL.md",
+  "w21-a91w": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Write RED Tests for sweep_tool_errors Guard",
+    "type": "task"
+  },
+  "w21-jndb": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Document monitoring.tool_errors in INSTALL.md and CONFIGURATION-REFERENCE.md",
     "type": "task"
   }
 }
