@@ -19,6 +19,6 @@ Our tests have accumulated over time. Many tests check for the absence of behavi
 <!-- note-id: mnvr62is -->
 <!-- timestamp: 2026-03-18T20:49:36Z -->
 <!-- origin: agent -->
-<!-- sync: unsynced -->
+<!-- sync: synced -->
 
 Review existing tests for exemption criteria: audit the test suite and remove or rewrite tests that fail the behavioral-content criteria: (1) no conditional logic in the code under test — test is pure wiring/assignment/initialization; (2) change-detector tests — assertion mirrors implementation, breaks on any refactoring regardless of correctness; (3) infrastructure-boundary-only code — belongs at integration level not unit level. See dso-ffzi for the escape hatch criteria definition.

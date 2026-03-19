@@ -8,6 +8,7 @@ type: story
 priority: 2
 assignee: Joe Oakhart
 parent: dso-fel5
+jira_key: DIG-76
 ---
 # As a DSO developer, shared hook support scripts are free of checkpoint-specific dead code
 

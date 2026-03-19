@@ -8,6 +8,7 @@ type: story
 priority: 3
 assignee: Joe Oakhart
 parent: dso-l2ct
+jira_key: DIG-73
 ---
 # Update project docs to reflect dso:sprint optimization
 

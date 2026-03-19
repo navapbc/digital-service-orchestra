@@ -8,6 +8,7 @@ type: task
 priority: 2
 assignee: Joe Oakhart
 parent: dso-ff9f
+jira_key: DIG-74
 ---
 # Add optional dep detection, env var guidance, and success summary to dso-setup.sh
 

@@ -9,7 +9,7 @@ priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-12
 ---
-# Research and investigation in pre-planning 
+# Research and investigation in pre-planning or brainstorm
 
 Our goal is to shift investigation and research tasks into preplanning. We want the execution of the implementation on stories to be as autonomous as possible, which means answering open questions and clearly defining requirements before we start our first batch of agents. 
 The preplanning skill should identify any area where research or investigation is needed. For example, researching best practices or expert advice that will be incorporated into later work in the epic. This includes but is not limited to prompt engineering tasks, feasibility questions, and clarifying requirements. Look for gaps in our understanding at the story level.
