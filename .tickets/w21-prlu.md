@@ -45,3 +45,11 @@ sprint-next-batch.sh should resolve tk from the worktree (REPO_ROOT), not the ma
 This is not limited to sprint-next-batch.sh. ALL plugin scripts that resolve helper paths (tk, issue-batch.sh, analyze-file-impact.py, read-config.sh, classify-task.py, etc.) should resolve from the worktree root first, then fall back to PATH. The pattern of hardcoding paths relative to the main repo breaks any script run from a worktree session.
 
 Audit all scripts in plugins/dso/scripts/ for hardcoded path resolution that bypasses the worktree. Fix the resolution pattern once (e.g., a shared resolve_tool() helper) and apply consistently.
+
+**2026-03-19T20:50:02Z**
+
+Classification: behavioral, Score: 3 (INTERMEDIATE). Severity=1(medium), Complexity=2(complex—multiple scripts, worktree/plugin boundary), Environment=0(local).
+
+**2026-03-19T21:07:21Z**
+
+FIX APPLIED: Added validation guard to CLAUDE_PLUGIN_ROOT resolution in 17 hook files and 14 script files. Guard now checks directory structure exists (hooks/lib for hooks, plugin.json for scripts) — not just if variable is empty. Also fixed relative path violation in session-misc-functions.sh:645. All 10 failing tests now pass (0 regressions). Files: plugins/dso/hooks/dispatchers/*.sh, plugins/dso/hooks/run-hook.sh, plugins/dso/hooks/write-reviewer-findings.sh, plugins/dso/hooks/compute-diff-hash.sh, plugins/dso/hooks/lib/session-misc-functions.sh, plugins/dso/scripts/{13 scripts}.

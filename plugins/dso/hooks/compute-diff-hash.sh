@@ -39,7 +39,7 @@ cd "$(git rev-parse --show-toplevel)"
 # Shared constant — must match the label used by pre-compact-checkpoint.sh
 CHECKPOINT_LABEL='checkpoint: pre-compaction auto-save'
 # Read config-driven checkpoint label (same resolution as pre-compact-checkpoint.sh)
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" || ! -d "${CLAUDE_PLUGIN_ROOT}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
 _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"

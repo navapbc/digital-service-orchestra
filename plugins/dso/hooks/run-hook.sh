@@ -18,7 +18,7 @@
 # guard resolves it from the script's location when running standalone
 # (e.g., in tests or CI without Claude Code).
 
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" || ! -d "${CLAUDE_PLUGIN_ROOT}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
