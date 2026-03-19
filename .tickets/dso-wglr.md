@@ -1,6 +1,6 @@
 ---
 id: dso-wglr
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T22:59:19Z
@@ -89,3 +89,10 @@ CHECKPOINT 5/6: Validation passed ✓ — 166 pytest tests passed; bash tests/ru
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — commands.test_unit=bash tests/run-all.sh confirmed in workflow-config.conf; validate.sh line 110 reads this via _cfg('commands.test_unit')
+
+<!-- note-id: bv2rc1h6 -->
+<!-- timestamp: 2026-03-19T00:43:30Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: updated commands.test_unit to bash tests/run-all.sh — validate.sh now runs all test suites
