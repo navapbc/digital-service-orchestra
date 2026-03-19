@@ -1030,11 +1030,11 @@ Do NOT merge to main here — merging to main happens only at epic completion in
 > experiencing a known control-flow regression (observed 2026-03-18). Type "continue"
 > mentally and proceed directly to Step 11.
 
-> **CONTINUE:** After `merge-to-main.sh` completes and blackboard cleanup is done, proceed to Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
+> **CONTINUE:** After `git push -u origin HEAD` and blackboard cleanup are done, proceed to Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
 
 ### Step 10a: Close Completed Tasks (/dso:sprint)
 
-After `merge-to-main.sh` succeeds, close each task whose code was successfully committed and merged:
+After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
 
 ```bash
 tk close <id> --reason="Fixed: <summary>"
