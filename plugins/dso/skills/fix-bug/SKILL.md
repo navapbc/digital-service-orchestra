@@ -204,15 +204,49 @@ The orchestrator applies convergence scoring across both agents. Agents independ
 
 #### ESCALATED Investigation
 
-Triggered when ADVANCED investigation fails to resolve the issue. Launch **four opus** sub-agents:
-1. **Web Researcher**: error pattern analysis, similar issue correlation, dependency changelogs (authorized to use WebSearch/WebFetch)
-2. **History Analyst**: timeline reconstruction, fault tree analysis, commit bisection
-3. **Code Tracer**: execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys
-4. **Empirical Agent**: authorized to add logging and enable debugging to empirically validate or veto hypotheses from agents 1-3
+Triggered when ADVANCED investigation fails to resolve the issue. Launch **four opus** sub-agents with differentiated lenses:
 
-If Agent 4 (Empirical) vetoes consensus from agents 1-3, a resolution agent weighs all findings, conducts additional tests, and surfaces the highest-confidence conclusion.
+<!-- REVIEW-DEFENSE: Agents 1-3 prompt files (escalated-investigation-agent-1.md, escalated-investigation-agent-2.md, escalated-investigation-agent-3.md) are created by upcoming GREEN tasks dso-mn94, dso-sjck, and dso-cxuh respectively. This SKILL.md is updated in GREEN task dso-bgqs as part of a TDD RED→GREEN sequence. The RED tests for those prompt files already exist and are expected to fail until the corresponding GREEN tasks create the files. Only agent-4.md exists at this stage; the remaining prompts will be added incrementally. -->
+- **Agent 1 (Web Researcher)**: error pattern analysis, similar issue correlation, dependency changelogs — authorized to use WebSearch/WebFetch — uses the prompt template at `prompts/escalated-investigation-agent-1.md`
+- **Agent 2 (History Analyst)**: timeline reconstruction, fault tree analysis, commit bisection — uses the prompt template at `prompts/escalated-investigation-agent-2.md`
+- **Agent 3 (Code Tracer)**: execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys — uses the prompt template at `prompts/escalated-investigation-agent-3.md`
+- **Agent 4 (Empirical Agent)**: authorized to add logging and enable debugging to empirically validate or veto hypotheses from agents 1-3 — uses the prompt template at `prompts/escalated-investigation-agent-4.md`
 
-Each agent proposes at least 3 fixes not already attempted. All agents except the Empirical Agent use read-only sub-agents.
+**Dispatch concurrency and sequencing**: Dispatch Agents 1, 2, and 3 concurrently — dispatch all three before awaiting any result. After agents 1-3 return, dispatch Agent 4 with their findings included in `{escalation_history}` so the Empirical Agent can design targeted tests against the theoretical consensus.
+
+Assemble the dispatch context by populating these named slots before launching each sub-agent. All agents receive the same base context; Agent 4 additionally receives agents 1-3 RESULT reports via `escalation_history`:
+
+| Slot | Source |
+|------|--------|
+| `{ticket_id}` | The bug ticket ID (e.g., `w21-xxxx`) |
+| `{failing_tests}` | Output of `$TEST_CMD` — failing test names and their output |
+| `{stack_trace}` | Stack trace extracted from test output or error logs |
+| `{commit_history}` | Output of `git log --oneline -20 -- <affected-files>` |
+| `{prior_fix_attempts}` | Ticket notes containing previous fix attempt records (empty string if none) |
+| `{escalation_history}` | Previous ADVANCED RESULT report, discovery file contents, and (for Agent 4) the RESULT reports from Agents 1-3 in this ESCALATED tier |
+
+Each agent proposes at least 3 fixes not already attempted. Agents 1-3 use read-only sub-agents. Agent 4 is authorized to make temporary modifications (logging/debugging only) but must revert all such additions before returning results.
+
+**Artifact revert requirement**: Agent 4's logging and debugging additions are investigation artifacts. They must be reverted or stashed after evidence is collected — investigation artifacts must not persist in the working tree. Findings go in the investigation RESULT report. Agent 4 must confirm revert via `artifact_revert_confirmed: true` in its RESULT.
+
+##### Veto Logic (after all four agents return)
+
+After all four agents return their RESULT reports, evaluate Agent 4's `veto_issued` field:
+
+- **No veto** (`veto_issued: false`): proceed to fix selection with confidence weighted by Agent 4's empirical validation of the agents 1-3 consensus.
+- **Veto issued** (`veto_issued: true`): Agent 4's empirical evidence directly contradicts the root cause proposed by the consensus of agents 1-3. The veto supersedes the theoretical analysis. When a veto is issued, dispatch a **resolution agent**.
+
+**Resolution agent dispatch (on veto)**: The resolution agent receives all four RESULT reports, weighs the theoretical evidence from agents 1-3 against the empirical evidence from Agent 4, conducts additional targeted tests to break any remaining tie, and surfaces the highest-confidence conclusion. The resolution agent's conclusion governs fix selection.
+
+##### Terminal Escalation
+
+If ESCALATED investigation (with or without resolution agent) cannot produce a high-confidence root cause, this is the **ESCALATED terminal condition**. Log `ESCALATED terminal — user escalation required` and do NOT attempt any further autonomous fix. Surface all findings to the user:
+
+- All root causes considered with confidence levels
+- All fixes attempted with results
+- All hypothesis test results
+- All RESULT reports from agents 1-4 (and the resolution agent if dispatched)
+- Recommendation for manual investigation
 
 ### Step 3: Hypothesis Testing (/dso:fix-bug)
 

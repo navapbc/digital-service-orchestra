@@ -1,6 +1,6 @@
 ---
 id: dso-56g6
-status: in_progress
+status: closed
 deps: [dso-ezme]
 links: []
 created: 2026-03-19T18:36:55Z
