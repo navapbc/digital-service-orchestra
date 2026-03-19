@@ -91,6 +91,13 @@
     "title": "As a DSO hook or script author, I can source the shim in library mode to get DSO_ROOT without depending on CLAUDE_PLUGIN_ROOT",
     "type": "story"
   },
+  "dso-12ap": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing Python tests for cluster investigation in SKILL.md",
+    "type": "task"
+  },
   "dso-1e6j": {
     "deps": [],
     "priority": 2,
@@ -257,6 +264,15 @@
     "status": "closed",
     "title": "As a client project developer installing DSO, dso-setup.sh works correctly from its new location in plugins/dso/scripts/",
     "type": "story"
+  },
+  "dso-7plu": {
+    "deps": [
+      "dso-s3g4"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Create plugins/dso/skills/fix-bug/prompts/cluster-investigation.md",
+    "type": "task"
   },
   "dso-8fc5": {
     "deps": [],
@@ -438,7 +454,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
+    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
     "type": "bug"
   },
   "dso-fbky": {
@@ -614,7 +630,7 @@
     "deps": [],
     "priority": 0,
     "status": "closed",
-    "title": "DSO project setup — automated script, interactive skill, and complete documentation",
+    "title": "DSO project setup \u2014 automated script, interactive skill, and complete documentation",
     "type": "epic"
   },
   "dso-iwb4": {
@@ -721,7 +737,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
     "type": "bug"
   },
   "dso-ku5i": {
@@ -756,7 +772,7 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-l35x": {
@@ -884,14 +900,14 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "validate.sh hardcodes app/ directory — should pull project-specific paths from config",
+    "title": "validate.sh hardcodes app/ directory \u2014 should pull project-specific paths from config",
     "type": "bug"
   },
   "dso-q9z9": {
     "deps": [],
     "priority": 3,
     "status": "open",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
   "dso-qd5d": {
@@ -944,6 +960,15 @@
     "status": "open",
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
+  },
+  "dso-s3g4": {
+    "deps": [
+      "dso-12ap"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing Python tests for cluster-investigation prompt template",
+    "type": "task"
   },
   "dso-s991": {
     "deps": [],
@@ -1031,6 +1056,15 @@
     "priority": 1,
     "status": "closed",
     "title": "Migrate skill/workflow doc script invocations to use dso shim (GREEN)",
+    "type": "task"
+  },
+  "dso-v17o": {
+    "deps": [
+      "dso-12ap"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add cluster investigation mode to SKILL.md",
     "type": "task"
   },
   "dso-v558": {
