@@ -1,6 +1,6 @@
 ---
 id: w21-ycsr
-status: in_progress
+status: closed
 deps: [w21-v1vi]
 links: []
 created: 2026-03-19T20:36:52Z

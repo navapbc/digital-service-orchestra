@@ -1,6 +1,6 @@
 ---
 id: w21-3fty
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T20:49:35Z
