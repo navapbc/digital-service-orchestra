@@ -12,15 +12,18 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 HARNESS="$DSO_PLUGIN_DIR/scripts/check-test-isolation.sh"
-FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
+
+# Use mktemp for all fixture files — never write inside the repo tree.
+FIXTURES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-isolation-baseline-XXXXXX")
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-check-test-isolation-baseline.sh ==="
 
-# ---- Setup: create fixtures ----
+# EXIT trap: clean up temp fixtures even when killed by SIGURG (tool timeout)
+trap 'rm -rf "$FIXTURES_DIR"' EXIT
 
-rm -rf "$FIXTURES_DIR/tmp-baseline-"*
+# ---- Setup: create fixtures ----
 
 # Create a temp rules dir with two dummy rules
 TEMP_RULES_DIR="$FIXTURES_DIR/tmp-baseline-rules-$$"
@@ -144,7 +147,6 @@ assert_eq "test_baseline_mode_no_violations_report: exits 0" "0" "$exit_code"
 assert_contains "test_baseline_mode_no_violations_report: total is 0" "Total violations: 0" "$output"
 assert_pass_if_clean "test_baseline_mode_no_violations_report"
 
-# ---- Cleanup ----
-rm -rf "$FIXTURES_DIR/tmp-baseline-"*
+# ---- Cleanup (EXIT trap handles temp dir removal) ----
 
 print_summary

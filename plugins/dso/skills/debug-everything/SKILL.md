@@ -593,11 +593,34 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 
 For each fix task, launch via the Task tool. **Launch all sub-agents in the batch within a single message** (parallel tool calls).
 
-Sub-agent prompt: Select the appropriate template based on the TDD Enforcement table:
-- **TDD required** → Read `$PLUGIN_ROOT/skills/debug-everything/prompts/fix-task-tdd.md`
-- **TDD not required** → Read `$PLUGIN_ROOT/skills/debug-everything/prompts/fix-task-mechanical.md`
+**Delegate to `/dso:fix-bug`**: Instead of selecting fix-task-tdd.md or fix-task-mechanical.md directly, delegate all bug resolution to `/dso:fix-bug`. The `dso:fix-bug` skill encapsulates the TDD vs. mechanical routing decision internally — it handles its own TDD enforcement and investigation routing.
 
-Fill in the `{placeholders}` with issue-specific details (title, ID, category, error output, root cause location, and `{file_ownership_context}` from the blackboard step above) before passing to the sub-agent.
+**Individual bug invocation:**
+```
+/dso:fix-bug <bug-id>
+```
+
+**Cluster invocation** (for multiple related bugs in a cluster, resolved together):
+```
+/dso:fix-bug <id1> <id2> ...
+```
+
+**Pass triage classification as pre-loaded context** so dso:fix-bug's scoring rubric does not need to re-classify from scratch. Include in the sub-agent prompt:
+
+```
+### Triage Classification Context (pre-loaded — do not re-score)
+Bug ID: <bug-id>
+Triage tier: <tier-number>
+Severity (from triage priority): <P0=critical/2pts | P1=high/2pts | P2=medium/1pt | P3=low/0pts>
+Complexity (from Phase 2.5 complexity gate): <TRIVIAL|MODERATE>
+Environment: <CI failure | staging | local — from triage report>
+```
+
+**Triage-to-scoring-rubric mapping** (how triage tier maps to dso:fix-bug scoring dimensions):
+- **Tier 0-1 (mechanical)**: fix-bug classifies as mechanical, bypasses scoring rubric entirely
+- **Tier 2+ (behavioral bugs)**: provide severity from triage priority (P0=critical/2pts, P1=high/2pts, P2=medium/1pt, P3=low/0pts) and complexity classification from Phase 2.5 complexity gate output, environment from triage report (CI failure/staging notes). This allows fix-bug to inherit the triage classification rather than re-score.
+
+**File ownership context**: Pass `{file_ownership_context}` from the blackboard step above in the sub-agent prompt. Each sub-agent receives its own tailored context showing which files it owns and which files other agents in the batch own.
 
 ### Subagent Type Selection
 

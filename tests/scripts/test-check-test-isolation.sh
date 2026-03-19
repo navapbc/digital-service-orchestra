@@ -12,16 +12,18 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 HARNESS="$DSO_PLUGIN_DIR/scripts/check-test-isolation.sh"
-FIXTURES_DIR="$SCRIPT_DIR/fixtures/isolation-rules"
+
+# Use mktemp for all fixture files — never write inside the repo tree.
+FIXTURES_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-isolation-XXXXXX")
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-check-test-isolation.sh ==="
 
-# ---- Setup: create fixtures ----
+# EXIT trap: clean up temp fixtures even when killed by SIGURG (tool timeout)
+trap 'rm -rf "$FIXTURES_DIR"' EXIT
 
-# Clean fixture directory
-rm -rf "$FIXTURES_DIR/tmp-test-*"
+# ---- Setup: create fixtures ----
 
 # Create a temp rules dir with a dummy rule for testing
 TEMP_RULES_DIR="$FIXTURES_DIR/tmp-test-rules-$$"
@@ -184,7 +186,6 @@ assert_contains "test_harness_handles_rule_crash_gracefully: warns about crash" 
 assert_contains "test_harness_handles_rule_crash_gracefully: still finds violations" "no-bad-pattern" "$output"
 assert_pass_if_clean "test_harness_handles_rule_crash_gracefully"
 
-# ---- Cleanup ----
-rm -rf "$FIXTURES_DIR/tmp-test-"*
+# ---- Cleanup (EXIT trap handles temp dir removal) ----
 
 print_summary

@@ -180,7 +180,10 @@ This avoids redundant re-runs when the validation was already executed earlier i
 
 **Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
 
-**If validation fails**: Dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the validation output to diagnose and fix the specific failing categories. Do NOT invoke `/dso:debug-everything` — it is a separate workflow that resolves all project bugs, not just sprint-scoped failures. Do NOT proceed to the Preplanning Gate until validation passes.
+**If validation fails**:
+- **Single bug/test failure**: Invoke `/dso:fix-bug` with the failing test output — it classifies the bug, selects the appropriate investigation path, and fixes it with TDD discipline.
+- **Multiple failures or unclear root cause**: Dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the validation output to diagnose and fix the specific failing categories. Do NOT invoke `/dso:debug-everything` — it is a separate workflow that resolves all project bugs, not just sprint-scoped failures.
+- Do NOT proceed to the Preplanning Gate until validation passes.
 
 ### Preplanning Gate
 

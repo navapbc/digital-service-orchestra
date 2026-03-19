@@ -21,11 +21,11 @@ This is not negotiable. This is not optional. You cannot rationalize your way ou
 
 ## Skill Priority
 
-Process skills first (`/dso:brainstorm`, `tdd-workflow`) — then implementation skills (`/dso:sprint`, `/dso:implementation-plan`).
+Process skills first (`/dso:brainstorm`, `/dso:fix-bug` for bug fixes, `/dso:tdd-workflow` for new feature TDD) — then implementation skills (`/dso:sprint`, `/dso:implementation-plan`).
 
 ## Skill Types
 
-**Rigid** (`tdd-workflow`, `verification-before-completion`): follow exactly. **Flexible** (patterns): adapt to context. The skill itself tells you which.
+**Rigid** (`/dso:fix-bug`, `/dso:tdd-workflow`, `verification-before-completion`): follow exactly. **Flexible** (patterns): adapt to context. The skill itself tells you which.
 
 ## User Instructions
 

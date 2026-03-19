@@ -165,6 +165,11 @@ if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_USP_ESCAPED}.*\\.html$"
 fi
 
+# Exclude test sentinel files that leak when test runners are killed by tool timeout.
+# These must remain visible to git (not gitignored) because the crossval test's
+# overlap check requires them, but they must not affect the diff hash.
+NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^\\.crossval-test-sentinel-"
+
 # Build the untracked file list from live git query
 _get_untracked_files() {
     git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$NON_REVIEWABLE_PATTERN" || true; }
