@@ -123,7 +123,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Full test suite command. |
 | **Accepted values** | Any shell command string (e.g., `make test`, `npm test`) |
 | **Default** | Stack-derived (e.g., `poetry run pytest` for `python-poetry`) |
-| **Used by** | Skills: `/dso:sprint`, `/dso:tdd-workflow`, `/dso:debug-everything` |
+| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, `/dso:tdd-workflow`, `/dso:debug-everything` |
 
 ---
 
@@ -134,7 +134,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Linter command. |
 | **Accepted values** | Any shell command string (e.g., `make lint`, `npm run lint`) |
 | **Default** | Stack-derived |
-| **Used by** | Skills: `/dso:sprint`, `/dso:tdd-workflow`, validate-work |
+| **Used by** | Skills: `/dso:sprint`, `/dso:fix-bug`, `/dso:tdd-workflow`, validate-work |
 
 ---
 
@@ -178,7 +178,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Unit tests only — faster feedback loop, no integration or E2E tests. |
 | **Accepted values** | Any shell command string (e.g., `make test-unit-only`, `npm run test:unit`) |
 | **Default** | Stack-derived |
-| **Used by** | Skills: `/dso:tdd-workflow`, `/dso:debug-everything` |
+| **Used by** | Skills: `/dso:fix-bug`, `/dso:tdd-workflow`, `/dso:debug-everything` |
 
 ---
 
