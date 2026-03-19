@@ -257,13 +257,19 @@ if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
     _RR_GREP_PATTERN="${_RR_GREP_PATTERN}|^${_USP_ESC}.*\\.html$"
 fi
 
-CHANGED_FILES=$(
-    {
-        git diff --name-only HEAD -- "${_RR_EXCLUDE[@]}" 2>/dev/null || true
-        git diff --cached --name-only HEAD -- "${_RR_EXCLUDE[@]}" 2>/dev/null || true
-        git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$_RR_GREP_PATTERN" || true; }
-    } | sort -u | { grep -v '^$' || true; }
-)
+# Allow tests to inject changed files without writing to the repo.
+# isolation-ok: test-only override for overlap check
+if [[ -n "${RECORD_REVIEW_CHANGED_FILES:-}" ]]; then
+    CHANGED_FILES="$RECORD_REVIEW_CHANGED_FILES"
+else
+    CHANGED_FILES=$(
+        {
+            git diff --name-only HEAD -- "${_RR_EXCLUDE[@]}" 2>/dev/null || true
+            git diff --cached --name-only HEAD -- "${_RR_EXCLUDE[@]}" 2>/dev/null || true
+            git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$_RR_GREP_PATTERN" || true; }
+        } | sort -u | { grep -v '^$' || true; }
+    )
+fi
 
 if [[ -n "$CHANGED_FILES" ]] && [[ -n "$FILES_FROM_FINDINGS" ]]; then
     OVERLAP_FOUND=""
