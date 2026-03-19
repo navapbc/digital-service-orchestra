@@ -3696,6 +3696,24 @@ except Exception:
 " 2>/dev/null || echo "")
     fi
 
+    # ── Frontmatter scan: find existing ticket with matching jira_key ─────────
+    # Handles the case where the ledger has no entry but a ticket file already
+    # contains jira_key: $jira_key in its frontmatter (e.g. after ledger loss).
+    if [[ -z "$existing_tk_id" ]]; then
+        local fm_match
+        fm_match=$(awk -v key="$jira_key" '
+            /^---$/ { n++; if (n == 2) { n=0; nextfile }; next }
+            n == 1 && /^jira_key:/ {
+                val = $0; sub(/^jira_key:[[:space:]]*/, "", val)
+                if (val == key) { print FILENAME; exit }
+            }
+        ' "$tickets_dir"/*.md 2>/dev/null || true)
+        if [[ -n "$fm_match" ]]; then
+            existing_tk_id=$(basename "$fm_match" .md)
+            echo "warning: Jira $jira_key already exists as local ticket $existing_tk_id (frontmatter match) — skipping creation" >&2
+        fi
+    fi
+
     local now
     now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
 
