@@ -652,6 +652,18 @@ If the script reports a non-ticket merge conflict, resolve it (prefer local for 
 
 Launch up to `max_agents` sub-agents (1 or 5, determined in Phase 4) via the Task tool. Each sub-agent gets a structured prompt:
 
+### Display Batch Task List
+
+Before dispatching any sub-agents, print a numbered list of all tasks in the batch so the user can see what work is about to begin. Each line must show the task ID and title:
+
+```
+1. [dso-abc1] Fix authentication bug
+2. [dso-def2] Add rate limiting to API endpoints
+3. [dso-ghi3] Refactor session management
+```
+
+Titles are parsed from the `TASK:` tab-separated lines produced by `sprint-next-batch.sh` — the last field in each `TASK:` line is the title. No additional `tk show` calls are needed.
+
 ### Blackboard Write and File Ownership Context
 
 Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context:
