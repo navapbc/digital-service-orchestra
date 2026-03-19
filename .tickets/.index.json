@@ -1106,5 +1106,21 @@
     "status": "closed",
     "title": "As a DSO developer, all path references in CLAUDE.md reflect the post-restructure layout so the guide remains accurate",
     "type": "story"
+  },
+  "w21-i8qa": {
+    "deps": [],
+    "priority": 0,
+    "status": "closed",
+    "title": "Write failing structural test for TDD story requirements in preplanning SKILL.md",
+    "type": "task"
+  },
+  "w21-u4q4": {
+    "deps": [
+      "w21-i8qa"
+    ],
+    "priority": 0,
+    "status": "closed",
+    "title": "Add TDD story requirements to preplanning SKILL.md",
+    "type": "task"
   }
 }
