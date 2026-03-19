@@ -1,6 +1,6 @@
 ---
 id: dso-bgqs
-status: in_progress
+status: closed
 deps: [dso-p9i6]
 links: []
 created: 2026-03-19T18:36:36Z
