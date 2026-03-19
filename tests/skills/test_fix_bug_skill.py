@@ -150,3 +150,60 @@ def test_fix_bug_skill_tdd_workflow_config_pattern() -> None:
         "Expected SKILL.md to contain 'read-config.sh' as the canonical way "
         "to resolve workflow configuration values (TDD workflow config pattern)."
     )
+
+
+class TestBasicInvestigationSkillIntegration:
+    """Tests asserting the BASIC investigation section of SKILL.md references
+    the prompt template file and includes explicit context-assembly instructions.
+
+    TDD spec for task w21-8yqq (RED task):
+    - plugins/dso/skills/fix-bug/SKILL.md BASIC section must:
+      1. Reference 'basic-investigation.md' prompt template file
+      2. Use 'prompts/' directory convention
+      3. Define explicit context-assembly slots (failing_tests, stack_trace, commit_history)
+      4. Reference RESULT format conformance for the sub-agent output schema
+    """
+
+    def test_basic_section_references_prompt_template_file(self) -> None:
+        """SKILL.md BASIC section must reference the 'basic-investigation.md' prompt template."""
+        content = _read_skill()
+        assert "basic-investigation.md" in content, (
+            "Expected SKILL.md to contain 'basic-investigation.md' to reference "
+            "the prompt template file for the BASIC investigation dispatch. "
+            "This is a RED test — SKILL.md does not yet reference this file."
+        )
+
+    def test_basic_section_uses_prompts_directory_convention(self) -> None:
+        """SKILL.md BASIC section must use the 'prompts/' directory convention."""
+        content = _read_skill()
+        assert "prompts/" in content, (
+            "Expected SKILL.md to contain 'prompts/' to follow the standard "
+            "prompts directory convention for referencing prompt template files. "
+            "This is a RED test — SKILL.md does not yet use this convention."
+        )
+
+    def test_basic_section_defines_context_assembly_slots(self) -> None:
+        """SKILL.md BASIC section must define named context slots for the dispatch."""
+        content = _read_skill()
+        assert "failing_tests" in content, (
+            "Expected SKILL.md to contain 'failing_tests' as a named context slot "
+            "in the BASIC dispatch assembly instructions. "
+            "This is a RED test — SKILL.md does not yet define these context slots."
+        )
+        assert "stack_trace" in content, (
+            "Expected SKILL.md to contain 'stack_trace' as a named context slot "
+            "in the BASIC dispatch assembly instructions."
+        )
+        assert "commit_history" in content, (
+            "Expected SKILL.md to contain 'commit_history' as a named context slot "
+            "in the BASIC dispatch assembly instructions."
+        )
+
+    def test_basic_section_references_result_format_conformance(self) -> None:
+        """SKILL.md BASIC section must reference RESULT format conformance for sub-agent output."""
+        content = _read_skill()
+        assert "RESULT" in content, (
+            "Expected SKILL.md to contain 'RESULT' to reference the output schema "
+            "that the BASIC investigation sub-agent must conform to. "
+            "This is a RED test — SKILL.md does not yet reference RESULT format conformance."
+        )

@@ -1,6 +1,6 @@
 ---
 id: w21-qsh6
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T05:43:21Z
@@ -45,3 +45,29 @@ After Task 2 is complete, Check 1 should FAIL (old text removed) and a new check
   Verify: ! grep -q 'fix-bug' $(git rev-parse --show-toplevel)/plugins/dso/skills/using-lockpick/SKILL.md
 - [ ] `bash plugins/dso/scripts/check-skill-refs.sh` passes (exit 0) — no unqualified skill refs introduced
   Verify: cd $(git rev-parse --show-toplevel) && bash plugins/dso/scripts/check-skill-refs.sh
+
+## Notes
+
+**2026-03-19T05:47:09Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T05:47:20Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — SKILL.md shows tdd-workflow in Skill Priority (line 73) and Skill Types (line 77), no fix-bug reference present
+
+**2026-03-19T05:47:32Z**
+
+CHECKPOINT 3/6: RED verification check 1 passed — tdd-workflow routing present in SKILL.md ✓
+
+**2026-03-19T05:47:35Z**
+
+CHECKPOINT 4/6: RED verification check 2 passed — dso:fix-bug NOT yet present in SKILL.md ✓
+
+**2026-03-19T05:47:38Z**
+
+CHECKPOINT 5/6: Both RED phase checks confirm baseline state — tdd-workflow present, fix-bug absent ✓
+
+**2026-03-19T05:47:47Z**
+
+CHECKPOINT 6/6: Done ✓ — All 3 AC checks pass: (1) tdd-workflow routing present, (2) dso:fix-bug absent, (3) check-skill-refs exits 0

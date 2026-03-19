@@ -1,6 +1,6 @@
 ---
 id: w21-kzkp
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T05:43:22Z
@@ -45,3 +45,29 @@ After Task 4 is complete, Check 1 should FAIL (old text removed) and a new check
   Verify: ! grep -q 'fix-bug' $(git rev-parse --show-toplevel)/plugins/dso/skills/using-lockpick/HOOK-INJECTION.md
 - [ ] `bash plugins/dso/scripts/check-skill-refs.sh` passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && bash plugins/dso/scripts/check-skill-refs.sh
+
+## Notes
+
+**2026-03-19T05:47:12Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T05:47:21Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — HOOK-INJECTION.md routes to tdd-workflow in both Skill Priority (line 24) and Skill Types (line 28)
+
+**2026-03-19T05:47:30Z**
+
+CHECKPOINT 3/6: RED check 1 PASS — grep confirms tdd-workflow present in Skill Priority routing context (line 24: '/dso:brainstorm, tdd-workflow') ✓
+
+**2026-03-19T05:47:33Z**
+
+CHECKPOINT 4/6: RED check 2 PASS — grep confirms dso:fix-bug NOT yet present in HOOK-INJECTION.md (pre-fix baseline state confirmed) ✓
+
+**2026-03-19T05:47:37Z**
+
+CHECKPOINT 5/6: Both RED checks passed — file currently routes to tdd-workflow, not dso:fix-bug. Baseline state established for Task 4 (w21-nklm) to correct ✓
+
+**2026-03-19T05:47:47Z**
+
+CHECKPOINT 6/6: Done ✓ — All 3 AC checks passed: (1) tdd-workflow present in routing, (2) dso:fix-bug absent, (3) check-skill-refs.sh exits 0

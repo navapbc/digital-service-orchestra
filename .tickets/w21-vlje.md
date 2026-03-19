@@ -1,6 +1,6 @@
 ---
 id: w21-vlje
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T05:43:23Z
@@ -39,3 +39,29 @@ TDD Requirement: Run python3 -m pytest tests/skills/test_basic_investigation_pro
   Verify: cd $(git rev-parse --show-toplevel) && ruff check tests/skills/test_basic_investigation_prompt.py
 - [ ] `ruff format --check` passes on the test file (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && ruff format --check tests/skills/test_basic_investigation_prompt.py
+
+## Notes
+
+**2026-03-19T05:46:58Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T05:47:08Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-19T05:47:33Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-19T05:47:36Z**
+
+CHECKPOINT 4/6: Implementation complete (RED test — no impl needed) ✓
+
+**2026-03-19T05:47:59Z**
+
+CHECKPOINT 5/6: RED confirmed — 12/12 tests fail (FileNotFoundError: basic-investigation.md does not exist yet) ✓
+
+**2026-03-19T05:47:59Z**
+
+CHECKPOINT 6/6: Done ✓ — AC verify: RED confirmed, file exists, 12 test functions (≥8), ruff check pass, ruff format pass
