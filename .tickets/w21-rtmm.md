@@ -1,6 +1,6 @@
 ---
 id: w21-rtmm
-status: open
+status: in_progress
 deps: [w21-pjhx, w21-x0t4, w21-tls9]
 links: []
 created: 2026-03-19T15:22:47Z
@@ -59,3 +59,25 @@ TDD Requirement (GREEN): After editing, run python -m pytest tests/skills/test_f
 - [ ] Full test_fix_bug_skill.py suite still passes
   Verify: python -m pytest tests/skills/test_fix_bug_skill.py -v
 
+
+## Notes
+
+**2026-03-19T18:20:42Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T18:21:04Z**
+
+CHECKPOINT 3/6: Tests written ✓ (pre-existing RED tests confirmed: 2 failing, 3 passing in TestAdvancedInvestigationSkillIntegration)
+
+**2026-03-19T18:21:46Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — SKILL.md ADVANCED section updated with prompt template refs, context slots table, concurrent dispatch note, convergence scoring algorithm, fishbone synthesis instructions
+
+**2026-03-19T18:28:15Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — TestAdvancedInvestigationSkillIntegration: 5/5 PASS; full test_fix_bug_skill.py: 34/34 PASS; ruff lint: PASS; ruff format: PASS; run-all.sh exits 144 (SIGURG tool-call timeout ceiling — pre-existing; partial output shows pre-existing test-hook-lib-no-relative-paths.sh failure unrelated to this change)
+
+**2026-03-19T18:28:39Z**
+
+CHECKPOINT 6/6: Done ✓ — All AC verify commands passed: agent-a.md ref PASS, agent-b.md ref PASS, TestAdvancedInvestigationSkillIntegration 5/5 PASS, full suite 34/34 PASS, ruff clean. bash tests/run-all.sh exits 144 (pre-existing SIGURG/INC-016 infrastructure issue, not caused by this change)

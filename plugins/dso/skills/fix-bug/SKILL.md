@@ -162,12 +162,45 @@ Sub-agent instructions (applied by both prompts):
 #### ADVANCED Investigation (score >= 6)
 
 Launch **two independent opus** sub-agents with differentiated lenses:
-- **Agent A (Code Tracer)**: execution path tracing, intermediate variable tracking, five whys, hypothesis set from code evidence
-- **Agent B (Historical)**: timeline reconstruction, fault tree analysis, git bisect, hypothesis set from change history
+- **Agent A (Code Tracer)**: execution path tracing, intermediate variable tracking, five whys, hypothesis set from code evidence — uses the prompt template at `prompts/advanced-investigation-agent-a.md`
+- **Agent B (Historical)**: timeline reconstruction, fault tree analysis, git bisect, hypothesis set from change history — uses the prompt template at `prompts/advanced-investigation-agent-b.md`
 
-The orchestrator applies convergence scoring across both agents. Agents independently converging on the same root cause or fix increases confidence. Synthesize findings using fishbone categories: Code Logic, State, Configuration, Dependencies, Environment, Data.
+Both agents are dispatched concurrently — dispatch both before awaiting either result.
+
+Assemble the dispatch context by populating these named slots before launching each sub-agent. Both agents receive the same context:
+
+| Slot | Source |
+|------|--------|
+| `{ticket_id}` | The bug ticket ID (e.g., `w21-xxxx`) |
+| `{failing_tests}` | Output of `$TEST_CMD` — failing test names and their output |
+| `{stack_trace}` | Stack trace extracted from test output or error logs |
+| `{commit_history}` | Output of `git log --oneline -20 -- <affected-files>` |
+| `{prior_fix_attempts}` | Ticket notes containing previous fix attempt records (empty string if none) |
+
+Each agent must produce a RESULT conforming to the Investigation RESULT Report Schema defined below.
 
 Each agent proposes at least 2 fixes following the INTERMEDIATE format.
+
+##### Convergence Scoring (orchestrator step — after both agents return)
+
+After both agents return their RESULT reports, compare their `ROOT_CAUSE` fields:
+
+- **Full agreement** (same or semantically equivalent root cause): `convergence_score = 2` — confidence elevated; proceed directly to fix selection with high confidence.
+- **Partial agreement** (overlapping cause category, e.g., both point to the same subsystem but different specific defects): `convergence_score = 1` — confidence moderate; present both root causes in fix approval with reasoning.
+- **Divergence** (independent root causes with no category overlap): `convergence_score = 0` — proceed to fishbone synthesis.
+
+##### Fishbone Synthesis (when convergence_score = 0)
+
+When agents diverge, synthesize findings into a unified root cause report using the six fishbone categories:
+
+For each category (Code Logic, State, Configuration, Dependencies, Environment, Data):
+- Merge Agent A and Agent B findings for that category
+- Note agreements and disagreements between agents
+- Weight findings by evidence strength
+
+The synthesized fishbone becomes the orchestrator's unified root cause report, which is used for fix approval (Step 4).
+
+The orchestrator applies convergence scoring across both agents. Agents independently converging on the same root cause or fix increases confidence. Synthesize findings using fishbone categories: Code Logic, State, Configuration, Dependencies, Environment, Data.
 
 #### ESCALATED Investigation
 
