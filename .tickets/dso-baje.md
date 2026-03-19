@@ -1,6 +1,6 @@
 ---
 id: dso-baje
-status: in_progress
+status: closed
 deps: [dso-guxa, dso-wglr]
 links: []
 created: 2026-03-18T22:59:35Z
@@ -55,3 +55,10 @@ Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structu
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — Files: examples/ci.example.yml, .github/workflows/ci.yml. Tests: n/a (docs-only). Removed test-plugin job and needs: references from both CI workflow files.
+
+<!-- note-id: 2uch8t1y -->
+<!-- timestamp: 2026-03-19T00:52:51Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: removed test-plugin job from .github/workflows/ci.yml and examples/ci.example.yml
