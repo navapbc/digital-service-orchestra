@@ -275,6 +275,76 @@ class TestIntermediateInvestigationSkillIntegration:
         )
 
 
+class TestAdvancedInvestigationSkillIntegration:
+    """Tests asserting the ADVANCED investigation section of SKILL.md references
+    the two-agent prompt template files and defines convergence scoring.
+
+    TDD spec for task w21-pjhx (RED task):
+    - plugins/dso/skills/fix-bug/SKILL.md ADVANCED section must:
+      1. Reference 'advanced-investigation-agent-a.md' prompt template file
+      2. Reference 'advanced-investigation-agent-b.md' prompt template file
+      3. Use 'prompts/' directory convention (likely already passes — confirm)
+      4. Define context assembly slots (failing_tests, stack_trace, commit_history)
+      5. Reference convergence scoring language ('convergence_score' or 'convergence scoring')
+    """
+
+    def test_advanced_section_references_agent_a_prompt_template(self) -> None:
+        """SKILL.md ADVANCED section must reference the 'advanced-investigation-agent-a.md' prompt template."""
+        content = _read_skill()
+        assert "advanced-investigation-agent-a.md" in content, (
+            "Expected SKILL.md to contain 'advanced-investigation-agent-a.md' to reference "
+            "the prompt template file for Agent A (Code Tracer) in the ADVANCED investigation dispatch. "
+            "This is a RED test — SKILL.md does not yet reference this file."
+        )
+
+    def test_advanced_section_references_agent_b_prompt_template(self) -> None:
+        """SKILL.md ADVANCED section must reference the 'advanced-investigation-agent-b.md' prompt template."""
+        content = _read_skill()
+        assert "advanced-investigation-agent-b.md" in content, (
+            "Expected SKILL.md to contain 'advanced-investigation-agent-b.md' to reference "
+            "the prompt template file for Agent B (Historical) in the ADVANCED investigation dispatch. "
+            "This is a RED test — SKILL.md does not yet reference this file."
+        )
+
+    def test_advanced_section_uses_prompts_directory_convention(self) -> None:
+        """SKILL.md ADVANCED section must use the 'prompts/' directory convention."""
+        content = _read_skill()
+        assert "prompts/" in content, (
+            "Expected SKILL.md to contain 'prompts/' to follow the standard "
+            "prompts directory convention for referencing prompt template files. "
+            "This test passes as long as any prompt template reference uses 'prompts/'."
+        )
+
+    def test_advanced_section_defines_context_assembly_slots(self) -> None:
+        """SKILL.md ADVANCED section must define named context slots for the dispatch."""
+        content = _read_skill()
+        assert "failing_tests" in content, (
+            "Expected SKILL.md to contain 'failing_tests' as a named context slot "
+            "in the ADVANCED dispatch assembly instructions. "
+            "This test passes if already defined in BASIC or INTERMEDIATE — tiers share these slots."
+        )
+        assert "stack_trace" in content, (
+            "Expected SKILL.md to contain 'stack_trace' as a named context slot "
+            "in the ADVANCED dispatch assembly instructions."
+        )
+        assert "commit_history" in content, (
+            "Expected SKILL.md to contain 'commit_history' as a named context slot "
+            "in the ADVANCED dispatch assembly instructions."
+        )
+
+    def test_advanced_section_references_convergence_scoring(self) -> None:
+        """SKILL.md ADVANCED section must reference convergence scoring language."""
+        content = _read_skill()
+        assert any(
+            phrase in content for phrase in ("convergence_score", "convergence scoring")
+        ), (
+            "Expected SKILL.md to contain 'convergence_score' or 'convergence scoring' "
+            "to describe the mechanism by which the orchestrator scores agreement between "
+            "Agent A and Agent B in the ADVANCED investigation. "
+            "This test should already pass — SKILL.md includes convergence scoring language."
+        )
+
+
 class TestClusterInvestigation:
     """Tests asserting SKILL.md contains cluster investigation content.
 

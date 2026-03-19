@@ -1,3 +1,5 @@
+> **DEPRECATED**: This prompt template is no longer used by debug-everything. Bug resolution is now delegated to `/dso:fix-bug`. See `plugins/dso/skills/fix-bug/SKILL.md` for the current workflow.
+
 ## Fix: {issue title}
 Beads ID: {id}
 Category: {tier name — e.g., "Type error (mypy)", "Import error", "Config issue"}

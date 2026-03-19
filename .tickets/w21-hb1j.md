@@ -1,6 +1,6 @@
 ---
 id: w21-hb1j
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T15:21:36Z

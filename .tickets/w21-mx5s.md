@@ -1,6 +1,6 @@
 ---
 id: w21-mx5s
-status: open
+status: in_progress
 deps: [w21-0xmw, w21-7juc]
 links: []
 created: 2026-03-19T15:21:02Z
@@ -36,3 +36,29 @@ Also verify: python -m pytest tests/skills/ -v --tb=short
   Verify: cd $(git rev-parse --show-toplevel) && head -5 plugins/dso/skills/debug-everything/prompts/fix-task-mechanical.md | grep -qiE "deprecated|dso:fix-bug"
 - [ ] `python -m pytest tests/skills/ -v --tb=short` passes (no regressions)
   Verify: cd $(git rev-parse --show-toplevel) && python -m pytest tests/skills/ -v --tb=short 2>&1 | tail -5
+
+## Notes
+
+**2026-03-19T17:28:06Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T17:28:22Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — tests already written (RED phase done by w21-0xmw), need to prepend deprecation notice to both prompt files
+
+**2026-03-19T17:28:36Z**
+
+CHECKPOINT 3/6: Tests written ✓ — tests already existed (RED phase by w21-0xmw, test file tests/skills/test_fix_task_prompts_retired.py)
+
+**2026-03-19T17:28:36Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — prepended DEPRECATED notice to fix-task-tdd.md and fix-task-mechanical.md
+
+**2026-03-19T17:28:46Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — ruff check and format both pass
+
+**2026-03-19T17:29:19Z**
+
+CHECKPOINT 6/6: Done ✓ — All 4 AC tests pass GREEN. Pre-existing failures in test_advanced_investigation_agent_b_prompt.py confirmed pre-existing (not introduced by this task). AC: deprecated notice in both files verified.

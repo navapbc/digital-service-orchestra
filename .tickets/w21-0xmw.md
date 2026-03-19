@@ -1,6 +1,6 @@
 ---
 id: w21-0xmw
-status: in_progress
+status: closed
 deps: [w21-s63d]
 links: []
 created: 2026-03-19T15:20:49Z
