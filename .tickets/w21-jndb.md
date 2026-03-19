@@ -1,6 +1,6 @@
 ---
 id: w21-jndb
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T01:53:22Z
@@ -42,3 +42,10 @@ TDD EXEMPTION: Criterion 3 (Markdown documentation — static text assets where 
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — Files: Modified/created test files and docs. Tests: RED state confirmed.
+
+<!-- note-id: kztwzlan -->
+<!-- timestamp: 2026-03-19T02:45:54Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: added monitoring.tool_errors to INSTALL.md and CONFIGURATION-REFERENCE.md

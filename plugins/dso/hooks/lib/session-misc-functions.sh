@@ -641,6 +641,9 @@ print('DONE')
 # ---------------------------------------------------------------------------
 # PostToolUseFailure hook: track, categorize, and count tool use errors
 hook_track_tool_errors() {
+    local _HOOK_LIB_DIR; _HOOK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local _MONITORING; _MONITORING=$(bash "$_HOOK_LIB_DIR/../../scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
+    [[ "$_MONITORING" != "true" ]] && return 0
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
 

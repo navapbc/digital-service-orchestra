@@ -1,6 +1,6 @@
 ---
 id: w21-3hgc
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T01:53:05Z
@@ -60,3 +60,10 @@ File: tests/hooks/test-track-tool-errors.sh (append to existing file)
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — Files: Modified/created test files and docs. Tests: RED state confirmed.
+
+<!-- note-id: 1wlcxyng -->
+<!-- timestamp: 2026-03-19T02:45:52Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: appended 7 RED test functions to tests/hooks/test-track-tool-errors.sh

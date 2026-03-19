@@ -115,6 +115,13 @@ If no: skip the Jira sub-section.
 
 The `dso.plugin_root` key is written automatically by `dso-setup.sh` — do NOT prompt for it or duplicate it.
 
+### Monitoring
+
+Ask: "Enable tool error monitoring and auto-ticket creation? (y/N, default: N):"
+
+- If **yes**: write `monitoring.tool_errors=true` to `workflow-config.conf`. This enables automatic tracking of tool errors and creates tickets for them.
+- If **no** (or default): omit the `monitoring.tool_errors` key entirely from `workflow-config.conf`. The feature is disabled when the key is absent. This is a safe-off default — opt-in only.
+
 ### Optional dependencies
 
 Inform the user about optional enhancements (do not block setup if declined):

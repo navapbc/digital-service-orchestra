@@ -1104,22 +1104,40 @@
   "w21-3hgc": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Write RED Tests for Tool Error Hook Guard",
     "type": "task"
   },
   "w21-a91w": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Write RED Tests for sweep_tool_errors Guard",
+    "type": "task"
+  },
+  "w21-gl6z": {
+    "deps": [
+      "w21-jndb"
+    ],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Update /dso:project-setup Skill to Prompt for monitoring.tool_errors",
     "type": "task"
   },
   "w21-jndb": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Document monitoring.tool_errors in INSTALL.md and CONFIGURATION-REFERENCE.md",
+    "type": "task"
+  },
+  "w21-kccl": {
+    "deps": [
+      "w21-3hgc"
+    ],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Add monitoring.tool_errors Guard to hook_track_tool_errors and track-tool-errors.sh",
     "type": "task"
   }
 }
