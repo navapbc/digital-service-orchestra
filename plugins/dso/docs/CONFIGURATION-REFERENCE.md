@@ -732,6 +732,19 @@ Schema: `docs/workflow-config-schema.json`
 
 ---
 
+### `monitoring.tool_errors`
+
+| | |
+|---|---|
+| **Description** | Enable tool error tracking and auto-ticket creation. |
+| **Default** | Absent (disabled) |
+| **Valid values** | `true` (enabled) or absent/any non-true value (disabled) |
+| **Behavior when `true`** | `hook_track_tool_errors()` tracks errors to `~/.claude/tool-error-counter.json` and `sweep_tool_errors()` creates tickets when a category reaches 50 occurrences |
+| **Behavior when absent/false** | Both functions return 0 immediately with no side effects |
+| **Used by** | `plugins/dso/hooks/lib/session-misc-functions.sh` (`hook_track_tool_errors`), `plugins/dso/hooks/track-tool-errors.sh`, `plugins/dso/skills/end-session/error-sweep.sh` (`sweep_tool_errors`) |
+
+---
+
 ### `dso.plugin_root`
 
 | | |
