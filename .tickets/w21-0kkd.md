@@ -1,6 +1,6 @@
 ---
 id: w21-0kkd
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-19T05:06:34Z
@@ -80,3 +80,47 @@ The TDD cycle is self-contained in this single task. The SKILL.md changes are to
   Verify: ! awk '/### Step 8/,/### Step 9/' plugins/dso/skills/sprint/SKILL.md | grep -q 'tk close'
 - [ ] Test file exists with at least 4 assertion calls
   Verify: test -f $(git rev-parse --show-toplevel)/tests/scripts/test-sprint-continuation-guidance.sh && grep -c '^ *assert_' $(git rev-parse --show-toplevel)/tests/scripts/test-sprint-continuation-guidance.sh | awk '{exit ($1 < 4)}'
+
+## Notes
+
+<!-- note-id: ghbig50f -->
+<!-- timestamp: 2026-03-19T05:23:22Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: dzddz24l -->
+<!-- timestamp: 2026-03-19T05:23:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: uvaolp82 -->
+<!-- timestamp: 2026-03-19T05:23:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — 4 assertions all RED as expected
+
+<!-- note-id: eyrqzxa2 -->
+<!-- timestamp: 2026-03-19T05:38:50Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — Added CONTINUE callout, Step 10a, MANDATORY directive, removed project-specific-bug-id placeholder
+
+<!-- note-id: lzqthgyj -->
+<!-- timestamp: 2026-03-19T05:38:52Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — 4/4 new tests GREEN, 8/8 targeted script tests pass, 2 pre-existing hook test failures confirmed pre-existing via git stash
+
+<!-- note-id: 1hgsc526 -->
+<!-- timestamp: 2026-03-19T05:38:54Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All 6 AC criteria pass
