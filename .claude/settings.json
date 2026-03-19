@@ -1,7 +1,4 @@
 {
-  "env": {
-    "CLAUDE_PLUGIN_ROOT": "/Users/joeoakhart/digital-service-orchestra"
-  },
   "enabledPlugins": {
     "dso@digital-service-orchestra": true
   }

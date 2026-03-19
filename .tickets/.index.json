@@ -1,0 +1,16 @@
+{
+  "dso-hpbh": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Remove CLAUDE_PLUGIN_ROOT override from .claude/settings.json",
+    "type": "task"
+  },
+  "dso-taha": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Add failing test for shim CLAUDE_PLUGIN_ROOT preservation (RED)",
+    "type": "task"
+  }
+}
