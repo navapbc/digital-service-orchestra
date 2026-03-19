@@ -451,6 +451,12 @@ Done Definitions:
 - "Classification results are stored in the job_results JSON column"
 - "The ReviewService calls the ExportService with the approved rule IDs"
 
+#### TDD Done-of-Done Requirement
+
+Code-change stories (stories that produce or modify source code) must include **'unit tests written and passing for all new or modified logic'** as a Done Definition. This is a unit test DoD requirement applied at the story level.
+
+Documentation, research, and other non-code stories are exempt from this requirement — their Done Definitions focus on observable outcomes rather than test coverage.
+
 #### Considerations
 Notes from the Risk & Scope Scan (Phase 2). These provide context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria:
 
@@ -495,6 +501,48 @@ When creating the documentation update story via `tk create`, add a note with th
 ```bash
 tk add-note <story-id> "Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions."
 ```
+
+### TDD Test Story Requirements (/dso:preplanning)
+
+After all implementation stories are drafted and the documentation update story is planned, evaluate whether the epic requires dedicated TDD test stories. A TDD test story is a story whose sole purpose is to write failing tests (RED) that implementation stories must make pass (GREEN).
+
+#### When to Create TDD Test Stories
+
+Infer the epic type from its context and title:
+
+| Epic Type | TDD Story Required | Story Title Format |
+|-----------|-------------------|--------------------|
+| **User-facing epic** (LLM-inferred: epic adds or changes user-visible features, pages, flows, or interactions) | Yes — create an **E2E test story** | `Write failing E2E tests for [feature]` |
+| **External-API epic** (LLM-inferred: epic integrates with an external service or third-party API) | Yes — create an **integration test story** | `Write failing integration tests for [feature]` |
+| **Internal tooling epic** (LLM-inferred: epic modifies internal skills, hooks, scripts, or infrastructure) | No — unit testing is handled within each implementation story's `/dso:implementation-plan`; this is the **internal epic exemption** |  |
+
+For epics that span multiple types (e.g., both user-facing and external-API), create one TDD story per applicable type.
+
+#### Dependency Ordering for TDD Test Stories
+
+TDD test stories have a specific dependency structure that differs from other stories:
+
+- The **TDD test story's `depends_on` list must contain no implementation story IDs** from the same epic — the test story has no blockers and must be created first.
+- **All implementation stories in the epic must depend on the TDD test story**: run `tk dep <impl-story-id> <test-story-id>` for each implementation story so that implementation cannot begin until tests exist.
+- The documentation update story does NOT depend on the TDD test story (it depends on implementation stories as usual).
+
+#### RED Acceptance Criteria
+
+Every TDD test story must include the following acceptance criterion:
+
+```
+Tests must be run and confirmed failing (RED) before any implementation story begins.
+The failing run result must be recorded in a story note:
+  tk add-note <test-story-id> "RED confirmed: <test output summary>"
+```
+
+This RED acceptance criteria ensures the TDD test story's tests are observed to fail before implementation begins, not written alongside or after implementation.
+
+#### Exemptions
+
+- **Documentation and research stories** are exempt from TDD story requirements — they have no associated test stories and do not depend on any TDD test story.
+- **Internal tooling epics** follow the internal epic exemption described above — no dedicated TDD test story is required at the epic level.
+- If an epic is **TRIVIAL** (single story, no external dependencies) and the story already contains unit test acceptance criteria, a separate TDD test story may be omitted. Document the rationale.
 
 ### Step 3: Present Story Dashboard (/dso:preplanning)
 
