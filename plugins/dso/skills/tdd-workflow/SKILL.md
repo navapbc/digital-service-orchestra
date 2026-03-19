@@ -4,6 +4,8 @@ description: Test-Driven Development workflow for bug fixes
 user-invocable: true
 ---
 
+> **Deprecated**: This skill is superseded by `/dso:fix-bug` for individual bug fixes. See `plugins/dso/skills/fix-bug/SKILL.md` for the full investigation and fix workflow.
+
 # TDD Bug Fix Workflow
 
 Use Test-Driven Development to ensure bug fixes are correct and prevent regression.

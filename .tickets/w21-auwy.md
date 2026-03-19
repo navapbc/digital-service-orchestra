@@ -1,6 +1,6 @@
 ---
 id: w21-auwy
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T03:30:38Z
