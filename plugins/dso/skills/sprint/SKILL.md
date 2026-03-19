@@ -1008,13 +1008,13 @@ Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`. The 
 in Step 5 of the commit workflow will find the review state file from Step 7 is already
 current, so review is skipped (no double review).
 
-After the commit completes, merge to main using `merge-to-main.sh` (handles ticket sync, merge, and push in one step — avoids review-gate and pre-push hook issues from ticket file changes on main):
+After the commit completes, push the worktree branch to keep it up to date:
 
 ```bash
-"$REPO_ROOT/plugins/dso/scripts/merge-to-main.sh"
+git push -u origin HEAD
 ```
 
-Do NOT use `git push` directly — it only pushes the worktree branch and does not merge to main.
+Do NOT merge to main here — merging to main happens only at epic completion in Phase 9, after non-CI validation passes.
 
 **Blackboard cleanup**: After the commit, run `write-blackboard.sh --clean` to remove the blackboard file:
 ```bash
@@ -1023,7 +1023,7 @@ Do NOT use `git push` directly — it only pushes the worktree branch and does n
 
 **After completion, continue with Step 11 below.** Do not stop here.
 
-> **CONTROL FLOW WARNING**: After the commit workflow and `merge-to-main.sh` complete, continue
+> **CONTROL FLOW WARNING**: After the commit workflow and `git push -u origin HEAD` complete, continue
 > IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/dso:commit` Skill tool
 > here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that
 > may not return control. If you find yourself waiting for user input after pushing, you are
@@ -1044,7 +1044,7 @@ Do NOT close tasks that are still open or in a failed state.
 
 ### Step 11: Context Compaction Check (/dso:sprint)
 
-Between batches — after all work is committed and pushed — check whether the session context is at least 70% capacity. **This is the safe window for compaction**: all sub-agents have returned, work is committed and pushed, and ticket tracks task state. Compacting mid-batch would risk losing in-flight sub-agent context.
+Between batches — after all work is committed and pushed to the worktree branch — check whether the session context is at least 70% capacity. **This is the safe window for compaction**: all sub-agents have returned, work is committed and pushed, and ticket tracks task state. Compacting mid-batch would risk losing in-flight sub-agent context.
 
 Run the context check:
 
@@ -1310,7 +1310,7 @@ Remediation loop: Score<5 → Create fix tasks → P3 (Batch) → P5 (Execute) �
 
 ## Phase 9: Session Close (/dso:sprint)
 
-Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which handles closing issues, committing, merging to main, and reporting.
+Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh` to merge the worktree branch to main, and reporting.
 
 ### On Success (Score = 5)
 
