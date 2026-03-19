@@ -68,42 +68,12 @@ jobs:
 
   # ── Full test suite ─────────────────────────────────────────
 
-  test-plugin:
-    name: Plugin Test Suite
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [shellcheck, lint-python]
-    env:
-      SERIAL_SUITES: 1
-      MAX_PARALLEL: 4
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install shfmt
-        run: |
-          curl -sS https://webinstall.dev/shfmt | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Configure git identity
-        run: |
-          git config --global user.name "CI Bot"
-          git config --global user.email "ci@example.com"
-
-      - name: Run plugin tests
-        env:
-          CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
-        run: bash tests/run-all.sh
-
-      - name: Job timing report
-        if: always()
-        run: echo "test-plugin completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
   # ── Failure ticket ──────────────────────────────────────────
 
   create-failure-bug:
     name: Create Failure Bug Ticket
     runs-on: ubuntu-latest
-    needs: [shellcheck, lint-python, test-plugin]
+    needs: [shellcheck, lint-python]
     if: failure() && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4

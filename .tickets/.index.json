@@ -345,11 +345,10 @@
   "dso-baje": {
     "deps": [
       "dso-guxa",
-      "dso-l24u",
       "dso-wglr"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Update project docs to reflect removal of plugin test step",
     "type": "story"
   },
@@ -998,7 +997,7 @@
   "dso-wglr": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "As a developer, validate.sh runs all project tests through the configured test command",
     "type": "story"
   },
