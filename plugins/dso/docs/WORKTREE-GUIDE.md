@@ -353,13 +353,16 @@ claude-safe --resume # All claude flags pass through
 **Setup** (add to `~/.zshrc` or `~/.bashrc`):
 
 ```bash
-# Option 1: Alias (replaces claude for this project)
-# plugins/dso/scripts/claude-safe is the backward-compatible exec wrapper
-alias claude-safe='/path/to/digital-service-orchestra/plugins/dso/scripts/claude-safe'
+# Option 1: Alias — sets CLAUDE_PLUGIN_ROOT so scripts self-locate correctly
+DSO_ROOT=/path/to/digital-service-orchestra/plugins/dso
+alias claude-safe="CLAUDE_PLUGIN_ROOT=$DSO_ROOT $DSO_ROOT/scripts/claude-safe"
 
-# Option 2: Symlink to PATH
-ln -s /path/to/digital-service-orchestra/plugins/dso/scripts/claude-safe ~/.local/bin/claude-safe
+# Option 2: Symlink to PATH (also requires CLAUDE_PLUGIN_ROOT in your environment)
+export CLAUDE_PLUGIN_ROOT=/path/to/digital-service-orchestra/plugins/dso
+ln -s "$CLAUDE_PLUGIN_ROOT/scripts/claude-safe" ~/.local/bin/claude-safe
 ```
+
+Replace `/path/to/digital-service-orchestra` with the absolute path where you cloned the DSO repo.
 
 ### SessionStart Hook (Fallback)
 

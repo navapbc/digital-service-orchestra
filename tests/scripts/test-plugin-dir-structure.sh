@@ -9,7 +9,7 @@
 #   - plugins/dso/{skills,hooks,commands,scripts,docs,.claude-plugin} exist
 #   - repo root no longer contains skills/, hooks/, commands/ at top level
 #   - plugins/dso/.claude-plugin/plugin.json exists
-#   - .claude-plugin/marketplace.json has git-subdir pointing to plugins/dso
+#   - .claude-plugin/marketplace.json has source path pointing to plugins/dso
 #   - workflow-config.conf is git-tracked at repo root
 #
 # Usage: bash tests/scripts/test-plugin-dir-structure.sh
@@ -115,21 +115,21 @@ fi
 assert_eq "test_plugins_dso_plugin_json_exists: plugins/dso/.claude-plugin/plugin.json exists" "exists" "$actual"
 assert_pass_if_clean "test_plugins_dso_plugin_json_exists"
 
-# ── test_marketplace_json_has_git_subdir ──────────────────────────────────────
-# .claude-plugin/marketplace.json must contain git-subdir pointing to plugins/dso
+# ── test_marketplace_json_has_source_path ─────────────────────────────────────
+# .claude-plugin/marketplace.json must contain source path pointing to plugins/dso
 _snapshot_fail
 MARKETPLACE="$REPO_ROOT/.claude-plugin/marketplace.json"
 if [ -f "$MARKETPLACE" ]; then
-    if grep -q '"git-subdir"' "$MARKETPLACE" && grep -q 'plugins/dso' "$MARKETPLACE"; then
-        actual="has_git_subdir"
+    if grep -q '"source"' "$MARKETPLACE" && grep -q 'plugins/dso' "$MARKETPLACE"; then
+        actual="has_source_path"
     else
-        actual="missing_git_subdir"
+        actual="missing_source_path"
     fi
 else
     actual="marketplace_missing"
 fi
-assert_eq "test_marketplace_json_has_git_subdir: marketplace.json has git-subdir pointing to plugins/dso" "has_git_subdir" "$actual"
-assert_pass_if_clean "test_marketplace_json_has_git_subdir"
+assert_eq "test_marketplace_json_has_source_path: marketplace.json has source path pointing to plugins/dso" "has_source_path" "$actual"
+assert_pass_if_clean "test_marketplace_json_has_source_path"
 
 # ── test_workflow_config_conf_is_git_tracked ──────────────────────────────────
 # workflow-config.conf must be git-tracked at the repo root
