@@ -31,7 +31,11 @@ fi
 
 # Export DSO_ROOT as CLAUDE_PLUGIN_ROOT so downstream scripts can rely on it
 # (They may use CLAUDE_PLUGIN_ROOT directly, e.g. hooks/lib/config-paths.sh)
-if [ -n "$DSO_ROOT" ]; then
+# Guard: only export when CLAUDE_PLUGIN_ROOT was NOT already set by the caller.
+# If the caller pre-set CLAUDE_PLUGIN_ROOT (step 1 above), DSO_ROOT came from
+# that value — re-exporting would be a no-op at best and would risk overwriting
+# a caller-controlled value with a stale config fallback in re-source scenarios.
+if [ -n "$DSO_ROOT" ] && [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
     export CLAUDE_PLUGIN_ROOT="$DSO_ROOT"
 fi
 

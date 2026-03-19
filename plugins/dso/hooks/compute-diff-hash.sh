@@ -39,7 +39,7 @@ cd "$(git rev-parse --show-toplevel)"
 # Shared constant — must match the label used by pre-compact-checkpoint.sh
 CHECKPOINT_LABEL='checkpoint: pre-compaction auto-save'
 # Read config-driven checkpoint label (same resolution as pre-compact-checkpoint.sh)
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT}" || ! -d "${CLAUDE_PLUGIN_ROOT}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
 _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
@@ -164,11 +164,6 @@ if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     _USP_ESCAPED="${CFG_UNIT_SNAPSHOT_PATH//./\\.}"
     NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_USP_ESCAPED}.*\\.html$"
 fi
-
-# Exclude test sentinel files that leak when test runners are killed by tool timeout.
-# These must remain visible to git (not gitignored) because the crossval test's
-# overlap check requires them, but they must not affect the diff hash.
-NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^\\.crossval-test-sentinel-"
 
 # Build the untracked file list from live git query
 _get_untracked_files() {

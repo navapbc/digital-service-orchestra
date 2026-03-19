@@ -642,7 +642,11 @@ print('DONE')
 # PostToolUseFailure hook: track, categorize, and count tool use errors
 hook_track_tool_errors() {
     local _HOOK_LIB_DIR; _HOOK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local _MONITORING; _MONITORING=$(bash "$_HOOK_LIB_DIR/../../scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
+    local _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+    if [[ -z "$_PLUGIN_ROOT" || ! -d "$_PLUGIN_ROOT/hooks/lib" ]]; then
+        _PLUGIN_ROOT="$(cd "$(dirname "$(dirname "$_HOOK_LIB_DIR")")" && pwd)"
+    fi
+    local _MONITORING; _MONITORING=$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
     [[ "$_MONITORING" != "true" ]] && return 0
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"

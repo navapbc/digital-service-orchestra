@@ -1,6 +1,6 @@
 ---
 id: w21-u4ym
-status: open
+status: closed
 deps: [w21-ahok]
 links: []
 created: 2026-03-19T03:31:29Z
@@ -43,3 +43,7 @@ CHECKPOINT: SESSION_END — Implementation tasks created (S4, S7). Remaining sto
 **2026-03-19T20:16:31Z**
 
 CHECKPOINT: SESSION_END — All other stories complete. w21-u4ym requires orchestrator-level execution of dso:fix-bug on a real bug from the backlog. w21-6fir (docs update) blocked only by this story. Resume with /dso:sprint dso-tmmj --resume
+
+**2026-03-19T21:17:03Z**
+
+DOGFOODING COMPLETE: Used dso:fix-bug to resolve w21-prlu (INTERMEDIATE, score=4). Investigation sub-agent (opus) identified root cause with high confidence before any fix attempted. RED tests confirmed (10 failures). Fix applied. GREEN tests confirmed (0 failures). Full workflow: Step 0 (known issues) → Step 1 (score=4, INTERMEDIATE) → Step 2 (opus investigation) → Step 3 (hypothesis testing) → Step 4 (auto-approved) → Step 5 (RED confirmed) → Step 6 (fix implementation) → Step 7 (GREEN verified) → Step 8 (committed 768ff72).
