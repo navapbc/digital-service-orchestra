@@ -18,7 +18,7 @@
   "dso-0gqr": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: validate-phase.sh should skip or fail gracefully when commands.lint_fix is not configured",
     "type": "bug"
   },
@@ -131,6 +131,13 @@
     "title": "As a Claude agent in a host project, I receive consistent DSO script invocation instructions across all skills and workflow docs",
     "type": "story"
   },
+  "dso-3v94": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Recurring tool error: command_exit_nonzero (173 occurrences)",
+    "type": "bug"
+  },
   "dso-3xhk": {
     "deps": [],
     "priority": 2,
@@ -216,6 +223,13 @@
     "title": "As a DSO developer, the merge workflow and health check have checkpoint phases removed",
     "type": "story"
   },
+  "dso-5syi": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
+    "type": "bug"
+  },
   "dso-60hd": {
     "deps": [],
     "priority": 2,
@@ -232,6 +246,13 @@
     "status": "closed",
     "title": "Separate DSO plugin from DSO project",
     "type": "epic"
+  },
+  "dso-6ea2": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Recurring tool error: file_not_found (61 occurrences)",
+    "type": "bug"
   },
   "dso-7h4i": {
     "deps": [],
@@ -266,7 +287,7 @@
   "dso-8jf6": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Assess and align acceptance criteria standards: preplanning stories vs implementation-plan tasks",
     "type": "bug"
   },
@@ -781,6 +802,13 @@
     "priority": 1,
     "status": "closed",
     "title": "test task 3",
+    "type": "task"
+  },
+  "dso-o79p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Untitled",
     "type": "task"
   },
   "dso-o8bw": {

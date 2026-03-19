@@ -1,6 +1,6 @@
 ---
 id: dso-3v94
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-18T22:36:45Z
@@ -45,3 +45,12 @@ PLUGIN_ROOT=$( | Exit code 1\nreviewer_hash: 9cb3aab984809370\nERROR: unknown ar
 fix(dso-anlb): fix doc path refs, rec | Exit code 129\nerror: unknown option `timeout'\nusage: git commit [-a \| --interactive \| --patch] [-s] [-v] [-u[<mode>] |
 | 20 | 2026-03-18T22:32:41Z | Bash | Bash: command=/Users/joeoakhart/digital-service-orchestra/plugins/dso/scripts/ve | Exit code 1\nDIFF_VALID: no (could not extract hash from filename: review-diff-d935d5cec2d580da.patch) |
 
+
+## Notes
+
+<!-- note-id: zisgykm2 -->
+<!-- timestamp: 2026-03-19T01:15:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: record-review.sh now accepts --arg=value style; verify-review-diff.sh accepts .patch extension

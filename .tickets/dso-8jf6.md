@@ -1,6 +1,6 @@
 ---
 id: dso-8jf6
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-18T00:39:14Z
@@ -18,3 +18,10 @@ issue-quality-check.sh has two modes: a strict modern check (requires ## Accepta
 **2026-03-18T00:55:37Z**
 
 Design decision: Acceptance Criteria blocks are implementation-level constructs — they belong on Tasks, not Stories. Stories should use prose done-definitions (the 'As a user...' narrative format). issue-quality-check.sh should enforce AC blocks only on type:task tickets, and apply a lighter quality check (prose done-definitions sufficient) for type:story tickets. Resolution: update issue-quality-check.sh to branch on ticket type field before applying the structured-block check.
+
+<!-- note-id: qe1h7lrp -->
+<!-- timestamp: 2026-03-19T01:15:29Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: issue-quality-check.sh branches on ticket type; stories pass with prose done-definitions without warning
