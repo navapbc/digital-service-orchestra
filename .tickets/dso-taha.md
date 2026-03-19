@@ -1,6 +1,6 @@
 ---
 id: dso-taha
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:18:42Z
@@ -75,3 +75,10 @@ CHECKPOINT 5/6: Validation passed ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+<!-- note-id: s0tmdwl0 -->
+<!-- timestamp: 2026-03-19T20:31:02Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: added test-dso-shim-plugin-root.sh with RED test for shim preservation

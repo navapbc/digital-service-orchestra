@@ -1,6 +1,6 @@
 ---
 id: dso-hpbh
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:19:02Z
@@ -72,3 +72,10 @@ CHECKPOINT 5/6: Validation passed ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+<!-- note-id: sxr3r9ue -->
+<!-- timestamp: 2026-03-19T20:31:01Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: removed CLAUDE_PLUGIN_ROOT from .claude/settings.json env

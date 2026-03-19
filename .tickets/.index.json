@@ -2,14 +2,23 @@
   "dso-hpbh": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Remove CLAUDE_PLUGIN_ROOT override from .claude/settings.json",
+    "type": "task"
+  },
+  "dso-ilna": {
+    "deps": [
+      "dso-taha"
+    ],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Harden shim: only export CLAUDE_PLUGIN_ROOT when not already set",
     "type": "task"
   },
   "dso-taha": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Add failing test for shim CLAUDE_PLUGIN_ROOT preservation (RED)",
     "type": "task"
   }
