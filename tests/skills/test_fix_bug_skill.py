@@ -207,3 +207,127 @@ class TestBasicInvestigationSkillIntegration:
             "that the BASIC investigation sub-agent must conform to. "
             "This is a RED test — SKILL.md does not yet reference RESULT format conformance."
         )
+
+
+class TestIntermediateInvestigationSkillIntegration:
+    """Tests asserting the INTERMEDIATE investigation section of SKILL.md references
+    the prompt template file and defines dispatch context assembly.
+
+    TDD spec for task w21-src2 (RED task):
+    - plugins/dso/skills/fix-bug/SKILL.md INTERMEDIATE section must:
+      1. Reference 'intermediate-investigation.md' prompt template file
+      2. Use 'prompts/' directory convention
+      3. Define context assembly slots: failing_tests, stack_trace, commit_history
+      4. Reference fallback prompt or investigation-specific prompt for general-purpose fallback
+    """
+
+    def test_intermediate_section_references_prompt_template_file(self) -> None:
+        """SKILL.md INTERMEDIATE section must reference the 'intermediate-investigation.md' prompt template."""
+        content = _read_skill()
+        assert "intermediate-investigation.md" in content, (
+            "Expected SKILL.md to contain 'intermediate-investigation.md' to reference "
+            "the prompt template file for the INTERMEDIATE investigation dispatch. "
+            "This is a RED test — SKILL.md does not yet reference this file."
+        )
+
+    def test_intermediate_section_uses_prompts_directory_convention(self) -> None:
+        """SKILL.md INTERMEDIATE section must use the 'prompts/' directory convention."""
+        content = _read_skill()
+        assert "prompts/" in content, (
+            "Expected SKILL.md to contain 'prompts/' to follow the standard "
+            "prompts directory convention for referencing prompt template files. "
+            "This test passes as long as any prompt template reference uses 'prompts/'."
+        )
+
+    def test_intermediate_section_defines_context_assembly_slots(self) -> None:
+        """SKILL.md INTERMEDIATE section must define named context slots for the dispatch."""
+        content = _read_skill()
+        assert "failing_tests" in content, (
+            "Expected SKILL.md to contain 'failing_tests' as a named context slot "
+            "in the INTERMEDIATE dispatch assembly instructions. "
+            "This test passes if already defined in BASIC — both tiers share these slots."
+        )
+        assert "stack_trace" in content, (
+            "Expected SKILL.md to contain 'stack_trace' as a named context slot "
+            "in the INTERMEDIATE dispatch assembly instructions."
+        )
+        assert "commit_history" in content, (
+            "Expected SKILL.md to contain 'commit_history' as a named context slot "
+            "in the INTERMEDIATE dispatch assembly instructions."
+        )
+
+    def test_intermediate_section_references_fallback_prompt(self) -> None:
+        """SKILL.md INTERMEDIATE section must reference fallback prompt for general-purpose agent."""
+        content = _read_skill()
+        assert "intermediate-investigation-fallback.md" in content, (
+            "Expected SKILL.md to contain 'intermediate-investigation-fallback.md' as the "
+            "fallback investigation prompt used when error-detective is unavailable. "
+            "This is a RED test — SKILL.md does not yet reference this fallback prompt file."
+        )
+
+
+class TestClusterInvestigation:
+    """Tests asserting SKILL.md contains cluster investigation content.
+
+    TDD spec for task dso-12ap (RED task):
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Accept multiple bug IDs (cluster invocation)
+      2. Investigate multiple bugs as a single problem
+      3. Split into per-root-cause tracks only when independent root causes are identified
+      4. Reference the 'cluster-investigation.md' prompt template
+    """
+
+    def test_skill_accepts_multiple_bug_ids(self) -> None:
+        """SKILL.md must contain language indicating it accepts multiple bug IDs."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in ("cluster", "multiple bug IDs", "cluster invocation")
+        ), (
+            "Expected SKILL.md to contain 'cluster', 'multiple bug IDs', or "
+            "'cluster invocation' to indicate the skill accepts multiple bug IDs "
+            "as a cluster invocation. "
+            "This is a RED test — SKILL.md does not yet contain this language."
+        )
+
+    def test_skill_cluster_investigates_as_single_problem(self) -> None:
+        """SKILL.md must specify that multiple bugs are investigated as a single problem."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "single problem",
+                "investigate as a single problem",
+                "cluster investigation",
+            )
+        ), (
+            "Expected SKILL.md to contain 'single problem', 'investigate as a single problem', "
+            "or 'cluster investigation' to specify that multiple bugs are investigated together. "
+            "This is a RED test — SKILL.md does not yet contain this language."
+        )
+
+    def test_skill_splits_on_independent_root_causes(self) -> None:
+        """SKILL.md must describe splitting into per-root-cause tracks when applicable."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "independent root cause",
+                "per-root-cause track",
+                "split into",
+            )
+        ), (
+            "Expected SKILL.md to contain 'independent root cause', 'per-root-cause track', "
+            "or 'split into' to describe splitting into per-root-cause tracks only when "
+            "multiple independent root causes are identified. "
+            "This is a RED test — SKILL.md does not yet contain this language."
+        )
+
+    def test_skill_cluster_references_prompt_template(self) -> None:
+        """SKILL.md must reference the 'cluster-investigation.md' prompt template."""
+        content = _read_skill()
+        assert "cluster-investigation.md" in content, (
+            "Expected SKILL.md to contain 'cluster-investigation.md' to reference "
+            "the prompt template file for the cluster investigation dispatch. "
+            "This is a RED test — SKILL.md does not yet reference this file."
+        )
