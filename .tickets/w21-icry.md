@@ -1,6 +1,6 @@
 ---
 id: w21-icry
-status: open
+status: closed
 deps: [w21-8yqq]
 links: []
 created: 2026-03-19T05:43:59Z
@@ -41,3 +41,29 @@ TDD Requirement: After updating SKILL.md, run python3 -m pytest tests/skills/tes
   Verify: cd $(git rev-parse --show-toplevel) && ruff check plugins/dso/scripts/*.py tests/**/*.py
 - [ ] `ruff format --check` passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py
+
+## Notes
+
+**2026-03-19T05:55:36Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T05:55:47Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-19T05:55:51Z**
+
+CHECKPOINT 3/6: Tests written (RED tests exist) ✓
+
+**2026-03-19T05:56:09Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-19T05:57:11Z**
+
+CHECKPOINT 5/6: Tests GREEN (4/4 BasicInvestigation pass) ✓
+
+**2026-03-19T05:57:11Z**
+
+CHECKPOINT 6/6: Done ✓

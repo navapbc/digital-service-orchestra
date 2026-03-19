@@ -1,28 +1,12 @@
 ---
 name: fix-cascade-recovery
-description: Recovery protocol when fix cascade circuit breaker triggers. Forces structured root cause analysis before resuming edits.
+description: Emergency brake for runaway cascades. Stops edits, assesses damage, decides revert, then hands off to /dso:fix-bug for investigation.
 user-invocable: true
 ---
 
 # Fix Cascade Recovery Protocol
 
 The root cause is rarely where errors appear. Read widely, edit narrowly — the fix is usually 1-5 lines once you understand the actual problem.
-
-## Config Resolution (reads project workflow-config.yaml)
-
-At activation, load project commands via read-config.sh before executing any steps:
-
-```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
-LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
-```
-
-Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
-
-Resolved commands used in this skill:
-- `TEST_CMD` — replaces `make test` in Step 1 (damage assessment) and Step 6 (EXECUTE)
-- `LINT_CMD` — replaces `make lint` in Step 6 (EXECUTE)
 
 ## Protocol
 
@@ -74,64 +58,27 @@ git stash  # Preserve changes in case you need to reference them
 - If the original error was a 1-2 line fix → definitely revert and start fresh
 - If some changes are correct but others aren't → use selective revert (`git checkout HEAD -- <file>`)
 
-### Step 3: RESEARCH — Understand the Actual Problem (/dso:fix-cascade-recovery)
+### Step 3: HAND-OFF — Invoke dso:fix-bug (/dso:fix-cascade-recovery)
 
-Read systematically. Do not skim. Do not jump to the error line.
+After reverting (or deciding not to revert), hand off to `/dso:fix-bug` with cascade context. This is a cascading failure — the bug must be scored with the +2 modifier in `/dso:fix-bug`'s scoring rubric for cascading failures.
 
-1. **Read the full file** containing the original error, not just the error line
-2. **Read the test** that's failing — what does it actually assert? Is the test correct?
-3. **Trace the data flow** from input to error:
-   - Where does the data originate?
-   - What transformations does it undergo?
-   - Where does the assumption break?
-4. **Read the interface contracts** — are types correct? Are return values what callers expect?
-5. **Search KNOWN-ISSUES.md** for similar patterns:
-   ```bash
-   grep -i "<keyword>" $(git rev-parse --show-toplevel)/.claude/docs/KNOWN-ISSUES.md || true
-   ```
-
-### Step 4: DIAGNOSE — Identify the Root Cause (/dso:fix-cascade-recovery)
-
-Before writing a single line of code, answer these questions (write the answers in a ticket note via `tk add-note`):
-
-1. **What is the root cause?** (Not "the test fails" — WHY does it fail?)
-2. **Why did the previous fixes fail?** (What wrong assumption did each one make?)
-3. **What is the minimal change** that addresses the root cause?
-4. **What tests should pass** when the fix is correct?
-5. **What tests should NOT be affected** by the fix?
-
-If you cannot answer all 5 questions, you have not finished researching. Go back to Step 3.
-
-### Step 5: PLAN — Write the Fix Before Coding It (/dso:fix-cascade-recovery)
-
-Create a concrete plan:
-
-```
-Root cause: [1 sentence]
-Fix location: [file:line_range]
-Fix description: [what changes and why]
-Expected test results: [which tests pass/fail]
-Risk assessment: [what else could this affect?]
-```
-
-Write this plan to the ticket issue via `tk add-note` before proceeding.
-
-### Step 6: EXECUTE — Apply the Fix (/dso:fix-cascade-recovery)
-
-Now — and only now — make your changes. Follow these rules:
-
-- **One logical change at a time.** If the fix requires changes in multiple files, make them all before testing, but ensure they're all part of the same logical fix.
-- **Run tests immediately after.** Do not make a second change before verifying the first.
-- **If the test produces a NEW error** (not the same one), STOP. You are about to enter another cascade. Go back to Step 3.
+Before invoking, add a cascade context note to the ticket:
 
 ```bash
-cd $(git rev-parse --show-toplevel)/app
-make lint && make test
+tk add-note <id> "Cascading failure: <N> failed fix attempts caused new failures. Files changed during cascade: <list>. Original error before cascade: <description>"
 ```
 
-### Step 7: RESET — Clear the Circuit Breaker (/dso:fix-cascade-recovery)
+Then invoke:
 
-Reset the counter after tests pass, **or** after completing Step 3 (RESEARCH) if your research revealed a fundamentally different understanding of the problem. The counter's purpose is to prevent blind fix attempts — once you've done real analysis and have a new mental model, resetting before applying the planned fix is appropriate.
+```
+/dso:fix-bug <ticket-id>
+```
+
+`/dso:fix-bug` will pick up the cascading failure note and apply the +2 modifier in its scoring rubric to account for the complexity of cascading failures when prioritising and investigating.
+
+### Step 4: RESET — Clear the Circuit Breaker (/dso:fix-cascade-recovery)
+
+Reset the counter after tests pass, **or** after completing the hand-off to `/dso:fix-bug` if your research revealed a fundamentally different understanding of the problem. The counter's purpose is to prevent blind fix attempts — once you've done real analysis and have a new mental model, resetting before applying the planned fix is appropriate.
 
 ```bash
 # Get worktree hash for state directory
@@ -146,6 +93,5 @@ echo 0 > "/tmp/claude-cascade-${WT_HASH}/counter"
 
 If tests do NOT pass after your planned fix, do not reset the counter. Instead:
 1. Update the ticket with what you learned
-2. Consider whether the diagnosis in Step 4 was correct
+2. Consider whether the diagnosis from `/dso:fix-bug` was correct
 3. If you've made 2 more attempts without success, escalate to the user
-

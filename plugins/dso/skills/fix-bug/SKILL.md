@@ -110,7 +110,21 @@ Sub-agents must run existing tests immediately to establish a concrete failure b
 
 #### BASIC Investigation (score < 3)
 
-Launch a single **sonnet** sub-agent:
+Launch a single **sonnet** sub-agent using the prompt template at `prompts/basic-investigation.md`.
+
+Assemble the dispatch context by populating these named slots before launching the sub-agent:
+
+| Slot | Source |
+|------|--------|
+| `{ticket_id}` | The bug ticket ID (e.g., `w21-xxxx`) |
+| `{failing_tests}` | Output of `$TEST_CMD` — failing test names and their output |
+| `{stack_trace}` | Stack trace extracted from test output or error logs |
+| `{commit_history}` | Output of `git log --oneline -20 -- <affected-files>` |
+| `{prior_fix_attempts}` | Ticket notes containing previous fix attempt records (empty string if none) |
+
+The sub-agent must produce a RESULT conforming to the Investigation RESULT Report Schema defined below.
+
+Sub-agent instructions:
 - Structured localization: file, class/function, line
 - Five whys analysis
 - Self-reflection before reporting root cause

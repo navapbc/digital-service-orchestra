@@ -1,6 +1,6 @@
 ---
 id: w21-znz7
-status: open
+status: closed
 deps: [w21-vlje]
 links: []
 created: 2026-03-19T05:43:46Z
@@ -44,3 +44,29 @@ TDD Requirement: After creating this file, run python3 -m pytest tests/skills/te
   Verify: cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py
 - [ ] `plugins/dso/skills/fix-bug/prompts/` directory exists (create with mkdir -p if needed)
   Verify: test -d $(git rev-parse --show-toplevel)/plugins/dso/skills/fix-bug/prompts
+
+## Notes
+
+**2026-03-19T05:55:27Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T05:55:43Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-19T05:55:47Z**
+
+CHECKPOINT 3/6: Tests written (RED tests exist) ✓
+
+**2026-03-19T05:56:24Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-19T05:57:18Z**
+
+CHECKPOINT 5/6: Tests GREEN (12/12 pass in test_basic_investigation_prompt.py) ✓
+
+**2026-03-19T05:57:23Z**
+
+CHECKPOINT 6/6: Done ✓
