@@ -553,6 +553,13 @@
     "title": "Update project docs to reflect automatic version bumping",
     "type": "story"
   },
+  "dso-hbcd": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
+    "type": "bug"
+  },
   "dso-hdeb": {
     "deps": [],
     "priority": 2,
