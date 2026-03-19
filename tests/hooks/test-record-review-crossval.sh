@@ -28,7 +28,7 @@ source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 # delete the production reviewer-findings.json — the root cause of the
 # "reviewer-findings.json not found" bug that blocked the commit workflow.
 ARTIFACTS_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-record-review-crossval-XXXXXX")
-export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"
+export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIR"  # isolation-ok: test overrides hook artifact dir
 FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
 
 PASS=0
@@ -40,38 +40,18 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-# Create a temp untracked file in the repo so findings files always overlap with
-# the git diff regardless of the worktree's current state. The file is cleaned up on exit.
-# NOTE: Do NOT use a .tmp extension — *.tmp is gitignored and won't appear in
-# git ls-files --others, breaking the overlap check in record-review.sh.
-#
-# Clean up any stale sentinels from previous killed runs (e.g., timeout exit 144 where
-# the EXIT trap did not fire). This prevents accumulation of untracked files that
-# cause diff hash instability in the review gate.
-# Only remove sentinels whose owner PID is no longer running — do NOT use a blind glob,
-# which would remove other *concurrent* instances' sentinels and break their overlap checks.
-for _stale in "$REPO_ROOT"/.crossval-test-sentinel-*.marker; do
-    [[ -f "$_stale" ]] || continue
-    _stale_pid="${_stale%.marker}"
-    _stale_pid="${_stale_pid##*-}"
-    if ! kill -0 "$_stale_pid" 2>/dev/null; then
-        rm -f "$_stale"
-    fi
-done
-SENTINEL_FILE="$REPO_ROOT/.crossval-test-sentinel-$$.marker"
-touch "$SENTINEL_FILE"
-SENTINEL_BASENAME=$(basename "$SENTINEL_FILE")
+# Use a synthetic filename for the overlap check instead of writing to the repo.
+# record-review.sh accepts RECORD_REVIEW_CHANGED_FILES to inject changed files
+# without creating untracked files in the working tree.
+SENTINEL_BASENAME="test-overlap-target.sh"
+export RECORD_REVIEW_CHANGED_FILES="$SENTINEL_BASENAME"  # isolation-ok: test injects overlap target without writing to repo
 
 cleanup() {
     rm -f "$FINDINGS_FILE"
-    # Re-create sentinel after cleanup so it stays present for overlap checks.
-    # The EXIT trap (cleanup_all) removes it finally at script exit.
-    touch "$SENTINEL_FILE"
 }
 
 cleanup_all() {
     rm -rf "$ARTIFACTS_DIR"
-    rm -f "$SENTINEL_FILE"
 }
 trap cleanup_all EXIT
 
