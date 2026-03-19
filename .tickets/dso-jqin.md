@@ -1,6 +1,6 @@
 ---
 id: dso-jqin
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T23:14:27Z
@@ -90,3 +90,10 @@ CHECKPOINT 5/6: Validation passed ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+<!-- note-id: j9m7dld6 -->
+<!-- timestamp: 2026-03-19T00:12:15Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: removed Step 1.75 from COMMIT-WORKFLOW.md; flipped test assertion to verify removal
