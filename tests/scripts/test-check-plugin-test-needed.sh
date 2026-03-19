@@ -27,11 +27,11 @@ assert_eq "test_script_exists_and_executable: canonical exists and is executable
 assert_pass_if_clean "test_script_exists_and_executable"
 
 # ── test_commit_workflow_has_plugin_test_step ─────────────────────────────────
-# (c) COMMIT-WORKFLOW.md has a mandatory plugin test step (Step 1.75)
+# (c) COMMIT-WORKFLOW.md does NOT have Step 1.75 (intentionally removed)
 _snapshot_fail
 workflow_has_step=0
 grep -q 'make test-plugin' "$WORKFLOW_FILE" 2>/dev/null && workflow_has_step=1
-assert_eq "test_commit_workflow_has_plugin_test_step: COMMIT-WORKFLOW.md has make test-plugin" "1" "$workflow_has_step"
+assert_eq "test_commit_workflow_has_plugin_test_step: COMMIT-WORKFLOW.md does not have make test-plugin" "0" "$workflow_has_step"
 assert_pass_if_clean "test_commit_workflow_has_plugin_test_step"
 
 # ── test_exits_zero_for_lockpick_workflow_scripts ─────────────────────────────
