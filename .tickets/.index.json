@@ -10,7 +10,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
   "dso-0au4": {
@@ -70,6 +70,15 @@
     "title": "Self-apply dso-setup.sh to plugin repo",
     "type": "task"
   },
+  "dso-0tpl": {
+    "deps": [
+      "dso-gccc"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "Deprecate tdd-workflow with forward pointer to dso:fix-bug",
+    "type": "task"
+  },
   "dso-0vyd": {
     "deps": [
       "dso-wo1i",
@@ -91,7 +100,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-0y9j": {
@@ -102,6 +111,13 @@
     "status": "closed",
     "title": "As a DSO hook or script author, I can source the shim in library mode to get DSO_ROOT without depending on CLAUDE_PLUGIN_ROOT",
     "type": "story"
+  },
+  "dso-12ap": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing Python tests for cluster investigation in SKILL.md",
+    "type": "task"
   },
   "dso-1e6j": {
     "deps": [],
@@ -340,6 +356,15 @@
     "title": "As a client project developer installing DSO, dso-setup.sh works correctly from its new location in plugins/dso/scripts/",
     "type": "story"
   },
+  "dso-7plu": {
+    "deps": [
+      "dso-s3g4"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Create plugins/dso/skills/fix-bug/prompts/cluster-investigation.md",
+    "type": "task"
+  },
   "dso-8fc5": {
     "deps": [],
     "priority": 2,
@@ -574,7 +599,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
+    "title": "Fix: dso shim resolves scripts from stale /scripts/ path — skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
     "type": "bug"
   },
   "dso-dnq2": {
@@ -600,7 +625,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
+    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
     "type": "bug"
   },
   "dso-dsf8": {
@@ -714,8 +739,18 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
     "type": "bug"
+  },
+  "dso-gccc": {
+    "deps": [
+      "dso-k0yk",
+      "dso-qd5d"
+    ],
+    "priority": 0,
+    "status": "open",
+    "title": "GREEN: Create plugins/dso/skills/fix-bug/SKILL.md",
+    "type": "task"
   },
   "dso-ghcp": {
     "deps": [
@@ -730,7 +765,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
   "dso-gkct": {
@@ -787,6 +822,13 @@
     "status": "closed",
     "title": "Update project docs to reflect automatic version bumping",
     "type": "story"
+  },
+  "dso-hbcd": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
+    "type": "bug"
   },
   "dso-hdeb": {
     "deps": [],
@@ -850,7 +892,7 @@
     "deps": [],
     "priority": 0,
     "status": "closed",
-    "title": "DSO project setup \u2014 automated script, interactive skill, and complete documentation",
+    "title": "DSO project setup — automated script, interactive skill, and complete documentation",
     "type": "epic"
   },
   "dso-ilna": {
@@ -910,7 +952,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
   "dso-jbcp": {
@@ -953,6 +995,20 @@
     "title": "Fix CLAUDE_PLUGIN_ROOT path resolution: remove settings.json override, harden shim fallback",
     "type": "epic"
   },
+  "dso-k0yk": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "RED: Write failing Python content tests for fix-bug skill",
+    "type": "task"
+  },
+  "dso-k8lr": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
+    "type": "bug"
+  },
   "dso-kexc": {
     "deps": [
       "dso-bkqa"
@@ -975,6 +1031,13 @@
     "status": "open",
     "title": "Move workflow config to under .claude and don't add to . gitignore by default",
     "type": "epic"
+  },
+  "dso-kmti": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
+    "type": "bug"
   },
   "dso-ku5i": {
     "deps": [],
@@ -1022,7 +1085,7 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-l35x": {
@@ -1085,7 +1148,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
     "type": "bug"
   },
   "dso-nkjv": {
@@ -1115,7 +1178,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
+    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
     "type": "bug"
   },
   "dso-o8bw": {
@@ -1220,15 +1283,22 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "validate.sh hardcodes app/ directory \u2014 should pull project-specific paths from config",
+    "title": "validate.sh hardcodes app/ directory — should pull project-specific paths from config",
     "type": "bug"
   },
   "dso-q9z9": {
     "deps": [],
     "priority": 3,
     "status": "open",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
+  },
+  "dso-qd5d": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "RED: Write failing shell structural test for fix-bug skill",
+    "type": "task"
   },
   "dso-qii9": {
     "deps": [],
@@ -1301,6 +1371,15 @@
     "status": "open",
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
+  },
+  "dso-s3g4": {
+    "deps": [
+      "dso-12ap"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing Python tests for cluster-investigation prompt template",
+    "type": "task"
   },
   "dso-s52d": {
     "deps": [],
@@ -1432,6 +1511,15 @@
     "title": "Migrate skill/workflow doc script invocations to use dso shim (GREEN)",
     "type": "task"
   },
+  "dso-v17o": {
+    "deps": [
+      "dso-12ap"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add cluster investigation mode to SKILL.md",
+    "type": "task"
+  },
   "dso-v2no": {
     "deps": [],
     "priority": 2,
@@ -1450,7 +1538,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
   "dso-vxe7": {
@@ -1515,7 +1603,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-x1jt": {
@@ -1609,7 +1697,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
+    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
     "type": "bug"
   },
   "dso-yujg": {
@@ -1640,7 +1728,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
+    "title": "Fix: dso shim resolves scripts from stale /scripts/ path — skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
     "type": "bug"
   },
   "dso-zq4q": {
@@ -1663,7 +1751,7 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
+    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution — remove settings.json override, harden shim fallback",
     "type": "epic"
   },
   "dso-zzof": {
@@ -1696,6 +1784,13 @@
     "title": "Update /dso:project-setup Skill to Prompt for monitoring.tool_errors",
     "type": "task"
   },
+  "w21-i8qa": {
+    "deps": [],
+    "priority": 0,
+    "status": "closed",
+    "title": "Write failing structural test for TDD story requirements in preplanning SKILL.md",
+    "type": "task"
+  },
   "w21-jndb": {
     "deps": [],
     "priority": 2,
@@ -1710,6 +1805,15 @@
     "priority": 2,
     "status": "in_progress",
     "title": "Add monitoring.tool_errors Guard to hook_track_tool_errors and track-tool-errors.sh",
+    "type": "task"
+  },
+  "w21-u4q4": {
+    "deps": [
+      "w21-i8qa"
+    ],
+    "priority": 0,
+    "status": "closed",
+    "title": "Add TDD story requirements to preplanning SKILL.md",
     "type": "task"
   }
 }
