@@ -132,7 +132,26 @@ Sub-agent instructions:
 
 #### INTERMEDIATE Investigation (score 3-5)
 
-Launch a single **opus** sub-agent (prefer `error-debugging:error-detective` via `discover-agents.sh`; fall back to `general-purpose` with investigation prompt):
+Launch a single **opus** sub-agent using the prompt template determined by agent availability:
+
+- **Primary** (when `error-debugging:error-detective` is available via `discover-agents.sh`): use `prompts/intermediate-investigation.md`
+- **Fallback** (when falling back to `general-purpose` agent): use `prompts/intermediate-investigation-fallback.md`
+
+Both prompts apply the same investigation techniques — the only difference is the agent persona/role framing. Using the fallback does not reduce investigation quality.
+
+Assemble the dispatch context by populating these named slots before launching the sub-agent:
+
+| Slot | Source |
+|------|--------|
+| `{ticket_id}` | The bug ticket ID (e.g., `w21-xxxx`) |
+| `{failing_tests}` | Output of `$TEST_CMD` — failing test names and their output |
+| `{stack_trace}` | Stack trace extracted from test output or error logs |
+| `{commit_history}` | Output of `git log --oneline -20 -- <affected-files>` |
+| `{prior_fix_attempts}` | Ticket notes containing previous fix attempt records (empty string if none) |
+
+The sub-agent must produce a RESULT conforming to the Investigation RESULT Report Schema defined below.
+
+Sub-agent instructions (applied by both prompts):
 - Dependency-ordered code reading
 - Intermediate variable tracking
 - Five whys analysis
@@ -237,6 +256,35 @@ $FORMAT_CHECK_CMD   # No format regressions
 ### Step 8: Commit (/dso:fix-bug)
 
 Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
+
+## Cluster Investigation Mode
+
+When invoked with multiple bug IDs, `/dso:fix-bug` operates in cluster invocation mode: it investigates all bugs as a single problem before deciding whether to proceed as one track or split.
+
+### Cluster Invocation
+
+```
+/dso:fix-bug <id1> <id2> [<id3> ...]
+```
+
+Pass two or more ticket IDs to trigger cluster mode. All listed bugs are investigated together using the prompt template at `prompts/cluster-investigation.md`.
+
+### Cluster Scoring
+
+The cluster is scored using the highest individual score across all bugs in the cluster (conservative rule — treats the cluster as the most complex bug it contains). This determines the investigation tier for the single unified dispatch.
+
+### Single-Problem Investigation
+
+All bugs in the cluster are investigated as a single problem. A single investigation sub-agent is dispatched (at the tier determined by the highest-scoring bug) with the full context for every bug in the cluster. The sub-agent determines whether one root cause explains all symptoms or whether multiple independent root causes are present.
+
+### Root-Cause-Based Splitting
+
+After the cluster investigation completes:
+
+- **Single root cause**: if one root cause explains all bugs, proceed as a single fix track from Step 3 onward.
+- **Multiple independent root causes**: if the investigation identifies multiple independent root causes, split into one per-root-cause track. Each track follows the standard single-bug workflow from Step 3 onward.
+
+Split tracks are independent — they may be worked in parallel or sequentially depending on resource availability.
 
 ## Investigation RESULT Report Schema
 

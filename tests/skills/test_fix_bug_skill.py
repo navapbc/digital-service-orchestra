@@ -19,6 +19,15 @@ import pathlib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILL_FILE = REPO_ROOT / "plugins" / "dso" / "skills" / "fix-bug" / "SKILL.md"
+CLUSTER_PROMPT_FILE = (
+    REPO_ROOT
+    / "plugins"
+    / "dso"
+    / "skills"
+    / "fix-bug"
+    / "prompts"
+    / "cluster-investigation.md"
+)
 
 
 def _read_skill() -> str:
@@ -330,4 +339,72 @@ class TestClusterInvestigation:
             "Expected SKILL.md to contain 'cluster-investigation.md' to reference "
             "the prompt template file for the cluster investigation dispatch. "
             "This is a RED test — SKILL.md does not yet reference this file."
+        )
+
+
+class TestClusterInvestigationPrompt:
+    """Tests asserting cluster-investigation.md prompt template exists and contains required content.
+
+    TDD spec for task dso-s3g4 (RED task):
+    - plugins/dso/skills/fix-bug/prompts/cluster-investigation.md must exist and contain:
+      1. File exists at the expected path
+      2. {ticket_ids} placeholder for receiving multiple bug IDs
+      3. Single-problem investigation instructions
+      4. Splitting logic for independent root causes
+      5. RESULT schema output instructions
+    """
+
+    def test_cluster_prompt_file_exists(self) -> None:
+        """The cluster-investigation.md prompt file must exist at the expected path."""
+        assert CLUSTER_PROMPT_FILE.exists(), (
+            f"Expected cluster-investigation prompt to exist at {CLUSTER_PROMPT_FILE}. "
+            "This is a RED test — the file does not exist yet and must be created."
+        )
+
+    def test_cluster_prompt_contains_multiple_ticket_ids_slot(self) -> None:
+        """Prompt must contain {ticket_ids} placeholder for receiving multiple bug IDs."""
+        content = CLUSTER_PROMPT_FILE.read_text()
+        assert "{ticket_ids}" in content, (
+            "Expected cluster-investigation.md to contain '{ticket_ids}' as a "
+            "placeholder for receiving multiple bug IDs in the cluster invocation. "
+            "This is a RED test — the file does not exist yet and must be created."
+        )
+
+    def test_cluster_prompt_contains_single_investigation_instruction(self) -> None:
+        """Prompt must instruct investigation as a single problem."""
+        content = CLUSTER_PROMPT_FILE.read_text()
+        assert any(
+            phrase in content
+            for phrase in (
+                "single problem",
+                "investigate together",
+                "unified investigation",
+            )
+        ), (
+            "Expected cluster-investigation.md to contain 'single problem', "
+            "'investigate together', or 'unified investigation' to instruct the "
+            "sub-agent to treat multiple bugs as a single investigation. "
+            "This is a RED test — the file does not exist yet and must be created."
+        )
+
+    def test_cluster_prompt_contains_split_instruction(self) -> None:
+        """Prompt must contain splitting logic for independent root causes."""
+        content = CLUSTER_PROMPT_FILE.read_text()
+        assert any(
+            phrase in content
+            for phrase in ("independent root cause", "per-root-cause", "split")
+        ), (
+            "Expected cluster-investigation.md to contain 'independent root cause', "
+            "'per-root-cause', or 'split' to describe the splitting logic when "
+            "multiple independent root causes are identified. "
+            "This is a RED test — the file does not exist yet and must be created."
+        )
+
+    def test_cluster_prompt_contains_result_schema_reference(self) -> None:
+        """Prompt must contain RESULT schema output instructions."""
+        content = CLUSTER_PROMPT_FILE.read_text()
+        assert "RESULT" in content, (
+            "Expected cluster-investigation.md to contain 'RESULT' as the output "
+            "schema marker, conforming to the shared Investigation RESULT Report Schema. "
+            "This is a RED test — the file does not exist yet and must be created."
         )

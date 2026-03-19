@@ -1,6 +1,6 @@
 ---
 id: dso-s3g4
-status: open
+status: closed
 deps: [dso-12ap]
 links: []
 created: 2026-03-19T06:04:56Z
