@@ -5,7 +5,7 @@ deps: []
 links: []
 created: 2026-03-17T18:33:51Z
 type: epic
-priority: 2
+priority: 4
 assignee: Joe Oakhart
 jira_key: DIG-14
 ---

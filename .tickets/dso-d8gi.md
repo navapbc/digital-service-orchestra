@@ -8,6 +8,7 @@ type: story
 priority: 2
 assignee: Joe Oakhart
 parent: dso-l2ct
+jira_key: DIG-71
 ---
 # As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering
 

@@ -8,6 +8,7 @@ type: story
 priority: 3
 assignee: Joe Oakhart
 parent: dso-l2ct
+jira_key: DIG-70
 ---
 # As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section
 

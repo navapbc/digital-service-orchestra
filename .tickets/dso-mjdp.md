@@ -8,6 +8,7 @@ type: story
 priority: 1
 assignee: Joe Oakhart
 parent: dso-fel5
+jira_key: DIG-77
 ---
 # As a DSO practitioner, context compaction no longer triggers checkpoint commits or review-gate checks
 

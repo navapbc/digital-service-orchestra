@@ -7,6 +7,7 @@ created: 2026-03-19T00:43:16Z
 type: bug
 priority: 1
 assignee: Joe Oakhart
+jira_key: DIG-65
 ---
 # fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir
 
