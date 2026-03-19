@@ -28,3 +28,6 @@ node_modules/
 .vscode/
 *.swp
 *.swo
+
+# Test fixture temp files (leaked when test runner is killed by tool timeout)
+tests/scripts/fixtures/isolation-rules/tmp-*
