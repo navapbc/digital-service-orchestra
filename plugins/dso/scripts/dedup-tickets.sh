@@ -44,6 +44,8 @@ with open(sync_state_path) as f:
 # Find jira_keys mapped to multiple local IDs
 jira_to_ids = defaultdict(list)
 for tk_id, entry in sync_state.items():
+    if not isinstance(entry, dict):
+        continue
     jk = entry.get("jira_key", "")
     if jk:
         jira_to_ids[jk].append(tk_id)
@@ -159,10 +161,10 @@ for fname in os.listdir(tickets_dir):
         'path': path,
     })
 
-# Find spam groups: 3+ same-title where majority are empty
+# Find spam groups: 2+ same-title where majority are empty
 spam_groups = {}
 for title, tickets in titles.items():
-    if len(tickets) < 3:
+    if len(tickets) < 2:
         continue
     empty_count = sum(1 for t in tickets if not t['has_body'])
     if empty_count < len(tickets) // 2:
