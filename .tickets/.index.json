@@ -1,4 +1,14 @@
 {
+  "dso-drn9": {
+    "deps": [
+      "dso-ilna",
+      "dso-hpbh"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "Revert BASH_SOURCE workaround in tk sync path resolution",
+    "type": "task"
+  },
   "dso-hpbh": {
     "deps": [],
     "priority": 1,
@@ -11,7 +21,7 @@
       "dso-taha"
     ],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Harden shim: only export CLAUDE_PLUGIN_ROOT when not already set",
     "type": "task"
   },

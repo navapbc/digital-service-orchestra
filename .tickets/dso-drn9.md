@@ -1,6 +1,6 @@
 ---
 id: dso-drn9
-status: open
+status: closed
 deps: [dso-ilna, dso-hpbh]
 links: []
 created: 2026-03-19T18:19:13Z
@@ -27,3 +27,19 @@ resolution.
 - `tk sync` successfully resolves read-config.sh via the auto-set CLAUDE_PLUGIN_ROOT
 - No other BASH_SOURCE workarounds remain in tk for this path
 
+
+## Notes
+
+<!-- note-id: 5fm4lxcp -->
+<!-- timestamp: 2026-03-19T20:38:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — No revert needed. The BASH_SOURCE workaround was never committed (unstaged local change lost during stash). Line 5146 already uses CLAUDE_PLUGIN_ROOT with BASH_SOURCE fallback, which is the correct pattern.
+
+<!-- note-id: 15qmiv4k -->
+<!-- timestamp: 2026-03-19T20:38:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: BASH_SOURCE workaround was never committed — line 5146 already uses CLAUDE_PLUGIN_ROOT. Verified correct.

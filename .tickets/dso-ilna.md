@@ -1,6 +1,6 @@
 ---
 id: dso-ilna
-status: in_progress
+status: closed
 deps: [dso-taha]
 links: []
 created: 2026-03-19T18:19:54Z
@@ -62,3 +62,10 @@ CHECKPOINT 5/6: Validation passed ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+<!-- note-id: sc21pdq8 -->
+<!-- timestamp: 2026-03-19T20:37:05Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: added guard to .claude/scripts/dso and templates/host-project/dso
