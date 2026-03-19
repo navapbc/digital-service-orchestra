@@ -1027,8 +1027,20 @@ Do NOT use `git push` directly — it only pushes the worktree branch and does n
 > IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/dso:commit` Skill tool
 > here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that
 > may not return control. If you find yourself waiting for user input after pushing, you are
-> experiencing a known control-flow regression (project-specific-bug-id). Type "continue"
+> experiencing a known control-flow regression (observed 2026-03-18). Type "continue"
 > mentally and proceed directly to Step 11.
+
+> **CONTINUE:** After `merge-to-main.sh` completes and blackboard cleanup is done, proceed to Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
+
+### Step 10a: Close Completed Tasks (/dso:sprint)
+
+After `merge-to-main.sh` succeeds, close each task whose code was successfully committed and merged:
+
+```bash
+tk close <id> --reason="Fixed: <summary>"
+```
+
+Do NOT close tasks that are still open or in a failed state.
 
 ### Step 11: Context Compaction Check (/dso:sprint)
 
@@ -1084,7 +1096,7 @@ Decision: Involuntary compaction detected? → Yes: P9 (Graceful Shutdown)
 - If **involuntary** context compaction has occurred (no intent file) → Phase 9 (graceful shutdown)
 - If more ready tasks exist (`tk ready` filtered by parent) → return to Phase 3
 - If no more ready tasks and some tasks are still blocked → report blocking chain, Phase 9
-- If all tasks are closed → Phase 7 (validation)
+- If all tasks are closed → **Phase 7 is MANDATORY** — proceed immediately to Phase 7 (validation)
 
 ---
 
