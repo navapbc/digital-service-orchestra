@@ -95,6 +95,9 @@ PYEOF
 # with error details in the description, then remove processed entries from the counter.
 # Exits 0 in all cases (missing/malformed counter file is not an error).
 sweep_tool_errors() {
+    local _SWEEP_DIR; _SWEEP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local _MONITORING; _MONITORING=$(bash "$_SWEEP_DIR/../../scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
+    [[ "$_MONITORING" != "true" ]] && return 0
     local counter_file="$HOME/.claude/tool-error-counter.json"
 
     # Gracefully skip if counter file is absent
