@@ -858,6 +858,17 @@ If any machine-verifiable criterion fails:
 - Mark the task as failed in Step 9 (revert to open)
 - Include the failed criterion text in the re-dispatch prompt
 
+### Batch Completion Summary
+
+After all sub-agents in the batch have been verified (Steps 1–2), print a completion summary so the user can see the outcome for each task at a glance. Each line must show the task ID, title, and pass/fail result:
+
+```
+✓ [dso-abc1] Task title (pass)
+✗ [dso-abc2] Other task (fail — reverted to open)
+```
+
+Titles are retained from the pre-launch batch list printed in Phase 5 — no additional `tk show` calls are needed.
+
 ### Step 3: File Overlap Check (Safety Net) (/dso:sprint)
 
 Sub-agents may modify files beyond what their task description predicts. Check for

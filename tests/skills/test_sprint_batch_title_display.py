@@ -50,3 +50,44 @@ def test_sprint_skill_contains_pre_launch_title_list() -> None:
         "in the format '1. [dso-abc1] Fix authentication bug' to show orchestrators "
         "how to display batch task titles. Add '1. [' as part of the example."
     )
+
+
+def _extract_phase6_section(content: str) -> str:
+    """Extract Phase 6 content between the Phase 6 heading and the next Phase heading."""
+    phase6_pattern = re.compile(
+        r"## Phase 6:.*?(?=\n## Phase \d+:|\Z)",
+        re.DOTALL,
+    )
+    match = phase6_pattern.search(content)
+    if match is None:
+        return ""
+    return match.group(0)
+
+
+def test_sprint_skill_contains_completion_summary_titles() -> None:
+    """Phase 6 of SKILL.md must contain 'Batch Completion Summary' with pass/fail example."""
+    content = _read_skill()
+    phase6 = _extract_phase6_section(content)
+
+    assert phase6, (
+        "Expected to find a 'Phase 6:' section in SKILL.md but none was found. "
+        "Check that the Phase 6 heading matches '## Phase 6: ...'."
+    )
+
+    assert "Batch Completion Summary" in phase6, (
+        "Expected Phase 6 of SKILL.md to contain 'Batch Completion Summary' instruction "
+        "directing the orchestrator to print a completion summary after all sub-agents "
+        "are verified. Add the instruction after 'Step 2: Acceptance Criteria Validation'."
+    )
+
+    assert "pass" in phase6, (
+        "Expected Phase 6 of SKILL.md to contain a concrete example showing 'pass' "
+        "outcome in the completion summary format. Add a pass/fail example such as "
+        "'✓ [dso-abc1] Task title (pass)'."
+    )
+
+    assert "fail" in phase6, (
+        "Expected Phase 6 of SKILL.md to contain a concrete example showing 'fail' "
+        "outcome in the completion summary format. Add a pass/fail example such as "
+        "'✗ [dso-abc2] Other task (fail — reverted to open)'."
+    )
