@@ -123,6 +123,106 @@ class TestIssueQualityCheckFileImpact:
         assert "file impact" in result.stdout.lower() or "FI" in result.stdout
 
 
+class TestIssueQualityCheckStoryType:
+    """Test that issue-quality-check.sh treats story tickets differently from tasks."""
+
+    SCRIPT_PATH = os.path.join(
+        WORKTREE_ROOT, "plugins", "dso", "scripts", "issue-quality-check.sh"
+    )
+
+    def _create_ticket(self, tmp_path: object, ticket_id: str, content: str) -> None:
+        """Create a mock ticket file in tmp_path/.tickets/."""
+        tickets_dir = os.path.join(str(tmp_path), ".tickets")
+        os.makedirs(tickets_dir, exist_ok=True)
+        path = os.path.join(tickets_dir, f"{ticket_id}.md")
+        with open(path, "w") as f:
+            f.write(content)
+
+    def test_story_with_prose_done_definition_passes_without_warning(
+        self, tmp_path: object
+    ) -> None:
+        """A story ticket with prose done-definitions (no AC block) should exit 0 with
+        no WARNING text — prose done-definitions are correct-by-design for stories."""
+        content = (
+            "---\n"
+            "id: dso-story1\n"
+            "status: open\n"
+            "type: story\n"
+            "priority: 2\n"
+            "---\n"
+            "# As a user, I want a feature so that I can do things\n\n"
+            "As an engineer, I want the system to work correctly so that users are happy.\n\n"
+            "## Done Definition\n\n"
+            "- The feature must be implemented and verified\n"
+            "- Integration tests should confirm the expected behavior\n"
+            "- Documentation is updated to reflect the change\n"
+            "- Code review must be completed before merge\n"
+            "- CI must pass on the final commit\n"
+        )
+        self._create_ticket(tmp_path, "dso-story1", content)
+        result = subprocess.run(
+            [self.SCRIPT_PATH, "dso-story1"],
+            capture_output=True,
+            text=True,
+            cwd=WORKTREE_ROOT,
+            env={**os.environ, "TICKETS_DIR": str(tmp_path) + "/.tickets"},
+        )
+        # Story with prose done-definitions must pass (exit 0)
+        assert result.returncode == 0, (
+            f"Expected exit 0 for story with prose done-definitions.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        # Output must reference "story" to confirm correct branch taken
+        assert "story" in result.stdout.lower(), (
+            f"Expected 'story' in output, got: {result.stdout!r}"
+        )
+        # Must NOT emit a WARNING — prose done-definitions are correct for stories
+        assert "WARNING" not in result.stderr and "WARNING" not in result.stdout, (
+            f"Story should not emit WARNING for missing AC block.\n"
+            f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
+        )
+
+    def test_task_with_prose_only_passes_with_legacy_warning(
+        self, tmp_path: object
+    ) -> None:
+        """A task ticket with only prose (no AC block, no file impact) should exit 0
+        but emit a WARNING — existing legacy behavior must be preserved for tasks."""
+        content = (
+            "---\n"
+            "id: dso-task1\n"
+            "status: open\n"
+            "type: task\n"
+            "priority: 2\n"
+            "---\n"
+            "# Implement the foo feature\n\n"
+            "## Description\n\n"
+            "This task must implement the feature correctly.\n"
+            "It should handle edge cases and verify behavior.\n"
+            "The implementation must be tested thoroughly.\n"
+            "Ensure backward compatibility is maintained.\n"
+            "Code must follow project conventions.\n"
+        )
+        self._create_ticket(tmp_path, "dso-task1", content)
+        result = subprocess.run(
+            [self.SCRIPT_PATH, "dso-task1"],
+            capture_output=True,
+            text=True,
+            cwd=WORKTREE_ROOT,
+            env={**os.environ, "TICKETS_DIR": str(tmp_path) + "/.tickets"},
+        )
+        # Task should still pass (exit 0) via legacy path
+        assert result.returncode == 0, (
+            f"Expected exit 0 for task with sufficient prose.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        # Existing behavior: legacy path emits WARNING or "legacy" in stdout
+        combined = result.stdout + result.stderr
+        assert "WARNING" in combined or "legacy" in result.stdout.lower(), (
+            f"Expected WARNING or 'legacy' for task missing AC block.\n"
+            f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
+        )
+
+
 @pytest.mark.scripts
 class TestEnrichFileImpactScript:
     """Test enrich-file-impact.sh behavior."""

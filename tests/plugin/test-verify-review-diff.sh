@@ -82,6 +82,44 @@ assert_eq "no-hash exits non-zero" "1" "$exit_d"
 assert_contains "no-hash reports cannot extract" "could not extract hash" "$output_d"
 
 # ---------------------------------------------------------------------------
+# Test E: Filename ending in .patch — should extract hash correctly
+# Bug dso-3v94: sed regex used \.txt$ and rejected .patch filenames,
+# producing "could not extract hash from filename" errors.
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Test E: .patch extension — hash extracted correctly ---"
+
+PATCH_FILE="$TMPDIR_C/review-diff-ab12cd34.patch"
+echo "some diff content" > "$PATCH_FILE"
+
+exit_e=0
+output_e=$(bash "$VERIFY_SCRIPT" "$PATCH_FILE" 2>&1) || exit_e=$?
+# The script will fail because the hash won't match, but the key assertion
+# is that it does NOT report "could not extract hash" — it gets past that step.
+assert_ne "patch-file does NOT report could-not-extract-hash" \
+    "true" \
+    "$(echo "$output_e" | grep -q 'could not extract hash' && echo true || echo false)"
+
+# ---------------------------------------------------------------------------
+# Test F: CLAUDE_PLUGIN_ROOT unset — should resolve compute-diff-hash.sh via git
+# Bug dso-6ea2-fix1: script used ${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh
+# with no fallback, causing failures when CLAUDE_PLUGIN_ROOT is unset in worktrees.
+# We verify the script does not abort with "unbound variable" when the var is unset.
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Test F: CLAUDE_PLUGIN_ROOT unset — no unbound variable error ---"
+
+PATCH_HASH_FILE="$TMPDIR_C/review-diff-ab12cd34.patch"
+echo "some diff content" > "$PATCH_HASH_FILE"
+
+exit_f=0
+output_f=$(env -u CLAUDE_PLUGIN_ROOT bash "$VERIFY_SCRIPT" "$PATCH_HASH_FILE" 2>&1) || exit_f=$?
+# Should NOT exit with "unbound variable" (exit 1 due to hash mismatch is OK)
+assert_ne "unset-CLAUDE_PLUGIN_ROOT: no unbound-variable error" \
+    "true" \
+    "$(echo "$output_f" | grep -q 'unbound variable\|CLAUDE_PLUGIN_ROOT' && echo true || echo false)"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 print_summary

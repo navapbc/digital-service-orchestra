@@ -84,7 +84,7 @@ tk parent <issue-id> <epic-id>  # issue is a child of the epic
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/validate-issues.sh
+$REPO_ROOT/plugins/dso/scripts/validate-issues.sh
 ```
 
 ### Report

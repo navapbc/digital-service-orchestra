@@ -22,7 +22,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # shellcheck disable=SC2016
 git config alias.revert-safe \
-    '!REPO_ROOT=$(git rev-parse --show-toplevel) && bash "$REPO_ROOT/scripts/git-revert-safe.sh" "$@"'
+    '!REPO_ROOT=$(git rev-parse --show-toplevel) && bash "$REPO_ROOT/plugins/dso/scripts/git-revert-safe.sh" "$@"'
 
 # ── Confirmation ──────────────────────────────────────────────────────────────
 

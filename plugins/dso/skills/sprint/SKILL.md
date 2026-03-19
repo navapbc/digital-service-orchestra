@@ -128,11 +128,11 @@ Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` w
 
 ### Context Efficiency Rules
 
-**Status checks**: Use `$REPO_ROOT/scripts/issue-summary.sh <id>` or `tk ready` for orchestrator status checks (is it done? what's blocking?). Reserve full `tk show <id>` only when sub-agents need to read their complete task context.
+**Status checks**: Use `$REPO_ROOT/plugins/dso/scripts/issue-summary.sh <id>` or `tk ready` for orchestrator status checks (is it done? what's blocking?). Reserve full `tk show <id>` only when sub-agents need to read their complete task context.
 
 **Ticket-as-prompt**: Sub-agents read their own task context via `tk show` instead of receiving it inline. Before dispatch, run the quality gate:
 ```bash
-$REPO_ROOT/scripts/issue-quality-check.sh <id>
+$REPO_ROOT/plugins/dso/scripts/issue-quality-check.sh <id>
 ```
 - **Exit 0** (quality pass): Use the ticket-as-prompt template (`task-execution.md`) — sub-agent reads its own context
 - **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `tk show <id>` and includes output in the Task prompt
@@ -144,7 +144,7 @@ $REPO_ROOT/scripts/issue-quality-check.sh <id>
 - At least 5 lines of description
 This ensures `issue-quality-check.sh` passes and sub-agents can self-serve their ticket context.
 
-**File impact enrichment**: The quality gate now also checks for a file impact section. If a ticket is missing one, run `$REPO_ROOT/scripts/enrich-file-impact.sh <id>` to auto-generate it using a haiku model call. Use `--dry-run` to preview without modifying. Gracefully degrades if `ANTHROPIC_API_KEY` is unset.
+**File impact enrichment**: The quality gate now also checks for a file impact section. If a ticket is missing one, run `$REPO_ROOT/plugins/dso/scripts/enrich-file-impact.sh <id>` to auto-generate it using a haiku model call. Use `--dry-run` to preview without modifying. Gracefully degrades if `ANTHROPIC_API_KEY` is unset.
 
 ### If `--resume` Flag
 
@@ -511,7 +511,7 @@ placeholder in `task-execution.md`:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-PRIOR_BATCH_DISCOVERIES=$("$REPO_ROOT/scripts/collect-discoveries.sh" --format=prompt 2>/dev/null) || PRIOR_BATCH_DISCOVERIES="None."
+PRIOR_BATCH_DISCOVERIES=$("$REPO_ROOT/plugins/dso/scripts/collect-discoveries.sh" --format=prompt 2>/dev/null) || PRIOR_BATCH_DISCOVERIES="None."
 ```
 
 - For **Batch 1** (no prior discoveries), set `PRIOR_BATCH_DISCOVERIES="None."`
@@ -530,7 +530,7 @@ the orchestrator receives everything needed to launch sub-agents directly:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/sprint-next-batch.sh <epic-id> --limit=<max_agents>
+$REPO_ROOT/plugins/dso/scripts/sprint-next-batch.sh <epic-id> --limit=<max_agents>
 ```
 
 - **`max_agents`**: Use 5 initially. Phase 4's pre-check may truncate to 1 if session
@@ -639,7 +639,7 @@ Pull the latest `.tickets/` state from main before launching sub-agents. This en
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-"$REPO_ROOT/scripts/worktree-sync-from-main.sh"
+"$REPO_ROOT/plugins/dso/scripts/worktree-sync-from-main.sh"
 ```
 
 **Never run bare `git merge origin/main` in a worktree** — it fails when `.tickets/` files have skip-worktree flags. The sync script handles flag clearing, ticket stashing, merge, and restore automatically.
@@ -659,7 +659,7 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 1. **Write the blackboard**: Pipe the batch JSON (from `sprint-next-batch.sh --json` in Phase 3) to `write-blackboard.sh`:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   echo "$BATCH_JSON" | "$REPO_ROOT/scripts/write-blackboard.sh"
+   echo "$BATCH_JSON" | "$REPO_ROOT/plugins/dso/scripts/write-blackboard.sh"
    ```
    If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
 
@@ -682,15 +682,15 @@ For each task, launch a Task with the appropriate `subagent_type` (use `general-
 **Quality gate (ticket-as-prompt)**: Before dispatch, run the quality check:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/scripts/issue-quality-check.sh <task-id>
+$REPO_ROOT/plugins/dso/scripts/issue-quality-check.sh <task-id>
 ```
 
 - **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `tk show`.
-- **Exit 1 (too sparse)**: Try enriching the ticket first with `$REPO_ROOT/scripts/enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `tk show <id>`, then include the full description inline in the prompt alongside the template instructions.
+- **Exit 1 (too sparse)**: Try enriching the ticket first with `$REPO_ROOT/plugins/dso/scripts/enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `tk show <id>`, then include the full description inline in the prompt alongside the template instructions.
 
 **Acceptance criteria gate**: After the quality gate, run:
 ```bash
-$REPO_ROOT/scripts/check-acceptance-criteria.sh <task-id>
+$REPO_ROOT/plugins/dso/scripts/check-acceptance-criteria.sh <task-id>
 ```
 
 - **Exit 0**: Proceed with dispatch — task has structured AC block
@@ -813,7 +813,7 @@ wrote during execution. These discoveries are propagated to the next batch via t
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-DISCOVERIES=$("$REPO_ROOT/scripts/collect-discoveries.sh" 2>/dev/null) || DISCOVERIES="[]"
+DISCOVERIES=$("$REPO_ROOT/plugins/dso/scripts/collect-discoveries.sh" 2>/dev/null) || DISCOVERIES="[]"
 ```
 
 - If `collect-discoveries.sh` succeeds, `DISCOVERIES` contains a JSON array of discovery objects
@@ -878,7 +878,7 @@ mismatches, renamed symbols still referenced elsewhere, inconsistent state assum
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-SEMANTIC_RESULT=$(git diff | python3 "$REPO_ROOT/scripts/semantic-conflict-check.py" 2>/dev/null) || SEMANTIC_RESULT='{"conflicts":[],"clean":true,"error":"script failed"}'
+SEMANTIC_RESULT=$(git diff | python3 "$REPO_ROOT/plugins/dso/scripts/semantic-conflict-check.py" 2>/dev/null) || SEMANTIC_RESULT='{"conflicts":[],"clean":true,"error":"script failed"}'
 ```
 
 Parse the JSON output:
@@ -915,7 +915,7 @@ If any task in the batch touched persistence-critical files (job_store, document
 DB models, DB clients), run the persistence coverage check:
 
 ```bash
-$REPO_ROOT/scripts/check-persistence-coverage.sh
+$REPO_ROOT/plugins/dso/scripts/check-persistence-coverage.sh
 ```
 
 > **Canonical location**: `.claude/scripts/dso check-persistence-coverage.sh` — `scripts/check-persistence-coverage.sh` is a backward-compatible exec wrapper that delegates to the canonical copy.
@@ -988,14 +988,14 @@ current, so review is skipped (no double review).
 After the commit completes, merge to main using `merge-to-main.sh` (handles ticket sync, merge, and push in one step — avoids review-gate and pre-push hook issues from ticket file changes on main):
 
 ```bash
-"$REPO_ROOT/scripts/merge-to-main.sh"
+"$REPO_ROOT/plugins/dso/scripts/merge-to-main.sh"
 ```
 
 Do NOT use `git push` directly — it only pushes the worktree branch and does not merge to main.
 
 **Blackboard cleanup**: After the commit, run `write-blackboard.sh --clean` to remove the blackboard file:
 ```bash
-"$REPO_ROOT/scripts/write-blackboard.sh" --clean
+"$REPO_ROOT/plugins/dso/scripts/write-blackboard.sh" --clean
 ```
 
 **After completion, continue with Step 11 below.** Do not stop here.
@@ -1286,7 +1286,7 @@ Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which
 2. Bump the minor version to signal a new feature-level capability:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   bash "$REPO_ROOT/scripts/bump-version.sh" --minor
+   bash "$REPO_ROOT/plugins/dso/scripts/bump-version.sh" --minor
    git add -u
    ```
    This increments the minor version and resets patch to 0. Stage the bumped version file so it is included in the epic completion commit. If `version.file_path` is not configured in `workflow-config.conf`, `bump-version.sh` exits 0 with no changes and `git add -u` is a no-op (safe to run regardless).

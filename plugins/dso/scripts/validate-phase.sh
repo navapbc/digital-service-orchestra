@@ -69,7 +69,7 @@ _cfg_required() {
 CMD_FORMAT=$(_cfg_required "commands.format")
 CMD_FORMAT_CHECK=$(_cfg_required "commands.format_check")
 CMD_LINT=$(_cfg_required "commands.lint")
-CMD_LINT_FIX=$(_cfg_required "commands.lint_fix")
+CMD_LINT_FIX=$(_cfg "commands.lint_fix")  # optional: only used in phase_auto_fix
 CMD_TEST_UNIT=$(_cfg_required "commands.test_unit")
 CMD_VALIDATE=$(_cfg_required "commands.validate")
 
@@ -195,9 +195,10 @@ phase_auto_fix() {
     # Tier 0: Format
     collect_modified "FORMAT" "$CMD_FORMAT"
 
-    # Tier 1: Lint auto-fix
-    # CMD_LINT_FIX: auto-fix ruff violations in place (see commands.lint_fix in workflow-config.conf)
-    collect_modified "LINT" "$CMD_LINT_FIX"
+    # Tier 1: Lint auto-fix (optional — only runs if commands.lint_fix is configured)
+    if [ -n "$CMD_LINT_FIX" ]; then
+        collect_modified "LINT" "$CMD_LINT_FIX"
+    fi
 
     # Validate
     run_check "FORMAT_CHECK" "$CMD_FORMAT_CHECK" || any_fail=1

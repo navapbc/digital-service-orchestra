@@ -20,6 +20,10 @@ fi
 
 DIFF_FILE="$1"
 
+# Resolve CLAUDE_PLUGIN_ROOT with a fallback for worktree sessions where it may be unset.
+# Export so compute-diff-hash.sh (a subprocess) inherits the resolved value.
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugins/dso}"
+
 # Check file exists
 if [ ! -f "$DIFF_FILE" ]; then
     echo "DIFF_VALID: no (file not found: $DIFF_FILE)"
@@ -32,9 +36,9 @@ if [ ! -s "$DIFF_FILE" ]; then
     exit 1
 fi
 
-# Extract hash fragment from filename (e.g., review-diff-a1b2c3d4.txt -> a1b2c3d4)
+# Extract hash fragment from filename (e.g., review-diff-a1b2c3d4.txt or .patch -> a1b2c3d4)
 filename=$(basename "$DIFF_FILE")
-file_hash=$(echo "$filename" | sed -n 's/.*-\([0-9a-f]\{8,\}\)\.txt$/\1/p')
+file_hash=$(echo "$filename" | sed -n 's/.*-\([0-9a-f]\{8,\}\)\.[a-z]*$/\1/p')
 
 if [ -z "$file_hash" ]; then
     echo "DIFF_VALID: no (could not extract hash from filename: $filename)"

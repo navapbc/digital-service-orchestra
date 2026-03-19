@@ -136,4 +136,17 @@ assert_eq \
     "no" \
     "$OLD_PREFIX_FOUND_RR"
 
+# ---------------------------------------------------------------------------
+# test_record_review_equals_style_reviewer_hash
+# Bug dso-3v94: --reviewer-hash=VALUE (equals style) should be accepted,
+# not rejected with "unknown argument".
+# ---------------------------------------------------------------------------
+cleanup
+mkdir -p "$ARTIFACTS_DIR"
+echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
+EXIT_CODE=0
+bash "$HOOK" "--reviewer-hash=${HASH}" 2>/dev/null || EXIT_CODE=$?
+assert_eq "test_record_review_equals_style_reviewer_hash: --reviewer-hash=VALUE accepted" "0" "$EXIT_CODE"
+
 print_summary

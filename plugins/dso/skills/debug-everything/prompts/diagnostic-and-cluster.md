@@ -69,7 +69,7 @@ tk ready
 tk blocked
 
 # Issue health
-$REPO_ROOT/scripts/validate-issues.sh
+$REPO_ROOT/plugins/dso/scripts/validate-issues.sh
 
 # Git state
 git status --short

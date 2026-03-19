@@ -18,8 +18,8 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CANONICAL_SCRIPT="$SCRIPT_DIR/../scripts/validate-phase.sh"
-READ_CONFIG_SH="$SCRIPT_DIR/../scripts/read-config.sh"
+CANONICAL_SCRIPT="$SCRIPT_DIR/../plugins/dso/scripts/validate-phase.sh"
+READ_CONFIG_SH="$SCRIPT_DIR/../plugins/dso/scripts/read-config.sh"
 
 FAILURES=0
 TESTS=0
@@ -215,6 +215,28 @@ if [ "$RUN_EXIT" -eq 0 ]; then
     pass "auto-fix all-pass: exit 0 (smoke test)"
 else
     fail "auto-fix all-pass: expected exit 0, got $RUN_EXIT (output: $RUN_OUTPUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# Test e: post-batch with no commands.lint_fix in config (bug dso-0gqr)
+#   - exit 0 (not 2) — lint_fix is optional; absence must not abort the script
+# ---------------------------------------------------------------------------
+echo ""
+echo "Test e: post-batch / config WITHOUT commands.lint_fix"
+cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+commands.format=true
+commands.format_check=true
+commands.lint=true
+commands.test_unit=echo '1 passed'
+commands.validate=true
+WCFG
+
+run_phase "post-batch"
+
+if [ "$RUN_EXIT" -eq 0 ]; then
+    pass "post-batch no-lint_fix: exit 0 (lint_fix is optional)"
+else
+    fail "post-batch no-lint_fix: expected exit 0, got $RUN_EXIT (output: $RUN_OUTPUT)"
 fi
 
 # ---------------------------------------------------------------------------

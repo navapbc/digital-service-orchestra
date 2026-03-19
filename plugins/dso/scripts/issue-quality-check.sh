@@ -37,6 +37,10 @@ if [ -z "$output" ]; then
     exit 1
 fi
 
+# Extract ticket type from YAML frontmatter (defaults to "task" if missing).
+ticket_type=$(echo "$output" | awk '/^---$/{fm++; next} fm==1 && /^type:/{print; exit}' | sed 's/^type:[[:space:]]*//')
+ticket_type="${ticket_type:-task}"
+
 # Extract description (markdown body after YAML frontmatter, across ALL sections).
 # tk show outputs YAML frontmatter between --- delimiters, then markdown body with ## headings.
 # Previously this stopped at the first ## heading, undercounting structured tickets.
@@ -81,8 +85,19 @@ file_impact_items=$(echo "$output" | awk '
 ')
 file_impact_items="${file_impact_items:-0}"
 
-# Quality gate: staged rollout (Phase 1 = warn-only for missing AC block)
-# Phase 1: warn but don't enforce AC block requirement
+# Quality gate: branch on ticket type.
+# Stories use prose done-definitions by design — no AC block required.
+if [ "$ticket_type" = "story" ]; then
+    if [ "$line_count" -ge 5 ] && [ "$keyword_count" -ge 1 ]; then
+        echo "QUALITY: pass (story - prose done-definitions) ($line_count lines, $keyword_count criteria)"
+        exit 0
+    else
+        echo "QUALITY: fail - description too sparse ($line_count lines), using inline prompt"
+        exit 1
+    fi
+fi
+
+# Phase 1: warn but don't enforce AC block requirement (tasks/bugs/epics)
 if [ "$ac_items" -ge 1 ]; then
     echo "QUALITY: pass ($line_count lines, $keyword_count criteria, $ac_items AC items, $file_impact_items file impact)"
     exit 0

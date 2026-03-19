@@ -68,9 +68,17 @@ while [[ $# -gt 0 ]]; do
             EXPECTED_HASH="$2"
             shift 2
             ;;
+        --expected-hash=*)
+            EXPECTED_HASH="${1#*=}"
+            shift
+            ;;
         --reviewer-hash)
             REVIEWER_HASH="$2"
             shift 2
+            ;;
+        --reviewer-hash=*)
+            REVIEWER_HASH="${1#*=}"
+            shift
             ;;
         *)
             echo "ERROR: unknown argument: $1" >&2

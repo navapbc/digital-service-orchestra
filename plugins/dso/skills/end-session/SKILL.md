@@ -127,7 +127,7 @@ sweep_validation_failures
 ### 3.5. Visual Baseline Comparison
 
 1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
-2. Run `$REPO_ROOT/scripts/verify-baseline-intent.sh`
+2. Run `$REPO_ROOT/plugins/dso/scripts/verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
 4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
 
@@ -146,7 +146,7 @@ git log main..$BRANCH --oneline
 **If unmerged commits exist**: run the merge script. It handles ticket sync, merge, and push internally. Do NOT prompt for confirmation — proceed directly.
 
 ```bash
-"$REPO_ROOT/scripts/merge-to-main.sh"
+"$REPO_ROOT/plugins/dso/scripts/merge-to-main.sh"
 ```
 
 If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
