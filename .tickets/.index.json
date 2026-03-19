@@ -345,11 +345,10 @@
   "dso-baje": {
     "deps": [
       "dso-guxa",
-      "dso-l24u",
       "dso-wglr"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Update project docs to reflect removal of plugin test step",
     "type": "story"
   },
@@ -539,7 +538,7 @@
   "dso-guxa": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "As a developer, the separate plugin test check is removed from validate.sh and its configuration",
     "type": "story"
   },
@@ -787,7 +786,7 @@
   "dso-p2d3": {
     "deps": [],
     "priority": 0,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Remove plugin testing as a separate step",
     "type": "epic"
   },
@@ -998,7 +997,7 @@
   "dso-wglr": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "As a developer, validate.sh runs all project tests through the configured test command",
     "type": "story"
   },
