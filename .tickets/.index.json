@@ -786,7 +786,7 @@
   "dso-p2d3": {
     "deps": [],
     "priority": 0,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Remove plugin testing as a separate step",
     "type": "epic"
   },
