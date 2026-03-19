@@ -176,7 +176,7 @@ Claude Code plugins adds specialized agents that are automatically discovered:
 | Plugin | Enhancement |
 |--------|-------------|
 | **feature-dev** | Code review (`code-reviewer`), architecture exploration (`code-explorer`, `code-architect`) |
-| **error-debugging** | Error pattern detection (`error-detective`), structured debugging (`debugger`) |
+| **error-debugging** | Error pattern detection (`error-detective`), structured debugging (`debugger`); enhances INTERMEDIATE investigation in `/dso:fix-bug` |
 | **playwright** | Browser automation for visual regression testing and staging verification |
 
 When a plugin is not installed, DSO falls back to `general-purpose` with a category-specific

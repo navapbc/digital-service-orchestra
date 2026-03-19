@@ -1,6 +1,6 @@
 ---
 id: dso-7plu
-status: open
+status: closed
 deps: [dso-s3g4]
 links: []
 created: 2026-03-19T06:04:58Z
