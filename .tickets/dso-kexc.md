@@ -1,6 +1,6 @@
 ---
 id: dso-kexc
-status: in_progress
+status: closed
 deps: [dso-bkqa]
 links: []
 created: 2026-03-18T23:14:16Z
@@ -94,3 +94,10 @@ CHECKPOINT 5/6: Validation passed ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+<!-- note-id: c6eof97l -->
+<!-- timestamp: 2026-03-19T00:32:12Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: removed all plugin check infrastructure from validate.sh (CMD_TEST_PLUGIN, TIMEOUT_PLUGIN, run_check/report_check/tally_check for plugin, LAUNCHED_CHECKS update)
