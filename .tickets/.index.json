@@ -354,10 +354,11 @@
   "dso-baje": {
     "deps": [
       "dso-guxa",
+      "dso-l24u",
       "dso-wglr"
     ],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "Update project docs to reflect removal of plugin test step",
     "type": "story"
   },
@@ -437,7 +438,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
+    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
     "type": "bug"
   },
   "dso-fbky": {
@@ -557,7 +558,7 @@
   "dso-guxa": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "open",
     "title": "As a developer, the separate plugin test check is removed from validate.sh and its configuration",
     "type": "story"
   },
@@ -613,7 +614,7 @@
     "deps": [],
     "priority": 0,
     "status": "closed",
-    "title": "DSO project setup \u2014 automated script, interactive skill, and complete documentation",
+    "title": "DSO project setup — automated script, interactive skill, and complete documentation",
     "type": "epic"
   },
   "dso-iwb4": {
@@ -682,7 +683,7 @@
   "dso-jqin": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "in_progress",
     "title": "Remove Step 1.75 (Plugin Tests) from COMMIT-WORKFLOW.md and flip test assertion",
     "type": "task"
   },
@@ -705,7 +706,7 @@
       "dso-bkqa"
     ],
     "priority": 0,
-    "status": "closed",
+    "status": "open",
     "title": "Remove plugin check from validate.sh (CMD_TEST_PLUGIN, TIMEOUT_PLUGIN, run_check, report_check, tally_check, LAUNCHED_CHECKS, --help)",
     "type": "task"
   },
@@ -720,7 +721,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
     "type": "bug"
   },
   "dso-ku5i": {
@@ -755,7 +756,7 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-l35x": {
@@ -833,7 +834,7 @@
   "dso-p2d3": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "in_progress",
     "title": "Remove plugin testing as a separate step",
     "type": "epic"
   },
@@ -883,14 +884,14 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "validate.sh hardcodes app/ directory \u2014 should pull project-specific paths from config",
+    "title": "validate.sh hardcodes app/ directory — should pull project-specific paths from config",
     "type": "bug"
   },
   "dso-q9z9": {
     "deps": [],
     "priority": 3,
     "status": "open",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
   "dso-qd5d": {
@@ -947,7 +948,7 @@
   "dso-s991": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "open",
     "title": "Integrate TDD into preplanning",
     "type": "epic"
   },
@@ -1051,7 +1052,7 @@
   "dso-wglr": {
     "deps": [],
     "priority": 1,
-    "status": "closed",
+    "status": "open",
     "title": "As a developer, validate.sh runs all project tests through the configured test command",
     "type": "story"
   },
@@ -1154,11 +1155,50 @@
     "title": "As a DSO developer, all path references in CLAUDE.md reflect the post-restructure layout so the guide remains accurate",
     "type": "story"
   },
+  "w21-3hgc": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Write RED Tests for Tool Error Hook Guard",
+    "type": "task"
+  },
+  "w21-a91w": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Write RED Tests for sweep_tool_errors Guard",
+    "type": "task"
+  },
+  "w21-gl6z": {
+    "deps": [
+      "w21-jndb"
+    ],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Update /dso:project-setup Skill to Prompt for monitoring.tool_errors",
+    "type": "task"
+  },
   "w21-i8qa": {
     "deps": [],
     "priority": 0,
     "status": "closed",
     "title": "Write failing structural test for TDD story requirements in preplanning SKILL.md",
+    "type": "task"
+  },
+  "w21-jndb": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Document monitoring.tool_errors in INSTALL.md and CONFIGURATION-REFERENCE.md",
+    "type": "task"
+  },
+  "w21-kccl": {
+    "deps": [
+      "w21-3hgc"
+    ],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Add monitoring.tool_errors Guard to hook_track_tool_errors and track-tool-errors.sh",
     "type": "task"
   },
   "w21-u4q4": {
