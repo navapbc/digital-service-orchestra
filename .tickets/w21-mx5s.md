@@ -1,6 +1,6 @@
 ---
 id: w21-mx5s
-status: in_progress
+status: closed
 deps: [w21-0xmw, w21-7juc]
 links: []
 created: 2026-03-19T15:21:02Z
