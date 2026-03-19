@@ -1,6 +1,6 @@
 ---
 id: dso-6xe1
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:36:37Z
