@@ -62,8 +62,6 @@ KNOWN_KEYS=(
     commands.syntax_check
     commands.lint_ruff
     commands.lint_mypy
-    commands.test_plugin  # REVIEW-DEFENSE: removed from workflow-config.conf in dso-bkqa; KNOWN_KEYS cleanup tracked in dso-4clm
-
     # Database
     database.base_port
     database.ensure_cmd

@@ -225,56 +225,6 @@ CHANGED_FILES=$(git diff --name-only)
 
 5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.
 
-## Step 1.75: Plugin Tests
-
-Run plugin tests to catch broken hooks and scripts before review. This gate is mandatory — config masking (`.conf` files hiding YAML parser bugs) can cause changes to pass locally but fail in CI where only YAML is available.
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-cd "$REPO_ROOT" && make test-plugin
-```
-
-- **Tests pass**: Continue to Step 2.
-- **Tests fail**: See Test Failure Delegation (Step 1.75) below.
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1.75-plugin-tests" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
-### Test Failure Delegation (Step 1.75)
-
-When plugin tests fail, apply the same delegation decision gate as Step 1:
-
-**Fix inline**: Single obvious failure (typo, missing import, one-line fix) — fix it and re-run `make test-plugin`.
-
-**Delegate to sub-agent** (via [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md)):
-- More than 1 test fails, OR
-- 1 test fails and an inline fix attempt did not resolve it.
-
-Follow the same dispatch procedure as Step 1, with these differences:
-
-1. **Build the input payload** using the plugin test command that failed:
-
-```bash
-TEST_COMMAND="cd $REPO_ROOT && make test-plugin"
-# EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
-# Do NOT re-run the tests — capture from the original failure.
-# EXIT_CODE=<exit code from the failed test run>
-# STDERR_TAIL=<last 50 lines of output from the failed test run>
-CHANGED_FILES=$(git diff HEAD --name-only)
-```
-
-2. **Set context**: `context="commit-time"`
-
-3. **Model selection, sub-agent type, prompt template, Task dispatch, and result parsing**: Same as Step 1 delegation procedure (steps 2-7).
-
-4. **Parse the result**:
-   - `RESULT: PASS` — re-run `make test-plugin` to confirm the fix, then continue to Step 2.
-   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
-   - `RESULT: PARTIAL` — log concerns via `tk add-note`, continue to Step 2 with caveats.
-
-5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.75.
-
 ## Step 2: Format
 
 Run formatting on modified files so file edits are complete before staging.

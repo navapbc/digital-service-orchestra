@@ -177,7 +177,7 @@
       "dso-bkqa"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "Remove commands.test_plugin from validate-config.sh KNOWN_KEYS",
     "type": "task"
   },
@@ -356,7 +356,7 @@
   "dso-bkqa": {
     "deps": [],
     "priority": 0,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Remove commands.test_plugin from workflow-config.conf and update test-validate-config-driven.sh",
     "type": "task"
   },
@@ -657,7 +657,7 @@
   "dso-jqin": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "Remove Step 1.75 (Plugin Tests) from COMMIT-WORKFLOW.md and flip test assertion",
     "type": "task"
   },
@@ -666,7 +666,7 @@
       "dso-bkqa"
     ],
     "priority": 0,
-    "status": "open",
+    "status": "in_progress",
     "title": "Remove plugin check from validate.sh (CMD_TEST_PLUGIN, TIMEOUT_PLUGIN, run_check, report_check, tally_check, LAUNCHED_CHECKS, --help)",
     "type": "task"
   },
