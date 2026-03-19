@@ -22,6 +22,8 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"track-tool-errors.sh\",\"line\":%s}\n" "
 
 # Source shared dependency library
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_MONITORING=$(bash "$HOOK_DIR/../scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
+[[ "$_MONITORING" != "true" ]] && exit 0
 source "$HOOK_DIR/lib/deps.sh"
 
 # This hook is non-blocking (error tracking only) — skip entirely without python3

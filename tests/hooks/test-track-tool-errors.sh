@@ -21,7 +21,14 @@ _REAL_HOME="$HOME"
 TEST_HOME=$(mktemp -d)
 export HOME="$TEST_HOME"
 mkdir -p "$TEST_HOME/.claude"
-trap 'export HOME="$_REAL_HOME"; rm -rf "$TEST_HOME"' EXIT
+
+# Shared monitoring config: monitoring.tool_errors=true for tests that need tracking enabled
+_MONITORING_CONF_DIR=$(mktemp -d)
+_MONITORING_CONF="$_MONITORING_CONF_DIR/workflow-config.conf"
+echo "monitoring.tool_errors=true" > "$_MONITORING_CONF"
+export WORKFLOW_CONFIG_FILE="$_MONITORING_CONF"
+
+trap 'export HOME="$_REAL_HOME"; unset WORKFLOW_CONFIG_FILE; rm -rf "$TEST_HOME" "$_MONITORING_CONF_DIR"' EXIT
 
 COUNTER_FILE="$TEST_HOME/.claude/tool-error-counter.json"
 
