@@ -1100,5 +1100,26 @@
     "status": "closed",
     "title": "As a DSO developer, all path references in CLAUDE.md reflect the post-restructure layout so the guide remains accurate",
     "type": "story"
+  },
+  "w21-3hgc": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Write RED Tests for Tool Error Hook Guard",
+    "type": "task"
+  },
+  "w21-a91w": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Write RED Tests for sweep_tool_errors Guard",
+    "type": "task"
+  },
+  "w21-jndb": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Document monitoring.tool_errors in INSTALL.md and CONFIGURATION-REFERENCE.md",
+    "type": "task"
   }
 }

@@ -111,15 +111,16 @@ For most setups, `dso-setup.sh` handles this automatically and no manual configu
 `workflow-config.conf` is a flat `KEY=VALUE` file at your project root. All keys are optional
 except `version`. Below are the most commonly needed keys for initial setup:
 
-| Key | What it does |
-|-----|-------------|
-| `version` | Config schema version (required, e.g. `1.0.0`) |
-| `stack` | Project stack (`python-poetry`, `node-npm`, `rust-cargo`, `golang`, `convention-based`). Auto-detected if absent. |
-| `commands.test` | Full test suite command (default: stack-derived) |
-| `commands.lint` | Linter command (default: stack-derived) |
-| `commands.format` | Auto-formatter command (default: stack-derived) |
-| `dso.plugin_root` | Absolute path to DSO plugin. Written by `dso-setup.sh`; rarely set manually. |
-| `jira.project` | Jira project key for `tk sync` (e.g. `DIG`) |
+| Key | Default | What it does |
+|-----|---------|-------------|
+| `version` | required | Config schema version (required, e.g. `1.0.0`) |
+| `stack` | auto-detected | Project stack (`python-poetry`, `node-npm`, `rust-cargo`, `golang`, `convention-based`). Auto-detected if absent. |
+| `commands.test` | stack-derived | Full test suite command |
+| `commands.lint` | stack-derived | Linter command |
+| `commands.format` | stack-derived | Auto-formatter command |
+| `dso.plugin_root` | set by `dso-setup.sh` | Absolute path to DSO plugin. Written by `dso-setup.sh`; rarely set manually. |
+| `jira.project` | absent | Jira project key for `tk sync` (e.g. `DIG`) |
+| `monitoring.tool_errors` | absent (disabled) | Set to `true` to enable tool error tracking and auto-ticket creation |
 
 For the full key reference including staging, CI, design, infrastructure, and worktree keys,
 see **[docs/CONFIGURATION-REFERENCE.md](CONFIGURATION-REFERENCE.md)**.
