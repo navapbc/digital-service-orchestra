@@ -185,7 +185,9 @@ Report: "Worktree verified clean and merged — claude-safe can auto-remove."
 **If either fails**, report the specific failure:
 
 - `merge-base --is-ancestor` returned non-zero → branch has unmerged commits. Show `git log main..HEAD --oneline`. Attempt to merge if the fix is obvious; otherwise ask the user.
-- `status --porcelain` is non-empty → uncommitted changes exist. Show the dirty files. Attempt to commit forgotten files if the fix is obvious; otherwise ask the user.
+- `status --porcelain` is non-empty → uncommitted changes exist. Show the dirty files with `git status --short`. Resolution depends on merge state:
+  - **If `is_merged` passed** (branch already merged to main): the dirty files are either already in main or are debug artifacts. Offer to discard them: show the diff summary, then ask the user to confirm discard. If confirmed, run `git checkout .` to restore tracked files and `git clean -fd` to remove untracked files. Do NOT discard without user confirmation.
+  - **If `is_merged` failed**: attempt to commit forgotten files if the fix is obvious; otherwise ask the user.
 
 Re-run both checks after any resolution attempt. Do not proceed to Step 5 until both pass.
 

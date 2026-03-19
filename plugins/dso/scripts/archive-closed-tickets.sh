@@ -49,6 +49,7 @@ fi
 declare -A ticket_deps
 declare -A ticket_status
 declare -A ticket_location  # "root" or "archive"
+declare -A ticket_parent
 _scan_tickets() {
     local dir="$1" location="$2"
     while IFS= read -r ticket_file; do
@@ -64,9 +65,15 @@ _scan_tickets() {
             /^---$/ { n++; if (n == 2) exit; next }
             n == 1 && /^deps:/ { gsub(/^deps:[[:space:]]*\[/, ""); gsub(/\].*/, ""); print; exit }
         ' "$ticket_file")
+        local parent_raw
+        parent_raw=$(awk '
+            /^---$/ { n++; if (n == 2) exit; next }
+            n == 1 && /^parent:/ { gsub(/^parent:[[:space:]]*/, ""); gsub(/[[:space:]]*$/, ""); print; exit }
+        ' "$ticket_file")
         ticket_status["$tid"]="$status"
         ticket_deps["$tid"]="$deps_raw"
         ticket_location["$tid"]="$location"
+        ticket_parent["$tid"]="$parent_raw"
     done < <(find "$dir" -maxdepth 1 -name "*.md" -type f | sort)
 }
 _scan_tickets "$TICKETS_DIR" "root"
@@ -96,6 +103,20 @@ _walk_deps() {
 for tid in "${!ticket_status[@]}"; do
     if [[ "${ticket_status[$tid]}" == "open" || "${ticket_status[$tid]}" == "in_progress" ]]; then
         _walk_deps "$tid"
+    fi
+done
+
+# Phase 2b: Reverse parent scan — protect parents of open/in_progress children.
+# For each active (open/in_progress) ticket that declares a parent field, add
+# that parent ticket ID to the protected set. This is separate from the forward
+# deps BFS above and handles the case where a closed epic has open child stories
+# that reference it only via the parent field (not via deps[]).
+for tid in "${!ticket_status[@]}"; do
+    if [[ "${ticket_status[$tid]}" == "open" || "${ticket_status[$tid]}" == "in_progress" ]]; then
+        local_parent="${ticket_parent[$tid]:-}"
+        if [[ -n "$local_parent" ]]; then
+            protected["$local_parent"]=1
+        fi
     fi
 done
 
@@ -135,6 +156,19 @@ while IFS= read -r ticket_file; do
     if [ "$status" = "closed" ]; then
         # Skip if protected by an active dependency chain
         if [[ -n "${protected[$tid]+x}" ]]; then
+            # Build a list of open children that reference this ticket as parent
+            child_list=""
+            for child_tid in "${!ticket_parent[@]}"; do
+                if [[ "${ticket_parent[$child_tid]}" == "$tid" ]]; then
+                    child_status="${ticket_status[$child_tid]:-}"
+                    if [[ "$child_status" == "open" || "$child_status" == "in_progress" ]]; then
+                        child_list="${child_list:+$child_list, }$child_tid"
+                    fi
+                fi
+            done
+            if [[ -n "$child_list" ]]; then
+                echo "Skipping archive of $tid — open children: $child_list" >&2
+            fi
             continue
         fi
         dest="$ARCHIVE_DIR/$(basename "$ticket_file")"
