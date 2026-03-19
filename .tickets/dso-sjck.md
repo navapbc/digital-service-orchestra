@@ -1,6 +1,6 @@
 ---
 id: dso-sjck
-status: in_progress
+status: closed
 deps: [dso-gnbz]
 links: []
 created: 2026-03-19T18:36:47Z
