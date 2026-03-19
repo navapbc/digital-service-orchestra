@@ -1,6 +1,6 @@
 ---
 id: dso-guxa
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-18T22:58:40Z
@@ -61,3 +61,10 @@ Note: `tests/scripts/test-check-plugin-test-needed.sh` has a test (`test_commit_
 <!-- sync: unsynced -->
 
 COMPLEXITY_CLASSIFICATION: COMPLEX
+
+<!-- note-id: n6ycy0gl -->
+<!-- timestamp: 2026-03-19T00:52:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: all sub-tasks closed — plugin check step removed from validate.sh and all associated configuration

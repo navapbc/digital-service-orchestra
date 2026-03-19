@@ -153,44 +153,6 @@ jobs:
         run: bash scripts/check-persistence-coverage.sh
         working-directory: .
 
-  test-plugin:
-    name: Plugin & Hook Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [fast-gate]
-    env:
-      SERIAL_SUITES: 1
-      MAX_PARALLEL: 4
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Record start time
-        id: start
-        run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
-        working-directory: .
-
-      - name: Install shfmt
-        run: |
-          SHFMT_VERSION="v3.11.0"
-          curl -sSL "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/shfmt_${SHFMT_VERSION}_linux_amd64" -o /usr/local/bin/shfmt
-          chmod +x /usr/local/bin/shfmt
-          shfmt --version
-
-      - name: Configure git identity for plugin tests
-        run: |
-          git config --global user.name "Test User"
-          git config --global user.email "test@example.com"
-
-      - name: Run plugin/hook tests
-        run: make test-plugin
-        working-directory: .
-
-      - name: Report job timing
-        if: always()
-        run: |
-          echo "### Plugin & Hook Tests: $(( $(date +%s) - ${{ steps.start.outputs.time }} ))s" >> "$GITHUB_STEP_SUMMARY"
-        working-directory: .
-
   test-unit-agents:
     name: "Unit Tests: Agents"
     runs-on: ubuntu-latest
@@ -1160,7 +1122,7 @@ jobs:
     name: Track CI Failure
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [fast-gate, mypy, persistence-check, test-plugin, test-unit-agents, test-unit-services, test-unit-api, test-unit-core, coverage-check, test-e2e, test-e2e-multiworker, test-integration-hermetic, security-scan, shellcheck]
+    needs: [fast-gate, mypy, persistence-check, test-unit-agents, test-unit-services, test-unit-api, test-unit-core, coverage-check, test-e2e, test-e2e-multiworker, test-integration-hermetic, security-scan, shellcheck]
     if: ${{ failure() && github.event_name == 'push' }}
     # Only create bugs for push events (not PRs) to avoid noise on draft/WIP branches.
     # PRs are transient; push-to-main/feature failures represent real regressions.
