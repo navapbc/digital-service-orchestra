@@ -1,6 +1,6 @@
 ---
 id: dso-tmmj
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-17T18:33:39Z
@@ -22,3 +22,48 @@ Step 6: fix implementation Launch a sub-agent to implement the approved fix.
 Step 7: verify fix Verify the the RED tests are now GREEN (passing). If they are still failing, return to step 2 and perform another round of investigation for the bug escalating to the next highest level of investigation. Include the attempted fix and testing results with the investigation prompt. 
 Step 8: commit Complete the commit workflow
 
+
+## Notes
+
+**2026-03-19T02:22:31Z**
+
+## Brainstorm Spec (2026-03-18)
+
+### Context
+DSO's current tdd-workflow gives agents a simple RED→GREEN→VALIDATE cycle with no investigation phase. When bugs are complex, have prior fix attempts, or surface in CI/staging, agents guess at root causes and fail to fix them — wasting cycles and triggering cascading failures. A new dso:fix-bug skill enforces a hard separation between investigation and implementation, scaling depth to bug severity before any fix is attempted. It replaces tdd-workflow as the canonical individual bug-fix path and becomes the unit of work that debug-everything delegates to.
+
+### Success Criteria
+
+1. A dso:fix-bug skill handles individual bug (and bug cluster) resolution; tdd-workflow is deprecated with a forward pointer to dso:fix-bug.
+
+2. Errors are first classified by type: mechanical (import error, type annotation, lint violation, config syntax) skip scoring and route directly to a lightweight read→fix→validate path; all other bugs are scored for investigation depth.
+
+3. Investigation depth (BASIC/INTERMEDIATE/ADVANCED) is determined by a scoring rubric: severity (0/1/2), complexity (0/1/2), environment (0/1/2), cascading failure status (+2), prior fix attempts (+2) — thresholds <3=BASIC, 3-5=INTERMEDIATE, ≥6=ADVANCED.
+
+4. Each investigation tier uses differentiated sub-agents with specific root cause techniques:
+   - BASIC: single sonnet — structured localization (file→class→line), five whys, self-reflection before reporting root cause.
+   - INTERMEDIATE: single opus (error-debugging:error-detective; falls back to general-purpose with investigation prompt) — dependency-ordered code reading, intermediate variable tracking, five whys, hypothesis generation + elimination, self-reflection.
+   - ADVANCED: two independent opus agents with differentiated lenses: Agent A (code tracer — execution path tracing, intermediate variable tracking, five whys, hypothesis set from code evidence) and Agent B (historical — timeline reconstruction, fault tree analysis, git bisect, hypothesis set from change history); orchestrator applies convergence scoring and fishbone synthesis across cause categories (Code Logic, State, Configuration, Dependencies, Environment, Data).
+   - ESCALATED: four opus agents — (1) web researcher (error pattern analysis, similar issue correlation, dependency changelogs), (2) history analyst (timeline reconstruction, fault tree analysis, commit bisection), (3) code tracer (execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys), (4) empirical/logging agent (authorized to add logging and enable debugging to empirically validate or veto hypotheses from agents 1-3); if Agent 4 vetoes consensus from agents 1-3, a resolution agent weighs all findings, conducts additional tests, and surfaces the highest-confidence conclusion.
+
+5. Escalation to the next investigation tier triggers when: (a) fix verification fails after a completed fix attempt, OR (b) investigation returns no root cause or a low-confidence root cause (medium or below). When ESCALATED investigation also fails to produce a high-confidence root cause, the skill surfaces all findings and escalates to the user — no blind fix attempt.
+
+6. Investigation sub-agents are given pre-loaded context before dispatch: existing failing tests, stack traces, relevant commit history, and prior fix attempts from the ticket. Sub-agents run existing tests immediately to establish a concrete failure baseline before analyzing code.
+
+7. When invoked with a cluster of bugs, dso:fix-bug investigates them as a single problem and splits into per-root-cause tracks only when the investigation identifies multiple independent root causes.
+
+8. debug-everything delegates individual bug and cluster resolution to dso:fix-bug; its fix-task-tdd.md and fix-task-mechanical.md prompts are updated or replaced accordingly.
+
+9. using-lockpicks routes single-bug requests to dso:fix-bug and multi-bug/all-bugs requests to debug-everything; sprint references dso:fix-bug for validation failures.
+
+10. fix-cascade-recovery retains its emergency-brake steps (stop, assess git damage, revert decision, circuit breaker reset) and hands off to dso:fix-bug for investigation; its root cause analysis steps are removed.
+
+11. The error-debugging plugin is added to INSTALL.md as a recommended plugin; when unavailable, investigation sub-agents fall back to general-purpose with an investigation-specific prompt covering the same root cause techniques.
+
+12. The skill is successfully used to resolve at least one INTERMEDIATE or ADVANCED bug in the DSO codebase itself (dogfooding), confirming investigation sub-agents identify root cause before any fix is attempted and RED tests fail before the fix is applied.
+
+### Dependencies
+None
+
+### Approach
+New dso:fix-bug skill (standalone file) replacing tdd-workflow. Preserves tdd-workflow's config resolution pattern and RED→GREEN→VALIDATE cycle as the fix phase (Steps 5-7). Integration updates required in: debug-everything (fix-task prompts), using-lockpicks (routing), sprint (validation failure references), and fix-cascade-recovery (hand-off after emergency brake). Sub-agent routing uses discover-agents.sh with error-debugging:error-detective preferred for INTERMEDIATE and above; falls back to general-purpose with bundled investigation prompt. Research archive: plugins/dso/docs/archive/debugging-research-2026-03-18.md
