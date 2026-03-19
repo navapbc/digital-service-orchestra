@@ -1,6 +1,6 @@
 ---
 id: w21-i8qa
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T23:56:03Z
@@ -87,3 +87,17 @@ CHECKPOINT 5/6: Validation passed ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+<!-- note-id: i3fbjiio -->
+<!-- timestamp: 2026-03-19T00:54:24Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/skills/test_preplanning_tdd_story_requirements.py. Tests: 7 RED (expected), 41 passed.
+
+<!-- note-id: 5wp06n03 -->
+<!-- timestamp: 2026-03-19T00:54:24Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: created tests/skills/test_preplanning_tdd_story_requirements.py with 7 RED failing tests asserting TDD requirements in preplanning SKILL.md
