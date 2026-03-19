@@ -8,7 +8,7 @@ type: bug
 priority: 1
 assignee: Joe Oakhart
 ---
-# fix: sprint-next-batch.sh resolves tk path from main repo instead of worktree — tickets invisible
+# fix: plugin scripts resolve helper paths from main repo instead of worktree — tickets and tools invisible
 
 ## Problem
 
@@ -35,3 +35,13 @@ sprint-next-batch.sh should resolve tk from the worktree (REPO_ROOT), not the ma
 - When run from a worktree, sprint-next-batch.sh can see tickets that exist only in the worktree
 - Existing behavior when run from the main repo is unchanged
 
+
+## Notes
+
+**2026-03-19T16:41:36Z**
+
+## Scope Expansion
+
+This is not limited to sprint-next-batch.sh. ALL plugin scripts that resolve helper paths (tk, issue-batch.sh, analyze-file-impact.py, read-config.sh, classify-task.py, etc.) should resolve from the worktree root first, then fall back to PATH. The pattern of hardcoding paths relative to the main repo breaks any script run from a worktree session.
+
+Audit all scripts in plugins/dso/scripts/ for hardcoded path resolution that bypasses the worktree. Fix the resolution pattern once (e.g., a shared resolve_tool() helper) and apply consistently.
