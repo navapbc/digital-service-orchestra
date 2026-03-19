@@ -900,7 +900,7 @@
   "dso-s991": {
     "deps": [],
     "priority": 0,
-    "status": "open",
+    "status": "closed",
     "title": "Integrate TDD into preplanning",
     "type": "epic"
   },

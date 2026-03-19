@@ -1,6 +1,6 @@
 ---
 id: dso-s991
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-17T18:33:26Z
@@ -36,3 +36,10 @@ None
 ## Approach
 Add explicit TDD guidance directly to the preplanning skill's story-writing instructions so the story-generating agent naturally produces the correct DoD items, test stories, and dependency ordering without a separate classification step or audit pass.
 
+
+<!-- note-id: yq6oc4nd -->
+<!-- timestamp: 2026-03-19T01:06:54Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Epic complete: all tasks closed, validation score 5/5. TDD requirements integrated into preplanning SKILL.md with 7 GREEN structural tests.
