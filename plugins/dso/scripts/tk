@@ -466,6 +466,29 @@ cmd_create() {
         return 1
     fi
 
+    # Dedup guard: reject if any existing ticket has the same title exactly
+    local index_file="$TICKETS_DIR/.index.json"
+    if [[ -f "$index_file" ]]; then
+        local conflict_id
+        conflict_id=$(TITLE="$title" INDEX="$index_file" python3 -c "
+import json, os, sys
+title = os.environ['TITLE']
+index_path = os.environ['INDEX']
+try:
+    data = json.load(open(index_path))
+except Exception:
+    sys.exit(0)
+for tid, entry in data.items():
+    if isinstance(entry, dict) and entry.get('title') == title:
+        print(tid)
+        sys.exit(0)
+" 2>/dev/null)
+        if [[ -n "$conflict_id" ]]; then
+            echo "Error: ticket $conflict_id already has title: $title" >&2
+            return 1
+        fi
+    fi
+
     local id
     id=$(generate_id)
     local file="$TICKETS_DIR/${id}.md"
