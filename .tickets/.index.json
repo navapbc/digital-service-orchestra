@@ -25,6 +25,13 @@
     "title": "Harden shim: only export CLAUDE_PLUGIN_ROOT when not already set",
     "type": "task"
   },
+  "dso-jt4w": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution: remove settings.json override, harden shim fallback",
+    "type": "epic"
+  },
   "dso-taha": {
     "deps": [],
     "priority": 1,

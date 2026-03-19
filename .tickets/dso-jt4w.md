@@ -1,6 +1,6 @@
 ---
 id: dso-jt4w
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:05:25Z
@@ -32,3 +32,10 @@ Remove CLAUDE_PLUGIN_ROOT from .claude/settings.json so Claude Code's auto-set c
 <!-- origin: agent -->
 <!-- sync: synced -->
 Epic created via /dso:brainstorm. Option B chosen: remove override + harden shim fallback.
+
+<!-- note-id: 7oh0c7lc -->
+<!-- timestamp: 2026-03-19T20:39:28Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Epic complete: all 4 tasks closed, all success criteria verified
