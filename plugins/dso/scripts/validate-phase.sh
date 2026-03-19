@@ -18,6 +18,7 @@ set -euo pipefail
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 TK="${TK:-$SCRIPT_DIR/tk}"
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")

@@ -105,6 +105,7 @@ fi
 # SCRIPT_DIR is used both for worktree detection above and for config reading below.
 # Set it unconditionally here so it is always available regardless of BRANCH state.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 
 # Read CI job names from workflow-config.conf (via read-config.sh).
 # Falls back to sensible defaults so the script works without a config file.

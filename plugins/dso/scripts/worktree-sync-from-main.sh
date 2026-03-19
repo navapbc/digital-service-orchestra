@@ -23,6 +23,7 @@ fi
 
 # Source config-paths.sh for CFG_PYTHON_VENV
 _SYNC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$_SYNC_SCRIPT_DIR/..}"
 _sync_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 [[ -f "$_sync_config_paths" ]] && source "$_sync_config_paths"
 
