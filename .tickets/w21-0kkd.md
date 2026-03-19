@@ -1,6 +1,6 @@
 ---
 id: w21-0kkd
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T05:06:34Z
@@ -124,3 +124,7 @@ CHECKPOINT 5/6: Validation passed ✓ — 4/4 new tests GREEN, 8/8 targeted scri
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — All 6 AC criteria pass
+
+**2026-03-19T05:45:56Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/skills/sprint/SKILL.md, tests/scripts/test-sprint-continuation-guidance.sh. Tests: 4 passed. AC: all 7 criteria pass.
