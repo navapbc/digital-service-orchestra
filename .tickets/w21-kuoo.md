@@ -1,6 +1,6 @@
 ---
 id: w21-kuoo
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T03:27:02Z
