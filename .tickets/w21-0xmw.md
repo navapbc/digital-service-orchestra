@@ -1,6 +1,6 @@
 ---
 id: w21-0xmw
-status: open
+status: in_progress
 deps: [w21-s63d]
 links: []
 created: 2026-03-19T15:20:49Z
@@ -34,3 +34,33 @@ Implementation notes:
   Verify: cd $(git rev-parse --show-toplevel) && grep -c "def test_" tests/skills/test_fix_task_prompts_retired.py | awk '{exit ($1 < 2)}'
 - [ ] Existing tests in tests/skills/ still pass
   Verify: cd $(git rev-parse --show-toplevel) && python -m pytest tests/skills/ -v --tb=short -k "not fix_task_prompts_retired"
+
+## Notes
+
+**2026-03-19T17:10:32Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T17:10:57Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-19T17:11:33Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-19T17:12:12Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ (RED test-only task; test file written at tests/skills/test_fix_task_prompts_retired.py)
+
+**2026-03-19T17:12:26Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-19T17:12:56Z**
+
+CHECKPOINT 6/6: Done ✓ — AC1 pass (4 RED tests confirmed), AC2 pass (file exists), AC3 pass (4 test functions), AC4 pass (118 existing tests unchanged; 30 pre-existing RED tests in test_advanced_investigation_agent_{a,b}_prompt.py owned by w21-hb1j)
+
+**2026-03-19T17:22:20Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/skills/test_fix_task_prompts_retired.py. 4 RED tests.

@@ -1,6 +1,6 @@
 ---
 id: w21-hb1j
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-19T15:21:36Z
@@ -47,3 +47,33 @@ TDD Requirement (RED): advanced-investigation-agent-b.md does NOT exist yet, so 
 - [ ] Test file contains at least 8 test functions
   Verify: grep -c 'def test_' $(git rev-parse --show-toplevel)/tests/skills/test_advanced_investigation_agent_b_prompt.py | awk '{exit ($1 < 8)}'
 
+
+## Notes
+
+**2026-03-19T17:10:42Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-19T17:11:00Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-19T17:11:31Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-19T17:11:44Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ (RED task — no prompt file to implement; tests intentionally fail)
+
+**2026-03-19T17:21:34Z**
+
+CHECKPOINT 5/6: Validation passed ✓ (ruff lint + format both pass; 15 tests all RED as required)
+
+**2026-03-19T17:21:41Z**
+
+CHECKPOINT 6/6: Done ✓ — AC1 PASS (file exists), AC2 PASS (all 15 tests RED), AC3 PASS (15 test functions >= 8), ruff lint PASS, ruff format PASS. Note: tests/run-all.sh has pre-existing failures (fix-cascade-recovery-skill-reads-config eval, test-check-test-isolation-baseline.sh) unrelated to this task.
+
+**2026-03-19T17:22:20Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/skills/test_advanced_investigation_agent_b_prompt.py. 15 RED tests.
