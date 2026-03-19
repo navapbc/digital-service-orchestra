@@ -67,3 +67,7 @@ None
 
 ### Approach
 New dso:fix-bug skill (standalone file) replacing tdd-workflow. Preserves tdd-workflow's config resolution pattern and RED→GREEN→VALIDATE cycle as the fix phase (Steps 5-7). Integration updates required in: debug-everything (fix-task prompts), using-lockpicks (routing), sprint (validation failure references), and fix-cascade-recovery (hand-off after emergency brake). Sub-agent routing uses discover-agents.sh with error-debugging:error-detective preferred for INTERMEDIATE and above; falls back to general-purpose with bundled investigation prompt. Research archive: plugins/dso/docs/archive/debugging-research-2026-03-18.md
+
+**2026-03-19T20:16:31Z**
+
+Session 2 progress: Batches 9-20 completed. Stories closed: w21-dksj (ADVANCED), w21-nl5m (debug-everything), w21-9pp1 (ESCALATED). Remaining: w21-u4ym (dogfooding — needs orchestrator), w21-6fir (docs — blocked by w21-u4ym). Also fixed: test fixture temp file leaks (diff hash stability). Resume with /dso:sprint dso-tmmj --resume
