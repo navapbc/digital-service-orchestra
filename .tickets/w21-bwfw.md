@@ -30,9 +30,18 @@ w21-54wx (sync infrastructure + conflict resolution)
 ## Approach
 Event-driven GitHub Actions workflow with concurrency group. ACLI with forced UTC. Idempotent operations with duplicate detection. Bridge events use dedicated environment ID. Configurable status/type mappings. Compiled-state outbound for STATUS. Origin markers for comment dedup. Destructive change guards. Incremental checkpointing. Three-level problem visibility (passive/active/diagnostic). REVERT events + bridge-fsck for recovery.
 
-## Hardening (from scenario analysis)
+## Hardening (from scenario analysis + red/blue team review)
 - Concurrency group serializes bridge runs (no concurrent execution)
 - Bridge git identity + commit-author check prevents infinite loops
+- Status oscillation flap detection: if same ticket oscillates between two statuses more than N times (configurable) within a window, emit BRIDGE_ALERT and halt STATUS push for that ticket until resolved
+- Dual-timestamp checkpoint: last_pull_timestamp advances only after entire run completes successfully. Per-batch checkpointing is resume-only, never advancing the pull window
+- Comment dedup uses Jira comment ID as primary key (survives rich-text editor stripping). Embedded UUID is secondary signal
+- Bridge-authored STATUS events are excluded from Epic 2's most-STATUS-events-wins count — the bridge is a relay, not an independent decision-maker (cross-epic: w21-54wx must implement this exclusion)
+- REVERT check-before-overwrite: before pushing a REVERT's outbound effect, fetch current Jira state and emit BRIDGE_ALERT if Jira has diverged since the original bad action
+- Unmapped status/type rejection writes BRIDGE_ALERT event (not just log) so passive health warning surfaces in ticket show
+- Whitespace-only descriptions treated as empty in destructive change guards
+- REVERT-of-REVERT rejected by CLI (REVERTs target non-REVERT events only)
+- Compiled-state outbound intentionally loses intermediate transitions (documented design choice)
 - Verify-after-create confirms Jira issue exists before writing SYNC event
 - Compiled state for outbound STATUS ensures conflict-resolved state reaches Jira
 - Origin markers (UUID embed) in comments prevent duplication on round-trip
