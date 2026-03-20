@@ -1,6 +1,6 @@
 ---
 id: dso-nthb
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T00:40:43Z
@@ -34,3 +34,10 @@ SAFEGUARDED: fix may require editing tests/hooks/ test runner
 <!-- sync: unsynced -->
 
 Fix: increased TEST_TIMEOUT from 30 to 120 in run-hook-tests.sh (before sourcing suite-engine.sh), matching the same fix applied to run-script-tests.sh for dso-dcau. test-behavioral-equivalence-allowlist.sh takes ~13s standalone; 30s is insufficient under CPU contention in the full parallel suite.
+
+<!-- note-id: m271ypuv -->
+<!-- timestamp: 2026-03-20T00:48:13Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: increased TEST_TIMEOUT to 120s in tests/hooks/run-hook-tests.sh to prevent timeout under CPU contention in parallel suite

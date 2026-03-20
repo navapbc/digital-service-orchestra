@@ -652,7 +652,7 @@
   "dso-nthb": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
     "type": "bug"
   },
