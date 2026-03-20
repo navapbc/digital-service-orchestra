@@ -66,6 +66,13 @@
     "title": "Implement review guidance related to code reuse",
     "type": "epic"
   },
+  "dso-1xw7": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Fix: fix-cascade-recovery skill missing read-config integration — eval fails",
+    "type": "bug"
+  },
   "dso-2cy8": {
     "deps": [],
     "priority": 1,
@@ -85,6 +92,13 @@
     "priority": 2,
     "status": "open",
     "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
+    "type": "bug"
+  },
+  "dso-31yq": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Fix: hook_track_tool_errors test fails — missing monitoring.tool_errors config in test env",
     "type": "bug"
   },
   "dso-3e30": {
@@ -255,6 +269,13 @@
     "type": "epic"
   },
   "dso-arii": ".tickets/dso-arii.md",
+  "dso-b934": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Fix: test-cascade-breaker.sh is flaky — timing-sensitive failure in full suite run",
+    "type": "bug"
+  },
   "dso-bghl": ".tickets/dso-bghl.md",
   "dso-bgqs": {
     "deps": [
@@ -312,6 +333,13 @@
     "title": "Update project docs to reflect improved project-setup wizard",
     "type": "story"
   },
+  "dso-d72c": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Project Health Restoration (2026-03-19)",
+    "type": "epic"
+  },
   "dso-d8gi": {
     "deps": [
       "dso-x1jt",
@@ -321,6 +349,13 @@
     "status": "open",
     "title": "As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering",
     "type": "story"
+  },
+  "dso-dcau": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Fix: isolation tests timeout during full parallel suite run due to CPU contention (2 tests)",
+    "type": "bug"
   },
   "dso-dghs": {
     "deps": [],
@@ -461,7 +496,21 @@
     "title": "RED: Write failing tests for escalated-investigation-agent-2.md (History Analyst) prompt content requirements",
     "type": "task"
   },
+  "dso-h04l": {
+    "deps": [],
+    "priority": 0,
+    "status": "in_progress",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
   "dso-hbcd": ".tickets/dso-hbcd.md",
+  "dso-hdgl": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-merge-to-main-portability.sh 2 failures (8 pass, 2 fail)",
+    "type": "bug"
+  },
   "dso-hpbh": {
     "deps": [],
     "priority": 1,
@@ -600,6 +649,13 @@
   },
   "dso-nd02": ".tickets/dso-nd02.md",
   "dso-nkjv": ".tickets/dso-nkjv.md",
+  "dso-nthb": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
+    "type": "bug"
+  },
   "dso-o4sr": ".tickets/dso-o4sr.md",
   "dso-ovcy": ".tickets/dso-ovcy.md",
   "dso-p9i6": {
@@ -608,6 +664,13 @@
     "status": "closed",
     "title": "RED: Write failing tests asserting SKILL.md ESCALATED section has dispatch slots, veto logic, resolution agent, and terminal escalation",
     "type": "task"
+  },
+  "dso-pa2n": {
+    "deps": [],
+    "priority": 3,
+    "status": "closed",
+    "title": "Fix: tests/run-all.sh line 231 unbound variable $1 in combined summary formatting function",
+    "type": "bug"
   },
   "dso-perw": ".tickets/dso-perw.md",
   "dso-ppwp": {

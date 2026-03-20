@@ -25,7 +25,11 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
 
 # Bump timeout for heavyweight tests (e.g., test-sync-roundtrip.sh: 941 lines)
-: "${TEST_TIMEOUT:=60}"
+# dso-dcau: increased from 60→120 to prevent CPU-contention timeouts under
+# full parallel suite execution (145+ concurrent processes). test-isolation-check.sh
+# and test-isolation-rule-no-direct-os-environ.sh pass in <10s individually but
+# exceeded the 60s budget when the host is under heavy parallel load.
+: "${TEST_TIMEOUT:=120}"
 
 # Source the suite engine
 source "$LIB_DIR/suite-engine.sh"

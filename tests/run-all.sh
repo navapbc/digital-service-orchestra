@@ -228,7 +228,7 @@ echo "========================================"
 echo "=== Run-All Combined Summary ==="
 echo "========================================"
 
-suite_pass() { [ "$1" -eq 0 ] && echo "PASS" || echo "FAIL"; }
+suite_pass() { [ "${1:-1}" -eq 0 ] && echo "PASS" || echo "FAIL"; }
 
 printf "  Evals:        %s\n" "$(suite_pass $EVALS_EXIT)"
 printf "  Hook Tests:   %s\n" "$(suite_pass $HOOKS_EXIT)"
