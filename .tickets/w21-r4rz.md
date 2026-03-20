@@ -1,6 +1,6 @@
 ---
 id: w21-r4rz
-status: in_progress
+status: closed
 deps: [w21-8qo1, w21-9d8u, w21-q8nv]
 links: []
 created: 2026-03-20T00:52:09Z

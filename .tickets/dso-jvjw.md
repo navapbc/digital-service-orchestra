@@ -1,6 +1,6 @@
 ---
 id: dso-jvjw
-status: open
+status: closed
 deps: 
   - dso-r2es
   - dso-6576

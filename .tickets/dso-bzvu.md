@@ -1,6 +1,6 @@
 ---
 id: dso-bzvu
-status: open
+status: closed
 deps: 
   - dso-r2es
 links: []
