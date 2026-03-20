@@ -49,8 +49,9 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN_COPY"
     git config user.name 'Test'
 ) 2>/dev/null
 
-# ── Write minimal workflow-config.conf ────────────────────────────────────────
-cat > "$SMOKE_DIR/workflow-config.conf" <<'EOF'
+# ── Write minimal .claude/dso-config.conf ─────────────────────────────────────
+mkdir -p "$SMOKE_DIR/.claude"
+cat > "$SMOKE_DIR/.claude/dso-config.conf" <<'EOF'
 commands.test=make test
 commands.lint=make lint
 EOF
@@ -98,7 +99,7 @@ echo "Key script checks:"
 
 # Required: read-config.sh commands.test (must exit 0)
 check "read-config.sh commands.test exits 0" required \
-    bash "$PLUGIN_COPY/scripts/read-config.sh" commands.test "$SMOKE_DIR/workflow-config.conf"
+    bash "$PLUGIN_COPY/scripts/read-config.sh" commands.test "$SMOKE_DIR/.claude/dso-config.conf"
 
 # Required: validate-config.sh (no-arg invocation)
 check "validate-config.sh exits 0 with minimal config" required \
@@ -109,7 +110,7 @@ check "validate-config.sh exits 0 with minimal config" required \
 
 # Required: read-config.sh commands.lint (must exit 0)
 check "read-config.sh commands.lint exits 0" required \
-    bash "$PLUGIN_COPY/scripts/read-config.sh" commands.lint "$SMOKE_DIR/workflow-config.conf"
+    bash "$PLUGIN_COPY/scripts/read-config.sh" commands.lint "$SMOKE_DIR/.claude/dso-config.conf"
 
 # Optional: discover-agents.sh (may need .claude/settings.json)
 discover_exit=0

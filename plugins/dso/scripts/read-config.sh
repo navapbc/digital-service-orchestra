@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 # scripts/read-config.sh
-# Config reader for workflow-config.conf and YAML config files.
+# Config reader for .claude/dso-config.conf and YAML config files.
 #
 # This is the foundation layer that config-paths.sh depends on to resolve
 # project paths. It reads raw config values from flat .conf or YAML files.

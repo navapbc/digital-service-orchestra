@@ -9,7 +9,7 @@ _tk_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _tk_config_paths="$_tk_script_dir/../hooks/lib/config-paths.sh"
 [[ -f "$_tk_config_paths" ]] && source "$_tk_config_paths"
 
-# Read a value from workflow-config.conf using read-config.sh
+# Read a value from .claude/dso-config.conf using read-config.sh
 # Returns empty string and exit 0 if key or config not found.
 _tk_read_config() {
     local key="$1"
@@ -39,7 +39,7 @@ _tk_read_config() {
         # Pass the config file from the current repo, not from tk's repo
         local _repo_root
         _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
-        local _config_file="$_repo_root/workflow-config.conf"
+        local _config_file="$_repo_root/.claude/dso-config.conf"
         if [[ -f "$_config_file" ]]; then
             "$_read_config" "$_config_file" "$key" 2>/dev/null || true
         fi
@@ -51,7 +51,7 @@ find_tickets_dir() {
     # Explicit env var takes priority
     [[ -n "${TICKETS_DIR:-}" ]] && { echo "$TICKETS_DIR"; return 0; }
 
-    # Check workflow-config.conf for tickets.directory
+    # Check .claude/dso-config.conf for tickets.directory
     local _config_dir
     _config_dir=$(_tk_read_config "tickets.directory")
     if [[ -n "$_config_dir" ]]; then
@@ -136,7 +136,7 @@ _sed_i() {
 generate_id() {
     local prefix
 
-    # Check workflow-config.conf for tickets.prefix
+    # Check .claude/dso-config.conf for tickets.prefix
     prefix=$(_tk_read_config "tickets.prefix")
 
     if [[ -z "$prefix" ]]; then
@@ -5231,7 +5231,7 @@ cmd_sync() {
         return 1
     fi
 
-    # ── Resolve JIRA_PROJECT: workflow-config.conf > env var > error ─────────
+    # ── Resolve JIRA_PROJECT: .claude/dso-config.conf > env var > error ─────────
     local _cfg_project=""
     local _read_config="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/scripts/read-config.sh"
     if [[ -x "$_read_config" ]]; then
@@ -5244,9 +5244,9 @@ cmd_sync() {
     # ── Check 2: JIRA_PROJECT must be resolved ────────────────────────────────
     if [[ -z "${JIRA_PROJECT:-}" ]]; then
         echo "Error: JIRA_PROJECT is not set." >&2
-        echo "Set it via env var or add jira.project to workflow-config.conf:" >&2
+        echo "Set it via env var or add jira.project to .claude/dso-config.conf:" >&2
         echo "  export JIRA_PROJECT=MYPROJECT" >&2
-        echo "  # or in workflow-config.conf:" >&2
+        echo "  # or in .claude/dso-config.conf:" >&2
         echo "  # jira.project = MYPROJECT" >&2
         return 1
     fi
@@ -5491,7 +5491,7 @@ Commands:
   add-note <id> [text]     Append timestamped note (or pipe via stdin)
   sync [options]           Sync tickets with Jira (push local→Jira, pull Jira→local)
     --check                Verify acli is installed, authenticated, and JIRA_PROJECT is accessible
-                           JIRA_PROJECT: env var > jira.project in workflow-config.conf
+                           JIRA_PROJECT: env var > jira.project in .claude/dso-config.conf
     --include-closed       Also push closed tickets (pull always fetches open issues)
     --force-local          Auto-resolve conflicts by keeping local version (no TTY needed)
     --no-lock              Skip both distributed and local sync locks (use with caution)

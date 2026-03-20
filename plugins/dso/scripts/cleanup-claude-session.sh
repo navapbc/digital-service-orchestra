@@ -76,13 +76,13 @@ else
     CFG_APP_DIR="app"
 fi
 
-# Read session.artifact_prefix from workflow-config.conf via read-config.sh.
+# Read session.artifact_prefix from .claude/dso-config.conf via read-config.sh.
 # When absent, steps 4 (Docker filter) and 8 (artifact dirs) are skipped.
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 ARTIFACT_PREFIX=$(bash "$PLUGIN_SCRIPTS/read-config.sh" session.artifact_prefix 2>/dev/null || true)
 
 if [ -z "$ARTIFACT_PREFIX" ]; then
-    log_action "Warning: session.artifact_prefix not set in workflow-config.conf — skipping Docker filter and artifact dir cleanup"
+    log_action "Warning: session.artifact_prefix not set in .claude/dso-config.conf — skipping Docker filter and artifact dir cleanup"
 fi
 
 # Get list of active worktree paths for cross-referencing
@@ -252,7 +252,7 @@ else
 fi
 
 # 4. Clean up any hung Docker processes related to tests (report only)
-# Skipped when session.artifact_prefix is absent from workflow-config.conf
+# Skipped when session.artifact_prefix is absent from .claude/dso-config.conf
 log ""
 log "Checking for hung test containers..."
 
@@ -352,7 +352,7 @@ else
 fi
 
 # 8. Clean test artifact dirs for dead worktrees
-# Skipped when session.artifact_prefix is absent from workflow-config.conf
+# Skipped when session.artifact_prefix is absent from .claude/dso-config.conf
 log ""
 log "Checking for test artifacts of dead worktrees..."
 

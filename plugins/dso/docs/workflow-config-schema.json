@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/navapbc/digital-service-orchestra/workflow-config-schema.json",
   "title": "workflow-config",
-  "description": "Schema for workflow-config — configures commands and stack for the Digital Service Orchestra plugin. Note: the primary config format is now workflow-config.conf (flat KEY=VALUE). This JSON schema documents the logical key structure and types. For the flat format, use validate-config.sh.",
+  "description": "Schema for dso-config — configures commands and stack for the Digital Service Orchestra plugin. Note: the primary config format is now .claude/dso-config.conf (flat KEY=VALUE). This JSON schema documents the logical key structure and types. For the flat format, use validate-config.sh.",
   "type": "object",
   "required": ["version"],
   "additionalProperties": true,

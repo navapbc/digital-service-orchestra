@@ -1,6 +1,6 @@
 ---
 id: dso-wmjr
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T15:56:20Z

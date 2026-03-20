@@ -1,6 +1,6 @@
 ---
 id: dso-4ap3
-status: open
+status: in_progress
 deps: [dso-uqm6, dso-kiue, dso-1kul, dso-wmjr, dso-0zsx, dso-xdd8, dso-5ewd, dso-ul37]
 links: []
 created: 2026-03-20T15:57:37Z
@@ -35,3 +35,12 @@ This task depends on all other dso-bugk tasks (uqm6, kiue, 1kul, wmjr, 0zsx, xdd
 - [ ] validate.sh --ci passes end-to-end
   Verify: bash $(git rev-parse --show-toplevel)/plugins/dso/scripts/validate.sh --ci
 
+
+## Notes
+
+<!-- note-id: sixasusz -->
+<!-- timestamp: 2026-03-20T16:34:44Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT: All 25 remaining workflow-config.conf references fixed. grep count = 0. smoke-test-portable.sh: 5/5 passed. Files modified: workflow-config-schema.json, check-persistence-coverage.sh, validate-phase.sh, read-config.sh, tk, cleanup-claude-session.sh, smoke-test-portable.sh

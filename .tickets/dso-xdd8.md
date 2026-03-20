@@ -1,6 +1,6 @@
 ---
 id: dso-xdd8
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T15:57:07Z

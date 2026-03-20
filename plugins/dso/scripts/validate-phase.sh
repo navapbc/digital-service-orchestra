@@ -106,11 +106,11 @@ run_check() {
     local cmd="$2"
     local output
     # REVIEW-DEFENSE: eval is used here to execute config-supplied command strings from
-    # workflow-config.conf. This file is project-controlled (committed to the repo) and is
+    # .claude/dso-config.conf. This file is project-controlled (committed to the repo) and is
     # not user-supplied at runtime. All current config values are simple make targets
     # (e.g., "make lint", "make format-check"). The threat model for a developer-facing
     # toolchain script does not include adversarial config files; a user with write access
-    # to workflow-config.conf already has full repo access. eval is required to support
+    # to .claude/dso-config.conf already has full repo access. eval is required to support
     # commands with embedded arguments (e.g., "make target ARGS=value") as single config strings.
     if output=$(cd "$REPO_ROOT" && eval "$cmd" 2>&1); then
         echo "$label: PASS"
@@ -275,7 +275,7 @@ phase_tier_transition() {
 phase_full() {
     local any_fail=0
 
-    # Full validation — path resolved from commands.validate in workflow-config.conf
+    # Full validation — path resolved from commands.validate in .claude/dso-config.conf
     local val_output
     if val_output=$(cd "$REPO_ROOT" && eval "$CMD_VALIDATE" 2>&1); then
         echo "RESULT: ALL_PASS"
