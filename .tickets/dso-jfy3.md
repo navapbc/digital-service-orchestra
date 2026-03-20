@@ -1,6 +1,6 @@
 ---
 id: dso-jfy3
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-20T03:32:47Z
@@ -36,3 +36,29 @@ test_shim_no_fallback_to_workflow_config_conf — Given a temp git repo with onl
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-shim-plugin-root.sh 2>&1 | grep -qE 'FAIL'
 - [ ] bash tests/run-all.sh shows no regressions from test addition alone
   Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh 2>&1 | tail -5
+
+## Notes
+
+**2026-03-20T04:20:14Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T04:20:35Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ - shim at .claude/scripts/dso reads dso.plugin_root from workflow-config.conf at git root (step 2); tests use assert.sh helpers, mktemp git repos in TMPDIR_BASE, and call print_summary at end
+
+**2026-03-20T04:21:09Z**
+
+CHECKPOINT 3/6: Tests written ✓ - added test_shim_reads_plugin_root_from_dot_claude_dso_config and test_shim_no_fallback_to_workflow_config_conf to tests/scripts/test-dso-shim-plugin-root.sh
+
+**2026-03-20T04:21:20Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ - No shim source changes (per task constraint). Tests written are the complete implementation for this RED phase task.
+
+**2026-03-20T04:21:27Z**
+
+CHECKPOINT 5/6: Validation passed ✓ - test file runs, 2 new tests FAIL (RED) as required: test_shim_reads_plugin_root_from_dot_claude_dso_config (FAIL: shim doesn't read .claude/dso-config.conf) and test_shim_no_fallback_to_workflow_config_conf (FAIL: shim still reads workflow-config.conf). 7 pre-existing tests still PASS.
+
+**2026-03-20T04:25:17Z**
+
+CHECKPOINT 6/6: Done ✓ - AC1: pass (test_shim_reads_plugin_root_from_dot_claude_dso_config present), AC2: pass (test_shim_no_fallback_to_workflow_config_conf present), AC3: pass (FAIL output confirmed RED), AC4: 7 pre-existing tests pass (no regressions), 2 new tests FAIL as required
