@@ -36,3 +36,11 @@ This file currently checks for removal of workflow-config.yaml. No change needed
 - These are update/maintenance changes to existing tests — no new RED test phase needed
 - The tests in this task depend on all implementation tasks completing first
 
+## ACCEPTANCE CRITERIA
+
+- [ ] bash tests/run-all.sh passes (exit 0)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh
+- [ ] tests/scripts/test-config-callers-updated.sh passes cleanly
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh 2>&1 | grep -E 'passed|0 failed'
+- [ ] test_no_hardcoded_workflow_config_conf_in_scripts is present and passing
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh 2>&1 | grep -E 'test_no_hardcoded.*PASS'

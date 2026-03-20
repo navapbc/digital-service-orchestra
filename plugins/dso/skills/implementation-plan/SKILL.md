@@ -331,6 +331,57 @@ The doc task should depend on implementation tasks and reference Step 2 feedback
 
 If no documentation updates needed, note the rationale (e.g., "No new patterns; existing ADRs remain accurate").
 
+### Contract Detection Pass
+
+After file impact analysis in Step 3 and before finalizing the task list, run a contract detection pass to identify cross-component interfaces that need explicit contracts.
+
+#### When to Run
+
+Run this pass when file impact includes two or more components. Skip only for purely internal, single-component changes.
+
+#### V1 Detection Heuristics
+
+Check for two signal patterns in the file impact list:
+
+**Pattern A — Signal emit/parse pairs:**
+A contract is needed when file impact includes a component that produces structured output (lines containing `STATUS:`, `RESULT:`, or `REPORT:` markers that another component must parse) AND another component that parse/consume that signal. Look for: one file that will emit a signal, and another that will parse that signal or parse signal output.
+
+**Pattern B — Orchestrator/sub-agent report schema:**
+A contract is needed when file impact includes a skill or orchestrator dispatching sub-agents AND a definition of the expected return format (CONTRACT_REPORT or contract report schema). When a dispatcher and a report schema are both in scope, the interface between them requires a contract artifact.
+
+#### Contract Artifact
+
+For each detected interface, create a contract document:
+
+```
+plugins/dso/docs/contracts/<interface-name>.md
+```
+
+Contract document sections:
+- **Signal Name**: Identifier for the interface (e.g., `CONTRACT_REPORT`)
+- **Emitter**: Component/file that produces the output
+- **Parser**: Component/file that consumes the output
+- **Fields**: Structured field list with types and required/optional status
+- **Example**: Representative payload or output block
+
+#### Cross-Story Deduplication
+
+Before creating a contract task, check for an existing contract task in the epic:
+
+```bash
+tk dep tree <parent-epic-id>
+```
+
+Scan the output for any existing task whose title contains `Contract:` and the same interface name. If an existing contract task is found, wire the implementation tasks as dependents of that existing contract task — do not create a duplicate. If no existing contract task is found, create one:
+
+```bash
+tk create "Contract: <interface-name> signal emit/parse interface" -t task -p 2 --parent=<parent-epic-id>
+```
+
+#### Contract Task as First Dependency
+
+The contract task must be declared as a dependency of all implementation tasks that touch either side of the interface — both the emitter side and the parser side. This ensures the interface is specified before either side is implemented.
+
 ---
 
 ## Step 4: Implementation Plan Review (/dso:implementation-plan)

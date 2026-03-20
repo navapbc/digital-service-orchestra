@@ -60,3 +60,17 @@ Update all runtime scripts that hardcode 'workflow-config.conf' in config path c
 - dso-setup.sh: out of scope per story (separate story dso-q2ev)
 - smoke-test-portable.sh writes a temp workflow-config.conf fixture: update fixture to write .claude/dso-config.conf
 
+## ACCEPTANCE CRITERIA
+
+- [ ] bash tests/run-all.sh passes (exit 0)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh
+- [ ] tests/scripts/test-config-callers-updated.sh all tests pass (GREEN)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh 2>&1 | grep -E 'passed|0 failed'
+- [ ] validate.sh references .claude/dso-config.conf in CONFIG_FILE construction
+  Verify: grep -q '\.claude/dso-config\.conf' $(git rev-parse --show-toplevel)/plugins/dso/scripts/validate.sh
+- [ ] validate-phase.sh references .claude/dso-config.conf in CONFIG_FILE construction
+  Verify: grep -q '\.claude/dso-config\.conf' $(git rev-parse --show-toplevel)/plugins/dso/scripts/validate-phase.sh
+- [ ] sprint-next-batch.sh references .claude/dso-config.conf (not workflow-config.conf)
+  Verify: grep -q '\.claude/dso-config\.conf' $(git rev-parse --show-toplevel)/plugins/dso/scripts/sprint-next-batch.sh
+- [ ] No active lines in plugins/dso/scripts/*.sh construct REPO_ROOT/workflow-config.conf path (excluding dso-setup.sh, read-config.sh, validate-config.sh)
+  Verify: grep -r 'REPO_ROOT.*workflow-config\.conf' $(git rev-parse --show-toplevel)/plugins/dso/scripts/ --include='*.sh' | grep -v 'read-config\.sh\|validate-config\.sh\|dso-setup\.sh\|submit-to-schemastore\.sh' | grep -c . | awk '{exit ($1 > 0)}'

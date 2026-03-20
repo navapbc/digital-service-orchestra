@@ -30,3 +30,15 @@ test_e2e_validate_sh_reads_commands — Given a temp git repo with .claude/dso-c
 - Use isolated temp git repos for each scenario
 - WORKFLOW_CONFIG_FILE env var for scripts that support it; explicit CONFIG_FILE env var for validate.sh
 
+## ACCEPTANCE CRITERIA
+
+- [ ] bash tests/run-all.sh passes (exit 0)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh
+- [ ] Integration test file tests/scripts/test-dso-config-path-e2e.sh exists and is executable
+  Verify: test -x $(git rev-parse --show-toplevel)/tests/scripts/test-dso-config-path-e2e.sh
+- [ ] test_e2e_resolution_from_dot_claude_dso_config passes
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-config-path-e2e.sh 2>&1 | grep -E 'test_e2e_resolution.*PASS'
+- [ ] test_e2e_config_paths_reads_from_dot_claude passes
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-config-path-e2e.sh 2>&1 | grep -E 'test_e2e_config_paths.*PASS'
+- [ ] test_e2e_shim_resolves_plugin_root passes
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-config-path-e2e.sh 2>&1 | grep -E 'test_e2e_shim.*PASS'

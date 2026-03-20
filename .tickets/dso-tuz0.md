@@ -40,3 +40,15 @@ Also update:
 - CLAUDE_PLUGIN_ROOT env var step (1) remains unchanged
 - grep-based raw parsing is preserved (shim cannot use read-config.sh — chicken-and-egg)
 
+## ACCEPTANCE CRITERIA
+
+- [ ] bash tests/run-all.sh passes (exit 0)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh
+- [ ] tests/scripts/test-dso-shim-plugin-root.sh new tests pass (GREEN)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-shim-plugin-root.sh 2>&1 | grep -E 'passed|0 failed'
+- [ ] .claude/scripts/dso references .claude/dso-config.conf (not workflow-config.conf)
+  Verify: grep -q '\.claude/dso-config\.conf' $(git rev-parse --show-toplevel)/.claude/scripts/dso
+- [ ] templates/host-project/dso references .claude/dso-config.conf (not workflow-config.conf)
+  Verify: grep -q '\.claude/dso-config\.conf' $(git rev-parse --show-toplevel)/templates/host-project/dso
+- [ ] .claude/scripts/dso active lines do not reference workflow-config.conf
+  Verify: grep -v '^\s*#' $(git rev-parse --show-toplevel)/.claude/scripts/dso | grep -v 'workflow-config\.conf'

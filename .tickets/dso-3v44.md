@@ -27,6 +27,16 @@ test_no_hardcoded_workflow_config_conf_in_scripts — grep plugins/dso/scripts/*
 
 ### Constraints
 - Do NOT change any runtime scripts in this task
-- Tests check source code patterns via grep — they verify the implementation in task dso-xu7w
+- Tests check source code patterns via grep — they verify the implementation in task dso-2vwl
 - Tests must fail (RED) before the implementation task runs
 
+## ACCEPTANCE CRITERIA
+
+- [ ] tests/scripts/test-config-callers-updated.sh contains test_validate_sh_uses_dot_claude_config
+  Verify: grep -q 'test_validate_sh_uses_dot_claude_config' $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh
+- [ ] tests/scripts/test-config-callers-updated.sh contains test_no_hardcoded_workflow_config_conf_in_scripts
+  Verify: grep -q 'test_no_hardcoded_workflow_config_conf_in_scripts' $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh
+- [ ] New tests FAIL before implementation (RED confirmed)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh 2>&1 | grep -qE 'FAIL'
+- [ ] bash tests/run-all.sh shows no regressions from test addition alone
+  Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh 2>&1 | tail -5

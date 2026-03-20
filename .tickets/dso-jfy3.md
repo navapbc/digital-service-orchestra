@@ -26,3 +26,13 @@ test_shim_no_fallback_to_workflow_config_conf — Given a temp git repo with onl
 - Locate the shim under test at .claude/scripts/dso in the repo
 - Tests must fail (RED) before the implementation task runs
 
+## ACCEPTANCE CRITERIA
+
+- [ ] tests/scripts/test-dso-shim-plugin-root.sh contains test_shim_reads_plugin_root_from_dot_claude_dso_config
+  Verify: grep -q 'test_shim_reads_plugin_root_from_dot_claude_dso_config' $(git rev-parse --show-toplevel)/tests/scripts/test-dso-shim-plugin-root.sh
+- [ ] tests/scripts/test-dso-shim-plugin-root.sh contains test_shim_no_fallback_to_workflow_config_conf
+  Verify: grep -q 'test_shim_no_fallback_to_workflow_config_conf' $(git rev-parse --show-toplevel)/tests/scripts/test-dso-shim-plugin-root.sh
+- [ ] New tests FAIL before implementation (RED confirmed)
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-shim-plugin-root.sh 2>&1 | grep -qE 'FAIL'
+- [ ] bash tests/run-all.sh shows no regressions from test addition alone
+  Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh 2>&1 | tail -5
