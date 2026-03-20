@@ -8,7 +8,7 @@
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Environment (passed through to suite-engine):
-#   TEST_TIMEOUT=30              Per-test timeout in seconds (default: 30)
+#   TEST_TIMEOUT=120             Per-test timeout in seconds (default: 120)
 #   MAX_PARALLEL=8               Max concurrent tests (default: 8)
 #   MAX_CONSECUTIVE_FAILS=5      Abort after N consecutive failures (default: 5)
 
@@ -29,6 +29,13 @@ LIB_DIR="$SCRIPT_DIR/../lib"
 # Force-set so dispatchers find hooks/lib/ at the right path.
 _RUN_HOOK_REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 export CLAUDE_PLUGIN_ROOT="$_RUN_HOOK_REPO_ROOT/plugins/dso"
+
+# Increase per-test timeout — behavioral-equivalence-allowlist and similar
+# tests take ~13s standalone; under CPU contention in the parallel suite they
+# can exceed the suite-engine default of 30s (same fix as run-script-tests.sh
+# applied for dso-dcau isolation timeouts).
+: "${TEST_TIMEOUT:=120}"
+export TEST_TIMEOUT
 
 # Source the suite engine
 source "$LIB_DIR/suite-engine.sh"
