@@ -40,7 +40,7 @@ Sub-agents MUST:
 ## Permitted Actions
 
 Sub-agents MAY:
-- `tk create "..." --parent <parent-id>` for genuinely out-of-scope discovered work only
+- `tk create "..." --parent <parent-id> --type bug` for discovered bugs (use `--type bug` when filing defects, not `--type task`)
 - `tk add-note <id> "..."` for checkpoint progress notes
 - Read any file in the repo to understand context
 - Write discovery files to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json` (resolve via: `source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir`) (atomic: write `.tmp`, then `mv`) when encountering bugs, missing dependencies, API changes, or convention violations during execution. Schema: `{"task_id": "<id>", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line>", "affected_files": ["<path>", ...]}`. Discovery writing is non-fatal — failures must not block task completion.

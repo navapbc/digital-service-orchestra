@@ -174,9 +174,10 @@ echo "Test 12: Portability hook-path — post_create_cmd creates marker file"
 _smoke_setup
 # Write dso-config.conf with a post_create_cmd that creates a marker file
 mkdir -p "$SMOKE_REPO/scripts"
+mkdir -p "$SMOKE_REPO/.claude"
 # Copy read-config.sh so the script can find it in the temp repo
 cp "$DSO_PLUGIN_DIR/scripts/read-config.sh" "$SMOKE_REPO/scripts/read-config.sh"
-cat > "$SMOKE_REPO/dso-config.conf" <<'CONF'
+cat > "$SMOKE_REPO/.claude/dso-config.conf" <<'CONF'
 worktree.post_create_cmd=touch $WORKTREE_PATH/.setup-marker
 CONF
 smoke_exit=0
@@ -200,8 +201,9 @@ _smoke_cleanup
 echo "Test 13: Portability hook-failure — failing post_create_cmd exits non-zero"
 _smoke_setup
 mkdir -p "$SMOKE_REPO/scripts"
+mkdir -p "$SMOKE_REPO/.claude"
 cp "$DSO_PLUGIN_DIR/scripts/read-config.sh" "$SMOKE_REPO/scripts/read-config.sh"
-cat > "$SMOKE_REPO/dso-config.conf" <<'CONF'
+cat > "$SMOKE_REPO/.claude/dso-config.conf" <<'CONF'
 worktree.post_create_cmd=false
 CONF
 smoke_exit=0

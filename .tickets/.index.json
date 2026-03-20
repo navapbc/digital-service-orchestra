@@ -370,6 +370,13 @@
     "title": "As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering",
     "type": "story"
   },
+  "dso-dbxb": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Bug: test-worktree-create portability tests fail \u2014 post_create_cmd marker not created and exit code wrong",
+    "type": "bug"
+  },
   "dso-dcau": {
     "deps": [],
     "priority": 1,
@@ -649,6 +656,13 @@
     "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
     "type": "bug"
   },
+  "dso-o09j": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Bug: agent-batch-lifecycle.sh lock-acquire only searches w21-*.md files, misses dso-* prefixed lock tickets",
+    "type": "bug"
+  },
   "dso-o24g": {
     "deps": [],
     "priority": 1,
@@ -681,6 +695,13 @@
     "status": "closed",
     "title": "Fix: tests/run-all.sh line 231 unbound variable $1 in combined summary formatting function",
     "type": "bug"
+  },
+  "dso-pex6": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Project Health Restoration",
+    "type": "epic"
   },
   "dso-ppwp": {
     "deps": [
@@ -866,6 +887,13 @@
     "title": "Update test fixtures and test scripts: replace workflow-config.conf with dso-config.conf",
     "type": "task"
   },
+  "dso-unyg": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Bug: test-verify-baseline-intent uses wrong config key (merge.visual_baseline_path vs visual.baseline_directory)",
+    "type": "bug"
+  },
   "dso-uqm6": {
     "deps": [],
     "priority": 2,
@@ -886,6 +914,13 @@
     "status": "open",
     "title": "Make implementation plan migration aware",
     "type": "epic"
+  },
+  "dso-uzb8": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Bug: test-validate-config-driven references wrong dso-config.conf path",
+    "type": "bug"
   },
   "dso-v558": {
     "deps": [],
@@ -1509,7 +1544,7 @@
   "w21-tr4q": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "validate.sh plugin check fails: make test-plugin target missing from Makefile",
     "type": "bug"
   },

@@ -1,6 +1,6 @@
 ---
 id: dso-5p5i
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-20T15:09:36Z
