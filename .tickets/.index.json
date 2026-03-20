@@ -608,6 +608,13 @@
     "title": "Incorporate OpenRewrite",
     "type": "epic"
   },
+  "dso-qt4u": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution",
+    "type": "bug"
+  },
   "dso-r2es": {
     "deps": [],
     "priority": 1,
