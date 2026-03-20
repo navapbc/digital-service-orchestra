@@ -1,6 +1,6 @@
 ---
 id: w21-cphn
-status: open
+status: in_progress
 deps: [w21-l7zk, w21-8vlg]
 links: []
 created: 2026-03-20T19:10:30Z
@@ -50,3 +50,29 @@ Implementation constraints:
 - [ ] bash tests/run-all.sh passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh
 
+
+## Notes
+
+**2026-03-20T20:15:03Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T20:15:12Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T20:15:22Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓
+
+**2026-03-20T20:15:42Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T20:15:53Z**
+
+CHECKPOINT 5/6: All 25 tests GREEN ✓
+
+**2026-03-20T20:19:30Z**
+
+CHECKPOINT 6/6: Done ✓
