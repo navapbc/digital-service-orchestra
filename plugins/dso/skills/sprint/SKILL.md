@@ -90,10 +90,12 @@ Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` w
    ```bash
    $(git rev-parse --show-toplevel)/scripts/sprint-list-epics.sh --all
    ```
-   This outputs tab-separated lines in three categories:
-   - `<id>\tP*\t<title>` for in-progress epics (listed first, `P*` replaces priority)
-   - `<id>\tP<priority>\t<title>` for unblocked open epics
-   - `BLOCKED\t<id>\tP<priority>\t<title>` for blocked ones (with `--all`)
+   This outputs tab-separated lines in three categories (4 fields each):
+   - `<id>\tP*\t<title>\t<child_count>` for in-progress epics (listed first, `P*` replaces priority)
+   - `<id>\tP<priority>\t<title>\t<child_count>` for unblocked open epics
+   - `BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>` for blocked ones (with `--all`)
+
+   The `<child_count>` field is the number of child tickets belonging to the epic.
 
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
@@ -104,17 +106,17 @@ Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` w
    ```
    In-progress epics:
 
-     1. [P*] <title> (<epic-id>) ← resumable
+     1. [P*] <title> (<epic-id>) — 5 children ← resumable
 
    Unblocked epics (sorted by priority):
 
-     2. [P0] <title> (<epic-id>)
-     3. [P1] <title> (<epic-id>)
-     4. [P2] <title> (<epic-id>)
+     2. [P0] <title> (<epic-id>) — 3 children
+     3. [P1] <title> (<epic-id>) — 7 children
+     4. [P2] <title> (<epic-id>) — 0 children
      ...
 
    Blocked epics (not selectable):
-     - [P2] <title> (<epic-id>)
+     - [P2] <title> (<epic-id>) — 2 children
    ```
 3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
