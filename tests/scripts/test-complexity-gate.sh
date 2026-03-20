@@ -272,6 +272,36 @@ else
 fi
 echo ""
 
+# ── Test function: routing table contains fix-bug entry ──────────────────────
+test_routing_table_contains_fix_bug() {
+  if grep -q "fix-bug post-investigation" "$SHARED_EVALUATOR"; then
+    echo "  PASS F1: Context-Specific Routing table contains fix-bug post-investigation entry"
+    return 0
+  else
+    echo "  FAIL F1: Context-Specific Routing table missing fix-bug post-investigation entry in $SHARED_EVALUATOR" >&2
+    return 1
+  fi
+}
+
+# ── Test case F: fix-bug routing table entry ──────────────────────────────────
+echo "Test case F: fix-bug post-investigation entry in Context-Specific Routing table"
+test_case_F_pass=true
+
+if test_routing_table_contains_fix_bug; then
+  : # pass message already printed
+else
+  test_case_F_pass=false
+fi
+
+if $test_case_F_pass; then
+  echo "  → Test case F: PASS"
+  (( PASS++ ))
+else
+  echo "  → Test case F: FAIL" >&2
+  (( FAIL++ ))
+fi
+echo ""
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo "=== Summary ==="
 echo "PASS:    $PASS"
