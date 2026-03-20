@@ -33,4 +33,20 @@ fi
 assert_eq "test_config_resolution_doc_no_claude_plugin_root_path" "clean" "$actual"
 assert_pass_if_clean "test_config_resolution_doc_no_claude_plugin_root_path"
 
+# ── test_migration_doc_no_settings_json_env_override ────────────────────────
+# MIGRATION-TO-PLUGIN.md must NOT recommend setting CLAUDE_PLUGIN_ROOT in
+# settings.json env block as the primary installation approach. The canonical
+# approach is the dso shim reading dso.plugin_root from .claude/dso-config.conf.
+# The settings.json env block method is the OLD approach that dso-zu4o removes.
+_snapshot_fail
+if grep -qE 'CLAUDE_PLUGIN_ROOT.*settings\.json|settings\.json.*CLAUDE_PLUGIN_ROOT' "$DSO_PLUGIN_DIR/docs/MIGRATION-TO-PLUGIN.md" 2>/dev/null; then
+    actual_migration="found_stale_settings_json_override"
+    echo "  MIGRATION-TO-PLUGIN.md still recommends CLAUDE_PLUGIN_ROOT in settings.json:" >&2
+    grep -nE 'CLAUDE_PLUGIN_ROOT.*settings\.json|settings\.json.*CLAUDE_PLUGIN_ROOT' "$DSO_PLUGIN_DIR/docs/MIGRATION-TO-PLUGIN.md" >&2
+else
+    actual_migration="clean"
+fi
+assert_eq "test_migration_doc_no_settings_json_env_override" "clean" "$actual_migration"
+assert_pass_if_clean "test_migration_doc_no_settings_json_env_override"
+
 print_summary

@@ -1,6 +1,6 @@
 ---
 id: dso-zs27
-status: in_progress
+status: closed
 deps: [dso-2rgm]
 links: []
 created: 2026-03-20T18:09:36Z

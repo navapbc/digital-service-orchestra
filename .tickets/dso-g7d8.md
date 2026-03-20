@@ -1,6 +1,6 @@
 ---
 id: dso-g7d8
-status: open
+status: in_progress
 deps: [dso-2rgm]
 links: []
 created: 2026-03-20T18:09:52Z
@@ -28,3 +28,63 @@ The test should:
 
 Depends on dso-2rgm (same test file).
 
+## ACCEPTANCE CRITERIA
+
+- [ ] Test function `test_migration_doc_no_settings_json_env_override` is defined in test-config-resolution-doc-accuracy.sh
+  Verify: `grep -q "test_migration_doc_no_settings_json_env_override" tests/scripts/test-config-resolution-doc-accuracy.sh`
+- [ ] Test FAILS (RED) when run against current MIGRATION-TO-PLUGIN.md
+  Verify: `bash tests/scripts/test-config-resolution-doc-accuracy.sh 2>&1 | grep -q "FAILED: [1-9]"`
+- [ ] Existing test_config_resolution_doc_no_claude_plugin_root_path still passes
+  Verify: `bash tests/scripts/test-config-resolution-doc-accuracy.sh 2>&1 | grep -q "test_config_resolution_doc_no_claude_plugin_root_path.*PASS"`
+
+## File Impact
+
+### Files to modify
+- `tests/scripts/test-config-resolution-doc-accuracy.sh`
+
+### Files to read (reference only)
+- `plugins/dso/docs/MIGRATION-TO-PLUGIN.md`
+
+## Notes
+
+<!-- note-id: dfa9lxwg -->
+<!-- timestamp: 2026-03-20T18:33:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: q9caf65g -->
+<!-- timestamp: 2026-03-20T18:33:15Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: qqnjl604 -->
+<!-- timestamp: 2026-03-20T18:33:45Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: khjsz3hl -->
+<!-- timestamp: 2026-03-20T18:33:45Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: y6w8tf8z -->
+<!-- timestamp: 2026-03-20T18:34:05Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: New test FAILS RED (FAILED: 1), existing test still PASSES ✓
+
+<!-- note-id: x9xna3y9 -->
+<!-- timestamp: 2026-03-20T18:34:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓
