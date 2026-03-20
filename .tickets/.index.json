@@ -676,6 +676,13 @@
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
   },
+  "dso-z6zi": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Worktree left unclean after end-session / main left dirty after merge-to-main",
+    "type": "task"
+  },
   "dso-zj3r": {
     "deps": [],
     "priority": 3,

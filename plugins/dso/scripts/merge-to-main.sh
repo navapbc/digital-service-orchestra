@@ -908,9 +908,16 @@ _phase_validate() {
     # code, so auto-staging into the merge commit is safe.
     git add "$TICKETS_DIR"/ 2>/dev/null || true
 
+    # Check for dirty tracked files (modified but not staged) excluding tickets dir
     REMAINING_DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
-    if [ -n "$REMAINING_DIRTY" ]; then
-        echo "WARNING: Unexpected dirty files on main (not staged): $REMAINING_DIRTY"
+    # Check for untracked files (not in .gitignore) excluding tickets dir
+    REMAINING_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+
+    if [ -n "$REMAINING_DIRTY" ] || [ -n "$REMAINING_UNTRACKED" ]; then
+        echo "ERROR: Main repo has unexpected dirty files after merge. Fix before pushing."
+        [ -n "$REMAINING_DIRTY" ] && echo "  Modified (unstaged): $REMAINING_DIRTY"
+        [ -n "$REMAINING_UNTRACKED" ] && echo "  Untracked: $REMAINING_UNTRACKED"
+        exit 1
     fi
 
     if ! git diff --cached --quiet 2>/dev/null; then
