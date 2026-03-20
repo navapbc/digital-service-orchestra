@@ -1,6 +1,6 @@
 ---
 id: w21-wzgp
-status: in_progress
+status: closed
 deps: [w21-v5i4]
 links: []
 created: 2026-03-20T19:08:50Z
