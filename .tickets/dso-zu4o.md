@@ -1,6 +1,6 @@
 ---
 id: dso-zu4o
-status: in_progress
+status: closed
 deps: [dso-kknz]
 links: []
 created: 2026-03-19T18:05:15Z

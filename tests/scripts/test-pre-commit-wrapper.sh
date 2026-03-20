@@ -172,7 +172,7 @@ rm -f "$_T5_EXPECTED_LOG" 2>/dev/null || true
 
 # Run with timeout=1 and sleep 2 so duration always exceeds the threshold
 rc=0
-CLAUDE_PLUGIN_ROOT="$_T5_CFG" "$WRAPPER" prefix-check-hook 1 "sleep 2" 2>/dev/null || rc=$?
+WORKFLOW_CONFIG_FILE="$_T5_CFG/dso-config.conf" "$WRAPPER" prefix-check-hook 1 "sleep 2" 2>/dev/null || rc=$?
 
 if [ -f "$_T5_EXPECTED_LOG" ]; then
     assert_eq "test_reads_artifact_prefix_log_created" "exists" "exists"
@@ -286,7 +286,7 @@ rm -f "$TIMEOUT_LOG_TEST" 2>/dev/null || true
 
 # Run with timeout=1 and sleep 2 so duration always exceeds the threshold
 rc=0
-CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" slow-hook 1 "sleep 2" 2>/dev/null || rc=$?
+WORKFLOW_CONFIG_FILE="$TMPDIR_TEST/dso-config.conf" "$WRAPPER" slow-hook 1 "sleep 2" 2>/dev/null || rc=$?
 
 # Check that the log file was created with content about slow-hook
 if [ -f "$TIMEOUT_LOG_TEST" ]; then
@@ -315,7 +315,7 @@ _T10_LOG="/tmp/test-wrapper-ticket-${_TEST_PID}-${WORKTREE_NAME_TEST}/precommit-
 rm -f "$_T10_LOG" 2>/dev/null || true
 
 rc=0
-CLAUDE_PLUGIN_ROOT="$TMPDIR_TEST" "$WRAPPER" ticket-hook 1 "sleep 2" 2>/dev/null || rc=$?
+WORKFLOW_CONFIG_FILE="$TMPDIR_TEST/dso-config.conf" "$WRAPPER" ticket-hook 1 "sleep 2" 2>/dev/null || rc=$?
 
 # Log file should be created
 if [ -f "$_T10_LOG" ]; then

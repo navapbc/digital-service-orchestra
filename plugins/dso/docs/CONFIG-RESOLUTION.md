@@ -4,23 +4,24 @@ Skills load project commands via `read-config.sh` before executing any steps.
 
 ## Resolution Order
 
-1. `dso-config.conf` at `${CLAUDE_PLUGIN_ROOT}/.claude/dso-config.conf` (plugin-level override)
-2. `dso-config.conf` at `$(pwd)/.claude/dso-config.conf` (project root — most common)
-3. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention (e.g., `make test`, `make lint`)
-4. Skip with warning if neither config nor make target found
+`read-config.sh` resolves the config file in the following order when no explicit path is provided:
 
-**Format**: Flat `KEY=VALUE` file with dot-notation for nesting and repeated keys for lists. Parsed by `grep`/`cut` in bash — no Python dependency required. See `${CLAUDE_PLUGIN_ROOT}/docs/dso-config.example.conf` for a complete example.
+1. **`WORKFLOW_CONFIG_FILE` env var** (highest priority) — if set, the exact file path it points to is used. Intended for test isolation; overrides all other resolution.
+2. **`git rev-parse --show-toplevel`** canonical path — resolves to `<git-root>/.claude/dso-config.conf` if that file exists. This is the standard location for host-project config.
+3. **Graceful degradation** — if neither of the above yields a valid file, `read-config.sh` exits 0 with empty output (no error).
 
-**Legacy fallback**: If `dso-config.conf` is not found but `workflow-config.yaml` exists at the same location, `read-config.sh` falls back to the YAML file (requires Python with PyYAML). This fallback exists for migration compatibility and will be removed in a future version.
+> **Note**: Resolution via `CLAUDE_PLUGIN_ROOT` was removed in a prior refactor, because that variable points to the plugin directory rather than the host project's git root.
+> Host projects always place their config at `.claude/dso-config.conf` inside their own repository root, which `read-config.sh` discovers via `git rev-parse --show-toplevel`.
+
+**Format**: Flat `KEY=VALUE` file with dot-notation for nesting and repeated keys for lists. Parsed by `grep`/`cut` in bash — no Python dependency required. YAML format (`.yaml`/`.yml`) is also supported and parsed with a pure-Python reader.
 
 ## Usage Pattern
 
 Each skill declares which commands it needs:
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
-LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
+TEST_CMD=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/read-config.sh" commands.test)
+LINT_CMD=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/read-config.sh" commands.lint)
 # ... additional commands as needed per skill
 ```
 
