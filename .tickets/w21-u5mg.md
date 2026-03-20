@@ -1,6 +1,6 @@
 ---
 id: w21-u5mg
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T00:50:53Z

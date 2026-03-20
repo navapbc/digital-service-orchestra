@@ -200,11 +200,163 @@ supplement_template_file \
     "$DIST_ROOT/templates/KNOWN-ISSUES.example.md" \
     "KNOWN-ISSUES.md"
 
-# ── Copy example config files (only if absent — never overwrite) ──────────────
+# ── merge_precommit_hooks: merge DSO hooks into existing .pre-commit-config.yaml ──
+# Usage: merge_precommit_hooks TARGET_FILE EXAMPLE_FILE DRYRUN
+#   TARGET_FILE:  path to the host project's .pre-commit-config.yaml
+#   EXAMPLE_FILE: path to DSO's example pre-commit config
+#   DRYRUN:       non-empty = dry-run mode (no writes)
+#
+# Strategy: append-repos — add a new DSO 'local' repo block to the repos: list.
+# The existing file's content (including other repo blocks) is fully preserved.
+# Idempotent: if DSO hook ids are already present, they are not duplicated.
+#
+# Implementation: try python3+PyYAML first for robust YAML handling; fall back
+# to awk-based block extraction and text append if PyYAML is unavailable.
+merge_precommit_hooks() {
+    local target_file="$1"
+    local example_file="$2"
+    local dryrun="$3"
+
+    # Guard: only merge if the target file has a 'repos:' section (i.e., is a
+    # recognizable pre-commit config). Files without 'repos:' are left untouched.
+    if ! grep -q '^repos:' "$target_file" 2>/dev/null; then
+        echo "WARNING: .pre-commit-config.yaml exists but has no 'repos:' section — skipping merge" >&2
+        return 0
+    fi
+
+    # Extract DSO hook ids from the example file (hooks under the local repo block)
+    local dso_hook_ids
+    dso_hook_ids=$(python3 - "$example_file" 2>/dev/null <<'PYEOF'
+import sys, yaml
+try:
+    with open(sys.argv[1]) as f:
+        cfg = yaml.safe_load(f)
+    ids = []
+    for repo in cfg.get('repos', []):
+        if repo.get('repo') == 'local':
+            for hook in repo.get('hooks', []):
+                ids.append(hook['id'])
+    print('\n'.join(ids))
+except Exception:
+    sys.exit(1)
+PYEOF
+) || dso_hook_ids=""
+
+    # Fallback: extract hook ids using grep if python3/PyYAML unavailable
+    if [[ -z "$dso_hook_ids" ]]; then
+        dso_hook_ids=$(grep -E '^\s+- id:' "$example_file" 2>/dev/null | sed 's/.*- id: *//' | tr -d ' ')
+    fi
+
+    if [[ -z "$dso_hook_ids" ]]; then
+        echo "WARNING: Could not extract DSO hook ids from $example_file — skipping merge" >&2
+        return 0
+    fi
+
+    # Check which DSO hook ids are already present in the target file
+    local hooks_to_add=()
+    while IFS= read -r hook_id; do
+        [[ -z "$hook_id" ]] && continue
+        if ! grep -qF "id: $hook_id" "$target_file" 2>/dev/null; then
+            hooks_to_add+=("$hook_id")
+        fi
+    done <<< "$dso_hook_ids"
+
+    if [[ ${#hooks_to_add[@]} -eq 0 ]]; then
+        # All DSO hooks already present — nothing to do
+        if [[ -n "$dryrun" ]]; then
+            echo "[dryrun] .pre-commit-config.yaml: all DSO hooks already present — no merge needed"
+        else
+            echo "[skip] .pre-commit-config.yaml: all DSO hooks already present — not merging"
+        fi
+        return 0
+    fi
+
+    # Build the DSO hook block to append: extract the DSO 'local' repo block
+    # from the example file containing only the hooks that need to be added.
+    # Output format: a valid YAML repos: sequence entry with 2-space indent
+    # (matching the existing repos: list indentation: '  - repo: local').
+    local dso_block
+    dso_block=$(python3 - "$example_file" "${hooks_to_add[@]}" 2>/dev/null <<'PYEOF'
+import sys, yaml
+
+example_file = sys.argv[1]
+needed_ids = set(sys.argv[2:])
+
+try:
+    with open(example_file) as f:
+        cfg = yaml.safe_load(f)
+    hooks = []
+    for repo in cfg.get('repos', []):
+        if repo.get('repo') == 'local':
+            for hook in repo.get('hooks', []):
+                if hook['id'] in needed_ids:
+                    hooks.append(hook)
+
+    if not hooks:
+        sys.exit(1)
+
+    new_block = {'repo': 'local', 'hooks': hooks}
+    # Dump just the block dict with 2-space indent
+    block_yaml = yaml.dump(new_block, default_flow_style=False,
+                           allow_unicode=True, sort_keys=False, indent=2)
+    lines = block_yaml.rstrip('\n').splitlines()
+    # Format as a repos: sequence entry with 2-space outer indent:
+    # first line: '  - repo: local', subsequent lines: '    <content>'
+    result_lines = []
+    for i, line in enumerate(lines):
+        if i == 0:
+            result_lines.append('  - ' + line)
+        else:
+            result_lines.append('    ' + line)
+    print('\n'.join(result_lines))
+except Exception as e:
+    sys.exit(1)
+PYEOF
+) || dso_block=""
+
+    # Fallback: if python3/PyYAML unavailable, extract the 'local' repo block directly
+    # from the example file using awk. The example uses '  - repo: local' (2-space indent).
+    if [[ -z "$dso_block" ]]; then
+        local full_block
+        full_block=$(awk '
+            /^  - repo: local/{found=1; print; next}
+            found && /^  - repo:/{exit}
+            found{print}
+        ' "$example_file" 2>/dev/null)
+        if [[ -n "$full_block" ]]; then
+            dso_block="$full_block"
+        fi
+    fi
+
+    if [[ -z "$dso_block" ]]; then
+        echo "WARNING: Could not extract DSO hook block from $example_file — skipping merge" >&2
+        return 0
+    fi
+
+    local hooks_list
+    hooks_list=$(IFS=', '; echo "${hooks_to_add[*]}")
+
+    if [[ -n "$dryrun" ]]; then
+        echo "[dryrun] Would merge DSO hooks into .pre-commit-config.yaml: $hooks_list"
+        echo "[dryrun] Would append a new DSO local repo block containing: pre-commit-review-gate"
+        return 0
+    fi
+
+    # Append the DSO block to the repos: list in the target file.
+    # The block is formatted as '  - repo: local' (2-space indent) to match the
+    # standard pre-commit-config.yaml repos: sequence indentation.
+    printf '\n  # DSO plugin hooks (added by dso-setup.sh — do not remove)\n' >> "$target_file"
+    printf '%s\n' "$dso_block" >> "$target_file"
+    echo "[merge] Appended DSO hooks to .pre-commit-config.yaml: $hooks_list"
+}
+
+# ── Copy/merge pre-commit config ──────────────────────────────────────────────
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 if [[ -z "$DRYRUN" ]]; then
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
         cp "$DIST_ROOT/examples/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
+    else
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$DIST_ROOT/examples/pre-commit-config.example.yaml" ""
     fi
 
     mkdir -p "$TARGET_REPO/.github/workflows"
@@ -212,7 +364,11 @@ if [[ -z "$DRYRUN" ]]; then
         cp "$DIST_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
     fi
 else
-    echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_REPO/.pre-commit-config.yaml (only if absent)"
+    if [ ! -f "$TARGET_PRECOMMIT" ]; then
+        echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_REPO/.pre-commit-config.yaml (file absent)"
+    else
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$DIST_ROOT/examples/pre-commit-config.example.yaml" "1"
+    fi
     echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
 fi
 

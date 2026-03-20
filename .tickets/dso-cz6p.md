@@ -1,6 +1,6 @@
 ---
 id: dso-cz6p
-status: in_progress
+status: closed
 deps: 
   - dso-gfl9
   - dso-6576

@@ -1,6 +1,6 @@
 ---
 id: w21-arjk
-status: in_progress
+status: closed
 deps: [w21-l9r7]
 links: []
 created: 2026-03-20T00:29:44Z

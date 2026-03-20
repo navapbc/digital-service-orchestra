@@ -1,6 +1,6 @@
 ---
 id: dso-bwtp
-status: open
+status: in_progress
 deps: [dso-ozsx]
 links: []
 created: 2026-03-20T00:42:42Z
@@ -39,3 +39,47 @@ FILE: plugins/dso/skills/project-setup/SKILL.md (edit — add CI sub-section to 
   Verify: grep -q 'merge\.ci_workflow_name.*deprecated\|deprecated.*merge\.ci_workflow_name' $(git rev-parse --show-toplevel)/plugins/dso/skills/project-setup/SKILL.md
 - [ ] No qualified skill references broken (check-skill-refs.sh passes)
   Verify: bash $(git rev-parse --show-toplevel)/plugins/dso/scripts/check-skill-refs.sh
+
+## Notes
+
+<!-- note-id: vaye1ftv -->
+<!-- timestamp: 2026-03-20T02:00:15Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: y5t3yeda -->
+<!-- timestamp: 2026-03-20T02:00:19Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: zf5dbme8 -->
+<!-- timestamp: 2026-03-20T02:01:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — 7 RED tests in tests/skills/test_project_setup_ci_autodetection.py
+
+<!-- note-id: zzb5xmtq -->
+<!-- timestamp: 2026-03-20T02:01:53Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — CI auto-detection sub-section added to SKILL.md Step 3 (after Jira section)
+
+<!-- note-id: sjijirue -->
+<!-- timestamp: 2026-03-20T02:02:13Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — all 4 AC grep checks pass, check-skill-refs passes, 7 new tests GREEN, 4 pre-existing RED tests unchanged
+
+<!-- note-id: la1p0o5a -->
+<!-- timestamp: 2026-03-20T02:02:21Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All AC items verified. Files changed: plugins/dso/skills/project-setup/SKILL.md (CI sub-section added to Step 3), tests/skills/test_project_setup_ci_autodetection.py (new)

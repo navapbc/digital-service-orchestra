@@ -190,6 +190,71 @@ If yes:
 
 If no: skip the Jira sub-section.
 
+### CI configuration (`ci.*`)
+
+Auto-detect CI workflows from the project-detect.sh output collected in Step 2. The `ci_workflow_names` field lists all workflow names found under `.github/workflows/`. Use these detected values to pre-populate prompts.
+
+**Check for deprecated key first**: Before prompting, scan the existing `workflow-config.conf` (if present) for a `merge.ci_workflow_name` entry. If found, show a deprecation notice:
+
+```
+Note: merge.ci_workflow_name is deprecated — the preferred key is ci.workflow_name.
+Detected existing value: <value>
+This wizard will migrate it to ci.workflow_name. The old key can be removed from workflow-config.conf after confirmation.
+```
+
+Then proceed with the prompts below, pre-filling the migrated value as the suggestion for `ci.workflow_name`.
+
+**CI workflow detection**: If `ci_workflow_names` is non-empty (from project-detect.sh output), show the detected names as context. If `.github/workflows/` exists but no workflow names were parsed, note "CI workflows found but names could not be parsed — enter manually."
+
+Ask each CI question separately, one at a time, only when the project has a `.github/` directory or CI workflows were detected. If no CI is detected, present the section as optional and allow the user to skip all prompts by pressing Enter.
+
+**12. CI workflow name** — Use `AskUserQuestion`:
+```
+What is the GitHub Actions workflow name used for CI trigger recovery?
+This must match the "name:" field in your .github/workflows/ file exactly.
+Auto-detected: <first value from ci_workflow_names, or "not detected">
+Press Enter to accept, type a custom value, or leave blank to skip:
+```
+Record as `ci.workflow_name` (omit if blank).
+
+**13. Fast gate job name** — Use `AskUserQuestion`:
+```
+What is the name of your fast-gate CI job (checked first on any failure for early exit)?
+This must match the "name:" field in your CI workflow file exactly.
+Suggestion: Fast Gate (default)
+Press Enter to accept, type a custom value, or leave blank to skip:
+```
+Record as `ci.fast_gate_job` (omit if blank; default `Fast Gate` is used automatically when absent).
+
+**14. Fast fail job name** — Use `AskUserQuestion`:
+```
+What is the name of the CI job whose timeout defines the end of the fast-fail polling phase?
+This must match the "name:" field in your CI workflow file exactly.
+Suggestion: same as ci.fast_gate_job (default)
+Press Enter to accept, type a custom value, or leave blank to skip:
+```
+Record as `ci.fast_fail_job` (omit if blank).
+
+**15. Test ceiling job name** — Use `AskUserQuestion`:
+```
+What is the name of the CI job whose timeout defines the end of the test polling phase?
+This must match the "name:" field in your CI workflow file exactly.
+Suggestion: Unit Tests (default)
+Press Enter to accept, type a custom value, or leave blank to skip:
+```
+Record as `ci.test_ceil_job` (omit if blank; default `Unit Tests` is used automatically when absent).
+
+**16. Integration workflow name** — Use `AskUserQuestion`:
+```
+Do you have a separate GitHub Actions workflow for integration tests?
+If yes, enter the workflow name (must match "name:" in your .github/workflows/ file exactly).
+Auto-detected: <value from ci_workflow_names matching "integration" case-insensitive, or "not detected">
+Press Enter to accept, type a custom value, or leave blank to skip:
+```
+Record as `ci.integration_workflow` (omit if blank).
+
+> **Authoritative key descriptions**: See `docs/CONFIGURATION-REFERENCE.md` for full descriptions of `ci.workflow_name`, `ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`, and `ci.integration_workflow`.
+
 ### dso.* section
 
 The `dso.plugin_root` key is written automatically by `dso-setup.sh` — do NOT prompt for it or duplicate it.
@@ -200,6 +265,45 @@ Use `AskUserQuestion`: "Enable tool error monitoring and auto-ticket creation? (
 
 - If **yes**: write `monitoring.tool_errors=true` to `workflow-config.conf`. This enables automatic tracking of tool errors and creates tickets for them.
 - If **no** (or default): omit the `monitoring.tool_errors` key entirely from `workflow-config.conf`. The feature is disabled when the key is absent. This is a safe-off default — opt-in only.
+
+### Database configuration
+
+Check the detection output from Step 2 for the `db_detected` (or `docker_db_detected`) field. If `db_detected=true`, prompt for the following database keys. If `db_detected=false` (or the field is absent or unknown), skip this entire sub-section with a note: `(skipping — no database service detected)`.
+
+**If `db_detected=true` (database service detected):**
+
+Use `AskUserQuestion` for each of the following keys, one at a time:
+
+**database.ensure_cmd** — Use `AskUserQuestion`:
+```
+What command creates or migrates your database?
+See docs/CONFIGURATION-REFERENCE.md for the description of database.ensure_cmd.
+Suggestion: make db-migrate (convention for <STACK>)
+Press Enter to accept, or type a custom value:
+```
+Record as `database.ensure_cmd`.
+
+**database.status_cmd** — Use `AskUserQuestion`:
+```
+What command checks database connectivity?
+See docs/CONFIGURATION-REFERENCE.md for the description of database.status_cmd.
+Suggestion: make db-status (convention for <STACK>)
+Press Enter to accept, or type a custom value:
+```
+Record as `database.status_cmd`.
+
+**infrastructure.db_container** — Use `AskUserQuestion`:
+```
+What is the docker-compose service name for your database container (e.g., "db" or "postgres")?
+See docs/CONFIGURATION-REFERENCE.md for the description of infrastructure.db_container.
+Suggestion: db (convention for <STACK>)
+Press Enter to accept, or type a custom value:
+```
+Record as `infrastructure.db_container`.
+
+**If `db_detected=false` (or field absent/unknown):**
+
+Skip all three prompts above. Note: `(skipping — no database service detected)`. Do NOT prompt for `database.ensure_cmd`, `database.status_cmd`, or `infrastructure.db_container` when no database is detected.
 
 ### Optional dependencies
 

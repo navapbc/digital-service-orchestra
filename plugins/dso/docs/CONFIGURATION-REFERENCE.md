@@ -109,10 +109,33 @@ Schema: `docs/workflow-config-schema.json`
 
 | | |
 |---|---|
-| **Description** | GitHub Actions workflow name for `gh workflow run`. Used by `merge-to-main.sh` for post-push CI trigger recovery. When absent (and `merge.ci_workflow_name` is also absent), the CI trigger recovery step is skipped. **Preferred** over the deprecated `merge.ci_workflow_name` key. |
-| **Accepted values** | Exact workflow name string (e.g., `CI`, `Build and Test`) |
-| **Default** | Absent — step skipped |
-| **Used by** | `.claude/scripts/dso merge-to-main.sh` |
+| **Description** | GitHub Actions workflow name for `gh workflow run`. Used by `merge-to-main.sh` for post-push CI trigger recovery when the push does not automatically trigger a run (e.g., after a fast-forward merge). When absent (and the deprecated `merge.ci_workflow_name` is also absent), the CI trigger recovery step is skipped entirely. **This is the preferred key** — `merge.ci_workflow_name` is deprecated and should be migrated to this key. |
+| **Accepted values** | Exact workflow name string matching the `name:` field in your `.github/workflows/` YAML (e.g., `CI`, `Build and Test`, `Run Tests`) |
+| **Default** | Absent — CI trigger recovery step skipped |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (ci_trigger phase) |
+
+**Example values:**
+
+```ini
+# Minimal: single-word workflow name
+ci.workflow_name=CI
+
+# Multi-word: must match the workflow's name: field exactly
+ci.workflow_name=Build and Test
+
+# Common pattern for projects with a named pipeline
+ci.workflow_name=Run Tests
+```
+
+**Migration from `merge.ci_workflow_name`:**
+
+If your project currently uses `merge.ci_workflow_name`, migrate to this key:
+
+1. Copy the value: `ci.workflow_name=<your-value>`
+2. Remove the old key: delete the `merge.ci_workflow_name=` line
+3. No other changes needed — `merge-to-main.sh` reads `ci.workflow_name` first
+
+When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. When only `merge.ci_workflow_name` is present, `merge-to-main.sh` falls back to it and logs a deprecation warning to stderr.
 
 ---
 
@@ -602,14 +625,20 @@ Schema: `docs/workflow-config-schema.json`
 
 ### `merge.ci_workflow_name`
 
-> **Deprecated** — use [`ci.workflow_name`](#ciworkflow_name) instead. When `ci.workflow_name` is set, `merge.ci_workflow_name` is ignored. When only `merge.ci_workflow_name` is present, `merge-to-main.sh` falls back to it with a deprecation warning logged to stderr. Migrate by moving the value to `ci.workflow_name` and removing this key.
+> **Deprecated** — use [`ci.workflow_name`](#ciworkflow_name) instead. When `ci.workflow_name` is set, `merge.ci_workflow_name` is ignored. When only `merge.ci_workflow_name` is present, `merge-to-main.sh` falls back to it and logs the following deprecation warning to stderr:
+> ```
+> DEPRECATION WARNING: merge.ci_workflow_name is deprecated — migrate to ci.workflow_name in workflow-config.conf
+> ```
+> Migrate by moving the value to `ci.workflow_name` and removing this key.
 
 | | |
 |---|---|
-| **Description** | (**Deprecated**) GitHub Actions workflow name for `gh workflow run`. Used for post-push CI trigger recovery. Superseded by `ci.workflow_name`. When absent (and `ci.workflow_name` is also absent), this recovery step is skipped. |
-| **Accepted values** | Exact workflow name string (e.g., `CI`, `Build and Test`) |
+| **Description** | (**Deprecated**) GitHub Actions workflow name for `gh workflow run`. Used for post-push CI trigger recovery. Superseded by `ci.workflow_name`, which is checked first. When absent (and `ci.workflow_name` is also absent), the CI trigger recovery step is skipped. |
+| **Accepted values** | Exact workflow name string matching the `name:` field in your `.github/workflows/` YAML (e.g., `CI`, `Build and Test`) |
 | **Default** | Absent — step skipped |
-| **Used by** | `.claude/scripts/dso merge-to-main.sh` (fallback only) |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (ci_trigger phase — fallback only when `ci.workflow_name` is absent) |
+
+**Migration:** Replace `merge.ci_workflow_name=<value>` with `ci.workflow_name=<value>` in `workflow-config.conf`. No other changes required.
 
 ---
 

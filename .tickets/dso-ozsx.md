@@ -1,6 +1,6 @@
 ---
 id: dso-ozsx
-status: in_progress
+status: closed
 deps: [dso-o24g, dso-ilc1]
 links: []
 created: 2026-03-20T00:42:24Z

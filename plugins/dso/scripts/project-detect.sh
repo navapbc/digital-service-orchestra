@@ -279,6 +279,35 @@ for tool in "${CLI_TOOLS[@]}"; do
     fi
 done
 
+# Check DSO-specific optional dependencies with individual boolean keys.
+if command -v acli >/dev/null 2>&1; then
+    echo "acli_installed=true"
+    if [[ -n "$installed_deps" ]]; then installed_deps="${installed_deps},acli"; else installed_deps="acli"; fi
+else
+    echo "acli_installed=false"
+fi
+
+if command -v pre-commit >/dev/null 2>&1; then
+    echo "pre_commit_installed=true"
+    if [[ -n "$installed_deps" ]]; then installed_deps="${installed_deps},pre-commit"; else installed_deps="pre-commit"; fi
+else
+    echo "pre_commit_installed=false"
+fi
+
+if command -v shasum >/dev/null 2>&1; then
+    echo "shasum_installed=true"
+    if [[ -n "$installed_deps" ]]; then installed_deps="${installed_deps},shasum"; else installed_deps="shasum"; fi
+else
+    echo "shasum_installed=false"
+fi
+
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+    echo "pyyaml_installed=true"
+    if [[ -n "$installed_deps" ]]; then installed_deps="${installed_deps},pyyaml"; else installed_deps="pyyaml"; fi
+else
+    echo "pyyaml_installed=false"
+fi
+
 echo "installed_deps=${installed_deps}"
 
 # ── Category 9: Port numbers from workflow-config.conf ────────────────────────
