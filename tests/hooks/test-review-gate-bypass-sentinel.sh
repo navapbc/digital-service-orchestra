@@ -168,4 +168,41 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"cat /tmp/workflow-plugin-xxx
 EXIT_CODE=$(call_sentinel "$INPUT")
 assert_eq "test_test_gate_status_read_not_blocked" "0" "$EXIT_CODE"
 
+# ============================================================
+# Pattern i: test-exemptions bypass protection
+# ============================================================
+
+# test_test_exemptions_direct_write_blocked
+# A command writing to test-exemptions must be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo node_id > /tmp/workflow-plugin-xxx/test-exemptions"}}'
+RESULT=$(call_sentinel_with_stderr "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+STDERR="${RESULT#*|}"
+assert_eq "test_test_exemptions_direct_write_blocked" "2" "$EXIT_CODE"
+assert_contains "test_test_exemptions_direct_write_blocked_msg" "test-exemption" "$STDERR"
+
+# test_test_exemptions_rm_blocked
+# A command deleting test-exemptions must be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"rm /tmp/workflow-plugin-xxx/test-exemptions"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_test_exemptions_rm_blocked" "2" "$EXIT_CODE"
+
+# test_test_exemptions_tee_blocked
+# A tee command writing to test-exemptions must be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"printf \"node_id\ttest::slow\n\" | tee /tmp/workflow-plugin-xxx/test-exemptions"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_test_exemptions_tee_blocked" "2" "$EXIT_CODE"
+
+# test_record_test_exemption_sh_not_blocked
+# A command calling record-test-exemption.sh must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-exemption.sh tests/unit/test_foo.py::test_slow"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_record_test_exemption_sh_not_blocked" "0" "$EXIT_CODE"
+
+# test_test_exemptions_read_not_blocked
+# A read-only command on test-exemptions must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cat /tmp/workflow-plugin-xxx/test-exemptions"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_test_exemptions_read_not_blocked" "0" "$EXIT_CODE"
+
 print_summary

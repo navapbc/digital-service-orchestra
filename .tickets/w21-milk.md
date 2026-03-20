@@ -1,6 +1,6 @@
 ---
 id: w21-milk
-status: in_progress
+status: closed
 deps: [w21-f9uo]
 links: []
 created: 2026-03-20T19:10:10Z

@@ -1,6 +1,6 @@
 ---
 id: w22-uqfn
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-20T14:53:18Z
