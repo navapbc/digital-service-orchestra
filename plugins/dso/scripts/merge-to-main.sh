@@ -669,6 +669,20 @@ if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     exit 1
 fi
 
+# --- Auto-commit dirty .tickets/ files on the worktree ---
+# tk commands (close, create, add-note) write .tickets/ files without staging them.
+# The pre-flight check above excludes .tickets/ so the merge isn't blocked, but
+# these files must be committed before merging so they (a) appear in the merge on
+# main and (b) don't leave the worktree dirty for post-merge cleanup checks.
+TICKETS_DIRTY=$(git diff --name-only -- "$TICKETS_DIR"/ 2>/dev/null || true)
+TICKETS_UNTRACKED=$(git ls-files --others --exclude-standard -- "$TICKETS_DIR"/ 2>/dev/null || true)
+if [ -n "$TICKETS_DIRTY" ] || [ -n "$TICKETS_UNTRACKED" ]; then
+    echo "Auto-committing uncommitted $TICKETS_DIR/ changes on worktree..."
+    git add "$TICKETS_DIR"/ 2>/dev/null || true
+    git commit -q -m "chore: auto-commit ticket changes before merge"
+    echo "OK: Committed $TICKETS_DIR/ changes."
+fi
+
 # --- Initialize state file and register SIGURG trap ---
 _state_init
 trap '_sigurg_handler' URG

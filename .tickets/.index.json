@@ -578,6 +578,13 @@
     "title": "Implementation planning schema validation",
     "type": "epic"
   },
+  "dso-rjlt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Dirty .tickets files on main/worktree after merge \u2014 root cause of unclean state",
+    "type": "task"
+  },
   "dso-s12s": {
     "deps": [],
     "priority": 1,

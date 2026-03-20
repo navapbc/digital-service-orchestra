@@ -9,6 +9,12 @@
 #      files on main (not just modified tracked files)
 #   3. test_main_clean_after_successful_merge — after a successful full merge,
 #      main has no dirty or untracked files (excluding tickets dir)
+#   4. test_worktree_dirty_tickets_committed_before_merge — uncommitted .tickets
+#      files on the worktree are auto-committed before merge starts
+#   5. test_worktree_untracked_tickets_committed_before_merge — new (untracked)
+#      .tickets files on the worktree are auto-committed before merge starts
+#   6. test_worktree_clean_after_merge — after a successful merge, the worktree
+#      has no dirty or untracked files (including .tickets/)
 #
 # Usage: bash tests/scripts/test-merge-to-main-cleanliness.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -224,6 +230,130 @@ fi
 assert_eq "test_main_clean_after_merge" "true" "$MAIN3_IS_CLEAN"
 
 cleanup_env "$TMPENV3"
+
+# =============================================================================
+# Test 4: Uncommitted (modified) .tickets files on worktree are auto-committed
+# before the merge starts, so they appear in the merge on main.
+# =============================================================================
+echo "--- Test 4: worktree dirty tickets auto-committed ---"
+TMPENV4=$(setup_env ".tickets")
+WT4=$(cd "$TMPENV4/worktree" && pwd -P)
+MAIN4="$TMPENV4/main-clone"
+
+# Make a committed change on the feature branch (real code change)
+echo "feature content 4" > "$WT4/feature4.txt"
+(cd "$WT4" && git add feature4.txt && git commit -q -m "feat: add feature4")
+
+# Now modify an existing .tickets file WITHOUT committing it.
+# This simulates tk close/status updating a ticket during end-session.
+echo "---
+id: seed-init
+status: closed
+deps: []
+links: []
+created: 2026-01-01T00:00:00Z
+type: task
+priority: 2
+---
+# Ticket seed-init (closed)" > "$WT4/.tickets/seed-init.md"
+
+# Verify the worktree IS dirty with .tickets changes
+WT4_DIRTY_BEFORE=$(cd "$WT4" && git diff --name-only 2>/dev/null || true)
+assert_contains "test_worktree_has_dirty_tickets_before_merge" ".tickets/seed-init.md" "$WT4_DIRTY_BEFORE"
+
+# Run merge — it should auto-commit the .tickets changes, then merge successfully
+MERGE_OUTPUT4=$(cd "$WT4" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+# Merge should succeed
+assert_contains "test_dirty_tickets_merge_succeeds" "DONE" "$MERGE_OUTPUT4"
+
+# The ticket change should have made it to main (via auto-commit + merge)
+TICKET_ON_MAIN4=$(cd "$MAIN4" && git show HEAD:.tickets/seed-init.md 2>/dev/null | grep "status:" || echo "NOT_FOUND")
+assert_contains "test_dirty_ticket_reached_main" "closed" "$TICKET_ON_MAIN4"
+
+# Worktree should be clean after merge (no dirty .tickets files left behind)
+WT4_PORCELAIN=$(cd "$WT4" && git status --porcelain 2>/dev/null || true)
+WT4_IS_CLEAN="true"
+if [ -n "$WT4_PORCELAIN" ]; then
+    WT4_IS_CLEAN="false"
+    echo "  Worktree dirty after merge: $WT4_PORCELAIN"
+fi
+assert_eq "test_worktree_clean_after_dirty_tickets_merge" "true" "$WT4_IS_CLEAN"
+
+cleanup_env "$TMPENV4"
+
+# =============================================================================
+# Test 5: New (untracked) .tickets files on worktree are auto-committed
+# before the merge starts.
+# =============================================================================
+echo "--- Test 5: worktree untracked tickets auto-committed ---"
+TMPENV5=$(setup_env ".tickets")
+WT5=$(cd "$TMPENV5/worktree" && pwd -P)
+MAIN5="$TMPENV5/main-clone"
+
+# Make a committed change on the feature branch
+echo "feature content 5" > "$WT5/feature5.txt"
+(cd "$WT5" && git add feature5.txt && git commit -q -m "feat: add feature5")
+
+# Create a NEW .tickets file (untracked) — simulates tk create during end-session
+make_ticket_file "$WT5" "new-bug-from-session" ".tickets"
+
+# Verify the worktree has an untracked .tickets file
+WT5_UNTRACKED_BEFORE=$(cd "$WT5" && git ls-files --others --exclude-standard 2>/dev/null || true)
+assert_contains "test_worktree_has_untracked_tickets_before_merge" ".tickets/new-bug-from-session.md" "$WT5_UNTRACKED_BEFORE"
+
+# Run merge — it should auto-commit the new .tickets file, then merge successfully
+MERGE_OUTPUT5=$(cd "$WT5" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+# Merge should succeed
+assert_contains "test_untracked_tickets_merge_succeeds" "DONE" "$MERGE_OUTPUT5"
+
+# The new ticket should have made it to main
+TICKET_ON_MAIN5=$(cd "$MAIN5" && git show HEAD:.tickets/new-bug-from-session.md 2>/dev/null | head -1 || echo "NOT_FOUND")
+assert_eq "test_untracked_ticket_reached_main" "---" "$TICKET_ON_MAIN5"
+
+# Worktree should be clean
+WT5_PORCELAIN=$(cd "$WT5" && git status --porcelain 2>/dev/null || true)
+WT5_IS_CLEAN="true"
+if [ -n "$WT5_PORCELAIN" ]; then
+    WT5_IS_CLEAN="false"
+    echo "  Worktree dirty after merge: $WT5_PORCELAIN"
+fi
+assert_eq "test_worktree_clean_after_untracked_tickets_merge" "true" "$WT5_IS_CLEAN"
+
+cleanup_env "$TMPENV5"
+
+# =============================================================================
+# Test 6: Worktree is fully clean after a normal successful merge
+# (no dirty or untracked files, including .tickets/)
+# =============================================================================
+echo "--- Test 6: worktree fully clean after merge ---"
+TMPENV6=$(setup_env ".tickets")
+WT6=$(cd "$TMPENV6/worktree" && pwd -P)
+
+# Make a committed change on the feature branch
+echo "clean feature 6" > "$WT6/clean-feature6.txt"
+(cd "$WT6" && git add clean-feature6.txt && git commit -q -m "feat: clean feature6")
+
+# Run merge
+MERGE_OUTPUT6=$(cd "$WT6" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+# Merge should succeed
+assert_contains "test_clean_merge6_succeeds" "DONE" "$MERGE_OUTPUT6"
+
+# Worktree should be fully clean (git status --porcelain should be empty)
+WT6_PORCELAIN=$(cd "$WT6" && git status --porcelain 2>/dev/null || true)
+WT6_IS_CLEAN="true"
+if [ -n "$WT6_PORCELAIN" ]; then
+    WT6_IS_CLEAN="false"
+    echo "  Worktree not clean: $WT6_PORCELAIN"
+fi
+assert_eq "test_worktree_fully_clean_after_merge" "true" "$WT6_IS_CLEAN"
+
+cleanup_env "$TMPENV6"
 
 # =============================================================================
 print_summary
