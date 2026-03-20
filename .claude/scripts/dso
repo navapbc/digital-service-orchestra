@@ -6,7 +6,7 @@
 #
 # DSO_ROOT resolution order:
 #   1. $CLAUDE_PLUGIN_ROOT environment variable
-#   2. dso.plugin_root key in workflow-config.conf at the git repo root
+#   2. dso.plugin_root key in .claude/dso-config.conf at the git repo root
 #   3. Exit non-zero with an error naming the config key and file
 #
 # Install this file as .claude/scripts/dso in your host project and
@@ -21,11 +21,11 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
     DSO_ROOT="$CLAUDE_PLUGIN_ROOT"
 fi
 
-# (2) Fall back to workflow-config.conf in the git repo root
+# (2) Fall back to .claude/dso-config.conf in the git repo root
 if [ -z "$DSO_ROOT" ]; then
     REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT=""
-    if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/workflow-config.conf" ]; then
-        DSO_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/workflow-config.conf" 2>/dev/null | cut -d= -f2-)"
+    if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/.claude/dso-config.conf" ]; then
+        DSO_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)"
     fi
 fi
 
@@ -44,7 +44,7 @@ if [ -z "$DSO_ROOT" ]; then
     printf 'dso: DSO plugin root not configured.\n' >&2
     printf 'dso: Set the CLAUDE_PLUGIN_ROOT environment variable, or add\n' >&2
     printf 'dso:   dso.plugin_root=<path-to-plugin>\n' >&2
-    printf 'dso: to workflow-config.conf in your git repository root.\n' >&2
+    printf 'dso: to .claude/dso-config.conf in your git repository root.\n' >&2
     exit 1
 fi
 

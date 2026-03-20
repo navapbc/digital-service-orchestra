@@ -1,6 +1,6 @@
 ---
 id: dso-6trc
-status: in_progress
+status: closed
 deps: [dso-c2tl, dso-opue]
 links: []
 created: 2026-03-20T03:32:37Z

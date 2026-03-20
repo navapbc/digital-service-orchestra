@@ -102,18 +102,18 @@ test_shim_error_names_missing_script() {
 
 # ── test_shim_resolves_dso_root_from_config ───────────────────────────────────
 # When CLAUDE_PLUGIN_ROOT is unset, the shim must read dso.plugin_root from
-# workflow-config.conf in the git repo root and use that path to find scripts.
+# .claude/dso-config.conf in the git repo root and use that path to find scripts.
 test_shim_resolves_dso_root_from_config() {
     if [[ ! -x "$SHIM" ]]; then
         assert_eq "test_shim_resolves_dso_root_from_config" "0" "shim-missing"
         return
     fi
-    # Create a minimal git repo with a workflow-config.conf pointing at the real plugin
+    # Create a minimal git repo with a .claude/dso-config.conf pointing at the real plugin
     local fake_repo="$TMPDIR_BASE/fake-repo"
-    mkdir -p "$fake_repo"
+    mkdir -p "$fake_repo/.claude"
     git -C "$fake_repo" init -q
-    printf 'dso.plugin_root=%s\n' "$DSO_PLUGIN_DIR" > "$fake_repo/workflow-config.conf"
-    git -C "$fake_repo" add workflow-config.conf
+    printf 'dso.plugin_root=%s\n' "$DSO_PLUGIN_DIR" > "$fake_repo/.claude/dso-config.conf"
+    git -C "$fake_repo" add .claude/dso-config.conf
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 
     local exit_code=0

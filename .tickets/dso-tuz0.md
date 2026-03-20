@@ -1,6 +1,6 @@
 ---
 id: dso-tuz0
-status: open
+status: in_progress
 deps: [dso-jfy3]
 links: []
 created: 2026-03-20T03:33:02Z
@@ -52,3 +52,29 @@ Also update:
   Verify: grep -q '\.claude/dso-config\.conf' $(git rev-parse --show-toplevel)/templates/host-project/dso
 - [ ] .claude/scripts/dso active lines do not reference workflow-config.conf
   Verify: grep -v '^\s*#' $(git rev-parse --show-toplevel)/.claude/scripts/dso | grep -v 'workflow-config\.conf'
+
+## Notes
+
+**2026-03-20T05:25:42Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T05:25:54Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T05:26:10Z**
+
+CHECKPOINT 3/6: Tests written (RED tests exist from dso-jfy3) ✓
+
+**2026-03-20T14:47:42Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T14:48:52Z**
+
+CHECKPOINT 5/6: Tests GREEN — 9 passed, 0 failed ✓
+
+**2026-03-20T15:09:51Z**
+
+CHECKPOINT 6/6: Done ✓ — AC verify: 4/5 AC pass. AC 'tests/run-all.sh passes' blocked by dso-setup.sh (safeguard file, requires user approval): test_setup_dso_tk_help_works fails because setup writes to workflow-config.conf but shim now reads .claude/dso-config.conf. Tracking ticket dso-5p5i created.

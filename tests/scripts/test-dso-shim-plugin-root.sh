@@ -72,15 +72,15 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     local preset_value="/expected/plugin/path"
     local config_path="/config/different/plugin/path"
 
-    # Create a fake git repo with a workflow-config.conf pointing to a different path.
+    # Create a fake git repo with a .claude/dso-config.conf pointing to a different path.
     # When the shim is run from this repo WITHOUT CLAUDE_PLUGIN_ROOT set in the
     # environment, DSO_ROOT resolves to config_path and the shim exports
     # CLAUDE_PLUGIN_ROOT=config_path.  The caller's pre-set value is therefore lost.
     local fake_repo="$TMPDIR_BASE/fake-preserve-test"
-    mkdir -p "$fake_repo"
+    mkdir -p "$fake_repo/.claude"
     git -C "$fake_repo" init -q
-    printf 'dso.plugin_root=%s\n' "$config_path" > "$fake_repo/workflow-config.conf"
-    git -C "$fake_repo" add workflow-config.conf
+    printf 'dso.plugin_root=%s\n' "$config_path" > "$fake_repo/.claude/dso-config.conf"
+    git -C "$fake_repo" add .claude/dso-config.conf
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 
     # Simulate: caller pre-sets CLAUDE_PLUGIN_ROOT, then calls the shim.
@@ -202,7 +202,7 @@ test_shim_preserves_claude_plugin_root_when_preset() {
 
 # ── test_shim_does_not_clobber_preset_with_config_value ──────────────────────
 # The shim must not overwrite a pre-set CLAUDE_PLUGIN_ROOT with the value from
-# workflow-config.conf when the config path DIFFERS from the env var value.
+# .claude/dso-config.conf when the config path DIFFERS from the env var value.
 #
 # RED: This test specifically constructs a scenario where the unconditional
 # re-export at lines 32-36 would overwrite the caller's value. It does this by:
@@ -220,10 +220,10 @@ test_shim_does_not_clobber_preset_with_config_value() {
     local config_path="/workflow/config/plugin/path"
 
     local fake_repo="$TMPDIR_BASE/fake-clobber-test"
-    mkdir -p "$fake_repo"
+    mkdir -p "$fake_repo/.claude"
     git -C "$fake_repo" init -q
-    printf 'dso.plugin_root=%s\n' "$config_path" > "$fake_repo/workflow-config.conf"
-    git -C "$fake_repo" add workflow-config.conf
+    printf 'dso.plugin_root=%s\n' "$config_path" > "$fake_repo/.claude/dso-config.conf"
+    git -C "$fake_repo" add .claude/dso-config.conf
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 
     # Test: CLAUDE_PLUGIN_ROOT pre-set to preset_value, shim must not change it.
