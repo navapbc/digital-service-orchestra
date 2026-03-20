@@ -132,10 +132,11 @@ assert_eq "test_marketplace_json_has_source_path: marketplace.json has source pa
 assert_pass_if_clean "test_marketplace_json_has_source_path"
 
 # ── test_workflow_config_conf_is_git_tracked ──────────────────────────────────
-# dso-config.conf must be git-tracked at the repo root
+# dso-config.conf must be git-tracked at .claude/dso-config.conf
+# (moved from repo root to .claude/ in dso-kknz batch 5)
 _snapshot_fail
 tracked_output=""
-tracked_output=$(git -C "$REPO_ROOT" ls-files "dso-config.conf" 2>/dev/null)
+tracked_output=$(git -C "$REPO_ROOT" ls-files ".claude/dso-config.conf" 2>/dev/null)
 if [ -n "$tracked_output" ]; then
     actual="tracked"
 else
