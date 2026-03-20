@@ -195,12 +195,12 @@ _make_portability_repo() {
     local name="$1"
     local config_content="$2"
     local dir="$PORTABILITY_TMPDIR/$name"
-    mkdir -p "$dir"
+    mkdir -p "$dir/.claude"
     git -C "$dir" init -q -b main
     git -C "$dir" config user.email "test@test.local"
     git -C "$dir" config user.name "Test"
-    printf '%s\n' "$config_content" > "$dir/dso-config.conf"
-    git -C "$dir" add dso-config.conf
+    printf '%s\n' "$config_content" > "$dir/.claude/dso-config.conf"
+    git -C "$dir" add .claude/dso-config.conf
     git -C "$dir" commit -m "base" -q
     git -C "$dir" checkout -q -b feature/test
     echo "$dir"
