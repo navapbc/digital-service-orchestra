@@ -578,6 +578,13 @@
     "title": "Implementation planning schema validation",
     "type": "epic"
   },
+  "dso-rjlt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Dirty .tickets files on main/worktree after merge \u2014 root cause of unclean state",
+    "type": "task"
+  },
   "dso-s12s": {
     "deps": [],
     "priority": 1,
@@ -675,6 +682,13 @@
     "status": "open",
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
+  },
+  "dso-z6zi": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Worktree left unclean after end-session / main left dirty after merge-to-main",
+    "type": "task"
   },
   "dso-zj3r": {
     "deps": [],
