@@ -589,4 +589,88 @@ if [[ "$FAIL" -eq "$_fail_before_yye" ]]; then
     echo "test_yaml_yml_extension ... PASS"
 fi
 
+# ── .claude/dso-config.conf resolution tests ─────────────────────────────────
+# These tests assert the new resolution behavior: read-config.sh should resolve
+# from .claude/dso-config.conf in the git root (not workflow-config.conf).
+# These tests are RED (failing) until the implementation task dso-opue runs.
+
+# ── test_resolves_from_dot_claude_dso_config_conf ─────────────────────────────
+# Given a temp git repo with .claude/dso-config.conf (no workflow-config.conf),
+# read-config.sh reads config from .claude/dso-config.conf.
+_fail_before_rdcd=$FAIL
+_tmp_repo_rdcd="$(mktemp -d)"
+git -C "$_tmp_repo_rdcd" init -q
+mkdir -p "$_tmp_repo_rdcd/.claude"
+cat > "$_tmp_repo_rdcd/.claude/dso-config.conf" <<'CONF'
+test_command=make test-dso
+CONF
+rdcd_exit=0
+rdcd_output=""
+rdcd_output=$(
+    cd "$_tmp_repo_rdcd" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    unset CLAUDE_PLUGIN_ROOT 2>/dev/null; \
+    bash "$SCRIPT" "test_command" 2>&1
+) || rdcd_exit=$?
+assert_eq "test_resolves_from_dot_claude_dso_config_conf: exit 0" "0" "$rdcd_exit"
+assert_eq "test_resolves_from_dot_claude_dso_config_conf: reads from .claude/dso-config.conf" "make test-dso" "$rdcd_output"
+if [[ "$FAIL" -eq "$_fail_before_rdcd" ]]; then
+    echo "test_resolves_from_dot_claude_dso_config_conf ... PASS"
+fi
+rm -rf "$_tmp_repo_rdcd"
+
+# ── test_no_fallback_to_workflow_config_conf ──────────────────────────────────
+# Given a temp git repo with only workflow-config.conf at root (no
+# .claude/dso-config.conf), read-config.sh returns empty string, exit 0
+# (no fallback to old path).
+_fail_before_nfwc=$FAIL
+_tmp_repo_nfwc="$(mktemp -d)"
+git -C "$_tmp_repo_nfwc" init -q
+cat > "$_tmp_repo_nfwc/workflow-config.conf" <<'CONF'
+test_command=make test-old
+CONF
+nfwc_exit=0
+nfwc_output=""
+nfwc_output=$(
+    cd "$_tmp_repo_nfwc" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    unset CLAUDE_PLUGIN_ROOT 2>/dev/null; \
+    bash "$SCRIPT" "test_command" 2>&1
+) || nfwc_exit=$?
+assert_eq "test_no_fallback_to_workflow_config_conf: exit 0" "0" "$nfwc_exit"
+assert_eq "test_no_fallback_to_workflow_config_conf: empty output (no fallback)" "" "$nfwc_output"
+if [[ "$FAIL" -eq "$_fail_before_nfwc" ]]; then
+    echo "test_no_fallback_to_workflow_config_conf ... PASS"
+fi
+rm -rf "$_tmp_repo_nfwc"
+
+# ── test_workflow_config_file_env_still_works ─────────────────────────────────
+# WORKFLOW_CONFIG_FILE env var still overrides all resolution (backward compat
+# for test isolation).
+_fail_before_wcfe=$FAIL
+_tmp_repo_wcfe="$(mktemp -d)"
+git -C "$_tmp_repo_wcfe" init -q
+mkdir -p "$_tmp_repo_wcfe/.claude"
+# .claude/dso-config.conf exists but should NOT be used — env var wins
+cat > "$_tmp_repo_wcfe/.claude/dso-config.conf" <<'CONF'
+test_command=make test-from-dso-config
+CONF
+_wcfe_override_file="$(mktemp)"
+cat > "$_wcfe_override_file" <<'CONF'
+test_command=make test-from-env-override
+CONF
+wcfe_exit=0
+wcfe_output=""
+wcfe_output=$(
+    cd "$_tmp_repo_wcfe" && \
+    WORKFLOW_CONFIG_FILE="$_wcfe_override_file" bash "$SCRIPT" "test_command" 2>&1
+) || wcfe_exit=$?
+assert_eq "test_workflow_config_file_env_still_works: exit 0" "0" "$wcfe_exit"
+assert_eq "test_workflow_config_file_env_still_works: env var overrides .claude/dso-config.conf" "make test-from-env-override" "$wcfe_output"
+if [[ "$FAIL" -eq "$_fail_before_wcfe" ]]; then
+    echo "test_workflow_config_file_env_still_works ... PASS"
+fi
+rm -rf "$_tmp_repo_wcfe"
+rm -f "$_wcfe_override_file"
+
 print_summary

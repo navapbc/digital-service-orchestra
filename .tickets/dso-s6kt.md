@@ -70,3 +70,10 @@ CHECKPOINT 3/6: Tests written ✓ — added test_resolves_from_dot_claude_dso_co
 <!-- sync: unsynced -->
 
 CHECKPOINT 4/6: Implementation complete ✓ — No implementation change needed for RED phase; tests written only.
+
+<!-- note-id: k3w5jqmd -->
+<!-- timestamp: 2026-03-20T04:41:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All 4 ACs pass. 3 new tests added to tests/scripts/test-read-config.sh. 2 fail RED (test_resolves_from_dot_claude_dso_config_conf, test_no_fallback_to_workflow_config_conf), 1 passes (test_workflow_config_file_env_still_works — env var override already works). 32 existing tests unaffected.
