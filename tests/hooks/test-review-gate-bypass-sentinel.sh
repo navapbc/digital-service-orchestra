@@ -126,4 +126,46 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m \"
 EXIT_CODE=$(call_sentinel "$INPUT")
 assert_eq "test_sentinel_allows_lowercase_wip" "0" "$EXIT_CODE"
 
+# ============================================================
+# Pattern g/h: test-gate-status bypass protection
+# ============================================================
+
+# call_sentinel_with_stderr: like call_sentinel but also captures stderr.
+# Returns "exit_code|stderr_text" on stdout.
+call_sentinel_with_stderr() {
+    local input="$1"
+    local exit_code=0
+    local stderr_output
+    stderr_output=$(hook_review_bypass_sentinel "$input" 2>&1 1>/dev/null) || exit_code=$?
+    echo "${exit_code}|${stderr_output}"
+}
+
+# test_test_gate_status_direct_write_blocked
+# A command writing to test-gate-status must be blocked (Pattern g).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo passed > /tmp/workflow-plugin-xxx/test-gate-status"}}'
+RESULT=$(call_sentinel_with_stderr "$INPUT")
+EXIT_CODE="${RESULT%%|*}"
+STDERR="${RESULT#*|}"
+assert_eq "test_test_gate_status_direct_write_blocked" "2" "$EXIT_CODE"
+assert_contains "test_test_gate_status_direct_write_blocked_msg_status" "test-gate-status" "$STDERR"
+assert_contains "test_test_gate_status_direct_write_blocked_msg_script" "record-test-status.sh" "$STDERR"
+
+# test_test_gate_status_rm_blocked
+# A command deleting test-gate-status must be blocked (Pattern h).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"rm /tmp/workflow-plugin-xxx/test-gate-status"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_test_gate_status_rm_blocked" "2" "$EXIT_CODE"
+
+# test_record_test_status_sh_not_blocked
+# A command calling record-test-status.sh must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-status.sh"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_record_test_status_sh_not_blocked" "0" "$EXIT_CODE"
+
+# test_test_gate_status_read_not_blocked
+# A read-only command on test-gate-status must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cat /tmp/workflow-plugin-xxx/test-gate-status"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_test_gate_status_read_not_blocked" "0" "$EXIT_CODE"
+
 print_summary

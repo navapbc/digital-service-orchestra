@@ -65,7 +65,7 @@
   "dso-2rgm": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Write test asserting CONFIG-RESOLUTION.md matches actual read-config.sh resolution logic",
     "type": "task"
   },
@@ -443,7 +443,7 @@
       "dso-2rgm"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Write test asserting MIGRATION-TO-PLUGIN.md does not recommend settings.json CLAUDE_PLUGIN_ROOT env override",
     "type": "task"
   },
@@ -753,7 +753,7 @@
       "dso-g7d8"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Fix MIGRATION-TO-PLUGIN.md to remove settings.json CLAUDE_PLUGIN_ROOT env override recommendation",
     "type": "task"
   },
@@ -962,7 +962,7 @@
       "dso-2rgm"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Fix CONFIG-RESOLUTION.md to accurately document read-config.sh resolution order",
     "type": "task"
   },
@@ -971,7 +971,7 @@
       "dso-kknz"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
     "type": "epic"
   },
@@ -1511,6 +1511,13 @@
     "priority": 3,
     "status": "open",
     "title": "validate.sh plugin check fails: make test-plugin target missing from Makefile",
+    "type": "bug"
+  },
+  "w21-u3op": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation",
     "type": "bug"
   },
   "w21-u5mg": {
