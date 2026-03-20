@@ -3,7 +3,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
   "dso-0k2k": {
@@ -31,7 +31,7 @@
     "deps": [],
     "priority": 2,
     "status": "closed",
-    "title": "Fix: fix-cascade-recovery skill missing read-config integration \u2014 eval fails",
+    "title": "Fix: fix-cascade-recovery skill missing read-config integration — eval fails",
     "type": "bug"
   },
   "dso-2cy8": {
@@ -69,7 +69,7 @@
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "Fix: hook_track_tool_errors test fails \u2014 missing monitoring.tool_errors config in test env",
+    "title": "Fix: hook_track_tool_errors test fails — missing monitoring.tool_errors config in test env",
     "type": "bug"
   },
   "dso-3e30": {
@@ -146,7 +146,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
+    "title": "Fix: dso shim resolves scripts from stale /scripts/ path — skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
     "type": "bug"
   },
   "dso-62u0": {
@@ -219,7 +219,7 @@
     "deps": [],
     "priority": 2,
     "status": "closed",
-    "title": "Fix: test-cascade-breaker.sh is flaky \u2014 timing-sensitive failure in full suite run",
+    "title": "Fix: test-cascade-breaker.sh is flaky — timing-sensitive failure in full suite run",
     "type": "bug"
   },
   "dso-bugk": {
@@ -323,7 +323,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
+    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
     "type": "bug"
   },
   "dso-dywv": {
@@ -377,7 +377,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
     "type": "bug"
   },
   "dso-gfl9": {
@@ -401,7 +401,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
   "dso-gkct": {
@@ -424,6 +424,13 @@
     "status": "closed",
     "title": "Fix: test-merge-to-main-portability.sh 2 failures (8 pass, 2 fail)",
     "type": "bug"
+  },
+  "dso-hui3": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for dso-setup.sh .claude/dso-config.conf path",
+    "type": "task"
   },
   "dso-i6dj": {
     "deps": [],
@@ -459,7 +466,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
   "dso-jfy3": {
@@ -504,7 +511,7 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-le3s": {
@@ -663,7 +670,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Dirty .tickets files on main/worktree after merge \u2014 root cause of unclean state",
+    "title": "Dirty .tickets files on main/worktree after merge — root cause of unclean state",
     "type": "task"
   },
   "dso-s12s": {
@@ -685,6 +692,15 @@
     "priority": 1,
     "status": "open",
     "title": "RED: Write failing tests for read-config.sh .claude/dso-config.conf resolution",
+    "type": "task"
+  },
+  "dso-sapj": {
+    "deps": [
+      "dso-hui3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update dso-setup.sh to create config at .claude/dso-config.conf",
     "type": "task"
   },
   "dso-soyt": {
@@ -807,7 +823,7 @@
     ],
     "priority": 1,
     "status": "open",
-    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
+    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution — remove settings.json override, harden shim fallback",
     "type": "epic"
   },
   "w21-090y": {
@@ -825,7 +841,7 @@
     ],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 \u2014 migration from tk and cutover",
+    "title": "Ticket system v3 — migration from tk and cutover",
     "type": "epic"
   },
   "w21-25vk": {
@@ -858,7 +874,7 @@
     ],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 \u2014 dependency management and cross-worktree sync",
+    "title": "Ticket system v3 — dependency management and cross-worktree sync",
     "type": "epic"
   },
   "w21-5cqr": {
@@ -930,7 +946,7 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
+    "title": "Validation gate times out on projects with >50s test suites — incorporate test-batched or split validate.sh",
     "type": "bug"
   },
   "w21-arjk": {
@@ -973,7 +989,7 @@
     ],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 \u2014 Jira bridge and LLM-optimized output",
+    "title": "Ticket system v3 — Jira bridge and LLM-optimized output",
     "type": "epic"
   },
   "w21-cu3r": {
@@ -996,7 +1012,7 @@
     "deps": [],
     "priority": 3,
     "status": "open",
-    "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
+    "title": "dso-setup.sh supplement_template_file uses cat for append — not in _make_tool_path fake PATH",
     "type": "task"
   },
   "w21-f8tg": {
@@ -1084,7 +1100,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
+    "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR — same isolation anti-pattern as dso-b934",
     "type": "task"
   },
   "w21-njch": {
@@ -1215,7 +1231,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
+    "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR — same isolation anti-pattern as dso-b934",
     "type": "task"
   },
   "w21-xlaw": {
