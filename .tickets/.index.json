@@ -41,6 +41,16 @@
   "dso-arii": ".tickets/dso-arii.md",
   "dso-bghl": ".tickets/dso-bghl.md",
   "dso-bgqs": ".tickets/dso-bgqs.md",
+  "dso-bugk": {
+    "deps": [
+      "dso-uc2d",
+      "dso-q2ev"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO contributor, all references use the new config path and filename",
+    "type": "story"
+  },
   "dso-cma6": ".tickets/dso-cma6.md",
   "dso-cpvp": ".tickets/dso-cpvp.md",
   "dso-cxuh": ".tickets/dso-cxuh.md",
@@ -64,7 +74,16 @@
   "dso-g10j": ".tickets/dso-g10j.md",
   "dso-g8cz": ".tickets/dso-g8cz.md",
   "dso-gccc": ".tickets/dso-gccc.md",
-  "dso-ghcp": ".tickets/dso-ghcp.md",
+  "dso-ghcp": {
+    "deps": [
+      "dso-zq4q",
+      "dso-kknz"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Add optional dep detection, env var guidance, and success summary to dso-setup.sh",
+    "type": "task"
+  },
   "dso-gir2": ".tickets/dso-gir2.md",
   "dso-gkct": ".tickets/dso-gkct.md",
   "dso-gnbz": ".tickets/dso-gnbz.md",
@@ -106,6 +125,15 @@
   "dso-pxos": ".tickets/dso-pxos.md",
   "dso-py3q": ".tickets/dso-py3q.md",
   "dso-q0lo": ".tickets/dso-q0lo.md",
+  "dso-q2ev": {
+    "deps": [
+      "dso-uc2d"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer setting up DSO, the setup creates .claude/dso-config.conf",
+    "type": "story"
+  },
   "dso-q9z9": ".tickets/dso-q9z9.md",
   "dso-qd5d": ".tickets/dso-qd5d.md",
   "dso-qm2c": ".tickets/dso-qm2c.md",
@@ -131,6 +159,13 @@
   "dso-tmmj": ".tickets/dso-tmmj.md",
   "dso-to7x": ".tickets/dso-to7x.md",
   "dso-tqvy": ".tickets/dso-tqvy.md",
+  "dso-uc2d": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO developer, config resolves from .claude/dso-config.conf",
+    "type": "story"
+  },
   "dso-uu13": ".tickets/dso-uu13.md",
   "dso-uvyl": ".tickets/dso-uvyl.md",
   "dso-v17o": ".tickets/dso-v17o.md",
@@ -153,7 +188,15 @@
   "dso-zj3r": ".tickets/dso-zj3r.md",
   "dso-zly6": ".tickets/dso-zly6.md",
   "dso-zq4q": ".tickets/dso-zq4q.md",
-  "dso-zu4o": ".tickets/dso-zu4o.md",
+  "dso-zu4o": {
+    "deps": [
+      "dso-kknz"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
+    "type": "epic"
+  },
   "dso-zzof": ".tickets/dso-zzof.md",
   "w21-0kkd": ".tickets/w21-0kkd.md",
   "w21-0ohz": ".tickets/w21-0ohz.md",
