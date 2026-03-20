@@ -48,6 +48,16 @@
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
+  "dso-2vwl": {
+    "deps": [
+      "dso-3v44",
+      "dso-opue"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update all runtime scripts to use .claude/dso-config.conf path",
+    "type": "task"
+  },
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
@@ -68,6 +78,13 @@
     "status": "open",
     "title": "Bug: tk create -d interprets double-dash in description text as option flags",
     "type": "bug"
+  },
+  "dso-3v44": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for runtime scripts hardcoded config path",
+    "type": "task"
   },
   "dso-3xhk": {
     "deps": [],
@@ -113,6 +130,18 @@
     "title": "Cleanup tests",
     "type": "epic"
   },
+  "dso-5jqq": {
+    "deps": [
+      "dso-opue",
+      "dso-6trc",
+      "dso-tuz0",
+      "dso-2vwl"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Integration test: full read-config.sh resolution chain end-to-end",
+    "type": "task"
+  },
   "dso-5syi": {
     "deps": [],
     "priority": 2,
@@ -140,6 +169,16 @@
     "status": "closed",
     "title": "As a DSO adopter, each optional dependency is prompted individually with functionality explanation",
     "type": "story"
+  },
+  "dso-6trc": {
+    "deps": [
+      "dso-c2tl",
+      "dso-opue"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update config-paths.sh to use .claude/dso-config.conf resolution",
+    "type": "task"
   },
   "dso-94ya": {
     "deps": [],
@@ -209,12 +248,31 @@
     "title": "As a DSO adopter, infrastructure and metadata keys are prompted when project context indicates relevance",
     "type": "story"
   },
+  "dso-c2tl": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for config-paths.sh new path lookup",
+    "type": "task"
+  },
   "dso-cma6": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
     "type": "bug"
+  },
+  "dso-cn4j": {
+    "deps": [
+      "dso-opue",
+      "dso-6trc",
+      "dso-tuz0",
+      "dso-2vwl"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update test-config-callers-updated.sh and test-docs-config-refs.sh for new path",
+    "type": "task"
   },
   "dso-cpvp": {
     "deps": [],
@@ -404,6 +462,13 @@
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
+  "dso-jfy3": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "RED: Write failing tests for shim .claude/dso-config.conf resolution",
+    "type": "task"
+  },
   "dso-jvjw": {
     "deps": [],
     "priority": 1,
@@ -452,6 +517,13 @@
     "title": "DOC: Update CONFIGURATION-REFERENCE.md to document ci.workflow_name and deprecate merge.ci_workflow_name",
     "type": "task"
   },
+  "dso-lk1f": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Pre-existing dirty file on main: tests/scripts/test-read-config.sh has uncommitted RED tests for dso-config.conf resolution",
+    "type": "task"
+  },
   "dso-lli8": {
     "deps": [],
     "priority": 2,
@@ -494,6 +566,15 @@
     "priority": 1,
     "status": "closed",
     "title": "RED: Write failing tests for ci.workflow_name fallback in merge-to-main.sh",
+    "type": "task"
+  },
+  "dso-opue": {
+    "deps": [
+      "dso-s6kt"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update read-config.sh to resolve from .claude/dso-config.conf + move config file",
     "type": "task"
   },
   "dso-ozsx": {
@@ -599,6 +680,13 @@
     "title": "RED: Write failing tests for ci.workflow_name in validate-config.sh",
     "type": "task"
   },
+  "dso-s6kt": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for read-config.sh .claude/dso-config.conf resolution",
+    "type": "task"
+  },
   "dso-soyt": {
     "deps": [],
     "priority": 2,
@@ -640,6 +728,15 @@
     "status": "open",
     "title": "fix: worktree-sync-from-main.sh crashes with CFG_PYTHON_VENV unbound variable when config key is absent",
     "type": "bug"
+  },
+  "dso-tuz0": {
+    "deps": [
+      "dso-jfy3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update .claude/scripts/dso shim and templates/host-project/dso to use .claude/dso-config.conf",
+    "type": "task"
   },
   "dso-uc2d": {
     "deps": [],
@@ -822,6 +919,13 @@
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
+  "w21-ablv": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, I can initialize the ticket system and create/view tickets via event-sourced storage",
+    "type": "story"
+  },
   "w21-ae0s": {
     "deps": [],
     "priority": 1,
@@ -837,6 +941,15 @@
     "status": "closed",
     "title": "IMPL-CORE: Create project-detect.sh with schema, stack delegation, and file presence detection",
     "type": "task"
+  },
+  "w21-ay8w": {
+    "deps": [
+      "w21-f8tg"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, concurrent ticket sessions produce no data loss under stress",
+    "type": "story"
   },
   "w21-b0tq": {
     "deps": [
@@ -886,6 +999,15 @@
     "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
     "type": "task"
   },
+  "w21-f8tg": {
+    "deps": [
+      "w21-o72z"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, I experience fast ticket reads via compiled-state caching",
+    "type": "story"
+  },
   "w21-gdon": {
     "deps": [
       "w21-b9ll"
@@ -931,7 +1053,7 @@
       "w21-tcti"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Add contract detection pass to implementation-plan SKILL.md",
     "type": "task"
   },
@@ -954,7 +1076,7 @@
   "w21-mzof": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Cross-component contract detection in /dso:implementation-plan",
     "type": "epic"
   },
@@ -964,6 +1086,15 @@
     "status": "open",
     "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
     "type": "task"
+  },
+  "w21-njch": {
+    "deps": [
+      "w21-q0nn"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, I can detect and recover from ticket system corruption via fsck",
+    "type": "story"
   },
   "w21-npxr": {
     "deps": [
@@ -981,6 +1112,15 @@
     "title": "Update shared complexity evaluator routing table + tests",
     "type": "task"
   },
+  "w21-o72z": {
+    "deps": [
+      "w21-ablv"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, I can list, transition, and comment on tickets with full CRUD support",
+    "type": "story"
+  },
   "w21-ofew": {
     "deps": [
       "w21-xlaw"
@@ -996,6 +1136,15 @@
     "status": "open",
     "title": "fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR",
     "type": "bug"
+  },
+  "w21-q0nn": {
+    "deps": [
+      "w21-f8tg"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, ticket performance stays stable over time via event compaction",
+    "type": "story"
   },
   "w21-q8nv": {
     "deps": [
@@ -1030,7 +1179,7 @@
   "w21-tcti": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "RED: Tests for contract detection in implementation-plan SKILL.md",
     "type": "task"
   },
