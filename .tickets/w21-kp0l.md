@@ -1,7 +1,7 @@
 ---
 id: w21-kp0l
 status: open
-deps: [w21-mzof, w21-tcti]
+deps: [w21-tcti]
 links: []
 created: 2026-03-20T02:38:59Z
 type: task
