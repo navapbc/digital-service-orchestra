@@ -1,6 +1,6 @@
 ---
 id: dso-tuz0
-status: in_progress
+status: closed
 deps: [dso-jfy3]
 links: []
 created: 2026-03-20T03:33:02Z

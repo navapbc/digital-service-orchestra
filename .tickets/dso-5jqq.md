@@ -1,6 +1,6 @@
 ---
 id: dso-5jqq
-status: open
+status: in_progress
 deps: [dso-opue, dso-6trc, dso-tuz0, dso-2vwl]
 links: []
 created: 2026-03-20T03:33:47Z
@@ -42,3 +42,47 @@ test_e2e_validate_sh_reads_commands — Given a temp git repo with .claude/dso-c
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-config-path-e2e.sh 2>&1 | grep -E 'test_e2e_config_paths.*PASS'
 - [ ] test_e2e_shim_resolves_plugin_root passes
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-config-path-e2e.sh 2>&1 | grep -E 'test_e2e_shim.*PASS'
+
+## Notes
+
+<!-- note-id: hzby95x1 -->
+<!-- timestamp: 2026-03-20T15:13:43Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 8j0vc00m -->
+<!-- timestamp: 2026-03-20T15:14:37Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — read-config.sh resolves from .claude/dso-config.conf; config-paths.sh sources read-config.sh; shim reads dso.plugin_root from .claude/dso-config.conf; tests use assert.sh + isolated temp git repos
+
+<!-- note-id: zg8g1mwo -->
+<!-- timestamp: 2026-03-20T15:15:50Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — created tests/scripts/test-dso-config-path-e2e.sh with 6 scenarios: resolution_from_dot_claude_dso_config, graceful_degradation_no_config, config_paths_reads_from_dot_claude, shim_resolves_plugin_root, shim_no_config_exits_nonzero, validate_sh_reads_commands, workflow_config_file_env_overrides
+
+<!-- note-id: otk19siw -->
+<!-- timestamp: 2026-03-20T15:15:59Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — tests exercise already-implemented behavior (read-config.sh resolution chain was implemented in prior tasks dso-opue, dso-6trc, dso-tuz0, dso-2vwl)
+
+<!-- note-id: bm3g4pq6 -->
+<!-- timestamp: 2026-03-20T15:16:20Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: All tests pass ✓ — bash tests/scripts/test-dso-config-path-e2e.sh → PASSED: 20 FAILED: 0
+
+<!-- note-id: evxtl6v0 -->
+<!-- timestamp: 2026-03-20T15:20:38Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All AC verified: file exists+executable ✓, test_e2e_resolution_from_dot_claude_dso_config PASS ✓, test_e2e_config_paths_reads_from_dot_claude PASS ✓, test_e2e_shim_resolves_plugin_root PASS ✓. Full suite exit 144 (SIGURG tool timeout ceiling — known issue INC-016, not a test failure). New test file passes independently: PASSED: 20 FAILED: 0.
