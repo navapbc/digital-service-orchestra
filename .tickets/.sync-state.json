@@ -463,6 +463,18 @@
     "last_synced": "2026-03-19T16:52:39Z",
     "local_hash": "0eb2d191aae4918ef083657aa1eced85"
   },
+  "w21-bsnz": {
+    "jira_hash": "6ed4d1cbfe493833e0f9139f63e49304",
+    "jira_key": "DIG-87",
+    "last_synced": "2026-03-20T20:55:35Z",
+    "local_hash": "6ed4d1cbfe493833e0f9139f63e49304"
+  },
+  "w21-chse": {
+    "jira_hash": "638f3f1ef6def8cbf8fc479775287ad0",
+    "jira_key": "DIG-88",
+    "last_synced": "2026-03-20T20:55:35Z",
+    "local_hash": "638f3f1ef6def8cbf8fc479775287ad0"
+  },
   "w21-tr4q": {
     "jira_hash": "879b4db0e4b69678e93a196dbb01a9ae",
     "jira_key": "DIG-66",

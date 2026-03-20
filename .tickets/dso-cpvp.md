@@ -11,5 +11,5 @@ jira_key: DIG-51
 ---
 # Add a workflow-config flag that creates PRs instead of merging to main
 
-
+When this flag is enabled, a git hook should prevent merging to main.
 
