@@ -331,21 +331,15 @@ else
     (( FAIL++ ))
 fi
 
-# ── Test 14: Tab-separated output format (id TAB priority TAB title) ─────────
-# REVIEW-DEFENSE: This test currently asserts 3 fields (id, priority, title). Tests 15-17 (RED)
-# assert a 4th child-count field that doesn't exist yet. The field count update for Test 14
-# is explicitly planned in story w21-xlaw ("Update Test 14 in test-sprint-list-epics.sh to
-# expect 4 fields instead of 3"), which is the next task in the dependency chain. This is not
-# a structural incompatibility — it is an intentional sequencing: RED tests land first (this
-# story), then GREEN implementation + Test 14 update land together in w21-xlaw.
-echo "Test 14: Output is tab-separated (id TAB priority TAB title)"
+# ── Test 14: Tab-separated output format (id TAB priority TAB title TAB child_count) ─────────
+echo "Test 14: Output is tab-separated (id TAB priority TAB title TAB child_count)"
 first_unblocked=$(TICKETS_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null | grep "^epic-b")
 field_count=$(echo "$first_unblocked" | awk -F'\t' '{print NF}')
-if [ "$field_count" -eq 3 ]; then
-    echo "  PASS: output is tab-separated with 3 fields"
+if [ "$field_count" -eq 4 ]; then
+    echo "  PASS: output is tab-separated with 4 fields"
     (( PASS++ ))
 else
-    echo "  FAIL: expected 3 tab-separated fields, got $field_count (line: '$first_unblocked')" >&2
+    echo "  FAIL: expected 4 tab-separated fields, got $field_count (line: '$first_unblocked')" >&2
     (( FAIL++ ))
 fi
 

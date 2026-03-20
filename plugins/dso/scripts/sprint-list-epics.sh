@@ -154,9 +154,49 @@ except Exception:
 _check_staleness
 
 # ---------------------------------------------------------------------------
+# Compute child counts: single grep pass over .tickets/*.md for parent: lines.
+# ---------------------------------------------------------------------------
+child_counts_json=$(python3 -c "
+import os, re, collections
+
+tickets_dir = '$TICKETS_DIR'
+counts = collections.defaultdict(int)
+
+try:
+    files = [f for f in os.listdir(tickets_dir) if f.endswith('.md')]
+except OSError:
+    files = []
+
+for fname in files:
+    fpath = os.path.join(tickets_dir, fname)
+    try:
+        content = open(fpath).read()
+    except OSError:
+        continue
+    # Only scan frontmatter (between first two --- delimiters)
+    in_front = False
+    front_count = 0
+    for line in content.splitlines():
+        if line.strip() == '---':
+            front_count += 1
+            in_front = (front_count == 1)
+            if front_count == 2:
+                break
+            continue
+        if in_front:
+            m = re.match(r'^parent:\s*(\S+)', line)
+            if m:
+                parent_id = m.group(1).rstrip('#').strip()
+                counts[parent_id] += 1
+
+import json
+print(json.dumps(dict(counts)))
+" 2>/dev/null || echo '{}')
+
+# ---------------------------------------------------------------------------
 # Single Python pass: read index once, classify epics, emit output.
 # ---------------------------------------------------------------------------
-SPRINT_SHOW_ALL="$show_all" SPRINT_TICKETS_DIR="$TICKETS_DIR" python3 -c "
+SPRINT_SHOW_ALL="$show_all" SPRINT_TICKETS_DIR="$TICKETS_DIR" SPRINT_CHILD_COUNTS="$child_counts_json" python3 -c "
 import json, os, sys
 
 show_all = os.environ.get('SPRINT_SHOW_ALL') == 'true'
@@ -168,6 +208,12 @@ try:
         index = json.load(f)
 except Exception:
     index = {}
+
+# Load child counts computed by grep pass
+try:
+    child_counts = json.loads(os.environ.get('SPRINT_CHILD_COUNTS', '{}'))
+except Exception:
+    child_counts = {}
 
 # Build lookup for dep status resolution
 dep_status = {tid: entry.get('status', 'open') for tid, entry in index.items()}
@@ -192,12 +238,14 @@ for tid, entry in index.items():
         priority = 4
     title = entry.get('title', '')
 
+    children = child_counts.get(tid, 0)
+
     if status == 'in_progress':
-        in_progress.append({'id': tid, 'priority': priority, 'title': title})
+        in_progress.append({'id': tid, 'priority': priority, 'title': title, 'children': children})
     elif is_blocked:
-        open_blocked.append({'id': tid, 'priority': priority, 'title': title})
+        open_blocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children})
     else:
-        open_unblocked.append({'id': tid, 'priority': priority, 'title': title})
+        open_unblocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children})
 
 # Sort each list by priority
 in_progress.sort(key=lambda x: x['priority'])
@@ -210,11 +258,11 @@ if not in_progress and not open_unblocked and not open_blocked:
 
 # In-progress epics first (P* signals already claimed work)
 for e in in_progress:
-    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}')
+    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}\t{e[\"children\"]}')
 
 # Then unblocked open epics
 for e in open_unblocked:
-    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}')
+    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}')
 
 # Blocked epics appended last when --all
 if show_all:
@@ -223,7 +271,7 @@ if show_all:
     selectable_ids = in_progress_ids | open_unblocked_ids
     for e in open_blocked:
         if e['id'] not in selectable_ids:
-            print(f'BLOCKED\t{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}')
+            print(f'BLOCKED\t{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}')
 
 # Exit code logic:
 #   0 — at least one unblocked epic (in-progress or ready)
