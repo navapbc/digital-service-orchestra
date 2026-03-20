@@ -20,8 +20,21 @@ echo "=== test-sprint-list-epics.sh ==="
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 make_ticket() {
-    local dir="$1" id="$2" type="$3" status="$4" priority="$5" deps="$6" title="$7"
-    cat > "$dir/$id.md" << EOF
+    local dir="$1" id="$2" type="$3" status="$4" priority="$5" deps="$6" title="$7" parent="${8:-}"
+    if [ -n "$parent" ]; then
+        cat > "$dir/$id.md" << EOF
+---
+id: $id
+type: $type
+status: $status
+priority: $priority
+deps: $deps
+parent: $parent
+---
+# $title
+EOF
+    else
+        cat > "$dir/$id.md" << EOF
 ---
 id: $id
 type: $type
@@ -31,6 +44,7 @@ deps: $deps
 ---
 # $title
 EOF
+    fi
 }
 
 make_index() {
@@ -103,11 +117,15 @@ for fname in files:
             title = line[2:].strip()
             break
 
+    parent = get_field('parent')
+
     entry = {'title': title, 'status': status, 'type': type_}
     if priority is not None:
         entry['priority'] = priority
     if deps:
         entry['deps'] = deps
+    if parent:
+        entry['parent'] = parent
     idx[ticket_id] = entry
 
 print(json.dumps(idx, indent=2))
@@ -164,6 +182,9 @@ make_ticket "$TDIR" "epic-d" "epic" "open"       "2" "[task-x]"   "Epic D Blocke
 make_ticket "$TDIR" "epic-e" "epic" "open"       "2" "[task-y]"   "Epic E UnblockedDep"
 make_ticket "$TDIR" "task-x" "task" "open"       "2" "[]"         "Task X open blocker"
 make_ticket "$TDIR" "task-y" "task" "closed"     "2" "[]"         "Task Y closed"
+# Child tickets: epic-c has 2 children (story-c1, story-c2); epic-a has 0 children
+make_ticket "$TDIR" "story-c1" "story" "open"    "2" "[]"         "Story C1" "epic-c"
+make_ticket "$TDIR" "story-c2" "story" "open"    "2" "[]"         "Story C2" "epic-c"
 make_index "$TDIR"
 
 # ── Test 4: Exit code 0 when unblocked epics exist ───────────────────────────
@@ -311,6 +332,12 @@ else
 fi
 
 # ── Test 14: Tab-separated output format (id TAB priority TAB title) ─────────
+# REVIEW-DEFENSE: This test currently asserts 3 fields (id, priority, title). Tests 15-17 (RED)
+# assert a 4th child-count field that doesn't exist yet. The field count update for Test 14
+# is explicitly planned in story w21-xlaw ("Update Test 14 in test-sprint-list-epics.sh to
+# expect 4 fields instead of 3"), which is the next task in the dependency chain. This is not
+# a structural incompatibility — it is an intentional sequencing: RED tests land first (this
+# story), then GREEN implementation + Test 14 update land together in w21-xlaw.
 echo "Test 14: Output is tab-separated (id TAB priority TAB title)"
 first_unblocked=$(TICKETS_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null | grep "^epic-b")
 field_count=$(echo "$first_unblocked" | awk -F'\t' '{print NF}')
@@ -319,6 +346,57 @@ if [ "$field_count" -eq 3 ]; then
     (( PASS++ ))
 else
     echo "  FAIL: expected 3 tab-separated fields, got $field_count (line: '$first_unblocked')" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 15 (RED): Output has 4th tab-separated field (child count) ───────────
+# RED: sprint-list-epics.sh doesn't output child counts yet — this MUST FAIL.
+echo "Test 15 (RED): test_child_count_field_present — output has 4th tab-separated field"
+test_child_count_field_present() {
+    local first_unblocked field_count
+    first_unblocked=$(TICKETS_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null | grep "^epic-b")
+    field_count=$(echo "$first_unblocked" | awk -F'\t' '{print NF}')
+    [ "$field_count" -eq 4 ]
+}
+if test_child_count_field_present; then
+    echo "  PASS: output has 4 tab-separated fields"
+    (( PASS++ ))
+else
+    echo "  FAILED: expected 4 tab-separated fields for child count (got fewer)" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 16 (RED): Epic with 2 children shows child count 2 ───────────────────
+# RED: sprint-list-epics.sh doesn't output child counts yet — this MUST FAIL.
+echo "Test 16 (RED): test_child_count_accuracy — epic-c with 2 children shows count 2"
+test_child_count_accuracy() {
+    local line child_count
+    line=$(TICKETS_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null | grep "^epic-c")
+    child_count=$(echo "$line" | awk -F'\t' '{print $4}')
+    [ "$child_count" = "2" ]
+}
+if test_child_count_accuracy; then
+    echo "  PASS: epic-c shows child count 2"
+    (( PASS++ ))
+else
+    echo "  FAILED: expected epic-c to show child count 2 in 4th field" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 17 (RED): Epic with 0 children shows child count 0 ───────────────────
+# RED: sprint-list-epics.sh doesn't output child counts yet — this MUST FAIL.
+echo "Test 17 (RED): test_child_count_zero — epic-a with 0 children shows count 0"
+test_child_count_zero() {
+    local line child_count
+    line=$(TICKETS_DIR="$TDIR" bash "$SCRIPT" 2>/dev/null | grep "^epic-a")
+    child_count=$(echo "$line" | awk -F'\t' '{print $4}')
+    [ "$child_count" = "0" ]
+}
+if test_child_count_zero; then
+    echo "  PASS: epic-a shows child count 0"
+    (( PASS++ ))
+else
+    echo "  FAILED: expected epic-a to show child count 0 in 4th field" >&2
     (( FAIL++ ))
 fi
 
