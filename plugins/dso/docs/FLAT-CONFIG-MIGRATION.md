@@ -2,7 +2,7 @@
 
 Migration from `workflow-config.yaml` (YAML, requires Python to parse) to a flat key=value `.conf` file that bash reads natively via `grep`/`cut`.
 
-**Status**: Completed (2026-03-14). The flat `workflow-config.conf` format is now the primary config format. `read-config.sh` reads `.conf` files directly via `grep`/`cut` with no Python dependency. YAML fallback is retained for migration compatibility but `.conf` takes precedence when both files exist. The YAML cache infrastructure has been removed.
+**Status**: Completed (2026-03-14). The flat `dso-config.conf` format is now the primary config format. `read-config.sh` reads `.conf` files directly via `grep`/`cut` with no Python dependency. YAML fallback is retained for migration compatibility but `.conf` takes precedence when both files exist. The YAML cache infrastructure has been removed.
 
 ## Why Consider This
 

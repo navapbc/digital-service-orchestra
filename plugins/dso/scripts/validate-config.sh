@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 # scripts/validate-config.sh
-# Validates a workflow-config.conf file against KNOWN_KEYS.
+# Validates a dso-config.conf file against KNOWN_KEYS.
 #
 # Usage: validate-config.sh [config-file]
 #   config-file defaults to resolution order from read-config.sh
@@ -154,8 +154,8 @@ KNOWN_LIST_KEYS=(
 config_file="${1:-}"
 if [[ -z "$config_file" ]]; then
     root="${CLAUDE_PLUGIN_ROOT}"
-    if [[ -f "$root/workflow-config.conf" ]]; then
-        config_file="$root/workflow-config.conf"
+    if [[ -f "$root/.claude/dso-config.conf" ]]; then
+        config_file="$root/.claude/dso-config.conf"
     else
         # No config file found — nothing to validate
         exit 0

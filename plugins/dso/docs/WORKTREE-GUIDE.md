@@ -12,10 +12,10 @@ Git worktrees allow you to check out multiple branches of the same repository si
 
 ### Config-Driven Post-Create Hook
 
-Worktree creation supports a config-driven post-create hook via `worktree.post_create_cmd` in `workflow-config.conf`. After creating a worktree, the script exports `WORKTREE_PATH` and runs the configured command. This project uses it to set up Python 3.13/Poetry environments automatically:
+Worktree creation supports a config-driven post-create hook via `worktree.post_create_cmd` in `dso-config.conf`. After creating a worktree, the script exports `WORKTREE_PATH` and runs the configured command. This project uses it to set up Python 3.13/Poetry environments automatically:
 
 ```conf
-# workflow-config.conf
+# .claude/dso-config.conf
 worktree.post_create_cmd=./scripts/worktree-setup-env.sh
 ```
 
@@ -406,7 +406,7 @@ Steps to run at the start of each Claude Code session, depending on context.
 
 Check for stale worktrees and clean them up using the automated script:
 
-> **Script location**: canonical source at `.claude/scripts/dso worktree-cleanup.sh`. Config-driven via `workflow-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_days`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
+> **Script location**: canonical source at `.claude/scripts/dso worktree-cleanup.sh`. Config-driven via `.claude/dso-config.conf` (`infrastructure.compose_db_file`, `infrastructure.compose_project`, `infrastructure.container_prefix`, `worktree.branch_pattern`, `worktree.max_age_days`). Docker steps are skipped when `infrastructure.compose_db_file` is absent.
 
 ```bash
 # Preview what would be removed (safe, no changes made)
@@ -617,4 +617,4 @@ Valid phase names: `sync`, `merge`, `validate`, `push`, `archive`, `ci_trigger`.
 - **GOTCHAS.md**: Docker section for container-specific issues
 - **JIRA-INTEGRATION.md**: Jira sync mechanics and comment sync
 - **SCRIPT-MIGRATION-PATTERNS.md**: Wrapper patterns and plugin migration conventions
-- **workflow-config.conf**: Project-specific config including `worktree.post_create_cmd`
+- **dso-config.conf**: Project-specific config including `worktree.post_create_cmd`

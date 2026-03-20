@@ -2,9 +2,9 @@
 
 Review the current code diff using a `general-purpose` sub-agent for deep analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
 
-## Config Reference (from workflow-config.conf)
+## Config Reference (from dso-config.conf)
 
-Replace commands below with values from your `workflow-config.conf`:
+Replace commands below with values from your `.claude/dso-config.conf`:
 
 - `commands.format` (default: `make format`)
 - `commands.lint` (default: `make lint-ruff`)

@@ -132,12 +132,12 @@ When `stack` is not declared in `workflow-config.yaml`, `detect-stack.sh` infers
 
 ## Amendment: Format Change from YAML to Flat KEY=VALUE (2026-03-14)
 
-**Change**: The config file format has been migrated from `workflow-config.yaml` (YAML) to `workflow-config.conf` (flat KEY=VALUE with dot-notation). The original decision to use YAML (Approach A) remains valid in its reasoning about centralized config vs env vars vs CLAUDE.md injection. This amendment only changes the serialization format.
+**Change**: The config file format has been migrated from `workflow-config.yaml` (YAML) to `dso-config.conf` (flat KEY=VALUE with dot-notation), placed at `.claude/dso-config.conf`. The original decision to use YAML (Approach A) remains valid in its reasoning about centralized config vs env vars vs CLAUDE.md injection. This amendment only changes the serialization format.
 
 **Rationale**: YAML required a Python subprocess (~100ms) to parse from bash. A caching layer was added to mitigate this, but added complexity (cache generation, mtime validation, self-healing fallback). The flat format eliminates both the Python dependency and the caching layer, reducing `read-config.sh` from ~300 lines to ~15 lines of grep/cut. See `lockpick-workflow/docs/FLAT-CONFIG-MIGRATION.md` for the full tradeoff analysis.
 
 **What changed**:
-- Config file: `workflow-config.yaml` replaced by `workflow-config.conf`
+- Config file: `workflow-config.yaml` replaced by `.claude/dso-config.conf`
 - Parser: Python/PyYAML replaced by grep/cut (bash-native)
 - Cache infrastructure: removed (no longer needed)
 - `read-config.sh` API: unchanged (same dot-notation keys, same `--list` flag)
@@ -154,4 +154,4 @@ When `stack` is not declared in `workflow-config.yaml`, `detect-stack.sh` infers
 - Builds on [adr-plugin-scaffold.md] (`${CLAUDE_PLUGIN_ROOT}` path resolution convention)
 - Schema: `lockpick-workflow/docs/workflow-config-schema.json`
 - Example config: `lockpick-workflow/docs/dso-config.example.conf`
-- Enables Phase 3: hook parameterization (hooks read `commands.*` from `workflow-config.conf`)
+- Enables Phase 3: hook parameterization (hooks read `commands.*` from `dso-config.conf`)

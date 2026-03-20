@@ -39,7 +39,7 @@ bash /path/to/digital-service-orchestra/plugins/dso/scripts/dso-setup.sh /path/t
 
 This script:
 1. Installs the `.claude/scripts/dso` shim into your project (used by hooks and scripts to locate the plugin)
-2. Writes `dso.plugin_root=<plugin-path>` to your project's `workflow-config.conf`
+2. Writes `dso.plugin_root=<plugin-path>` to your project's `.claude/dso-config.conf`
 
 The `dso.plugin_root` key tells the shim where the plugin lives when `CLAUDE_PLUGIN_ROOT` is not set as an
 environment variable. See [dso.plugin_root in the Configuration Reference](CONFIGURATION-REFERENCE.md#dsoplugin_root).
@@ -60,7 +60,7 @@ mkdir -p .github/workflows
 cp "$CLAUDE_PLUGIN_ROOT/examples/ci.example.yml" .github/workflows/ci.yml
 ```
 
-Edit `workflow-config.conf` to match your project. All keys are optional except `version` — omitted
+Edit `.claude/dso-config.conf` to match your project. All keys are optional except `version` — omitted
 keys fall back to stack-detected defaults. See [Configuration Reference](CONFIGURATION-REFERENCE.md).
 
 ### Step 4 — Install pre-commit hooks
@@ -82,12 +82,12 @@ Open a Claude Code session in your project and run:
 
 `/dso:project-setup` is the primary onboarding entry point. It runs `dso-setup.sh` to install
 the DSO shim, detects your project stack, walks through an interactive configuration wizard
-(one question at a time) to generate `workflow-config.conf`, and offers to copy starter
+(one question at a time) to generate `.claude/dso-config.conf`, and offers to copy starter
 templates (`CLAUDE.md`, `KNOWN-ISSUES.md`). It supports a `--dryrun` flag to preview all
 changes before applying them.
 
 > **Note**: `/dso:init` is also available as a lighter alternative that validates your setup and
-> reports detected commands without generating `workflow-config.conf` interactively.
+> reports detected commands without generating `.claude/dso-config.conf` interactively.
 
 ---
 
@@ -104,7 +104,7 @@ DSO hooks and scripts locate plugin resources via two mechanisms, in order:
      }
    }
    ```
-2. **`dso.plugin_root` in workflow-config.conf** — written automatically by `dso-setup.sh`.
+2. **`dso.plugin_root` in dso-config.conf** — written automatically by `dso-setup.sh`.
    Used by the `.claude/scripts/dso` shim when `CLAUDE_PLUGIN_ROOT` is not set.
 
 For most setups, `dso-setup.sh` handles this automatically and no manual configuration is needed.
@@ -113,7 +113,7 @@ For most setups, `dso-setup.sh` handles this automatically and no manual configu
 
 ## Key Configuration Summary
 
-`workflow-config.conf` is a flat `KEY=VALUE` file at your project root. All keys are optional
+`dso-config.conf` is a flat `KEY=VALUE` file at `.claude/dso-config.conf` in your project root. All keys are optional
 except `version`. Below are the most commonly needed keys for initial setup:
 
 | Key | Default | What it does |
@@ -163,7 +163,7 @@ brew install acli
 ### PyYAML
 
 PyYAML is only required if your project uses the legacy YAML config format (`workflow-config.yaml`);
-the recommended `workflow-config.conf` format (flat KEY=VALUE) has no Python dependency beyond stdlib.
+the recommended `dso-config.conf` format (flat KEY=VALUE) has no Python dependency beyond stdlib.
 
 Install if needed:
 ```bash
@@ -213,7 +213,7 @@ No configuration migration is required for patch or minor version bumps
 (e.g., `0.1.0` → `0.1.1` or `0.2.0`).
 
 For major version bumps (e.g., `0.x` → `1.0`), check `CHANGELOG.md` for breaking changes and
-any required updates to `workflow-config.conf` or `.claude/settings.json`.
+any required updates to `.claude/dso-config.conf` or `.claude/settings.json`.
 
 ---
 
@@ -248,7 +248,7 @@ brew install pre-commit
 ```
 
 **CLAUDE_PLUGIN_ROOT not set**: If hooks report "cannot find plugin resources", confirm
-`dso.plugin_root` is set in `workflow-config.conf` (written by `dso-setup.sh`), or set
+`dso.plugin_root` is set in `.claude/dso-config.conf` (written by `dso-setup.sh`), or set
 `CLAUDE_PLUGIN_ROOT` explicitly in `.claude/settings.json`.
 
 ### Linux

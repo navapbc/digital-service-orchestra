@@ -14,7 +14,7 @@ to the standalone Digital Service Orchestra plugin:
 | Scripts | `scripts/` (workflow-specific) | `scripts/` |
 | Workflows | `.claude/workflows/` | `docs/workflows/` |
 | CLAUDE.md | Manually maintained | Plugin-generated preamble + project sections |
-| Config | Hardcoded paths | `workflow-config.conf` at project root |
+| Config | Hardcoded paths | `.claude/dso-config.conf` at project root |
 
 ### What Stays
 
@@ -93,15 +93,15 @@ to:
 cd "$(git rev-parse --show-toplevel)" && "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/<hook>.sh"
 ```
 
-### Step 2: Create workflow-config.conf
+### Step 2: Create dso-config.conf
 
-Copy the example config into your project root:
+Copy the example config into your project's `.claude/` directory:
 
 ```bash
 cp "${CLAUDE_PLUGIN_ROOT}/docs/dso-config.example.conf" ./.claude/dso-config.conf
 ```
 
-Open `workflow-config.conf` and fill in the values for your project. At minimum:
+Open `.claude/dso-config.conf` and fill in the values for your project. At minimum:
 
 ```conf
 version=1.0.0
@@ -227,7 +227,7 @@ If you need to revert to the embedded workflow:
 
 4. **Restart the Claude Code session** to pick up the restored embedded hooks.
 
-5. **Delete `workflow-config.conf`** if you do not want it in the project root.
+5. **Delete `.claude/dso-config.conf`** if you do not want it in the project.
 
 ---
 
@@ -237,6 +237,6 @@ If you need to revert to the embedded workflow:
 |---------|--------------|-----|
 | `CLAUDE_PLUGIN_ROOT: unbound variable` | `env` block missing from `settings.json` | Add `"env": { "CLAUDE_PLUGIN_ROOT": "/path/..." }` |
 | Hook fires but cannot find `deps.sh` | Wrong `CLAUDE_PLUGIN_ROOT` path | Verify path with `echo $CLAUDE_PLUGIN_ROOT` in a Bash hook |
-| `/dso:init` says stack not detected | Missing `workflow-config.conf` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
+| `/dso:init` says stack not detected | Missing `.claude/dso-config.conf` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
 | Tests fail after migration | Unrelated pre-existing failures | Check `git diff HEAD~1` to confirm no app code was changed |
 | `run-hook.sh: No such file` | `CLAUDE_PLUGIN_ROOT` not set in hook command | Recheck `settings.json` hook commands to use `${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh` |

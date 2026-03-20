@@ -449,8 +449,8 @@
     "last_synced": "2026-03-19T18:38:35Z",
     "local_hash": "14c516947a151a3db8bdec4010e2fd6e"
   },
-  "last_pull_timestamp": "2026-03-20T16:20:43Z",
-  "last_sync_commit": "f0c9d701ac15364adf6e42707e797b9fc1e6c9d3",
+  "last_pull_timestamp": "2026-03-20T16:25:31Z",
+  "last_sync_commit": "5f329c253c42fe35c97394ecd0814c4d8641bae8",
   "w21-5cqr": {
     "jira_hash": "bce29d76f01c58613ee99cb1dd03920d",
     "jira_key": "DIG-61",

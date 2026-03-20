@@ -1,28 +1,28 @@
 # Configuration Reference
 
-This document is the authoritative reference for all `workflow-config.conf` keys and
+This document is the authoritative reference for all `dso-config.conf` keys and
 environment variables consumed by DSO hooks, scripts, and skills.
 
 ---
 
 ## Table of Contents
 
-- [Section 1 — workflow-config.conf Keys](#section-1--workflow-configconf-keys)
+- [Section 1 — dso-config.conf Keys](#section-1--dso-configconf-keys)
 - [Section 2 — Environment Variables](#section-2--environment-variables)
 
 ---
 
-## Section 1 — workflow-config.conf Keys
+## Section 1 — dso-config.conf Keys
 
-`workflow-config.conf` is an optional flat `KEY=VALUE` file placed at the project root
-(or at `$CLAUDE_PLUGIN_ROOT/workflow-config.conf`). Keys use dot-notation for grouping.
+`dso-config.conf` is an optional flat `KEY=VALUE` file placed at `.claude/dso-config.conf`
+in the project root (or at `$CLAUDE_PLUGIN_ROOT/.claude/dso-config.conf`). Keys use dot-notation for grouping.
 List values use repeated keys (one value per line). Parsed by `.claude/scripts/dso read-config.sh`
 using `grep`/`cut` — no Python dependency required.
 
 **Config resolution order** (handled by `.claude/scripts/dso read-config.sh`):
 1. `WORKFLOW_CONFIG_FILE` env var if set (exact path — highest priority, for test isolation)
-2. `$CLAUDE_PLUGIN_ROOT/workflow-config.conf` if `CLAUDE_PLUGIN_ROOT` is set
-3. `$(git rev-parse --show-toplevel)/workflow-config.conf` (project root — most common)
+2. `$CLAUDE_PLUGIN_ROOT/.claude/dso-config.conf` if `CLAUDE_PLUGIN_ROOT` is set
+3. `$(git rev-parse --show-toplevel)/.claude/dso-config.conf` (project root — most common)
 
 Schema: `docs/workflow-config-schema.json`
 
@@ -627,7 +627,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 > **Deprecated** — use [`ci.workflow_name`](#ciworkflow_name) instead. When `ci.workflow_name` is set, `merge.ci_workflow_name` is ignored. When only `merge.ci_workflow_name` is present, `merge-to-main.sh` falls back to it and logs the following deprecation warning to stderr:
 > ```
-> DEPRECATION WARNING: merge.ci_workflow_name is deprecated — migrate to ci.workflow_name in workflow-config.conf
+> DEPRECATION WARNING: merge.ci_workflow_name is deprecated — migrate to ci.workflow_name in dso-config.conf
 > ```
 > Migrate by moving the value to `ci.workflow_name` and removing this key.
 
@@ -638,7 +638,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Default** | Absent — step skipped |
 | **Used by** | `.claude/scripts/dso merge-to-main.sh` (ci_trigger phase — fallback only when `ci.workflow_name` is absent) |
 
-**Migration:** Replace `merge.ci_workflow_name=<value>` with `ci.workflow_name=<value>` in `workflow-config.conf`. No other changes required.
+**Migration:** Replace `merge.ci_workflow_name=<value>` with `ci.workflow_name=<value>` in `dso-config.conf`. No other changes required.
 
 ---
 
@@ -800,7 +800,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ## Section 2 — Environment Variables
 
-These variables are consumed by DSO hooks, scripts, and skills at runtime. They supplement or override `workflow-config.conf` values.
+These variables are consumed by DSO hooks, scripts, and skills at runtime. They supplement or override `dso-config.conf` values.
 
 ---
 
@@ -808,7 +808,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Absolute path to the DSO plugin installation directory. All hook and script path resolution begins here. When set, `read-config.sh` and all hook dispatchers prefer `$CLAUDE_PLUGIN_ROOT/workflow-config.conf` over the git-root config. When not set, scripts self-locate via `$(dirname "$0")`. |
+| **Description** | Absolute path to the DSO plugin installation directory. All hook and script path resolution begins here. When set, `read-config.sh` and all hook dispatchers prefer `$CLAUDE_PLUGIN_ROOT/.claude/dso-config.conf` over the git-root config. When not set, scripts self-locate via `$(dirname "$0")`. |
 | **Required** | Recommended; auto-set by `claude plugin install`. Manually required for Option B installs if any hook references `$CLAUDE_PLUGIN_ROOT` directly. |
 | **Usage context** | All hooks (`plugins/dso/hooks/dispatchers/`, `plugins/dso/hooks/lib/`, `plugins/dso/hooks/auto-format.sh`), all scripts that locate plugin resources, all skills that reference plugin paths. Set in `.claude/settings.json` under `env` block for manual installs. |
 
@@ -818,7 +818,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Alias for the DSO plugin root path, resolved by the `.claude/scripts/dso` host-project shim. Resolution cascades: (1) `$CLAUDE_PLUGIN_ROOT` if set → use as `DSO_ROOT`; (2) `dso.plugin_root` from `workflow-config.conf`; (3) exit with error. Exported by the shim so that hooks and scripts sourcing it in `--lib` mode can use `$DSO_ROOT` to locate plugin resources without depending on `CLAUDE_PLUGIN_ROOT`. |
+| **Description** | Alias for the DSO plugin root path, resolved by the `.claude/scripts/dso` host-project shim. Resolution cascades: (1) `$CLAUDE_PLUGIN_ROOT` if set → use as `DSO_ROOT`; (2) `dso.plugin_root` from `dso-config.conf`; (3) exit with error. Exported by the shim so that hooks and scripts sourcing it in `--lib` mode can use `$DSO_ROOT` to locate plugin resources without depending on `CLAUDE_PLUGIN_ROOT`. |
 | **Required** | Not set directly — resolved by the shim |
 | **Usage context** | `.claude/scripts/dso` shim in host projects |
 
@@ -858,7 +858,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `workflow-config.conf`. Required by `tk sync` unless `jira.project` is configured. |
+| **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `dso-config.conf`. Required by `tk sync` unless `jira.project` is configured. |
 | **Required** | Required for `tk sync` unless `jira.project` is set in config |
 | **Usage context** | `.claude/scripts/dso tk`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
 
@@ -888,7 +888,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Exact path to a `workflow-config.conf` file. When set, `.claude/scripts/dso read-config.sh` uses this file instead of auto-discovering via `CLAUDE_PLUGIN_ROOT` or git root. Highest priority in config resolution. Used for test isolation. |
+| **Description** | Exact path to a `dso-config.conf` file. When set, `.claude/scripts/dso read-config.sh` uses this file instead of auto-discovering via `CLAUDE_PLUGIN_ROOT` or git root. Highest priority in config resolution. Used for test isolation. |
 | **Required** | Optional — testing/CI override only |
 | **Usage context** | `.claude/scripts/dso read-config.sh` |
 
@@ -898,7 +898,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Alternative path override for `workflow-config.conf`. Used by `.claude/scripts/dso check-local-env.sh` and `.claude/scripts/dso agent-batch-lifecycle.sh` for test isolation. Functionally similar to `WORKFLOW_CONFIG_FILE` but consumed by different scripts. |
+| **Description** | Alternative path override for `dso-config.conf`. Used by `.claude/scripts/dso check-local-env.sh` and `.claude/scripts/dso agent-batch-lifecycle.sh` for test isolation. Functionally similar to `WORKFLOW_CONFIG_FILE` but consumed by different scripts. |
 | **Required** | Optional — testing override only |
 | **Usage context** | `.claude/scripts/dso check-local-env.sh`, `.claude/scripts/dso agent-batch-lifecycle.sh` |
 
@@ -1012,7 +1012,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Test-only override for the Jira project key. Consumed by `.claude/scripts/dso reset-tickets.sh` before falling back to `workflow-config.conf`. |
+| **Description** | Test-only override for the Jira project key. Consumed by `.claude/scripts/dso reset-tickets.sh` before falling back to `dso-config.conf`. |
 | **Required** | Optional — testing override only |
 | **Usage context** | `.claude/scripts/dso reset-tickets.sh` |
 

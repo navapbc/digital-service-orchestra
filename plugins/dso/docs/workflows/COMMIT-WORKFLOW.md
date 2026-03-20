@@ -2,9 +2,9 @@
 
 Create a git commit with mandatory test, format, lint, and review gates.
 
-## Config Reference (from workflow-config.conf)
+## Config Reference (from dso-config.conf)
 
-Replace commands below with values from your `workflow-config.conf`:
+Replace commands below with values from your `.claude/dso-config.conf`:
 
 - `commands.test_unit` (default: `make test-unit-only`)
 - `commands.lint` (default: `make lint-ruff`)
@@ -284,7 +284,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 bash "$REPO_ROOT/plugins/dso/scripts/bump-version.sh" --patch
 ```
 
-`bump-version.sh` exits 0 with no changes when `version.file_path` is not configured in `workflow-config.conf`. In that case, the `git add -u` below is a no-op for the version file (safe to run regardless).
+`bump-version.sh` exits 0 with no changes when `version.file_path` is not configured in `dso-config.conf`. In that case, the `git add -u` below is a no-op for the version file (safe to run regardless).
 
 Stage the bumped version file (if any) along with any other tracked modifications touched by format/lint:
 

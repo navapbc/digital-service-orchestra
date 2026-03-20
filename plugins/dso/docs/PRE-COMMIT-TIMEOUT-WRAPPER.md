@@ -16,7 +16,7 @@ pre-commit-wrapper.sh <hook_name> <timeout_secs> <command_string>
 
 ## Config Keys
 
-The wrapper reads two keys from `workflow-config.conf` via `read-config.sh`:
+The wrapper reads two keys from `dso-config.conf` via `read-config.sh`:
 
 | Key | Purpose | Default |
 |-----|---------|---------|
