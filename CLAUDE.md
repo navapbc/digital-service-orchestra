@@ -22,7 +22,7 @@ Task type → Action:
 
 **`/dso:implementation-plan` gap analysis**: COMPLEX stories get opus gap analysis (Step 6); TRIVIAL stories skip. See skill for details.
 
-**`/dso:preplanning` adversarial review**: Epics with 3+ stories get red team + blue team adversarial review (Phase 2.5). See skill for details.
+**`/dso:preplanning` adversarial review**: Epics with 3+ stories get red team + blue team adversarial review (adversarial review phase). See skill for details.
 
 ## Quick Reference
 
@@ -128,7 +128,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 **Bug fixes**: Use `/dso:fix-bug` — classifies the bug, selects the investigation path, and applies the TDD-based fix. Do NOT use `/dso:tdd-workflow` for bug fixes; tdd-workflow is for new feature TDD only.
 **Docs, research**: Start directly. Validation runs at commit time for code changes (skipped for docs-only commits).
 **Before `/dso:debug-everything`**: Run `plugins/dso/scripts/estimate-context-load.sh debug-everything`. If static load >10,000 tokens, trim `MEMORY.md` before starting to avoid premature compaction.
-**`/dso:debug-everything` Phase 2.5**: After triage, a complexity gate dispatches a haiku sub-agent with the shared evaluator (`plugins/dso/skills/shared/prompts/complexity-evaluator.md`). COMPLEX bugs are routed to epics instead of fix sub-agents.
+**`/dso:debug-everything` is a thin triage/dispatch layer**: It routes all bugs to `/dso:fix-bug` and handles escalation reports. Complexity evaluation happens post-investigation in `/dso:fix-bug` (Step 4.5), after the bug is fully understood — not pre-investigation in `/dso:debug-everything`.
 
 ## Plan Mode Post-Approval Workflow
 
