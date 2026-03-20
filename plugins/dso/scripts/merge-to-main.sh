@@ -623,7 +623,14 @@ TICKETS_DIR="${TICKETS_DIRECTORY:-.tickets}"
 export LOCKPICK_TICKETS_DIR="$TICKETS_DIR"
 
 VISUAL_BASELINE_PATH="${MERGE_VISUAL_BASELINE_PATH:-}"
-CI_WORKFLOW_NAME="${MERGE_CI_WORKFLOW_NAME:-}"
+# ci.workflow_name (preferred) → merge.ci_workflow_name (deprecated fallback)
+# --batch eval populates CI_WORKFLOW_NAME from ci.workflow_name; only fall back
+# to MERGE_CI_WORKFLOW_NAME (merge.ci_workflow_name) when the new key is absent.
+# Replaced: CI_WORKFLOW_NAME="${MERGE_CI_WORKFLOW_NAME:-}" (bare assignment)
+if [ -z "${CI_WORKFLOW_NAME:-}" ] && [ -n "${MERGE_CI_WORKFLOW_NAME:-}" ]; then
+  echo 'DEPRECATION WARNING: merge.ci_workflow_name is deprecated — migrate to ci.workflow_name in workflow-config.conf' >&2
+  CI_WORKFLOW_NAME="${MERGE_CI_WORKFLOW_NAME:-}"
+fi
 MSG_EXCLUSION_PATTERN="${MERGE_MESSAGE_EXCLUSION_PATTERN:-}"
 
 # Post-merge validation commands
@@ -979,7 +986,7 @@ _phase_ci_trigger() {
     # on origin carries [skip ci], explicitly dispatch the CI workflow so it runs.
     HEAD_MSG=$(git log -1 --format='%s' origin/main 2>/dev/null || git log -1 --format='%s' 2>/dev/null || true)
     CODE_CHANGES=$(git diff --name-only "$PRE_MERGE_SHA" HEAD 2>/dev/null | head -1 || true)
-    if [ -n "$CI_WORKFLOW_NAME" ]; then
+    if [ -n "${CI_WORKFLOW_NAME:-}" ]; then
         if echo "$HEAD_MSG" | grep -q '\[skip ci\]' && [ -n "$CODE_CHANGES" ]; then
             echo "INFO: HEAD has [skip ci] but merge contained code changes — triggering CI workflow..."
             if command -v gh >/dev/null 2>&1; then

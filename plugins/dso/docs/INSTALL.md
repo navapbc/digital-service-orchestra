@@ -72,17 +72,22 @@ pre-commit install --hook-type pre-push
 
 This activates both commit-time and push-time hook stages.
 
-### Step 5 — Invoke /dso:init
+### Step 5 — Run /dso:project-setup
 
 Open a Claude Code session in your project and run:
 
 ```
-/dso:init
+/dso:project-setup
 ```
 
-`/dso:init` interactively validates your setup, detects or confirms your project stack,
-and reports which commands will be used for `test`, `lint`, `format`, etc. It is the canonical
-entry point for completing and verifying onboarding.
+`/dso:project-setup` is the primary onboarding entry point. It runs `dso-setup.sh` to install
+the DSO shim, detects your project stack, walks through an interactive configuration wizard
+(one question at a time) to generate `workflow-config.conf`, and offers to copy starter
+templates (`CLAUDE.md`, `KNOWN-ISSUES.md`). It supports a `--dryrun` flag to preview all
+changes before applying them.
+
+> **Note**: `/dso:init` is also available as a lighter alternative that validates your setup and
+> reports detected commands without generating `workflow-config.conf` interactively.
 
 ---
 
@@ -119,6 +124,7 @@ except `version`. Below are the most commonly needed keys for initial setup:
 | `commands.lint` | stack-derived | Linter command |
 | `commands.format` | stack-derived | Auto-formatter command |
 | `dso.plugin_root` | set by `dso-setup.sh` | Absolute path to DSO plugin. Written by `dso-setup.sh`; rarely set manually. |
+| `ci.workflow_name` | absent | GitHub Actions workflow name for post-push CI trigger recovery (e.g. `CI`). Preferred over deprecated `merge.ci_workflow_name`. |
 | `jira.project` | absent | Jira project key for `tk sync` (e.g. `DIG`) |
 | `monitoring.tool_errors` | absent (disabled) | Set to `true` to enable tool error tracking and auto-ticket creation |
 

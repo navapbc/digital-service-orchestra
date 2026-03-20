@@ -150,5 +150,30 @@ rc=$?
 assert_eq "test_validate_config_does_not_know_test_plugin" "0" "$rc"
 assert_pass_if_clean "test_validate_config_does_not_know_test_plugin"
 
+# -- test_ci_workflow_name_valid_key ------------------------------------------
+# A config containing only ci.workflow_name=CI must exit 0.
+# RED: This test FAILS before ci.workflow_name is added to KNOWN_KEYS.
+_snapshot_fail
+CI_WF_CONF="$TMPDIR_FIXTURE/ci-workflow-name.conf"
+cat > "$CI_WF_CONF" <<'CONF'
+ci.workflow_name=CI
+CONF
+stderr_out=$(bash "$SCRIPT" "$CI_WF_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_ci_workflow_name_valid_key exit" "0" "$rc"
+assert_pass_if_clean "test_ci_workflow_name_valid_key"
+
+# -- test_merge_ci_workflow_name_still_valid -----------------------------------
+# A config containing merge.ci_workflow_name=CI must still exit 0 (backward compat).
+_snapshot_fail
+MERGE_CI_WF_CONF="$TMPDIR_FIXTURE/merge-ci-workflow-name.conf"
+cat > "$MERGE_CI_WF_CONF" <<'CONF'
+merge.ci_workflow_name=CI
+CONF
+stderr_out=$(bash "$SCRIPT" "$MERGE_CI_WF_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_merge_ci_workflow_name_still_valid exit" "0" "$rc"
+assert_pass_if_clean "test_merge_ci_workflow_name_still_valid"
+
 # -- Summary -------------------------------------------------------------------
 print_summary

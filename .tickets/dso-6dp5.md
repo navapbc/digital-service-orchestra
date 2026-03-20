@@ -1,6 +1,6 @@
 ---
 id: dso-6dp5
-status: open
+status: closed
 deps: 
   - dso-r2es
 links: []
@@ -36,3 +36,65 @@ parent: dso-2cy8
 ## Escalation Policy
 
 **Escalation policy**: Escalate to the user whenever you do not have high confidence in your understanding of the work, approach, or intent. "High confidence" means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess.
+
+## ACCEPTANCE CRITERIA
+
+- [ ] Each dependency has an individual AskUserQuestion prompt in SKILL.md
+  Verify: grep -c "AskUserQuestion.*dependency\|AskUserQuestion.*install\|AskUserQuestion.*acli\|AskUserQuestion.*PyYAML\|AskUserQuestion.*pre-commit" plugins/dso/skills/project-setup/SKILL.md | awk '{exit ($1 < 2)}'
+- [ ] Already-installed dependencies are skipped (detection-based)
+  Verify: grep -q "already.*installed\|skip.*installed\|detected.*installed" plugins/dso/skills/project-setup/SKILL.md
+- [ ] Each prompt explains what functionality is unavailable without the dependency
+  Verify: grep -c "without.*functionality\|required for\|enables\|provides" plugins/dso/skills/project-setup/SKILL.md | awk '{exit ($1 < 2)}'
+- [ ] Tests verify per-dependency prompt flow
+  Verify: test -f tests/skills/test-project-setup-dependencies.sh || test -f tests/skills/test_project_setup_deps.py
+
+## Notes
+
+<!-- note-id: wjha60y0 -->
+<!-- timestamp: 2026-03-20T01:19:03Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 5g7s86u9 -->
+<!-- timestamp: 2026-03-20T01:19:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — SKILL.md optional deps section at lines 204-212, test pattern from test-project-setup-commands-format.sh, assert.sh library available
+
+<!-- note-id: fcgcuhtp -->
+<!-- timestamp: 2026-03-20T01:20:36Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — 10 tests in tests/skills/test-project-setup-dependencies.sh, 7 failing (RED) as expected
+
+<!-- note-id: 3jg9lxq6 -->
+<!-- timestamp: 2026-03-20T01:20:45Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: m9y7w133 -->
+<!-- timestamp: 2026-03-20T01:23:43Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — replaced bundled optional deps question with 3 individual AskUserQuestion prompts (acli, PyYAML, pre-commit) each with functionality explanation and skip-if-installed logic
+
+<!-- note-id: 3rf9610u -->
+<!-- timestamp: 2026-03-20T01:23:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — 11/11 dep tests pass, 13/13 commands-format tests pass, all 4 AC patterns verified
+
+<!-- note-id: 1rynbduk -->
+<!-- timestamp: 2026-03-20T01:24:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — AC1 PASS (3 individual AskUserQuestion prompts), AC2 PASS (skip-if-installed), AC3 PASS (4 functionality explanations), AC4 PASS (test file exists)

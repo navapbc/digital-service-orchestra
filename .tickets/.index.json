@@ -6,29 +6,12 @@
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
-  "dso-0au4": ".tickets/dso-0au4.md",
-  "dso-0gqr": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Fix: validate-phase.sh should skip or fail gracefully when commands.lint_fix is not configured",
-    "type": "bug"
-  },
   "dso-0k2k": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "Ticket system upgrade",
     "type": "epic"
-  },
-  "dso-0tpl": {
-    "deps": [
-      "dso-gccc"
-    ],
-    "priority": 0,
-    "status": "closed",
-    "title": "Deprecate tdd-workflow with forward pointer to dso:fix-bug",
-    "type": "task"
   },
   "dso-0wi2": {
     "deps": [],
@@ -37,34 +20,12 @@
     "title": "Project level config flags to modify behavior",
     "type": "epic"
   },
-  "dso-0y75": ".tickets/dso-0y75.md",
-  "dso-10te": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "test task",
-    "type": "task"
-  },
-  "dso-12ap": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing Python tests for cluster investigation in SKILL.md",
-    "type": "task"
-  },
   "dso-1aaa": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Bug: tk create rejects --parent=id flag (only --parent id works)",
     "type": "bug"
-  },
-  "dso-1fnl": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Implement review guidance related to code reuse",
-    "type": "epic"
   },
   "dso-1xw7": {
     "deps": [],
@@ -76,7 +37,7 @@
   "dso-2cy8": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Improve project-setup wizard: sequential prompts, smart detection, consolidated config",
     "type": "epic"
   },
@@ -108,15 +69,6 @@
     "title": "Bug: tk create -d interprets double-dash in description text as option flags",
     "type": "bug"
   },
-  "dso-3e8n": ".tickets/dso-3e8n.md",
-  "dso-3ry0": ".tickets/dso-3ry0.md",
-  "dso-3v94": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: command_exit_nonzero (173 occurrences)",
-    "type": "bug"
-  },
   "dso-3xhk": {
     "deps": [],
     "priority": 2,
@@ -143,15 +95,14 @@
   "dso-48fu": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO adopter, dryrun preview is a flat outcome list and conclusion shows manual steps",
     "type": "story"
   },
-  "dso-4cgk": ".tickets/dso-4cgk.md",
   "dso-4lfo": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Incorporate a specialized Claude debugging workflow into our skill that fixes bugs",
     "type": "epic"
   },
@@ -162,16 +113,6 @@
     "title": "Cleanup tests",
     "type": "epic"
   },
-  "dso-56g6": {
-    "deps": [
-      "dso-ezme"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-4.md \u2014 Empirical Agent prompt (authorized logging/debugging, empirical validation, veto of agents 1-3, artifact revert)",
-    "type": "task"
-  },
-  "dso-5mom": ".tickets/dso-5mom.md",
   "dso-5syi": {
     "deps": [],
     "priority": 2,
@@ -189,47 +130,16 @@
   "dso-6576": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO adopter, CI workflows are auto-detected and ci.* config is consolidated and confirmed",
     "type": "story"
   },
   "dso-6dp5": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO adopter, each optional dependency is prompted individually with functionality explanation",
     "type": "story"
-  },
-  "dso-6ea2": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: file_not_found (61 occurrences)",
-    "type": "bug"
-  },
-  "dso-6xe1": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Write failing tests for escalated-investigation-agent-1.md (Web Researcher) prompt content requirements",
-    "type": "task"
-  },
-  "dso-7plu": {
-    "deps": [
-      "dso-s3g4"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Create plugins/dso/skills/fix-bug/prompts/cluster-investigation.md",
-    "type": "task"
-  },
-  "dso-8gjm": ".tickets/dso-8gjm.md",
-  "dso-8jf6": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Assess and align acceptance criteria standards: preplanning stories vs implementation-plan tasks",
-    "type": "bug"
   },
   "dso-94ya": {
     "deps": [],
@@ -252,7 +162,6 @@
     "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
     "type": "epic"
   },
-  "dso-9nny": ".tickets/dso-9nny.md",
   "dso-9zsh": {
     "deps": [],
     "priority": 2,
@@ -260,7 +169,6 @@
     "title": "Make sprint skill aware of ticket type",
     "type": "epic"
   },
-  "dso-a4y1": ".tickets/dso-a4y1.md",
   "dso-ag1b": {
     "deps": [],
     "priority": 1,
@@ -268,23 +176,12 @@
     "title": "Display Task titles during sprint batch execution",
     "type": "epic"
   },
-  "dso-arii": ".tickets/dso-arii.md",
   "dso-b934": {
     "deps": [],
     "priority": 2,
     "status": "closed",
     "title": "Fix: test-cascade-breaker.sh is flaky \u2014 timing-sensitive failure in full suite run",
     "type": "bug"
-  },
-  "dso-bghl": ".tickets/dso-bghl.md",
-  "dso-bgqs": {
-    "deps": [
-      "dso-p9i6"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "GREEN: Expand SKILL.md ESCALATED section with dispatch context slots, veto logic, resolution agent dispatch, and terminal escalation",
-    "type": "task"
   },
   "dso-bugk": {
     "deps": [
@@ -296,10 +193,19 @@
     "title": "As a DSO contributor, all references use the new config path and filename",
     "type": "story"
   },
+  "dso-bwtp": {
+    "deps": [
+      "dso-ozsx"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Update project-setup SKILL.md to include CI auto-detection wizard step",
+    "type": "task"
+  },
   "dso-bzvu": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO adopter, infrastructure and metadata keys are prompted when project context indicates relevance",
     "type": "story"
   },
@@ -317,19 +223,10 @@
     "title": "Add a workflow-config flag that creates PRs instead of merging to main",
     "type": "epic"
   },
-  "dso-cxuh": {
-    "deps": [
-      "dso-t28s"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-3.md \u2014 Code Tracer prompt (execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys)",
-    "type": "task"
-  },
   "dso-cz6p": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Update project docs to reflect improved project-setup wizard",
     "type": "story"
   },
@@ -364,19 +261,6 @@
     "title": "As a DSO practitioner, the sprint skill contains no explanatory prose or motivation framing",
     "type": "story"
   },
-  "dso-di0n": ".tickets/dso-di0n.md",
-  "dso-dllx": ".tickets/dso-dllx.md",
-  "dso-dm77": ".tickets/dso-dm77.md",
-  "dso-drn9": {
-    "deps": [
-      "dso-ilna",
-      "dso-hpbh"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Revert BASH_SOURCE workaround in tk sync path resolution",
-    "type": "task"
-  },
   "dso-dsa8": {
     "deps": [],
     "priority": 2,
@@ -384,8 +268,6 @@
     "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
     "type": "bug"
   },
-  "dso-dsf8": ".tickets/dso-dsf8.md",
-  "dso-dy7g": ".tickets/dso-dy7g.md",
   "dso-dywv": {
     "deps": [],
     "priority": 1,
@@ -400,14 +282,6 @@
     "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
     "type": "bug"
   },
-  "dso-ezme": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Write failing tests for escalated-investigation-agent-4.md (Empirical/Logging Agent) prompt content requirements",
-    "type": "task"
-  },
-  "dso-ezxf": ".tickets/dso-ezxf.md",
   "dso-fbky": {
     "deps": [],
     "priority": 3,
@@ -434,7 +308,6 @@
     "title": "Update project docs to reflect dso:sprint optimization",
     "type": "story"
   },
-  "dso-fzzq": ".tickets/dso-fzzq.md",
   "dso-g10j": {
     "deps": [],
     "priority": 2,
@@ -449,26 +322,17 @@
     "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
     "type": "bug"
   },
-  "dso-gccc": {
-    "deps": [
-      "dso-k0yk",
-      "dso-qd5d"
-    ],
-    "priority": 0,
-    "status": "closed",
-    "title": "GREEN: Create plugins/dso/skills/fix-bug/SKILL.md",
-    "type": "task"
-  },
   "dso-gfl9": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO adopter, I configure commands and format settings one question at a time with detection-aware suggestions",
     "type": "story"
   },
   "dso-ghcp": {
     "deps": [
-      "dso-zq4q"
+      "dso-zq4q",
+      "dso-kknz"
     ],
     "priority": 2,
     "status": "open",
@@ -489,13 +353,6 @@
     "title": "Implementation planning tradeoffs",
     "type": "epic"
   },
-  "dso-gnbz": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Write failing tests for escalated-investigation-agent-2.md (History Analyst) prompt content requirements",
-    "type": "task"
-  },
   "dso-h04l": {
     "deps": [],
     "priority": 0,
@@ -503,22 +360,13 @@
     "title": "[LOCK] debug-everything",
     "type": "task"
   },
-  "dso-hbcd": ".tickets/dso-hbcd.md",
   "dso-hdgl": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: test-merge-to-main-portability.sh 2 failures (8 pass, 2 fail)",
     "type": "bug"
   },
-  "dso-hpbh": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Remove CLAUDE_PLUGIN_ROOT override from .claude/settings.json",
-    "type": "task"
-  },
-  "dso-i03d": ".tickets/dso-i03d.md",
   "dso-i6dj": {
     "deps": [],
     "priority": 2,
@@ -526,18 +374,15 @@
     "title": "Bug: /dso:brainstorm created children with truncated titles and descriptions",
     "type": "bug"
   },
-  "dso-iap9": ".tickets/dso-iap9.md",
-  "dso-ifqb": ".tickets/dso-ifqb.md",
-  "dso-ilna": {
+  "dso-ilc1": {
     "deps": [
-      "dso-taha"
+      "dso-s2g9"
     ],
     "priority": 1,
     "status": "closed",
-    "title": "Harden shim: only export CLAUDE_PLUGIN_ROOT when not already set",
+    "title": "IMPL: Add ci.workflow_name to validate-config.sh KNOWN_KEYS",
     "type": "task"
   },
-  "dso-iuhb": ".tickets/dso-iuhb.md",
   "dso-iwb4": {
     "deps": [],
     "priority": 1,
@@ -559,28 +404,13 @@
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
-  "dso-jt4w": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution: remove settings.json override, harden shim fallback",
-    "type": "epic"
-  },
   "dso-jvjw": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO adopter, template files are merged or supplemented instead of blindly overwriting",
     "type": "story"
   },
-  "dso-k0yk": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "RED: Write failing Python content tests for fix-bug skill",
-    "type": "task"
-  },
-  "dso-k8lr": ".tickets/dso-k8lr.md",
   "dso-khl2": {
     "deps": [],
     "priority": 2,
@@ -592,10 +422,9 @@
     "deps": [],
     "priority": 0,
     "status": "open",
-    "title": "Move workflow config to under .claude and don't add to . gitignore by default",
+    "title": "Move workflow config to .claude/dso-config.conf",
     "type": "epic"
   },
-  "dso-kmti": ".tickets/dso-kmti.md",
   "dso-kv4p": {
     "deps": [],
     "priority": 2,
@@ -603,8 +432,6 @@
     "title": "fix: merge-to-main.sh push phase fails with retry_with_backoff: command not found",
     "type": "bug"
   },
-  "dso-kvpp": ".tickets/dso-kvpp.md",
-  "dso-l19q": ".tickets/dso-l19q.md",
   "dso-l2ct": {
     "deps": [
       "dso-ag1b",
@@ -614,6 +441,16 @@
     "status": "open",
     "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
+  },
+  "dso-le3s": {
+    "deps": [
+      "dso-ozsx",
+      "dso-n458"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "DOC: Update CONFIGURATION-REFERENCE.md to document ci.workflow_name and deprecate merge.ci_workflow_name",
+    "type": "task"
   },
   "dso-lli8": {
     "deps": [],
@@ -636,19 +473,15 @@
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
   },
-  "dso-m8y0": ".tickets/dso-m8y0.md",
-  "dso-mjdp": ".tickets/dso-mjdp.md",
-  "dso-mn94": {
+  "dso-n458": {
     "deps": [
-      "dso-6xe1"
+      "dso-ilc1"
     ],
-    "priority": 2,
+    "priority": 1,
     "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-1.md \u2014 Web Researcher prompt (error pattern analysis, similar issue correlation, dependency changelogs)",
+    "title": "IMPL: Add ci.workflow_name to workflow-config-schema.json",
     "type": "task"
   },
-  "dso-nd02": ".tickets/dso-nd02.md",
-  "dso-nkjv": ".tickets/dso-nkjv.md",
   "dso-nthb": {
     "deps": [],
     "priority": 2,
@@ -656,13 +489,21 @@
     "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
     "type": "bug"
   },
-  "dso-o4sr": ".tickets/dso-o4sr.md",
-  "dso-ovcy": ".tickets/dso-ovcy.md",
-  "dso-p9i6": {
+  "dso-o24g": {
     "deps": [],
-    "priority": 2,
+    "priority": 1,
     "status": "closed",
-    "title": "RED: Write failing tests asserting SKILL.md ESCALATED section has dispatch slots, veto logic, resolution agent, and terminal escalation",
+    "title": "RED: Write failing tests for ci.workflow_name fallback in merge-to-main.sh",
+    "type": "task"
+  },
+  "dso-ozsx": {
+    "deps": [
+      "dso-o24g",
+      "dso-ilc1"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Update merge-to-main.sh to read ci.workflow_name with backward-compat fallback",
     "type": "task"
   },
   "dso-pa2n": {
@@ -672,7 +513,6 @@
     "title": "Fix: tests/run-all.sh line 231 unbound variable $1 in combined summary formatting function",
     "type": "bug"
   },
-  "dso-perw": ".tickets/dso-perw.md",
   "dso-ppwp": {
     "deps": [],
     "priority": 1,
@@ -694,7 +534,6 @@
     "title": "Update end-session to display a list of pre-existing failures encountered.",
     "type": "epic"
   },
-  "dso-py3q": ".tickets/dso-py3q.md",
   "dso-q0lo": {
     "deps": [],
     "priority": 2,
@@ -711,15 +550,6 @@
     "title": "As a developer setting up DSO, the setup creates .claude/dso-config.conf",
     "type": "story"
   },
-  "dso-q9z9": ".tickets/dso-q9z9.md",
-  "dso-qd5d": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "RED: Write failing shell structural test for fix-bug skill",
-    "type": "task"
-  },
-  "dso-qm2c": ".tickets/dso-qm2c.md",
   "dso-qo0x": {
     "deps": [],
     "priority": 2,
@@ -737,12 +567,10 @@
   "dso-r2es": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a DSO adopter, project detection produces structured context for all wizard questions",
     "type": "story"
   },
-  "dso-r36p": ".tickets/dso-r36p.md",
-  "dso-r4o4": ".tickets/dso-r4o4.md",
   "dso-r97p": {
     "deps": [],
     "priority": 2,
@@ -750,7 +578,6 @@
     "title": "Implementation planning schema validation",
     "type": "epic"
   },
-  "dso-rjyt": ".tickets/dso-rjyt.md",
   "dso-s12s": {
     "deps": [],
     "priority": 1,
@@ -758,30 +585,11 @@
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
   },
-  "dso-s3g4": {
-    "deps": [
-      "dso-12ap"
-    ],
+  "dso-s2g9": {
+    "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "RED: Write failing Python tests for cluster-investigation prompt template",
-    "type": "task"
-  },
-  "dso-s52d": ".tickets/dso-s52d.md",
-  "dso-s991": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "Integrate TDD into preplanning",
-    "type": "epic"
-  },
-  "dso-sjck": {
-    "deps": [
-      "dso-gnbz"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-2.md \u2014 History Analyst prompt (timeline reconstruction, fault tree analysis, commit bisection)",
+    "title": "RED: Write failing tests for ci.workflow_name in validate-config.sh",
     "type": "task"
   },
   "dso-soyt": {
@@ -798,14 +606,6 @@
     "title": "Research and investigation in pre-planning or brainstorm",
     "type": "epic"
   },
-  "dso-t28s": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Write failing tests for escalated-investigation-agent-3.md (Code Tracer) prompt content requirements",
-    "type": "task"
-  },
-  "dso-t4hl": ".tickets/dso-t4hl.md",
   "dso-t4k8": {
     "deps": [],
     "priority": 1,
@@ -818,22 +618,6 @@
     "priority": 2,
     "status": "open",
     "title": "Remove 5-sub-agent cap for orchestration",
-    "type": "epic"
-  },
-  "dso-taha": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Add failing test for shim CLAUDE_PLUGIN_ROOT preservation (RED)",
-    "type": "task"
-  },
-  "dso-tfm0": ".tickets/dso-tfm0.md",
-  "dso-tkv3": ".tickets/dso-tkv3.md",
-  "dso-tmmj": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "Methodical debugging improvements",
     "type": "epic"
   },
   "dso-to7x": {
@@ -871,16 +655,6 @@
     "title": "Make implementation plan migration aware",
     "type": "epic"
   },
-  "dso-v17o": {
-    "deps": [
-      "dso-12ap"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Add cluster investigation mode to SKILL.md",
-    "type": "task"
-  },
-  "dso-v2no": ".tickets/dso-v2no.md",
   "dso-v558": {
     "deps": [],
     "priority": 3,
@@ -888,12 +662,13 @@
     "title": "Figma integration for human design input",
     "type": "epic"
   },
-  "dso-vw7p": ".tickets/dso-vw7p.md",
-  "dso-vxe7": ".tickets/dso-vxe7.md",
-  "dso-w4rg": ".tickets/dso-w4rg.md",
-  "dso-wnn2": ".tickets/dso-wnn2.md",
-  "dso-ws4z": ".tickets/dso-ws4z.md",
-  "dso-wt1l": ".tickets/dso-wt1l.md",
+  "dso-vcrq": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved",
+    "type": "bug"
+  },
   "dso-x1jt": {
     "deps": [],
     "priority": 2,
@@ -901,13 +676,6 @@
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
   },
-  "dso-xwxj": ".tickets/dso-xwxj.md",
-  "dso-y0rr": ".tickets/dso-y0rr.md",
-  "dso-y143": ".tickets/dso-y143.md",
-  "dso-y9yn": ".tickets/dso-y9yn.md",
-  "dso-yp0z": ".tickets/dso-yp0z.md",
-  "dso-yr1g": ".tickets/dso-yr1g.md",
-  "dso-yujg": ".tickets/dso-yujg.md",
   "dso-zj3r": {
     "deps": [],
     "priority": 3,
@@ -915,7 +683,6 @@
     "title": "Optimize skills and prompts for token usage",
     "type": "epic"
   },
-  "dso-zly6": ".tickets/dso-zly6.md",
   "dso-zq4q": {
     "deps": [],
     "priority": 2,
@@ -924,89 +691,46 @@
     "type": "task"
   },
   "dso-zu4o": {
-    "deps": [],
+    "deps": [
+      "dso-kknz"
+    ],
     "priority": 1,
     "status": "open",
     "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
     "type": "epic"
   },
-  "dso-zzof": ".tickets/dso-zzof.md",
-  "w21-0kkd": {
-    "deps": [],
-    "priority": 2,
+  "w21-090y": {
+    "deps": [
+      "w21-arjk"
+    ],
+    "priority": 1,
     "status": "closed",
-    "title": "Add continuation callout, Step 10a, MANDATORY directive, and structural test for sprint SKILL.md",
+    "title": "IMPL-TARGETS-PYVER-DEPS: Implement target enumeration, Python version, and installed CLI dependency detection",
     "type": "task"
   },
-  "w21-0ohz": {
+  "w21-25vk": {
     "deps": [],
-    "priority": 2,
+    "priority": 1,
     "status": "closed",
-    "title": "Strengthen sprint batch-end guidance with positive directives and a continuation echo",
+    "title": "Shift complexity evaluation from debug-everything to fix-bug post-investigation",
     "type": "epic"
   },
-  "w21-0wkv": {
+  "w21-4ir0": {
     "deps": [
-      "w21-r8rd",
-      "w21-nveh"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "GREEN: add frontmatter jira_key scan to sync pull",
-    "type": "task"
-  },
-  "w21-0xmw": {
-    "deps": [
-      "w21-s63d"
+      "w21-arjk",
+      "w21-090y"
     ],
     "priority": 1,
     "status": "closed",
-    "title": "RED: Write failing tests for fix-task-tdd.md and fix-task-mechanical.md retirement",
+    "title": "IMPL-CI-WORKFLOWS: Implement CI workflow YAML analysis with confidence degradation",
     "type": "task"
   },
-  "w21-1m1i": {
-    "deps": [
-      "w21-auwy"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO practitioner, using-lockpicks routes single bugs to dso:fix-bug and sprint references it for validation failures",
-    "type": "story"
-  },
-  "w21-1mgj": {
+  "w21-4xu6": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
-    "title": "RED: test tk create rejects duplicate title",
-    "type": "task"
-  },
-  "w21-1y6e": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Write RED test: assert merge-to-main.sh absent from Step 10 in sprint SKILL.md",
-    "type": "task"
-  },
-  "w21-21u4": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for advanced-investigation-agent-a.md prompt (code tracer lens)",
-    "type": "task"
-  },
-  "w21-3fty": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: test archive parent-child protection",
-    "type": "task"
-  },
-  "w21-3hgc": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Write RED Tests for Tool Error Hook Guard",
-    "type": "task"
+    "status": "open",
+    "title": "Adjust Value reviewer validation_signal to remove external feedback requirement",
+    "type": "epic"
   },
   "w21-5cqr": {
     "deps": [],
@@ -1015,89 +739,48 @@
     "title": "fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth",
     "type": "bug"
   },
-  "w21-6fir": {
+  "w21-766y": {
     "deps": [
-      "w21-auwy",
-      "w21-c4ek",
-      "w21-ahok",
-      "w21-dksj",
-      "w21-9pp1",
-      "w21-slh5",
-      "w21-nl5m",
-      "w21-1m1i",
-      "w21-8igi",
-      "w21-u4ym"
+      "w21-090y",
+      "w21-4ir0",
+      "w21-ka51"
     ],
     "priority": 2,
     "status": "closed",
-    "title": "Update project docs to reflect dso:fix-bug skill",
-    "type": "story"
-  },
-  "w21-6wci": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "test",
+    "title": "DOC-SCHEMA: Document project-detect.sh output schema in script header and update OUTPUT-SCHEMA reference",
     "type": "task"
   },
-  "w21-712s": {
-    "deps": [
-      "w21-kccl",
-      "w21-umto"
-    ],
+  "w21-8ady": {
+    "deps": [],
     "priority": 2,
-    "status": "closed",
-    "title": "Add monitoring.tool_errors=true to workflow-config.conf",
+    "status": "open",
+    "title": "RED: Tests for child count in sprint-list-epics.sh output",
     "type": "task"
   },
-  "w21-737k": {
+  "w21-8qo1": {
     "deps": [
-      "w21-0wkv"
+      "w21-cu3r"
     ],
-    "priority": 2,
+    "priority": 1,
     "status": "closed",
-    "title": "RED: test sync pull title dedup",
+    "title": "IMPL: Add supplement logic for CLAUDE.md and KNOWN-ISSUES.md in dso-setup.sh",
     "type": "task"
   },
-  "w21-7d9s": {
+  "w21-9cvk": {
     "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "Fix: stale merge-to-main.sh refs in SKILL.md Step 10 area (lines 1033, 1037)",
-    "type": "bug"
-  },
-  "w21-7juc": {
-    "deps": [
-      "w21-s63d"
-    ],
     "priority": 1,
     "status": "closed",
-    "title": "GREEN: Update debug-everything SKILL.md Phase 5 to delegate bug resolution to dso:fix-bug",
+    "title": "RED: Tests for fix-bug complexity evaluation and escalation report",
     "type": "task"
   },
-  "w21-825c": {
+  "w21-9d8u": {
     "deps": [
-      "w21-ncn7"
+      "w21-u5mg",
+      "w21-8qo1"
     ],
     "priority": 1,
     "status": "closed",
-    "title": "[TDD] Add completion summary title instruction to sprint skill",
-    "type": "task"
-  },
-  "w21-8igi": {
-    "deps": [
-      "w21-auwy"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO practitioner, fix-cascade-recovery retains its emergency brake and hands off to dso:fix-bug",
-    "type": "story"
-  },
-  "w21-8yqq": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "RED: Write failing tests asserting SKILL.md BASIC section references prompt template",
+    "title": "IMPL: Add pre-commit YAML hook merge to dso-setup.sh",
     "type": "task"
   },
   "w21-9k4z": {
@@ -1107,38 +790,6 @@
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
-  "w21-9pp1": {
-    "deps": [
-      "w21-dksj"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "As a DSO practitioner, ESCALATED investigation uses four specialized agents with empirical veto and resolution",
-    "type": "story"
-  },
-  "w21-9t6u": {
-    "deps": [
-      "w21-c60u"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update fix-cascade-recovery SKILL.md: remove root cause analysis steps, add dso:fix-bug hand-off",
-    "type": "task"
-  },
-  "w21-a91w": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Write RED Tests for sweep_tool_errors Guard",
-    "type": "task"
-  },
-  "w21-aa59": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Delete 16 orphan duplicate stories",
-    "type": "task"
-  },
   "w21-ae0s": {
     "deps": [],
     "priority": 1,
@@ -1146,213 +797,157 @@
     "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
     "type": "bug"
   },
-  "w21-ahok": {
+  "w21-arjk": {
     "deps": [
-      "w21-c4ek"
+      "w21-l9r7"
     ],
     "priority": 1,
     "status": "closed",
-    "title": "As a DSO practitioner, INTERMEDIATE investigation gives me deeper analysis with hypothesis elimination and error-detective",
-    "type": "story"
-  },
-  "w21-auwy": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "As a DSO practitioner, I can invoke dso:fix-bug to classify a bug and route it through the appropriate path",
-    "type": "story"
-  },
-  "w21-c4ek": {
-    "deps": [
-      "w21-auwy"
-    ],
-    "priority": 0,
-    "status": "closed",
-    "title": "As a DSO practitioner, BASIC investigation gives me structured root cause analysis with five whys before any fix",
-    "type": "story"
-  },
-  "w21-c60u": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: test fix-cascade-recovery removes root cause analysis steps and adds dso:fix-bug hand-off",
+    "title": "IMPL-CORE: Create project-detect.sh with schema, stack delegation, and file presence detection",
     "type": "task"
   },
-  "w21-c8hi": {
+  "w21-b0tq": {
     "deps": [
-      "w21-ghbu",
-      "w21-sjie",
-      "w21-jy5s"
+      "w21-gljg"
     ],
     "priority": 1,
     "status": "closed",
-    "title": "Update INSTALL.md to note error-debugging enhances fix-bug investigation",
+    "title": "GREEN: Remove Phase 2.5 from debug-everything + add escalation handling",
     "type": "task"
   },
-  "w21-dksj": {
-    "deps": [
-      "w21-ahok"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO practitioner, ADVANCED investigation uses two agents with differentiated lenses and convergence scoring",
-    "type": "story"
-  },
-  "w21-ghbu": {
-    "deps": [
-      "w21-j4i9"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Create plugins/dso/skills/fix-bug/prompts/intermediate-investigation.md",
-    "type": "task"
-  },
-  "w21-gl6z": {
-    "deps": [
-      "w21-jndb"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update /dso:project-setup Skill to Prompt for monitoring.tool_errors",
-    "type": "task"
-  },
-  "w21-hb1j": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for advanced-investigation-agent-b.md prompt (historical lens)",
-    "type": "task"
-  },
-  "w21-hcyh": {
-    "deps": [
-      "w21-1y6e"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Edit sprint SKILL.md: remove merge-to-main.sh from Step 10, add git push to worktree branch",
-    "type": "task"
-  },
-  "w21-hdzk": {
-    "deps": [
-      "w21-8igi"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "test task",
-    "type": "task"
-  },
-  "w21-i8qa": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "Write failing structural test for TDD story requirements in preplanning SKILL.md",
-    "type": "task"
-  },
-  "w21-icry": {
-    "deps": [
-      "w21-8yqq"
-    ],
-    "priority": 0,
-    "status": "closed",
-    "title": "GREEN: Update SKILL.md BASIC section to reference prompt template and define dispatch assembly",
-    "type": "task"
-  },
-  "w21-j4i9": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for intermediate-investigation.md prompt template",
-    "type": "task"
-  },
-  "w21-jndb": {
+  "w21-b9ll": {
     "deps": [],
     "priority": 2,
     "status": "closed",
-    "title": "Document monitoring.tool_errors in INSTALL.md and CONFIGURATION-REFERENCE.md",
+    "title": "RED: Write failing tests for conditional prompt sections in project-setup SKILL.md",
     "type": "task"
   },
-  "w21-jy5s": {
-    "deps": [
-      "w21-src2"
-    ],
+  "w21-cu3r": {
+    "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "GREEN: Update SKILL.md INTERMEDIATE section to reference prompt templates and define dispatch slots",
+    "title": "RED: Write failing tests for CLAUDE.md and KNOWN-ISSUES.md supplement detection",
     "type": "task"
   },
-  "w21-k4td": ".tickets/w21-k4td.md",
-  "w21-kccl": {
+  "w21-dkes": {
     "deps": [
-      "w21-3hgc"
+      "w21-gdon"
     ],
     "priority": 2,
     "status": "closed",
-    "title": "Add monitoring.tool_errors Guard to hook_track_tool_errors and track-tool-errors.sh",
+    "title": "IMPL-INFRA: Add conditional infrastructure key prompts with port inference and required_tools guidance",
     "type": "task"
   },
-  "w21-kuoo": {
+  "w21-e447": {
     "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
+    "type": "task"
+  },
+  "w21-gdon": {
+    "deps": [
+      "w21-b9ll"
+    ],
     "priority": 2,
     "status": "closed",
-    "title": "fix: sprint-next-batch.sh fails with 'Could not load epic' when CLAUDE_PLUGIN_ROOT is not set in orchestrator Bash context",
-    "type": "bug"
+    "title": "IMPL-DB: Add conditional database key prompts to project-setup SKILL.md Step 3",
+    "type": "task"
   },
-  "w21-kzkp": {
+  "w21-gljg": {
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "RED: confirm using-lockpick HOOK-INJECTION.md still routes to tdd-workflow not dso:fix-bug",
+    "title": "RED: Tests for debug-everything Phase 2.5 removal + escalation handling",
     "type": "task"
   },
-  "w21-mx4t": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: confirm sprint SKILL.md validation failure section lacks dso:fix-bug reference",
-    "type": "task"
-  },
-  "w21-mx5s": {
-    "deps": [
-      "w21-0xmw",
-      "w21-7juc"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Retire fix-task-tdd.md and fix-task-mechanical.md with forward pointers to dso:fix-bug",
-    "type": "task"
-  },
-  "w21-nafr": ".tickets/w21-nafr.md",
-  "w21-ncn7": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "[TDD] Add pre-launch batch title display instruction to sprint skill",
-    "type": "task"
-  },
-  "w21-nklm": {
-    "deps": [
-      "w21-kzkp"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update using-lockpick HOOK-INJECTION.md to route bug fixes to dso:fix-bug",
-    "type": "task"
-  },
-  "w21-nl5m": {
-    "deps": [
-      "w21-auwy",
-      "w21-slh5"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO practitioner, debug-everything delegates bug resolution to dso:fix-bug",
-    "type": "story"
-  },
-  "w21-nveh": {
+  "w21-i8qz": {
     "deps": [],
     "priority": 2,
+    "status": "open",
+    "title": "RED: Tests for value reviewer internal validation signals",
+    "type": "task"
+  },
+  "w21-j2cc": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "BUG: AC4 check in w21-cu3r incompatible with assert.sh output format",
+    "type": "task"
+  },
+  "w21-ka51": {
+    "deps": [
+      "w21-arjk",
+      "w21-4ir0"
+    ],
+    "priority": 1,
     "status": "closed",
-    "title": "RED: test sync pull frontmatter jira_key dedup",
+    "title": "IMPL-DB-PORTS-VERSIONS: Implement database presence, port detection, and version file candidates",
+    "type": "task"
+  },
+  "w21-kp0l": {
+    "deps": [
+      "w21-mzof",
+      "w21-tcti"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "GREEN: Add contract detection pass to implementation-plan SKILL.md",
+    "type": "task"
+  },
+  "w21-l9r7": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for project-detect.sh covering all detection categories",
+    "type": "task"
+  },
+  "w21-lskq": {
+    "deps": [
+      "w21-i8qz"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "GREEN: Edit value.md validation_signal to use internal signals only",
+    "type": "task"
+  },
+  "w21-mzof": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Cross-component contract detection in /dso:implementation-plan",
+    "type": "epic"
+  },
+  "w21-ni6d": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
+    "type": "task"
+  },
+  "w21-npxr": {
+    "deps": [
+      "w21-9cvk"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add post-investigation complexity evaluation + sub-agent detection to fix-bug",
+    "type": "task"
+  },
+  "w21-nyu9": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Update shared complexity evaluator routing table + tests",
+    "type": "task"
+  },
+  "w21-ofew": {
+    "deps": [
+      "w21-xlaw"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update sprint SKILL.md display format for child count",
     "type": "task"
   },
   "w21-ouns": {
@@ -1362,123 +957,43 @@
     "title": "fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR",
     "type": "bug"
   },
-  "w21-pjhx": {
-    "deps": [],
+  "w21-q8nv": {
+    "deps": [
+      "w21-up9s",
+      "w21-9d8u"
+    ],
     "priority": 1,
     "status": "closed",
-    "title": "RED: Write failing tests asserting SKILL.md ADVANCED section references prompt templates and context slots",
+    "title": "IMPL: Add CI guard analysis and selective-add logic to dso-setup.sh",
     "type": "task"
   },
-  "w21-plq5": {
+  "w21-r4rz": {
     "deps": [
-      "w21-3fty"
+      "w21-8qo1",
+      "w21-9d8u",
+      "w21-q8nv"
     ],
     "priority": 2,
     "status": "closed",
-    "title": "GREEN: add parent-child protection to archive script",
+    "title": "IMPL: Update project-setup SKILL.md to document smart file handling behavior",
     "type": "task"
   },
-  "w21-prlu": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "fix: plugin scripts resolve helper paths from main repo instead of worktree \u2014 tickets and tools invisible",
-    "type": "bug"
-  },
-  "w21-q3ny": ".tickets/w21-q3ny.md",
-  "w21-qsh6": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: confirm using-lockpick SKILL.md still routes to tdd-workflow not dso:fix-bug",
-    "type": "task"
-  },
-  "w21-qsty": {
+  "w21-t1tt": {
     "deps": [
-      "w21-0wkv",
-      "w21-737k"
+      "w21-dkes"
     ],
     "priority": 2,
     "status": "closed",
-    "title": "GREEN: add title dedup to sync pull",
+    "title": "IMPL-STAGING-PYVER: Add conditional staging.url prompt and worktree.python_version auto-detection",
     "type": "task"
   },
-  "w21-qykc": {
+  "w21-tcti": {
     "deps": [
-      "w21-qsh6"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update using-lockpick SKILL.md to route bug fixes to dso:fix-bug",
-    "type": "task"
-  },
-  "w21-r8rd": {
-    "deps": [
-      "w21-1mgj"
+      "w21-mzof"
     ],
     "priority": 2,
-    "status": "closed",
-    "title": "GREEN: add title dedup guard to cmd_create",
-    "type": "task"
-  },
-  "w21-rtmm": {
-    "deps": [
-      "w21-pjhx",
-      "w21-x0t4",
-      "w21-tls9"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Update SKILL.md ADVANCED section with prompt template references and context assembly slots",
-    "type": "task"
-  },
-  "w21-s63d": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests asserting debug-everything delegates to dso:fix-bug",
-    "type": "task"
-  },
-  "w21-sjie": {
-    "deps": [
-      "w21-j4i9"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Create plugins/dso/skills/fix-bug/prompts/intermediate-investigation-fallback.md",
-    "type": "task"
-  },
-  "w21-slh5": {
-    "deps": [
-      "w21-auwy",
-      "w21-c4ek"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO practitioner, I can invoke dso:fix-bug with a cluster of related bugs investigated as a single problem",
-    "type": "story"
-  },
-  "w21-src2": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests asserting SKILL.md INTERMEDIATE section references prompt template",
-    "type": "task"
-  },
-  "w21-t1xp": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "monitoring.tool_errors config flag for tool error tracking opt-in",
-    "type": "epic"
-  },
-  "w21-tls9": {
-    "deps": [
-      "w21-hb1j"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Create advanced-investigation-agent-b.md (historical lens prompt)",
+    "status": "open",
+    "title": "RED: Tests for contract detection in implementation-plan SKILL.md",
     "type": "task"
   },
   "w21-tr4q": {
@@ -1488,91 +1003,42 @@
     "title": "validate.sh plugin check fails: make test-plugin target missing from Makefile",
     "type": "bug"
   },
-  "w21-u4q4": {
-    "deps": [
-      "w21-i8qa"
-    ],
-    "priority": 0,
-    "status": "closed",
-    "title": "Add TDD story requirements to preplanning SKILL.md",
-    "type": "task"
-  },
-  "w21-u4ym": {
-    "deps": [
-      "w21-ahok"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "As a DSO practitioner, dso:fix-bug is validated by resolving a real INTERMEDIATE or ADVANCED bug",
-    "type": "story"
-  },
-  "w21-umto": {
-    "deps": [
-      "w21-a91w"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "Add monitoring.tool_errors Guard to sweep_tool_errors",
-    "type": "task"
-  },
-  "w21-uvcc": {
+  "w21-u5mg": {
     "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Untitled",
-    "type": "task"
-  },
-  "w21-v1vi": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "End-session worktree cleanup fails when tk has uncommitted changes",
-    "type": "bug"
-  },
-  "w21-vlje": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "RED: Write failing tests for basic-investigation.md prompt template",
-    "type": "task"
-  },
-  "w21-vri3": {
-    "deps": [
-      "w21-mx4t"
-    ],
     "priority": 1,
     "status": "closed",
-    "title": "Update sprint SKILL.md validation failure section to reference dso:fix-bug",
+    "title": "RED: Write failing tests for pre-commit YAML hook merge",
     "type": "task"
   },
-  "w21-vtaz": ".tickets/w21-vtaz.md",
-  "w21-x0t4": {
-    "deps": [
-      "w21-21u4"
-    ],
+  "w21-up9s": {
+    "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "GREEN: Create advanced-investigation-agent-a.md (code tracer lens prompt)",
+    "title": "RED: Write failing tests for CI workflow guard analysis integration",
     "type": "task"
   },
-  "w21-xfnw": {
-    "deps": [
-      "w21-hcyh"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Validate: run check-skill-refs.sh and RED test confirm GREEN after sprint SKILL.md edit",
-    "type": "task"
-  },
-  "w21-xlsf": ".tickets/w21-xlsf.md",
-  "w21-ycsr": {
-    "deps": [
-      "w21-v1vi"
-    ],
+  "w21-vydt": {
+    "deps": [],
     "priority": 2,
-    "status": "closed",
-    "title": "Harden ticket deduplication and archive child protection",
+    "status": "open",
+    "title": "Add child count to sprint epic list display",
     "type": "epic"
+  },
+  "w21-wlhw": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
+    "type": "task"
+  },
+  "w21-xlaw": {
+    "deps": [
+      "w21-8ady"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "GREEN: Add child count to sprint-list-epics.sh output",
+    "type": "task"
   },
   "w21-yzln": {
     "deps": [],
@@ -1581,13 +1047,13 @@
     "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
     "type": "bug"
   },
-  "w21-znz7": {
+  "w21-z0jv": {
     "deps": [
-      "w21-vlje"
+      "w21-b0tq"
     ],
-    "priority": 0,
+    "priority": 1,
     "status": "closed",
-    "title": "GREEN: Create plugins/dso/skills/fix-bug/prompts/basic-investigation.md",
+    "title": "Update CLAUDE.md Phase 2.5 reference",
     "type": "task"
   }
 }

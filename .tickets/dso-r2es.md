@@ -1,6 +1,6 @@
 ---
 id: dso-r2es
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T23:45:00Z
