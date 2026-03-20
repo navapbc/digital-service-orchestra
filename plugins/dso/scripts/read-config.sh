@@ -36,22 +36,16 @@ fi
 # Resolve config file when not specified (.conf only)
 # Resolution order:
 #   1. WORKFLOW_CONFIG_FILE env var (exact file path — highest priority, for test isolation)
-#   2. CLAUDE_PLUGIN_ROOT/workflow-config.conf (for tests that set CLAUDE_PLUGIN_ROOT to a
-#      temp dir with a fixture config; authoritative when set — do not fall back to git root)
-#   3. git rev-parse --show-toplevel/workflow-config.conf (project config at repo root)
+#   2. git rev-parse --show-toplevel/.claude/dso-config.conf (new canonical path)
+# NOTE: CLAUDE_PLUGIN_ROOT-based resolution removed — CLAUDE_PLUGIN_ROOT points to the plugin
+#       dir, not the host project git root. Host projects now always use .claude/dso-config.conf.
 if [[ -z "$config_file" ]]; then
     if [[ -n "${WORKFLOW_CONFIG_FILE:-}" ]]; then
         config_file="${WORKFLOW_CONFIG_FILE}"
-    elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        if [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
-            config_file="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
-        else
-            exit 0
-        fi
     else
         _git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-        if [[ -n "$_git_root" && -f "$_git_root/workflow-config.conf" ]]; then
-            config_file="$_git_root/workflow-config.conf"
+        if [[ -n "$_git_root" && -f "$_git_root/.claude/dso-config.conf" ]]; then
+            config_file="$_git_root/.claude/dso-config.conf"
         else
             exit 0
         fi
