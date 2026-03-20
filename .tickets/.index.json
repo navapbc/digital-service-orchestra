@@ -367,6 +367,13 @@
     "title": "Fix: test-merge-to-main-portability.sh 2 failures (8 pass, 2 fail)",
     "type": "bug"
   },
+  "dso-hui3": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for dso-setup.sh .claude/dso-config.conf path",
+    "type": "task"
+  },
   "dso-i6dj": {
     "deps": [],
     "priority": 2,
@@ -597,6 +604,15 @@
     "priority": 1,
     "status": "closed",
     "title": "RED: Write failing tests for ci.workflow_name in validate-config.sh",
+    "type": "task"
+  },
+  "dso-sapj": {
+    "deps": [
+      "dso-hui3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update dso-setup.sh to create config at .claude/dso-config.conf",
     "type": "task"
   },
   "dso-soyt": {

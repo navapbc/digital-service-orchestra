@@ -1197,6 +1197,61 @@ EOF
     fi
 }
 
+# ── .claude/dso-config.conf path tests (dso-hui3) ────────────────────────────
+#
+# RED-phase: All 3 tests FAIL until dso-setup.sh is updated to write
+# dso.plugin_root= to .claude/dso-config.conf instead of workflow-config.conf.
+
+# test_setup_writes_dso_config_conf: dso-setup.sh must write dso.plugin_root=
+# to .claude/dso-config.conf (not workflow-config.conf).
+test_setup_writes_dso_config_conf() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    local result="missing"
+    if grep -q "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null; then
+        result="exists"
+    fi
+    assert_eq "test_setup_writes_dso_config_conf" "exists" "$result"
+}
+
+# test_setup_dso_config_conf_idempotent: running dso-setup.sh twice must NOT
+# duplicate dso.plugin_root= in .claude/dso-config.conf.
+test_setup_dso_config_conf_idempotent() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    local count=0
+    count=$(grep -c "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
+    assert_eq "test_setup_dso_config_conf_idempotent" "1" "$count"
+}
+
+# test_setup_dryrun_no_dso_config_conf_written: --dryrun must NOT create
+# .claude/dso-config.conf.
+test_setup_dryrun_no_dso_config_conf_written() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
+
+    if [[ ! -f "$T/.claude/dso-config.conf" ]]; then
+        assert_eq "test_setup_dryrun_no_dso_config_conf_written" "not-written" "not-written"
+    else
+        assert_eq "test_setup_dryrun_no_dso_config_conf_written" "not-written" "written"
+    fi
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_setup_creates_shim
 test_setup_shim_executable
@@ -1242,5 +1297,8 @@ test_ci_guard_consumes_detection_output_not_yaml
 test_ci_guard_dryrun_shows_analysis_no_changes
 test_ci_guard_no_workflow_still_copies_example
 test_ci_guard_missing_format_guard_detected
+test_setup_writes_dso_config_conf
+test_setup_dso_config_conf_idempotent
+test_setup_dryrun_no_dso_config_conf_written
 
 print_summary
