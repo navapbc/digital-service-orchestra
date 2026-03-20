@@ -1,6 +1,6 @@
 ---
 id: w22-sulb
-status: in_progress
+status: closed
 deps: [w22-uqfn]
 links: []
 created: 2026-03-20T14:53:27Z
