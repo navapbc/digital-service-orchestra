@@ -30,9 +30,9 @@ echo "=== test-config-callers-updated.sh ==="
 _snapshot_fail
 SPRINT_SCRIPT="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
 
-# Check that .conf is referenced in config path lines
-conf_refs=$(grep -c 'workflow-config\.conf' "$SPRINT_SCRIPT" || true)
-assert_ne "sprint-next-batch.sh references .conf" "0" "$conf_refs"
+# Check that .claude/dso-config.conf is referenced in active (non-comment) lines
+conf_refs=$(grep -v '^\s*#' "$SPRINT_SCRIPT" | grep -c '\.claude/dso-config\.conf' || true)
+assert_ne "sprint-next-batch.sh references .claude/dso-config.conf" "0" "$conf_refs"
 
 # Check that no active (non-comment) lines reference .yaml config paths
 yaml_active=$(grep -v '^\s*#' "$SPRINT_SCRIPT" | grep -c 'workflow-config\.yaml' || true)

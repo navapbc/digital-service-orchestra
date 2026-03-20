@@ -1,6 +1,6 @@
 ---
 id: dso-cn4j
-status: open
+status: in_progress
 deps: [dso-opue, dso-6trc, dso-tuz0, dso-2vwl]
 links: []
 created: 2026-03-20T03:34:03Z
@@ -44,3 +44,47 @@ This file currently checks for removal of workflow-config.yaml. No change needed
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh 2>&1 | grep -E 'passed|0 failed'
 - [ ] test_no_hardcoded_workflow_config_conf_in_scripts is present and passing
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh 2>&1 | grep -E 'test_no_hardcoded.*PASS'
+
+## Notes
+
+<!-- note-id: id06tow5 -->
+<!-- timestamp: 2026-03-20T15:25:16Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: yf1pwpbi -->
+<!-- timestamp: 2026-03-20T15:25:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — test-config-callers-updated.sh and test-docs-config-refs.sh both currently pass; test_sprint_next_batch_uses_conf still checks for 'workflow-config.conf' (line 34) and the assert label needs updating; test_no_hardcoded_workflow_config_conf_in_scripts already present. Need to update test_sprint_next_batch_uses_conf to check .claude/dso-config.conf pattern and update assert label.
+
+<!-- note-id: 6yn37cd4 -->
+<!-- timestamp: 2026-03-20T15:25:51Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: test-config-callers-updated.sh updated ✓ — test_sprint_next_batch_uses_conf now checks '.claude/dso-config.conf' instead of 'workflow-config.conf'; also filters comment lines. All 6 tests still pass.
+
+<!-- note-id: b5ldw8fz -->
+<!-- timestamp: 2026-03-20T15:29:16Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Changes verified ✓ — test-config-callers-updated.sh: 10 passed, 0 failed; test_sprint_next_batch_uses_conf now checks .claude/dso-config.conf with comment-line filtering; test_no_hardcoded_workflow_config_conf_in_scripts present and passing.
+
+<!-- note-id: 2u5bhvl4 -->
+<!-- timestamp: 2026-03-20T15:29:23Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: test-docs-config-refs.sh verified ✓ — 4 passed, 0 failed; no changes needed per task spec.
+
+<!-- note-id: 087dy1tc -->
+<!-- timestamp: 2026-03-20T15:29:28Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — AC verified: test-config-callers-updated.sh exits 0 (10 passed, 0 failed); test_no_hardcoded_workflow_config_conf_in_scripts PASS; test-docs-config-refs.sh exits 0 (4 passed, 0 failed). No discovered work requiring new tickets.
