@@ -3,7 +3,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
   "dso-0au4": ".tickets/dso-0au4.md",
@@ -154,7 +154,7 @@
     ],
     "priority": 2,
     "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-4.md — Empirical Agent prompt (authorized logging/debugging, empirical validation, veto of agents 1-3, artifact revert)",
+    "title": "GREEN: Create escalated-investigation-agent-4.md \u2014 Empirical Agent prompt (authorized logging/debugging, empirical validation, veto of agents 1-3, artifact revert)",
     "type": "task"
   },
   "dso-5mom": ".tickets/dso-5mom.md",
@@ -162,7 +162,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: dso shim resolves scripts from stale /scripts/ path — skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
+    "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
     "type": "bug"
   },
   "dso-62u0": {
@@ -275,6 +275,16 @@
     "title": "As a DSO contributor, all references use the new config path and filename",
     "type": "story"
   },
+  "dso-bwtp": {
+    "deps": [
+      "dso-ozsx",
+      "dso-r2es"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Update project-setup SKILL.md to include CI auto-detection wizard step",
+    "type": "task"
+  },
   "dso-bzvu": {
     "deps": [],
     "priority": 2,
@@ -302,7 +312,7 @@
     ],
     "priority": 2,
     "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-3.md — Code Tracer prompt (execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys)",
+    "title": "GREEN: Create escalated-investigation-agent-3.md \u2014 Code Tracer prompt (execution path tracing, dependency-ordered reading, intermediate variable tracking, five whys)",
     "type": "task"
   },
   "dso-cz6p": {
@@ -346,7 +356,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
+    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
     "type": "bug"
   },
   "dso-dsf8": ".tickets/dso-dsf8.md",
@@ -411,7 +421,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
     "type": "bug"
   },
   "dso-gccc": {
@@ -444,7 +454,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
   "dso-gkct": {
@@ -479,6 +489,15 @@
   },
   "dso-iap9": ".tickets/dso-iap9.md",
   "dso-ifqb": ".tickets/dso-ifqb.md",
+  "dso-ilc1": {
+    "deps": [
+      "dso-s2g9"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Add ci.workflow_name to validate-config.sh KNOWN_KEYS",
+    "type": "task"
+  },
   "dso-ilna": {
     "deps": [
       "dso-taha"
@@ -507,7 +526,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
   "dso-jt4w": {
@@ -563,8 +582,18 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
+  },
+  "dso-le3s": {
+    "deps": [
+      "dso-ozsx",
+      "dso-n458"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "DOC: Update CONFIGURATION-REFERENCE.md to document ci.workflow_name and deprecate merge.ci_workflow_name",
+    "type": "task"
   },
   "dso-lli8": {
     "deps": [],
@@ -595,13 +624,39 @@
     ],
     "priority": 2,
     "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-1.md — Web Researcher prompt (error pattern analysis, similar issue correlation, dependency changelogs)",
+    "title": "GREEN: Create escalated-investigation-agent-1.md \u2014 Web Researcher prompt (error pattern analysis, similar issue correlation, dependency changelogs)",
+    "type": "task"
+  },
+  "dso-n458": {
+    "deps": [
+      "dso-ilc1"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Add ci.workflow_name to workflow-config-schema.json",
     "type": "task"
   },
   "dso-nd02": ".tickets/dso-nd02.md",
   "dso-nkjv": ".tickets/dso-nkjv.md",
+  "dso-o24g": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for ci.workflow_name fallback in merge-to-main.sh",
+    "type": "task"
+  },
   "dso-o4sr": ".tickets/dso-o4sr.md",
   "dso-ovcy": ".tickets/dso-ovcy.md",
+  "dso-ozsx": {
+    "deps": [
+      "dso-o24g",
+      "dso-ilc1"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Update merge-to-main.sh to read ci.workflow_name with backward-compat fallback",
+    "type": "task"
+  },
   "dso-p9i6": {
     "deps": [],
     "priority": 2,
@@ -695,6 +750,13 @@
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
   },
+  "dso-s2g9": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for ci.workflow_name in validate-config.sh",
+    "type": "task"
+  },
   "dso-s3g4": {
     "deps": [
       "dso-12ap"
@@ -718,7 +780,7 @@
     ],
     "priority": 2,
     "status": "closed",
-    "title": "GREEN: Create escalated-investigation-agent-2.md — History Analyst prompt (timeline reconstruction, fault tree analysis, commit bisection)",
+    "title": "GREEN: Create escalated-investigation-agent-2.md \u2014 History Analyst prompt (timeline reconstruction, fault tree analysis, commit bisection)",
     "type": "task"
   },
   "dso-soyt": {
@@ -864,7 +926,7 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution — remove settings.json override, harden shim fallback",
+    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
     "type": "epic"
   },
   "dso-zzof": ".tickets/dso-zzof.md",
@@ -1080,7 +1142,7 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "Validation gate times out on projects with >50s test suites — incorporate test-batched or split validate.sh",
+    "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
     "type": "bug"
   },
   "w21-ahok": {
@@ -1319,7 +1381,7 @@
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "fix: plugin scripts resolve helper paths from main repo instead of worktree — tickets and tools invisible",
+    "title": "fix: plugin scripts resolve helper paths from main repo instead of worktree \u2014 tickets and tools invisible",
     "type": "bug"
   },
   "w21-q3ny": ".tickets/w21-q3ny.md",
