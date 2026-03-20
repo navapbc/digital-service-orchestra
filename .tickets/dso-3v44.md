@@ -46,3 +46,19 @@ test_no_hardcoded_workflow_config_conf_in_scripts — grep plugins/dso/scripts/*
 **2026-03-20T03:43:36Z**
 
 CHECKPOINT 2/6: Code patterns understood ✓ — validate.sh uses $REPO_ROOT/workflow-config.conf, validate-phase.sh uses same, sprint-next-batch.sh passes $REPO_ROOT/workflow-config.conf to read-config. New tests must assert .claude/dso-config.conf pattern — these will FAIL (RED) until dso-2vwl implements the changes.
+
+**2026-03-20T03:44:20Z**
+
+CHECKPOINT 3/6: Tests written ✓ — Added 4 new test cases: test_validate_sh_uses_dot_claude_config, test_validate_phase_sh_uses_dot_claude_config, test_sprint_next_batch_uses_dot_claude_config, test_no_hardcoded_workflow_config_conf_in_scripts. All should FAIL (RED) before dso-2vwl implementation.
+
+**2026-03-20T03:51:37Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — No runtime script changes needed (task is RED-only: write failing tests). Updated tests/scripts/test-config-callers-updated.sh with 4 new test cases.
+
+**2026-03-20T03:51:46Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — Full test suite run: Evals PASS, Hook Tests PASS (967/0), Script Tests FAIL ONLY for test-config-callers-updated.sh (expected RED — 3 pass, 7 fail from new tests). No regressions from test addition.
+
+**2026-03-20T03:53:59Z**
+
+CHECKPOINT 6/6: Done ✓ — All AC verified: AC1 PASS (test_validate_sh_uses_dot_claude_config present), AC2 PASS (test_no_hardcoded_workflow_config_conf_in_scripts present), AC3 PASS (tests fail/RED confirmed), AC4 PASS (no regressions — only new RED tests fail).
