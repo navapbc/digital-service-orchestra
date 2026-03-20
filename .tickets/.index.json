@@ -708,6 +708,15 @@
     "title": "IMPL-TARGETS-PYVER-DEPS: Implement target enumeration, Python version, and installed CLI dependency detection",
     "type": "task"
   },
+  "w21-24kl": {
+    "deps": [
+      "w21-bwfw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system v3 \u2014 migration from tk and cutover",
+    "type": "epic"
+  },
   "w21-25vk": {
     "deps": [],
     "priority": 1,
@@ -730,6 +739,15 @@
     "priority": 2,
     "status": "open",
     "title": "Adjust Value reviewer validation_signal to remove external feedback requirement",
+    "type": "epic"
+  },
+  "w21-54wx": {
+    "deps": [
+      "dso-0k2k"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system v3 \u2014 dependency management and cross-worktree sync",
     "type": "epic"
   },
   "w21-5cqr": {
@@ -822,6 +840,15 @@
     "title": "RED: Write failing tests for conditional prompt sections in project-setup SKILL.md",
     "type": "task"
   },
+  "w21-bwfw": {
+    "deps": [
+      "w21-54wx"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system v3 \u2014 Jira bridge and LLM-optimized output",
+    "type": "epic"
+  },
   "w21-cu3r": {
     "deps": [],
     "priority": 1,
@@ -887,7 +914,6 @@
   },
   "w21-kp0l": {
     "deps": [
-      "w21-mzof",
       "w21-tcti"
     ],
     "priority": 2,
@@ -914,7 +940,7 @@
   "w21-mzof": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Cross-component contract detection in /dso:implementation-plan",
     "type": "epic"
   },
@@ -988,11 +1014,9 @@
     "type": "task"
   },
   "w21-tcti": {
-    "deps": [
-      "w21-mzof"
-    ],
+    "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "RED: Tests for contract detection in implementation-plan SKILL.md",
     "type": "task"
   },
