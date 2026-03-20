@@ -193,6 +193,7 @@ _output=""
 _output=$(
     HOME="$_test_dir5" \
     _SESSION_MISC_FUNCTIONS_LOADED="" \
+    DSO_MONITORING_TOOL_ERRORS="true" \
     bash -c '
         source "'"$SESSION_MISC_FUNCTIONS"'" 2>/dev/null
         hook_track_tool_errors '"'"''"$_input"''"'"'
@@ -236,6 +237,7 @@ _exit_code=0
 (
     HOME="$_test_dir6" \
     _SESSION_MISC_FUNCTIONS_LOADED="" \
+    DSO_MONITORING_TOOL_ERRORS="true" \
     bash -c '
         source "'"$SESSION_MISC_FUNCTIONS"'" 2>/dev/null
         hook_track_tool_errors '"'"''"$_input_interrupt"''"'"'
