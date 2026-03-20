@@ -141,6 +141,13 @@
     "title": "As a DSO adopter, each optional dependency is prompted individually with functionality explanation",
     "type": "story"
   },
+  "dso-7w58": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "tk create silently ignores unsupported CLI flags, producing incomplete tickets",
+    "type": "bug"
+  },
   "dso-94ya": {
     "deps": [],
     "priority": 2,
@@ -208,6 +215,13 @@
     "status": "closed",
     "title": "As a DSO adopter, infrastructure and metadata keys are prompted when project context indicates relevance",
     "type": "story"
+  },
+  "dso-cc6a": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Worktree auto-cleanup fails when session ends with unmerged commits",
+    "type": "bug"
   },
   "dso-cma6": {
     "deps": [],
