@@ -12,7 +12,7 @@
 #   test_test_gate_only_failure_leaves_review_status_unchanged
 #   test_review_gate_only_failure_leaves_test_status_unchanged
 #   test_both_gates_pass_commit_succeeds
-#   test_pre_commit_config_does_not_yet_register_test_gate
+#   test_pre_commit_config_registers_test_gate
 #   test_test_gate_error_message_is_test_specific
 
 set -uo pipefail
@@ -266,7 +266,7 @@ test_both_gates_pass_commit_succeeds() {
 # TEST 4: .pre-commit-config.yaml registers test gate
 # ============================================================
 
-# test_pre_commit_config_does_not_yet_register_test_gate
+# test_pre_commit_config_registers_test_gate
 #
 # .pre-commit-config.yaml must contain an entry with id: pre-commit-test-gate
 # that invokes pre-commit-test-gate.sh.
@@ -274,20 +274,20 @@ test_both_gates_pass_commit_succeeds() {
 # RED→GREEN: This test asserts registration is ABSENT (current state).
 # Story w21-milk will add the registration to .pre-commit-config.yaml,
 # at which point this test must be flipped to assert PRESENCE (found_id=1).
-test_pre_commit_config_does_not_yet_register_test_gate() {
+test_pre_commit_config_registers_test_gate() {
     local found_id=0
     if grep -q 'id: pre-commit-test-gate' "$PRE_COMMIT_CONFIG" 2>/dev/null; then
         found_id=1
     fi
-    # RED: currently absent — flip to assert_eq "1" "$found_id" when w21-milk lands
-    assert_eq "test_pre_commit_config_does_not_yet_register_test_gate: id not yet registered (RED)" "0" "$found_id"
+    # GREEN: w21-milk added the registration to .pre-commit-config.yaml
+    assert_eq "test_pre_commit_config_registers_test_gate: id registered" "1" "$found_id"
 
     local found_entry=0
     if grep -q 'pre-commit-test-gate\.sh' "$PRE_COMMIT_CONFIG" 2>/dev/null; then
         found_entry=1
     fi
-    # RED: currently absent — flip to assert_eq "1" "$found_entry" when w21-milk lands
-    assert_eq "test_pre_commit_config_does_not_yet_register_test_gate: entry not yet registered (RED)" "0" "$found_entry"
+    # GREEN: w21-milk added the registration to .pre-commit-config.yaml
+    assert_eq "test_pre_commit_config_registers_test_gate: entry registered" "1" "$found_entry"
 }
 
 # ============================================================
@@ -335,7 +335,7 @@ test_test_gate_error_message_is_test_specific() {
 test_test_gate_only_failure_leaves_review_status_unchanged
 test_review_gate_only_failure_leaves_test_status_unchanged
 test_both_gates_pass_commit_succeeds
-test_pre_commit_config_does_not_yet_register_test_gate
+test_pre_commit_config_registers_test_gate
 test_test_gate_error_message_is_test_specific
 
 print_summary
