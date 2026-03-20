@@ -336,7 +336,7 @@
   "dso-d72c": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Project Health Restoration (2026-03-19)",
     "type": "epic"
   },
@@ -499,7 +499,7 @@
   "dso-h04l": {
     "deps": [],
     "priority": 0,
-    "status": "in_progress",
+    "status": "closed",
     "title": "[LOCK] debug-everything",
     "type": "task"
   },

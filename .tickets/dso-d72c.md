@@ -1,6 +1,6 @@
 ---
 id: dso-d72c
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T23:53:04Z
@@ -39,3 +39,30 @@ Model tier: sonnet
 Critic review: skipped (no complex fixes)
 Outcome: 5 fixed, 0 failed, 0 reverted
 Remaining in tier: 0
+
+<!-- note-id: zj8j6k4p -->
+<!-- timestamp: 2026-03-20T00:50:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+BATCH 2 | Tier 7
+Issues: dso-nthb (closed), dso-hdgl (closed)
+Agent types: general-purpose (both)
+Model tier: sonnet
+Critic review: skipped
+Outcome: 2 fixed, 0 failed, 0 reverted
+Remaining in tier: 0
+
+<!-- note-id: sku540db -->
+<!-- timestamp: 2026-03-20T00:58:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Health restored.
+
+<!-- note-id: baqkwyye -->
+<!-- timestamp: 2026-03-20T00:58:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: all 7 validation/test bugs resolved across 2 batches
