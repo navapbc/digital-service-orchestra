@@ -1,6 +1,6 @@
 ---
 id: dso-sapj
-status: open
+status: in_progress
 deps: [dso-hui3]
 links: []
 created: 2026-03-20T15:35:16Z
@@ -84,3 +84,25 @@ Expected: ALL tests pass including the 3 new tests from dso-hui3 AND all previou
 - [ ] All tests in test-dso-setup.sh pass including dso-hui3 RED tests (now GREEN)
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-setup.sh 2>&1 | grep -c FAIL | awk '{exit ($1 > 0)}'
 
+
+## Notes
+
+**2026-03-20T15:47:06Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T15:47:21Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T15:48:29Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T15:49:26Z**
+
+CHECKPOINT 5/6: Tests run — 57 PASSED, 0 FAILED ✓
+
+**2026-03-20T15:49:49Z**
+
+CHECKPOINT 6/6: Done ✓ — All 4 AC items verified: dso.plugin_root written to .claude/dso-config.conf, workflow-config.conf NOT created, idempotent, dryrun clean

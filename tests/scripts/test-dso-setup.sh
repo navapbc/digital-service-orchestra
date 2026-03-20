@@ -58,7 +58,7 @@ test_setup_shim_executable() {
 }
 
 # ── test_setup_writes_plugin_root ─────────────────────────────────────────────
-# Running dso-setup.sh must write dso.plugin_root=<path> to workflow-config.conf
+# Running dso-setup.sh must write dso.plugin_root=<path> to .claude/dso-config.conf
 # in the target directory.
 test_setup_writes_plugin_root() {
     local T
@@ -68,7 +68,7 @@ test_setup_writes_plugin_root() {
     bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
 
     local result="missing"
-    if grep -q "^dso.plugin_root=" "$T/workflow-config.conf" 2>/dev/null; then
+    if grep -q "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null; then
         result="exists"
     fi
     assert_eq "test_setup_writes_plugin_root" "exists" "$result"
@@ -88,18 +88,19 @@ test_setup_is_idempotent() {
     bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
 
     local count=0
-    count=$(grep -c "^dso.plugin_root=" "$T/workflow-config.conf" 2>/dev/null || echo "0")
+    count=$(grep -c "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
     assert_eq "test_setup_is_idempotent" "1" "$count"
 
     # Also verify: pre-existing entry with different path is replaced, not duplicated
     local T2
     T2=$(mktemp -d)
     TMPDIRS+=("$T2")
-    echo "dso.plugin_root=/old/path" > "$T2/workflow-config.conf"
+    mkdir -p "$T2/.claude"
+    echo "dso.plugin_root=/old/path" > "$T2/.claude/dso-config.conf"
     bash "$SETUP_SCRIPT" "$T2" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
 
     local count2=0
-    count2=$(grep -c "^dso.plugin_root=" "$T2/workflow-config.conf" 2>/dev/null || echo "0")
+    count2=$(grep -c "^dso.plugin_root=" "$T2/.claude/dso-config.conf" 2>/dev/null || echo "0")
     assert_eq "test_setup_is_idempotent (pre-existing entry)" "1" "$count2"
 }
 
@@ -429,7 +430,7 @@ test_setup_is_still_idempotent_with_new_features() {
     bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
 
     local count=0
-    count=$(grep -c "^dso.plugin_root=" "$T/workflow-config.conf" 2>/dev/null || echo "0")
+    count=$(grep -c "^dso.plugin_root=" "$T/.claude/dso-config.conf" 2>/dev/null || echo "0")
     assert_eq "test_setup_is_still_idempotent_with_new_features" "1" "$count"
 }
 
@@ -451,7 +452,7 @@ test_setup_dryrun_no_shim_created() {
     fi
 }
 
-# test_setup_dryrun_no_config_written: --dryrun must NOT write workflow-config.conf
+# test_setup_dryrun_no_config_written: --dryrun must NOT write .claude/dso-config.conf
 test_setup_dryrun_no_config_written() {
     local T
     T=$(mktemp -d)
@@ -460,7 +461,7 @@ test_setup_dryrun_no_config_written() {
 
     bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun >/dev/null 2>&1 || true
 
-    if [[ ! -f "$T/workflow-config.conf" ]]; then
+    if [[ ! -f "$T/.claude/dso-config.conf" ]]; then
         assert_eq "test_setup_dryrun_no_config_written" "not-written" "not-written"
     else
         assert_eq "test_setup_dryrun_no_config_written" "not-written" "written"

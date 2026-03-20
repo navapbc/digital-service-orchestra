@@ -111,7 +111,7 @@ if [ ! -d "$DIST_ROOT/templates" ] && [ -d "$PLUGIN_ROOT/templates" ]; then
 fi
 
 # Ensure TARGET_REPO is a git repository so the dso shim can locate
-# workflow-config.conf via `git rev-parse --show-toplevel`.
+# .claude/dso-config.conf via `git rev-parse --show-toplevel`.
 if ! git -C "$TARGET_REPO" rev-parse --show-toplevel >/dev/null 2>&1; then
     if [[ -z "$DRYRUN" ]]; then
         git -C "$TARGET_REPO" init -q
@@ -128,7 +128,7 @@ else
     echo "[dryrun] Would copy $DIST_ROOT/templates/host-project/dso -> $TARGET_REPO/.claude/scripts/dso (chmod +x)"
 fi
 
-CONFIG="$TARGET_REPO/workflow-config.conf"
+CONFIG="$TARGET_REPO/.claude/dso-config.conf"
 if [[ -z "$DRYRUN" ]]; then
     if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
         # Update existing entry (idempotent)
@@ -460,14 +460,14 @@ fi
 
 # ── Environment variable guidance ─────────────────────────────────────────────
 echo '=== Environment Variables (add to your shell profile) ==='
-echo 'CLAUDE_PLUGIN_ROOT=  # Optional: overrides dso.plugin_root from workflow-config.conf'
+echo 'CLAUDE_PLUGIN_ROOT=  # Optional: overrides dso.plugin_root from .claude/dso-config.conf'
 echo 'JIRA_URL=https://your-org.atlassian.net  # Required for Jira sync'
 echo 'JIRA_USER=you@example.com  # Required for Jira sync'
 echo 'JIRA_API_TOKEN=...  # Required for Jira sync'
 
 # ── Next steps ────────────────────────────────────────────────────────────────
 echo '=== Setup complete. Next steps: ==='
-echo '1. Edit workflow-config.conf to configure your project'
+echo '1. Edit .claude/dso-config.conf to configure your project'
 echo '2. Run /dso:init in Claude Code (dso project-setup interactive configuration)'
 echo '3. See docs/INSTALL.md for full documentation'
 
