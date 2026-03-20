@@ -419,8 +419,9 @@ MOCKEOF
         # we test the invariant: if compute-diff-hash.sh outputs empty,
         # the gate should fail-open.
         #
-        # TODO(w21-wzgp GREEN): set COMPUTE_DIFF_HASH_OVERRIDE="$mock_dir/compute-diff-hash.sh"
-        # once the gate supports the override env var, replacing the PATH approach above.
+        # GREEN phase: set COMPUTE_DIFF_HASH_OVERRIDE to inject the failing mock hash script.
+        # The gate supports this env var (implemented by task w21-wzgp).
+        export COMPUTE_DIFF_HASH_OVERRIDE="$mock_dir/compute-diff-hash.sh"
         bash "$GATE_HOOK" 2>/dev/null
     ) || exit_code=$?
 
@@ -429,14 +430,27 @@ MOCKEOF
     assert_eq "test_gate_fails_open_on_hash_error: gate fails open (exit 0)" "0" "$exit_code"
 }
 
+# ── Helper: run a test function and print PASS/FAIL per-function result ───────
+# Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
+run_test() {
+    local _fn="$1"
+    local _fail_before=$FAIL
+    "$_fn"
+    if [[ "$FAIL" -eq "$_fail_before" ]]; then
+        echo "PASS: $_fn"
+    else
+        echo "FAIL: $_fn"
+    fi
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
-test_gate_blocked_missing_status
-test_gate_blocked_hash_mismatch
-test_gate_blocked_not_passed
-test_gate_passes_no_associated_test
-test_gate_passes_valid_status
-test_gate_passes_no_staged_files
-test_error_message_actionable
-test_gate_fails_open_on_hash_error
+run_test test_gate_blocked_missing_status
+run_test test_gate_blocked_hash_mismatch
+run_test test_gate_blocked_not_passed
+run_test test_gate_passes_no_associated_test
+run_test test_gate_passes_valid_status
+run_test test_gate_passes_no_staged_files
+run_test test_error_message_actionable
+run_test test_gate_fails_open_on_hash_error
 
 print_summary
