@@ -1,12 +1,13 @@
 ---
 id: w21-ae0s
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-19T04:51:48Z
 type: bug
 priority: 1
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # Validation gate times out on projects with >50s test suites — incorporate test-batched or split validate.sh
 

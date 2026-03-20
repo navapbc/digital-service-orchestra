@@ -8,6 +8,7 @@ type: bug
 priority: 3
 assignee: Joe Oakhart
 jira_key: DIG-54
+parent: dso-9xnr
 ---
 # Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands
 

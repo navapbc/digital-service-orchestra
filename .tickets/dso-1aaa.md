@@ -8,6 +8,7 @@ type: bug
 priority: 3
 assignee: Joe Oakhart
 jira_key: DIG-52
+parent: dso-9xnr
 ---
 # Bug: tk create rejects --parent=id flag (only --parent id works)
 

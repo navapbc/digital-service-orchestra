@@ -7,6 +7,7 @@ created: 2026-03-20T00:10:13Z
 type: bug
 priority: 2
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR — same isolation anti-pattern as dso-b934
 

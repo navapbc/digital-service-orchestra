@@ -7,6 +7,7 @@ created: 2026-03-20T03:14:20Z
 type: bug
 priority: 3
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # resolve-conflicts skill misdetects merge state when conflicts are pre-resolved
 

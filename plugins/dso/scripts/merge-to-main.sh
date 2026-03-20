@@ -399,6 +399,208 @@ _abort_stale_rebase() {
     fi
 }
 
+# --- Auto-resolve archive rename/delete conflicts during git pull --rebase ---
+# When tickets are archived (moved from .tickets/xxx.md to .tickets/archive/xxx.md)
+# by a previous merge, and the remote has a different archive commit, git pull --rebase
+# can produce CONFLICT (rename/delete) errors. These are always safe to resolve by
+# accepting the archive move: git rm the old path (if still present) and git add the
+# archived path (if present). Non-archive conflicts cause an immediate abort.
+#
+# Usage: call from the git pull --rebase failure handler in _phase_sync.
+# Must be called while a rebase is in progress (REBASE_HEAD exists).
+# Returns 0 on success (rebase continued), 1 on failure (rebase aborted).
+_auto_resolve_archive_conflicts() {
+    local _git_dir
+    _git_dir=$(git rev-parse --git-dir 2>/dev/null) || return 1
+
+    # Only proceed if a rebase is actually in progress
+    if [[ ! -f "$_git_dir/REBASE_HEAD" ]]; then
+        return 1
+    fi
+
+    # Collect all conflicted files (unmerged paths)
+    local _conflicted_files
+    _conflicted_files=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+
+    # Also collect files listed in rebase conflict output (rename/delete shows differently)
+    # git ls-files --unmerged captures all unmerged index entries
+    local _unmerged_paths
+    _unmerged_paths=$(git ls-files --unmerged 2>/dev/null | awk '{print $NF}' | sort -u || true)
+
+    # Combine both lists
+    local _all_conflicts
+    _all_conflicts=$(printf '%s\n%s\n' "$_conflicted_files" "$_unmerged_paths" | sort -u | grep -v '^$' || true)
+
+    if [[ -z "$_all_conflicts" ]]; then
+        # No detectable conflicts from diff/ls-files — check git status porcelain
+        # for rename/delete conflict types visible only there.
+        # DU = deleted by us, UD = deleted by them, DD = both deleted, AA = both added, UA = added by them
+        local _rename_delete
+        _rename_delete=$(git status --porcelain 2>/dev/null | grep -E '^(DU|UD|DD|AA|UA)' | awk '{print $NF}' || true)
+        _all_conflicts="$_rename_delete"
+    fi
+
+    if [[ -z "$_all_conflicts" ]]; then
+        echo "INFO: _auto_resolve_archive_conflicts: no conflicts detected — skipping."
+        return 1
+    fi
+
+    # Safety check: ALL conflicts must be archive-type ticket files.
+    # Archive-type = either .tickets/archive/xxx.md or .tickets/xxx.md being
+    # deleted in favor of .tickets/archive/xxx.md.
+    local _non_archive_conflicts=0
+    while IFS= read -r _file; do
+        [[ -z "$_file" ]] && continue
+        case "$_file" in
+            .tickets/archive/*.md | .tickets/*.md)
+                # These are archive-type ticket paths — safe to auto-resolve
+                ;;
+            *)
+                _non_archive_conflicts=$(( _non_archive_conflicts + 1 ))
+                ;;
+        esac
+    done <<< "$_all_conflicts"
+
+    if [[ "$_non_archive_conflicts" -gt 0 ]]; then
+        echo "INFO: _auto_resolve_archive_conflicts: non-archive conflicts present — aborting auto-resolve."
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+
+    # All conflicts are archive-type — resolve each one.
+    # For rename/delete: accept the deletion (git rm old path) and
+    # accept the addition of the archive path (git add archive path, if it exists).
+    local _resolved=0
+    local _failed=0
+
+    while IFS= read -r _file; do
+        [[ -z "$_file" ]] && continue
+
+        # Determine if this is the old path or the archive path
+        if [[ "$_file" == .tickets/archive/*.md ]]; then
+            # This is the archive destination — add it if it exists in working tree
+            if [[ -f "$_file" ]]; then
+                git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
+            else
+                # File doesn't exist in working tree — this side deleted it; skip
+                _resolved=$(( _resolved + 1 ))
+            fi
+        elif [[ "$_file" == .tickets/*.md ]]; then
+            # This is the old (pre-archive) path — remove it if still present
+            if [[ -f "$_file" ]]; then
+                git rm --force --quiet "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
+            else
+                # Already gone — mark as resolved
+                git rm --quiet --cached "$_file" 2>/dev/null || true
+                _resolved=$(( _resolved + 1 ))
+            fi
+        fi
+    done <<< "$_all_conflicts"
+
+    if [[ "$_failed" -gt 0 ]]; then
+        echo "ERROR: _auto_resolve_archive_conflicts: $_failed file(s) failed to resolve." >&2
+        git rebase --abort 2>/dev/null || true
+        return 1
+    fi
+
+    echo "INFO: Auto-resolved $_resolved archive rename/delete conflict(s)."
+
+    # Continue the rebase — loop until fully complete.
+    # A multi-commit rebase may have archive conflicts on more than one commit;
+    # each `git rebase --continue` advances past one conflict commit and may
+    # stop again at the next. We keep resolving and continuing until REBASE_HEAD
+    # is gone (rebase complete) or we encounter a non-archive conflict (abort).
+    local _loop_iters=0
+    local _max_iters=50  # guard against infinite loops
+    while [[ -f "$_git_dir/REBASE_HEAD" ]]; do
+        _loop_iters=$(( _loop_iters + 1 ))
+        if [[ "$_loop_iters" -gt "$_max_iters" ]]; then
+            echo "ERROR: _auto_resolve_archive_conflicts: rebase loop exceeded $_max_iters iterations — aborting." >&2
+            git rebase --abort 2>/dev/null || true
+            return 1
+        fi
+
+        # Try to continue; capture exit code to distinguish conflict vs failure.
+        local _continue_out _continue_rc=0
+        _continue_out=$(GIT_EDITOR=: git rebase --continue 2>&1) || _continue_rc=$?
+
+        # After --continue, check if we stopped again (new conflicts).
+        if [[ -f "$_git_dir/REBASE_HEAD" ]]; then
+            # Still in rebase — collect any new conflicts.
+            local _new_conflicts
+            _new_conflicts=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+            local _new_unmerged
+            _new_unmerged=$(git ls-files --unmerged 2>/dev/null | awk '{print $NF}' | sort -u || true)
+            local _new_all
+            _new_all=$(printf '%s\n%s\n' "$_new_conflicts" "$_new_unmerged" | sort -u | grep -v '^$' || true)
+
+            if [[ -z "$_new_all" ]]; then
+                # No conflicts yet rebase hasn't completed.
+                if [[ "$_continue_rc" -ne 0 ]]; then
+                    # rebase --continue failed without producing conflicts — likely a hook
+                    # failure or other non-conflict error. Abort to avoid spinning.
+                    echo "ERROR: _auto_resolve_archive_conflicts: rebase --continue failed (exit $_continue_rc) without new conflicts — aborting." >&2
+                    echo "  Output: $_continue_out" >&2
+                    git rebase --abort 2>/dev/null || true
+                    return 1
+                fi
+                # May be an empty commit or editor pause — skip to advance.
+                if ! GIT_EDITOR=: git rebase --continue 2>/dev/null; then
+                    GIT_EDITOR=: git rebase --skip 2>/dev/null || true
+                fi
+                continue
+            fi
+
+            # Validate that all new conflicts are still archive-type.
+            local _new_non_archive=0
+            while IFS= read -r _nf; do
+                [[ -z "$_nf" ]] && continue
+                case "$_nf" in
+                    .tickets/archive/*.md | .tickets/*.md) ;;
+                    *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
+                esac
+            done <<< "$_new_all"
+
+            if [[ "$_new_non_archive" -gt 0 ]]; then
+                echo "INFO: _auto_resolve_archive_conflicts: non-archive conflicts in subsequent commit — aborting auto-resolve." >&2
+                git rebase --abort 2>/dev/null || true
+                return 1
+            fi
+
+            # Resolve the new archive conflicts.
+            local _new_resolved=0 _new_failed=0
+            while IFS= read -r _nf; do
+                [[ -z "$_nf" ]] && continue
+                if [[ "$_nf" == .tickets/archive/*.md ]]; then
+                    if [[ -f "$_nf" ]]; then
+                        git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
+                    else
+                        _new_resolved=$(( _new_resolved + 1 ))
+                    fi
+                elif [[ "$_nf" == .tickets/*.md ]]; then
+                    if [[ -f "$_nf" ]]; then
+                        git rm --force --quiet "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
+                    else
+                        git rm --quiet --cached "$_nf" 2>/dev/null || true
+                        _new_resolved=$(( _new_resolved + 1 ))
+                    fi
+                fi
+            done <<< "$_new_all"
+
+            if [[ "$_new_failed" -gt 0 ]]; then
+                echo "ERROR: _auto_resolve_archive_conflicts: $_new_failed file(s) failed to resolve in subsequent commit." >&2
+                git rebase --abort 2>/dev/null || true
+                return 1
+            fi
+
+            echo "INFO: Auto-resolved $_new_resolved additional archive conflict(s) (iteration $_loop_iters)."
+        fi
+    done
+
+    echo "OK: Rebase completed successfully after archive conflict resolution (${_loop_iters} continuation(s))."
+    return 0
+}
+
 # --- Clean up stale git state (rebase/merge) on entry ---
 # Usage: _cleanup_stale_git_state <repo_path>
 # Aborts any leftover REBASE_HEAD or MERGE_HEAD state from a prior interrupted run.
@@ -776,13 +978,19 @@ _phase_sync() {
     fi
     _abort_stale_rebase
     if ! git pull --rebase 2>&1; then
-        _abort_stale_rebase
-        if $STASHED; then git stash pop --quiet 2>/dev/null || true; fi
-        _set_phase_status "pull_rebase" "conflict"
-        # Lock held via EXIT trap through conflict resolution
-        echo "CONFLICT_DATA: phase=pull_rebase branch=$BRANCH"
-        echo "ERROR: git pull --rebase failed. Resolve conflicts manually, then retry."
-        exit 1
+        # Attempt auto-resolution of archive rename/delete conflicts before giving up.
+        # Archive conflicts occur when a previous merge archived tickets and the remote
+        # has a different archive commit — always safe to resolve automatically.
+        if _auto_resolve_archive_conflicts 2>&1; then
+            echo "OK: Archive rename/delete conflicts auto-resolved during pull --rebase."
+        else
+            if $STASHED; then git stash pop --quiet 2>/dev/null || true; fi
+            _set_phase_status "pull_rebase" "conflict"
+            # Lock held via EXIT trap through conflict resolution
+            echo "CONFLICT_DATA: phase=pull_rebase branch=$BRANCH"
+            echo "ERROR: git pull --rebase failed. Resolve conflicts manually, then run: merge-to-main.sh --resume"
+            exit 1
+        fi
     fi
     if $STASHED; then
         echo "Restoring stashed changes..."
@@ -1078,6 +1286,53 @@ if [[ "$_CLI_RESUME" == "true" ]]; then
         echo "ESCALATE: Merge has failed 5 times. Stop and ask the user for help. Do NOT retry."
         exit 1
     fi
+
+    # --- Mid-rebase state detection ---
+    # If a rebase is currently in progress (REBASE_HEAD exists in the main repo git dir),
+    # the previous sync phase was interrupted mid-rebase. Attempt auto-resolution of
+    # archive conflicts first; if that fails, report actionable instructions.
+    _MAIN_REPO_FOR_RESUME=""
+    if [[ -f .git ]]; then
+        # We're in a worktree (.git is a file) — resolve main repo from git common dir.
+        # git-common-dir may return a relative path (e.g., "../main/.git") — resolve to
+        # absolute so dirname yields the main repo root, not a relative/wrong directory.
+        _common_dir=$(git rev-parse --git-common-dir 2>/dev/null || true)
+        if [[ -n "$_common_dir" && "$_common_dir" != /* ]]; then
+            _common_dir="$(cd "$_common_dir" 2>/dev/null && pwd || true)"
+        fi
+        _MAIN_REPO_FOR_RESUME=$(dirname "$_common_dir" 2>/dev/null || true)
+    elif [[ -d .git ]]; then
+        # We're in the main repo (.git is a directory) — main repo is CWD
+        _MAIN_REPO_FOR_RESUME="$(pwd)"
+    fi
+    _MAIN_GIT_DIR=""
+    if [[ -n "$_MAIN_REPO_FOR_RESUME" ]]; then
+        _MAIN_GIT_DIR=$(git -C "$_MAIN_REPO_FOR_RESUME" rev-parse --git-dir 2>/dev/null || true)
+        if [[ -n "$_MAIN_GIT_DIR" && "$_MAIN_GIT_DIR" != /* ]]; then
+            _MAIN_GIT_DIR="$_MAIN_REPO_FOR_RESUME/$_MAIN_GIT_DIR"
+        fi
+    fi
+    if [[ -n "$_MAIN_GIT_DIR" && -f "$_MAIN_GIT_DIR/REBASE_HEAD" ]]; then
+        echo "INFO: --resume detected mid-rebase state in main repo (REBASE_HEAD present)."
+        echo "INFO: Attempting auto-resolution of archive rename/delete conflicts..."
+        _PREV_DIR="$(pwd)"
+        cd "$_MAIN_REPO_FOR_RESUME"
+        _REBASE_AUTO_RC=0
+        _auto_resolve_archive_conflicts 2>&1 || _REBASE_AUTO_RC=$?
+        cd "$_PREV_DIR"
+        if [[ "$_REBASE_AUTO_RC" -ne 0 ]]; then
+            echo "ACTION REQUIRED: Rebase is in progress in main repo but conflicts could not be auto-resolved."
+            echo "  1. cd ${_MAIN_REPO_FOR_RESUME:-<main-repo>}"
+            echo "  2. Resolve conflicts manually (git status to inspect)"
+            echo "  3. git rebase --continue"
+            echo "  4. cd back to worktree and run: merge-to-main.sh --resume"
+            exit 1
+        fi
+        echo "OK: Mid-rebase conflicts resolved. Continuing from sync phase..."
+        # Mark sync as complete so --resume continues from merge
+        _state_mark_complete "sync"
+    fi
+
     if [[ ! -f "$_sf" ]]; then
         echo "WARNING: No state file found at '$_sf'. Starting from the beginning."
         # Fall through to run all phases

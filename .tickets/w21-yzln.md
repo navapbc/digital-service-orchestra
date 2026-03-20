@@ -1,6 +1,6 @@
 ---
 id: w21-yzln
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T05:55:25Z
@@ -39,3 +39,19 @@ PLUGIN_ROOT="/Users/joe | Exit code 1\nNEW_HASH=dbc98a8cd26b600b9f851974a12595f4
 | 19 | 2026-03-19T05:54:24Z | Bash | Bash: command=tk list --type epic --status in_progress 2>&1, timeout=30000 | Exit code 1\nUnknown command: list\ntk - minimal ticket system with dependency tracking\n\nUsage: tk <command> [args]\n\ |
 | 20 | 2026-03-19T05:55:02Z | Bash | Bash: command=REPO_ROOT=$(git rev-parse --show-toplevel) && bash tests/run-all.s | Exit code 144 |
 
+
+## Notes
+
+<!-- note-id: 5sbr2sek -->
+<!-- timestamp: 2026-03-20T22:33:48Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Duplicate of dso-42w7. Closing.
+
+<!-- note-id: 31wzx4fp -->
+<!-- timestamp: 2026-03-20T22:33:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: duplicate of dso-42w7

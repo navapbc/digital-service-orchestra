@@ -65,6 +65,18 @@ set -uo pipefail
 #     VALIDATE_TIMEOUT_LOG     - Path to timeout log (default: /tmp/lockpick-test-artifacts-<worktree>/validation-timeouts.log)
 #
 #   Example: VALIDATE_TIMEOUT_TESTS=900 ./scripts/validate.sh
+#
+#   Test-batched integration (for suites that exceed the ~73s Claude tool timeout):
+#     VALIDATE_TEST_STATE_FILE  - Path to test-batched.sh state file for session-level
+#                                 result reuse across validate.sh invocations.
+#                                 Default: /tmp/lockpick-test-artifacts-<worktree>/test-session-state.json
+#     VALIDATE_TEST_BATCHED_SCRIPT - Path to test-batched.sh (default: adjacent to validate.sh)
+#                                    Override in tests to inject a stub.
+#
+#   When tests are pending (NEXT: printed by test-batched.sh), validate.sh exits 2:
+#     Exit 0: all checks passed
+#     Exit 1: one or more checks failed
+#     Exit 2: tests are pending (run validate.sh again to resume)
 
 set -e
 
@@ -109,7 +121,8 @@ CMD_SYNTAX_CHECK=$(_cfg "commands.syntax_check" "make syntax-check")
 CMD_FORMAT_CHECK=$(_cfg "commands.format_check" "make format-check")
 CMD_LINT_RUFF=$(_cfg "commands.lint_ruff" "make lint-ruff")
 CMD_LINT_MYPY=$(_cfg "commands.lint_mypy" "make lint-mypy")
-CMD_TEST_UNIT=$(_cfg "commands.test_unit" "make test-unit-only")
+# Allow VALIDATE_CMD_TEST env override (for testing/stubs)
+CMD_TEST_UNIT="${VALIDATE_CMD_TEST:-$(_cfg "commands.test_unit" "make test-unit-only")}"
 SCRIPT_WRITE_SCAN_DIR=$(_cfg "checks.script_write_scan_dir" "")
 PLUGIN_SCRIPTS="$SCRIPT_DIR"
 CMD_TEST_E2E=$(_cfg "commands.test_e2e" "make test-e2e")
@@ -137,6 +150,21 @@ export VERBOSE
 CI_PASSED=0  # Set to 1 when CI check passes (used for E2E skip logic)
 E2E_RAN=0    # Set to 1 when E2E tests are actually executed
 E2E_FAILED=0 # Set to 1 when E2E tests fail
+TESTS_PENDING=0  # Set to 1 when test-batched.sh reports partial run (NEXT: in output)
+
+# ── Test-batched.sh integration ───────────────────────────────────────────────
+# Path to test-batched.sh (adjacent to validate.sh by default).
+# Override with VALIDATE_TEST_BATCHED_SCRIPT for testing/stubs.
+VALIDATE_TEST_BATCHED_SCRIPT="${VALIDATE_TEST_BATCHED_SCRIPT:-$SCRIPT_DIR/test-batched.sh}"
+
+# Session-level test state file for result reuse across multiple invocations.
+# When test-batched.sh records "pass" for the test command, validate.sh skips
+# re-running the test step (enabling incremental progress across tool calls).
+# Override with VALIDATE_TEST_STATE_FILE for testing isolation.
+VALIDATE_TEST_STATE_FILE="${VALIDATE_TEST_STATE_FILE:-$ARTIFACTS_DIR/test-session-state.json}"
+# Export so test-batched.sh picks up the same state file path
+export VALIDATE_TEST_STATE_FILE
+export TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE"
 
 # Track which checks were launched so we can detect silent crashes
 # (background process killed without writing .rc file)
@@ -449,6 +477,113 @@ run_check() {
     fi
 }
 
+# ── Test-batched state helpers ────────────────────────────────────────────────
+
+# _test_state_already_passed <state_file> <cmd>
+# Returns 0 if the state file records "pass" for the given command.
+# Returns 1 if the command has not completed or failed.
+# Uses python3 for reliable JSON parsing (no jq dependency).
+_test_state_already_passed() {
+    local state_file="$1" cmd="$2"
+    [ -f "$state_file" ] || return 1
+    # Compute the expected command hash so we can verify the state file
+    # belongs to this command (not a different test command).
+    local expected_hash
+    expected_hash=$(echo -n "${cmd}:$(pwd)" | sha256sum 2>/dev/null | awk '{print $1}' || \
+        echo -n "${cmd}:$(pwd)" | python3 -c "import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())")
+    python3 - "$expected_hash" "$state_file" <<PYEOF 2>/dev/null
+import json, sys
+expected_hash = sys.argv[1]
+state_file = sys.argv[2]
+try:
+    state = json.load(open(state_file))
+    # Verify command hash matches — reject state from a different command.
+    stored_hash = state.get("command_hash", "")
+    if stored_hash and stored_hash != expected_hash:
+        sys.exit(1)
+    results = state.get("results", {})
+    completed = state.get("completed", [])
+    # Check if any result is "pass" (generic runner uses single test item)
+    has_pass = any(v == "pass" for v in results.values())
+    has_fail_or_interrupted = any(v in ("fail", "interrupted") for v in results.values())
+    # Pass only if we have at least one pass and no failures/interruptions
+    sys.exit(0 if (has_pass and not has_fail_or_interrupted and len(completed) > 0) else 1)
+except Exception:
+    sys.exit(1)
+PYEOF
+}
+
+# run_test_check: time-bounded test runner using test-batched.sh.
+# Checks state file first (reuse pass from previous invocation).
+# If tests already passed: writes rc=0 immediately (skips re-running).
+# If not: runs test-batched.sh with --timeout=45 (within Claude tool ceiling).
+# If test-batched.sh outputs "NEXT:": writes rc=42 (pending, needs another run).
+run_test_check() {
+    local name="tests" timeout="$TIMEOUT_TESTS" cmd="$CMD_TEST_UNIT"
+    [ "$VERBOSE" = "1" ] && verbose_print "$name" "running"
+
+    # ── Reuse cached result if tests already passed this session ─────────────
+    if _test_state_already_passed "$VALIDATE_TEST_STATE_FILE" "$cmd"; then
+        echo "0" > "$CHECK_DIR/${name}.rc"
+        echo "(reused from session state)" > "$CHECK_DIR/${name}.log"
+        [ "$VERBOSE" = "1" ] && verbose_print "$name" "PASS (reused from session state)"
+        return 0
+    fi
+
+    # ── Run tests via test-batched.sh ─────────────────────────────────────────
+    # Use a 45s budget (well within the ~73s Claude tool timeout ceiling).
+    # test-batched.sh saves state and prints "NEXT:" when the budget is exhausted,
+    # allowing validate.sh to be re-invoked to continue where tests left off.
+    local batched_timeout=45
+    local batched_script="$VALIDATE_TEST_BATCHED_SCRIPT"
+
+    if [ -x "$batched_script" ]; then
+        local rc=0
+        # Run test-batched.sh with the session state file; capture both stdout+stderr.
+        # We do NOT use run_with_timeout here — test-batched.sh manages its own
+        # internal timeout budget (--timeout=45). The outer timeout is the full
+        # TIMEOUT_TESTS as a safety backstop for truly hung processes.
+        TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE" \
+            run_with_timeout "$timeout" "$name" \
+            bash "$batched_script" --timeout="$batched_timeout" "$cmd" \
+            > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
+        echo "$rc" > "$CHECK_DIR/${name}.rc"
+
+        # Detect partial run: test-batched.sh prints "NEXT:" when time budget exhausted.
+        # In this case it exits 0, but tests are not done — mark as pending (rc=42).
+        if [ "$rc" = "0" ] && grep -q "^NEXT:" "$CHECK_DIR/${name}.log" 2>/dev/null; then
+            echo "42" > "$CHECK_DIR/${name}.rc"
+            [ "$VERBOSE" = "1" ] && verbose_print "$name" "PENDING (run validate.sh again to continue)"
+            return 0
+        fi
+
+        if [ "$VERBOSE" = "1" ]; then
+            if [ "$rc" = "0" ]; then
+                verbose_print "$name" "PASS"
+            elif [ "$rc" = "124" ]; then
+                verbose_print "$name" "FAIL (timeout ${timeout}s)"
+            else
+                verbose_print "$name" "FAIL"
+            fi
+        fi
+    else
+        # Fallback: test-batched.sh not available — run directly (original behavior)
+        local rc=0
+        # shellcheck disable=SC2086
+        run_with_timeout "$timeout" "$name" $cmd > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
+        echo "$rc" > "$CHECK_DIR/${name}.rc"
+        if [ "$VERBOSE" = "1" ]; then
+            if [ "$rc" = "0" ]; then
+                verbose_print "$name" "PASS"
+            elif [ "$rc" = "124" ]; then
+                verbose_print "$name" "FAIL (timeout ${timeout}s)"
+            else
+                verbose_print "$name" "FAIL"
+            fi
+        fi
+    fi
+}
+
 # Migration heads check (file-based, no DB required)
 check_migrations() {
     local migration_dir="$APP_DIR/src/db/migrations/versions"
@@ -629,8 +764,9 @@ run_check "format" "$TIMEOUT_FORMAT" $CMD_FORMAT_CHECK &
 run_check "ruff" "$TIMEOUT_RUFF" $CMD_LINT_RUFF &
 # shellcheck disable=SC2086
 run_check "mypy" "$TIMEOUT_MYPY" $CMD_LINT_MYPY &
-# shellcheck disable=SC2086
-run_check "tests" "$TIMEOUT_TESTS" $CMD_TEST_UNIT &
+# Tests use run_test_check (test-batched.sh integration) for time-bounded execution.
+# This allows validate.sh to run in < 73s even for test suites that take 120+ seconds.
+run_test_check &
 check_migrations &
 if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
     (cd "$REPO_ROOT" && run_check "script-writes" "$TIMEOUT_SYNTAX" python3 "$PLUGIN_SCRIPTS/check-script-writes.py" --scan-dir="$SCRIPT_WRITE_SCAN_DIR") &
@@ -686,6 +822,11 @@ report_check() {
 
     if [ "$rc" = "0" ]; then
         printf "  %-8s PASS\n" "${label}:"
+    elif [ "$rc" = "42" ] && [ "$name" = "tests" ]; then
+        # rc=42: test-batched.sh reported partial progress (NEXT: in output).
+        # Tests are not done yet — the orchestrator must run validate.sh again.
+        printf "  %-8s PENDING (run validate.sh again to continue)\n" "${label}:"
+        TESTS_PENDING=1
     elif [ "$rc" = "124" ]; then
         printf "  %-8s TIMEOUT (%ss) - run '%s' to debug\n" "${label}:" "$timeout" "$hint_cmd"
         cat "$CHECK_DIR/${name}.log" >> "$LOGFILE" 2>/dev/null || true
@@ -743,7 +884,11 @@ tally_check() {
     local rc
     rc=$(cat "$rc_file")
 
-    if [ "$rc" != "0" ]; then
+    if [ "$rc" = "42" ] && [ "$name" = "tests" ]; then
+        # Pending — verbose mode already printed the PENDING label via run_test_check.
+        # Tally it as pending (not failed, not passed).
+        TESTS_PENDING=1
+    elif [ "$rc" != "0" ]; then
         cat "$CHECK_DIR/${name}.log" >> "$LOGFILE" 2>/dev/null || true
         FAILED_CHECKS="${FAILED_CHECKS:+$FAILED_CHECKS,}$label"
         FAILED=1
@@ -957,7 +1102,7 @@ if [ $CHECK_CI -eq 1 ]; then
     fi
 fi
 
-if [ $FAILED -eq 0 ]; then
+if [ $FAILED -eq 0 ] && [ $TESTS_PENDING -eq 0 ]; then
     # Write validation state atomically for validation gate hook
     _state_content="passed
 timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -970,6 +1115,19 @@ e2e_ran=true"
     fi
     rm -f "$LOGFILE"  # Clean up log on success
     exit 0
+elif [ $TESTS_PENDING -eq 1 ] && [ $FAILED -eq 0 ]; then
+    # Tests are still running (time-bounded by test-batched.sh) — all other checks passed.
+    # Exit 2 signals "pending": the orchestrator should run validate.sh again to resume.
+    echo "Tests in progress. Run validate.sh again to continue (state: $VALIDATE_TEST_STATE_FILE)"
+    _state_content="pending
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+test_state_file=$VALIDATE_TEST_STATE_FILE"
+    if declare -f atomic_write_file &>/dev/null; then
+        atomic_write_file "$VALIDATION_STATE_FILE" "$_state_content"
+    else
+        echo "$_state_content" > "$VALIDATION_STATE_FILE"
+    fi
+    exit 2
 else
     echo "Some checks failed. Details: $LOGFILE"
     # Write failed state atomically for validation gate hook

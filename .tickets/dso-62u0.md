@@ -8,6 +8,7 @@ type: bug
 priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-57
+parent: dso-9xnr
 ---
 # fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes
 

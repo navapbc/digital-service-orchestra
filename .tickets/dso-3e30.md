@@ -8,6 +8,7 @@ type: bug
 priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-82
+parent: dso-9xnr
 ---
 # Bug: tk create -d interprets double-dash in description text as option flags
 

@@ -8,6 +8,7 @@ type: bug
 priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-55
+parent: dso-9xnr
 ---
 # Bug: validate-issues.sh has no unit tests — add test suite covering core checks
 

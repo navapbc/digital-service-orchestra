@@ -1,12 +1,13 @@
 ---
 id: dso-qt4u
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-20T00:04:06Z
 type: bug
 priority: 1
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution
 
@@ -48,3 +49,10 @@ The --resume flag re-runs from the first incomplete phase, which re-triggers the
 ### Workaround Used
 Manually ran git reset --hard origin/main on main repo, then re-ran merge-to-main.sh (lost the divergent archive commit).
 
+
+<!-- note-id: gd74e4b1 -->
+<!-- timestamp: 2026-03-20T22:46:01Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed in merge-to-main.sh: (1) Added _auto_resolve_archive_conflicts() function that detects rename/delete conflicts in .tickets/archive/ during git pull --rebase and auto-resolves them safely; (2) Updated pull failure handler in _phase_sync to call auto-resolve before giving up; (3) Added REBASE_HEAD detection to --resume dispatch so mid-rebase state is detected and recovery is offered; (4) Added --resume instruction to the manual conflict error message. Tests: 10 new tests in test-merge-to-main-qt4u.sh all pass GREEN.

@@ -8,6 +8,7 @@ type: bug
 priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-58
+parent: dso-9xnr
 ---
 # fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files
 

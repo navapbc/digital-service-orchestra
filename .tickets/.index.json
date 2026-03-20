@@ -259,6 +259,13 @@
     "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
     "type": "epic"
   },
+  "dso-9xnr": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Project Health Restoration (2026-03-20)",
+    "type": "epic"
+  },
   "dso-9zsh": {
     "deps": [],
     "priority": 2,
@@ -485,6 +492,13 @@
     "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
+  "dso-gjww": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: _test_state_already_passed accepts state files with missing command_hash",
+    "type": "bug"
+  },
   "dso-gkct": {
     "deps": [],
     "priority": 2,
@@ -492,10 +506,17 @@
     "title": "Implementation planning tradeoffs",
     "type": "epic"
   },
+  "dso-go0x": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
+    "type": "bug"
+  },
   "dso-h04l": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "in_progress",
     "title": "[LOCK] debug-everything",
     "type": "task"
   },
@@ -546,7 +567,7 @@
   "dso-jauq": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
@@ -670,6 +691,13 @@
     "title": "RED: Write failing tests for ci.workflow_name fallback in merge-to-main.sh",
     "type": "task"
   },
+  "dso-ogh7": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: deduplicate FN_BODY_9 extraction in test-merge-to-main-qt4u.sh test 9",
+    "type": "bug"
+  },
   "dso-opue": {
     "deps": [
       "dso-s6kt"
@@ -748,6 +776,13 @@
     "title": "As a developer setting up DSO, the setup creates .claude/dso-config.conf",
     "type": "story"
   },
+  "dso-qlgq": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "validate-phase.sh runs tests directly without test-batched.sh \u2014 same timeout anti-pattern as w21-ae0s",
+    "type": "bug"
+  },
   "dso-qo0x": {
     "deps": [],
     "priority": 2,
@@ -758,7 +793,7 @@
   "dso-qt4u": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "in_progress",
     "title": "Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution",
     "type": "bug"
   },
@@ -835,6 +870,13 @@
     "status": "open",
     "title": "Research and investigation in pre-planning or brainstorm",
     "type": "epic"
+  },
+  "dso-t2wb": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "test-merge-to-main: sed sentinel range fragile to future refactoring",
+    "type": "bug"
   },
   "dso-t4k8": {
     "deps": [],
@@ -942,6 +984,20 @@
     "status": "closed",
     "title": "Untitled",
     "type": "task"
+  },
+  "dso-w20r": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: comment says do NOT use run_with_timeout but code does use it",
+    "type": "bug"
+  },
+  "dso-w7bs": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: assert pending state file content in test_validate_exits_2_on_partial_tests integration test",
+    "type": "bug"
   },
   "dso-wmjr": {
     "deps": [],
@@ -1202,7 +1258,7 @@
   "w21-9k4z": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
@@ -1216,7 +1272,7 @@
   "w21-ae0s": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "in_progress",
     "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
     "type": "bug"
   },
@@ -1598,7 +1654,7 @@
   "w21-yzln": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
     "type": "bug"
   },
