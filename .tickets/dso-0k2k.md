@@ -45,3 +45,22 @@ See plugins/dso/docs/ticket-migraiton-v3/ for the 7 design documents informing t
 
 ## Red Team / Blue Team Review
 Architecture reviewed via adversarial red-team (16 findings) and independent blue-team validation. All CRITICAL and HIGH findings incorporated into success criteria above. See conversation history for full findings.
+
+**2026-03-20T04:25:14Z**
+
+## Additional Success Criteria (added during Epic 2 brainstorm)
+
+12. Every ticket command auto-initializes if .tickets-tracker/ does not exist — ticket init runs silently on first use, making initialization transparent to the session/user
+13. ticket init generates a unique environment ID (UUID) at .tickets-tracker/.env-id (gitignored on the tickets branch) that is embedded in every event for cross-environment conflict resolution
+
+**2026-03-20T04:58:15Z**
+
+## Additional Success Criterion (timeout hardening)
+
+14. No single ticket operation holds flock for more than 10 seconds. flock acquisition timeout is 30 seconds per attempt with max 2 retries. Total worst-case wall time for any ticket command stays under 60 seconds, preserving a safe margin from the 73-second Claude tool timeout ceiling. If flock cannot be acquired within the timeout budget, the command fails with a clear error rather than hanging.
+
+**2026-03-20T04:58:45Z**
+
+## Additional Success Criterion (compaction safety for sync)
+
+15. SNAPSHOT events include a compacted_at timestamp (UTC epoch) in addition to source_event_uuids. The reducer skips events for a ticket whose timestamps are less than or equal to compacted_at, handling the case where remote events with old timestamps arrive after local compaction.
