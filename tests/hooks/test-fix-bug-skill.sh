@@ -95,4 +95,37 @@ if [[ -f "$SKILL_FILE" ]]; then
     assert_eq "test_fix_bug_skill_workflow_skeleton_section" "present" "$actual"
 fi
 
+# test_fix_bug_skill_complexity_evaluation
+# Skill must include a Step 4.5 heading AND reference the complexity-evaluator.
+if [[ -f "$SKILL_FILE" ]]; then
+    if grep -q "Step 4.5" "$SKILL_FILE" && grep -q "complexity-evaluator" "$SKILL_FILE"; then
+        actual="present"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_fix_bug_skill_complexity_evaluation" "present" "$actual"
+fi
+
+# test_fix_bug_skill_escalation_report
+# Skill must include an 'Escalation Report' section with fields 'bug_id' and 'investigation_findings'.
+if [[ -f "$SKILL_FILE" ]]; then
+    if grep -q "Escalation Report" "$SKILL_FILE" && grep -q "bug_id" "$SKILL_FILE" && grep -q "investigation_findings" "$SKILL_FILE"; then
+        actual="present"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_fix_bug_skill_escalation_report" "present" "$actual"
+fi
+
+# test_fix_bug_skill_subagent_detection
+# Skill must reference 'running as a sub-agent' AND 'Agent tool'.
+if [[ -f "$SKILL_FILE" ]]; then
+    if grep -q "running as a sub-agent" "$SKILL_FILE" && grep -q "Agent tool" "$SKILL_FILE"; then
+        actual="present"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_fix_bug_skill_subagent_detection" "present" "$actual"
+fi
+
 print_summary

@@ -119,6 +119,7 @@ The shared rubric outputs TRIVIAL, MODERATE, or COMPLEX. How MODERATE is handled
 | `/dso:sprint` epic evaluator | Escalate → **COMPLEX** | Preserves full preplanning when scope is not fully certain |
 | `/dso:debug-everything` complexity gate | De-escalate → **TRIVIAL** | Enables autonomous fix dispatch; MODERATE bugs are well-understood enough for a single fix sub-agent |
 | `/dso:brainstorm` Phase 3 Step 4 | TRIVIAL/MODERATE+High → `/dso:implementation-plan`; MODERATE+Medium → `/dso:preplanning --lightweight`; COMPLEX → `/dso:preplanning` | Brainstormed epics with High scope_certainty already have story-level detail (named files, testable criteria); preplanning is redundant. MODERATE+Medium needs lightweight decomposition. COMPLEX always needs full preplanning |
+| `/dso:fix-bug post-investigation` | TRIVIAL/MODERATE proceed to fix, COMPLEX creates epic | Post-investigation evaluation when fix scope is known |
 
 Calling skills are responsible for applying their own routing rule to the shared rubric's output. The shared rubric always outputs the raw classification; callers decide final routing.
 
