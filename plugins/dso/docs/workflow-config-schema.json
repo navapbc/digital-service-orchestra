@@ -76,6 +76,12 @@
           "description": "GitHub Actions workflow name to check for integration test status. Used by validate-work and CI status checks to poll the integration test workflow separately from the main CI workflow. When absent, integration workflow status checks are skipped.",
           "minLength": 1,
           "examples": ["Integration Tests", "E2E Tests", "CI"]
+        },
+        "workflow_name": {
+          "type": "string",
+          "description": "GitHub Actions workflow name for gh workflow run. Used by merge-to-main.sh for post-push CI trigger recovery. Preferred over the deprecated merge.ci_workflow_name. When absent, post-push CI trigger recovery is skipped.",
+          "minLength": 1,
+          "examples": ["CI", "Build and Test"]
         }
       }
     },

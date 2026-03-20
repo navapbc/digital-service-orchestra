@@ -68,4 +68,47 @@ assert_eq "test_schema_commands_test_changed_description_references_skip: exit 0
 assert_eq "test_schema_commands_test_changed_description_references_skip: output is OK" "OK" "$desc_output"
 assert_pass_if_clean "test_schema_commands_test_changed_description_references_skip"
 
+# ── test_schema_ci_workflow_name_property_exists ──────────────────────────────
+# ci.properties.workflow_name must exist with type: string
+_snapshot_fail
+cwn_exit=0
+cwn_output=""
+cwn_output=$(python3 -c "
+import json, sys
+d = json.load(open('$SCHEMA'))
+props = d.get('properties', {}).get('ci', {}).get('properties', {})
+if 'workflow_name' not in props:
+    print('MISSING: workflow_name not found in ci.properties')
+    sys.exit(1)
+if props['workflow_name'].get('type') != 'string':
+    print('WRONG_TYPE: expected string, got ' + str(props['workflow_name'].get('type')))
+    sys.exit(1)
+print('OK')
+" 2>&1) || cwn_exit=$?
+assert_eq "test_schema_ci_workflow_name_property_exists: exit 0" "0" "$cwn_exit"
+assert_eq "test_schema_ci_workflow_name_property_exists: output is OK" "OK" "$cwn_output"
+assert_pass_if_clean "test_schema_ci_workflow_name_property_exists"
+
+# ── test_schema_ci_workflow_name_description_references_skip ─────────────────
+# ci.workflow_name description must reference the skip-when-absent behavior
+_snapshot_fail
+cwnd_exit=0
+cwnd_output=""
+cwnd_output=$(python3 -c "
+import json, sys
+d = json.load(open('$SCHEMA'))
+props = d.get('properties', {}).get('ci', {}).get('properties', {})
+if 'workflow_name' not in props:
+    print('MISSING')
+    sys.exit(1)
+desc = props['workflow_name'].get('description', '')
+if 'absent' not in desc.lower() and 'skip' not in desc.lower():
+    print('NO_SKIP_REF: description does not mention absent or skip')
+    sys.exit(1)
+print('OK')
+" 2>&1) || cwnd_exit=$?
+assert_eq "test_schema_ci_workflow_name_description_references_skip: exit 0" "0" "$cwnd_exit"
+assert_eq "test_schema_ci_workflow_name_description_references_skip: output is OK" "OK" "$cwnd_output"
+assert_pass_if_clean "test_schema_ci_workflow_name_description_references_skip"
+
 print_summary
