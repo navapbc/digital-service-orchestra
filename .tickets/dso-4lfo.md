@@ -1,6 +1,6 @@
 ---
 id: dso-4lfo
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T16:53:52Z
