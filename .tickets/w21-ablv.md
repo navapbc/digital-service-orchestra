@@ -33,6 +33,10 @@ parent: dso-0k2k
   ← Satisfies: cross-story contract (adversarial review)
 - When this story is complete, the reducer's event ordering contract is defined and documented (filename sort with timestamp prefix, deterministic tie-breaking for same-second events)
   ← Satisfies: cross-story contract (adversarial review)
+- When this story is complete, every `ticket` command auto-initializes if `.tickets-tracker/` does not exist — `ticket init` runs silently on first use, making initialization transparent to the user
+  ← Satisfies: "transparent first-use initialization"
+- When this story is complete, `ticket init` generates a unique environment ID (UUID) at `.tickets-tracker/.env-id` (gitignored on the tickets branch) that is embedded in every event for cross-environment conflict resolution
+  ← Satisfies: cross-environment identity for Epic 2 conflict resolution
 - When this story is complete, unit tests are written and passing for all new logic
 
 ## Considerations
