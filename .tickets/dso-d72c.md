@@ -26,3 +26,16 @@ Failures summary:
 - 2 standalone errors (flaky test + cosmetic unbound variable)
 
 All new issues: dso-31yq, dso-dcau, dso-1xw7, dso-b934, dso-pa2n
+
+<!-- note-id: g04tu3v3 -->
+<!-- timestamp: 2026-03-20T00:32:12Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+BATCH 1 | Tier 7
+Issues: dso-31yq (closed), dso-dcau (closed), dso-1xw7 (closed), dso-b934 (closed), dso-pa2n (closed)
+Agent types: general-purpose (all)
+Model tier: sonnet
+Critic review: skipped (no complex fixes)
+Outcome: 5 fixed, 0 failed, 0 reverted
+Remaining in tier: 0

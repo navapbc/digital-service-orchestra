@@ -13,7 +13,7 @@
   "dso-1xw7": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: fix-cascade-recovery skill missing read-config integration \u2014 eval fails",
     "type": "bug"
   },
@@ -22,7 +22,7 @@
   "dso-31yq": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: hook_track_tool_errors test fails \u2014 missing monitoring.tool_errors config in test env",
     "type": "bug"
   },
@@ -56,7 +56,7 @@
   "dso-b934": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: test-cascade-breaker.sh is flaky \u2014 timing-sensitive failure in full suite run",
     "type": "bug"
   },
@@ -76,7 +76,7 @@
   "dso-dcau": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: isolation tests timeout during full parallel suite run due to CPU contention (2 tests)",
     "type": "bug"
   },
@@ -111,6 +111,13 @@
     "type": "task"
   },
   "dso-hbcd": ".tickets/dso-hbcd.md",
+  "dso-hdgl": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-merge-to-main-portability.sh 2 failures (8 pass, 2 fail)",
+    "type": "bug"
+  },
   "dso-hpbh": ".tickets/dso-hpbh.md",
   "dso-i03d": ".tickets/dso-i03d.md",
   "dso-i6dj": ".tickets/dso-i6dj.md",
@@ -139,13 +146,20 @@
   "dso-mn94": ".tickets/dso-mn94.md",
   "dso-nd02": ".tickets/dso-nd02.md",
   "dso-nkjv": ".tickets/dso-nkjv.md",
+  "dso-nthb": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
+    "type": "bug"
+  },
   "dso-o4sr": ".tickets/dso-o4sr.md",
   "dso-ovcy": ".tickets/dso-ovcy.md",
   "dso-p9i6": ".tickets/dso-p9i6.md",
   "dso-pa2n": {
     "deps": [],
     "priority": 3,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: tests/run-all.sh line 231 unbound variable $1 in combined summary formatting function",
     "type": "bug"
   },

@@ -1,6 +1,6 @@
 ---
 id: dso-pa2n
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T23:52:49Z
@@ -26,3 +26,17 @@ Error: `$1: unbound variable` in combined summary formatting function.
 Impact: cosmetic only — does not affect test pass/fail counting. The error appears during combined summary output formatting but does not change any test result.
 
 Fix: add a default value for $1 in the combined summary formatting function at line 231, e.g., ${1:-} or guard with [ -n "$1" ] check.
+
+<!-- note-id: zm4h3fbn -->
+<!-- timestamp: 2026-03-20T00:32:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: changed $1 to ${1:-1} in suite_pass() in tests/run-all.sh
+
+<!-- note-id: c3vzwqbb -->
+<!-- timestamp: 2026-03-20T00:32:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: ${1:-1} default in suite_pass() in tests/run-all.sh (commit 13bf60c)

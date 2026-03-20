@@ -1,6 +1,6 @@
 ---
 id: dso-dcau
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T23:51:57Z
@@ -28,3 +28,17 @@ Failing tests:
 - test-isolation-rule-no-direct-os-environ.sh: TIMEOUT (exceeded 60s) — passes when run standalone
 
 Fix options: (1) reduce parallelism in run-script-tests.sh (e.g., --jobs N flag with bounded concurrency), (2) add timeout exemptions for known-slow tests, or (3) move heavy isolation tests to a separate sequential suite.
+
+<!-- note-id: 5r5pawzu -->
+<!-- timestamp: 2026-03-20T00:31:57Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: bumped TEST_TIMEOUT from 60 to 120 in run-script-tests.sh
+
+<!-- note-id: d15cqki6 -->
+<!-- timestamp: 2026-03-20T00:31:58Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: TEST_TIMEOUT 60→120 in run-script-tests.sh (commit 312a5a9)

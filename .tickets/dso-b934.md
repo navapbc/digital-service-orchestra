@@ -30,3 +30,17 @@ Fix: investigate for shared state (e.g., tmp files, global counters) that may be
 **2026-03-20T00:09:50Z**
 
 Fix: Replaced shared /tmp/claude-cascade-${WT_HASH} STATE_DIR (based on real REPO_ROOT) with a unique mktemp -d fake git repo. The test now runs the hook from within that fake git root so git rev-parse returns a unique path, producing an isolated STATE_DIR per test run. Added trap for cleanup on EXIT. Also resolved macOS symlink issue: FAKE_ROOT is resolved via git rev-parse after init to match what the hook sees (/private/var/... vs /var/...). Verified: 8/8 pass standalone and 3 parallel runs all pass.
+
+<!-- note-id: u52gumnx -->
+<!-- timestamp: 2026-03-20T00:32:02Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: isolated test-cascade-breaker.sh with unique temp dir and fake git repo
+
+<!-- note-id: sri6oj84 -->
+<!-- timestamp: 2026-03-20T00:32:03Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: test isolation via mktemp + fake git repo in test-cascade-breaker.sh (commit 546b453)

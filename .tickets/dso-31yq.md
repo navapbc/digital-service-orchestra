@@ -1,6 +1,6 @@
 ---
 id: dso-31yq
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T23:51:40Z
@@ -40,3 +40,17 @@ SAFEGUARD APPROVED: user approved editing plugins/dso/hooks/lib/session-misc-fun
 **2026-03-20T00:19:17Z**
 
 Fixed: Added DSO_MONITORING_TOOL_ERRORS env var override to hook_track_tool_errors() in plugins/dso/hooks/lib/session-misc-functions.sh (line 649). Updated tests/hooks/test-session-misc-no-jq.sh to set DSO_MONITORING_TOOL_ERRORS=true in both test_track_tool_errors and test_track_tool_errors_skips_interrupts test cases. Committed at 25dcadb. Tests: PASSED 20 FAILED 0.
+
+<!-- note-id: yb1agmay -->
+<!-- timestamp: 2026-03-20T00:31:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: added DSO_MONITORING_TOOL_ERRORS env var override in session-misc-functions.sh and updated test-session-misc-no-jq.sh
+
+<!-- note-id: 8mh0d55k -->
+<!-- timestamp: 2026-03-20T00:31:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: DSO_MONITORING_TOOL_ERRORS env var override in session-misc-functions.sh (commit 25dcadb)

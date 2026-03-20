@@ -1,6 +1,6 @@
 ---
 id: dso-1xw7
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T23:52:13Z
@@ -50,3 +50,17 @@ Fix applied: Added Config Resolution section to SKILL.md with read-config.sh int
 <!-- sync: unsynced -->
 
 CHECKPOINT: Fix implemented. SKILL.md updated with read-config.sh integration (Config Resolution section added + TEST_CMD replacing hardcoded make test). Eval fix-cascade-recovery-skill-reads-config now passes. Files staged: plugins/dso/skills/fix-cascade-recovery/SKILL.md, .tickets/dso-1xw7.md. DIFF_HASH=1f03c1c3773d7d111efd50d33ccad23a72a1cb09abf396d37231c6893195f050 (captures full working tree including other agents changes). Awaiting orchestrator to run REVIEW-WORKFLOW.md (sub-agent Task tool not available in this sub-agent context).
+
+<!-- note-id: zsspvw2e -->
+<!-- timestamp: 2026-03-20T00:32:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: added read-config.sh integration to fix-cascade-recovery/SKILL.md
+
+<!-- note-id: 3tfu55lt -->
+<!-- timestamp: 2026-03-20T00:32:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: added read-config integration in fix-cascade-recovery/SKILL.md (commit 13bf60c)
