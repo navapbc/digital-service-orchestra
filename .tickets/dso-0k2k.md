@@ -64,3 +64,9 @@ Architecture reviewed via adversarial red-team (16 findings) and independent blu
 ## Additional Success Criterion (compaction safety for sync)
 
 15. SNAPSHOT events include a compacted_at timestamp (UTC epoch) in addition to source_event_uuids. The reducer skips events for a ticket whose timestamps are less than or equal to compacted_at, handling the case where remote events with old timestamps arrive after local compaction.
+
+**2026-03-20T17:17:09Z**
+
+## Cross-Epic Dependency (from w21-24kl migration epic)
+
+16. The ticket system's ID validation must accept old-format ticket IDs (e.g., dso-0k2k, w21-54wx) for migrated tickets — not restricted to TKT-xxxxxxxx format. The migration preserves old IDs to avoid breaking all cross-references in descriptions, deps, parent fields, CLAUDE.md, and skill files.
