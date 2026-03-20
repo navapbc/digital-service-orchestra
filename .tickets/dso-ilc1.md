@@ -1,6 +1,6 @@
 ---
 id: dso-ilc1
-status: in_progress
+status: closed
 deps: [dso-s2g9]
 links: []
 created: 2026-03-20T00:41:56Z

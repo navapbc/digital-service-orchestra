@@ -1,6 +1,6 @@
 ---
 id: dso-6dp5
-status: in_progress
+status: closed
 deps: 
   - dso-r2es
 links: []

@@ -1,6 +1,6 @@
 ---
 id: dso-ozsx
-status: open
+status: in_progress
 deps: [dso-o24g, dso-ilc1]
 links: []
 created: 2026-03-20T00:42:24Z
@@ -52,3 +52,29 @@ FILE: plugins/dso/scripts/merge-to-main.sh (edit — replace CI_WORKFLOW_NAME as
   Verify: bash -n $(git rev-parse --show-toplevel)/plugins/dso/scripts/merge-to-main.sh
 - [ ] Deprecation warning NOT emitted when ci.workflow_name is present (only fires on merge.ci_workflow_name fallback)
   Verify: grep -A10 'DEPRECATION WARNING' $(git rev-parse --show-toplevel)/plugins/dso/scripts/merge-to-main.sh | grep -q 'MERGE_CI_WORKFLOW_NAME\|elif'
+
+## Notes
+
+**2026-03-20T01:42:02Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T01:42:08Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T01:42:15Z**
+
+CHECKPOINT 3/6: Tests written (pre-existing RED) ✓
+
+**2026-03-20T01:42:22Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T01:45:50Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-20T01:45:50Z**
+
+CHECKPOINT 6/6: Done ✓

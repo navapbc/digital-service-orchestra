@@ -695,6 +695,205 @@ test_supplement_check_uses_string_matching() {
     assert_eq "test_supplement_check_uses_string_matching: short-with-marker no duplicate" "1" "$count2"
 }
 
+# ── Pre-commit YAML hook merge tests (w21-u5mg) ───────────────────────────────
+#
+# RED-phase: All tests FAIL until dso-setup.sh implements merge logic.
+# Merge strategy: append-repos (add the DSO local repo block to the existing
+# repos list). The existing file's fail_fast and other top-level keys are preserved.
+#
+# All tests use an existing .pre-commit-config.yaml WITHOUT pre-commit-review-gate,
+# then assert that after setup the review-gate IS present or that other merge
+# behaviors hold. These assertions all fail because merge logic does not yet exist.
+
+# _make_existing_precommit: write a minimal existing .pre-commit-config.yaml
+# WITHOUT review-gate into TARGET_DIR. Used by all merge tests below.
+_make_existing_precommit() {
+    local target_dir="$1"
+    cat > "$target_dir/.pre-commit-config.yaml" << 'PCEOF'
+fail_fast: false
+
+repos:
+  - repo: local
+    hooks:
+      - id: user-existing-hook
+        name: User Existing Hook
+        entry: ./scripts/user-hook.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+PCEOF
+}
+
+# test_precommit_merge_not_overwritten: existing .pre-commit-config.yaml with a
+# repos: section is NOT replaced with the full DSO example config after running
+# dso-setup.sh (the original user hook must still be present after merge).
+test_precommit_merge_not_overwritten() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_existing_precommit "$T"
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # The original user hook must still be present
+    if grep -q 'user-existing-hook' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_precommit_merge_not_overwritten: original hook preserved" "found" "found"
+    else
+        assert_eq "test_precommit_merge_not_overwritten: original hook preserved" "found" "missing"
+    fi
+
+    # The pre-commit-review-gate must ALSO be present (merged in, not just copied)
+    # This assertion drives the RED failure: merge logic doesn't exist yet.
+    if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_precommit_merge_not_overwritten: review-gate merged in" "found" "found"
+    else
+        assert_eq "test_precommit_merge_not_overwritten: review-gate merged in" "found" "missing"
+    fi
+}
+
+# test_precommit_merge_adds_review_gate: when existing .pre-commit-config.yaml has a
+# repos: section, the DSO pre-commit-review-gate hook is merged into the file.
+test_precommit_merge_adds_review_gate() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_existing_precommit "$T"
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # After merge, the pre-commit-review-gate hook id must be present
+    if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_precommit_merge_adds_review_gate" "found" "found"
+    else
+        assert_eq "test_precommit_merge_adds_review_gate" "found" "missing"
+    fi
+}
+
+# test_precommit_merge_no_duplicate_review_gate: when existing .pre-commit-config.yaml
+# already contains the pre-commit-review-gate hook id, it is NOT duplicated after merge.
+# This test requires that: (a) merge logic exists (so a fresh file gets the hook), AND
+# (b) idempotent merge logic avoids duplicating it on repeated runs.
+test_precommit_merge_no_duplicate_review_gate() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_existing_precommit "$T"
+
+    # Run twice — first run merges the hook; second run must not duplicate it.
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # Count occurrences of 'id: pre-commit-review-gate' — must be exactly 1
+    local count
+    count=$(grep -c 'id: pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null || echo "0")
+    assert_eq "test_precommit_merge_no_duplicate_review_gate" "1" "$count"
+}
+
+# test_precommit_merge_preserves_existing_hooks: after merge, the pre-existing hook
+# entries are NOT deleted (merge is additive, not replacing).
+test_precommit_merge_preserves_existing_hooks() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Existing config with multiple user hooks
+    cat > "$T/.pre-commit-config.yaml" << 'EOF'
+fail_fast: false
+
+repos:
+  - repo: local
+    hooks:
+      - id: hook-alpha
+        name: Hook Alpha
+        entry: ./scripts/alpha.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: hook-beta
+        name: Hook Beta
+        entry: ./scripts/beta.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+EOF
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    local result="preserved"
+    if ! grep -q 'id: hook-alpha' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        result="hook-alpha-missing"
+    elif ! grep -q 'id: hook-beta' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        result="hook-beta-missing"
+    fi
+    assert_eq "test_precommit_merge_preserves_existing_hooks: existing hooks remain" "preserved" "$result"
+
+    # Also require that review-gate was added (driving the RED failure)
+    if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_precommit_merge_preserves_existing_hooks: review-gate added" "found" "found"
+    else
+        assert_eq "test_precommit_merge_preserves_existing_hooks: review-gate added" "found" "missing"
+    fi
+}
+
+# test_precommit_yaml_merge_produces_valid_yaml: the merged .pre-commit-config.yaml
+# can be parsed as valid YAML after the DSO hook is merged in.
+test_precommit_yaml_merge_produces_valid_yaml() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_existing_precommit "$T"
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # First verify review-gate was merged in (required precondition — fails RED)
+    if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_precommit_yaml_merge_produces_valid_yaml: review-gate present" "found" "found"
+    else
+        assert_eq "test_precommit_yaml_merge_produces_valid_yaml: review-gate present" "found" "missing"
+    fi
+
+    # Then validate the YAML is still parseable
+    local yaml_valid="invalid"
+    if python3 -c "import yaml; yaml.safe_load(open('$T/.pre-commit-config.yaml'))" 2>/dev/null; then
+        yaml_valid="valid"
+    fi
+    assert_eq "test_precommit_yaml_merge_produces_valid_yaml: yaml parseable" "valid" "$yaml_valid"
+}
+
+# test_precommit_hook_merge_dryrun_no_changes: in --dryrun mode, no changes are made
+# to an existing .pre-commit-config.yaml (the review-gate must NOT be merged in),
+# AND the dryrun output must mention that a merge would occur.
+test_precommit_hook_merge_dryrun_no_changes() {
+    local T output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_existing_precommit "$T"
+
+    # Capture original content
+    local original_content
+    original_content=$(cat "$T/.pre-commit-config.yaml")
+
+    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+
+    # After --dryrun, file content must be unchanged (no review-gate merged in)
+    local after_content
+    after_content=$(cat "$T/.pre-commit-config.yaml")
+    assert_eq "test_precommit_hook_merge_dryrun_no_changes: file unchanged" "$original_content" "$after_content"
+
+    # Dryrun output must indicate what merge would occur (RED: message doesn't exist yet)
+    if [[ "$output" == *"pre-commit-review-gate"* ]] && [[ "$output" == *"[dryrun]"* ]]; then
+        assert_eq "test_precommit_hook_merge_dryrun_no_changes: dryrun merge preview" "found" "found"
+    else
+        assert_eq "test_precommit_hook_merge_dryrun_no_changes: dryrun merge preview" "found" "missing"
+    fi
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_setup_creates_shim
 test_setup_shim_executable
@@ -727,5 +926,11 @@ test_claudemd_supplement_appends_dso_scaffolding
 test_known_issues_not_overwritten
 test_known_issues_supplement_no_duplicate_dso_header
 test_supplement_check_uses_string_matching
+test_precommit_merge_not_overwritten
+test_precommit_merge_adds_review_gate
+test_precommit_merge_no_duplicate_review_gate
+test_precommit_merge_preserves_existing_hooks
+test_precommit_yaml_merge_produces_valid_yaml
+test_precommit_hook_merge_dryrun_no_changes
 
 print_summary

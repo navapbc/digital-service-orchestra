@@ -1,6 +1,6 @@
 ---
 id: dso-cz6p
-status: open
+status: in_progress
 deps: 
   - dso-gfl9
   - dso-6576
@@ -41,3 +41,54 @@ parent: dso-2cy8
 **2026-03-20T00:55:23Z**
 
 COMPLEXITY_CLASSIFICATION: COMPLEX
+
+## ACCEPTANCE CRITERIA
+
+- [ ] CLAUDE.md references consolidated ci.* namespace
+  Verify: grep -q "ci.workflow_name\|ci\.\*" CLAUDE.md
+- [ ] CONFIGURATION-REFERENCE.md documents ci.workflow_name and deprecates merge.ci_workflow_name
+  Verify: grep -q "ci.workflow_name" plugins/dso/docs/CONFIGURATION-REFERENCE.md && grep -qi "deprecat.*merge.ci_workflow_name" plugins/dso/docs/CONFIGURATION-REFERENCE.md
+- [ ] INSTALL.md reflects updated setup instructions
+  Verify: grep -q "project-setup\|dso:project-setup" plugins/dso/docs/INSTALL.md
+
+<!-- note-id: gcc0h03a -->
+<!-- timestamp: 2026-03-20T01:38:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: s69r8zt2 -->
+<!-- timestamp: 2026-03-20T01:39:12Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — ci.workflow_name is the new consolidated key (preferred); merge.ci_workflow_name is deprecated with fallback in merge-to-main.sh; project-setup wizard now exists as /dso:project-setup skill
+
+<!-- note-id: tnx8x0ea -->
+<!-- timestamp: 2026-03-20T01:39:20Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (none required — docs only) ✓
+
+<!-- note-id: d09cmxuf -->
+<!-- timestamp: 2026-03-20T01:41:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — updated CLAUDE.md (ci.workflow_name ci.* section + project-setup quick ref), CONFIGURATION-REFERENCE.md (ci.workflow_name new entry + merge.ci_workflow_name deprecated), INSTALL.md (project-setup wizard step + ci.workflow_name in key summary)
+
+<!-- note-id: 5q9jj832 -->
+<!-- timestamp: 2026-03-20T01:41:20Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — check-skill-refs.sh: no unqualified skill refs found
+
+<!-- note-id: 4zh5ybh0 -->
+<!-- timestamp: 2026-03-20T01:41:41Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — all 3 AC verified: (1) CLAUDE.md ci.workflow_name PASS, (2) CONFIGURATION-REFERENCE.md ci.workflow_name + deprecation PASS, (3) INSTALL.md project-setup PASS

@@ -1,6 +1,6 @@
 ---
 id: dso-48fu
-status: in_progress
+status: closed
 deps: 
   - dso-gfl9
   - dso-6576

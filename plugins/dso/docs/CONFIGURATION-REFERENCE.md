@@ -105,6 +105,17 @@ Schema: `docs/workflow-config-schema.json`
 
 ---
 
+### `ci.workflow_name`
+
+| | |
+|---|---|
+| **Description** | GitHub Actions workflow name for `gh workflow run`. Used by `merge-to-main.sh` for post-push CI trigger recovery. When absent (and `merge.ci_workflow_name` is also absent), the CI trigger recovery step is skipped. **Preferred** over the deprecated `merge.ci_workflow_name` key. |
+| **Accepted values** | Exact workflow name string (e.g., `CI`, `Build and Test`) |
+| **Default** | Absent — step skipped |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` |
+
+---
+
 ### `ci.integration_workflow`
 
 | | |
@@ -591,12 +602,14 @@ Schema: `docs/workflow-config-schema.json`
 
 ### `merge.ci_workflow_name`
 
+> **Deprecated** — use [`ci.workflow_name`](#ciworkflow_name) instead. When `ci.workflow_name` is set, `merge.ci_workflow_name` is ignored. When only `merge.ci_workflow_name` is present, `merge-to-main.sh` falls back to it with a deprecation warning logged to stderr. Migrate by moving the value to `ci.workflow_name` and removing this key.
+
 | | |
 |---|---|
-| **Description** | GitHub Actions workflow name for `gh workflow run`. Used for post-push CI trigger recovery. When absent, this recovery step is skipped. |
+| **Description** | (**Deprecated**) GitHub Actions workflow name for `gh workflow run`. Used for post-push CI trigger recovery. Superseded by `ci.workflow_name`. When absent (and `ci.workflow_name` is also absent), this recovery step is skipped. |
 | **Accepted values** | Exact workflow name string (e.g., `CI`, `Build and Test`) |
 | **Default** | Absent — step skipped |
-| **Used by** | `.claude/scripts/dso merge-to-main.sh` |
+| **Used by** | `.claude/scripts/dso merge-to-main.sh` (fallback only) |
 
 ---
 

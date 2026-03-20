@@ -1,6 +1,6 @@
 ---
 id: w21-arjk
-status: open
+status: in_progress
 deps: [w21-l9r7]
 links: []
 created: 2026-03-20T00:29:44Z
@@ -108,3 +108,29 @@ After committing this task alone:
 - [ ] bash tests/scripts/test-project-detect.sh passes for script_existence and file_presence test functions
   Verify: bash /Users/joeoakhart/digital-service-orchestra/tests/scripts/test-project-detect.sh 2>&1 | grep -E 'test_project_detect_(exists|file_presence|stack)' | grep -v FAIL
 
+
+## Notes
+
+**2026-03-20T01:38:39Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T01:38:44Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T01:38:50Z**
+
+CHECKPOINT 3/6: Tests written (pre-existing RED) ✓
+
+**2026-03-20T01:41:34Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T01:43:53Z**
+
+CHECKPOINT 5/6: Validation passed ✓ (67/67 target tests pass; hook test timeout is pre-existing infra flake unrelated to this change — passes when run directly)
+
+**2026-03-20T01:44:02Z**
+
+CHECKPOINT 6/6: Done ✓ — AC verified: script exists at plugins/dso/scripts/project-detect.sh, executable, takes target dir arg, outputs key=value, delegates stack to detect-stack.sh, checks CLAUDE.md/KNOWN-ISSUES.md/.pre-commit-config.yaml/workflow-config.conf file presence. All 67 tests GREEN.

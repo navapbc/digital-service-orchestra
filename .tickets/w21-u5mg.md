@@ -1,6 +1,6 @@
 ---
 id: w21-u5mg
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-20T00:50:53Z
@@ -34,3 +34,29 @@ Note: The merge strategy is append-repos (add the DSO local repo block to the ex
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-setup.sh 2>&1 | grep -q 'FAIL'
 
 
+
+## Notes
+
+**2026-03-20T01:38:25Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T01:38:38Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T01:39:31Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-20T01:52:37Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — 6 new RED tests all fail as expected: test_precommit_merge_not_overwritten (review-gate assertion), test_precommit_merge_adds_review_gate, test_precommit_merge_no_duplicate_review_gate, test_precommit_merge_preserves_existing_hooks (review-gate assertion), test_precommit_yaml_merge_produces_valid_yaml (review-gate assertion), test_precommit_hook_merge_dryrun_no_changes (dryrun preview assertion). All 39 existing tests pass.
+
+**2026-03-20T01:53:10Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — AC grep finds 34 matches (>=4 required), FAIL confirmed in output, script tests: 1757 PASSED / 6 FAILED (all 6 are new RED tests)
+
+**2026-03-20T01:53:17Z**
+
+CHECKPOINT 6/6: Done ✓ — AC self-check: (1) run-all.sh script suite: 1757 PASSED / 6 FAILED — only new RED tests fail, all existing tests pass; (2) 6 test functions match grep pattern (>= 4 required); (3) test-dso-setup.sh output contains FAIL — RED confirmed
