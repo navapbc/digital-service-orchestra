@@ -1,6 +1,6 @@
 ---
 id: w21-t1tt
-status: open
+status: in_progress
 deps: [w21-dkes]
 links: []
 created: 2026-03-20T00:42:07Z
@@ -61,3 +61,47 @@ Dependencies: w21-dkes (infrastructure section must be present), w21-b9ll (RED t
 - [ ] make format-check passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel)/app && make format-check
 
+
+## Notes
+
+<!-- note-id: eon2octe -->
+<!-- timestamp: 2026-03-20T02:30:25Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: ay9c99st -->
+<!-- timestamp: 2026-03-20T02:30:31Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — Tests 6 and 7 are RED (staging conditional section and Python version auto-detection missing from Step 3 of SKILL.md)
+
+<!-- note-id: 965b7oz8 -->
+<!-- timestamp: 2026-03-20T02:30:36Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (pre-existing RED) ✓ — w21-b9ll RED tests confirmed: test_skill_has_staging_conditional_section, test_skill_has_python_version_autodetection
+
+<!-- note-id: sj757gk6 -->
+<!-- timestamp: 2026-03-20T02:31:01Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — Added '### Staging configuration' section (gated on DETECT_STAGING_CONFIG_PRESENT, prompts for staging.url with DETECT_STAGING_URL pre-fill) and '### Python version' section (always prompts for worktree.python_version, pre-fills from DETECT_PYTHON_VERSION sourced from pyproject.toml, .python-version, or python3 binary) to SKILL.md Step 3
+
+<!-- note-id: 9bg5k9id -->
+<!-- timestamp: 2026-03-20T02:31:10Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — All 7 tests GREEN (was 5/7; now 7/7)
+
+<!-- note-id: 54i0159g -->
+<!-- timestamp: 2026-03-20T02:31:23Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All AC verified: staging.url section gated on DETECT_STAGING_CONFIG_PRESENT, worktree.python_version auto-detection from pyproject.toml/.python-version/python3 binary, all 7 tests GREEN, all grep AC checks pass

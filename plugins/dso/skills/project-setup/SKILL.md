@@ -410,6 +410,52 @@ Install pre-commit now? (yes/no)
 If yes: display the install command `pip3 install pre-commit` and instruct the user to run it. Do not run it automatically.
 If no: note that git hook management will be unavailable and continue.
 
+### Staging configuration
+
+Check the detection output from Step 2 for `DETECT_STAGING_CONFIG_PRESENT`. If `DETECT_STAGING_CONFIG_PRESENT=true` (i.e., a staging config file, `heroku.yml`, or `STAGING_URL` environment variable was detected), prompt for the staging URL. If staging config is not detected, skip this section.
+
+**If `DETECT_STAGING_CONFIG_PRESENT=true` (staging config detected):**
+
+**staging.url** — Use `AskUserQuestion`:
+```
+Staging URL (e.g., https://your-app.herokuapp.com):
+```
+
+If `DETECT_STAGING_URL` from the detection output is non-empty, pre-fill it as the default:
+```
+Staging URL (e.g., https://your-app.herokuapp.com):
+Auto-detected: <DETECT_STAGING_URL>
+Press Enter to accept, or type a custom value:
+```
+
+Record as `staging.url`.
+
+**If `DETECT_STAGING_CONFIG_PRESENT=false` (or field absent/unknown):**
+
+Skip the staging URL prompt. Note: `(skipping — no staging configuration detected)`. Do NOT prompt for `staging.url` when no staging config is detected.
+
+### Python version
+
+Always prompt for `worktree.python_version` — this is not conditional on detection, but pre-fill from detection output when available.
+
+Pre-fill logic (in priority order):
+1. `DETECT_PYTHON_VERSION` from `project-detect.sh` (sourced from `pyproject.toml`, `.python-version`, or `python3 --version`)
+2. If not detected, leave blank for manual entry
+
+**worktree.python_version** — Use `AskUserQuestion`:
+
+If `DETECT_PYTHON_VERSION` is non-empty:
+```
+Python version (auto-detected: <DETECT_PYTHON_VERSION>). Confirm or enter value:
+```
+
+If `DETECT_PYTHON_VERSION` is empty or not detected:
+```
+Python version (e.g., 3.13.0):
+```
+
+Record as `worktree.python_version`. This value is used for `worktree.python_version` in `workflow-config.conf` and controls which Python binary is used in worktree sessions.
+
 ---
 
 ## Step 4: Write workflow-config.conf

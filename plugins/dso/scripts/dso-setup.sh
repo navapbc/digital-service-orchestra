@@ -350,6 +350,54 @@ PYEOF
     echo "[merge] Appended DSO hooks to .pre-commit-config.yaml: $hooks_list"
 }
 
+# ── _run_ci_guard_analysis: analyze existing CI workflow for missing guards ────
+# Usage: _run_ci_guard_analysis DRYRUN TARGET_REPO
+#   DRYRUN:      non-empty = dry-run mode (analysis output shown, no file writes)
+#   TARGET_REPO: path to the host project repo
+#
+# Detection input: reads DSO_DETECT_OUTPUT env var (path to a key=value file with
+# lines like: ci_workflow_lint_guarded=true|false). If DSO_DETECT_OUTPUT is unset
+# or the file is absent/empty, emits a skip message and returns.
+#
+# Guard keys recognized: ci_workflow_lint_guarded, ci_workflow_test_guarded,
+#                        ci_workflow_format_guarded
+_run_ci_guard_analysis() {
+    local dryrun="$1"
+    # TARGET_REPO arg is accepted for future use (e.g., listing workflow files)
+
+    local detect_file="${DSO_DETECT_OUTPUT:-}"
+    if [[ -z "$detect_file" ]] || [[ ! -f "$detect_file" ]]; then
+        echo "[skip] No detection output available — skipping CI guard analysis"
+        return 0
+    fi
+
+    echo "[ci-guard] CI workflow guards analysis:"
+
+    # Parse detection key=value lines
+    local lint_guarded test_guarded format_guarded
+    lint_guarded=$(grep '^ci_workflow_lint_guarded=' "$detect_file" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]') || lint_guarded=""
+    test_guarded=$(grep '^ci_workflow_test_guarded=' "$detect_file" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]') || test_guarded=""
+    format_guarded=$(grep '^ci_workflow_format_guarded=' "$detect_file" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]') || format_guarded=""
+
+    local prefix="[ci-guard]"
+    [[ -n "$dryrun" ]] && prefix="[dryrun][ci-guard]"
+
+    # Lint guard check
+    if [[ "$lint_guarded" == "false" ]]; then
+        echo "$prefix Existing CI workflow is missing lint guard — consider adding a lint step to your workflow"
+    fi
+
+    # Test guard check
+    if [[ "$test_guarded" == "false" ]]; then
+        echo "$prefix Existing CI workflow is missing test guard — consider adding a test step to your workflow"
+    fi
+
+    # Format guard check
+    if [[ "$format_guarded" == "false" ]]; then
+        echo "$prefix Existing CI workflow is missing format guard — consider adding a format step to your workflow"
+    fi
+}
+
 # ── Copy/merge pre-commit config ──────────────────────────────────────────────
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 if [[ -z "$DRYRUN" ]]; then
@@ -360,8 +408,17 @@ if [[ -z "$DRYRUN" ]]; then
     fi
 
     mkdir -p "$TARGET_REPO/.github/workflows"
-    if [ ! -f "$TARGET_REPO/.github/workflows/ci.yml" ]; then
+    # Check for ANY existing workflow file (not just ci.yml) under .github/workflows/
+    _existing_workflows=()
+    for _wf in "$TARGET_REPO/.github/workflows"/*.yml "$TARGET_REPO/.github/workflows"/*.yaml; do
+        [[ -f "$_wf" ]] && _existing_workflows+=("$_wf")
+    done
+    if [[ ${#_existing_workflows[@]} -eq 0 ]]; then
+        # No workflow files exist — copy the example (original behavior)
         cp "$DIST_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+    else
+        # Workflow file(s) exist — run CI guard analysis using detection output
+        _run_ci_guard_analysis "" "$TARGET_REPO"
     fi
 else
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
@@ -369,7 +426,17 @@ else
     else
         merge_precommit_hooks "$TARGET_PRECOMMIT" "$DIST_ROOT/examples/pre-commit-config.example.yaml" "1"
     fi
-    echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
+    # Check for ANY existing workflow file (not just ci.yml) under .github/workflows/
+    _existing_workflows_dry=()
+    for _wf in "$TARGET_REPO/.github/workflows"/*.yml "$TARGET_REPO/.github/workflows"/*.yaml; do
+        [[ -f "$_wf" ]] && _existing_workflows_dry+=("$_wf")
+    done
+    if [[ ${#_existing_workflows_dry[@]} -eq 0 ]]; then
+        echo "[dryrun] Would copy ci.example.yml -> $TARGET_REPO/.github/workflows/ci.yml (only if absent)"
+    else
+        # Workflow file(s) exist — run CI guard analysis (dryrun mode)
+        _run_ci_guard_analysis "1" "$TARGET_REPO"
+    fi
 fi
 
 # ── Register pre-commit hooks (must come AFTER config copy) ───────────────────
