@@ -1,7 +1,7 @@
 ---
 id: dso-ghcp
 status: open
-deps: [dso-zq4q]
+deps: [dso-zq4q, dso-kknz]
 links: []
 created: 2026-03-18T07:38:00Z
 type: task
