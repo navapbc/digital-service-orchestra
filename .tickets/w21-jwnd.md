@@ -1,10 +1,10 @@
 ---
 id: w21-jwnd
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-20T23:44:19Z
-type: bug
+type: task
 priority: 3
 assignee: Joe Oakhart
 ---
