@@ -1,7 +1,7 @@
 ---
 id: dso-zu4o
 status: open
-deps: []
+deps: [dso-kknz]
 links: []
 created: 2026-03-19T18:05:15Z
 type: epic
