@@ -1,6 +1,6 @@
 ---
 id: dso-bugk
-status: open
+status: closed
 deps: [dso-uc2d, dso-q2ev]
 links: []
 created: 2026-03-20T00:09:59Z
