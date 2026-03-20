@@ -98,7 +98,7 @@ cd "$(git rev-parse --show-toplevel)" && "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.s
 Copy the example config into your project root:
 
 ```bash
-cp "${CLAUDE_PLUGIN_ROOT}/docs/workflow-config.example.conf" ./workflow-config.conf
+cp "${CLAUDE_PLUGIN_ROOT}/docs/dso-config.example.conf" ./.claude/dso-config.conf
 ```
 
 Open `workflow-config.conf` and fill in the values for your project. At minimum:

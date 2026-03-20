@@ -3,7 +3,7 @@
 # Integration tests for verify-baseline-intent.sh config-driven path reading.
 #
 # These are behavioral tests that run the script end-to-end in isolated git
-# repos to verify it reads visual.baseline_directory from workflow-config.conf
+# repos to verify it reads visual.baseline_directory from dso-config.conf
 # rather than any hardcoded path.
 #
 # Test cases:
@@ -56,18 +56,18 @@ done
 
 # Helper: create a minimal isolated git repo with a `main` branch and one base
 # commit (the merge-base), then check out a feature branch for test additions.
-# The workflow-config.conf content is written BEFORE the base commit so both
+# The dso-config.conf content is written BEFORE the base commit so both
 # branches share the same config (the base commit includes the config file).
 _make_integration_repo() {
     local name="$1"
     local config_content="$2"
     local dir="$INTEGRATION_TMPDIR/$name"
-    mkdir -p "$dir"
+    mkdir -p "$dir/.claude"
     git -C "$dir" init -q -b main
     git -C "$dir" config user.email "test@test.local"
     git -C "$dir" config user.name "Test"
-    printf '%s\n' "$config_content" > "$dir/workflow-config.conf"
-    git -C "$dir" add workflow-config.conf
+    printf '%s\n' "$config_content" > "$dir/.claude/dso-config.conf"
+    git -C "$dir" add .claude/dso-config.conf
     git -C "$dir" commit -m "base" -q
     git -C "$dir" checkout -q -b feature/test
     echo "$dir"

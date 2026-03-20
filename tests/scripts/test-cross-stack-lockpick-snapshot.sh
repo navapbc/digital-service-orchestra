@@ -46,20 +46,20 @@ fi
 assert_eq "test_lockpick_snapshot_detect_returns_python_poetry" "python-poetry" "$detect_output"
 
 # ── test_lockpick_snapshot_workflow_config_exists ────────────────────────────
-# The lockpick-snapshot fixture must contain a workflow-config.conf file.
-# FAILS until the GREEN task creates tests/fixtures/lockpick-snapshot/workflow-config.conf
-if [ -f "$FIXTURE/workflow-config.conf" ]; then
+# The lockpick-snapshot fixture must contain a dso-config.conf file.
+# FAILS until the GREEN task creates tests/fixtures/lockpick-snapshot/dso-config.conf
+if [ -f "$FIXTURE/dso-config.conf" ]; then
     assert_eq "test_lockpick_snapshot_workflow_config_exists" "exists" "exists"
 else
     assert_eq "test_lockpick_snapshot_workflow_config_exists" "exists" "missing"
 fi
 
 # ── test_lockpick_snapshot_workflow_config_stack ──────────────────────────────
-# Reading the 'stack' key from the fixture's workflow-config.conf must return
+# Reading the 'stack' key from the fixture's dso-config.conf must return
 # 'python-poetry'.
 config_output=""
 config_exit=0
-config_output=$(bash "$DSO_PLUGIN_DIR/scripts/read-config.sh" stack "$FIXTURE/workflow-config.conf" 2>/dev/null) || config_exit=$?
+config_output=$(bash "$DSO_PLUGIN_DIR/scripts/read-config.sh" stack "$FIXTURE/dso-config.conf" 2>/dev/null) || config_exit=$?
 assert_eq "test_lockpick_snapshot_workflow_config_stack" "python-poetry" "$config_output"
 
 print_summary

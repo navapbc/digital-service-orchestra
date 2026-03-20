@@ -4,7 +4,7 @@
 #
 # Tests cover:
 #   1. Exits 0 when Docker+DB are healthy and no env_check_app is configured (generic-only mode)
-#   2. Emits a WARN and exits 0 when commands.env_check_app is absent from workflow-config.conf
+#   2. Emits a WARN and exits 0 when commands.env_check_app is absent from dso-config.conf
 #   3. Invokes the configured env_check_app command when commands.env_check_app is present
 #   4. Exits non-zero when env_check_app command exits non-zero (error path)
 #   5. Config-driven DB container name override
@@ -40,7 +40,7 @@ echo "=== test-check-local-env-generic.sh ==="
 TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
-# Helper: create a minimal project skeleton with the given workflow-config.conf content
+# Helper: create a minimal project skeleton with the given dso-config.conf content
 _make_skeleton() {
     local name="$1" config_content="$2"
     local dir="$TMPDIR_BASE/$name"
@@ -53,7 +53,7 @@ _make_skeleton() {
     GIT_AUTHOR_NAME="Test User" GIT_AUTHOR_EMAIL="test@example.com" \
     GIT_COMMITTER_NAME="Test User" GIT_COMMITTER_EMAIL="test@example.com" \
     git -C "$dir" commit --allow-empty -m "init" -q || { echo "ERROR: git commit failed for $dir" >&2; exit 1; }
-    printf '%s\n' "$config_content" > "$dir/workflow-config.conf" || { echo "ERROR: failed to write workflow-config.conf in $dir" >&2; exit 1; }
+    printf '%s\n' "$config_content" > "$dir/dso-config.conf" || { echo "ERROR: failed to write dso-config.conf in $dir" >&2; exit 1; }
     echo "$dir"
 }
 
@@ -120,7 +120,7 @@ CURL_STUB
 
     (
         export PATH="$stub_bin:$PATH"
-        export WORKFLOW_CONFIG="$skeleton_dir/workflow-config.conf"
+        export WORKFLOW_CONFIG="$skeleton_dir/dso-config.conf"
         cd "$skeleton_dir"
         bash "$CANONICAL_SCRIPT" "$@"
     )
@@ -189,7 +189,7 @@ assert_pass_if_clean "test_env_check_app_error_exits_nonzero"
 
 # ── test_db_container_name_override ──────────────────────────────────────────
 # Config-driven DB container name override (commands.db_container or
-# infrastructure.db_container key in workflow-config.conf).
+# infrastructure.db_container key in dso-config.conf).
 _snapshot_fail
 CUSTOM_CONTAINER="my-custom-db-container"
 skeleton5=$(_make_skeleton "custom-db-name" "$(cat <<CONF
@@ -211,7 +211,7 @@ assert_pass_if_clean "test_db_container_name_override"
 
 # ── test_health_timeout_override ─────────────────────────────────────────────
 # Config-driven health timeout override (commands.health_timeout or
-# infrastructure.health_timeout key in workflow-config.conf).
+# infrastructure.health_timeout key in dso-config.conf).
 _snapshot_fail
 skeleton6=$(_make_skeleton "health-timeout" "$(cat <<'CONF'
 stack=python-poetry

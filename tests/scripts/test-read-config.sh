@@ -22,7 +22,7 @@ TMPDIR_FIXTURE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_FIXTURE"' EXIT
 
 # Write a valid .conf fixture config
-FIXTURE_CONFIG="$TMPDIR_FIXTURE/workflow-config.conf"
+FIXTURE_CONFIG="$TMPDIR_FIXTURE/dso-config.conf"
 cat > "$FIXTURE_CONFIG" <<'CONF'
 test_command=make test-unit-only
 lint_command=make lint
@@ -104,7 +104,7 @@ MISSING_DIR="$TMPDIR_FIXTURE/empty_dir"
 mkdir -p "$MISSING_DIR"
 missing_exit=0
 missing_output=""
-missing_output=$(bash "$SCRIPT" "$MISSING_DIR/workflow-config.conf" "test_command" 2>&1) || missing_exit=$?
+missing_output=$(bash "$SCRIPT" "$MISSING_DIR/dso-config.conf" "test_command" 2>&1) || missing_exit=$?
 if [[ "$missing_exit" -eq 0 ]]; then
     actual_graceful="graceful"
 else
@@ -263,7 +263,7 @@ fi
 
 # ── test_example_config_contains_jira_section ────────────────────────────────
 _fail_before_ecj=$FAIL
-EXAMPLE_CONFIG="$DSO_PLUGIN_DIR/docs/workflow-config.example.conf"
+EXAMPLE_CONFIG="$DSO_PLUGIN_DIR/docs/dso-config.example.conf"
 if grep -q "^jira\." "$EXAMPLE_CONFIG" 2>/dev/null; then
     example_has_jira="has_jira"
 else
@@ -289,7 +289,7 @@ fi
 
 # Write a .conf fixture for list mode tests
 BATCH_FIXTURE_DIR="$(mktemp -d)"
-cat > "$BATCH_FIXTURE_DIR/workflow-config.conf" <<'CONF'
+cat > "$BATCH_FIXTURE_DIR/dso-config.conf" <<'CONF'
 tickets.directory=.tickets
 merge.visual_baseline_path=snapshots
 merge.ci_workflow_name=CI
@@ -303,7 +303,7 @@ CONF
 _fail_before_lake=$FAIL
 list_absent_exit=0
 list_absent_output=""
-list_absent_output=$(bash "$SCRIPT" --list nonexistent_key "$BATCH_FIXTURE_DIR/workflow-config.conf" 2>&1) || list_absent_exit=$?
+list_absent_output=$(bash "$SCRIPT" --list nonexistent_key "$BATCH_FIXTURE_DIR/dso-config.conf" 2>&1) || list_absent_exit=$?
 if [[ "$list_absent_exit" -ne 0 ]]; then
     actual_absent_exit="nonzero"
 else
@@ -319,7 +319,7 @@ fi
 _fail_before_lsd=$FAIL
 list_scalar_exit=0
 list_scalar_output=""
-list_scalar_output=$(bash "$SCRIPT" --list commands.lint "$BATCH_FIXTURE_DIR/workflow-config.conf" 2>&1) || list_scalar_exit=$?
+list_scalar_output=$(bash "$SCRIPT" --list commands.lint "$BATCH_FIXTURE_DIR/dso-config.conf" 2>&1) || list_scalar_exit=$?
 assert_eq "test_read_config_list_scalar_degrades: exit 0" "0" "$list_scalar_exit"
 assert_eq "test_read_config_list_scalar_degrades: scalar on one line" "make lint" "$list_scalar_output"
 if [[ "$FAIL" -eq "$_fail_before_lsd" ]]; then
@@ -333,7 +333,7 @@ fi
 _fail_before_bm=$FAIL
 batch_exit=0
 batch_output=""
-batch_output=$(bash "$SCRIPT" --batch "$BATCH_FIXTURE_DIR/workflow-config.conf" 2>&1) || batch_exit=$?
+batch_output=$(bash "$SCRIPT" --batch "$BATCH_FIXTURE_DIR/dso-config.conf" 2>&1) || batch_exit=$?
 assert_eq "test_batch_mode_returns_all_keys: exit 0" "0" "$batch_exit"
 # Must contain KEY=value lines (uppercase, dots to underscores)
 if echo "$batch_output" | grep -qE '^[A-Z_]+=.'; then
@@ -364,7 +364,7 @@ fi
 _fail_before_sk=$FAIL
 sk_exit=0
 sk_output=""
-sk_output=$(bash "$SCRIPT" commands.lint "$BATCH_FIXTURE_DIR/workflow-config.conf" 2>&1) || sk_exit=$?
+sk_output=$(bash "$SCRIPT" commands.lint "$BATCH_FIXTURE_DIR/dso-config.conf" 2>&1) || sk_exit=$?
 assert_eq "test_batch_mode_single_key_unchanged: exit 0" "0" "$sk_exit"
 assert_eq "test_batch_mode_single_key_unchanged: correct value" "make lint" "$sk_output"
 if [[ "$FAIL" -eq "$_fail_before_sk" ]]; then
@@ -375,7 +375,7 @@ fi
 # eval of --batch output must set vars correctly in subshell.
 _fail_before_be=$FAIL
 eval_result=$(bash -c "
-  eval \"\$(bash '$SCRIPT' --batch '$BATCH_FIXTURE_DIR/workflow-config.conf' 2>/dev/null)\"
+  eval \"\$(bash '$SCRIPT' --batch '$BATCH_FIXTURE_DIR/dso-config.conf' 2>/dev/null)\"
   echo \"\$COMMANDS_LINT\"
 " 2>&1) || true
 assert_eq "test_batch_mode_eval_safe: eval sets COMMANDS_LINT" "make lint" "$eval_result"
@@ -591,11 +591,11 @@ fi
 
 # ── .claude/dso-config.conf resolution tests ─────────────────────────────────
 # These tests assert the new resolution behavior: read-config.sh should resolve
-# from .claude/dso-config.conf in the git root (not workflow-config.conf).
+# from .claude/dso-config.conf in the git root (not dso-config.conf).
 # These tests are RED (failing) until the implementation task dso-opue runs.
 
 # ── test_resolves_from_dot_claude_dso_config_conf ─────────────────────────────
-# Given a temp git repo with .claude/dso-config.conf (no workflow-config.conf),
+# Given a temp git repo with .claude/dso-config.conf (no dso-config.conf),
 # read-config.sh reads config from .claude/dso-config.conf.
 _fail_before_rdcd=$FAIL
 _tmp_repo_rdcd="$(mktemp -d)"
@@ -620,13 +620,13 @@ fi
 rm -rf "$_tmp_repo_rdcd"
 
 # ── test_no_fallback_to_workflow_config_conf ──────────────────────────────────
-# Given a temp git repo with only workflow-config.conf at root (no
+# Given a temp git repo with only dso-config.conf at root (no
 # .claude/dso-config.conf), read-config.sh returns empty string, exit 0
 # (no fallback to old path).
 _fail_before_nfwc=$FAIL
 _tmp_repo_nfwc="$(mktemp -d)"
 git -C "$_tmp_repo_nfwc" init -q
-cat > "$_tmp_repo_nfwc/workflow-config.conf" <<'CONF'
+cat > "$_tmp_repo_nfwc/dso-config.conf" <<'CONF'
 test_command=make test-old
 CONF
 nfwc_exit=0

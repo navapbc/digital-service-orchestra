@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 # scripts/resolve-stack-adapter.sh
-# Resolves the stack adapter file path for a project based on workflow-config.conf.
+# Resolves the stack adapter file path for a project based on dso-config.conf.
 #
 # Usage:
 #   ADAPTER_FILE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-stack-adapter.sh")
@@ -13,7 +13,7 @@ set -uo pipefail
 # Environment:
 #   REPO_ROOT — optional; if not set, derived from BASH_SOURCE location
 #
-# The script reads `stack` and `design.template_engine` from workflow-config.conf via
+# The script reads `stack` and `design.template_engine` from dso-config.conf via
 # read-config.sh, then scans config/stack-adapters/*.yaml for a file
 # whose selector.stack and selector.template_engine fields match the project config.
 
@@ -26,7 +26,7 @@ fi
 
 READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
 
-# ── Read stack and template engine from workflow-config.conf ──────────────────
+# ── Read stack and template engine from dso-config.conf ──────────────────────
 STACK=$("$READ_CONFIG" stack 2>/dev/null || echo "")
 TEMPLATE_ENGINE=$("$READ_CONFIG" design.template_engine 2>/dev/null || echo "")
 

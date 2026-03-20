@@ -49,7 +49,7 @@ assert_eq "test_dryrun_flat_outcome_list" "found" "$has_flat_outcome_language"
 assert_pass_if_clean "test_dryrun_flat_outcome_list"
 
 # test_dryrun_no_script_vs_skill_split: Step 4 dryrun should NOT use the old two-section
-# format that says "[Script actions that would run:]" and "[workflow-config.conf that would be written:]"
+# format that says "[Script actions that would run:]" and "[dso-config.conf that would be written:]"
 # as separate headings that emphasize the script/skill distinction.
 _snapshot_fail
 if grep -qF "[Script actions that would run:]" "$SKILL_MD" 2>/dev/null; then
@@ -85,7 +85,7 @@ assert_pass_if_clean "test_conclusion_manual_steps"
 
 # test_conclusion_env_exports: Step 6 conclusion must display environment variable exports
 # (JIRA_URL, JIRA_USER, JIRA_API_TOKEN) that the user needs to add to their shell profile.
-# These are never written to workflow-config.conf, so must be surfaced in the conclusion.
+# These are never written to dso-config.conf, so must be surfaced in the conclusion.
 _snapshot_fail
 if grep -q "JIRA_URL\|JIRA_USER\|JIRA_API_TOKEN" "$SKILL_MD" 2>/dev/null; then
     has_jira_env_vars="found"
@@ -108,7 +108,7 @@ assert_eq "test_conclusion_env_exports_in_step6" "found" "$jira_in_step6"
 assert_pass_if_clean "test_conclusion_env_exports_in_step6"
 
 # test_conclusion_shows_keys_configured: Step 6 must list the keys that were configured
-# so the user knows what was written to workflow-config.conf.
+# so the user knows what was written to dso-config.conf.
 _snapshot_fail
 step6_content=$(awk '/^## Step 6:/,0' "$SKILL_MD" 2>/dev/null)
 if echo "$step6_content" | grep -qiE "keys configured|Keys configured|keys written|configured:"; then

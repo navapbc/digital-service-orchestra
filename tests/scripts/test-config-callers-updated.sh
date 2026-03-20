@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-config-callers-updated.sh
 # TDD tests verifying that script callers use .conf instead of .yaml,
-# and that runtime scripts use .claude/dso-config.conf (not workflow-config.conf).
+# and that runtime scripts use .claude/dso-config.conf (not dso-config.conf).
 #
 # Tests:
 #   test_sprint_next_batch_uses_conf — sprint-next-batch.sh references .conf
@@ -9,7 +9,7 @@
 #   test_validate_sh_uses_dot_claude_config — validate.sh uses $REPO_ROOT/.claude/dso-config.conf
 #   test_validate_phase_sh_uses_dot_claude_config — validate-phase.sh uses .claude/dso-config.conf
 #   test_sprint_next_batch_uses_dot_claude_config — sprint-next-batch.sh uses .claude/dso-config.conf
-#   test_no_hardcoded_workflow_config_conf_in_scripts — no active hardcoded workflow-config.conf path construction
+#   test_no_hardcoded_workflow_config_conf_in_scripts — no active hardcoded dso-config.conf path construction
 #
 # Usage: bash tests/scripts/test-config-callers-updated.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -79,7 +79,7 @@ assert_pass_if_clean "test_no_hardcoded_yaml_in_callers"
 
 # ── test_validate_sh_uses_dot_claude_config ───────────────────────────────────
 # validate.sh should construct CONFIG_FILE as $REPO_ROOT/.claude/dso-config.conf
-# (not $REPO_ROOT/workflow-config.conf). This test is RED until dso-2vwl is implemented.
+# (not $REPO_ROOT/dso-config.conf). This test is RED until dso-2vwl is implemented.
 _snapshot_fail
 VALIDATE_SCRIPT="$DSO_PLUGIN_DIR/scripts/validate.sh"
 
@@ -87,15 +87,15 @@ VALIDATE_SCRIPT="$DSO_PLUGIN_DIR/scripts/validate.sh"
 dot_claude_refs=$(grep -v '^\s*#' "$VALIDATE_SCRIPT" | grep -c '\.claude/dso-config\.conf' || true)
 assert_ne "validate.sh references .claude/dso-config.conf" "0" "$dot_claude_refs"
 
-# Check that no active (non-comment) lines construct the old workflow-config.conf path
+# Check that no active (non-comment) lines construct the old dso-config.conf path
 old_path_active=$(grep -v '^\s*#' "$VALIDATE_SCRIPT" | grep -c '\$REPO_ROOT/workflow-config\.conf' || true)
-assert_eq "validate.sh has no active \$REPO_ROOT/workflow-config.conf refs" "0" "$old_path_active"
+assert_eq "validate.sh has no active \$REPO_ROOT/dso-config.conf refs" "0" "$old_path_active"
 
 assert_pass_if_clean "test_validate_sh_uses_dot_claude_config"
 
 # ── test_validate_phase_sh_uses_dot_claude_config ────────────────────────────
 # validate-phase.sh should use $REPO_ROOT/.claude/dso-config.conf, not
-# $REPO_ROOT/workflow-config.conf. RED until dso-2vwl is implemented.
+# $REPO_ROOT/dso-config.conf. RED until dso-2vwl is implemented.
 _snapshot_fail
 VALIDATE_PHASE_SCRIPT="$DSO_PLUGIN_DIR/scripts/validate-phase.sh"
 
@@ -103,13 +103,13 @@ dot_claude_refs=$(grep -v '^\s*#' "$VALIDATE_PHASE_SCRIPT" | grep -c '\.claude/d
 assert_ne "validate-phase.sh references .claude/dso-config.conf" "0" "$dot_claude_refs"
 
 old_path_active=$(grep -v '^\s*#' "$VALIDATE_PHASE_SCRIPT" | grep -c '\$REPO_ROOT/workflow-config\.conf' || true)
-assert_eq "validate-phase.sh has no active \$REPO_ROOT/workflow-config.conf refs" "0" "$old_path_active"
+assert_eq "validate-phase.sh has no active \$REPO_ROOT/dso-config.conf refs" "0" "$old_path_active"
 
 assert_pass_if_clean "test_validate_phase_sh_uses_dot_claude_config"
 
 # ── test_sprint_next_batch_uses_dot_claude_config ────────────────────────────
 # sprint-next-batch.sh should pass $REPO_ROOT/.claude/dso-config.conf to
-# read-config.sh, not $REPO_ROOT/workflow-config.conf. RED until dso-2vwl.
+# read-config.sh, not $REPO_ROOT/dso-config.conf. RED until dso-2vwl.
 _snapshot_fail
 SPRINT_SCRIPT2="$DSO_PLUGIN_DIR/scripts/sprint-next-batch.sh"
 
@@ -117,13 +117,13 @@ dot_claude_refs=$(grep -v '^\s*#' "$SPRINT_SCRIPT2" | grep -c '\.claude/dso-conf
 assert_ne "sprint-next-batch.sh references .claude/dso-config.conf" "0" "$dot_claude_refs"
 
 old_path_active=$(grep -v '^\s*#' "$SPRINT_SCRIPT2" | grep -c '\$REPO_ROOT/workflow-config\.conf' || true)
-assert_eq "sprint-next-batch.sh has no active \$REPO_ROOT/workflow-config.conf refs" "0" "$old_path_active"
+assert_eq "sprint-next-batch.sh has no active \$REPO_ROOT/dso-config.conf refs" "0" "$old_path_active"
 
 assert_pass_if_clean "test_sprint_next_batch_uses_dot_claude_config"
 
 # ── test_no_hardcoded_workflow_config_conf_in_scripts ────────────────────────
 # No active (non-comment) lines in plugins/dso/scripts/*.sh should hard-code
-# the $REPO_ROOT/workflow-config.conf path construction.
+# the $REPO_ROOT/dso-config.conf path construction.
 # Excluded scripts with legitimate use of the filename:
 #   read-config.sh     — handles format detection / path resolution
 #   validate-config.sh — handles legacy config validation
@@ -151,7 +151,7 @@ while IFS= read -r line; do
     active_offenders+="$line"$'\n'
 done <<< "$raw_matches"
 
-assert_eq "no active \$REPO_ROOT/workflow-config.conf path construction in scripts" "" "$active_offenders"
+assert_eq "no active \$REPO_ROOT/dso-config.conf path construction in scripts" "" "$active_offenders"
 
 assert_pass_if_clean "test_no_hardcoded_workflow_config_conf_in_scripts"
 

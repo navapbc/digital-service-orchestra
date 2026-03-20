@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-verify-baseline-intent.sh
 # TDD tests for verify-baseline-intent.sh config-driven behavior:
-#   1. workflow-config.conf contains the required keys:
+#   1. dso-config.conf contains the required keys:
 #      - visual.baseline_directory → 'app/tests/e2e/snapshots/'
 #      - design.manifest_patterns  → a list with exactly two entries
 #   2. scripts/verify-baseline-intent.sh:
@@ -28,7 +28,7 @@ echo "=== test-verify-baseline-intent.sh ==="
 
 # ── Inline fixture for config tests ──────────────────────────────────────────
 _UNIT_TMPDIR="$(mktemp -d)"
-CONFIG="$_UNIT_TMPDIR/workflow-config.conf"
+CONFIG="$_UNIT_TMPDIR/dso-config.conf"
 cat > "$CONFIG" <<'CONF'
 visual.baseline_directory=app/tests/e2e/snapshots/
 design.manifest_patterns=designs/*/manifest.md
@@ -138,7 +138,7 @@ TMPDIR_FIXTURE="$(mktemp -d)"
 _CLEANUP_DIRS="$_UNIT_TMPDIR $TMPDIR_FIXTURE"
 trap 'rm -rf $_CLEANUP_DIRS' EXIT
 
-EMPTY_CONFIG="$TMPDIR_FIXTURE/workflow-config.conf"
+EMPTY_CONFIG="$TMPDIR_FIXTURE/dso-config.conf"
 cat > "$EMPTY_CONFIG" <<'CONF'
 stack=python-poetry
 CONF
@@ -189,7 +189,7 @@ done
 
 # Helper: create a minimal isolated git repo with a `main` branch and one base
 # commit (the merge-base), then check out a feature branch for test additions.
-# The workflow-config.conf content is written BEFORE the base commit so both
+# The dso-config.conf content is written BEFORE the base commit so both
 # branches share the same config (the base commit includes the config file).
 _make_portability_repo() {
     local name="$1"
@@ -199,8 +199,8 @@ _make_portability_repo() {
     git -C "$dir" init -q -b main
     git -C "$dir" config user.email "test@test.local"
     git -C "$dir" config user.name "Test"
-    printf '%s\n' "$config_content" > "$dir/workflow-config.conf"
-    git -C "$dir" add workflow-config.conf
+    printf '%s\n' "$config_content" > "$dir/dso-config.conf"
+    git -C "$dir" add dso-config.conf
     git -C "$dir" commit -m "base" -q
     git -C "$dir" checkout -q -b feature/test
     echo "$dir"
@@ -220,7 +220,7 @@ _run_portability() {
 
 # ── test_portability_no_visual_config_exits_0 ─────────────────────────────────
 # Portability: an isolated git repo with no visual.baseline_directory in
-# workflow-config.conf must cause the canonical script to exit 0 (no-op).
+# dso-config.conf must cause the canonical script to exit 0 (no-op).
 # This verifies the absent-config guard works end-to-end in a real git context.
 _snapshot_fail
 _p1_repo=$(_make_portability_repo "no-visual-config" "$(cat <<'CONF'

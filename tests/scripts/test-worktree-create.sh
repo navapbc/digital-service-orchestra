@@ -129,7 +129,7 @@ _smoke_setup() {
     # Export CLAUDE_PLUGIN_ROOT so subshells in isolated temp repos can resolve
     # hooks/lib and scripts paths (the variable is required by worktree-create.sh
     # under set -u).  Point at the smoke repo so read-config.sh finds the
-    # workflow-config.conf copied there by individual tests.
+    # dso-config.conf copied there by individual tests.
     export CLAUDE_PLUGIN_ROOT="$SMOKE_REPO"
 }
 
@@ -149,7 +149,7 @@ _smoke_cleanup() {
 # ── Test 11: Portability skip-path — no post_create_cmd exits 0 ──────────────
 echo "Test 11: Portability skip-path — no post_create_cmd config exits 0"
 _smoke_setup
-# No workflow-config.conf → post_create_cmd is empty → should skip gracefully
+# No dso-config.conf → post_create_cmd is empty → should skip gracefully
 smoke_exit=0
 smoke_output=""
 smoke_output=$(cd "$SMOKE_REPO" && bash "$SCRIPT" --name=smoke-skip --dir="$SMOKE_WORKTREES" --skip-pull 2>&1) || smoke_exit=$?
@@ -172,11 +172,11 @@ _smoke_cleanup
 # ── Test 12: Portability hook-path — post_create_cmd runs and side effects visible ──
 echo "Test 12: Portability hook-path — post_create_cmd creates marker file"
 _smoke_setup
-# Write workflow-config.conf with a post_create_cmd that creates a marker file
+# Write dso-config.conf with a post_create_cmd that creates a marker file
 mkdir -p "$SMOKE_REPO/scripts"
 # Copy read-config.sh so the script can find it in the temp repo
 cp "$DSO_PLUGIN_DIR/scripts/read-config.sh" "$SMOKE_REPO/scripts/read-config.sh"
-cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
+cat > "$SMOKE_REPO/dso-config.conf" <<'CONF'
 worktree.post_create_cmd=touch $WORKTREE_PATH/.setup-marker
 CONF
 smoke_exit=0
@@ -201,7 +201,7 @@ echo "Test 13: Portability hook-failure — failing post_create_cmd exits non-ze
 _smoke_setup
 mkdir -p "$SMOKE_REPO/scripts"
 cp "$DSO_PLUGIN_DIR/scripts/read-config.sh" "$SMOKE_REPO/scripts/read-config.sh"
-cat > "$SMOKE_REPO/workflow-config.conf" <<'CONF'
+cat > "$SMOKE_REPO/dso-config.conf" <<'CONF'
 worktree.post_create_cmd=false
 CONF
 smoke_exit=0

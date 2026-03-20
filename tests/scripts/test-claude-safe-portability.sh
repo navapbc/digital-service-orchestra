@@ -18,7 +18,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 PLUGIN_SCRIPT="$DSO_PLUGIN_DIR/scripts/claude-safe"
-FIXTURE_CONFIG="$PLUGIN_ROOT/tests/fixtures/minimal-plugin-consumer/workflow-config.conf"
+FIXTURE_CONFIG="$PLUGIN_ROOT/tests/fixtures/minimal-plugin-consumer/dso-config.conf"
 
 ASSERT_LIB="$PLUGIN_ROOT/tests/lib/assert.sh"
 if [ ! -f "$ASSERT_LIB" ]; then
@@ -41,7 +41,7 @@ git init -q -b main "$TMPDIR_MAIN"
 git -C "$TMPDIR_MAIN" commit --allow-empty -m "init" -q
 
 # Copy minimal fixture config
-cp "$FIXTURE_CONFIG" "$TMPDIR_MAIN/workflow-config.conf"
+cp "$FIXTURE_CONFIG" "$TMPDIR_MAIN/dso-config.conf"
 
 # Create bin/ stub directory
 mkdir -p "$TMPDIR_MAIN/bin"
@@ -96,7 +96,7 @@ git -C "$TMPDIR_WORKTREE" commit --allow-empty -m "init" -q
 
 # Export PATH so stubs take precedence
 export PATH="$TMPDIR_MAIN/bin:$PATH"
-export WORKFLOW_CONFIG="$TMPDIR_MAIN/workflow-config.conf"
+export WORKFLOW_CONFIG="$TMPDIR_MAIN/dso-config.conf"
 # claude-safe reads PLUGIN_SCRIPTS (not CLAUDE_PLUGIN_SCRIPTS) to find worktree-create.sh.
 # Point to fake-plugin-scripts so the sentinel-writing stub is used instead of the real one.
 export PLUGIN_SCRIPTS="$FAKE_PLUGIN_SCRIPTS"

@@ -3,8 +3,8 @@
 # End-to-end integration tests for the flat config migration.
 #
 # Validates:
-#   1. All keys in workflow-config.conf are readable via read-config.sh
-#   2. validate-config.sh passes on the real workflow-config.conf
+#   1. All keys in dso-config.conf are readable via read-config.sh
+#   2. validate-config.sh passes on the real dso-config.conf
 #   3. read-config.sh works without Python available (pure bash for .conf)
 #   4. Skill config resolution pattern works with .conf file
 #
@@ -67,7 +67,7 @@ trap _cleanup EXIT
 echo "=== test-flat-config-e2e.sh ==="
 
 # -- test_all_23_keys_readable ------------------------------------------------
-# Iterate all unique keys used in workflow-config.conf and verify read-config.sh
+# Iterate all unique keys used in dso-config.conf and verify read-config.sh
 # returns non-empty values for each one.
 _snapshot_fail
 
@@ -101,7 +101,7 @@ fi
 assert_pass_if_clean "test_all_23_keys_readable ($key_count keys checked)"
 
 # -- test_validate_config_on_real_conf ----------------------------------------
-# Run validate-config.sh against the real workflow-config.conf and expect exit 0.
+# Run validate-config.sh against the real dso-config.conf and expect exit 0.
 _snapshot_fail
 
 stderr_out=$(bash "$VALIDATE_CONFIG" "$REAL_CONF" 2>&1 >/dev/null)
@@ -166,8 +166,8 @@ plugin_scripts="$DSO_PLUGIN_DIR/scripts"
 # Create a temp file with our fixture config for WORKFLOW_CONFIG_FILE isolation
 _skill_tmpdir="$(mktemp -d)"
 _CLEANUP_DIRS+=("$_skill_tmpdir")
-cp "$REAL_CONF" "$_skill_tmpdir/workflow-config.conf"
-_fixture_conf="$_skill_tmpdir/workflow-config.conf"
+cp "$REAL_CONF" "$_skill_tmpdir/dso-config.conf"
+_fixture_conf="$_skill_tmpdir/dso-config.conf"
 
 # Test the pattern that skills use: PLUGIN_SCRIPTS + read-config.sh + key
 value=$(

@@ -27,22 +27,22 @@ echo "=== test-bump-version.sh ==="
 TMPDIR_FIXTURE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_FIXTURE"' EXIT
 
-# Helper: make a minimal workflow-config.conf in a temp dir with version.file_path set
+# Helper: make a minimal dso-config.conf in a temp dir with version.file_path set
 make_conf_with_path() {
     local dir="$1"
     local version_file_path="$2"
-    cat > "$dir/workflow-config.conf" <<CONF
-# workflow-config.conf test fixture
+    cat > "$dir/dso-config.conf" <<CONF
+# dso-config.conf test fixture
 version=1.0.0
 version.file_path=$version_file_path
 CONF
 }
 
-# Helper: make a workflow-config.conf without version.file_path
+# Helper: make a dso-config.conf without version.file_path
 make_conf_no_path() {
     local dir="$1"
-    cat > "$dir/workflow-config.conf" <<'CONF'
-# workflow-config.conf test fixture — no version.file_path
+    cat > "$dir/dso-config.conf" <<'CONF'
+# dso-config.conf test fixture — no version.file_path
 version=1.0.0
 CONF
 }
@@ -58,7 +58,7 @@ mkdir -p "$CONF_DIR_NOPATH"
 make_conf_no_path "$CONF_DIR_NOPATH"
 
 rc=0
-output=$(GIT_DIR=/dev/null bash "$SCRIPT" --patch --config "$CONF_DIR_NOPATH/workflow-config.conf" 2>&1) || rc=$?
+output=$(GIT_DIR=/dev/null bash "$SCRIPT" --patch --config "$CONF_DIR_NOPATH/dso-config.conf" 2>&1) || rc=$?
 assert_eq "test_no_config_skip exit" "0" "$rc"
 assert_pass_if_clean "test_no_config_skip"
 
@@ -79,7 +79,7 @@ cat > "$VERSION_FILE_JSON" <<'JSON'
 JSON
 make_conf_with_path "$CONF_DIR_JSON" "$VERSION_FILE_JSON"
 
-bash "$SCRIPT" --patch --config "$CONF_DIR_JSON/workflow-config.conf"
+bash "$SCRIPT" --patch --config "$CONF_DIR_JSON/dso-config.conf"
 result=$(python3 -c "import json; d=json.load(open('$VERSION_FILE_JSON')); print(d['version'])")
 assert_eq "test_json_patch_bump version" "1.2.4" "$result"
 assert_pass_if_clean "test_json_patch_bump"
@@ -96,7 +96,7 @@ cat > "$VERSION_FILE_JSON_MINOR" <<'JSON'
 JSON
 make_conf_with_path "$CONF_DIR_JSON_MINOR" "$VERSION_FILE_JSON_MINOR"
 
-bash "$SCRIPT" --minor --config "$CONF_DIR_JSON_MINOR/workflow-config.conf"
+bash "$SCRIPT" --minor --config "$CONF_DIR_JSON_MINOR/dso-config.conf"
 result=$(python3 -c "import json; d=json.load(open('$VERSION_FILE_JSON_MINOR')); print(d['version'])")
 assert_eq "test_json_minor_bump version" "1.3.0" "$result"
 assert_pass_if_clean "test_json_minor_bump"
@@ -111,7 +111,7 @@ cat > "$VERSION_FILE_JSON_MAJOR" <<'JSON'
 JSON
 make_conf_with_path "$CONF_DIR_JSON_MAJOR" "$VERSION_FILE_JSON_MAJOR"
 
-bash "$SCRIPT" --major --config "$CONF_DIR_JSON_MAJOR/workflow-config.conf"
+bash "$SCRIPT" --major --config "$CONF_DIR_JSON_MAJOR/dso-config.conf"
 result=$(python3 -c "import json; d=json.load(open('$VERSION_FILE_JSON_MAJOR')); print(d['version'])")
 assert_eq "test_json_major_bump version" "2.0.0" "$result"
 # Other fields must not be corrupted
@@ -129,7 +129,7 @@ original_content=$(cat "$VERSION_FILE_JSON_BAD")
 make_conf_with_path "$CONF_DIR_JSON_BAD" "$VERSION_FILE_JSON_BAD"
 
 rc=0
-bash "$SCRIPT" --patch --config "$CONF_DIR_JSON_BAD/workflow-config.conf" 2>/dev/null || rc=$?
+bash "$SCRIPT" --patch --config "$CONF_DIR_JSON_BAD/dso-config.conf" 2>/dev/null || rc=$?
 assert_ne "test_json_malformed exit" "0" "$rc"
 after_content=$(cat "$VERSION_FILE_JSON_BAD")
 assert_eq "test_json_malformed file_unchanged" "$original_content" "$after_content"
@@ -144,7 +144,7 @@ printf '{"name": "test"}' > "$VERSION_FILE_JSON_NOKEY"
 make_conf_with_path "$CONF_DIR_JSON_NOKEY" "$VERSION_FILE_JSON_NOKEY"
 
 rc=0
-bash "$SCRIPT" --patch --config "$CONF_DIR_JSON_NOKEY/workflow-config.conf" 2>/dev/null || rc=$?
+bash "$SCRIPT" --patch --config "$CONF_DIR_JSON_NOKEY/dso-config.conf" 2>/dev/null || rc=$?
 assert_ne "test_json_missing_version_key exit" "0" "$rc"
 assert_pass_if_clean "test_json_missing_version_key"
 
@@ -164,7 +164,7 @@ version = "0.1.0"
 TOML
 make_conf_with_path "$CONF_DIR_TOML" "$VERSION_FILE_TOML"
 
-bash "$SCRIPT" --patch --config "$CONF_DIR_TOML/workflow-config.conf"
+bash "$SCRIPT" --patch --config "$CONF_DIR_TOML/dso-config.conf"
 result=$(grep '^version = ' "$VERSION_FILE_TOML" | head -1 | cut -d'"' -f2)
 assert_eq "test_toml_patch_bump version" "0.1.1" "$result"
 assert_pass_if_clean "test_toml_patch_bump"
@@ -179,7 +179,7 @@ version = "0.1.0"
 TOML
 make_conf_with_path "$CONF_DIR_TOML_MINOR" "$VERSION_FILE_TOML_MINOR"
 
-bash "$SCRIPT" --minor --config "$CONF_DIR_TOML_MINOR/workflow-config.conf"
+bash "$SCRIPT" --minor --config "$CONF_DIR_TOML_MINOR/dso-config.conf"
 result=$(grep '^version = ' "$VERSION_FILE_TOML_MINOR" | head -1 | cut -d'"' -f2)
 assert_eq "test_toml_minor_bump version" "0.2.0" "$result"
 assert_pass_if_clean "test_toml_minor_bump"
@@ -196,7 +196,7 @@ description = "a project"
 TOML
 make_conf_with_path "$CONF_DIR_TOML_MAJOR" "$VERSION_FILE_TOML_MAJOR"
 
-bash "$SCRIPT" --major --config "$CONF_DIR_TOML_MAJOR/workflow-config.conf"
+bash "$SCRIPT" --major --config "$CONF_DIR_TOML_MAJOR/dso-config.conf"
 result=$(grep '^version = ' "$VERSION_FILE_TOML_MAJOR" | head -1 | cut -d'"' -f2)
 assert_eq "test_toml_major_bump version" "3.0.0" "$result"
 # Other fields preserved
@@ -217,7 +217,7 @@ original_content=$(cat "$VERSION_FILE_TOML_BAD")
 make_conf_with_path "$CONF_DIR_TOML_BAD" "$VERSION_FILE_TOML_BAD"
 
 rc=0
-bash "$SCRIPT" --patch --config "$CONF_DIR_TOML_BAD/workflow-config.conf" 2>/dev/null || rc=$?
+bash "$SCRIPT" --patch --config "$CONF_DIR_TOML_BAD/dso-config.conf" 2>/dev/null || rc=$?
 assert_ne "test_toml_malformed exit" "0" "$rc"
 after_content=$(cat "$VERSION_FILE_TOML_BAD")
 assert_eq "test_toml_malformed file_unchanged" "$original_content" "$after_content"
@@ -235,7 +235,7 @@ VERSION_FILE_PLAIN="$CONF_DIR_PLAIN/VERSION"
 printf '3.0.0\n' > "$VERSION_FILE_PLAIN"
 make_conf_with_path "$CONF_DIR_PLAIN" "$VERSION_FILE_PLAIN"
 
-bash "$SCRIPT" --patch --config "$CONF_DIR_PLAIN/workflow-config.conf"
+bash "$SCRIPT" --patch --config "$CONF_DIR_PLAIN/dso-config.conf"
 result=$(cat "$VERSION_FILE_PLAIN")
 assert_eq "test_plaintext_patch_bump version" "3.0.1" "$result"
 assert_pass_if_clean "test_plaintext_patch_bump"
@@ -248,7 +248,7 @@ VERSION_FILE_TXT="$CONF_DIR_TXT/version.txt"
 printf '0.5.0\n' > "$VERSION_FILE_TXT"
 make_conf_with_path "$CONF_DIR_TXT" "$VERSION_FILE_TXT"
 
-bash "$SCRIPT" --minor --config "$CONF_DIR_TXT/workflow-config.conf"
+bash "$SCRIPT" --minor --config "$CONF_DIR_TXT/dso-config.conf"
 result=$(cat "$VERSION_FILE_TXT")
 assert_eq "test_plaintext_minor_bump version" "0.6.0" "$result"
 assert_pass_if_clean "test_plaintext_minor_bump"
@@ -261,7 +261,7 @@ VERSION_FILE_PLAIN_MAJOR="$CONF_DIR_PLAIN_MAJOR/VERSION"
 printf '1.9.9\n' > "$VERSION_FILE_PLAIN_MAJOR"
 make_conf_with_path "$CONF_DIR_PLAIN_MAJOR" "$VERSION_FILE_PLAIN_MAJOR"
 
-bash "$SCRIPT" --major --config "$CONF_DIR_PLAIN_MAJOR/workflow-config.conf"
+bash "$SCRIPT" --major --config "$CONF_DIR_PLAIN_MAJOR/dso-config.conf"
 result=$(cat "$VERSION_FILE_PLAIN_MAJOR")
 assert_eq "test_plaintext_major_bump version" "2.0.0" "$result"
 assert_pass_if_clean "test_plaintext_major_bump"
@@ -276,7 +276,7 @@ original_content=$(cat "$VERSION_FILE_PLAIN_BAD")
 make_conf_with_path "$CONF_DIR_PLAIN_BAD" "$VERSION_FILE_PLAIN_BAD"
 
 rc=0
-bash "$SCRIPT" --patch --config "$CONF_DIR_PLAIN_BAD/workflow-config.conf" 2>/dev/null || rc=$?
+bash "$SCRIPT" --patch --config "$CONF_DIR_PLAIN_BAD/dso-config.conf" 2>/dev/null || rc=$?
 assert_ne "test_plaintext_malformed exit" "0" "$rc"
 after_content=$(cat "$VERSION_FILE_PLAIN_BAD")
 assert_eq "test_plaintext_malformed file_unchanged" "$original_content" "$after_content"
@@ -294,7 +294,7 @@ NONEXISTENT_FILE="$CONF_DIR_MISSING/does_not_exist.json"
 make_conf_with_path "$CONF_DIR_MISSING" "$NONEXISTENT_FILE"
 
 rc=0
-bash "$SCRIPT" --patch --config "$CONF_DIR_MISSING/workflow-config.conf" 2>/dev/null || rc=$?
+bash "$SCRIPT" --patch --config "$CONF_DIR_MISSING/dso-config.conf" 2>/dev/null || rc=$?
 assert_ne "test_file_not_found exit" "0" "$rc"
 assert_pass_if_clean "test_file_not_found"
 
@@ -309,7 +309,7 @@ mkdir -p "$CONF_DIR_NOFLAG"
 make_conf_no_path "$CONF_DIR_NOFLAG"
 
 rc=0
-bash "$SCRIPT" --config "$CONF_DIR_NOFLAG/workflow-config.conf" 2>/dev/null || rc=$?
+bash "$SCRIPT" --config "$CONF_DIR_NOFLAG/dso-config.conf" 2>/dev/null || rc=$?
 assert_ne "test_no_flag exit" "0" "$rc"
 assert_pass_if_clean "test_no_flag"
 

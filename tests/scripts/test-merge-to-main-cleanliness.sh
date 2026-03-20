@@ -69,11 +69,12 @@ priority: 2
 EOF
 }
 
-# ── Helper: create a minimal workflow-config.conf ─────────────────────────────
+# ── Helper: create a minimal dso-config.conf ─────────────────────────────────
 make_minimal_config() {
     local dir="$1"
     local tickets_dir="${2:-.tickets}"
-    cat > "$dir/workflow-config.conf" <<CONF
+    mkdir -p "$dir/.claude"
+    cat > "$dir/.claude/dso-config.conf" <<CONF
 tickets.directory=$tickets_dir
 CONF
 }

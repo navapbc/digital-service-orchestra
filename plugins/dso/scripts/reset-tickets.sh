@@ -18,7 +18,7 @@ set -euo pipefail
 #   scripts/reset-tickets.sh <commit-sha> [--jira-project <key>]
 #
 # Options:
-#   --jira-project <key>   Jira project key (default: from workflow-config.conf)
+#   --jira-project <key>   Jira project key (default: from dso-config.conf)
 #   --skip-jira            Skip Jira deletion and sync (local reset only)
 #   --dry-run              Show what would happen without making changes
 #   --yes                  Skip confirmation prompts
@@ -79,7 +79,7 @@ if [[ -z "$JIRA_PROJECT" ]]; then
 fi
 
 if [[ -z "$JIRA_PROJECT" ]] && [[ "$SKIP_JIRA" == "false" ]]; then
-    echo "Error: could not determine Jira project. Use --jira-project <key> or set in workflow-config.conf" >&2
+    echo "Error: could not determine Jira project. Use --jira-project <key> or set in dso-config.conf" >&2
     exit 1
 fi
 

@@ -25,9 +25,9 @@ TMPDIR_FIXTURE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_FIXTURE"' EXIT
 
 # Write a .conf fixture (flat KEY=VALUE format)
-FIXTURE_CONF="$TMPDIR_FIXTURE/workflow-config.conf"
+FIXTURE_CONF="$TMPDIR_FIXTURE/dso-config.conf"
 cat > "$FIXTURE_CONF" <<'CONF'
-# workflow-config.conf fixture for tests
+# dso-config.conf fixture for tests
 version=1.0.0
 stack=python-poetry
 commands.test=make test
@@ -139,7 +139,7 @@ commands:
   test: "make test"
 YAML
 # Point WORKFLOW_CONFIG_FILE at the .conf path (which doesn't exist — only .yaml does).
-actual=$(WORKFLOW_CONFIG_FILE="$FALLBACK_DIR/workflow-config.conf" bash "$SCRIPT" commands.test)
+actual=$(WORKFLOW_CONFIG_FILE="$FALLBACK_DIR/dso-config.conf" bash "$SCRIPT" commands.test)
 rc=$?
 assert_eq "test_no_yaml_fallback value" "" "$actual"
 assert_eq "test_no_yaml_fallback exit" "0" "$rc"
@@ -150,10 +150,10 @@ assert_pass_if_clean "test_no_yaml_fallback"
 _snapshot_fail
 CONF_DIR="$TMPDIR_FIXTURE/confonly"
 mkdir -p "$CONF_DIR"
-cat > "$CONF_DIR/workflow-config.conf" <<'CONF'
+cat > "$CONF_DIR/dso-config.conf" <<'CONF'
 commands.test=make test-from-conf
 CONF
-actual=$(WORKFLOW_CONFIG_FILE="$CONF_DIR/workflow-config.conf" bash "$SCRIPT" commands.test)
+actual=$(WORKFLOW_CONFIG_FILE="$CONF_DIR/dso-config.conf" bash "$SCRIPT" commands.test)
 assert_eq "test_conf_is_sole_format" "make test-from-conf" "$actual"
 assert_pass_if_clean "test_conf_is_sole_format"
 

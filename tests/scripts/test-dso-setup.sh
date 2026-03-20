@@ -3,7 +3,7 @@
 # TDD red-phase tests for scripts/dso-setup.sh
 #
 # Verifies that dso-setup.sh installs the dso shim into a host project's
-# .claude/scripts/ directory and writes dso.plugin_root to workflow-config.conf.
+# .claude/scripts/ directory and writes dso.plugin_root to dso-config.conf.
 #
 # RED PHASE: All tests are expected to FAIL until scripts/dso-setup.sh is created.
 #
@@ -106,7 +106,7 @@ test_setup_is_idempotent() {
 
 # ── test_setup_dso_tk_help_works ──────────────────────────────────────────────
 # After setup, invoking the installed shim with 'tk --help' (without
-# CLAUDE_PLUGIN_ROOT set — forcing the shim to read from workflow-config.conf)
+# CLAUDE_PLUGIN_ROOT set — forcing the shim to read from dso-config.conf)
 # must exit 0.
 test_setup_dso_tk_help_works() {
     local T
@@ -1201,10 +1201,10 @@ EOF
 # ── .claude/dso-config.conf path tests (dso-hui3) ────────────────────────────
 #
 # RED-phase: All 3 tests FAIL until dso-setup.sh is updated to write
-# dso.plugin_root= to .claude/dso-config.conf instead of workflow-config.conf.
+# dso.plugin_root= to .claude/dso-config.conf instead of dso-config.conf.
 
 # test_setup_writes_dso_config_conf: dso-setup.sh must write dso.plugin_root=
-# to .claude/dso-config.conf (not workflow-config.conf).
+# to .claude/dso-config.conf (not dso-config.conf).
 test_setup_writes_dso_config_conf() {
     local T
     T=$(mktemp -d)

@@ -6,7 +6,7 @@ user-invocable: true
 
 # Project Setup — Install and Configure DSO
 
-This skill is the primary entry point for onboarding a new project to Digital Service Orchestra. It replaces `/dso:init` with a richer, guided experience: it runs `dso-setup.sh` to install the DSO shim, detects the project stack, walks through an interactive configuration wizard that generates `workflow-config.conf`, and offers to copy starter templates.
+This skill is the primary entry point for onboarding a new project to Digital Service Orchestra. It replaces `/dso:init` with a richer, guided experience: it runs `dso-setup.sh` to install the DSO shim, detects the project stack, walks through an interactive configuration wizard that generates `dso-config.conf`, and offers to copy starter templates.
 
 ---
 
@@ -71,7 +71,7 @@ If `STACK=unknown`, note it — the wizard will ask for manual command input in 
 
 ## Step 3: Interactive Configuration Wizard
 
-> **Authoritative key source**: Read `docs/CONFIGURATION-REFERENCE.md` for the complete list of `workflow-config.conf` keys, their descriptions, accepted values, and defaults. Do NOT hardcode key descriptions inline — always reference that document.
+> **Authoritative key source**: Read `docs/CONFIGURATION-REFERENCE.md` for the complete list of `dso-config.conf` keys, their descriptions, accepted values, and defaults. Do NOT hardcode key descriptions inline — always reference that document.
 
 Ask one question at a time using `AskUserQuestion`. Do not present multiple prompts simultaneously. Work through each section sequentially, recording each confirmed value for writing in Step 4.
 
@@ -178,8 +178,8 @@ Record as `tickets.prefix` (omit if blank / uses default).
 **11. Jira tracking** — Use `AskUserQuestion`: "Do you use Jira for issue tracking? (yes/no)"
 
 If yes:
-- Explain that `JIRA_URL`, `JIRA_USER`, and `JIRA_API_TOKEN` are **environment variables** that belong in the user's shell profile (e.g., `~/.zshrc` or `~/.bashrc`) — they are **not** written to `workflow-config.conf`.
-- Use `AskUserQuestion` to ask for the `jira.project` key value (Jira project key, e.g., `DIG`). Record this for `workflow-config.conf`.
+- Explain that `JIRA_URL`, `JIRA_USER`, and `JIRA_API_TOKEN` are **environment variables** that belong in the user's shell profile (e.g., `~/.zshrc` or `~/.bashrc`) — they are **not** written to `dso-config.conf`.
+- Use `AskUserQuestion` to ask for the `jira.project` key value (Jira project key, e.g., `DIG`). Record this for `dso-config.conf`.
 - Show the user the env vars they need to add to their shell profile:
   ```
   export JIRA_URL=https://your-org.atlassian.net
@@ -194,12 +194,12 @@ If no: skip the Jira sub-section.
 
 Auto-detect CI workflows from the project-detect.sh output collected in Step 2. The `ci_workflow_names` field lists all workflow names found under `.github/workflows/`. Use these detected values to pre-populate prompts.
 
-**Check for deprecated key first**: Before prompting, scan the existing `workflow-config.conf` (if present) for a `merge.ci_workflow_name` entry. If found, show a deprecation notice:
+**Check for deprecated key first**: Before prompting, scan the existing `dso-config.conf` (if present) for a `merge.ci_workflow_name` entry. If found, show a deprecation notice:
 
 ```
 Note: merge.ci_workflow_name is deprecated — the preferred key is ci.workflow_name.
 Detected existing value: <value>
-This wizard will migrate it to ci.workflow_name. The old key can be removed from workflow-config.conf after confirmation.
+This wizard will migrate it to ci.workflow_name. The old key can be removed from dso-config.conf after confirmation.
 ```
 
 Then proceed with the prompts below, pre-filling the migrated value as the suggestion for `ci.workflow_name`.
@@ -263,8 +263,8 @@ The `dso.plugin_root` key is written automatically by `dso-setup.sh` — do NOT 
 
 Use `AskUserQuestion`: "Enable tool error monitoring and auto-ticket creation? (y/N, default: N):"
 
-- If **yes**: write `monitoring.tool_errors=true` to `workflow-config.conf`. This enables automatic tracking of tool errors and creates tickets for them.
-- If **no** (or default): omit the `monitoring.tool_errors` key entirely from `workflow-config.conf`. The feature is disabled when the key is absent. This is a safe-off default — opt-in only.
+- If **yes**: write `monitoring.tool_errors=true` to `dso-config.conf`. This enables automatic tracking of tool errors and creates tickets for them.
+- If **no** (or default): omit the `monitoring.tool_errors` key entirely from `dso-config.conf`. The feature is disabled when the key is absent. This is a safe-off default — opt-in only.
 
 ### Database configuration
 
@@ -385,7 +385,7 @@ If PyYAML is not installed, use `AskUserQuestion` to ask about PyYAML:
 ```
 Would you like to install PyYAML?
 PyYAML provides legacy YAML config format support — without PyYAML functionality for reading
-workflow-config.yml (YAML format) instead of workflow-config.conf will not be available.
+workflow-config.yml (YAML format) instead of dso-config.conf will not be available.
 Install with: pip3 install pyyaml
 Install PyYAML now? (yes/no)
 ```
@@ -454,13 +454,13 @@ If `DETECT_PYTHON_VERSION` is empty or not detected:
 Python version (e.g., 3.13.0):
 ```
 
-Record as `worktree.python_version`. This value is used for `worktree.python_version` in `workflow-config.conf` and controls which Python binary is used in worktree sessions.
+Record as `worktree.python_version`. This value is used for `worktree.python_version` in `dso-config.conf` and controls which Python binary is used in worktree sessions.
 
 ---
 
-## Step 4: Write workflow-config.conf
+## Step 4: Write dso-config.conf
 
-**In normal mode**: Write the confirmed key=value pairs to `$TARGET_REPO/workflow-config.conf`.
+**In normal mode**: Write the confirmed key=value pairs to `$TARGET_REPO/dso-config.conf`.
 
 **In dryrun mode**: Do NOT write the file. Instead, display a flat list of planned outcomes — what will happen to the user's project files. Do NOT distinguish between which internal component (script vs skill) performs each action; users care about results, not implementation details.
 
@@ -472,7 +472,7 @@ Collect all planned actions across Steps 1–3 and present them as a unified fla
 The following changes will be made to <TARGET_REPO>:
 
   - will install the DSO shim at .claude/scripts/dso
-  - will write workflow-config.conf with <N> keys (commands.test, commands.lint, ...)
+  - will write dso-config.conf with <N> keys (commands.test, commands.lint, ...)
   - will merge DSO hook configuration into .pre-commit-config.yaml
   - will supplement CLAUDE.md with DSO sections  (if CLAUDE.md exists)
   - will copy CLAUDE.md.template → CLAUDE.md  (if no CLAUDE.md exists and confirmed)
@@ -603,7 +603,7 @@ Print a summary of what was configured, followed by a **manual steps** section l
 
 Target repo: <TARGET_REPO>
 Stack: <STACK>
-workflow-config.conf: written
+dso-config.conf: written
 
 Keys configured:
   commands.test=<value>
@@ -623,7 +623,7 @@ The following were NOT configured automatically. Complete these before using DSO
 
 Always include (if applicable):
 
-1. **Jira environment variables** (shown only if Jira was configured in Step 3, since these are never written to `workflow-config.conf`):
+1. **Jira environment variables** (shown only if Jira was configured in Step 3, since these are never written to `dso-config.conf`):
    ```
    Add these exports to your shell profile (~/.zshrc or ~/.bashrc):
      export JIRA_URL=https://your-org.atlassian.net
@@ -663,7 +663,7 @@ Full documentation: plugins/dso/docs/INSTALL.md
 | `dso-setup.sh` exits 1 (fatal) | Print error, stop — do NOT proceed to wizard |
 | `dso-setup.sh` exits 2 (warnings) | Print warnings, ask user to continue |
 | `detect-stack.sh` returns `unknown` | Ask user for manual command input |
-| `workflow-config.conf` exists | Add/update only confirmed keys; preserve existing keys |
+| `dso-config.conf` exists | Add/update only confirmed keys; preserve existing keys |
 | User declines template copy | Skip the copy; continue to next step |
 | User declines to continue after exit 2 | Stop gracefully |
 | User says "no" to dryrun Proceed prompt | Stop gracefully — "Setup cancelled. No changes were made." |

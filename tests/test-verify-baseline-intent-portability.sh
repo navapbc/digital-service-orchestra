@@ -3,7 +3,7 @@
 # Portability smoke test for verify-baseline-intent.sh.
 #
 # Verifies that verify-baseline-intent.sh is a no-op (exit 0, no stderr) when:
-#   a. workflow-config.conf has no visual section (graceful skip)
+#   a. dso-config.conf has no visual section (graceful skip)
 #   b. visual.baseline_directory is set but no baseline .png files changed on branch
 #
 # These tests prove the script is safe to ship in the plugin for consumers that
@@ -13,7 +13,7 @@
 #   bash tests/test-verify-baseline-intent-portability.sh
 #
 # Tests covered:
-#   a. no visual config (no visual section in workflow-config.conf) → exit 0, no stderr
+#   a. no visual config (no visual section in dso-config.conf) → exit 0, no stderr
 #   b. visual config present, no baseline changes on branch         → exit 0
 
 set -eu
@@ -44,7 +44,7 @@ fi
 #
 # Temp dir structure:
 #   $TMPDIR/                             ← REPO_ROOT (fake git repo)
-#   $TMPDIR/workflow-config.conf         ← stub config (populated per scenario)
+#   $TMPDIR/dso-config.conf         ← stub config (populated per scenario)
 #   $TMPDIR/scripts/
 #       verify-baseline-intent.sh        ← symlink to canonical script
 #       read-config.sh                   ← symlink to real read-config.sh
@@ -113,7 +113,7 @@ run_verify() {
 }
 
 # ---------------------------------------------------------------------------
-# Test a: no visual config (no visual section in workflow-config.conf)
+# Test a: no visual config (no visual section in dso-config.conf)
 #
 # Expects:
 #   - exit 0
@@ -123,9 +123,9 @@ run_verify() {
 # without configuring visual baselines gets a silent no-op.
 # ---------------------------------------------------------------------------
 echo ""
-echo "Test a: no visual config (workflow-config.conf has no visual section)"
+echo "Test a: no visual config (dso-config.conf has no visual section)"
 
-cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+cat > "$TMPDIR/dso-config.conf" << 'WCFG'
 commands.format=true
 commands.lint=true
 commands.test_unit=echo '1 passed'
@@ -146,7 +146,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Test b: visual config absent entirely (no workflow-config.conf at all)
+# Test b: visual config absent entirely (no dso-config.conf at all)
 #
 # Expects:
 #   - exit 0
@@ -156,9 +156,9 @@ fi
 # verify-baseline-intent.sh treats empty BASELINE_DIR as no-op.
 # ---------------------------------------------------------------------------
 echo ""
-echo "Test b: no workflow-config.conf file at all"
+echo "Test b: no dso-config.conf file at all"
 
-rm -f "$TMPDIR/workflow-config.conf"
+rm -f "$TMPDIR/dso-config.conf"
 
 run_verify
 
@@ -187,8 +187,8 @@ fi
 echo ""
 echo "Test c: visual.baseline_directory set, no baseline changes on branch"
 
-# Restore workflow-config.conf with visual section
-cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+# Restore dso-config.conf with visual section
+cat > "$TMPDIR/dso-config.conf" << 'WCFG'
 commands.format=true
 commands.lint=true
 commands.test_unit=echo '1 passed'
@@ -202,7 +202,7 @@ printf '\x89PNG\r\n' > "$TMPDIR/tests/visual/baselines/example.png"
 
 (
     cd "$TMPDIR"
-    git add workflow-config.conf tests/
+    git add dso-config.conf tests/
     git commit -q -m "add visual baselines config and example baseline"
 )
 

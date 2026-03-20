@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-worktree-post-create-cmd-config.sh
-# Tests that workflow-config.conf contains the worktree.post_create_cmd key
+# Tests that dso-config.conf contains the worktree.post_create_cmd key
 # readable by read-config.sh.
 #
 # Usage: bash tests/scripts/test-worktree-post-create-cmd-config.sh

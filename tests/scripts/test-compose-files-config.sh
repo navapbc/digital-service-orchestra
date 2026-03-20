@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-compose-files-config.sh
-# Tests that workflow-config.conf contains the infrastructure.compose_files key
+# Tests that dso-config.conf contains the infrastructure.compose_files key
 # readable by read-config.sh in --list mode.
 #
 # Usage: bash tests/scripts/test-compose-files-config.sh

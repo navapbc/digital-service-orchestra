@@ -2,7 +2,7 @@
 # tests/hooks/test-auto-format-flat-config.sh
 # Tests for auto-format.sh migration from inline Python YAML reads to read-config.sh calls.
 # Validates that auto-format.sh reads format.extensions and format.source_dirs
-# from workflow-config.conf via read-config.sh instead of inline Python.
+# from dso-config.conf via read-config.sh instead of inline Python.
 #
 # Test isolation: all fake .py files are created inside a temporary git repo
 # under /tmp/, never in the real repo's app/src/. The hook resolves REPO_ROOT
@@ -38,7 +38,8 @@ _make_fake_repo "$_FAKE_REPO"
 # auto-format reads .py extension from a .conf file via read-config.sh
 _PLUGIN_ROOT="$_TEST_ARTIFACTS/plugin1"
 mkdir -p "$_PLUGIN_ROOT"
-cat > "$_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
+mkdir -p "$_PLUGIN_ROOT/.claude"
+cat > "$_PLUGIN_ROOT/.claude/dso-config.conf" << 'CONF_EOF'
 format.extensions=.py
 CONF_EOF
 
@@ -66,7 +67,8 @@ assert_eq "test_reads_extensions_from_conf_skips_ts" "" "$_TS_OUTPUT"
 # auto-format reads app/src, app/tests from a .conf file
 _PLUGIN_ROOT2="$_TEST_ARTIFACTS/plugin2"
 mkdir -p "$_PLUGIN_ROOT2"
-cat > "$_PLUGIN_ROOT2/workflow-config.conf" << 'CONF_EOF'
+mkdir -p "$_PLUGIN_ROOT2/.claude"
+cat > "$_PLUGIN_ROOT2/.claude/dso-config.conf" << 'CONF_EOF'
 format.extensions=.py
 format.source_dirs=app/src
 format.source_dirs=app/tests
@@ -98,7 +100,7 @@ assert_eq "test_no_python_invocation" "0" "$_has_python"
 # A .py file outside app/src and app/tests should be skipped (no config, default dirs)
 _NO_CONFIG_ROOT="$_TEST_ARTIFACTS/no-config"
 mkdir -p "$_NO_CONFIG_ROOT"
-# No workflow-config.conf or .yaml present
+# No dso-config.conf or .yaml present
 
 _OUTSIDE_PY2="$_TEST_ARTIFACTS/no_config_test.py"
 touch "$_OUTSIDE_PY2"

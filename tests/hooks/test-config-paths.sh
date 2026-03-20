@@ -56,7 +56,7 @@ echo "=== test_config_paths_defaults_match_current_values ==="
 # Source in a subshell with no config file available (unset CLAUDE_PLUGIN_ROOT)
 result=$(
     unset CLAUDE_PLUGIN_ROOT
-    # Use a temp dir as "root" so no workflow-config.conf is found
+    # Use a temp dir as "root" so no dso-config.conf is found
     tmpdir=$(mktemp -d)
     cd "$tmpdir"
     # Source the config-paths helper
@@ -211,13 +211,13 @@ assert_eq "dot-claude dso-config CFG_TEST_DIR" "dotclaudetest" "$(echo "$result_
 # ============================================================================
 echo "=== test_config_paths_no_claude_plugin_root_fallback ==="
 
-# When CLAUDE_PLUGIN_ROOT is set to a dir containing workflow-config.conf,
+# When CLAUDE_PLUGIN_ROOT is set to a dir containing dso-config.conf (but NOT under .claude/),
 # config-paths.sh must NOT read from that file (new behavior: CLAUDE_PLUGIN_ROOT no
 # longer used for config file lookup). Values should fall back to defaults.
 tmpdir_cproot=$(mktemp -d)
 _CLEANUP_DIRS+=("$tmpdir_cproot")
 
-cat > "$tmpdir_cproot/workflow-config.conf" <<'CONF'
+cat > "$tmpdir_cproot/dso-config.conf" <<'CONF'
 paths.app_dir=cproot_app
 paths.src_dir=cproot_src
 CONF
@@ -236,7 +236,7 @@ result_cproot=$(
     rm -rf "$tmpdir_gitroot"
 )
 
-# After the new behavior, CLAUDE_PLUGIN_ROOT/workflow-config.conf must be ignored.
+# After the new behavior, CLAUDE_PLUGIN_ROOT/dso-config.conf must be ignored.
 # CFG_APP_DIR must be the default "app", NOT "cproot_app".
 assert_eq "CLAUDE_PLUGIN_ROOT not used: CFG_APP_DIR should be default" "app" "$(echo "$result_cproot" | grep '^CFG_APP_DIR=' | cut -d= -f2-)"
 assert_eq "CLAUDE_PLUGIN_ROOT not used: CFG_SRC_DIR should be default" "src" "$(echo "$result_cproot" | grep '^CFG_SRC_DIR=' | cut -d= -f2-)"

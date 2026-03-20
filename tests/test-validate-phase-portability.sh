@@ -30,11 +30,11 @@ fail() { TESTS=$((TESTS + 1)); FAILURES=$((FAILURES + 1)); echo "  FAIL: $1"; }
 echo "=== Tests for validate-phase.sh portability ==="
 
 # ---------------------------------------------------------------------------
-# Setup: create a temp git repo with stub workflow-config.conf and symlinks.
+# Setup: create a temp git repo with stub dso-config.conf and symlinks.
 #
 # Temp dir structure:
 #   $TMPDIR/                           ← REPO_ROOT (fake git repo)
-#   $TMPDIR/workflow-config.conf       ← stub config (populated per scenario)
+#   $TMPDIR/dso-config.conf       ← stub config (populated per scenario)
 #   $TMPDIR/scripts/
 #       validate-phase.sh              ← symlink to canonical script
 #       read-config.sh                 ← symlink to real read-config.sh
@@ -68,10 +68,10 @@ fi
 (cd "$TMPDIR" && git init -q -b main && git config user.email "test@test.com" && git config user.name "Test")
 
 # ---------------------------------------------------------------------------
-# Helper: write an all-pass stub workflow-config.conf
+# Helper: write an all-pass stub dso-config.conf
 # ---------------------------------------------------------------------------
 write_all_pass_config() {
-    cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+    cat > "$TMPDIR/dso-config.conf" << 'WCFG'
 commands.format=true
 commands.format_check=true
 commands.lint=true
@@ -141,7 +141,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "Test b: post-batch / lint: false config"
-cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+cat > "$TMPDIR/dso-config.conf" << 'WCFG'
 commands.format=true
 commands.format_check=true
 commands.lint=false
@@ -223,7 +223,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "Test e: post-batch / config WITHOUT commands.lint_fix"
-cat > "$TMPDIR/workflow-config.conf" << 'WCFG'
+cat > "$TMPDIR/dso-config.conf" << 'WCFG'
 commands.format=true
 commands.format_check=true
 commands.lint=true

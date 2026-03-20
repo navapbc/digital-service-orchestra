@@ -90,7 +90,7 @@ case "$KEY" in
 esac
 T3_CFG
 chmod +x "$_t3_fake_repo/scripts/read-config.sh"
-printf '' > "$_t3_fake_repo/workflow-config.conf"
+printf '' > "$_t3_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t3_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t3_fake_repo/scripts/sprint-next-batch.sh"
 
@@ -150,7 +150,7 @@ case "$KEY" in
 esac
 T4_CFG
 chmod +x "$_t4_fake_repo/scripts/read-config.sh"
-printf '' > "$_t4_fake_repo/workflow-config.conf"
+printf '' > "$_t4_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t4_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t4_fake_repo/scripts/sprint-next-batch.sh"
 
@@ -210,7 +210,7 @@ case "$KEY" in
 esac
 T5_CFG
 chmod +x "$_t5_fake_repo/scripts/read-config.sh"
-printf '' > "$_t5_fake_repo/workflow-config.conf"
+printf '' > "$_t5_fake_repo/dso-config.conf"
 cp "$PLUGIN_SCRIPT" "$_t5_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t5_fake_repo/scripts/sprint-next-batch.sh"
 

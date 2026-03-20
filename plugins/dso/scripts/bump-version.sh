@@ -7,7 +7,7 @@ set -uo pipefail
 #   bump-version.sh --minor [--config <path>]
 #   bump-version.sh --major [--config <path>]
 #
-# Reads version.file_path from workflow-config.conf (via read-config.sh).
+# Reads version.file_path from dso-config.conf (via read-config.sh).
 # If version.file_path is not set, exits 0 with no changes.
 #
 # Auto-detects file format by extension:

@@ -222,7 +222,7 @@ if [ -f "$PLUGIN_SCRIPT" ]; then
 
     # --- Test 12: Fallback prefix derived from repo dir name ---
     # Tests the ARTIFACT_PREFIX resolution logic from the plugin script in isolation.
-    # In a fake repo dir with no workflow-config.conf, read-config.sh returns empty,
+    # In a fake repo dir with no dso-config.conf, read-config.sh returns empty,
     # so the fallback derivation from basename(REPO_ROOT) must produce the correct value.
     echo "Test 12: fallback prefix derived from repo dir name when no config set"
 
@@ -249,13 +249,13 @@ if [ -f "$PLUGIN_SCRIPT" ]; then
     assert_eq "test_fallback_prefix_from_repo_name" "1" "$prefix12_ok"
 
     # --- Test 13: Config-provided prefix overrides fallback ---
-    # In a fake repo dir WITH workflow-config.conf setting custom prefix,
+    # In a fake repo dir WITH dso-config.conf setting custom prefix,
     # read-config.sh returns the configured value (no fallback).
     echo "Test 13: config session.artifact_prefix overrides fallback derivation"
 
     repo_dir13=$(make_fake_repo "my-test-project")
     _CLEANUP_DIRS+=("$repo_dir13")
-    cat > "$repo_dir13/workflow-config.conf" << 'CONFIGEOF'
+    cat > "$repo_dir13/dso-config.conf" << 'CONFIGEOF'
 session.artifact_prefix=custom-test-prefix
 CONFIGEOF
 

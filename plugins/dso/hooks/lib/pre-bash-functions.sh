@@ -152,11 +152,11 @@ hook_commit_failure_tracker() {
     if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
         _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
     fi
-    # Config file: prefer CLAUDE_PLUGIN_ROOT/workflow-config.conf when set and present,
+    # Config file: prefer CLAUDE_PLUGIN_ROOT/.claude/dso-config.conf when set and present,
     # so tests can pass an isolated config without affecting the real repo config.
     local _CT_CONFIG_FILE=""
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
-        _CT_CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/.claude/dso-config.conf" ]]; then
+        _CT_CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/.claude/dso-config.conf"
     fi
 
     # Apply config overrides (defer Python spawn; don't override caller-supplied env vars)

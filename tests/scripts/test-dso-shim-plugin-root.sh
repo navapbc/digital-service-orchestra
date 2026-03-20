@@ -14,7 +14,7 @@
 #
 # The key scenario:
 #   - Caller exports CLAUDE_PLUGIN_ROOT="/expected/plugin/path"
-#   - The shim is sourced with --lib in a repo whose workflow-config.conf has
+#   - The shim is sourced with --lib in a repo whose dso-config.conf has
 #     a dso.plugin_root value pointing somewhere else
 #   - CURRENT (broken): shim unconditionally runs `export CLAUDE_PLUGIN_ROOT="$DSO_ROOT"`
 #     at lines 32-36, overwriting the caller's value when DSO_ROOT was resolved from
@@ -44,7 +44,7 @@ echo "=== test-dso-shim-plugin-root.sh ==="
 # When CLAUDE_PLUGIN_ROOT is already exported by the caller, the shim must NOT
 # overwrite it with the value resolved from DSO_ROOT.
 #
-# Setup: create a fake git repo with a workflow-config.conf whose dso.plugin_root
+# Setup: create a fake git repo with a dso-config.conf whose dso.plugin_root
 # points to a DIFFERENT path from the pre-set CLAUDE_PLUGIN_ROOT. The shim resolves
 # DSO_ROOT from the env var (CLAUDE_PLUGIN_ROOT), so it equals the pre-set value.
 # However, the current shim unconditionally re-exports CLAUDE_PLUGIN_ROOT = DSO_ROOT
@@ -333,7 +333,7 @@ test_shim_unconditional_reexport_detection() {
 #   dso.plugin_root=<path>
 # The shim must resolve DSO_ROOT to that path.
 #
-# RED: The current shim reads from workflow-config.conf at the git root (step 2).
+# RED: The current shim reads from dso-config.conf at the git root (step 2).
 # It does NOT look at .claude/dso-config.conf. This test fails until the shim is
 # updated (dso-tuz0) to check .claude/dso-config.conf first (or instead).
 test_shim_reads_plugin_root_from_dot_claude_dso_config() {
@@ -373,16 +373,16 @@ test_shim_reads_plugin_root_from_dot_claude_dso_config() {
 }
 
 # ── test_shim_no_fallback_to_workflow_config_conf ─────────────────────────────
-# RED phase (dso-jfy3): When a repo has ONLY workflow-config.conf at the root
+# RED phase (dso-jfy3): When a repo has ONLY dso-config.conf at the root
 # (the old location), the shim must NOT use it to resolve DSO_ROOT.
 # After the migration (dso-tuz0), only .claude/dso-config.conf is a valid
-# config source — the root-level workflow-config.conf must be ignored.
+# config source — the root-level dso-config.conf must be ignored.
 #
-# Setup: create a temp git repo with only workflow-config.conf at root containing
+# Setup: create a temp git repo with only dso-config.conf at root containing
 #   dso.plugin_root=<path>
 # The shim must exit non-zero or leave DSO_ROOT empty.
 #
-# RED: The current shim DOES read from workflow-config.conf at root. This test
+# RED: The current shim DOES read from dso-config.conf at root. This test
 # fails until the shim is updated (dso-tuz0) to stop reading from that location.
 test_shim_no_fallback_to_workflow_config_conf() {
     if [[ ! -f "$SHIM" ]]; then
@@ -393,17 +393,17 @@ test_shim_no_fallback_to_workflow_config_conf() {
 
     local old_config_path="/fake/dso/plugin/root/from/workflow-config"
 
-    # Create a temp git repo with ONLY a root-level workflow-config.conf.
+    # Create a temp git repo with ONLY a root-level dso-config.conf.
     # No .claude/dso-config.conf present — only the old config location.
     local fake_repo="$TMPDIR_BASE/fake-old-workflow-config-test"
     mkdir -p "$fake_repo"
     git -C "$fake_repo" init -q
-    printf 'dso.plugin_root=%s\n' "$old_config_path" > "$fake_repo/workflow-config.conf"
-    git -C "$fake_repo" add workflow-config.conf
+    printf 'dso.plugin_root=%s\n' "$old_config_path" > "$fake_repo/dso-config.conf"
+    git -C "$fake_repo" add dso-config.conf
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 
     # Run the shim in --lib mode; after migration CLAUDE_PLUGIN_ROOT must be empty (UNSET).
-    # The shim should NOT resolve DSO_ROOT from workflow-config.conf.
+    # The shim should NOT resolve DSO_ROOT from dso-config.conf.
     local actual_exit_code=0
     local actual_dso_root
     actual_dso_root=$(
@@ -418,8 +418,8 @@ test_shim_no_fallback_to_workflow_config_conf() {
 
     # After migration, DSO_ROOT must be UNSET (shim exits non-zero or returns empty).
     # We verify either: exit non-zero OR DSO_ROOT is not set to the old config path.
-    # RED: The current shim sets DSO_ROOT = old_config_path (reads from workflow-config.conf).
-    # The test fails until the shim stops reading from the root-level workflow-config.conf.
+    # RED: The current shim sets DSO_ROOT = old_config_path (reads from dso-config.conf).
+    # The test fails until the shim stops reading from the root-level dso-config.conf.
     if [[ "$actual_exit_code" -ne 0 ]]; then
         # Shim exited non-zero — DSO_ROOT was not found. This is the desired post-migration behavior.
         assert_eq "test_shim_no_fallback_to_workflow_config_conf (exit non-zero when no .claude/dso-config.conf)" \
@@ -427,7 +427,7 @@ test_shim_no_fallback_to_workflow_config_conf() {
     else
         # Shim exited zero — check that DSO_ROOT is not the old config path.
         # It must be UNSET (empty), not set from the old location.
-        assert_eq "test_shim_no_fallback_to_workflow_config_conf (DSO_ROOT not set from workflow-config.conf)" \
+        assert_eq "test_shim_no_fallback_to_workflow_config_conf (DSO_ROOT not set from dso-config.conf)" \
             "UNSET" "$actual_dso_root"
     fi
 }

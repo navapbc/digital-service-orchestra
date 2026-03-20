@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-commit-workflow-step-1-5.sh
 # Tests that COMMIT-WORKFLOW.md Step 1.5 reads the changed-test command from
-# workflow-config.conf via read-config.sh instead of hardcoding
+# dso-config.conf via read-config.sh instead of hardcoding
 # scripts/run-changed-tests.sh.
 #
 # Usage: bash tests/scripts/test-commit-workflow-step-1-5.sh

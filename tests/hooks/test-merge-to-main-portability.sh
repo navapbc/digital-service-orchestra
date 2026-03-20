@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/hooks/test-merge-to-main-portability.sh
-# Portability smoke test: merge-to-main.sh with a minimal workflow-config.conf
+# Portability smoke test: merge-to-main.sh with a minimal dso-config.conf
 # that has no merge: section (no visual_baseline_path, no ci_workflow_name).
 #
 # Verifies that the config-absent code paths (skip baseline check, skip CI
@@ -65,11 +65,12 @@ priority: 2
 EOF
 }
 
-# ── Helper: create a minimal workflow-config.conf with only version + tickets dir ──
+# ── Helper: create a minimal dso-config.conf with only version + tickets dir ──
 make_minimal_config() {
     local dir="$1"
     local tickets_dir="${2:-.tickets}"
-    cat > "$dir/workflow-config.conf" <<CONF
+    mkdir -p "$dir/.claude"
+    cat > "$dir/.claude/dso-config.conf" <<CONF
 tickets.directory=$tickets_dir
 CONF
 }
@@ -80,7 +81,7 @@ CONF
 #   $REALENV/main-clone/    — main repo cloned from bare (main checked out)
 #   $REALENV/worktree/      — worktree linked from main-clone on a feature branch
 #
-# Places a minimal workflow-config.conf (no merge: section) in both main-clone
+# Places a minimal dso-config.conf (no merge: section) in both main-clone
 # and worktree directories so read-config.sh finds it from $(pwd).
 #
 # Outputs the canonicalized env root to stdout.
@@ -128,7 +129,7 @@ cleanup_env() {
 
 # =============================================================================
 # Test 1: Minimal config — merge succeeds, no baseline check, no CI trigger
-# workflow-config.conf has only version + tickets.directory (no merge: section).
+# dso-config.conf has only version + tickets.directory (no merge: section).
 # merge-to-main.sh should:
 #   - Skip the visual baseline check (INFO message printed)
 #   - Skip the CI trigger (INFO message printed)
@@ -197,7 +198,7 @@ cleanup_env "$TMPENV2"
 
 # =============================================================================
 # Test 3: Custom tickets.directory — merge succeeds with .issues/ as ticket dir
-# workflow-config.conf sets tickets.directory to ".issues".
+# dso-config.conf sets tickets.directory to ".issues".
 # merge-to-main.sh must use ".issues" for exclusions so dirty .issues/ files
 # are excluded from the uncommitted-changes check.
 # =============================================================================
@@ -212,7 +213,7 @@ echo "custom tickets dir feature" > "$WT3/custom-dir.txt"
 make_ticket_file "$WT3" "dirty-issue-test" ".issues"
 
 MERGE_OUTPUT3=$(cd "$WT3" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
-    WORKFLOW_CONFIG_FILE="$WT3/workflow-config.conf" bash "$MERGE_SCRIPT" 2>&1 || true)
+    WORKFLOW_CONFIG_FILE="$WT3/.claude/dso-config.conf" bash "$MERGE_SCRIPT" 2>&1 || true)
 
 # Merge must succeed — the custom tickets dir must be properly excluded
 assert_contains "test_portability_custom_dir_merge_succeeds" "DONE" "$MERGE_OUTPUT3"
@@ -227,28 +228,28 @@ assert_eq "test_portability_custom_dir_no_uncommitted_error" "false" "$UNCOMMITT
 cleanup_env "$TMPENV3"
 
 # =============================================================================
-# Test 4: No workflow-config.conf at all — merge still succeeds
+# Test 4: No dso-config.conf at all — merge still succeeds
 # Verifies absolute portability: even with no config file present, the script
 # completes successfully (all config reads return empty, defaults apply).
 # =============================================================================
 TMPENV4=$(setup_portability_env ".tickets")
 WT4=$(cd "$TMPENV4/worktree" && pwd -P)
 
-# Remove the workflow-config.conf from both main-clone and worktree
-rm -f "$TMPENV4/main-clone/workflow-config.conf"
-rm -f "$WT4/workflow-config.conf"
+# Remove the dso-config.conf from both main-clone and worktree
+rm -f "$TMPENV4/main-clone/.claude/dso-config.conf"
+rm -f "$WT4/.claude/dso-config.conf"
 
 # Commit the removal so worktree is clean (excluding .tickets/)
 (cd "$TMPENV4/main-clone" && \
-    git rm --cached workflow-config.conf -q 2>/dev/null && \
-    rm -f workflow-config.conf && \
+    git rm --cached .claude/dso-config.conf -q 2>/dev/null && \
+    rm -f .claude/dso-config.conf && \
     git commit -q -m "chore: remove config for portability test" && \
     git push -q origin main 2>/dev/null)
 
 # Feature branch: remove config and add a feature commit
 (cd "$WT4" && \
-    git rm --cached workflow-config.conf -q 2>/dev/null && \
-    rm -f workflow-config.conf 2>/dev/null; \
+    git rm --cached .claude/dso-config.conf -q 2>/dev/null && \
+    rm -f .claude/dso-config.conf 2>/dev/null; \
     echo "no-config feature" > "$WT4/no-config.txt" && \
     git add no-config.txt && \
     git commit -q -m "feat: no-config feature")

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-lifecycle-portability.sh
 # Portability smoke test: exercises all agent-batch-lifecycle.sh subcommands
-# against a minimal project skeleton (empty/stub workflow-config.conf with no
+# against a minimal project skeleton (empty/stub dso-config.conf with no
 # database, infrastructure, or session sections).
 #
 # Validates:
@@ -26,7 +26,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-lifecycle-portability.sh ==="
 
 # ── Setup: minimal project skeleton ─────────────────────────────────────────
-# Create a temporary git repo with a stub workflow-config.conf that has NO
+# Create a temporary git repo with a stub dso-config.conf that has NO
 # database, infrastructure, or session sections.
 TMPDIR_SKELETON="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_SKELETON"' EXIT
@@ -35,8 +35,8 @@ trap 'rm -rf "$TMPDIR_SKELETON"' EXIT
 git init -q -b main "$TMPDIR_SKELETON"
 git -C "$TMPDIR_SKELETON" commit --allow-empty -m "init" -q
 
-# Stub workflow-config.conf with only version/stack (no optional sections)
-cat > "$TMPDIR_SKELETON/workflow-config.conf" <<'CONF'
+# Stub dso-config.conf with only version/stack (no optional sections)
+cat > "$TMPDIR_SKELETON/dso-config.conf" <<'CONF'
 stack=python-poetry
 CONF
 
@@ -44,7 +44,7 @@ CONF
 mkdir -p "$TMPDIR_SKELETON/.tickets"
 
 # Point WORKFLOW_CONFIG at the minimal config; run lifecycle from the temp repo
-export WORKFLOW_CONFIG="$TMPDIR_SKELETON/workflow-config.conf"
+export WORKFLOW_CONFIG="$TMPDIR_SKELETON/dso-config.conf"
 
 # Helper: run lifecycle subcommand inside the temp repo context
 _run() {

@@ -83,8 +83,8 @@ echo "Add the following entry to src/api/json/catalog.json in the SchemaStore PR
 echo ""
 echo '{'
 echo '  "name": "workflow-config",'
-echo '  "description": "Schema for workflow-config.conf — Digital Service Orchestra plugin configuration",'
-echo '  "fileMatch": ["workflow-config.conf"],'
+echo '  "description": "Schema for dso-config.conf — Digital Service Orchestra plugin configuration",'
+echo '  "fileMatch": ["dso-config.conf"],'
 echo "  \"url\": \"$SCHEMA_RAW_URL\""
 echo '}'
 echo ""

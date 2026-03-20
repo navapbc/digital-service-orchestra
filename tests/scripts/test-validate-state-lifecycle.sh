@@ -133,7 +133,7 @@ chmod +x "$_stub_dir/capture-state.sh"
 _fake_repo="$_tmp_startup/${_wt_name}"
 mkdir -p "$_fake_repo"
 # It must NOT have a .git file (so WORKTREE_MODE=0 and no worktree special path)
-# It also needs workflow-config.conf and APP_DIR structure to avoid config errors
+# It also needs dso-config.conf and APP_DIR structure to avoid config errors
 mkdir -p "$_fake_repo/app"
 
 # The validate.sh will set ARTIFACTS_DIR=/tmp/lockpick-test-artifacts-<_wt_name>

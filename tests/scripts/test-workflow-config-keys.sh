@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-workflow-config-keys.sh
-# Tests that workflow-config.conf contains scalar path and interpreter keys
+# Tests that dso-config.conf contains scalar path and interpreter keys
 # readable by read-config.sh.
 #
 # Usage: bash tests/scripts/test-workflow-config-keys.sh

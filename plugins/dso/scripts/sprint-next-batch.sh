@@ -58,7 +58,7 @@ ISSUE_BATCH="${CLAUDE_PLUGIN_ROOT}/scripts/issue-batch.sh"
 ANALYZE_IMPACT="${CLAUDE_PLUGIN_ROOT}/scripts/analyze-file-impact.py"
 
 # Resolve Python — prefer config-driven venv path; fallback to python3
-READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" # reads workflow-config.conf
+READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" # reads dso-config.conf
 _config_python=""
 if [ -x "$READ_CONFIG" ]; then
     _config_python=$("$READ_CONFIG" interpreter.python_venv "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true) # read-config.sh interpreter

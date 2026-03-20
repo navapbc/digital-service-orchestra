@@ -1327,7 +1327,7 @@ Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which
    bash "$REPO_ROOT/plugins/dso/scripts/bump-version.sh" --minor
    git add -u
    ```
-   This increments the minor version and resets patch to 0. Stage the bumped version file so it is included in the epic completion commit. If `version.file_path` is not configured in `workflow-config.conf`, `bump-version.sh` exits 0 with no changes and `git add -u` is a no-op (safe to run regardless).
+   This increments the minor version and resets patch to 0. Stage the bumped version file so it is included in the epic completion commit. If `version.file_path` is not configured in `dso-config.conf`, `bump-version.sh` exits 0 with no changes and `git add -u` is a no-op (safe to run regardless).
 
    > **Sprint-skip note for the subsequent commit step**: The commit workflow's Step 3b (patch version bump) must be skipped when the epic completion commit is made via `/dso:end-session` or `COMMIT-WORKFLOW.md`. The minor bump performed in this step takes precedence — a redundant patch bump in the same commit would produce an incorrect version. The existing sprint-skip guidance in `COMMIT-WORKFLOW.md` Step 3b already enforces this; no additional action is needed here.
 3. Set sprint context for `/dso:end-session` report:

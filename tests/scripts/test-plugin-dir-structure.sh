@@ -10,7 +10,7 @@
 #   - repo root no longer contains skills/, hooks/, commands/ at top level
 #   - plugins/dso/.claude-plugin/plugin.json exists
 #   - .claude-plugin/marketplace.json has source path pointing to plugins/dso
-#   - workflow-config.conf is git-tracked at repo root
+#   - dso-config.conf is git-tracked at repo root
 #
 # Usage: bash tests/scripts/test-plugin-dir-structure.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -132,16 +132,16 @@ assert_eq "test_marketplace_json_has_source_path: marketplace.json has source pa
 assert_pass_if_clean "test_marketplace_json_has_source_path"
 
 # ── test_workflow_config_conf_is_git_tracked ──────────────────────────────────
-# workflow-config.conf must be git-tracked at the repo root
+# dso-config.conf must be git-tracked at the repo root
 _snapshot_fail
 tracked_output=""
-tracked_output=$(git -C "$REPO_ROOT" ls-files "workflow-config.conf" 2>/dev/null)
+tracked_output=$(git -C "$REPO_ROOT" ls-files "dso-config.conf" 2>/dev/null)
 if [ -n "$tracked_output" ]; then
     actual="tracked"
 else
     actual="not_tracked"
 fi
-assert_eq "test_workflow_config_conf_is_git_tracked: workflow-config.conf is git-tracked" "tracked" "$actual"
+assert_eq "test_workflow_config_conf_is_git_tracked: dso-config.conf is git-tracked" "tracked" "$actual"
 assert_pass_if_clean "test_workflow_config_conf_is_git_tracked"
 
 # ── test_repo_root_skills_dir_absent ──────────────────────────────────────────

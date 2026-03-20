@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-check-persistence-coverage.sh
 # TDD tests for check-persistence-coverage.sh config-driven behavior:
-#   1. workflow-config.conf contains the required keys:
+#   1. dso-config.conf contains the required keys:
 #      - persistence.source_patterns → non-empty list
 #      - persistence.test_patterns   → non-empty list
 #   2. scripts/check-persistence-coverage.sh:
@@ -112,7 +112,7 @@ fi
 assert_pass_if_clean "test_reads_persistence_test_patterns"
 
 # ── test_config_persistence_source_patterns_present ──────────────────────────
-# workflow-config.conf must have persistence.source_patterns as a non-empty list
+# dso-config.conf must have persistence.source_patterns as a non-empty list
 _snapshot_fail
 sp_exit=0
 sp_output=""
@@ -128,7 +128,7 @@ fi
 assert_pass_if_clean "test_config_persistence_source_patterns_present"
 
 # ── test_config_persistence_test_patterns_present ────────────────────────────
-# workflow-config.conf must have persistence.test_patterns as a non-empty list
+# dso-config.conf must have persistence.test_patterns as a non-empty list
 _snapshot_fail
 tp_exit=0
 tp_output=""
@@ -177,29 +177,29 @@ _make_portability_repo() {
     git -C "$dir" init -q -b main
     git -C "$dir" config user.email "test@test.local"
     git -C "$dir" config user.name "Test"
-    printf '%s\n' "$config_content" > "$dir/workflow-config.conf"
-    git -C "$dir" add workflow-config.conf
+    printf '%s\n' "$config_content" > "$dir/dso-config.conf"
+    git -C "$dir" add dso-config.conf
     git -C "$dir" commit -m "base" -q
     git -C "$dir" checkout -q -b feature/test
     echo "$dir"
 }
 
 # Helper: run PLUGIN_SCRIPT from within a portability repo dir
-# Sets CONFIG_FILE to the isolated repo's workflow-config.conf so the plugin
+# Sets CONFIG_FILE to the isolated repo's dso-config.conf so the plugin
 # script does not fall back to the real repo's config via BASH_SOURCE resolution.
 _run_portability() {
     local repo_dir="$1"
     shift
     (
         export CLAUDE_PLUGIN_PYTHON="${_PORTABILITY_PYTHON:-python3}"
-        export CONFIG_FILE="$repo_dir/workflow-config.conf"
+        export CONFIG_FILE="$repo_dir/dso-config.conf"
         cd "$repo_dir"
         bash "$PLUGIN_SCRIPT" "$@" 2>&1
     )
 }
 
 # ── test_portability_no_workflow_config_file_exits_0 ─────────────────────────
-# Portability: when workflow-config.conf does not exist at all (CONFIG_FILE set
+# Portability: when dso-config.conf does not exist at all (CONFIG_FILE set
 # to a non-existent path), script exits 0 with a warning message.
 # This verifies SC5: missing config file is treated as a no-op.
 _snapshot_fail
@@ -217,7 +217,7 @@ no_config_exit=0
 no_config_output=""
 no_config_output=$(
     export CLAUDE_PLUGIN_PYTHON="${_PORTABILITY_PYTHON:-python3}"
-    export CONFIG_FILE="$_p0_dir/workflow-config.conf"  # file does NOT exist
+    export CONFIG_FILE="$_p0_dir/dso-config.conf"  # file does NOT exist
     cd "$_p0_dir"
     bash "$PLUGIN_SCRIPT" 2>&1
 ) || no_config_exit=$?

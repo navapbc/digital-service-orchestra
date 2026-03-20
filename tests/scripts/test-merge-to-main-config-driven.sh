@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-merge-to-main-config-driven.sh
 # Tests that merge-to-main.sh reads commands.format_check and commands.lint
-# from workflow-config.conf instead of using hardcoded make targets.
+# from dso-config.conf instead of using hardcoded make targets.
 #
 # TDD tests:
 #   1. test_merge_to_main_reads_format_check_from_config — uses config read

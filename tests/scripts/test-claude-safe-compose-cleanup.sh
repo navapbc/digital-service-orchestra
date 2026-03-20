@@ -29,7 +29,7 @@ trap 'rm -rf "$TMPDIR_BASE"' EXIT
 # Uses _CLAUDE_SAFE_SOURCE_ONLY=1 guard so claude-safe's main body does not run.
 # Injects a stub docker binary via PATH prepend.
 # Args:
-#   $1 — path to workflow-config.conf for this test
+#   $1 — path to dso-config.conf for this test
 #   $2 — path to stub-bin directory (must contain a 'docker' stub if testing with Docker)
 #   $3 — wt_name argument for _cleanup_docker_for_worktree
 #   $4 — wt_path argument for _cleanup_docker_for_worktree
@@ -66,14 +66,14 @@ exit 0
 DOCKER_STUB
 chmod +x "$iter_dir/stub-bin/docker"
 
-cat > "$iter_dir/workflow-config.conf" <<CONF
+cat > "$iter_dir/dso-config.conf" <<CONF
 infrastructure.compose_project=lockpick-db-
 infrastructure.compose_files=app/docker-compose.yml
 infrastructure.compose_files=app/docker-compose.db.yml
 CONF
 
 iter_exit=0
-_run_cleanup_fn "$iter_dir/workflow-config.conf" "$iter_dir/stub-bin" \
+_run_cleanup_fn "$iter_dir/dso-config.conf" "$iter_dir/stub-bin" \
     "worktree-test-abc" "$iter_dir/wt-path" || iter_exit=$?
 
 iter_log_content=$(cat "$iter_log" 2>/dev/null || echo "")
@@ -101,12 +101,12 @@ DOCKER_STUB
 chmod +x "$absent_dir/stub-bin/docker"
 
 # Config with NO compose_files key (infrastructure exists but compose_files is absent)
-cat > "$absent_dir/workflow-config.conf" <<CONF
+cat > "$absent_dir/dso-config.conf" <<CONF
 infrastructure.compose_project=lockpick-db-
 CONF
 
 absent_exit=0
-_run_cleanup_fn "$absent_dir/workflow-config.conf" "$absent_dir/stub-bin" \
+_run_cleanup_fn "$absent_dir/dso-config.conf" "$absent_dir/stub-bin" \
     "worktree-test-abc" "$absent_dir/wt-path" || absent_exit=$?
 
 absent_calls=$(wc -l < "$absent_log" 2>/dev/null | tr -d ' ')
@@ -122,7 +122,7 @@ nodock_dir="$TMPDIR_BASE/nodock"
 mkdir -p "$nodock_dir/stub-bin" "$nodock_dir/wt-path"
 # stub-bin intentionally has NO docker binary
 
-cat > "$nodock_dir/workflow-config.conf" <<CONF
+cat > "$nodock_dir/dso-config.conf" <<CONF
 infrastructure.compose_project=lockpick-db-
 infrastructure.compose_files=app/docker-compose.yml
 infrastructure.compose_files=app/docker-compose.db.yml
@@ -133,7 +133,7 @@ nodock_stderr=""
 nodock_stderr=$(
     # Minimal PATH with no docker; stub-bin is empty
     PATH="$nodock_dir/stub-bin:/usr/bin:/bin" \
-    WORKFLOW_CONFIG="$nodock_dir/workflow-config.conf" \
+    WORKFLOW_CONFIG="$nodock_dir/dso-config.conf" \
     _CLAUDE_SAFE_SOURCE_ONLY=1 \
     PLUGIN_SCRIPTS="$PLUGIN_SCRIPTS" \
     bash -c "

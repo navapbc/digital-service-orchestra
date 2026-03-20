@@ -153,5 +153,5 @@ When `stack` is not declared in `workflow-config.yaml`, `detect-stack.sh` infers
 
 - Builds on [adr-plugin-scaffold.md] (`${CLAUDE_PLUGIN_ROOT}` path resolution convention)
 - Schema: `lockpick-workflow/docs/workflow-config-schema.json`
-- Example config: `lockpick-workflow/docs/workflow-config.example.conf`
+- Example config: `lockpick-workflow/docs/dso-config.example.conf`
 - Enables Phase 3: hook parameterization (hooks read `commands.*` from `workflow-config.conf`)

@@ -21,7 +21,7 @@ set -uo pipefail
 #   ci_workflow_lint_guarded=true|false  — any workflow runs lint
 #   ci_workflow_format_guarded=true|false — any workflow runs format
 #   installed_deps=<comma-separated>     — CLI tools detected as installed
-#   ports=<comma-separated>              — port numbers from workflow-config.conf
+#   ports=<comma-separated>              — port numbers from .claude/dso-config.conf
 #   version_files=<comma-separated>      — files that carry a version field
 #
 # Exit codes:
@@ -197,7 +197,7 @@ MARKER_FILES=(
     "CLAUDE.md"
     "KNOWN-ISSUES.md"
     ".pre-commit-config.yaml"
-    "workflow-config.conf"
+    ".claude/dso-config.conf"
 )
 
 files_present=""
@@ -317,12 +317,12 @@ fi
 
 echo "installed_deps=${installed_deps}"
 
-# ── Category 9: Port numbers from workflow-config.conf ────────────────────────
+# ── Category 9: Port numbers from .claude/dso-config.conf ────────────────────
 ports=""
 
-if [[ -f "$PROJECT_DIR/workflow-config.conf" ]]; then
+if [[ -f "$PROJECT_DIR/.claude/dso-config.conf" ]]; then
     # Extract values that look like port numbers (numeric values for *_port keys).
-    port_values="$(grep -E '_port\s*=' "$PROJECT_DIR/workflow-config.conf" \
+    port_values="$(grep -E '_port\s*=' "$PROJECT_DIR/.claude/dso-config.conf" \
         | sed 's/.*=\s*//' \
         | tr -d '[:space:]' \
         | grep -E '^[0-9]+$' \

@@ -379,11 +379,11 @@ assert_contains "cat7: output contains installed_deps key" "installed_deps=" "$c
 # ── Category 8: Existing file presence ───────────────────────────────────────
 # Happy path: CLAUDE.md and KNOWN-ISSUES.md present
 FILES_DIR="$TMPDIR_FIXTURE/files_project"
-mkdir -p "$FILES_DIR"
+mkdir -p "$FILES_DIR/.claude"
 touch "$FILES_DIR/CLAUDE.md"
 touch "$FILES_DIR/KNOWN-ISSUES.md"
 touch "$FILES_DIR/.pre-commit-config.yaml"
-touch "$FILES_DIR/workflow-config.conf"
+touch "$FILES_DIR/.claude/dso-config.conf"
 
 files_exit=0
 files_output=$(bash "$SCRIPT" "$FILES_DIR" 2>&1) || files_exit=$?
@@ -392,7 +392,7 @@ files_present="$(get_key "$files_output" files_present)"
 assert_contains "cat8: files_present contains CLAUDE.md" "CLAUDE.md" "$files_present"
 assert_contains "cat8: files_present contains KNOWN-ISSUES.md" "KNOWN-ISSUES.md" "$files_present"
 assert_contains "cat8: files_present contains .pre-commit-config.yaml" ".pre-commit-config.yaml" "$files_present"
-assert_contains "cat8: files_present contains workflow-config.conf" "workflow-config.conf" "$files_present"
+assert_contains "cat8: files_present contains .claude/dso-config.conf" ".claude/dso-config.conf" "$files_present"
 
 # Absent-input: none of the marker files → files_present is empty or absent
 NO_FILES_DIR="$TMPDIR_FIXTURE/no_files_project"
@@ -403,11 +403,11 @@ assert_eq "cat8: no-files project exits 0" "0" "$no_files_exit"
 no_files_present="$(get_key "$no_files_output" files_present)"
 assert_eq "cat8: files_present is empty when no marker files" "" "$no_files_present"
 
-# ── Category 9: Port numbers from workflow-config.conf ───────────────────────
-# Happy path: workflow-config.conf with port entries
+# ── Category 9: Port numbers from .claude/dso-config.conf ────────────────────
+# Happy path: .claude/dso-config.conf with port entries
 PORTS_DIR="$TMPDIR_FIXTURE/ports_project"
-mkdir -p "$PORTS_DIR"
-cat > "$PORTS_DIR/workflow-config.conf" <<'CONF'
+mkdir -p "$PORTS_DIR/.claude"
+cat > "$PORTS_DIR/.claude/dso-config.conf" <<'CONF'
 ci.app_port=8000
 ci.db_port=5432
 ci.redis_port=6379
@@ -419,7 +419,7 @@ assert_eq "cat9: ports project exits 0" "0" "$ports_exit"
 ports_val="$(get_key "$ports_output" ports)"
 assert_contains "cat9: ports contains 8000" "8000" "$ports_val"
 
-# Absent-input: no workflow-config.conf → ports empty or absent
+# Absent-input: no .claude/dso-config.conf → ports empty or absent
 NO_PORTS_DIR="$TMPDIR_FIXTURE/no_ports_project"
 mkdir -p "$NO_PORTS_DIR"
 no_ports_exit=0
@@ -535,11 +535,11 @@ assert_pass_if_clean "test_project_detect_db_absent"
 
 # ── Named tests: Port detection (AC-required labels) ─────────────────────────
 
-# test_project_detect_ports_from_config: ports extracted from workflow-config.conf _port keys
+# test_project_detect_ports_from_config: ports extracted from .claude/dso-config.conf _port keys
 _snapshot_fail
 _ports_conf_dir="$TMPDIR_FIXTURE/ports_conf_named_project"
-mkdir -p "$_ports_conf_dir"
-cat > "$_ports_conf_dir/workflow-config.conf" <<'CONF'
+mkdir -p "$_ports_conf_dir/.claude"
+cat > "$_ports_conf_dir/.claude/dso-config.conf" <<'CONF'
 ci.app_port=8080
 ci.db_port=5432
 CONF

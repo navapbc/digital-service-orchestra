@@ -5,9 +5,9 @@
 #
 # Tests:
 #   test_validate_reads_commands_from_config — no hardcoded make in run_check invocations
-#   test_validate_defaults_match_current_make_targets — fallback defaults match workflow-config.conf
+#   test_validate_defaults_match_current_make_targets — fallback defaults match dso-config.conf
 #   test_validate_sources_read_config — validate.sh sources read-config.sh
-#   test_new_config_keys_exist — commands.syntax_check etc. exist in workflow-config.conf
+#   test_new_config_keys_exist — commands.syntax_check etc. exist in dso-config.conf
 #   test_app_dir_uses_config — APP_DIR resolution uses config, not hardcoded app check
 #
 # Usage: bash tests/scripts/test-validate-config-driven.sh
@@ -61,18 +61,18 @@ assert_ne "validate.sh references read-config.sh" "0" "$has_read_config"
 assert_pass_if_clean "test_validate_sources_read_config"
 
 # ── test_new_config_keys_exist ────────────────────────────────────────────
-# New command keys must exist in workflow-config.conf
+# New command keys must exist in dso-config.conf
 _snapshot_fail
 
 for key in commands.syntax_check commands.lint_ruff commands.lint_mypy; do
     found=$(grep -c "^${key}=" "$CONFIG_FILE" || true)
-    assert_ne "config key $key exists in workflow-config.conf" "0" "$found"
+    assert_ne "config key $key exists in dso-config.conf" "0" "$found"
 done
 
 assert_pass_if_clean "test_new_config_keys_exist"
 
 # ── test_validate_defaults_match_current_make_targets ─────────────────────
-# The fallback defaults in validate.sh should match what's in workflow-config.conf
+# The fallback defaults in validate.sh should match what's in dso-config.conf
 _snapshot_fail
 
 # Read config values
@@ -101,15 +101,15 @@ assert_eq "no hardcoded app dir check" "" "$hardcoded_app_check"
 assert_pass_if_clean "test_app_dir_uses_config"
 
 # ── test_workflow_config_has_all_validate_keys ────────────────────────────
-# The real workflow-config.conf must define all command keys that validate.sh
+# The real dso-config.conf must define all command keys that validate.sh
 # reads, so running validate.sh from the DSO repo root works without make.
 _snapshot_fail
 
-REAL_CONFIG="$PLUGIN_ROOT/workflow-config.conf"
+REAL_CONFIG="$PLUGIN_ROOT/dso-config.conf"
 
 for key in commands.syntax_check commands.lint_ruff commands.lint_mypy; do
     found=$(grep -c "^${key}=" "$REAL_CONFIG" || true)
-    assert_ne "workflow-config.conf has key $key" "0" "$found"
+    assert_ne "dso-config.conf has key $key" "0" "$found"
 done
 
 assert_pass_if_clean "test_workflow_config_has_all_validate_keys"
@@ -127,12 +127,12 @@ assert_pass_if_clean "test_validate_handles_missing_app_dir"
 
 # ── test_no_test_plugin_in_config ────────────────────────────────────────
 # commands.test_plugin is a vestigial key and must NOT be present in
-# the real workflow-config.conf.
+# the real dso-config.conf.
 _snapshot_fail
 
-REAL_CONFIG_NTP="$PLUGIN_ROOT/workflow-config.conf"
+REAL_CONFIG_NTP="$PLUGIN_ROOT/dso-config.conf"
 test_plugin_count=$(grep -c "^commands.test_plugin=" "$REAL_CONFIG_NTP" || true)
-assert_eq "commands.test_plugin absent from workflow-config.conf" "0" "$test_plugin_count"
+assert_eq "commands.test_plugin absent from dso-config.conf" "0" "$test_plugin_count"
 
 assert_pass_if_clean "test_no_test_plugin_in_config"
 

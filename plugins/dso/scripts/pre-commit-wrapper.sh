@@ -23,7 +23,7 @@ set -uo pipefail
 #   - If command exceeds timeout_secs, exits 124 and logs to precommit-timeouts.log.
 #   - Falls back to unguarded execution if neither `timeout` nor `gtimeout` is available.
 #
-# Config keys read from workflow-config.conf via read-config.sh:
+# Config keys read from dso-config.conf via read-config.sh:
 #   session.artifact_prefix    — prefix for /tmp artifact dirs (fallback: <repo-name>-test-artifacts)
 #
 # Exit codes:

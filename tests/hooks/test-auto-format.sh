@@ -76,7 +76,7 @@ assert_eq "test_auto_format_exits_zero_on_write_tool_non_py" "0" "$EXIT_CODE"
 # Group A: Backward-compat (no config)
 # ============================================================
 # test_auto_format_backward_compat_defaults_to_py_extension
-# No CLAUDE_PLUGIN_ROOT set, no workflow-config.conf present.
+# No CLAUDE_PLUGIN_ROOT set, no dso-config.conf present.
 # Edit of a .ts file should be ignored (hook only processes .py by default).
 INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.ts"}}'
 EXIT_CODE=$(run_hook "$INPUT")
@@ -92,14 +92,15 @@ assert_eq "test_auto_format_backward_compat_still_handles_py" "0" "$EXIT_CODE"
 # Group B: Config-driven extensions
 # ============================================================
 # test_auto_format_config_driven_extensions_skips_unconfigured_type
-# CLAUDE_PLUGIN_ROOT points to a temp dir with workflow-config.conf
+# CLAUDE_PLUGIN_ROOT points to a temp dir with .claude/dso-config.conf
 # that sets format.extensions: ['.ts'] — a .py file in app/src should be
 # skipped when config overrides the default extension set.
 # This test MUST FAIL in the red phase because auto-format.sh currently
 # hardcodes .py and does not read format.extensions from config.
 _PLUGIN_ROOT=$(mktemp -d)
 _CLEANUP_DIRS+=("$_PLUGIN_ROOT")
-cat > "$_PLUGIN_ROOT/workflow-config.conf" << 'CONF_EOF'
+mkdir -p "$_PLUGIN_ROOT/.claude"
+cat > "$_PLUGIN_ROOT/.claude/dso-config.conf" << 'CONF_EOF'
 format.extensions=.ts
 CONF_EOF
 
@@ -131,7 +132,8 @@ assert_eq "test_auto_format_config_driven_extensions_skips_unconfigured_type" ""
 # This test MUST FAIL in the red phase: the hook will skip .ts (only knows .py).
 _PLUGIN_ROOT2=$(mktemp -d)
 _CLEANUP_DIRS+=("$_PLUGIN_ROOT2")
-cat > "$_PLUGIN_ROOT2/workflow-config.conf" << 'CONF_EOF'
+mkdir -p "$_PLUGIN_ROOT2/.claude"
+cat > "$_PLUGIN_ROOT2/.claude/dso-config.conf" << 'CONF_EOF'
 format.extensions=.ts
 CONF_EOF
 

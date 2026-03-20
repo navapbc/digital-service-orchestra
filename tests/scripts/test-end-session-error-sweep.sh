@@ -25,7 +25,7 @@ echo "=== test-end-session-error-sweep.sh ==="
 # return 0 and NOT create any ticket — even when counter file is at threshold.
 test_sweep_disabled_when_flag_absent() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     local tmp_home="$tmpdir/home"
     mkdir -p "$tmp_home/.claude"
 
@@ -65,7 +65,7 @@ test_sweep_disabled_when_flag_absent() {
 # NOT create any ticket — even when counter file is at threshold.
 test_sweep_disabled_when_flag_false() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     local tmp_home="$tmpdir/home"
     mkdir -p "$tmp_home/.claude"
 
@@ -105,7 +105,7 @@ test_sweep_disabled_when_flag_false() {
 # sweep_tool_errors should trigger ticket creation (call `tk create`).
 test_sweep_enabled_when_flag_true() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     local tmp_home="$tmpdir/home"
     mkdir -p "$tmp_home/.claude"
 

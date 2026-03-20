@@ -48,7 +48,7 @@ assert_pass_if_clean "test_no_yaml_refs_in_docs"
 
 # ── test_example_conf_exists ──────────────────────────────────────────────────
 _snapshot_fail
-if [ -f "$DSO_PLUGIN_DIR/docs/workflow-config.example.conf" ]; then
+if [ -f "$DSO_PLUGIN_DIR/docs/dso-config.example.conf" ]; then
     actual="exists"
 else
     actual="missing"

@@ -59,8 +59,8 @@ read_key() {
 # ---------------------------------------------------------------------------
 echo "--- prerequisite: fixture files exist ---"
 
-assert_eq "workflow-config.conf exists" "true" \
-    "$(test -f "$FIXTURES_DIR/workflow-config.conf" && echo true || echo false)"
+assert_eq "dso-config.conf exists" "true" \
+    "$(test -f "$FIXTURES_DIR/dso-config.conf" && echo true || echo false)"
 
 assert_eq "workflow-config-no-staging.conf exists" "true" \
     "$(test -f "$FIXTURES_DIR/workflow-config-no-staging.conf" && echo true || echo false)"
@@ -89,7 +89,7 @@ assert_eq "staging-environment-test.md prompt exists" "true" \
 echo ""
 echo "--- Test A: config resolution — full config (node-npm stack) ---"
 
-FULL_CONFIG="$FIXTURES_DIR/workflow-config.conf"
+FULL_CONFIG="$FIXTURES_DIR/dso-config.conf"
 
 STACK=$(read_key "$FULL_CONFIG" "stack")
 assert_eq "stack reads as node-npm" "node-npm" "$STACK"

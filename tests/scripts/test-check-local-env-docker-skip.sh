@@ -29,7 +29,7 @@ echo "=== test-check-local-env-docker-skip.sh ==="
 TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
-# Helper: create a minimal project skeleton with the given workflow-config.conf content
+# Helper: create a minimal project skeleton with the given dso-config.conf content
 _make_skeleton() {
     local name="$1" config_content="$2"
     local dir="$TMPDIR_BASE/$name"
@@ -40,7 +40,7 @@ _make_skeleton() {
     GIT_AUTHOR_NAME="Test User" GIT_AUTHOR_EMAIL="test@example.com" \
     GIT_COMMITTER_NAME="Test User" GIT_COMMITTER_EMAIL="test@example.com" \
     git -C "$dir" commit --allow-empty -m "init" -q || { echo "ERROR: git commit failed for $dir" >&2; exit 1; }
-    printf '%s\n' "$config_content" > "$dir/workflow-config.conf" || { echo "ERROR: failed to write workflow-config.conf in $dir" >&2; exit 1; }
+    printf '%s\n' "$config_content" > "$dir/dso-config.conf" || { echo "ERROR: failed to write dso-config.conf in $dir" >&2; exit 1; }
     echo "$dir"
 }
 
@@ -96,7 +96,7 @@ CURL_STUB
 
     (
         export PATH="$stub_bin:$PATH"
-        export WORKFLOW_CONFIG="$skeleton_dir/workflow-config.conf"
+        export WORKFLOW_CONFIG="$skeleton_dir/dso-config.conf"
         cd "$skeleton_dir"
         bash "$CANONICAL_SCRIPT" "$@"
     )

@@ -108,7 +108,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
 
-# Read CI job names from workflow-config.conf (via read-config.sh).
+# Read CI job names from dso-config.conf (via read-config.sh).
 # Falls back to sensible defaults so the script works without a config file.
 _cfg() { "$SCRIPT_DIR/read-config.sh" "$1" 2>/dev/null; }
 _val=$(_cfg ci.fast_gate_job); FAST_GATE_JOB="${_val:-Fast Gate}"
@@ -256,7 +256,7 @@ PYEOF
 
 # Parse phase ceilings from ci.yml timeout-minutes values.
 # FAST_FAIL_SEC and TEST_CEIL_SEC are derived from the job names configured
-# in workflow-config.conf (ci.fast_fail_job and ci.test_ceil_job).
+# in dso-config.conf (ci.fast_fail_job and ci.test_ceil_job).
 # Sets globals: DEAD_ZONE_SEC, FAST_FAIL_SEC, TEST_CEIL_SEC, CEILING_SEC
 parse_phase_ceilings() {
     local yaml=""
@@ -335,7 +335,7 @@ check_regression() {
 }
 
 # On failure, check whether the fast-gate job specifically failed (→ downstream jobs
-# won't run). Uses the job name from workflow-config.conf (ci.fast_gate_job).
+# won't run). Uses the job name from dso-config.conf (ci.fast_gate_job).
 # Prints a diagnostic line and returns 0 if fast-gate failed, 1 otherwise.
 check_fast_gate_failed() {
     local run_id="$1"

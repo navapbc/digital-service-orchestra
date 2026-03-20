@@ -24,7 +24,7 @@ mkdir -p "$TEST_HOME/.claude"
 
 # Shared monitoring config: monitoring.tool_errors=true for tests that need tracking enabled
 _MONITORING_CONF_DIR=$(mktemp -d)
-_MONITORING_CONF="$_MONITORING_CONF_DIR/workflow-config.conf"
+_MONITORING_CONF="$_MONITORING_CONF_DIR/dso-config.conf"
 echo "monitoring.tool_errors=true" > "$_MONITORING_CONF"
 export WORKFLOW_CONFIG_FILE="$_MONITORING_CONF"
 
@@ -253,7 +253,7 @@ rm -f "$COUNTER_FILE"
 
 test_tracking_disabled_when_flag_absent() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     # No monitoring.tool_errors key in config
     echo "# empty config" > "$tmpconf"
     rm -f "$COUNTER_FILE"
@@ -273,7 +273,7 @@ test_tracking_disabled_when_flag_absent
 
 test_tracking_disabled_when_flag_false() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     echo "monitoring.tool_errors=false" > "$tmpconf"
     rm -f "$COUNTER_FILE"
 
@@ -292,7 +292,7 @@ test_tracking_disabled_when_flag_false
 
 test_tracking_enabled_when_flag_true() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     echo "monitoring.tool_errors=true" > "$tmpconf"
     rm -f "$COUNTER_FILE"
 
@@ -311,7 +311,7 @@ test_tracking_enabled_when_flag_true
 
 test_standalone_hook_disabled_when_flag_absent() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     # No monitoring.tool_errors key in config
     echo "# empty config" > "$tmpconf"
     rm -f "$COUNTER_FILE"
@@ -331,7 +331,7 @@ test_standalone_hook_disabled_when_flag_absent
 
 test_standalone_hook_enabled_when_flag_true() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     echo "monitoring.tool_errors=true" > "$tmpconf"
     rm -f "$COUNTER_FILE"
 
@@ -351,7 +351,7 @@ test_standalone_hook_enabled_when_flag_true
 test_tracking_disabled_when_read_config_fails() {
     local tmpdir; tmpdir=$(mktemp -d)
     # Point WORKFLOW_CONFIG_FILE to a nonexistent file so read-config returns empty (graceful fallback)
-    local tmpconf="$tmpdir/nonexistent-workflow-config.conf"
+    local tmpconf="$tmpdir/nonexistent-dso-config.conf"
     rm -f "$COUNTER_FILE"
 
     echo '{"tool_name":"Read","error":"file not found: /tmp/test.txt","is_interrupt":false}' \
@@ -369,7 +369,7 @@ test_tracking_disabled_when_read_config_fails
 
 test_tracking_disabled_when_flag_invalid_value() {
     local tmpdir; tmpdir=$(mktemp -d)
-    local tmpconf="$tmpdir/workflow-config.conf"
+    local tmpconf="$tmpdir/dso-config.conf"
     # "yes" is not a valid truthy value — only "true" enables tracking
     echo "monitoring.tool_errors=yes" > "$tmpconf"
     rm -f "$COUNTER_FILE"

@@ -628,7 +628,7 @@ VISUAL_BASELINE_PATH="${MERGE_VISUAL_BASELINE_PATH:-}"
 # to MERGE_CI_WORKFLOW_NAME (merge.ci_workflow_name) when the new key is absent.
 # Replaced: CI_WORKFLOW_NAME="${MERGE_CI_WORKFLOW_NAME:-}" (bare assignment)
 if [ -z "${CI_WORKFLOW_NAME:-}" ] && [ -n "${MERGE_CI_WORKFLOW_NAME:-}" ]; then
-  echo 'DEPRECATION WARNING: merge.ci_workflow_name is deprecated — migrate to ci.workflow_name in workflow-config.conf' >&2
+  echo 'DEPRECATION WARNING: merge.ci_workflow_name is deprecated — migrate to ci.workflow_name in .claude/dso-config.conf' >&2
   CI_WORKFLOW_NAME="${MERGE_CI_WORKFLOW_NAME:-}"
 fi
 MSG_EXCLUSION_PATTERN="${MERGE_MESSAGE_EXCLUSION_PATTERN:-}"

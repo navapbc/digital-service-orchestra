@@ -3,7 +3,7 @@
 # TDD red-phase tests for templates/host-project/dso shim script
 #
 # Verifies that the dso shim template exists, is POSIX-compatible, and
-# correctly delegates to DSO scripts via CLAUDE_PLUGIN_ROOT or workflow-config.conf.
+# correctly delegates to DSO scripts via CLAUDE_PLUGIN_ROOT or dso-config.conf.
 #
 # RED PHASE: All tests are expected to FAIL until templates/host-project/dso is created.
 #
@@ -127,7 +127,7 @@ test_shim_resolves_dso_root_from_config() {
 }
 
 # ── test_shim_error_names_config_key_when_no_dso_root ────────────────────────
-# When CLAUDE_PLUGIN_ROOT is unset and no workflow-config.conf provides
+# When CLAUDE_PLUGIN_ROOT is unset and no dso-config.conf provides
 # dso.plugin_root, the shim must exit non-zero and print a message that
 # names the 'dso.plugin_root' config key so the user knows how to fix it.
 test_shim_error_names_config_key_when_no_dso_root() {
@@ -137,7 +137,7 @@ test_shim_error_names_config_key_when_no_dso_root() {
             "exists" "missing"
         return
     fi
-    # Create a minimal git repo with NO workflow-config.conf
+    # Create a minimal git repo with NO dso-config.conf
     local empty_repo="$TMPDIR_BASE/empty-repo"
     mkdir -p "$empty_repo"
     git -C "$empty_repo" init -q
