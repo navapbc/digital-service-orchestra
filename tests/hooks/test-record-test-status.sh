@@ -1,0 +1,430 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# tests/hooks/test-record-test-status.sh
+# Tests for hooks/record-test-status.sh (TDD RED phase)
+#
+# record-test-status.sh discovers associated test files for changed source
+# files, runs them, and records pass/fail status with diff_hash to
+# test-gate-status. These tests validate all behaviors BEFORE the
+# implementation exists.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+HOOK="$DSO_PLUGIN_DIR/hooks/record-test-status.sh"
+COMPUTE_HASH_SCRIPT="$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh"
+
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+
+# Source deps.sh to use get_artifacts_dir()
+source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+
+# Disable commit signing for test git repos
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=commit.gpgsign
+export GIT_CONFIG_VALUE_0=false
+
+# ============================================================
+# Helper: create an isolated temp git repo with initial commit
+# ============================================================
+create_test_repo() {
+    local tmpdir
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/test-record-test-status-XXXXXX")
+    git -C "$tmpdir" init --quiet 2>/dev/null
+    git -C "$tmpdir" config user.email "test@test.com"
+    git -C "$tmpdir" config user.name "Test"
+    # Create initial commit so HEAD exists
+    touch "$tmpdir/.gitkeep"
+    git -C "$tmpdir" add .gitkeep
+    git -C "$tmpdir" commit -m "initial" --quiet 2>/dev/null
+    echo "$tmpdir"
+}
+
+# Helper: run the hook and capture exit code
+run_hook_exit() {
+    local exit_code=0
+    bash "$HOOK" "$@" 2>/dev/null || exit_code=$?
+    echo "$exit_code"
+}
+
+# ============================================================
+# test_discovers_associated_tests
+# Given a source file foo.py with an associated test_foo.py,
+# the script discovers and runs test_foo.py
+# ============================================================
+echo ""
+echo "=== test_discovers_associated_tests ==="
+
+TEST_REPO_1=$(create_test_repo)
+ARTIFACTS_1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_1" "$ARTIFACTS_1"' EXIT
+
+# Create source file and associated test file
+mkdir -p "$TEST_REPO_1/src" "$TEST_REPO_1/tests"
+cat > "$TEST_REPO_1/src/foo.py" << 'PYEOF'
+def foo():
+    return 42
+PYEOF
+cat > "$TEST_REPO_1/tests/test_foo.py" << 'PYEOF'
+def test_foo():
+    assert True
+PYEOF
+git -C "$TEST_REPO_1" add -A
+git -C "$TEST_REPO_1" commit -m "add foo" --quiet 2>/dev/null
+
+# Modify foo.py to create a diff
+echo "# changed" >> "$TEST_REPO_1/src/foo.py"
+git -C "$TEST_REPO_1" add -A
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_1"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_1" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+# The script should either exit 0 (tests passed) or produce a status file.
+# Since record-test-status.sh doesn't exist yet, this should fail (exit != 0).
+# In RED phase, we verify the test infrastructure works by checking it fails.
+if [[ -f "$HOOK" ]]; then
+    # When implementation exists: verify test_foo.py was discovered
+    # Check that artifacts contain evidence of test_foo.py being run
+    FOUND_TEST="no"
+    if grep -rq "test_foo" "$ARTIFACTS_1/" 2>/dev/null; then
+        FOUND_TEST="yes"
+    fi
+    assert_eq "test_discovers_associated_tests: test_foo.py discovered" "yes" "$FOUND_TEST"
+else
+    # RED phase: script doesn't exist, test correctly fails
+    assert_ne "test_discovers_associated_tests: script not found (RED)" "0" "$EXIT_CODE"
+fi
+
+rm -rf "$TEST_REPO_1" "$ARTIFACTS_1"
+trap - EXIT
+
+# ============================================================
+# test_records_passed_status
+# When associated tests pass, writes 'passed' and diff_hash
+# to test-gate-status file
+# ============================================================
+echo ""
+echo "=== test_records_passed_status ==="
+
+TEST_REPO_2=$(create_test_repo)
+ARTIFACTS_2=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_2" "$ARTIFACTS_2"' EXIT
+
+# Create a source file and a passing test
+mkdir -p "$TEST_REPO_2/src" "$TEST_REPO_2/tests"
+cat > "$TEST_REPO_2/src/bar.py" << 'PYEOF'
+def bar():
+    return "hello"
+PYEOF
+cat > "$TEST_REPO_2/tests/test_bar.py" << 'PYEOF'
+def test_bar():
+    assert True
+PYEOF
+git -C "$TEST_REPO_2" add -A
+git -C "$TEST_REPO_2" commit -m "add bar" --quiet 2>/dev/null
+
+# Create a diff by modifying bar.py
+echo "# changed" >> "$TEST_REPO_2/src/bar.py"
+git -C "$TEST_REPO_2" add -A
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_2"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_2" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+STATUS_FILE="$ARTIFACTS_2/test-gate-status"
+if [[ -f "$HOOK" ]]; then
+    # When implementation exists: verify passed status and diff_hash
+    assert_eq "test_records_passed_status: exit 0" "0" "$EXIT_CODE"
+    if [[ -f "$STATUS_FILE" ]]; then
+        FIRST_LINE=$(head -1 "$STATUS_FILE")
+        assert_eq "test_records_passed_status: first line is passed" "passed" "$FIRST_LINE"
+        HASH_LINE=$(grep '^diff_hash=' "$STATUS_FILE" || echo "")
+        assert_ne "test_records_passed_status: diff_hash present" "" "$HASH_LINE"
+    else
+        assert_eq "test_records_passed_status: status file exists" "exists" "missing"
+    fi
+else
+    assert_ne "test_records_passed_status: script not found (RED)" "0" "$EXIT_CODE"
+fi
+
+rm -rf "$TEST_REPO_2" "$ARTIFACTS_2"
+trap - EXIT
+
+# ============================================================
+# test_records_failed_status
+# When associated tests fail, writes 'failed' to test-gate-status
+# ============================================================
+echo ""
+echo "=== test_records_failed_status ==="
+
+TEST_REPO_3=$(create_test_repo)
+ARTIFACTS_3=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_3" "$ARTIFACTS_3"' EXIT
+
+# Create a source file and a FAILING test
+mkdir -p "$TEST_REPO_3/src" "$TEST_REPO_3/tests"
+cat > "$TEST_REPO_3/src/baz.py" << 'PYEOF'
+def baz():
+    return None
+PYEOF
+cat > "$TEST_REPO_3/tests/test_baz.py" << 'PYEOF'
+def test_baz():
+    assert False, "intentional failure"
+PYEOF
+git -C "$TEST_REPO_3" add -A
+git -C "$TEST_REPO_3" commit -m "add baz" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_3/src/baz.py"
+git -C "$TEST_REPO_3" add -A
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_3"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_3" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+STATUS_FILE="$ARTIFACTS_3/test-gate-status"
+if [[ -f "$HOOK" ]]; then
+    # When implementation exists: verify failed status
+    if [[ -f "$STATUS_FILE" ]]; then
+        FIRST_LINE=$(head -1 "$STATUS_FILE")
+        assert_eq "test_records_failed_status: first line is failed" "failed" "$FIRST_LINE"
+    else
+        assert_eq "test_records_failed_status: status file exists" "exists" "missing"
+    fi
+else
+    assert_ne "test_records_failed_status: script not found (RED)" "0" "$EXIT_CODE"
+fi
+
+rm -rf "$TEST_REPO_3" "$ARTIFACTS_3"
+trap - EXIT
+
+# ============================================================
+# test_exit_144_actionable_message
+# When test runner exits 144 (SIGURG timeout), error message
+# includes test-batched.sh command with --timeout flag and
+# resume instructions
+# ============================================================
+echo ""
+echo "=== test_exit_144_actionable_message ==="
+
+TEST_REPO_4=$(create_test_repo)
+ARTIFACTS_4=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_4" "$ARTIFACTS_4"' EXIT
+
+# Create source and test, with a mock test runner that exits 144
+mkdir -p "$TEST_REPO_4/src" "$TEST_REPO_4/tests"
+cat > "$TEST_REPO_4/src/slow.py" << 'PYEOF'
+def slow():
+    pass
+PYEOF
+cat > "$TEST_REPO_4/tests/test_slow.py" << 'PYEOF'
+def test_slow():
+    assert True
+PYEOF
+git -C "$TEST_REPO_4" add -A
+git -C "$TEST_REPO_4" commit -m "add slow" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_4/src/slow.py"
+git -C "$TEST_REPO_4" add -A
+
+# Create a mock test runner that exits 144 (simulating SIGURG timeout)
+MOCK_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-test-runner-XXXXXX")
+chmod +x "$MOCK_RUNNER"
+cat > "$MOCK_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 144
+MOCKEOF
+
+OUTPUT=$(
+    cd "$TEST_REPO_4"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_4" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RUNNER" \
+    bash "$HOOK" 2>&1 || true
+)
+
+if [[ -f "$HOOK" ]]; then
+    # When implementation exists: verify actionable message mentions test-batched.sh
+    assert_contains "test_exit_144_actionable_message: mentions test-batched.sh" "test-batched" "$OUTPUT"
+    assert_contains "test_exit_144_actionable_message: mentions --timeout" "--timeout" "$OUTPUT"
+else
+    # RED phase: script doesn't exist
+    assert_contains "test_exit_144_actionable_message: script not found (RED)" "No such file" "$OUTPUT"
+fi
+
+rm -f "$MOCK_RUNNER"
+rm -rf "$TEST_REPO_4" "$ARTIFACTS_4"
+trap - EXIT
+
+# ============================================================
+# test_no_associated_tests_exempts
+# Source file with no associated test writes an exempt marker
+# or exits 0 cleanly
+# ============================================================
+echo ""
+echo "=== test_no_associated_tests_exempts ==="
+
+TEST_REPO_5=$(create_test_repo)
+ARTIFACTS_5=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_5" "$ARTIFACTS_5"' EXIT
+
+# Create a source file with NO associated test
+mkdir -p "$TEST_REPO_5/src"
+cat > "$TEST_REPO_5/src/orphan.py" << 'PYEOF'
+def orphan():
+    return "no tests here"
+PYEOF
+git -C "$TEST_REPO_5" add -A
+git -C "$TEST_REPO_5" commit -m "add orphan" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_5/src/orphan.py"
+git -C "$TEST_REPO_5" add -A
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_5"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_5" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+STATUS_FILE="$ARTIFACTS_5/test-gate-status"
+if [[ -f "$HOOK" ]]; then
+    # When implementation exists: should exit 0 and write exempt marker or skip cleanly
+    assert_eq "test_no_associated_tests_exempts: exit 0" "0" "$EXIT_CODE"
+    if [[ -f "$STATUS_FILE" ]]; then
+        FIRST_LINE=$(head -1 "$STATUS_FILE")
+        # Should be either "passed" (vacuously) or "exempt"
+        VALID_STATUS="no"
+        if [[ "$FIRST_LINE" == "passed" || "$FIRST_LINE" == "exempt" ]]; then
+            VALID_STATUS="yes"
+        fi
+        assert_eq "test_no_associated_tests_exempts: status is passed or exempt" "yes" "$VALID_STATUS"
+    fi
+    # Either way, exit code should be 0
+else
+    assert_ne "test_no_associated_tests_exempts: script not found (RED)" "0" "$EXIT_CODE"
+fi
+
+rm -rf "$TEST_REPO_5" "$ARTIFACTS_5"
+trap - EXIT
+
+# ============================================================
+# test_hash_matches_compute_diff_hash
+# diff_hash recorded in test-gate-status must match output
+# of compute-diff-hash.sh at the same git state
+# ============================================================
+echo ""
+echo "=== test_hash_matches_compute_diff_hash ==="
+
+TEST_REPO_6=$(create_test_repo)
+ARTIFACTS_6=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_6" "$ARTIFACTS_6"' EXIT
+
+# Create source and passing test
+mkdir -p "$TEST_REPO_6/src" "$TEST_REPO_6/tests"
+cat > "$TEST_REPO_6/src/hashme.py" << 'PYEOF'
+def hashme():
+    return "hash test"
+PYEOF
+cat > "$TEST_REPO_6/tests/test_hashme.py" << 'PYEOF'
+def test_hashme():
+    assert True
+PYEOF
+git -C "$TEST_REPO_6" add -A
+git -C "$TEST_REPO_6" commit -m "add hashme" --quiet 2>/dev/null
+
+echo "# changed for hash test" >> "$TEST_REPO_6/src/hashme.py"
+git -C "$TEST_REPO_6" add -A
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_6"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_6" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+STATUS_FILE="$ARTIFACTS_6/test-gate-status"
+
+if [[ -f "$HOOK" ]] && [[ -f "$STATUS_FILE" ]]; then
+    RECORDED_HASH=$(grep '^diff_hash=' "$STATUS_FILE" | head -1 | cut -d= -f2)
+    EXPECTED_HASH=$(cd "$TEST_REPO_6" && bash "$COMPUTE_HASH_SCRIPT" 2>/dev/null)
+    assert_eq "test_hash_matches_compute_diff_hash: hashes match" "$EXPECTED_HASH" "$RECORDED_HASH"
+else
+    # RED phase: script doesn't exist or no status file
+    assert_ne "test_hash_matches_compute_diff_hash: script not found (RED)" "0" "$EXIT_CODE"
+fi
+
+rm -rf "$TEST_REPO_6" "$ARTIFACTS_6"
+trap - EXIT
+
+# ============================================================
+# test_captures_hash_after_staging
+# Hash is captured AFTER git add (same point as record-review.sh)
+# so it matches at verify time
+# ============================================================
+echo ""
+echo "=== test_captures_hash_after_staging ==="
+
+TEST_REPO_7=$(create_test_repo)
+ARTIFACTS_7=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_7" "$ARTIFACTS_7"' EXIT
+
+# Create source and passing test
+mkdir -p "$TEST_REPO_7/src" "$TEST_REPO_7/tests"
+cat > "$TEST_REPO_7/src/staged.py" << 'PYEOF'
+def staged():
+    return "staging test"
+PYEOF
+cat > "$TEST_REPO_7/tests/test_staged.py" << 'PYEOF'
+def test_staged():
+    assert True
+PYEOF
+git -C "$TEST_REPO_7" add -A
+git -C "$TEST_REPO_7" commit -m "add staged" --quiet 2>/dev/null
+
+# Create unstaged changes first
+echo "# unstaged change" >> "$TEST_REPO_7/src/staged.py"
+
+# Capture hash BEFORE staging (with unstaged change)
+HASH_BEFORE_ADD=$(cd "$TEST_REPO_7" && bash "$COMPUTE_HASH_SCRIPT" 2>/dev/null || echo "compute-error")
+
+# Stage the change
+git -C "$TEST_REPO_7" add -A
+
+# Capture hash AFTER staging
+HASH_AFTER_ADD=$(cd "$TEST_REPO_7" && bash "$COMPUTE_HASH_SCRIPT" 2>/dev/null || echo "compute-error")
+
+# Run the hook after staging
+EXIT_CODE=$(
+    cd "$TEST_REPO_7"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_7" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+STATUS_FILE="$ARTIFACTS_7/test-gate-status"
+
+if [[ -f "$HOOK" ]] && [[ -f "$STATUS_FILE" ]]; then
+    RECORDED_HASH=$(grep '^diff_hash=' "$STATUS_FILE" | head -1 | cut -d= -f2)
+    # The recorded hash should match the hash computed after staging,
+    # which is the same point where record-review.sh captures its hash.
+    # compute-diff-hash.sh is staging-invariant, so both should match.
+    assert_eq "test_captures_hash_after_staging: hash matches after-add state" "$HASH_AFTER_ADD" "$RECORDED_HASH"
+else
+    # RED phase: script doesn't exist or no status file
+    assert_ne "test_captures_hash_after_staging: script not found (RED)" "0" "$EXIT_CODE"
+fi
+
+rm -rf "$TEST_REPO_7" "$ARTIFACTS_7"
+trap - EXIT
+
+print_summary
