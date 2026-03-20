@@ -1,6 +1,6 @@
 ---
 id: dso-b934
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T23:52:29Z

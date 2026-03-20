@@ -8,6 +8,20 @@ user-invocable: true
 
 The root cause is rarely where errors appear. Read widely, edit narrowly — the fix is usually 1-5 lines once you understand the actual problem.
 
+## Config Resolution (reads project workflow-config.yaml)
+
+At activation, load project commands via read-config.sh before executing any steps:
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
+```
+
+Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
+
+Resolved commands used in this skill:
+- `TEST_CMD` — used in Step 1 (damage assessment) to see current test failures
+
 ## Protocol
 
 ### Step 0: Read Checkpoint Context (/dso:fix-cascade-recovery)
@@ -29,7 +43,7 @@ Do NOT touch any source files. First, understand the current state.
 git diff --name-only
 
 # What do the current errors actually say?
-cd $(git rev-parse --show-toplevel)/app && make test 2>&1 | tail -50
+cd $(git rev-parse --show-toplevel) && $TEST_CMD 2>&1 | tail -50
 
 # What was the original state before the fix attempts began?
 git log --oneline -10
