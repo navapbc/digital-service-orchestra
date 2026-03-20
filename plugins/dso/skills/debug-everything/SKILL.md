@@ -33,12 +33,10 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 ```
 Phase 1 (Diagnostic + Clustering sub-agent) → Phase 2 (Triage sub-agent)
-  → [dry-run: stop] or [execute: Phase 2.5 (Complexity Gate)]
-Phase 2.5 → [all Tier 0-1: skip gate] or [above Tier 1: haiku evaluator per bug → TRIVIAL/MODERATE pass-through, COMPLEX → epic]
-Phase 2.5 → Phase 2.6 (Safeguard Analysis)
+  → [dry-run: stop] or [execute: Phase 2.6 (Safeguard Analysis)]
 Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: present proposals → user approval → Phase 3]
 Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
-  → Phase 6 (Checkpoint) → [more in tier: Phase 5] [tier clear: Phase 7]
+  → Phase 6 (Checkpoint) → [COMPLEX_ESCALATION from /dso:fix-bug: Phase 6 Step 3a re-dispatch] → [more in tier: Phase 5] [tier clear: Phase 7]
 Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
 Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/dso:end-session)] [FAIL: Phase 2]
 Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/dso:end-session)]
@@ -286,95 +284,9 @@ If resuming an existing tracker, append: `Existing epic ID: <epic-id>. Do NOT cr
 
 ---
 
-## Phase 2.5: Complexity Gate (/dso:debug-everything)
-
-After triage, classify each bug's complexity before dispatching fix sub-agents. This gate prevents solo fix sub-agents from attempting repairs that require multi-agent planning.
-
-### Step 1: Tier 0-1 Bypass (/dso:debug-everything)
-
-Bugs classified at **Tier 0 or Tier 1** (format errors, lint violations, import errors, mechanical type fixes) skip Phase 2.5 entirely and proceed directly to fix dispatch. Do NOT dispatch a complexity evaluator for these bugs — mechanical fixes are always autonomous.
-
-Partition the triage list:
-- `BYPASS_BUGS`: bugs at Tier 0 or Tier 1 → skip evaluator, pass straight through to fix dispatch
-- `GATE_BUGS`: bugs above Tier 1 → proceed to Step 2
-
-If `GATE_BUGS` is empty, skip to Phase 2.6.
-
-### Step 2: Haiku Evaluator Dispatch (/dso:debug-everything)
-
-For each bug in `GATE_BUGS`, dispatch a haiku sub-agent to classify its complexity using the shared evaluator prompt.
-
-**Sub-agent prompt template** (one sub-agent per bug, dispatched in parallel, max 5 at a time):
-
-```
-Read the shared complexity evaluator prompt at:
-  ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md
-
-Use its rubric to evaluate the following bug ticket: <bug-id>
-
-Load the ticket via: tk show <bug-id>
-
-Return the JSON output defined by the evaluator's Output Schema section.
-```
-
-**Subagent**: `subagent_type="general-purpose"`, `model="haiku"`
-
-**Graceful degradation**: If a sub-agent fails, times out, or returns output with no valid `classification` field (TRIVIAL, MODERATE, or COMPLEX), log a warning:
-```
-WARNING: Complexity evaluator failed for <bug-id> — falling through to fix dispatch
-```
-Treat the bug as TRIVIAL and add it to the fix-dispatch queue. Do NOT block the session.
-
-### Step 3: Apply /dso:debug-everything Routing Rules (/dso:debug-everything)
-
-For each evaluated bug, apply the `/dso:debug-everything` routing rule (user-confirmed):
-
-| Classification | Routing |
-|---|---|
-| TRIVIAL | Pass through to fix dispatch unchanged |
-| MODERATE | **De-escalate → TRIVIAL** — pass through to fix dispatch (MODERATE bugs are well-understood enough for a solo fix sub-agent in /dso:debug-everything) |
-| COMPLEX | Route to epic (see Step 4) |
-
-### Step 4: COMPLEX Routing (/dso:debug-everything)
-
-For each bug classified as COMPLEX, create an epic using `/dso:brainstorm`:
-
-1. Invoke `/dso:brainstorm` to create the epic:
-   ```
-   /dso:brainstorm
-   ```
-   Provide the following context when brainstorm asks "What feature or capability are you trying to build?":
-   > Fix (complex): <bug title>. This is a complex bug fix that requires multi-agent planning. Bug ID: <bug-id>. Complexity classification: COMPLEX. The evaluator found: <reasoning from complexity evaluator>. Priority: P2.
-
-   Follow the `/dso:brainstorm` phases (Socratic dialogue, approach design, spec validation) to create a well-defined epic.
-
-2. After `/dso:brainstorm` Phase 3 creates the epic, set a dependency from the bug to the new epic:
-   ```bash
-   tk dep <bug-id> <new-epic-id>
-   ```
-3. Add a routing note on the bug:
-   ```bash
-   tk add-note <bug-id> "Routed to epic <epic-id> — scope or fix complexity requires multi-agent planning before implementation"
-   ```
-4. Remove the bug from the fix-dispatch queue. Continue processing remaining bugs.
-
-Track all COMPLEX-routed bugs in `COMPLEX_BUGS` list (entries: `{bug_id, epic_id, title}`) for inclusion in the session summary.
-
-### Step 5: Build Final Fix Queue (/dso:debug-everything)
-
-Merge the remaining bugs into a single fix-dispatch list:
-- `BYPASS_BUGS` (Tier 0-1, no evaluation needed)
-- `GATE_BUGS` classified TRIVIAL or MODERATE (de-escalated to TRIVIAL)
-
-COMPLEX-routed bugs are excluded — they have been handed off to epics.
-
-Proceed to Phase 2.6 with the final fix queue.
-
----
-
 ## Phase 2.6: Safeguard Bug Analysis (/dso:debug-everything)
 
-After the complexity gate, identify which issues touch safeguarded files and route them through user-approval before fixing.
+After triage, identify which issues touch safeguarded files and route them through user-approval before fixing.
 
 ### Step 1: Detect Safeguarded Issues (/dso:debug-everything)
 
@@ -612,13 +524,12 @@ For each fix task, launch via the Task tool. **Launch all sub-agents in the batc
 Bug ID: <bug-id>
 Triage tier: <tier-number>
 Severity (from triage priority): <P0=critical/2pts | P1=high/2pts | P2=medium/1pt | P3=low/0pts>
-Complexity (from Phase 2.5 complexity gate): <TRIVIAL|MODERATE>
 Environment: <CI failure | staging | local — from triage report>
 ```
 
 **Triage-to-scoring-rubric mapping** (how triage tier maps to dso:fix-bug scoring dimensions):
 - **Tier 0-1 (mechanical)**: fix-bug classifies as mechanical, bypasses scoring rubric entirely
-- **Tier 2+ (behavioral bugs)**: provide severity from triage priority (P0=critical/2pts, P1=high/2pts, P2=medium/1pt, P3=low/0pts) and complexity classification from Phase 2.5 complexity gate output, environment from triage report (CI failure/staging notes). This allows fix-bug to inherit the triage classification rather than re-score.
+- **Tier 2+ (behavioral bugs)**: provide severity from triage priority (P0=critical/2pts, P1=high/2pts, P2=medium/1pt, P3=low/0pts), environment from triage report (CI failure/staging notes). This allows fix-bug to inherit the triage classification rather than re-score. Note: fix-bug performs its own post-investigation complexity evaluation and will return a `COMPLEX_ESCALATION` report if the bug requires multi-agent planning.
 
 **File ownership context**: Pass `{file_ownership_context}` from the blackboard step above in the sub-agent prompt. Each sub-agent receives its own tailored context showing which files it owns and which files other agents in the batch own.
 
@@ -748,6 +659,50 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 - `tk add-note <id> "Fixed: added comment_penalty to quality_helpers.py"` (code change)
 - `tk add-note <id> "Escalated to user: code path is correct, no fix possible"` (escalation)
 - Do NOT close with only `tk add-note <id> "Investigated: code path is correct"` — use add-note for findings, then escalate or fix before closing
+
+### Step 3a: COMPLEX Escalation Handling (/dso:debug-everything)
+
+<!-- REVIEW-DEFENSE: CLAUDE.md line 131 still references the old Phase 2.5 description.
+     Update is tracked as task w21-z0jv (blocked by w21-b0tq). Do not edit CLAUDE.md here. -->
+
+After fix-bug sub-agents return, parse each result for a `COMPLEX_ESCALATION` report. Fix-bug sub-agents emit this structured report when post-investigation complexity evaluation classifies a bug as requiring multi-agent planning (i.e., the bug is too complex for a solo fix sub-agent to resolve autonomously).
+
+**Detection**: Scan each sub-agent result for the escalation signal:
+```
+COMPLEX_ESCALATION: true
+```
+
+**If a `COMPLEX_ESCALATION` signal is found**, parse the full escalation report fields from the sub-agent result (these fields match the COMPLEX_ESCALATION report format defined in `/dso:fix-bug` Step 4.5):
+- `escalation_type`: `COMPLEX` (the fix scope is too large for a single bug fix track)
+- `bug_id`: the bug ticket ID being escalated
+- `investigation_tier_needed`: `orchestrator-level re-dispatch` (the fix requires orchestrator-level authority)
+- `investigation_findings`: summary of root cause candidates, confidence, and evidence from investigation
+- `escalation_reason`: why the fix is COMPLEX (e.g., cross-system refactor, multiple subsystems affected)
+
+**Re-dispatch at orchestrator level** (do NOT use a sub-agent for the re-dispatch — invoke `/dso:fix-bug` directly from the orchestrator):
+
+1. Add a note to the bug ticket with the investigation findings:
+   ```bash
+   tk add-note <bug-id> "fix-bug escalation: COMPLEX — <escalation_reason>. Investigation found: <investigation_findings>. Requires <investigation_tier_needed> orchestrator-level re-dispatch."
+   ```
+
+2. Invoke `/dso:fix-bug` directly at orchestrator level (not as a Task sub-agent), passing the investigation findings as pre-loaded context so the orchestrator-level fix-bug can skip re-investigation:
+   ```
+   /dso:fix-bug <bug-id>
+   ```
+   Include the following escalation context block in the invocation prompt so `/dso:fix-bug` detects it via Sub-Agent Context Detection and populates the discovery file without re-running investigation:
+   ```
+   ### COMPLEX_ESCALATION Context (pre-loaded — skip to Step 4)
+   escalation_type: COMPLEX
+   bug_id: <bug-id>
+   investigation_findings: <investigation_findings from sub-agent report>
+   escalation_reason: <escalation_reason from sub-agent report>
+   ```
+   When `/dso:fix-bug` detects `COMPLEX_ESCALATION Context` in its invocation prompt, it writes the `investigation_findings` to the discovery file (`/tmp/fix-bug-discovery-<bug-id>.json`) and skips directly to Step 4 (Fix Approval) with the prior investigation as pre-loaded context.
+
+3. Track all complex-escalated bugs in `COMPLEX_BUGS` list (entries: `{bug_id, escalation_reason, investigation_findings}`) for inclusion in the session summary.
+
+**If no escalation signals are present**, proceed normally to Step 4.
 
 ### Step 4: Decision Log (/dso:debug-everything)
 
@@ -978,14 +933,14 @@ After Phase 10 completes (or after Phase 10 is skipped due to unrecoverable erro
 - Recommendations: {observations for preventing recurrence}
 ```
 
-If any bugs were routed to epics by Phase 2.5 (COMPLEX classification), append a dedicated section to the session summary **and present it to the user** before Phase 11:
+If any bugs were escalated as COMPLEX by fix-bug sub-agents (via `COMPLEX_ESCALATION` in Phase 6 Step 3a), append a dedicated section to the session summary **and present it to the user** before Phase 11:
 
 ```
-## Epics requiring user attention
-- <epic-id>: <title> (addresses bug <bug-id>)
+## Bugs escalated as COMPLEX (re-dispatched at orchestrator level)
+- <bug-id>: <title> — escalated (COMPLEX): <escalation_reason> — outcome: <fixed|still-open>
 ```
 
-One line per COMPLEX-routed bug. If no COMPLEX bugs were found this session, omit this section entirely.
+One line per COMPLEX-escalated bug. If no COMPLEX escalations occurred this session, omit this section entirely.
 
 Write to: `{auto-memory-dir}/debug-sessions.md` (append, don't overwrite).
 
