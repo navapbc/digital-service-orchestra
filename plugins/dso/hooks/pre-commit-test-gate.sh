@@ -33,6 +33,7 @@
 #   WORKFLOW_PLUGIN_ARTIFACTS_DIR  — override for artifacts dir (used in tests)
 #   CLAUDE_PLUGIN_ROOT             — optional; used to locate compute-diff-hash.sh
 #   COMPUTE_DIFF_HASH_OVERRIDE     — override path to compute-diff-hash.sh (used in tests)
+#   TEST_EXEMPTIONS_OVERRIDE       — override path to test-exemptions file (used in tests)
 
 set -uo pipefail
 
@@ -100,6 +101,54 @@ _has_associated_test() {
     return 1
 }
 
+# ── Get associated test file path for a source file ──────────────────────────
+# Returns the relative test file path on stdout, or empty if none found.
+_get_associated_test_path() {
+    local src_file="$1"
+
+    # Only check .py files
+    if [[ "$src_file" != *.py ]]; then
+        return
+    fi
+
+    # Skip test files themselves
+    local _basename
+    _basename=$(basename "$src_file")
+    if [[ "$_basename" == test_* ]]; then
+        return
+    fi
+
+    local _name_no_ext="${_basename%.*}"
+    local _test_pattern="test_${_name_no_ext}"
+
+    local _search_root="${REPO_ROOT:-.}"
+    local _found
+    _found=$(find "$_search_root/tests" -type f -name "${_test_pattern}.*" 2>/dev/null | head -1 || true)
+    if [[ -n "$_found" ]]; then
+        # Return path relative to repo root
+        echo "${_found#"$_search_root/"}"
+    fi
+}
+
+# ── Check if a test file is exempted ─────────────────────────────────────────
+# Reads the exemptions file and checks for a line where node_id=<test-file-path>.
+# Returns 0 if exempted, 1 if not.
+_is_test_exempted() {
+    local test_file_path="$1"
+    local exemptions_file="${TEST_EXEMPTIONS_OVERRIDE:-${ARTIFACTS_DIR:-}/test-exemptions}"
+
+    # If exemptions file does not exist, no tests are exempted (fail-safe)
+    if [[ ! -f "$exemptions_file" ]]; then
+        return 1
+    fi
+
+    # Check for a matching node_id= line
+    if grep -q "^node_id=${test_file_path}$" "$exemptions_file" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
 # ── Check if any staged file has an associated test ───────────────────────────
 NEEDS_TEST_GATE=false
 for _staged_file in "${STAGED_FILES[@]}"; do
@@ -117,6 +166,28 @@ fi
 # ── Resolve artifacts directory ────────────────────────────────────────────────
 ARTIFACTS_DIR=$(get_artifacts_dir)
 TEST_GATE_STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
+
+# ── Exemption check ──────────────────────────────────────────────────────────
+# For each staged source file with an associated test, check if ALL associated
+# tests are exempted. If after filtering, no files require the gate, exit 0.
+_STILL_NEEDS_GATE=false
+for _staged_file in "${STAGED_FILES[@]}"; do
+    local_test_path=$(_get_associated_test_path "$_staged_file")
+    if [[ -z "$local_test_path" ]]; then
+        # No associated test — this file doesn't need the gate anyway
+        continue
+    fi
+    if ! _is_test_exempted "$local_test_path"; then
+        # At least one non-exempted test remains
+        _STILL_NEEDS_GATE=true
+        break
+    fi
+done
+
+# All tests are exempted → allow commit without test-gate-status check
+if [[ "$_STILL_NEEDS_GATE" == false ]]; then
+    exit 0
+fi
 
 # ── Check test-gate-status exists ─────────────────────────────────────────────
 if [[ ! -f "$TEST_GATE_STATUS_FILE" ]]; then

@@ -1,6 +1,6 @@
 ---
 id: w21-vyio
-status: open
+status: in_progress
 deps: [w21-4dnw]
 links: []
 created: 2026-03-20T22:02:27Z
@@ -68,3 +68,29 @@ TDD Requirement: Run bash tests/hooks/test-pre-commit-test-gate.sh FIRST — the
   Verify: grep -q 'TEST_EXEMPTIONS_OVERRIDE' $(git rev-parse --show-toplevel)/plugins/dso/hooks/pre-commit-test-gate.sh
 - [ ] Gate treats absent or malformed test-exemptions file as no exemptions (fail-safe, consistent with fail-open pattern)
   Verify: grep -q 'test-exemptions' $(git rev-parse --show-toplevel)/plugins/dso/hooks/pre-commit-test-gate.sh && grep -q '\-f.*exemption\|exemptions.*exists\|-f.*test-exempt' $(git rev-parse --show-toplevel)/plugins/dso/hooks/pre-commit-test-gate.sh
+
+## Notes
+
+**2026-03-20T23:07:25Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T23:07:40Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T23:08:00Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓ — tests 9-11 pass vacuously via RED guard; will fail once 'test-exemptions' string is present without logic
+
+**2026-03-20T23:09:07Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T23:09:07Z**
+
+CHECKPOINT 5/6: All 11 tests pass ✓
+
+**2026-03-20T23:21:10Z**
+
+CHECKPOINT 6/6: Done ✓ — All 11 test-pre-commit-test-gate tests pass, all 1033 hook tests pass, ruff checks pass, all AC verified
