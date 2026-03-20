@@ -40,3 +40,9 @@ test_no_hardcoded_workflow_config_conf_in_scripts — grep plugins/dso/scripts/*
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-config-callers-updated.sh 2>&1 | grep -qE 'FAIL'
 - [ ] bash tests/run-all.sh shows no regressions from test addition alone
   Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh 2>&1 | tail -5
+
+## Notes
+
+**2026-03-20T03:43:36Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — validate.sh uses $REPO_ROOT/workflow-config.conf, validate-phase.sh uses same, sprint-next-batch.sh passes $REPO_ROOT/workflow-config.conf to read-config. New tests must assert .claude/dso-config.conf pattern — these will FAIL (RED) until dso-2vwl implements the changes.
