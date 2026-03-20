@@ -1,6 +1,6 @@
 ---
 id: w21-dedx
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T19:09:07Z
