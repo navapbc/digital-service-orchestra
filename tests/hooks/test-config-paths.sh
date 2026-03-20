@@ -6,6 +6,9 @@
 #   test_config_paths_defaults_match_current_values
 #   test_config_paths_reads_custom_config
 #   test_config_paths_idempotent_sourcing
+#   test_config_paths_visual_baseline_path
+#   test_config_paths_reads_from_dot_claude_dso_config
+#   test_config_paths_no_claude_plugin_root_fallback
 #
 # Usage: bash tests/hooks/test-config-paths.sh
 # Exit code: 0 if all pass, 1 if any fail
@@ -163,6 +166,92 @@ result=$(
 )
 
 assert_eq "visual baseline from config" "app/tests/e2e/snapshots/" "$(echo "$result" | grep '^CFG_VISUAL_BASELINE_PATH=' | cut -d= -f2-)"
+
+# ============================================================================
+# test_config_paths_reads_from_dot_claude_dso_config
+# ============================================================================
+echo "=== test_config_paths_reads_from_dot_claude_dso_config ==="
+
+# REVIEW-DEFENSE: These two new tests (test_config_paths_reads_from_dot_claude_dso_config and
+# test_config_paths_no_claude_plugin_root_fallback) are intentionally FAILING. This file is the
+# RED phase of a TDD cycle (story dso-c2tl). The tests define the expected behavior of a
+# config-paths.sh change that will be implemented in the GREEN phase (story dso-6trc). Failing
+# tests at this stage are correct and expected — they confirm the behavior does not yet exist.
+
+# When CLAUDE_PLUGIN_ROOT is NOT set but .claude/dso-config.conf exists at git root,
+# config-paths.sh should read config values from .claude/dso-config.conf (new behavior).
+tmpdir_dso=$(mktemp -d)
+_CLEANUP_DIRS+=("$tmpdir_dso")
+
+# Set up a minimal git repo with .claude/dso-config.conf
+(
+    cd "$tmpdir_dso"
+    git init -q
+    mkdir -p .claude
+    cat > .claude/dso-config.conf <<'CONF'
+paths.app_dir=dotclaudeapp
+paths.src_dir=dotclaudesrc
+paths.test_dir=dotclaudetest
+interpreter.python_venv=dotclaudeapp/.venv/bin/python3
+CONF
+    git add .claude/dso-config.conf
+    git commit -q -m "init"
+)
+
+result_dso=$(
+    unset CLAUDE_PLUGIN_ROOT
+    unset _CONFIG_PATHS_LOADED
+    cd "$tmpdir_dso"
+    source "$DSO_PLUGIN_DIR/hooks/lib/config-paths.sh"
+    echo "CFG_APP_DIR=$CFG_APP_DIR"
+    echo "CFG_SRC_DIR=$CFG_SRC_DIR"
+    echo "CFG_TEST_DIR=$CFG_TEST_DIR"
+)
+
+assert_eq "dot-claude dso-config CFG_APP_DIR" "dotclaudeapp" "$(echo "$result_dso" | grep '^CFG_APP_DIR=' | cut -d= -f2-)"
+assert_eq "dot-claude dso-config CFG_SRC_DIR" "dotclaudesrc" "$(echo "$result_dso" | grep '^CFG_SRC_DIR=' | cut -d= -f2-)"
+assert_eq "dot-claude dso-config CFG_TEST_DIR" "dotclaudetest" "$(echo "$result_dso" | grep '^CFG_TEST_DIR=' | cut -d= -f2-)"
+
+# ============================================================================
+# test_config_paths_no_claude_plugin_root_fallback
+# ============================================================================
+echo "=== test_config_paths_no_claude_plugin_root_fallback ==="
+
+# REVIEW-DEFENSE: This test intentionally contradicts test_config_paths_reads_custom_config.
+# Once dso-6trc implements the new config-paths.sh behavior, the existing
+# test_config_paths_reads_custom_config test will need to be updated or removed — that update
+# is explicitly in scope for story dso-6trc (GREEN phase). Having two temporarily contradictory
+# tests is the correct state during a RED phase that changes config lookup semantics.
+
+# When CLAUDE_PLUGIN_ROOT is set to a dir containing workflow-config.conf,
+# config-paths.sh must NOT read from that file (new behavior: CLAUDE_PLUGIN_ROOT no
+# longer used for config file lookup). Values should fall back to defaults.
+tmpdir_cproot=$(mktemp -d)
+_CLEANUP_DIRS+=("$tmpdir_cproot")
+
+cat > "$tmpdir_cproot/workflow-config.conf" <<'CONF'
+paths.app_dir=cproot_app
+paths.src_dir=cproot_src
+CONF
+
+result_cproot=$(
+    export CLAUDE_PLUGIN_ROOT="$tmpdir_cproot"
+    unset _CONFIG_PATHS_LOADED
+    # No .claude/dso-config.conf at git root → should fall back to defaults, NOT read CLAUDE_PLUGIN_ROOT
+    tmpdir_gitroot=$(mktemp -d)
+    cd "$tmpdir_gitroot"
+    git init -q
+    # no .claude/dso-config.conf here
+    source "$DSO_PLUGIN_DIR/hooks/lib/config-paths.sh"
+    echo "CFG_APP_DIR=$CFG_APP_DIR"
+    echo "CFG_SRC_DIR=$CFG_SRC_DIR"
+    rm -rf "$tmpdir_gitroot"
+)
+
+# After the new behavior, CLAUDE_PLUGIN_ROOT/workflow-config.conf must be ignored.
+# CFG_APP_DIR must be the default "app", NOT "cproot_app".
+assert_eq "CLAUDE_PLUGIN_ROOT not used: CFG_APP_DIR should be default" "app" "$(echo "$result_cproot" | grep '^CFG_APP_DIR=' | cut -d= -f2-)"
+assert_eq "CLAUDE_PLUGIN_ROOT not used: CFG_SRC_DIR should be default" "src" "$(echo "$result_cproot" | grep '^CFG_SRC_DIR=' | cut -d= -f2-)"
 
 # ============================================================================
 # Summary

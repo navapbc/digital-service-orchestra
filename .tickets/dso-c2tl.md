@@ -57,3 +57,7 @@ CHECKPOINT 4/6: Implementation complete ✓ (RED phase only — no source change
 **2026-03-20T04:06:55Z**
 
 CHECKPOINT 5/6: Validation passed ✓ — 14 existing tests pass, 5 new tests FAIL as expected (RED confirmed)
+
+**2026-03-20T04:12:54Z**
+
+CHECKPOINT 6/6: Done ✓ — All 3 AC criteria pass. Red tests (5 failures) are the intentional RED state for dso-6trc implementation. run-all.sh shows Hook Tests FAIL only due to the 5 new RED tests; no pre-existing regressions introduced.
