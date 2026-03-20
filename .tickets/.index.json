@@ -62,6 +62,13 @@
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
+  "dso-2rgm": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write test asserting CONFIG-RESOLUTION.md matches actual read-config.sh resolution logic",
+    "type": "task"
+  },
   "dso-2vwl": {
     "deps": [
       "dso-3v44",
@@ -431,6 +438,15 @@
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
   },
+  "dso-g7d8": {
+    "deps": [
+      "dso-2rgm"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write test asserting MIGRATION-TO-PLUGIN.md does not recommend settings.json CLAUDE_PLUGIN_ROOT env override",
+    "type": "task"
+  },
   "dso-g8cz": {
     "deps": [],
     "priority": 2,
@@ -732,6 +748,15 @@
     "title": "As a DSO adopter, project detection produces structured context for all wizard questions",
     "type": "story"
   },
+  "dso-r908": {
+    "deps": [
+      "dso-g7d8"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Fix MIGRATION-TO-PLUGIN.md to remove settings.json CLAUDE_PLUGIN_ROOT env override recommendation",
+    "type": "task"
+  },
   "dso-r97p": {
     "deps": [],
     "priority": 2,
@@ -930,6 +955,15 @@
     "priority": 2,
     "status": "closed",
     "title": "Add prerequisite checks, platform detection, and exit code contract to dso-setup.sh",
+    "type": "task"
+  },
+  "dso-zs27": {
+    "deps": [
+      "dso-2rgm"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Fix CONFIG-RESOLUTION.md to accurately document read-config.sh resolution order",
     "type": "task"
   },
   "dso-zu4o": {

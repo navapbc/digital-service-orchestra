@@ -67,31 +67,20 @@ Recommended locations:
 - `~/tools/digital-service-orchestra` (user-level, shared across projects)
 - Adjacent to the project repo, e.g., `../digital-service-orchestra`
 
-Set `CLAUDE_PLUGIN_ROOT` in your project's `.claude/settings.json` so all hooks and
-skills resolve paths correctly:
+Run the setup script from the plugin directory to install the DSO shim and write
+`dso.plugin_root` to `.claude/dso-config.conf`:
 
-```json
-{
-  "env": {
-    "CLAUDE_PLUGIN_ROOT": "/path/to/digital-service-orchestra"
-  },
-  "hooks": { ... }
-}
+```bash
+bash /path/to/digital-service-orchestra/plugins/dso/scripts/dso-setup.sh [TARGET_REPO]
 ```
 
-Replace `/path/to/digital-service-orchestra` with the actual absolute path where you cloned the plugin.
+`TARGET_REPO` defaults to your current git repo root when omitted. The script:
+- Installs the `.claude/scripts/dso` shim (which resolves the plugin root automatically)
+- Writes `dso.plugin_root=/path/to/digital-service-orchestra` to `.claude/dso-config.conf`
+- Copies or merges `.pre-commit-config.yaml` and `.github/workflows/ci.yml`
 
-Update each hook command to reference the plugin location. The pattern changes from:
-
-```
-cd "$(git rev-parse --show-toplevel)" && .claude/hooks/run-hook.sh .claude/hooks/<hook>.sh
-```
-
-to:
-
-```
-cd "$(git rev-parse --show-toplevel)" && "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/<hook>.sh"
-```
+The shim reads `dso.plugin_root` from `.claude/dso-config.conf` to resolve `CLAUDE_PLUGIN_ROOT`
+automatically — no manual environment variable configuration required.
 
 ### Step 2: Create dso-config.conf
 
@@ -140,7 +129,7 @@ rm -rf "${REPO_ROOT}/.claude/workflows/"
 
 **Keep** the following `.claude/` files — they are project-specific:
 
-- `.claude/settings.json` (edit this to add the `env` block, but do not delete it)
+- `.claude/settings.json` (do not delete it; no manual env configuration is required for plugin path resolution)
 - `.claude/docs/` (project-specific documentation, not part of the plugin)
 - Any custom project files you added to `.claude/`
 
@@ -175,7 +164,8 @@ After generation, merge the preamble with your project-specific CLAUDE.md conten
    ```
    /dso:init
    ```
-   This should detect your stack and confirm `CLAUDE_PLUGIN_ROOT` is set.
+   This should detect your stack and confirm the DSO shim is resolving the plugin root
+   from `dso.plugin_root` in `.claude/dso-config.conf`.
 
 3. **Confirm tests still pass**:
    ```bash
@@ -216,12 +206,7 @@ If you need to revert to the embedded workflow:
    ```
    Adjust `HEAD~1` to the commit before you made migration changes.
 
-2. **Remove `CLAUDE_PLUGIN_ROOT` from `.claude/settings.json`**:
-   ```json
-   {
-     "env": {}
-   }
-   ```
+2. **Remove `dso.plugin_root` from `.claude/dso-config.conf`** (or delete the file entirely).
 
 3. **Revert hook commands** in `.claude/settings.json` back to the `.claude/hooks/` prefix pattern.
 
@@ -235,8 +220,8 @@ If you need to revert to the embedded workflow:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `CLAUDE_PLUGIN_ROOT: unbound variable` | `env` block missing from `settings.json` | Add `"env": { "CLAUDE_PLUGIN_ROOT": "/path/..." }` |
-| Hook fires but cannot find `deps.sh` | Wrong `CLAUDE_PLUGIN_ROOT` path | Verify path with `echo $CLAUDE_PLUGIN_ROOT` in a Bash hook |
+| `CLAUDE_PLUGIN_ROOT: unbound variable` | `dso.plugin_root` missing from `.claude/dso-config.conf` | Re-run `dso-setup.sh` or manually add `dso.plugin_root=/path/to/digital-service-orchestra` to `.claude/dso-config.conf` |
+| Hook fires but cannot find `deps.sh` | Wrong `dso.plugin_root` path in `.claude/dso-config.conf` | Verify path: `grep dso.plugin_root .claude/dso-config.conf` and confirm the directory exists |
 | `/dso:init` says stack not detected | Missing `.claude/dso-config.conf` or no marker files | Run from project root; ensure `pyproject.toml` or `package.json` exists |
 | Tests fail after migration | Unrelated pre-existing failures | Check `git diff HEAD~1` to confirm no app code was changed |
-| `run-hook.sh: No such file` | `CLAUDE_PLUGIN_ROOT` not set in hook command | Recheck `settings.json` hook commands to use `${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh` |
+| `run-hook.sh: No such file` | DSO shim not installed or `dso.plugin_root` not set | Re-run `bash plugins/dso/scripts/dso-setup.sh` to install the shim and write `dso.plugin_root` |

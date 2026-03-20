@@ -74,10 +74,12 @@ fi
 # ── Test 5: Worktree context guard exits non-zero from main repo ──────────────
 # merge-to-main.sh is designed for worktree sessions only and must exit non-zero
 # when run from the main repo (where .git is a directory, not a file).
-# We run it from the actual REPO_ROOT — which is a normal git repo (not a worktree).
+# Derive the actual main repo root via git-common-dir so this test works correctly
+# whether invoked from the main repo OR from a worktree session.
 echo "Test 5: Script exits non-zero when run from main repo (not a worktree)"
+MAIN_REPO_ROOT=$(dirname "$(git -C "$REPO_ROOT" rev-parse --git-common-dir)")
 exit_code=0
-output=$(cd "$REPO_ROOT" && bash "$SCRIPT" 2>&1) || exit_code=$?
+output=$(cd "$MAIN_REPO_ROOT" && bash "$SCRIPT" 2>&1) || exit_code=$?
 if [ "$exit_code" -ne 0 ]; then
     if echo "$output" | grep -qiE "not a worktree|not.*worktree|worktree.*only"; then
         echo "  PASS: script exits non-zero with worktree guard message (exit $exit_code)"
