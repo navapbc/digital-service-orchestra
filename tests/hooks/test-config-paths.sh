@@ -90,7 +90,7 @@ tmpdir=$(mktemp -d)
 _CLEANUP_DIRS+=("$tmpdir")
 
 # Create a custom config file
-cat > "$tmpdir/workflow-config.conf" <<'EOF'
+cat > "$tmpdir/dso-config.conf" <<'EOF'
 paths.app_dir=myapp
 paths.src_dir=lib
 paths.test_dir=spec
@@ -100,7 +100,7 @@ format.source_dirs=myapp/spec
 EOF
 
 result=$(
-    export CLAUDE_PLUGIN_ROOT="$tmpdir"
+    export WORKFLOW_CONFIG_FILE="$tmpdir/dso-config.conf"
     # Reset the guard so config-paths.sh can be sourced fresh
     unset _CONFIG_PATHS_LOADED
     source "$DSO_PLUGIN_DIR/hooks/lib/config-paths.sh"
@@ -153,13 +153,13 @@ echo "=== test_config_paths_visual_baseline_path ==="
 tmpdir3=$(mktemp -d)
 _CLEANUP_DIRS+=("$tmpdir3")
 
-cat > "$tmpdir3/workflow-config.conf" <<'EOF'
+cat > "$tmpdir3/dso-config.conf" <<'EOF'
 paths.app_dir=app
 merge.visual_baseline_path=app/tests/e2e/snapshots/
 EOF
 
 result=$(
-    export CLAUDE_PLUGIN_ROOT="$tmpdir3"
+    export WORKFLOW_CONFIG_FILE="$tmpdir3/dso-config.conf"
     unset _CONFIG_PATHS_LOADED
     source "$DSO_PLUGIN_DIR/hooks/lib/config-paths.sh"
     echo "CFG_VISUAL_BASELINE_PATH=$CFG_VISUAL_BASELINE_PATH"
@@ -171,12 +171,6 @@ assert_eq "visual baseline from config" "app/tests/e2e/snapshots/" "$(echo "$res
 # test_config_paths_reads_from_dot_claude_dso_config
 # ============================================================================
 echo "=== test_config_paths_reads_from_dot_claude_dso_config ==="
-
-# REVIEW-DEFENSE: These two new tests (test_config_paths_reads_from_dot_claude_dso_config and
-# test_config_paths_no_claude_plugin_root_fallback) are intentionally FAILING. This file is the
-# RED phase of a TDD cycle (story dso-c2tl). The tests define the expected behavior of a
-# config-paths.sh change that will be implemented in the GREEN phase (story dso-6trc). Failing
-# tests at this stage are correct and expected — they confirm the behavior does not yet exist.
 
 # When CLAUDE_PLUGIN_ROOT is NOT set but .claude/dso-config.conf exists at git root,
 # config-paths.sh should read config values from .claude/dso-config.conf (new behavior).
@@ -216,12 +210,6 @@ assert_eq "dot-claude dso-config CFG_TEST_DIR" "dotclaudetest" "$(echo "$result_
 # test_config_paths_no_claude_plugin_root_fallback
 # ============================================================================
 echo "=== test_config_paths_no_claude_plugin_root_fallback ==="
-
-# REVIEW-DEFENSE: This test intentionally contradicts test_config_paths_reads_custom_config.
-# Once dso-6trc implements the new config-paths.sh behavior, the existing
-# test_config_paths_reads_custom_config test will need to be updated or removed — that update
-# is explicitly in scope for story dso-6trc (GREEN phase). Having two temporarily contradictory
-# tests is the correct state during a RED phase that changes config lookup semantics.
 
 # When CLAUDE_PLUGIN_ROOT is set to a dir containing workflow-config.conf,
 # config-paths.sh must NOT read from that file (new behavior: CLAUDE_PLUGIN_ROOT no
