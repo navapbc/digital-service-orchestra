@@ -1,6 +1,6 @@
 ---
 id: dso-3v44
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T03:33:14Z
@@ -62,3 +62,7 @@ CHECKPOINT 5/6: Validation passed ✓ — Full test suite run: Evals PASS, Hook 
 **2026-03-20T03:53:59Z**
 
 CHECKPOINT 6/6: Done ✓ — All AC verified: AC1 PASS (test_validate_sh_uses_dot_claude_config present), AC2 PASS (test_no_hardcoded_workflow_config_conf_in_scripts present), AC3 PASS (tests fail/RED confirmed), AC4 PASS (no regressions — only new RED tests fail).
+
+**2026-03-20T04:04:03Z**
+
+CHECKPOINT 6/6: Done ✓ — RED tests committed in f4437bc. 7 intentional failures targeting runtime scripts.
