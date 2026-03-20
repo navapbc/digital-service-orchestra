@@ -1,6 +1,6 @@
 ---
 id: dso-2rgm
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T18:09:20Z
