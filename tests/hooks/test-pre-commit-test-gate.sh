@@ -15,6 +15,9 @@
 #   6. test_gate_passes_no_staged_files — exits 0 when nothing is staged
 #   7. test_error_message_actionable — blocked commits reference test-batched.sh
 #   8. test_gate_fails_open_on_hash_error — exits 0 when compute-diff-hash.sh fails
+#   9. test_gate_passes_when_test_exempted — exits 0 when associated test is exempted
+#  10. test_gate_blocked_when_test_not_exempted — exits non-zero when exemption is for wrong test
+#  11. test_gate_passes_no_status_but_fully_exempted — exits 0 when no status but test fully exempted
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -430,6 +433,133 @@ MOCKEOF
     assert_eq "test_gate_fails_open_on_hash_error: gate fails open (exit 0)" "0" "$exit_code"
 }
 
+# ── Helper: write a test-exemptions entry for a test file path ────────────────
+write_test_exemption() {
+    local artifacts_dir="$1"
+    local test_file_path="$2"
+    mkdir -p "$artifacts_dir"
+    cat >> "$artifacts_dir/test-exemptions" <<EOF
+node_id=${test_file_path}
+threshold=60
+timestamp=2026-03-20T00:00:00Z
+EOF
+}
+
+# ============================================================
+# TEST 9: test_gate_passes_when_test_exempted
+# Gate exits 0 when the associated test for a staged source
+# file is listed in test-exemptions. Exempted tests bypass
+# the test-gate-status requirement.
+# ============================================================
+test_gate_passes_when_test_exempted() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source + associated test
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def exempt1(): return 1' > "$_repo/src/exempt1.py"
+    echo 'def test_exempt1(): assert True' > "$_repo/tests/test_exempt1.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add exempt1"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/src/exempt1.py"
+    git -C "$_repo" add -A
+
+    # Write a valid test-gate-status with 'passed' and matching hash
+    # (exemption should also work even when status exists)
+    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+        assert_eq "test_gate_passes_when_test_exempted: no exemption support (RED)" "missing" "missing"
+        return
+    fi
+
+    local real_hash
+    real_hash=$(compute_hash_in_repo "$_repo" "$_artifacts")
+    write_valid_test_status "$_artifacts" "$real_hash"
+
+    # Write an exemption for the associated test file path
+    write_test_exemption "$_artifacts" "tests/test_exempt1.py"
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    assert_eq "test_gate_passes_when_test_exempted: gate passes (exit 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 10: test_gate_blocked_when_test_not_exempted
+# Gate exits non-zero when an exemption exists for a DIFFERENT
+# test — not the one associated with the staged source file.
+# Missing test-gate-status + wrong exemption = blocked.
+# ============================================================
+test_gate_blocked_when_test_not_exempted() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source + associated test
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def noexempt(): return 1' > "$_repo/src/noexempt.py"
+    echo 'def test_noexempt(): assert True' > "$_repo/tests/test_noexempt.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add noexempt"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/src/noexempt.py"
+    git -C "$_repo" add -A
+
+    # Do NOT write test-gate-status
+
+    # Write an exemption for a DIFFERENT test (not the associated one)
+    write_test_exemption "$_artifacts" "tests/test_something_else.py"
+
+    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+        assert_eq "test_gate_blocked_when_test_not_exempted: no exemption support (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    assert_ne "test_gate_blocked_when_test_not_exempted: gate blocks (exit != 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 11: test_gate_passes_no_status_but_fully_exempted
+# Gate exits 0 when there is NO test-gate-status file but the
+# associated test is fully exempted. Exemptions bypass the
+# status requirement entirely.
+# ============================================================
+test_gate_passes_no_status_but_fully_exempted() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source + associated test
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def fullex(): return 1' > "$_repo/src/fullex.py"
+    echo 'def test_fullex(): assert True' > "$_repo/tests/test_fullex.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add fullex"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/src/fullex.py"
+    git -C "$_repo" add -A
+
+    # Do NOT write test-gate-status
+
+    # Write an exemption for the associated test file path
+    write_test_exemption "$_artifacts" "tests/test_fullex.py"
+
+    if [[ ! -f "$GATE_HOOK" ]] || ! grep -q 'test-exemptions' "$GATE_HOOK" 2>/dev/null; then
+        assert_eq "test_gate_passes_no_status_but_fully_exempted: no exemption support (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    assert_eq "test_gate_passes_no_status_but_fully_exempted: gate passes (exit 0)" "0" "$exit_code"
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -452,5 +582,8 @@ run_test test_gate_passes_valid_status
 run_test test_gate_passes_no_staged_files
 run_test test_error_message_actionable
 run_test test_gate_fails_open_on_hash_error
+run_test test_gate_passes_when_test_exempted
+run_test test_gate_blocked_when_test_not_exempted
+run_test test_gate_passes_no_status_but_fully_exempted
 
 print_summary

@@ -1,6 +1,6 @@
 ---
 id: w21-4dnw
-status: open
+status: in_progress
 deps: [w21-eq69]
 links: []
 created: 2026-03-20T22:02:08Z
@@ -56,3 +56,29 @@ TDD Requirement: The new test functions must fail (or report 'hook not found (RE
   Verify: grep -q 'test_gate_passes_no_status_but_fully_exempted' $(git rev-parse --show-toplevel)/tests/hooks/test-pre-commit-test-gate.sh
 - [ ] Full test suite still exits 0 (RED-phase guards allow passing without gate modification)
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/hooks/test-pre-commit-test-gate.sh
+
+## Notes
+
+**2026-03-20T22:47:13Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T22:47:29Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T22:48:46Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-20T22:48:49Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ (RED test task — no gate implementation needed)
+
+**2026-03-20T22:50:26Z**
+
+CHECKPOINT 5/6: Tests pass — 11/11 PASSED, exit 0. RED-phase guards detect missing exemption support in gate hook ✓
+
+**2026-03-20T23:02:36Z**
+
+CHECKPOINT 6/6: Done ✓
