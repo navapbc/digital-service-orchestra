@@ -278,6 +278,39 @@ When presenting fixes for user approval, display:
 - Results from hypothesis testing (Step 3) alongside corresponding root causes
 - Convergence notes (when multiple agents independently identified the same root cause or fix)
 
+### Step 4.5: Fix Complexity Evaluation (/dso:fix-bug)
+
+Before writing a RED test or implementing the fix, evaluate the complexity of the proposed fix scope using the shared complexity evaluator:
+
+```
+Read: skills/shared/prompts/complexity-evaluator.md
+Input: approved fix description, files affected, estimated change scope
+```
+
+**TRIVIAL or MODERATE fix**: proceed to Step 5 (RED Test).
+
+**COMPLEX fix**: the fix scope is too large for a single bug fix track. The behavior depends on execution context:
+
+**When running as orchestrator (not a sub-agent)**:
+1. Record the finding: `tk add-note <id> "Fix complexity: COMPLEX — escalating to epic"`
+2. Invoke `/dso:brainstorm` to create an epic for the refactor or larger change
+3. Stop — do NOT proceed to Step 5 or Step 6 in this session
+
+**When running as a sub-agent** (detected per Sub-Agent Context Detection below):
+1. Record the finding: `tk add-note <id> "Fix complexity: COMPLEX — returning escalation to orchestrator"`
+2. Return a COMPLEX_ESCALATION report to the calling orchestrator instead of invoking `/dso:brainstorm` directly (sub-agents cannot reliably invoke skills):
+
+```
+COMPLEX_ESCALATION: true
+escalation_type: COMPLEX
+bug_id: <ticket-id>
+investigation_tier_needed: orchestrator-level re-dispatch
+investigation_findings: <summary of root cause candidates, confidence, and evidence from investigation>
+escalation_reason: <why the fix is COMPLEX — e.g., cross-system refactor, multiple subsystems affected>
+```
+
+3. Stop — do NOT proceed to Step 5 or Step 6. The orchestrator receives this report and decides how to proceed (e.g., re-dispatch `/dso:fix-bug` at orchestrator level with full authority, or invoke `/dso:brainstorm` to create an epic).
+
 ### Step 5: RED Test (/dso:fix-bug)
 
 If the bug already causes an existing test to fail, skip this step — the existing test serves as the RED test.
@@ -410,6 +443,48 @@ Investigation findings are persisted to a discovery file for passing context bet
 - **Lifecycle**: created at first investigation, updated on escalation, deleted after successful commit (Step 8)
 
 When escalating to the next tier, the discovery file from the previous tier is included in the new sub-agent's context so it does not repeat work.
+
+## Sub-Agent Context Detection
+
+When `/dso:fix-bug` is invoked inside a larger workflow (e.g., from `/dso:sprint` or `/dso:debug-everything`), it runs as a sub-agent. Sub-agent context affects which investigation tiers are available.
+
+### Re-entry from COMPLEX_ESCALATION
+
+When the invocation prompt contains a `### COMPLEX_ESCALATION Context` block (emitted by `/dso:debug-everything` Phase 6 Step 3a during orchestrator-level re-dispatch), skip Steps 1-3 and proceed directly to Step 4 (Fix Approval):
+
+1. Parse the `investigation_findings` from the `COMPLEX_ESCALATION Context` block
+2. Write the findings to the discovery file (`/tmp/fix-bug-discovery-<bug-id>.json`) with the parsed root cause, confidence, and proposed fixes
+3. Skip to Step 4 (Fix Approval) — the prior investigation is pre-loaded and does not need to be repeated
+
+This avoids re-running classification and investigation work that was already completed by the sub-agent before escalation.
+
+### Detection Methods
+
+**Primary — orchestrator signal**: The orchestrator sets `You are running as a sub-agent` in the dispatch prompt when launching `/dso:fix-bug` as a sub-agent. When this phrase is present in the prompt, the skill is confirmed to be running in sub-agent context.
+
+**Fallback — Agent tool availability**: Before dispatching ADVANCED or ESCALATED investigation sub-agents, check whether the Agent tool is available in the current context. If the Agent tool is not available, the skill cannot launch nested sub-agents and must surface findings to the caller instead of escalating.
+
+### Behavior in Sub-Agent Context
+
+- **BASIC and INTERMEDIATE** investigation tiers: fully supported in sub-agent context (single sub-agent dispatch).
+- **ADVANCED investigation** (two concurrent agents): check Agent tool availability before dispatch; if unavailable, treat as INTERMEDIATE with a note.
+- **ESCALATED investigation** (four agents): check Agent tool availability before dispatch; if unavailable, surface findings and return a `COMPLEX_ESCALATION` report to the calling orchestrator (see Escalation Report Format below).
+- **COMPLEX fix** (Step 4.5): when the complexity evaluator classifies a fix as COMPLEX, return a `COMPLEX_ESCALATION` report instead of invoking `/dso:brainstorm` directly (see Step 4.5 for the report format). The orchestrator receives this report and handles re-dispatch or epic creation.
+
+### Escalation Report Format
+
+When running as a sub-agent and ADVANCED or ESCALATED investigation is needed but cannot be performed due to Agent tool unavailability or other blocking conditions, return a `COMPLEX_ESCALATION` report to the calling orchestrator. This uses the same format as Step 4.5's COMPLEX_ESCALATION — one unified format for all escalation paths:
+
+```
+COMPLEX_ESCALATION: true
+escalation_type: advanced_needed | escalated_needed | terminal
+bug_id: <ticket-id>
+investigation_tier_needed: ADVANCED | ESCALATED
+investigation_findings: <summary of root cause candidates, confidence, evidence, and hypothesis test results from investigation>
+escalation_reason: <why escalation is needed and cannot proceed autonomously>
+```
+
+The calling orchestrator detects `COMPLEX_ESCALATION: true` and parses the same fields regardless of whether the escalation originated from complexity evaluation (Step 4.5) or tier unavailability (this section). See `/dso:debug-everything` Phase 6 Step 3a for the orchestrator's handling of this signal.
 
 ## Escalation Triggers
 
