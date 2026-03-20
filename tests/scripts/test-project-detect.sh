@@ -504,4 +504,65 @@ assert_contains "cat12: output contains files_present= key" "files_present=" "$g
 assert_contains "cat12: output contains ci_workflow_test_guarded= key" "ci_workflow_test_guarded=" "$grace_output"
 assert_contains "cat12: output contains installed_deps= key" "installed_deps=" "$grace_output"
 
+# ── Named tests: DB presence (AC-required labels) ────────────────────────────
+
+# test_project_detect_db_present_docker_compose: db_present=true when postgres in docker-compose
+_snapshot_fail
+_db_present_dir="$TMPDIR_FIXTURE/db_present_named_project"
+mkdir -p "$_db_present_dir"
+cat > "$_db_present_dir/docker-compose.yml" <<'YAML'
+services:
+  postgres:
+    image: postgres:15
+  app:
+    image: myapp:latest
+YAML
+_db_present_out=$(bash "$SCRIPT" "$_db_present_dir" 2>&1)
+assert_eq "test_project_detect_db_present_docker_compose: db_present=true" \
+    "true" "$(get_key "$_db_present_out" db_present)"
+assert_contains "test_project_detect_db_present_docker_compose: db_services contains postgres" \
+    "postgres" "$(get_key "$_db_present_out" db_services)"
+assert_pass_if_clean "test_project_detect_db_present_docker_compose"
+
+# test_project_detect_db_absent: db_present=false when no database markers
+_snapshot_fail
+_db_absent_dir="$TMPDIR_FIXTURE/db_absent_named_project"
+mkdir -p "$_db_absent_dir"
+_db_absent_out=$(bash "$SCRIPT" "$_db_absent_dir" 2>&1)
+assert_eq "test_project_detect_db_absent: db_present=false" \
+    "false" "$(get_key "$_db_absent_out" db_present)"
+assert_pass_if_clean "test_project_detect_db_absent"
+
+# ── Named tests: Port detection (AC-required labels) ─────────────────────────
+
+# test_project_detect_ports_from_config: ports extracted from workflow-config.conf _port keys
+_snapshot_fail
+_ports_conf_dir="$TMPDIR_FIXTURE/ports_conf_named_project"
+mkdir -p "$_ports_conf_dir"
+cat > "$_ports_conf_dir/workflow-config.conf" <<'CONF'
+ci.app_port=8080
+ci.db_port=5432
+CONF
+_ports_conf_out=$(bash "$SCRIPT" "$_ports_conf_dir" 2>&1)
+assert_contains "test_project_detect_ports_from_config: ports contains 8080" \
+    "8080" "$(get_key "$_ports_conf_out" ports)"
+assert_pass_if_clean "test_project_detect_ports_from_config"
+
+# ── Named tests: Version file candidates (AC-required labels) ─────────────────
+
+# test_project_detect_version_files_package_json: version_files=package.json when version key present
+_snapshot_fail
+_vf_pkg_dir="$TMPDIR_FIXTURE/vf_package_json_named_project"
+mkdir -p "$_vf_pkg_dir"
+cat > "$_vf_pkg_dir/package.json" <<'JSON'
+{
+  "name": "my-app",
+  "version": "1.0.0"
+}
+JSON
+_vf_pkg_out=$(bash "$SCRIPT" "$_vf_pkg_dir" 2>&1)
+assert_contains "test_project_detect_version_files_package_json: version_files contains package.json" \
+    "package.json" "$(get_key "$_vf_pkg_out" version_files)"
+assert_pass_if_clean "test_project_detect_version_files_package_json"
+
 print_summary
