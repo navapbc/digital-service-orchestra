@@ -203,12 +203,60 @@ Use `AskUserQuestion`: "Enable tool error monitoring and auto-ticket creation? (
 
 ### Optional dependencies
 
-Inform the user about optional enhancements (do not block setup if declined):
+Prompt for each optional dependency individually. Use the detection output from Step 2 to determine which dependencies are already installed. **Skip the prompt entirely for any dependency already detected as installed** — do not offer to install something the user already has.
 
-- **acli**: Enables Jira integration within Claude Code. Install: `brew install acli`
-- **PyYAML**: Enables legacy YAML config format. Install: `pip3 install pyyaml`
+For each dependency below, if not already installed, use `AskUserQuestion` to ask the user — one at a time, in the order listed. Do not bundle them into a single question.
 
-Use `AskUserQuestion`: "Would you like install instructions for these optional tools? (yes/no)" Show them only if the user says yes.
+**acli (Jira CLI)**
+
+> Skip this prompt if: (a) acli is already installed (detected via `which acli 2>/dev/null`), OR (b) the user declined Jira integration earlier in this wizard (Step 3, Jira section answered "no"). If Jira is not configured, acli has no function — skip the acli prompt.
+
+If acli is not installed and Jira integration was enabled, use `AskUserQuestion` to ask about acli:
+
+```
+Would you like to install acli (the Atlassian CLI)?
+acli enables Jira integration within Claude Code — without acli functionality such as ticket
+sync and issue browsing from the terminal will not be available.
+Install with: brew install acli
+Install acli now? (yes/no)
+```
+
+If yes: display the install command `brew install acli` and instruct the user to run it. Do not run it automatically.
+If no: note that Jira CLI integration will be unavailable and continue.
+
+**PyYAML**
+
+> Skip this prompt if PyYAML is already installed (detected via `python3 -c "import yaml" 2>/dev/null`).
+
+If PyYAML is not installed, use `AskUserQuestion` to ask about PyYAML:
+
+```
+Would you like to install PyYAML?
+PyYAML provides legacy YAML config format support — without PyYAML functionality for reading
+workflow-config.yml (YAML format) instead of workflow-config.conf will not be available.
+Install with: pip3 install pyyaml
+Install PyYAML now? (yes/no)
+```
+
+If yes: display the install command `pip3 install pyyaml` and instruct the user to run it. Do not run it automatically.
+If no: note that legacy YAML config support will be unavailable and continue.
+
+**pre-commit**
+
+> Skip this prompt if pre-commit is already installed (detected via `which pre-commit 2>/dev/null`).
+
+If pre-commit is not installed, use `AskUserQuestion` to ask about pre-commit:
+
+```
+Would you like to install pre-commit?
+pre-commit enables git hook management — without pre-commit functionality for automated lint
+and format checks on commit (enforced by DSO's review gate) will not be available.
+Install with: pip3 install pre-commit
+Install pre-commit now? (yes/no)
+```
+
+If yes: display the install command `pip3 install pre-commit` and instruct the user to run it. Do not run it automatically.
+If no: note that git hook management will be unavailable and continue.
 
 ---
 
@@ -216,26 +264,24 @@ Use `AskUserQuestion`: "Would you like install instructions for these optional t
 
 **In normal mode**: Write the confirmed key=value pairs to `$TARGET_REPO/workflow-config.conf`.
 
-**In dryrun mode**: Do NOT write the file. Instead, display what would be written:
+**In dryrun mode**: Do NOT write the file. Instead, display a flat list of planned outcomes — what will happen to the user's project files. Do NOT distinguish between which internal component (script vs skill) performs each action; users care about results, not implementation details.
 
-```
-[dryrun] workflow-config.conf preview:
-KEY1=value1
-KEY2=value2
-... (all collected key=value pairs)
-```
-
-Then show the combined dryrun preview and prompt to proceed:
+Collect all planned actions across Steps 1–3 and present them as a unified flat list:
 
 ```
 === Dryrun Preview ===
 
-[Script actions that would run:]
-<SETUP_PREVIEW output>
+The following changes will be made to <TARGET_REPO>:
 
-[workflow-config.conf that would be written:]
-<key=value pairs collected in Step 3>
+  - will install the DSO shim at .claude/scripts/dso
+  - will write workflow-config.conf with <N> keys (commands.test, commands.lint, ...)
+  - will merge DSO hook configuration into .pre-commit-config.yaml
+  - will supplement CLAUDE.md with DSO sections  (if CLAUDE.md exists)
+  - will copy CLAUDE.md.template → CLAUDE.md  (if no CLAUDE.md exists and confirmed)
+  - will copy KNOWN-ISSUES.example.md → .claude/docs/KNOWN-ISSUES.md  (if confirmed)
 ```
+
+Each bullet describes an outcome in user-facing terms ("will write X", "will merge Y into Z", "will supplement A with B"). Omit any line whose action would be skipped (e.g. if the user declined template copy, omit that bullet).
 
 Ask: "Proceed with setup? (yes/no)"
 - If **yes**: re-run Steps 1–4 without `--dryrun` (set `DRYRUN=false`), reusing all answers collected during the wizard — do NOT re-prompt the user for values already confirmed.
@@ -275,7 +321,7 @@ Ask: "Proceed with template copy? (yes/no)"
 
 ## Step 6: Success Summary
 
-Print a summary of what was configured:
+Print a summary of what was configured, followed by a **manual steps** section listing everything the user still needs to do.
 
 ```
 === DSO Project Setup Complete ===
@@ -292,19 +338,45 @@ Keys configured:
 Jira integration: <enabled (jira.project=<KEY>) | not configured>
 ```
 
-If Jira was configured, remind the user:
+Then print the **Next steps (manual)** section — a list of actions the setup wizard did NOT perform automatically that the user must complete themselves:
 
 ```
-Add these env vars to your shell profile (~/.zshrc or ~/.bashrc):
-  export JIRA_URL=https://your-org.atlassian.net
-  export JIRA_USER=you@example.com
-  export JIRA_API_TOKEN=<your-api-token>
+=== Next Steps (Manual) ===
+
+The following were NOT configured automatically. Complete these before using DSO:
 ```
 
-Link to full documentation:
+Always include (if applicable):
+
+1. **Jira environment variables** (shown only if Jira was configured in Step 3, since these are never written to `workflow-config.conf`):
+   ```
+   Add these exports to your shell profile (~/.zshrc or ~/.bashrc):
+     export JIRA_URL=https://your-org.atlassian.net
+     export JIRA_USER=you@example.com
+     export JIRA_API_TOKEN=<your-api-token>
+
+   Generate a token at: https://id.atlassian.com/manage-profile/security/api-tokens
+   Then reload your shell: source ~/.zshrc (or ~/.bashrc)
+   ```
+
+2. **Register the ticket index merge driver** (always required after fresh clone):
+   ```
+   Run: git config merge.tickets-index-merge.driver \
+     "python3 plugins/dso/scripts/merge-ticket-index.py %O %A %B"
+   ```
+
+3. **Optional dependency installs** (if any optional tools were not found during setup):
+   List each missing optional tool with its install command (e.g., `brew install acli`, `pip3 install pyyaml`). Omit this item if all optional tools are already installed.
+
+If none of the above apply (Jira not configured, merge driver already registered, all optional tools present), print:
+```
+  (none — setup is complete)
+```
+
+Close with the documentation link:
 
 ```
-Full documentation: docs/INSTALL.md
+Full documentation: plugins/dso/docs/INSTALL.md
 ```
 
 ---

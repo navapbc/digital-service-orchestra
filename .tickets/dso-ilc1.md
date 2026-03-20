@@ -1,6 +1,6 @@
 ---
 id: dso-ilc1
-status: open
+status: in_progress
 deps: [dso-s2g9]
 links: []
 created: 2026-03-20T00:41:56Z
@@ -37,3 +37,47 @@ FILE: plugins/dso/scripts/validate-config.sh (edit — add ci.workflow_name to K
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-validate-config.sh 2>&1 | grep -c 'FAIL' | awk '{exit ($1 > 0)}'
 - [ ] bash -n syntax check passes on validate-config.sh
   Verify: bash -n $(git rev-parse --show-toplevel)/plugins/dso/scripts/validate-config.sh
+
+## Notes
+
+<!-- note-id: pibvuy7j -->
+<!-- timestamp: 2026-03-20T01:18:33Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: ajaev2xs -->
+<!-- timestamp: 2026-03-20T01:18:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: vsl7oa7v -->
+<!-- timestamp: 2026-03-20T01:19:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (pre-existing RED tests) ✓
+
+<!-- note-id: 1r7y4idt -->
+<!-- timestamp: 2026-03-20T01:19:20Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: kj5r2col -->
+<!-- timestamp: 2026-03-20T01:19:41Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓
+
+<!-- note-id: 5bxjj8ps -->
+<!-- timestamp: 2026-03-20T01:20:14Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All 5 AC items verified PASS. AC4 grep-c false positive on 'FAILED: 0' summary line; actual test count is 15 PASSED, 0 FAILED.

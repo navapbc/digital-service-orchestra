@@ -1,6 +1,6 @@
 ---
 id: w21-b9ll
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-20T00:41:03Z
@@ -44,3 +44,29 @@ test-exempt: N/A — this IS the test task.
 - [ ] NOTE (gap-analysis): Test field name assertions for detection output (e.g., db_detected, DETECT_APP_PORT) must be confirmed against the finalized dso-r2es output schema before implementation tasks start. Implementer must check project-detect.sh output schema doc and use actual field names.
   Verify: grep -q 'DETECT_\|_detected\|db_detected' $(git rev-parse --show-toplevel)/tests/skills/test_project_setup_skill_conditional_prompts.py
 
+
+## Notes
+
+**2026-03-20T01:19:03Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T01:21:26Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — using pathlib.Path pattern from test_fix_bug_skill.py; detect schema uses db_present field (from test-project-detect.sh); SKILL.md Step 3 is the target section; no conditional sections exist yet (RED)
+
+**2026-03-20T01:23:11Z**
+
+CHECKPOINT 3/6: Tests written ✓ — created tests/skills/test_project_setup_skill_conditional_prompts.py with 7 test functions covering: database conditional section, db_present gating condition, infrastructure section, required_tools guidance, port inference with variable substitution, staging conditional section, python version auto-detection
+
+**2026-03-20T01:23:35Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — all 7 tests FAIL as expected (RED state confirmed). Exit code 1. Each test fails with AssertionError showing the content is not yet in SKILL.md.
+
+**2026-03-20T01:25:19Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — ruff format --check: 44 files already formatted; ruff check: All checks passed!
+
+**2026-03-20T01:26:04Z**
+
+CHECKPOINT 6/6: Done ✓ — AC results: AC1 PASS (file exists), AC2 PASS (7 test functions), AC3 PASS (all 7 tests FAIL as expected, pytest exit 1), AC4 PASS (make lint → ruff check: All checks passed!), AC5 PASS (format-check: 44 files already formatted), AC6-note PASS (db_present, db_detected, docker_db_detected references in test file). No discovered work.

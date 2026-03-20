@@ -47,6 +47,7 @@ KNOWN_KEYS=(
     ci.fast_fail_job
     ci.test_ceil_job
     ci.integration_workflow
+    ci.workflow_name
 
     # Commands
     commands.test

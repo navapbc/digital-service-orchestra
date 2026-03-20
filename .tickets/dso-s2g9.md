@@ -1,6 +1,6 @@
 ---
 id: dso-s2g9
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T00:41:46Z

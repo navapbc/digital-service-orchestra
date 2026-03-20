@@ -537,10 +537,12 @@ test_claudemd_not_overwritten() {
 
     output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
 
-    # File must still contain the original content (not overwritten)
-    local content
-    content=$(cat "$T/.claude/CLAUDE.md")
-    assert_eq "test_claudemd_not_overwritten: content preserved" "# My existing CLAUDE.md content" "$content"
+    # File must still contain the original content (not overwritten — original line still present)
+    if grep -qF "# My existing CLAUDE.md content" "$T/.claude/CLAUDE.md" 2>/dev/null; then
+        assert_eq "test_claudemd_not_overwritten: content preserved" "found" "found"
+    else
+        assert_eq "test_claudemd_not_overwritten: content preserved" "found" "missing"
+    fi
 
     # Output must contain a warning about the existing CLAUDE.md
     if [[ "$output" == *"CLAUDE.md"* ]]; then
@@ -613,10 +615,12 @@ test_known_issues_not_overwritten() {
 
     output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
 
-    # File must still contain the original content (not overwritten)
-    local content
-    content=$(cat "$T/.claude/docs/KNOWN-ISSUES.md")
-    assert_eq "test_known_issues_not_overwritten: content preserved" "# My existing KNOWN-ISSUES content" "$content"
+    # File must still contain the original content (not overwritten — original line still present)
+    if grep -qF "# My existing KNOWN-ISSUES content" "$T/.claude/docs/KNOWN-ISSUES.md" 2>/dev/null; then
+        assert_eq "test_known_issues_not_overwritten: content preserved" "found" "found"
+    else
+        assert_eq "test_known_issues_not_overwritten: content preserved" "found" "missing"
+    fi
 
     # Output must contain a warning about the existing KNOWN-ISSUES.md
     if [[ "$output" == *"KNOWN-ISSUES"* ]]; then

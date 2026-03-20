@@ -1,6 +1,6 @@
 ---
 id: dso-48fu
-status: open
+status: in_progress
 deps: 
   - dso-gfl9
   - dso-6576
@@ -48,3 +48,54 @@ parent: dso-2cy8
 **2026-03-20T00:55:23Z**
 
 COMPLEXITY_CLASSIFICATION: COMPLEX
+
+## ACCEPTANCE CRITERIA
+
+- [ ] Dryrun preview presents a flat list of outcomes without script/skill distinction
+  Verify: grep -q "flat.*list\|outcome.*list\|planned.*actions" plugins/dso/skills/project-setup/SKILL.md
+- [ ] Setup conclusion displays manual steps and environment exports
+  Verify: grep -q "manual.*steps\|environment.*export\|still need" plugins/dso/skills/project-setup/SKILL.md
+- [ ] Tests verify dryrun preview format and conclusion content
+  Verify: test -f tests/skills/test-project-setup-dryrun-conclusion.sh || test -f tests/skills/test_project_setup_dryrun.py
+
+<!-- note-id: e0aca1xj -->
+<!-- timestamp: 2026-03-20T01:18:47Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: io6pkfcg -->
+<!-- timestamp: 2026-03-20T01:19:09Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: 8gmc1zdv -->
+<!-- timestamp: 2026-03-20T01:20:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: q0l0tqu2 -->
+<!-- timestamp: 2026-03-20T01:21:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: nw7aerpg -->
+<!-- timestamp: 2026-03-20T01:21:58Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓
+
+<!-- note-id: mmllkm7a -->
+<!-- timestamp: 2026-03-20T01:22:28Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓

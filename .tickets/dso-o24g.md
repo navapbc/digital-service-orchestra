@@ -1,6 +1,6 @@
 ---
 id: dso-o24g
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T00:42:09Z
