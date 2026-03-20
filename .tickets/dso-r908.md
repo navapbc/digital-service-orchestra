@@ -1,6 +1,6 @@
 ---
 id: dso-r908
-status: in_progress
+status: closed
 deps: [dso-g7d8]
 links: []
 created: 2026-03-20T18:10:09Z
