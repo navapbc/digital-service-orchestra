@@ -656,6 +656,13 @@
     "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
     "type": "bug"
   },
+  "dso-o09j": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Bug: agent-batch-lifecycle.sh lock-acquire only searches w21-*.md files, misses dso-* prefixed lock tickets",
+    "type": "bug"
+  },
   "dso-o24g": {
     "deps": [],
     "priority": 1,
@@ -1537,7 +1544,7 @@
   "w21-tr4q": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "validate.sh plugin check fails: make test-plugin target missing from Makefile",
     "type": "bug"
   },
