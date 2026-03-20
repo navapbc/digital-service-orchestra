@@ -1,6 +1,6 @@
 ---
 id: w21-xlaw
-status: in_progress
+status: closed
 deps: [w21-8ady]
 links: []
 created: 2026-03-20T01:21:29Z

@@ -1,6 +1,6 @@
 ---
 id: w21-ofew
-status: in_progress
+status: closed
 deps: [w21-xlaw]
 links: []
 created: 2026-03-20T01:21:30Z
