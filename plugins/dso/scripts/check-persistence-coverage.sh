@@ -33,8 +33,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 # test_patterns: extended regex patterns (grep -E)
 
 # CONFIG_FILE may be overridden via environment variable for test isolation.
-# In production, defaults to the repo-level workflow-config.conf.
-CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/workflow-config.conf}"
+# In production, defaults to the repo-level .claude/dso-config.conf.
+CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/.claude/dso-config.conf}"
 
 # If the config file does not exist at all, treat as no-op with a warning.
 if [[ ! -f "$CONFIG_FILE" ]]; then

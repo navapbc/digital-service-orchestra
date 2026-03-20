@@ -42,12 +42,12 @@ if [ -z "$phase" ]; then
 fi
 
 # --- Config-driven command resolution ---
-# All commands are read once from workflow-config.conf via read-config.sh.
+# All commands are read once from .claude/dso-config.conf via read-config.sh.
 # This makes the script portable across projects with different toolchains.
 # Missing required keys fail fast with a clear error message.
 
 READ_CONFIG="$SCRIPT_DIR/read-config.sh"
-CONFIG_FILE="$REPO_ROOT/workflow-config.conf"
+CONFIG_FILE="$REPO_ROOT/.claude/dso-config.conf"
 
 _cfg() {
     local key="$1"
@@ -61,7 +61,7 @@ _cfg_required() {
     local val
     val=$(_cfg "$key")
     if [ -z "$val" ]; then
-        echo "ERROR: $key not configured in workflow-config.conf" >&2
+        echo "ERROR: $key not configured in .claude/dso-config.conf" >&2
         exit 2
     fi
     echo "$val"

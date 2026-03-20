@@ -70,11 +70,11 @@ fi
 # ── Resolve Jira project ────────────────────────────────────────────────────
 
 if [[ -z "$JIRA_PROJECT" ]]; then
-    # Read from env var first, then workflow-config.conf
+    # Read from env var first, then .claude/dso-config.conf
     if [[ -n "${JIRA_PROJECT_OVERRIDE:-}" ]]; then
         JIRA_PROJECT="$JIRA_PROJECT_OVERRIDE"
     else
-        JIRA_PROJECT=$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" jira.project "$REPO_ROOT/workflow-config.conf" 2>/dev/null) || true
+        JIRA_PROJECT=$("${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" jira.project "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null) || true
     fi
 fi
 

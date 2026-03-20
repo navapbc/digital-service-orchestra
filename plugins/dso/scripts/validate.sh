@@ -82,10 +82,10 @@ else
 fi
 
 # --- Config-driven command and path resolution ---
-# All commands are read from workflow-config.conf via read-config.sh.
+# All commands are read from .claude/dso-config.conf via read-config.sh.
 # Fallback defaults preserve backward compatibility when config keys are absent.
 READ_CONFIG="$SCRIPT_DIR/read-config.sh"
-CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/workflow-config.conf}"
+CONFIG_FILE="${CONFIG_FILE:-$REPO_ROOT/.claude/dso-config.conf}"
 
 _cfg() {
     local key="$1" default="${2:-}"

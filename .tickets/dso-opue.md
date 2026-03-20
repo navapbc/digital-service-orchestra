@@ -1,6 +1,6 @@
 ---
 id: dso-opue
-status: in_progress
+status: closed
 deps: [dso-s6kt]
 links: []
 created: 2026-03-20T03:32:16Z

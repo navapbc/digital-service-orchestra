@@ -3,7 +3,7 @@
 # PostToolUse hook: auto-format source files after Edit/Write tool calls.
 #
 # By default, processes .py files under app/src/ and app/tests/.
-# When CLAUDE_PLUGIN_ROOT is set and workflow-config.conf is present, reads:
+# When WORKFLOW_CONFIG_FILE is set or CLAUDE_PLUGIN_ROOT is set and .claude/dso-config.conf is present, reads:
 #   format.extensions  — list of file extensions to process (default: ['.py'])
 #   format.source_dirs — directories to restrict processing to (default: app/src, app/tests)
 #   commands.format    — project-wide format command (used to derive single-file command)
@@ -53,9 +53,11 @@ APP_DIR="$REPO_ROOT/app"
 # commands.format   — project-wide format command (used to derive single-file command)
 
 CONFIG_FILE=""
-if [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
-    if [[ -f "${CLAUDE_PLUGIN_ROOT}/workflow-config.conf" ]]; then
-        CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/workflow-config.conf"
+if [[ -n "${WORKFLOW_CONFIG_FILE:-}" && -f "${WORKFLOW_CONFIG_FILE}" ]]; then
+    CONFIG_FILE="${WORKFLOW_CONFIG_FILE}"
+elif [[ -n "${CLAUDE_PLUGIN_ROOT}" ]]; then
+    if [[ -f "${CLAUDE_PLUGIN_ROOT}/.claude/dso-config.conf" ]]; then
+        CONFIG_FILE="${CLAUDE_PLUGIN_ROOT}/.claude/dso-config.conf"
     fi
 fi
 

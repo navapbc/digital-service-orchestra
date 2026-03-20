@@ -61,7 +61,7 @@ ANALYZE_IMPACT="${CLAUDE_PLUGIN_ROOT}/scripts/analyze-file-impact.py"
 READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" # reads workflow-config.conf
 _config_python=""
 if [ -x "$READ_CONFIG" ]; then
-    _config_python=$("$READ_CONFIG" interpreter.python_venv "$REPO_ROOT/workflow-config.conf" 2>/dev/null || true) # read-config.sh interpreter
+    _config_python=$("$READ_CONFIG" interpreter.python_venv "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true) # read-config.sh interpreter
     if [ -n "$_config_python" ] && [ -x "$REPO_ROOT/$_config_python" ]; then
         _config_python="$REPO_ROOT/$_config_python"
     else
@@ -76,9 +76,9 @@ CFG_SRC_DIR=""
 CFG_TEST_DIR=""
 CFG_TEST_UNIT_DIR=""
 if [ -x "$READ_CONFIG" ]; then
-    CFG_SRC_DIR=$("$READ_CONFIG" paths.src_dir "$REPO_ROOT/workflow-config.conf" 2>/dev/null || true)
-    CFG_TEST_DIR=$("$READ_CONFIG" paths.test_dir "$REPO_ROOT/workflow-config.conf" 2>/dev/null || true)
-    CFG_TEST_UNIT_DIR=$("$READ_CONFIG" paths.test_unit_dir "$REPO_ROOT/workflow-config.conf" 2>/dev/null || true)
+    CFG_SRC_DIR=$("$READ_CONFIG" paths.src_dir "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
+    CFG_TEST_DIR=$("$READ_CONFIG" paths.test_dir "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
+    CFG_TEST_UNIT_DIR=$("$READ_CONFIG" paths.test_unit_dir "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
 fi
 # Defaults for when config is unavailable
 CFG_SRC_DIR="${CFG_SRC_DIR:-src}"

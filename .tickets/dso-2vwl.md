@@ -1,6 +1,6 @@
 ---
 id: dso-2vwl
-status: open
+status: in_progress
 deps: [dso-3v44, dso-opue]
 links: []
 created: 2026-03-20T03:33:33Z
@@ -74,3 +74,29 @@ Update all runtime scripts that hardcode 'workflow-config.conf' in config path c
   Verify: grep -q '\.claude/dso-config\.conf' $(git rev-parse --show-toplevel)/plugins/dso/scripts/sprint-next-batch.sh
 - [ ] No active lines in plugins/dso/scripts/*.sh construct REPO_ROOT/workflow-config.conf path (excluding dso-setup.sh, read-config.sh, validate-config.sh)
   Verify: grep -r 'REPO_ROOT.*workflow-config\.conf' $(git rev-parse --show-toplevel)/plugins/dso/scripts/ --include='*.sh' | grep -v 'read-config\.sh\|validate-config\.sh\|dso-setup\.sh\|submit-to-schemastore\.sh' | grep -c . | awk '{exit ($1 > 0)}'
+
+## Notes
+
+**2026-03-20T04:55:30Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T04:56:18Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T04:56:24Z**
+
+CHECKPOINT 3/6: Tests written (RED tests exist from dso-3v44) ✓
+
+**2026-03-20T04:58:10Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T05:10:10Z**
+
+CHECKPOINT 5/6: Tests GREEN - test-config-callers-updated.sh: 10 passed, 0 failed ✓
+
+**2026-03-20T05:10:28Z**
+
+CHECKPOINT 6/6: Done ✓ — All 10 tests GREEN, all 6 AC verify commands pass, no new test regressions
