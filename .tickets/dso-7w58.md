@@ -1,6 +1,6 @@
 ---
 id: dso-7w58
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-20T17:15:31Z
