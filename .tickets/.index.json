@@ -1,1 +1,1127 @@
-MERGE_AUTO_RESOLVE: path=.tickets/.index.json layer=driver
+{
+  "dso-094a": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "type": "bug"
+  },
+  "dso-0k2k": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system upgrade",
+    "type": "epic"
+  },
+  "dso-0wi2": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Project level config flags to modify behavior",
+    "type": "epic"
+  },
+  "dso-1aaa": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Bug: tk create rejects --parent=id flag (only --parent id works)",
+    "type": "bug"
+  },
+  "dso-1xw7": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Fix: fix-cascade-recovery skill missing read-config integration \u2014 eval fails",
+    "type": "bug"
+  },
+  "dso-2cy8": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Improve project-setup wizard: sequential prompts, smart detection, consolidated config",
+    "type": "epic"
+  },
+  "dso-2da0": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
+    "type": "bug"
+  },
+  "dso-2xqd": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
+    "type": "bug"
+  },
+  "dso-31yq": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Fix: hook_track_tool_errors test fails \u2014 missing monitoring.tool_errors config in test env",
+    "type": "bug"
+  },
+  "dso-3e30": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: tk create -d interprets double-dash in description text as option flags",
+    "type": "bug"
+  },
+  "dso-3xhk": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Create a KNOWN ISSUES for this project",
+    "type": "epic"
+  },
+  "dso-42w7": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
+    "type": "bug"
+  },
+  "dso-47gy": {
+    "deps": [
+      "dso-d8gi"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
+    "type": "story"
+  },
+  "dso-48fu": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a DSO adopter, dryrun preview is a flat outcome list and conclusion shows manual steps",
+    "type": "story"
+  },
+  "dso-4lfo": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Incorporate a specialized Claude debugging workflow into our skill that fixes bugs",
+    "type": "epic"
+  },
+  "dso-4s8r": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Cleanup tests",
+    "type": "epic"
+  },
+  "dso-5syi": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
+    "type": "bug"
+  },
+  "dso-62u0": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
+    "type": "bug"
+  },
+  "dso-6576": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a DSO adopter, CI workflows are auto-detected and ci.* config is consolidated and confirmed",
+    "type": "story"
+  },
+  "dso-6dp5": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a DSO adopter, each optional dependency is prompted individually with functionality explanation",
+    "type": "story"
+  },
+  "dso-7w58": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "tk create silently ignores unsupported CLI flags, producing incomplete tickets",
+    "type": "bug"
+  },
+  "dso-94ya": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add a preflight check to sprint that validates current project state",
+    "type": "epic"
+  },
+  "dso-9fgn": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Limit tool use by sub-agents",
+    "type": "epic"
+  },
+  "dso-9l2x": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
+    "type": "epic"
+  },
+  "dso-9zsh": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Make sprint skill aware of ticket type",
+    "type": "epic"
+  },
+  "dso-ag1b": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Display Task titles during sprint batch execution",
+    "type": "epic"
+  },
+  "dso-b934": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Fix: test-cascade-breaker.sh is flaky \u2014 timing-sensitive failure in full suite run",
+    "type": "bug"
+  },
+  "dso-bugk": {
+    "deps": [
+      "dso-uc2d",
+      "dso-q2ev"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO contributor, all references use the new config path and filename",
+    "type": "story"
+  },
+  "dso-bwtp": {
+    "deps": [
+      "dso-ozsx"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Update project-setup SKILL.md to include CI auto-detection wizard step",
+    "type": "task"
+  },
+  "dso-bzvu": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "As a DSO adopter, infrastructure and metadata keys are prompted when project context indicates relevance",
+    "type": "story"
+  },
+  "dso-cc6a": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Worktree auto-cleanup fails when session ends with unmerged commits",
+    "type": "bug"
+  },
+  "dso-cma6": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
+    "type": "bug"
+  },
+  "dso-cpvp": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add a workflow-config flag that creates PRs instead of merging to main",
+    "type": "epic"
+  },
+  "dso-cz6p": {
+    "deps": [],
+    "priority": 3,
+    "status": "closed",
+    "title": "Update project docs to reflect improved project-setup wizard",
+    "type": "story"
+  },
+  "dso-d72c": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Project Health Restoration (2026-03-19)",
+    "type": "epic"
+  },
+  "dso-d8gi": {
+    "deps": [
+      "dso-x1jt",
+      "dso-dghs"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering",
+    "type": "story"
+  },
+  "dso-dcau": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Fix: isolation tests timeout during full parallel suite run due to CPU contention (2 tests)",
+    "type": "bug"
+  },
+  "dso-dghs": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the sprint skill contains no explanatory prose or motivation framing",
+    "type": "story"
+  },
+  "dso-dsa8": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
+    "type": "bug"
+  },
+  "dso-dywv": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Improved code review",
+    "type": "epic"
+  },
+  "dso-eb0e": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
+    "type": "bug"
+  },
+  "dso-fbky": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Add full autonomous mode session override",
+    "type": "epic"
+  },
+  "dso-fqxu": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: compute-diff-hash.sh hash mismatch when untracked temp test fixtures exist during review",
+    "type": "bug"
+  },
+  "dso-fxib": {
+    "deps": [
+      "dso-x1jt",
+      "dso-dghs",
+      "dso-d8gi",
+      "dso-47gy"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect dso:sprint optimization",
+    "type": "story"
+  },
+  "dso-g10j": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Using-lockpicks brainstorm enforcement",
+    "type": "epic"
+  },
+  "dso-g8cz": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
+    "type": "bug"
+  },
+  "dso-gfl9": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a DSO adopter, I configure commands and format settings one question at a time with detection-aware suggestions",
+    "type": "story"
+  },
+  "dso-ghcp": {
+    "deps": [
+      "dso-zq4q",
+      "dso-kknz"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Add optional dep detection, env var guidance, and success summary to dso-setup.sh",
+    "type": "task"
+  },
+  "dso-gir2": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
+    "type": "bug"
+  },
+  "dso-gkct": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Implementation planning tradeoffs",
+    "type": "epic"
+  },
+  "dso-h04l": {
+    "deps": [],
+    "priority": 0,
+    "status": "closed",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
+  "dso-hdgl": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Fix: test-merge-to-main-portability.sh 2 failures (8 pass, 2 fail)",
+    "type": "bug"
+  },
+  "dso-hui3": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for dso-setup.sh .claude/dso-config.conf path",
+    "type": "task"
+  },
+  "dso-i6dj": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: /dso:brainstorm created children with truncated titles and descriptions",
+    "type": "bug"
+  },
+  "dso-ilc1": {
+    "deps": [
+      "dso-s2g9"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Add ci.workflow_name to validate-config.sh KNOWN_KEYS",
+    "type": "task"
+  },
+  "dso-iwb4": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Don't merge to main between batches",
+    "type": "epic"
+  },
+  "dso-j48b": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix: add clarifying parenthetical for /dso:init in INSTALL.md Step 5",
+    "type": "bug"
+  },
+  "dso-jauq": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "type": "bug"
+  },
+  "dso-jvjw": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a DSO adopter, template files are merged or supplemented instead of blindly overwriting",
+    "type": "story"
+  },
+  "dso-khl2": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Using-lockpicks guidance to encourage using sub-agents",
+    "type": "epic"
+  },
+  "dso-kknz": {
+    "deps": [],
+    "priority": 0,
+    "status": "open",
+    "title": "Move workflow config to .claude/dso-config.conf",
+    "type": "epic"
+  },
+  "dso-kv4p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: merge-to-main.sh push phase fails with retry_with_backoff: command not found",
+    "type": "bug"
+  },
+  "dso-l2ct": {
+    "deps": [
+      "dso-ag1b",
+      "dso-iwb4"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
+    "type": "epic"
+  },
+  "dso-le3s": {
+    "deps": [
+      "dso-ozsx",
+      "dso-n458"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "DOC: Update CONFIGURATION-REFERENCE.md to document ci.workflow_name and deprecate merge.ci_workflow_name",
+    "type": "task"
+  },
+  "dso-lli8": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: tk sync windowed pull uses UTC but Jira reads JQL datetimes as user-local timezone",
+    "type": "bug"
+  },
+  "dso-lqyw": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Integrate search into planning",
+    "type": "epic"
+  },
+  "dso-lwcp": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Retro skill should include an overall visual review",
+    "type": "epic"
+  },
+  "dso-n458": {
+    "deps": [
+      "dso-ilc1"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Add ci.workflow_name to workflow-config-schema.json",
+    "type": "task"
+  },
+  "dso-nthb": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
+    "type": "bug"
+  },
+  "dso-o24g": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for ci.workflow_name fallback in merge-to-main.sh",
+    "type": "task"
+  },
+  "dso-ozsx": {
+    "deps": [
+      "dso-o24g",
+      "dso-ilc1"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Update merge-to-main.sh to read ci.workflow_name with backward-compat fallback",
+    "type": "task"
+  },
+  "dso-pa2n": {
+    "deps": [],
+    "priority": 3,
+    "status": "closed",
+    "title": "Fix: tests/run-all.sh line 231 unbound variable $1 in combined summary formatting function",
+    "type": "bug"
+  },
+  "dso-ppwp": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Add test gate enforcement",
+    "type": "epic"
+  },
+  "dso-psan": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Add dev-onboarding and design-onboarding to setup",
+    "type": "epic"
+  },
+  "dso-pxos": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Update end-session to display a list of pre-existing failures encountered.",
+    "type": "epic"
+  },
+  "dso-q0lo": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Prevent the explosion of documentation created by LLMs",
+    "type": "epic"
+  },
+  "dso-q2ev": {
+    "deps": [
+      "dso-uc2d"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer setting up DSO, the setup creates .claude/dso-config.conf",
+    "type": "story"
+  },
+  "dso-qo0x": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Incorporate OpenRewrite",
+    "type": "epic"
+  },
+  "dso-qt4u": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution",
+    "type": "bug"
+  },
+  "dso-r2es": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a DSO adopter, project detection produces structured context for all wizard questions",
+    "type": "story"
+  },
+  "dso-r97p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Implementation planning schema validation",
+    "type": "epic"
+  },
+  "dso-rjlt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Dirty .tickets files on main/worktree after merge \u2014 root cause of unclean state",
+    "type": "task"
+  },
+  "dso-s12s": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Generic agent invocations should be given descriptive names",
+    "type": "epic"
+  },
+  "dso-s2g9": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for ci.workflow_name in validate-config.sh",
+    "type": "task"
+  },
+  "dso-sapj": {
+    "deps": [
+      "dso-hui3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update dso-setup.sh to create config at .claude/dso-config.conf",
+    "type": "task"
+  },
+  "dso-soyt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Incorporate Semantic Search & MCP (Model Context Protocol)",
+    "type": "epic"
+  },
+  "dso-sq4k": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Research and investigation in pre-planning or brainstorm",
+    "type": "epic"
+  },
+  "dso-t4k8": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Don't cover up problems",
+    "type": "epic"
+  },
+  "dso-t7af": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Remove 5-sub-agent cap for orchestration",
+    "type": "epic"
+  },
+  "dso-to7x": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Allow coding sub-agents to use worktree isolation",
+    "type": "epic"
+  },
+  "dso-tqvy": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: worktree-sync-from-main.sh crashes with CFG_PYTHON_VENV unbound variable when config key is absent",
+    "type": "bug"
+  },
+  "dso-uc2d": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO developer, config resolves from .claude/dso-config.conf",
+    "type": "story"
+  },
+  "dso-uu13": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Remove CI ticket creation pattern",
+    "type": "epic"
+  },
+  "dso-uvyl": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Make implementation plan migration aware",
+    "type": "epic"
+  },
+  "dso-v558": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Figma integration for human design input",
+    "type": "epic"
+  },
+  "dso-vcrq": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved",
+    "type": "bug"
+  },
+  "dso-x1jt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
+    "type": "story"
+  },
+  "dso-z6zi": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Worktree left unclean after end-session / main left dirty after merge-to-main",
+    "type": "task"
+  },
+  "dso-zj3r": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Optimize skills and prompts for token usage",
+    "type": "epic"
+  },
+  "dso-zq4q": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Add prerequisite checks, platform detection, and exit code contract to dso-setup.sh",
+    "type": "task"
+  },
+  "dso-zu4o": {
+    "deps": [
+      "dso-kknz"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
+    "type": "epic"
+  },
+  "w21-090y": {
+    "deps": [
+      "w21-arjk"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL-TARGETS-PYVER-DEPS: Implement target enumeration, Python version, and installed CLI dependency detection",
+    "type": "task"
+  },
+  "w21-24kl": {
+    "deps": [
+      "w21-bwfw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system v3 \u2014 migration from tk and cutover",
+    "type": "epic"
+  },
+  "w21-25vk": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Shift complexity evaluation from debug-everything to fix-bug post-investigation",
+    "type": "epic"
+  },
+  "w21-4ir0": {
+    "deps": [
+      "w21-arjk",
+      "w21-090y"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL-CI-WORKFLOWS: Implement CI workflow YAML analysis with confidence degradation",
+    "type": "task"
+  },
+  "w21-4xu6": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Adjust Value reviewer validation_signal to remove external feedback requirement",
+    "type": "epic"
+  },
+  "w21-54wx": {
+    "deps": [
+      "dso-0k2k"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system v3 \u2014 dependency management and cross-worktree sync",
+    "type": "epic"
+  },
+  "w21-5cqr": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth",
+    "type": "bug"
+  },
+  "w21-766y": {
+    "deps": [
+      "w21-090y",
+      "w21-4ir0",
+      "w21-ka51"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "DOC-SCHEMA: Document project-detect.sh output schema in script header and update OUTPUT-SCHEMA reference",
+    "type": "task"
+  },
+  "w21-8ady": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "RED: Tests for child count in sprint-list-epics.sh output",
+    "type": "task"
+  },
+  "w21-8qo1": {
+    "deps": [
+      "w21-cu3r"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Add supplement logic for CLAUDE.md and KNOWN-ISSUES.md in dso-setup.sh",
+    "type": "task"
+  },
+  "w21-9cvk": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Tests for fix-bug complexity evaluation and escalation report",
+    "type": "task"
+  },
+  "w21-9d8u": {
+    "deps": [
+      "w21-u5mg",
+      "w21-8qo1"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Add pre-commit YAML hook merge to dso-setup.sh",
+    "type": "task"
+  },
+  "w21-9k4z": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
+    "type": "bug"
+  },
+  "w21-ae0s": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
+    "type": "bug"
+  },
+  "w21-arjk": {
+    "deps": [
+      "w21-l9r7"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL-CORE: Create project-detect.sh with schema, stack delegation, and file presence detection",
+    "type": "task"
+  },
+  "w21-b0tq": {
+    "deps": [
+      "w21-gljg"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Remove Phase 2.5 from debug-everything + add escalation handling",
+    "type": "task"
+  },
+  "w21-b9ll": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: Write failing tests for conditional prompt sections in project-setup SKILL.md",
+    "type": "task"
+  },
+  "w21-bwfw": {
+    "deps": [
+      "w21-54wx"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system v3 \u2014 Jira bridge and LLM-optimized output",
+    "type": "epic"
+  },
+  "w21-cu3r": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for CLAUDE.md and KNOWN-ISSUES.md supplement detection",
+    "type": "task"
+  },
+  "w21-dkes": {
+    "deps": [
+      "w21-gdon"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "IMPL-INFRA: Add conditional infrastructure key prompts with port inference and required_tools guidance",
+    "type": "task"
+  },
+  "w21-e447": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
+    "type": "task"
+  },
+  "w21-gdon": {
+    "deps": [
+      "w21-b9ll"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "IMPL-DB: Add conditional database key prompts to project-setup SKILL.md Step 3",
+    "type": "task"
+  },
+  "w21-gljg": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Tests for debug-everything Phase 2.5 removal + escalation handling",
+    "type": "task"
+  },
+  "w21-i8qz": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "RED: Tests for value reviewer internal validation signals",
+    "type": "task"
+  },
+  "w21-j2cc": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "BUG: AC4 check in w21-cu3r incompatible with assert.sh output format",
+    "type": "task"
+  },
+  "w21-ka51": {
+    "deps": [
+      "w21-arjk",
+      "w21-4ir0"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL-DB-PORTS-VERSIONS: Implement database presence, port detection, and version file candidates",
+    "type": "task"
+  },
+  "w21-kp0l": {
+    "deps": [
+      "w21-tcti"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "GREEN: Add contract detection pass to implementation-plan SKILL.md",
+    "type": "task"
+  },
+  "w21-l9r7": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for project-detect.sh covering all detection categories",
+    "type": "task"
+  },
+  "w21-lskq": {
+    "deps": [
+      "w21-i8qz"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "GREEN: Edit value.md validation_signal to use internal signals only",
+    "type": "task"
+  },
+  "w21-mzof": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Cross-component contract detection in /dso:implementation-plan",
+    "type": "epic"
+  },
+  "w21-ni6d": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
+    "type": "task"
+  },
+  "w21-npxr": {
+    "deps": [
+      "w21-9cvk"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add post-investigation complexity evaluation + sub-agent detection to fix-bug",
+    "type": "task"
+  },
+  "w21-nyu9": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Update shared complexity evaluator routing table + tests",
+    "type": "task"
+  },
+  "w21-ofew": {
+    "deps": [
+      "w21-xlaw"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update sprint SKILL.md display format for child count",
+    "type": "task"
+  },
+  "w21-ouns": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR",
+    "type": "bug"
+  },
+  "w21-q8nv": {
+    "deps": [
+      "w21-up9s",
+      "w21-9d8u"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Add CI guard analysis and selective-add logic to dso-setup.sh",
+    "type": "task"
+  },
+  "w21-r4rz": {
+    "deps": [
+      "w21-8qo1",
+      "w21-9d8u",
+      "w21-q8nv"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "IMPL: Update project-setup SKILL.md to document smart file handling behavior",
+    "type": "task"
+  },
+  "w21-t1tt": {
+    "deps": [
+      "w21-dkes"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "IMPL-STAGING-PYVER: Add conditional staging.url prompt and worktree.python_version auto-detection",
+    "type": "task"
+  },
+  "w21-tcti": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "RED: Tests for contract detection in implementation-plan SKILL.md",
+    "type": "task"
+  },
+  "w21-tr4q": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "validate.sh plugin check fails: make test-plugin target missing from Makefile",
+    "type": "bug"
+  },
+  "w21-u5mg": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for pre-commit YAML hook merge",
+    "type": "task"
+  },
+  "w21-up9s": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for CI workflow guard analysis integration",
+    "type": "task"
+  },
+  "w21-vydt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add child count to sprint epic list display",
+    "type": "epic"
+  },
+  "w21-wlhw": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
+    "type": "task"
+  },
+  "w21-xlaw": {
+    "deps": [
+      "w21-8ady"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "GREEN: Add child count to sprint-list-epics.sh output",
+    "type": "task"
+  },
+  "w21-yzln": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
+    "type": "bug"
+  },
+  "w21-z0jv": {
+    "deps": [
+      "w21-b0tq"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "Update CLAUDE.md Phase 2.5 reference",
+    "type": "task"
+  }
+}
