@@ -218,11 +218,14 @@ ci_workflow_names=""
 ci_workflow_test_guarded="false"
 ci_workflow_lint_guarded="false"
 ci_workflow_format_guarded="false"
+ci_workflow_confidence="low"
 
 WORKFLOWS_DIR="$PROJECT_DIR/.github/workflows"
 if [[ -d "$WORKFLOWS_DIR" ]]; then
+    _wf_found=0
     for wf_file in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
         [[ -f "$wf_file" ]] || continue
+        _wf_found=1
 
         # Extract workflow name from "name: ..." line.
         wf_name="$(grep -E '^name:' "$wf_file" | head -1 | sed 's/^name:\s*//' | tr -d '"'"'")"
@@ -245,12 +248,16 @@ if [[ -d "$WORKFLOWS_DIR" ]]; then
             ci_workflow_format_guarded="true"
         fi
     done
+    if [[ "$_wf_found" -eq 1 ]]; then
+        ci_workflow_confidence="high"
+    fi
 fi
 
 echo "ci_workflow_names=${ci_workflow_names}"
 echo "ci_workflow_test_guarded=${ci_workflow_test_guarded}"
 echo "ci_workflow_lint_guarded=${ci_workflow_lint_guarded}"
 echo "ci_workflow_format_guarded=${ci_workflow_format_guarded}"
+echo "ci_workflow_confidence=${ci_workflow_confidence}"
 
 # ── Category 7: Installed CLI dependencies ────────────────────────────────────
 # Check for common CLI tools that might be relevant to the project.

@@ -894,6 +894,309 @@ test_precommit_hook_merge_dryrun_no_changes() {
     fi
 }
 
+# ── CI workflow guard analysis tests (w21-up9s) ───────────────────────────────
+#
+# RED-phase: All tests FAIL until dso-setup.sh implements CI guard analysis.
+#
+# The guard analysis:
+#   - Accepts detection output (key=value from project-detect.sh) via DSO_DETECT_OUTPUT env var
+#     pointing to a temp file with key=value lines (e.g. ci.has_lint_guard=true)
+#   - The canonical detection keys for guard status are:
+#       ci_workflow_lint_guarded=true|false
+#       ci_workflow_test_guarded=true|false
+#       ci_workflow_format_guarded=true|false
+#   - When a CI workflow file (any name) already exists under .github/workflows/,
+#     dso-setup.sh does NOT copy ci.example.yml
+#   - When a guard is indicated as present in detection output, setup does not offer to add it
+#   - When a guard is MISSING in detection output, setup outputs a message indicating it
+#   - --dryrun shows guard analysis output but modifies nothing
+
+# _make_ci_detection_file: write key=value detection output to a temp file.
+# Usage: _make_ci_detection_file TMPDIR KEY=VALUE [KEY=VALUE ...]
+# Prints path to the temp file.
+_make_ci_detection_file() {
+    local tmpdir="$1"
+    shift
+    local detect_file
+    detect_file=$(mktemp "$tmpdir/detect-output.XXXXXX")
+    for pair in "$@"; do
+        echo "$pair"
+    done > "$detect_file"
+    echo "$detect_file"
+}
+
+# test_ci_guard_any_workflow_name_prevents_copy: when ANY .github/workflows/*.yml
+# file exists (not necessarily ci.yml), dso-setup.sh does NOT copy ci.example.yml.
+# This tests the "any name" condition from AC #1.
+test_ci_guard_any_workflow_name_prevents_copy() {
+    local T detect_file
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Create an existing CI workflow with a different name
+    mkdir -p "$T/.github/workflows"
+    cat > "$T/.github/workflows/build.yml" << 'EOF'
+name: Build
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "building"
+EOF
+
+    # Setup should detect the existing workflow and not copy ci.example.yml
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # ci.yml must NOT have been created (the existing build.yml counts as a workflow)
+    if [[ ! -f "$T/.github/workflows/ci.yml" ]]; then
+        assert_eq "test_ci_guard_any_workflow_name_prevents_copy: ci.yml not created" "not-created" "not-created"
+    else
+        assert_eq "test_ci_guard_any_workflow_name_prevents_copy: ci.yml not created" "not-created" "created"
+    fi
+}
+
+# test_ci_guard_lint_present_no_offer: when detection output has ci_workflow_lint_guarded=true,
+# dso-setup.sh output does NOT contain a message offering to add the lint guard.
+test_ci_guard_lint_present_no_offer() {
+    local T detect_file output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Existing workflow with lint already present
+    mkdir -p "$T/.github/workflows"
+    cat > "$T/.github/workflows/ci.yml" << 'EOF'
+name: CI
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make lint
+EOF
+
+    detect_file=$(_make_ci_detection_file "$T" \
+        "ci_workflow_lint_guarded=true" \
+        "ci_workflow_test_guarded=false" \
+        "ci_workflow_format_guarded=false")
+
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+
+    # Guard analysis must have run: output must contain a guard-analysis summary line
+    # (e.g. "[ci-guard]", "CI guard analysis", "guard check", etc.)
+    # This assertion drives the RED failure — the feature doesn't exist yet.
+    if [[ "$output" == *"[ci-guard]"* ]] || [[ "$output" == *"ci guard"* ]] || \
+       [[ "$output" == *"guard analysis"* ]] || [[ "$output" == *"guard check"* ]] || \
+       [[ "$output" == *"CI workflow guards"* ]]; then
+        assert_eq "test_ci_guard_lint_present_no_offer: guard analysis ran" "found" "found"
+    else
+        assert_eq "test_ci_guard_lint_present_no_offer: guard analysis ran" "found" "missing"
+    fi
+
+    # Output must NOT offer to add lint guard when it's already present
+    if [[ "$output" != *"add lint guard"* && "$output" != *"missing lint"* && "$output" != *"lint guard missing"* ]]; then
+        assert_eq "test_ci_guard_lint_present_no_offer: no lint-guard offer when present" "no-offer" "no-offer"
+    else
+        assert_eq "test_ci_guard_lint_present_no_offer: no lint-guard offer when present" "no-offer" "offer-found"
+    fi
+}
+
+# test_ci_guard_missing_test_guard_detected: when detection output has
+# ci_workflow_test_guarded=false, dso-setup.sh outputs a message indicating
+# the missing test guard was detected.
+test_ci_guard_missing_test_guard_detected() {
+    local T detect_file output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Existing workflow WITHOUT a test step
+    mkdir -p "$T/.github/workflows"
+    cat > "$T/.github/workflows/ci.yml" << 'EOF'
+name: CI
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make lint
+EOF
+
+    detect_file=$(_make_ci_detection_file "$T" \
+        "ci_workflow_lint_guarded=true" \
+        "ci_workflow_test_guarded=false" \
+        "ci_workflow_format_guarded=false")
+
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+
+    # Output must contain a message indicating the missing test guard
+    # (matching patterns like "missing test", "test guard", "no test step", etc.)
+    if [[ "$output" == *"test"* ]] && \
+       { [[ "$output" == *"missing"* ]] || [[ "$output" == *"guard"* ]] || [[ "$output" == *"not found"* ]]; }; then
+        assert_eq "test_ci_guard_missing_test_guard_detected: missing test guard reported" "found" "found"
+    else
+        assert_eq "test_ci_guard_missing_test_guard_detected: missing test guard reported" "found" "missing"
+    fi
+}
+
+# test_ci_guard_consumes_detection_output_not_yaml: guard analysis must consume the
+# DSO_DETECT_OUTPUT key=value file, not re-parse the workflow YAML directly.
+# We verify this by providing detection output that contradicts what YAML parsing
+# would find: the workflow YAML has a test step, but detection says test NOT guarded.
+# The script should trust the detection output and report the missing test guard.
+test_ci_guard_consumes_detection_output_not_yaml() {
+    local T detect_file output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Existing workflow WITH a test step (YAML would say guarded)
+    mkdir -p "$T/.github/workflows"
+    cat > "$T/.github/workflows/ci.yml" << 'EOF'
+name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make lint
+EOF
+
+    # Detection output says test is NOT guarded (contradicts YAML)
+    detect_file=$(_make_ci_detection_file "$T" \
+        "ci_workflow_lint_guarded=true" \
+        "ci_workflow_test_guarded=false" \
+        "ci_workflow_format_guarded=false")
+
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+
+    # Script must trust detection output (test=false) and report missing test guard,
+    # NOT re-parse the YAML which would say test is present.
+    if [[ "$output" == *"test"* ]] && \
+       { [[ "$output" == *"missing"* ]] || [[ "$output" == *"guard"* ]]; }; then
+        assert_eq "test_ci_guard_consumes_detection_output_not_yaml: trusts detection output" "found" "found"
+    else
+        assert_eq "test_ci_guard_consumes_detection_output_not_yaml: trusts detection output" "found" "missing"
+    fi
+}
+
+# test_ci_guard_dryrun_shows_analysis_no_changes: in --dryrun mode, CI guard analysis
+# output is shown but no files are modified.
+test_ci_guard_dryrun_shows_analysis_no_changes() {
+    local T detect_file output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Existing workflow WITHOUT test or format guards
+    mkdir -p "$T/.github/workflows"
+    cat > "$T/.github/workflows/ci.yml" << 'EOF'
+name: CI
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make lint
+EOF
+
+    detect_file=$(_make_ci_detection_file "$T" \
+        "ci_workflow_lint_guarded=true" \
+        "ci_workflow_test_guarded=false" \
+        "ci_workflow_format_guarded=false")
+
+    # Capture original CI file content
+    local original_content
+    original_content=$(cat "$T/.github/workflows/ci.yml")
+
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+
+    # CI file must be unchanged after --dryrun
+    local after_content
+    after_content=$(cat "$T/.github/workflows/ci.yml")
+    assert_eq "test_ci_guard_dryrun_shows_analysis_no_changes: ci.yml unchanged" "$original_content" "$after_content"
+
+    # Output must contain guard-analysis-specific dryrun output (not just any [dryrun] line).
+    # Specifically, it must reference CI guard analysis + the missing test guard.
+    # This drives the RED failure — dso-setup.sh does not yet emit guard analysis output.
+    if { [[ "$output" == *"[dryrun]"* ]] || [[ "$output" == *"[ci-guard]"* ]]; } && \
+       { [[ "$output" == *"test guard"* ]] || [[ "$output" == *"ci_workflow_test_guarded"* ]] || \
+         [[ "$output" == *"test: missing"* ]] || [[ "$output" == *"guard analysis"* ]]; }; then
+        assert_eq "test_ci_guard_dryrun_shows_analysis_no_changes: guard analysis shown in dryrun" "found" "found"
+    else
+        assert_eq "test_ci_guard_dryrun_shows_analysis_no_changes: guard analysis shown in dryrun" "found" "missing"
+    fi
+}
+
+# test_ci_guard_no_workflow_still_copies_example: when NO CI workflow exists at all
+# AND no detection output is provided, ci.example.yml is still copied to ci.yml.
+# This verifies that the new guard analysis code does not break the original behavior.
+test_ci_guard_no_workflow_still_copies_example() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # No existing workflow, no detection output
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    if [[ -f "$T/.github/workflows/ci.yml" ]]; then
+        assert_eq "test_ci_guard_no_workflow_still_copies_example: ci.yml created when absent" "exists" "exists"
+    else
+        assert_eq "test_ci_guard_no_workflow_still_copies_example: ci.yml created when absent" "exists" "missing"
+    fi
+}
+
+# test_ci_guard_missing_format_guard_detected: when detection output has
+# ci_workflow_format_guarded=false, dso-setup.sh outputs a message indicating
+# the missing format guard was detected.
+test_ci_guard_missing_format_guard_detected() {
+    local T detect_file output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Existing workflow without format step
+    mkdir -p "$T/.github/workflows"
+    cat > "$T/.github/workflows/ci.yml" << 'EOF'
+name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test
+EOF
+
+    detect_file=$(_make_ci_detection_file "$T" \
+        "ci_workflow_lint_guarded=true" \
+        "ci_workflow_test_guarded=true" \
+        "ci_workflow_format_guarded=false")
+
+    output=$(DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" 2>&1) || true
+
+    # Output must contain a message indicating the missing format guard
+    if [[ "$output" == *"format"* ]] && \
+       { [[ "$output" == *"missing"* ]] || [[ "$output" == *"guard"* ]] || [[ "$output" == *"not found"* ]]; }; then
+        assert_eq "test_ci_guard_missing_format_guard_detected: missing format guard reported" "found" "found"
+    else
+        assert_eq "test_ci_guard_missing_format_guard_detected: missing format guard reported" "found" "missing"
+    fi
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_setup_creates_shim
 test_setup_shim_executable
@@ -932,5 +1235,12 @@ test_precommit_merge_no_duplicate_review_gate
 test_precommit_merge_preserves_existing_hooks
 test_precommit_yaml_merge_produces_valid_yaml
 test_precommit_hook_merge_dryrun_no_changes
+test_ci_guard_any_workflow_name_prevents_copy
+test_ci_guard_lint_present_no_offer
+test_ci_guard_missing_test_guard_detected
+test_ci_guard_consumes_detection_output_not_yaml
+test_ci_guard_dryrun_shows_analysis_no_changes
+test_ci_guard_no_workflow_still_copies_example
+test_ci_guard_missing_format_guard_detected
 
 print_summary

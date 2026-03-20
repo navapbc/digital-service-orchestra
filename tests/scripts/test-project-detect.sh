@@ -231,6 +231,73 @@ assert_eq "cat4: ci_workflow_test_guarded=false when no CI" "false" "$(get_key "
 assert_eq "cat4: ci_workflow_lint_guarded=false when no CI" "false" "$(get_key "$no_ci_output" ci_workflow_lint_guarded)"
 assert_eq "cat4: ci_workflow_format_guarded=false when no CI" "false" "$(get_key "$no_ci_output" ci_workflow_format_guarded)"
 
+# ── CI workflow named tests (AC-required labels) ──────────────────────────────
+
+# test_project_detect_ci_workflow_names: workflow file name appears in output
+_snapshot_fail
+_ci_names_dir="$TMPDIR_FIXTURE/ci_names_project"
+mkdir -p "$_ci_names_dir/.github/workflows"
+cat > "$_ci_names_dir/.github/workflows/ci.yml" <<'YAML'
+name: CI Pipeline
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test
+YAML
+_ci_names_out=$(bash "$SCRIPT" "$_ci_names_dir" 2>&1)
+assert_contains "test_project_detect_ci_workflow_names: ci_workflow_names contains CI Pipeline" \
+    "CI Pipeline" "$(get_key "$_ci_names_out" ci_workflow_names)"
+assert_pass_if_clean "test_project_detect_ci_workflow_names"
+
+# test_project_detect_ci_workflow_test_guarded: make test triggers guard
+_snapshot_fail
+_ci_test_dir="$TMPDIR_FIXTURE/ci_test_guarded_project"
+mkdir -p "$_ci_test_dir/.github/workflows"
+cat > "$_ci_test_dir/.github/workflows/test.yml" <<'YAML'
+name: Test Suite
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test
+YAML
+_ci_test_out=$(bash "$SCRIPT" "$_ci_test_dir" 2>&1)
+assert_eq "test_project_detect_ci_workflow_test_guarded: ci_workflow_test_guarded=true" \
+    "true" "$(get_key "$_ci_test_out" ci_workflow_test_guarded)"
+assert_pass_if_clean "test_project_detect_ci_workflow_test_guarded"
+
+# test_project_detect_ci_workflow_no_workflows: no dir → confidence=low
+_snapshot_fail
+_ci_no_wf_dir="$TMPDIR_FIXTURE/ci_no_workflows_project"
+mkdir -p "$_ci_no_wf_dir"
+_ci_no_wf_out=$(bash "$SCRIPT" "$_ci_no_wf_dir" 2>&1)
+assert_eq "test_project_detect_ci_workflow_no_workflows: confidence=low when no dir" \
+    "low" "$(get_key "$_ci_no_wf_out" ci_workflow_confidence)"
+assert_eq "test_project_detect_ci_workflow_no_workflows: exits 0 when no workflows dir" \
+    "0" "$(bash "$SCRIPT" "$_ci_no_wf_dir" > /dev/null 2>&1; echo $?)"
+assert_pass_if_clean "test_project_detect_ci_workflow_no_workflows"
+
+# test_project_detect_ci_workflow_confidence_high: workflows present → confidence=high
+_snapshot_fail
+_ci_conf_dir="$TMPDIR_FIXTURE/ci_confidence_high_project"
+mkdir -p "$_ci_conf_dir/.github/workflows"
+cat > "$_ci_conf_dir/.github/workflows/ci.yml" <<'YAML'
+name: High Confidence CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "building"
+YAML
+_ci_conf_out=$(bash "$SCRIPT" "$_ci_conf_dir" 2>&1)
+assert_eq "test_project_detect_ci_workflow_confidence_high: confidence=high when workflows exist" \
+    "high" "$(get_key "$_ci_conf_out" ci_workflow_confidence)"
+assert_pass_if_clean "test_project_detect_ci_workflow_confidence_high"
+
 # ── Category 5: Database presence ────────────────────────────────────────────
 # Happy path: docker-compose.yml with db service
 DB_DIR="$TMPDIR_FIXTURE/db_project"

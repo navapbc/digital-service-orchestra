@@ -1,6 +1,6 @@
 ---
 id: dso-le3s
-status: in_progress
+status: closed
 deps: [dso-ozsx, dso-n458]
 links: []
 created: 2026-03-20T00:43:06Z

@@ -305,6 +305,54 @@ Record as `infrastructure.db_container`.
 
 Skip all three prompts above. Note: `(skipping — no database service detected)`. Do NOT prompt for `database.ensure_cmd`, `database.status_cmd`, or `infrastructure.db_container` when no database is detected.
 
+### Infrastructure keys
+
+Check the detection output from Step 2 for Docker/container indicators (e.g., `docker_present=true`, a `docker-compose.yml` file detected, or container-based stack). Only prompt for infrastructure keys when relevant project indicators are detected. If no container/Docker infrastructure is detected, skip this section with a note: `(skipping — no container infrastructure detected)`.
+
+**If container infrastructure is detected:**
+
+**infrastructure.required_tools** — Use `AskUserQuestion`:
+```
+Which CLI tools should DSO check for at session start (comma-separated, e.g. docker,make,git)?
+infrastructure.required_tools controls which tools are verified present at the beginning of each
+Claude session — missing tools produce warnings or errors that surface before any work begins.
+Suggestion: <stack-derived tools, e.g. "docker,make" for Docker-based projects>
+Press Enter to accept, or type a comma-separated list (leave blank to skip):
+```
+Record as `infrastructure.required_tools` (omit if blank).
+
+**infrastructure.app_port** — Use `AskUserQuestion`:
+
+Before prompting, attempt port inference from the project's `docker-compose.yml` or `.env` file:
+- Scan `docker-compose.yml` for `ports:` mappings on the application service (e.g., `"8000:8000"` → port `8000`).
+- If the port mapping uses variable substitution (e.g., `${APP_PORT:-8000}`), extract the default value after `:-`.
+- Fall back to scanning `.env` for `APP_PORT=` or similar variables.
+
+```
+What port does your application expose (used for local development access)?
+Inferred from docker-compose port mapping: <inferred value, or "not detected">
+Press Enter to accept, or type a port number (leave blank to skip):
+```
+Record as `infrastructure.app_port` (omit if blank).
+
+**infrastructure.db_port** — Use `AskUserQuestion` (only when `db_detected=true`):
+
+Before prompting, attempt port inference from `docker-compose.yml` or `.env`:
+- Scan `docker-compose.yml` for `ports:` mappings on the database service (e.g., `"5432:5432"` → port `5432`).
+- If the port mapping uses variable substitution (e.g., `${DB_PORT:-5432}`), extract the default value after `:-`.
+- Fall back to scanning `.env` for `DB_PORT=` or similar variables.
+
+```
+What port does your database expose (used for local connections)?
+Inferred from docker-compose port mapping: <inferred value, or "not detected">
+Press Enter to accept, or type a port number (leave blank to skip):
+```
+Record as `infrastructure.db_port` (omit if blank).
+
+**If no container infrastructure detected:**
+
+Skip all infrastructure key prompts above. Note: `(skipping — no container infrastructure detected)`.
+
 ### Optional dependencies
 
 Prompt for each optional dependency individually. Use the detection output from Step 2 to determine which dependencies are already installed. **Skip the prompt entirely for any dependency already detected as installed** — do not offer to install something the user already has.

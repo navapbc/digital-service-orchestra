@@ -1,6 +1,6 @@
 ---
 id: w21-dkes
-status: open
+status: in_progress
 deps: [w21-gdon]
 links: []
 created: 2026-03-20T00:41:46Z
@@ -59,3 +59,47 @@ Dependencies: w21-gdon (database section must be present for sequential SKILL.md
 - [ ] make format-check passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel)/app && make format-check
 
+
+## Notes
+
+<!-- note-id: 4slgq1zj -->
+<!-- timestamp: 2026-03-20T02:12:41Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 2pcfxytp -->
+<!-- timestamp: 2026-03-20T02:12:50Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: 44vi6jhd -->
+<!-- timestamp: 2026-03-20T02:12:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (pre-existing RED) ✓
+
+<!-- note-id: w974rsv0 -->
+<!-- timestamp: 2026-03-20T02:13:16Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: w0yvpors -->
+<!-- timestamp: 2026-03-20T02:13:28Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — tests 3, 4, 5 now GREEN; tests 6 and 7 remain RED (owned by w21-gdon/w21-t1tt)
+
+<!-- note-id: ywsoltrr -->
+<!-- timestamp: 2026-03-20T02:13:38Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — AC met: infrastructure.required_tools (CLI check guidance), infrastructure.app_port and infrastructure.db_port (port inference from docker-compose/default) added to Step 3, gated on container detection. Tests 3/4/5 GREEN.

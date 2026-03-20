@@ -1,6 +1,6 @@
 ---
 id: dso-bwtp
-status: in_progress
+status: closed
 deps: [dso-ozsx]
 links: []
 created: 2026-03-20T00:42:42Z
