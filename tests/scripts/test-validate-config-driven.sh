@@ -105,7 +105,7 @@ assert_pass_if_clean "test_app_dir_uses_config"
 # reads, so running validate.sh from the DSO repo root works without make.
 _snapshot_fail
 
-REAL_CONFIG="$PLUGIN_ROOT/dso-config.conf"
+REAL_CONFIG="$PLUGIN_ROOT/.claude/dso-config.conf"
 
 for key in commands.syntax_check commands.lint_ruff commands.lint_mypy; do
     found=$(grep -c "^${key}=" "$REAL_CONFIG" || true)
@@ -130,7 +130,7 @@ assert_pass_if_clean "test_validate_handles_missing_app_dir"
 # the real dso-config.conf.
 _snapshot_fail
 
-REAL_CONFIG_NTP="$PLUGIN_ROOT/dso-config.conf"
+REAL_CONFIG_NTP="$PLUGIN_ROOT/.claude/dso-config.conf"
 test_plugin_count=$(grep -c "^commands.test_plugin=" "$REAL_CONFIG_NTP" || true)
 assert_eq "commands.test_plugin absent from dso-config.conf" "0" "$test_plugin_count"
 
