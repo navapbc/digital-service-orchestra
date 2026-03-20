@@ -43,3 +43,29 @@ FILE: tests/scripts/test-merge-to-main-ci-workflow-name.sh (create)
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-merge-to-main-ci-workflow-name.sh 2>&1 | grep -c 'FAIL' | awk '{exit ($1 < 3)}'
 - [ ] test_merge_to_main_deprecation_warning asserts warning is sent to stderr (>&2 in source)
   Verify: grep -q 'DEPRECATION.*>&2\|>&2.*DEPRECATION' $(git rev-parse --show-toplevel)/plugins/dso/scripts/merge-to-main.sh || grep -q 'echo.*>&2' $(git rev-parse --show-toplevel)/plugins/dso/scripts/merge-to-main.sh
+
+## Notes
+
+**2026-03-20T00:59:00Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-20T00:59:33Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T01:00:53Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-20T01:00:53Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — all 3 tests FAIL as expected (RED state)
+
+**2026-03-20T01:01:12Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-20T01:01:43Z**
+
+CHECKPOINT 6/6: Done ✓ — all 6 ACs pass, 3 tests correctly FAIL in RED state

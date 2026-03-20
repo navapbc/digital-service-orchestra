@@ -37,3 +37,25 @@ FILE: tests/scripts/test-validate-config.sh (edit — append tests before print_
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-validate-config.sh 2>&1 | grep -q 'FAIL.*test_ci_workflow_name_valid_key'
 - [ ] No pre-existing tests broken by the new test additions
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-validate-config.sh 2>&1 | grep 'FAIL' | grep -v 'test_ci_workflow_name_valid_key' | wc -l | awk '{exit ($1 > 0)}'
+
+## Notes
+
+**2026-03-20T00:59:18Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-20T00:59:39Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-20T00:59:55Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-20T01:00:11Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-20T01:00:48Z**
+
+CHECKPOINT 6/6: Done ✓ — All 5 AC items verified. test_ci_workflow_name_valid_key is RED (fails with exit 1, ci.workflow_name not yet in KNOWN_KEYS). test_merge_ci_workflow_name_still_valid is GREEN (merge.ci_workflow_name already in KNOWN_KEYS). 14 pre-existing assertions pass, 0 pre-existing tests broken.

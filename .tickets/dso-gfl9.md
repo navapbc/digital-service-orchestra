@@ -41,3 +41,60 @@ parent: dso-2cy8
 ## Escalation Policy
 
 **Escalation policy**: Escalate to the user whenever you do not have high confidence in your understanding of the work, approach, or intent. "High confidence" means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess.
+
+## ACCEPTANCE CRITERIA
+
+- [ ] SKILL.md Step 3 uses AskUserQuestion for each command prompt (one at a time)
+  Verify: grep -c "AskUserQuestion" plugins/dso/skills/project-setup/SKILL.md | awk '{exit ($1 < 5)}'
+- [ ] Each command suggestion includes detection-aware labels ("exists in project" or "convention for <stack>")
+  Verify: grep -c "exists in project\|convention for" plugins/dso/skills/project-setup/SKILL.md | awk '{exit ($1 < 3)}'
+- [ ] version.file_path and tickets.prefix prompts are included in Step 3
+  Verify: grep -q "version.file_path" plugins/dso/skills/project-setup/SKILL.md && grep -q "tickets.prefix" plugins/dso/skills/project-setup/SKILL.md
+- [ ] format.extensions and format.source_dirs prompts describe coverage
+  Verify: grep -q "format.extensions" plugins/dso/skills/project-setup/SKILL.md && grep -q "format.source_dirs" plugins/dso/skills/project-setup/SKILL.md
+- [ ] Tests verify sequential prompt flow and detection-aware suggestions
+  Verify: test -f tests/skills/test_project_setup_commands_format.py || test -f tests/skills/test-project-setup-commands-format.sh
+
+## Notes
+
+<!-- note-id: 2yjo0unk -->
+<!-- timestamp: 2026-03-20T00:59:32Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: t4fkrfhm -->
+<!-- timestamp: 2026-03-20T00:59:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: h8fmrlmx -->
+<!-- timestamp: 2026-03-20T01:01:16Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ (8 tests failing RED before implementation)
+
+<!-- note-id: 85ymtg1p -->
+<!-- timestamp: 2026-03-20T01:02:19Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ (SKILL.md Step 3 rewritten with AskUserQuestion, detection-aware labels, format/version/tickets prompts)
+
+<!-- note-id: 7ohex8eh -->
+<!-- timestamp: 2026-03-20T01:02:34Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ (ruff format ok, ruff check ok, skill-refs ok)
+
+<!-- note-id: r4or3l53 -->
+<!-- timestamp: 2026-03-20T01:02:52Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ All 5 AC criteria verified: AC1 AskUserQuestion>=5 PASS, AC2 detection-aware labels>=3 PASS, AC3 version.file_path+tickets.prefix PASS, AC4 format.extensions+format.source_dirs PASS, AC5 test file exists PASS

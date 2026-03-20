@@ -73,34 +73,113 @@ If `STACK=unknown`, note it — the wizard will ask for manual command input in 
 
 > **Authoritative key source**: Read `docs/CONFIGURATION-REFERENCE.md` for the complete list of `workflow-config.conf` keys, their descriptions, accepted values, and defaults. Do NOT hardcode key descriptions inline — always reference that document.
 
-Work through each config section relevant to initial setup. For each key:
-
-1. Present the key name, its description (from `docs/CONFIGURATION-REFERENCE.md`), and its default value.
-2. Ask the user to confirm the default or provide a custom value.
-3. Record the confirmed value for writing in Step 4.
+Ask one question at a time using `AskUserQuestion`. Do not present multiple prompts simultaneously. Work through each section sequentially, recording each confirmed value for writing in Step 4.
 
 ### Commands section (`commands.*`)
 
-If `STACK` is not `unknown`, propose stack-derived defaults using the table from `skills/init/SKILL.md`. Confirm each with the user.
+For each command key, propose a suggestion and label it as either:
+- **"(exists in project)"** — the detection script verified this make target or script exists in `$TARGET_REPO`
+- **"(convention for `<STACK>`)"** — this is the standard command for the detected stack but has not been verified as present
 
-If `STACK=unknown`, ask the user to provide values manually:
+Ask each command question separately, one at a time:
 
+**1. Test command** — Use `AskUserQuestion`:
 ```
-No recognized stack found. Please provide:
-  - test command (e.g., 'make test'):
-  - lint command (e.g., 'make lint'):
-  - format command (e.g., 'make format', or leave blank):
-  - format_check command (e.g., 'make format-check', or leave blank):
-  - validate command (e.g., './scripts/validate.sh --ci', or leave blank):
+What is your test command?
+Suggestion: <stack-derived default> (exists in project | convention for <STACK>)
+Press Enter to accept, or type a custom value:
 ```
+Record as `commands.test`.
+
+**2. Unit test command** — Use `AskUserQuestion`:
+```
+What is your unit test command (subset of full test suite, or leave blank)?
+Suggestion: <stack-derived default if any> (exists in project | convention for <STACK>)
+Press Enter to accept, or leave blank to skip:
+```
+Record as `commands.test_unit` (omit if blank).
+
+**3. Lint command** — Use `AskUserQuestion`:
+```
+What is your lint command?
+Suggestion: <stack-derived default> (exists in project | convention for <STACK>)
+Press Enter to accept, or type a custom value:
+```
+Record as `commands.lint`.
+
+**4. Format command** — Use `AskUserQuestion`:
+```
+What is your format command (or leave blank)?
+Suggestion: <stack-derived default if any> (exists in project | convention for <STACK>)
+Press Enter to accept, or leave blank to skip:
+```
+Record as `commands.format` (omit if blank).
+
+**5. Format check command** — Use `AskUserQuestion`:
+```
+What is your format check command (read-only lint for CI, or leave blank)?
+Suggestion: <stack-derived default if any> (exists in project | convention for <STACK>)
+Press Enter to accept, or leave blank to skip:
+```
+Record as `commands.format_check` (omit if blank).
+
+**6. Validate command** — Use `AskUserQuestion`:
+```
+What is your full validation command (runs all checks, or leave blank)?
+Suggestion: ./plugins/dso/scripts/validate.sh --ci (exists in project | convention for <STACK>)
+Press Enter to accept, or leave blank to skip:
+```
+Record as `commands.validate` (omit if blank).
+
+If `STACK=unknown`, note that no stack was detected and ask the user to provide values manually for each prompt above (do not pre-fill suggestions).
+
+### Format section (`format.*`)
+
+Ask each format question separately, one at a time:
+
+**7. File extensions** — Use `AskUserQuestion`:
+```
+Which file extensions should the formatter cover?
+This controls which files are checked/formatted (e.g. py,js,ts for Python + JavaScript projects).
+Suggestion: <stack-derived extensions, e.g. "py" for Python>
+Press Enter to accept, or type a comma-separated list:
+```
+Record as `format.extensions`.
+
+**8. Source directories** — Use `AskUserQuestion`:
+```
+Which source directories should be covered by formatting?
+These are the directories scanned when running the format and lint commands (e.g. src,tests).
+Suggestion: <stack-derived dirs, e.g. "app/src,app/tests" for Python>
+Press Enter to accept, or type a comma-separated list:
+```
+Record as `format.source_dirs`.
+
+### Version tracking (`version.*`)
+
+**9. Version file path** — Use `AskUserQuestion`:
+```
+Does your project track a version string in a file (e.g. pyproject.toml, package.json)?
+If yes, enter the path relative to the project root (e.g. pyproject.toml). Leave blank to skip.
+```
+Record as `version.file_path` (omit if blank).
+
+### Ticket settings (`tickets.*`)
+
+**10. Ticket prefix** — Use `AskUserQuestion`:
+```
+What prefix should local tickets use (e.g. "myproject" produces IDs like myproject-abc1)?
+Leave blank to use the default ("dso").
+```
+Record as `tickets.prefix` (omit if blank / uses default).
 
 ### Jira integration
 
-Ask: "Do you use Jira for issue tracking? (yes/no)"
+**11. Jira tracking** — Use `AskUserQuestion`: "Do you use Jira for issue tracking? (yes/no)"
 
 If yes:
 - Explain that `JIRA_URL`, `JIRA_USER`, and `JIRA_API_TOKEN` are **environment variables** that belong in the user's shell profile (e.g., `~/.zshrc` or `~/.bashrc`) — they are **not** written to `workflow-config.conf`.
-- Ask for the `jira.project` key value (Jira project key, e.g., `DIG`). Record this for `workflow-config.conf`.
+- Use `AskUserQuestion` to ask for the `jira.project` key value (Jira project key, e.g., `DIG`). Record this for `workflow-config.conf`.
 - Show the user the env vars they need to add to their shell profile:
   ```
   export JIRA_URL=https://your-org.atlassian.net
@@ -117,7 +196,7 @@ The `dso.plugin_root` key is written automatically by `dso-setup.sh` — do NOT 
 
 ### Monitoring
 
-Ask: "Enable tool error monitoring and auto-ticket creation? (y/N, default: N):"
+Use `AskUserQuestion`: "Enable tool error monitoring and auto-ticket creation? (y/N, default: N):"
 
 - If **yes**: write `monitoring.tool_errors=true` to `workflow-config.conf`. This enables automatic tracking of tool errors and creates tickets for them.
 - If **no** (or default): omit the `monitoring.tool_errors` key entirely from `workflow-config.conf`. The feature is disabled when the key is absent. This is a safe-off default — opt-in only.
@@ -129,7 +208,7 @@ Inform the user about optional enhancements (do not block setup if declined):
 - **acli**: Enables Jira integration within Claude Code. Install: `brew install acli`
 - **PyYAML**: Enables legacy YAML config format. Install: `pip3 install pyyaml`
 
-Ask: "Would you like install instructions for these optional tools? (yes/no)" Show them only if the user says yes.
+Use `AskUserQuestion`: "Would you like install instructions for these optional tools? (yes/no)" Show them only if the user says yes.
 
 ---
 

@@ -1,0 +1,440 @@
+#!/usr/bin/env bash
+# shellcheck source=tests/lib/assert.sh
+# source tests/lib/assert.sh — loaded dynamically below after PLUGIN_ROOT is resolved
+# tests/scripts/test-project-detect.sh
+# TDD red-phase tests for plugins/dso/scripts/project-detect.sh
+#
+# Usage: bash tests/scripts/test-project-detect.sh
+# Returns: exit 0 if all tests pass, exit 1 if any fail
+#
+# NOTE: These tests are expected to FAIL until project-detect.sh is implemented.
+#
+# Output schema tested (key=value lines emitted by project-detect.sh):
+#   stack=<value>
+#   targets=<comma-separated>
+#   python_version=<value>|unknown
+#   python_version_confidence=high|low
+#   db_present=true|false
+#   db_services=<comma-separated>
+#   files_present=<comma-separated>
+#   ci_workflow_names=<comma-separated>
+#   ci_workflow_test_guarded=true|false
+#   ci_workflow_lint_guarded=true|false
+#   ci_workflow_format_guarded=true|false
+#   installed_deps=<comma-separated>
+#   ports=<comma-separated>
+#   version_files=<comma-separated>
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
+SCRIPT="$DSO_PLUGIN_DIR/scripts/project-detect.sh"
+
+source "$PLUGIN_ROOT/tests/lib/assert.sh"
+
+echo "=== test-project-detect.sh ==="
+
+# Create temp fixture dirs
+TMPDIR_FIXTURE="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR_FIXTURE"' EXIT
+
+# ── Helper: extract a key=value line from output ──────────────────────────────
+# Usage: get_key output key
+# Returns the value portion of a "key=value" line, or empty string if absent.
+get_key() {
+    local output="$1" key="$2"
+    echo "$output" | grep "^${key}=" | head -1 | cut -d= -f2-
+}
+
+# ── Category 1: Script existence and executability ────────────────────────────
+if [[ -f "$SCRIPT" ]]; then
+    actual_exists="exists"
+else
+    actual_exists="missing"
+fi
+assert_eq "cat1: script exists at expected path" "exists" "$actual_exists"
+
+if [[ -x "$SCRIPT" ]]; then
+    actual_exec="executable"
+else
+    actual_exec="not_executable"
+fi
+assert_eq "cat1: script is executable" "executable" "$actual_exec"
+
+# ── Category 2: Stack detection (delegates to detect-stack.sh) ────────────────
+# Happy path: python-poetry
+PYTHON_DIR="$TMPDIR_FIXTURE/python_project"
+mkdir -p "$PYTHON_DIR"
+touch "$PYTHON_DIR/pyproject.toml"
+
+python_exit=0
+python_output=$(bash "$SCRIPT" "$PYTHON_DIR" 2>&1) || python_exit=$?
+assert_eq "cat2: python project exits 0" "0" "$python_exit"
+assert_eq "cat2: stack=python-poetry for pyproject.toml" "python-poetry" "$(get_key "$python_output" stack)"
+
+# Happy path: node-npm
+NODE_DIR="$TMPDIR_FIXTURE/node_project"
+mkdir -p "$NODE_DIR"
+touch "$NODE_DIR/package.json"
+
+node_exit=0
+node_output=$(bash "$SCRIPT" "$NODE_DIR" 2>&1) || node_exit=$?
+assert_eq "cat2: node project exits 0" "0" "$node_exit"
+assert_eq "cat2: stack=node-npm for package.json" "node-npm" "$(get_key "$node_output" stack)"
+
+# Happy path: golang
+GO_DIR="$TMPDIR_FIXTURE/go_project"
+mkdir -p "$GO_DIR"
+touch "$GO_DIR/go.mod"
+
+go_exit=0
+go_output=$(bash "$SCRIPT" "$GO_DIR" 2>&1) || go_exit=$?
+assert_eq "cat2: golang project exits 0" "0" "$go_exit"
+assert_eq "cat2: stack=golang for go.mod" "golang" "$(get_key "$go_output" stack)"
+
+# Happy path: rust-cargo
+RUST_DIR="$TMPDIR_FIXTURE/rust_project"
+mkdir -p "$RUST_DIR"
+touch "$RUST_DIR/Cargo.toml"
+
+rust_exit=0
+rust_output=$(bash "$SCRIPT" "$RUST_DIR" 2>&1) || rust_exit=$?
+assert_eq "cat2: rust project exits 0" "0" "$rust_exit"
+assert_eq "cat2: stack=rust-cargo for Cargo.toml" "rust-cargo" "$(get_key "$rust_output" stack)"
+
+# Happy path: convention-based (Makefile with test/lint/format)
+MAKE_DIR="$TMPDIR_FIXTURE/make_project"
+mkdir -p "$MAKE_DIR"
+cat > "$MAKE_DIR/Makefile" <<'MAKEFILE'
+.PHONY: test lint format
+
+test:
+	pytest
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+
+make_exit=0
+make_output=$(bash "$SCRIPT" "$MAKE_DIR" 2>&1) || make_exit=$?
+assert_eq "cat2: makefile project exits 0" "0" "$make_exit"
+assert_eq "cat2: stack=convention-based for Makefile" "convention-based" "$(get_key "$make_output" stack)"
+
+# Absent-input: unknown stack
+EMPTY_STACK_DIR="$TMPDIR_FIXTURE/empty_stack_project"
+mkdir -p "$EMPTY_STACK_DIR"
+
+empty_stack_exit=0
+empty_stack_output=$(bash "$SCRIPT" "$EMPTY_STACK_DIR" 2>&1) || empty_stack_exit=$?
+assert_eq "cat2: empty dir exits 0" "0" "$empty_stack_exit"
+assert_eq "cat2: stack=unknown for empty dir" "unknown" "$(get_key "$empty_stack_output" stack)"
+
+# ── Category 3: Target enumeration ───────────────────────────────────────────
+# Happy path: Makefile targets
+TARGETS_DIR="$TMPDIR_FIXTURE/targets_project"
+mkdir -p "$TARGETS_DIR"
+cat > "$TARGETS_DIR/Makefile" <<'MAKEFILE'
+.PHONY: test lint format build
+
+test:
+	pytest
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+
+build:
+	docker build .
+MAKEFILE
+
+targets_exit=0
+targets_output=$(bash "$SCRIPT" "$TARGETS_DIR" 2>&1) || targets_exit=$?
+assert_eq "cat3: targets project exits 0" "0" "$targets_exit"
+targets_val="$(get_key "$targets_output" targets)"
+assert_contains "cat3: targets contains test" "test" "$targets_val"
+assert_contains "cat3: targets contains lint" "lint" "$targets_val"
+
+# Happy path: package.json scripts
+PKG_TARGETS_DIR="$TMPDIR_FIXTURE/pkg_targets_project"
+mkdir -p "$PKG_TARGETS_DIR"
+cat > "$PKG_TARGETS_DIR/package.json" <<'JSON'
+{
+  "scripts": {
+    "test": "jest",
+    "build": "tsc",
+    "lint": "eslint ."
+  }
+}
+JSON
+
+pkg_targets_exit=0
+pkg_targets_output=$(bash "$SCRIPT" "$PKG_TARGETS_DIR" 2>&1) || pkg_targets_exit=$?
+assert_eq "cat3: pkg.json targets project exits 0" "0" "$pkg_targets_exit"
+pkg_targets_val="$(get_key "$pkg_targets_output" targets)"
+assert_contains "cat3: pkg.json targets contains test" "test" "$pkg_targets_val"
+
+# Absent-input: no Makefile or package.json → empty targets
+NO_TARGETS_DIR="$TMPDIR_FIXTURE/no_targets_project"
+mkdir -p "$NO_TARGETS_DIR"
+no_targets_exit=0
+no_targets_output=$(bash "$SCRIPT" "$NO_TARGETS_DIR" 2>&1) || no_targets_exit=$?
+assert_eq "cat3: no-targets project exits 0" "0" "$no_targets_exit"
+
+# ── Category 4: CI workflow analysis ─────────────────────────────────────────
+# Happy path: workflow with test/lint/format guards
+CI_DIR="$TMPDIR_FIXTURE/ci_project"
+mkdir -p "$CI_DIR/.github/workflows"
+cat > "$CI_DIR/.github/workflows/ci.yml" <<'YAML'
+name: CI Pipeline
+on: [push]
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test
+  lint:
+    name: Lint Check
+    runs-on: ubuntu-latest
+    steps:
+      - run: make lint
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - run: make format
+YAML
+
+ci_exit=0
+ci_output=$(bash "$SCRIPT" "$CI_DIR" 2>&1) || ci_exit=$?
+assert_eq "cat4: ci project exits 0" "0" "$ci_exit"
+ci_names="$(get_key "$ci_output" ci_workflow_names)"
+assert_contains "cat4: ci_workflow_names contains CI Pipeline" "CI Pipeline" "$ci_names"
+assert_eq "cat4: ci_workflow_test_guarded=true" "true" "$(get_key "$ci_output" ci_workflow_test_guarded)"
+assert_eq "cat4: ci_workflow_lint_guarded=true" "true" "$(get_key "$ci_output" ci_workflow_lint_guarded)"
+assert_eq "cat4: ci_workflow_format_guarded=true" "true" "$(get_key "$ci_output" ci_workflow_format_guarded)"
+
+# Absent-input: no .github/workflows → no CI workflow info
+NO_CI_DIR="$TMPDIR_FIXTURE/no_ci_project"
+mkdir -p "$NO_CI_DIR"
+no_ci_exit=0
+no_ci_output=$(bash "$SCRIPT" "$NO_CI_DIR" 2>&1) || no_ci_exit=$?
+assert_eq "cat4: no-ci project exits 0" "0" "$no_ci_exit"
+assert_eq "cat4: ci_workflow_test_guarded=false when no CI" "false" "$(get_key "$no_ci_output" ci_workflow_test_guarded)"
+assert_eq "cat4: ci_workflow_lint_guarded=false when no CI" "false" "$(get_key "$no_ci_output" ci_workflow_lint_guarded)"
+assert_eq "cat4: ci_workflow_format_guarded=false when no CI" "false" "$(get_key "$no_ci_output" ci_workflow_format_guarded)"
+
+# ── Category 5: Database presence ────────────────────────────────────────────
+# Happy path: docker-compose.yml with db service
+DB_DIR="$TMPDIR_FIXTURE/db_project"
+mkdir -p "$DB_DIR"
+cat > "$DB_DIR/docker-compose.yml" <<'YAML'
+services:
+  postgres:
+    image: postgres:15
+  redis:
+    image: redis:7
+YAML
+
+db_exit=0
+db_output=$(bash "$SCRIPT" "$DB_DIR" 2>&1) || db_exit=$?
+assert_eq "cat5: db project exits 0" "0" "$db_exit"
+assert_eq "cat5: db_present=true when postgres in compose" "true" "$(get_key "$db_output" db_present)"
+db_services="$(get_key "$db_output" db_services)"
+assert_contains "cat5: db_services contains postgres" "postgres" "$db_services"
+
+# Absent-input: no docker-compose.yml → db_present=false
+NO_DB_DIR="$TMPDIR_FIXTURE/no_db_project"
+mkdir -p "$NO_DB_DIR"
+no_db_exit=0
+no_db_output=$(bash "$SCRIPT" "$NO_DB_DIR" 2>&1) || no_db_exit=$?
+assert_eq "cat5: no-db project exits 0" "0" "$no_db_exit"
+assert_eq "cat5: db_present=false when no compose file" "false" "$(get_key "$no_db_output" db_present)"
+
+# ── Category 6: Python version detection ─────────────────────────────────────
+# Happy path: pyproject.toml with requires-python
+PY_VER_DIR="$TMPDIR_FIXTURE/py_ver_project"
+mkdir -p "$PY_VER_DIR"
+cat > "$PY_VER_DIR/pyproject.toml" <<'TOML'
+[project]
+requires-python = ">=3.11"
+
+[tool.poetry]
+name = "myapp"
+TOML
+
+py_ver_exit=0
+py_ver_output=$(bash "$SCRIPT" "$PY_VER_DIR" 2>&1) || py_ver_exit=$?
+assert_eq "cat6: py-ver project exits 0" "0" "$py_ver_exit"
+assert_eq "cat6: python_version_confidence=high when pyproject.toml present" "high" "$(get_key "$py_ver_output" python_version_confidence)"
+py_ver_val="$(get_key "$py_ver_output" python_version)"
+assert_ne "cat6: python_version not empty when pyproject.toml has requires-python" "" "$py_ver_val"
+
+# Happy path: .python-version file
+PY_VER_FILE_DIR="$TMPDIR_FIXTURE/py_ver_file_project"
+mkdir -p "$PY_VER_FILE_DIR"
+echo "3.12.3" > "$PY_VER_FILE_DIR/.python-version"
+
+py_ver_file_exit=0
+py_ver_file_output=$(bash "$SCRIPT" "$PY_VER_FILE_DIR" 2>&1) || py_ver_file_exit=$?
+assert_eq "cat6: py-ver-file project exits 0" "0" "$py_ver_file_exit"
+assert_eq "cat6: python_version=3.12.3 from .python-version" "3.12.3" "$(get_key "$py_ver_file_output" python_version)"
+assert_eq "cat6: python_version_confidence=high for .python-version" "high" "$(get_key "$py_ver_file_output" python_version_confidence)"
+
+# Absent-input: no pyproject.toml or .python-version → fallback/low confidence
+NO_PY_VER_DIR="$TMPDIR_FIXTURE/no_py_ver_project"
+mkdir -p "$NO_PY_VER_DIR"
+no_py_ver_exit=0
+no_py_ver_output=$(bash "$SCRIPT" "$NO_PY_VER_DIR" 2>&1) || no_py_ver_exit=$?
+assert_eq "cat6: no-py-ver project exits 0" "0" "$no_py_ver_exit"
+# When heuristic is uncertain, confidence degrades to low (or unknown)
+no_py_ver_conf="$(get_key "$no_py_ver_output" python_version_confidence)"
+assert_ne "cat6: python_version_confidence is not high when no version files" "high" "$no_py_ver_conf"
+
+# ── Category 7: Installed CLI dependencies ────────────────────────────────────
+# Happy path: check known-present tool (bash is always available)
+CLI_DIR="$TMPDIR_FIXTURE/cli_project"
+mkdir -p "$CLI_DIR"
+
+cli_exit=0
+cli_output=$(bash "$SCRIPT" "$CLI_DIR" 2>&1) || cli_exit=$?
+assert_eq "cat7: cli project exits 0" "0" "$cli_exit"
+# installed_deps key must always be present (may be empty when nothing found)
+assert_contains "cat7: output contains installed_deps key" "installed_deps=" "$cli_output"
+
+# ── Category 8: Existing file presence ───────────────────────────────────────
+# Happy path: CLAUDE.md and KNOWN-ISSUES.md present
+FILES_DIR="$TMPDIR_FIXTURE/files_project"
+mkdir -p "$FILES_DIR"
+touch "$FILES_DIR/CLAUDE.md"
+touch "$FILES_DIR/KNOWN-ISSUES.md"
+touch "$FILES_DIR/.pre-commit-config.yaml"
+touch "$FILES_DIR/workflow-config.conf"
+
+files_exit=0
+files_output=$(bash "$SCRIPT" "$FILES_DIR" 2>&1) || files_exit=$?
+assert_eq "cat8: files project exits 0" "0" "$files_exit"
+files_present="$(get_key "$files_output" files_present)"
+assert_contains "cat8: files_present contains CLAUDE.md" "CLAUDE.md" "$files_present"
+assert_contains "cat8: files_present contains KNOWN-ISSUES.md" "KNOWN-ISSUES.md" "$files_present"
+assert_contains "cat8: files_present contains .pre-commit-config.yaml" ".pre-commit-config.yaml" "$files_present"
+assert_contains "cat8: files_present contains workflow-config.conf" "workflow-config.conf" "$files_present"
+
+# Absent-input: none of the marker files → files_present is empty or absent
+NO_FILES_DIR="$TMPDIR_FIXTURE/no_files_project"
+mkdir -p "$NO_FILES_DIR"
+no_files_exit=0
+no_files_output=$(bash "$SCRIPT" "$NO_FILES_DIR" 2>&1) || no_files_exit=$?
+assert_eq "cat8: no-files project exits 0" "0" "$no_files_exit"
+no_files_present="$(get_key "$no_files_output" files_present)"
+assert_eq "cat8: files_present is empty when no marker files" "" "$no_files_present"
+
+# ── Category 9: Port numbers from workflow-config.conf ───────────────────────
+# Happy path: workflow-config.conf with port entries
+PORTS_DIR="$TMPDIR_FIXTURE/ports_project"
+mkdir -p "$PORTS_DIR"
+cat > "$PORTS_DIR/workflow-config.conf" <<'CONF'
+ci.app_port=8000
+ci.db_port=5432
+ci.redis_port=6379
+CONF
+
+ports_exit=0
+ports_output=$(bash "$SCRIPT" "$PORTS_DIR" 2>&1) || ports_exit=$?
+assert_eq "cat9: ports project exits 0" "0" "$ports_exit"
+ports_val="$(get_key "$ports_output" ports)"
+assert_contains "cat9: ports contains 8000" "8000" "$ports_val"
+
+# Absent-input: no workflow-config.conf → ports empty or absent
+NO_PORTS_DIR="$TMPDIR_FIXTURE/no_ports_project"
+mkdir -p "$NO_PORTS_DIR"
+no_ports_exit=0
+no_ports_output=$(bash "$SCRIPT" "$NO_PORTS_DIR" 2>&1) || no_ports_exit=$?
+assert_eq "cat9: no-ports project exits 0" "0" "$no_ports_exit"
+
+# ── Category 10: Version file candidates ─────────────────────────────────────
+# Happy path: package.json with version field
+VER_NODE_DIR="$TMPDIR_FIXTURE/ver_node_project"
+mkdir -p "$VER_NODE_DIR"
+cat > "$VER_NODE_DIR/package.json" <<'JSON'
+{
+  "name": "my-app",
+  "version": "1.2.3"
+}
+JSON
+
+ver_node_exit=0
+ver_node_output=$(bash "$SCRIPT" "$VER_NODE_DIR" 2>&1) || ver_node_exit=$?
+assert_eq "cat10: ver-node project exits 0" "0" "$ver_node_exit"
+ver_node_files="$(get_key "$ver_node_output" version_files)"
+assert_contains "cat10: version_files contains package.json" "package.json" "$ver_node_files"
+
+# Happy path: pyproject.toml with version field
+VER_PY_DIR="$TMPDIR_FIXTURE/ver_py_project"
+mkdir -p "$VER_PY_DIR"
+cat > "$VER_PY_DIR/pyproject.toml" <<'TOML'
+[project]
+version = "2.0.0"
+name = "my-py-app"
+TOML
+
+ver_py_exit=0
+ver_py_output=$(bash "$SCRIPT" "$VER_PY_DIR" 2>&1) || ver_py_exit=$?
+assert_eq "cat10: ver-py project exits 0" "0" "$ver_py_exit"
+ver_py_files="$(get_key "$ver_py_output" version_files)"
+assert_contains "cat10: version_files contains pyproject.toml" "pyproject.toml" "$ver_py_files"
+
+# Absent-input: no package.json or pyproject.toml → version_files empty
+NO_VER_DIR="$TMPDIR_FIXTURE/no_ver_project"
+mkdir -p "$NO_VER_DIR"
+no_ver_exit=0
+no_ver_output=$(bash "$SCRIPT" "$NO_VER_DIR" 2>&1) || no_ver_exit=$?
+assert_eq "cat10: no-ver project exits 0" "0" "$no_ver_exit"
+
+# ── Category 11: Confidence degradation ──────────────────────────────────────
+# When python_version heuristic uses binary fallback (no explicit version files),
+# confidence should be low, not high.
+CONF_DEGRADE_DIR="$TMPDIR_FIXTURE/conf_degrade_project"
+mkdir -p "$CONF_DEGRADE_DIR"
+# Only a Makefile — no Python version markers — forces fallback path
+cat > "$CONF_DEGRADE_DIR/Makefile" <<'MAKEFILE'
+.PHONY: test lint
+
+test:
+	./run_tests.sh
+
+lint:
+	./lint.sh
+MAKEFILE
+
+conf_degrade_exit=0
+conf_degrade_output=$(bash "$SCRIPT" "$CONF_DEGRADE_DIR" 2>&1) || conf_degrade_exit=$?
+assert_eq "cat11: conf-degrade project exits 0" "0" "$conf_degrade_exit"
+# python_version_confidence must not be "high" when no version anchor file exists
+degrade_conf="$(get_key "$conf_degrade_output" python_version_confidence)"
+assert_ne "cat11: python_version_confidence is not high when no explicit version markers" "high" "$degrade_conf"
+
+# ── Category 12: Graceful degradation ────────────────────────────────────────
+# Script must exit 0 even when ALL optional files/tools are absent.
+GRACE_DIR="$TMPDIR_FIXTURE/graceful_project"
+mkdir -p "$GRACE_DIR"
+# Completely empty directory — no markers, no CI, no DB, no config
+
+grace_exit=0
+grace_output=$(bash "$SCRIPT" "$GRACE_DIR" 2>&1) || grace_exit=$?
+assert_eq "cat12: graceful-degrade project exits 0" "0" "$grace_exit"
+# Must still emit the core schema keys
+assert_contains "cat12: output contains stack= key" "stack=" "$grace_output"
+assert_contains "cat12: output contains db_present= key" "db_present=" "$grace_output"
+assert_contains "cat12: output contains files_present= key" "files_present=" "$grace_output"
+assert_contains "cat12: output contains ci_workflow_test_guarded= key" "ci_workflow_test_guarded=" "$grace_output"
+assert_contains "cat12: output contains installed_deps= key" "installed_deps=" "$grace_output"
+
+print_summary
