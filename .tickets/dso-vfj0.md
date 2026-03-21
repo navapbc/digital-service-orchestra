@@ -1,6 +1,6 @@
 ---
 id: dso-vfj0
-status: in_progress
+status: closed
 deps: [dso-smgw, dso-quie]
 links: []
 created: 2026-03-21T08:34:54Z
@@ -91,3 +91,7 @@ CHECKPOINT 1/6: Task context loaded
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done - ticket-fsck.sh implemented, all 8 tests GREEN, dispatcher wired
+
+**2026-03-21T09:05:35Z**
+
+CHECKPOINT 6/6: Done ✓

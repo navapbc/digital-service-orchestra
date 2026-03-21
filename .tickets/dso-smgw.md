@@ -1,6 +1,6 @@
 ---
 id: dso-smgw
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T08:34:07Z
@@ -69,3 +69,7 @@ CHECKPOINT 1/6: Task context loaded
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done - 8 RED tests written, all failing
+
+**2026-03-21T09:05:35Z**
+
+CHECKPOINT 6/6: Done ✓

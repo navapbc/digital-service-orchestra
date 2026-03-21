@@ -1,6 +1,6 @@
 ---
 id: dso-quie
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T08:34:25Z
@@ -51,3 +51,7 @@ CHECKPOINT 1/6: Task context loaded
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done - 4 corrupt-event tests added, all GREEN
+
+**2026-03-21T09:05:35Z**
+
+CHECKPOINT 6/6: Done ✓
