@@ -59,13 +59,6 @@
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
-  "dso-2e99": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
-    "type": "bug"
-  },
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
@@ -76,7 +69,7 @@
   "dso-3e30": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "in_progress",
     "title": "Bug: tk create -d interprets double-dash in description text as option flags",
     "type": "bug"
   },
@@ -207,7 +200,7 @@
   "dso-dsa8": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
     "type": "bug"
   },
@@ -221,7 +214,7 @@
   "dso-eb0e": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
     "type": "bug"
   },
@@ -268,7 +261,7 @@
   "dso-gir2": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
@@ -296,7 +289,7 @@
   "dso-i6dj": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "Bug: /dso:brainstorm created children with truncated titles and descriptions",
     "type": "bug"
   },
@@ -491,7 +484,7 @@
   "dso-tqvy": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
+    "status": "open",
     "title": "fix: worktree-sync-from-main.sh crashes with CFG_PYTHON_VENV unbound variable when config key is absent",
     "type": "bug"
   },
