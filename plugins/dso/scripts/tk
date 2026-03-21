@@ -660,8 +660,51 @@ cmd_dep_tree() {
         return 1
     fi
 
-    awk -v root_pattern="$root_id" -v full_mode="$full_mode" '
-    BEGIN { FS=": "; in_front=0 }
+    awk -v root_pattern="$root_id" -v full_mode="$full_mode" -v tickets_dir="$TICKETS_DIR" '
+    BEGIN {
+        FS=": "; in_front=0
+        # Load tombstone data from archive/tombstones/<id>.json
+        tombstone_dir = tickets_dir "/archive/tombstones"
+        cmd = "ls \"" tombstone_dir "\" 2>/dev/null"
+        while ((cmd | getline fname) > 0) {
+            if (fname !~ /\.json$/) continue
+            # Extract id from filename (strip .json suffix)
+            tid = fname
+            sub(/\.json$/, "", tid)
+            tfile = tombstone_dir "/" fname
+            # Parse required fields from tombstone JSON
+            t_id = ""; t_type = ""; t_final_status = ""
+            while ((getline line < tfile) > 0) {
+                if (line ~ /"id"/) {
+                    val = line
+                    sub(/.*"id"[[:space:]]*:[[:space:]]*"/, "", val)
+                    sub(/".*/, "", val)
+                    t_id = val
+                }
+                if (line ~ /"type"/) {
+                    val = line
+                    sub(/.*"type"[[:space:]]*:[[:space:]]*"/, "", val)
+                    sub(/".*/, "", val)
+                    t_type = val
+                }
+                if (line ~ /"final_status"/) {
+                    val = line
+                    sub(/.*"final_status"[[:space:]]*:[[:space:]]*"/, "", val)
+                    sub(/".*/, "", val)
+                    t_final_status = val
+                }
+            }
+            close(tfile)
+            # Validate: id must match filename stem; require all fields
+            if (t_id != tid || t_id == "" || t_type == "" || t_final_status == "") {
+                print "Warning: tombstone " tfile " invalid or id mismatch — skipping" > "/dev/stderr"
+                continue
+            }
+            tombstone_status[tid] = t_final_status
+            tombstone_type[tid] = t_type
+        }
+        close(cmd)
+    }
     FNR==1 {
         if (prev_file) store()
         id=""; status=""; title=""; deps=""; in_front=0
@@ -800,7 +843,11 @@ cmd_dep_tree() {
 
             if (id in missing) {
                 if (!full_mode && (id in printed)) { continue }
-                print prefix connector id " [missing \342\200\224 treated as satisfied]"
+                if (id in tombstone_status) {
+                    print prefix connector id " [archived: " tombstone_status[id] " (" tombstone_type[id] ")]"
+                } else {
+                    print prefix connector id " [missing \342\200\224 treated as satisfied]"
+                }
                 if (!full_mode) printed[id] = 1
                 continue
             }
