@@ -32,7 +32,7 @@ Note: These tests live in tests/scripts/test-dso-setup.sh alongside the existing
 - [ ] All new test functions FAIL when run against the current dso-setup.sh (RED phase confirmed)
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-setup.sh 2>&1 | grep -q 'FAIL'
 - [ ] No existing passing test functions in test-dso-setup.sh are broken
-  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-setup.sh 2>&1 | grep -c 'PASS' | awk '{exit ($1 < 25)}'
+  Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-dso-setup.sh 2>&1 | awk '/PASSED:/ {exit ($2 < 25)}'
 
 
 
