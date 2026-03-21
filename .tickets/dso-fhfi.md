@@ -1,6 +1,6 @@
 ---
 id: dso-fhfi
-status: open
+status: in_progress
 deps: [dso-wqt4, dso-o1u2]
 links: []
 created: 2026-03-21T16:15:55Z
@@ -100,3 +100,29 @@ The Python test_foo.py convention still works: foo.py normalizes to foopy, test_
 - [ ] test_gate_test_dirs_config passes GREEN
   Verify: bash $(git rev-parse --show-toplevel)/tests/hooks/test-pre-commit-test-gate.sh 2>&1 | grep -q 'PASS:.*test_gate_test_dirs_config'
 
+
+## Notes
+
+**2026-03-21T17:47:58Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T17:48:07Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T17:48:24Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓
+
+**2026-03-21T17:49:41Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T17:49:41Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-21T17:49:59Z**
+
+CHECKPOINT 6/6: Done ✓

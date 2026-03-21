@@ -1,6 +1,6 @@
 ---
 id: dso-o1u2
-status: in_progress
+status: closed
 deps: [dso-wqt4]
 links: []
 created: 2026-03-21T16:15:35Z

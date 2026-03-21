@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 # hooks/pre-commit-test-gate.sh
-# git pre-commit hook: convention-based test gate for staged source files.
+# git pre-commit hook: fuzzy-match-based test gate for staged source files.
 #
 # DESIGN:
 #   This hook runs at git pre-commit time, where staged files are natively
-#   available via `git diff --cached --name-only`. For each staged .py source
-#   file with an associated test (test_<basename>.py in the tests/ directory),
-#   the hook verifies that test-gate-status has been recorded and is valid.
+#   available via `git diff --cached --name-only`. For each staged source file
+#   (any language) with an associated test found via fuzzy matching, the hook
+#   verifies that test-gate-status has been recorded and is valid.
+#
+#   Test association uses alphanum normalization from fuzzy-match.sh:
+#   source "bump-version.sh" normalizes to "bumpversionsh", and test file
+#   "test-bump-version.sh" normalizes to "testbumpversionsh" — since the
+#   normalized source is a substring of the normalized test name, they match.
+#   See plugins/dso/hooks/lib/fuzzy-match.sh for the full algorithm.
 #
 # LOGIC:
 #   1. Get list of staged files from `git diff --cached --name-only`
-#   2. For each staged .py source file (not test files themselves):
-#        a. Look for test_<basename>.py in the tests/ directory tree
+#   2. For each staged source file (not test files per fuzzy_is_test_file):
+#        a. Use fuzzy_find_associated_tests to find matching test files
 #        b. Files with no associated test are exempt (gate passes without blocking)
 #   3. For files with associated tests, check $ARTIFACTS_DIR/test-gate-status:
 #        a. If test-gate-status file is absent -> exit 1 (MISSING)
@@ -43,6 +49,9 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source shared dependency library (provides get_artifacts_dir, hash_stdin, etc.)
 source "$HOOK_DIR/lib/deps.sh"
 
+# Source fuzzy match library (provides fuzzy_find_associated_tests, fuzzy_is_test_file)
+source "$HOOK_DIR/lib/fuzzy-match.sh"
+
 # ── Determine path to compute-diff-hash.sh ───────────────────────────────────
 # Supports COMPUTE_DIFF_HASH_OVERRIDE env var for test injection.
 # REVIEW-DEFENSE: COMPUTE_DIFF_HASH_OVERRIDE is a test-only seam, not a production bypass vector.
@@ -70,35 +79,31 @@ fi
 # ── Determine repo root ────────────────────────────────────────────────────────
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 
-# ── Convention-based test association ─────────────────────────────────────────
-# For each staged .py source file, look for test_<basename>.py in tests/ tree.
+# ── Read test directories from config ─────────────────────────────────────────
+# Supports TEST_GATE_TEST_DIRS_OVERRIDE for testing, falls back to dso-config.conf,
+# then defaults to "tests/"
+if [[ -n "${TEST_GATE_TEST_DIRS_OVERRIDE:-}" ]]; then
+    _TEST_DIRS="$TEST_GATE_TEST_DIRS_OVERRIDE"
+else
+    _TEST_DIRS=$(grep '^test_gate\.test_dirs=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
+    _TEST_DIRS="${_TEST_DIRS:-tests/}"
+fi
+
+# ── Fuzzy-match-based test association ─────────────────────────────────────────
+# For each staged source file (any language), use fuzzy matching to find
+# associated test files in the configured test directories.
 # Returns 0 (true) if any associated test file exists, 1 (false) otherwise.
 _has_associated_test() {
     local src_file="$1"
 
-    # Only check .py files
-    if [[ "$src_file" != *.py ]]; then
+    # Skip test files themselves using shared fuzzy_is_test_file()
+    if fuzzy_is_test_file "$src_file"; then
         return 1
     fi
 
-    # Skip test files themselves (test_*.py should not trigger the gate)
-    local _basename
-    _basename=$(basename "$src_file")
-    if [[ "$_basename" == test_* ]]; then
-        return 1
-    fi
-
-    local _name_no_ext="${_basename%.*}"
-    local _test_pattern="test_${_name_no_ext}"
-
-    # Search the tests/ directory tree for matching test files
-    local _search_root="${REPO_ROOT:-.}"
     local _found
-    _found=$(find "$_search_root/tests" -type f -name "${_test_pattern}.*" 2>/dev/null | head -1 || true)
-    if [[ -n "$_found" ]]; then
-        return 0
-    fi
-    return 1
+    _found=$(fuzzy_find_associated_tests "$src_file" "${REPO_ROOT:-.}" "$_TEST_DIRS" | head -1 || true)
+    [[ -n "$_found" ]]
 }
 
 # ── Get associated test file path for a source file ──────────────────────────
@@ -106,28 +111,11 @@ _has_associated_test() {
 _get_associated_test_path() {
     local src_file="$1"
 
-    # Only check .py files
-    if [[ "$src_file" != *.py ]]; then
+    if fuzzy_is_test_file "$src_file"; then
         return
     fi
 
-    # Skip test files themselves
-    local _basename
-    _basename=$(basename "$src_file")
-    if [[ "$_basename" == test_* ]]; then
-        return
-    fi
-
-    local _name_no_ext="${_basename%.*}"
-    local _test_pattern="test_${_name_no_ext}"
-
-    local _search_root="${REPO_ROOT:-.}"
-    local _found
-    _found=$(find "$_search_root/tests" -type f -name "${_test_pattern}.*" 2>/dev/null | head -1 || true)
-    if [[ -n "$_found" ]]; then
-        # Return path relative to repo root
-        echo "${_found#"$_search_root/"}"
-    fi
+    fuzzy_find_associated_tests "$src_file" "${REPO_ROOT:-.}" "$_TEST_DIRS" | head -1 || true
 }
 
 # ── Check if a test file is exempted ─────────────────────────────────────────
