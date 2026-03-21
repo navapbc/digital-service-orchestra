@@ -85,7 +85,7 @@ _partial_state_file="$TMPDIR_TEST/test-state-partial-$$.json"
 
 cat > "$_stub_dir/test-batched.sh" << STUB
 #!/usr/bin/env bash
-# Stub: simulates test-batched.sh partial completion (exits 0, prints NEXT:)
+# Stub: simulates test-batched.sh partial completion (exits 0, emits ACTION REQUIRED block)
 STATE_FILE="\${TEST_BATCHED_STATE_FILE:-/tmp/test-batched-state.json}"
 python3 -c "
 import json, time, os
@@ -105,7 +105,12 @@ with open('\$STATE_FILE', 'w') as f:
 " 2>/dev/null || true
 echo "0/1 tests completed."
 echo ""
-echo "NEXT: TEST_BATCHED_STATE_FILE=\$STATE_FILE bash \$0 'make test-unit-only'"
+echo "════════════════════════════════════════════════════════════"
+echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
+echo "════════════════════════════════════════════════════════════"
+echo "RUN: TEST_BATCHED_STATE_FILE=\$STATE_FILE bash \$0 'make test-unit-only'"
+echo "DO NOT PROCEED until the command above prints a final summary."
+echo "════════════════════════════════════════════════════════════"
 exit 0
 STUB
 chmod +x "$_stub_dir/test-batched.sh"
@@ -208,5 +213,101 @@ fi
 assert_eq "validate.sh contains PENDING message for partial test runs" "yes" "$HAS_PENDING_MSG"
 
 assert_pass_if_clean "test_validate_test_pending_appears_in_output"
+
+# ============================================================================
+# test_validate_detects_action_required_block
+# validate.sh must detect partial test-batched.sh runs by matching the new
+# Structured Action-Required Block format ("ACTION REQUIRED") rather than the
+# old "NEXT:" plain-text line.
+# ============================================================================
+echo ""
+echo "=== test_validate_detects_action_required_block ==="
+_snapshot_fail
+
+if grep -qE "ACTION.REQUIRED|action.required" "$VALIDATE_SCRIPT" 2>/dev/null; then
+    HAS_ACTION_REQUIRED_GREP="yes"
+else
+    HAS_ACTION_REQUIRED_GREP="no"
+fi
+assert_eq "validate.sh greps for ACTION REQUIRED (updated pattern)" "yes" "$HAS_ACTION_REQUIRED_GREP"
+
+assert_pass_if_clean "test_validate_detects_action_required_block"
+
+# ============================================================================
+# test_validate_emits_action_required_block_on_exit_2
+# When tests are pending (exit 2), validate.sh must emit the Structured
+# Action-Required Block to stdout so agents cannot miss the continuation prompt.
+# ============================================================================
+echo ""
+echo "=== test_validate_emits_action_required_block_on_exit_2 ==="
+_snapshot_fail
+
+# Create stub test-batched.sh that simulates partial completion using the
+# new Structured Action-Required Block format.
+_stub_dir_e2="$TMPDIR_TEST/stubs-e2"
+mkdir -p "$_stub_dir_e2"
+
+_partial_state_file_e2="$TMPDIR_TEST/test-state-e2-$$.json"
+
+cat > "$_stub_dir_e2/test-batched.sh" << STUB
+#!/usr/bin/env bash
+# Stub: simulates partial completion with Structured Action-Required Block
+STATE_FILE="\${TEST_BATCHED_STATE_FILE:-/tmp/test-batched-state.json}"
+python3 -c "
+import json, time, os
+state = {
+    'runner': 'make test-unit-only',
+    'completed': [],
+    'results': {},
+    'command_hash': 'stubhash',
+    'created_at': int(time.time()),
+    'signal_interrupted': True
+}
+d = os.path.dirname(os.path.abspath('\$STATE_FILE'))
+if d:
+    os.makedirs(d, exist_ok=True)
+with open('\$STATE_FILE', 'w') as f:
+    json.dump(state, f)
+" 2>/dev/null || true
+echo "0/1 tests completed."
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
+echo "════════════════════════════════════════════════════════════"
+echo "RUN: TEST_BATCHED_STATE_FILE=\$STATE_FILE bash \$0 'make test-unit-only'"
+echo "DO NOT PROCEED until the command above prints a final summary."
+echo "════════════════════════════════════════════════════════════"
+exit 0
+STUB
+chmod +x "$_stub_dir_e2/test-batched.sh"
+
+_stub_config_e2="$TMPDIR_TEST/stub-config-e2.conf"
+cat > "$_stub_config_e2" << 'CONF'
+commands.syntax_check=true
+commands.format_check=true
+commands.lint_ruff=true
+commands.lint_mypy=true
+commands.test_unit=make test-unit-only
+CONF
+
+rc_e2=0
+output_e2=""
+output_e2=$(
+    VALIDATE_TEST_STATE_FILE="$_partial_state_file_e2" \
+    VALIDATE_TEST_BATCHED_SCRIPT="$_stub_dir_e2/test-batched.sh" \
+    CONFIG_FILE="$_stub_config_e2" \
+    bash "$VALIDATE_SCRIPT" \
+    2>&1
+) || rc_e2=$?
+
+# validate.sh must exit 2 when tests are pending
+assert_eq "test_validate_emits_action_required_block_on_exit_2: exits 2" "2" "$rc_e2"
+
+# validate.sh stdout must contain "ACTION REQUIRED"
+e2_has_action=0
+echo "$output_e2" | grep -q "ACTION REQUIRED" && e2_has_action=1
+assert_eq "test_validate_emits_action_required_block_on_exit_2: output contains 'ACTION REQUIRED'" "1" "$e2_has_action"
+
+assert_pass_if_clean "test_validate_emits_action_required_block_on_exit_2"
 
 print_summary

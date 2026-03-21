@@ -134,13 +134,20 @@ _pytest_runner_run() {
             echo "WARNING: Could not write state file: $STATE_FILE" >&2
         }
         local done_count=${#COMPLETED_LIST[@]}
-        echo ""
-        echo "$done_count/$TOTAL tests completed."
         local resume_runner_arg="--runner=pytest"
         local resume_dir_arg="--test-dir=${TEST_DIR}"
         local resume_timeout_arg=""
         [ "$TIMEOUT" -ne "$DEFAULT_TIMEOUT" ] && resume_timeout_arg="--timeout=$TIMEOUT "
-        echo "NEXT: TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${resume_runner_arg} ${resume_dir_arg} ${resume_timeout_arg}${CMD:+"'$CMD'"}"
+        local resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 ${resume_runner_arg} ${resume_dir_arg} ${resume_timeout_arg}${CMD:+"'$CMD'"}"
+        echo ""
+        echo "$done_count/$TOTAL tests completed."
+        echo ""
+        echo "════════════════════════════════════════════════════════════"
+        echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
+        echo "════════════════════════════════════════════════════════════"
+        echo "RUN: $resume_cmd"
+        echo "DO NOT PROCEED until the command above prints a final summary."
+        echo "════════════════════════════════════════════════════════════"
         exit 0
     }
 

@@ -60,7 +60,7 @@ assert_pass_if_clean "test_missing_args_exits_nonzero"
 
 # ── test_stops_after_timeout_and_outputs_resume_command ──────────────────────
 # Use --timeout=1 with a command that sleeps 10s; script should stop early and
-# print a NEXT: <resume command> line.
+# emit the Structured Action-Required Block (ACTION REQUIRED / RUN: / DO NOT PROCEED).
 echo ""
 echo "--- test_stops_after_timeout_and_outputs_resume_command ---"
 _snapshot_fail
@@ -69,7 +69,7 @@ TIMEOUT_STATE="$TMPDIR_TIMEOUT/test-batched-state.json"
 timeout_out=""
 timeout_out=$(TEST_BATCHED_STATE_FILE="$TIMEOUT_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null) || true
 rm -rf "$TMPDIR_TIMEOUT"
-assert_contains "test_stops_after_timeout_and_outputs_resume_command: output contains NEXT:" "NEXT:" "$timeout_out"
+assert_contains "test_stops_after_timeout_and_outputs_resume_command: output contains ACTION REQUIRED" "ACTION REQUIRED" "$timeout_out"
 assert_pass_if_clean "test_stops_after_timeout_and_outputs_resume_command"
 
 # ── test_resume_from_state_file ───────────────────────────────────────────────
@@ -503,9 +503,9 @@ JSEOF
     int_node_first_out=$(TEST_BATCHED_STATE_FILE="$INT_NODE_STATE" \
         bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=1 2>&1) || true
 
-    # Verify the first run emitted a NEXT: resume command
+    # Verify the first run emitted the Structured Action-Required Block
     assert_contains "test_interrupted_node_test_exits_nonzero: first run emits NEXT:" \
-        "NEXT:" "$int_node_first_out"
+        "ACTION REQUIRED" "$int_node_first_out"
 
     # Verify state file contains "interrupted" result
     int_has_interrupted=0
@@ -553,9 +553,9 @@ int_gen_first_out=""
 int_gen_first_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
     bash "$SCRIPT" --timeout=1 "sleep 30" 2>&1) || true
 
-# Verify first run emits NEXT:
+# Verify first run emits Structured Action-Required Block
 assert_contains "test_interrupted_generic_test_resume_exits_nonzero: first run emits NEXT:" \
-    "NEXT:" "$int_gen_first_out"
+    "ACTION REQUIRED" "$int_gen_first_out"
 
 # Verify state file contains "interrupted"
 int_gen_has_interrupted=0
@@ -822,6 +822,45 @@ rm -rf "$TMPDIR_MKTEMP"
 assert_eq "test_mktemp_randomizes_exit_code_filename: no literal XXXXXX.txt file created" \
     "0" "$literal_file_exists"
 assert_pass_if_clean "test_mktemp_randomizes_exit_code_filename"
+
+# ── test_structured_action_required_block_on_timeout ─────────────────────────
+# When tests are incomplete (time budget exhausted), test-batched.sh must emit
+# the Structured Action-Required Block instead of a plain "NEXT:" line.
+# The block must contain "ACTION REQUIRED" so agents cannot miss it.
+echo ""
+echo "--- test_structured_action_required_block_on_timeout ---"
+_snapshot_fail
+TMPDIR_SARB="$(mktemp -d)"
+SARB_STATE="$TMPDIR_SARB/test-batched-state.json"
+sarb_out=""
+sarb_out=$(TEST_BATCHED_STATE_FILE="$SARB_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null) || true
+rm -rf "$TMPDIR_SARB"
+sarb_has_action=0
+echo "$sarb_out" | grep -q "ACTION REQUIRED" && sarb_has_action=1
+assert_eq "test_structured_action_required_block_on_timeout: output contains 'ACTION REQUIRED'" "1" "$sarb_has_action"
+sarb_has_run=0
+echo "$sarb_out" | grep -q "^RUN:" && sarb_has_run=1
+assert_eq "test_structured_action_required_block_on_timeout: output contains 'RUN:' line" "1" "$sarb_has_run"
+sarb_has_dnp=0
+echo "$sarb_out" | grep -q "DO NOT PROCEED" && sarb_has_dnp=1
+assert_eq "test_structured_action_required_block_on_timeout: output contains 'DO NOT PROCEED'" "1" "$sarb_has_dnp"
+assert_pass_if_clean "test_structured_action_required_block_on_timeout"
+
+# ── test_structured_action_required_block_run_line_contains_command ───────────
+# The RUN: line in the Structured Action-Required Block must contain the resume
+# command so the agent knows exactly what to run next.
+echo ""
+echo "--- test_structured_action_required_block_run_line_contains_command ---"
+_snapshot_fail
+TMPDIR_RUNCMD="$(mktemp -d)"
+RUNCMD_STATE="$TMPDIR_RUNCMD/test-batched-state.json"
+runcmd_out=""
+runcmd_out=$(TEST_BATCHED_STATE_FILE="$RUNCMD_STATE" bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null) || true
+rm -rf "$TMPDIR_RUNCMD"
+runcmd_has_state=0
+echo "$runcmd_out" | grep "^RUN:" | grep -q "TEST_BATCHED_STATE_FILE" && runcmd_has_state=1
+assert_eq "test_structured_action_required_block_run_line_contains_command: RUN: line contains resume command" "1" "$runcmd_has_state"
+assert_pass_if_clean "test_structured_action_required_block_run_line_contains_command"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

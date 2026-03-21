@@ -73,7 +73,7 @@ set -uo pipefail
 #     VALIDATE_TEST_BATCHED_SCRIPT - Path to test-batched.sh (default: adjacent to validate.sh)
 #                                    Override in tests to inject a stub.
 #
-#   When tests are pending (NEXT: printed by test-batched.sh), validate.sh exits 2:
+#   When tests are pending (Structured Action-Required Block printed by test-batched.sh), validate.sh exits 2:
 #     Exit 0: all checks passed
 #     Exit 1: one or more checks failed
 #     Exit 2: tests are pending (run validate.sh again to resume)
@@ -150,7 +150,7 @@ export VERBOSE
 CI_PASSED=0  # Set to 1 when CI check passes (used for E2E skip logic)
 E2E_RAN=0    # Set to 1 when E2E tests are actually executed
 E2E_FAILED=0 # Set to 1 when E2E tests fail
-TESTS_PENDING=0  # Set to 1 when test-batched.sh reports partial run (NEXT: in output)
+TESTS_PENDING=0  # Set to 1 when test-batched.sh reports partial run (ACTION REQUIRED block in output)
 
 # ── Test-batched.sh integration ───────────────────────────────────────────────
 # Path to test-batched.sh (adjacent to validate.sh by default).
@@ -517,7 +517,7 @@ PYEOF
 # Checks state file first (reuse pass from previous invocation).
 # If tests already passed: writes rc=0 immediately (skips re-running).
 # If not: runs test-batched.sh with --timeout=45 (within Claude tool ceiling).
-# If test-batched.sh outputs "NEXT:": writes rc=42 (pending, needs another run).
+# If test-batched.sh outputs the Structured Action-Required Block: writes rc=42 (pending, needs another run).
 run_test_check() {
     local name="tests" timeout="$TIMEOUT_TESTS" test_cmd="$CMD_TEST_UNIT"
     [ "$VERBOSE" = "1" ] && verbose_print "$name" "running"
@@ -532,7 +532,7 @@ run_test_check() {
 
     # ── Run tests via test-batched.sh ─────────────────────────────────────────
     # Use a 45s budget (well within the ~73s Claude tool timeout ceiling).
-    # test-batched.sh saves state and prints "NEXT:" when the budget is exhausted,
+    # test-batched.sh saves state and emits the Structured Action-Required Block when the budget is exhausted,
     # allowing validate.sh to be re-invoked to continue where tests left off.
     local batched_timeout=45
     local batched_script="$VALIDATE_TEST_BATCHED_SCRIPT"
@@ -549,9 +549,10 @@ run_test_check() {
             > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
         echo "$rc" > "$CHECK_DIR/${name}.rc"
 
-        # Detect partial run: test-batched.sh prints "NEXT:" when time budget exhausted.
+        # Detect partial run: test-batched.sh emits the Structured Action-Required Block
+        # when the time budget is exhausted (contains "ACTION REQUIRED").
         # In this case it exits 0, but tests are not done — mark as pending (rc=42).
-        if [ "$rc" = "0" ] && grep -q "^NEXT:" "$CHECK_DIR/${name}.log" 2>/dev/null; then
+        if [ "$rc" = "0" ] && grep -qE "ACTION REQUIRED|action required" "$CHECK_DIR/${name}.log" 2>/dev/null; then
             echo "42" > "$CHECK_DIR/${name}.rc"
             [ "$VERBOSE" = "1" ] && verbose_print "$name" "PENDING (run validate.sh again to continue)"
             return 0
@@ -864,7 +865,7 @@ report_check() {
     if [ "$rc" = "0" ]; then
         printf "  %-8s PASS\n" "${label}:"
     elif [ "$rc" = "42" ] && [ "$name" = "tests" ]; then
-        # rc=42: test-batched.sh reported partial progress (NEXT: in output).
+        # rc=42: test-batched.sh reported partial progress (ACTION REQUIRED block in output).
         # Tests are not done yet — the orchestrator must run validate.sh again.
         printf "  %-8s PENDING (run validate.sh again to continue)\n" "${label}:"
         TESTS_PENDING=1
@@ -1161,7 +1162,13 @@ e2e_ran=true"
 elif [ $TESTS_PENDING -eq 1 ] && [ $FAILED -eq 0 ]; then
     # Tests are still running (time-bounded by test-batched.sh) — all other checks passed.
     # Exit 2 signals "pending": the orchestrator should run validate.sh again to resume.
-    echo "Tests in progress. Run validate.sh again to continue (state: $VALIDATE_TEST_STATE_FILE)"
+    echo ""
+    echo "════════════════════════════════════════════════════════════"
+    echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
+    echo "════════════════════════════════════════════════════════════"
+    echo "RUN: bash $0 $*"
+    echo "DO NOT PROCEED until the command above prints a final summary."
+    echo "════════════════════════════════════════════════════════════"
     _state_content="pending
 timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 test_state_file=$VALIDATE_TEST_STATE_FILE"

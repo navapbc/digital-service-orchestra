@@ -270,7 +270,16 @@ bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
   ```bash
   bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/test-batched.sh" --timeout=50 "bash tests/hooks/test-<name>.sh"
   ```
-  Run the `NEXT:` command printed by `test-batched.sh` in subsequent calls until the summary appears, then re-run Step 3.5.
+  When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
+  ```
+  ════════════════════════════════════════════════════════════
+    ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠
+  ════════════════════════════════════════════════════════════
+  RUN: TEST_BATCHED_STATE_FILE=... bash .../test-batched.sh ...
+  DO NOT PROCEED until the command above prints a final summary.
+  ════════════════════════════════════════════════════════════
+  ```
+  Run the command shown on the `RUN:` line in subsequent calls until the summary appears, then re-run Step 3.5.
 - **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1**.
 
 ```bash

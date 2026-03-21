@@ -544,12 +544,26 @@
     "title": "Fix: assert pending state file content in test_validate_exits_2_on_partial_tests integration test",
     "type": "bug"
   },
+  "dso-wyqo": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: contradictory comment in pre-bash-functions.sh regex line",
+    "type": "bug"
+  },
   "dso-x1jt": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
+  },
+  "dso-xhhv": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: unquoted $* in validate.sh RUN: line produces incorrect resume command with space-containing args",
+    "type": "bug"
   },
   "dso-zj3r": {
     "deps": [],

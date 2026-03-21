@@ -3,7 +3,7 @@ set -uo pipefail
 # scripts/test-batched.sh — Time-bounded test batching harness
 #
 # Runs a test command in a time-bounded loop, saving progress to a state file.
-# When the time limit is reached, prints a NEXT: resume command and exits.
+# When the time limit is reached, emits the Structured Action-Required Block and exits.
 # When all tests complete, prints a summary and cleans up the state file.
 #
 # Usage:
@@ -34,7 +34,7 @@ set -uo pipefail
 # For the node runner, <command> is optional (used as fallback command).
 #
 # Output format:
-#   Between batches: progress line + "NEXT: <resume command>"
+#   Between batches: progress line + Structured Action-Required Block (ACTION REQUIRED / RUN: / DO NOT PROCEED)
 #   On completion:   "N/M tests completed. N passed, N failed." + failure details
 #
 # State file schema (JSON):
@@ -50,7 +50,7 @@ set -uo pipefail
 # Examples:
 #   test-batched.sh "make test-unit-only"
 #   test-batched.sh --timeout=30 "bash run-tests.sh"
-#   test-batched.sh --timeout=1 "sleep 10"   # stops early; prints NEXT:
+#   test-batched.sh --timeout=1 "sleep 10"   # stops early; emits ACTION REQUIRED block
 #   test-batched.sh --runner=node --test-dir=./src
 #   test-batched.sh --runner=node --test-dir=./tests --timeout=30
 #   test-batched.sh --runner=pytest --test-dir=./tests
@@ -424,9 +424,16 @@ _save_state_and_resume() {
         echo "WARNING: Could not write state file: $STATE_FILE" >&2
     }
     local done_count=${#COMPLETED_LIST[@]}
+    local resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 $([ "$TIMEOUT" -ne "$DEFAULT_TIMEOUT" ] && echo "--timeout=$TIMEOUT ") '$CMD'"
     echo ""
     echo "$done_count/$TOTAL tests completed."
-    echo "NEXT: TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 $([ "$TIMEOUT" -ne "$DEFAULT_TIMEOUT" ] && echo "--timeout=$TIMEOUT ") '$CMD'"
+    echo ""
+    echo "════════════════════════════════════════════════════════════"
+    echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
+    echo "════════════════════════════════════════════════════════════"
+    echo "RUN: $resume_cmd"
+    echo "DO NOT PROCEED until the command above prints a final summary."
+    echo "════════════════════════════════════════════════════════════"
     exit 0
 }
 
