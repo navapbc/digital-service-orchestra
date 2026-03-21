@@ -5442,6 +5442,136 @@ for tk_id, entry in data.items():
     fi
 }
 
+# ---------------------------------------------------------------------------
+# _sync_events_release_flock: release the write lock by closing fd 9.
+# Called explicitly after merge (Phase 4) and as an ERR trap.
+# ---------------------------------------------------------------------------
+_sync_events_release_flock() {
+    exec 9>&- 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
+# _sync_events_acquire_and_merge: acquire .ticket-write.lock (fd 9) and run
+# a bounded local merge while holding the lock.
+# Caller must set $tracker_dir in scope before calling.
+# Returns 0 on success; 1 on lock exhaustion or merge failure.
+# ---------------------------------------------------------------------------
+_sync_events_acquire_and_merge() {
+    local _sam_lock_file="$tracker_dir/.ticket-write.lock"
+    local _sam_flock_timeout=30
+    local _sam_max_retries=2
+    local _sam_attempt=0
+    local _sam_lock_acquired=0
+    while [[ "$_sam_attempt" -lt "$_sam_max_retries" ]]; do
+        _sam_attempt=$(( _sam_attempt + 1 ))
+        exec 9>"$_sam_lock_file"
+        python3 -c "
+import fcntl, sys, time
+fd = int(sys.argv[1])
+timeout = int(sys.argv[2])
+deadline = time.monotonic() + timeout
+while time.monotonic() < deadline:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        sys.exit(0)
+    except (IOError, OSError):
+        time.sleep(0.1)
+sys.exit(1)
+" 9 "$_sam_flock_timeout" && _sam_lock_acquired=1 && break
+        exec 9>&- 2>/dev/null || true
+    done
+    if [[ "$_sam_lock_acquired" -eq 0 ]]; then
+        echo "error: flock: could not acquire lock after $(( _sam_flock_timeout * _sam_max_retries ))s" >&2
+        return 1
+    fi
+    timeout 10 git -C "$tracker_dir" merge --ff-only origin/tickets 2>/dev/null ||
+        timeout 10 git -C "$tracker_dir" merge origin/tickets 2>&1 ||
+        { exec 9>&- 2>/dev/null || true; return 1; }
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# _sync_events: split-phase git sync for the tickets branch.
+# Phase 1 — fetch (no flock held)
+# Phase 2 — acquire flock (.ticket-write.lock, python3 fcntl.flock)
+# Phase 3 — local merge while holding flock (bounded to <10s)
+# Phase 4 — release flock (explicit, before push)
+# Phase 5 — push with retry on non-fast-forward (exit 128)
+# ---------------------------------------------------------------------------
+_sync_events() {
+    local tracker_dir
+    tracker_dir="$(git rev-parse --show-toplevel 2>/dev/null)/.tickets-tracker"
+
+    if [[ ! -d "$tracker_dir" ]]; then
+        echo "error: ticket tracker not initialized (.tickets-tracker/ not found)" >&2
+        return 1
+    fi
+
+    # Phase 1 — Fetch (no write-lock held during network I/O)
+    timeout 30 git -C "$tracker_dir" fetch origin tickets 2>&1 || return 1
+
+    # Phase 2-3 — Acquire write lock and run local merge (delegates to helper to
+    # avoid duplicating flock logic and to prevent clobbering caller ERR traps)
+    _sync_events_acquire_and_merge || return 1
+
+    # Phase 4 — Release flock (explicit, before push begins)
+    exec 9>&-
+
+    # Phase 5 — Push with retry on non-fast-forward (exit 128)
+    local push_attempts=0
+    local push_max=3
+    local push_exit=0
+    while [[ "$push_attempts" -lt "$push_max" ]]; do
+        push_attempts=$(( push_attempts + 1 ))
+        push_exit=0
+        timeout 30 git -C "$tracker_dir" push origin tickets 2>&1 || push_exit=$?
+        if [[ "$push_exit" -eq 0 ]]; then break; fi
+        if [[ "$push_exit" -eq 128 ]]; then
+            # Non-fast-forward: re-fetch and retry full acquire+merge cycle
+            timeout 30 git -C "$tracker_dir" fetch origin tickets 2>/dev/null || true
+            _sync_events_acquire_and_merge || return 1
+            exec 9>&- 2>/dev/null || true
+            continue
+        fi
+        return "$push_exit"
+    done
+    return 0
+}
+
+cmd_sync_events() {
+    # Handle --help
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            echo "Usage: tk sync-events"
+            echo ""
+            echo "Sync the tickets branch with remote using a split-phase protocol:"
+            echo "  Phase 1: fetch (no lock held during network I/O)"
+            echo "  Phase 2: acquire write lock (fcntl.flock, 30s timeout, 2 retries)"
+            echo "  Phase 3: local merge while holding lock (<10s budget)"
+            echo "  Phase 4: release lock before push"
+            echo "  Phase 5: push with retry on non-fast-forward (exit 128)"
+            return 0
+        fi
+    done
+
+    local repo_root
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+    local tracker_dir="$repo_root/.tickets-tracker"
+
+    if [[ ! -d "$tracker_dir" ]]; then
+        echo "error: ticket tracker not initialized (.tickets-tracker/ not found)" >&2
+        return 1
+    fi
+
+    # Validate origin remote is configured before fetching
+    if ! git -C "$tracker_dir" remote show origin &>/dev/null; then
+        echo "error: origin remote not configured in $tracker_dir" >&2
+        return 1
+    fi
+
+    _sync_events
+}
+
 cmd_help() {
     local cmd
     cmd=$(basename "$0")
@@ -5564,6 +5694,7 @@ fi
 case "${1:-help}" in
     help|--help|-h) ;;
     sync) ;;
+    sync-events) ;;
     backfill-jira-keys) ;;
     *) init_tickets_dir "${1:-}" || exit 1 ;;
 esac
@@ -5599,6 +5730,7 @@ case "${1:-help}" in
     add-note) shift; cmd_add_note "$@" ;;
     enumerate-notes) shift; cmd_enumerate_notes "$@" ;;
     sync)    shift; cmd_sync "$@" ;;
+    sync-events) shift; cmd_sync_events "$@" ;;
     backfill-jira-keys) shift; cmd_backfill_jira_keys "$@" ;;
     index-rebuild) shift; cmd_index_rebuild "$@" ;;
     help|--help|-h) cmd_help ;;

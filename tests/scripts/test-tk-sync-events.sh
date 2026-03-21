@@ -37,6 +37,10 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-tk-sync-events.sh ==="
 
+# Extract the body of _sync_events_acquire_and_merge for structural checks that
+# apply to the refactored helper (flock, merge, trap logic lives there).
+_sam_body=$(awk '/_sync_events_acquire_and_merge\(\)/{found=1} found{print; if(/^\}$/) exit}' "$TK_SCRIPT" 2>/dev/null || true)
+
 # ── test_sync_events_cmd_exists_in_tk ────────────────────────────────────────
 # 'tk sync-events --help' must output usage text (not "Unknown command: sync-events").
 # RED: fails because sync-events is not registered in tk's command dispatcher.
@@ -84,15 +88,16 @@ assert_eq "test_sync_events_fetch_no_flock: fetch precedes flock in _sync_events
 assert_pass_if_clean "test_sync_events_fetch_no_flock"
 
 # ── test_sync_events_flock_held_during_merge ─────────────────────────────────
-# The _sync_events function must hold flock during the git merge phase.
-# Static analysis: a 'flock' call must appear before the 'git merge' call
-# within _sync_events, and the merge must be inside the locked region.
-# RED: fails because _sync_events does not exist.
+# The split-phase sync must hold flock during the git merge phase.
+# After the refactor, flock acquisition and merge live in the
+# _sync_events_acquire_and_merge helper called by _sync_events.
+# Static analysis: check the helper body for flock before merge.
+# RED: fails because _sync_events_acquire_and_merge does not exist.
 _snapshot_fail
 _has_flock_before_merge=0
-if [[ -n "$_sync_events_body" ]]; then
-    _flock_first=$(echo "$_sync_events_body" | grep -n 'flock' | head -1 | cut -d: -f1)
-    _merge_line=$(echo "$_sync_events_body" | grep -n 'git.*merge\|merge.*git' | head -1 | cut -d: -f1)
+if [[ -n "$_sam_body" ]]; then
+    _flock_first=$(echo "$_sam_body" | grep -n 'flock' | head -1 | cut -d: -f1)
+    _merge_line=$(echo "$_sam_body" | grep -n 'git.*merge\|merge.*git' | head -1 | cut -d: -f1)
     : "${_flock_first:=0}"
     : "${_merge_line:=0}"
     if [[ "$_flock_first" -gt 0 && "$_merge_line" -gt 0 && "$_flock_first" -lt "$_merge_line" ]]; then
@@ -103,23 +108,25 @@ assert_eq "test_sync_events_flock_held_during_merge: flock precedes merge in _sy
 assert_pass_if_clean "test_sync_events_flock_held_during_merge"
 
 # ── test_sync_events_flock_released_after_merge ──────────────────────────────
-# After git merge completes and before push begins, the flock must be released.
-# Static analysis: there must be a flock release (flock -u or closing the fd or
-# exec closing the lock fd) between the merge call and the git push call in
-# _sync_events body.
+# After the acquire-and-merge phase completes and before push begins, the flock
+# must be released. After the refactor, _sync_events calls the helper then
+# releases fd 9 explicitly (Phase 4) before the push (Phase 5).
+# Static analysis: look for _sync_events_acquire_and_merge call, then an
+# exec-close, then a git push — all within _sync_events body.
 # RED: fails because _sync_events does not exist.
 _snapshot_fail
 _flock_released_before_push=0
 if [[ -n "$_sync_events_body" ]]; then
     # Capture line numbers for key operations
-    _merge_ln=$(echo "$_sync_events_body" | grep -n 'git.*merge\|merge.*git' | head -1 | cut -d: -f1)
+    # "merge phase" is represented by the call to the helper
+    _merge_ln=$(echo "$_sync_events_body" | grep -n '_sync_events_acquire_and_merge\|git.*merge\|merge.*git' | head -1 | cut -d: -f1)
     _push_ln=$(echo "$_sync_events_body" | grep -n 'git.*push\|push.*git' | head -1 | cut -d: -f1)
     # flock release: closing the fd (exec N>&-), flock -u, or exec closing a numbered fd
     _release_ln=$(echo "$_sync_events_body" | grep -nE 'exec [0-9]+>&-|flock -u|_flock_release|unlock' | head -1 | cut -d: -f1)
     : "${_merge_ln:=0}"
     : "${_push_ln:=0}"
     : "${_release_ln:=0}"
-    # release must appear after merge and before push
+    # release must appear after merge/helper call and before push
     if [[ "$_release_ln" -gt 0 && "$_merge_ln" -gt 0 && "$_push_ln" -gt 0 ]]; then
         if [[ "$_release_ln" -gt "$_merge_ln" && "$_release_ln" -lt "$_push_ln" ]]; then
             _flock_released_before_push=1
@@ -131,14 +138,18 @@ assert_pass_if_clean "test_sync_events_flock_released_after_merge"
 
 # ── test_sync_events_flock_released_on_merge_failure ─────────────────────────
 # Even when git merge fails, the flock must be released (trap or explicit cleanup).
-# Static analysis: _sync_events must contain a trap handler that performs flock
-# release, ensuring the lock is freed on the error path.
-# RED: fails because _sync_events does not exist.
+# After the refactor, the error path lives in _sync_events_acquire_and_merge,
+# which uses explicit cleanup (exec 9>&-) on the failure branch.
+# Static analysis: the helper must contain a flock release on its error path
+# (trap handler or explicit exec-close in a failure branch).
+# RED: fails because _sync_events_acquire_and_merge does not exist.
 _snapshot_fail
 _has_trap_for_flock_release=0
-if [[ -n "$_sync_events_body" ]]; then
-    # trap must reference something that closes the lock fd or releases flock
-    if echo "$_sync_events_body" | grep -qE "trap.*exec [0-9]+>&-|trap.*flock|trap.*_flock|trap.*unlock|trap.*release"; then
+if [[ -n "$_sam_body" ]]; then
+    # Accept: trap referencing flock/fd-close, OR explicit exec N>&- on error path
+    if echo "$_sam_body" | grep -qE "trap.*exec [0-9]+>&-|trap.*flock|trap.*_flock|trap.*unlock|trap.*release"; then
+        _has_trap_for_flock_release=1
+    elif echo "$_sam_body" | grep -qE 'exec [0-9]+>&-.*return 1|\|\|.*exec [0-9]+>&-'; then
         _has_trap_for_flock_release=1
     fi
 fi
@@ -192,15 +203,16 @@ assert_eq "test_sync_events_push_timeout_30s: push uses timeout 30 git" "1" "$_p
 assert_pass_if_clean "test_sync_events_push_timeout_30s"
 
 # ── test_sync_events_merge_timeout_10s ───────────────────────────────────────
-# The merge invocation in _sync_events must use 'timeout 10 git merge' to bound
-# the local merge operation to 10 seconds (local ops are fast; short timeout
-# ensures flock isn't held longer than necessary).
-# Static analysis: grep tk source for 'timeout 10 git merge' within _sync_events.
-# RED: fails because _sync_events does not exist.
+# The merge invocation must use 'timeout 10 git merge' to bound the local merge
+# operation to 10 seconds (local ops are fast; short timeout ensures flock isn't
+# held longer than necessary).
+# After the refactor, the merge lives in _sync_events_acquire_and_merge.
+# Static analysis: grep the helper body for 'timeout 10 git merge'.
+# RED: fails because _sync_events_acquire_and_merge does not exist.
 _snapshot_fail
 _merge_has_timeout10=0
-if [[ -n "$_sync_events_body" ]]; then
-    if echo "$_sync_events_body" | grep -qE 'timeout 10 git.*merge|timeout 10.*git merge'; then
+if [[ -n "$_sam_body" ]]; then
+    if echo "$_sam_body" | grep -qE 'timeout 10 git.*merge|timeout 10.*git merge'; then
         _merge_has_timeout10=1
     fi
 fi
@@ -219,9 +231,12 @@ assert_pass_if_clean "test_sync_events_merge_timeout_10s"
 # immediately with "Unknown command", but we check for function presence first).
 _snapshot_fail
 
-# Check if _sync_events is registered as a tk command at all
+# Check if _sync_events is registered as a tk command at all.
+# Capture output first to avoid SIGPIPE / pipefail false-negative when grep -q
+# closes the pipe before the producer finishes writing.
 _sync_events_cmd_registered=0
-if bash "$TK_SCRIPT" sync-events --help 2>&1 | grep -qiE 'sync.events|usage'; then
+_help_output=$(bash "$TK_SCRIPT" sync-events --help 2>&1 || true)
+if echo "$_help_output" | grep -qiE 'sync.events|usage'; then
     _sync_events_cmd_registered=1
 fi
 # If not registered, the time budget test cannot run — fail explicitly

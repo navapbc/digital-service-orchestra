@@ -32,6 +32,82 @@ class ReducerStrategy(Protocol):
         ...
 
 
+class MostStatusEventsWinsStrategy:
+    """Conflict resolution strategy: env with most net STATUS transitions wins.
+
+    "Net transition" = a STATUS event that moves to a status not previously seen
+    in that env's history.  Reverts (returning to a prior status) do not count.
+
+    Tie-breaking: when two envs have equal net transition counts, the env whose
+    final STATUS event has the latest timestamp wins.
+
+    The bridge env (if provided via ``bridge_env_id``) is excluded from the
+    net-transition count and from winner selection.
+
+    resolve() returns all events with STATUS events from losing envs removed,
+    sorted ascending by timestamp.  This lets callers find the authoritative
+    final status by reading the last STATUS event in the returned list.
+    """
+
+    def __init__(self, bridge_env_id: str | None = None) -> None:
+        self.bridge_env_id = bridge_env_id
+
+    def resolve(self, events: list[dict]) -> list[dict]:
+        """Return events with only the winning env's STATUS events, sorted by timestamp."""
+        # --- Step 1: gather STATUS events grouped by env_id ---
+        # env_id → list of STATUS events in input order
+        status_by_env: dict[str, list[dict]] = {}
+        for event in events:
+            if event.get("event_type") == "STATUS":
+                env_id = event.get("env_id", "")
+                status_by_env.setdefault(env_id, []).append(event)
+
+        # --- Step 2: compute net transitions per env (excluding bridge) ---
+        # net transition = move to a status not previously seen in this env's history
+        def _net_transitions(status_events: list[dict]) -> int:
+            seen_statuses: set[str] = set()
+            # implicit starting status is "open"
+            seen_statuses.add("open")
+            count = 0
+            for ev in status_events:
+                target = ev.get("data", {}).get("status", "")
+                if target and target not in seen_statuses:
+                    seen_statuses.add(target)
+                    count += 1
+            return count
+
+        # Only consider non-bridge envs for winner selection
+        candidate_envs = [
+            env_id for env_id in status_by_env if env_id != self.bridge_env_id
+        ]
+
+        if not candidate_envs:
+            # No candidates (e.g. only bridge env has STATUS events, or no STATUS events)
+            return sorted(events, key=lambda e: e.get("timestamp", 0))
+
+        # --- Step 3: select winner ---
+        def _sort_key(env_id: str) -> tuple[int, int]:
+            evs = status_by_env[env_id]
+            net = _net_transitions(evs)
+            latest_ts = max(e.get("timestamp", 0) for e in evs)
+            return (net, latest_ts)
+
+        winner_env_id = max(candidate_envs, key=_sort_key)
+
+        # --- Step 4: build result — drop STATUS events from losing envs ---
+        losing_env_ids = set(status_by_env.keys()) - {winner_env_id}
+        result: list[dict] = []
+        for event in events:
+            if (
+                event.get("event_type") == "STATUS"
+                and event.get("env_id") in losing_env_ids
+            ):
+                continue
+            result.append(event)
+
+        return sorted(result, key=lambda e: e.get("timestamp", 0))
+
+
 class LastTimestampWinsStrategy:
     """Default strategy: dedup by UUID (first occurrence wins), sort by timestamp.
 

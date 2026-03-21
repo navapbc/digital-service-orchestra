@@ -1,6 +1,6 @@
 ---
 id: dso-dr38
-status: in_progress
+status: closed
 deps: [dso-zej9]
 links: []
 created: 2026-03-21T16:09:11Z

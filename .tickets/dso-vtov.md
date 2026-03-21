@@ -1,6 +1,6 @@
 ---
 id: dso-vtov
-status: in_progress
+status: closed
 deps: [dso-c362]
 links: []
 created: 2026-03-21T16:32:17Z

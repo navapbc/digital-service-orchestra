@@ -1,6 +1,6 @@
 ---
 id: dso-280g
-status: in_progress
+status: closed
 deps: [dso-hzwm]
 links: []
 created: 2026-03-21T16:10:36Z

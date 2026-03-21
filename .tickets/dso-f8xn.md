@@ -1,6 +1,6 @@
 ---
 id: dso-f8xn
-status: in_progress
+status: closed
 deps: [dso-3npm, dso-2xo3]
 links: []
 created: 2026-03-21T16:19:43Z
