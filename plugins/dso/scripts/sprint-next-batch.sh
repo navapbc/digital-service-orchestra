@@ -315,9 +315,22 @@ def extract_files(text):
     """
     Extract candidate file paths from a task description.
     Returns a set of normalised path strings.
+
+    Lines beginning with acceptance-criteria markers (e.g. "AC Verify:") are
+    shell commands used to validate the work, not files that will be modified.
+    They are stripped before extraction to prevent false-positive batch
+    conflicts when multiple tickets reference the same validation command
+    (e.g. "AC Verify: bash scripts/validate.sh --ci").
     """
     if not text:
         return set()
+
+    # Strip acceptance-criteria lines: they contain shell commands, not file paths
+    AC_LINE_RE = re.compile(r'^\s*AC\s+\w[\w\s]*:', re.IGNORECASE)
+    text = "\n".join(
+        line for line in text.splitlines() if not AC_LINE_RE.match(line)
+    )
+
     files = set()
 
     # Backtick-delimited paths (any extension)

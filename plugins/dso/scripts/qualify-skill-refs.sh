@@ -65,25 +65,36 @@ if [[ ${#_scan_targets[@]} -eq 0 ]]; then
 fi
 
 # ── Perl substitution ─────────────────────────────────────────────────────────
-# Regex explanation:
+# URL-aware alternation approach (dso-gir2):
+#   The regex matches EITHER a full URL (https?://\S+) OR an unqualified skill ref.
+#   When a URL matches, it is kept unchanged ($1 is defined → return $1).
+#   When a skill ref matches, it is qualified ($2 is defined → return /dso:$2).
+#
+#   This correctly handles multi-segment URL paths like:
+#     https://example.com/foo--/sprint
+#   where the character before "/sprint" is "-" (not in the simple lookbehind set).
+#   The URL alternation arm matches the entire URL first, preventing the skill-ref
+#   arm from ever seeing the path segments inside the URL.
+#
+# Skill ref arm explanation:
 #   (?<![a-zA-Z0-9_/])     — negative lookbehind: not preceded by word char or slash
 #                             (prevents matching inside filesystem paths like skills/debug-everything/)
 #   (?<!dso:)               — negative lookbehind: not already qualified as /dso:skill
-#   (?<!://)                — negative lookbehind: not preceded by :// (URL context)
 #   /                       — literal slash
-#   ($alternation)          — one of the canonical skill names (captured)
+#   ($alternation)          — one of the canonical skill names (captured in $2)
 #   (?![a-zA-Z0-9_:-])      — not followed by word chars, hyphen, or colon
 #                             (ensures whole-word match; /sprint-extra won't match)
 #
-# The three lookbehinds together handle:
-#   https://foo.com/sprint      → unchanged (preceded by //)
-#   /dso:sprint                 → unchanged (preceded by dso:)
-#   /sprint                     → rewritten to /dso:sprint
-#   skills/debug-everything/    → unchanged (preceded by path char)
-#   commit/review               → unchanged (preceded by word char)
-#   prompts/tickets-health.md   → unchanged (preceded by path char)
+# Together these handle:
+#   https://foo.com/sprint          → unchanged (URL arm matches, $1 returned)
+#   https://example.com/foo--/sprint → unchanged (URL arm matches, $1 returned)
+#   /dso:sprint                     → unchanged (preceded by dso:)
+#   /sprint                         → rewritten to /dso:sprint
+#   skills/debug-everything/        → unchanged (preceded by path char)
+#   commit/review                   → unchanged (preceded by word char)
+#   prompts/tickets-health.md       → unchanged (preceded by path char)
 
-_perl_script="s{(?<![a-zA-Z0-9_/])(?<!dso:)(?<!://)/(${_skill_alternation})(?![a-zA-Z0-9_:-])}{/dso:\$1}g"
+_perl_script='s{(https?://\S+)|(?<![a-zA-Z0-9_/])(?<!dso:)/('"${_skill_alternation}"')(?![a-zA-Z0-9_:-])}{ defined $1 ? $1 : "/dso:$2" }ge'
 
 _qualify_file() {
     local _file="$1"

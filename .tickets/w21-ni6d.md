@@ -24,3 +24,10 @@ Same anti-pattern as dso-b934. tests/hooks/test-jq-to-parse-json-field.sh at lin
 <!-- sync: unsynced -->
 
 CLOSE REASON: Fixed: tests/hooks/test-jq-to-parse-json-field.sh now uses FAKE_ROOT with a minimal git repo for STATE_DIR isolation, preventing interference with real cascade state
+
+<!-- note-id: tdl4e0n1 -->
+<!-- timestamp: 2026-03-21T00:23:59Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: test isolation with _FAKE_ROOT (commit 6badeb4)

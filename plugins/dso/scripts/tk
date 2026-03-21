@@ -445,7 +445,7 @@ cmd_create() {
             --tags) tags="$2"; shift 2 ;;
             --) shift; [[ $# -gt 0 ]] && { title="$1"; shift; }; break ;;
             -*) echo "Unknown option: $1" >&2; return 1 ;;
-            *) title="$1"; shift ;;
+            *) title="${title:+$title }$1"; shift ;;
         esac
     done
 
