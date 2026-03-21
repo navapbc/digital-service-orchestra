@@ -30,7 +30,7 @@ _make_test_repo() {
     _CLEANUP_DIRS+=("$tmp")
     clone_test_repo "$tmp/repo"
     # Initialize the ticket system so .tickets-tracker/ is available
-    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
     echo "$tmp/repo"
 }
 

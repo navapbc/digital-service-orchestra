@@ -1,6 +1,6 @@
 ---
 id: w21-gyn8
-status: in_progress
+status: closed
 deps: [w21-mtvm, w21-m4i9]
 links: []
 created: 2026-03-21T00:53:31Z
@@ -68,3 +68,7 @@ CHECKPOINT 5/6: Validation complete ✓ — shellcheck passes, all 6 tests RED (
 **2026-03-21T02:43:18Z**
 
 CHECKPOINT 6/6: Done ✓ — all 4 ACs verified: file exists, 12 test_ticket_create refs (>= 6), test is RED (exit 1), shellcheck clean
+
+**2026-03-21T02:50:11Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/scripts/test-ticket-create.sh. Tests: 0 passed, 6 failed (RED).
