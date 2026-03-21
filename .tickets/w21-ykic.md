@@ -68,3 +68,7 @@ Tiered review routing with deterministic complexity classification. Changes are 
 ## Dependencies
 - dso-ppwp (soft overlap on anti-shortcut floor rules)
 
+
+**2026-03-21T00:11:33Z**
+
+Version-only changes to plugin.json (e.g., patch bump) should be exempt from review. This is a common friction point that the tiered review classifier should handle by routing trivial JSON changes to Light tier. Consider adding plugin.json version-only changes to the allowlist or classifier floor rules.
