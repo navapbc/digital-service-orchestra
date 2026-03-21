@@ -45,3 +45,13 @@ Model tier: opus
 Critic review: PASS
 Outcome: 1 fixed, 0 failed, 0 reverted
 Remaining in tier: 0
+
+**2026-03-21T16:07:59Z**
+
+BATCH 2 | Tier 7
+Issues: w21-0oc6 (closed), dso-k7fe (closed), w21-0pxe (closed), w21-2dby (closed), dso-6q4p (closed), w21-jb9k (closed)
+Agent types: general-purpose (all)
+Model tier: opus (w21-0oc6+dso-k7fe), sonnet (others)
+Critic review: skipped (post-batch validation passed)
+Outcome: 6 fixed, 0 failed, 0 reverted
+Remaining in tier: 1 (w22-1jqy)

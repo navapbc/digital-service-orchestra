@@ -251,8 +251,8 @@ CONF_EOF
 
 stderr_output=""
 exit_code=0
-output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/tmp/test_discover_stderr.txt) || exit_code=$?
-stderr_output=$(cat /tmp/test_discover_stderr.txt)
+output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>"$tmpdir/stderr.txt") || exit_code=$?
+stderr_output=$(cat "$tmpdir/stderr.txt")
 
 assert_eq "test_malformed_routing_conf_line_skipped: exit code 0" "0" "$exit_code"
 assert_contains "test_malformed_routing_conf_line_skipped: valid line processed" "test_fix_unit=unit-testing:debugger" "$output"
@@ -260,7 +260,6 @@ assert_contains "test_malformed_routing_conf_line_skipped: second valid line" "t
 assert_contains "test_malformed_routing_conf_line_skipped: stderr warning" "skipping malformed" "$stderr_output"
 assert_pass_if_clean "test_malformed_routing_conf_line_skipped"
 rm -rf "$tmpdir"
-rm -f /tmp/test_discover_stderr.txt
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 print_summary
