@@ -42,3 +42,24 @@ parent: w21-ykic
 ## Escalation Policy
 
 **Escalation policy**: Proceed unless a significant assumption is required to continue — one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating.
+
+## Notes
+
+<!-- note-id: 3si4rxvs -->
+<!-- timestamp: 2026-03-21T18:14:17Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+
+## Update: Named agent dispatch due to dso-9ltc (review agent build process)
+
+With dedicated review agents defined in dso-9ltc, Deep tier dispatches to named agents:
+- Sonnet A (correctness): dispatch to dso:code-reviewer-deep-correctness
+- Sonnet B (verification): dispatch to dso:code-reviewer-deep-verification
+- Sonnet C (hygiene + design + maintainability): dispatch to dso:code-reviewer-deep-hygiene
+- Opus architectural reviewer: dispatch to dso:code-reviewer-deep-arch
+
+Each agent's system prompt already contains the universal review procedure (schema, output contract, scoring rules) and its dimension-specific checklist. The dispatch prompt only needs per-review context (diff path, working directory, diff stat).
+
+Done definitions about dispatching 3 parallel sonnet sub-agents should reference the named agent types. The opus reviewer (dso:code-reviewer-deep-arch) receives all 3 sonnet findings + full diff and writes the authoritative reviewer-findings.json.
+

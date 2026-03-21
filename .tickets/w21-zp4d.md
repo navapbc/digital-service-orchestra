@@ -1,7 +1,7 @@
 ---
 id: w21-zp4d
 status: open
-deps: []
+deps: [dso-9ltc]
 links: []
 created: 2026-03-21T00:02:22Z
 type: story
@@ -42,3 +42,23 @@ parent: w21-ykic
 ## Escalation Policy
 
 **Escalation policy**: Proceed unless a significant assumption is required to continue — one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating.
+
+## Notes
+
+<!-- note-id: pu8sct5w -->
+<!-- timestamp: 2026-03-21T18:14:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+
+## Update: Scope change due to dso-9ltc (review agent build process)
+
+With dedicated review agents built from source fragments (dso-9ltc), the generated agent files will use new dimension names from day one. This story's scope shrinks to updating non-agent consumers only:
+- record-review.sh
+- write-reviewer-findings.sh
+- validate-review-output.sh
+- code-review-dispatch.md (legacy fallback, still operational)
+- All test fixtures constructing reviewer-findings JSON
+
+The agent source fragments (reviewer-base.md, per-agent deltas) are created by dso-9ltc with the new dimension names — no rename needed there. Done definition 1 should be read as: reviewer-findings.json uses the 5 new dimension keys and all non-agent consuming scripts/prompts reference the new names.
+
