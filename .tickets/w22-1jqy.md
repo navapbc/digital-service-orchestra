@@ -1,0 +1,14 @@
+---
+id: w22-1jqy
+status: open
+deps: []
+links: []
+created: 2026-03-21T04:00:04Z
+type: bug
+priority: 3
+assignee: Joe Oakhart
+---
+# Bug: test-discover-agents.sh flaky in full suite — passes in isolation
+
+test-discover-agents.sh failed once during full suite run (bash tests/run-all.sh) but passed when run in isolation (bash tests/scripts/test-discover-agents.sh). Likely a test ordering or environment leak issue. Observed 2026-03-21 during sprint session worktree-20260320-200821. 1 occurrence so far — monitor for recurrence.
+
