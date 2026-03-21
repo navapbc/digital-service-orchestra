@@ -250,18 +250,20 @@ Fix any issues before finalizing.
 
 After the epic is created and ticket health passes, classify the epic's complexity before invoking `/dso:preplanning`. This routes the epic to the appropriate preplanning mode so the decomposition depth matches the scope.
 
-#### Step 4a: Dispatch Haiku Complexity Evaluator
+#### Step 4a: Dispatch Complexity Evaluator Agent
 
-Dispatch a haiku sub-agent to classify the epic. Use the Task tool with `model: "haiku"` and the prompt content from `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md`. Pass the epic ID as the argument.
+Dispatch the dedicated complexity evaluator agent to classify the epic. Use the Task tool with `subagent_type: "dso:complexity-evaluator"` and `model: "haiku"`. Pass the epic ID as the argument and `tier_schema=SIMPLE` so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary.
 
 ```
 Task tool:
+  subagent_type: "dso:complexity-evaluator"
   model: "haiku"
-  prompt: <contents of ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md>
   argument: <epic-id>
+  context:
+    tier_schema: SIMPLE
 ```
 
-If the haiku sub-agent fails or returns malformed JSON (not parseable or missing the `classification` key), log a warning and fall through to full `/dso:preplanning` (full mode is the safe fallback default).
+If the agent fails or returns malformed JSON (not parseable or missing the `classification` key), log a warning and fall through to full `/dso:preplanning` (full mode is the safe fallback default).
 
 #### Step 4b: Route Based on Classification
 
@@ -329,4 +331,4 @@ Skill tool:
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `tk create -t epic`, set deps, validate health, haiku complexity gate (complexity-evaluator.md), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
+| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `tk create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
