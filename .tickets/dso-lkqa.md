@@ -1,6 +1,6 @@
 ---
 id: dso-lkqa
-status: in_progress
+status: closed
 deps: [dso-lcmz]
 links: []
 created: 2026-03-21T04:58:29Z
@@ -67,3 +67,7 @@ CHECKPOINT 3/6: Tests written (none required) ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T06:44:57Z**
+
+CHECKPOINT 6/6: Done ✓ — Contract and dispatcher docs updated.

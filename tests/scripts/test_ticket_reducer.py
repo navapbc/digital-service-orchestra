@@ -630,3 +630,228 @@ def test_reducer_flags_corrupt_create_as_fsck_needed(
     assert state.get("status") == "fsck_needed", (
         f"Corrupt CREATE event must set status='fsck_needed', got status={state.get('status')!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 12: Cache hit — second call with no file changes returns cached state
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_hit_returns_cached_state(tmp_path: Path, reducer: ModuleType) -> None:
+    """Calling reduce_ticket twice with no file changes must serve from cache.
+
+    RED: ticket-reducer.py does not yet implement caching. The assert on
+    .cache.json existing will fail because the current implementation never
+    writes a cache file.
+
+    Setup: write a CREATE event, call reduce_ticket() once (expected to warm
+    the cache and write .cache.json), then call reduce_ticket() again without
+    modifying any files.
+
+    Asserts:
+      - .cache.json exists in the ticket directory after the first call (RED)
+      - Second call returns the same state as first (cache hit — same dir_hash)
+    """
+    ticket_dir = tmp_path / "tkt-cache-hit"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Cache hit test",
+            "parent_id": None,
+        },
+        author="Alice",
+    )
+
+    # First call — expected to warm cache and write .cache.json
+    state1 = reducer.reduce_ticket(ticket_dir)
+
+    # Cache file must exist after first call (RED: not written yet)
+    cache_file = ticket_dir / ".cache.json"
+    assert cache_file.exists(), (
+        ".cache.json must be written by reduce_ticket() after first call; "
+        "caching is not yet implemented (expected RED)"
+    )
+
+    # Second call — no files changed; must return same state (cache hit)
+    state2 = reducer.reduce_ticket(ticket_dir)
+
+    assert state1 is not None
+    assert state2 is not None
+    assert state1 == state2, (
+        "Second call with no file changes must return identical state (cache hit)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 13: Cache miss on directory listing change (file addition)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_miss_on_directory_listing_change(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Adding an event file between calls must invalidate the cache.
+
+    RED: without caching, the test structure is valid but the cache-miss
+    detection mechanism doesn't exist. Once caching is implemented, a new
+    file changes the dir_hash → cache miss → recompute.
+
+    Setup: write a CREATE event, call reduce_ticket() (warms cache), write a
+    STATUS event, call reduce_ticket() again.
+
+    Asserts:
+      - Second call returns updated state reflecting the STATUS event
+      - .cache.json exists (written after first call — RED until implemented)
+    """
+    ticket_dir = tmp_path / "tkt-cache-miss"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Cache miss test",
+            "parent_id": None,
+        },
+        author="Alice",
+    )
+
+    # First call — warms cache
+    state1 = reducer.reduce_ticket(ticket_dir)
+
+    # Cache file must exist after first call (RED: not written yet)
+    cache_file = ticket_dir / ".cache.json"
+    assert cache_file.exists(), (
+        ".cache.json must be written by reduce_ticket() after first call; "
+        "caching is not yet implemented (expected RED)"
+    )
+
+    # Add a STATUS event — changes directory listing → cache miss
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress", "current_status": "open"},
+    )
+
+    # Second call — new file detected; cache invalidated → recompute
+    state2 = reducer.reduce_ticket(ticket_dir)
+
+    assert state1 is not None
+    assert state2 is not None
+    assert state2["status"] == "in_progress", (
+        "After adding a STATUS event, reduce_ticket() must recompute state "
+        "and return updated status (cache miss detected)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 14: Cache invalidated on file deletion
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_invalidated_on_file_deletion(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Deleting an event file between calls must invalidate the cache.
+
+    RED: without caching, the second call already sees 0 comments because
+    the file is gone. However, the assertion that .cache.json is UPDATED
+    after the recompute will fail since no cache file is ever written.
+
+    This is critical for w21-q0nn compaction: cache must detect file
+    DELETIONS, not just additions.
+
+    Setup: write CREATE + STATUS + COMMENT events, call reduce_ticket()
+    (warm cache), delete the COMMENT file, call reduce_ticket() again.
+
+    Asserts:
+      - Second call returns state with 0 comments (deletion detected, recomputed)
+      - .cache.json exists after first call (RED: not written yet)
+      - .cache.json is updated after second call (recompute after cache miss)
+    """
+    ticket_dir = tmp_path / "tkt-cache-delete"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Cache deletion test",
+            "parent_id": None,
+        },
+        author="Alice",
+    )
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress", "current_status": "open"},
+    )
+
+    comment_file = _write_event(
+        ticket_dir,
+        timestamp=1742605400,
+        uuid=_UUID3,
+        event_type="COMMENT",
+        data={"body": "a comment that will be deleted"},
+        author="Bob",
+    )
+
+    # First call — warm cache; state has 1 comment
+    state1 = reducer.reduce_ticket(ticket_dir)
+    assert state1 is not None
+    assert len(state1["comments"]) == 1, "Setup: first call must see the COMMENT event"
+
+    # Cache file must exist after first call (RED: not written yet)
+    cache_file = ticket_dir / ".cache.json"
+    assert cache_file.exists(), (
+        ".cache.json must be written by reduce_ticket() after first call; "
+        "caching is not yet implemented (expected RED)"
+    )
+
+    # Capture mtime of cache file before deletion-triggered recompute
+    mtime_after_warm = cache_file.stat().st_mtime if cache_file.exists() else None
+
+    # Delete the COMMENT file — changes directory listing → cache miss
+    comment_file.unlink()
+
+    # Second call — deletion detected; cache invalidated → recompute
+    state2 = reducer.reduce_ticket(ticket_dir)
+
+    assert state2 is not None
+    assert len(state2["comments"]) == 0, (
+        "After deleting the COMMENT event file, reduce_ticket() must recompute "
+        "state and return 0 comments (cache invalidated on file deletion)"
+    )
+
+    # Cache file must be updated after recompute (mtime must change)
+    assert cache_file.exists(), (
+        ".cache.json must still exist after recompute following deletion"
+    )
+    mtime_after_recompute = cache_file.stat().st_mtime
+    assert mtime_after_recompute != mtime_after_warm, (
+        ".cache.json must be updated (mtime changed) after cache-miss recompute "
+        "triggered by file deletion"
+    )

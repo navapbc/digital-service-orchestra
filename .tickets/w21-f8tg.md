@@ -37,3 +37,9 @@ parent: dso-0k2k
 
 - [Performance] Content hash (directory listing hash) must be cheaper than the cache rebuild it prevents — benchmark at 1,000 tickets
 - [Reliability] Cache invalidation must handle file deletion (not just addition). Story w21-q0nn will delete event files during compaction — the cache must detect this as a change. Design the invalidation to be deletion-aware from the start
+
+## Notes
+
+**2026-03-21T06:45:23Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX

@@ -1,6 +1,6 @@
 ---
 id: dso-ru68
-status: in_progress
+status: closed
 deps: [dso-lcmz]
 links: []
 created: 2026-03-21T04:58:18Z
@@ -75,3 +75,7 @@ CHECKPOINT 3/6: Tests written ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T06:44:57Z**
+
+CHECKPOINT 6/6: Done ✓ — E2E test. 34 passed, 0 failed.
