@@ -1,6 +1,6 @@
 ---
 id: dso-vwoo
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-21T16:09:02Z

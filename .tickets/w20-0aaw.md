@@ -1,6 +1,6 @@
 ---
 id: w20-0aaw
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T16:34:53Z
