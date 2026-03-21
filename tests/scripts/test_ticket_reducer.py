@@ -1364,3 +1364,123 @@ def test_cache_invalidation_after_compaction_file_deletion(
         "After compaction, status must come from SNAPSHOT compiled_state; "
         f"got status={state2['status']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 23: Integration — warm cache before compaction returns correct state after
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_integ_cache_warm_before_compaction_returns_correct_state_after(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Warm cache before compaction must be invalidated after compaction runs.
+
+    Setup: write CREATE + 3 STATUS events, warm the cache via reduce_ticket(),
+    then simulate compaction (delete all event files, write a SNAPSHOT event).
+    Call reduce_ticket() again and verify that:
+      - The cache was invalidated (file count changed: 4 events → 1 SNAPSHOT)
+      - The returned state reflects the SNAPSHOT compiled_state (not the cached state)
+
+    This validates the end-to-end contract between the caching mechanism
+    (w21-f8tg: directory listing hash) and SNAPSHOT handling (w21-vz2h):
+    compaction changes both the file count AND the filenames, guaranteeing
+    a cache miss via the dir_hash check.
+    """
+    ticket_dir = tmp_path / "tkt-compact-cache"
+    ticket_dir.mkdir()
+
+    # Write a CREATE + 3 STATUS events
+    _write_event(
+        ticket_dir,
+        1742605200,
+        _UUID,
+        "CREATE",
+        {"ticket_type": "task", "title": "Cache test", "parent_id": None},
+    )
+    _write_event(
+        ticket_dir,
+        1742605201,
+        _UUID2,
+        "STATUS",
+        {"status": "in_progress", "current_status": None},
+    )
+    _write_event(
+        ticket_dir,
+        1742605202,
+        _UUID3,
+        "STATUS",
+        {"status": "closed", "current_status": None},
+    )
+    _write_event(
+        ticket_dir,
+        1742605203,
+        "aaaabbbb-aaaa-bbbb-cccc-ddddeeeeFFFF",
+        "STATUS",
+        {"status": "open", "current_status": None},
+    )
+
+    # Warm the cache
+    state_before = reducer.reduce_ticket(ticket_dir)
+    assert state_before is not None, (
+        "Setup: reduce_ticket must return state after CREATE + STATUS events"
+    )
+    assert state_before["status"] == "open", (
+        f"Setup: expected status='open' from last STATUS event, got {state_before['status']!r}"
+    )
+
+    # Verify cache was written after warm
+    cache_file = ticket_dir / ".cache.json"
+    assert cache_file.exists(), (
+        ".cache.json must be written after first reduce_ticket() call"
+    )
+
+    # Simulate compaction: delete all 4 event files, write SNAPSHOT
+    for f in ticket_dir.glob("*.json"):
+        if f.name != ".cache.json":
+            f.unlink()
+
+    snapshot_payload = {
+        "timestamp": 1742605210,
+        "uuid": "snapshot-uuid-1234",
+        "event_type": "SNAPSHOT",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "author": "Alice",
+        "data": {
+            "compiled_state": {
+                "ticket_id": "tkt-compact-cache",
+                "ticket_type": "task",
+                "title": "Cache test",
+                "status": "closed",  # compacted final state
+                "author": "Alice",
+                "created_at": 1742605200,
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "parent_id": None,
+                "comments": [],
+                "deps": [],
+            },
+            "source_event_uuids": [
+                _UUID,
+                _UUID2,
+                _UUID3,
+                "aaaabbbb-aaaa-bbbb-cccc-ddddeeeeFFFF",
+            ],
+        },
+    }
+    (ticket_dir / "1742605210-snapshot-uuid-1234-SNAPSHOT.json").write_text(
+        json.dumps(snapshot_payload)
+    )
+
+    # After compaction — cache must miss (file count changed) and return SNAPSHOT state
+    state_after = reducer.reduce_ticket(ticket_dir)
+    assert state_after is not None, (
+        "reduce_ticket must return non-None state after compaction (SNAPSHOT present)"
+    )
+    assert state_after["status"] == "closed", (
+        f"Expected status='closed' (SNAPSHOT state), got {state_after['status']!r}"
+    )
+    assert state_after["title"] == "Cache test", (
+        f"Expected title='Cache test' from SNAPSHOT compiled_state, got {state_after['title']!r}"
+    )

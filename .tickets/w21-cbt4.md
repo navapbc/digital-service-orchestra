@@ -1,6 +1,6 @@
 ---
 id: w21-cbt4
-status: open
+status: in_progress
 deps: [w21-vz2h, w21-cjso]
 links: []
 created: 2026-03-21T07:12:28Z
@@ -101,3 +101,13 @@ tests/scripts/test_ticket_reducer.py
 - [ ] Integration test passes GREEN
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_ticket_reducer.py -k 'integ_cache_compaction' --tb=short -q 2>&1 | grep -q 'passed'
 
+
+## Notes
+
+**2026-03-21T08:22:15Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T08:24:13Z**
+
+CHECKPOINT 6/6: Done ✓ — test_integ_cache_warm_before_compaction_returns_correct_state_after added and passes GREEN

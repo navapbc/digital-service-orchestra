@@ -1,6 +1,6 @@
 ---
 id: w21-cjso
-status: in_progress
+status: closed
 deps: [w21-q6nv, w21-vz2h]
 links: []
 created: 2026-03-21T07:11:45Z
@@ -135,3 +135,7 @@ CHECKPOINT 5/6: All tests GREEN, shellcheck clean, corrupt handling verified ✓
 **2026-03-21T08:06:38Z**
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T08:21:02Z**
+
+CHECKPOINT 6/6: Done ✓ — ticket-compact.sh. Tests: 10 passed, 0 failed.

@@ -1,6 +1,6 @@
 ---
 id: w21-e6ul
-status: open
+status: in_progress
 deps: [w21-cjso, w21-0rql, w21-cbt4]
 links: []
 created: 2026-03-21T07:12:51Z
@@ -72,3 +72,13 @@ tests/scripts/test-ticket-compact-e2e.sh (new file)
 - [ ] Configurable threshold test passes
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/scripts/test-ticket-compact-e2e.sh 2>&1 | grep -q 'configurable_threshold.*PASS'
 
+
+## Notes
+
+**2026-03-21T08:24:17Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T08:27:25Z**
+
+CHECKPOINT 6/6: Done ✓ — tests/scripts/test-ticket-compact-e2e.sh created with 4 passing tests: full_flow, below_threshold_skips, configurable_threshold, new_events_after_compaction

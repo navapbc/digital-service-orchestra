@@ -1,6 +1,6 @@
 ---
 id: w21-0rql
-status: open
+status: closed
 deps: [w21-cjso]
 links: []
 created: 2026-03-21T07:12:01Z
@@ -57,3 +57,9 @@ plugins/dso/scripts/ticket
 - [ ] ticket compact subcommand routes to ticket-compact.sh
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/scripts/test-ticket-compact.sh 2>&1 | grep 'subcommand.*PASS'
 
+
+## Notes
+
+**2026-03-21T08:21:31Z**
+
+CHECKPOINT 6/6: Done ✓ — compact subcommand already wired in w21-cjso implementation.
