@@ -36,8 +36,15 @@ if [ -f "$_CONFIG_PATHS" ]; then
 fi
 
 phase="${1:-}"
+shift || true
+SKIP_CI=0
+for arg in "$@"; do
+    case "$arg" in
+        --skip-ci) SKIP_CI=1 ;;
+    esac
+done
 if [ -z "$phase" ]; then
-    echo "Usage: validate-phase.sh {auto-fix|post-batch|tier-transition|full}"
+    echo "Usage: validate-phase.sh {auto-fix|post-batch|tier-transition|full} [--skip-ci]"
     exit 2
 fi
 
@@ -314,8 +321,14 @@ phase_full() {
     local any_fail=0
 
     # Full validation — path resolved from commands.validate in .claude/dso-config.conf
+    # When --skip-ci is set, append it to the validate command so CI status is not checked
+    # (useful in worktrees where CI runs on main and hasn't received fixes yet).
+    local validate_cmd="$CMD_VALIDATE"
+    if [ "$SKIP_CI" = "1" ]; then
+        validate_cmd="$CMD_VALIDATE --skip-ci"
+    fi
     local val_output
-    if val_output=$(cd "$REPO_ROOT" && eval "$CMD_VALIDATE" 2>&1); then
+    if val_output=$(cd "$REPO_ROOT" && eval "$validate_cmd" 2>&1); then
         echo "RESULT: ALL_PASS"
     else
         any_fail=1

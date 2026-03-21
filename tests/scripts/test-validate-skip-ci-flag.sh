@@ -162,5 +162,58 @@ fi
 
 assert_pass_if_clean "test_skip_ci_overrides_ci_flag"
 
+# ── test_validate_phase_full_skip_ci_passthrough ─────────────────────────────
+# validate-phase.sh full --skip-ci must pass --skip-ci through to validate.sh.
+_snapshot_fail
+
+VALIDATE_PHASE_SH="$DSO_PLUGIN_DIR/scripts/validate-phase.sh"
+
+# Create a fake validate.sh that records its arguments to a file
+FAKE_VALIDATE="$TMPDIR_TEST/fake-validate.sh"
+ARGS_FILE="$TMPDIR_TEST/validate-args.txt"
+cat > "$FAKE_VALIDATE" << FVSTUB
+#!/usr/bin/env bash
+echo "\$*" > "$ARGS_FILE"
+exit 0
+FVSTUB
+chmod +x "$FAKE_VALIDATE"
+
+# Create a minimal dso-config.conf that points commands.validate at our fake
+FAKE_CONFIG_DIR="$TMPDIR_TEST/phase-test/.claude"
+mkdir -p "$FAKE_CONFIG_DIR"
+cat > "$FAKE_CONFIG_DIR/dso-config.conf" << CONF
+commands.validate=$FAKE_VALIDATE
+commands.format=true
+commands.format_check=true
+commands.lint=true
+commands.test_unit=true
+CONF
+
+# Create a fake git repo for validate-phase.sh
+FAKE_REPO="$TMPDIR_TEST/phase-test"
+(cd "$FAKE_REPO" && git init -q 2>/dev/null)
+
+# Stub tk to avoid ticket lookups
+cat > "$STUB_BIN/tk" << 'TKSTUB'
+#!/usr/bin/env bash
+exit 0
+TKSTUB
+chmod +x "$STUB_BIN/tk"
+
+phase_output=$(cd "$FAKE_REPO" && PATH="$STUB_BIN:$PATH" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    bash "$VALIDATE_PHASE_SH" full --skip-ci 2>&1) || true
+
+# The fake validate.sh should have received --skip-ci (recorded to file)
+if [ -f "$ARGS_FILE" ] && grep -q "\-\-skip-ci" "$ARGS_FILE"; then
+    assert_eq "test_validate_phase_full_skip_ci_passthrough" "passed" "passed"
+else
+    local_args=""
+    [ -f "$ARGS_FILE" ] && local_args=$(cat "$ARGS_FILE")
+    assert_eq "test_validate_phase_full_skip_ci_passthrough" "passed" "failed: --skip-ci not passed. Args: '$local_args'"
+fi
+
+assert_pass_if_clean "test_validate_phase_full_skip_ci_passthrough"
+
 echo ""
 print_summary
