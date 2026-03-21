@@ -1,6 +1,6 @@
 ---
 id: dso-kaaa
-status: open
+status: in_progress
 deps: [dso-ez3s]
 links: []
 created: 2026-03-21T19:59:14Z
@@ -46,3 +46,33 @@ Files to create:
 - [ ] Coverage summary counts are documented in task notes (tk add-note dso-kaaa)
   Verify: grep -q "Files with" $(git rev-parse --show-toplevel)/.tickets/dso-kaaa.md
 
+
+## Notes
+
+**2026-03-21T20:33:35Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T20:33:42Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T20:33:46Z**
+
+CHECKPOINT 3/6: Tests written (none required — dogfood task) ✓
+
+**2026-03-21T20:36:16Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T20:36:25Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — .test-index exists (88 lines, 84 entries), all test paths exist on disk, format is valid
+
+**2026-03-21T20:36:30Z**
+
+Coverage summary — Files with fuzzy matches: 93, Files with .test-index entries: 84, Files with no test coverage: 179. Run with --src-dirs=plugins --test-dirs=tests (only existing dirs in this repo).
+
+**2026-03-21T20:37:00Z**
+
+CHECKPOINT 6/6: Done ✓ — AC self-check passed. Discovered work: w20-gm71 (broader scan performance issue)
