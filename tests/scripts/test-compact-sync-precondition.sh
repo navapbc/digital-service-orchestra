@@ -177,9 +177,17 @@ test_compact_calls_sync_before_compacting() {
     snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | head -1)
     if [ -n "$snapshot_file" ]; then
         local snapshot_mtime
-        snapshot_mtime=$(stat -f '%m' "$snapshot_file" 2>/dev/null || stat -c '%Y' "$snapshot_file" 2>/dev/null || echo "0")
+        if [[ "$(uname)" == "Darwin" ]]; then
+            snapshot_mtime=$(stat -f '%m' "$snapshot_file" 2>/dev/null || echo "0")
+        else
+            snapshot_mtime=$(stat -c '%Y' "$snapshot_file" 2>/dev/null || echo "0")
+        fi
         local sync_log_mtime
-        sync_log_mtime=$(stat -f '%m' "$call_log" 2>/dev/null || stat -c '%Y' "$call_log" 2>/dev/null || echo "0")
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sync_log_mtime=$(stat -f '%m' "$call_log" 2>/dev/null || echo "0")
+        else
+            sync_log_mtime=$(stat -c '%Y' "$call_log" 2>/dev/null || echo "0")
+        fi
         # call_log was written DURING sync (before SNAPSHOT creation).
         # If sync ran first, call_log mtime <= snapshot mtime.
         assert_eq "sync logged before SNAPSHOT creation" "ordered" \

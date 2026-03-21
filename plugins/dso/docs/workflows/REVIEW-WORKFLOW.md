@@ -51,7 +51,11 @@ mkdir -p "$ARTIFACTS_DIR"
 VALIDATION_STATUS="$ARTIFACTS_DIR/validation-status"
 if [ -f "$VALIDATION_STATUS" ]; then
     status_content=$(head -n 1 "$VALIDATION_STATUS")
-    status_age=$(( $(date +%s) - $(stat -f %m "$VALIDATION_STATUS" 2>/dev/null || stat -c %Y "$VALIDATION_STATUS" 2>/dev/null || echo 0) ))
+    if [ "$(uname)" = "Darwin" ]; then
+        status_age=$(( $(date +%s) - $(stat -f %m "$VALIDATION_STATUS" 2>/dev/null || echo 0) ))
+    else
+        status_age=$(( $(date +%s) - $(stat -c %Y "$VALIDATION_STATUS" 2>/dev/null || echo 0) ))
+    fi
     if [ "$status_content" = "passed" ] && [ "$status_age" -lt 60 ]; then
         # Validation is fresh — skip to Step 2
     fi

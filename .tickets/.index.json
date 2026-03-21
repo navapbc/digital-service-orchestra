@@ -492,6 +492,13 @@
     "title": "Add dev-onboarding and design-onboarding to setup",
     "type": "epic"
   },
+  "dso-ptct": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: stat -f || stat -c fallback pattern broken on Linux \u2014 stat -f succeeds with wrong semantics",
+    "type": "bug"
+  },
   "dso-pxos": {
     "deps": [],
     "priority": 1,
