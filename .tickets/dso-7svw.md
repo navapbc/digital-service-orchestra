@@ -1,6 +1,6 @@
 ---
 id: dso-7svw
-status: open
+status: in_progress
 deps: [dso-t561]
 links: []
 created: 2026-03-21T04:57:32Z
@@ -70,3 +70,47 @@ TDD Requirement: Run tests/scripts/test-ticket-transition.sh. All tests from dso
   Verify: grep -q 'CREATE.json\|CREATE event' $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket-transition.sh
 - [ ] Read-verify-write occurs inside flock (python3 fcntl.flock pattern)
   Verify: grep -q 'fcntl.flock\|flock\|LOCK_EX' $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket-transition.sh
+
+## Notes
+
+<!-- note-id: 1vlapzgn -->
+<!-- timestamp: 2026-03-21T05:49:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: jcc1t6yj -->
+<!-- timestamp: 2026-03-21T05:49:23Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: 9iu704ri -->
+<!-- timestamp: 2026-03-21T05:49:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (pre-existing) ✓
+
+<!-- note-id: c798hkgy -->
+<!-- timestamp: 2026-03-21T05:50:22Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: e1ldwwmc -->
+<!-- timestamp: 2026-03-21T05:50:47Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: All tests pass — transition (20/20), init (14/14), create (13/13), shellcheck clean ✓
+
+<!-- note-id: owepe8p8 -->
+<!-- timestamp: 2026-03-21T05:50:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓

@@ -1,6 +1,6 @@
 ---
 id: dso-t561
-status: in_progress
+status: closed
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T04:57:18Z
@@ -88,3 +88,7 @@ CHECKPOINT 5/6: Validation complete — RED (exit 1, PASSED: 0 FAILED: 7) + shel
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T05:48:15Z**
+
+CHECKPOINT 6/6: Done ✓ — tests/scripts/test-ticket-transition.sh. 0 passed, 7 failed (RED).
