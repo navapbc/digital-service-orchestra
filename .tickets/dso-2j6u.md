@@ -1,6 +1,6 @@
 ---
 id: dso-2j6u
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T18:33:23Z
@@ -72,3 +72,13 @@ None. Independent of dso-9ltc — both use the standard Claude Code agent defini
 - [Reliability] If the named agent fails to load (missing file, plugin not registered), callers should have documented fallback behavior (e.g., fall back to general-purpose with prompt loading)
 - [Maintainability] The shared rubric (skills/shared/prompts/complexity-evaluator.md) contains context-specific routing tables (lines 112-124) that must NOT be copied into the agent definition — they belong in each caller. Verify routing tables exist in each caller after extraction
 
+
+**2026-03-21T22:53:39Z**
+
+VALIDATION_RESULTS: SC4 smoke test complete.
+1. Sprint epic evaluator (dso:complexity-evaluator): pass — agent def has SIMPLE tier schema, output schema valid (classification, confidence, files_estimated, layers_touched, interfaces_affected, scope_certainty, reasoning all present)
+2. Sprint story evaluator (dso:complexity-evaluator): pass — agent def has TRIVIAL tier schema, output schema valid; sprint/SKILL.md Step 1 dispatches via subagent_type with tier_schema=TRIVIAL
+3. Brainstorm (dso:complexity-evaluator): pass — brainstorm/SKILL.md Step 4a dispatches via subagent_type, agent def schema valid
+4. Fix-bug (dso:complexity-evaluator): pass — fix-bug/SKILL.md Step 4.5 reads agent def inline from plugins/dso/agents/complexity-evaluator.md, schema valid
+5. Resolve-conflicts (dso:conflict-analyzer): pass — resolve-conflicts/SKILL.md Step 2 dispatches via subagent_type, per-file output schema valid (FILE, CLASSIFICATION, PROPOSED_RESOLUTION, EXPLANATION, CONFIDENCE all present)
+Test file: tests/skills/test_agent_dispatch_validation.py — 25 tests, 25 passed, 0 failed

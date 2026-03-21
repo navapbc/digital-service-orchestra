@@ -230,11 +230,13 @@ If no trigger condition is met, proceed directly to Phase 2.
 
 #### Step 2b: Epic Complexity Evaluation (/dso:sprint)
 
-When the epic has zero children, dispatch a haiku sub-agent to classify the epic's complexity before deciding the decomposition path.
+When the epic has zero children, dispatch `subagent_type: dso:complexity-evaluator` (model: haiku) to classify the epic's complexity before deciding the decomposition path.
 
 **Dispatch the evaluator:**
 
-Use the Task tool with `model: "haiku"` and the prompt content from `$PLUGIN_ROOT/skills/sprint/prompts/epic-complexity-evaluator.md` (delegates dimension scoring to `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md`). Pass the epic ID as argument.
+Dispatch via `subagent_type: dso:complexity-evaluator` with `model: haiku`. Pass the epic ID as the task argument. Pass `tier_schema=SIMPLE` as a field in the task context so the agent outputs SIMPLE/MODERATE/COMPLEX tier vocabulary.
+
+**Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `epic-complexity-evaluator` prompt file in that directory).
 
 **Route based on classification:**
 
@@ -318,7 +320,9 @@ For each ready task from `tk ready` (filtered by parent):
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
 
-**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Use the Task tool with `model: "haiku"` and the prompt content from `$PLUGIN_ROOT/skills/sprint/prompts/complexity-evaluator.md` (delegates dimension scoring to `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-evaluator.md`). Pass the story ID as argument.
+**Dispatch a haiku complexity-evaluator sub-agent** to classify the story. Dispatch via `subagent_type: dso:complexity-evaluator` with `model: haiku`. Pass the story ID as the task argument. Pass `tier_schema=TRIVIAL` as a field in the task context so the agent outputs TRIVIAL/MODERATE/COMPLEX tier vocabulary.
+
+**Fallback**: If the `dso:complexity-evaluator` named agent is unavailable, fall back to `subagent_type: general-purpose` and load the shared rubric prompt from `$PLUGIN_ROOT/skills/sprint/prompts/` (see `complexity-evaluator` prompt file in that directory).
 
 **Routing based on classification:**
 
