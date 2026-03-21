@@ -138,6 +138,13 @@
     "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
     "type": "bug"
   },
+  "dso-6q4p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
+    "type": "bug"
+  },
   "dso-94ya": {
     "deps": [],
     "priority": 2,
@@ -162,7 +169,7 @@
   "dso-9xnr": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Project Health Restoration (2026-03-20)",
     "type": "epic"
   },
@@ -326,6 +333,13 @@
     "priority": 2,
     "status": "closed",
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "type": "bug"
+  },
+  "dso-k7fe": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: pre-commit review gate blocks merge commits with non-allowlisted files from incoming branch",
     "type": "bug"
   },
   "dso-khl2": {
