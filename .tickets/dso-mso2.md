@@ -1,6 +1,6 @@
 ---
 id: dso-mso2
-status: open
+status: in_progress
 deps: [dso-sdb4]
 links: []
 created: 2026-03-21T04:56:43Z
@@ -69,3 +69,29 @@ d=pathlib.Path(tempfile.mkdtemp()); t=d/'tkt-ghost'; t.mkdir()
 r=subprocess.run([sys.executable,f'{repo}/plugins/dso/scripts/ticket-reducer.py',str(t)],capture_output=True)
 assert r.returncode != 0, f'main() must exit non-zero for error-state; got 0 with output: {r.stdout}'
 "
+
+## Notes
+
+**2026-03-21T05:28:35Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T05:28:43Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T05:28:54Z**
+
+CHECKPOINT 3/6: Tests written (pre-existing RED tests) ✓ — 5 failing: conflict detection, COMMENT handling (x2), ghost ticket error state, corrupt CREATE fsck_needed
+
+**2026-03-21T05:29:33Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T05:30:15Z**
+
+CHECKPOINT 5/6: All 11 tests GREEN, ruff check + format pass ✓
+
+**2026-03-21T05:30:46Z**
+
+CHECKPOINT 6/6: All AC verified ✓ — 11/11 tests GREEN, all inline AC checks pass, ruff clean

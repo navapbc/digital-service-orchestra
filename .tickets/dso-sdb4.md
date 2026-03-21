@@ -1,6 +1,6 @@
 ---
 id: dso-sdb4
-status: in_progress
+status: closed
 deps: [dso-1kcx]
 links: []
 created: 2026-03-21T04:56:29Z
@@ -83,3 +83,7 @@ CHECKPOINT 5/6: Validation complete ✓ — 6 passed (5 original + test_reducer_
 **2026-03-21T05:10:45Z**
 
 CHECKPOINT 6/6: AC self-check ✓ — AC2 ruff check: pass, AC3 ruff format --check: pass, AC4 grep count=6: pass, AC5 new tests RED: pass (5/6 new tests fail; test_reducer_compiles_status_event_to_correct_status passes because STATUS basic handling pre-exists in reducer). 6 new test functions added covering all required behaviors.
+
+**2026-03-21T05:27:43Z**
+
+CHECKPOINT 6/6: Done ✓ — 6 new tests added to test_ticket_reducer.py. 5 RED, 1 GREEN.
