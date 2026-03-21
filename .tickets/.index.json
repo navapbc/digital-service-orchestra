@@ -38,6 +38,22 @@
     "title": "Project level config flags to modify behavior",
     "type": "epic"
   },
+  "dso-2fme": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for generate-test-index.sh scanner",
+    "type": "task"
+  },
+  "dso-3s9o": {
+    "deps": [
+      "dso-ez3s"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "SKILL: Add test-index generation step to /dso:dev-onboarding",
+    "type": "task"
+  },
   "dso-3xhk": {
     "deps": [],
     "priority": 2,
@@ -210,6 +226,15 @@
     "title": "As a DSO practitioner, the sprint skill contains no explanatory prose or motivation framing",
     "type": "story"
   },
+  "dso-ez3s": {
+    "deps": [
+      "dso-2fme"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Implement generate-test-index.sh scanner script",
+    "type": "task"
+  },
   "dso-fbky": {
     "deps": [],
     "priority": 3,
@@ -303,6 +328,15 @@
     "status": "open",
     "title": "Bug: pre-commit review gate blocks merge commits with non-allowlisted files from incoming branch",
     "type": "bug"
+  },
+  "dso-kaaa": {
+    "deps": [
+      "dso-ez3s"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "DOGFOOD: Run generate-test-index.sh against this repo to produce initial .test-index",
+    "type": "task"
   },
   "dso-khl2": {
     "deps": [],
