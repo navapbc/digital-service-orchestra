@@ -1,6 +1,6 @@
 ---
 id: w21-nica
-status: in_progress
+status: closed
 deps: [w21-1as4, w21-cw8j, w21-kezk, w21-1bvu]
 links: []
 created: 2026-03-21T21:05:12Z
