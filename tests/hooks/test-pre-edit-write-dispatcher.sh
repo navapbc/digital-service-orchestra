@@ -272,6 +272,15 @@ _exit_code=0
 printf '%s' "$_INPUT" | bash "$POST_WRITE_DISPATCHER" >/dev/null 2>/dev/null || _exit_code=$?
 assert_eq "test_post_write_no_tool_logging_post: exits 0" "0" "$_exit_code"
 
+# --- Dump ERR trap log if any failures occurred ---
+_FN_ERR_LOG="/tmp/cascade-circuit-breaker-fn-err.log"
+if [[ -f "$_FN_ERR_LOG" ]]; then
+    echo "=== ERR trap log (cascade-circuit-breaker function) ===" >&2
+    cat "$_FN_ERR_LOG" >&2
+    echo "=== end ERR trap log ===" >&2
+    rm -f "$_FN_ERR_LOG"
+fi
+
 # ============================================================
 # Summary
 # ============================================================

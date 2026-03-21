@@ -24,6 +24,28 @@ export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=commit.gpgsign
 export GIT_CONFIG_VALUE_0=false
 
+# --- Pytest availability check ---
+# If pytest is not installed (e.g., CI without Python dev deps), use a mock
+# runner via RECORD_TEST_STATUS_RUNNER so tests don't depend on pytest.
+_PYTEST_AVAILABLE=1
+if ! python3 -m pytest --version >/dev/null 2>&1; then
+    _PYTEST_AVAILABLE=0
+    # Create mock runners: one that always passes, one that always fails
+    _MOCK_PASS_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-pass-runner-XXXXXX")
+    _MOCK_FAIL_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-fail-runner-XXXXXX")
+    chmod +x "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER"
+    cat > "$_MOCK_PASS_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "PASSED (mock runner — pytest not installed)"
+exit 0
+MOCKEOF
+    cat > "$_MOCK_FAIL_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "FAILED (mock runner — pytest not installed)"
+exit 1
+MOCKEOF
+fi
+
 # ============================================================
 # Helper: create an isolated temp git repo with initial commit
 # ============================================================
@@ -41,10 +63,29 @@ create_test_repo() {
 }
 
 # Helper: run the hook and capture exit code
+# Accepts optional RECORD_TEST_STATUS_RUNNER override as first arg prefixed with "RUNNER="
 run_hook_exit() {
     local exit_code=0
     bash "$HOOK" "$@" 2>/dev/null || exit_code=$?
     echo "$exit_code"
+}
+
+# Helper: run the hook with mock pass runner when pytest is unavailable
+run_hook_exit_pass() {
+    if (( _PYTEST_AVAILABLE )); then
+        run_hook_exit "$@"
+    else
+        RECORD_TEST_STATUS_RUNNER="$_MOCK_PASS_RUNNER" run_hook_exit "$@"
+    fi
+}
+
+# Helper: run the hook with mock fail runner when pytest is unavailable
+run_hook_exit_fail() {
+    if (( _PYTEST_AVAILABLE )); then
+        run_hook_exit "$@"
+    else
+        RECORD_TEST_STATUS_RUNNER="$_MOCK_FAIL_RUNNER" run_hook_exit "$@"
+    fi
 }
 
 # ============================================================
@@ -80,7 +121,7 @@ EXIT_CODE=$(
     cd "$TEST_REPO_1"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_1" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-    run_hook_exit
+    run_hook_exit_pass
 )
 
 # The script should either exit 0 (tests passed) or produce a status file.
@@ -135,7 +176,7 @@ EXIT_CODE=$(
     cd "$TEST_REPO_2"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_2" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-    run_hook_exit
+    run_hook_exit_pass
 )
 
 STATUS_FILE="$ARTIFACTS_2/test-gate-status"
@@ -188,7 +229,7 @@ EXIT_CODE=$(
     cd "$TEST_REPO_3"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_3" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-    run_hook_exit
+    run_hook_exit_fail
 )
 
 STATUS_FILE="$ARTIFACTS_3/test-gate-status"
@@ -349,7 +390,7 @@ EXIT_CODE=$(
     cd "$TEST_REPO_6"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_6" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-    run_hook_exit
+    run_hook_exit_pass
 )
 
 STATUS_FILE="$ARTIFACTS_6/test-gate-status"
@@ -408,7 +449,7 @@ EXIT_CODE=$(
     cd "$TEST_REPO_7"
     WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_7" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-    run_hook_exit
+    run_hook_exit_pass
 )
 
 STATUS_FILE="$ARTIFACTS_7/test-gate-status"
@@ -426,5 +467,10 @@ fi
 
 rm -rf "$TEST_REPO_7" "$ARTIFACTS_7"
 trap - EXIT
+
+# Clean up mock runners if created
+if (( ! _PYTEST_AVAILABLE )); then
+    rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true
+fi
 
 print_summary
