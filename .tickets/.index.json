@@ -91,6 +91,16 @@
     "title": "Cleanup tests",
     "type": "epic"
   },
+  "dso-5ooy": {
+    "deps": [
+      "w21-ykic",
+      "w21-ovpn"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Conditional Security & Performance Review Overlays",
+    "type": "epic"
+  },
   "dso-6oo5": {
     "deps": [
       "dso-wqt4",
@@ -516,6 +526,13 @@
     "status": "open",
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
+  },
+  "dso-sfoc": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: pre-commit test gate times out on large ticket-only commits (no allowlist filtering)",
+    "type": "bug"
   },
   "dso-soyt": {
     "deps": [],
