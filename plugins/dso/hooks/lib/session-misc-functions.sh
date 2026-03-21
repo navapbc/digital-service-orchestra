@@ -642,6 +642,15 @@ print('DONE')
 # PostToolUseFailure hook: track, categorize, and count tool use errors
 hook_track_tool_errors() {
     local _HOOK_LIB_DIR; _HOOK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # PATH-ANCHOR: _HOOK_LIB_DIR is anchored to plugins/dso/hooks/lib/ (this file's directory).
+    # read-config.sh lives in plugins/dso/scripts/, which is two levels up from hooks/lib/.
+    # The naive relative path would be $_HOOK_LIB_DIR/../../scripts/read-config.sh (two "..").
+    # However, this function resolves _PLUGIN_ROOT via CLAUDE_PLUGIN_ROOT (preferred) or by
+    # walking up two directories from _HOOK_LIB_DIR, then uses $_PLUGIN_ROOT/scripts/read-config.sh.
+    # This is equivalent to the two-".." form but more readable and robust to symlinks.
+    # Contrast with track-tool-errors.sh (at hooks/, one level shallower): it uses one "..".
+    # The 2>/dev/null || echo 'false' guard silently suppresses path errors — always verify:
+    #   ls "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/../../scripts/read-config.sh"
     local _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
     if [[ -z "$_PLUGIN_ROOT" || ! -d "$_PLUGIN_ROOT/hooks/lib" ]]; then
         _PLUGIN_ROOT="$(cd "$(dirname "$(dirname "$_HOOK_LIB_DIR")")" && pwd)"

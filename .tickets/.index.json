@@ -48,14 +48,14 @@
   "dso-1aaa": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: tk create rejects --parent=id flag (only --parent id works)",
     "type": "bug"
   },
   "dso-2da0": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
@@ -66,12 +66,26 @@
     "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
     "type": "bug"
   },
+  "dso-2ef7": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test ticket for bug dso-1aaa",
+    "type": "task"
+  },
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
     "status": "closed",
     "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
     "type": "bug"
+  },
+  "dso-3b23": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test dso-1aaa bug repro",
+    "type": "story"
   },
   "dso-3e30": {
     "deps": [],
@@ -90,7 +104,7 @@
   "dso-42w7": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
     "type": "bug"
   },
@@ -124,6 +138,13 @@
     "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
     "type": "bug"
   },
+  "dso-6q4p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
+    "type": "bug"
+  },
   "dso-94ya": {
     "deps": [],
     "priority": 2,
@@ -148,7 +169,7 @@
   "dso-9xnr": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Project Health Restoration (2026-03-20)",
     "type": "epic"
   },
@@ -176,7 +197,7 @@
   "dso-cma6": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
     "type": "bug"
   },
@@ -312,6 +333,13 @@
     "priority": 2,
     "status": "closed",
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
+    "type": "bug"
+  },
+  "dso-k7fe": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: pre-commit review gate blocks merge commits with non-allowlisted files from incoming branch",
     "type": "bug"
   },
   "dso-khl2": {
@@ -677,7 +705,7 @@
   "w21-5cqr": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth",
     "type": "bug"
   },
@@ -795,7 +823,7 @@
   "w21-bw1o": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Flaky test: test-merge-to-main-portability.sh intermittently fails (8/10 pass, then 10/10 on re-run)",
     "type": "bug"
   },
@@ -945,7 +973,7 @@
   "w21-j2cc": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "BUG: AC4 check in w21-cu3r incompatible with assert.sh output format",
     "type": "bug"
   },

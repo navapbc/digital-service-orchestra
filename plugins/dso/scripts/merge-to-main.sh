@@ -106,12 +106,13 @@ _state_init() {
     _sf=$(_state_file_path) 2>/dev/null || return 0
     if ! _state_is_fresh; then
         # Not fresh (missing or stale) — write fresh skeleton
+        # || true: state I/O is best-effort; set -e must not propagate from partial writes
         python3 -c "
 import json
 d = {'branch': '$BRANCH', 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}}
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     fi
     return 0
 }
@@ -121,6 +122,7 @@ _state_write_phase() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
     python3 -c "
 import json
 with open('$_sf') as f:
@@ -128,7 +130,7 @@ with open('$_sf') as f:
 d['current_phase'] = '$_phase'
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
 
@@ -137,6 +139,7 @@ _state_mark_complete() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
     python3 -c "
 import json
 with open('$_sf') as f:
@@ -146,7 +149,7 @@ if '$_phase' not in d.get('completed_phases', []):
 d.setdefault('phases', {})['$_phase'] = {'status': 'complete'}
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
 
@@ -156,6 +159,7 @@ _set_phase_status() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
     python3 -c "
 import json
 with open('$_sf') as f:
@@ -163,7 +167,7 @@ with open('$_sf') as f:
 d.setdefault('phases', {}).setdefault('$_phase', {})['status'] = '$_status'
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
 
@@ -172,6 +176,7 @@ _state_record_merge_sha() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
     python3 -c "
 import json
 with open('$_sf') as f:
@@ -179,7 +184,7 @@ with open('$_sf') as f:
 d['merge_sha'] = '$_sha'
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
 
@@ -202,6 +207,7 @@ _state_increment_retry() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
     python3 -c "
 import json
 with open('$_sf') as f:
@@ -209,7 +215,7 @@ with open('$_sf') as f:
 d['retry_count'] = d.get('retry_count', 0) + 1
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
 
@@ -217,6 +223,7 @@ _state_reset_retry_count() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || return 0
     [[ -f "$_sf" ]] || return 0
+    # || true: state I/O is best-effort; set -e must not propagate from partial/corrupt reads
     python3 -c "
 import json
 with open('$_sf') as f:
@@ -224,7 +231,7 @@ with open('$_sf') as f:
 d['retry_count'] = 0
 with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
-" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null
+" 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
 

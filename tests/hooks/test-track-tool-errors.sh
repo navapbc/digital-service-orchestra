@@ -387,4 +387,75 @@ test_tracking_disabled_when_flag_invalid_value() {
 }
 test_tracking_disabled_when_flag_invalid_value
 
+# ============================================================
+# Group: read-config.sh path-anchoring documentation (w21-5cqr)
+# ============================================================
+# These tests verify that the path-anchoring comment blocks exist
+# in the hook files that call read-config.sh. The comments are
+# required to prevent silent failures when the wrong relative
+# path depth is used (2>/dev/null || echo 'false' suppresses errors).
+
+# test_track_tool_errors_has_path_anchor_comment
+# track-tool-errors.sh must contain a comment (# line) explaining
+# the path-anchoring depth for read-config.sh. The comment must
+# reference "PATH-ANCHOR" (the canonical marker) so future authors
+# can grep for it.
+test_track_tool_errors_has_path_anchor_comment() {
+    local has_comment="no"
+    if grep -q "PATH-ANCHOR" "$HOOK" 2>/dev/null; then
+        has_comment="yes"
+    fi
+    assert_eq "test_track_tool_errors_has_path_anchor_comment" "yes" "$has_comment"
+}
+test_track_tool_errors_has_path_anchor_comment
+
+# test_session_misc_has_path_anchor_comment
+# session-misc-functions.sh must contain a comment (# line) explaining
+# the path-anchoring depth for read-config.sh. The comment must
+# reference "PATH-ANCHOR" (the canonical marker) so future authors
+# can grep for it.
+test_session_misc_has_path_anchor_comment() {
+    local SESSION_MISC="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
+    local has_comment="no"
+    if grep -q "PATH-ANCHOR" "$SESSION_MISC" 2>/dev/null; then
+        has_comment="yes"
+    fi
+    assert_eq "test_session_misc_has_path_anchor_comment" "yes" "$has_comment"
+}
+test_session_misc_has_path_anchor_comment
+
+# test_track_tool_errors_read_config_path_exists
+# The path that track-tool-errors.sh uses to call read-config.sh
+# must resolve to an existing file from the hook's own location.
+# HOOK_DIR is hooks/, so the path is $HOOK_DIR/../scripts/read-config.sh
+test_track_tool_errors_read_config_path_exists() {
+    local HOOK_DIR; HOOK_DIR="$(cd "$(dirname "$HOOK")" && pwd)"
+    local READ_CONFIG_PATH="$HOOK_DIR/../scripts/read-config.sh"
+    local path_exists="no"
+    if [[ -f "$READ_CONFIG_PATH" ]]; then
+        path_exists="yes"
+    fi
+    assert_eq "test_track_tool_errors_read_config_path_exists" "yes" "$path_exists"
+}
+test_track_tool_errors_read_config_path_exists
+
+# test_session_misc_read_config_path_exists
+# The path that hook_track_tool_errors in session-misc-functions.sh uses
+# to call read-config.sh must resolve to an existing file.
+# _HOOK_LIB_DIR is hooks/lib/, and _PLUGIN_ROOT is resolved as
+# "$(dirname "$(dirname "$_HOOK_LIB_DIR")")" = plugins/dso/
+# so the path is $_PLUGIN_ROOT/scripts/read-config.sh
+test_session_misc_read_config_path_exists() {
+    local SESSION_MISC="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
+    local HOOK_LIB_DIR; HOOK_LIB_DIR="$(cd "$(dirname "$SESSION_MISC")" && pwd)"
+    local PLUGIN_ROOT_RESOLVED; PLUGIN_ROOT_RESOLVED="$(cd "$(dirname "$(dirname "$HOOK_LIB_DIR")")" && pwd)"
+    local READ_CONFIG_PATH="$PLUGIN_ROOT_RESOLVED/scripts/read-config.sh"
+    local path_exists="no"
+    if [[ -f "$READ_CONFIG_PATH" ]]; then
+        path_exists="yes"
+    fi
+    assert_eq "test_session_misc_read_config_path_exists" "yes" "$path_exists"
+}
+test_session_misc_read_config_path_exists
+
 print_summary
