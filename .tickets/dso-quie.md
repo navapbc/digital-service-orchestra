@@ -1,6 +1,6 @@
 ---
 id: dso-quie
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-21T08:34:25Z
@@ -35,3 +35,19 @@ Acceptance Criteria:
 - [ ] Existing reducer tests still pass
   Verify: python3 -m pytest $(git rev-parse --show-toplevel)/tests/scripts/test_ticket_reducer.py --tb=short -q
 
+
+## Notes
+
+<!-- note-id: 73p9yhy5 -->
+<!-- timestamp: 2026-03-21T08:39:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded
+
+<!-- note-id: bv2he6j1 -->
+<!-- timestamp: 2026-03-21T08:42:15Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done - 4 corrupt-event tests added, all GREEN

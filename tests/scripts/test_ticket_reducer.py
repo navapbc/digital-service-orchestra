@@ -1484,3 +1484,183 @@ def test_integ_cache_warm_before_compaction_returns_correct_state_after(
     assert state_after["title"] == "Cache test", (
         f"Expected title='Cache test' from SNAPSHOT compiled_state, got {state_after['title']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Corrupt-event skip behavior tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_skips_corrupt_json_event_and_returns_valid_state(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Reducer skips corrupt mid-sequence events and returns valid state."""
+    ticket_dir = tmp_path / "tkt-corrupt-skip"
+    ticket_dir.mkdir()
+
+    # Valid CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Corrupt skip test",
+            "parent_id": None,
+        },
+    )
+
+    # Corrupt event file (invalid JSON)
+    corrupt_file = ticket_dir / "1742605250-bad-uuid-STATUS.json"
+    corrupt_file.write_text("THIS IS NOT VALID JSON {{{")
+
+    # Valid COMMENT event after the corrupt one
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="COMMENT",
+        data={"body": "This comment should survive"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket must return state despite corrupt event"
+    assert state["ticket_id"] == "tkt-corrupt-skip"
+    assert state["title"] == "Corrupt skip test"
+    assert len(state["comments"]) == 1, (
+        f"Expected 1 comment (corrupt event skipped), got {len(state['comments'])}"
+    )
+    assert state["comments"][0]["body"] == "This comment should survive"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_emits_warning_for_corrupt_event(
+    tmp_path: Path, reducer: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Reducer prints WARNING to stderr for corrupt event files."""
+    ticket_dir = tmp_path / "tkt-corrupt-warn"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Warning test",
+            "parent_id": None,
+        },
+    )
+
+    corrupt_file = ticket_dir / "1742605250-corrupt-uuid-STATUS.json"
+    corrupt_file.write_text("{not valid json at all")
+
+    # Clear any cached state so reducer processes fresh
+    cache_file = ticket_dir / ".cache.json"
+    if cache_file.exists():
+        cache_file.unlink()
+
+    reducer.reduce_ticket(ticket_dir)
+
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.err, (
+        f"Expected WARNING in stderr, got: {captured.err!r}"
+    )
+    assert "corrupt" in captured.err.lower() or str(corrupt_file) in captured.err, (
+        f"Expected corrupt file path or 'corrupt' in stderr warning, got: {captured.err!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_skips_corrupt_event_in_snapshot_pass1(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Reducer handles corrupt events during SNAPSHOT pass 1 scan gracefully."""
+    ticket_dir = tmp_path / "tkt-corrupt-snap"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Snapshot pass1 test",
+            "parent_id": None,
+        },
+    )
+
+    # Corrupt event that pass 1 must skip
+    corrupt_file = ticket_dir / "1742605250-corrupt-uuid-STATUS.json"
+    corrupt_file.write_text("<<<CORRUPT>>>")
+
+    # Write a SNAPSHOT after the corrupt event
+    snapshot_payload = {
+        "timestamp": 1742605300,
+        "uuid": "snapshot-uuid-pass1",
+        "event_type": "SNAPSHOT",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "author": "Test",
+        "data": {
+            "compiled_state": {
+                "ticket_id": "tkt-corrupt-snap",
+                "ticket_type": "task",
+                "title": "Snapshot pass1 test",
+                "status": "in_progress",
+                "author": "Test",
+                "created_at": 1742605200,
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "parent_id": None,
+                "comments": [],
+                "deps": [],
+            },
+            "source_event_uuids": [_UUID],
+        },
+    }
+    (ticket_dir / "1742605300-snapshot-uuid-pass1-SNAPSHOT.json").write_text(
+        json.dumps(snapshot_payload)
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, (
+        "reduce_ticket must return state with SNAPSHOT despite corrupt event"
+    )
+    assert state["status"] == "in_progress", (
+        f"Expected status from SNAPSHOT compiled_state, got {state['status']!r}"
+    )
+    assert state["title"] == "Snapshot pass1 test"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_all_events_corrupt_returns_error_dict(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Dir with only corrupt JSON files returns error dict (ghost ticket prevention)."""
+    ticket_dir = tmp_path / "tkt-all-corrupt"
+    ticket_dir.mkdir()
+
+    # Write only corrupt event files
+    (ticket_dir / "1742605200-bad1-CREATE.json").write_text("NOT JSON 1")
+    (ticket_dir / "1742605300-bad2-STATUS.json").write_text("NOT JSON 2")
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, (
+        "reduce_ticket must return error dict for all-corrupt dir, not None"
+    )
+    assert isinstance(state, dict), f"Expected dict, got {type(state)}"
+    assert state.get("status") == "error", (
+        f"Expected status='error' for all-corrupt dir, got {state.get('status')!r}"
+    )
+    assert "ticket_id" in state, "Error dict must include ticket_id"
+    assert state["ticket_id"] == "tkt-all-corrupt"

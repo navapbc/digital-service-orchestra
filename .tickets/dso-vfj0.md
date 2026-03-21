@@ -1,6 +1,6 @@
 ---
 id: dso-vfj0
-status: open
+status: in_progress
 deps: [dso-smgw, dso-quie]
 links: []
 created: 2026-03-21T08:34:54Z
@@ -75,3 +75,19 @@ Error handling requirement for index.lock removal: if the stale lock file remova
 
 Add test coverage for this case in test-ticket-fsck.sh: test_fsck_handles_lock_removal_failure — create a lock file with restrictive permissions, run fsck, verify it continues and reports gracefully.
 
+
+## Notes
+
+<!-- note-id: 2wzd3dsq -->
+<!-- timestamp: 2026-03-21T08:39:10Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded
+
+<!-- note-id: i3jpvn7h -->
+<!-- timestamp: 2026-03-21T08:44:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done - ticket-fsck.sh implemented, all 8 tests GREEN, dispatcher wired

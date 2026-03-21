@@ -78,6 +78,10 @@ case "$subcommand" in
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-compact.sh" "$@"
         ;;
+    fsck)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-fsck.sh" "$@"
+        ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2
         _usage

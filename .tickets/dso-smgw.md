@@ -1,6 +1,6 @@
 ---
 id: dso-smgw
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-21T08:34:07Z
@@ -53,3 +53,19 @@ Test assertions must use the exact output format strings defined in dso-vfj0 (th
 
 These strings must match exactly between test assertions (dso-smgw) and implementation (dso-vfj0). If dso-vfj0's output strings change during implementation, update test assertions accordingly before marking this task complete.
 
+
+## Notes
+
+<!-- note-id: 6ypn3xum -->
+<!-- timestamp: 2026-03-21T08:39:02Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded
+
+<!-- note-id: xajkrdrp -->
+<!-- timestamp: 2026-03-21T08:40:44Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done - 8 RED tests written, all failing
