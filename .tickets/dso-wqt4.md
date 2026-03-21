@@ -1,6 +1,6 @@
 ---
 id: dso-wqt4
-status: in_progress
+status: closed
 deps: [dso-ydzw]
 links: []
 created: 2026-03-21T16:15:14Z

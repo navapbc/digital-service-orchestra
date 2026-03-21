@@ -468,6 +468,149 @@ fi
 rm -rf "$TEST_REPO_7" "$ARTIFACTS_7"
 trap - EXIT
 
+# ============================================================
+# test_record_bash_script_discovers_test
+# A staged bash script (scripts/bump-version.sh) should be
+# matched to its associated test (tests/test-bump-version.sh)
+# via fuzzy matching. RED: current recorder uses test_bumpversionsh
+# pattern which won't match test-bump-version.sh.
+# ============================================================
+echo ""
+echo "=== test_record_bash_script_discovers_test ==="
+
+TEST_REPO_BASH=$(create_test_repo)
+ARTIFACTS_BASH=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_BASH" "$ARTIFACTS_BASH"' EXIT
+
+# Create a bash source file and its associated test file (bash naming convention)
+mkdir -p "$TEST_REPO_BASH/scripts" "$TEST_REPO_BASH/tests"
+cat > "$TEST_REPO_BASH/scripts/bump-version.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "bumping version"
+SHEOF
+chmod +x "$TEST_REPO_BASH/scripts/bump-version.sh"
+
+cat > "$TEST_REPO_BASH/tests/test-bump-version.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test bump-version"
+exit 0
+SHEOF
+chmod +x "$TEST_REPO_BASH/tests/test-bump-version.sh"
+
+git -C "$TEST_REPO_BASH" add -A
+git -C "$TEST_REPO_BASH" commit -m "add bump-version" --quiet 2>/dev/null
+
+# Modify the source to create a staged diff
+echo "# changed" >> "$TEST_REPO_BASH/scripts/bump-version.sh"
+git -C "$TEST_REPO_BASH" add -A
+
+# Create a mock runner that always passes
+MOCK_PASS=$(mktemp "${TMPDIR:-/tmp}/mock-pass-XXXXXX")
+chmod +x "$MOCK_PASS"
+cat > "$MOCK_PASS" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "PASSED (mock)"
+exit 0
+MOCKEOF
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_BASH"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BASH" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS" \
+    run_hook_exit
+)
+
+STATUS_FILE_BASH="$ARTIFACTS_BASH/test-gate-status"
+
+# RED assertion: current recorder uses test_bump-versionsh pattern which won't
+# match test-bump-version.sh, so no test-gate-status file is written (exempt exit 0).
+# After implementation (fuzzy match), the test file WILL be discovered and status written.
+if [[ -f "$STATUS_FILE_BASH" ]]; then
+    TESTED_LINE=$(grep '^tested_files=' "$STATUS_FILE_BASH" | head -1 | cut -d= -f2)
+    assert_contains "test_record_bash_script_discovers_test: tested_files contains test-bump-version.sh" "test-bump-version.sh" "$TESTED_LINE"
+else
+    # No status file means no test was discovered — this is the RED failure
+    assert_eq "test_record_bash_script_discovers_test: status file written (fuzzy match discovers test)" "exists" "missing"
+fi
+
+rm -f "$MOCK_PASS"
+rm -rf "$TEST_REPO_BASH" "$ARTIFACTS_BASH"
+trap - EXIT
+
+# ============================================================
+# test_record_uses_configured_test_dirs
+# When TEST_GATE_TEST_DIRS_OVERRIDE is set, the recorder should
+# search only those directories for test files. RED: current
+# recorder ignores TEST_GATE_TEST_DIRS_OVERRIDE entirely.
+# ============================================================
+echo ""
+echo "=== test_record_uses_configured_test_dirs ==="
+
+TEST_REPO_DIRS=$(create_test_repo)
+ARTIFACTS_DIRS=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_DIRS" "$ARTIFACTS_DIRS"' EXIT
+
+# Create a bash source file and test in a NON-standard directory (unit_tests/)
+mkdir -p "$TEST_REPO_DIRS/scripts" "$TEST_REPO_DIRS/unit_tests"
+cat > "$TEST_REPO_DIRS/scripts/bump-version.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "bumping version"
+SHEOF
+chmod +x "$TEST_REPO_DIRS/scripts/bump-version.sh"
+
+cat > "$TEST_REPO_DIRS/unit_tests/test-bump-version.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test bump-version from unit_tests"
+exit 0
+SHEOF
+chmod +x "$TEST_REPO_DIRS/unit_tests/test-bump-version.sh"
+
+git -C "$TEST_REPO_DIRS" add -A
+git -C "$TEST_REPO_DIRS" commit -m "add bump-version with custom test dir" --quiet 2>/dev/null
+
+# Modify source to create staged diff
+echo "# changed" >> "$TEST_REPO_DIRS/scripts/bump-version.sh"
+git -C "$TEST_REPO_DIRS" add -A
+
+# Create a mock runner that always passes
+MOCK_PASS_DIRS=$(mktemp "${TMPDIR:-/tmp}/mock-pass-dirs-XXXXXX")
+chmod +x "$MOCK_PASS_DIRS"
+cat > "$MOCK_PASS_DIRS" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "PASSED (mock)"
+exit 0
+MOCKEOF
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_DIRS"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_DIRS" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_DIRS" \
+    TEST_GATE_TEST_DIRS_OVERRIDE="unit_tests/" \
+    run_hook_exit
+)
+
+STATUS_FILE_DIRS="$ARTIFACTS_DIRS/test-gate-status"
+
+# RED assertion: current recorder ignores TEST_GATE_TEST_DIRS_OVERRIDE and uses
+# find . with test_bump-versionsh pattern. It won't find test-bump-version.sh
+# regardless of directory. After implementation, it will use fuzzy match scoped
+# to unit_tests/ and find the test.
+if [[ -f "$STATUS_FILE_DIRS" ]]; then
+    TESTED_LINE=$(grep '^tested_files=' "$STATUS_FILE_DIRS" | head -1 | cut -d= -f2)
+    assert_contains "test_record_uses_configured_test_dirs: tested_files contains test-bump-version.sh from unit_tests" "test-bump-version.sh" "$TESTED_LINE"
+    # Additionally verify it found the file in unit_tests/ (not some other dir)
+    assert_contains "test_record_uses_configured_test_dirs: path includes unit_tests/" "unit_tests/" "$TESTED_LINE"
+else
+    # No status file means no test was discovered — this is the RED failure
+    assert_eq "test_record_uses_configured_test_dirs: status file written (fuzzy match with test dirs)" "exists" "missing"
+fi
+
+rm -f "$MOCK_PASS_DIRS"
+rm -rf "$TEST_REPO_DIRS" "$ARTIFACTS_DIRS"
+trap - EXIT
+
 # Clean up mock runners if created
 if (( ! _PYTEST_AVAILABLE )); then
     rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true
