@@ -1,6 +1,6 @@
 ---
 id: w21-gyn8
-status: open
+status: in_progress
 deps: [w21-mtvm, w21-m4i9]
 links: []
 created: 2026-03-21T00:53:31Z
@@ -42,3 +42,29 @@ Verify RED: `bash tests/scripts/test-ticket-create.sh 2>&1; test $? -ne 0`
   Verify: `grep -c 'test_ticket_create' $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-create.sh | awk '{exit ($1 < 6)}'`
 - [ ] Running the new test returns non-zero (RED)
   Verify: `bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-create.sh 2>&1; test $? -ne 0`
+
+## Notes
+
+**2026-03-21T02:38:21Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T02:38:36Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T02:39:39Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-21T02:39:40Z**
+
+CHECKPOINT 4/6: Implementation complete (RED test only) ✓
+
+**2026-03-21T02:43:03Z**
+
+CHECKPOINT 5/6: Validation complete ✓ — shellcheck passes, all 6 tests RED (exit 1), existing 157 test files pass, run-all.sh correctly reflects new RED test
+
+**2026-03-21T02:43:18Z**
+
+CHECKPOINT 6/6: Done ✓ — all 4 ACs verified: file exists, 12 test_ticket_create refs (>= 6), test is RED (exit 1), shellcheck clean
