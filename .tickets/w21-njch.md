@@ -39,3 +39,9 @@ parent: dso-0k2k
 
 - [Reliability] fsck must be non-destructive by default — report issues, don't fix them. Repair mode is a future enhancement
 - [Reliability] Corrupt CREATE event interaction: w21-o72z flags these tickets as needing fsck repair. fsck should detect and report them with a clear recovery suggestion
+
+## Notes
+
+**2026-03-21T08:32:00Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX

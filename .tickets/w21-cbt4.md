@@ -1,6 +1,6 @@
 ---
 id: w21-cbt4
-status: in_progress
+status: closed
 deps: [w21-vz2h, w21-cjso]
 links: []
 created: 2026-03-21T07:12:28Z
@@ -111,3 +111,7 @@ CHECKPOINT 1/6: Task context loaded ✓
 **2026-03-21T08:24:13Z**
 
 CHECKPOINT 6/6: Done ✓ — test_integ_cache_warm_before_compaction_returns_correct_state_after added and passes GREEN
+
+**2026-03-21T08:31:42Z**
+
+CHECKPOINT 6/6: Done ✓ — Cache-compaction integration test passes.

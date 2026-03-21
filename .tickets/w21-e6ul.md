@@ -1,6 +1,6 @@
 ---
 id: w21-e6ul
-status: in_progress
+status: closed
 deps: [w21-cjso, w21-0rql, w21-cbt4]
 links: []
 created: 2026-03-21T07:12:51Z
@@ -82,3 +82,7 @@ CHECKPOINT 1/6: Task context loaded ✓
 **2026-03-21T08:27:25Z**
 
 CHECKPOINT 6/6: Done ✓ — tests/scripts/test-ticket-compact-e2e.sh created with 4 passing tests: full_flow, below_threshold_skips, configurable_threshold, new_events_after_compaction
+
+**2026-03-21T08:31:42Z**
+
+CHECKPOINT 6/6: Done ✓ — Compaction E2E test. 17 passed, 0 failed.
