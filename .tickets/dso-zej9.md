@@ -1,6 +1,6 @@
 ---
 id: dso-zej9
-status: in_progress
+status: closed
 deps: [dso-tgye]
 links: []
 created: 2026-03-21T16:09:07Z

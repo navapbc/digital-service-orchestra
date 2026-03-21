@@ -15,6 +15,7 @@
 #   6. hook_bug_close_guard
 #   7. hook_review_integrity_guard
 #   8. hook_blocked_test_command (block broad test commands, redirect to validate.sh)
+#   9. hook_tickets_tracker_bash_guard — block Bash commands referencing .tickets-tracker/
 #
 # NOTE: hook_review_gate was removed in Story 1idf. Review gate enforcement is
 #   now two-layer:
@@ -100,7 +101,8 @@ _pre_bash_dispatch() {
         hook_worktree_edit_guard \
         hook_bug_close_guard \
         hook_review_integrity_guard \
-        hook_blocked_test_command
+        hook_blocked_test_command \
+        hook_tickets_tracker_bash_guard
     do
         local _fn_exit=0
         _run_hook_fn "$_HOOK_FN" "$INPUT" || _fn_exit=$?

@@ -205,4 +205,27 @@ elif [ "$flock_exit" -ne 0 ]; then
     exit 1
 fi
 
+# ── Step 4: Detect newly unblocked tickets (only on close) ───────────────────
+if [ "$target_status" = "closed" ]; then
+    # Allow test override via DSO_UNBLOCK_SCRIPT; fall back to script-dir location
+    unblock_script="${DSO_UNBLOCK_SCRIPT:-$SCRIPT_DIR/ticket-unblock.py}"
+
+    unblock_out=""
+    unblock_exit=0
+    unblock_out=$(python3 "$unblock_script" "$TRACKER_DIR" "$ticket_id" --event-source local-close 2>&1) || unblock_exit=$?
+
+    if [ "$unblock_exit" -ne 0 ]; then
+        # Non-blocking: warn to stderr but do NOT fail the transition
+        echo "Warning: ticket-unblock.py failed (exit $unblock_exit): $unblock_out" >&2
+    else
+        # Parse lines of the form "UNBLOCKED <id>" and emit structured output
+        unblocked_ids=$(echo "$unblock_out" | grep -oE '^UNBLOCKED [^ ]+' | awk '{print $2}' | paste -sd ',' - 2>/dev/null || true)
+        if [ -n "$unblocked_ids" ]; then
+            echo "UNBLOCKED: $unblocked_ids"
+        else
+            echo "UNBLOCKED: none"
+        fi
+    fi
+fi
+
 exit 0

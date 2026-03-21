@@ -1,6 +1,6 @@
 ---
 id: w20-gclc
-status: in_progress
+status: closed
 deps: [w20-c38q]
 links: []
 created: 2026-03-21T16:23:54Z

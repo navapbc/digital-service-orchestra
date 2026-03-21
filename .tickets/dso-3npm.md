@@ -1,6 +1,6 @@
 ---
 id: dso-3npm
-status: in_progress
+status: closed
 deps: [dso-24cw]
 links: []
 created: 2026-03-21T16:19:22Z

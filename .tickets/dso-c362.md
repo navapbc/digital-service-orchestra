@@ -1,6 +1,6 @@
 ---
 id: dso-c362
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T16:31:54Z
