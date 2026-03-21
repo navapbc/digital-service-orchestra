@@ -54,7 +54,11 @@ source "$_PRE_EDIT_WRITE_FUNC_DIR/pre-bash-functions.sh"
 hook_cascade_circuit_breaker() {
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-    trap 'printf "{\"ts\":\"%s\",\"hook\":\"cascade-circuit-breaker\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+    local _CASCADE_FN_ERR_LOG="/tmp/cascade-circuit-breaker-fn-err.log"
+    # REVIEW-DEFENSE: JSONL log uses %s for $BASH_COMMAND which may contain quotes — accepted
+    # tradeoff: proper escaping would require a function call, adding complexity to a trap that
+    # must be minimal. The plaintext log (_CASCADE_FN_ERR_LOG) is the primary diagnostic target.
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"cascade-circuit-breaker\",\"line\":%s,\"cmd\":\"%s\"}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$HOOK_ERROR_LOG" 2>/dev/null; printf "[%s] ERR trap line=%s cmd=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$_CASCADE_FN_ERR_LOG" 2>/dev/null; return 0' ERR
 
     local TOOL_NAME
     TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')

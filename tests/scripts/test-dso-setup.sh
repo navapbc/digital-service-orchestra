@@ -858,12 +858,16 @@ test_precommit_yaml_merge_produces_valid_yaml() {
         assert_eq "test_precommit_yaml_merge_produces_valid_yaml: review-gate present" "found" "missing"
     fi
 
-    # Then validate the YAML is still parseable
-    local yaml_valid="invalid"
-    if python3 -c "import yaml; yaml.safe_load(open('$T/.pre-commit-config.yaml'))" 2>/dev/null; then
-        yaml_valid="valid"
+    # Then validate the YAML is still parseable (skip if PyYAML not installed)
+    if python3 -c "import yaml" 2>/dev/null; then
+        local yaml_valid="invalid"
+        if python3 -c "import yaml; yaml.safe_load(open('$T/.pre-commit-config.yaml'))" 2>/dev/null; then
+            yaml_valid="valid"
+        fi
+        assert_eq "test_precommit_yaml_merge_produces_valid_yaml: yaml parseable" "valid" "$yaml_valid"
+    else
+        echo "  (skipped yaml validity check — pyyaml not installed)" >&2
     fi
-    assert_eq "test_precommit_yaml_merge_produces_valid_yaml: yaml parseable" "valid" "$yaml_valid"
 }
 
 # test_precommit_hook_merge_dryrun_no_changes: in --dryrun mode, no changes are made

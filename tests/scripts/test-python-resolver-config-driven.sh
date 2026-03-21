@@ -49,7 +49,8 @@ for script in "${SCRIPTS[@]}"; do
         continue
     fi
     # Count non-comment lines containing hardcoded app/.venv/bin/python
-    hardcoded=$(grep -v '^\s*#' "$filepath" | grep -c 'app/\.venv/bin/python' || true)
+    # Exclude ${..:-app/.venv/...} parameter expansion defaults (config-driven with fallback)
+    hardcoded=$(grep -v '^\s*#' "$filepath" | grep -v ':-app/\.venv/bin/python' | grep -c 'app/\.venv/bin/python' || true)
     assert_eq "test_${script}_uses_config_python_venv" "0" "$hardcoded"
     assert_pass_if_clean "test_${script}_uses_config_python_venv"
 done
