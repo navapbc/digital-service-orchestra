@@ -102,5 +102,58 @@ hook_review_bypass_sentinel() {
         fi
     fi
 
+    # --- Pattern g: Direct writes to test-gate-status or test-status/ ---
+    # Block commands that write to test-gate-status (echo/cat/tee/printf with redirect, cp/mv)
+    # but allow read-only commands and the authorized writer (record-test-status.sh).
+    if [[ "$COMMAND" == *"test-gate-status"* ]] || [[ "$COMMAND" == *"test-status/"* ]]; then
+        # Exemption: record-test-status.sh is the authorized writer
+        if [[ "$COMMAND" == *"record-test-status.sh"* ]]; then
+            return 0
+        fi
+        # Check for write patterns: redirect operators, cp, mv, tee, echo/printf with redirect
+        if [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-gate-status ]] || \
+           [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-status/ ]] || \
+           [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*test-gate-status ]] || \
+           [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*test-status/ ]] || \
+           [[ "$COMMAND" =~ (cp|mv)[[:space:]].*test-gate-status ]] || \
+           [[ "$COMMAND" =~ (cp|mv)[[:space:]].*test-status/ ]] || \
+           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-gate-status ]] || \
+           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-status/ ]]; then
+            echo "BLOCKED [bypass-sentinel]: direct write to test-gate-status detected. Use record-test-status.sh to record test results." >&2
+            trap - ERR; return 2
+        fi
+    fi
+
+    # --- Pattern h: Direct deletion of test-gate-status or test-status/ ---
+    # Block rm commands targeting test-gate-status or test-status/ (cannot delete to reset gate state).
+    if [[ "$COMMAND" =~ rm[[:space:]].*test-gate-status ]] || \
+       [[ "$COMMAND" =~ rm[[:space:]].*test-status/ ]]; then
+        # Exemption: record-test-status.sh is the authorized writer
+        if [[ "$COMMAND" == *"record-test-status.sh"* ]]; then
+            return 0
+        fi
+        echo "BLOCKED [bypass-sentinel]: direct deletion of test-gate-status detected. Use record-test-status.sh to manage test gate state." >&2
+        trap - ERR; return 2
+    fi
+
+    # --- Pattern i: Direct writes to test-exemptions ---
+    # Block commands that write to test-exemptions (echo/cat/tee/printf with redirect, cp/mv, rm)
+    # but allow read-only commands and the authorized writer (record-test-exemption.sh).
+    if [[ "$COMMAND" == *"test-exemptions"* ]]; then
+        # Exemption: record-test-exemption.sh is the authorized writer
+        if [[ "$COMMAND" == *"record-test-exemption.sh"* ]]; then
+            return 0
+        fi
+        # Check for write patterns: redirect operators, cp, mv, tee, echo/printf with redirect, rm
+        if [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*test-exemptions ]] || \
+           [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*test-exemptions ]] || \
+           [[ "$COMMAND" =~ (cp|mv)[[:space:]].*test-exemptions ]] || \
+           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*test-exemptions ]] || \
+           [[ "$COMMAND" =~ rm[[:space:]].*test-exemptions ]]; then
+            echo "BLOCKED [bypass-sentinel]: direct write to test-exemption file detected. Use record-test-exemption.sh to record test exemptions." >&2
+            trap - ERR; return 2
+        fi
+    fi
+
     return 0
 }

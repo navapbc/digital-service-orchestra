@@ -338,7 +338,7 @@ PYEOF
 
     if [[ -n "$dryrun" ]]; then
         echo "[dryrun] Would merge DSO hooks into .pre-commit-config.yaml: $hooks_list"
-        echo "[dryrun] Would append a new DSO local repo block containing: pre-commit-review-gate"
+        echo "[dryrun] Would append a new DSO local repo block containing: $hooks_list"
         return 0
     fi
 

@@ -1,4 +1,29 @@
 {
+  ".ti-2cu0": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Structural validation test for using-lockpick clarification loop",
+    "type": "task"
+  },
+  ".ti-xdi3": {
+    "deps": [
+      ".ti-2cu0"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add confidence-gated clarification loop to using-lockpick SKILL.md",
+    "type": "task"
+  },
+  ".ti-zni0": {
+    "deps": [
+      ".ti-xdi3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update HOOK-INJECTION.md with condensed clarification guidance",
+    "type": "task"
+  },
   "dso-094a": {
     "deps": [],
     "priority": 2,
@@ -65,7 +90,7 @@
   "dso-2rgm": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Write test asserting CONFIG-RESOLUTION.md matches actual read-config.sh resolution logic",
     "type": "task"
   },
@@ -457,7 +482,7 @@
       "dso-2rgm"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Write test asserting MIGRATION-TO-PLUGIN.md does not recommend settings.json CLAUDE_PLUGIN_ROOT env override",
     "type": "task"
   },
@@ -823,7 +848,7 @@
       "dso-g7d8"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Fix MIGRATION-TO-PLUGIN.md to remove settings.json CLAUDE_PLUGIN_ROOT env override recommendation",
     "type": "task"
   },
@@ -928,6 +953,13 @@
     "status": "closed",
     "title": "Update .claude/scripts/dso shim and templates/host-project/dso to use .claude/dso-config.conf",
     "type": "task"
+  },
+  "dso-u5lt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
+    "type": "bug"
   },
   "dso-uc2d": {
     "deps": [],
@@ -1067,7 +1099,7 @@
       "dso-2rgm"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Fix CONFIG-RESOLUTION.md to accurately document read-config.sh resolution order",
     "type": "task"
   },
@@ -1076,7 +1108,7 @@
       "dso-kknz"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
     "type": "epic"
   },
@@ -1232,7 +1264,7 @@
   "w21-8ady": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Tests for child count in sprint-list-epics.sh output",
     "type": "task"
   },
@@ -1323,6 +1355,13 @@
     "status": "closed",
     "title": "RED: Write failing tests for conditional prompt sections in project-setup SKILL.md",
     "type": "task"
+  },
+  "w21-bw1o": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Flaky test: test-merge-to-main-portability.sh intermittently fails (8/10 pass, then 10/10 on re-run)",
+    "type": "bug"
   },
   "w21-bwfw": {
     "deps": [
@@ -1538,7 +1577,7 @@
       "w21-xlaw"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Update sprint SKILL.md display format for child count",
     "type": "task"
   },
@@ -1618,6 +1657,13 @@
     "title": "validate.sh plugin check fails: make test-plugin target missing from Makefile",
     "type": "bug"
   },
+  "w21-u3op": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation",
+    "type": "bug"
+  },
   "w21-u5mg": {
     "deps": [],
     "priority": 1,
@@ -1635,7 +1681,7 @@
   "w21-vydt": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Add child count to sprint epic list display",
     "type": "epic"
   },
@@ -1661,7 +1707,7 @@
       "w21-8ady"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Add child count to sprint-list-epics.sh output",
     "type": "task"
   },

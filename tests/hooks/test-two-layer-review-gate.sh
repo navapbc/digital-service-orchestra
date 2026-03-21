@@ -480,6 +480,92 @@ test_merge_head_present_non_allowlisted_without_review_blocked() {
     rm -f "$_repo/.git/MERGE_HEAD"
 }
 
+# ============================================================
+# CRITERION: Test gate two-layer integration
+# Layer 1: pre-commit-test-gate.sh blocks commit when test-gate-status absent
+# Layer 2: bypass sentinel blocks --no-verify on a test-gate-failing commit
+# ============================================================
+
+# Helper: locate pre-commit-test-gate.sh
+PRE_COMMIT_TEST_GATE="$DSO_PLUGIN_DIR/hooks/pre-commit-test-gate.sh"
+
+# test_gate_layer1_blocks_commit_without_test_status
+#
+# A commit staging a .py source file that has an associated test, with no
+# test-gate-status file recorded, must be blocked by Layer 1 (exit 1).
+test_gate_layer1_blocks_commit_without_test_status() {
+    if [[ ! -f "$PRE_COMMIT_TEST_GATE" ]]; then
+        assert_eq "test_gate_layer1_blocks_commit_without_test_status: prereq" "found" "not-found"
+        return
+    fi
+
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a source file with a corresponding test file in tests/ tree
+    echo "def add(a, b): return a + b" > "$_repo/calc.py"
+    mkdir -p "$_repo/tests"
+    echo "def test_add(): assert add(1,2)==3" > "$_repo/tests/test_calc.py"
+    git -C "$_repo" add "calc.py" "tests/test_calc.py"
+
+    # No test-gate-status file → hook must block
+    local exit_code=0
+    (
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        bash "$PRE_COMMIT_TEST_GATE" 2>/dev/null
+    ) || exit_code=$?
+
+    assert_eq "test_gate_layer1_blocks_commit_without_test_status" "1" "$exit_code"
+}
+
+# test_gate_layer2_blocks_no_verify_on_test_gate_failing_commit
+#
+# When Layer 1 would block (no test-gate-status), an agent attempting
+# --no-verify to bypass it must be blocked by Layer 2 (bypass sentinel,
+# exit 2), independently of git hooks.
+test_gate_layer2_blocks_no_verify_on_test_gate_failing_commit() {
+    local INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m \"bypass test gate\""}}'
+    local exit_code
+    exit_code=$(call_sentinel "$INPUT")
+    assert_eq "test_gate_layer2_blocks_no_verify_on_test_gate_failing_commit" "2" "$exit_code"
+}
+
+# test_gate_layer2_blocks_direct_write_to_test_gate_status
+#
+# A direct write to test-gate-status (attempting to forge a passing status)
+# must be blocked by Layer 2 with exit code 2.
+test_gate_layer2_blocks_direct_write_to_test_gate_status() {
+    local INPUT='{"tool_name":"Bash","tool_input":{"command":"echo passed > /tmp/workflow-plugin-xxx/test-gate-status"}}'
+    local exit_code
+    exit_code=$(call_sentinel "$INPUT")
+    assert_eq "test_gate_layer2_blocks_direct_write_to_test_gate_status" "2" "$exit_code"
+}
+
+# test_gate_layer2_blocks_direct_write_to_test_exemptions
+#
+# A direct write to test-exemptions (attempting to forge an exemption) must
+# be blocked by Layer 2 with exit code 2.
+test_gate_layer2_blocks_direct_write_to_test_exemptions() {
+    local INPUT='{"tool_name":"Bash","tool_input":{"command":"echo \"tests::test_slow\" > /tmp/workflow-plugin-xxx/test-exemptions"}}'
+    local exit_code
+    exit_code=$(call_sentinel "$INPUT")
+    assert_eq "test_gate_layer2_blocks_direct_write_to_test_exemptions" "2" "$exit_code"
+}
+
+# test_gate_layer2_allows_record_test_exemption_sh
+#
+# A call to record-test-exemption.sh must NOT be blocked by Layer 2 —
+# it is the authorized writer for the exemptions file.
+test_gate_layer2_allows_record_test_exemption_sh() {
+    local INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-exemption.sh tests/unit/test_calc.py::test_slow"}}'
+    local exit_code
+    exit_code=$(call_sentinel "$INPUT")
+    assert_eq "test_gate_layer2_allows_record_test_exemption_sh" "0" "$exit_code"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlist_pass_tickets_only
 test_allowlist_pass_docs_only
@@ -496,5 +582,10 @@ test_hook_review_gate_removed_from_pre_bash_functions
 test_merge_head_present_allowlisted_commit_passes
 test_merge_head_absent_non_allowlisted_still_blocked
 test_merge_head_present_non_allowlisted_without_review_blocked
+test_gate_layer1_blocks_commit_without_test_status
+test_gate_layer2_blocks_no_verify_on_test_gate_failing_commit
+test_gate_layer2_blocks_direct_write_to_test_gate_status
+test_gate_layer2_blocks_direct_write_to_test_exemptions
+test_gate_layer2_allows_record_test_exemption_sh
 
 print_summary
