@@ -8,6 +8,7 @@ type: bug
 priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-60
+parent: dso-9xnr
 ---
 # Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix
 

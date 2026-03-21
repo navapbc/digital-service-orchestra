@@ -53,6 +53,17 @@ _worktree_sync_from_main() {
         return 1
     fi
 
+    # Stash any uncommitted changes to .tickets/.index.json before merging.
+    # git merge origin/main fails with "would be overwritten by merge" when the
+    # same file is modified both locally (uncommitted) and in origin/main.
+    # .tickets/.index.json is written by tk commands without auto-committing,
+    # so this scenario is common during worktree merge workflows.
+    local _SYNC_STASHED=false
+    if ! git diff --quiet -- .tickets/.index.json 2>/dev/null; then
+        echo "INFO: Stashing local .tickets/.index.json changes before sync merge..."
+        git stash push --quiet -- .tickets/.index.json 2>/dev/null && _SYNC_STASHED=true
+    fi
+
     if ! git merge origin/main ${quiet:+--quiet} --no-edit 2>&1; then
         local CONFLICTED
         CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
@@ -108,6 +119,7 @@ _worktree_sync_from_main() {
             if [ ! -f "$_merge_script" ]; then
                 echo "ERROR: merge-ticket-index.py not found at $_merge_script — cannot auto-resolve."
                 git merge --abort 2>/dev/null || true
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             fi
 
@@ -128,6 +140,7 @@ _worktree_sync_from_main() {
                 echo "ERROR: Could not determine merge base for fallback resolution."
                 git merge --abort 2>/dev/null || true
                 rm -f "$_tmp_ancestor" "$_tmp_ours" "$_tmp_theirs"
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             fi
 
@@ -135,6 +148,7 @@ _worktree_sync_from_main() {
                 echo "ERROR: Could not extract ancestor .tickets/.index.json from merge base."
                 git merge --abort 2>/dev/null || true
                 rm -f "$_tmp_ancestor" "$_tmp_ours" "$_tmp_theirs"
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             }
 
@@ -143,6 +157,7 @@ _worktree_sync_from_main() {
                 echo "ERROR: Could not extract HEAD .tickets/.index.json."
                 git merge --abort 2>/dev/null || true
                 rm -f "$_tmp_ancestor" "$_tmp_ours" "$_tmp_theirs"
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             }
 
@@ -151,6 +166,7 @@ _worktree_sync_from_main() {
                 echo "ERROR: Could not extract MERGE_HEAD .tickets/.index.json."
                 git merge --abort 2>/dev/null || true
                 rm -f "$_tmp_ancestor" "$_tmp_ours" "$_tmp_theirs"
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             }
 
@@ -160,6 +176,7 @@ _worktree_sync_from_main() {
                 echo "ERROR: merge-ticket-index.py failed — aborting merge."
                 git merge --abort 2>/dev/null || true
                 rm -f "$_tmp_ancestor" "$_tmp_ours" "$_tmp_theirs"
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             fi
 
@@ -172,6 +189,7 @@ _worktree_sync_from_main() {
             if ! git add .tickets/.index.json 2>&1; then
                 echo "ERROR: git add .tickets/.index.json failed — aborting merge."
                 git merge --abort 2>/dev/null || true
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             fi
 
@@ -183,9 +201,14 @@ _worktree_sync_from_main() {
                 # Unstage the resolved file before aborting
                 git reset HEAD .tickets/.index.json 2>/dev/null || true
                 git merge --abort 2>/dev/null || true
+                if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
                 return 1
             fi
 
+            if $_SYNC_STASHED; then
+                echo "INFO: Restoring stashed .tickets/.index.json changes after sync..."
+                git stash pop --quiet 2>/dev/null || true
+            fi
             return 0
         fi
 
@@ -194,9 +217,20 @@ _worktree_sync_from_main() {
         echo "CONFLICT_DATA: direction=main-into-worktree branch=$BRANCH merge_base=$(git merge-base HEAD origin/main 2>/dev/null || echo unknown)"
         [ -n "$CONFLICTED" ] && echo "CONFLICT_FILES: $CONFLICTED"
         git merge --abort 2>/dev/null || true
+        if $_SYNC_STASHED; then git stash pop --quiet 2>/dev/null || true; fi
         return 1
     fi
     echo "OK: Worktree synced with main."
+
+    # Restore stashed .tickets/.index.json changes (stash push was before merge)
+    if $_SYNC_STASHED; then
+        echo "INFO: Restoring stashed .tickets/.index.json changes after sync..."
+        if ! git stash pop --quiet 2>/dev/null; then
+            echo "WARNING: Stash pop had conflicts for .tickets/.index.json — resetting."
+            git reset --merge 2>/dev/null || true
+            git stash drop --quiet 2>/dev/null || true
+        fi
+    fi
 
     return 0
 }

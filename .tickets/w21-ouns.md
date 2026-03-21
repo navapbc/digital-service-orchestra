@@ -7,6 +7,7 @@ created: 2026-03-19T18:11:59Z
 type: bug
 priority: 2
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR
 

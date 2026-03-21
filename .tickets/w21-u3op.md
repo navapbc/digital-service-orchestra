@@ -7,6 +7,7 @@ created: 2026-03-20T18:40:15Z
 type: bug
 priority: 2
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation
 

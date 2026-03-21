@@ -27,7 +27,7 @@
   "dso-094a": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
@@ -107,7 +107,7 @@
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
     "type": "bug"
   },
@@ -121,7 +121,7 @@
   "dso-3e30": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Bug: tk create -d interprets double-dash in description text as option flags",
     "type": "bug"
   },
@@ -221,14 +221,14 @@
   "dso-5syi": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
     "type": "bug"
   },
   "dso-62u0": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
     "type": "bug"
   },
@@ -282,6 +282,13 @@
     "priority": 1,
     "status": "open",
     "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
+    "type": "epic"
+  },
+  "dso-9xnr": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Project Health Restoration (2026-03-20)",
     "type": "epic"
   },
   "dso-9zsh": {
@@ -447,7 +454,7 @@
   "dso-fqxu": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: compute-diff-hash.sh hash mismatch when untracked temp test fixtures exist during review",
     "type": "bug"
   },
@@ -482,7 +489,7 @@
   "dso-g8cz": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
     "type": "bug"
   },
@@ -510,6 +517,13 @@
     "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
+  "dso-gjww": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: _test_state_already_passed accepts state files with missing command_hash",
+    "type": "bug"
+  },
   "dso-gkct": {
     "deps": [],
     "priority": 2,
@@ -517,10 +531,17 @@
     "title": "Implementation planning tradeoffs",
     "type": "epic"
   },
+  "dso-go0x": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
+    "type": "bug"
+  },
   "dso-h04l": {
     "deps": [],
     "priority": 0,
-    "status": "closed",
+    "status": "in_progress",
     "title": "[LOCK] debug-everything",
     "type": "task"
   },
@@ -571,7 +592,7 @@
   "dso-jauq": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
@@ -613,7 +634,7 @@
   "dso-kv4p": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: merge-to-main.sh push phase fails with retry_with_backoff: command not found",
     "type": "bug"
   },
@@ -649,6 +670,13 @@
     "priority": 2,
     "status": "open",
     "title": "Bug: tk sync windowed pull uses UTC but Jira reads JQL datetimes as user-local timezone",
+    "type": "bug"
+  },
+  "dso-lm92": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "record-review.sh CHANGED_FILES overlap check includes untracked files that may not be reviewed",
     "type": "bug"
   },
   "dso-lqyw": {
@@ -695,6 +723,13 @@
     "title": "RED: Write failing tests for ci.workflow_name fallback in merge-to-main.sh",
     "type": "task"
   },
+  "dso-ogh7": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: deduplicate FN_BODY_9 extraction in test-merge-to-main-qt4u.sh test 9",
+    "type": "bug"
+  },
   "dso-opue": {
     "deps": [
       "dso-s6kt"
@@ -703,6 +738,13 @@
     "status": "closed",
     "title": "Update read-config.sh to resolve from .claude/dso-config.conf + move config file",
     "type": "task"
+  },
+  "dso-or3g": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: collect-discoveries.sh crashes with get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT is wrong",
+    "type": "bug"
   },
   "dso-ozsx": {
     "deps": [
@@ -773,6 +815,13 @@
     "title": "As a developer setting up DSO, the setup creates .claude/dso-config.conf",
     "type": "story"
   },
+  "dso-qlgq": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "validate-phase.sh runs tests directly without test-batched.sh \u2014 same timeout anti-pattern as w21-ae0s",
+    "type": "bug"
+  },
   "dso-qo0x": {
     "deps": [],
     "priority": 2,
@@ -783,7 +832,7 @@
   "dso-qt4u": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution",
     "type": "bug"
   },
@@ -860,6 +909,13 @@
     "status": "open",
     "title": "Research and investigation in pre-planning or brainstorm",
     "type": "epic"
+  },
+  "dso-t2wb": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "test-merge-to-main: sed sentinel range fragile to future refactoring",
+    "type": "bug"
   },
   "dso-t4k8": {
     "deps": [],
@@ -974,6 +1030,20 @@
     "status": "closed",
     "title": "Untitled",
     "type": "task"
+  },
+  "dso-w20r": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: comment says do NOT use run_with_timeout but code does use it",
+    "type": "bug"
+  },
+  "dso-w7bs": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: assert pending state file content in test_validate_exits_2_on_partial_tests integration test",
+    "type": "bug"
   },
   "dso-wmjr": {
     "deps": [],
@@ -1234,7 +1304,7 @@
   "w21-9k4z": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
@@ -1248,7 +1318,7 @@
   "w21-ae0s": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
     "type": "bug"
   },
@@ -1457,9 +1527,9 @@
   "w21-ni6d": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
-    "type": "task"
+    "type": "bug"
   },
   "w21-njch": {
     "deps": [
@@ -1628,9 +1698,9 @@
   "w21-wlhw": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
-    "type": "task"
+    "type": "bug"
   },
   "w21-xlaw": {
     "deps": [
@@ -1644,7 +1714,7 @@
   "w21-yzln": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
     "type": "bug"
   },

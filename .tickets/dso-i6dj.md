@@ -7,6 +7,7 @@ created: 2026-03-19T18:55:34Z
 type: bug
 priority: 2
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # Bug: /dso:brainstorm created children with truncated titles and descriptions
 

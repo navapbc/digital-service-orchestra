@@ -7,6 +7,7 @@ created: 2026-03-20T01:05:43Z
 type: bug
 priority: 3
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # BUG: AC4 check in w21-cu3r incompatible with assert.sh output format
 

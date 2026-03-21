@@ -8,6 +8,7 @@ type: bug
 priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-83
+parent: dso-9xnr
 ---
 # Bug: tk sync windowed pull uses UTC but Jira reads JQL datetimes as user-local timezone
 

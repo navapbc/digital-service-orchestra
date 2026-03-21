@@ -126,6 +126,23 @@ fi
 rm -rf "$_disc_tmpdir"
 assert_pass_if_clean "test_cleanup_discoveries_exit_0"
 
+# ── test_cleanup_discoveries_wrong_plugin_root ──────────────────────────────
+# cleanup-discoveries must not crash (get_artifacts_dir not found) when
+# CLAUDE_PLUGIN_ROOT points to the main repo root instead of the plugin
+# subdirectory. Regression guard for dso-094a.
+# We use WORKFLOW_PLUGIN_ARTIFACTS_DIR (the deps.sh env override for get_artifacts_dir)
+# so the test does NOT use AGENT_DISCOVERIES_DIR — it exercises the actual
+# get_artifacts_dir() code path but redirects the artifacts to a writable tmp dir.
+_snapshot_fail
+_disc_tmpdir2=$(mktemp -d)
+disc_wrong_exit=0
+disc_wrong_output=""
+disc_wrong_output=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_disc_tmpdir2" _run cleanup-discoveries 2>&1) || disc_wrong_exit=$?
+assert_eq "test_cleanup_discoveries_wrong_plugin_root: exit code" "0" "$disc_wrong_exit"
+assert_contains "test_cleanup_discoveries_wrong_plugin_root: DISCOVERIES_CLEANED" "DISCOVERIES_CLEANED:" "$disc_wrong_output"
+rm -rf "$_disc_tmpdir2"
+assert_pass_if_clean "test_cleanup_discoveries_wrong_plugin_root"
+
 # ── test_cleanup_stale_containers_exit_0 ────────────────────────────────────
 # cleanup-stale-containers should exit 0 with no-op when infrastructure absent
 _snapshot_fail

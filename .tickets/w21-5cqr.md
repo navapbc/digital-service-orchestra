@@ -8,6 +8,7 @@ type: bug
 priority: 3
 assignee: Joe Oakhart
 jira_key: DIG-61
+parent: dso-9xnr
 ---
 # fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth
 

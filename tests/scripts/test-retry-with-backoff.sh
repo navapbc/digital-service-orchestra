@@ -268,6 +268,27 @@ assert_eq "zero retries calls command exactly once" "1" "$_call_count8"
 assert_pass_if_clean "zero retries: try once only"
 
 # =============================================================================
+# Test 9: retry_with_backoff is callable from merge-to-main.sh without deps.sh
+# Regression test for dso-kv4p: the function must be defined inline in
+# merge-to-main.sh as a fallback so _phase_push works even when deps.sh is absent.
+# =============================================================================
+echo ""
+echo "--- retry_with_backoff defined inline in merge-to-main.sh as fallback ---"
+_snapshot_fail
+
+# Check that merge-to-main.sh defines retry_with_backoff directly (not only via source).
+# The function may be indented (inside an 'if' guard block), so match with optional leading whitespace.
+HAS_INLINE_DEFINITION=$(grep -cE "^[[:space:]]*retry_with_backoff\(\)" "$MERGE_SCRIPT" || true)
+assert_ne "test_retry_with_backoff_defined_inline_in_merge_script" "0" "$HAS_INLINE_DEFINITION"
+
+# Verify that the inline definition is guarded (only defined if not already set by deps.sh)
+# This avoids redefining it when deps.sh is sourced successfully.
+HAS_GUARD=$(grep -cE "type retry_with_backoff|command -v retry_with_backoff|declare.*retry_with_backoff" "$MERGE_SCRIPT" || true)
+assert_ne "test_retry_with_backoff_inline_is_guarded" "0" "$HAS_GUARD"
+
+assert_pass_if_clean "retry_with_backoff defined inline in merge-to-main.sh as fallback"
+
+# =============================================================================
 # Summary
 # =============================================================================
 print_summary

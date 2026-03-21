@@ -7,6 +7,7 @@ created: 2026-03-20T17:13:11Z
 type: bug
 priority: 3
 assignee: Joe Oakhart
+parent: dso-9xnr
 ---
 # Worktree auto-cleanup fails when session ends with unmerged commits
 

@@ -82,10 +82,17 @@ HEARTBEAT_FILE="${OUTPUT_FILE}.heartbeat"
 nohup bash -c '
     # Write initial heartbeat
     date +%s > "$4"
-    # Run the command; use eval so shell syntax (pipes, redirects, etc.) in the
-    # command string is interpreted correctly rather than treated as a literal
-    # executable name (argument passing bug fix).
-    eval "${*:5}" > "$1" 2>&1 &
+    # Run the command. When a single argument is passed it is treated as a shell
+    # string and eval-ed so that shell syntax (pipes, redirects, etc.) is
+    # interpreted correctly. When multiple arguments are passed they are exec-ed
+    # directly via "${@:5}" to preserve argument boundaries -- this prevents
+    # double-parsing of values that contain "--" or other shell metacharacters
+    # (dso-3e30).
+    if [ "$(( $# - 4 ))" -eq 1 ]; then
+        eval "$5" > "$1" 2>&1 &
+    else
+        "${@:5}" > "$1" 2>&1 &
+    fi
     CMD_PID=$!
     # Heartbeat loop: write timestamp every INTERVAL seconds while command runs.
     # Inner loop polls every 1s to detect fast exits without sleeping the full interval.

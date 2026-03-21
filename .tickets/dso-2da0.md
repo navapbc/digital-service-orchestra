@@ -8,6 +8,7 @@ type: bug
 priority: 2
 assignee: Joe Oakhart
 jira_key: DIG-62
+parent: dso-9xnr
 ---
 # Recurring tool error: command_exit_nonzero (56 occurrences)
 
