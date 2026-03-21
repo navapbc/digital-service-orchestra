@@ -9,6 +9,14 @@
 #   - Adds .tickets-tracker to .git/info/exclude
 set -euo pipefail
 
+# ── Parse flags ───────────────────────────────────────────────────────────────
+_silent=false
+for _arg in "$@"; do
+    if [[ "$_arg" == "--silent" ]]; then
+        _silent=true
+    fi
+done
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
@@ -17,7 +25,9 @@ TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 if [ -d "$TRACKER_DIR" ] && [ -f "$TRACKER_DIR/.git" ]; then
     # Verify it's actually a valid worktree
     if git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
-        echo "Ticket system already initialized."
+        if [[ "$_silent" == false ]]; then
+            echo "Ticket system already initialized."
+        fi
         exit 0
     fi
 fi
@@ -133,4 +143,6 @@ fi
 # ── Set gc.auto=0 on the tickets worktree ─────────────────────────────────────
 git -C "$TRACKER_DIR" config gc.auto 0
 
-echo "Ticket system initialized."
+if [[ "$_silent" == false ]]; then
+    echo "Ticket system initialized."
+fi

@@ -1,6 +1,6 @@
 ---
 id: w21-ukq9
-status: open
+status: in_progress
 deps: [w21-1plz, w21-g3x6, w21-6bmd, w21-ymip]
 links: []
 created: 2026-03-21T00:56:54Z
@@ -47,3 +47,29 @@ Exemption criterion: "static assets only — no executable assertion is possible
   Verify: `grep -q 'ticket-event-format\|event.*format' $(git rev-parse --show-toplevel)/plugins/dso/docs/designs/adr-ticket-v3-event-sourced-storage.md`
 - [ ] ADR covers consequences (both positive and negative)
   Verify: `grep -qi 'consequence\|positive\|negative\|tradeoff' $(git rev-parse --show-toplevel)/plugins/dso/docs/designs/adr-ticket-v3-event-sourced-storage.md`
+
+## Notes
+
+**2026-03-21T04:08:06Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T04:08:42Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T04:08:43Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-21T04:09:56Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T04:10:05Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — all 4 ACs pass (file exists, flock contract referenced, event-format contract referenced, consequences covered)
+
+**2026-03-21T04:10:07Z**
+
+CHECKPOINT 6/6: Self-check AC complete ✓ — ADR covers all required sections: context, decision, consequences (positive + negative), alternatives considered, implementation story table, cross-story contracts

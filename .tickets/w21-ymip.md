@@ -1,6 +1,6 @@
 ---
 id: w21-ymip
-status: in_progress
+status: closed
 deps: [w21-6bmd, w21-1plz]
 links: []
 created: 2026-03-21T00:55:13Z
@@ -126,3 +126,7 @@ CHECKPOINT 5/6: All tests GREEN, no regressions ✓ (show: 5/5, init: 14/14, cre
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — All ACs verified: ticket-show.sh executable, tests pass (5/5), shellcheck clean, ruff clean, unknown ID exits non-zero, no regressions in init/create/lib tests
+
+**2026-03-21T04:07:06Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/scripts/ticket-show.sh, tests/scripts/test-ticket-show.sh. Tests: 5 passed, 0 failed.
