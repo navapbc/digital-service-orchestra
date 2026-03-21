@@ -1,6 +1,6 @@
 ---
 id: dso-2e99
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T00:31:14Z
@@ -26,3 +26,10 @@ Same anti-pattern as dso-tqvy (fixed in worktree-sync-from-main.sh). ci-status.s
 <!-- sync: unsynced -->
 
 Fixed at plugins/dso/scripts/ci-status.sh line 212: changed `${repo_root:+$repo_root/$CFG_PYTHON_VENV}` to `${repo_root:+$repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}}`. RED confirmed: bash -u crash reproduced before fix. GREEN confirmed: function returns python3 without error after fix. All 8 existing ci-status tests pass.
+
+<!-- note-id: 87jmeqai -->
+<!-- timestamp: 2026-03-21T01:36:45Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: CFG_PYTHON_VENV default in ci-status.sh (commit 0f08614)

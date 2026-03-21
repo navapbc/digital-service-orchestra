@@ -38,3 +38,10 @@ Classification: behavioral, Score: 2 (BASIC). Root cause: phase_auto_fix, phase_
 <!-- sync: unsynced -->
 
 CLOSE REASON: Fixed: validate-phase.sh now uses test-batched.sh via run_test_batched() helper in all three phase functions (phase_auto_fix, phase_post_batch, phase_tier_transition); falls back to direct eval when script is absent; PENDING exit code (2) propagated on NEXT: output. Tests: 21/21 pass. Committed in 0f08614.
+
+<!-- note-id: 67yv85d6 -->
+<!-- timestamp: 2026-03-21T01:36:45Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: validate-phase.sh test-batched integration (commit 0f08614)

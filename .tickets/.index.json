@@ -62,7 +62,7 @@
   "dso-2e99": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
     "type": "bug"
   },
@@ -341,7 +341,7 @@
   "dso-lli8": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: tk sync windowed pull uses UTC but Jira reads JQL datetimes as user-local timezone",
     "type": "bug"
   },
@@ -376,7 +376,7 @@
   "dso-or3g": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: collect-discoveries.sh crashes with get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT is wrong",
     "type": "bug"
   },
@@ -1029,7 +1029,7 @@
   "w21-ouns": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR",
     "type": "bug"
   },
