@@ -80,17 +80,20 @@ compute_diff_hash_excludes_file() {
     local hash_before
     hash_before=$(bash "$COMPUTE_DIFF_HASH" 2>/dev/null)
 
-    # Create the file as an unstaged change
+    # Create and stage the file — compute-diff-hash only considers staged/tracked
+    # changes (untracked files are excluded per dso-fqxu)
     local dir
     dir=$(dirname "$filepath")
     [[ "$dir" != "." ]] && mkdir -p "$dir"
     echo "$content" > "$filepath"
+    git add "$filepath"
 
-    # Get hash with the file present (unstaged)
+    # Get hash with the file staged
     local hash_after
     hash_after=$(bash "$COMPUTE_DIFF_HASH" 2>/dev/null)
 
-    # Clean up
+    # Clean up: unstage and remove file
+    git reset -q HEAD -- "$filepath" 2>/dev/null || true
     rm -f "$filepath"
     # Remove empty parent dirs
     [[ "$dir" != "." ]] && rmdir -p "$dir" 2>/dev/null || true
