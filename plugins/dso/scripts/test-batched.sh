@@ -424,7 +424,8 @@ _save_state_and_resume() {
         echo "WARNING: Could not write state file: $STATE_FILE" >&2
     }
     local done_count=${#COMPLETED_LIST[@]}
-    local resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 $([ "$TIMEOUT" -ne "$DEFAULT_TIMEOUT" ] && echo "--timeout=$TIMEOUT ") '$CMD'"
+    local resume_cmd
+    resume_cmd="TEST_BATCHED_STATE_FILE=$STATE_FILE bash $0 $([ "$TIMEOUT" -ne "$DEFAULT_TIMEOUT" ] && echo "--timeout=$TIMEOUT ") '$CMD'"
     echo ""
     echo "$done_count/$TOTAL tests completed."
     echo ""

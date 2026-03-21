@@ -17,30 +17,27 @@
 #   - KNOWN-ISSUES.md (documentation)
 #
 # Paired with track-cascade-failures.sh (PostToolUse on Bash).
-
-# Log unexpected errors to JSONL and exit cleanly (never surface to user)
-# Intentional blocks (exit 2) are NOT affected by this trap.
-HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-_CASCADE_ERR_LOG="/tmp/cascade-circuit-breaker-err.log"
-# REVIEW-DEFENSE: JSONL log uses %s for $BASH_COMMAND which may contain quotes — accepted
-# tradeoff: proper escaping would require a function call, adding complexity to a trap that
-# must be minimal. The plaintext log (_CASCADE_ERR_LOG) is the primary diagnostic target.
-trap 'printf "{\"ts\":\"%s\",\"hook\":\"cascade-circuit-breaker.sh\",\"line\":%s,\"cmd\":\"%s\"}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$HOOK_ERROR_LOG" 2>/dev/null; printf "[%s] ERR trap line=%s cmd=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$_CASCADE_ERR_LOG" 2>/dev/null; exit 0' ERR
+#
+# Error handling: explicit per-operation guards (|| exit 0) instead of a
+# global ERR trap. The ERR trap approach caused the hook to silently exit 0
+# on Linux CI when bash ERR semantics differed from macOS, preventing the
+# hook from ever reaching exit 2 (the blocking path). Per-operation guards
+# preserve fail-open behavior without interfering with intentional blocks.
 
 # Source shared dependency library
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$HOOK_DIR/lib/deps.sh"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 0
+source "$HOOK_DIR/lib/deps.sh" || exit 0
 
 # --- Read hook input ---
-INPUT=$(cat)
+INPUT=$(cat) || exit 0
 
-TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name') || exit 0
 if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
     exit 0
 fi
 
 # --- Check file path for passthrough ---
-FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')
+FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path') || exit 0
 
 # Allow non-code edits (issue tracking, config, docs, temp files).
 # Split into two case blocks because $HOME expansion does not work
@@ -63,11 +60,11 @@ if [[ -z "$WORKTREE_ROOT" ]]; then
 fi
 
 if command -v md5 &>/dev/null; then
-    WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5)
+    WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5) || exit 0
 elif command -v md5sum &>/dev/null; then
-    WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5sum | cut -d' ' -f1)
+    WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5sum | cut -d' ' -f1) || exit 0
 else
-    WT_HASH=$(echo -n "$WORKTREE_ROOT" | tr '/' '_')
+    WT_HASH=$(echo -n "$WORKTREE_ROOT" | tr '/' '_') || exit 0
 fi
 
 STATE_DIR="/tmp/claude-cascade-${WT_HASH}"

@@ -106,15 +106,6 @@ INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.py"}}'
 EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_cascade_breaker_allows_tmp_files_at_threshold" "0" "$EXIT_CODE"
 
-# --- Dump ERR trap log if any failures occurred ---
-_ERR_LOG="/tmp/cascade-circuit-breaker-err.log"
-if [[ -f "$_ERR_LOG" ]]; then
-    echo "=== ERR trap log (cascade-circuit-breaker.sh) ===" >&2
-    cat "$_ERR_LOG" >&2
-    echo "=== end ERR trap log ===" >&2
-    rm -f "$_ERR_LOG"
-fi
-
 # --- Cleanup ---
 rm -rf "$STATE_DIR" 2>/dev/null || true
 # FAKE_ROOT is removed by the EXIT trap above
