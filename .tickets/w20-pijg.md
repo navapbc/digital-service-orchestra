@@ -1,6 +1,6 @@
 ---
 id: w20-pijg
-status: in_progress
+status: closed
 deps: [w20-rpdy]
 links: []
 created: 2026-03-21T16:24:41Z

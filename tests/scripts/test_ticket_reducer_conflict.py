@@ -700,3 +700,203 @@ def test_sync_writes_conflict_log(
     )
     assert "winning_state" in record, "record must include winning_state field"
     assert "env_ids" in record, "record must include env_ids field"
+
+
+# ---------------------------------------------------------------------------
+# Test 9: detect_newly_unblocked called after conflict resolves to closed
+#         (dso-5nnr: unblock check in sync conflict resolution path)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_sync_calls_unblock_after_conflict_resolution_to_closed(
+    tmp_path: Path, conflict_resolver: ModuleType
+) -> None:
+    """resolve_sync_conflicts() calls detect_newly_unblocked when a ticket resolves to 'closed'.
+
+    RED until dso-5nnr implements the unblock hook in resolve_sync_conflicts.
+
+    Setup:
+      tracker_dir with one ticket subdir "tkt-close"
+      env-A: 3 net STATUS transitions → wins with final status 'closed'
+      env-B: 1 net STATUS transition → loses
+    Expected:
+      - detect_newly_unblocked is called with ['tkt-close'] and event_source='sync-resolution'
+      - UNBLOCKED output printed for each newly unblocked ticket
+    """
+    from unittest.mock import MagicMock, patch
+
+    tracker_dir = tmp_path / "tracker"
+    ticket_dir = tracker_dir / "tkt-close"
+
+    env_a = "env-aaaa-0000-0000-0000-000000000001"
+    env_b = "env-bbbb-0000-0000-0000-000000000002"
+
+    _write_event_file(
+        ticket_dir,
+        "0001-create.json",
+        {
+            "event_type": "CREATE",
+            "uuid": "create-close",
+            "timestamp": 1000,
+            "author": "user",
+            "env_id": env_a,
+            "data": {"ticket_type": "task", "title": "Close test ticket"},
+        },
+    )
+    _write_event_file(
+        ticket_dir,
+        "0002-status-a1.json",
+        {
+            "event_type": "STATUS",
+            "uuid": "status-close-a1",
+            "timestamp": 2000,
+            "env_id": env_a,
+            "data": {"status": "in_progress", "current_status": "open"},
+        },
+    )
+    _write_event_file(
+        ticket_dir,
+        "0003-status-a2.json",
+        {
+            "event_type": "STATUS",
+            "uuid": "status-close-a2",
+            "timestamp": 3000,
+            "env_id": env_a,
+            "data": {"status": "review", "current_status": "in_progress"},
+        },
+    )
+    _write_event_file(
+        ticket_dir,
+        "0004-status-a3.json",
+        {
+            "event_type": "STATUS",
+            "uuid": "status-close-a3",
+            "timestamp": 4000,
+            "env_id": env_a,
+            "data": {"status": "closed", "current_status": "review"},
+        },
+    )
+    _write_event_file(
+        ticket_dir,
+        "0005-status-b1.json",
+        {
+            "event_type": "STATUS",
+            "uuid": "status-close-b1",
+            "timestamp": 2500,
+            "env_id": env_b,
+            "data": {"status": "in_progress", "current_status": "open"},
+        },
+    )
+
+    mock_unblock = MagicMock(return_value=["tkt-dep-001"])
+
+    with patch.object(
+        conflict_resolver, "detect_newly_unblocked", mock_unblock, create=True
+    ):
+        import io
+        import sys as _sys
+
+        captured = io.StringIO()
+        old_stdout = _sys.stdout
+        _sys.stdout = captured
+        try:
+            result = conflict_resolver.resolve_sync_conflicts(
+                str(tracker_dir), bridge_env_id=None
+            )
+        finally:
+            _sys.stdout = old_stdout
+
+    output = captured.getvalue()
+
+    assert result.get("tkt-close") == "closed", (
+        f"Prerequisite: resolve_sync_conflicts must resolve 'tkt-close' to 'closed', "
+        f"got: {result}"
+    )
+
+    mock_unblock.assert_called_once_with(
+        ["tkt-close"], str(tracker_dir), event_source="sync-resolution"
+    )
+
+    assert "UNBLOCKED: tkt-dep-001" in output, (
+        f"Expected 'UNBLOCKED: tkt-dep-001' in stdout, got: {output!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 10: detect_newly_unblocked NOT called when no conflict resolved to closed
+#          (dso-5nnr: skip unblock check when winning status is not 'closed')
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_sync_no_unblock_when_not_closed(
+    tmp_path: Path, conflict_resolver: ModuleType
+) -> None:
+    """resolve_sync_conflicts() does NOT call detect_newly_unblocked when status != 'closed'.
+
+    RED until dso-5nnr implements the unblock hook in resolve_sync_conflicts.
+
+    Setup:
+      tracker_dir with one ticket subdir "tkt-open"
+      env-A: 1 net STATUS transition → wins with final status 'in_progress'
+      env-B: 0 net STATUS transitions (just CREATE)
+    Expected:
+      - detect_newly_unblocked is NOT called (no ticket resolved to 'closed')
+    """
+    from unittest.mock import MagicMock, patch
+
+    tracker_dir = tmp_path / "tracker"
+    ticket_dir = tracker_dir / "tkt-open"
+
+    env_a = "env-aaaa-0000-0000-0000-000000000001"
+    env_b = "env-bbbb-0000-0000-0000-000000000002"
+
+    _write_event_file(
+        ticket_dir,
+        "0001-create.json",
+        {
+            "event_type": "CREATE",
+            "uuid": "create-open",
+            "timestamp": 1000,
+            "author": "user",
+            "env_id": env_a,
+            "data": {"ticket_type": "task", "title": "Open test ticket"},
+        },
+    )
+    _write_event_file(
+        ticket_dir,
+        "0002-status-a1.json",
+        {
+            "event_type": "STATUS",
+            "uuid": "status-open-a1",
+            "timestamp": 2000,
+            "env_id": env_a,
+            "data": {"status": "in_progress", "current_status": "open"},
+        },
+    )
+    _write_event_file(
+        ticket_dir,
+        "0003-status-b1.json",
+        {
+            "event_type": "STATUS",
+            "uuid": "status-open-b1",
+            "timestamp": 2500,
+            "env_id": env_b,
+            "data": {"status": "open", "current_status": "open"},
+        },
+    )
+
+    mock_unblock = MagicMock(return_value=[])
+
+    with patch.object(
+        conflict_resolver, "detect_newly_unblocked", mock_unblock, create=True
+    ):
+        conflict_resolver.resolve_sync_conflicts(str(tracker_dir), bridge_env_id=None)
+
+    assert mock_unblock.call_count == 0, (
+        f"detect_newly_unblocked must NOT be called when no ticket resolves to 'closed'. "
+        f"Called {mock_unblock.call_count} time(s): {mock_unblock.call_args_list}"
+    )

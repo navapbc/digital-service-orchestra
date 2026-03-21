@@ -39,6 +39,12 @@ if ! mkdir -p "$ARCHIVE_DIR"; then
     exit 1
 fi
 
+TOMBSTONE_DIR="$ARCHIVE_DIR/tombstones"
+if ! mkdir -p "$TOMBSTONE_DIR"; then
+    echo "ERROR: failed to create tombstone directory: $TOMBSTONE_DIR" >&2
+    exit 1
+fi
+
 # ── Build protected set from transitive dependency chains ────────────────────
 # Walk the dep graph of all open/in_progress tickets recursively. Any ticket ID
 # reachable as a transitive dependency of an active ticket is protected from
@@ -48,6 +54,7 @@ fi
 # Scan both .tickets/ and .tickets/archive/ so the transitive graph is complete.
 declare -A ticket_deps
 declare -A ticket_status
+declare -A ticket_type
 declare -A ticket_location  # "root" or "archive"
 declare -A ticket_parent
 _scan_tickets() {
@@ -70,8 +77,14 @@ _scan_tickets() {
             /^---$/ { n++; if (n == 2) exit; next }
             n == 1 && /^parent:/ { gsub(/^parent:[[:space:]]*/, ""); gsub(/[[:space:]]*$/, ""); print; exit }
         ' "$ticket_file")
+        local type_raw
+        type_raw=$(awk '
+            /^---$/ { n++; if (n == 2) exit; next }
+            n == 1 && /^type:/ { gsub(/^type:[[:space:]]*/, ""); gsub(/[[:space:]]*$/, ""); print; exit }
+        ' "$ticket_file")
         ticket_status["$tid"]="$status"
         ticket_deps["$tid"]="$deps_raw"
+        ticket_type["$tid"]="$type_raw"
         ticket_location["$tid"]="$location"
         ticket_parent["$tid"]="$parent_raw"
     done < <(find "$dir" -maxdepth 1 -name "*.md" -type f | sort)
@@ -177,6 +190,34 @@ while IFS= read -r ticket_file; do
             exit 1
         fi
         ((archived++))
+        # ── Write tombstone atomically ────────────────────────────────────────
+        # Contract: plugins/dso/docs/contracts/tombstone-archive-format.md
+        _ticket_type="${ticket_type[$tid]:-}"
+        _tombstone_path="$TOMBSTONE_DIR/${tid}.json"
+        _tombstone_tmp="${_tombstone_path}.tmp"
+        # Idempotency: if tombstone already exists with matching id, skip write
+        if [[ -f "$_tombstone_path" ]]; then
+            _existing_id=$(_TPATH="$_tombstone_path" python3 -c "import json, os; d=json.load(open(os.environ['_TPATH'])); print(d.get('id',''))" 2>/dev/null || true)
+            if [[ "$_existing_id" == "$tid" ]]; then
+                : # skip — already written correctly
+            else
+                echo "ERROR: tombstone id mismatch at $_tombstone_path (expected $tid, found $_existing_id) — system integrity error" >&2
+                exit 1
+            fi
+        else
+            if _TID="$tid" _TYPE="$_ticket_type" _OUT="$_tombstone_tmp" python3 -c "
+import json, os
+data = {'id': os.environ['_TID'], 'type': os.environ['_TYPE'], 'final_status': 'closed'}
+with open(os.environ['_OUT'], 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" 2>/dev/null && mv "$_tombstone_tmp" "$_tombstone_path" 2>/dev/null; then
+                : # tombstone written successfully
+            else
+                rm -f "$_tombstone_tmp" 2>/dev/null || true
+                echo "WARNING: tombstone write failed for $tid — archive succeeded but tombstone not written" >&2
+            fi
+        fi
     fi
 done < <(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" -type f | sort)
 

@@ -14,6 +14,7 @@
 #   ticket comment <ticket_id> <body>             — append a comment to a ticket
 #   ticket link <id1> <id2> <relation>            — link two tickets (blocks|depends_on|relates_to)
 #   ticket unlink <id1> <id2>                     — remove a link between two tickets
+#   ticket deps <ticket_id>                       — show dependency graph for a ticket (JSON)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,6 +31,7 @@ _usage() {
     echo "  comment     Add a comment to a ticket"
     echo "  link        Link two tickets (blocks|depends_on|relates_to)"
     echo "  unlink      Remove a link between two tickets"
+    echo "  deps        Show dependency graph for a ticket (<ticket_id>)"
     exit 1
 }
 
@@ -88,11 +90,22 @@ case "$subcommand" in
         ;;
     link)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-link.sh" link "$@"
+        # REVIEW-DEFENSE: link routes to ticket-graph.py (not ticket-link.sh) by design.
+        # ticket-graph.py's add_dependency() performs link + cycle detection in one atomic
+        # operation, which ticket-link.sh does not. unlink intentionally stays on
+        # ticket-link.sh because its existing unlink logic correctly computes net-effective
+        # state and writes UNLINK events in the same format that ticket-graph.py reads.
+        # Both scripts write LINK/UNLINK events to the same append-only event log, so
+        # link and unlink remain consistent across the two implementations.
+        exec python3 "$SCRIPT_DIR/ticket-graph.py" --link "$@"
         ;;
     unlink)
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-link.sh" unlink "$@"
+        ;;
+    deps)
+        _ensure_initialized
+        exec python3 "$SCRIPT_DIR/ticket-graph.py" "$@"
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

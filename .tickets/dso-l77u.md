@@ -1,6 +1,6 @@
 ---
 id: dso-l77u
-status: open
+status: in_progress
 deps: [dso-smsg]
 links: []
 created: 2026-03-21T16:09:46Z

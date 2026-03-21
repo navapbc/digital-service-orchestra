@@ -49,6 +49,16 @@ def _load_module(name: str) -> object:
 # ---------------------------------------------------------------------------
 
 
+def _get_detect_newly_unblocked():
+    """Load detect_newly_unblocked from ticket-unblock.py via importlib."""
+    mod = _load_module("ticket-unblock")
+    return getattr(mod, "detect_newly_unblocked")
+
+
+# Module-level reference to detect_newly_unblocked — can be patched in tests.
+detect_newly_unblocked = None
+
+
 def resolve_sync_conflicts(
     tracker_dir: str,
     bridge_env_id: str | None = None,
@@ -161,6 +171,25 @@ def resolve_sync_conflicts(
             winning_state={"status": winning_status, "ticket_id": ticket_id},
             bridge_env_excluded=bridge_env_excluded,
         )
+
+    # After all conflicts are resolved, check if any ticket resolved to 'closed'.
+    # If so, call detect_newly_unblocked() to emit UNBLOCKED output for any
+    # tickets that are now ready to work (dso-5nnr).
+    closed_ticket_ids = [tid for tid, status in results.items() if status == "closed"]
+    if closed_ticket_ids:
+        # Check module globals for a patched/overridden detect_newly_unblocked
+        # (allows tests to mock via patch.object with create=True).
+        _fn = globals().get("detect_newly_unblocked")
+        if _fn is None:
+            _fn = _get_detect_newly_unblocked()
+
+        newly_unblocked = _fn(
+            closed_ticket_ids,
+            tracker_dir,
+            event_source="sync-resolution",
+        )
+        for unblocked_id in newly_unblocked:
+            print(f"UNBLOCKED: {unblocked_id}")
 
     return results
 

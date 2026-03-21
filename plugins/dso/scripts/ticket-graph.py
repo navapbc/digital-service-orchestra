@@ -409,34 +409,72 @@ def check_would_create_cycle(
 # ---------------------------------------------------------------------------
 
 
-def add_dependency(
+def _is_active_link(
+    source_id: str, target_id: str, relation: str, tracker_dir: str
+) -> bool:
+    """Return True if a net-active LINK exists from source_id to target_id with the given relation.
+
+    Replays LINK and UNLINK events in chronological order (same algorithm as ticket-link.sh's
+    _is_duplicate_link) to determine the net-effective state.
+    """
+    import glob as _glob
+
+    ticket_dir = os.path.join(tracker_dir, source_id)
+    if not os.path.isdir(ticket_dir):
+        return False
+
+    # Collect all LINK and UNLINK event files, sorted by filename (= chronological order)
+    link_files = sorted(
+        (("LINK", f) for f in _glob.glob(os.path.join(ticket_dir, "*-LINK.json"))),
+        key=lambda x: os.path.basename(x[1]),
+    )
+    unlink_files = sorted(
+        (("UNLINK", f) for f in _glob.glob(os.path.join(ticket_dir, "*-UNLINK.json"))),
+        key=lambda x: os.path.basename(x[1]),
+    )
+    all_events = sorted(
+        link_files + unlink_files,
+        key=lambda x: os.path.basename(x[1]),
+    )
+
+    # Replay events to determine net-active links
+    active_links: dict[str, tuple[str, str]] = {}  # uuid → (target_id, relation)
+    for event_type, filepath in all_events:
+        try:
+            with open(filepath, encoding="utf-8") as fh:
+                ev = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        ev_uuid = ev.get("uuid", "")
+        data = ev.get("data", {})
+        if event_type == "LINK" and ev_uuid:
+            active_links[ev_uuid] = (
+                data.get("target_id", ""),
+                data.get("relation", ""),
+            )
+        elif event_type == "UNLINK":
+            link_uuid = data.get("link_uuid", "")
+            if link_uuid:
+                active_links.pop(link_uuid, None)
+
+    # Check if (target_id, relation) pair is net-active
+    return any(
+        tid == target_id and rel == relation for tid, rel in active_links.values()
+    )
+
+
+def _write_link_event(
     source_id: str,
     target_id: str,
+    relation: str,
     tracker_dir: str,
-    relation: str = "blocks",
 ) -> None:
-    """Add a dependency from source_id to target_id with cycle check.
+    """Write a single LINK event to source_id's directory (no cycle check, no idempotency)."""
+    import time
 
-    Raises CyclicDependencyError if adding this dependency would create a cycle.
-    Writes a LINK event to the source ticket's directory.
-
-    Args:
-        source_id: The ticket that blocks/depends on target_id.
-        target_id: The ticket being blocked/depended upon.
-        tracker_dir: Path to the .tickets-tracker directory.
-        relation: One of 'blocks', 'depends_on', 'relates_to'. Defaults to 'blocks'.
-    """
-    if check_would_create_cycle(source_id, target_id, relation, tracker_dir):
-        raise CyclicDependencyError(
-            f"Adding {source_id} → {target_id} ({relation}) would create a cycle"
-        )
-
-    # Write LINK event to source ticket's directory
     source_dir = os.path.join(tracker_dir, source_id)
     if not os.path.isdir(source_dir):
         os.makedirs(source_dir, exist_ok=True)
-
-    import time
 
     link_uuid = str(uuid.uuid4())
     timestamp = int(time.time())
@@ -457,6 +495,45 @@ def add_dependency(
     event_path = os.path.join(source_dir, filename)
     with open(event_path, "w", encoding="utf-8") as f:
         json.dump(link_event, f, ensure_ascii=False)
+
+
+def add_dependency(
+    source_id: str,
+    target_id: str,
+    tracker_dir: str,
+    relation: str = "blocks",
+) -> None:
+    """Add a dependency from source_id to target_id with cycle check.
+
+    Raises CyclicDependencyError if adding this dependency would create a cycle.
+    Writes a LINK event to the source ticket's directory.
+    Idempotent: if a net-active LINK with the same (target_id, relation) already exists,
+    this is a no-op (exits cleanly without writing a duplicate event).
+    For relates_to: also writes a reciprocal LINK event in target_id's directory.
+
+    Args:
+        source_id: The ticket that blocks/depends on target_id.
+        target_id: The ticket being blocked/depended upon.
+        tracker_dir: Path to the .tickets-tracker directory.
+        relation: One of 'blocks', 'depends_on', 'relates_to'. Defaults to 'blocks'.
+    """
+    if check_would_create_cycle(source_id, target_id, relation, tracker_dir):
+        raise CyclicDependencyError(
+            f"Adding {source_id} → {target_id} ({relation}) would create a cycle"
+        )
+
+    # Idempotency: skip if the net-active state already has this link
+    if _is_active_link(source_id, target_id, relation, tracker_dir):
+        return
+
+    # Write LINK event to source ticket's directory
+    _write_link_event(source_id, target_id, relation, tracker_dir)
+
+    # For relates_to: also write reciprocal LINK in target's directory
+    if relation == "relates_to" and not _is_active_link(
+        target_id, source_id, relation, tracker_dir
+    ):
+        _write_link_event(target_id, source_id, relation, tracker_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +590,16 @@ def main() -> int:
         relation = args[3]
         tracker_dir, _ = _find_tracker_dir([])
 
+        # Validate both tickets exist before writing a LINK event
+        source_dir = os.path.join(tracker_dir, source_id)
+        target_dir = os.path.join(tracker_dir, target_id)
+        if not os.path.isdir(source_dir):
+            print(f"Error: ticket '{source_id}' does not exist", file=sys.stderr)
+            return 1
+        if not os.path.isdir(target_dir):
+            print(f"Error: ticket '{target_id}' does not exist", file=sys.stderr)
+            return 1
+
         try:
             add_dependency(source_id, target_id, tracker_dir, relation)
         except CyclicDependencyError as e:
@@ -524,10 +611,20 @@ def main() -> int:
     tracker_dir, remaining_args = _find_tracker_dir(args)
 
     if not remaining_args:
-        print("Error: ticket_id required", file=sys.stderr)
+        print(
+            "Usage: ticket-graph.py <ticket_id> [--tickets-dir=<path>]",
+            file=sys.stderr,
+        )
         return 1
 
     ticket_id = remaining_args[0]
+
+    # Validate ticket exists before querying
+    ticket_dir = os.path.join(tracker_dir, ticket_id)
+    if not os.path.isdir(ticket_dir):
+        print(f"Error: ticket '{ticket_id}' does not exist", file=sys.stderr)
+        return 1
+
     result = build_dep_graph(ticket_id, tracker_dir)
     print(json.dumps(result, ensure_ascii=False))
     return 0

@@ -1,6 +1,6 @@
 ---
 id: dso-1a6u
-status: in_progress
+status: closed
 deps: [dso-b0ku, dso-vtov]
 links: []
 created: 2026-03-21T16:32:28Z

@@ -1,6 +1,6 @@
 ---
 id: w20-qxu2
-status: in_progress
+status: closed
 deps: [w20-0aaw]
 links: []
 created: 2026-03-21T16:31:50Z

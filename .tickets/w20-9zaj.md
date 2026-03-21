@@ -1,6 +1,6 @@
 ---
 id: w20-9zaj
-status: in_progress
+status: closed
 deps: [w20-6dad]
 links: []
 created: 2026-03-21T16:32:35Z
