@@ -484,13 +484,13 @@ run_check() {
 # Returns 1 if the command has not completed or failed.
 # Uses python3 for reliable JSON parsing (no jq dependency).
 _test_state_already_passed() {
-    local state_file="$1" cmd="$2"
+    local state_file="$1" test_cmd="$2"
     [ -f "$state_file" ] || return 1
     # Compute the expected command hash so we can verify the state file
     # belongs to this command (not a different test command).
     local expected_hash
-    expected_hash=$(echo -n "${cmd}:$(pwd)" | sha256sum 2>/dev/null | awk '{print $1}' || \
-        echo -n "${cmd}:$(pwd)" | python3 -c "import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())")
+    expected_hash=$(echo -n "${test_cmd}:$(pwd)" | sha256sum 2>/dev/null | awk '{print $1}' || \
+        echo -n "${test_cmd}:$(pwd)" | python3 -c "import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())")
     python3 - "$expected_hash" "$state_file" <<PYEOF 2>/dev/null
 import json, sys
 expected_hash = sys.argv[1]
@@ -519,11 +519,11 @@ PYEOF
 # If not: runs test-batched.sh with --timeout=45 (within Claude tool ceiling).
 # If test-batched.sh outputs "NEXT:": writes rc=42 (pending, needs another run).
 run_test_check() {
-    local name="tests" timeout="$TIMEOUT_TESTS" cmd="$CMD_TEST_UNIT"
+    local name="tests" timeout="$TIMEOUT_TESTS" test_cmd="$CMD_TEST_UNIT"
     [ "$VERBOSE" = "1" ] && verbose_print "$name" "running"
 
     # ── Reuse cached result if tests already passed this session ─────────────
-    if _test_state_already_passed "$VALIDATE_TEST_STATE_FILE" "$cmd"; then
+    if _test_state_already_passed "$VALIDATE_TEST_STATE_FILE" "$test_cmd"; then
         echo "0" > "$CHECK_DIR/${name}.rc"
         echo "(reused from session state)" > "$CHECK_DIR/${name}.log"
         [ "$VERBOSE" = "1" ] && verbose_print "$name" "PASS (reused from session state)"
@@ -545,7 +545,7 @@ run_test_check() {
         # TIMEOUT_TESTS as a safety backstop for truly hung processes.
         TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE" \
             run_with_timeout "$timeout" "$name" \
-            bash "$batched_script" --timeout="$batched_timeout" "$cmd" \
+            bash "$batched_script" --timeout="$batched_timeout" "$test_cmd" \
             > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
         echo "$rc" > "$CHECK_DIR/${name}.rc"
 
@@ -570,7 +570,7 @@ run_test_check() {
         # Fallback: test-batched.sh not available — run directly (original behavior)
         local rc=0
         # shellcheck disable=SC2086
-        run_with_timeout "$timeout" "$name" $cmd > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
+        run_with_timeout "$timeout" "$name" $test_cmd > "$CHECK_DIR/${name}.log" 2>&1 || rc=$?
         echo "$rc" > "$CHECK_DIR/${name}.rc"
         if [ "$VERBOSE" = "1" ]; then
             if [ "$rc" = "0" ]; then
