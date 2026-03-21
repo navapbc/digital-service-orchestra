@@ -1,6 +1,6 @@
 ---
 id: w21-3bqw
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T22:11:04Z
