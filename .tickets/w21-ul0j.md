@@ -1,6 +1,6 @@
 ---
 id: w21-ul0j
-status: in_progress
+status: closed
 deps: [w21-1plz, w21-g3x6, w21-ymip, w21-up52]
 links: []
 created: 2026-03-21T00:56:05Z
@@ -97,3 +97,7 @@ CHECKPOINT 4/6: Integration test passes (33/33 assertions, shellcheck clean) ✓
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — All 5 tests pass (33 assertions), shellcheck clean, ruff clean, AC6 verified. run-all.sh timeout is pre-existing (SIGURG ceiling), not caused by this change.
+
+**2026-03-21T04:53:46Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/scripts/test-ticket-e2e.sh. Tests: 33 passed, 0 failed.

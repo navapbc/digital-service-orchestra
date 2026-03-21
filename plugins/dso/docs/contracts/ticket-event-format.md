@@ -67,8 +67,6 @@ All event files are valid JSON objects containing the following base fields:
 
 ### `data` fields by `event_type`
 
-Only `CREATE` is defined in this document. Other event types are defined in their respective story contracts (see Forward Reference table below).
-
 #### `CREATE`
 
 ```json
@@ -79,13 +77,39 @@ Only `CREATE` is defined in this document. Other event types are defined in thei
 }
 ```
 
+#### `STATUS`
+
+```json
+{
+  "status": "<open|in_progress|closed|blocked>",
+  "current_status": "<string>"
+}
+```
+
+| Field            | Type   | Description                                                                 |
+|------------------|--------|-----------------------------------------------------------------------------|
+| `status`         | string | The target status. One of: `open`, `in_progress`, `closed`, `blocked`.     |
+| `current_status` | string | The status the writer read before transitioning (optimistic concurrency proof). The reducer must apply this event only if the ticket's current compiled status matches this value; otherwise it should flag a conflict. |
+
+#### `COMMENT`
+
+```json
+{
+  "body": "<string>"
+}
+```
+
+| Field  | Type   | Description                          |
+|--------|--------|--------------------------------------|
+| `body` | string | The comment text. Must be non-empty. |
+
 ### Forward Reference: Event Type Contracts
 
 | Event Type | `data` Fields Defined In | Story |
 |------------|--------------------------|-------|
 | `CREATE`   | This document (above)    | w21-ablv |
-| `STATUS`   | Story contract           | w21-o72z |
-| `COMMENT`  | Story contract           | w21-o72z |
+| `STATUS`   | This document (above)    | w21-o72z |
+| `COMMENT`  | This document (above)    | w21-o72z |
 | `LINK`     | Story contract           | w21-o72z |
 | `SNAPSHOT`  | Story contract          | w21-q0nn |
 | `SYNC`     | Story contract           | w21-54wx (Epic 3) |
