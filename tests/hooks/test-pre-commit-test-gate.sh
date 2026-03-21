@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (8):
+# Test cases (15):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -18,6 +18,10 @@
 #   9. test_gate_passes_when_test_exempted — exits 0 when associated test is exempted
 #  10. test_gate_blocked_when_test_not_exempted — exits non-zero when exemption is for wrong test
 #  11. test_gate_passes_no_status_but_fully_exempted — exits 0 when no status but test fully exempted
+#  12. test_gate_bash_script_triggers — RED: exits non-zero for .sh with associated test (gate only handles .py)
+#  13. test_gate_typescript_triggers — RED: exits non-zero for .ts with associated test (gate only handles .py)
+#  14. test_gate_test_file_itself_exempt — test files staged as source must not trigger gate
+#  15. test_gate_test_dirs_config — RED: gate respects TEST_GATE_TEST_DIRS_OVERRIDE for custom test dirs
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -560,6 +564,171 @@ test_gate_passes_no_status_but_fully_exempted() {
     assert_eq "test_gate_passes_no_status_but_fully_exempted: gate passes (exit 0)" "0" "$exit_code"
 }
 
+# ============================================================
+# TEST 12: test_gate_bash_script_triggers
+# Gate exits non-zero when a staged .sh source file has an
+# associated test file (tests/test-bump-version.sh) but no
+# test-gate-status is recorded.
+# RED: Current gate only checks .py files — exits 0 for .sh.
+# ============================================================
+test_gate_bash_script_triggers() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a bash source file and its associated test
+    mkdir -p "$_repo/scripts" "$_repo/tests"
+    echo '#!/usr/bin/env bash' > "$_repo/scripts/bump-version.sh"
+    echo 'echo "v1.0"' >> "$_repo/scripts/bump-version.sh"
+    echo '#!/usr/bin/env bash' > "$_repo/tests/test-bump-version.sh"
+    echo 'echo "test bump"' >> "$_repo/tests/test-bump-version.sh"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add bump-version"
+
+    # Modify the source file and stage it (NOT the test file)
+    echo '# changed' >> "$_repo/scripts/bump-version.sh"
+    git -C "$_repo" add "$_repo/scripts/bump-version.sh"
+
+    # Do NOT write test-gate-status — it should be missing
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_bash_script_triggers: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should block (exit != 0) because bump-version.sh has an associated test
+    # RED: Current gate exits 0 because it only handles .py files
+    assert_ne "test_gate_bash_script_triggers: gate blocks .sh with test (exit != 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 13: test_gate_typescript_triggers
+# Gate exits non-zero when a staged .ts source file has an
+# associated test file (tests/test_parser.ts) but no
+# test-gate-status is recorded.
+# RED: Current gate only checks .py files — exits 0 for .ts.
+# ============================================================
+test_gate_typescript_triggers() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a TypeScript source file and its associated test
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'export function parse() { return {}; }' > "$_repo/src/parser.ts"
+    echo 'import { parse } from "../src/parser"; test("parse", () => {});' > "$_repo/tests/test_parser.ts"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add parser"
+
+    # Modify source and stage
+    echo '// changed' >> "$_repo/src/parser.ts"
+    git -C "$_repo" add "$_repo/src/parser.ts"
+
+    # Do NOT write test-gate-status
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_typescript_triggers: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should block (exit != 0) because parser.ts has an associated test
+    # RED: Current gate exits 0 because it only handles .py files
+    assert_ne "test_gate_typescript_triggers: gate blocks .ts with test (exit != 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 14: test_gate_test_file_itself_exempt
+# Gate exits 0 when a test file itself is staged — test files
+# are NOT source files and must not trigger the gate on
+# themselves.
+# RED: With new fuzzy logic, test-bump-version.sh would match
+# itself unless fuzzy_is_test_file() skips it. Current gate
+# exits 0 because it ignores .sh entirely, so we need the
+# updated gate to correctly skip test files.
+# ============================================================
+test_gate_test_file_itself_exempt() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a test file (this IS a test file, not a source file)
+    mkdir -p "$_repo/tests"
+    echo '#!/usr/bin/env bash' > "$_repo/tests/test-bump-version.sh"
+    echo 'echo "testing bump-version"' >> "$_repo/tests/test-bump-version.sh"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add test-bump-version"
+
+    # Modify and stage the test file itself
+    echo '# changed' >> "$_repo/tests/test-bump-version.sh"
+    git -C "$_repo" add "$_repo/tests/test-bump-version.sh"
+
+    # No test-gate-status needed — test files should be exempt
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_test_file_itself_exempt: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should pass (exit 0) — test files are not source files
+    # RED: Current gate exits 0 for the wrong reason (ignores .sh entirely).
+    # After Task 4, gate must exit 0 because fuzzy_is_test_file() identifies
+    # test-bump-version.sh as a test file and skips it.
+    assert_eq "test_gate_test_file_itself_exempt: gate passes for test file (exit 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 15: test_gate_test_dirs_config
+# Gate exits non-zero when a staged source file has an
+# associated test in a non-standard directory (unit_tests/)
+# configured via TEST_GATE_TEST_DIRS_OVERRIDE env var.
+# RED: Current gate hardcodes tests/ and ignores the env var.
+# ============================================================
+test_gate_test_dirs_config() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file and test in a non-standard test directory
+    mkdir -p "$_repo/scripts" "$_repo/unit_tests"
+    echo '#!/usr/bin/env bash' > "$_repo/scripts/bump-version.sh"
+    echo 'echo "v1.0"' >> "$_repo/scripts/bump-version.sh"
+    echo '#!/usr/bin/env bash' > "$_repo/unit_tests/test-bump-version.sh"
+    echo 'echo "unit test bump"' >> "$_repo/unit_tests/test-bump-version.sh"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add bump-version with unit_tests dir"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/scripts/bump-version.sh"
+    git -C "$_repo" add "$_repo/scripts/bump-version.sh"
+
+    # Do NOT write test-gate-status
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_test_dirs_config: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Run gate with TEST_GATE_TEST_DIRS_OVERRIDE pointing to unit_tests/
+    local exit_code=0
+    (
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+        export TEST_GATE_TEST_DIRS_OVERRIDE="unit_tests/"
+        bash "$GATE_HOOK" 2>/dev/null
+    ) || exit_code=$?
+
+    # Gate should block (exit != 0) because bump-version.sh has a test in unit_tests/
+    # RED: Current gate doesn't support configurable test dirs — exits 0
+    assert_ne "test_gate_test_dirs_config: gate blocks with custom test dir (exit != 0)" "0" "$exit_code"
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -585,5 +754,9 @@ run_test test_gate_fails_open_on_hash_error
 run_test test_gate_passes_when_test_exempted
 run_test test_gate_blocked_when_test_not_exempted
 run_test test_gate_passes_no_status_but_fully_exempted
+run_test test_gate_bash_script_triggers
+run_test test_gate_typescript_triggers
+run_test test_gate_test_file_itself_exempt
+run_test test_gate_test_dirs_config
 
 print_summary

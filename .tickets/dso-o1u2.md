@@ -1,6 +1,6 @@
 ---
 id: dso-o1u2
-status: open
+status: in_progress
 deps: [dso-wqt4]
 links: []
 created: 2026-03-21T16:15:35Z
@@ -79,3 +79,47 @@ The test uses TEST_GATE_TEST_DIRS_OVERRIDE env var (to be supported by Task 4). 
 - [ ] New tests fail (RED) against current gate before Task 4 implementation
   Verify: bash $(git rev-parse --show-toplevel)/tests/hooks/test-pre-commit-test-gate.sh 2>&1 | grep -q 'FAIL:.*test_gate_bash_script_triggers'
 
+
+## Notes
+
+<!-- note-id: zyub653u -->
+<!-- timestamp: 2026-03-21T17:32:26Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: zd8aoiqp -->
+<!-- timestamp: 2026-03-21T17:32:38Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: zmmsjnhm -->
+<!-- timestamp: 2026-03-21T17:33:49Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: rjlj99t8 -->
+<!-- timestamp: 2026-03-21T17:33:53Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete (RED task) ✓
+
+<!-- note-id: 7sm90ssj -->
+<!-- timestamp: 2026-03-21T17:44:30Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — 11 existing tests PASS, 3 new RED tests FAIL as expected (bash_script, typescript, test_dirs_config). test_file_itself_exempt PASSES (gate exits 0 for non-.py for wrong reason; will pass for right reason after Task 4). test-doc-migration.sh failure is pre-existing.
+
+<!-- note-id: gdih8he7 -->
+<!-- timestamp: 2026-03-21T17:44:47Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓

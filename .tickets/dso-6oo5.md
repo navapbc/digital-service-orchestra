@@ -1,6 +1,6 @@
 ---
 id: dso-6oo5
-status: in_progress
+status: closed
 deps: [dso-wqt4, dso-a6nl]
 links: []
 created: 2026-03-21T16:16:24Z
