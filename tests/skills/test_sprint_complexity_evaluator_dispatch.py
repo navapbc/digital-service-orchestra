@@ -11,8 +11,6 @@ TDD spec for task dso-fg3m (RED → GREEN — GREEN achieved by dso-3650):
 import pathlib
 import re
 
-import pytest
-
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILL_MD = REPO_ROOT / "plugins" / "dso" / "skills" / "sprint" / "SKILL.md"
 
@@ -45,10 +43,6 @@ def _extract_identify_stories_section(content: str) -> str:
     return match.group(0)
 
 
-@pytest.mark.xfail(
-    reason="RED: sprint/SKILL.md not yet updated to dispatch dso:complexity-evaluator (requires task dso-3650)",
-    strict=False,
-)
 def test_step2b_dispatches_via_complexity_evaluator_agent() -> None:
     """Step 2b must reference 'dso:complexity-evaluator' for epic classification dispatch."""
     content = _read_skill()
@@ -67,10 +61,6 @@ def test_step2b_dispatches_via_complexity_evaluator_agent() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: sprint/SKILL.md not yet updated to dispatch dso:complexity-evaluator (requires task dso-3650)",
-    strict=False,
-)
 def test_step2b_does_not_load_local_epic_complexity_evaluator_prompt() -> None:
     """Step 2b must NOT reference loading from sprint/prompts/epic-complexity-evaluator.md."""
     content = _read_skill()
@@ -89,10 +79,6 @@ def test_step2b_does_not_load_local_epic_complexity_evaluator_prompt() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: sprint/SKILL.md not yet updated to dispatch dso:complexity-evaluator (requires task dso-3650)",
-    strict=False,
-)
 def test_identify_stories_dispatches_via_complexity_evaluator_agent() -> None:
     """Step 1: Identify Stories must reference 'dso:complexity-evaluator' for story classification."""
     content = _read_skill()
@@ -111,10 +97,6 @@ def test_identify_stories_dispatches_via_complexity_evaluator_agent() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: sprint/SKILL.md not yet updated to dispatch dso:complexity-evaluator (requires task dso-3650)",
-    strict=False,
-)
 def test_identify_stories_does_not_load_local_complexity_evaluator_prompt() -> None:
     """Step 1: Identify Stories must NOT reference loading from sprint/prompts/complexity-evaluator.md."""
     content = _read_skill()
