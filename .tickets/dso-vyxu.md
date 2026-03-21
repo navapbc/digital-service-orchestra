@@ -1,6 +1,6 @@
 ---
 id: dso-vyxu
-status: in_progress
+status: closed
 deps: [dso-cz1m]
 links: []
 created: 2026-03-21T16:10:19Z
