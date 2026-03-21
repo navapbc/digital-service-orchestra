@@ -1,6 +1,6 @@
 ---
 id: w21-mtvm
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T00:51:23Z
@@ -89,3 +89,7 @@ CHECKPOINT 5/6: Validation passed ✓
 **2026-03-21T01:03:14Z**
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T01:16:11Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/docs/contracts/ticket-event-format.md. Tests: N/A (contract doc).
