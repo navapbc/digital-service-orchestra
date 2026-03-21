@@ -37,3 +37,29 @@ Files to create/edit: tests/scripts/test-ticket-init.sh (add new tests; do not r
   Verify: grep -c 'test_ticket_init_creates_symlink_in_worktree\|test_ticket_init_symlink_points_to_real_dir\|test_ticket_init_idempotent_when_symlink_exists\|test_ticket_init_handles_real_dir_before_symlink\|test_auto_detect_main_worktree_via_git_list' $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-init.sh | awk '{exit ($1 < 5)}'
 - [ ] New tests fail RED before symlink logic exists
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-init.sh 2>&1 | grep -q 'FAIL.*symlink\|symlink.*FAIL'
+
+## Notes
+
+**2026-03-21T16:58:09Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T16:58:28Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T16:59:16Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-21T17:20:45Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ (RED test task — no implementation needed, only test writing)
+
+**2026-03-21T17:20:54Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-21T17:21:11Z**
+
+CHECKPOINT 6/6: Done ✓ — 5 RED tests added (Tests 8-12), all fail before symlink logic exists; existing 14 tests unaffected
