@@ -1,0 +1,382 @@
+#!/usr/bin/env bash
+# tests/scripts/test-ticket-compact.sh
+# RED tests for plugins/dso/scripts/ticket-compact.sh — event compaction.
+#
+# All tests MUST FAIL until ticket-compact.sh is implemented.
+# Covers: threshold-based compaction, SNAPSHOT event writing,
+# source_event_uuids tracking, file deletion, flock, and corrupt handling.
+#
+# Usage: bash tests/scripts/test-ticket-compact.sh
+# Returns: exit non-zero (RED) until ticket-compact.sh is implemented.
+
+# NOTE: -e is intentionally omitted — test functions return non-zero by design
+# (they assert against unimplemented features). -e would abort the runner.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
+COMPACT_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-compact.sh"
+
+source "$REPO_ROOT/tests/lib/assert.sh"
+source "$REPO_ROOT/tests/lib/git-fixtures.sh"
+
+echo "=== test-ticket-compact.sh ==="
+
+# ── Suite-runner guard: skip when ticket-compact.sh does not exist ────────────
+# RED tests fail by design (script not found). When auto-discovered by
+# run-script-tests.sh, they would break `bash tests/run-all.sh`. Skip with
+# exit 0 when ticket-compact.sh is absent AND running under the suite runner.
+if [ "${_RUN_ALL_ACTIVE:-0}" = "1" ] && [ ! -f "$COMPACT_SCRIPT" ]; then
+    echo "SKIP: ticket-compact.sh not yet implemented (RED) — tests deferred"
+    echo ""
+    printf "PASSED: 0  FAILED: 0\n"
+    exit 0
+fi
+
+# ── Helper: create a fresh temp git repo with ticket system initialized ────
+_make_test_repo() {
+    local tmp
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+    clone_test_repo "$tmp/repo"
+    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
+    echo "$tmp/repo"
+}
+
+# ── Helper: write an event file to a ticket dir ─────────────────────────────
+# Usage: _write_event <ticket_dir> <timestamp> <uuid> <event_type> <data_json>
+_write_event() {
+    local ticket_dir="$1"
+    local timestamp="$2"
+    local uuid="$3"
+    local event_type="$4"
+    local data_json="$5"
+    local env_id="${6:-00000000-0000-4000-8000-000000000001}"
+    local author="${7:-Test User}"
+    local filename="${timestamp}-${uuid}-${event_type}.json"
+
+    python3 -c "
+import json, sys
+payload = {
+    'timestamp': $timestamp,
+    'uuid': '$uuid',
+    'event_type': '$event_type',
+    'env_id': '$env_id',
+    'author': '$author',
+    'data': json.loads('''$data_json''')
+}
+json.dump(payload, sys.stdout)
+" > "$ticket_dir/$filename"
+}
+
+# ── Helper: create a ticket with N events ────────────────────────────────────
+# Usage: _create_ticket_with_events <repo> <ticket_id> <event_count>
+_create_ticket_with_events() {
+    local repo="$1"
+    local ticket_id="$2"
+    local event_count="$3"
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    mkdir -p "$ticket_dir"
+
+    # Write CREATE event
+    local create_uuid="00000000-0000-4000-8000-create000001"
+    _write_event "$ticket_dir" "1742605200" "$create_uuid" "CREATE" \
+        '{"ticket_type": "task", "title": "Compact test ticket", "parent_id": null}'
+
+    # Write additional STATUS events to reach event_count
+    local i
+    for (( i=1; i<event_count; i++ )); do
+        local ts=$((1742605200 + i * 100))
+        local uuid
+        uuid=$(printf "00000000-0000-4000-8000-%012d" "$i")
+        _write_event "$ticket_dir" "$ts" "$uuid" "STATUS" \
+            '{"status": "in_progress", "current_status": "open"}'
+    done
+
+    echo "$ticket_dir"
+}
+
+# ── Test 1: compact triggers when threshold exceeded ─────────────────────────
+echo "Test 1: compact triggers when event count exceeds threshold"
+test_compact_triggers_when_threshold_exceeded() {
+    _snapshot_fail
+
+    # ticket-compact.sh must exist — RED: it does not exist yet
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-compact1"
+    local ticket_dir
+    ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 12)
+
+    # Run compaction
+    local exit_code=0
+    (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null || exit_code=$?
+    assert_eq "compact exits 0" "0" "$exit_code"
+
+    # Assert: ticket dir contains exactly 1 SNAPSHOT event file
+    local snapshot_count
+    snapshot_count=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "exactly 1 SNAPSHOT file" "1" "$snapshot_count"
+
+    # Assert: no original event files remain
+    local non_snapshot_count
+    non_snapshot_count=$(find "$ticket_dir" -maxdepth 1 -name '*.json' ! -name '*-SNAPSHOT.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "0 original event files" "0" "$non_snapshot_count"
+
+    assert_pass_if_clean "test_compact_triggers_when_threshold_exceeded"
+}
+test_compact_triggers_when_threshold_exceeded
+
+# ── Test 2: compact does not trigger below threshold ──────────────────────────
+echo "Test 2: compact does not trigger below threshold"
+test_compact_does_not_trigger_below_threshold() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for below-threshold test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-below"
+    local ticket_dir
+    ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 3)
+
+    # Count original files before compaction
+    local before_count
+    before_count=$(find "$ticket_dir" -maxdepth 1 -name '*.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+
+    # Run compaction — should skip
+    local output
+    output=$(cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id" 2>&1) || true
+
+    # Assert: original events still exist (not compacted)
+    local after_count
+    after_count=$(find "$ticket_dir" -maxdepth 1 -name '*.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "original events preserved below threshold" "$before_count" "$after_count"
+
+    # Assert: output mentions skipping
+    if echo "$output" | grep -qi 'skip\|below.*threshold\|no.*compaction'; then
+        assert_eq "skip message present" "present" "present"
+    else
+        assert_eq "skip message present" "present" "missing"
+    fi
+
+    assert_pass_if_clean "test_compact_does_not_trigger_below_threshold"
+}
+test_compact_does_not_trigger_below_threshold
+
+# ── Test 3: SNAPSHOT contains source_event_uuids ─────────────────────────────
+echo "Test 3: SNAPSHOT event contains source_event_uuids from original events"
+test_compact_snapshot_contains_source_event_uuids() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for source_event_uuids test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-uuids"
+    local ticket_dir
+    # Use threshold=2 for testing with 3 events
+    ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 3)
+
+    # Run compaction with low threshold
+    (cd "$repo" && COMPACT_THRESHOLD=2 bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null || true
+
+    # Find SNAPSHOT file
+    local snapshot_file
+    snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | head -1)
+    if [ -z "$snapshot_file" ]; then
+        assert_eq "SNAPSHOT file created" "created" "missing"
+        return
+    fi
+
+    # Assert: SNAPSHOT JSON has source_event_uuids list with 3 entries
+    local uuid_count
+    uuid_count=$(python3 -c "
+import json, sys
+with open('$snapshot_file') as f:
+    data = json.load(f)
+uuids = data.get('data', {}).get('source_event_uuids', [])
+print(len(uuids))
+" 2>/dev/null || echo "0")
+    assert_eq "source_event_uuids has 3 entries" "3" "$uuid_count"
+
+    assert_pass_if_clean "test_compact_snapshot_contains_source_event_uuids"
+}
+test_compact_snapshot_contains_source_event_uuids
+
+# ── Test 4: compact deletes only files read into snapshot ────────────────────
+echo "Test 4: compact deletes only specific files included in snapshot scope"
+test_compact_deletes_only_specific_files_read_into_snapshot() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for file-scope test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-scope"
+    local ticket_dir
+    ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 3)
+
+    # Run compaction with low threshold — compacts the 3 events
+    (cd "$repo" && COMPACT_THRESHOLD=2 bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null || true
+
+    # Write an extra event AFTER compaction (e4 — simulates a late arrival)
+    local e4_uuid="e4e4e4e4-e4e4-e4e4-e4e4-e4e4e4e4e4e4"
+    local e4_ts=1742699999
+    _write_event "$ticket_dir" "$e4_ts" "$e4_uuid" "COMMENT" \
+        '{"body": "late arrival event"}'
+
+    # Assert: SNAPSHOT was created
+    local snapshot_file
+    snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | head -1)
+    if [ -z "$snapshot_file" ]; then
+        assert_eq "SNAPSHOT file created for scope test" "created" "missing"
+        return
+    fi
+
+    # Assert: e4's uuid is NOT in source_event_uuids (it arrived after scope)
+    local e4_in_sources
+    e4_in_sources=$(python3 -c "
+import json
+with open('$snapshot_file') as f:
+    data = json.load(f)
+uuids = data.get('data', {}).get('source_event_uuids', [])
+print('yes' if '$e4_uuid' in uuids else 'no')
+" 2>/dev/null || echo "error")
+    assert_eq "e4 uuid NOT in source_event_uuids" "no" "$e4_in_sources"
+
+    assert_pass_if_clean "test_compact_deletes_only_specific_files_read_into_snapshot"
+}
+test_compact_deletes_only_specific_files_read_into_snapshot
+
+# ── Test 5: flock prevents concurrent modification ───────────────────────────
+echo "Test 5: flock prevents concurrent compaction"
+test_compact_flock_prevents_concurrent_modification() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for flock test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-flock"
+    _create_ticket_with_events "$repo" "$ticket_id" 12
+
+    # Run two concurrent compactions
+    local exit1=0
+    local exit2=0
+    (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null &
+    local pid1=$!
+    (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null &
+    local pid2=$!
+
+    wait "$pid1" || exit1=$?
+    wait "$pid2" || exit2=$?
+
+    # Assert: only one SNAPSHOT file was written (not two)
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    local snapshot_count
+    snapshot_count=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "only 1 SNAPSHOT from concurrent runs" "1" "$snapshot_count"
+
+    assert_pass_if_clean "test_compact_flock_prevents_concurrent_modification"
+}
+test_compact_flock_prevents_concurrent_modification
+
+# ── Test 6: SNAPSHOT event has valid JSON with required fields ────────────────
+echo "Test 6: SNAPSHOT event produces valid JSON with required fields"
+test_compact_produces_valid_snapshot_event_json() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for JSON validation test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-json"
+    _create_ticket_with_events "$repo" "$ticket_id" 12
+
+    # Run compaction
+    (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null || true
+
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    local snapshot_file
+    snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | head -1)
+    if [ -z "$snapshot_file" ]; then
+        assert_eq "SNAPSHOT file exists for validation" "exists" "missing"
+        return
+    fi
+
+    # Assert: valid JSON with required fields
+    local validation
+    validation=$(python3 -c "
+import json, sys
+with open('$snapshot_file') as f:
+    data = json.load(f)
+required = ['event_type', 'timestamp', 'uuid', 'env_id', 'author', 'data']
+missing = [k for k in required if k not in data]
+if missing:
+    print('missing:' + ','.join(missing))
+    sys.exit(1)
+if data['event_type'] != 'SNAPSHOT':
+    print('wrong_event_type:' + data['event_type'])
+    sys.exit(1)
+d = data['data']
+if 'compiled_state' not in d or not isinstance(d['compiled_state'], dict):
+    print('missing_compiled_state')
+    sys.exit(1)
+if 'source_event_uuids' not in d or not isinstance(d['source_event_uuids'], list):
+    print('missing_source_event_uuids')
+    sys.exit(1)
+print('valid')
+" 2>&1)
+    assert_eq "SNAPSHOT JSON valid with required fields" "valid" "$validation"
+
+    assert_pass_if_clean "test_compact_produces_valid_snapshot_event_json"
+}
+test_compact_produces_valid_snapshot_event_json
+
+# ── Test 7: compact subcommand routes correctly ──────────────────────────────
+echo "Test 7: 'ticket compact' subcommand routes to ticket-compact.sh"
+test_compact_subcommand_routes_correctly() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for routing test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-route"
+    _create_ticket_with_events "$repo" "$ticket_id" 3
+
+    # Run via dispatcher: ticket compact <id>
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" compact "$ticket_id") 2>/dev/null || exit_code=$?
+    assert_eq "ticket compact exits 0" "0" "$exit_code"
+
+    assert_pass_if_clean "test_compact_subcommand_routes_correctly"
+}
+test_compact_subcommand_routes_correctly
+
+print_summary
