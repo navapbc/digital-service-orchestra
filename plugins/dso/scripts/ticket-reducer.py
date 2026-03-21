@@ -16,6 +16,7 @@ Module interface:
 from __future__ import annotations
 
 import glob
+import hashlib
 import json
 import os
 import sys
@@ -41,7 +42,39 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
     ticket_dir = str(ticket_dir_path)
     ticket_id = os.path.basename(ticket_dir)
 
-    # List and sort all event JSON files by filename (lexicographic)
+    # Compute content hash for caching (filename + file size to detect in-place
+    # overwrites; size is a fast stat, not a content read).
+    cache_path = os.path.join(ticket_dir, ".cache.json")
+    try:
+        all_files = os.listdir(ticket_dir)
+    except OSError:
+        all_files = []
+    event_filenames = sorted(
+        f for f in all_files if f.endswith(".json") and f != ".cache.json"
+    )
+    hash_parts: list[str] = []
+    for name in event_filenames:
+        path = os.path.join(ticket_dir, name)
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            size = -1
+        hash_parts.append(f"{name}:{size}")
+    dir_hash = hashlib.sha256("|".join(hash_parts).encode()).hexdigest()
+
+    # Cache read: check for valid cached state with matching hash
+    try:
+        with open(cache_path, encoding="utf-8") as cf:
+            cached = json.load(cf)
+        if isinstance(cached, dict) and cached.get("dir_hash") == dir_hash:
+            return cached["state"]
+    except (OSError, json.JSONDecodeError, KeyError):
+        pass  # Cache miss — recompute
+
+    # List and sort all event JSON files by filename (lexicographic).
+    # glob('*.json') excludes dotfiles by design, so .cache.json is never
+    # included in event_files — this is intentional and must remain true
+    # as long as the cache filename starts with '.'.
     event_files = sorted(glob.glob(os.path.join(ticket_dir, "*.json")))
 
     if not event_files:
@@ -82,11 +115,23 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
         if event_type == "CREATE":
             # Corrupt CREATE detection: missing required fields
             if not data.get("ticket_type") or not data.get("title"):
-                return {
+                fsck_result = {
                     "status": "fsck_needed",
                     "error": "corrupt_create_event",
                     "ticket_id": ticket_id,
                 }
+                try:
+                    cache_tmp = cache_path + ".tmp"
+                    with open(cache_tmp, "w", encoding="utf-8") as tf:
+                        json.dump(
+                            {"dir_hash": dir_hash, "state": fsck_result},
+                            tf,
+                            ensure_ascii=False,
+                        )
+                    os.rename(cache_tmp, cache_path)
+                except OSError:
+                    pass
+                return fsck_result
             state["ticket_id"] = ticket_id
             state["ticket_type"] = data.get("ticket_type")
             state["title"] = data.get("title")
@@ -125,14 +170,32 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
     if state["ticket_type"] is None:
         # Ghost ticket prevention: dir has event files but none parsed
         if valid_event_count == 0 and len(event_files) > 0:
-            return {
+            result: dict | None = {
                 "status": "error",
                 "error": "no_valid_create_event",
                 "ticket_id": ticket_id,
             }
-        return None
+        else:
+            result = None
+    else:
+        result = state
 
-    return state
+    # Cache write: atomically persist result with content hash
+    if result is not None:
+        try:
+            cache_tmp = cache_path + ".tmp"
+            with open(cache_tmp, "w", encoding="utf-8") as tf:
+                json.dump(
+                    {"dir_hash": dir_hash, "state": result}, tf, ensure_ascii=False
+                )
+            os.rename(cache_tmp, cache_path)
+        except OSError:
+            print(
+                f"WARNING: failed to write cache for {ticket_dir}",
+                file=sys.stderr,
+            )
+
+    return result
 
 
 def main() -> int:
