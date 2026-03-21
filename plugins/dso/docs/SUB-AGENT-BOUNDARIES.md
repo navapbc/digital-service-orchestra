@@ -31,7 +31,7 @@ Sub-agents must NOT:
 Sub-agents MUST:
 - Run `pwd` first to confirm working directory
 - Write code + tests (TDD: tests before implementation when possible)
-- Run `make format-check && make lint && make test-unit-only` from `app/` as final validation
+- Run `make format-check && make lint` from `app/`, then `$(git rev-parse --show-toplevel)/plugins/dso/scripts/validate.sh --ci` as final validation
 - Write checkpoint notes: `tk add-note {id} "CHECKPOINT N/6: ..."`
 - Use absolute paths for scripts: `$(git rev-parse --show-toplevel)/scripts/`
 - Follow existing code patterns and naming conventions
