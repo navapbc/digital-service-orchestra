@@ -1,6 +1,6 @@
 ---
 id: dso-utw2
-status: open
+status: in_progress
 deps: [dso-xf8w, dso-li0w, dso-cb9v, dso-76r3]
 links: []
 created: 2026-03-21T18:00:57Z
@@ -36,3 +36,29 @@ Update relevant documentation to describe the .test-index feature.
   Verify: test -s $(git rev-parse --show-toplevel)/plugins/dso/hooks/pre-commit-test-gate.sh
 - [ ] bash tests/run-all.sh passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh
+
+## Notes
+
+**2026-03-21T19:50:47Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T19:51:25Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T19:51:28Z**
+
+CHECKPOINT 3/6: Tests written (none required — docs-only) ✓
+
+**2026-03-21T19:51:48Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T19:51:56Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-21T19:52:03Z**
+
+CHECKPOINT 6/6: Done ✓

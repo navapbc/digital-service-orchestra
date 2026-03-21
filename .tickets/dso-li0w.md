@@ -1,6 +1,6 @@
 ---
 id: dso-li0w
-status: in_progress
+status: closed
 deps: [dso-jny6, dso-xf8w]
 links: []
 created: 2026-03-21T18:00:23Z
