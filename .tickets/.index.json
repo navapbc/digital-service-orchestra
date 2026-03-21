@@ -54,6 +54,13 @@
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
   },
+  "dso-4lbf": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for .test-index parsing and union merge in test-pre-commit-test-gate.sh",
+    "type": "task"
+  },
   "dso-4nm5": {
     "deps": [],
     "priority": 4,
@@ -84,6 +91,15 @@
     "status": "open",
     "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
     "type": "bug"
+  },
+  "dso-76r3": {
+    "deps": [
+      "dso-xf8w"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Exclude .test-index from compute-diff-hash.sh and review-gate-allowlist.conf",
+    "type": "task"
   },
   "dso-94ya": {
     "deps": [],
@@ -152,6 +168,16 @@
     "status": "closed",
     "title": "Display Task titles during sprint batch execution",
     "type": "epic"
+  },
+  "dso-cb9v": {
+    "deps": [
+      "dso-ocfn",
+      "dso-xf8w"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Add .test-index union merge to record-test-status.sh",
+    "type": "task"
   },
   "dso-cc6a": {
     "deps": [],
@@ -262,6 +288,15 @@
     "title": "Don't merge to main between batches",
     "type": "epic"
   },
+  "dso-jny6": {
+    "deps": [
+      "dso-4lbf"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for .test-index auto-prune and auto-stage in test-pre-commit-test-gate.sh",
+    "type": "task"
+  },
   "dso-k7fe": {
     "deps": [],
     "priority": 2,
@@ -285,6 +320,16 @@
     "status": "open",
     "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
+  },
+  "dso-li0w": {
+    "deps": [
+      "dso-jny6",
+      "dso-xf8w"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Add auto-prune and auto-stage of .test-index to pre-commit-test-gate.sh",
+    "type": "task"
   },
   "dso-lm92": {
     "deps": [],
@@ -314,6 +359,13 @@
     "priority": 1,
     "status": "open",
     "title": "RED: Extend test-pre-commit-test-gate.sh with multi-stack fuzzy match tests",
+    "type": "task"
+  },
+  "dso-ocfn": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for .test-index support in test-record-test-status.sh",
     "type": "task"
   },
   "dso-ogh7": {
@@ -431,6 +483,18 @@
     "title": "[LOCK] debug-everything",
     "type": "task"
   },
+  "dso-utw2": {
+    "deps": [
+      "dso-xf8w",
+      "dso-li0w",
+      "dso-cb9v",
+      "dso-76r3"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "DOCS: Document .test-index support in the test gate",
+    "type": "task"
+  },
   "dso-uu13": {
     "deps": [],
     "priority": 1,
@@ -495,6 +559,15 @@
     "status": "open",
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
+  },
+  "dso-xf8w": {
+    "deps": [
+      "dso-4lbf"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Add parse_test_index() and union merge to pre-commit-test-gate.sh",
+    "type": "task"
   },
   "dso-xhhv": {
     "deps": [],

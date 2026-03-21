@@ -304,6 +304,35 @@ An integration test task may be omitted only if one of the following applies:
 
 Either exemption requires a justification requirement documented in the task description and validated by the plan reviewer in Step 4.
 
+### Test Filename Conventions (Fuzzy-Match Compatibility)
+
+The tech-stack-agnostic test gate associates source files with their tests using **fuzzy matching**: the source file's basename is normalized (all non-alphanumeric characters stripped, lowercased) and then checked as a substring against normalized test file basenames.
+
+**Examples of compatible test filenames** (auto-detected by fuzzy match):
+
+| Source file | Compatible test filenames |
+|-------------|--------------------------|
+| `bump_version.py` | `test_bump_version.py`, `test_bumpversion.py` |
+| `bump-version.sh` | `test-bump-version.sh`, `test_bumpversion_unit.sh` |
+| `auth_service.py` | `test_auth_service.py`, `auth_service_test.go` |
+| `parser.ts` | `parser.test.ts`, `parser.spec.ts` |
+
+**Rule**: When proposing a test filename in a task, verify it would be caught by the fuzzy match algorithm:
+1. Normalize the source basename: strip all non-`[a-z0-9]` characters, lowercase everything (e.g., `bump-version.sh` → `bumpversionsh`)
+2. Normalize the proposed test basename the same way (e.g., `test-bump-version.sh` → `testbumpversionsh`)
+3. Confirm the normalized source string appears as a **substring** of the normalized test string
+
+**If the proposed test filename would NOT be caught by fuzzy match** (e.g., the test is named after a behavior or feature rather than the source file — e.g., `test_retry_logic.py` for `connection_handler.py`), the task's acceptance criteria **must include a `.test-index` entry** as an explicit criterion:
+
+```
+- [ ] `.test-index` entry added mapping `<source-file>` to `<test-file>`
+  Verify: grep -q '<source-file>' $(git rev-parse --show-toplevel)/.test-index
+```
+
+Add this `.test-index` entry requirement as an acceptance criterion and note in the task description that the test name does not follow fuzzy-matchable conventions. The `.test-index` file is the authorized fallback for unconventional test names and must be present before commit or the test gate will produce a false negative.
+
+**Common Mistake**: Naming a test after what it tests (behavior) rather than what file it tests (source). Always check that the source filename's normalized form is a substring of the normalized test filename.
+
 ### E2E Testing Requirement
 
 If the story introduces or modifies user-facing behavior, API endpoints, or cross-component flows, include a dedicated E2E test task:
@@ -595,3 +624,4 @@ After processing findings (or skipping/failing), update the summary output to in
 | Skipping gap analysis for COMPLEX stories | Always run Step 6 for COMPLEX stories — missed gaps compound during sub-agent execution |
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
 | Tasks requiring co-commit | Every task must be independently committable and green. If Task B is broken without Task A in the same commit, merge them or reorder so each stands alone. Inert (does nothing yet) is fine; broken is not. |
+| Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in acceptance criteria — the test gate will produce a false negative without it. |

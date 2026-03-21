@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (15):
+# Test cases (20):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -22,6 +22,11 @@
 #  13. test_gate_typescript_triggers — RED: exits non-zero for .ts with associated test (gate only handles .py)
 #  14. test_gate_test_file_itself_exempt — test files staged as source must not trigger gate
 #  15. test_gate_test_dirs_config — RED: gate respects TEST_GATE_TEST_DIRS_OVERRIDE for custom test dirs
+#  16. test_gate_index_mapped_source_triggers — RED: .test-index mapped source triggers gate (no status = blocked)
+#  17. test_gate_index_union_with_fuzzy — RED: source with fuzzy + index entry; union of both test sets required
+#  18. test_gate_missing_index_noop — RED: missing .test-index = gate proceeds without error (fail-open)
+#  19. test_gate_index_empty_right_side_noop — RED: .test-index entry with no valid test paths = no association
+#  20. test_gate_index_multi_test_paths — RED: source mapped to multiple test paths; all must have valid status
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -729,6 +734,237 @@ test_gate_test_dirs_config() {
     assert_ne "test_gate_test_dirs_config: gate blocks with custom test dir (exit != 0)" "0" "$exit_code"
 }
 
+# ============================================================
+# TEST 16: test_gate_index_mapped_source_triggers
+# Gate exits non-zero when a staged source file is mapped in
+# .test-index to a test file, but no test-gate-status exists.
+# The source file (e.g., lib/auth_handler.py) has NO fuzzy
+# match — only the .test-index mapping associates it with
+# tests/integration/test_auth_flow.py.
+# RED: Current gate does not parse .test-index — exits 0.
+# ============================================================
+test_gate_index_mapped_source_triggers() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file with unconventional naming (no fuzzy match possible)
+    mkdir -p "$_repo/lib" "$_repo/tests/integration"
+    echo 'def handle_auth(): return True' > "$_repo/lib/auth_handler.py"
+    echo 'def test_auth_flow(): assert True' > "$_repo/tests/integration/test_auth_flow.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add auth_handler"
+
+    # Write .test-index mapping auth_handler.py -> test_auth_flow.py
+    cat > "$_repo/.test-index" <<'IDX'
+lib/auth_handler.py:tests/integration/test_auth_flow.py
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/auth_handler.py"
+    git -C "$_repo" add "$_repo/lib/auth_handler.py"
+
+    # Do NOT write test-gate-status — it should be missing
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_mapped_source_triggers: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Note: fuzzy match does NOT find this association — "auth_handler.py" normalizes
+    # to "authhandlerpy" which is NOT a substring of "testauthflowpy". Only .test-index
+    # provides this mapping. This is the whole point of .test-index.
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should block (exit != 0) because .test-index maps auth_handler.py to a test
+    # RED: Current gate does not parse .test-index — exits 0
+    assert_ne "test_gate_index_mapped_source_triggers: gate blocks index-mapped source (exit != 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 17: test_gate_index_union_with_fuzzy
+# Gate exits non-zero when a staged source file has BOTH a
+# fuzzy match AND a .test-index entry pointing to different
+# test files. The union of both test sets must be required.
+# If test-gate-status only covers the fuzzy match test, the
+# gate should still block because the index-mapped test is
+# not covered.
+# RED: Current gate does not parse .test-index — no union.
+# ============================================================
+test_gate_index_union_with_fuzzy() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file with a conventional test (fuzzy match) AND an index-mapped test
+    mkdir -p "$_repo/src" "$_repo/tests" "$_repo/tests/integration"
+    echo 'def compute(): return 42' > "$_repo/src/compute.py"
+    echo 'def test_compute(): assert True' > "$_repo/tests/test_compute.py"
+    echo 'def test_compute_e2e(): assert True' > "$_repo/tests/integration/test_compute_e2e.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add compute"
+
+    # Write .test-index mapping compute.py -> the integration test (in addition to fuzzy)
+    cat > "$_repo/.test-index" <<'IDX'
+src/compute.py:tests/integration/test_compute_e2e.py
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/src/compute.py"
+    git -C "$_repo" add "$_repo/src/compute.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_union_with_fuzzy: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Compute the real diff hash and write VALID test-gate-status
+    # This satisfies the fuzzy-matched test (test_compute.py). But the
+    # index-mapped test (test_compute_e2e.py) also needs to be in the
+    # tested_files set. With .test-index union logic, the gate should
+    # block because test_compute_e2e.py is not in tested_files.
+    local real_hash
+    real_hash=$(compute_hash_in_repo "$_repo" "$_artifacts")
+    mkdir -p "$_artifacts"
+    printf 'passed\ndiff_hash=%s\ntimestamp=2026-03-20T00:00:00Z\ntested_files=tests/test_compute.py\n' \
+        "$real_hash" > "$_artifacts/test-gate-status"
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should block (exit != 0) because the union includes test_compute_e2e.py
+    # (from .test-index) which is NOT in tested_files. The gate must verify that
+    # ALL tests in the union (fuzzy + index) are covered by test-gate-status.
+    # RED: Current gate passes because it only checks fuzzy match — status is valid
+    # for the fuzzy-matched test, and the gate doesn't know about the index entry.
+    assert_ne "test_gate_index_union_with_fuzzy: gate blocks on incomplete union (exit != 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 18: test_gate_missing_index_noop
+# Gate exits 0 when .test-index does not exist at all.
+# Missing .test-index = fail-open, gate proceeds using only
+# fuzzy matching. A source file with NO fuzzy match and NO
+# .test-index should pass the gate.
+# ============================================================
+test_gate_missing_index_noop() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a source file with no associated test (no fuzzy match, no .test-index)
+    mkdir -p "$_repo/lib"
+    echo 'MAGIC_CONSTANT = 42' > "$_repo/lib/constants.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add constants"
+
+    # Modify and stage
+    echo '# changed' >> "$_repo/lib/constants.py"
+    git -C "$_repo" add "$_repo/lib/constants.py"
+
+    # Ensure NO .test-index exists
+    [[ -f "$_repo/.test-index" ]] && rm "$_repo/.test-index"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_missing_index_noop: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should pass (exit 0) — no .test-index and no fuzzy match = no association
+    assert_eq "test_gate_missing_index_noop: gate passes without .test-index (exit 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 19: test_gate_index_empty_right_side_noop
+# Gate exits 0 when .test-index has an entry for the source
+# file but the right side (test paths) is empty. Empty mapping
+# = treated as no association from the index.
+# ============================================================
+test_gate_index_empty_right_side_noop() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a source file with NO fuzzy match
+    mkdir -p "$_repo/lib"
+    echo 'def do_stuff(): pass' > "$_repo/lib/do_stuff.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add do_stuff"
+
+    # Write .test-index with empty right side (no test paths)
+    cat > "$_repo/.test-index" <<'IDX'
+lib/do_stuff.py:
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index with empty mapping"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/do_stuff.py"
+    git -C "$_repo" add "$_repo/lib/do_stuff.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_empty_right_side_noop: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should pass (exit 0) — empty right side in .test-index = no test association
+    assert_eq "test_gate_index_empty_right_side_noop: gate passes with empty index mapping (exit 0)" "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 20: test_gate_index_multi_test_paths
+# Gate exits non-zero when .test-index maps a source file to
+# multiple test paths (comma-separated). All mapped tests must
+# have valid test-gate-status. With no status recorded, the
+# gate should block.
+# RED: Current gate does not parse .test-index — exits 0.
+# ============================================================
+test_gate_index_multi_test_paths() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file with no fuzzy match, but mapped to multiple tests via index
+    mkdir -p "$_repo/lib" "$_repo/tests/unit" "$_repo/tests/integration"
+    echo 'class PaymentGateway: pass' > "$_repo/lib/payment_gateway.py"
+    echo 'def test_payment_unit(): assert True' > "$_repo/tests/unit/test_payment_unit.py"
+    echo 'def test_payment_integration(): assert True' > "$_repo/tests/integration/test_payment_integration.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add payment_gateway"
+
+    # Write .test-index mapping to multiple test paths (comma-separated)
+    cat > "$_repo/.test-index" <<'IDX'
+lib/payment_gateway.py:tests/unit/test_payment_unit.py,tests/integration/test_payment_integration.py
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index with multi-path mapping"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/payment_gateway.py"
+    git -C "$_repo" add "$_repo/lib/payment_gateway.py"
+
+    # Do NOT write test-gate-status
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_multi_test_paths: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    # Gate should block (exit != 0) because both mapped tests need valid status
+    # RED: Current gate does not parse .test-index — exits 0
+    assert_ne "test_gate_index_multi_test_paths: gate blocks multi-path index (exit != 0)" "0" "$exit_code"
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -758,5 +994,10 @@ run_test test_gate_bash_script_triggers
 run_test test_gate_typescript_triggers
 run_test test_gate_test_file_itself_exempt
 run_test test_gate_test_dirs_config
+run_test test_gate_index_mapped_source_triggers
+run_test test_gate_index_union_with_fuzzy
+run_test test_gate_missing_index_noop
+run_test test_gate_index_empty_right_side_noop
+run_test test_gate_index_multi_test_paths
 
 print_summary

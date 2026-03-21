@@ -1,6 +1,6 @@
 ---
 id: dso-9gpx
-status: in_progress
+status: closed
 deps: [dso-fhfi, dso-6oo5]
 links: []
 created: 2026-03-21T16:16:37Z
