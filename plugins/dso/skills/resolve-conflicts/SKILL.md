@@ -50,15 +50,33 @@ TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep '^\.tickets/' || true)
 CODE_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^\.tickets/' || true)
 ```
 
-Auto-resolve `.tickets/` conflicts immediately (ours strategy — matches existing `merge-to-main.sh` behavior):
-```bash
-if [ -n "$TICKET_CONFLICTS" ]; then
-    git checkout --ours -- .tickets/
-    git add .tickets/
-fi
-```
+**NEVER use `git checkout --ours -- .tickets/` or `git merge -X ours` for ticket conflicts.** Main may have received updates from another worktree; blindly accepting the worktree version can destroy those updates.
 
-If only `.tickets/` conflicts existed and no code conflicts remain: complete the merge and exit.
+Handle `.tickets/` conflicts as follows:
+
+- **`.tickets/.index.json`**: Auto-resolve using the custom merge driver (union merge). This file is handled by `merge-to-main.sh`'s `_squash_rebase_recovery` function and the `tickets-index-merge` git attribute driver. If it appears here, extract the three staging-area versions and run `merge-ticket-index.py`:
+  ```bash
+  git show :2:.tickets/.index.json > /tmp/ours.json
+  git show :3:.tickets/.index.json > /tmp/theirs.json
+  git show :1:.tickets/.index.json > /tmp/base.json
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py" /tmp/base.json /tmp/ours.json /tmp/theirs.json
+  cp /tmp/ours.json .tickets/.index.json
+  git add .tickets/.index.json
+  ```
+
+- **All other `.tickets/` files** (individual ticket `.md` files, archive files): **Must show a diff to the user and ask which version to keep.** For each conflicted ticket file:
+  1. Show the diff between both versions:
+     ```bash
+     echo "=== Ticket conflict: <file> ==="
+     git show :2:<file>  # ours (worktree version)
+     echo "--- vs main version ---"
+     git show :3:<file>  # theirs (main version)
+     ```
+  2. Briefly summarize the differences (e.g., status changes, note additions, field changes)
+  3. Ask the user: "Keep worktree version, main version, or merge manually?"
+  4. Apply only after receiving explicit user confirmation
+
+If only `.tickets/` conflicts existed and all are resolved (with user approval where required): complete the merge and exit.
 
 If code conflicts exist: proceed to Step 2.
 
@@ -187,7 +205,7 @@ If resolution was abandoned (user chose to resolve manually):
 
 ## Constraints
 
-- `.tickets/` conflicts always use ours strategy (auto-resolve, no sub-agent needed)
+- `.tickets/.index.json` uses union auto-resolve via `merge-ticket-index.py` (no sub-agent needed). All other `.tickets/` files (individual ticket `.md` and archive files) require user confirmation — never use "ours" strategy on them.
 - Sub-agent model: **sonnet** — conflict resolution needs code understanding but not architectural reasoning
 - This skill does NOT commit or push — it only completes the merge. The calling skill handles commit/push.
 - Maximum 10 conflicted files. Above that, report to user: "Too many conflicts for agent-assisted resolution. Consider rebasing incrementally."

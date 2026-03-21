@@ -78,14 +78,43 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-0.5-skip-review-check" >> "$ARTIFACTS_
 
 Run unit tests to catch breakage before investing in review.
 
+> **Timeout rule**: Always set `timeout: 600000` on ALL Bash tool calls in this workflow — including fast commands like `ruff check`. Claude Code's hard ceiling is ~73s without the explicit timeout parameter (drops to ~48s), and even short commands can receive SIGURG (exit 144) during internal event processing. See CLAUDE.md rule 11 (Always Do These).
+
+> **Long-running test suites (>60s)**: If the project's test command is expected to exceed 60 seconds (e.g., `bash tests/run-all.sh`), wrap it with `test-batched.sh` instead of invoking it bare. A bare invocation will be killed by the ~73s tool timeout ceiling (exit 144), producing spurious failures. See CLAUDE.md rule 12 (Always Do These).
+
+Resolve the test command from config, then run it:
+
 ```bash
-cd app && make test-unit-only 2>&1 | tail -5
+REPO_ROOT=$(git rev-parse --show-toplevel)
+TEST_CMD="$(".claude/scripts/dso read-config.sh" commands.test_unit 2>/dev/null || echo "make test-unit-only")"
 ```
 
-On success, only the summary is needed. If the exit code is non-zero, re-run with full output to see failures:
+**If the test command is expected to complete in under 60s**, run it directly (with `timeout: 600000` on the Bash tool call):
+
 ```bash
-cd app && make test-unit-only
+cd app && $TEST_CMD 2>&1 | tail -5
 ```
+
+**If the test command is expected to exceed 60s** (e.g., `bash tests/run-all.sh`), wrap with `test-batched.sh`:
+
+```bash
+bash "$REPO_ROOT/plugins/dso/scripts/test-batched.sh" --timeout=50 "$TEST_CMD"
+```
+
+When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
+
+```
+════════════════════════════════════════════════════════════
+  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠
+════════════════════════════════════════════════════════════
+RUN: TEST_BATCHED_STATE_FILE=... bash .../test-batched.sh ...
+DO NOT PROCEED until the command above prints a final summary.
+════════════════════════════════════════════════════════════
+```
+
+Run the command shown on the `RUN:` line in subsequent Bash tool calls (each with `timeout: 600000`) until the summary appears.
+
+On success, only the summary is needed. If the exit code is non-zero, re-run with full output to see failures.
 
 If tests fail, fix the code and restart from Step 1. Do NOT proceed with a failing test suite.
 
@@ -111,7 +140,7 @@ Do NOT spend orchestrator context on multi-test debugging — delegate immediate
 1. **Build the input payload**:
 
 ```bash
-TEST_COMMAND="cd app && make test-unit-only"
+TEST_COMMAND="$TEST_CMD"  # The config-resolved command used in Step 1 above.
 # EXIT_CODE and STDERR_TAIL come from the ALREADY-FAILED test run above.
 # The orchestrator should have captured stdout/stderr and exit code when
 # running the test command. Do NOT re-run the tests here.

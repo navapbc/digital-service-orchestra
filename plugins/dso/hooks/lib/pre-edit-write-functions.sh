@@ -54,10 +54,10 @@ source "$_PRE_EDIT_WRITE_FUNC_DIR/pre-bash-functions.sh"
 hook_cascade_circuit_breaker() {
     local INPUT="$1"
 
-    # Error handling: explicit per-operation guards (|| return 0) instead of a
-    # global ERR trap. The ERR trap approach caused the function to silently
-    # return 0 on Linux CI when bash ERR semantics differed from macOS,
-    # preventing the function from ever reaching return 2 (the blocking path).
+    # Error handling: explicit per-operation guards (|| return 0) preserve
+    # fail-open behavior without interfering with intentional blocks.
+    # Linux CI fix: /tmp/* passthrough excludes files inside the current
+    # worktree (mktemp creates repos under /tmp/ on Linux; w21-qsu5).
 
     local TOOL_NAME
     TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name') || return 0
@@ -69,11 +69,15 @@ hook_cascade_circuit_breaker() {
     local FILE_PATH
     FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path') || return 0
 
-    # Allow non-code edits (issue tracking, config, docs, temp files).
+    # --- Resolve worktree-scoped state directory (needed before /tmp/* check) ---
+    local WORKTREE_ROOT
+    WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+
+    # Allow non-code edits (issue tracking, config, docs).
     # Split into two case blocks because $HOME expansion does not work
     # inside a single case pattern list with | separators.
     case "$FILE_PATH" in
-        */.tickets/*|*/CLAUDE.md|*/.claude/*|/tmp/*)
+        */.tickets/*|*/CLAUDE.md|*/.claude/*)
             return 0
             ;;
     esac
@@ -83,9 +87,14 @@ hook_cascade_circuit_breaker() {
             ;;
     esac
 
-    # --- Resolve worktree-scoped state directory ---
-    local WORKTREE_ROOT
-    WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    # Allow /tmp/ files ONLY if they are NOT inside the current worktree.
+    # On Linux CI, mktemp creates repos under /tmp/, so a bare /tmp/* pattern
+    # would false-positive on source files in repos under /tmp/.
+    if [[ "$FILE_PATH" == /tmp/* ]]; then
+        if [[ -z "$WORKTREE_ROOT" ]] || [[ "$FILE_PATH" != "$WORKTREE_ROOT"/* ]]; then
+            return 0
+        fi
+    fi
     if [[ -z "$WORKTREE_ROOT" ]]; then
         return 0
     fi

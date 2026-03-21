@@ -33,8 +33,12 @@ DB_STATUS_CMD=<value or ABSENT>
 3. If `VALIDATE_CMD` is present and not `ABSENT`:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   <VALIDATE_CMD>
+   <VALIDATE_CMD> --skip-ci
    ```
+   The `--skip-ci` flag suppresses the CI status check inside `validate.sh`. CI status
+   is checked independently by Sub-Agent 2 (CI Status) — running it here too would
+   duplicate the check and conflate local code health with pipeline status.
+
    **Bash timeout**: Use `timeout: 960000` (16 minutes). The smart CI wait can poll for up to 15 minutes.
 
    If `VALIDATE_CMD` is `ABSENT`: report Validation: SKIPPED (no validate command configured).

@@ -1,12 +1,13 @@
 ---
 id: w21-0pxe
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-21T00:15:37Z
 type: bug
 priority: 1
 assignee: Joe Oakhart
+parent: w22-ns6l
 ---
 # Bug: end-session merge blindly accepts worktree ticket changes over main without diff comparison
 
@@ -20,3 +21,7 @@ During end-session merge, the agent encountered a conflict in .tickets/dso-dywv.
 This is dangerous because: (1) main may have received updates from another worktree that the current session does not know about, (2) the agent should have compared both versions and presented the conflict to the user for resolution, (3) using -X ours for ticket files discards any content added on main by other sessions.
 
 Expected behavior: When ticket merge conflicts occur during end-session, the agent should show the diff between both versions and ask the user which to keep, or present a merged version for approval. The agent should never assume its own ticket changes are authoritative without comparison.
+
+**2026-03-21T16:07:41Z**
+
+Fixed: resolve-conflicts and end-session skills now prohibit blind ours strategy for ticket conflicts (commit 676ca3b)

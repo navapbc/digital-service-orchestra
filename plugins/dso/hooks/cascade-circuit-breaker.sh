@@ -18,11 +18,13 @@
 #
 # Paired with track-cascade-failures.sh (PostToolUse on Bash).
 #
-# Error handling: explicit per-operation guards (|| exit 0) instead of a
-# global ERR trap. The ERR trap approach caused the hook to silently exit 0
-# on Linux CI when bash ERR semantics differed from macOS, preventing the
-# hook from ever reaching exit 2 (the blocking path). Per-operation guards
-# preserve fail-open behavior without interfering with intentional blocks.
+# Error handling: explicit per-operation guards (|| exit 0) preserve
+# fail-open behavior without interfering with intentional blocks.
+#
+# Linux CI fix: the /tmp/* passthrough pattern must exclude files inside
+# the current worktree. On Linux, mktemp creates repos under /tmp/, so a
+# bare /tmp/* match would false-positive on source files and skip the
+# cascade threshold check entirely (w21-qsu5).
 
 # Source shared dependency library
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 0
@@ -39,11 +41,14 @@ fi
 # --- Check file path for passthrough ---
 FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path') || exit 0
 
-# Allow non-code edits (issue tracking, config, docs, temp files).
+# --- Resolve worktree-scoped state directory (needed before /tmp/* check) ---
+WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+
+# Allow non-code edits (issue tracking, config, docs).
 # Split into two case blocks because $HOME expansion does not work
 # inside a single case pattern list with | separators.
 case "$FILE_PATH" in
-    */.tickets/*|*/CLAUDE.md|*/.claude/*|/tmp/*)
+    */.tickets/*|*/CLAUDE.md|*/.claude/*)
         exit 0
         ;;
 esac
@@ -53,8 +58,14 @@ case "$FILE_PATH" in
         ;;
 esac
 
-# --- Resolve worktree-scoped state directory ---
-WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+# Allow /tmp/ files ONLY if they are NOT inside the current worktree.
+# On Linux CI, mktemp creates repos under /tmp/, so a bare /tmp/* pattern
+# would false-positive on source files in repos under /tmp/.
+if [[ "$FILE_PATH" == /tmp/* ]]; then
+    if [[ -z "$WORKTREE_ROOT" ]] || [[ "$FILE_PATH" != "$WORKTREE_ROOT"/* ]]; then
+        exit 0
+    fi
+fi
 if [[ -z "$WORKTREE_ROOT" ]]; then
     exit 0
 fi

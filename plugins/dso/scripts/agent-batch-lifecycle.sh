@@ -259,11 +259,12 @@ cmd_lock_acquire() {
     if [ -d "$TICKETS_DIR" ]; then
         while IFS= read -r ticket_file; do
             [ -z "$ticket_file" ] && continue
-            # Check if this ticket has the right title and is in_progress
-            if grep -q "title: \"\\[LOCK\\] $label\"" "$ticket_file" 2>/dev/null || \
-               grep -q "title: '\\[LOCK\\] $label'" "$ticket_file" 2>/dev/null || \
-               grep -qE "^title:.*\\[LOCK\\] $label" "$ticket_file" 2>/dev/null; then
-                if grep -q "status: in_progress" "$ticket_file" 2>/dev/null; then
+            # Check if this ticket has the right title and is in_progress.
+            # Tickets store their title as a markdown H1 heading after the YAML
+            # frontmatter (e.g., "# [LOCK] debug-everything"), NOT as a YAML
+            # `title:` field. Match the H1 form to correctly find synced tickets.
+            if grep -qE "^# \\[LOCK\\] $label$" "$ticket_file" 2>/dev/null; then
+                if grep -q "^status: in_progress" "$ticket_file" 2>/dev/null; then
                     lock_id=$(grep -m1 "^id:" "$ticket_file" | sed 's/^id: *//' | tr -d '"'"'" || echo "")
                     break
                 fi
@@ -342,10 +343,11 @@ cmd_lock_status() {
     if [ -d "$TICKETS_DIR" ]; then
         while IFS= read -r ticket_file; do
             [ -z "$ticket_file" ] && continue
-            if grep -q "title: \"\\[LOCK\\] $label\"" "$ticket_file" 2>/dev/null || \
-               grep -q "title: '\\[LOCK\\] $label'" "$ticket_file" 2>/dev/null || \
-               grep -qE "^title:.*\\[LOCK\\] $label" "$ticket_file" 2>/dev/null; then
-                if grep -q "status: in_progress" "$ticket_file" 2>/dev/null; then
+            # Tickets store their title as a markdown H1 heading after the YAML
+            # frontmatter (e.g., "# [LOCK] debug-everything"), NOT as a YAML
+            # `title:` field. Match the H1 form to correctly find synced tickets.
+            if grep -qE "^# \\[LOCK\\] $label$" "$ticket_file" 2>/dev/null; then
+                if grep -q "^status: in_progress" "$ticket_file" 2>/dev/null; then
                     lock_id=$(grep -m1 "^id:" "$ticket_file" | sed 's/^id: *//' | tr -d '"'"'" || echo "")
                     break
                 fi

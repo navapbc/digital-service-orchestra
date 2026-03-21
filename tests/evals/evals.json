@@ -907,6 +907,52 @@
           "pattern": "Resolution sub-agents"
         }
       ]
+    },
+    {
+      "id": "resolve-conflicts-ticket-never-ours-strategy",
+      "category": "ticket-conflict-safety",
+      "phase_introduced": 8,
+      "hook": "plugins/dso/skills/resolve-conflicts/SKILL.md",
+      "setup": {
+        "stdin": "",
+        "state_files": {},
+        "env": {}
+      },
+      "assertions": [
+        {
+          "type": "file_contains",
+          "path": "plugins/dso/skills/resolve-conflicts/SKILL.md",
+          "pattern": "NEVER use `git checkout --ours -- .tickets/`"
+        },
+        {
+          "type": "file_contains",
+          "path": "plugins/dso/skills/resolve-conflicts/SKILL.md",
+          "pattern": "Must show a diff to the user and ask which version to keep"
+        }
+      ]
+    },
+    {
+      "id": "end-session-ticket-conflict-critical-guard",
+      "category": "ticket-conflict-safety",
+      "phase_introduced": 8,
+      "hook": "plugins/dso/skills/end-session/SKILL.md",
+      "setup": {
+        "stdin": "",
+        "state_files": {},
+        "env": {}
+      },
+      "assertions": [
+        {
+          "type": "file_contains",
+          "path": "plugins/dso/skills/end-session/SKILL.md",
+          "pattern": "CRITICAL"
+        },
+        {
+          "type": "file_contains",
+          "path": "plugins/dso/skills/end-session/SKILL.md",
+          "pattern": "do NOT use `git merge -X ours`"
+        }
+      ]
     }
   ]
 }

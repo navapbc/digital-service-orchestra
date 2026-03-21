@@ -151,6 +151,8 @@ git log main..$BRANCH --oneline
 
 If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
 
+**CRITICAL — ticket conflict handling**: If a merge conflict occurs in `.tickets/` files (individual ticket `.md` files or archive files), do NOT use `git merge -X ours`, `git checkout --ours -- .tickets/`, or any other "accept worktree blindly" strategy. Main may have received ticket updates from another worktree. Instead, invoke `/dso:resolve-conflicts`, which will show the diff between both versions and ask the user which to keep. Only `.tickets/.index.json` may be auto-resolved (via union merge driver).
+
 ### 4.5. Sync Tickets to Jira
 
 <!-- Jira sync temporarily disabled — run `tk sync` manually when ticket system is stabilized. -->
