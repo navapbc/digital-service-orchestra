@@ -89,10 +89,71 @@ else
     _TEST_DIRS="${_TEST_DIRS:-tests/}"
 fi
 
+# ── .test-index parsing ──────────────────────────────────────────────────────
+# Reads $REPO_ROOT/.test-index and returns test paths mapped to a given source file.
+# Format per line: 'source/path.ext: test/path1.ext, test/path2.ext'
+#   - Lines starting with # are comments; blank lines are ignored
+#   - Colons and commas in paths are not supported
+#   - Empty right-hand side = no association for that line
+# Returns test paths on stdout, one per line. Missing file = no output (no error).
+parse_test_index() {
+    local src_file="$1"
+    local index_file="${REPO_ROOT:-.}/.test-index"
+
+    if [[ ! -f "$index_file" ]]; then
+        return 0
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip comments and blank lines
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # Split on first colon: left = source path, right = comma-separated test paths
+        local left="${line%%:*}"
+        local right="${line#*:}"
+
+        # Trim whitespace from left side
+        left="${left#"${left%%[![:space:]]*}"}"
+        left="${left%"${left##*[![:space:]]}"}"
+
+        # Match against the source file
+        if [[ "$left" != "$src_file" ]]; then
+            continue
+        fi
+
+        # Split right side on commas and emit each non-empty test path
+        IFS=',' read -ra parts <<< "$right"
+        for part in "${parts[@]}"; do
+            # Trim whitespace
+            part="${part#"${part%%[![:space:]]*}"}"
+            part="${part%"${part##*[![:space:]]}"}"
+            if [[ -n "$part" ]]; then
+                echo "$part"
+            fi
+        done
+    done < "$index_file"
+}
+
+# ── Get ALL associated test paths for a source file (union of fuzzy + index) ──
+# Returns all associated test paths on stdout, one per line, deduplicated.
+_get_all_associated_tests() {
+    local src_file="$1"
+
+    if fuzzy_is_test_file "$src_file"; then
+        return
+    fi
+
+    # Collect from both sources into a combined set
+    {
+        fuzzy_find_associated_tests "$src_file" "${REPO_ROOT:-.}" "$_TEST_DIRS" 2>/dev/null || true
+        parse_test_index "$src_file"
+    } | sort -u
+}
+
 # ── Fuzzy-match-based test association ─────────────────────────────────────────
-# For each staged source file (any language), use fuzzy matching to find
-# associated test files in the configured test directories.
-# Returns 0 (true) if any associated test file exists, 1 (false) otherwise.
+# For each staged source file (any language), use fuzzy matching and .test-index
+# to find associated test files. Returns 0 (true) if any associated test exists.
 _has_associated_test() {
     local src_file="$1"
 
@@ -102,12 +163,13 @@ _has_associated_test() {
     fi
 
     local _found
-    _found=$(fuzzy_find_associated_tests "$src_file" "${REPO_ROOT:-.}" "$_TEST_DIRS" | head -1 || true)
+    _found=$(_get_all_associated_tests "$src_file" | head -1)
     [[ -n "$_found" ]]
 }
 
 # ── Get associated test file path for a source file ──────────────────────────
-# Returns the relative test file path on stdout, or empty if none found.
+# Returns the first relative test file path on stdout, or empty if none found.
+# For the full union set, use _get_all_associated_tests().
 _get_associated_test_path() {
     local src_file="$1"
 
@@ -115,7 +177,7 @@ _get_associated_test_path() {
         return
     fi
 
-    fuzzy_find_associated_tests "$src_file" "${REPO_ROOT:-.}" "$_TEST_DIRS" | head -1 || true
+    _get_all_associated_tests "$src_file" | head -1 || true
 }
 
 # ── Check if a test file is exempted ─────────────────────────────────────────
@@ -156,20 +218,24 @@ ARTIFACTS_DIR=$(get_artifacts_dir)
 TEST_GATE_STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
 
 # ── Exemption check ──────────────────────────────────────────────────────────
-# For each staged source file with an associated test, check if ALL associated
-# tests are exempted. If after filtering, no files require the gate, exit 0.
+# For each staged source file with associated tests (union of fuzzy + index),
+# check if ALL associated tests are exempted. If after filtering, no files
+# require the gate, exit 0.
 _STILL_NEEDS_GATE=false
 for _staged_file in "${STAGED_FILES[@]}"; do
-    local_test_path=$(_get_associated_test_path "$_staged_file")
-    if [[ -z "$local_test_path" ]]; then
+    _all_tests=$(_get_all_associated_tests "$_staged_file")
+    if [[ -z "$_all_tests" ]]; then
         # No associated test — this file doesn't need the gate anyway
         continue
     fi
-    if ! _is_test_exempted "$local_test_path"; then
-        # At least one non-exempted test remains
-        _STILL_NEEDS_GATE=true
-        break
-    fi
+    while IFS= read -r _test_path; do
+        [[ -z "$_test_path" ]] && continue
+        if ! _is_test_exempted "$_test_path"; then
+            # At least one non-exempted test remains
+            _STILL_NEEDS_GATE=true
+            break 2
+        fi
+    done <<< "$_all_tests"
 done
 
 # All tests are exempted → allow commit without test-gate-status check
@@ -246,6 +312,54 @@ if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
     echo "  plugins/dso/scripts/test-batched.sh --timeout=50 \"<test cmd>\"" >&2
     echo "" >&2
     exit 1
+fi
+
+# ── Verify tested_files covers the full union of required tests ───────────────
+# When .test-index maps tests for staged source files, verify that ALL tests
+# in the union (fuzzy + index) are listed in the tested_files field.
+# This check only activates when .test-index contributes at least one mapping
+# for the staged files, to preserve backward compatibility with existing workflows.
+_HAS_INDEX_TESTS=false
+_REQUIRED_TESTS=()
+for _staged_file in "${STAGED_FILES[@]}"; do
+    # Check if .test-index provides any mappings for this file
+    _index_tests=$(parse_test_index "$_staged_file")
+    if [[ -n "$_index_tests" ]]; then
+        _HAS_INDEX_TESTS=true
+        # Collect the full union (fuzzy + index) for this file
+        _all_tests=$(_get_all_associated_tests "$_staged_file")
+        while IFS= read -r _test_path; do
+            [[ -z "$_test_path" ]] && continue
+            _REQUIRED_TESTS+=("$_test_path")
+        done <<< "$_all_tests"
+    fi
+done
+
+if [[ "$_HAS_INDEX_TESTS" == true ]]; then
+    RECORDED_TESTED_FILES=$(grep '^tested_files=' "$TEST_GATE_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    if [[ -n "$RECORDED_TESTED_FILES" ]]; then
+        for _req_test in "${_REQUIRED_TESTS[@]}"; do
+            _found_in_tested=false
+            IFS=',' read -ra _tested_arr <<< "$RECORDED_TESTED_FILES"
+            for _tested in "${_tested_arr[@]}"; do
+                # Trim whitespace
+                _tested="${_tested#"${_tested%%[![:space:]]*}"}"
+                _tested="${_tested%"${_tested##*[![:space:]]}"}"
+                if [[ "$_tested" == "$_req_test" ]]; then
+                    _found_in_tested=true
+                    break
+                fi
+            done
+            if [[ "$_found_in_tested" == false ]]; then
+                echo "" >&2
+                echo "BLOCKED: test gate — not all required tests were run. Missing: ${_req_test}" >&2
+                echo "" >&2
+                echo "  Re-run record-test-status.sh or use /dso:commit to re-record test status." >&2
+                echo "" >&2
+                exit 1
+            fi
+        done
+    fi
 fi
 
 # ── All checks passed → allow commit ──────────────────────────────────────────

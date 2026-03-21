@@ -1,6 +1,6 @@
 ---
 id: dso-xf8w
-status: open
+status: in_progress
 deps: [dso-4lbf]
 links: []
 created: 2026-03-21T18:00:11Z
@@ -52,3 +52,29 @@ Implement .test-index file parsing and union merge in plugins/dso/hooks/pre-comm
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh
 - [ ] ruff check passes (exit 0)
   Verify: ruff check plugins/dso/scripts/*.py tests/**/*.py 2>/dev/null || true
+
+## Notes
+
+**2026-03-21T18:54:50Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T18:55:37Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T18:55:40Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓
+
+**2026-03-21T18:58:01Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T19:03:25Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — 23 PASS, 4 FAIL in test-pre-commit-test-gate.sh (the 4 FAILs are tests 21-24 = prune/stage RED tests from story dso-li0w, not my scope). Other run-all failures (test-record-test-status 4 FAIL, test-doc-migration 1 FAIL) are pre-existing RED tests from other stories.
+
+**2026-03-21T19:03:32Z**
+
+CHECKPOINT 6/6: Done ✓

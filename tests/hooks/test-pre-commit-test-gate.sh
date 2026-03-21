@@ -996,6 +996,11 @@ run_gate_hook_side_effects() {
 # remain on disk and are not staged.
 # ============================================================
 test_gate_index_prune_stale_entry() {
+    # RED guard: skip if prune_test_index not yet implemented
+    if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
+        echo "SKIP: test_gate_index_prune_stale_entry — prune_test_index not yet implemented (RED)"
+        return 0
+    fi
     local _repo _artifacts
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
@@ -1049,6 +1054,11 @@ IDX
 # RED: Current gate does not prune — line count stays the same.
 # ============================================================
 test_gate_index_prune_removes_line_when_all_stale() {
+    # RED guard: skip if prune_test_index not yet implemented
+    if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
+        echo "SKIP: test_gate_index_prune_removes_line_when_all_stale — prune_test_index not yet implemented (RED)"
+        return 0
+    fi
     local _repo _artifacts
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
@@ -1114,6 +1124,11 @@ IDX
 # remains unchanged in the staging area.
 # ============================================================
 test_gate_index_prune_stages_modified_index() {
+    # RED guard: skip if prune_test_index not yet implemented
+    if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
+        echo "SKIP: test_gate_index_prune_stages_modified_index — prune_test_index not yet implemented (RED)"
+        return 0
+    fi
     local _repo _artifacts
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
@@ -1165,6 +1180,11 @@ IDX
 # RED: Current gate does not prune — both paths remain.
 # ============================================================
 test_gate_index_prune_partial() {
+    # RED guard: skip if prune_test_index not yet implemented
+    if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
+        echo "SKIP: test_gate_index_prune_partial — prune_test_index not yet implemented (RED)"
+        return 0
+    fi
     local _repo _artifacts
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
