@@ -17,6 +17,7 @@
 #   hook_bug_close_guard         — require --reason flag on bug ticket closes
 #   hook_review_integrity_guard  — block direct writes to review-status files
 #   hook_blocked_test_command    — block broad test commands, redirect to validate.sh
+#   hook_tickets_tracker_bash_guard — block Bash commands referencing .tickets-tracker/
 #
 # NOTE: The old PreToolUse review gate was removed in Story 1idf. Review gate
 #   enforcement is now handled by the two-layer gate:
@@ -807,5 +808,67 @@ print(json.dumps(entry))
     echo "ACTION REQUIRED: tests incomplete"
     echo "RUN: $_VALIDATE_PATH --ci"
     echo "DO NOT proceed without completing all test batches."
+    trap - ERR; return 2
+}
+
+# ---------------------------------------------------------------------------
+# hook_tickets_tracker_bash_guard
+# ---------------------------------------------------------------------------
+# PreToolUse hook: block Bash commands that directly reference .tickets-tracker/.
+#
+# .tickets-tracker/ is an event-sourced log; direct Bash modifications bypass
+# event sourcing invariants and may corrupt the event log. All mutations must
+# go through ticket CLI commands (ticket *, tk *).
+#
+# Logic:
+#   1. Only fires on Bash tool calls
+#   2. Extracts command from tool_input
+#   3. If command contains .tickets-tracker/ AND is allowlisted (ticket CLI): return 0
+#   4. If command contains .tickets-tracker/ AND NOT allowlisted: return 2 (block)
+#   5. All other cases: return 0 (allow, fail-open)
+#
+# Allowlist: ticket CLI scripts (ticket, tk) are the sanctioned write path.
+#
+# REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
+# Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
+# integration as a separate task, dependent on this implementation (dso-hzwm).
+# See: tk show dso-280g
+hook_tickets_tracker_bash_guard() {
+    local INPUT="$1"
+    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"tickets-tracker-bash-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    # Only act on Bash tool calls
+    local TOOL_NAME
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name') || return 0
+    if [[ "$TOOL_NAME" != "Bash" ]]; then
+        return 0
+    fi
+
+    # Extract command
+    local COMMAND
+    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command') || return 0
+    if [[ -z "$COMMAND" ]]; then
+        return 0
+    fi
+
+    # Fast-path: no .tickets-tracker/ reference → allow
+    if [[ "$COMMAND" != *".tickets-tracker/"* ]]; then
+        return 0
+    fi
+
+    # Allowlist: ticket CLI patterns (ticket *, tk *) — sanctioned write path
+    # Check if command's first meaningful token is 'ticket' or 'tk'
+    local FIRST_TOKEN
+    FIRST_TOKEN="${COMMAND##*([[:space:]])}"   # trim leading whitespace
+    FIRST_TOKEN="${FIRST_TOKEN%%[[:space:]]*}" # first token
+    if [[ "$FIRST_TOKEN" == "ticket" || "$FIRST_TOKEN" == "tk" ]]; then
+        return 0
+    fi
+
+    # .tickets-tracker/ referenced and not allowlisted — block
+    echo "BLOCKED [tickets-tracker-guard]: Direct Bash modifications to .tickets-tracker/ are not allowed." >&2
+    echo "Use ticket commands (ticket create, ticket sync, etc.) instead." >&2
+    echo "Direct modifications bypass event sourcing invariants and may corrupt the event log." >&2
     trap - ERR; return 2
 }

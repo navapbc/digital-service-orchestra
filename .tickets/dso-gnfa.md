@@ -1,6 +1,6 @@
 ---
 id: dso-gnfa
-status: in_progress
+status: closed
 deps: [dso-a4fy]
 links: []
 created: 2026-03-21T16:09:17Z

@@ -1,6 +1,6 @@
 ---
 id: dso-dipm
-status: in_progress
+status: closed
 deps: [dso-4cb7]
 links: []
 created: 2026-03-21T16:10:05Z

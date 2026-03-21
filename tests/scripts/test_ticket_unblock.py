@@ -342,3 +342,121 @@ def test_event_source_parameter_accepted(unblock: ModuleType, tmp_path: Path) ->
     assert isinstance(result_sync, list), (
         f"Expected list return value for event_source='sync-resolution', got {type(result_sync)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Helpers for depends_on relation
+# ---------------------------------------------------------------------------
+
+
+def _write_depends_on_link(
+    tracker_dir: Path,
+    depending_id: str,
+    blocker_id: str,
+    timestamp: int = 1500,
+) -> None:
+    """Write a LINK event in depending_id's directory: depending_id depends_on blocker_id.
+
+    The LINK event has relation='depends_on' and target_id=blocker_id.
+    This means blocker_id must be closed before depending_id can proceed.
+    """
+    depending_dir = tracker_dir / depending_id
+    depending_dir.mkdir(parents=True, exist_ok=True)
+    link_uuid = f"link-{depending_id}-depends_on-{blocker_id}"
+    link_event = {
+        "event_type": "LINK",
+        "uuid": link_uuid,
+        "timestamp": timestamp,
+        "author": "Test User",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "data": {
+            "target_id": blocker_id,
+            "relation": "depends_on",
+        },
+    }
+    filename = f"{timestamp}-{link_uuid}-LINK.json"
+    with open(depending_dir / filename, "w") as f:
+        json.dump(link_event, f)
+
+
+# ---------------------------------------------------------------------------
+# Test 6: depends_on direction — closing the target (blocker) unblocks the dependent
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_depends_on_direction_unblocks_dependent(
+    unblock: ModuleType, tmp_path: Path
+) -> None:
+    """Closing ticket A must unblock B when B depends_on A (A is the blocker).
+
+    Setup:
+        - ticket-b: open, has LINK event relation='depends_on', target_id='ticket-a'
+          (i.e., ticket-b depends on ticket-a, so ticket-a blocks ticket-b)
+        - ticket-a: just closed
+
+    Expected: detect_newly_unblocked(['ticket-a'], ...) == ['ticket-b']
+
+    This verifies the depends_on direction: the LINK event is in ticket-b's dir,
+    but ticket-a is the blocker (the target of depends_on).
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-a", status="closed")
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+    _write_depends_on_link(tracker_dir, "ticket-b", "ticket-a")
+
+    result = unblock.detect_newly_unblocked(
+        closed_ticket_ids=["ticket-a"],
+        tracker_dir=str(tracker_dir),
+        event_source="local-close",
+    )
+
+    assert "ticket-b" in result, (
+        f"Expected 'ticket-b' to be newly unblocked (depends_on ticket-a which closed), "
+        f"got {result!r}"
+    )
+    assert len(result) == 1, (
+        f"Expected exactly 1 newly unblocked ticket, got {result!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_depends_on_does_not_unblock_the_blocker(
+    unblock: ModuleType, tmp_path: Path
+) -> None:
+    """Closing ticket B must NOT treat ticket A as unblocked when B depends_on A.
+
+    Setup:
+        - ticket-b: open, depends_on ticket-a (ticket-a blocks ticket-b)
+        - ticket-a: open (being "closed" in this test)
+
+    The depends_on LINK is in ticket-b's dir with target_id=ticket-a.
+    Closing ticket-a should unblock ticket-b, NOT cause ticket-a to appear unblocked.
+
+    Expected: detect_newly_unblocked(['ticket-a'], ...) contains 'ticket-b', NOT 'ticket-a'
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-a", status="open")
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+    _write_depends_on_link(tracker_dir, "ticket-b", "ticket-a")
+
+    result = unblock.detect_newly_unblocked(
+        closed_ticket_ids=["ticket-a"],
+        tracker_dir=str(tracker_dir),
+        event_source="local-close",
+    )
+
+    assert "ticket-a" not in result, (
+        f"ticket-a must not appear as unblocked (it was closed, not blocked), "
+        f"got {result!r}"
+    )
+    assert "ticket-b" in result, (
+        f"Expected 'ticket-b' to be newly unblocked after ticket-a closes, "
+        f"got {result!r}"
+    )

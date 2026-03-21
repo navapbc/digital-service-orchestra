@@ -1,6 +1,6 @@
 ---
 id: dso-c362
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-21T16:31:54Z
@@ -40,3 +40,29 @@ Module: ticket-conflict-log.py must be importable via importlib (hyphenated file
   Verify: grep -c 'def test_' $(git rev-parse --show-toplevel)/tests/scripts/test_ticket_conflict_log.py | awk '{exit ($1 < 5)}'
 - [ ] All tests fail RED before T4 implementation
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_ticket_conflict_log.py -q 2>&1; test $? -ne 0
+
+## Notes
+
+**2026-03-21T18:51:28Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T18:51:51Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — importlib for hyphenated filename, pytest.mark.unit+scripts markers, tmp_path fixture, class-less test functions
+
+**2026-03-21T18:52:39Z**
+
+CHECKPOINT 3/6: Tests written ✓ — 5 test functions in tests/scripts/test_ticket_conflict_log.py
+
+**2026-03-21T18:53:18Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — ticket-conflict-log.py does NOT exist (by design, RED state)
+
+**2026-03-21T18:53:18Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — all 5 tests fail RED (exit 1), ruff check + format --check both pass
+
+**2026-03-21T18:53:32Z**
+
+CHECKPOINT 6/6: Done ✓ — all ACs verified: file exists, 5 test functions present, all 5 fail RED (exit 1), ruff check PASS, ruff format --check PASS
