@@ -414,7 +414,7 @@
   "dso-qlgq": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "validate-phase.sh runs tests directly without test-batched.sh \u2014 same timeout anti-pattern as w21-ae0s",
     "type": "bug"
   },
