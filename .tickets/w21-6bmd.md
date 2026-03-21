@@ -1,6 +1,6 @@
 ---
 id: w21-6bmd
-status: open
+status: in_progress
 deps: [w21-y51q]
 links: []
 created: 2026-03-21T00:54:46Z
@@ -72,3 +72,47 @@ Depends on RED task w21-y51q which defines the failing tests.
   Verify: `cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_ticket_reducer.py -v`
 - [ ] No new runtime dependencies added beyond stdlib
   Verify: `python3 -c "import json, os, glob, sys"` (no third-party imports in ticket-reducer.py)
+
+## Notes
+
+<!-- note-id: ff4wgqsx -->
+<!-- timestamp: 2026-03-21T03:48:22Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded
+
+<!-- note-id: hi2o4gpe -->
+<!-- timestamp: 2026-03-21T03:48:31Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood
+
+<!-- note-id: 40icykfj -->
+<!-- timestamp: 2026-03-21T03:48:35Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (pre-existing RED tests)
+
+<!-- note-id: 3dxnjxz8 -->
+<!-- timestamp: 2026-03-21T03:49:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete
+
+<!-- note-id: 9p2q9cue -->
+<!-- timestamp: 2026-03-21T03:57:40Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Tests GREEN (5/5 pass), ruff clean
+
+<!-- note-id: yiszbphv -->
+<!-- timestamp: 2026-03-21T03:57:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done
