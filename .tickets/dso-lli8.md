@@ -1,6 +1,6 @@
 ---
 id: dso-lli8
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:19:56Z
@@ -21,3 +21,19 @@ Fix: convert UTC timestamp to local timezone before formatting for JQL in the Py
 one-liner at plugins/dso/scripts/tk lines 4252-4283.
 
 Workaround: tk sync --full bypasses the windowed pull.
+
+## Notes
+
+<!-- note-id: f6i9h8lv -->
+<!-- timestamp: 2026-03-21T01:05:05Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Classification: behavioral, Score: 2 (BASIC). Root cause confirmed: line 4353 in plugins/dso/scripts/tk — datetime.fromisoformat() parses UTC timestamp but strftime('%Y-%m-%d %H:%M') strips timezone and emits a naive string. Jira interprets it as user-local time, causing the window to be off by the TZ offset. Fix: convert UTC timestamp to local time (astimezone()) before formatting.
+
+<!-- note-id: diufvexm -->
+<!-- timestamp: 2026-03-21T01:36:46Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: tk sync .astimezone() for Jira JQL (commit 0f08614)

@@ -75,6 +75,14 @@ CMD_LINT_FIX=$(_cfg "commands.lint_fix")  # optional: only used in phase_auto_fi
 CMD_TEST_UNIT=$(_cfg_required "commands.test_unit")
 CMD_VALIDATE=$(_cfg_required "commands.validate")
 
+# test-batched.sh integration (mirrors validate.sh pattern for time-bounded execution).
+# Override VALIDATE_TEST_BATCHED_SCRIPT in tests to inject a stub.
+VALIDATE_TEST_BATCHED_SCRIPT="${VALIDATE_TEST_BATCHED_SCRIPT:-$SCRIPT_DIR/test-batched.sh}"
+# Override VALIDATE_TEST_STATE_FILE in tests for isolation.
+VALIDATE_TEST_STATE_FILE="${VALIDATE_TEST_STATE_FILE:-/tmp/validate-phase-test-state.json}"
+export VALIDATE_TEST_STATE_FILE
+export TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE"
+
 # Source directories for collect_modified (from format.source_dirs list)
 # Read as newline-separated list, then build find arguments
 _source_dirs=()
@@ -153,6 +161,69 @@ run_check() {
     fi
 }
 
+# run_test_batched: time-bounded test runner using test-batched.sh.
+# When test-batched.sh is available, delegates test execution to it.
+# If test-batched.sh outputs "NEXT:", sets any_fail_ref=2 (pending).
+# Falls back to direct eval when test-batched.sh is not available.
+#
+# Usage: run_test_batched <any_fail_ref>
+#   any_fail_ref — name of the integer variable to set on failure or pending
+#
+# Outputs a TESTS: PASS / FAIL / PENDING line to stdout.
+# Sets $any_fail_ref to 1 on failure, 2 on pending (NEXT: detected).
+run_test_batched() {
+    local -n _any_fail="$1"
+    local batched_script="$VALIDATE_TEST_BATCHED_SCRIPT"
+    local batched_timeout=45
+
+    if [ -x "$batched_script" ]; then
+        local rc=0
+        local batched_output
+        # Run test-batched.sh; capture stdout+stderr together.
+        # test-batched.sh manages its own time budget (--timeout=45).
+        batched_output=$(
+            TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE" \
+            bash "$batched_script" --timeout="$batched_timeout" "$CMD_TEST_UNIT" 2>&1
+        ) || rc=$?
+
+        # Detect partial run: test-batched.sh prints "NEXT:" when time budget exhausted.
+        # In that case it exits 0, but tests are not done — emit TESTS: PENDING.
+        if [ "$rc" = "0" ] && echo "$batched_output" | grep -q "^NEXT:"; then
+            echo "TESTS: PENDING (run validate-phase.sh again to continue)"
+            _any_fail=2
+            return
+        fi
+
+        if [ "$rc" -eq 0 ]; then
+            local passed
+            passed=$(echo "$batched_output" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' | tail -1 || echo "?")
+            echo "TESTS: PASS ($passed passed, 0 failed)"
+        else
+            _any_fail=1
+            local passed failed failing_names
+            passed=$(echo "$batched_output" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' | tail -1 || echo "0")
+            failed=$(echo "$batched_output" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' | tail -1 || echo "?")
+            failing_names=$(echo "$batched_output" | grep -E '^FAILED ' | sed 's/^FAILED //' | tr '\n' ', ' | sed 's/, $//')
+            echo "TESTS: FAIL ($passed passed, $failed failed — failed: ${failing_names:-unknown})"
+        fi
+    else
+        # Fallback: test-batched.sh not available — run directly (original behavior)
+        local test_output
+        if test_output=$(cd "$REPO_ROOT" && eval "$CMD_TEST_UNIT" 2>&1); then
+            local passed
+            passed=$(echo "$test_output" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "?")
+            echo "TESTS: PASS ($passed passed, 0 failed)"
+        else
+            _any_fail=1
+            local passed failed failing_names
+            passed=$(echo "$test_output" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
+            failed=$(echo "$test_output" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "?")
+            failing_names=$(echo "$test_output" | grep -E '^FAILED ' | sed 's/^FAILED //' | tr '\n' ', ' | sed 's/, $//')
+            echo "TESTS: FAIL ($passed passed, $failed failed — failed: ${failing_names:-unknown})"
+        fi
+    fi
+}
+
 collect_modified() {
     local label="$1"
     local cmd="$2"
@@ -206,21 +277,10 @@ phase_auto_fix() {
     run_check "FORMAT_CHECK" "$CMD_FORMAT_CHECK" || any_fail=1
     run_check "LINT" "$CMD_LINT" || any_fail=1
 
-    local test_output
-    if test_output=$(cd "$REPO_ROOT" && eval "$CMD_TEST_UNIT" 2>&1); then
-        local passed
-        passed=$(echo "$test_output" | grep -oE '\d+ passed' | grep -oE '\d+' || echo "?")
-        echo "TESTS: PASS ($passed passed, 0 failed)"
-    else
-        any_fail=1
-        local passed failed failing_names
-        passed=$(echo "$test_output" | grep -oE '\d+ passed' | grep -oE '\d+' || echo "0")
-        failed=$(echo "$test_output" | grep -oE '\d+ failed' | grep -oE '\d+' || echo "?")
-        failing_names=$(echo "$test_output" | grep -E '^FAILED ' | sed 's/^FAILED //' | tr '\n' ', ' | sed 's/, $//')
-        echo "TESTS: FAIL ($passed passed, $failed failed — failed: ${failing_names:-unknown})"
-    fi
+    run_test_batched any_fail
 
     rm -f /tmp/.validate-phase-ts
+    [ "$any_fail" -eq 2 ] && return 2
     return $any_fail
 }
 
@@ -232,20 +292,9 @@ phase_post_batch() {
     run_check "FORMAT" "$CMD_FORMAT_CHECK" || any_fail=1
     run_check "LINT" "$CMD_LINT" || any_fail=1
 
-    local test_output
-    if test_output=$(cd "$REPO_ROOT" && eval "$CMD_TEST_UNIT" 2>&1); then
-        local passed
-        passed=$(echo "$test_output" | grep -oE '\d+ passed' | grep -oE '\d+' || echo "?")
-        echo "TESTS: PASS ($passed passed, 0 failed)"
-    else
-        any_fail=1
-        local passed failed failing_names
-        passed=$(echo "$test_output" | grep -oE '\d+ passed' | grep -oE '\d+' || echo "0")
-        failed=$(echo "$test_output" | grep -oE '\d+ failed' | grep -oE '\d+' || echo "?")
-        failing_names=$(echo "$test_output" | grep -E '^FAILED ' | sed 's/^FAILED //' | tr '\n' ', ' | sed 's/, $//')
-        echo "TESTS: FAIL ($passed passed, $failed failed — failed: ${failing_names:-unknown})"
-    fi
+    run_test_batched any_fail
 
+    [ "$any_fail" -eq 2 ] && return 2
     return $any_fail
 }
 
@@ -255,20 +304,9 @@ phase_tier_transition() {
     run_check "FORMAT" "$CMD_FORMAT_CHECK" || any_fail=1
     run_check "LINT" "$CMD_LINT" || any_fail=1
 
-    local test_output
-    if test_output=$(cd "$REPO_ROOT" && eval "$CMD_TEST_UNIT" 2>&1); then
-        local passed
-        passed=$(echo "$test_output" | grep -oE '\d+ passed' | grep -oE '\d+' || echo "?")
-        echo "TESTS: PASS ($passed passed, 0 failed)"
-    else
-        any_fail=1
-        local passed failed failing_names
-        passed=$(echo "$test_output" | grep -oE '\d+ passed' | grep -oE '\d+' || echo "0")
-        failed=$(echo "$test_output" | grep -oE '\d+ failed' | grep -oE '\d+' || echo "?")
-        failing_names=$(echo "$test_output" | grep -E '^FAILED ' | sed 's/^FAILED //' | tr '\n' ', ' | sed 's/, $//')
-        echo "TESTS: FAIL ($passed passed, $failed failed — failed: ${failing_names:-unknown})"
-    fi
+    run_test_batched any_fail
 
+    [ "$any_fail" -eq 2 ] && return 2
     return $any_fail
 }
 
