@@ -96,7 +96,37 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
 
     valid_event_count = 0
 
-    for filepath in event_files:
+    # Two-pass SNAPSHOT processing: find the latest SNAPSHOT first, then
+    # replay only events from that point forward (skipping source UUIDs).
+    # This ensures: (1) pre-SNAPSHOT events are never re-applied on top of
+    # the snapshot state, and (2) only the latest SNAPSHOT is used — earlier
+    # SNAPSHOTs are subsumed by later ones (each SNAPSHOT is a full-state
+    # capture that supersedes all prior state).
+
+    # Pass 1: scan all events to find the latest SNAPSHOT index and its
+    # source_event_uuids.  Events are already sorted by filename
+    # (lexicographic = chronological).
+    latest_snapshot_idx: int | None = None
+    snapshot_source_uuids: set[str] = set()
+
+    for idx, filepath in enumerate(event_files):
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                event = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if event.get("event_type") == "SNAPSHOT":
+            latest_snapshot_idx = idx
+            snapshot_source_uuids = set(
+                event.get("data", {}).get("source_event_uuids", [])
+            )
+
+    # Pass 2: replay events.  If a SNAPSHOT was found, start from its
+    # position (skip all earlier events) and skip any post-SNAPSHOT event
+    # whose UUID is in source_event_uuids.
+    start_idx = latest_snapshot_idx if latest_snapshot_idx is not None else 0
+
+    for idx, filepath in enumerate(event_files):
         try:
             with open(filepath, encoding="utf-8") as f:
                 event = json.load(f)
@@ -108,6 +138,15 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
             continue
 
         valid_event_count += 1
+
+        # Skip all events before the latest SNAPSHOT
+        if idx < start_idx:
+            continue
+
+        # Skip events whose UUID was included in the latest SNAPSHOT
+        event_uuid = event.get("uuid", "")
+        if event_uuid and event_uuid in snapshot_source_uuids:
+            continue
 
         event_type = event.get("event_type", "")
         data = event.get("data", {})
@@ -163,6 +202,11 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
                     "timestamp": event.get("timestamp"),
                 }
             )
+        elif event_type == "SNAPSHOT":
+            compiled_state = data.get("compiled_state", {})
+            # Restore compiled state from snapshot
+            for key, value in compiled_state.items():
+                state[key] = value
         # Unknown event types are silently ignored (LINK, etc.
         # will be handled in future stories)
 

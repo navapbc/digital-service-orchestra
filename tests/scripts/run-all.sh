@@ -13,6 +13,7 @@
 #
 # Registered script tests (auto-discovered by run-script-tests.sh):
 #   - test-plugin-dir-structure.sh  (dso-2oyj: plugins/dso/ layout validation)
+#   - test-ticket-concurrency-stress.sh  (dso-ltwr: 5-session concurrency stress test)
 #
 # Usage:
 #   bash tests/scripts/run-all.sh [--suite-timeout N] \

@@ -1,6 +1,6 @@
 ---
 id: dso-haj7
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T07:10:01Z
@@ -55,3 +55,7 @@ CHECKPOINT 1/6: Task context loaded ✓
 **2026-03-21T07:20:50Z**
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T07:34:02Z**
+
+CHECKPOINT 6/6: Done ✓ — RED stress test skeleton.
