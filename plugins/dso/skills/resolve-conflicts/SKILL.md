@@ -59,7 +59,7 @@ Handle `.tickets/` conflicts as follows:
   git show :2:.tickets/.index.json > /tmp/ours.json
   git show :3:.tickets/.index.json > /tmp/theirs.json
   git show :1:.tickets/.index.json > /tmp/base.json
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py" /tmp/base.json /tmp/ours.json /tmp/theirs.json
+  ".claude/scripts/dso" merge-ticket-index.py /tmp/base.json /tmp/ours.json /tmp/theirs.json
   cp /tmp/ours.json .tickets/.index.json
   git add .tickets/.index.json
   ```
