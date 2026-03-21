@@ -22,7 +22,7 @@ user's problem is.
 | Dimension | What "4 or 5" looks like | What "below 4" looks like |
 |-----------|--------------------------|---------------------------|
 | user_impact | The Context narrative names a specific user or stakeholder affected, describes the problem they face today, and the success criteria collectively represent an observable improvement to that user's experience or a measurable business outcome | The milestone is framed as a technical task with no named user or business beneficiary ("Refactor the service layer"), or the success criteria describe system internals with no user-visible impact |
-| validation_signal | At least one success criterion includes a concrete mechanism for validating that the delivered capability addresses the user need — proportional to what the team can actually do. Valid signals span a spectrum: analytics events or dashboards showing usage/adoption, error rate or latency reduction targets, support ticket volume decrease, dogfooding feedback, staged rollout with rollback criteria, or (when available) usability testing. The milestone acknowledges that shipping is not the same as solving the problem | All success criteria describe system outputs ("API returns 200", "page renders") with no plan to verify the capability addresses the user need from the Context narrative. **Backend/infrastructure milestones**: Score N/A only for purely internal work with no user-facing or operator-facing impact (e.g., code cleanup, dependency upgrades). If the backend change affects user-observable behavior (latency, reliability, error rates), score normally — the validation signal should be an operational metric (e.g., "P95 response time < 500ms for 7 days post-deploy") |
+| validation_signal | At least one success criterion includes a concrete mechanism for validating that the delivered capability addresses the user need — proportional to what the team can actually do. Valid signals include: before/after workflow comparisons, operational metrics (error rate or latency reduction targets), dogfooding observations, and staged rollout with rollback criteria. The milestone acknowledges that shipping is not the same as solving the problem | All success criteria describe system outputs ("API returns 200", "page renders") with no plan to verify the capability addresses the user need from the Context narrative. **Backend/infrastructure milestones**: Score N/A only for purely internal work with no user-facing or operator-facing impact (e.g., code cleanup, dependency upgrades). If the backend change affects user-observable behavior (latency, reliability, error rates), score normally — the validation signal should be an operational metric (e.g., "P95 response time < 500ms for 7 days post-deploy") |
 
 ## Input Sections
 
@@ -40,12 +40,12 @@ For any score below 4, you MUST provide a finding with specific, actionable guid
 Findings on `user_impact` must identify which part of the spec fails to connect to user
 value and suggest a concrete rewrite of the context narrative or a success criterion that
 makes the user benefit explicit. Findings on `validation_signal` must suggest a specific, implementable validation
-mechanism appropriate to the milestone's domain and team capabilities. Prefer lightweight
-signals over heavyweight ones: analytics events > A/B tests > formal usability studies.
+mechanism appropriate to the milestone's domain and team capabilities. Prefer internal,
+observable signals: before/after workflow comparisons, operational metrics, dogfooding observations.
 For backend milestones, suggest operational metrics (e.g., "Add a success criterion:
 'P95 API response time remains below 500ms for 7 days post-deploy'"). For user-facing
-milestones, suggest usage or adoption signals (e.g., "Add a success criterion: '80% of
-uploads complete without the user retrying within 30 days of launch'").
+milestones, suggest internal workflow metrics (e.g., "Add a success criterion: 'workflow
+cycle time for this task decreases by at least 20% in before/after comparison'").
 
 Return your review as JSON conforming to `REVIEW-SCHEMA.md`, using perspective
 label `"Value"` and these dimensions:
