@@ -1,4 +1,29 @@
 {
+  ".ti-2cu0": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Structural validation test for using-lockpick clarification loop",
+    "type": "task"
+  },
+  ".ti-xdi3": {
+    "deps": [
+      ".ti-2cu0"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add confidence-gated clarification loop to using-lockpick SKILL.md",
+    "type": "task"
+  },
+  ".ti-zni0": {
+    "deps": [
+      ".ti-xdi3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update HOOK-INJECTION.md with condensed clarification guidance",
+    "type": "task"
+  },
   "dso-094a": {
     "deps": [],
     "priority": 2,
@@ -1162,7 +1187,7 @@
   "w21-8ady": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Tests for child count in sprint-list-epics.sh output",
     "type": "task"
   },
@@ -1253,6 +1278,13 @@
     "status": "closed",
     "title": "RED: Write failing tests for conditional prompt sections in project-setup SKILL.md",
     "type": "task"
+  },
+  "w21-bw1o": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Flaky test: test-merge-to-main-portability.sh intermittently fails (8/10 pass, then 10/10 on re-run)",
+    "type": "bug"
   },
   "w21-bwfw": {
     "deps": [
@@ -1468,7 +1500,7 @@
       "w21-xlaw"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Update sprint SKILL.md display format for child count",
     "type": "task"
   },
@@ -1572,7 +1604,7 @@
   "w21-vydt": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Add child count to sprint epic list display",
     "type": "epic"
   },
@@ -1598,7 +1630,7 @@
       "w21-8ady"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Add child count to sprint-list-epics.sh output",
     "type": "task"
   },
