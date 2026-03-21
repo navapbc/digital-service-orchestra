@@ -1,10 +1,28 @@
 {
-  "dso-094a": {
+  ".ti-2cu0": {
     "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
-    "type": "bug"
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Structural validation test for using-lockpick clarification loop",
+    "type": "task"
+  },
+  ".ti-xdi3": {
+    "deps": [
+      ".ti-2cu0"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add confidence-gated clarification loop to using-lockpick SKILL.md",
+    "type": "task"
+  },
+  ".ti-zni0": {
+    "deps": [
+      ".ti-xdi3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Update HOOK-INJECTION.md with condensed clarification guidance",
+    "type": "task"
   },
   "dso-0k2k": {
     "deps": [],
@@ -20,47 +38,61 @@
     "title": "Project level config flags to modify behavior",
     "type": "epic"
   },
-  "dso-1aaa": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "Bug: tk create rejects --parent=id flag (only --parent id works)",
-    "type": "bug"
-  },
-  "dso-1kcx": {
-    "deps": [],
+  "dso-1a6u": {
+    "deps": [
+      "dso-b0ku",
+      "dso-vtov"
+    ],
     "priority": 1,
-    "status": "closed",
-    "title": "Contract: define STATUS and COMMENT event data schemas in ticket-event-format.md",
+    "status": "open",
+    "title": "Hook MostStatusEventsWinsStrategy into _sync_events in tk",
     "type": "task"
   },
-  "dso-2da0": {
+  "dso-24cw": {
     "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
-    "type": "bug"
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for ticket-unblock.py detect_newly_unblocked function",
+    "type": "task"
   },
-  "dso-2e99": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
-    "type": "bug"
+  "dso-280g": {
+    "deps": [
+      "dso-hzwm"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Wire tickets-tracker guards into pre-edit.sh, pre-write.sh, and pre-bash.sh dispatchers",
+    "type": "task"
   },
-  "dso-2xqd": {
+  "dso-2igj": {
     "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
-    "type": "bug"
+    "priority": 1,
+    "status": "in_progress",
+    "title": "RED: LINK/UNLINK event write tests for ticket-link.sh",
+    "type": "task"
   },
-  "dso-3e30": {
+  "dso-2j6u": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
-    "title": "Bug: tk create -d interprets double-dash in description text as option flags",
-    "type": "bug"
+    "status": "open",
+    "title": "Extract complexity evaluator and conflict analyzer into dedicated plugin agents",
+    "type": "epic"
+  },
+  "dso-2xo3": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing integration test in test-ticket-transition.sh for unblock output on close",
+    "type": "task"
+  },
+  "dso-3npm": {
+    "deps": [
+      "dso-24cw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement ticket-unblock.py with detect_newly_unblocked and batch graph traversal",
+    "type": "task"
   },
   "dso-3xhk": {
     "deps": [],
@@ -68,13 +100,6 @@
     "status": "open",
     "title": "Create a KNOWN ISSUES for this project",
     "type": "epic"
-  },
-  "dso-42w7": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
-    "type": "bug"
   },
   "dso-47gy": {
     "deps": [
@@ -85,6 +110,15 @@
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
   },
+  "dso-4cb7": {
+    "deps": [
+      "dso-yaao"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement hook_tickets_tracker_guard in pre-edit-write-functions.sh (Edit/Write)",
+    "type": "task"
+  },
   "dso-4s8r": {
     "deps": [],
     "priority": 4,
@@ -92,49 +126,35 @@
     "title": "Cleanup tests",
     "type": "epic"
   },
-  "dso-5nu2": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Untitled",
+  "dso-5nnr": {
+    "deps": [
+      "dso-1a6u"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Call detect_newly_unblocked after conflict resolution in sync path",
     "type": "task"
   },
-  "dso-5syi": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Fix: dso shim resolves scripts from stale /scripts/ path — skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
-    "type": "bug"
-  },
-  "dso-62u0": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
-    "type": "bug"
-  },
-  "dso-6b5d": {
+  "dso-6lhe": {
     "deps": [],
     "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing cache tests for ticket-reducer (hit, miss, file-deletion invalidation)",
+    "status": "in_progress",
+    "title": "RED tests: ticket-init.sh symlink creation in git worktrees",
     "type": "task"
   },
   "dso-6q4p": {
     "deps": [],
     "priority": 2,
-    "status": "open",
-    "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree — grep patterns don't match synced ticket format",
+    "status": "closed",
+    "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
     "type": "bug"
   },
-  "dso-7svw": {
-    "deps": [
-      "dso-t561"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket-transition.sh (flock-serialized STATUS event with optimistic concurrency and ghost check)",
-    "type": "task"
+  "dso-8l5h": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Extract review and evaluation sub-agents into dedicated plugin agents",
+    "type": "epic"
   },
   "dso-94ya": {
     "deps": [],
@@ -142,16 +162,6 @@
     "status": "open",
     "title": "Add a preflight check to sprint that validates current project state",
     "type": "epic"
-  },
-  "dso-97wx": {
-    "deps": [
-      "dso-woj0",
-      "dso-lrpv"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket-list.sh (compile all tickets via reducer, output JSON array)",
-    "type": "task"
   },
   "dso-9fgn": {
     "deps": [],
@@ -167,6 +177,13 @@
     "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
     "type": "epic"
   },
+  "dso-9ltc": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, review agents are composed from source fragments and generated via a build process",
+    "type": "story"
+  },
   "dso-9xnr": {
     "deps": [],
     "priority": 1,
@@ -181,6 +198,24 @@
     "title": "Make sprint skill aware of ticket type",
     "type": "epic"
   },
+  "dso-a4fy": {
+    "deps": [
+      "dso-2igj"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement ticket-link.sh (LINK/UNLINK event writing)",
+    "type": "task"
+  },
+  "dso-ael7": {
+    "deps": [
+      "dso-6lhe"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement symlink creation for .tickets-tracker/ in git worktrees (ticket-init.sh)",
+    "type": "task"
+  },
   "dso-ag1b": {
     "deps": [],
     "priority": 1,
@@ -188,18 +223,27 @@
     "title": "Display Task titles during sprint batch execution",
     "type": "epic"
   },
+  "dso-b0ku": {
+    "deps": [
+      "dso-je9x"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement MostStatusEventsWinsStrategy in ticket-reducer.py",
+    "type": "task"
+  },
+  "dso-c362": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for ticket-conflict-log.py",
+    "type": "task"
+  },
   "dso-cc6a": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Worktree auto-cleanup fails when session ends with unmerged commits",
-    "type": "bug"
-  },
-  "dso-cma6": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
     "type": "bug"
   },
   "dso-cpvp": {
@@ -209,13 +253,14 @@
     "title": "Add a workflow-config flag that creates PRs instead of merging to main",
     "type": "epic"
   },
-  "dso-d08c": {
+  "dso-cz1m": {
     "deps": [
-      "dso-xjzd"
+      "dso-ael7",
+      "dso-l77u"
     ],
     "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket-comment.sh (append COMMENT event via ticket-lib.sh with ghost check)",
+    "status": "open",
+    "title": "RED tests: cross-worktree ticket state visibility integration test",
     "type": "task"
   },
   "dso-d8gi": {
@@ -235,26 +280,33 @@
     "title": "As a DSO practitioner, the sprint skill contains no explanatory prose or motivation framing",
     "type": "story"
   },
-  "dso-dsa8": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: validate-issues.sh has no unit tests — add test suite covering core checks",
-    "type": "bug"
-  },
-  "dso-dywv": {
-    "deps": [],
+  "dso-dipm": {
+    "deps": [
+      "dso-4cb7"
+    ],
     "priority": 1,
-    "status": "closed",
-    "title": "Improved code review",
-    "type": "epic"
+    "status": "open",
+    "title": "RED: Extend test file with failing Bash variant tests for hook_tickets_tracker_bash_guard",
+    "type": "task"
   },
-  "dso-eb0e": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
-    "type": "bug"
+  "dso-dr38": {
+    "deps": [
+      "dso-zej9"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement ticket-graph.py (graph traversal, cycle detection, ready_to_work, cache)",
+    "type": "task"
+  },
+  "dso-f8xn": {
+    "deps": [
+      "dso-3npm",
+      "dso-2xo3"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Extend ticket-transition.sh to call detect_newly_unblocked and emit UNBLOCKED output on close",
+    "type": "task"
   },
   "dso-fbky": {
     "deps": [],
@@ -262,13 +314,6 @@
     "status": "open",
     "title": "Add full autonomous mode session override",
     "type": "epic"
-  },
-  "dso-fqxu": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: compute-diff-hash.sh hash mismatch when untracked temp test fixtures exist during review",
-    "type": "bug"
   },
   "dso-fucm": {
     "deps": [],
@@ -296,20 +341,6 @@
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
   },
-  "dso-g8cz": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files",
-    "type": "bug"
-  },
-  "dso-gir2": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap — checker strips full URLs but fixer only checks :// prefix",
-    "type": "bug"
-  },
   "dso-gjww": {
     "deps": [],
     "priority": 4,
@@ -324,6 +355,15 @@
     "title": "Implementation planning tradeoffs",
     "type": "epic"
   },
+  "dso-gnfa": {
+    "deps": [
+      "dso-a4fy"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update ticket-event-format.md contract with LINK/UNLINK schema",
+    "type": "task"
+  },
   "dso-go0x": {
     "deps": [],
     "priority": 4,
@@ -331,19 +371,21 @@
     "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
     "type": "bug"
   },
-  "dso-haj7": {
+  "dso-h04l": {
     "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing stress test skeleton for ticket concurrency harness",
+    "priority": 0,
+    "status": "in_progress",
+    "title": "[LOCK] debug-everything",
     "type": "task"
   },
-  "dso-i6dj": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: /dso:brainstorm created children with truncated titles and descriptions",
-    "type": "bug"
+  "dso-hzwm": {
+    "deps": [
+      "dso-dipm"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement hook_tickets_tracker_bash_guard in pre-bash-functions.sh (Bash commands)",
+    "type": "task"
   },
   "dso-iwb4": {
     "deps": [],
@@ -352,17 +394,26 @@
     "title": "Don't merge to main between batches",
     "type": "epic"
   },
-  "dso-jauq": {
+  "dso-je9x": {
     "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes — get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
-    "type": "bug"
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for MostStatusEventsWinsStrategy",
+    "type": "task"
+  },
+  "dso-jefv": {
+    "deps": [
+      "dso-si1e"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement ticket deps subcommand in ticket dispatcher",
+    "type": "task"
   },
   "dso-k7fe": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: pre-commit review gate blocks merge commits with non-allowlisted files from incoming branch",
     "type": "bug"
   },
@@ -373,13 +424,6 @@
     "title": "Using-lockpicks guidance to encourage using sub-agents",
     "type": "epic"
   },
-  "dso-kv4p": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: merge-to-main.sh push phase fails with retry_with_backoff: command not found",
-    "type": "bug"
-  },
   "dso-l2ct": {
     "deps": [
       "dso-ag1b",
@@ -387,44 +431,17 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
-  "dso-lcmz": {
+  "dso-l77u": {
     "deps": [
-      "dso-97wx",
-      "dso-7svw",
-      "dso-d08c"
+      "dso-smsg"
     ],
     "priority": 1,
-    "status": "closed",
-    "title": "Extend ticket dispatcher to route list, transition, comment subcommands",
+    "status": "open",
+    "title": "Implement canonical path resolution in write_commit_event (ticket-lib.sh)",
     "type": "task"
-  },
-  "dso-ljbc": {
-    "deps": [
-      "dso-6b5d"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add content-hash caching to reduce_ticket() with atomic writes",
-    "type": "task"
-  },
-  "dso-lkqa": {
-    "deps": [
-      "dso-lcmz"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update ticket-event-format.md contract and dispatcher docs to reflect full CRUD surface",
-    "type": "task"
-  },
-  "dso-lli8": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: tk sync windowed pull uses UTC but Jira reads JQL datetimes as user-local timezone",
-    "type": "bug"
   },
   "dso-lm92": {
     "deps": [],
@@ -440,24 +457,6 @@
     "title": "Integrate search into planning",
     "type": "epic"
   },
-  "dso-lrpv": {
-    "deps": [
-      "dso-mso2"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Fix ticket-list.sh to inspect JSON status field, not just reducer exit code, for ghost/corrupt tickets",
-    "type": "task"
-  },
-  "dso-ltwr": {
-    "deps": [
-      "dso-haj7"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Implement full concurrency stress test harness (5 sessions x 10 ops)",
-    "type": "task"
-  },
   "dso-lwcp": {
     "deps": [],
     "priority": 4,
@@ -465,32 +464,13 @@
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
   },
-  "dso-mso2": {
+  "dso-ofdp": {
     "deps": [
-      "dso-sdb4"
+      "dso-jefv"
     ],
     "priority": 1,
-    "status": "closed",
-    "title": "Extend ticket-reducer.py to handle STATUS, COMMENT events and ghost/corrupt ticket directory behavior",
-    "type": "task"
-  },
-  "dso-nj1w": {
-    "deps": [
-      "dso-vfj0",
-      "dso-of7g"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "E2E test: ticket fsck full workflow validation",
-    "type": "task"
-  },
-  "dso-of7g": {
-    "deps": [
-      "dso-vfj0"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Wire 'ticket fsck' subcommand into the ticket dispatcher",
+    "status": "open",
+    "title": "E2E integration test for full dependency link/deps/cycle flow",
     "type": "task"
   },
   "dso-ogh7": {
@@ -499,20 +479,6 @@
     "status": "open",
     "title": "Fix: deduplicate FN_BODY_9 extraction in test-merge-to-main-qt4u.sh test 9",
     "type": "bug"
-  },
-  "dso-or3g": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: collect-discoveries.sh crashes with get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT is wrong",
-    "type": "bug"
-  },
-  "dso-ppwp": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Add test gate enforcement",
-    "type": "epic"
   },
   "dso-psan": {
     "deps": [
@@ -538,33 +504,12 @@
     "title": "Prevent the explosion of documentation created by LLMs",
     "type": "epic"
   },
-  "dso-qlgq": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "validate-phase.sh runs tests directly without test-batched.sh — same timeout anti-pattern as w21-ae0s",
-    "type": "bug"
-  },
   "dso-qo0x": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Incorporate OpenRewrite",
     "type": "epic"
-  },
-  "dso-qt4u": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution",
-    "type": "bug"
-  },
-  "dso-quie": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for reducer corrupt-event skip behavior",
-    "type": "task"
   },
   "dso-r97p": {
     "deps": [],
@@ -573,15 +518,6 @@
     "title": "Implementation planning schema validation",
     "type": "epic"
   },
-  "dso-ru68": {
-    "deps": [
-      "dso-lcmz"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Integration test: ticket list + transition + comment end-to-end workflow",
-    "type": "task"
-  },
   "dso-s12s": {
     "deps": [],
     "priority": 1,
@@ -589,20 +525,20 @@
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
   },
-  "dso-sdb4": {
+  "dso-si1e": {
     "deps": [
-      "dso-1kcx"
+      "dso-dr38"
     ],
     "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for reducer STATUS/COMMENT event handling and ghost ticket directory behavior",
+    "status": "open",
+    "title": "RED: ticket deps subcommand CLI tests",
     "type": "task"
   },
-  "dso-smgw": {
+  "dso-smsg": {
     "deps": [],
     "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for ticket-fsck.sh validation checks",
+    "status": "open",
+    "title": "RED tests: canonical path resolution in write_commit_event (ticket-lib.sh)",
     "type": "task"
   },
   "dso-soyt": {
@@ -633,15 +569,6 @@
     "title": "Don't cover up problems",
     "type": "epic"
   },
-  "dso-t561": {
-    "deps": [
-      "dso-mso2"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for ticket-transition.sh (optimistic concurrency + ghost prevention)",
-    "type": "task"
-  },
   "dso-t7af": {
     "deps": [],
     "priority": 2,
@@ -649,19 +576,22 @@
     "title": "Remove 5-sub-agent cap for orchestration",
     "type": "epic"
   },
+  "dso-tgye": {
+    "deps": [
+      "dso-vwoo",
+      "dso-a4fy"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Extend ticket-reducer.py to handle LINK/UNLINK events",
+    "type": "task"
+  },
   "dso-to7x": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Allow coding sub-agents to use worktree isolation",
     "type": "epic"
-  },
-  "dso-tqvy": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: worktree-sync-from-main.sh crashes with CFG_PYTHON_VENV unbound variable when config key is absent",
-    "type": "bug"
   },
   "dso-u5lt": {
     "deps": [],
@@ -705,14 +635,29 @@
     "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved",
     "type": "bug"
   },
-  "dso-vfj0": {
+  "dso-vtov": {
     "deps": [
-      "dso-smgw",
-      "dso-quie"
+      "dso-c362"
     ],
     "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket-fsck.sh — non-destructive ticket system integrity validator",
+    "status": "open",
+    "title": "Implement ticket-conflict-log.py conflict resolution logger",
+    "type": "task"
+  },
+  "dso-vwoo": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "RED: LINK event reduction tests in test_ticket_reducer.py",
+    "type": "task"
+  },
+  "dso-vyxu": {
+    "deps": [
+      "dso-cz1m"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Integration verification: cross-worktree tests pass GREEN",
     "type": "task"
   },
   "dso-w20r": {
@@ -728,15 +673,6 @@
     "status": "open",
     "title": "Fix: assert pending state file content in test_validate_exits_2_on_partial_tests integration test",
     "type": "bug"
-  },
-  "dso-woj0": {
-    "deps": [
-      "dso-mso2"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for ticket-list.sh (compile all tickets via reducer)",
-    "type": "task"
   },
   "dso-wyqo": {
     "deps": [],
@@ -759,22 +695,20 @@
     "title": "Fix: unquoted $* in validate.sh RUN: line produces incorrect resume command with space-containing args",
     "type": "bug"
   },
-  "dso-xjzd": {
-    "deps": [
-      "dso-mso2"
-    ],
+  "dso-yaao": {
+    "deps": [],
     "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for ticket-comment.sh (append COMMENT event + ghost prevention)",
+    "status": "in_progress",
+    "title": "RED: Write failing tests for hook_tickets_tracker_guard (Edit/Write blocking)",
     "type": "task"
   },
-  "dso-ykv8": {
+  "dso-zej9": {
     "deps": [
-      "dso-ljbc"
+      "dso-tgye"
     ],
     "priority": 1,
-    "status": "closed",
-    "title": "PERF: Write warm-cache performance benchmark tests (200 and 1,000 tickets)",
+    "status": "open",
+    "title": "RED: ticket-graph.py tests (cycle detection, ready_to_work, tombstone, perf)",
     "type": "task"
   },
   "dso-zj3r": {
@@ -783,6 +717,161 @@
     "status": "open",
     "title": "Optimize skills and prompts for token usage",
     "type": "epic"
+  },
+  "w20-0aaw": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Contract: tombstone file format for archived ticket dependency resolution",
+    "type": "task"
+  },
+  "w20-0qdg": {
+    "deps": [
+      "w20-v9eo",
+      "w20-p35v",
+      "w20-9zaj"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "E2E test: archive \u2192 tombstone \u2192 dep tree resolution",
+    "type": "task"
+  },
+  "w20-3rjr": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED test: dep tree resolves archived tickets via tombstone",
+    "type": "task"
+  },
+  "w20-6dad": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED test: sync-before-compact precondition in ticket-compact.sh",
+    "type": "task"
+  },
+  "w20-9zaj": {
+    "deps": [
+      "w20-6dad"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement sync-before-compact and remote SNAPSHOT skip in ticket-compact.sh",
+    "type": "task"
+  },
+  "w20-bkid": {
+    "deps": [
+      "w20-rpdy"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Document split-phase git sync pattern in architecture docs",
+    "type": "task"
+  },
+  "w20-c38q": {
+    "deps": [
+      "w20-jdwg",
+      "w20-kkp5"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Add ReducerStrategy protocol and LastTimestampWinsStrategy to ticket-reducer.py",
+    "type": "task"
+  },
+  "w20-gclc": {
+    "deps": [
+      "w20-c38q"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: tests for _sync_events split-phase git sync in tk",
+    "type": "task"
+  },
+  "w20-hrdm": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "test",
+    "type": "task"
+  },
+  "w20-jdwg": {
+    "deps": [
+      "w20-kkp5"
+    ],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "RED: tests for ReducerStrategy protocol and LastTimestampWinsStrategy",
+    "type": "task"
+  },
+  "w20-keta": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts",
+    "type": "bug"
+  },
+  "w20-kkp5": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Contract: ReducerStrategy interface for ticket-reducer.py",
+    "type": "task"
+  },
+  "w20-p35v": {
+    "deps": [
+      "w20-qxu2",
+      "w20-3rjr",
+      "w20-v9eo",
+      "w20-0aaw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement tombstone resolution in tk dep tree",
+    "type": "task"
+  },
+  "w20-p6v5": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "test2",
+    "type": "task"
+  },
+  "w20-pijg": {
+    "deps": [
+      "w20-rpdy"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Integration test: _sync_events round-trip between two local repos",
+    "type": "task"
+  },
+  "w20-qxu2": {
+    "deps": [
+      "w20-0aaw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED test: tombstone file written on archive",
+    "type": "task"
+  },
+  "w20-rpdy": {
+    "deps": [
+      "w20-gclc"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement _sync_events split-phase git sync in plugins/dso/scripts/tk",
+    "type": "task"
+  },
+  "w20-v9eo": {
+    "deps": [
+      "w20-qxu2",
+      "w20-0aaw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement tombstone write in archive-closed-tickets.sh",
+    "type": "task"
   },
   "w21-05z9": {
     "deps": [
@@ -815,38 +904,16 @@
   "w21-0oc6": {
     "deps": [],
     "priority": 1,
-    "status": "open",
-<<<<<<< HEAD
-    "title": "Bug: review gate blocks merge commits from main into worktree — pre-commit-review-gate treats incoming main changes as requiring review",
-=======
+    "status": "closed",
     "title": "Bug: review gate blocks merge commits from main into worktree \u2014 pre-commit-review-gate treats incoming main changes as requiring review",
->>>>>>> 58d5e85 (chore: create epic w22-338o (tech-stack-agnostic test gate) with 5 stories)
     "type": "bug"
   },
   "w21-0pxe": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: end-session merge blindly accepts worktree ticket changes over main without diff comparison",
     "type": "bug"
-  },
-  "w21-0rql": {
-    "deps": [
-      "w21-cjso"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Wire ticket compact subcommand into ticket dispatcher",
-    "type": "task"
-  },
-  "w21-1plz": {
-    "deps": [
-      "w21-57k1"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket init (orphan branch, worktree mount, .gitignore, env-id)",
-    "type": "task"
   },
   "w21-24kl": {
     "deps": [
@@ -854,7 +921,7 @@
     ],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 — migration from tk and cutover",
+    "title": "Ticket system v3 \u2014 migration from tk and cutover",
     "type": "epic"
   },
   "w21-25mq": {
@@ -876,7 +943,7 @@
   "w21-2dby": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: test suite exceeds Claude Code tool timeout (~73s) despite test-batched.sh guidance in CLAUDE.md",
     "type": "bug"
   },
@@ -897,60 +964,14 @@
     "title": "Preplanning adds epic's own children as deps, making the epic self-blocked",
     "type": "bug"
   },
-  "w21-472q": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Untitled",
-    "type": "task"
-  },
-  "w21-4dnw": {
-    "deps": [
-      "w21-eq69"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Write failing tests for exemption support in pre-commit-test-gate.sh",
-    "type": "task"
-  },
-  "w21-4xu6": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Adjust Value reviewer validation_signal to remove external feedback requirement",
-    "type": "epic"
-  },
   "w21-54wx": {
     "deps": [
       "dso-0k2k"
     ],
     "priority": 1,
-    "status": "open",
-    "title": "Ticket system v3 — dependency management, cross-worktree sync, and conflict resolution",
+    "status": "in_progress",
+    "title": "Ticket system v3 \u2014 dependency management, cross-worktree sync, and conflict resolution",
     "type": "epic"
-  },
-  "w21-57k1": {
-    "deps": [
-      "w21-mtvm"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing test test_ticket_init_creates_orphan_branch_and_env_id",
-    "type": "task"
-  },
-  "w21-5a1g": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement hook_blocked_test_command with TDD cycle",
-    "type": "task"
-  },
-  "w21-5cqr": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth",
-    "type": "bug"
   },
   "w21-689o": {
     "deps": [],
@@ -958,24 +979,6 @@
     "status": "open",
     "title": "Worktree left dirty after implementation-plan: task tickets not committed",
     "type": "bug"
-  },
-  "w21-6bmd": {
-    "deps": [
-      "w21-y51q"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket-reducer.py (python3 event reducer with error-tolerant JSON parsing)",
-    "type": "task"
-  },
-  "w21-6iuo": {
-    "deps": [
-      "w21-l7zk"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add record-test-status.sh invocation step to COMMIT-WORKFLOW.md",
-    "type": "task"
   },
   "w21-6k7v": {
     "deps": [
@@ -995,13 +998,6 @@
     "status": "open",
     "title": "As a developer, I can archive closed tickets without breaking dependency references",
     "type": "story"
-  },
-  "w21-6qw0": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for SNAPSHOT event handling in ticket-reducer",
-    "type": "task"
   },
   "w21-7mlx": {
     "deps": [
@@ -1028,58 +1024,12 @@
     "title": "As a developer, local ticket changes are automatically pushed to Jira via the outbound bridge",
     "type": "story"
   },
-  "w21-8vlg": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for test-gate bypass protection in review-gate-bypass-sentinel.sh",
-    "type": "task"
-  },
-  "w21-969l": {
-    "deps": [
-      "w21-5a1g"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Register hook_blocked_test_command in pre-bash.sh dispatcher",
-    "type": "task"
-  },
-  "w21-9k4z": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
-    "type": "bug"
-  },
   "w21-9tc4": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Bug: sub-agent wrote discovery file under .claude/ (protected folder) instead of artifacts dir",
     "type": "bug"
-  },
-  "w21-ablv": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, I can initialize the ticket system and create/view tickets via event-sourced storage",
-    "type": "story"
-  },
-  "w21-ae0s": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Validation gate times out on projects with >50s test suites — incorporate test-batched or split validate.sh",
-    "type": "bug"
-  },
-  "w21-ay8w": {
-    "deps": [
-      "w21-f8tg"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, concurrent ticket sessions produce no data loss under stress",
-    "type": "story"
   },
   "w21-bksy": {
     "deps": [],
@@ -1095,31 +1045,14 @@
     "title": "Create a process to remediate legacy code",
     "type": "epic"
   },
-  "w21-bw1o": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "Flaky test: test-merge-to-main-portability.sh intermittently fails (8/10 pass, then 10/10 on re-run)",
-    "type": "bug"
-  },
   "w21-bwfw": {
     "deps": [
       "w21-54wx"
     ],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 — Jira bridge and LLM-optimized output",
+    "title": "Ticket system v3 \u2014 Jira bridge and LLM-optimized output",
     "type": "epic"
-  },
-  "w21-cbt4": {
-    "deps": [
-      "w21-vz2h",
-      "w21-cjso"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "INTEG: Verify cache-compaction interaction — warm cache before compaction returns correct state after",
-    "type": "task"
   },
   "w21-chse": {
     "deps": [],
@@ -1127,33 +1060,6 @@
     "status": "open",
     "title": "Add hypothetical scenario consideration to epic planning",
     "type": "epic"
-  },
-  "w21-cjso": {
-    "deps": [
-      "w21-q6nv",
-      "w21-vz2h"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Create ticket-compact.sh compaction script with flock, SNAPSHOT write, and specific-file deletion",
-    "type": "task"
-  },
-  "w21-cphn": {
-    "deps": [
-      "w21-l7zk",
-      "w21-8vlg"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add test-gate write protection to review-gate-bypass-sentinel.sh",
-    "type": "task"
-  },
-  "w21-dedx": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for record-test-status.sh",
-    "type": "task"
   },
   "w21-dww7": {
     "deps": [
@@ -1168,19 +1074,8 @@
     "deps": [],
     "priority": 3,
     "status": "open",
-    "title": "dso-setup.sh supplement_template_file uses cat for append — not in _make_tool_path fake PATH",
+    "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
     "type": "bug"
-  },
-  "w21-e6ul": {
-    "deps": [
-      "w21-cjso",
-      "w21-0rql",
-      "w21-cbt4"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "E2E: Full compaction flow — create, accumulate events, compact, verify SNAPSHOT and state",
-    "type": "task"
   },
   "w21-epz2": {
     "deps": [
@@ -1195,34 +1090,6 @@
     "title": "Update project docs to reflect tiered review architecture",
     "type": "story"
   },
-  "w21-eq69": {
-    "deps": [
-      "w21-hcj4"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "IMPL: Create record-test-exemption.sh",
-    "type": "task"
-  },
-  "w21-f8tg": {
-    "deps": [
-      "w21-o72z"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, I experience fast ticket reads via compiled-state caching",
-    "type": "story"
-  },
-  "w21-f9uo": {
-    "deps": [
-      "w21-wzgp",
-      "w21-l7zk"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for test gate coexistence and .pre-commit-config.yaml registration",
-    "type": "task"
-  },
   "w21-fzzu": {
     "deps": [],
     "priority": 4,
@@ -1230,38 +1097,12 @@
     "title": "Fix: remove unused REPO_ROOT variable in test-record-test-status.sh",
     "type": "bug"
   },
-  "w21-g3x6": {
-    "deps": [
-      "w21-gyn8",
-      "w21-m4i9"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket create (UUID gen, CREATE event, atomic write via ticket-lib.sh)",
-    "type": "task"
-  },
-  "w21-gbt2": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "test task",
-    "type": "task"
-  },
   "w21-goqp": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "As a developer, agents are prevented from directly editing ticket event files",
     "type": "story"
-  },
-  "w21-gqqg": {
-    "deps": [
-      "w21-m4i9"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Contract: flock lock-file location and timeout budget documentation",
-    "type": "task"
   },
   "w21-gy45": {
     "deps": [
@@ -1281,33 +1122,6 @@
     "title": "As a developer, Jira changes are automatically pulled into my local ticket system",
     "type": "story"
   },
-  "w21-gyn8": {
-    "deps": [
-      "w21-mtvm",
-      "w21-m4i9"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing test test_ticket_create_writes_create_event_atomically",
-    "type": "task"
-  },
-  "w21-ha0r": {
-    "deps": [
-      "w21-ifgr",
-      "w21-n1rq"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update project docs to reflect batched test enforcement",
-    "type": "story"
-  },
-  "w21-hcj4": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Write failing tests for record-test-exemption.sh",
-    "type": "task"
-  },
   "w21-hget": {
     "deps": [],
     "priority": 2,
@@ -1315,136 +1129,28 @@
     "title": "Fix: test-merge-to-main-portability.sh pre-existing failures (sequential phase warning)",
     "type": "bug"
   },
-  "w21-i8qz": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Tests for value reviewer internal validation signals",
-    "type": "task"
-  },
-  "w21-ifgr": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO practitioner, broad test commands are blocked before execution with a config-driven redirect to validate.sh",
-    "type": "story"
-  },
-  "w21-j2cc": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "BUG: AC4 check in w21-cu3r incompatible with assert.sh output format",
-    "type": "bug"
-  },
   "w21-jb9k": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: Local validation sub-agent redundantly checks CI status during post-epic validation",
     "type": "bug"
   },
   "w21-jtkr": {
     "deps": [
-      "w21-zp4d"
+      "w21-zp4d",
+      "dso-9ltc"
     ],
     "priority": 1,
     "status": "open",
     "title": "As a DSO practitioner, code changes are scored by a deterministic classifier and routed to the correct review tier",
     "type": "story"
   },
-  "w21-jwnd": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "sprint-next-batch.sh false file-overlap on tests/run-all.sh forces all test tasks into sequential batches",
-    "type": "task"
-  },
   "w21-k2yz": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "As a developer, I can track dependencies between tickets and query which are ready to work",
-    "type": "story"
-  },
-  "w21-l7zk": {
-    "deps": [
-      "w21-dedx"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Create record-test-status.sh (protected test status recorder)",
-    "type": "task"
-  },
-  "w21-lskq": {
-    "deps": [
-      "w21-i8qz"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "GREEN: Edit value.md validation_signal to use internal signals only",
-    "type": "task"
-  },
-  "w21-lsy2": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "test parent syntax",
-    "type": "task"
-  },
-  "w21-m4i9": {
-    "deps": [
-      "w21-xtsq",
-      "w21-1plz"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket-lib.sh shared write_commit_event helper (atomic write + flock)",
-    "type": "task"
-  },
-  "w21-milk": {
-    "deps": [
-      "w21-f9uo"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Register pre-commit-test-gate.sh in .pre-commit-config.yaml",
-    "type": "task"
-  },
-  "w21-mtvm": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Contract: event file format and reducer ordering interface",
-    "type": "task"
-  },
-  "w21-n1rq": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO practitioner, partial test results emit an unmissable structured continuation prompt",
-    "type": "story"
-  },
-  "w21-n7yv": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "test task",
-    "type": "task"
-  },
-  "w21-ni6d": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR — same isolation anti-pattern as dso-b934",
-    "type": "bug"
-  },
-  "w21-njch": {
-    "deps": [
-      "w21-q0nn"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, I can detect and recover from ticket system corruption via fsck",
     "type": "story"
   },
   "w21-nv42": {
@@ -1470,22 +1176,6 @@
     "title": "As a developer, I have complete CLI documentation for all ticket commands",
     "type": "story"
   },
-  "w21-o72z": {
-    "deps": [
-      "w21-ablv"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, I can list, transition, and comment on tickets with full CRUD support",
-    "type": "story"
-  },
-  "w21-ouns": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR",
-    "type": "bug"
-  },
   "w21-ovpn": {
     "deps": [
       "w21-ykic"
@@ -1502,36 +1192,6 @@
     "title": "As a developer, all my worktrees see the same ticket state instantly via shared storage",
     "type": "story"
   },
-  "w21-p7aa": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Batched Test Enforcement: Hook Interception + Structured Output Protocol",
-    "type": "epic"
-  },
-  "w21-pflo": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "test with parent",
-    "type": "task"
-  },
-  "w21-q0nn": {
-    "deps": [
-      "w21-f8tg"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, ticket performance stays stable over time via event compaction",
-    "type": "story"
-  },
-  "w21-q6nv": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for ticket-compact.sh compaction script",
-    "type": "task"
-  },
   "w21-qjcy": {
     "deps": [
       "w21-2r0x"
@@ -1544,7 +1204,7 @@
   "w21-qsu5": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: cascade-circuit-breaker ERR trap swallows exit-2 on CI Linux (6 test failures)",
     "type": "bug"
   },
@@ -1571,66 +1231,6 @@
     "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation",
     "type": "bug"
   },
-  "w21-ukq9": {
-    "deps": [
-      "w21-1plz",
-      "w21-g3x6",
-      "w21-6bmd",
-      "w21-ymip"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "ADR: Event-sourced ticket storage on orphan branch architecture decision",
-    "type": "task"
-  },
-  "w21-ul0j": {
-    "deps": [
-      "w21-1plz",
-      "w21-g3x6",
-      "w21-ymip",
-      "w21-up52"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Integration test: ticket init + create + show end-to-end",
-    "type": "task"
-  },
-  "w21-up52": {
-    "deps": [
-      "w21-1plz",
-      "w21-g3x6",
-      "w21-ymip"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement auto-init guard in ticket dispatcher (transparent first-use initialization)",
-    "type": "task"
-  },
-  "w21-v5i4": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for pre-commit-test-gate.sh",
-    "type": "task"
-  },
-  "w21-vyio": {
-    "deps": [
-      "w21-4dnw"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "IMPL: Add exemption support to pre-commit-test-gate.sh",
-    "type": "task"
-  },
-  "w21-vz2h": {
-    "deps": [
-      "w21-6qw0"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Extend ticket-reducer to handle SNAPSHOT events and source_event_uuids deduplication",
-    "type": "task"
-  },
   "w21-wbqz": {
     "deps": [
       "w21-25mq",
@@ -1641,40 +1241,6 @@
     "title": "As a developer, all tk references are atomically updated to the new ticket CLI in a single commit",
     "type": "story"
   },
-  "w21-wlhw": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR — same isolation anti-pattern as dso-b934",
-    "type": "bug"
-  },
-  "w21-wzgp": {
-    "deps": [
-      "w21-v5i4"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Create pre-commit-test-gate.sh (Layer 1 git pre-commit hook)",
-    "type": "task"
-  },
-  "w21-xtsq": {
-    "deps": [
-      "w21-mtvm"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing test test_write_commit_event_atomic_flock",
-    "type": "task"
-  },
-  "w21-y51q": {
-    "deps": [
-      "w21-mtvm"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing test test_ticket_reducer_compiles_create_event_to_state",
-    "type": "task"
-  },
   "w21-ykic": {
     "deps": [],
     "priority": 1,
@@ -1682,32 +1248,10 @@
     "title": "Tiered Review Architecture",
     "type": "epic"
   },
-  "w21-ymip": {
-    "deps": [
-      "w21-6bmd",
-      "w21-1plz"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Implement ticket show command (dispatcher + reducer invocation)",
-    "type": "task"
-  },
-  "w21-yok8": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "test",
-    "type": "task"
-  },
-  "w21-yzln": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
-    "type": "bug"
-  },
   "w21-zp4d": {
-    "deps": [],
+    "deps": [
+      "dso-9ltc"
+    ],
     "priority": 1,
     "status": "open",
     "title": "As a DSO contributor, all review dimension references use the new 5-dimension schema",
@@ -1716,13 +1260,16 @@
   "w22-1jqy": {
     "deps": [],
     "priority": 3,
-    "status": "open",
-<<<<<<< HEAD
-    "title": "Bug: test-discover-agents.sh flaky in full suite — passes in isolation",
-=======
+    "status": "closed",
     "title": "Bug: test-discover-agents.sh flaky in full suite \u2014 passes in isolation",
->>>>>>> 58d5e85 (chore: create epic w22-338o (tech-stack-agnostic test gate) with 5 stories)
     "type": "bug"
+  },
+  "w22-338o": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Tech-stack-agnostic test gate",
+    "type": "epic"
   },
   "w22-45i1": {
     "deps": [],
@@ -1731,15 +1278,18 @@
     "title": "RED: Write structural validation test for onboarding integration in project-setup",
     "type": "task"
   },
-  "w22-4ujv": {
-    "deps": [
-      "w22-uqfn",
-      "w22-sulb",
-      "w22-8jaf"
-    ],
-    "priority": 3,
-    "status": "closed",
-    "title": "Update project docs to reflect test gate enforcement",
+  "w22-528r": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Setup skill: auto-discover host project test suites for CI workflow generation",
+    "type": "epic"
+  },
+  "w22-5e4i": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can run project-detect.sh --suites to discover test suites",
     "type": "story"
   },
   "w22-5z9r": {
@@ -1751,55 +1301,123 @@
     "title": "GREEN: Add Step 7 onboarding prompt to project-setup SKILL.md",
     "type": "task"
   },
-  "w22-8jaf": {
+  "w22-7jyn": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: CI Script Tests \u2014 2 failures (test-doc-migration legacy ref, test-ticket-comment ordering)",
+    "type": "bug"
+  },
+  "w22-anm2": {
     "deps": [
-      "w22-uqfn"
+      "w22-528r"
     ],
     "priority": 2,
-    "status": "closed",
-    "title": "As a developer, I can exempt a provably slow test from blocking commits",
-    "type": "story"
-  },
-  "w22-iig7": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write structural validation test for epic-level calibration of agent-clarity.md",
-    "type": "task"
-  },
-  "w22-q9d2": {
-    "deps": [
-      "w22-iig7"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Rewrite agent-clarity.md with epic-level dimension definitions",
-    "type": "task"
-  },
-  "w22-sulb": {
-    "deps": [
-      "w22-uqfn"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, I cannot bypass the test gate through alternative commit methods",
-    "type": "story"
-  },
-  "w22-uqfn": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, tests associated with my changed files must pass before I can commit",
-    "type": "story"
-  },
-  "w22-xzrw": {
-    "deps": [
-      "w22-iig7",
-      "w22-q9d2"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Recalibrate Agent Clarity reviewer for epic-level evaluation",
+    "status": "open",
+    "title": "CI workflow generation from discovered test suites",
     "type": "epic"
+  },
+  "w22-bc31": {
+    "deps": [
+      "w22-tpzd"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a developer using /implementation-plan, I get guidance to name tests for fuzzy-match compatibility",
+    "type": "story"
+  },
+  "w22-j22e": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: preplanning uses ambiguous confirmation questions where yes/no answers conflict",
+    "type": "bug"
+  },
+  "w22-ku13": {
+    "deps": [
+      "w22-l60c"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a project maintainer, /dev-onboarding generates a .test-index for associations fuzzy match would miss",
+    "type": "story"
+  },
+  "w22-l60c": {
+    "deps": [
+      "w22-tpzd"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a host project developer, I can explicitly map source files to unconventionally-named tests via .test-index",
+    "type": "story"
+  },
+  "w22-nlwa": {
+    "deps": [
+      "w22-tpzd",
+      "w22-l60c",
+      "w22-ku13",
+      "w22-bc31"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update project docs to reflect tech-stack-agnostic test gate",
+    "type": "story"
+  },
+  "w22-ns6l": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Project Health Restoration",
+    "type": "epic"
+  },
+  "w22-ond9": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can generate CI workflows for a new project from discovered suites",
+    "type": "story"
+  },
+  "w22-opu1": {
+    "deps": [
+      "w22-5e4i"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can declare unknown test patterns via config keys",
+    "type": "story"
+  },
+  "w22-rkur": {
+    "deps": [
+      "w22-5e4i",
+      "w22-opu1"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect test suite discovery",
+    "type": "story"
+  },
+  "w22-tho5": {
+    "deps": [
+      "w22-ond9",
+      "w22-ybey"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect CI workflow generation",
+    "type": "story"
+  },
+  "w22-tpzd": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a host project developer, my non-Python source changes are caught by the test gate via fuzzy matching",
+    "type": "story"
+  },
+  "w22-ybey": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can identify and place uncovered suites in my existing CI",
+    "type": "story"
   }
 }
