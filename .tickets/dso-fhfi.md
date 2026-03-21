@@ -1,6 +1,6 @@
 ---
 id: dso-fhfi
-status: in_progress
+status: closed
 deps: [dso-wqt4, dso-o1u2]
 links: []
 created: 2026-03-21T16:15:55Z
