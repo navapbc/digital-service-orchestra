@@ -802,7 +802,11 @@
     "deps": [],
     "priority": 1,
     "status": "open",
+<<<<<<< HEAD
     "title": "Bug: review gate blocks merge commits from main into worktree — pre-commit-review-gate treats incoming main changes as requiring review",
+=======
+    "title": "Bug: review gate blocks merge commits from main into worktree \u2014 pre-commit-review-gate treats incoming main changes as requiring review",
+>>>>>>> 58d5e85 (chore: create epic w22-338o (tech-stack-agnostic test gate) with 5 stories)
     "type": "bug"
   },
   "w21-0pxe": {
@@ -1699,7 +1703,11 @@
     "deps": [],
     "priority": 3,
     "status": "open",
+<<<<<<< HEAD
     "title": "Bug: test-discover-agents.sh flaky in full suite — passes in isolation",
+=======
+    "title": "Bug: test-discover-agents.sh flaky in full suite \u2014 passes in isolation",
+>>>>>>> 58d5e85 (chore: create epic w22-338o (tech-stack-agnostic test gate) with 5 stories)
     "type": "bug"
   },
   "w22-45i1": {
