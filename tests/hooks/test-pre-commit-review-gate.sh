@@ -537,6 +537,114 @@ test_merge_head_with_non_allowlisted_and_valid_review_passes() {
     rm -f "$_repo/.git/MERGE_HEAD"
 }
 
+# ============================================================
+# test_merge_commit_with_incoming_non_allowlisted_passes
+#
+# Bug: w21-0oc6, dso-k7fe
+# When merging main into a worktree (git merge origin/main), the merge
+# commit includes files changed on main since the branch point. These
+# incoming-only files appear in `git diff --cached` but were already
+# reviewed and merged on main. The review gate should NOT require review
+# for files that only changed on the incoming branch.
+#
+# Scenario:
+#   1. Create a repo with an initial commit
+#   2. Create a "worktree" branch from main
+#   3. On main: add a non-allowlisted .py file and commit
+#   4. On the worktree branch: add only an allowlisted file
+#   5. Merge main into the worktree branch
+#   6. The merge commit includes the .py file from main (incoming)
+#   7. The hook should pass (exit 0) — the .py file is incoming-only
+#
+# Expected: exit 0 (no review needed for incoming-only files)
+# ============================================================
+test_merge_commit_with_incoming_non_allowlisted_passes() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a branch for the "worktree"
+    git -C "$_repo" checkout -q -b worktree-branch
+
+    # Switch back to main and add a non-allowlisted .py file
+    git -C "$_repo" checkout -q main 2>/dev/null || git -C "$_repo" checkout -q master
+    echo "print('from main')" > "$_repo/main_feature.py"
+    git -C "$_repo" add "main_feature.py"
+    git -C "$_repo" commit -q -m "add feature on main"
+
+    # Switch to the worktree branch — no .py files here
+    git -C "$_repo" checkout -q worktree-branch
+
+    # Add only an allowlisted file on the worktree branch
+    mkdir -p "$_repo/.tickets"
+    echo "ticket" > "$_repo/.tickets/wt-001.md"
+    git -C "$_repo" add ".tickets/wt-001.md"
+    git -C "$_repo" commit -q -m "add ticket on worktree"
+
+    # Merge main into the worktree branch (this brings in main_feature.py)
+    git -C "$_repo" merge --no-edit main 2>/dev/null || git -C "$_repo" merge --no-edit master 2>/dev/null
+
+    # At this point there's no MERGE_HEAD (merge completed cleanly).
+    # Let's simulate the actual bug scenario: a merge that results in a commit
+    # where MERGE_HEAD is still present (merge in progress, about to commit).
+    # We need to set up a conflict scenario or simulate MERGE_HEAD.
+
+    # Reset to before the merge
+    git -C "$_repo" reset --hard HEAD~1 2>/dev/null
+
+    # Start a merge that we'll commit via the hook
+    # First, create a conflict-free merge scenario with MERGE_HEAD
+    git -C "$_repo" merge --no-commit main 2>/dev/null || git -C "$_repo" merge --no-commit master 2>/dev/null || true
+
+    # MERGE_HEAD should now exist
+    if [[ ! -f "$_repo/.git/MERGE_HEAD" ]]; then
+        echo "SKIP: test_merge_commit_with_incoming_non_allowlisted_passes — could not create MERGE_HEAD"
+        (( PASS++ ))
+        return
+    fi
+
+    # git diff --cached now shows main_feature.py as staged (from incoming main)
+    # The hook should recognize this is an incoming-only file and pass without review
+    local exit_code
+    exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
+    assert_eq "test_merge_commit_with_incoming_non_allowlisted_passes" "0" "$exit_code"
+}
+
+# ============================================================
+# test_fake_merge_head_does_not_bypass_review
+#
+# Bug: w21-0oc6, dso-k7fe (security complement)
+# A manually created MERGE_HEAD with an invalid SHA should NOT bypass
+# review for non-allowlisted staged files. The merge-base computation
+# must fail gracefully and fall back to normal review enforcement.
+#
+# Scenario:
+#   1. Stage a non-allowlisted .py file (normal commit, no merge)
+#   2. Create a fake MERGE_HEAD with an invalid SHA
+#   3. The hook should still block (no valid merge base → normal flow)
+#
+# Expected: exit 1 (blocked — fake MERGE_HEAD doesn't bypass review)
+# ============================================================
+test_fake_merge_head_does_not_bypass_review() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Stage a non-allowlisted Python file — no review exists
+    echo "print('sneaky')" > "$_repo/sneaky.py"
+    git -C "$_repo" add "sneaky.py"
+
+    # Create a fake MERGE_HEAD with an invalid SHA
+    echo "0000000000000000000000000000000000000000" > "$_repo/.git/MERGE_HEAD"
+
+    local exit_code
+    exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
+    assert_eq "test_fake_merge_head_does_not_bypass_review" "1" "$exit_code"
+
+    # Cleanup
+    rm -f "$_repo/.git/MERGE_HEAD"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlisted_only_commit_passes
 test_tickets_only_commit_passes
@@ -550,5 +658,7 @@ test_formatting_only_drift_self_heals
 test_code_change_after_review_blocked
 test_cross_worktree_merge_commit_passes
 test_merge_head_with_non_allowlisted_and_valid_review_passes
+test_merge_commit_with_incoming_non_allowlisted_passes
+test_fake_merge_head_does_not_bypass_review
 
 print_summary

@@ -163,8 +163,6 @@ ALLOWLIST_PATH="${CONF_OVERRIDE:-$HOOK_DIR/lib/review-gate-allowlist.conf}"
 
 # ── Get staged files ─────────────────────────────────────────────────────────
 # git diff --cached lists only staged (index-vs-HEAD) changes.
-# In a merge commit (MERGE_HEAD present), this still returns only the files
-# explicitly staged, which is the correct set to classify.
 STAGED_FILES=()
 _staged_output=$(git diff --cached --name-only 2>/dev/null || true)
 if [[ -n "$_staged_output" ]]; then
@@ -177,6 +175,52 @@ fi
 # No staged files → nothing to check; let git handle it
 if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
     exit 0
+fi
+
+# ── Merge commit: filter out incoming-only files (w21-0oc6, dso-k7fe) ────────
+# When MERGE_HEAD exists (e.g., `git merge --no-commit origin/main`), staged
+# files include changes from the incoming branch that were already reviewed
+# and merged on main. These incoming-only files should not require re-review.
+#
+# Algorithm:
+#   1. Compute merge base between HEAD and MERGE_HEAD
+#   2. Get files changed on the worktree branch: merge-base..HEAD
+#   3. Filter STAGED_FILES to only include files that the worktree branch touched
+#   4. Files in staged but NOT in worktree-branch changes are incoming-only → exempt
+#
+# Fail-safe: if merge-base computation fails (e.g., fake MERGE_HEAD), fall
+# through to normal review enforcement with the full staged file list.
+if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]]; then
+    _merge_head_sha=$(cat "$(git rev-parse --git-dir)/MERGE_HEAD" 2>/dev/null | head -1)
+    if [[ -n "$_merge_head_sha" ]]; then
+        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
+        _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+        _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
+        # Guard: MERGE_HEAD must resolve to a real commit different from HEAD.
+        # If MERGE_HEAD == HEAD (fake/self-referencing), skip filtering to prevent bypass.
+        # In a real merge, MERGE_HEAD points to the incoming branch tip (different from HEAD).
+        if [[ -n "$_merge_base" && -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
+            # Get files changed on the worktree branch (merge-base..HEAD)
+            _worktree_changed=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
+
+            # Filter staged files: keep only those that the worktree branch changed
+            _filtered_staged=()
+            for _sf in "${STAGED_FILES[@]}"; do
+                if echo "$_worktree_changed" | grep -qxF "$_sf" 2>/dev/null; then
+                    _filtered_staged+=("$_sf")
+                fi
+            done
+
+            # Replace STAGED_FILES with filtered list
+            STAGED_FILES=("${_filtered_staged[@]+"${_filtered_staged[@]}"}")
+
+            # If all staged files were incoming-only, nothing to check
+            if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
+                log_decision "pass"
+                exit 0
+            fi
+        fi
+    fi
 fi
 
 # ── Load allowlist patterns ──────────────────────────────────────────────────

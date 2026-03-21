@@ -246,6 +246,13 @@
     "title": "fix: compute-diff-hash.sh hash mismatch when untracked temp test fixtures exist during review",
     "type": "bug"
   },
+  "dso-fucm": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "phase-10-merge-verify sub-agent redundantly checks CI via validate.sh --ci after ci-status.sh wait",
+    "type": "bug"
+  },
   "dso-fxib": {
     "deps": [
       "dso-x1jt",

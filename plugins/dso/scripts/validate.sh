@@ -144,6 +144,7 @@ LOGFILE="$ARTIFACTS_DIR/validation-$$.log"
 TIMEOUT_LOG="${VALIDATE_TIMEOUT_LOG:-$ARTIFACTS_DIR/validation-timeouts.log}"
 FAILED=0
 CHECK_CI=0
+SKIP_CI=0      # Set to 1 when --skip-ci is passed (disables CI status check even if --ci is set)
 VERBOSE=0      # Set to 1 when --verbose is passed (exported so subshells see it)
 BACKGROUND=0   # Set to 1 when --background is passed (self-daemonize mode)
 export VERBOSE
@@ -308,11 +309,15 @@ run_with_timeout() {
 for arg in "$@"; do
     case $arg in
         --ci) CHECK_CI=1 ;;
+        --skip-ci) SKIP_CI=1 ;;
         --verbose) VERBOSE=1 ;;
         --background) BACKGROUND=1 ;;
         --help)
-            echo "Usage: ./scripts/validate.sh [--ci] [--verbose] [--background]"
+            echo "Usage: ./scripts/validate.sh [--ci] [--skip-ci] [--verbose] [--background]"
             echo "  --ci         Include CI status check + smart E2E skip"
+            echo "  --skip-ci    Skip the CI status check (overrides --ci); use when the"
+            echo "               CI check is handled by a separate sub-agent (e.g. in"
+            echo "               /dso:validate-work where Sub-Agent 2 owns CI status)"
             echo "  --verbose    Print real-time dot-notation progress as each check runs"
             echo "               (suppresses batch summary output)"
             echo "  --background Self-daemonize: invoke bg-run.sh with label validate-<worktree>"
@@ -342,6 +347,13 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+# --skip-ci overrides --ci: disable the CI status check even if --ci was set.
+# This allows callers (e.g. /dso:validate-work Sub-Agent 1) to run local checks
+# without duplicating the CI status check performed by a dedicated sub-agent.
+if [ $SKIP_CI -eq 1 ]; then
+    CHECK_CI=0
+fi
 
 if [ $WORKTREE_MODE -eq 1 ]; then
     echo "  (worktree: $(basename "$REPO_ROOT"))"
