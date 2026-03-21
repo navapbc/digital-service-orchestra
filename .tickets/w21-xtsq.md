@@ -1,6 +1,6 @@
 ---
 id: w21-xtsq
-status: in_progress
+status: closed
 deps: [w21-mtvm]
 links: []
 created: 2026-03-21T00:52:38Z
@@ -88,3 +88,7 @@ CHECKPOINT 5/6: Validation complete ✓ — test exits non-zero (5 FAILs, 0 PASS
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓ — All ACs satisfied: file exists at tests/scripts/test-ticket-lib.sh; 5 test functions (10 grep matches); exits non-zero (5 FAILs, 0 PASSes = RED); shellcheck clean; existing test-ticket-init.sh still passes (14 pass, 0 fail)
+
+**2026-03-21T02:09:37Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/scripts/test-ticket-lib.sh. Tests: 0 passed, 5 failed (RED).
