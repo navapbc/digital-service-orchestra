@@ -1,6 +1,6 @@
 ---
 id: w21-ymip
-status: open
+status: in_progress
 deps: [w21-6bmd, w21-1plz]
 links: []
 created: 2026-03-21T00:55:13Z
@@ -82,3 +82,47 @@ Depends on: w21-6bmd (reducer), w21-1plz (init — to have a valid .tickets-trac
 - [ ] Before implementing ticket-show.sh: `bash tests/scripts/test-ticket-show.sh` returns non-zero (RED — show command not yet implemented)
   Verify: Write tests/scripts/test-ticket-show.sh → run it → confirm non-zero exit → THEN implement ticket-show.sh
   Rationale: T10 bundles RED+GREEN because show tests require a real .tickets-tracker (init+create must exist). The sub-agent must follow the RED→GREEN sequence within this task: write the test first, verify it fails, then implement. This criterion enforces that sequence.
+
+## Notes
+
+<!-- note-id: h2aootlt -->
+<!-- timestamp: 2026-03-21T04:00:45Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 04rijans -->
+<!-- timestamp: 2026-03-21T04:00:57Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: 7f9dzq8g -->
+<!-- timestamp: 2026-03-21T04:01:39Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — all 3 fail (RED confirmed)
+
+<!-- note-id: k0f6ng86 -->
+<!-- timestamp: 2026-03-21T04:01:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: wdj0700y -->
+<!-- timestamp: 2026-03-21T04:02:22Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: All tests GREEN, no regressions ✓ (show: 5/5, init: 14/14, create: 13/13, lib: 13/13)
+
+<!-- note-id: r729q43y -->
+<!-- timestamp: 2026-03-21T04:04:23Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All ACs verified: ticket-show.sh executable, tests pass (5/5), shellcheck clean, ruff clean, unknown ID exits non-zero, no regressions in init/create/lib tests

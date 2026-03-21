@@ -1,6 +1,6 @@
 ---
 id: w21-6bmd
-status: in_progress
+status: closed
 deps: [w21-y51q]
 links: []
 created: 2026-03-21T00:54:46Z
@@ -116,3 +116,7 @@ CHECKPOINT 5/6: Tests GREEN (5/5 pass), ruff clean
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done
+
+**2026-03-21T03:59:39Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/scripts/ticket-reducer.py. Tests: 5 passed, 0 failed.
