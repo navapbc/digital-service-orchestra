@@ -229,4 +229,161 @@ test_ticket_init_sets_gc_auto_zero() {
 }
 test_ticket_init_sets_gc_auto_zero
 
+# ── Test 8: test_ticket_init_creates_symlink_in_worktree ──────────────────────
+echo "Test 8: ticket init creates .tickets-tracker as a symlink in a git worktree"
+test_ticket_init_creates_symlink_in_worktree() {
+    local tmp main_repo worktree_dir
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Set up a main repo with tickets initialized
+    main_repo="$tmp/main"
+    clone_test_repo "$main_repo"
+    (cd "$main_repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Create a real git worktree (not a clone — a worktree; .git is a file)
+    worktree_dir="$tmp/worktree"
+    git -C "$main_repo" worktree add "$worktree_dir" -b wt-branch 2>/dev/null
+
+    # Run ticket init from inside the git worktree
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Assert: .tickets-tracker in the worktree is a symlink (not a real dir or worktree)
+    if [ -L "$worktree_dir/.tickets-tracker" ]; then
+        assert_eq "symlink in worktree: .tickets-tracker is a symlink" "symlink" "symlink"
+    else
+        assert_eq "symlink in worktree: .tickets-tracker is a symlink" "symlink" "not-a-symlink"
+    fi
+}
+test_ticket_init_creates_symlink_in_worktree
+
+# ── Test 9: test_ticket_init_symlink_points_to_real_dir ───────────────────────
+echo "Test 9: symlink target resolves to a valid directory"
+test_ticket_init_symlink_points_to_real_dir() {
+    local tmp main_repo worktree_dir symlink_target
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Set up a main repo with tickets initialized
+    main_repo="$tmp/main"
+    clone_test_repo "$main_repo"
+    (cd "$main_repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Create a real git worktree
+    worktree_dir="$tmp/worktree"
+    git -C "$main_repo" worktree add "$worktree_dir" -b wt-branch2 2>/dev/null
+
+    # Run ticket init from inside the git worktree
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Assert: symlink target resolves to a valid directory
+    if [ -L "$worktree_dir/.tickets-tracker" ]; then
+        symlink_target=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$worktree_dir/.tickets-tracker" 2>/dev/null || true)
+        if [ -d "$symlink_target" ]; then
+            assert_eq "symlink target: resolves to valid directory" "valid-dir" "valid-dir"
+        else
+            assert_eq "symlink target: resolves to valid directory" "valid-dir" "not-a-dir: $symlink_target"
+        fi
+    else
+        assert_eq "symlink target: .tickets-tracker must be a symlink first" "symlink" "not-a-symlink"
+    fi
+}
+test_ticket_init_symlink_points_to_real_dir
+
+# ── Test 10: test_ticket_init_idempotent_when_symlink_exists ──────────────────
+echo "Test 10: ticket init is idempotent when .tickets-tracker is already a symlink"
+test_ticket_init_idempotent_when_symlink_exists() {
+    local tmp main_repo worktree_dir exit2
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Set up a main repo with tickets initialized
+    main_repo="$tmp/main"
+    clone_test_repo "$main_repo"
+    (cd "$main_repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Create a real git worktree
+    worktree_dir="$tmp/worktree"
+    git -C "$main_repo" worktree add "$worktree_dir" -b wt-branch3 2>/dev/null
+
+    # First init — creates the symlink
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Second init — must exit 0 with symlink still in place
+    exit2=0
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || exit2=$?
+
+    assert_eq "idempotent symlink: second init exits 0" "0" "$exit2"
+}
+test_ticket_init_idempotent_when_symlink_exists
+
+# ── Test 11: test_ticket_init_handles_real_dir_before_symlink ────────────────
+echo "Test 11: ticket init replaces real .tickets-tracker/ dir in worktree with symlink"
+test_ticket_init_handles_real_dir_before_symlink() {
+    local tmp main_repo worktree_dir exit_code
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Set up a main repo with tickets initialized
+    main_repo="$tmp/main"
+    clone_test_repo "$main_repo"
+    (cd "$main_repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Create a real git worktree
+    worktree_dir="$tmp/worktree"
+    git -C "$main_repo" worktree add "$worktree_dir" -b wt-branch4 2>/dev/null
+
+    # Simulate a prior auto-init that created a real directory (not a symlink)
+    mkdir -p "$worktree_dir/.tickets-tracker"
+
+    # Run ticket init — should replace real dir with symlink, exit 0
+    exit_code=0
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || exit_code=$?
+
+    assert_eq "real-dir-replaced: init exits 0" "0" "$exit_code"
+
+    # Assert: .tickets-tracker is now a symlink
+    if [ -L "$worktree_dir/.tickets-tracker" ]; then
+        assert_eq "real-dir-replaced: .tickets-tracker is a symlink after init" "symlink" "symlink"
+    else
+        assert_eq "real-dir-replaced: .tickets-tracker is a symlink after init" "symlink" "not-a-symlink"
+    fi
+}
+test_ticket_init_handles_real_dir_before_symlink
+
+# ── Test 12: test_auto_detect_main_worktree_via_git_list ─────────────────────
+echo "Test 12: git worktree list --porcelain is parsed to find the main repo for symlink target"
+test_auto_detect_main_worktree_via_git_list() {
+    local tmp main_repo worktree_dir symlink_target
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Set up a main repo with tickets initialized
+    main_repo="$tmp/main"
+    clone_test_repo "$main_repo"
+    (cd "$main_repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Create a real git worktree
+    worktree_dir="$tmp/worktree"
+    git -C "$main_repo" worktree add "$worktree_dir" -b wt-branch5 2>/dev/null
+
+    # Run ticket init from inside the git worktree
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Assert: .tickets-tracker in the worktree is a symlink pointing to main repo's .tickets-tracker
+    if [ -L "$worktree_dir/.tickets-tracker" ]; then
+        symlink_target=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$worktree_dir/.tickets-tracker" 2>/dev/null || true)
+        local expected_target
+        expected_target=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$main_repo/.tickets-tracker" 2>/dev/null || true)
+        if [ "$symlink_target" = "$expected_target" ]; then
+            assert_eq "symlink-target: points to main repo .tickets-tracker" "correct" "correct"
+        else
+            assert_eq "symlink-target: points to main repo .tickets-tracker" "$expected_target" "$symlink_target"
+        fi
+    else
+        assert_eq "symlink-target: .tickets-tracker must be a symlink first" "symlink" "not-a-symlink"
+    fi
+}
+test_auto_detect_main_worktree_via_git_list
+
 print_summary

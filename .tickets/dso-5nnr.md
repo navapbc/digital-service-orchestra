@@ -1,6 +1,6 @@
 ---
 id: dso-5nnr
-status: open
+status: closed
 deps: [dso-1a6u]
 links: []
 created: 2026-03-21T16:32:42Z

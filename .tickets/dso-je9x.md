@@ -1,6 +1,6 @@
 ---
 id: dso-je9x
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-21T16:31:44Z
@@ -40,3 +40,29 @@ Depends on: w20-kkp5 (contract must exist)
   Verify: grep -c 'def test_' $(git rev-parse --show-toplevel)/tests/scripts/test_ticket_reducer_conflict.py | awk '{exit ($1 < 5)}'
 - [ ] All tests fail RED before T3 implementation
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_ticket_reducer_conflict.py -q 2>&1; test $? -ne 0
+
+## Notes
+
+**2026-03-21T19:12:54Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T19:13:12Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — ReducerStrategy Protocol, LastTimestampWinsStrategy, reduce_ticket() in ticket-reducer.py; contract at ticket-reducer-strategy-contract.md; existing test pattern uses importlib to load hyphenated module
+
+**2026-03-21T19:14:17Z**
+
+CHECKPOINT 3/6: Tests written ✓ — 5 test functions in tests/scripts/test_ticket_reducer_conflict.py covering: simple majority, net vs raw events, timestamp tiebreaker, bridge env exclusion, single env no conflict
+
+**2026-03-21T19:19:36Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — tests/scripts/test_ticket_reducer_conflict.py created with 5 RED tests; all fail with AssertionError: MostStatusEventsWinsStrategy not found
+
+**2026-03-21T19:20:02Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — 5 failed (RED), exit 1; ruff check exit 0; ruff format --check exit 0; 145 existing tests unaffected
+
+**2026-03-21T19:20:08Z**
+
+CHECKPOINT 6/6: Done ✓ — All 6 ACs verified: file exists, 5 tests present, all RED (exit 1), ruff check pass, ruff format pass, run-all.sh overall PASS

@@ -32,6 +32,88 @@ if [ -d "$TRACKER_DIR" ] && [ -f "$TRACKER_DIR/.git" ]; then
     fi
 fi
 
+# ── Git worktree symlink setup ────────────────────────────────────────────────
+# When running inside a git worktree (not the main repo), .git is a file.
+# In this case, .tickets-tracker should be a symlink to the main repo's copy.
+if [ -f "$REPO_ROOT/.git" ]; then
+    # Parse git worktree list --porcelain to find the main worktree path.
+    # The first 'worktree' entry (without 'bare') is the main worktree.
+    _main_worktree=""
+    _first_worktree=""
+    while IFS= read -r _line; do
+        if [[ "$_line" == worktree\ * ]]; then
+            _wt_path="${_line#worktree }"
+            if [ -z "$_first_worktree" ]; then
+                _first_worktree="$_wt_path"
+            fi
+        fi
+    done < <(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null)
+    _main_worktree="$_first_worktree"
+
+    if [ -z "$_main_worktree" ]; then
+        echo "Error: could not detect main worktree path via git worktree list" >&2
+        exit 1
+    fi
+
+    _main_tracker="$_main_worktree/.tickets-tracker"
+
+    # Check if main worktree has initialized .tickets-tracker
+    if [ ! -d "$_main_tracker" ]; then
+        echo "Error: Run ticket init from the main repo first, then re-run from the worktree." >&2
+        exit 1
+    fi
+
+    # Idempotency: symlink already exists and points to the correct target
+    if [ -L "$TRACKER_DIR" ]; then
+        _current_target="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$TRACKER_DIR" 2>/dev/null || true)"
+        _expected_target="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$_main_tracker" 2>/dev/null || true)"
+        if [ "$_current_target" = "$_expected_target" ]; then
+            if [[ "$_silent" == false ]]; then
+                echo "Ticket system already initialized."
+            fi
+            exit 0
+        fi
+        # Symlink points to wrong target — remove and re-create
+        rm -f "$TRACKER_DIR"
+    fi
+
+    # If a real (non-symlink) directory exists here, remove it if it's not a real git worktree.
+    # A real git worktree has a .git file inside it; a plain directory does not.
+    if [ -d "$TRACKER_DIR" ] && [ ! -L "$TRACKER_DIR" ]; then
+        if [ -f "$TRACKER_DIR/.git" ]; then
+            # It has a .git file — it's a real git worktree; do not remove automatically
+            echo "Error: .tickets-tracker/ is a real git worktree in this worktree checkout. Remove it manually first." >&2
+            exit 1
+        else
+            # Empty/plain directory (transient state) — safe to remove
+            rm -rf "$TRACKER_DIR"
+        fi
+    fi
+
+    # Create the symlink
+    ln -s "$_main_tracker" "$TRACKER_DIR"
+
+    # Add .tickets-tracker to this worktree's .git/info/exclude
+    _wt_git_file="$REPO_ROOT/.git"
+    _wt_git_dir="$(sed -n 's/^gitdir: //p' "$_wt_git_file")"
+    # If _wt_git_dir is relative, resolve it relative to REPO_ROOT
+    if [[ "$_wt_git_dir" != /* ]]; then
+        _wt_git_dir="$REPO_ROOT/$_wt_git_dir"
+    fi
+    _wt_exclude_file="$_wt_git_dir/info/exclude"
+    mkdir -p "$(dirname "$_wt_exclude_file")"
+    if [ ! -f "$_wt_exclude_file" ]; then
+        echo ".tickets-tracker" > "$_wt_exclude_file"
+    elif ! grep -q '\.tickets-tracker' "$_wt_exclude_file"; then
+        echo ".tickets-tracker" >> "$_wt_exclude_file"
+    fi
+
+    if [[ "$_silent" == false ]]; then
+        echo "Ticket system initialized (symlink to main repo)."
+    fi
+    exit 0
+fi
+
 # ── Clean up partial-stale worktree directory ─────────────────────────────────
 # If .tickets-tracker/ exists but is not a valid worktree (e.g., partial crash),
 # prune stale worktree entries and remove the directory so we can re-create it.

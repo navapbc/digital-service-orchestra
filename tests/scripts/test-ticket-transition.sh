@@ -453,4 +453,198 @@ test_transition_concurrent_safety() {
 }
 test_transition_concurrent_safety
 
+# ── Test 8: close reports newly unblocked ticket ──────────────────────────────
+echo "Test 8: ticket A closed; stdout contains 'UNBLOCKED: <B>' when B was blocked only by A"
+test_close_ticket_reports_newly_unblocked() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create ticket A (the one we will close)
+    local ticket_a
+    ticket_a=$(_create_ticket "$repo" task "Ticket A - to be closed")
+
+    # Create ticket B (blocked only by A)
+    local ticket_b
+    ticket_b=$(_create_ticket "$repo" task "Ticket B - blocked by A")
+
+    if [ -z "$ticket_a" ] || [ -z "$ticket_b" ]; then
+        assert_eq "setup: both tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_ticket_reports_newly_unblocked"
+        return
+    fi
+
+    # Link: B depends_on A  (B is blocked by A)
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$ticket_b" "$ticket_a" depends_on 2>/dev/null) || true
+
+    # Transition A: open → closed; capture stdout
+    local stdout_out
+    local exit_code=0
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_a" open closed 2>/dev/null) || exit_code=$?
+
+    # Assert: transition exits 0
+    assert_eq "unblocked-report: transition exits 0" "0" "$exit_code"
+
+    # Assert: stdout contains 'UNBLOCKED: ' with ticket_b listed
+    # RED: ticket-transition.sh does not call ticket-unblock.py yet → this will FAIL
+    if echo "$stdout_out" | grep -qE "UNBLOCKED:.*$ticket_b"; then
+        assert_eq "unblocked-report: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "has-unblocked-B"
+    else
+        assert_eq "unblocked-report: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "missing: $stdout_out"
+    fi
+
+    assert_pass_if_clean "test_close_ticket_reports_newly_unblocked"
+}
+test_close_ticket_reports_newly_unblocked
+
+# ── Test 9: close reports 'UNBLOCKED: none' when no tickets are freed ─────────
+echo "Test 9: ticket A closed with no dependent tickets; stdout contains 'UNBLOCKED: none'"
+test_close_ticket_reports_no_unblocked() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a lone ticket (no other tickets depend on it)
+    local ticket_a
+    ticket_a=$(_create_ticket "$repo" task "Lone ticket with no dependents")
+
+    if [ -z "$ticket_a" ]; then
+        assert_eq "setup: ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_ticket_reports_no_unblocked"
+        return
+    fi
+
+    # Transition A: open → closed; capture stdout
+    local stdout_out
+    local exit_code=0
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_a" open closed 2>/dev/null) || exit_code=$?
+
+    # Assert: transition exits 0
+    assert_eq "no-unblocked: transition exits 0" "0" "$exit_code"
+
+    # Assert: stdout contains 'UNBLOCKED: none'
+    # RED: ticket-transition.sh does not emit UNBLOCKED output yet → this will FAIL
+    if echo "$stdout_out" | grep -q "UNBLOCKED: none"; then
+        assert_eq "no-unblocked: stdout contains UNBLOCKED: none" "has-none" "has-none"
+    else
+        assert_eq "no-unblocked: stdout contains UNBLOCKED: none" "has-none" "missing: $stdout_out"
+    fi
+
+    assert_pass_if_clean "test_close_ticket_reports_no_unblocked"
+}
+test_close_ticket_reports_no_unblocked
+
+# ── Test 10: UNBLOCKED output only on close, not on other transitions ─────────
+echo "Test 10: transition to in_progress does NOT emit 'UNBLOCKED:' in stdout"
+test_close_ticket_unblocked_output_only_on_close() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_a
+    ticket_a=$(_create_ticket "$repo" task "Ticket for in_progress transition")
+
+    if [ -z "$ticket_a" ]; then
+        assert_eq "setup: ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_ticket_unblocked_output_only_on_close"
+        return
+    fi
+
+    # Transition open → in_progress (NOT a close); capture stdout
+    local stdout_out
+    local exit_code=0
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_a" open in_progress 2>/dev/null) || exit_code=$?
+
+    # Assert: transition exits 0
+    assert_eq "only-on-close: in_progress transition exits 0" "0" "$exit_code"
+
+    # Assert: stdout does NOT contain 'UNBLOCKED:'
+    # This test should PASS even before implementation (the script doesn't emit UNBLOCKED yet).
+    # After implementation it must still pass (guard: only emit on close).
+    if echo "$stdout_out" | grep -q "UNBLOCKED:"; then
+        assert_eq "only-on-close: no UNBLOCKED in stdout for non-close transition" "no-unblocked" "has-unblocked: $stdout_out"
+    else
+        assert_eq "only-on-close: no UNBLOCKED in stdout for non-close transition" "no-unblocked" "no-unblocked"
+    fi
+
+    assert_pass_if_clean "test_close_ticket_unblocked_output_only_on_close"
+}
+test_close_ticket_unblocked_output_only_on_close
+
+# ── Test 11: transition succeeds even if unblock detection fails ──────────────
+echo "Test 11: transition exits 0 and emits stderr warning even if ticket-unblock.py is unavailable"
+test_close_ticket_succeeds_even_if_unblock_fails() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_a
+    ticket_a=$(_create_ticket "$repo" task "Ticket to close with broken unblock script")
+
+    if [ -z "$ticket_a" ]; then
+        assert_eq "setup: ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_ticket_succeeds_even_if_unblock_fails"
+        return
+    fi
+
+    # Simulate ticket-unblock.py being unavailable by pointing TRACKER_DIR to an
+    # invalid path via a wrapper that overrides the unblock script invocation.
+    # We do this by creating a broken ticket-unblock.py in a temp bin dir and
+    # prepending it to PATH so it shadows the real one (if it exists).
+    local fake_bin
+    fake_bin=$(mktemp -d)
+    _CLEANUP_DIRS+=("$fake_bin")
+    # Write a broken ticket-unblock.py that always exits 1 with an error
+    cat > "$fake_bin/ticket-unblock.py" <<'PYEOF'
+import sys
+print("simulated unblock failure", file=sys.stderr)
+sys.exit(1)
+PYEOF
+
+    # Run transition with a modified environment: override UNBLOCK_SCRIPT if the
+    # implementation uses it, otherwise pass an invalid tracker_dir suffix via env
+    # so detect_newly_unblocked fails.
+    # Strategy: set DSO_UNBLOCK_SCRIPT env to the broken script so ticket-transition.sh
+    # uses it when calling ticket-unblock.py (the implementation should honor this).
+    # RED: regardless of strategy, the test verifies exit 0 + stderr warning.
+    local stdout_out stderr_out
+    local exit_code=0
+    stdout_out=$(cd "$repo" && DSO_UNBLOCK_SCRIPT="$fake_bin/ticket-unblock.py" \
+        bash "$TICKET_SCRIPT" transition "$ticket_a" open closed 2>/tmp/test-unblock-fail-stderr-$$) || exit_code=$?
+    stderr_out=$(cat /tmp/test-unblock-fail-stderr-$$ 2>/dev/null || true)
+    rm -f /tmp/test-unblock-fail-stderr-$$
+
+    # Assert: transition exits 0 (non-blocking — close succeeded even if unblock fails)
+    # RED: current ticket-transition.sh doesn't call unblock at all → this assertion
+    # will currently PASS. The test becomes meaningful after dso-f8xn implements
+    # unblock calling with non-blocking error handling.
+    assert_eq "unblock-fail: transition exits 0 (non-blocking)" "0" "$exit_code"
+
+    # Assert: if unblock was attempted and failed, a warning appears on stderr.
+    # RED: current implementation doesn't call unblock → no warning emitted.
+    # After dso-f8xn: warning should appear when DSO_UNBLOCK_SCRIPT exits non-zero.
+    # We can only assert on the warning presence AFTER implementation calls the script.
+    # For now this assertion is the RED trigger: warn on stderr when unblock fails.
+    # Note: this specific assertion fails RED only after dso-f8xn adds the call.
+    # The exit-0 assertion above validates the non-blocking contract at GREEN time.
+    #
+    # Check if either: (a) a warning was emitted to stderr, OR (b) UNBLOCKED: none
+    # appears in stdout (meaning unblock ran and returned no results — still valid).
+    # If neither, the implementation hasn't added unblock support yet (RED for now).
+    if echo "$stderr_out" | grep -qiE 'warn|unblock|fail|error' || \
+       echo "$stdout_out" | grep -q "UNBLOCKED:"; then
+        assert_eq "unblock-fail: stderr warning or UNBLOCKED output present (unblock called)" "unblock-called" "unblock-called"
+    else
+        # RED: unblock not called yet — this assertion fails until dso-f8xn is implemented
+        assert_eq "unblock-fail: stderr warning or UNBLOCKED output present (unblock called)" "unblock-called" "not-called: stdout='$stdout_out' stderr='$stderr_out'"
+    fi
+
+    assert_pass_if_clean "test_close_ticket_succeeds_even_if_unblock_fails"
+}
+test_close_ticket_succeeds_even_if_unblock_fails
+
 print_summary

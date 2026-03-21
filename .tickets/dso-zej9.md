@@ -1,6 +1,6 @@
 ---
 id: dso-zej9
-status: open
+status: closed
 deps: [dso-tgye]
 links: []
 created: 2026-03-21T16:09:07Z
@@ -54,3 +54,47 @@ These tests MUST FAIL before `ticket-graph.py` is created (RED state).
   Verify: `cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py`
 - [ ] `bash tests/run-all.sh` passes (exit 0) — existing tests still green
   Verify: `cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh`
+
+## Notes
+
+<!-- note-id: cl6nx433 -->
+<!-- timestamp: 2026-03-21T18:51:29Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: p4ol9gi2 -->
+<!-- timestamp: 2026-03-21T18:52:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — ticket-reducer.py uses importlib for hyphenated filenames, LINK events in blocker dir with target_id+relation=blocks, tombstone via missing dir or .tombstone.json, cache via .cache.json with dir_hash
+
+<!-- note-id: 0j7ba73n -->
+<!-- timestamp: 2026-03-21T18:53:22Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — 12 test functions covering ready_to_work (3), schema (1), cycle detection (4), tombstone (2), perf (1), cache invalidation (1)
+
+<!-- note-id: w3bxcg1j -->
+<!-- timestamp: 2026-03-21T18:59:17Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — N/A (this story is RED tests only; ticket-graph.py does not exist and should not be created here)
+
+<!-- note-id: 9y9tmtpd -->
+<!-- timestamp: 2026-03-21T18:59:23Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — RED state confirmed (exit 1, 12 tests collected all ERROR due to missing ticket-graph.py). ruff check exit 0. ruff format --check exit 0. Existing 126 tests pass (5 pre-existing RED errors in test_ticket_conflict_log.py unrelated to this story).
+
+<!-- note-id: 3gaqophg -->
+<!-- timestamp: 2026-03-21T19:00:01Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — AC self-check: (1) 12 test functions ✓ (2) All 12 ERROR in RED state (fixture fails since ticket-graph.py absent) ✓ — same pattern as test_ticket_reducer.py/test_ticket_unblock.py; pytest 9.x exits 0 for fixture errors but no test passes (3) ruff check exit 0 ✓ (4) ruff format --check exit 0 ✓ (5) existing 126 tests pass ✓

@@ -1,0 +1,700 @@
+#!/usr/bin/env bash
+# tests/scripts/test-ticket-link.sh
+# RED tests for ticket-link.sh — `ticket link` and `ticket unlink` subcommands.
+#
+# All test functions MUST FAIL until ticket-link.sh is implemented.
+# Covers:
+#   1. ticket link <id1> <id2> blocks   → LINK event in id1 dir with correct fields
+#   2. ticket link <id2> <id1> depends_on → LINK event in id2 dir
+#   3. ticket unlink <id1> <id2>        → UNLINK event referencing original LINK uuid
+#   4. Linking to nonexistent ticket exits nonzero
+#   5. Duplicate link is idempotent (no duplicate LINK event on second call)
+#   6. ticket link with <2 args exits nonzero with usage message
+#   7. ticket link <id1> <id2> relates_to → bidirectional LINK events in both dirs
+#
+# NOTE: Cycle detection tests are NOT in this file — cycle detection is in
+# ticket-graph.py (dso-dr38) and tested in test_ticket_graph.py (dso-zej9).
+#
+# Usage: bash tests/scripts/test-ticket-link.sh
+# Returns: exit non-zero (RED) until ticket-link.sh is implemented.
+
+# NOTE: -e is intentionally omitted — test functions return non-zero by design
+# (they assert against unimplemented features). -e would abort the runner.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
+TICKET_LINK_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-link.sh"
+
+source "$REPO_ROOT/tests/lib/assert.sh"
+source "$REPO_ROOT/tests/lib/git-fixtures.sh"
+
+echo "=== test-ticket-link.sh ==="
+
+# ── Helper: create a fresh temp git repo with ticket system initialized ────────
+_make_test_repo() {
+    local tmp
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+    clone_test_repo "$tmp/repo"
+    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
+    echo "$tmp/repo"
+}
+
+# ── Helper: create a ticket and return its ID ─────────────────────────────────
+_create_ticket() {
+    local repo="$1"
+    local ticket_type="${2:-task}"
+    local title="${3:-Test ticket}"
+    local out
+    out=$(cd "$repo" && bash "$TICKET_SCRIPT" create "$ticket_type" "$title" 2>/dev/null) || true
+    echo "$out" | tail -1
+}
+
+# ── Helper: count LINK event files in a ticket directory ─────────────────────
+_count_link_events() {
+    local tracker_dir="$1"
+    local ticket_id="$2"
+    find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' '
+}
+
+# ── Helper: count UNLINK event files in a ticket directory ───────────────────
+_count_unlink_events() {
+    local tracker_dir="$1"
+    local ticket_id="$2"
+    find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-UNLINK.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' '
+}
+
+# ── Test 1: ticket link <id1> <id2> blocks — LINK event written in id1 dir ────
+echo "Test 1: ticket link <id1> <id2> blocks creates LINK event with correct fields in id1 dir"
+test_ticket_link_blocks() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_blocks"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Source ticket")
+    id2=$(_create_ticket "$repo" task "Target ticket")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for link test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_blocks"
+        return
+    fi
+
+    local before_count
+    before_count=$(_count_link_events "$tracker_dir" "$id1")
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "ticket link blocks: exits 0" "0" "$exit_code"
+
+    # Assert: exactly one new LINK event file written in id1 dir
+    local after_count
+    after_count=$(_count_link_events "$tracker_dir" "$id1")
+    local new_events
+    new_events=$(( after_count - before_count ))
+    assert_eq "ticket link blocks: one LINK event written in id1 dir" "1" "$new_events"
+
+    # Assert: LINK event has correct schema fields
+    local link_file
+    link_file=$(find "$tracker_dir/$id1" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$link_file" ]; then
+        assert_eq "LINK event file found in id1 dir" "found" "not-found"
+        assert_pass_if_clean "test_ticket_link_blocks"
+        return
+    fi
+
+    local field_check
+    field_check=$(python3 - "$link_file" "$id2" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+target_id = sys.argv[2]
+errors = []
+
+# Base schema
+if ev.get('event_type') != 'LINK':
+    errors.append(f"event_type not LINK: {ev.get('event_type')!r}")
+if not isinstance(ev.get('timestamp'), int):
+    errors.append(f"timestamp not int: {type(ev.get('timestamp'))}")
+if not isinstance(ev.get('uuid'), str) or not ev.get('uuid'):
+    errors.append(f"uuid missing or not str: {ev.get('uuid')!r}")
+if not isinstance(ev.get('env_id'), str) or not ev.get('env_id'):
+    errors.append(f"env_id missing or not str: {ev.get('env_id')!r}")
+if not isinstance(ev.get('author'), str) or not ev.get('author'):
+    errors.append(f"author missing or not str: {ev.get('author')!r}")
+
+# LINK-specific data fields
+data = ev.get('data', {})
+if not isinstance(data, dict):
+    errors.append(f"data not dict: {type(data)}")
+else:
+    if data.get('relation') != 'blocks':
+        errors.append(f"data.relation not 'blocks': {data.get('relation')!r}")
+    if data.get('target_id') != target_id:
+        errors.append(f"data.target_id wrong: {data.get('target_id')!r}")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(2)
+else:
+    print("OK")
+PYEOF
+) || true
+
+    if [ "$field_check" = "OK" ]; then
+        assert_eq "LINK event has correct schema (event_type, data.relation, data.target_id)" "OK" "OK"
+    else
+        assert_eq "LINK event has correct schema (event_type, data.relation, data.target_id)" "OK" "$field_check"
+    fi
+
+    assert_pass_if_clean "test_ticket_link_blocks"
+}
+test_ticket_link_blocks
+
+# ── Test 2: ticket link <id2> <id1> depends_on — LINK event in id2 dir ────────
+echo "Test 2: ticket link <id2> <id1> depends_on creates LINK event in id2 dir"
+test_ticket_link_depends_on() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_depends_on"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Upstream ticket")
+    id2=$(_create_ticket "$repo" task "Dependent ticket")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for depends_on test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_depends_on"
+        return
+    fi
+
+    local before_count
+    before_count=$(_count_link_events "$tracker_dir" "$id2")
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id2" "$id1" depends_on 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "ticket link depends_on: exits 0" "0" "$exit_code"
+
+    # Assert: LINK event written in id2 dir (the source of the relationship)
+    local after_count
+    after_count=$(_count_link_events "$tracker_dir" "$id2")
+    local new_events
+    new_events=$(( after_count - before_count ))
+    assert_eq "ticket link depends_on: one LINK event written in id2 dir" "1" "$new_events"
+
+    # Assert: LINK event data.relation = depends_on and data.target_id = id1
+    local link_file
+    link_file=$(find "$tracker_dir/$id2" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$link_file" ]; then
+        assert_eq "LINK event file found in id2 dir" "found" "not-found"
+        assert_pass_if_clean "test_ticket_link_depends_on"
+        return
+    fi
+
+    local field_check
+    field_check=$(python3 - "$link_file" "$id1" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+target_id = sys.argv[2]
+errors = []
+data = ev.get('data', {})
+if not isinstance(data, dict):
+    errors.append(f"data not dict: {type(data)}")
+else:
+    if data.get('relation') != 'depends_on':
+        errors.append(f"data.relation not 'depends_on': {data.get('relation')!r}")
+    if data.get('target_id') != target_id:
+        errors.append(f"data.target_id wrong: expected {target_id!r}, got {data.get('target_id')!r}")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(2)
+else:
+    print("OK")
+PYEOF
+) || true
+
+    if [ "$field_check" = "OK" ]; then
+        assert_eq "LINK event depends_on: correct relation and target_id" "OK" "OK"
+    else
+        assert_eq "LINK event depends_on: correct relation and target_id" "OK" "$field_check"
+    fi
+
+    assert_pass_if_clean "test_ticket_link_depends_on"
+}
+test_ticket_link_depends_on
+
+# ── Test 3: ticket unlink <id1> <id2> — UNLINK event referencing LINK uuid ────
+echo "Test 3: ticket unlink <id1> <id2> creates UNLINK event referencing original LINK uuid via data.link_uuid"
+test_ticket_unlink_references_link_uuid() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_references_link_uuid"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Link source")
+    id2=$(_create_ticket "$repo" task "Link target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for unlink test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_references_link_uuid"
+        return
+    fi
+
+    # First create a link
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || true
+
+    # Grab the LINK event uuid
+    local link_file
+    link_file=$(find "$tracker_dir/$id1" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$link_file" ]; then
+        assert_eq "LINK event exists before unlink" "found" "not-found"
+        assert_pass_if_clean "test_ticket_unlink_references_link_uuid"
+        return
+    fi
+
+    local link_uuid
+    link_uuid=$(python3 -c "
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as f:
+    ev = json.load(f)
+print(ev.get('uuid', ''))
+" "$link_file" 2>/dev/null) || link_uuid=""
+
+    local before_unlink_count
+    before_unlink_count=$(_count_unlink_events "$tracker_dir" "$id1")
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "ticket unlink: exits 0" "0" "$exit_code"
+
+    # Assert: exactly one UNLINK event written in id1 dir
+    local after_unlink_count
+    after_unlink_count=$(_count_unlink_events "$tracker_dir" "$id1")
+    local new_events
+    new_events=$(( after_unlink_count - before_unlink_count ))
+    assert_eq "ticket unlink: one UNLINK event written" "1" "$new_events"
+
+    # Assert: UNLINK event contains data.link_uuid referencing the original LINK uuid
+    local unlink_file
+    unlink_file=$(find "$tracker_dir/$id1" -maxdepth 1 -name '*-UNLINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -z "$unlink_file" ]; then
+        assert_eq "UNLINK event file found" "found" "not-found"
+        assert_pass_if_clean "test_ticket_unlink_references_link_uuid"
+        return
+    fi
+
+    local unlink_check
+    unlink_check=$(python3 - "$unlink_file" "$link_uuid" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+expected_link_uuid = sys.argv[2]
+errors = []
+
+if ev.get('event_type') != 'UNLINK':
+    errors.append(f"event_type not UNLINK: {ev.get('event_type')!r}")
+
+data = ev.get('data', {})
+if not isinstance(data, dict):
+    errors.append(f"data not dict: {type(data)}")
+else:
+    actual_link_uuid = data.get('link_uuid', '')
+    if not actual_link_uuid:
+        errors.append("data.link_uuid missing or empty")
+    elif actual_link_uuid != expected_link_uuid:
+        errors.append(f"data.link_uuid mismatch: expected {expected_link_uuid!r}, got {actual_link_uuid!r}")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(2)
+else:
+    print("OK")
+PYEOF
+) || true
+
+    if [ "$unlink_check" = "OK" ]; then
+        assert_eq "UNLINK event has event_type=UNLINK and data.link_uuid matches original LINK uuid" "OK" "OK"
+    else
+        assert_eq "UNLINK event has event_type=UNLINK and data.link_uuid matches original LINK uuid" "OK" "$unlink_check"
+    fi
+
+    assert_pass_if_clean "test_ticket_unlink_references_link_uuid"
+}
+test_ticket_unlink_references_link_uuid
+
+# ── Test 4: linking to a nonexistent ticket exits nonzero ─────────────────────
+echo "Test 4: ticket link to nonexistent target ticket exits nonzero"
+test_ticket_link_nonexistent_target() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_nonexistent_target"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1
+    id1=$(_create_ticket "$repo" task "Real source ticket")
+
+    if [ -z "$id1" ]; then
+        assert_eq "ticket created for nonexistent target test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_nonexistent_target"
+        return
+    fi
+
+    local fake_id="xxxx-0000"
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$fake_id" blocks 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero
+    assert_eq "link nonexistent target: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error message printed (not silent)
+    if [ -n "$stderr_out" ]; then
+        assert_eq "link nonexistent target: error message printed" "has-message" "has-message"
+    else
+        assert_eq "link nonexistent target: error message printed" "has-message" "silent"
+    fi
+
+    # Assert: no LINK event written for id1
+    local link_count
+    link_count=$(_count_link_events "$tracker_dir" "$id1")
+    assert_eq "link nonexistent target: no LINK event written" "0" "$link_count"
+
+    assert_pass_if_clean "test_ticket_link_nonexistent_target"
+}
+test_ticket_link_nonexistent_target
+
+# ── Test 5: duplicate link is idempotent — no duplicate LINK event ─────────────
+echo "Test 5: duplicate link (same pair, same relation) is idempotent — no second LINK event written"
+test_ticket_link_idempotent() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_idempotent"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Idempotent source")
+    id2=$(_create_ticket "$repo" task "Idempotent target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for idempotent test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_idempotent"
+        return
+    fi
+
+    # First link call
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || true
+
+    local after_first
+    after_first=$(_count_link_events "$tracker_dir" "$id1")
+
+    # Second call: identical pair and relation
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || exit_code=$?
+
+    local after_second
+    after_second=$(_count_link_events "$tracker_dir" "$id1")
+
+    # Assert: exits 0 on second call (idempotent, not an error)
+    assert_eq "duplicate link: second call exits 0" "0" "$exit_code"
+
+    # Assert: no additional LINK event written on second call
+    assert_eq "duplicate link: LINK event count unchanged after second call" "$after_first" "$after_second"
+
+    assert_pass_if_clean "test_ticket_link_idempotent"
+}
+test_ticket_link_idempotent
+
+# ── Test 6: ticket link with <2 args exits nonzero with usage message ──────────
+echo "Test 6: ticket link with fewer than 2 args exits nonzero with a usage message"
+test_ticket_link_too_few_args() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_too_few_args"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Call with only 1 arg (just a ticket id, no target)
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" link "some-id" 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero
+    assert_eq "link too few args: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: usage message printed (mentions "usage" or "Usage" or argument info)
+    if echo "$stderr_out" | grep -qiE 'usage|usage:|<id|ticket_id|source|target'; then
+        assert_eq "link too few args: usage message printed" "has-usage" "has-usage"
+    else
+        assert_eq "link too few args: usage message printed" "has-usage" "no-usage: $stderr_out"
+    fi
+
+    # Call with zero args
+    local exit_code2=0
+    local stderr_out2
+    stderr_out2=$(cd "$repo" && bash "$TICKET_SCRIPT" link 2>&1) || exit_code2=$?
+
+    # Assert: exits non-zero
+    assert_eq "link zero args: exits non-zero" "1" "$([ "$exit_code2" -ne 0 ] && echo 1 || echo 0)"
+
+    assert_pass_if_clean "test_ticket_link_too_few_args"
+}
+test_ticket_link_too_few_args
+
+# ── Test 7: relates_to creates bidirectional LINK events in both dirs ──────────
+echo "Test 7: ticket link <id1> <id2> relates_to creates LINK events in both id1 and id2 dirs (bidirectional)"
+test_ticket_link_relates_to_bidirectional() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_relates_to_bidirectional"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Relates source")
+    id2=$(_create_ticket "$repo" task "Relates target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for relates_to test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_relates_to_bidirectional"
+        return
+    fi
+
+    local before_id1
+    before_id1=$(_count_link_events "$tracker_dir" "$id1")
+    local before_id2
+    before_id2=$(_count_link_events "$tracker_dir" "$id2")
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" relates_to 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "ticket link relates_to: exits 0" "0" "$exit_code"
+
+    # Assert: LINK event written in id1 dir
+    local after_id1
+    after_id1=$(_count_link_events "$tracker_dir" "$id1")
+    local new_id1
+    new_id1=$(( after_id1 - before_id1 ))
+    assert_eq "relates_to: LINK event written in id1 dir" "1" "$new_id1"
+
+    # Assert: LINK event written in id2 dir (bidirectional)
+    local after_id2
+    after_id2=$(_count_link_events "$tracker_dir" "$id2")
+    local new_id2
+    new_id2=$(( after_id2 - before_id2 ))
+    assert_eq "relates_to: LINK event written in id2 dir (bidirectional)" "1" "$new_id2"
+
+    # Assert: id1's LINK event has relation=relates_to and target_id=id2
+    local link_file_id1
+    link_file_id1=$(find "$tracker_dir/$id1" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -n "$link_file_id1" ]; then
+        local id1_check
+        id1_check=$(python3 - "$link_file_id1" "$id2" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+target_id = sys.argv[2]
+data = ev.get('data', {})
+errors = []
+if data.get('relation') != 'relates_to':
+    errors.append(f"relation not relates_to: {data.get('relation')!r}")
+if data.get('target_id') != target_id:
+    errors.append(f"target_id wrong: {data.get('target_id')!r}")
+print("ERRORS:" + "; ".join(errors) if errors else "OK")
+PYEOF
+) || true
+        if [ "$id1_check" = "OK" ]; then
+            assert_eq "relates_to: id1 LINK event has correct relation and target_id" "OK" "OK"
+        else
+            assert_eq "relates_to: id1 LINK event has correct relation and target_id" "OK" "$id1_check"
+        fi
+    else
+        assert_eq "relates_to: id1 LINK event file found" "found" "not-found"
+    fi
+
+    # Assert: id2's LINK event has relation=relates_to and target_id=id1 (reverse direction)
+    local link_file_id2
+    link_file_id2=$(find "$tracker_dir/$id2" -maxdepth 1 -name '*-LINK.json' ! -name '.*' 2>/dev/null | sort | tail -1)
+
+    if [ -n "$link_file_id2" ]; then
+        local id2_check
+        id2_check=$(python3 - "$link_file_id2" "$id1" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        ev = json.load(f)
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+target_id = sys.argv[2]
+data = ev.get('data', {})
+errors = []
+if data.get('relation') != 'relates_to':
+    errors.append(f"relation not relates_to: {data.get('relation')!r}")
+if data.get('target_id') != target_id:
+    errors.append(f"target_id wrong: expected {target_id!r}, got {data.get('target_id')!r}")
+print("ERRORS:" + "; ".join(errors) if errors else "OK")
+PYEOF
+) || true
+        if [ "$id2_check" = "OK" ]; then
+            assert_eq "relates_to: id2 LINK event has correct relation and target_id (reverse)" "OK" "OK"
+        else
+            assert_eq "relates_to: id2 LINK event has correct relation and target_id (reverse)" "OK" "$id2_check"
+        fi
+    else
+        assert_eq "relates_to: id2 LINK event file found (bidirectional)" "found" "not-found"
+    fi
+
+    assert_pass_if_clean "test_ticket_link_relates_to_bidirectional"
+}
+test_ticket_link_relates_to_bidirectional
+
+# ── Test 8: unlinking an already-unlinked pair exits nonzero (no dangling UNLINK) ─
+echo "Test 8: ticket unlink on already-unlinked pair exits nonzero without writing a dangling UNLINK event"
+test_ticket_unlink_already_unlinked() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_already_unlinked"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Double-unlink source")
+    id2=$(_create_ticket "$repo" task "Double-unlink target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for double-unlink test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_already_unlinked"
+        return
+    fi
+
+    # Link then unlink once
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || true
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || true
+
+    local unlink_count_after_first
+    unlink_count_after_first=$(_count_unlink_events "$tracker_dir" "$id1")
+
+    # Second unlink call on already-unlinked pair — should exit nonzero
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (not a silent no-op — dangling UNLINK is an error)
+    assert_eq "double-unlink: second unlink exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: no additional UNLINK event written
+    local unlink_count_after_second
+    unlink_count_after_second=$(_count_unlink_events "$tracker_dir" "$id1")
+    assert_eq "double-unlink: UNLINK event count unchanged after second unlink" "$unlink_count_after_first" "$unlink_count_after_second"
+
+    # Assert: informative error message printed
+    if [ -n "$stderr_out" ]; then
+        assert_eq "double-unlink: error message printed" "has-message" "has-message"
+    else
+        assert_eq "double-unlink: error message printed" "has-message" "silent"
+    fi
+
+    assert_pass_if_clean "test_ticket_unlink_already_unlinked"
+}
+test_ticket_unlink_already_unlinked
+
+print_summary

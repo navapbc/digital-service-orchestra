@@ -1,6 +1,6 @@
 ---
 id: dso-f8xn
-status: open
+status: closed
 deps: [dso-3npm, dso-2xo3]
 links: []
 created: 2026-03-21T16:19:43Z
@@ -40,3 +40,29 @@ TDD Requirement: Integration tests in tests/scripts/test-ticket-transition.sh (a
 - [ ] Non-blocking: ticket-transition.sh exits 0 even if ticket-unblock.py fails
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_ticket_unblock.py::test_event_source_parameter_accepted -q
 
+
+## Notes
+
+**2026-03-21T19:12:45Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T19:13:24Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — Tests 8, 9, 11 are RED; Test 10 already PASS. ticket-unblock.py CLI takes tracker_dir ticket_id --event-source; emits 'UNBLOCKED <id>' lines. ticket-transition.sh needs: after flock exits 0 AND target_status==closed, call ticket-unblock.py (respecting DSO_UNBLOCK_SCRIPT env override), parse output, emit 'UNBLOCKED: id1,id2' or 'UNBLOCKED: none', non-blocking on failure (emit warning to stderr).
+
+**2026-03-21T19:13:47Z**
+
+CHECKPOINT 3/6: Tests written ✓ — Tests already existed (RED) from dso-2xo3; confirmed RED run: tests 8, 9, 11 FAIL, test 10 PASS as expected.
+
+**2026-03-21T19:13:54Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — Extended ticket-transition.sh: after flock_exit==0 && target_status==closed, calls ticket-unblock.py via python3, respects DSO_UNBLOCK_SCRIPT env override, emits 'UNBLOCKED: id1,id2' or 'UNBLOCKED: none', warns to stderr on failure (non-blocking).
+
+**2026-03-21T19:14:12Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — test-ticket-transition.sh: PASSED 28, FAILED 0. Tests 8, 9, 10, 11 all GREEN.
+
+**2026-03-21T19:14:50Z**
+
+CHECKPOINT 6/6: Done ✓ — All AC verified: (1) test_close_ticket_reports_newly_unblocked PASS, (2) UNBLOCKED output emitted on close PASS, (3) test_close_ticket_unblocked_output_only_on_close PASS (no UNBLOCKED on in_progress), (4) test_event_source_parameter_accepted pytest PASS. Implementation: ticket-transition.sh Step 4 block added at lines 201-222.

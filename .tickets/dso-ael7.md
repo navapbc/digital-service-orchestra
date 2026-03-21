@@ -1,6 +1,6 @@
 ---
 id: dso-ael7
-status: open
+status: closed
 deps: [dso-6lhe]
 links: []
 created: 2026-03-21T16:09:11Z
@@ -50,3 +50,29 @@ Files to edit: plugins/dso/scripts/ticket-init.sh
   Verify: bash -c 'MAIN=$(mktemp -d) && WT=$(mktemp -d) && git -C "$MAIN" init -q && git -C "$MAIN" worktree add "$WT/wt" -b test-wt 2>/dev/null; bash $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket-init.sh --silent 2>/dev/null || true; test -L "$WT/wt/.tickets-tracker" && echo PASS || echo SKIP'
 - [ ] When main worktree has no .tickets-tracker/, error message directs user to run init from main repo first
   Verify: bash -c 'MAIN=$(mktemp -d) && WT=$(mktemp -d) && git -C "$MAIN" init -q && git -C "$MAIN" worktree add "$WT/wt" -b test-wt2 2>/dev/null; out=$(cd "$WT/wt" && bash $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket-init.sh --silent 2>&1); echo "$out" | grep -qi "main repo\|main.*first\|init.*first" && echo PASS || echo "FAIL: expected error about main repo, got: $out"'
+
+## Notes
+
+**2026-03-21T17:33:45Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T17:34:11Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T17:34:56Z**
+
+CHECKPOINT 3/6: Tests written ✓ (RED tests 8-12 already existed in test-ticket-init.sh)
+
+**2026-03-21T17:34:58Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T17:41:25Z**
+
+CHECKPOINT 5/6: Validation run ✓ — Tests 8,9,10,11 PASS. Test 12 FAIL (macOS /var→/private/var path comparison bug in test; os.path.realpath resolves /var symlink but expected_target uses raw mktemp path /var/...)
+
+**2026-03-21T17:42:08Z**
+
+CHECKPOINT 6/6: Done ✓ — Tests 8-11 pass GREEN. Test 12 has macOS path comparison bug in test (not impl): os.path.realpath adds /private prefix but expected_target uses raw mktemp /var/... path. Tracking ticket w20-fxpu created.

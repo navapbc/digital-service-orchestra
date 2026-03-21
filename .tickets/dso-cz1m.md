@@ -1,6 +1,6 @@
 ---
 id: dso-cz1m
-status: open
+status: closed
 deps: [dso-ael7, dso-l77u]
 links: []
 created: 2026-03-21T16:10:03Z

@@ -1,6 +1,6 @@
 ---
 id: dso-2igj
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T16:08:30Z
@@ -43,3 +43,29 @@ These tests MUST FAIL before `ticket-link.sh` is implemented (RED state).
   Verify: `cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py`
 - [ ] `bash tests/run-all.sh` passes (exit 0) — existing tests still green
   Verify: `cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh`
+
+## Notes
+
+**2026-03-21T16:57:58Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T16:58:35Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — studied test-ticket-comment.sh, test-ticket-transition.sh, assert.sh, git-fixtures.sh, ticket-lib.sh, ticket-comment.sh for patterns. LINK event type already allowed in write_commit_event enum. ticket dispatcher has no link/unlink case yet.
+
+**2026-03-21T17:00:14Z**
+
+CHECKPOINT 3/6: Tests written ✓ — created tests/scripts/test-ticket-link.sh with 7 RED tests: (1) link blocks LINK event in id1, (2) depends_on LINK in id2, (3) unlink UNLINK event with data.link_uuid, (4) nonexistent target exits nonzero, (5) duplicate link idempotent, (6) <2 args exits nonzero with usage, (7) relates_to bidirectional LINK events
+
+**2026-03-21T17:01:20Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — No implementation needed for this RED task. tests/scripts/test-ticket-link.sh is the deliverable.
+
+**2026-03-21T17:01:25Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — ruff check PASS, ruff format PASS, tests/run-all.sh: 55 passed 0 failed
+
+**2026-03-21T17:02:30Z**
+
+CHECKPOINT 6/6: Done ✓ — AC1: executable ✓, AC2: RED (7/7 tests fail) ✓, AC3: ruff check PASS ✓, AC4: ruff format PASS ✓, AC5: run-all.sh 55/55 PASS ✓

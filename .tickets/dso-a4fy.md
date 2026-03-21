@@ -1,6 +1,6 @@
 ---
 id: dso-a4fy
-status: open
+status: closed
 deps: [dso-2igj]
 links: []
 created: 2026-03-21T16:09:01Z
@@ -78,3 +78,29 @@ Implement `plugins/dso/scripts/ticket-link.sh` — the backend for `ticket link`
   Verify: `cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py`
 - [ ] `bash tests/run-all.sh` passes (exit 0)
   Verify: `cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh`
+
+## Notes
+
+**2026-03-21T17:33:48Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T17:34:30Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T17:35:51Z**
+
+CHECKPOINT 3/6: Tests written ✓ (RED tests existed from dso-2igj)
+
+**2026-03-21T17:35:53Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T17:36:15Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — 22 assertions, 0 failures
+
+**2026-03-21T17:38:52Z**
+
+CHECKPOINT 6/6: Done ✓ — All AC verified: ticket-link.sh executable, all 7 tests pass (22 assertions), link/unlink wired in dispatcher, ruff check/format pass, run-all.sh 55/55 pass

@@ -1,6 +1,6 @@
 ---
 id: w21-k2yz
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-20T05:07:23Z

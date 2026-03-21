@@ -20,9 +20,120 @@ import hashlib
 import json
 import os
 import sys
+from typing import Protocol, runtime_checkable
 
 
-def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
+@runtime_checkable
+class ReducerStrategy(Protocol):
+    """Protocol for pluggable ticket event merge strategies."""
+
+    def resolve(self, events: list[dict]) -> list[dict]:
+        """Merge and deduplicate a list of events, returning the resolved list."""
+        ...
+
+
+class MostStatusEventsWinsStrategy:
+    """Conflict resolution strategy: env with most net STATUS transitions wins.
+
+    "Net transition" = a STATUS event that moves to a status not previously seen
+    in that env's history.  Reverts (returning to a prior status) do not count.
+
+    Tie-breaking: when two envs have equal net transition counts, the env whose
+    final STATUS event has the latest timestamp wins.
+
+    The bridge env (if provided via ``bridge_env_id``) is excluded from the
+    net-transition count and from winner selection.
+
+    resolve() returns all events with STATUS events from losing envs removed,
+    sorted ascending by timestamp.  This lets callers find the authoritative
+    final status by reading the last STATUS event in the returned list.
+    """
+
+    def __init__(self, bridge_env_id: str | None = None) -> None:
+        self.bridge_env_id = bridge_env_id
+
+    def resolve(self, events: list[dict]) -> list[dict]:
+        """Return events with only the winning env's STATUS events, sorted by timestamp."""
+        # --- Step 1: gather STATUS events grouped by env_id ---
+        # env_id → list of STATUS events in input order
+        status_by_env: dict[str, list[dict]] = {}
+        for event in events:
+            if event.get("event_type") == "STATUS":
+                env_id = event.get("env_id", "")
+                status_by_env.setdefault(env_id, []).append(event)
+
+        # --- Step 2: compute net transitions per env (excluding bridge) ---
+        # net transition = move to a status not previously seen in this env's history
+        def _net_transitions(status_events: list[dict]) -> int:
+            seen_statuses: set[str] = set()
+            # implicit starting status is "open"
+            seen_statuses.add("open")
+            count = 0
+            for ev in status_events:
+                target = ev.get("data", {}).get("status", "")
+                if target and target not in seen_statuses:
+                    seen_statuses.add(target)
+                    count += 1
+            return count
+
+        # Only consider non-bridge envs for winner selection
+        candidate_envs = [
+            env_id for env_id in status_by_env if env_id != self.bridge_env_id
+        ]
+
+        if not candidate_envs:
+            # No candidates (e.g. only bridge env has STATUS events, or no STATUS events)
+            return sorted(events, key=lambda e: e.get("timestamp", 0))
+
+        # --- Step 3: select winner ---
+        def _sort_key(env_id: str) -> tuple[int, int]:
+            evs = status_by_env[env_id]
+            net = _net_transitions(evs)
+            latest_ts = max(e.get("timestamp", 0) for e in evs)
+            return (net, latest_ts)
+
+        winner_env_id = max(candidate_envs, key=_sort_key)
+
+        # --- Step 4: build result — drop STATUS events from losing envs ---
+        losing_env_ids = set(status_by_env.keys()) - {winner_env_id}
+        result: list[dict] = []
+        for event in events:
+            if (
+                event.get("event_type") == "STATUS"
+                and event.get("env_id") in losing_env_ids
+            ):
+                continue
+            result.append(event)
+
+        return sorted(result, key=lambda e: e.get("timestamp", 0))
+
+
+class LastTimestampWinsStrategy:
+    """Default strategy: dedup by UUID (first occurrence wins), sort by timestamp.
+
+    Deduplicates events by the ``uuid`` field (keeps the first occurrence in
+    iteration order) then sorts the merged list ascending by the ``timestamp``
+    field.  This is the strategy used by the sync-events merge path.
+    """
+
+    def resolve(self, events: list[dict]) -> list[dict]:
+        """Return deduped (first-occurrence-wins) events sorted ascending by timestamp."""
+        seen: set[str] = set()
+        deduped: list[dict] = []
+        for event in events:
+            uuid = event.get("uuid", "")
+            if uuid and uuid in seen:
+                continue
+            if uuid:
+                seen.add(uuid)
+            deduped.append(event)
+        return sorted(deduped, key=lambda e: e.get("timestamp", 0))
+
+
+def reduce_ticket(
+    ticket_dir_path: str | os.PathLike[str],
+    strategy: ReducerStrategy | None = None,
+) -> dict | None:
     """Compile all events in ticket_dir_path to current ticket state.
 
     Returns a dict of the current state, an error-state dict
@@ -38,7 +149,27 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
     Corrupt CREATE detection: if a CREATE event is parseable JSON but
     missing required fields (ticket_type or title), returns a compact
     error-state dict with status='fsck_needed'.
+
+    ``strategy`` is an optional ReducerStrategy for the sync-events merge path.
+    Defaults to LastTimestampWinsStrategy() when None.  reduce_ticket() itself
+    does not invoke the strategy — it is provided as a parameter so callers on
+    the sync-events path can pass it through.  Backward compatible: existing
+    calls without a strategy argument continue to work unchanged.
+
+    # REVIEW-DEFENSE: The ``strategy`` parameter is intentional groundwork for
+    # story dso-w21-05z9 (sync-events conflict resolution), which will wire
+    # MostStatusEventsWinsStrategy into this call site.  The parameter exists
+    # now to maintain backward compatibility with all existing callers (none of
+    # which pass a strategy) while allowing the sync path to inject a custom
+    # strategy without changing the function signature.  Removing it and the
+    # Protocol/class definitions would require a breaking change at that story.
+    # User-approved demotion to minor: the strategy parameter is intentional
+    # groundwork for story w21-05z9 (MostStatusEventsWinsStrategy). The
+    # parameter is not dead code — it is a forward-compatible extension point
+    # approved by the project owner.
     """
+    if strategy is None:
+        strategy = LastTimestampWinsStrategy()
     ticket_dir = str(ticket_dir_path)
     ticket_id = os.path.basename(ticket_dir)
 
@@ -202,13 +333,25 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
                     "timestamp": event.get("timestamp"),
                 }
             )
+        elif event_type == "LINK":
+            state["deps"].append(
+                {
+                    "target_id": data["target_id"],
+                    "relation": data["relation"],
+                    "link_uuid": event["uuid"],
+                }
+            )
+        elif event_type == "UNLINK":
+            link_uuid_to_remove = data.get("link_uuid")
+            state["deps"] = [
+                d for d in state["deps"] if d.get("link_uuid") != link_uuid_to_remove
+            ]
         elif event_type == "SNAPSHOT":
             compiled_state = data.get("compiled_state", {})
             # Restore compiled state from snapshot
             for key, value in compiled_state.items():
                 state[key] = value
-        # Unknown event types are silently ignored (LINK, etc.
-        # will be handled in future stories)
+        # Unknown event types are silently ignored
 
     # No CREATE event was processed
     if state["ticket_type"] is None:

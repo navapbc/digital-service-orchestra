@@ -1,6 +1,6 @@
 ---
 id: dso-dr38
-status: open
+status: closed
 deps: [dso-zej9]
 links: []
 created: 2026-03-21T16:09:11Z
@@ -72,3 +72,47 @@ Implement `plugins/dso/scripts/ticket-graph.py` — the graph engine for depende
   Verify: `cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py`
 - [ ] `bash tests/run-all.sh` passes (exit 0)
   Verify: `cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh`
+
+## Notes
+
+<!-- note-id: r3yugwgf -->
+<!-- timestamp: 2026-03-21T19:12:43Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 7tx5uci4 -->
+<!-- timestamp: 2026-03-21T19:13:02Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: 9h7ly40n -->
+<!-- timestamp: 2026-03-21T19:13:33Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ (RED tests exist in test_ticket_graph.py, 12 tests)
+
+<!-- note-id: you9g4wa -->
+<!-- timestamp: 2026-03-21T19:14:48Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: uffn1sd0 -->
+<!-- timestamp: 2026-03-21T19:15:21Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ (12/12 tests pass, ruff check + format clean)
+
+<!-- note-id: 5mdrvu0a -->
+<!-- timestamp: 2026-03-21T19:15:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All 10 ACs verified: file exists+executable, ready_to_work, cycle detection (direct+transitive), tombstone-awareness (missing dir + .tombstone.json), 1000-ticket perf (<2s), cache invalidation, all 12 tests pass, ruff check clean, ruff format clean
