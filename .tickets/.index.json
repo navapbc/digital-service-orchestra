@@ -207,7 +207,7 @@
   "dso-dsa8": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
     "type": "bug"
   },
@@ -221,7 +221,7 @@
   "dso-eb0e": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
     "type": "bug"
   },
@@ -268,7 +268,7 @@
   "dso-gir2": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
