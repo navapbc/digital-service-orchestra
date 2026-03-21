@@ -34,7 +34,7 @@
   "dso-0k2k": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "in_progress",
     "title": "Ticket system upgrade",
     "type": "epic"
   },
@@ -66,13 +66,6 @@
     "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
     "type": "bug"
   },
-  "dso-2ef7": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "test ticket for bug dso-1aaa",
-    "type": "task"
-  },
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
@@ -80,17 +73,10 @@
     "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
     "type": "bug"
   },
-  "dso-3b23": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "test dso-1aaa bug repro",
-    "type": "story"
-  },
   "dso-3e30": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: tk create -d interprets double-dash in description text as option flags",
     "type": "bug"
   },
@@ -228,7 +214,7 @@
   "dso-dsa8": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
     "type": "bug"
   },
@@ -242,7 +228,7 @@
   "dso-eb0e": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
     "type": "bug"
   },
@@ -289,7 +275,7 @@
   "dso-gir2": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
@@ -317,7 +303,7 @@
   "dso-i6dj": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: /dso:brainstorm created children with truncated titles and descriptions",
     "type": "bug"
   },
@@ -519,7 +505,7 @@
   "dso-tqvy": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: worktree-sync-from-main.sh crashes with CFG_PYTHON_VENV unbound variable when config key is absent",
     "type": "bug"
   },
@@ -702,6 +688,13 @@
     "title": "Ticket system v3 \u2014 dependency management, cross-worktree sync, and conflict resolution",
     "type": "epic"
   },
+  "w21-5a1g": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement hook_blocked_test_command with TDD cycle",
+    "type": "task"
+  },
   "w21-5cqr": {
     "deps": [],
     "priority": 3,
@@ -774,6 +767,15 @@
     "priority": 1,
     "status": "closed",
     "title": "RED: Write failing tests for test-gate bypass protection in review-gate-bypass-sentinel.sh",
+    "type": "task"
+  },
+  "w21-969l": {
+    "deps": [
+      "w21-5a1g"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "Register hook_blocked_test_command in pre-bash.sh dispatcher",
     "type": "task"
   },
   "w21-9k4z": {
@@ -956,12 +958,29 @@
     "title": "As a developer, Jira changes are automatically pulled into my local ticket system",
     "type": "story"
   },
+  "w21-ha0r": {
+    "deps": [
+      "w21-ifgr",
+      "w21-n1rq"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "Update project docs to reflect batched test enforcement",
+    "type": "story"
+  },
   "w21-hcj4": {
     "deps": [],
     "priority": 2,
     "status": "closed",
     "title": "RED: Write failing tests for record-test-exemption.sh",
     "type": "task"
+  },
+  "w21-hget": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-merge-to-main-portability.sh pre-existing failures (sequential phase warning)",
+    "type": "bug"
   },
   "w21-i8qz": {
     "deps": [],
@@ -970,11 +989,25 @@
     "title": "RED: Tests for value reviewer internal validation signals",
     "type": "task"
   },
+  "w21-ifgr": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a DSO practitioner, broad test commands are blocked before execution with a config-driven redirect to validate.sh",
+    "type": "story"
+  },
   "w21-j2cc": {
     "deps": [],
     "priority": 3,
     "status": "closed",
     "title": "BUG: AC4 check in w21-cu3r incompatible with assert.sh output format",
+    "type": "bug"
+  },
+  "w21-jb9k": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: Local validation sub-agent redundantly checks CI status during post-epic validation",
     "type": "bug"
   },
   "w21-jtkr": {
@@ -1027,6 +1060,20 @@
     "title": "IMPL: Register pre-commit-test-gate.sh in .pre-commit-config.yaml",
     "type": "task"
   },
+  "w21-n1rq": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "As a DSO practitioner, partial test results emit an unmissable structured continuation prompt",
+    "type": "story"
+  },
+  "w21-n7yv": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "test task",
+    "type": "task"
+  },
   "w21-ni6d": {
     "deps": [],
     "priority": 2,
@@ -1051,6 +1098,13 @@
     "status": "open",
     "title": "As a DSO practitioner, oversized diffs are rejected with actionable guidance and merge commits are reviewed efficiently",
     "type": "story"
+  },
+  "w21-o2cn": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-behavioral-equivalence-allowlist.sh 6 failures (compute-diff-hash/both-consumers-agree)",
+    "type": "bug"
   },
   "w21-o5ap": {
     "deps": [],
@@ -1090,6 +1144,13 @@
     "status": "open",
     "title": "As a developer, all my worktrees see the same ticket state instantly via shared storage",
     "type": "story"
+  },
+  "w21-p7aa": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Batched Test Enforcement: Hook Interception + Structured Output Protocol",
+    "type": "epic"
   },
   "w21-q0nn": {
     "deps": [
