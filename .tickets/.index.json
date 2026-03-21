@@ -819,6 +819,7 @@
     "title": "Bug: CI Script Tests \u2014 2 failures (test-doc-migration legacy ref, test-ticket-comment ordering)",
     "type": "bug"
   },
+<<<<<<< Updated upstream
   "w22-anm2": {
     "status": "open",
     "title": "CI workflow generation from discovered test suites",
@@ -836,6 +837,15 @@
   },
   "w22-ku13": {
     "status": "open",
+=======
+  "w22-bc31": {
+    "status": "open",
+    "title": "As a developer using /implementation-plan, I get guidance to name tests for fuzzy-match compatibilit",
+    "type": "story"
+  },
+  "w22-ku13": {
+    "status": "open",
+>>>>>>> Stashed changes
     "title": "As a project maintainer, /dev-onboarding generates a .test-index for associations fuzzy match would ",
     "type": "story"
   },
@@ -854,6 +864,7 @@
     "title": "Project Health Restoration",
     "type": "epic"
   },
+<<<<<<< Updated upstream
   "w22-ond9": {
     "status": "open",
     "title": "As a platform engineer, I can generate CI workflows for a new project from discovered suites",
@@ -882,6 +893,11 @@
   "w22-ybey": {
     "status": "open",
     "title": "As a platform engineer, I can identify and place uncovered suites in my existing CI",
+=======
+  "w22-tpzd": {
+    "status": "open",
+    "title": "As a host project developer, my non-Python source changes are caught by the test gate via fuzzy matc",
+>>>>>>> Stashed changes
     "type": "story"
   }
 }
