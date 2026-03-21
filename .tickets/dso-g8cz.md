@@ -1,6 +1,6 @@
 ---
 id: dso-g8cz
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:21:22Z
@@ -12,3 +12,12 @@ parent: dso-9xnr
 ---
 # fix: compute-diff-hash.sh is not staging-invariant for new (untracked→staged) files
 
+
+## Notes
+
+<!-- note-id: sdd12zsg -->
+<!-- timestamp: 2026-03-20T23:54:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: new files staged before review appear in git diff HEAD; hash is now stable between review and pre-commit since untracked processing removed

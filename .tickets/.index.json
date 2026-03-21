@@ -203,7 +203,7 @@
   "dso-62u0": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
     "type": "bug"
   },
@@ -609,7 +609,7 @@
   "dso-kv4p": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "fix: merge-to-main.sh push phase fails with retry_with_backoff: command not found",
     "type": "bug"
   },

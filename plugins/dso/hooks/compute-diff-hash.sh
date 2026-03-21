@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # .claude/hooks/compute-diff-hash.sh
-# Computes a staging-invariant SHA-256 hash of all working tree changes.
-# Includes working tree changes relative to the diff base and untracked file contents.
-# Produces the same hash regardless of git staging state (git add).
+# Computes a staging-invariant SHA-256 hash of all staged and tracked working tree changes.
+# Includes changes in the git index (staged) and modifications to tracked files.
+# Excludes untracked files — new files must be staged before review (per COMMIT-WORKFLOW.md).
+# This prevents temp test fixtures from causing hash mismatches between review and pre-commit.
 # Excludes .tickets/ files from hash — ticket metadata changes must not invalidate code reviews.
 #
 # Usage:
@@ -97,8 +98,7 @@ _HELPERS_AVAILABLE=false
 
 # Check if the allowlist helper functions from deps.sh are available
 if declare -f _load_allowlist_patterns &>/dev/null && \
-   declare -f _allowlist_to_pathspecs &>/dev/null && \
-   declare -f _allowlist_to_grep_regex &>/dev/null; then
+   declare -f _allowlist_to_pathspecs &>/dev/null; then
     _HELPERS_AVAILABLE=true
 fi
 
@@ -119,7 +119,6 @@ _FALLBACK_PATHSPECS=(
     ':!.claude/docs/**'
     ':!.claude/session-logs/**'
 )
-_FALLBACK_PATTERN='^\.checkpoint-needs-review$|^\.tickets/|^\.sync-state\.json$|\.(png|jpg|jpeg|gif|svg|ico|webp|pdf|docx)$|^docs/|^\.claude/docs/|^\.claude/session-logs/'
 
 if [[ "$_ALLOWLIST_LOADED" == "true" ]] && [[ -n "$_ALLOWLIST_PATTERNS" ]]; then
     # Build EXCLUDE_PATHSPECS array from allowlist patterns
@@ -128,23 +127,10 @@ if [[ "$_ALLOWLIST_LOADED" == "true" ]] && [[ -n "$_ALLOWLIST_PATTERNS" ]]; then
         [[ -z "$_pathspec" ]] && continue
         EXCLUDE_PATHSPECS+=("$_pathspec")
     done <<< "$(_allowlist_to_pathspecs "$_ALLOWLIST_PATTERNS")"
-
-    # Build NON_REVIEWABLE_PATTERN regex from allowlist patterns
-    _REGEX_LINES=$(_allowlist_to_grep_regex "$_ALLOWLIST_PATTERNS")
-    NON_REVIEWABLE_PATTERN=""
-    while IFS= read -r _regex_line; do
-        [[ -z "$_regex_line" ]] && continue
-        if [[ -z "$NON_REVIEWABLE_PATTERN" ]]; then
-            NON_REVIEWABLE_PATTERN="$_regex_line"
-        else
-            NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|${_regex_line}"
-        fi
-    done <<< "$_REGEX_LINES"
 else
     # Graceful degradation: use hardcoded fallback patterns
     declare -a EXCLUDE_PATHSPECS
     EXCLUDE_PATHSPECS+=("${_FALLBACK_PATHSPECS[@]}")
-    NON_REVIEWABLE_PATTERN="$_FALLBACK_PATTERN"
 fi
 
 # Add config-driven snapshot exclusions (visual baselines and unit snapshots) — ADDITIVE
@@ -155,26 +141,12 @@ if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     EXCLUDE_PATHSPECS+=(":!${CFG_UNIT_SNAPSHOT_PATH}*.html")
 fi
 
-# Add config-driven paths to grep pattern — ADDITIVE
-if [[ -n "${CFG_VISUAL_BASELINE_PATH:-}" ]]; then
-    _VBP_ESCAPED="${CFG_VISUAL_BASELINE_PATH//./\\.}"
-    NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_VBP_ESCAPED}"
-fi
-if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
-    _USP_ESCAPED="${CFG_UNIT_SNAPSHOT_PATH//./\\.}"
-    NON_REVIEWABLE_PATTERN="${NON_REVIEWABLE_PATTERN}|^${_USP_ESCAPED}.*\\.html$"
-fi
-
-# Build the untracked file list from live git query
-_get_untracked_files() {
-    git ls-files --others --exclude-standard 2>/dev/null | { grep -v -E "$NON_REVIEWABLE_PATTERN" || true; }
-}
-
+# Hash staged and tracked working-tree changes only.
+# Untracked files are excluded to prevent temp test fixtures from causing hash
+# mismatches between review time and pre-commit time (dso-fqxu).
+# New files must be explicitly staged (git add) before running /dso:review so that
+# they appear in `git diff HEAD` and are included in the hash at both review and
+# pre-commit time (dso-g8cz: staging-invariant for new files).
 {
     git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
-    _get_untracked_files | while IFS= read -r f; do
-        [[ -z "$f" ]] && continue
-        echo "untracked: $f"
-        cat "$f" 2>/dev/null || true
-    done
 } | hash_stdin

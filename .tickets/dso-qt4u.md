@@ -1,6 +1,6 @@
 ---
 id: dso-qt4u
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T00:04:06Z
@@ -56,3 +56,17 @@ Manually ran git reset --hard origin/main on main repo, then re-ran merge-to-mai
 <!-- sync: unsynced -->
 
 Fixed in merge-to-main.sh: (1) Added _auto_resolve_archive_conflicts() function that detects rename/delete conflicts in .tickets/archive/ during git pull --rebase and auto-resolves them safely; (2) Updated pull failure handler in _phase_sync to call auto-resolve before giving up; (3) Added REBASE_HEAD detection to --resume dispatch so mid-rebase state is detected and recovery is offered; (4) Added --resume instruction to the manual conflict error message. Tests: 10 new tests in test-merge-to-main-qt4u.sh all pass GREEN.
+
+<!-- note-id: 9smdwmzz -->
+<!-- timestamp: 2026-03-20T23:45:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: archive conflict auto-resolution in merge-to-main.sh with multi-commit rebase loop, stash-pop handling, and mid-rebase resume detection. Tests: test-merge-to-main-qt4u.sh (10/10).
+
+<!-- note-id: mryw0nfh -->
+<!-- timestamp: 2026-03-20T23:45:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: merge-to-main.sh archive conflict auto-resolution (commit 5a78e75)

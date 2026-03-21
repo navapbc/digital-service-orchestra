@@ -1,6 +1,6 @@
 ---
 id: w21-ae0s
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T04:51:48Z
@@ -35,3 +35,19 @@ Every sprint, debug-everything, and manual validation invocation hits this frict
 - validate.sh reuses test results from the current session when available
 - Incremental progress is preserved across multiple invocations
 
+
+## Notes
+
+<!-- note-id: sx78178p -->
+<!-- timestamp: 2026-03-20T23:45:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: validate.sh now uses test-batched.sh for time-bounded test execution (45s budget), with session-level result caching and PENDING exit code. Tests: test-validate-test-batched-integration.sh (6/6).
+
+<!-- note-id: 92cj80d7 -->
+<!-- timestamp: 2026-03-20T23:45:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: validate.sh test-batched integration (commit 5a78e75)

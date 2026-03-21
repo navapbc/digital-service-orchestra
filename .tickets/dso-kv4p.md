@@ -1,6 +1,6 @@
 ---
 id: dso-kv4p
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:22:18Z
@@ -21,3 +21,10 @@ parent: dso-9xnr
 <!-- sync: unsynced -->
 
 Fixed: defined retry_with_backoff inline in merge-to-main.sh as a fallback guarded by 'if \! type retry_with_backoff', so _phase_push works even when deps.sh is absent. Test added: test_retry_with_backoff_defined_inline_in_merge_script in test-retry-with-backoff.sh
+
+<!-- note-id: 840cyig2 -->
+<!-- timestamp: 2026-03-21T00:01:24Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: define retry_with_backoff inline in merge-to-main.sh as fallback guarded by type-check — commit e130713

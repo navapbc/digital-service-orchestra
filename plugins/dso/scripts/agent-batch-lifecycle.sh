@@ -448,7 +448,14 @@ cmd_cleanup_stale_containers() {
 cmd_cleanup_discoveries() {
     # Resolve discoveries dir via get_artifacts_dir (same source of truth as collect-discoveries.sh).
     # AGENT_DISCOVERIES_DIR env var overrides for test isolation.
-    local _deps_sh="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/deps.sh"
+    #
+    # Defensive plugin-root resolution: CLAUDE_PLUGIN_ROOT may point to the main repo
+    # root instead of the plugin subdirectory (e.g., plugins/dso) when called from a
+    # host project via the dso shim. Validate using plugin.json (always present in the
+    # plugin dir) and fall back to $SCRIPT_DIR/.. (the plugin dir relative to this script).
+    local _plugin_root="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
+    [[ ! -f "${_plugin_root}/plugin.json" ]] && _plugin_root="$SCRIPT_DIR/.."
+    local _deps_sh="${_plugin_root}/hooks/lib/deps.sh"
     if [ -f "$_deps_sh" ]; then
         # shellcheck source=hooks/lib/deps.sh
         source "$_deps_sh"
