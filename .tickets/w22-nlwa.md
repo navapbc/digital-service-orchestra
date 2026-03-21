@@ -1,6 +1,6 @@
 ---
 id: w22-nlwa
-status: open
+status: closed
 deps: [w22-tpzd, w22-l60c, w22-ku13, w22-bc31]
 links: []
 created: 2026-03-21T04:43:54Z

@@ -1,6 +1,6 @@
 ---
 id: dso-kaaa
-status: in_progress
+status: closed
 deps: [dso-ez3s]
 links: []
 created: 2026-03-21T19:59:14Z
