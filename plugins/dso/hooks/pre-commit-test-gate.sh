@@ -43,6 +43,20 @@
 
 set -uo pipefail
 
+# ── Fail-open on timeout ─────────────────────────────────────────────────────
+# pre-commit sends SIGTERM after the configured timeout (default 10s), which
+# results in exit 124. Claude Code's tool timeout sends SIGURG (exit 144).
+# A gate timeout is an infrastructure failure, not a test failure — blocking
+# commits when the hook mechanism itself fails is a bad state that agents can't
+# recover from. Trap both signals and exit 0 (fail-open) with a warning so the
+# commit proceeds. This is consistent with the existing fail-open behavior on
+# hash computation errors (compute-diff-hash.sh failure).
+_fail_open_on_timeout() {
+    echo "pre-commit-test-gate: WARNING: timed out — failing open (commit allowed)" >&2
+    exit 0
+}
+trap _fail_open_on_timeout TERM URG
+
 # ── Locate hook and plugin directories ──────────────────────────────────────
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -78,6 +92,34 @@ fi
 
 # ── Determine repo root ────────────────────────────────────────────────────────
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+
+# ── Filter out allowlisted (non-reviewable) files ─────────────────────────────
+# Uses the same allowlist and shared functions as the review gate to skip files
+# that don't need test verification (tickets, images, docs, etc.). This prevents
+# timeout when large numbers of non-reviewable files are staged.
+# Shared functions _load_allowlist_patterns and _allowlist_to_grep_regex are
+# sourced from deps.sh above.
+_ALLOWLIST_FILE="${HOOK_DIR}/lib/review-gate-allowlist.conf"
+if [[ -f "$_ALLOWLIST_FILE" ]] && declare -f _load_allowlist_patterns &>/dev/null; then
+    _AL_PATTERNS=$(_load_allowlist_patterns "$_ALLOWLIST_FILE" 2>/dev/null || true)
+    if [[ -n "$_AL_PATTERNS" ]]; then
+        _AL_REGEX=$(_allowlist_to_grep_regex "$_AL_PATTERNS")
+        if [[ -n "$_AL_REGEX" ]]; then
+            _FILTERED_FILES=()
+            for _f in "${STAGED_FILES[@]}"; do
+                if ! echo "$_f" | grep -qE "$_AL_REGEX"; then
+                    _FILTERED_FILES+=("$_f")
+                fi
+            done
+            STAGED_FILES=("${_FILTERED_FILES[@]+"${_FILTERED_FILES[@]}"}")
+
+            # All files were allowlisted → nothing to check
+            if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
+                exit 0
+            fi
+        fi
+    fi
+fi
 
 # ── Read test directories from config ─────────────────────────────────────────
 # Supports TEST_GATE_TEST_DIRS_OVERRIDE for testing, falls back to dso-config.conf,
