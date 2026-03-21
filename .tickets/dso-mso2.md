@@ -1,6 +1,6 @@
 ---
 id: dso-mso2
-status: in_progress
+status: closed
 deps: [dso-sdb4]
 links: []
 created: 2026-03-21T04:56:43Z
@@ -95,3 +95,7 @@ CHECKPOINT 5/6: All 11 tests GREEN, ruff check + format pass ✓
 **2026-03-21T05:30:46Z**
 
 CHECKPOINT 6/6: All AC verified ✓ — 11/11 tests GREEN, all inline AC checks pass, ruff clean
+
+**2026-03-21T05:35:50Z**
+
+CHECKPOINT 6/6: Done ✓ — ticket-reducer.py extended. Tests: 11 passed, 0 failed.

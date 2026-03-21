@@ -42,3 +42,13 @@ TDD Requirement: All tests must fail (exit non-zero) before ticket-list.sh is im
   Verify: grep -c 'test_\|assert\|PASS\|FAIL' $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-list.sh | awk '{exit ($1 < 5)}'
 - [ ] All tests in test-ticket-list.sh fail (RED) before ticket-list.sh is created
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-list.sh 2>&1; test $? -ne 0
+
+## Notes
+
+**2026-03-21T05:36:30Z**
+
+## Gap Analysis Amendment (dso-lrpv)
+
+Add test cases for:
+1. Exit-0 with error-status JSON (ghost ticket in list output)
+2. Exit-nonzero (fallback error dict in list output)

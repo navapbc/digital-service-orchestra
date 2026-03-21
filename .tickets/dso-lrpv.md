@@ -1,6 +1,6 @@
 ---
 id: dso-lrpv
-status: open
+status: in_progress
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T05:02:18Z
@@ -35,3 +35,9 @@ TDD: Update tests in test-ticket-list.sh (dso-woj0) to cover both the exit-0-err
 - [ ] dso-97wx description updated with dual-signal algorithm documentation
   Verify: grep -q 'exit 0\|exit-0\|fallback error-state\|reducer_failed' $(git rev-parse --show-toplevel)/.tickets/dso-97wx.md
 
+
+## Notes
+
+**2026-03-21T05:36:30Z**
+
+CHECKPOINT 6/6: Done ✓ — Amended dso-97wx and dso-woj0 with dual-signal algorithm spec.

@@ -56,3 +56,15 @@ TDD Requirement: Run tests/scripts/test-ticket-list.sh. All tests from dso-woj0 
   Verify: output=$(bash $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket-list.sh 2>/dev/null || echo '[]'); python3 -c "import json,sys; data=json.loads(sys.argv[1]); assert isinstance(data, list)" "$output"
 - [ ] ticket list outputs are assembled via python3 json.dumps (no bash string concat)
   Verify: grep -v 'json.dumps\|python3' $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket-list.sh | grep -v '#' | grep -qv 'echo.*\[.*\]' || true
+
+## Notes
+
+**2026-03-21T05:36:30Z**
+
+## Gap Analysis Amendment (dso-lrpv)
+
+ticket-list.sh must handle both reducer exit codes:
+1. Exit 0: parse JSON, include in output (even if status='error' or 'fsck_needed')
+2. Exit non-zero: construct fallback {ticket_id, status: 'error', error: 'reducer_failed'}
+
+This ensures no tickets are silently dropped from listing.
