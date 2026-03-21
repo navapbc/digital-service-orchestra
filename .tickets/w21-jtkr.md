@@ -1,7 +1,7 @@
 ---
 id: w21-jtkr
 status: open
-deps: [w21-zp4d]
+deps: [w21-zp4d, dso-9ltc]
 links: []
 created: 2026-03-21T00:02:51Z
 type: story
@@ -47,3 +47,25 @@ parent: w21-ykic
 ## Escalation Policy
 
 **Escalation policy**: Proceed unless a significant assumption is required to continue — one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating.
+
+## Notes
+
+<!-- note-id: f4sbk3kx -->
+<!-- timestamp: 2026-03-21T18:14:13Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+
+## Update: Named agent dispatch due to dso-9ltc (review agent build process)
+
+With dedicated review agents defined in dso-9ltc, this story's tier routing dispatches to named agents instead of generic agents with prompts:
+- Light (score 0-2): dispatch to dso:code-reviewer-light (haiku)
+- Standard (score 3-6): dispatch to dso:code-reviewer-standard (sonnet)
+- Deep (score 7+): dispatch to dso:code-reviewer-deep-* agents (handled by w21-txt8)
+
+REVIEW-WORKFLOW.md Step 4 changes from loading code-review-dispatch.md into a general-purpose agent to dispatching the classifier-selected named agent with per-review context only (diff path, working directory, diff stat, issue context). The stable review procedure (schema, output contract, scoring rules) is already in each agent's system prompt.
+
+Done definition 3 (REVIEW-WORKFLOW.md Step 3 replacement) should reference named agent dispatch rather than model selection. The old code-review-dispatch.md is preserved as a fallback but is no longer the primary dispatch path.
+
+Integration test: invoke at least one generated agent with a minimal diff and verify schema-valid output on first attempt. This validates the end-to-end path from classifier → named agent → write-reviewer-findings.sh.
+

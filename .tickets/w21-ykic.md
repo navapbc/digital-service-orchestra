@@ -76,3 +76,29 @@ Version-only changes to plugin.json (e.g., patch bump) should be exempt from rev
 **2026-03-21T00:16:09Z**
 
 User request: As long as the version is the only line changed in plugin.json, this change should be exempt from review. This is a common use case (patch bump on every commit). The classifier should detect single-field JSON changes and route to exempt or Light tier. Alternatively, add a conditional allowlist entry for plugin.json when only the version field changes.
+
+<!-- note-id: jw7lt4qg -->
+<!-- timestamp: 2026-03-21T18:14:27Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+
+## Update: Review agent build process added (dso-9ltc)
+
+New foundational story dso-9ltc creates 6 dedicated code-reviewer agents built from shared source fragments via build-review-agents.sh. This is now the root of the dependency chain.
+
+Updated dependency graph:
+  dso-9ltc (new: agent build process) — no blockers
+    → w21-zp4d (schema rename — scope reduced to non-agent consumers)
+      → w21-jtkr (classifier + routing — dispatches to named agents)
+        → w21-txt8 (Deep tier — dispatches to named deep agents)
+        → w21-nv42 (diff size thresholds — unchanged)
+          → w21-0kt1 (telemetry — unchanged)
+            → w21-epz2 (docs — unchanged)
+
+Additional referenced artifacts:
+- plugins/dso/agents/code-reviewer-*.md (6 generated agent files)
+- plugins/dso/docs/workflows/prompts/reviewer-base.md (base fragment)
+- plugins/dso/docs/workflows/prompts/reviewer-delta-*.md (per-agent deltas)
+- plugins/dso/scripts/build-review-agents.sh (build script)
+

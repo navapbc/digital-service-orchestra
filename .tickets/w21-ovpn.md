@@ -87,3 +87,26 @@ Enhance reviewers with codebase-wide visibility (similarity pipeline), confidenc
 - dso-ppwp (Add test gate enforcement): Soft overlap on verification anti-shortcut checks
 - dso-t4k8 (Don't cover up problems): Aligned intent, no hard dependency
 
+
+<!-- note-id: yd0v276r -->
+<!-- timestamp: 2026-03-21T18:14:34Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+
+## Update: Source fragment architecture due to dso-9ltc
+
+With review agents built from source fragments (dso-9ltc in parent epic w21-ykic), this epic's enrichments target the source fragments rather than a single code-review-dispatch.md:
+- Enriched review checklist: sub-criteria added to per-agent delta files (dimension-specific content per agent)
+- Confidence scoring: added to reviewer-base.md (universal — all agents need it)
+- False-positive filters: added to reviewer-base.md (universal)
+- Pre-analysis similarity pipeline: results passed as per-review dispatch context (not baked into agent definitions)
+- Re-review scoping: dispatch context changes, not agent definition changes
+
+After modifying source fragments, run build-review-agents.sh to regenerate all 6 agent files. The commit workflow enforces this via content hash validation.
+
+Referenced artifacts updated:
+- reviewer-base.md (replaces code-review-dispatch.md for universal guidance changes)
+- reviewer-delta-*.md (replaces code-review-dispatch.md for dimension-specific changes)
+- code-review-dispatch.md remains as legacy fallback but is no longer the primary modification target
+
