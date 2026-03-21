@@ -482,6 +482,46 @@ check_migrations() {
     fi
 }
 
+# Hook drift check: DSO hooks in .pre-commit-config.yaml must also exist in examples/
+check_hook_drift() {
+    [ "$VERBOSE" = "1" ] && verbose_print "hook-drift" "running"
+
+    local own_config="$REPO_ROOT/.pre-commit-config.yaml"
+    local example_config="$REPO_ROOT/examples/pre-commit-config.example.yaml"
+
+    # Skip if either file is missing (non-DSO-plugin repos won't have both)
+    if [ ! -f "$own_config" ] || [ ! -f "$example_config" ]; then
+        echo "skip" > "$CHECK_DIR/hook-drift.rc"
+        [ "$VERBOSE" = "1" ] && verbose_print "hook-drift" "PASS (skipped)"
+        return 0
+    fi
+
+    # Extract hook IDs from the DSO plugin's own config (only DSO-specific hooks)
+    # DSO hooks are those whose entry references plugins/dso/ paths
+    local own_hooks example_hooks missing="" missing_count=0
+    own_hooks=$(grep -E '^\s+- id:' "$own_config" | sed 's/.*- id: *//' | tr -d ' ' | sort)
+    example_hooks=$(grep -E '^\s+- id:' "$example_config" | sed 's/.*- id: *//' | tr -d ' ' | sort)
+
+    while IFS= read -r hook_id; do
+        [ -z "$hook_id" ] && continue
+        if ! echo "$example_hooks" | grep -qx "$hook_id"; then
+            missing="${missing:+$missing, }$hook_id"
+            missing_count=$((missing_count + 1))
+        fi
+    done <<< "$own_hooks"
+
+    if [ "$missing_count" -eq 0 ]; then
+        echo "0" > "$CHECK_DIR/hook-drift.rc"
+        echo "all hooks present in example" > "$CHECK_DIR/hook-drift.info"
+        [ "$VERBOSE" = "1" ] && verbose_print "hook-drift" "PASS"
+    else
+        echo "1" > "$CHECK_DIR/hook-drift.rc"
+        printf "hooks in .pre-commit-config.yaml missing from examples/: %s\n" "$missing" > "$CHECK_DIR/hook-drift.log"
+        echo "$missing_count missing" > "$CHECK_DIR/hook-drift.info"
+        [ "$VERBOSE" = "1" ] && verbose_print "hook-drift" "FAIL ($missing_count hooks missing from example)"
+    fi
+}
+
 # CI status check:
 # - completed:success → PASS
 # - completed:failure → FAIL
@@ -616,7 +656,7 @@ fi
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
-LAUNCHED_CHECKS="syntax format ruff mypy tests migrate skill-refs"
+LAUNCHED_CHECKS="syntax format ruff mypy tests migrate skill-refs hook-drift"
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
@@ -636,6 +676,7 @@ if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
     (cd "$REPO_ROOT" && run_check "script-writes" "$TIMEOUT_SYNTAX" python3 "$PLUGIN_SCRIPTS/check-script-writes.py" --scan-dir="$SCRIPT_WRITE_SCAN_DIR") &
 fi
 (cd "$REPO_ROOT" && run_check "skill-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-skill-refs.sh") &
+check_hook_drift &
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
     # When CI definitively fails, start E2E immediately in parallel rather than
@@ -758,6 +799,7 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "tests" "tests" "$TIMEOUT_TESTS"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
     report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-skill-refs.sh"
+    report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' examples/pre-commit-config.example.yaml)"
 else
     tally_check "syntax" "syntax"
     tally_check "format" "format"
@@ -766,6 +808,7 @@ else
     tally_check "tests" "tests"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
     tally_check "skill-refs" "skill-refs"
+    tally_check "hook-drift" "hook-drift"
 fi
 
 # Migration result

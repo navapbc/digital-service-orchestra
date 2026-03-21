@@ -898,6 +898,13 @@
     "title": "Update .claude/scripts/dso shim and templates/host-project/dso to use .claude/dso-config.conf",
     "type": "task"
   },
+  "dso-u5lt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
+    "type": "bug"
+  },
   "dso-uc2d": {
     "deps": [],
     "priority": 1,
