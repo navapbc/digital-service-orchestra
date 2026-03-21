@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (20):
+# Test cases (24):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -27,6 +27,10 @@
 #  18. test_gate_missing_index_noop — RED: missing .test-index = gate proceeds without error (fail-open)
 #  19. test_gate_index_empty_right_side_noop — RED: .test-index entry with no valid test paths = no association
 #  20. test_gate_index_multi_test_paths — RED: source mapped to multiple test paths; all must have valid status
+#  21. test_gate_index_prune_stale_entry — RED: .test-index entry whose test file does not exist is removed on disk
+#  22. test_gate_index_prune_removes_line_when_all_stale — RED: all test paths stale = entire source line removed
+#  23. test_gate_index_prune_stages_modified_index — RED: after pruning, modified .test-index is auto-staged
+#  24. test_gate_index_prune_partial — RED: one valid + one stale test path: stale removed, valid retained
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -965,6 +969,265 @@ IDX
     assert_ne "test_gate_index_multi_test_paths: gate blocks multi-path index (exit != 0)" "0" "$exit_code"
 }
 
+# ── Helper: run gate hook and allow inspecting side effects ────────────────────
+# Unlike run_gate_hook (which captures exit code only), this preserves the
+# working directory state so the caller can inspect on-disk files and the
+# git staging area after the hook exits.
+run_gate_hook_side_effects() {
+    local repo_dir="$1"
+    local artifacts_dir="$2"
+    local exit_code=0
+    (
+        cd "$repo_dir"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+        bash "$GATE_HOOK" 2>/dev/null
+    ) || exit_code=$?
+    echo "$exit_code"
+}
+
+# ============================================================
+# TEST 21: test_gate_index_prune_stale_entry
+# During pre-commit, a .test-index entry whose test file does
+# NOT exist on disk is removed from the index file. The source
+# line is removed entirely because the only mapped test is
+# stale. After pruning, the modified .test-index is staged.
+# RED: Current gate does not prune .test-index — stale entries
+# remain on disk and are not staged.
+# ============================================================
+test_gate_index_prune_stale_entry() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file (no fuzzy match)
+    mkdir -p "$_repo/lib"
+    echo 'def stale_func(): pass' > "$_repo/lib/stale_func.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add stale_func"
+
+    # Write .test-index pointing to a test file that does NOT exist on disk
+    cat > "$_repo/.test-index" <<'IDX'
+lib/stale_func.py:tests/integration/test_stale_nonexistent.py
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index with stale entry"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/stale_func.py"
+    git -C "$_repo" add "$_repo/lib/stale_func.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_prune_stale_entry: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Run the gate hook — it should prune the stale entry
+    run_gate_hook_side_effects "$_repo" "$_artifacts" >/dev/null
+
+    # After pruning, the stale entry should be REMOVED from .test-index on disk.
+    # The test file tests/integration/test_stale_nonexistent.py does not exist,
+    # so the entire line "lib/stale_func.py:..." should be gone.
+    local index_content
+    index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
+
+    # The stale entry should not be present in the file
+    if echo "$index_content" | grep -q 'test_stale_nonexistent'; then
+        assert_eq "test_gate_index_prune_stale_entry: stale entry removed from .test-index" \
+            "removed" "still_present"
+    else
+        assert_eq "test_gate_index_prune_stale_entry: stale entry removed from .test-index" \
+            "removed" "removed"
+    fi
+}
+
+# ============================================================
+# TEST 22: test_gate_index_prune_removes_line_when_all_stale
+# If ALL test paths for a source entry in .test-index are
+# nonexistent, the entire source line is removed. The file
+# should have fewer lines after pruning.
+# RED: Current gate does not prune — line count stays the same.
+# ============================================================
+test_gate_index_prune_removes_line_when_all_stale() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create two source files — one with a valid mapping, one with all-stale mappings
+    mkdir -p "$_repo/lib" "$_repo/tests"
+    echo 'def valid_func(): pass' > "$_repo/lib/valid_func.py"
+    echo 'def test_valid(): assert True' > "$_repo/tests/test_valid_func.py"
+    echo 'def allstale(): pass' > "$_repo/lib/allstale.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add source files"
+
+    # Write .test-index: valid_func has a real test, allstale has two nonexistent tests
+    cat > "$_repo/.test-index" <<'IDX'
+lib/valid_func.py:tests/test_valid_func.py
+lib/allstale.py:tests/test_gone1.py,tests/test_gone2.py
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index"
+
+    # Modify the allstale source and stage it
+    echo '# changed' >> "$_repo/lib/allstale.py"
+    git -C "$_repo" add "$_repo/lib/allstale.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_prune_removes_line_when_all_stale: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Run the gate hook
+    run_gate_hook_side_effects "$_repo" "$_artifacts" >/dev/null
+
+    # After pruning, the allstale.py line should be entirely removed
+    # (all its test paths are nonexistent). The valid_func.py line should remain.
+    local index_content
+    index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
+
+    # allstale.py line should be gone
+    if echo "$index_content" | grep -q 'lib/allstale.py'; then
+        assert_eq "test_gate_index_prune_removes_line_when_all_stale: all-stale line removed" \
+            "removed" "still_present"
+    else
+        assert_eq "test_gate_index_prune_removes_line_when_all_stale: all-stale line removed" \
+            "removed" "removed"
+    fi
+
+    # valid_func.py line should still be present
+    if echo "$index_content" | grep -q 'lib/valid_func.py'; then
+        assert_eq "test_gate_index_prune_removes_line_when_all_stale: valid line preserved" \
+            "preserved" "preserved"
+    else
+        assert_eq "test_gate_index_prune_removes_line_when_all_stale: valid line preserved" \
+            "preserved" "missing"
+    fi
+}
+
+# ============================================================
+# TEST 23: test_gate_index_prune_stages_modified_index
+# After pruning stale entries, the modified .test-index is
+# auto-staged (git add .test-index). Verify the staging area
+# contains the updated .test-index after the hook runs.
+# RED: Current gate does not prune or stage — .test-index
+# remains unchanged in the staging area.
+# ============================================================
+test_gate_index_prune_stages_modified_index() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file
+    mkdir -p "$_repo/lib"
+    echo 'def stageme(): pass' > "$_repo/lib/stageme.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add stageme"
+
+    # Write .test-index with a stale entry
+    cat > "$_repo/.test-index" <<'IDX'
+lib/stageme.py:tests/test_does_not_exist.py
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index with stale entry"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/stageme.py"
+    git -C "$_repo" add "$_repo/lib/stageme.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_prune_stages_modified_index: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Run the gate hook — should prune the stale entry and stage .test-index
+    run_gate_hook_side_effects "$_repo" "$_artifacts" >/dev/null
+
+    # Check the git staging area for .test-index
+    # After pruning + auto-stage, .test-index should appear in staged files
+    local staged_files
+    staged_files=$(git -C "$_repo" diff --cached --name-only 2>/dev/null || echo "")
+
+    if echo "$staged_files" | grep -q '\.test-index'; then
+        assert_eq "test_gate_index_prune_stages_modified_index: .test-index is staged" \
+            "staged" "staged"
+    else
+        assert_eq "test_gate_index_prune_stages_modified_index: .test-index is staged" \
+            "staged" "not_staged"
+    fi
+}
+
+# ============================================================
+# TEST 24: test_gate_index_prune_partial
+# Source entry with one valid test path + one stale test path:
+# the stale path is removed, the valid path is retained, and
+# the source line is preserved (not deleted entirely).
+# RED: Current gate does not prune — both paths remain.
+# ============================================================
+test_gate_index_prune_partial() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file and ONE of the two mapped test files
+    mkdir -p "$_repo/lib" "$_repo/tests/unit" "$_repo/tests/integration"
+    echo 'def partial_func(): pass' > "$_repo/lib/partial_func.py"
+    echo 'def test_partial_unit(): assert True' > "$_repo/tests/unit/test_partial_unit.py"
+    # NOTE: tests/integration/test_partial_gone.py intentionally NOT created (stale)
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add partial_func with one test"
+
+    # Write .test-index with two test paths — one exists, one does not
+    cat > "$_repo/.test-index" <<'IDX'
+lib/partial_func.py:tests/unit/test_partial_unit.py,tests/integration/test_partial_gone.py
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index with partial stale entry"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/partial_func.py"
+    git -C "$_repo" add "$_repo/lib/partial_func.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_index_prune_partial: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Run the gate hook — should prune the stale test path
+    run_gate_hook_side_effects "$_repo" "$_artifacts" >/dev/null
+
+    # Read the on-disk .test-index after pruning
+    local index_content
+    index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
+
+    # The source line should still be present (one valid test remains)
+    if ! echo "$index_content" | grep -q 'lib/partial_func.py'; then
+        assert_eq "test_gate_index_prune_partial: source line preserved" \
+            "preserved" "missing"
+        return
+    fi
+    assert_eq "test_gate_index_prune_partial: source line preserved" \
+        "preserved" "preserved"
+
+    # The valid test path should be retained
+    if ! echo "$index_content" | grep -q 'test_partial_unit.py'; then
+        assert_eq "test_gate_index_prune_partial: valid test path retained" \
+            "retained" "missing"
+        return
+    fi
+    assert_eq "test_gate_index_prune_partial: valid test path retained" \
+        "retained" "retained"
+
+    # The stale test path should be removed
+    if echo "$index_content" | grep -q 'test_partial_gone.py'; then
+        assert_eq "test_gate_index_prune_partial: stale test path removed" \
+            "removed" "still_present"
+    else
+        assert_eq "test_gate_index_prune_partial: stale test path removed" \
+            "removed" "removed"
+    fi
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -999,5 +1262,9 @@ run_test test_gate_index_union_with_fuzzy
 run_test test_gate_missing_index_noop
 run_test test_gate_index_empty_right_side_noop
 run_test test_gate_index_multi_test_paths
+run_test test_gate_index_prune_stale_entry
+run_test test_gate_index_prune_removes_line_when_all_stale
+run_test test_gate_index_prune_stages_modified_index
+run_test test_gate_index_prune_partial
 
 print_summary
