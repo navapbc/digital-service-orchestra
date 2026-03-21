@@ -1,6 +1,6 @@
 ---
 id: w21-hbjx
-status: open
+status: in_progress
 deps: [w21-mrqh]
 links: []
 created: 2026-03-21T22:11:03Z
@@ -45,3 +45,29 @@ TDD Requirement: Task w21-mrqh's tests (`test_create_issue_calls_acli_subprocess
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_acli_integration.py::test_retry_on_subprocess_error_three_attempts -q
 - [ ] verify-after-create: when get_issue returns no issue after creation, an exception is raised (SYNC event is NOT written)
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_acli_integration.py::test_verify_after_create_calls_get_issue -q
+
+## Notes
+
+**2026-03-21T23:10:25Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T23:10:42Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T23:10:46Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-21T23:11:19Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T23:11:32Z**
+
+CHECKPOINT 5/6: Validation passed — 6 tests pass, ruff clean ✓
+
+**2026-03-21T23:11:52Z**
+
+CHECKPOINT 6/6: Done ✓

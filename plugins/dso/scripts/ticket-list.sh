@@ -95,55 +95,20 @@ done
 if [ "$format" = "llm" ]; then
     # LLM format: JSONL — one minified ticket per line, shortened keys, stripped nulls/empty lists,
     # and no verbose timestamps (created_at, env_id, and comment timestamps omitted).
-    python3 -c "
-import json, sys
+    _TICKET_LLM_FMT="$SCRIPT_DIR/ticket-llm-format.py" python3 -c "
+import json, sys, importlib.util, pathlib, os
 
-KEY_MAP = {
-    'ticket_id': 'id',
-    'ticket_type': 't',
-    'title': 'ttl',
-    'status': 'st',
-    'author': 'au',
-    'parent_id': 'pid',
-    'comments': 'cm',
-    'deps': 'dp',
-    'conflicts': 'cf',
-}
-
-# Fields omitted from LLM format (verbose timestamps / system metadata)
-OMIT_KEYS = {'created_at', 'env_id'}
-
-COMMENT_KEY_MAP = {'body': 'b', 'author': 'au'}
-COMMENT_OMIT = {'timestamp'}
-DEP_KEY_MAP = {'target_id': 'tid', 'relation': 'r'}
-DEP_OMIT = {'link_uuid'}
-
-def shorten_comment(c):
-    if not isinstance(c, dict):
-        return c
-    return {COMMENT_KEY_MAP.get(k, k): v for k, v in c.items() if k not in COMMENT_OMIT and v is not None}
-
-def shorten_dep(d):
-    if not isinstance(d, dict):
-        return d
-    return {DEP_KEY_MAP.get(k, k): v for k, v in d.items() if k not in DEP_OMIT and v is not None}
-
-def to_llm(state):
-    out = {}
-    for k, v in state.items():
-        if k in OMIT_KEYS:
-            continue
-        if v is None:
-            continue
-        if isinstance(v, list) and len(v) == 0:
-            continue
-        short_k = KEY_MAP.get(k, k)
-        if k == 'comments':
-            v = [shorten_comment(c) for c in v]
-        elif k == 'deps':
-            v = [shorten_dep(d) for d in v]
-        out[short_k] = v
-    return out
+_mod_path = pathlib.Path(os.environ['_TICKET_LLM_FMT'])
+try:
+    _spec = importlib.util.spec_from_file_location('ticket_llm_format', _mod_path)
+    if _spec is None or _spec.loader is None:
+        raise ImportError(f'Cannot load module from {_mod_path}')
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    to_llm = _mod.to_llm
+except (ImportError, FileNotFoundError, OSError) as _e:
+    print(f'ERROR: failed to load ticket-llm-format.py: {_e}', file=sys.stderr)
+    sys.exit(1)
 
 lines = sys.stdin.read().strip().split('\n')
 for line in lines:
