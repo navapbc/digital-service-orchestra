@@ -15,8 +15,6 @@ TDD spec for task dso-mwxz (RED task):
 import pathlib
 import re
 
-import pytest
-
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 AGENT_FILE = REPO_ROOT / "plugins" / "dso" / "agents" / "complexity-evaluator.md"
 
@@ -37,10 +35,6 @@ def _parse_frontmatter(content: str) -> tuple[str, str]:
     return (frontmatter, body)
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_file_exists() -> None:
     """The complexity-evaluator.md agent file must exist at the expected path."""
     assert AGENT_FILE.exists(), (
@@ -49,10 +43,6 @@ def test_complexity_evaluator_agent_file_exists() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_frontmatter_name() -> None:
     """YAML frontmatter must contain 'name: complexity-evaluator'."""
     content = _read_agent()
@@ -64,10 +54,6 @@ def test_complexity_evaluator_agent_frontmatter_name() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_frontmatter_model() -> None:
     """YAML frontmatter must specify 'model: haiku'."""
     content = _read_agent()
@@ -79,10 +65,6 @@ def test_complexity_evaluator_agent_frontmatter_model() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_frontmatter_tools() -> None:
     """YAML frontmatter must list Bash, Read, Glob, and Grep in the tools field."""
     content = _read_agent()
@@ -99,10 +81,6 @@ def test_complexity_evaluator_agent_frontmatter_tools() -> None:
         )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_body_five_dimension_rubric() -> None:
     """Markdown body must contain the 5-dimension rubric content."""
     content = _read_agent()
@@ -128,10 +106,6 @@ def test_complexity_evaluator_agent_body_five_dimension_rubric() -> None:
         )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_body_tier_schema_mechanism() -> None:
     """Markdown body must describe the tier_schema mechanism for tier vocabulary selection."""
     content = _read_agent()
@@ -144,10 +118,6 @@ def test_complexity_evaluator_agent_body_tier_schema_mechanism() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_body_no_context_routing_table() -> None:
     """Markdown body must NOT contain context-specific routing tables."""
     content = _read_agent()
@@ -169,10 +139,6 @@ def test_complexity_evaluator_agent_body_no_context_routing_table() -> None:
         )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_body_epic_only_qualitative_overrides() -> None:
     """Markdown body must contain epic-only qualitative override dimensions."""
     content = _read_agent()
@@ -201,10 +167,6 @@ def test_complexity_evaluator_agent_body_epic_only_qualitative_overrides() -> No
     )
 
 
-@pytest.mark.xfail(
-    reason="RED: plugins/dso/agents/complexity-evaluator.md not yet created by batch 2 (task dso-1tgy)",
-    strict=False,
-)
 def test_complexity_evaluator_agent_body_epic_only_marker() -> None:
     """Epic-only dimensions must be clearly marked as 'Applicable when evaluating epics only'."""
     content = _read_agent()

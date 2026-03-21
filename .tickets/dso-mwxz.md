@@ -1,6 +1,6 @@
 ---
 id: dso-mwxz
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T21:15:30Z

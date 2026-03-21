@@ -1,6 +1,6 @@
 ---
 id: w21-kezk
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T21:05:07Z
