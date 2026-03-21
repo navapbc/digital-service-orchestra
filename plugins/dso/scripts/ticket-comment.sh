@@ -66,7 +66,7 @@ python3 -c "
 import json, sys, time, uuid
 
 event = {
-    'timestamp': int(time.time()),
+    'timestamp': time.time_ns(),
     'uuid': str(uuid.uuid4()),
     'event_type': 'COMMENT',
     'env_id': sys.argv[1],
