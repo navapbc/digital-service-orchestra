@@ -1,6 +1,6 @@
 ---
 id: dso-t561
-status: open
+status: in_progress
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T04:57:18Z
@@ -44,3 +44,47 @@ TDD Requirement: All tests must fail (exit non-zero) before ticket-transition.sh
   Verify: grep -c 'PASS\|FAIL\|assert\|test_' $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-transition.sh | awk '{exit ($1 < 7)}'
 - [ ] All tests in test-ticket-transition.sh fail (RED) before ticket-transition.sh is created
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-transition.sh 2>&1; test $? -ne 0
+
+## Notes
+
+<!-- note-id: r95cw34m -->
+<!-- timestamp: 2026-03-21T05:38:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 6lzv291h -->
+<!-- timestamp: 2026-03-21T05:38:46Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: uqf1p0zr -->
+<!-- timestamp: 2026-03-21T05:40:03Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: ke02hn7y -->
+<!-- timestamp: 2026-03-21T05:40:07Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: RED test only (no implementation) ✓
+
+<!-- note-id: it9isryc -->
+<!-- timestamp: 2026-03-21T05:40:23Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation complete — RED (exit 1, PASSED: 0 FAILED: 7) + shellcheck passes ✓
+
+<!-- note-id: h1ebyhby -->
+<!-- timestamp: 2026-03-21T05:40:31Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓

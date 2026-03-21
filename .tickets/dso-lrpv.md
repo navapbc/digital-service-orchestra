@@ -1,6 +1,6 @@
 ---
 id: dso-lrpv
-status: in_progress
+status: closed
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T05:02:18Z

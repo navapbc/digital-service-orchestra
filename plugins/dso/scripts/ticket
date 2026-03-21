@@ -54,6 +54,9 @@ case "$subcommand" in
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-show.sh" "$@"
         ;;
+    # REVIEW-DEFENSE: 'transition' subcommand routing is intentionally absent here.
+    # ticket-transition.sh does not yet exist; wiring the dispatcher is tracked in dso-lcmz
+    # and must be done alongside implementing ticket-transition.sh so the two land together.
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2
         _usage
