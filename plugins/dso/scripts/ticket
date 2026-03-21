@@ -18,6 +18,8 @@ _usage() {
     echo "  init      Initialize the ticket system"
     echo "  create    Create a new ticket"
     echo "  show      Show ticket details"
+    echo "  list      List all tickets"
+    echo "  comment   Add a comment to a ticket"
     exit 1
 }
 
@@ -57,6 +59,14 @@ case "$subcommand" in
     transition)
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-transition.sh" "$@"
+        ;;
+    list)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-list.sh" "$@"
+        ;;
+    comment)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-comment.sh" "$@"
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

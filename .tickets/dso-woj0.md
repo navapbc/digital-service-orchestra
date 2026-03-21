@@ -1,6 +1,6 @@
 ---
 id: dso-woj0
-status: in_progress
+status: closed
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T04:56:53Z
@@ -68,3 +68,7 @@ CHECKPOINT 3/6: Tests written ✓ — 5 test cases: returns all tickets, empty s
 **2026-03-21T05:57:37Z**
 
 CHECKPOINT 6/6: Done ✓ — 5/5 tests FAIL (RED confirmed), shellcheck passes, file is executable
+
+**2026-03-21T05:59:59Z**
+
+CHECKPOINT 6/6: Done ✓ — test-ticket-list.sh. 0 passed, 5 failed (RED).

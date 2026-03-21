@@ -1,6 +1,6 @@
 ---
 id: dso-xjzd
-status: in_progress
+status: closed
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T04:57:42Z
@@ -58,3 +58,7 @@ CHECKPOINT 3/6: Tests written ✓ — 6 test cases: happy path, nonexistent tick
 **2026-03-21T05:57:37Z**
 
 CHECKPOINT 6/6: Done ✓ — 6/6 tests FAIL (RED confirmed), shellcheck passes, file is executable
+
+**2026-03-21T05:59:59Z**
+
+CHECKPOINT 6/6: Done ✓ — test-ticket-comment.sh. 0 passed, 6 failed (RED).
