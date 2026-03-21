@@ -296,7 +296,7 @@
   "dso-i6dj": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: /dso:brainstorm created children with truncated titles and descriptions",
     "type": "bug"
   },

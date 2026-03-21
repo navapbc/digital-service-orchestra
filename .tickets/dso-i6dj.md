@@ -1,6 +1,6 @@
 ---
 id: dso-i6dj
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:55:34Z
@@ -27,3 +27,10 @@ parent: dso-9xnr
 <!-- sync: unsynced -->
 
 Classification: behavioral, Score: 2 (BASIC). Root cause: tk create only captures the LAST positional arg as the title. When the LLM generates tk create commands with unquoted multi-word titles (e.g., tk create Remove scripts. -t task), each positional arg overwrites the previous, leaving only the last word as the title. Similarly, unquoted description args get truncated to one word. Fix: accumulate all positional args into title with space-joining instead of last-wins.
+
+<!-- note-id: nl1ggbyu -->
+<!-- timestamp: 2026-03-21T00:50:31Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: tk create now accumulates multi-word unquoted titles via title=${title:+$title }$1 in plugins/dso/scripts/tk cmd_create arg parser. Test: tests/scripts/test-tk-create-unquoted-title.sh. Commit: 7b9dad4.
