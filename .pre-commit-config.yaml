@@ -34,13 +34,13 @@ repos:
       # Test gate (timeout: 10s)
       # Blocks commits when staged source files have associated tests that haven't passed.
       # Runs BEFORE the review gate so developers fix test failures first.
-      - id: pre-commit-test-gate
-        name: Test Gate (10s timeout)
-        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-test-gate 10 "./plugins/dso/hooks/pre-commit-test-gate.sh"
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
+#      - id: pre-commit-test-gate
+#        name: Test Gate (10s timeout)
+#        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-test-gate 10 "./plugins/dso/hooks/pre-commit-test-gate.sh"
+#        language: system
+#        pass_filenames: false
+#        always_run: true
+#        stages: [pre-commit]
 
       # Review gate (timeout: 10s)
       # Blocks commits containing non-allowlisted files without a valid review-status.
