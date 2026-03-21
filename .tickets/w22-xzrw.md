@@ -25,3 +25,9 @@ None
 
 ## Approach
 Rewrite the dimension definitions and instructions in agent-clarity.md to explicitly target epic-level evaluation. Add anti-patterns that prevent scoring below 4 for implementation-level nits, while preserving the reviewer's ability to flag genuine ambiguity and missing edge case coverage.
+
+## Notes
+
+**2026-03-21T03:51:33Z**
+
+SC5 validation: self_contained=4, success_measurable=5 (epic dso-ppwp). Context fully supports story decomposition without clarifying questions; all 7 success criteria describe specific, observable outcomes at feature level with no vague language.
