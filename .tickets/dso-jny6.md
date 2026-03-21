@@ -1,6 +1,6 @@
 ---
 id: dso-jny6
-status: in_progress
+status: closed
 deps: [dso-4lbf]
 links: []
 created: 2026-03-21T17:59:51Z

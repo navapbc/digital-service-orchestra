@@ -611,6 +611,262 @@ rm -f "$MOCK_PASS_DIRS"
 rm -rf "$TEST_REPO_DIRS" "$ARTIFACTS_DIRS"
 trap - EXIT
 
+# ============================================================
+# test_record_status_index_mapped_source
+# Source file mapped in .test-index; record-test-status.sh
+# includes the mapped test file in the test run (even if
+# fuzzy match would not find it)
+# ============================================================
+echo ""
+echo "=== test_record_status_index_mapped_source ==="
+
+TEST_REPO_IDX1=$(create_test_repo)
+ARTIFACTS_IDX1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_IDX1" "$ARTIFACTS_IDX1"' EXIT
+
+# Create a source file and a test file with a non-conventional name
+# that fuzzy match would NOT discover
+mkdir -p "$TEST_REPO_IDX1/lib" "$TEST_REPO_IDX1/tests/integration"
+cat > "$TEST_REPO_IDX1/lib/processor.py" << 'PYEOF'
+def process():
+    return "processed"
+PYEOF
+cat > "$TEST_REPO_IDX1/tests/integration/verify_processor_integration.py" << 'PYEOF'
+def test_processor_integration():
+    assert True
+PYEOF
+
+# Create .test-index mapping processor.py -> the integration test
+cat > "$TEST_REPO_IDX1/.test-index" << 'IDXEOF'
+lib/processor.py:tests/integration/verify_processor_integration.py
+IDXEOF
+
+git -C "$TEST_REPO_IDX1" add -A
+git -C "$TEST_REPO_IDX1" commit -m "add processor with .test-index mapping" --quiet 2>/dev/null
+
+# Modify processor.py to create a staged diff
+echo "# changed" >> "$TEST_REPO_IDX1/lib/processor.py"
+git -C "$TEST_REPO_IDX1" add -A
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_IDX1"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_IDX1" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit_pass
+)
+
+STATUS_FILE_IDX1="$ARTIFACTS_IDX1/test-gate-status"
+
+# The .test-index maps processor.py to verify_processor_integration.py.
+# Fuzzy match alone would NOT find this test (name doesn't match convention).
+# With .test-index support, the test file should be discovered and run.
+if [[ -f "$STATUS_FILE_IDX1" ]]; then
+    TESTED_LINE=$(grep '^tested_files=' "$STATUS_FILE_IDX1" | head -1 | cut -d= -f2)
+    assert_contains "test_record_status_index_mapped_source: tested_files contains verify_processor_integration.py" "verify_processor_integration.py" "$TESTED_LINE"
+else
+    # No status file — .test-index was not consulted (RED failure expected)
+    assert_eq "test_record_status_index_mapped_source: status file written (.test-index mapping)" "exists" "missing"
+fi
+
+rm -rf "$TEST_REPO_IDX1" "$ARTIFACTS_IDX1"
+trap - EXIT
+
+# ============================================================
+# test_record_status_index_union_with_fuzzy
+# Source file with both fuzzy match AND index entry; union
+# of both test sets is included in the run
+# ============================================================
+echo ""
+echo "=== test_record_status_index_union_with_fuzzy ==="
+
+TEST_REPO_IDX2=$(create_test_repo)
+ARTIFACTS_IDX2=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_IDX2" "$ARTIFACTS_IDX2"' EXIT
+
+# Create a source file, a conventionally-named test (fuzzy match finds it),
+# and a non-conventional test mapped via .test-index
+mkdir -p "$TEST_REPO_IDX2/src" "$TEST_REPO_IDX2/tests" "$TEST_REPO_IDX2/tests/special"
+cat > "$TEST_REPO_IDX2/src/widget.py" << 'PYEOF'
+def widget():
+    return "widget"
+PYEOF
+# Conventional test — fuzzy match will find this
+cat > "$TEST_REPO_IDX2/tests/test_widget.py" << 'PYEOF'
+def test_widget():
+    assert True
+PYEOF
+# Non-conventional test — only .test-index maps to this
+cat > "$TEST_REPO_IDX2/tests/special/widget_smoke_check.py" << 'PYEOF'
+def test_widget_smoke():
+    assert True
+PYEOF
+
+# .test-index maps widget.py to the smoke check test
+cat > "$TEST_REPO_IDX2/.test-index" << 'IDXEOF'
+src/widget.py:tests/special/widget_smoke_check.py
+IDXEOF
+
+git -C "$TEST_REPO_IDX2" add -A
+git -C "$TEST_REPO_IDX2" commit -m "add widget with fuzzy + index tests" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_IDX2/src/widget.py"
+git -C "$TEST_REPO_IDX2" add -A
+
+EXIT_CODE=$(
+    cd "$TEST_REPO_IDX2"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_IDX2" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit_pass
+)
+
+STATUS_FILE_IDX2="$ARTIFACTS_IDX2/test-gate-status"
+
+if [[ -f "$STATUS_FILE_IDX2" ]]; then
+    TESTED_LINE=$(grep '^tested_files=' "$STATUS_FILE_IDX2" | head -1 | cut -d= -f2)
+    # Both the fuzzy-matched test AND the index-mapped test should appear
+    assert_contains "test_record_status_index_union_with_fuzzy: tested_files contains test_widget.py" "test_widget.py" "$TESTED_LINE"
+    assert_contains "test_record_status_index_union_with_fuzzy: tested_files contains widget_smoke_check.py" "widget_smoke_check.py" "$TESTED_LINE"
+else
+    # Status file exists (fuzzy match finds test_widget.py) but smoke check is missing
+    # — need to check tested_files doesn't contain the index-mapped test
+    assert_eq "test_record_status_index_union_with_fuzzy: status file written (union of fuzzy + index)" "exists" "missing"
+fi
+
+rm -rf "$TEST_REPO_IDX2" "$ARTIFACTS_IDX2"
+trap - EXIT
+
+# ============================================================
+# test_record_status_index_missing_noop
+# .test-index does not exist; record-test-status.sh proceeds
+# normally (no error)
+# ============================================================
+echo ""
+echo "=== test_record_status_index_missing_noop ==="
+
+TEST_REPO_IDX3=$(create_test_repo)
+ARTIFACTS_IDX3=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_IDX3" "$ARTIFACTS_IDX3"' EXIT
+
+# Create a source file with a conventional test but NO .test-index file
+mkdir -p "$TEST_REPO_IDX3/src" "$TEST_REPO_IDX3/tests"
+cat > "$TEST_REPO_IDX3/src/simple.py" << 'PYEOF'
+def simple():
+    return "simple"
+PYEOF
+cat > "$TEST_REPO_IDX3/tests/test_simple.py" << 'PYEOF'
+def test_simple():
+    assert True
+PYEOF
+
+git -C "$TEST_REPO_IDX3" add -A
+git -C "$TEST_REPO_IDX3" commit -m "add simple without .test-index" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_IDX3/src/simple.py"
+git -C "$TEST_REPO_IDX3" add -A
+
+# Confirm no .test-index exists
+if [[ -f "$TEST_REPO_IDX3/.test-index" ]]; then
+    echo "ERROR: .test-index should not exist in this test" >&2
+    (( ++FAIL ))
+fi
+
+OUTPUT_IDX3=$(
+    cd "$TEST_REPO_IDX3"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_IDX3" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit_pass 2>&1
+)
+EXIT_CODE_IDX3=$(echo "$OUTPUT_IDX3" | tail -1)
+
+# When .test-index is missing, the hook should still work via fuzzy match.
+# This test verifies the hook explicitly handles .test-index absence — the
+# stderr output should mention .test-index (e.g., "no .test-index found" or
+# ".test-index: not found, using fuzzy match only") to confirm the code path
+# was exercised. Pre-implementation, no such message exists (RED).
+assert_eq "test_record_status_index_missing_noop: exit 0" "0" "$EXIT_CODE_IDX3"
+
+# Capture stderr to check for .test-index handling message
+STDERR_IDX3=$(
+    cd "$TEST_REPO_IDX3"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_IDX3" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    bash "$HOOK" 2>&1 >/dev/null || true
+)
+# After implementation, stderr should mention .test-index (even when absent)
+# to confirm the code path was reached. Pre-implementation, no mention.
+assert_contains "test_record_status_index_missing_noop: stderr mentions .test-index handling" ".test-index" "$STDERR_IDX3"
+
+STATUS_FILE_IDX3="$ARTIFACTS_IDX3/test-gate-status"
+if [[ -f "$STATUS_FILE_IDX3" ]]; then
+    TESTED_LINE=$(grep '^tested_files=' "$STATUS_FILE_IDX3" | head -1 | cut -d= -f2)
+    assert_contains "test_record_status_index_missing_noop: test_simple.py discovered via fuzzy" "test_simple.py" "$TESTED_LINE"
+fi
+
+rm -rf "$TEST_REPO_IDX3" "$ARTIFACTS_IDX3"
+trap - EXIT
+
+# ============================================================
+# test_record_status_index_stale_entry_skipped
+# .test-index entry pointing to a nonexistent test file;
+# record-test-status.sh skips it with a warning (does not
+# attempt to run nonexistent file)
+# ============================================================
+echo ""
+echo "=== test_record_status_index_stale_entry_skipped ==="
+
+TEST_REPO_IDX4=$(create_test_repo)
+ARTIFACTS_IDX4=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_IDX4" "$ARTIFACTS_IDX4"' EXIT
+
+# Create source file with .test-index pointing to a test that does NOT exist
+mkdir -p "$TEST_REPO_IDX4/src"
+cat > "$TEST_REPO_IDX4/src/ghost.py" << 'PYEOF'
+def ghost():
+    return "ghost"
+PYEOF
+
+# .test-index maps to a test file that does not exist on disk
+cat > "$TEST_REPO_IDX4/.test-index" << 'IDXEOF'
+src/ghost.py:tests/test_ghost_missing.py
+IDXEOF
+
+git -C "$TEST_REPO_IDX4" add -A
+git -C "$TEST_REPO_IDX4" commit -m "add ghost with stale .test-index entry" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_IDX4/src/ghost.py"
+git -C "$TEST_REPO_IDX4" add -A
+
+HOOK_OUTPUT_IDX4=$(
+    cd "$TEST_REPO_IDX4"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_IDX4" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    bash "$HOOK" 2>&1 || true
+)
+
+# The hook should warn about the stale entry (nonexistent file) and skip it.
+# Currently .test-index is not consulted at all, so:
+#   - The stale entry is never seen
+#   - No warning is emitted about test_ghost_missing.py
+# After implementation: warning should mention the missing file.
+assert_contains "test_record_status_index_stale_entry_skipped: warning about stale entry" "test_ghost_missing.py" "$HOOK_OUTPUT_IDX4"
+
+# The hook should NOT crash — it should exit cleanly (0) after skipping the stale entry.
+# (ghost.py has no fuzzy-matched test either, so it gets exempt treatment.)
+STATUS_FILE_IDX4="$ARTIFACTS_IDX4/test-gate-status"
+if [[ -f "$STATUS_FILE_IDX4" ]]; then
+    TESTED_LINE=$(grep '^tested_files=' "$STATUS_FILE_IDX4" | head -1 | cut -d= -f2)
+    # The stale test file should NOT appear in tested_files
+    if [[ "$TESTED_LINE" == *"test_ghost_missing.py"* ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_record_status_index_stale_entry_skipped: stale entry should not be in tested_files" >&2
+    else
+        (( ++PASS ))
+    fi
+fi
+
+rm -rf "$TEST_REPO_IDX4" "$ARTIFACTS_IDX4"
+trap - EXIT
+
 # Clean up mock runners if created
 if (( ! _PYTEST_AVAILABLE )); then
     rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true

@@ -1,6 +1,6 @@
 ---
 id: dso-ocfn
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-21T17:59:59Z
@@ -40,3 +40,47 @@ Add test functions to tests/hooks/test-record-test-status.sh covering:
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh
 - [ ] ruff check passes (exit 0)
   Verify: ruff check plugins/dso/scripts/*.py tests/**/*.py 2>/dev/null || true
+
+## Notes
+
+<!-- note-id: wuybak4a -->
+<!-- timestamp: 2026-03-21T18:42:25Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: zh6d98af -->
+<!-- timestamp: 2026-03-21T18:42:37Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: hmhyslds -->
+<!-- timestamp: 2026-03-21T18:43:48Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: he8qrdfq -->
+<!-- timestamp: 2026-03-21T18:43:56Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete (RED task) ✓
+
+<!-- note-id: n3zulux8 -->
+<!-- timestamp: 2026-03-21T18:51:15Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — 4 new tests FAIL (RED), 16 existing tests PASS. run-all.sh expected to fail because RED tests are included in the suite (same pattern as prior RED tests in this file).
+
+<!-- note-id: 9alb5hu5 -->
+<!-- timestamp: 2026-03-21T18:51:19Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓
