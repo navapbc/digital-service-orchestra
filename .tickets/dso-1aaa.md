@@ -1,6 +1,6 @@
 ---
 id: dso-1aaa
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-18T18:03:10Z
@@ -25,3 +25,10 @@ Running `tk create "title" -t story --parent=dso-l2ct` returns "Unknown option: 
 <!-- sync: unsynced -->
 
 Investigation: The --parent=id equals form was already handled correctly in plugins/dso/scripts/tk line 443 (--parent=*) handler. The bug could not be reproduced — tk create --parent=id works correctly. Root cause: missing regression test coverage. Fix: added tests/scripts/test-tk-create-parent-equals.sh with 4 tests covering --parent=id form, --parent id space form, parent field stored in frontmatter, and invalid parent rejection.
+
+<!-- note-id: sdemxua4 -->
+<!-- timestamp: 2026-03-21T01:48:57Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: Added regression test tests/scripts/test-tk-create-parent-equals.sh — code already handled --parent= correctly, test prevents future regression

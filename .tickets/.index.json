@@ -48,7 +48,7 @@
   "dso-1aaa": {
     "deps": [],
     "priority": 3,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: tk create rejects --parent=id flag (only --parent id works)",
     "type": "bug"
   },
@@ -677,7 +677,7 @@
   "w21-5cqr": {
     "deps": [],
     "priority": 3,
-    "status": "in_progress",
+    "status": "closed",
     "title": "fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth",
     "type": "bug"
   },

@@ -1,6 +1,6 @@
 ---
 id: w21-5cqr
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T03:30:24Z
@@ -31,3 +31,10 @@ Fix: Add a comment block to hooks/lib/session-misc-functions.sh and hooks/track-
 <!-- sync: unsynced -->
 
 Classification: mechanical (documentation addition with deterministic fix — add comment blocks explaining path anchoring). No scoring rubric needed.
+
+<!-- note-id: uuypipfe -->
+<!-- timestamp: 2026-03-21T01:49:02Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: Added PATH-ANCHOR comments to track-tool-errors.sh and session-misc-functions.sh with tests in test-track-tool-errors.sh
