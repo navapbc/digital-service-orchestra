@@ -1,6 +1,6 @@
 ---
 id: dso-76r3
-status: in_progress
+status: closed
 deps: [dso-xf8w]
 links: []
 created: 2026-03-21T18:00:45Z

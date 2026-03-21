@@ -37,6 +37,60 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 source "$HOOK_DIR/lib/fuzzy-match.sh"
 
+# ── .test-index parsing ──────────────────────────────────────────────────────
+# Reads $REPO_ROOT/.test-index and returns test paths mapped to a given source file.
+# Format per line: 'source/path.ext: test/path1.ext, test/path2.ext'
+#   - Lines starting with # are comments; blank lines are ignored
+#   - Colons and commas in paths are not supported
+#   - Empty right-hand side = no association for that line
+# Returns test paths on stdout, one per line. Missing file = no output (no error).
+# Nonexistent test paths are emitted as warnings to stderr and skipped.
+read_test_index_for_source() {
+    local src_file="$1"
+    local repo_root="${REPO_ROOT:-.}"
+    local index_file="${repo_root}/.test-index"
+
+    if [[ ! -f "$index_file" ]]; then
+        echo "INFO: .test-index not found, using fuzzy match only" >&2
+        return 0
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip comments and blank lines
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # Split on first colon: left = source path, right = comma-separated test paths
+        local left="${line%%:*}"
+        local right="${line#*:}"
+
+        # Trim whitespace from left side
+        left="${left#"${left%%[![:space:]]*}"}"
+        left="${left%"${left##*[![:space:]]}"}"
+
+        # Match against the source file
+        if [[ "$left" != "$src_file" ]]; then
+            continue
+        fi
+
+        # Split right side on commas and emit each non-empty test path
+        IFS=',' read -ra parts <<< "$right"
+        for part in "${parts[@]}"; do
+            # Trim whitespace
+            part="${part#"${part%%[![:space:]]*}"}"
+            part="${part%"${part##*[![:space:]]}"}"
+            if [[ -n "$part" ]]; then
+                local full_path="${repo_root}/${part}"
+                if [[ ! -f "$full_path" ]]; then
+                    echo "WARNING: .test-index entry points to nonexistent file: $part" >&2
+                    continue
+                fi
+                echo "$part"
+            fi
+        done
+    done < "$index_file"
+}
+
 # Parse arguments
 SOURCE_FILE=""
 while [[ $# -gt 0 ]]; do
@@ -100,6 +154,7 @@ while IFS= read -r src_file; do
         continue
     fi
 
+    # Collect from fuzzy matching
     while IFS= read -r test_file; do
         [[ -z "$test_file" ]] && continue
         full_test_path="$REPO_ROOT/$test_file"
@@ -116,6 +171,19 @@ while IFS= read -r src_file; do
 
         ASSOCIATED_TESTS+=("$test_file")
     done < <(fuzzy_find_associated_tests "$src_file" "$REPO_ROOT" "$_TEST_DIRS")
+
+    # Collect from .test-index (union with fuzzy results; dedup happens below)
+    while IFS= read -r test_file; do
+        [[ -z "$test_file" ]] && continue
+        full_test_path="$REPO_ROOT/$test_file"
+
+        if [[ "$test_file" == *.sh ]] && [[ ! -x "$full_test_path" ]]; then
+            echo "WARNING: skipping non-executable shell test: $test_file" >&2
+            continue
+        fi
+
+        ASSOCIATED_TESTS+=("$test_file")
+    done < <(read_test_index_for_source "$src_file")
 
 done <<< "$STAGED_FILES"
 
