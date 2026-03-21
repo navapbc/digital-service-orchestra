@@ -38,3 +38,7 @@ Prune `skills/sprint/SKILL.md` only. Remove: explanatory prose blocks, duplicate
 ## Approach
 Surgical pruning of human-facing explanations and redundant prose, combined with merging Phase 3 and Phase 4 into a single batch-prep phase and flattening model-selection logic into a decision table. Changes are deletions and reformatting only — no new behavior introduced.
 
+
+**2026-03-21T01:41:47Z**
+
+Coordination note: CLAUDE.md test-command sections (Never Do These list, quick-reference table entries for make test-unit-only / make test-e2e) are settled by epic w21-p7aa (Batched Test Enforcement). Do not re-edit these sections.

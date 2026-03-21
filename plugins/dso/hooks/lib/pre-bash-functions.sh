@@ -16,6 +16,7 @@
 #   hook_worktree_edit_guard     — block mkdir targeting main repo from worktree
 #   hook_bug_close_guard         — require --reason flag on bug ticket closes
 #   hook_review_integrity_guard  — block direct writes to review-status files
+#   hook_blocked_test_command    — block broad test commands, redirect to validate.sh
 #
 # NOTE: The old PreToolUse review gate was removed in Story 1idf. Review gate
 #   enforcement is now handled by the two-layer gate:
@@ -657,4 +658,154 @@ hook_review_integrity_guard() {
     fi
 
     return 0
+}
+
+# ---------------------------------------------------------------------------
+# hook_blocked_test_command
+# ---------------------------------------------------------------------------
+# PreToolUse hook: block broad test commands and redirect to validate.sh.
+#
+# Reads commands.test_unit and commands.test_e2e from config (via read-config.sh).
+# If the Bash command matches a configured broad test command (after stripping
+# cd prefixes and splitting on shell operators), blocks with exit 2 and emits
+# a Structured Action-Required Block directing the user to validate.sh.
+#
+# Matching Contract:
+#   1. Split input command on shell operators (&&, ||, ;, |)
+#   2. From each segment, strip leading cd <path> && prefixes (zero or more)
+#   3. Trim leading/trailing whitespace
+#   4. Check if any segment equals a configured value verbatim (exact match)
+#   5. Commands with additional arguments do NOT match
+#
+# Safety allowlist: validate.sh and test-batched.sh are never blocked.
+hook_blocked_test_command() {
+    local INPUT="$1"
+    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"blocked-test-command\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    # Fast early-exit: skip unless INPUT contains "test" substring (performance)
+    if [[ "$INPUT" != *"test"* ]]; then
+        return 0
+    fi
+
+    # Only act on Bash tool calls
+    local TOOL_NAME
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+    if [[ "$TOOL_NAME" != "Bash" ]]; then
+        return 0
+    fi
+
+    local COMMAND
+    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
+    if [[ -z "$COMMAND" ]]; then
+        return 0
+    fi
+
+    # Safety allowlist: validate.sh and test-batched.sh are never blocked
+    if [[ "$COMMAND" == *"validate.sh"* ]] || [[ "$COMMAND" == *"test-batched.sh"* ]]; then
+        return 0
+    fi
+
+    # Resolve plugin root for read-config.sh and validate.sh path
+    local _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+    if [[ -z "$_PLUGIN_ROOT" || ! -d "$_PLUGIN_ROOT" ]]; then
+        # Fallback: derive from _PRE_BASH_FUNC_DIR (set at top of file to hooks/lib/)
+        _PLUGIN_ROOT="$(cd "${_PRE_BASH_FUNC_DIR}" && pwd -P)" && _PLUGIN_ROOT="${_PLUGIN_ROOT%/hooks/lib}"
+    fi
+
+    # Read configured test commands via read-config.sh
+    local _READ_CONFIG="$_PLUGIN_ROOT/scripts/read-config.sh"
+    if [[ ! -f "$_READ_CONFIG" ]]; then
+        return 0
+    fi
+
+    local _TEST_UNIT="" _TEST_E2E=""
+    _TEST_UNIT=$("$_READ_CONFIG" commands.test_unit 2>/dev/null) || true
+    _TEST_E2E=$("$_READ_CONFIG" commands.test_e2e 2>/dev/null) || true
+
+    # If no configured commands, pass through (graceful degradation)
+    if [[ -z "$_TEST_UNIT" && -z "$_TEST_E2E" ]]; then
+        return 0
+    fi
+
+    # Build list of blocked commands
+    local -a _BLOCKED_CMDS=()
+    [[ -n "$_TEST_UNIT" ]] && _BLOCKED_CMDS+=("$_TEST_UNIT")
+    [[ -n "$_TEST_E2E" ]] && _BLOCKED_CMDS+=("$_TEST_E2E")
+
+    # Matching Contract: split on shell operators, strip cd prefixes, check exact match
+    local _MATCHED=""
+    local _segment _trimmed
+
+    # Split COMMAND on shell operators: &&, ||, ;, |
+    # Use python3 for reliable splitting (handles quoting edge cases)
+    local _SEGMENTS
+    _SEGMENTS=$(python3 -c "
+import re, sys
+cmd = sys.argv[1]
+# Split on &&, ||, ;, | (but not ||)
+# Order matters: split on && and || first, then ; and |
+segments = re.split(r'\s*(?:&&|\|\||;|\|)\s*', cmd)
+for s in segments:
+    print(s)
+" "$COMMAND" 2>/dev/null) || _SEGMENTS="$COMMAND"
+
+    while IFS= read -r _segment; do
+        [[ -z "$_segment" ]] && continue
+
+        # Strip leading "cd <path>" segments — after splitting on shell operators,
+        # cd prefixes appear as standalone segments. Skip them entirely.
+        _trimmed="$_segment"
+        # Trim leading whitespace first
+        _trimmed="${_trimmed#"${_trimmed%%[![:space:]]*}"}"
+        # If segment is just a cd command (no further command), skip it
+        if [[ "$_trimmed" =~ ^cd[[:space:]] ]]; then
+            continue
+        fi
+
+        # Trim leading/trailing whitespace
+        _trimmed="${_trimmed#"${_trimmed%%[![:space:]]*}"}"
+        _trimmed="${_trimmed%"${_trimmed##*[![:space:]]}"}"
+
+        # Check exact match against each blocked command
+        for _blocked in "${_BLOCKED_CMDS[@]}"; do
+            if [[ "$_trimmed" == "$_blocked" ]]; then
+                _MATCHED="$_blocked"
+                break 2
+            fi
+        done
+    done <<< "$_SEGMENTS"
+
+    if [[ -z "$_MATCHED" ]]; then
+        return 0
+    fi
+
+    # Write telemetry JSONL entry
+    local _ARTIFACTS="${ARTIFACTS_DIR:-}"
+    if [[ -z "$_ARTIFACTS" ]]; then
+        _ARTIFACTS=$(get_artifacts_dir 2>/dev/null) || true
+    fi
+    if [[ -n "$_ARTIFACTS" ]]; then
+        mkdir -p "$_ARTIFACTS"
+        local _TS
+        _TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+        local _TELEMETRY_ENTRY
+        _TELEMETRY_ENTRY=$(python3 -c "
+import json, sys
+entry = {'ts': sys.argv[1], 'event': 'blocked_test_command', 'command': sys.argv[2]}
+print(json.dumps(entry))
+" "$_TS" "$COMMAND" 2>/dev/null) || true
+        if [[ -n "$_TELEMETRY_ENTRY" ]]; then
+            printf '%s\n' "$_TELEMETRY_ENTRY" >> "$_ARTIFACTS/hook-telemetry.jsonl"
+        fi
+    fi
+
+    # Resolve absolute path to validate.sh
+    local _VALIDATE_PATH="$_PLUGIN_ROOT/scripts/validate.sh"
+
+    # Emit Structured Action-Required Block
+    echo "ACTION REQUIRED: tests incomplete"
+    echo "RUN: $_VALIDATE_PATH --ci"
+    echo "DO NOT proceed without completing all test batches."
+    trap - ERR; return 2
 }
