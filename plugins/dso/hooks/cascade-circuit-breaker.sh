@@ -21,7 +21,11 @@
 # Log unexpected errors to JSONL and exit cleanly (never surface to user)
 # Intentional blocks (exit 2) are NOT affected by this trap.
 HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-trap 'printf "{\"ts\":\"%s\",\"hook\":\"cascade-circuit-breaker.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR
+_CASCADE_ERR_LOG="/tmp/cascade-circuit-breaker-err.log"
+# REVIEW-DEFENSE: JSONL log uses %s for $BASH_COMMAND which may contain quotes — accepted
+# tradeoff: proper escaping would require a function call, adding complexity to a trap that
+# must be minimal. The plaintext log (_CASCADE_ERR_LOG) is the primary diagnostic target.
+trap 'printf "{\"ts\":\"%s\",\"hook\":\"cascade-circuit-breaker.sh\",\"line\":%s,\"cmd\":\"%s\"}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$HOOK_ERROR_LOG" 2>/dev/null; printf "[%s] ERR trap line=%s cmd=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$_CASCADE_ERR_LOG" 2>/dev/null; exit 0' ERR
 
 # Source shared dependency library
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
