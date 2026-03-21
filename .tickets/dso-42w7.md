@@ -1,6 +1,6 @@
 ---
 id: dso-42w7
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:22:22Z
@@ -37,3 +37,19 @@ Showing most recent 20 of 64 occurrences.
 | 19 | 2026-03-19T05:54:24Z | Bash | tk list --type epic | Exit code 1 — Unknown command |
 | 20 | 2026-03-19T05:55:02Z | Bash | tests/run-all.sh | Exit code 144 |
 
+
+## Notes
+
+<!-- note-id: zc1vvu8v -->
+<!-- timestamp: 2026-03-21T02:26:11Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Investigation: aggregate error log from past sessions (64 occurrences). Same pattern as dso-2da0 — underlying causes are tool timeouts, merge conflicts, and diff hash mismatches, all now resolved.
+
+<!-- note-id: nt9wme9r -->
+<!-- timestamp: 2026-03-21T02:26:12Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: underlying bugs resolved (w21-ae0s, dso-qt4u, dso-fqxu)

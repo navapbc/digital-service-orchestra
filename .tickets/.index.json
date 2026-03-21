@@ -55,7 +55,7 @@
   "dso-2da0": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
@@ -104,7 +104,7 @@
   "dso-42w7": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
     "type": "bug"
   },
@@ -190,7 +190,7 @@
   "dso-cma6": {
     "deps": [],
     "priority": 3,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
     "type": "bug"
   },
@@ -795,7 +795,7 @@
   "w21-bw1o": {
     "deps": [],
     "priority": 3,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Flaky test: test-merge-to-main-portability.sh intermittently fails (8/10 pass, then 10/10 on re-run)",
     "type": "bug"
   },
