@@ -53,22 +53,21 @@ source "$_PRE_EDIT_WRITE_FUNC_DIR/pre-bash-functions.sh"
 # Paired with track-cascade-failures.sh (PostToolUse on Bash).
 hook_cascade_circuit_breaker() {
     local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-    local _CASCADE_FN_ERR_LOG="/tmp/cascade-circuit-breaker-fn-err.log"
-    # REVIEW-DEFENSE: JSONL log uses %s for $BASH_COMMAND which may contain quotes — accepted
-    # tradeoff: proper escaping would require a function call, adding complexity to a trap that
-    # must be minimal. The plaintext log (_CASCADE_FN_ERR_LOG) is the primary diagnostic target.
-    trap 'printf "{\"ts\":\"%s\",\"hook\":\"cascade-circuit-breaker\",\"line\":%s,\"cmd\":\"%s\"}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$HOOK_ERROR_LOG" 2>/dev/null; printf "[%s] ERR trap line=%s cmd=%s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" "$BASH_COMMAND" >> "$_CASCADE_FN_ERR_LOG" 2>/dev/null; return 0' ERR
+
+    # Error handling: explicit per-operation guards (|| return 0) instead of a
+    # global ERR trap. The ERR trap approach caused the function to silently
+    # return 0 on Linux CI when bash ERR semantics differed from macOS,
+    # preventing the function from ever reaching return 2 (the blocking path).
 
     local TOOL_NAME
-    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name') || return 0
     if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
         return 0
     fi
 
     # --- Check file path for passthrough ---
     local FILE_PATH
-    FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')
+    FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path') || return 0
 
     # Allow non-code edits (issue tracking, config, docs, temp files).
     # Split into two case blocks because $HOME expansion does not work
@@ -93,11 +92,11 @@ hook_cascade_circuit_breaker() {
 
     local WT_HASH
     if command -v md5 &>/dev/null; then
-        WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5)
+        WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5) || return 0
     elif command -v md5sum &>/dev/null; then
-        WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5sum | cut -d' ' -f1)
+        WT_HASH=$(echo -n "$WORKTREE_ROOT" | md5sum | cut -d' ' -f1) || return 0
     else
-        WT_HASH=$(echo -n "$WORKTREE_ROOT" | tr '/' '_')
+        WT_HASH=$(echo -n "$WORKTREE_ROOT" | tr '/' '_') || return 0
     fi
 
     local STATE_DIR="/tmp/claude-cascade-${WT_HASH}"
@@ -111,9 +110,7 @@ hook_cascade_circuit_breaker() {
     # --- Read counter ---
     local COUNTER
     COUNTER=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
-    if { [[ "$COUNTER" =~ ^[0-9]+$ ]]; } 2>/dev/null; then
-        : # valid numeric counter
-    else
+    if ! [[ "$COUNTER" =~ ^[0-9]+$ ]]; then
         return 0
     fi
 
@@ -124,7 +121,7 @@ hook_cascade_circuit_breaker() {
         echo "BLOCKED: Fix cascade (rule 13). $COUNTER consecutive fixes produced different errors." >&2
         echo "Run /dso:fix-cascade-recovery to analyze root cause and reset." >&2
         echo "Manual reset: echo 0 > $COUNTER_FILE" >&2
-        trap - ERR; return 2
+        return 2
     fi
 
     return 0

@@ -135,6 +135,7 @@ run_test_suite() {
     SUITE_TOTAL_FAIL=0
     local consecutive_fails=0
     local aborted=false
+    local failed_tests=()
 
     local results_dir
     results_dir=$(mktemp -d)
@@ -211,6 +212,7 @@ run_test_suite() {
 
             # Track consecutive failures for fail-fast
             if [ "$exit_code" -ne 0 ] || [ "$is_timeout" = true ]; then
+                failed_tests+=("$tname")
                 (( consecutive_fails++ ))
             else
                 consecutive_fails=0
@@ -235,6 +237,21 @@ run_test_suite() {
         if [ "$skipped" -lt 0 ]; then skipped=0; fi
         printf "\nABORT: %d consecutive failures — likely systemic issue (%d tests skipped)\n" \
             "$MAX_CONSECUTIVE_FAILS" "$skipped" >&2
+    fi
+
+    # Dump output of failed tests for CI visibility
+    if [ ${#failed_tests[@]} -gt 0 ] && [ -d "$results_dir" ]; then
+        echo ""
+        echo "=== Failed test output ==="
+        for ftname in "${failed_tests[@]}"; do
+            if [ -f "$results_dir/$ftname.out" ]; then
+                echo "--- $ftname ---"
+                # Limit to last 30 lines to avoid flooding CI logs
+                tail -30 "$results_dir/$ftname.out"
+                echo "--- end $ftname ---"
+            fi
+        done
+        echo "=== End failed test output ==="
     fi
 
     # Print aggregated summary
