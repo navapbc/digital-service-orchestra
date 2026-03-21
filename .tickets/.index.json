@@ -82,7 +82,7 @@
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
     "type": "bug"
   },
@@ -96,7 +96,7 @@
   "dso-3e30": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Bug: tk create -d interprets double-dash in description text as option flags",
     "type": "bug"
   },
@@ -196,7 +196,7 @@
   "dso-5syi": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: dso shim resolves scripts from stale /scripts/ path \u2014 skip-review-check.sh and capture-review-diff.sh not found during commit workflow",
     "type": "bug"
   },
@@ -1488,9 +1488,9 @@
   "w21-ni6d": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "test-jq-to-parse-json-field.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
-    "type": "task"
+    "type": "bug"
   },
   "w21-njch": {
     "deps": [
@@ -1652,9 +1652,9 @@
   "w21-wlhw": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
-    "type": "task"
+    "type": "bug"
   },
   "w21-xlaw": {
     "deps": [
