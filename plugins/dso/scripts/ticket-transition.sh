@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# plugins/dso/scripts/ticket-transition.sh
+# Transition a ticket's status with optimistic concurrency control and ghost prevention.
+#
+# Usage: ticket-transition.sh <ticket_id> <current_status> <target_status>
+#   ticket_id: the ticket directory name (e.g., w21-ablv)
+#   current_status: the status the caller believes the ticket is currently in
+#   target_status: the status to transition to (open, in_progress, closed, blocked)
+#
+# Exits 0 on success or if current_status == target_status (no-op).
+# Exits 1 on validation failure, ghost ticket, or concurrency rejection.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=plugins/dso/scripts/ticket-lib.sh
+source "$SCRIPT_DIR/ticket-lib.sh"
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+REDUCER="$SCRIPT_DIR/ticket-reducer.py"
+
+# ── Usage ─────────────────────────────────────────────────────────────────────
+_usage() {
+    echo "Usage: ticket transition <ticket_id> <current_status> <target_status>" >&2
+    echo "  current_status / target_status: open | in_progress | closed | blocked" >&2
+    exit 1
+}
+
+# ── Validate arguments ───────────────────────────────────────────────────────
+if [ $# -lt 3 ]; then
+    _usage
+fi
+
+ticket_id="$1"
+current_status="$2"
+target_status="$3"
+
+# Validate statuses are in the allowed set
+_validate_status() {
+    local label="$1"
+    local value="$2"
+    case "$value" in
+        open|in_progress|closed|blocked) ;;
+        *)
+            echo "Error: invalid ${label} '${value}'. Must be one of: open, in_progress, closed, blocked" >&2
+            exit 1
+            ;;
+    esac
+}
+
+_validate_status "current_status" "$current_status"
+_validate_status "target_status" "$target_status"
+
+# ── Idempotent no-op ─────────────────────────────────────────────────────────
+if [ "$current_status" = "$target_status" ]; then
+    echo "No transition needed"
+    exit 0
+fi
+
+# ── Step 1: Ghost check (before acquiring flock) ─────────────────────────────
+if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
+    echo "Error: ticket '$ticket_id' does not exist" >&2
+    exit 1
+fi
+
+if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 -name '*-CREATE.json' ! -name '.*' 2>/dev/null | grep -q .; then
+    echo "Error: ticket $ticket_id has no CREATE event" >&2
+    exit 1
+fi
+
+# ── Validate ticket system is initialized ────────────────────────────────────
+if [ ! -f "$TRACKER_DIR/.env-id" ]; then
+    echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
+    exit 1
+fi
+
+# ── Step 2-3: Acquire flock, read-verify-write inside lock ───────────────────
+# All concurrency-critical operations (read current state, verify, build event,
+# write event) happen inside a single flock to prevent TOCTOU races.
+env_id=$(cat "$TRACKER_DIR/.env-id")
+author=$(git config user.name 2>/dev/null || echo "Unknown")
+lock_file="$TRACKER_DIR/.ticket-write.lock"
+
+# The entire read-verify-write is done inside python3 holding fcntl.flock.
+# If concurrency check fails, python exits 10 (mapped to exit 1 by caller).
+# If lock timeout, python exits 1.
+flock_exit=0
+python3 -c "
+import fcntl, json, os, subprocess, sys, time, uuid
+
+lock_path = sys.argv[1]
+tracker_dir = sys.argv[2]
+ticket_id = sys.argv[3]
+current_status = sys.argv[4]
+target_status = sys.argv[5]
+env_id_val = sys.argv[6]
+author_val = sys.argv[7]
+reducer_path = sys.argv[8]
+
+timeout = 30
+
+# Acquire flock
+fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+deadline = time.monotonic() + timeout
+acquired = False
+while time.monotonic() < deadline:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        acquired = True
+        break
+    except (IOError, OSError):
+        time.sleep(0.1)
+if not acquired:
+    os.close(fd)
+    print('Error: could not acquire lock', file=sys.stderr)
+    sys.exit(1)
+
+# Lock acquired — read current state via reducer
+try:
+    result = subprocess.run(
+        ['python3', reducer_path, os.path.join(tracker_dir, ticket_id)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f'Error: reducer failed: {result.stderr.strip()}', file=sys.stderr)
+        os.close(fd)
+        sys.exit(1)
+
+    state = json.loads(result.stdout)
+    actual_status = state.get('status', '')
+
+    # Optimistic concurrency check
+    if actual_status != current_status:
+        print(f'Error: current status is \"{actual_status}\", not \"{current_status}\"', file=sys.stderr)
+        os.close(fd)
+        sys.exit(10)
+
+    # Build STATUS event JSON
+    timestamp = int(time.time())
+    event_uuid = str(uuid.uuid4())
+    event = {
+        'timestamp': timestamp,
+        'uuid': event_uuid,
+        'event_type': 'STATUS',
+        'env_id': env_id_val,
+        'author': author_val,
+        'data': {
+            'status': target_status,
+            'current_status': current_status,
+        },
+    }
+
+    # Write to temp file
+    temp_path = os.path.join(tracker_dir, f'.tmp-transition-{event_uuid}')
+    with open(temp_path, 'w', encoding='utf-8') as f:
+        json.dump(event, f, ensure_ascii=False)
+
+    # Compute final filename and path
+    final_filename = f'{timestamp}-{event_uuid}-STATUS.json'
+    ticket_dir = os.path.join(tracker_dir, ticket_id)
+    final_path = os.path.join(ticket_dir, final_filename)
+
+    # Atomic rename
+    os.rename(temp_path, final_path)
+
+    # Ensure gc.auto=0
+    subprocess.run(
+        ['git', '-C', tracker_dir, 'config', 'gc.auto', '0'],
+        check=True, capture_output=True, text=True,
+    )
+
+    # git add + commit
+    subprocess.run(
+        ['git', '-C', tracker_dir, 'add', f'{ticket_id}/{final_filename}'],
+        check=True, capture_output=True, text=True,
+    )
+    subprocess.run(
+        ['git', '-C', tracker_dir, 'commit', '-q', '-m', f'ticket: STATUS {ticket_id}'],
+        check=True, capture_output=True, text=True,
+    )
+
+except subprocess.CalledProcessError as e:
+    print(f'Error: git operation failed: {e.stderr}', file=sys.stderr)
+    # Clean up event file if it was written
+    try:
+        os.remove(final_path)
+    except (OSError, NameError):
+        pass
+    os.close(fd)
+    sys.exit(2)
+except Exception as e:
+    print(f'Error: {e}', file=sys.stderr)
+    os.close(fd)
+    sys.exit(1)
+
+# Release lock
+os.close(fd)
+sys.exit(0)
+" "$lock_file" "$TRACKER_DIR" "$ticket_id" "$current_status" "$target_status" "$env_id" "$author" "$REDUCER" || flock_exit=$?
+
+if [ "$flock_exit" -eq 10 ]; then
+    # Optimistic concurrency rejection
+    exit 1
+elif [ "$flock_exit" -ne 0 ]; then
+    exit 1
+fi
+
+exit 0

@@ -1,6 +1,6 @@
 ---
 id: w21-q0nn
-status: open
+status: closed
 deps: [w21-f8tg]
 links: []
 created: 2026-03-20T04:07:05Z
@@ -37,3 +37,9 @@ parent: dso-0k2k
 
 - [Reliability] Compaction race condition is the most critical risk — events written between snapshot compile and deletion must not be lost. flock entire operation + specific-file deletion prevents this
 - [Reliability] Cache invalidation must detect compaction (file count and listing change). Verify the cache layer (w21-f8tg) handles this correctly
+
+## Notes
+
+**2026-03-21T07:06:28Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX
