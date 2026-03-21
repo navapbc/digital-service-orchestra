@@ -1,6 +1,6 @@
 ---
 id: w21-1plz
-status: in_progress
+status: closed
 deps: [w21-57k1]
 links: []
 created: 2026-03-21T00:52:13Z
@@ -94,3 +94,7 @@ CHECKPOINT 5/6: Tests GREEN — 13 passed, 0 failed. Shellcheck clean. ✓
 **2026-03-21T01:49:51Z**
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T01:59:30Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/scripts/ticket, plugins/dso/scripts/ticket-init.sh. Tests: 15 passed, 0 failed.

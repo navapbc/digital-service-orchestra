@@ -1,6 +1,6 @@
 ---
 id: w21-xtsq
-status: open
+status: in_progress
 deps: [w21-mtvm]
 links: []
 created: 2026-03-21T00:52:38Z
@@ -44,3 +44,47 @@ Verify RED: `bash tests/scripts/test-ticket-lib.sh 2>&1; test $? -ne 0`
   Verify: `grep -c 'test_write_commit_event' $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-lib.sh | awk '{exit ($1 < 5)}'`
 - [ ] Running the new test returns non-zero (RED)
   Verify: `bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-lib.sh 2>&1; test $? -ne 0`
+
+## Notes
+
+<!-- note-id: 7wqju7sy -->
+<!-- timestamp: 2026-03-21T02:00:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: ftk33rsr -->
+<!-- timestamp: 2026-03-21T02:01:18Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — ticket-lib.sh does not exist, ticket dispatcher at plugins/dso/scripts/ticket, tests use assert.sh + git-fixtures.sh, test files auto-discovered by run-script-tests.sh pattern test-*.sh
+
+<!-- note-id: pnwhdyuo -->
+<!-- timestamp: 2026-03-21T02:02:16Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — 5 test functions in tests/scripts/test-ticket-lib.sh covering atomic write, flock, specific-file commit, gc.auto=0, and clean failure without init
+
+<!-- note-id: j21wvnuc -->
+<!-- timestamp: 2026-03-21T02:02:20Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete (RED test only) ✓ — no ticket-lib.sh implementation written; tests are RED by design
+
+<!-- note-id: 53kwuula -->
+<!-- timestamp: 2026-03-21T02:02:33Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation complete ✓ — test exits non-zero (5 FAILs, 0 PASSes) confirming RED state; shellcheck passes with exit 0
+
+<!-- note-id: qlln4u5a -->
+<!-- timestamp: 2026-03-21T02:03:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All ACs satisfied: file exists at tests/scripts/test-ticket-lib.sh; 5 test functions (10 grep matches); exits non-zero (5 FAILs, 0 PASSes = RED); shellcheck clean; existing test-ticket-init.sh still passes (14 pass, 0 fail)
