@@ -1,6 +1,6 @@
 ---
 id: dso-woj0
-status: open
+status: in_progress
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T04:56:53Z
@@ -52,3 +52,19 @@ TDD Requirement: All tests must fail (exit non-zero) before ticket-list.sh is im
 Add test cases for:
 1. Exit-0 with error-status JSON (ghost ticket in list output)
 2. Exit-nonzero (fallback error dict in list output)
+
+**2026-03-21T05:55:07Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T05:55:14Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — ticket-reducer.py returns dict with ticket_id, ticket_type, title, status, author, comments, deps fields; error-state dicts have status=error/fsck_needed; ghost dirs (no CREATE) return None from reduce_ticket; corrupt CREATE returns fsck_needed
+
+**2026-03-21T05:57:15Z**
+
+CHECKPOINT 3/6: Tests written ✓ — 5 test cases: returns all tickets, empty system, required fields, ghost ticket with error status, corrupt CREATE with fsck_needed
+
+**2026-03-21T05:57:37Z**
+
+CHECKPOINT 6/6: Done ✓ — 5/5 tests FAIL (RED confirmed), shellcheck passes, file is executable

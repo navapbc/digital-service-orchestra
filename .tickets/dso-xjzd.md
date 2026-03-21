@@ -1,6 +1,6 @@
 ---
 id: dso-xjzd
-status: open
+status: in_progress
 deps: [dso-mso2]
 links: []
 created: 2026-03-21T04:57:42Z
@@ -44,3 +44,17 @@ TDD Requirement: All tests must fail (exit non-zero) before ticket-comment.sh is
   Verify: grep -c 'PASS\|FAIL\|assert\|test_' $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-comment.sh | awk '{exit ($1 < 6)}'
 - [ ] All tests in test-ticket-comment.sh fail (RED) before ticket-comment.sh is created
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-comment.sh 2>&1; test $? -ne 0
+
+## Notes
+
+**2026-03-21T05:57:18Z**
+
+CHECKPOINT 1/6: Task context loaded ✓ — ticket-comment.sh not yet implemented; tests use assert.sh + git-fixtures.sh pattern
+
+**2026-03-21T05:57:18Z**
+
+CHECKPOINT 3/6: Tests written ✓ — 6 test cases: happy path, nonexistent ticket, ghost no-CREATE, empty body rejection, multiple accumulate, event schema
+
+**2026-03-21T05:57:37Z**
+
+CHECKPOINT 6/6: Done ✓ — 6/6 tests FAIL (RED confirmed), shellcheck passes, file is executable

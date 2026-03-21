@@ -1,6 +1,6 @@
 ---
 id: dso-7svw
-status: in_progress
+status: closed
 deps: [dso-t561]
 links: []
 created: 2026-03-21T04:57:32Z
@@ -114,3 +114,7 @@ CHECKPOINT 5/6: All tests pass — transition (20/20), init (14/14), create (13/
 <!-- sync: unsynced -->
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T05:53:45Z**
+
+CHECKPOINT 6/6: Done ✓ — ticket-transition.sh implemented. Tests: 20 passed, 0 failed.
