@@ -48,3 +48,9 @@ parent: dso-0k2k
 ## Design References
 
 See plugins/dso/docs/ticket-migraiton-v3/ for the 7 design documents. Architecture reviewed via red-team/blue-team (see epic notes on dso-0k2k).
+
+## Notes
+
+**2026-03-21T00:47:46Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX
