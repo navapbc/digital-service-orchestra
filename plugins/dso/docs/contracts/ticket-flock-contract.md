@@ -12,6 +12,7 @@ This document defines the cross-story contract for the flock-based write seriali
 |----------------|-----------|
 | w21-q0nn (compaction) | Must acquire the same lock file for the full compaction operation |
 | w21-ay8w (concurrency stress) | Validates the timeout budget and lock exclusivity under 5 parallel sessions |
+| w21-6k7v (sync-events) | Acquires `.ticket-write.lock` **only during the local git merge phase** (<10s); lock is released before push begins |
 
 ---
 
@@ -169,3 +170,13 @@ The stress test must validate:
 4. At least one session must have experienced lock contention (verified by timing or log inspection)
 
 The stress test **must not** set a shorter timeout than `flock_timeout=30` — test harness timeouts must be set above 60 seconds to allow the full retry budget to exhaust before declaring failure.
+
+### w21-6k7v (sync-events split-phase git sync)
+
+The sync-events operation:
+
+1. Acquires `.tickets-tracker/.ticket-write.lock` **only during the local git merge phase** (Phase 3 of the split-phase protocol)
+2. Uses the same `flock_timeout=30` / `max_retries=2` budget as all other lock consumers
+3. Releases the lock explicitly (Phase 4) **before** the push begins — the lock is never held during network I/O
+
+This narrow lock scope (merge only, <10s) minimizes contention with concurrent `ticket write` operations. The full sync-events timeout budget and phase breakdown are documented in [ticket-sync-events-contract.md](ticket-sync-events-contract.md).

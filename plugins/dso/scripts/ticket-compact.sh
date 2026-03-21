@@ -64,6 +64,34 @@ if [ ! -d "$ticket_dir" ]; then
     exit 1
 fi
 
+# ── Sync-before-compact precondition ─────────────────────────────────────────
+# Call ticket sync before compacting to pull the latest remote state.
+# TICKET_SYNC_CMD can be overridden in tests; default is "ticket sync" via PATH.
+_sync_cmd="${TICKET_SYNC_CMD:-ticket sync}"
+
+# Run sync; treat exit 127 (subcommand absent) as a graceful skip (warn + continue).
+_sync_exit=0
+eval "$_sync_cmd" 2>/tmp/ticket-compact-sync-err.$$ || _sync_exit=$?
+if [ "$_sync_exit" -eq 127 ]; then
+    echo "warning: sync unavailable (sync subcommand absent) — skipping sync before compact" >&2
+    _sync_exit=0
+elif [ "$_sync_exit" -ne 0 ]; then
+    _sync_stderr=$(cat /tmp/ticket-compact-sync-err.$$ 2>/dev/null || true)
+    rm -f /tmp/ticket-compact-sync-err.$$
+    echo "Error: ticket sync failed (exit $_sync_exit)${_sync_stderr:+: $_sync_stderr}" >&2
+    exit "$_sync_exit"
+fi
+rm -f /tmp/ticket-compact-sync-err.$$
+
+# ── Remote SNAPSHOT check ─────────────────────────────────────────────────────
+# If any SNAPSHOT file already exists in the ticket dir (written by a remote
+# environment after sync), skip local compaction to avoid redundant snapshots.
+_existing_snapshot=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | head -1)
+if [ -n "$_existing_snapshot" ]; then
+    echo "skipping compaction for $ticket_id — remote SNAPSHOT exists"
+    exit 0
+fi
+
 # ── Step 2: List event files (before flock) ──────────────────────────────────
 # Capture the specific files that will be compacted.
 # Sort lexicographically (= chronological by filename convention).

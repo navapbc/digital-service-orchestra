@@ -190,6 +190,32 @@ prompt. No manual configuration is required.
 
 ---
 
+## tk sync-events Prerequisites
+
+`tk sync-events` syncs the tickets branch with a shared remote using a split-phase protocol
+(fetch → lock → merge → unlock → push). It requires the following setup before first use:
+
+| Requirement | How to satisfy |
+|---|---|
+| `.tickets-tracker/` initialized | Run `ticket init` from the repo root (see `plugins/dso/scripts/ticket-init.sh`) |
+| `origin` remote configured | `git -C .tickets-tracker remote add origin <url>` |
+| `tickets` branch exists in remote | `git -C .tickets-tracker push origin tickets:tickets` (on first environment only) |
+
+If `.tickets-tracker/` has not been initialized, `tk sync-events` exits with:
+```
+error: ticket tracker not initialized (.tickets-tracker/ not found)
+```
+
+If `origin` is not configured, it exits with:
+```
+error: origin remote not configured in <tracker_dir>
+```
+
+See [contracts/ticket-sync-events-contract.md](contracts/ticket-sync-events-contract.md) for
+the full protocol specification including phase timeouts, lock scope, and retry behavior.
+
+---
+
 ## Git Hooks and CI
 
 After running `pre-commit install` (Step 4), the plugin's hooks are active. The example

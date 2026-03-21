@@ -5517,6 +5517,21 @@ _sync_events() {
     # Phase 4 — Release flock (explicit, before push begins)
     exec 9>&-
 
+    # Phase 4.5 — Conflict resolution: for tickets with STATUS events from multiple
+    # env_ids, invoke MostStatusEventsWinsStrategy to pick the authoritative state
+    # and log each decision to <tracker_dir>/conflict-resolutions.jsonl.
+    # Non-fatal: a failure here does not block the push.
+    local _resolver_script
+    _resolver_script="$(cd "$(dirname "$0")" && pwd)/ticket-sync-conflict-resolver.py"
+    if [[ -f "$_resolver_script" ]]; then
+        local _bridge_env_id=""
+        if [[ -f "$tracker_dir/.env-id" ]]; then
+            _bridge_env_id="$(cat "$tracker_dir/.env-id" 2>/dev/null || true)"
+        fi
+        python3 "$_resolver_script" "$tracker_dir" ${_bridge_env_id:+"$_bridge_env_id"} \
+            >/dev/null 2>&1 || true
+    fi
+
     # Phase 5 — Push with retry on non-fast-forward (exit 128)
     local push_attempts=0
     local push_max=3
