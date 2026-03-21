@@ -59,6 +59,13 @@
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
+  "dso-2e99": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
+    "type": "bug"
+  },
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
@@ -334,7 +341,7 @@
   "dso-lli8": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Bug: tk sync windowed pull uses UTC but Jira reads JQL datetimes as user-local timezone",
     "type": "bug"
   },
@@ -369,7 +376,7 @@
   "dso-or3g": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Bug: collect-discoveries.sh crashes with get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT is wrong",
     "type": "bug"
   },
@@ -407,7 +414,7 @@
   "dso-qlgq": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "validate-phase.sh runs tests directly without test-batched.sh \u2014 same timeout anti-pattern as w21-ae0s",
     "type": "bug"
   },
@@ -1022,7 +1029,7 @@
   "w21-ouns": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR",
     "type": "bug"
   },

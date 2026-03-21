@@ -209,7 +209,7 @@ _find_python_with_yaml() {
     local candidate
     for candidate in \
         "${CLAUDE_PLUGIN_PYTHON:-}" \
-        "${repo_root:+$repo_root/$CFG_PYTHON_VENV}" \
+        "${repo_root:+$repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}}" \
         "${repo_root:+$repo_root/.venv/bin/python3}" \
         "python3"; do
         [[ -z "$candidate" ]] && continue

@@ -1,6 +1,6 @@
 ---
 id: dso-2e99
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-21T00:31:14Z
@@ -19,3 +19,10 @@ assignee: Joe Oakhart
 <!-- sync: unsynced -->
 
 Same anti-pattern as dso-tqvy (fixed in worktree-sync-from-main.sh). ci-status.sh line 212 uses $CFG_PYTHON_VENV inside ${repo_root:+$repo_root/$CFG_PYTHON_VENV} inside _find_python_with_yaml(). If config-paths.sh is not found (e.g., CLAUDE_PLUGIN_ROOT without hooks/lib/config-paths.sh), the variable is unbound. When repo_root is non-empty, the ${repo_root:+...} expansion evaluates the inner $CFG_PYTHON_VENV, triggering 'unbound variable' crash. Fix: use ${CFG_PYTHON_VENV:-app/.venv/bin/python3} at line 212.
+
+<!-- note-id: lah9wfxd -->
+<!-- timestamp: 2026-03-21T01:05:14Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed at plugins/dso/scripts/ci-status.sh line 212: changed `${repo_root:+$repo_root/$CFG_PYTHON_VENV}` to `${repo_root:+$repo_root/${CFG_PYTHON_VENV:-app/.venv/bin/python3}}`. RED confirmed: bash -u crash reproduced before fix. GREEN confirmed: function returns python3 without error after fix. All 8 existing ci-status tests pass.

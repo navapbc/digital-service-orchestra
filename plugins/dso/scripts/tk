@@ -4350,7 +4350,7 @@ _sync_body() {
     if [[ -n "$_last_pull_timestamp" ]]; then
         # Apply 15-minute overlap buffer to account for clock skew
         local _buffered_ts
-        _buffered_ts=$(LAST_PULL_TS="$_last_pull_timestamp" python3 -c "import os; from datetime import datetime, timedelta; t=datetime.fromisoformat(os.environ['LAST_PULL_TS']); print((t - timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M'))" 2>/dev/null) || _buffered_ts=""
+        _buffered_ts=$(LAST_PULL_TS="$_last_pull_timestamp" python3 -c "import os; from datetime import datetime, timedelta; t=datetime.fromisoformat(os.environ['LAST_PULL_TS']); print((t - timedelta(minutes=15)).astimezone().strftime('%Y-%m-%d %H:%M'))" 2>/dev/null) || _buffered_ts=""
         if [[ -n "$_buffered_ts" ]]; then
             _pull_jql="project=$JIRA_PROJECT AND updated >= \"$_buffered_ts\" ORDER BY created ASC"
         else

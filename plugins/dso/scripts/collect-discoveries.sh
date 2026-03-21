@@ -38,8 +38,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Source deps.sh for get_artifacts_dir
+# Defensive plugin-root resolution: CLAUDE_PLUGIN_ROOT may point to the main repo
+# root instead of the plugin subdirectory (e.g., plugins/dso) when called from a
+# host project via the dso shim. Validate using plugin.json (always present in the
+# plugin dir) and fall back to $SCRIPT_DIR/.. (the plugin dir relative to this script).
 # shellcheck source=hooks/lib/deps.sh
-source "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/hooks/lib/deps.sh"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
+[[ ! -f "${_PLUGIN_ROOT}/plugin.json" ]] && _PLUGIN_ROOT="$SCRIPT_DIR/.."
+source "${_PLUGIN_ROOT}/hooks/lib/deps.sh"
 
 # Resolve discoveries directory
 DISCOVERIES_DIR="${AGENT_DISCOVERIES_DIR:-$(get_artifacts_dir)/agent-discoveries}"

@@ -1,6 +1,6 @@
 ---
 id: dso-qlgq
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-20T22:51:51Z
@@ -22,3 +22,12 @@ Integrate test-batched.sh into validate-phase.sh for the test step, similar to h
 ## Related
 Discovered while fixing w21-ae0s (validate.sh timeout anti-pattern).
 
+
+## Notes
+
+<!-- note-id: 4uqdd7fy -->
+<!-- timestamp: 2026-03-21T01:05:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Classification: behavioral, Score: 2 (BASIC). Root cause: phase_auto_fix, phase_post_batch, and phase_tier_transition all run CMD_TEST_UNIT via raw eval, bypassing test-batched.sh. Fix: extract a run_test_batched() helper in validate-phase.sh that mirrors validate.sh's run_test_check() pattern — calls test-batched.sh when available, falls back to direct eval. Use VALIDATE_TEST_STATE_FILE / VALIDATE_TEST_BATCHED_SCRIPT env vars for overridability in tests.
