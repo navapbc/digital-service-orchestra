@@ -1,6 +1,6 @@
 ---
 id: dso-dsa8
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-18T17:20:58Z
@@ -31,3 +31,26 @@ The absence of tests means behavior changes (like the recent childless-epic and 
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-validate-issues.sh 2>&1 | grep -q "FAILED: 0"
 - [ ] bash tests/run-all.sh passes
   Verify: bash $(git rev-parse --show-toplevel)/tests/run-all.sh 2>&1 | grep -q "Overall: PASS"
+
+## Notes
+
+<!-- note-id: smr0hi32 -->
+<!-- timestamp: 2026-03-21T00:26:18Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Classification: behavioral (missing test coverage), Score: 0 (BASIC). Fix: create tests/scripts/test-validate-issues.sh with 10+ tests covering check_empty_epics, check_ticket_count, check_orphaned_tasks, check_duplicate_titles, check_child_parent_deps, check_missing_descriptions, check_in_progress_without_notes. Use TICKETS_DIR env var with fixture files to avoid live data dependencies.
+
+<!-- note-id: uqdy3siz -->
+<!-- timestamp: 2026-03-21T00:53:04Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: created tests/scripts/test-validate-issues.sh with 13 tests covering check_empty_epics, check_ticket_count, check_orphaned_tasks, check_duplicate_titles, check_child_parent_deps, check_missing_descriptions, check_in_progress_without_notes, --quick mode, and closed ticket exclusion
+
+<!-- note-id: m9jb6r4i -->
+<!-- timestamp: 2026-03-21T00:54:21Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: added 13-test suite for validate-issues.sh (commit 0111e9f)

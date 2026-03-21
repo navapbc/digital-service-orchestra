@@ -24,3 +24,10 @@ Same anti-pattern as dso-b934 (test-cascade-breaker.sh). tests/hooks/test-pre-ed
 <!-- sync: unsynced -->
 
 CLOSE REASON: Fixed: tests/hooks/test-pre-edit-write-dispatcher.sh now uses FAKE_ROOT with a minimal git repo for STATE_DIR isolation, all dispatcher invocations run via cd _FAKE_ROOT
+
+<!-- note-id: 1mgtgp8l -->
+<!-- timestamp: 2026-03-21T00:24:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: test isolation with _FAKE_ROOT (commit 6badeb4)

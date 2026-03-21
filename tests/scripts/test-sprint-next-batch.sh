@@ -288,6 +288,84 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 13: AC Verify lines do not cause false-positive batch conflicts ───────
+echo "Test 13: AC Verify lines do not cause false-positive batch conflicts"
+_t13_mock_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t13_mock_dir")
+_t13_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t13_fake_repo")
+git init -q -b main "$_t13_fake_repo"
+mkdir -p "$_t13_fake_repo/.tickets" "$_t13_fake_repo/scripts"
+
+# Create two tasks with AC Verify lines referencing the same script
+# They should NOT be flagged as conflicting because AC Verify lines are
+# shell commands (acceptance criteria), not files the tasks will modify.
+printf -- "---\nid: t13-task-a\nstatus: open\ntype: task\npriority: 2\nparent: t13-epic\n---\n# Task A\n\nEdit src/foo.py\n\nAC Verify: bash scripts/validate.sh --ci\n" \
+    > "$_t13_fake_repo/.tickets/t13-task-a.md"
+printf -- "---\nid: t13-task-b\nstatus: open\ntype: task\npriority: 2\nparent: t13-epic\n---\n# Task B\n\nEdit src/bar.py\n\nAC Verify: bash scripts/validate.sh --ci\n" \
+    > "$_t13_fake_repo/.tickets/t13-task-b.md"
+
+cat > "$_t13_mock_dir/tk" << 'T13_TK'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "t13-epic" ]]; then
+            printf -- "---\nid: t13-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+        else
+            echo ""; exit 1
+        fi; exit 0 ;;
+    ready)
+        echo "t13-task-a [P2][open] - Task A"
+        echo "t13-task-b [P2][open] - Task B"
+        exit 0 ;;
+    blocked) exit 0 ;;
+    children) echo "t13-task-a"; echo "t13-task-b"; exit 0 ;;
+    *) exit 0 ;;
+esac
+T13_TK
+chmod +x "$_t13_mock_dir/tk"
+
+cat > "$_t13_fake_repo/scripts/classify-task.py" << 'T13_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T13_SCORER
+
+cat > "$_t13_fake_repo/scripts/read-config.sh" << 'T13_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T13_CFG
+chmod +x "$_t13_fake_repo/scripts/read-config.sh"
+printf '' > "$_t13_fake_repo/dso-config.conf"
+cp "$PLUGIN_SCRIPT" "$_t13_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t13_fake_repo/scripts/sprint-next-batch.sh"
+
+t13_exit=0
+t13_output=$(cd "$_t13_fake_repo" && TK="$_t13_mock_dir/tk" bash "$_t13_fake_repo/scripts/sprint-next-batch.sh" "t13-epic" --json 2>/dev/null) || t13_exit=$?
+rm -rf "$_t13_mock_dir" "$_t13_fake_repo"
+
+# Both tasks should be in the batch (BATCH_SIZE: 2), not conflicting
+t13_batch_size=$(echo "$t13_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('batch_size',0))" 2>/dev/null || echo "0")
+t13_skipped=$(echo "$t13_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_overlap',[])))" 2>/dev/null || echo "1")
+if [ "$t13_exit" -eq 0 ] && [ "$t13_batch_size" -eq 2 ] && [ "$t13_skipped" -eq 0 ]; then
+    echo "  PASS: AC Verify lines do not cause false-positive conflicts (batch_size=2, skipped_overlap=0)"
+    (( PASS++ ))
+else
+    echo "  FAIL: AC Verify lines caused false-positive conflicts (exit=$t13_exit batch_size=$t13_batch_size skipped_overlap=$t13_skipped)" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -68,12 +68,62 @@ jobs:
 
   # ── Full test suite ─────────────────────────────────────────
 
+  test-hooks:
+    name: Hook Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run hook tests
+        run: bash tests/hooks/run-hook-tests.sh
+
+      - name: Job timing report
+        if: always()
+        run: echo "test-hooks completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  test-scripts:
+    name: Script Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        run: pip install ruff
+
+      - name: Run script tests
+        run: bash tests/scripts/run-script-tests.sh
+
+      - name: Job timing report
+        if: always()
+        run: echo "test-scripts completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  test-evals:
+    name: Eval Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run eval tests
+        run: bash tests/evals/run-evals.sh
+
+      - name: Job timing report
+        if: always()
+        run: echo "test-evals completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
   # ── Failure ticket ──────────────────────────────────────────
 
   create-failure-bug:
     name: Create Failure Bug Ticket
     runs-on: ubuntu-latest
-    needs: [shellcheck, lint-python]
+    needs: [shellcheck, lint-python, test-hooks, test-scripts, test-evals]
     if: failure() && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4

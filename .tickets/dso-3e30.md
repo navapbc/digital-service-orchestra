@@ -1,6 +1,6 @@
 ---
 id: dso-3e30
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:20:48Z
@@ -32,3 +32,10 @@ Actual: "Unknown option: --"
 <!-- sync: unsynced -->
 
 Fixed. Root cause: (1) cmd_create in tk lacked a -- stop-parsing sentinel case; bare -- hit the -*) catch-all and returned 'Unknown option: --'. (2) nohup-launch.sh used eval "${*:5}" which re-parses args, splitting quoted strings like 'foo -- bar' into tokens foo -- bar, causing -- to reach the parser as a discrete arg. Fix: added -- case to cmd_create parser; updated nohup-launch.sh to use "${@:5}" exec (not eval) when multiple command args are passed, preserving eval path for single shell-string arg (pipes/redirects). Tests: tests/scripts/test-tk-create-double-dash.sh (new, 3 cases).
+
+<!-- note-id: h14pcc52 -->
+<!-- timestamp: 2026-03-21T00:24:01Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: tk create -- sentinel + nohup-launch exec (commit 6badeb4)
