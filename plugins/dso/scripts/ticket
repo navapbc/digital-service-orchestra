@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# plugins/dso/scripts/ticket
+# Dispatcher for the event-sourced ticket system.
+# Routes subcommands to their implementation scripts.
+#
+# Usage: ticket <subcommand> [args...]
+#   ticket init      — initialize ticket system (orphan branch + worktree)
+#   ticket create    — create a new ticket
+#   ticket show      — show ticket details
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+_usage() {
+    echo "Usage: ticket <subcommand> [args...]"
+    echo ""
+    echo "Subcommands:"
+    echo "  init      Initialize the ticket system"
+    echo "  create    Create a new ticket"
+    echo "  show      Show ticket details"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    _usage
+fi
+
+subcommand="$1"
+shift
+
+case "$subcommand" in
+    init)
+        exec bash "$SCRIPT_DIR/ticket-init.sh" "$@"
+        ;;
+    create)
+        exec bash "$SCRIPT_DIR/ticket-create.sh" "$@"
+        ;;
+    show)
+        exec bash "$SCRIPT_DIR/ticket-show.sh" "$@"
+        ;;
+    *)
+        echo "Error: unknown subcommand '$subcommand'" >&2
+        _usage
+        ;;
+esac

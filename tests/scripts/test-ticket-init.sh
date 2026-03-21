@@ -166,4 +166,67 @@ test_ticket_init_adds_to_git_info_exclude() {
 }
 test_ticket_init_adds_to_git_info_exclude
 
+# ── Test 6: test_ticket_init_remounts_existing_branch ─────────────────────────
+echo "Test 6: ticket init remounts existing tickets branch from remote"
+test_ticket_init_remounts_existing_branch() {
+    local tmp
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Step 1: Create a bare remote with an existing tickets branch
+    git init -q --bare "$tmp/remote.git"
+
+    # Step 2: Create an origin repo, init tickets, and push to the bare remote
+    git init -q -b main "$tmp/origin"
+    git -C "$tmp/origin" config user.email "test@test.com"
+    git -C "$tmp/origin" config user.name "Test"
+    echo "initial" > "$tmp/origin/README.md"
+    git -C "$tmp/origin" add -A
+    git -C "$tmp/origin" commit -q -m "init"
+    git -C "$tmp/origin" remote add origin "$tmp/remote.git"
+    git -C "$tmp/origin" push -q origin main 2>/dev/null
+
+    # Create orphan tickets branch on origin and push it
+    (cd "$tmp/origin" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+    git -C "$tmp/origin" push -q origin tickets 2>/dev/null
+
+    # Step 3: Clone from the bare remote (simulates fresh clone)
+    git clone -q "$tmp/remote.git" "$tmp/clone" 2>/dev/null
+
+    # Step 4: Run ticket init in the clone — should mount existing branch
+    (cd "$tmp/clone" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Assert: .tickets-tracker/ exists in the clone
+    if [ -d "$tmp/clone/.tickets-tracker" ]; then
+        assert_eq "remount: .tickets-tracker/ exists" "exists" "exists"
+    else
+        assert_eq "remount: .tickets-tracker/ exists" "exists" "missing"
+        return
+    fi
+
+    # Assert: tickets branch exists and has the .gitignore from origin
+    if git -C "$tmp/clone/.tickets-tracker" show tickets:.gitignore &>/dev/null; then
+        assert_eq "remount: .gitignore from remote branch" "committed" "committed"
+    else
+        assert_eq "remount: .gitignore from remote branch" "committed" "missing"
+    fi
+
+}
+test_ticket_init_remounts_existing_branch
+
+# ── Test 7: test_ticket_init_sets_gc_auto_zero ────────────────────────────────
+echo "Test 7: ticket init sets gc.auto=0 on the tickets worktree"
+test_ticket_init_sets_gc_auto_zero() {
+    local repo
+    repo=$(_make_test_repo)
+
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Assert: gc.auto is set to 0
+    local gc_auto
+    gc_auto="$(git -C "$repo/.tickets-tracker" config gc.auto 2>/dev/null || echo "unset")"
+    assert_eq "gc.auto=0: gc.auto is set to 0" "0" "$gc_auto"
+}
+test_ticket_init_sets_gc_auto_zero
+
 print_summary

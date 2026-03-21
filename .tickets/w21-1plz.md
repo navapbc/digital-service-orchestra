@@ -1,6 +1,6 @@
 ---
 id: w21-1plz
-status: open
+status: in_progress
 deps: [w21-57k1]
 links: []
 created: 2026-03-21T00:52:13Z
@@ -68,3 +68,29 @@ Depends on RED task w21-57k1 which defines the failing tests to make pass.
 - [ ] `ticket init` handles re-mount case: if tickets branch exists on remote but .tickets-tracker/ is absent, `git worktree add .tickets-tracker tickets` re-mounts the existing branch (no duplicate commits)
   Verify: `bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-init.sh 2>&1 | grep -q 'test_ticket_init_remounts_existing_branch.*PASS'`
   Rationale: In a freshly cloned repo where the tickets branch was already pushed by another environment, `ticket init` should mount the existing branch (not create a new orphan). Without this check, running `ticket init` after a clone would fail with "branch already exists" or silently create a detached state. Add `test_ticket_init_remounts_existing_branch` to test-ticket-init.sh that simulates this scenario (create a bare remote, push a tickets branch to it, clone, then run ticket init in the clone).
+
+## Notes
+
+**2026-03-21T01:39:16Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T01:39:40Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T01:39:41Z**
+
+CHECKPOINT 3/6: Tests written (pre-existing RED tests) ✓
+
+**2026-03-21T01:40:28Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T01:49:50Z**
+
+CHECKPOINT 5/6: Tests GREEN — 13 passed, 0 failed. Shellcheck clean. ✓
+
+**2026-03-21T01:49:51Z**
+
+CHECKPOINT 6/6: Done ✓
