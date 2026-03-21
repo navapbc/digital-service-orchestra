@@ -21,7 +21,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -30,14 +29,26 @@ PRE_WRITE_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/pre-write.sh"
 FUNCTIONS_LIB="$DSO_PLUGIN_DIR/hooks/lib/pre-edit-write-functions.sh"
 
 # ============================================================
-# Helper: compute cascade state dir (same hash logic as cascade-circuit-breaker)
+# Test isolation: unique fake git repo root per test run.
+# The cascade circuit breaker computes STATE_DIR by hashing
+# `git rev-parse --show-toplevel`. Using a unique fake root ensures
+# counter files never collide with the real repo's cascade state
+# or with parallel test runs.
 # ============================================================
+_FAKE_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/test-pre-edit-write-XXXXXX")
+trap 'rm -rf "$_FAKE_ROOT"' EXIT
+git init -q "$_FAKE_ROOT"
+# Resolve canonical path — on macOS, mktemp returns /var/folders/... but
+# git rev-parse --show-toplevel resolves symlinks to /private/var/folders/...
+_FAKE_ROOT=$(cd "$_FAKE_ROOT" && git rev-parse --show-toplevel)
+
+# Helper: compute cascade state dir (same hash logic as cascade-circuit-breaker)
 if command -v md5 &>/dev/null; then
-    _WT_HASH=$(echo -n "$REPO_ROOT" | md5)
+    _WT_HASH=$(echo -n "$_FAKE_ROOT" | md5)
 elif command -v md5sum &>/dev/null; then
-    _WT_HASH=$(echo -n "$REPO_ROOT" | md5sum | cut -d' ' -f1)
+    _WT_HASH=$(echo -n "$_FAKE_ROOT" | md5sum | cut -d' ' -f1)
 else
-    _WT_HASH=$(echo -n "$REPO_ROOT" | tr '/' '_')
+    _WT_HASH=$(echo -n "$_FAKE_ROOT" | tr '/' '_')
 fi
 _CASCADE_STATE_DIR="/tmp/claude-cascade-${_WT_HASH}"
 _CASCADE_COUNTER_FILE="$_CASCADE_STATE_DIR/counter"
@@ -53,10 +64,10 @@ echo "--- test_pre_edit_dispatcher_exits_2_when_cascade_breaker_triggers ---"
 mkdir -p "$_CASCADE_STATE_DIR"
 echo "5" > "$_CASCADE_COUNTER_FILE"
 
-_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
+_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_FAKE_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
 _exit_code=0
 _output=""
-_output=$(printf '%s' "$_INPUT" | bash "$PRE_EDIT_DISPATCHER" 2>&1) || _exit_code=$?
+_output=$(printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_EDIT_DISPATCHER" 2>&1)) || _exit_code=$?
 assert_eq "test_pre_edit_dispatcher_exits_2_when_cascade_breaker_triggers: exit 2" "2" "$_exit_code"
 assert_contains "test_pre_edit_dispatcher_exits_2_when_cascade_breaker_triggers: BLOCKED in output" \
     "BLOCKED" "$_output"
@@ -73,11 +84,11 @@ echo "--- test_pre_edit_dispatcher_title_length_blocks_over_255_chars ---"
 
 # Generate a title exactly 256 characters long (1 over the 255 limit)
 _long_title=$(printf '%-256s' 'A' | tr ' ' 'A')
-_tickets_path="$REPO_ROOT/.tickets/test-ticket-123.md"
+_tickets_path="$_FAKE_ROOT/.tickets/test-ticket-123.md"
 _INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_tickets_path"'","old_string":"# Short title","new_string":"# '"$_long_title"'"}}'
 _exit_code=0
 _output=""
-_output=$(printf '%s' "$_INPUT" | bash "$PRE_EDIT_DISPATCHER" 2>&1) || _exit_code=$?
+_output=$(printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_EDIT_DISPATCHER" 2>&1)) || _exit_code=$?
 assert_eq "test_pre_edit_dispatcher_title_length_blocks_over_255_chars: exit 2" "2" "$_exit_code"
 assert_contains "test_pre_edit_dispatcher_title_length_blocks_over_255_chars: BLOCKED in output" \
     "BLOCKED" "$_output"
@@ -91,14 +102,14 @@ echo "--- test_pre_write_dispatcher_sources_same_functions_as_edit ---"
 
 # Test that pre-write also blocks title > 255 chars on .tickets/ write
 _long_title2=$(printf '%-256s' 'B' | tr ' ' 'B')
-_tickets_path2="$REPO_ROOT/.tickets/test-write-ticket.md"
+_tickets_path2="$_FAKE_ROOT/.tickets/test-write-ticket.md"
 _write_content="# ${_long_title2}
 
 Some content."
 _INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$_tickets_path2"'","content":"# '"$_long_title2"'\n\nSome content."}}'
 _exit_code=0
 _output=""
-_output=$(printf '%s' "$_INPUT" | bash "$PRE_WRITE_DISPATCHER" 2>&1) || _exit_code=$?
+_output=$(printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_WRITE_DISPATCHER" 2>&1)) || _exit_code=$?
 assert_eq "test_pre_write_dispatcher_sources_same_functions_as_edit: exit 2" "2" "$_exit_code"
 assert_contains "test_pre_write_dispatcher_sources_same_functions_as_edit: BLOCKED in output" \
     "BLOCKED" "$_output"
@@ -112,9 +123,9 @@ echo "--- test_pre_edit_dispatcher_exits_0_for_allowed_edit ---"
 # Ensure cascade counter is below threshold (or absent)
 rm -f "$_CASCADE_COUNTER_FILE" 2>/dev/null || true
 
-_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
+_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_FAKE_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
 _exit_code=0
-printf '%s' "$_INPUT" | bash "$PRE_EDIT_DISPATCHER" 2>/dev/null || _exit_code=$?
+printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_EDIT_DISPATCHER" 2>/dev/null) || _exit_code=$?
 assert_eq "test_pre_edit_dispatcher_exits_0_for_allowed_edit" "0" "$_exit_code"
 
 # ============================================================
@@ -123,9 +134,9 @@ assert_eq "test_pre_edit_dispatcher_exits_0_for_allowed_edit" "0" "$_exit_code"
 # ============================================================
 echo "--- test_pre_write_dispatcher_exits_0_for_allowed_write ---"
 
-_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/output.py","content":"print(\"hello\")"}}'
+_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$_FAKE_ROOT"'/app/src/output.py","content":"print(\"hello\")"}}'
 _exit_code=0
-printf '%s' "$_INPUT" | bash "$PRE_WRITE_DISPATCHER" 2>/dev/null || _exit_code=$?
+printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_WRITE_DISPATCHER" 2>/dev/null) || _exit_code=$?
 assert_eq "test_pre_write_dispatcher_exits_0_for_allowed_write" "0" "$_exit_code"
 
 # ============================================================
@@ -156,9 +167,9 @@ echo "--- test_pre_edit_dispatcher_cascade_exempt_allows_tickets ---"
 mkdir -p "$_CASCADE_STATE_DIR"
 echo "10" > "$_CASCADE_COUNTER_FILE"
 
-_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$REPO_ROOT"'/.tickets/some-ticket.md","old_string":"old","new_string":"new"}}'
+_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_FAKE_ROOT"'/.tickets/some-ticket.md","old_string":"old","new_string":"new"}}'
 _exit_code=0
-printf '%s' "$_INPUT" | bash "$PRE_EDIT_DISPATCHER" 2>/dev/null || _exit_code=$?
+printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_EDIT_DISPATCHER" 2>/dev/null) || _exit_code=$?
 assert_eq "test_pre_edit_dispatcher_cascade_exempt_allows_tickets" "0" "$_exit_code"
 
 # Cleanup cascade counter
@@ -173,10 +184,10 @@ echo "--- test_pre_write_dispatcher_cascade_blocks_non_exempt_at_threshold ---"
 mkdir -p "$_CASCADE_STATE_DIR"
 echo "5" > "$_CASCADE_COUNTER_FILE"
 
-_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/some_new_file.py","content":"print(\"hello\")"}}'
+_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$_FAKE_ROOT"'/app/src/some_new_file.py","content":"print(\"hello\")"}}'
 _exit_code=0
 _output=""
-_output=$(printf '%s' "$_INPUT" | bash "$PRE_WRITE_DISPATCHER" 2>&1) || _exit_code=$?
+_output=$(printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_WRITE_DISPATCHER" 2>&1)) || _exit_code=$?
 assert_eq "test_pre_write_dispatcher_cascade_blocks_non_exempt_at_threshold: exit 2" "2" "$_exit_code"
 assert_contains "test_pre_write_dispatcher_cascade_blocks_non_exempt_at_threshold: BLOCKED in output" \
     "BLOCKED" "$_output"
@@ -201,9 +212,9 @@ assert_eq "test_pre_edit_no_tool_logging: no post-functions.sh source" "0" "$_ha
 
 # Verify dispatcher still exits 0 for a normal edit
 rm -f "$_CASCADE_COUNTER_FILE" 2>/dev/null || true
-_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
+_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_FAKE_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
 _exit_code=0
-printf '%s' "$_INPUT" | bash "$PRE_EDIT_DISPATCHER" 2>/dev/null || _exit_code=$?
+printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_EDIT_DISPATCHER" 2>/dev/null) || _exit_code=$?
 assert_eq "test_pre_edit_no_tool_logging: exits 0" "0" "$_exit_code"
 
 # ============================================================
@@ -222,9 +233,9 @@ grep -q 'post-functions.sh' "$PRE_WRITE_DISPATCHER" && _has_source=1
 assert_eq "test_pre_write_no_tool_logging: no post-functions.sh source" "0" "$_has_source"
 
 # Verify dispatcher still exits 0 for a normal write
-_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/output.py","content":"print(\"hello\")"}}'
+_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$_FAKE_ROOT"'/app/src/output.py","content":"print(\"hello\")"}}'
 _exit_code=0
-printf '%s' "$_INPUT" | bash "$PRE_WRITE_DISPATCHER" 2>/dev/null || _exit_code=$?
+printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_WRITE_DISPATCHER" 2>/dev/null) || _exit_code=$?
 assert_eq "test_pre_write_no_tool_logging: exits 0" "0" "$_exit_code"
 
 # ============================================================

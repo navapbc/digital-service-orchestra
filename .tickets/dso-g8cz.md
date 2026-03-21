@@ -21,3 +21,17 @@ parent: dso-9xnr
 <!-- sync: unsynced -->
 
 CLOSE REASON: Fixed: new files staged before review appear in git diff HEAD; hash is now stable between review and pre-commit since untracked processing removed
+
+<!-- note-id: sci35q4u -->
+<!-- timestamp: 2026-03-21T00:11:07Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: same root cause as dso-fqxu — untracked file hashing removed.
+
+<!-- note-id: 7fytjg0g -->
+<!-- timestamp: 2026-03-21T00:11:07Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: compute-diff-hash.sh staging invariance (commit 0ab58e5)

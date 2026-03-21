@@ -21,3 +21,17 @@ parent: dso-9xnr
 <!-- sync: unsynced -->
 
 CLOSE REASON: Fixed: applied defensive plugin.json validation guard to cmd_cleanup_discoveries in plugins/dso/scripts/agent-batch-lifecycle.sh; added regression test in tests/scripts/test-lifecycle-portability.sh
+
+<!-- note-id: r6yaatwq -->
+<!-- timestamp: 2026-03-21T00:11:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: defensive plugin.json sentinel guard for CLAUDE_PLUGIN_ROOT. Test: test-lifecycle-portability.sh.
+
+<!-- note-id: mzwah33m -->
+<!-- timestamp: 2026-03-21T00:11:09Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: agent-batch-lifecycle.sh plugin root resolution (commit 0ab58e5)

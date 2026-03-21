@@ -9,9 +9,19 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-REPO_ROOT="$(git rev-parse --show-toplevel)"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
+
+# --- Test isolation: unique fake git repo root per test run ---
+# track-cascade-failures.sh computes STATE_DIR by hashing `git rev-parse --show-toplevel`.
+# Using a unique fake root ensures counter files never collide with the real repo's
+# cascade state or with parallel test runs.
+_FAKE_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/test-jq-parse-json-XXXXXX")
+trap 'rm -rf "$_FAKE_ROOT"' EXIT
+git init -q "$_FAKE_ROOT"
+# Resolve to real path — on macOS, mktemp may return a symlink (e.g. /var/folders/...)
+# but git rev-parse --show-toplevel resolves to the canonical path.
+_FAKE_ROOT=$(cd "$_FAKE_ROOT" && git rev-parse --show-toplevel)
 
 echo "=== test-jq-to-parse-json-field ==="
 
@@ -70,19 +80,23 @@ output=$(echo '{"tool_name":"Bash","tool_input":{"command":"echo hello"}}' | bas
 assert_eq "track-cascade: non-test command exits silently" "{}" "$output"
 
 # Bash tool with test command but passing output — resets state
+# Compute state dir hash from _FAKE_ROOT (matches what the hook will compute
+# when run from within _FAKE_ROOT via cd).
 STATE_DIR_HASH=""
 if command -v md5 &>/dev/null; then
-    STATE_DIR_HASH=$(echo -n "$REPO_ROOT" | md5)
+    STATE_DIR_HASH=$(echo -n "$_FAKE_ROOT" | md5)
 elif command -v md5sum &>/dev/null; then
-    STATE_DIR_HASH=$(echo -n "$REPO_ROOT" | md5sum | cut -d' ' -f1)
+    STATE_DIR_HASH=$(echo -n "$_FAKE_ROOT" | md5sum | cut -d' ' -f1)
 else
-    STATE_DIR_HASH=$(echo -n "$REPO_ROOT" | tr '/' '_')
+    STATE_DIR_HASH=$(echo -n "$_FAKE_ROOT" | tr '/' '_')
 fi
 TEST_STATE_DIR="/tmp/claude-cascade-${STATE_DIR_HASH}"
 mkdir -p "$TEST_STATE_DIR"
 echo "3" > "$TEST_STATE_DIR/counter"
 
-output=$(echo '{"tool_name":"Bash","tool_input":{"command":"make test"},"tool_response":{"stdout":"All tests passed","stderr":""}}' | bash "$TRACK_HOOK" 2>/dev/null)
+# Run hook from within _FAKE_ROOT so its `git rev-parse --show-toplevel`
+# returns _FAKE_ROOT, producing a STATE_DIR that doesn't touch the real repo.
+output=$(echo '{"tool_name":"Bash","tool_input":{"command":"make test"},"tool_response":{"stdout":"All tests passed","stderr":""}}' | (cd "$_FAKE_ROOT" && bash "$TRACK_HOOK" 2>/dev/null))
 counter_after=$(cat "$TEST_STATE_DIR/counter" 2>/dev/null || echo "missing")
 assert_eq "track-cascade: passing test resets counter" "0" "$counter_after"
 
