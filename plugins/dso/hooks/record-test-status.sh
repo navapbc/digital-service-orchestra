@@ -35,6 +35,7 @@ set -euo pipefail
 # Source shared dependency library (provides get_artifacts_dir, hash_stdin, etc.)
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
+source "$HOOK_DIR/lib/fuzzy-match.sh"
 
 # Parse arguments
 SOURCE_FILE=""
@@ -67,6 +68,14 @@ fi
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 
+# Read test directory configuration
+if [[ -n "${TEST_GATE_TEST_DIRS_OVERRIDE:-}" ]]; then
+    _TEST_DIRS="$TEST_GATE_TEST_DIRS_OVERRIDE"
+else
+    _TEST_DIRS=$(grep '^test_gate\.test_dirs=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
+    _TEST_DIRS="${_TEST_DIRS:-tests/}"
+fi
+
 # --- Discover staged source files ---
 if [[ -n "$SOURCE_FILE" ]]; then
     STAGED_FILES="$SOURCE_FILE"
@@ -82,37 +91,31 @@ fi
 # --- Discover associated test files ---
 ASSOCIATED_TESTS=()
 
+# Discover associated test files using fuzzy matching
 while IFS= read -r src_file; do
     [[ -z "$src_file" ]] && continue
 
-    # Get the basename and strip extension
-    local_basename=$(basename "$src_file")
-    name_no_ext="${local_basename%.*}"
+    # Skip if src_file is itself a test file
+    if fuzzy_is_test_file "$src_file"; then
+        continue
+    fi
 
-    # Build test name pattern: test_<name>
-    test_pattern="test_${name_no_ext}"
-
-    # Search the entire repo for matching test files
     while IFS= read -r test_file; do
         [[ -z "$test_file" ]] && continue
-
-        # Full path
         full_test_path="$REPO_ROOT/$test_file"
 
-        # Skip if not a regular file
         if [[ ! -f "$full_test_path" ]]; then
             echo "WARNING: skipping non-regular file: $test_file" >&2
             continue
         fi
 
-        # Skip if not executable and it's a .sh file
         if [[ "$test_file" == *.sh ]] && [[ ! -x "$full_test_path" ]]; then
             echo "WARNING: skipping non-executable shell test: $test_file" >&2
             continue
         fi
 
         ASSOCIATED_TESTS+=("$test_file")
-    done < <(cd "$REPO_ROOT" && find . -type f -name "${test_pattern}.*" 2>/dev/null | sed 's|^\./||')
+    done < <(fuzzy_find_associated_tests "$src_file" "$REPO_ROOT" "$_TEST_DIRS")
 
 done <<< "$STAGED_FILES"
 

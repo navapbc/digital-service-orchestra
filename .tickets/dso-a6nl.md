@@ -1,6 +1,6 @@
 ---
 id: dso-a6nl
-status: in_progress
+status: closed
 deps: [dso-wqt4]
 links: []
 created: 2026-03-21T16:16:08Z

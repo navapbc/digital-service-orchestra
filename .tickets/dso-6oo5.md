@@ -1,6 +1,6 @@
 ---
 id: dso-6oo5
-status: open
+status: in_progress
 deps: [dso-wqt4, dso-a6nl]
 links: []
 created: 2026-03-21T16:16:24Z
@@ -97,3 +97,29 @@ Python test_foo.py is still discovered (foopy is substring of testfoopy, both co
 - [ ] test_record_uses_configured_test_dirs passes GREEN
   Verify: bash $(git rev-parse --show-toplevel)/tests/hooks/test-record-test-status.sh 2>&1 | grep -q 'PASS:.*test_record_uses_configured_test_dirs'
 
+
+## Notes
+
+**2026-03-21T17:25:34Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T17:25:46Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T17:26:05Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓
+
+**2026-03-21T17:26:42Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T17:27:00Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-21T17:28:21Z**
+
+CHECKPOINT 6/6: Done ✓
