@@ -1,7 +1,7 @@
 """RED tests for ticket-reducer.py.
 
 These tests are RED — they test functionality that does not yet exist.
-All 5 test functions must FAIL before ticket-reducer.py is implemented.
+All 11 test functions must FAIL before ticket-reducer.py is implemented.
 
 The reducer is expected to expose a single callable:
     reduce_ticket(ticket_dir_path: Path) -> dict | None
@@ -11,6 +11,8 @@ Contract (from plugins/dso/docs/contracts/ticket-event-format.md):
   - Events are sorted lexicographically by filename before reduction.
   - A CREATE event supplies ticket_type, title, and optional parent_id.
   - The reducer returns None if no CREATE event is present or the dir is empty.
+  - Exception: a dir with only corrupt/unparseable events returns an error dict
+    (status='error') rather than None — ghost-ticket prevention (Test 10).
 
 Test: python3 -m pytest tests/scripts/test_ticket_reducer.py
 All tests must return non-zero until ticket-reducer.py is implemented.
@@ -59,6 +61,7 @@ def reducer() -> ModuleType:
 
 _UUID = "3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c"
 _UUID2 = "aabbccdd-1122-3344-5566-778899aabbcc"
+_UUID3 = "deadbeef-dead-beef-dead-beefdeadbeef"
 
 
 def _write_event(
@@ -158,7 +161,11 @@ def test_reducer_orders_events_by_filename_not_insertion_order(
         timestamp=1742605300,  # t2 — later
         uuid=_UUID2,
         event_type="STATUS",
-        data={"status": "closed", "marker": "t2_processed_second"},
+        data={
+            "status": "closed",
+            "current_status": "open",
+            "marker": "t2_processed_second",
+        },
     )
 
     # Write t1 event SECOND (earlier timestamp, written later to filesystem)
@@ -293,3 +300,333 @@ def test_reducer_handles_empty_ticket_dir(tmp_path: Path, reducer: ModuleType) -
     state = reducer.reduce_ticket(ticket_dir)
 
     assert state is None, "reduce_ticket must return None for an empty ticket directory"
+
+
+# ---------------------------------------------------------------------------
+# Test 6: STATUS event updates ticket status (new STATUS contract)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_compiles_status_event_to_correct_status(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Given a CREATE event followed by a STATUS event, the reducer must update status.
+
+    The STATUS event data includes both 'status' (target) and 'current_status'
+    (optimistic concurrency proof). When current_status matches the current
+    compiled status, the transition must be applied.
+    """
+    ticket_dir = tmp_path / "tkt-status"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Status transition test",
+            "parent_id": None,
+        },
+    )
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress", "current_status": "open"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None
+    assert state["status"] == "in_progress", (
+        "STATUS event must update ticket status when current_status matches"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: STATUS event with current_status mismatch flags conflict
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_applies_multiple_status_events_current_status_mismatch_flags_conflict(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """STATUS event where current_status doesn't match compiled status must flag a conflict.
+
+    Per the contract: 'The reducer must apply this event only if the ticket's
+    current compiled status matches current_status; otherwise it should flag
+    a conflict.'
+
+    The reducer must indicate a conflict — either by including a 'conflicts'
+    key in the returned state, or by returning a state with status='conflict',
+    rather than silently applying the bad transition.
+    """
+    ticket_dir = tmp_path / "tkt-conflict"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Conflict detection test",
+            "parent_id": None,
+        },
+    )
+
+    # STATUS event with wrong current_status — ticket is "open" but event says "in_progress"
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "in_progress"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket must return a dict, not None, on conflict"
+    # Reducer must flag the conflict — either via a 'conflicts' list or status='conflict'
+    has_conflict = state.get("conflicts") or state.get("status") == "conflict"
+    assert has_conflict, (
+        "STATUS event with mismatched current_status must be flagged as a conflict; "
+        f"got state={state!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: COMMENT event accumulates in comments list
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_compiles_comment_event_to_comments_list(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Given a CREATE + COMMENT event, the reducer must append to the comments list.
+
+    Each comment in state['comments'] must include at minimum:
+      - 'body': the comment text
+      - 'author': the event author
+      - 'timestamp': the event timestamp
+    """
+    ticket_dir = tmp_path / "tkt-comment"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Comment test",
+            "parent_id": None,
+        },
+        author="Alice",
+    )
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="COMMENT",
+        data={"body": "first comment"},
+        author="Bob",
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None
+    assert len(state["comments"]) == 1, (
+        "COMMENT event must append one entry to the comments list"
+    )
+    comment = state["comments"][0]
+    assert comment["body"] == "first comment", (
+        "comment body must match the COMMENT event data.body"
+    )
+    assert comment["author"] == "Bob", (
+        "comment author must match the COMMENT event author"
+    )
+    assert comment["timestamp"] == 1742605300, (
+        "comment timestamp must match the COMMENT event timestamp"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 9: Multiple COMMENT events accumulate in chronological order
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_accumulates_multiple_comments(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """Given CREATE + two COMMENT events, comments list must have 2 entries in order."""
+    ticket_dir = tmp_path / "tkt-multicomment"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Multi-comment test",
+            "parent_id": None,
+        },
+        author="Alice",
+    )
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="COMMENT",
+        data={"body": "first comment"},
+        author="Bob",
+    )
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605400,
+        uuid=_UUID3,
+        event_type="COMMENT",
+        data={"body": "second comment"},
+        author="Carol",
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None
+    assert len(state["comments"]) == 2, (
+        "Two COMMENT events must produce two entries in comments list"
+    )
+    assert state["comments"][0]["body"] == "first comment", (
+        "First comment must be chronologically first (lower timestamp)"
+    )
+    assert state["comments"][1]["body"] == "second comment", (
+        "Second comment must be chronologically second (higher timestamp)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 10: Ghost ticket directory (zero valid events) returns error state dict
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_returns_error_state_for_ticket_dir_with_zero_valid_events(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """A ticket dir containing only corrupt JSON files (no parseable events) must
+    return an error state dict — not None, and must not raise.
+
+    Ghost prevention: zero-valid-events → error state, not crash.
+    The returned dict must have status='error'.
+
+    # REVIEW-DEFENSE: This test deliberately extends the docstring contract
+    # ("returns None if … dir is empty") to differentiate two cases:
+    #   - Empty dir (no files at all)     → None  (Tests 4 and 5)
+    #   - Corrupt-only dir (no parseable events) → error dict (this test)
+    # Story w21-o72z done-definition: ghost tickets must surface as errors,
+    # not silently disappear. The updated module docstring now documents this
+    # distinction. Returning None for corrupt-only dirs would make ghost
+    # tickets invisible to operators, which the story explicitly forbids.
+    """
+    ticket_dir = tmp_path / "tkt-ghost"
+    ticket_dir.mkdir()
+
+    # Write only a corrupt JSON file — no valid events at all
+    corrupt_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    corrupt_file.write_text("{this is not valid json at all!!!}")
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, (
+        "reduce_ticket must return a dict (not None) when only corrupt events exist"
+    )
+    assert isinstance(state, dict), (
+        "reduce_ticket must return a dict for ghost ticket dir"
+    )
+    assert state.get("status") == "error", (
+        f"Ghost ticket dir must return status='error', got status={state.get('status')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 11: Corrupt CREATE event marks ticket as fsck_needed
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_flags_corrupt_create_as_fsck_needed(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """A CREATE event missing required fields (ticket_type) must not silently corrupt state.
+
+    The reducer must return a dict with status='fsck_needed' rather than None
+    or raising an exception. It must also not block all operations — the
+    returned dict must be a non-None, non-raising result.
+
+    # NOTE (w21-o72z): 'fsck_needed' is a new sentinel value introduced by
+    # this story to distinguish structurally-corrupt-but-parseable CREATE events
+    # (missing required fields) from fully-unparseable corrupt JSON (status='error',
+    # Test 10). The sentinel signals: "this ticket exists but needs manual
+    # inspection before it can be safely used." The implementer must use
+    # exactly 'fsck_needed' as the status string for this case.
+    """
+    ticket_dir = tmp_path / "tkt-fsck"
+    ticket_dir.mkdir()
+
+    # Write a malformed CREATE event — missing the required 'ticket_type' field
+    malformed_create: dict = {
+        "timestamp": 1742605200,
+        "uuid": _UUID,
+        "event_type": "CREATE",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "author": "Alice",
+        "data": {
+            # 'ticket_type' is intentionally absent
+            "title": "Corrupt create ticket",
+            "parent_id": None,
+        },
+    }
+    create_file = ticket_dir / f"1742605200-{_UUID}-CREATE.json"
+    create_file.write_text(json.dumps(malformed_create))
+
+    # A STATUS event follows the corrupt CREATE
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress", "current_status": "open"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, (
+        "reduce_ticket must return a dict (not None) for a corrupt CREATE event"
+    )
+    assert isinstance(state, dict), (
+        "reduce_ticket must return a dict, not raise, for corrupt CREATE"
+    )
+    assert state.get("status") == "fsck_needed", (
+        f"Corrupt CREATE event must set status='fsck_needed', got status={state.get('status')!r}"
+    )

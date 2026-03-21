@@ -1,6 +1,6 @@
 ---
 id: dso-1kcx
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T04:56:14Z
@@ -64,3 +64,7 @@ CHECKPOINT 5/6: Validation passed ✓
 **2026-03-21T05:05:15Z**
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T05:07:15Z**
+
+CHECKPOINT 6/6: Done ✓ — Updated ticket-event-format.md with STATUS and COMMENT schemas.
