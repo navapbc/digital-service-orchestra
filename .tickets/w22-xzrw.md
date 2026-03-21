@@ -1,6 +1,6 @@
 ---
 id: w22-xzrw
-status: in_progress
+status: closed
 deps: [w22-iig7, w22-q9d2]
 links: []
 created: 2026-03-20T15:27:54Z
