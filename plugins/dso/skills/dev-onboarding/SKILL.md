@@ -152,6 +152,65 @@ Plugin Enforcement Inventory:
 
 **Principle: configure before creating.** Only build custom enforcement scripts for gaps the plugin doesn't cover. The plugin's hooks are designed to be stack-agnostic — they read commands from `workflow-config.yaml` via `read-config.sh` and work across Python, JS/TS, Go, Rust, and convention-based stacks.
 
+### Step 0.5: Bootstrap .test-index via Scanner
+
+The test gate enforces that every staged source file has a corresponding test. It finds test associations via **fuzzy match** (convention-based filename matching — e.g., `src/foo.py` → `tests/test_foo.py`). However, test files that do **not** follow fuzzy-match naming conventions will be missed. The `.test-index` file is a living document that records these non-conventional associations explicitly.
+
+**Format:** `source/path.ext: test/path1.ext[, test/path2.ext]`
+(e.g., `plugins/dso/scripts/validate.sh: tests/hooks/test-validate.sh`)
+
+**Procedure:**
+
+1. **Check if `.test-index` already exists** at the repo root:
+
+   ```bash
+   if [[ -f .test-index ]]; then
+       echo ".test-index already exists — $(grep -v '^#' .test-index | grep -v '^$' | wc -l | tr -d ' ') entries"
+       # Skip regeneration unless --force-scan is given
+   fi
+   ```
+
+   If it exists and `--force-scan` was not requested, report the entry count and skip to the next step.
+
+2. **If `.test-index` does not exist (or `--force-scan` is given):** run the scanner:
+
+   ```bash
+   bash plugins/dso/scripts/generate-test-index.sh
+   ```
+
+   The scanner:
+   - Walks all source directories (default: `plugins/`, `scripts/`, `app/`, `src/`)
+   - Runs fuzzy match on each source file against configured test directories
+   - For files fuzzy match **misses**, performs a broader token-based scan across the entire repo
+   - Writes only the **non-fuzzy-matchable** associations to `.test-index` (fuzzy-covered files are intentionally excluded — the gate handles them automatically)
+
+3. **Present the coverage summary** output to the user:
+
+   ```
+   Files with fuzzy matches:          <N>   (covered automatically — no index entry needed)
+   Files with .test-index entries:    <N>   (auto-discovered non-conventional associations)
+   Files with no test coverage:       <N>   (no test found by either method)
+   ```
+
+4. **Obtain user approval** before committing, then commit `.test-index` to version control:
+
+   ```bash
+   git add .test-index
+   git commit -m "chore: bootstrap .test-index via generate-test-index.sh"
+   ```
+
+   > **Note:** Use `/dso:commit` (or follow `COMMIT-WORKFLOW.md`) rather than raw `git commit` to satisfy the review gate.
+
+5. **Ongoing maintenance note:** `.test-index` is a living document. Future test renames or new non-conventional test files may require re-running the scanner:
+
+   ```bash
+   bash plugins/dso/scripts/generate-test-index.sh  # regenerate
+   ```
+
+   Add a note in the project's `CLAUDE.md` or `KNOWN-ISSUES.md` that this file exists and when to refresh it.
+
+> **Why this matters:** Test files that do not follow fuzzy-match conventions must have `.test-index` entries — without them, the test gate cannot link staged source changes to their tests, and those files will appear as uncovered. `generate-test-index.sh` auto-discovers these associations so no manual mapping is needed.
+
 ### Step 1: Anti-Pattern Risk Assessment
 
 Before designing enforcement rules, assess the blueprint for these **known architectural anti-patterns** — failure modes observed in production codebases where documentation existed but enforcement did not. Each anti-pattern maps to a specific enforcement mechanism. Flag any that apply to the blueprint and wire up the corresponding enforcement in the layers below.

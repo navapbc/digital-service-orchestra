@@ -1,6 +1,6 @@
 ---
 id: dso-ez3s
-status: in_progress
+status: closed
 deps: [dso-2fme]
 links: []
 created: 2026-03-21T19:58:46Z
