@@ -348,10 +348,10 @@ echo "--- AC4: No hardcoded Flask/Jinja2 references in SKILL.md ---"
 # Disallowed: hardcoded "Flask" as assumed framework
 _snapshot_fail
 # Count lines with Flask/flask that are NOT in adapter examples or comments
-hardcoded_flask_count=$(grep -c -i 'flask' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null || echo "0")
+hardcoded_flask_count=$(grep -c -i 'flask' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; true); hardcoded_flask_count=${hardcoded_flask_count:-0}
 # The only allowed reference is the adapter filename example "flask-jinja2.yaml"
 # Check that all Flask references are in that context
-allowed_flask=$(grep -i 'flask' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null | grep -c 'flask-jinja2' || echo "0")
+allowed_flask=$(grep -i 'flask' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null | grep -c 'flask-jinja2' 2>/dev/null; true); allowed_flask=${allowed_flask:-0}
 non_adapter_flask=$((hardcoded_flask_count - allowed_flask))
 if [[ "$non_adapter_flask" -le 0 ]]; then
     no_hardcoded="no_hardcoded_flask"
@@ -363,9 +363,9 @@ assert_pass_if_clean "test_design_wireframe_no_hardcoded_flask"
 
 # test_design_wireframe_no_hardcoded_jinja2: no Jinja2 references
 _snapshot_fail
-hardcoded_jinja_count=$(grep -c -i 'jinja2\|jinja' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null || echo "0")
+hardcoded_jinja_count=$(grep -c -i 'jinja2\|jinja' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null; true); hardcoded_jinja_count=${hardcoded_jinja_count:-0}
 # Allow references that are in the adapter filename example or generic fallback examples
-allowed_jinja=$(grep -i 'jinja2\|jinja' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null | grep -c 'flask-jinja2\|Jinja2 adapter' || echo "0")
+allowed_jinja=$(grep -i 'jinja2\|jinja' "$DESIGN_WIREFRAME_SKILL" 2>/dev/null | grep -c 'flask-jinja2\|Jinja2 adapter' 2>/dev/null; true); allowed_jinja=${allowed_jinja:-0}
 non_adapter_jinja=$((hardcoded_jinja_count - allowed_jinja))
 if [[ "$non_adapter_jinja" -le 0 ]]; then
     no_hardcoded="no_hardcoded_jinja2"
@@ -377,9 +377,9 @@ assert_pass_if_clean "test_design_wireframe_no_hardcoded_jinja2"
 
 # test_ui_discover_no_hardcoded_flask: no Flask references outside adapter examples
 _snapshot_fail
-hardcoded_flask_count=$(grep -c -i 'flask' "$UI_DISCOVER_SKILL" 2>/dev/null || echo "0")
+hardcoded_flask_count=$(grep -c -i 'flask' "$UI_DISCOVER_SKILL" 2>/dev/null; true); hardcoded_flask_count=${hardcoded_flask_count:-0}
 # Allowed: "flask-jinja2.yaml" examples, and "5000 for Flask" (generic port fallback docs)
-allowed_flask=$(grep -i 'flask' "$UI_DISCOVER_SKILL" 2>/dev/null | grep -c 'flask-jinja2\|for Flask' || echo "0")
+allowed_flask=$(grep -i 'flask' "$UI_DISCOVER_SKILL" 2>/dev/null | grep -c 'flask-jinja2\|for Flask' 2>/dev/null; true); allowed_flask=${allowed_flask:-0}
 non_adapter_flask=$((hardcoded_flask_count - allowed_flask))
 if [[ "$non_adapter_flask" -le 0 ]]; then
     no_hardcoded="no_hardcoded_flask"
@@ -391,9 +391,9 @@ assert_pass_if_clean "test_ui_discover_no_hardcoded_flask"
 
 # test_ui_discover_no_hardcoded_jinja2: no Jinja2 references outside adapter/fallback docs
 _snapshot_fail
-hardcoded_jinja_count=$(grep -c -i 'jinja2\|jinja' "$UI_DISCOVER_SKILL" 2>/dev/null || echo "0")
+hardcoded_jinja_count=$(grep -c -i 'jinja2\|jinja' "$UI_DISCOVER_SKILL" 2>/dev/null; true); hardcoded_jinja_count=${hardcoded_jinja_count:-0}
 # Allowed: "Jinja2-like" in generic fallback patterns section, "flask-jinja2"
-allowed_jinja=$(grep -i 'jinja2\|jinja' "$UI_DISCOVER_SKILL" 2>/dev/null | grep -c 'flask-jinja2\|Jinja2-like\|Jinja2 templates\|for Jinja2' || echo "0")
+allowed_jinja=$(grep -i 'jinja2\|jinja' "$UI_DISCOVER_SKILL" 2>/dev/null | grep -c 'flask-jinja2\|Jinja2-like\|Jinja2 templates\|for Jinja2' 2>/dev/null; true); allowed_jinja=${allowed_jinja:-0}
 non_adapter_jinja=$((hardcoded_jinja_count - allowed_jinja))
 if [[ "$non_adapter_jinja" -le 0 ]]; then
     no_hardcoded="no_hardcoded_jinja2"
