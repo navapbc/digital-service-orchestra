@@ -373,7 +373,8 @@ test_auto_detect_main_worktree_via_git_list() {
     # Assert: .tickets-tracker in the worktree is a symlink pointing to main repo's .tickets-tracker
     if [ -L "$worktree_dir/.tickets-tracker" ]; then
         symlink_target=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$worktree_dir/.tickets-tracker" 2>/dev/null || true)
-        local expected_target="$main_repo/.tickets-tracker"
+        local expected_target
+        expected_target=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$main_repo/.tickets-tracker" 2>/dev/null || true)
         if [ "$symlink_target" = "$expected_target" ]; then
             assert_eq "symlink-target: points to main repo .tickets-tracker" "correct" "correct"
         else
