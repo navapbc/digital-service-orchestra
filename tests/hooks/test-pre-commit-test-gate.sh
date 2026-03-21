@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (24):
+# Test cases (26):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -31,6 +31,8 @@
 #  22. test_gate_index_prune_removes_line_when_all_stale — RED: all test paths stale = entire source line removed
 #  23. test_gate_index_prune_stages_modified_index — RED: after pruning, modified .test-index is auto-staged
 #  24. test_gate_index_prune_partial — RED: one valid + one stale test path: stale removed, valid retained
+#  25. test_gate_prune_git_add_failure_exits_nonzero — git add failure during prune exits non-zero (disk/staged mismatch prevented)
+#  26. test_gate_prune_skipped_during_merge_commit — prune_test_index is skipped when MERGE_HEAD is present
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -1248,6 +1250,145 @@ IDX
     fi
 }
 
+# ============================================================
+# TEST 25: test_gate_prune_git_add_failure_exits_nonzero
+# When prune_test_index writes a pruned .test-index but the
+# subsequent git add fails (e.g., repo is in a read-only state
+# or git reports an error), the hook must exit non-zero so the
+# user is alerted rather than silently proceeding with a
+# mismatched disk/staged state.
+# RED: Current hook emits a warning to stderr and continues —
+# it does NOT exit non-zero on git add failure.
+# ============================================================
+test_gate_prune_git_add_failure_exits_nonzero() {
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_prune_git_add_failure_exits_nonzero: hook not found (RED)" "missing" "missing"
+        return
+    fi
+    # Skip if MERGE_HEAD guard is not yet implemented — we need a repo we can
+    # manipulate. This test requires prune_test_index to be present.
+    if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
+        assert_eq "test_gate_prune_git_add_failure_exits_nonzero: prune_test_index not yet implemented (RED)" "missing" "missing"
+        return
+    fi
+
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create a source file with a stale .test-index mapping.
+    # The mapped test file intentionally does NOT exist on disk → prune will fire.
+    mkdir -p "$_repo/lib"
+    echo 'def work(): pass' > "$_repo/lib/work.py"
+    # write a .test-index with a stale (non-existent) test path
+    printf 'lib/work.py: tests/test_work_nonexistent.py\n' > "$_repo/.test-index"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add work"
+
+    # Stage a change so the hook sees staged files
+    echo '# modified' >> "$_repo/lib/work.py"
+    git -C "$_repo" add "$_repo/lib/work.py"
+
+    # Make the .git directory read-only so that `git add .test-index` fails.
+    # git add needs to create an index.lock file inside .git/ — a read-only
+    # .git directory prevents this, causing git add to exit non-zero.
+    chmod 555 "$_repo/.git"
+
+    local exit_code=0
+    (
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+        bash "$GATE_HOOK" 2>/dev/null
+    ) || exit_code=$?
+
+    # Restore permissions so cleanup can proceed
+    chmod 755 "$_repo/.git"
+
+    # RED: Current hook exits 0 (warning only). After fix, hook exits non-zero.
+    assert_ne "test_gate_prune_git_add_failure_exits_nonzero: hook exits non-zero on git add failure" \
+        "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 26: test_gate_prune_skipped_during_merge_commit
+# When MERGE_HEAD is present (i.e., we are mid-merge), the
+# prune_test_index function must return early without
+# modifying or staging .test-index. Auto-staging during a
+# merge can corrupt the merge state.
+# RED: Current hook calls prune_test_index unconditionally —
+# no MERGE_HEAD guard exists.
+# ============================================================
+test_gate_prune_skipped_during_merge_commit() {
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_prune_skipped_during_merge_commit: hook not found (RED)" "missing" "missing"
+        return
+    fi
+    if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
+        assert_eq "test_gate_prune_skipped_during_merge_commit: prune_test_index not yet implemented (RED)" "missing" "missing"
+        return
+    fi
+
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Set up a .test-index with a stale entry so prune_test_index would normally
+    # modify and re-stage the file.
+    mkdir -p "$_repo/lib"
+    echo 'def merge_work(): pass' > "$_repo/lib/merge_work.py"
+    printf 'lib/merge_work.py: tests/test_merge_work_nonexistent.py\n' > "$_repo/.test-index"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add merge_work"
+
+    # Stage a change to make STAGED_FILES non-empty
+    echo '# merge change' >> "$_repo/lib/merge_work.py"
+    git -C "$_repo" add "$_repo/lib/merge_work.py"
+
+    # Simulate a mid-merge state by writing a fake MERGE_HEAD
+    echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" > "$_repo/.git/MERGE_HEAD"
+
+    # Record the original .test-index content
+    local original_index_content
+    original_index_content=$(cat "$_repo/.test-index")
+
+    # Run the hook (ignoring exit code — gate will block due to missing test-gate-status,
+    # but we only care about whether .test-index was modified)
+    (
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+        bash "$GATE_HOOK" 2>/dev/null
+    ) || true
+
+    # Clean up MERGE_HEAD
+    rm -f "$_repo/.git/MERGE_HEAD"
+
+    # Verify that .test-index was NOT modified (prune was skipped)
+    local after_index_content
+    after_index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
+
+    if [[ "$original_index_content" == "$after_index_content" ]]; then
+        assert_eq "test_gate_prune_skipped_during_merge_commit: .test-index unchanged during merge" \
+            "unchanged" "unchanged"
+    else
+        # RED: prune ran and modified the file — guard not yet implemented
+        assert_eq "test_gate_prune_skipped_during_merge_commit: .test-index unchanged during merge" \
+            "unchanged" "modified"
+    fi
+
+    # Also verify .test-index was NOT staged (it should not appear in staged files)
+    local staged_files
+    staged_files=$(git -C "$_repo" diff --cached --name-only 2>/dev/null || echo "")
+    if echo "$staged_files" | grep -q '\.test-index'; then
+        assert_eq "test_gate_prune_skipped_during_merge_commit: .test-index not staged during merge" \
+            "not_staged" "staged"
+    else
+        assert_eq "test_gate_prune_skipped_during_merge_commit: .test-index not staged during merge" \
+            "not_staged" "not_staged"
+    fi
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -1286,5 +1427,7 @@ run_test test_gate_index_prune_stale_entry
 run_test test_gate_index_prune_removes_line_when_all_stale
 run_test test_gate_index_prune_stages_modified_index
 run_test test_gate_index_prune_partial
+run_test test_gate_prune_git_add_failure_exits_nonzero
+run_test test_gate_prune_skipped_during_merge_commit
 
 print_summary

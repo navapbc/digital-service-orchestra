@@ -135,6 +135,100 @@ parse_test_index() {
     done < "$index_file"
 }
 
+# ── Auto-prune stale .test-index entries ─────────────────────────────────────
+# Scans .test-index for entries whose test files don't exist on disk.
+# Removes nonexistent test paths from each line; if all test paths for a
+# source entry are stale, removes the entire line. Writes back atomically
+# (tmp + mv) and auto-stages the modified file.
+prune_test_index() {
+    local index_file="${REPO_ROOT:-.}/.test-index"
+
+    # Skip pruning during merge commits — auto-staging .test-index during a merge
+    # can interfere with the merge state. The pre-commit-review-gate guards MERGE_HEAD
+    # natively; this guard mirrors that behavior for the test gate.
+    if [[ -f "${REPO_ROOT:-.}/.git/MERGE_HEAD" ]]; then
+        return 0
+    fi
+
+    # No .test-index → nothing to prune
+    if [[ ! -f "$index_file" ]]; then
+        return 0
+    fi
+
+    local pruned_count=0
+    local output_lines=()
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Preserve comments and blank lines as-is
+        if [[ -z "$line" ]] || [[ "$line" =~ ^[[:space:]]*# ]]; then
+            output_lines+=("$line")
+            continue
+        fi
+
+        # Split on first colon: left = source path, right = comma-separated test paths
+        local left="${line%%:*}"
+        local right="${line#*:}"
+
+        # Trim whitespace from left side
+        left="${left#"${left%%[![:space:]]*}"}"
+        left="${left%"${left##*[![:space:]]}"}"
+
+        # Split right side on commas and check each test path
+        local valid_paths=()
+        IFS=',' read -ra parts <<< "$right"
+        for part in "${parts[@]}"; do
+            # Trim whitespace
+            part="${part#"${part%%[![:space:]]*}"}"
+            part="${part%"${part##*[![:space:]]}"}"
+            [[ -z "$part" ]] && continue
+
+            # Check if the test file exists on disk (relative to REPO_ROOT)
+            if [[ -f "${REPO_ROOT:-.}/${part}" ]]; then
+                valid_paths+=("$part")
+            else
+                pruned_count=$((pruned_count + 1))
+            fi
+        done
+
+        # If any valid paths remain, keep the line with only valid paths
+        if [[ ${#valid_paths[@]} -gt 0 ]]; then
+            local joined=""
+            for vp in "${valid_paths[@]}"; do
+                if [[ -z "$joined" ]]; then
+                    joined="$vp"
+                else
+                    joined="${joined},${vp}"
+                fi
+            done
+            output_lines+=("${left}:${joined}")
+        fi
+        # If no valid paths remain, the entire line is dropped (not added to output_lines)
+    done < "$index_file"
+
+    # Nothing pruned → no-op
+    if [[ "$pruned_count" -eq 0 ]]; then
+        return 0
+    fi
+
+    # Atomic write: write to .test-index.tmp, then mv to .test-index
+    local tmp_file="${REPO_ROOT:-.}/.test-index.tmp"
+    printf '%s\n' "${output_lines[@]}" > "$tmp_file"
+    mv "$tmp_file" "$index_file"
+
+    # Auto-stage the modified .test-index.
+    # On failure, restore the original file (reverse the mv) and exit non-zero so
+    # the user is alerted rather than silently proceeding with a mismatched
+    # disk/staged state (the pruned version is on disk but the pre-prune version
+    # remains staged, which would cause inconsistent association-check behavior).
+    if ! git -C "${REPO_ROOT:-.}" add .test-index 2>/dev/null; then
+        echo "pre-commit-test-gate: ERROR: failed to stage .test-index after pruning — aborting commit to prevent disk/staged mismatch" >&2
+        echo "pre-commit-test-gate: Re-run your commit to retry, or manually run: git add .test-index" >&2
+        exit 1
+    fi
+
+    echo "pre-commit-test-gate: pruned ${pruned_count} stale entries from .test-index, re-staged" >&2
+}
+
 # ── Get ALL associated test paths for a source file (union of fuzzy + index) ──
 # Returns all associated test paths on stdout, one per line, deduplicated.
 _get_all_associated_tests() {
@@ -198,6 +292,9 @@ _is_test_exempted() {
     fi
     return 1
 }
+
+# ── Prune stale .test-index entries before association checks ─────────────────
+prune_test_index
 
 # ── Check if any staged file has an associated test ───────────────────────────
 NEEDS_TEST_GATE=false
