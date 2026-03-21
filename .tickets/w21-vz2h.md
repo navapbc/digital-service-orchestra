@@ -1,6 +1,6 @@
 ---
 id: w21-vz2h
-status: in_progress
+status: closed
 deps: [w21-6qw0]
 links: []
 created: 2026-03-21T07:11:11Z
@@ -110,3 +110,7 @@ CHECKPOINT 4/6: Implementation complete ✓
 **2026-03-21T07:36:04Z**
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T07:46:27Z**
+
+CHECKPOINT 6/6: Done ✓ — SNAPSHOT event handling in reducer. 22 tests GREEN.

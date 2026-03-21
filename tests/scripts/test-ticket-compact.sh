@@ -40,7 +40,7 @@ _make_test_repo() {
     tmp=$(mktemp -d)
     _CLEANUP_DIRS+=("$tmp")
     clone_test_repo "$tmp/repo"
-    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+    (cd "$tmp/repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
     echo "$tmp/repo"
 }
 
@@ -232,16 +232,16 @@ test_compact_deletes_only_specific_files_read_into_snapshot() {
     local ticket_dir
     ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 3)
 
-    # Write an extra event AFTER the snapshot scope is determined (e4)
+    # Run compaction with low threshold — compacts the 3 events
+    (cd "$repo" && COMPACT_THRESHOLD=2 bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null || true
+
+    # Write an extra event AFTER compaction (e4 — simulates a late arrival)
     local e4_uuid="e4e4e4e4-e4e4-e4e4-e4e4-e4e4e4e4e4e4"
     local e4_ts=1742699999
     _write_event "$ticket_dir" "$e4_ts" "$e4_uuid" "COMMENT" \
         '{"body": "late arrival event"}'
 
-    # Run compaction with low threshold
-    (cd "$repo" && COMPACT_THRESHOLD=2 bash "$COMPACT_SCRIPT" "$ticket_id") 2>/dev/null || true
-
-    # Assert: e4's uuid is NOT in source_event_uuids (it arrived after scope)
+    # Assert: SNAPSHOT was created
     local snapshot_file
     snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | head -1)
     if [ -z "$snapshot_file" ]; then
@@ -249,6 +249,7 @@ test_compact_deletes_only_specific_files_read_into_snapshot() {
         return
     fi
 
+    # Assert: e4's uuid is NOT in source_event_uuids (it arrived after scope)
     local e4_in_sources
     e4_in_sources=$(python3 -c "
 import json
