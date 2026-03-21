@@ -45,40 +45,12 @@
     "title": "Project level config flags to modify behavior",
     "type": "epic"
   },
-  "dso-0zsx": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update script files: replace workflow-config.conf in comments and non-resolution strings",
-    "type": "task"
-  },
   "dso-1aaa": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Bug: tk create rejects --parent=id flag (only --parent id works)",
     "type": "bug"
-  },
-  "dso-1kul": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update skill files: replace workflow-config.conf with dso-config.conf",
-    "type": "task"
-  },
-  "dso-1xw7": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Fix: fix-cascade-recovery skill missing read-config integration \u2014 eval fails",
-    "type": "bug"
-  },
-  "dso-2cy8": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Improve project-setup wizard: sequential prompts, smart detection, consolidated config",
-    "type": "epic"
   },
   "dso-2da0": {
     "deps": [],
@@ -87,22 +59,12 @@
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
-  "dso-2rgm": {
+  "dso-2e99": {
     "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write test asserting CONFIG-RESOLUTION.md matches actual read-config.sh resolution logic",
-    "type": "task"
-  },
-  "dso-2vwl": {
-    "deps": [
-      "dso-3v44",
-      "dso-opue"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update all runtime scripts to use .claude/dso-config.conf path",
-    "type": "task"
+    "priority": 2,
+    "status": "open",
+    "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
+    "type": "bug"
   },
   "dso-2xqd": {
     "deps": [],
@@ -111,26 +73,12 @@
     "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
     "type": "bug"
   },
-  "dso-31yq": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Fix: hook_track_tool_errors test fails \u2014 missing monitoring.tool_errors config in test env",
-    "type": "bug"
-  },
   "dso-3e30": {
     "deps": [],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: tk create -d interprets double-dash in description text as option flags",
     "type": "bug"
-  },
-  "dso-3v44": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for runtime scripts hardcoded config path",
-    "type": "task"
   },
   "dso-3xhk": {
     "deps": [],
@@ -155,68 +103,12 @@
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
   },
-  "dso-48fu": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "As a DSO adopter, dryrun preview is a flat outcome list and conclusion shows manual steps",
-    "type": "story"
-  },
-  "dso-4ap3": {
-    "deps": [
-      "dso-uqm6",
-      "dso-kiue",
-      "dso-1kul",
-      "dso-wmjr",
-      "dso-0zsx",
-      "dso-xdd8",
-      "dso-5ewd",
-      "dso-ul37"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "Verify: grep -r workflow-config.conf plugins/ CLAUDE.md returns zero matches",
-    "type": "task"
-  },
-  "dso-4lfo": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Incorporate a specialized Claude debugging workflow into our skill that fixes bugs",
-    "type": "epic"
-  },
   "dso-4s8r": {
     "deps": [],
     "priority": 4,
     "status": "open",
     "title": "Cleanup tests",
     "type": "epic"
-  },
-  "dso-5ewd": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update hooks files: replace workflow-config.conf references in pre-bash-functions.sh and review-gate-allowlist.conf",
-    "type": "task"
-  },
-  "dso-5jqq": {
-    "deps": [
-      "dso-opue",
-      "dso-6trc",
-      "dso-tuz0",
-      "dso-2vwl"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Integration test: full read-config.sh resolution chain end-to-end",
-    "type": "task"
-  },
-  "dso-5p5i": {
-    "deps": [],
-    "priority": 3,
-    "status": "open",
-    "title": "Update dso-setup.sh to write dso.plugin_root to .claude/dso-config.conf",
-    "type": "task"
   },
   "dso-5syi": {
     "deps": [],
@@ -230,37 +122,6 @@
     "priority": 2,
     "status": "closed",
     "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
-    "type": "bug"
-  },
-  "dso-6576": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO adopter, CI workflows are auto-detected and ci.* config is consolidated and confirmed",
-    "type": "story"
-  },
-  "dso-6dp5": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "As a DSO adopter, each optional dependency is prompted individually with functionality explanation",
-    "type": "story"
-  },
-  "dso-6trc": {
-    "deps": [
-      "dso-c2tl",
-      "dso-opue"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update config-paths.sh to use .claude/dso-config.conf resolution",
-    "type": "task"
-  },
-  "dso-7w58": {
-    "deps": [],
-    "priority": 3,
-    "status": "open",
-    "title": "tk create silently ignores unsupported CLI flags, producing incomplete tickets",
     "type": "bug"
   },
   "dso-94ya": {
@@ -305,46 +166,6 @@
     "title": "Display Task titles during sprint batch execution",
     "type": "epic"
   },
-  "dso-b934": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Fix: test-cascade-breaker.sh is flaky \u2014 timing-sensitive failure in full suite run",
-    "type": "bug"
-  },
-  "dso-bugk": {
-    "deps": [
-      "dso-uc2d",
-      "dso-q2ev"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "As a DSO contributor, all references use the new config path and filename",
-    "type": "story"
-  },
-  "dso-bwtp": {
-    "deps": [
-      "dso-ozsx"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Update project-setup SKILL.md to include CI auto-detection wizard step",
-    "type": "task"
-  },
-  "dso-bzvu": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "As a DSO adopter, infrastructure and metadata keys are prompted when project context indicates relevance",
-    "type": "story"
-  },
-  "dso-c2tl": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for config-paths.sh new path lookup",
-    "type": "task"
-  },
   "dso-cc6a": {
     "deps": [],
     "priority": 3,
@@ -359,37 +180,11 @@
     "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
     "type": "bug"
   },
-  "dso-cn4j": {
-    "deps": [
-      "dso-opue",
-      "dso-6trc",
-      "dso-tuz0",
-      "dso-2vwl"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update test-config-callers-updated.sh and test-docs-config-refs.sh for new path",
-    "type": "task"
-  },
   "dso-cpvp": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Add a workflow-config flag that creates PRs instead of merging to main",
-    "type": "epic"
-  },
-  "dso-cz6p": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "Update project docs to reflect improved project-setup wizard",
-    "type": "story"
-  },
-  "dso-d72c": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Project Health Restoration (2026-03-19)",
     "type": "epic"
   },
   "dso-d8gi": {
@@ -402,20 +197,6 @@
     "title": "As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering",
     "type": "story"
   },
-  "dso-dbxb": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: test-worktree-create portability tests fail \u2014 post_create_cmd marker not created and exit code wrong",
-    "type": "bug"
-  },
-  "dso-dcau": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Fix: isolation tests timeout during full parallel suite run due to CPU contention (2 tests)",
-    "type": "bug"
-  },
   "dso-dghs": {
     "deps": [],
     "priority": 2,
@@ -426,21 +207,21 @@
   "dso-dsa8": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Bug: validate-issues.sh has no unit tests \u2014 add test suite covering core checks",
     "type": "bug"
   },
   "dso-dywv": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Improved code review",
     "type": "epic"
   },
   "dso-eb0e": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "fix: sprint-next-batch.sh treats AC Verify: commands as shared files, causing false-positive batch conflicts",
     "type": "bug"
   },
@@ -477,15 +258,6 @@
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
   },
-  "dso-g7d8": {
-    "deps": [
-      "dso-2rgm"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write test asserting MIGRATION-TO-PLUGIN.md does not recommend settings.json CLAUDE_PLUGIN_ROOT env override",
-    "type": "task"
-  },
   "dso-g8cz": {
     "deps": [],
     "priority": 2,
@@ -493,27 +265,10 @@
     "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
     "type": "bug"
   },
-  "dso-gfl9": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO adopter, I configure commands and format settings one question at a time with detection-aware suggestions",
-    "type": "story"
-  },
-  "dso-ghcp": {
-    "deps": [
-      "dso-zq4q",
-      "dso-kknz"
-    ],
-    "priority": 2,
-    "status": "open",
-    "title": "Add optional dep detection, env var guidance, and success summary to dso-setup.sh",
-    "type": "task"
-  },
   "dso-gir2": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Fix: qualify-skill-refs.sh multi-segment URL lookbehind gap \u2014 checker strips full URLs but fixer only checks :// prefix",
     "type": "bug"
   },
@@ -538,42 +293,12 @@
     "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
     "type": "bug"
   },
-  "dso-h04l": {
-    "deps": [],
-    "priority": 0,
-    "status": "in_progress",
-    "title": "[LOCK] debug-everything",
-    "type": "task"
-  },
-  "dso-hdgl": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Fix: test-merge-to-main-portability.sh 2 failures (8 pass, 2 fail)",
-    "type": "bug"
-  },
-  "dso-hui3": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for dso-setup.sh .claude/dso-config.conf path",
-    "type": "task"
-  },
   "dso-i6dj": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "Bug: /dso:brainstorm created children with truncated titles and descriptions",
     "type": "bug"
-  },
-  "dso-ilc1": {
-    "deps": [
-      "dso-s2g9"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add ci.workflow_name to validate-config.sh KNOWN_KEYS",
-    "type": "task"
   },
   "dso-iwb4": {
     "deps": [],
@@ -582,13 +307,6 @@
     "title": "Don't merge to main between batches",
     "type": "epic"
   },
-  "dso-j48b": {
-    "deps": [],
-    "priority": 3,
-    "status": "open",
-    "title": "Fix: add clarifying parenthetical for /dso:init in INSTALL.md Step 5",
-    "type": "bug"
-  },
   "dso-jauq": {
     "deps": [],
     "priority": 2,
@@ -596,39 +314,11 @@
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
-  "dso-jfy3": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for shim .claude/dso-config.conf resolution",
-    "type": "task"
-  },
-  "dso-jvjw": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO adopter, template files are merged or supplemented instead of blindly overwriting",
-    "type": "story"
-  },
   "dso-khl2": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Using-lockpicks guidance to encourage using sub-agents",
-    "type": "epic"
-  },
-  "dso-kiue": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Rename workflow-config.example.conf to dso-config.example.conf and update its content",
-    "type": "task"
-  },
-  "dso-kknz": {
-    "deps": [],
-    "priority": 0,
-    "status": "closed",
-    "title": "Move workflow config to .claude/dso-config.conf",
     "type": "epic"
   },
   "dso-kv4p": {
@@ -647,23 +337,6 @@
     "status": "open",
     "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
-  },
-  "dso-le3s": {
-    "deps": [
-      "dso-ozsx",
-      "dso-n458"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "DOC: Update CONFIGURATION-REFERENCE.md to document ci.workflow_name and deprecate merge.ci_workflow_name",
-    "type": "task"
-  },
-  "dso-lk1f": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Pre-existing dirty file on main: tests/scripts/test-read-config.sh has uncommitted RED tests for dso-config.conf resolution",
-    "type": "task"
   },
   "dso-lli8": {
     "deps": [],
@@ -693,51 +366,12 @@
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
   },
-  "dso-n458": {
-    "deps": [
-      "dso-ilc1"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add ci.workflow_name to workflow-config-schema.json",
-    "type": "task"
-  },
-  "dso-nthb": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Fix: test-behavioral-equivalence-allowlist.sh TIMEOUT (30s) in full suite",
-    "type": "bug"
-  },
-  "dso-o09j": {
-    "deps": [],
-    "priority": 3,
-    "status": "open",
-    "title": "Bug: agent-batch-lifecycle.sh lock-acquire only searches w21-*.md files, misses dso-* prefixed lock tickets",
-    "type": "bug"
-  },
-  "dso-o24g": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for ci.workflow_name fallback in merge-to-main.sh",
-    "type": "task"
-  },
   "dso-ogh7": {
     "deps": [],
     "priority": 4,
     "status": "open",
     "title": "Fix: deduplicate FN_BODY_9 extraction in test-merge-to-main-qt4u.sh test 9",
     "type": "bug"
-  },
-  "dso-opue": {
-    "deps": [
-      "dso-s6kt"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update read-config.sh to resolve from .claude/dso-config.conf + move config file",
-    "type": "task"
   },
   "dso-or3g": {
     "deps": [],
@@ -746,39 +380,10 @@
     "title": "Bug: collect-discoveries.sh crashes with get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT is wrong",
     "type": "bug"
   },
-  "dso-ozsx": {
-    "deps": [
-      "dso-o24g",
-      "dso-ilc1"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Update merge-to-main.sh to read ci.workflow_name with backward-compat fallback",
-    "type": "task"
-  },
-  "dso-pa2n": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "Fix: tests/run-all.sh line 231 unbound variable $1 in combined summary formatting function",
-    "type": "bug"
-  },
-  "dso-pex6": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Project Health Restoration",
-    "type": "epic"
-  },
   "dso-ppwp": {
-    "deps": [
-      "w22-uqfn",
-      "w22-sulb",
-      "w22-8jaf",
-      "w22-4ujv"
-    ],
+    "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Add test gate enforcement",
     "type": "epic"
   },
@@ -806,15 +411,6 @@
     "title": "Prevent the explosion of documentation created by LLMs",
     "type": "epic"
   },
-  "dso-q2ev": {
-    "deps": [
-      "dso-uc2d"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer setting up DSO, the setup creates .claude/dso-config.conf",
-    "type": "story"
-  },
   "dso-qlgq": {
     "deps": [],
     "priority": 2,
@@ -836,22 +432,6 @@
     "title": "Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution",
     "type": "bug"
   },
-  "dso-r2es": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO adopter, project detection produces structured context for all wizard questions",
-    "type": "story"
-  },
-  "dso-r908": {
-    "deps": [
-      "dso-g7d8"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Fix MIGRATION-TO-PLUGIN.md to remove settings.json CLAUDE_PLUGIN_ROOT env override recommendation",
-    "type": "task"
-  },
   "dso-r97p": {
     "deps": [],
     "priority": 2,
@@ -859,42 +439,12 @@
     "title": "Implementation planning schema validation",
     "type": "epic"
   },
-  "dso-rjlt": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "Dirty .tickets files on main/worktree after merge \u2014 root cause of unclean state",
-    "type": "task"
-  },
   "dso-s12s": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
-  },
-  "dso-s2g9": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for ci.workflow_name in validate-config.sh",
-    "type": "task"
-  },
-  "dso-s6kt": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for read-config.sh .claude/dso-config.conf resolution",
-    "type": "task"
-  },
-  "dso-sapj": {
-    "deps": [
-      "dso-hui3"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update dso-setup.sh to create config at .claude/dso-config.conf",
-    "type": "task"
   },
   "dso-soyt": {
     "deps": [],
@@ -941,18 +491,9 @@
   "dso-tqvy": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "fix: worktree-sync-from-main.sh crashes with CFG_PYTHON_VENV unbound variable when config key is absent",
     "type": "bug"
-  },
-  "dso-tuz0": {
-    "deps": [
-      "dso-jfy3"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update .claude/scripts/dso shim and templates/host-project/dso to use .claude/dso-config.conf",
-    "type": "task"
   },
   "dso-u5lt": {
     "deps": [],
@@ -960,34 +501,6 @@
     "status": "open",
     "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
     "type": "bug"
-  },
-  "dso-uc2d": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a DSO developer, config resolves from .claude/dso-config.conf",
-    "type": "story"
-  },
-  "dso-ul37": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update test fixtures and test scripts: replace workflow-config.conf with dso-config.conf",
-    "type": "task"
-  },
-  "dso-unyg": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: test-verify-baseline-intent uses wrong config key (merge.visual_baseline_path vs visual.baseline_directory)",
-    "type": "bug"
-  },
-  "dso-uqm6": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update plugins/dso/docs/ markdown files: replace workflow-config.conf with dso-config.conf",
-    "type": "task"
   },
   "dso-uu13": {
     "deps": [],
@@ -1003,13 +516,6 @@
     "title": "Make implementation plan migration aware",
     "type": "epic"
   },
-  "dso-uzb8": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: test-validate-config-driven references wrong dso-config.conf path",
-    "type": "bug"
-  },
   "dso-v558": {
     "deps": [],
     "priority": 3,
@@ -1023,13 +529,6 @@
     "status": "open",
     "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved",
     "type": "bug"
-  },
-  "dso-vkg5": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Untitled",
-    "type": "task"
   },
   "dso-w20r": {
     "deps": [],
@@ -1045,13 +544,6 @@
     "title": "Fix: assert pending state file content in test_validate_exits_2_on_partial_tests integration test",
     "type": "bug"
   },
-  "dso-wmjr": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update CLAUDE.md: replace workflow-config.conf with dso-config.conf",
-    "type": "task"
-  },
   "dso-x1jt": {
     "deps": [],
     "priority": 2,
@@ -1059,57 +551,11 @@
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
   },
-  "dso-xdd8": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update validate-config.sh and project-detect.sh: replace workflow-config.conf path references",
-    "type": "task"
-  },
-  "dso-z6zi": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "Worktree left unclean after end-session / main left dirty after merge-to-main",
-    "type": "task"
-  },
   "dso-zj3r": {
     "deps": [],
     "priority": 3,
     "status": "open",
     "title": "Optimize skills and prompts for token usage",
-    "type": "epic"
-  },
-  "dso-zlih": {
-    "deps": [],
-    "priority": 3,
-    "status": "open",
-    "title": "Update pre-bash-functions.sh to remove CLAUDE_PLUGIN_ROOT/workflow-config.conf lookup",
-    "type": "task"
-  },
-  "dso-zq4q": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Add prerequisite checks, platform detection, and exit code contract to dso-setup.sh",
-    "type": "task"
-  },
-  "dso-zs27": {
-    "deps": [
-      "dso-2rgm"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Fix CONFIG-RESOLUTION.md to accurately document read-config.sh resolution order",
-    "type": "task"
-  },
-  "dso-zu4o": {
-    "deps": [
-      "dso-kknz"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "Fix CLAUDE_PLUGIN_ROOT path resolution \u2014 remove settings.json override, harden shim fallback",
     "type": "epic"
   },
   "w21-05z9": {
@@ -1122,14 +568,16 @@
     "title": "As a developer, divergent environments resolve ticket status conflicts deterministically",
     "type": "story"
   },
-  "w21-090y": {
+  "w21-0kt1": {
     "deps": [
-      "w21-arjk"
+      "w21-jtkr",
+      "w21-txt8",
+      "w21-nv42"
     ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL-TARGETS-PYVER-DEPS: Implement target enumeration, Python version, and installed CLI dependency detection",
-    "type": "task"
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, every classification decision is logged and post-deployment calibration signals are defined",
+    "type": "story"
   },
   "w21-0nk2": {
     "deps": [],
@@ -1137,6 +585,13 @@
     "status": "open",
     "title": "As a developer, I get token-efficient ticket output for LLM agent interactions",
     "type": "story"
+  },
+  "w21-0pxe": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Bug: end-session merge blindly accepts worktree ticket changes over main without diff comparison",
+    "type": "bug"
   },
   "w21-24kl": {
     "deps": [
@@ -1156,13 +611,6 @@
     "title": "As a developer, the migration is validated against a pre-flight snapshot before any references change",
     "type": "story"
   },
-  "w21-25vk": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Shift complexity evaluation from debug-everything to fix-bug post-investigation",
-    "type": "epic"
-  },
   "w21-2a9w": {
     "deps": [],
     "priority": 1,
@@ -1180,14 +628,20 @@
     "title": "As a developer, the Jira bridge handles failures gracefully without corrupting ticket state",
     "type": "story"
   },
-  "w21-4ir0": {
-    "deps": [
-      "w21-arjk",
-      "w21-090y"
-    ],
+  "w21-3w8y": {
+    "deps": [],
     "priority": 1,
+    "status": "open",
+    "title": "Preplanning adds epic's own children as deps, making the epic self-blocked",
+    "type": "bug"
+  },
+  "w21-4dnw": {
+    "deps": [
+      "w21-eq69"
+    ],
+    "priority": 2,
     "status": "closed",
-    "title": "IMPL-CI-WORKFLOWS: Implement CI workflow YAML analysis with confidence degradation",
+    "title": "RED: Write failing tests for exemption support in pre-commit-test-gate.sh",
     "type": "task"
   },
   "w21-4xu6": {
@@ -1213,6 +667,22 @@
     "title": "fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth",
     "type": "bug"
   },
+  "w21-689o": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Worktree left dirty after implementation-plan: task tickets not committed",
+    "type": "bug"
+  },
+  "w21-6iuo": {
+    "deps": [
+      "w21-l7zk"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Add record-test-status.sh invocation step to COMMIT-WORKFLOW.md",
+    "type": "task"
+  },
   "w21-6k7v": {
     "deps": [
       "w21-p1y3"
@@ -1232,17 +702,6 @@
     "title": "As a developer, I can archive closed tickets without breaking dependency references",
     "type": "story"
   },
-  "w21-766y": {
-    "deps": [
-      "w21-090y",
-      "w21-4ir0",
-      "w21-ka51"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "DOC-SCHEMA: Document project-detect.sh output schema in script header and update OUTPUT-SCHEMA reference",
-    "type": "task"
-  },
   "w21-7mlx": {
     "deps": [
       "w21-2a9w"
@@ -1261,13 +720,6 @@
     "title": "As a developer, closing a ticket automatically reports which blocked tickets are now ready",
     "type": "story"
   },
-  "w21-8ady": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Tests for child count in sprint-list-epics.sh output",
-    "type": "task"
-  },
   "w21-8cw2": {
     "deps": [],
     "priority": 1,
@@ -1275,30 +727,11 @@
     "title": "As a developer, local ticket changes are automatically pushed to Jira via the outbound bridge",
     "type": "story"
   },
-  "w21-8qo1": {
-    "deps": [
-      "w21-cu3r"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add supplement logic for CLAUDE.md and KNOWN-ISSUES.md in dso-setup.sh",
-    "type": "task"
-  },
-  "w21-9cvk": {
+  "w21-8vlg": {
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "RED: Tests for fix-bug complexity evaluation and escalation report",
-    "type": "task"
-  },
-  "w21-9d8u": {
-    "deps": [
-      "w21-u5mg",
-      "w21-8qo1"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add pre-commit YAML hook merge to dso-setup.sh",
+    "title": "RED: Write failing tests for test-gate bypass protection in review-gate-bypass-sentinel.sh",
     "type": "task"
   },
   "w21-9k4z": {
@@ -1322,15 +755,6 @@
     "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
     "type": "bug"
   },
-  "w21-arjk": {
-    "deps": [
-      "w21-l9r7"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL-CORE: Create project-detect.sh with schema, stack delegation, and file presence detection",
-    "type": "task"
-  },
   "w21-ay8w": {
     "deps": [
       "w21-f8tg"
@@ -1340,21 +764,19 @@
     "title": "As a developer, concurrent ticket sessions produce no data loss under stress",
     "type": "story"
   },
-  "w21-b0tq": {
-    "deps": [
-      "w21-gljg"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Remove Phase 2.5 from debug-everything + add escalation handling",
-    "type": "task"
+  "w21-bksy": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: overly broad grep assertion in test_discovers_associated_tests in test-record-test-status.sh",
+    "type": "bug"
   },
-  "w21-b9ll": {
+  "w21-bsnz": {
     "deps": [],
     "priority": 2,
-    "status": "closed",
-    "title": "RED: Write failing tests for conditional prompt sections in project-setup SKILL.md",
-    "type": "task"
+    "status": "open",
+    "title": "Create a process to remediate legacy code",
+    "type": "epic"
   },
   "w21-bw1o": {
     "deps": [],
@@ -1372,20 +794,28 @@
     "title": "Ticket system v3 \u2014 Jira bridge and LLM-optimized output",
     "type": "epic"
   },
-  "w21-cu3r": {
+  "w21-chse": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add hypothetical scenario consideration to epic planning",
+    "type": "epic"
+  },
+  "w21-cphn": {
+    "deps": [
+      "w21-l7zk",
+      "w21-8vlg"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "IMPL: Add test-gate write protection to review-gate-bypass-sentinel.sh",
+    "type": "task"
+  },
+  "w21-dedx": {
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "RED: Write failing tests for CLAUDE.md and KNOWN-ISSUES.md supplement detection",
-    "type": "task"
-  },
-  "w21-dkes": {
-    "deps": [
-      "w21-gdon"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "IMPL-INFRA: Add conditional infrastructure key prompts with port inference and required_tools guidance",
+    "title": "RED: Write failing tests for record-test-status.sh",
     "type": "task"
   },
   "w21-dww7": {
@@ -1402,6 +832,28 @@
     "priority": 3,
     "status": "open",
     "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
+    "type": "bug"
+  },
+  "w21-epz2": {
+    "deps": [
+      "w21-zp4d",
+      "w21-jtkr",
+      "w21-txt8",
+      "w21-nv42",
+      "w21-0kt1"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect tiered review architecture",
+    "type": "story"
+  },
+  "w21-eq69": {
+    "deps": [
+      "w21-hcj4"
+    ],
+    "priority": 2,
+    "status": "closed",
+    "title": "IMPL: Create record-test-exemption.sh",
     "type": "task"
   },
   "w21-f8tg": {
@@ -1413,20 +865,28 @@
     "title": "As a developer, I experience fast ticket reads via compiled-state caching",
     "type": "story"
   },
-  "w21-gdon": {
+  "w21-f9uo": {
     "deps": [
-      "w21-b9ll"
+      "w21-wzgp",
+      "w21-l7zk"
     ],
-    "priority": 2,
-    "status": "closed",
-    "title": "IMPL-DB: Add conditional database key prompts to project-setup SKILL.md Step 3",
-    "type": "task"
-  },
-  "w21-gljg": {
-    "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "RED: Tests for debug-everything Phase 2.5 removal + escalation handling",
+    "title": "RED: Write failing tests for test gate coexistence and .pre-commit-config.yaml registration",
+    "type": "task"
+  },
+  "w21-fzzu": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: remove unused REPO_ROOT variable in test-record-test-status.sh",
+    "type": "bug"
+  },
+  "w21-gbt2": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "test task",
     "type": "task"
   },
   "w21-goqp": {
@@ -1454,12 +914,12 @@
     "title": "As a developer, Jira changes are automatically pulled into my local ticket system",
     "type": "story"
   },
-  "w21-h8l1": {
+  "w21-hcj4": {
     "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "Bug: merge-to-main.sh fails when main has dirty files from another worktree session",
-    "type": "bug"
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: Write failing tests for record-test-exemption.sh",
+    "type": "task"
   },
   "w21-i8qz": {
     "deps": [],
@@ -1473,6 +933,22 @@
     "priority": 3,
     "status": "open",
     "title": "BUG: AC4 check in w21-cu3r incompatible with assert.sh output format",
+    "type": "bug"
+  },
+  "w21-jtkr": {
+    "deps": [
+      "w21-zp4d"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, code changes are scored by a deterministic classifier and routed to the correct review tier",
+    "type": "story"
+  },
+  "w21-jwnd": {
+    "deps": [],
+    "priority": 3,
+    "status": "closed",
+    "title": "sprint-next-batch.sh false file-overlap on tests/run-all.sh forces all test tasks into sequential batches",
     "type": "task"
   },
   "w21-k2yz": {
@@ -1482,30 +958,13 @@
     "title": "As a developer, I can track dependencies between tickets and query which are ready to work",
     "type": "story"
   },
-  "w21-ka51": {
+  "w21-l7zk": {
     "deps": [
-      "w21-arjk",
-      "w21-4ir0"
+      "w21-dedx"
     ],
     "priority": 1,
     "status": "closed",
-    "title": "IMPL-DB-PORTS-VERSIONS: Implement database presence, port detection, and version file candidates",
-    "type": "task"
-  },
-  "w21-kp0l": {
-    "deps": [
-      "w21-tcti"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "GREEN: Add contract detection pass to implementation-plan SKILL.md",
-    "type": "task"
-  },
-  "w21-l9r7": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for project-detect.sh covering all detection categories",
+    "title": "IMPL: Create record-test-status.sh (protected test status recorder)",
     "type": "task"
   },
   "w21-lskq": {
@@ -1517,12 +976,14 @@
     "title": "GREEN: Edit value.md validation_signal to use internal signals only",
     "type": "task"
   },
-  "w21-mzof": {
-    "deps": [],
-    "priority": 2,
+  "w21-milk": {
+    "deps": [
+      "w21-f9uo"
+    ],
+    "priority": 1,
     "status": "closed",
-    "title": "Cross-component contract detection in /dso:implementation-plan",
-    "type": "epic"
+    "title": "IMPL: Register pre-commit-test-gate.sh in .pre-commit-config.yaml",
+    "type": "task"
   },
   "w21-ni6d": {
     "deps": [],
@@ -1540,21 +1001,14 @@
     "title": "As a developer, I can detect and recover from ticket system corruption via fsck",
     "type": "story"
   },
-  "w21-npxr": {
+  "w21-nv42": {
     "deps": [
-      "w21-9cvk"
+      "w21-jtkr"
     ],
-    "priority": 1,
-    "status": "closed",
-    "title": "GREEN: Add post-investigation complexity evaluation + sub-agent detection to fix-bug",
-    "type": "task"
-  },
-  "w21-nyu9": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "Update shared complexity evaluator routing table + tests",
-    "type": "task"
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, oversized diffs are rejected with actionable guidance and merge commits are reviewed efficiently",
+    "type": "story"
   },
   "w21-o5ap": {
     "deps": [],
@@ -1572,21 +1026,21 @@
     "title": "As a developer, I can list, transition, and comment on tickets with full CRUD support",
     "type": "story"
   },
-  "w21-ofew": {
-    "deps": [
-      "w21-xlaw"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update sprint SKILL.md display format for child count",
-    "type": "task"
-  },
   "w21-ouns": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "fix: test-isolation rule no-script-dir-write misses variable aliases like FIXTURES_DIR derived from SCRIPT_DIR",
     "type": "bug"
+  },
+  "w21-ovpn": {
+    "deps": [
+      "w21-ykic"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Review Intelligence & Precision",
+    "type": "epic"
   },
   "w21-p1y3": {
     "deps": [],
@@ -1604,16 +1058,6 @@
     "title": "As a developer, ticket performance stays stable over time via event compaction",
     "type": "story"
   },
-  "w21-q8nv": {
-    "deps": [
-      "w21-up9s",
-      "w21-9d8u"
-    ],
-    "priority": 1,
-    "status": "closed",
-    "title": "IMPL: Add CI guard analysis and selective-add logic to dso-setup.sh",
-    "type": "task"
-  },
   "w21-qjcy": {
     "deps": [
       "w21-2r0x"
@@ -1623,39 +1067,14 @@
     "title": "As a developer, I can see bridge problems and recover from bad bridge actions",
     "type": "story"
   },
-  "w21-r4rz": {
+  "w21-txt8": {
     "deps": [
-      "w21-8qo1",
-      "w21-9d8u",
-      "w21-q8nv"
+      "w21-jtkr"
     ],
-    "priority": 2,
-    "status": "closed",
-    "title": "IMPL: Update project-setup SKILL.md to document smart file handling behavior",
-    "type": "task"
-  },
-  "w21-t1tt": {
-    "deps": [
-      "w21-dkes"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "IMPL-STAGING-PYVER: Add conditional staging.url prompt and worktree.python_version auto-detection",
-    "type": "task"
-  },
-  "w21-tcti": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "RED: Tests for contract detection in implementation-plan SKILL.md",
-    "type": "task"
-  },
-  "w21-tr4q": {
-    "deps": [],
-    "priority": 3,
-    "status": "closed",
-    "title": "validate.sh plugin check fails: make test-plugin target missing from Makefile",
-    "type": "bug"
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, high-complexity changes receive parallel multi-reviewer scrutiny with opus architectural oversight",
+    "type": "story"
   },
   "w21-u3op": {
     "deps": [],
@@ -1664,26 +1083,21 @@
     "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation",
     "type": "bug"
   },
-  "w21-u5mg": {
+  "w21-v5i4": {
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "RED: Write failing tests for pre-commit YAML hook merge",
+    "title": "RED: Write failing tests for pre-commit-test-gate.sh",
     "type": "task"
   },
-  "w21-up9s": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "RED: Write failing tests for CI workflow guard analysis integration",
-    "type": "task"
-  },
-  "w21-vydt": {
-    "deps": [],
+  "w21-vyio": {
+    "deps": [
+      "w21-4dnw"
+    ],
     "priority": 2,
     "status": "closed",
-    "title": "Add child count to sprint epic list display",
-    "type": "epic"
+    "title": "IMPL: Add exemption support to pre-commit-test-gate.sh",
+    "type": "task"
   },
   "w21-wbqz": {
     "deps": [
@@ -1702,14 +1116,21 @@
     "title": "test-pre-edit-write-dispatcher.sh uses real REPO_ROOT for cascade STATE_DIR \u2014 same isolation anti-pattern as dso-b934",
     "type": "bug"
   },
-  "w21-xlaw": {
+  "w21-wzgp": {
     "deps": [
-      "w21-8ady"
+      "w21-v5i4"
     ],
-    "priority": 2,
+    "priority": 1,
     "status": "closed",
-    "title": "GREEN: Add child count to sprint-list-epics.sh output",
+    "title": "IMPL: Create pre-commit-test-gate.sh (Layer 1 git pre-commit hook)",
     "type": "task"
+  },
+  "w21-ykic": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Tiered Review Architecture",
+    "type": "epic"
   },
   "w21-yzln": {
     "deps": [],
@@ -1718,14 +1139,12 @@
     "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
     "type": "bug"
   },
-  "w21-z0jv": {
-    "deps": [
-      "w21-b0tq"
-    ],
+  "w21-zp4d": {
+    "deps": [],
     "priority": 1,
-    "status": "closed",
-    "title": "Update CLAUDE.md Phase 2.5 reference",
-    "type": "task"
+    "status": "open",
+    "title": "As a DSO contributor, all review dimension references use the new 5-dimension schema",
+    "type": "story"
   },
   "w22-45i1": {
     "deps": [],
@@ -1741,7 +1160,7 @@
       "w22-8jaf"
     ],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Update project docs to reflect test gate enforcement",
     "type": "story"
   },
@@ -1759,7 +1178,7 @@
       "w22-uqfn"
     ],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "As a developer, I can exempt a provably slow test from blocking commits",
     "type": "story"
   },
@@ -1784,14 +1203,14 @@
       "w22-uqfn"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a developer, I cannot bypass the test gate through alternative commit methods",
     "type": "story"
   },
   "w22-uqfn": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a developer, tests associated with my changed files must pass before I can commit",
     "type": "story"
   },

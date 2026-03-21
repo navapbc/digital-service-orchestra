@@ -571,6 +571,46 @@ else
 fi
 
 # =============================================================================
+# Test 16: test_cfg_python_venv_unbound_variable
+# Regression test for dso-tqvy: when config-paths.sh is absent (e.g., fresh
+# clone without DSO installed), CFG_PYTHON_VENV is unbound. With set -u the
+# script must NOT crash with "unbound variable" — it must use a safe default.
+# =============================================================================
+echo ""
+echo "Test 16: test_cfg_python_venv_unbound_variable (dso-tqvy)"
+
+T16_PLUGIN="$_TMPDIR/t16-plugin"
+T16_REPO="$_TMPDIR/t16-repo"
+
+# Create a fake plugin root with plugin.json but NO config-paths.sh
+mkdir -p "$T16_PLUGIN/hooks/lib"
+touch "$T16_PLUGIN/plugin.json"
+
+# Create a minimal git repo on a feature branch
+_init_repo "$T16_REPO"
+echo "x" > "$T16_REPO/x.txt"
+git -C "$T16_REPO" add .
+git -C "$T16_REPO" commit -q -m "initial"
+git -C "$T16_REPO" checkout -q -b feature
+
+T16_OUTPUT=""
+T16_EXIT=0
+T16_OUTPUT=$(cd "$T16_REPO" && CLAUDE_PLUGIN_ROOT="$T16_PLUGIN" bash "$SYNC_SCRIPT" 2>&1) || T16_EXIT=$?
+
+# The script should NOT crash with "unbound variable" — any other failure (e.g.,
+# fetch failure because there's no origin) is acceptable; only unbound-variable crash is the bug.
+HAS_UNBOUND=0
+echo "$T16_OUTPUT" | grep -q 'unbound variable' && HAS_UNBOUND=1
+assert_eq "test_cfg_python_venv_no_unbound_variable" "0" "$HAS_UNBOUND"
+
+if [ "$HAS_UNBOUND" -eq 0 ]; then
+    echo "  PASS: script did not crash with 'unbound variable' for CFG_PYTHON_VENV"
+else
+    echo "  FAIL: script crashed with 'unbound variable' — CFG_PYTHON_VENV needs a default" >&2
+    echo "  Output: $T16_OUTPUT" >&2
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 print_summary
