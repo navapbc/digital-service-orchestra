@@ -1,6 +1,6 @@
 ---
 id: dso-42w7
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-19T18:22:22Z
