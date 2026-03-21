@@ -794,11 +794,13 @@ Compare sub-agent report against the inventory:
 
 When all known issues across all tiers are addressed, delegate validation to a sub-agent.
 
+**CI is checked post-merge, not here.** Phase 8 validates local code health only (format, lint, tests). CI runs on main, not the worktree branch — checking CI here would show the pre-fix state and produce a false failure. CI status is verified in Phase 10 after merging to main.
+
 ### Launch Validation Sub-Agent
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/full-validation.md` and use its contents as the sub-agent prompt.
 
-**Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`), `model="haiku"`  # Tier 1: runs validate-phase.sh full and relays structured output verbatim — pure command execution, ALL_PASS/SOME_FAIL is explicit in script output
+**Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`), `model="haiku"`  # Tier 1: runs validate-phase.sh full --skip-ci and relays structured output verbatim — pure command execution, ALL_PASS/SOME_FAIL is explicit in script output
 
 ### Interpret Result
 
