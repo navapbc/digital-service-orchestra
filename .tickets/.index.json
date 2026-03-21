@@ -185,6 +185,42 @@
     "title": "Display Task titles during sprint batch execution",
     "type": "epic"
   },
+  "dso-b538": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet C reviewer applies deep hygiene, design, and maintainability checks",
+    "type": "story"
+  },
+  "dso-b7nb": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet A reviewer applies deep correctness checks with acceptance criteria validation",
+    "type": "story"
+  },
+  "dso-boct": {
+    "deps": [
+      "dso-9ltc"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Light tier haiku reviewer applies a focused 6-item checklist to low-complexity changes",
+    "type": "story"
+  },
+  "dso-bxng": {
+    "deps": [
+      "dso-9ltc"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Standard tier sonnet reviewer applies full 5-dimension checklists with researched sub-criteria",
+    "type": "story"
+  },
   "dso-cb9v": {
     "deps": [
       "dso-ocfn",
@@ -278,6 +314,15 @@
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
   },
+  "dso-gfry": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet B reviewer applies deep verification checks evaluating test quality and coverage",
+    "type": "story"
+  },
   "dso-gjww": {
     "deps": [],
     "priority": 4,
@@ -312,6 +357,17 @@
     "status": "closed",
     "title": "Don't merge to main between batches",
     "type": "epic"
+  },
+  "dso-jf62": {
+    "deps": [
+      "dso-b7nb",
+      "dso-gfry",
+      "dso-b538"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Opus architectural reviewer applies cross-cutting synthesis checks across all specialist findings",
+    "type": "story"
   },
   "dso-jny6": {
     "deps": [

@@ -30,15 +30,65 @@ Epic A (w21-ykic) owns the review dimension names (correctness, verification, hy
 - Included in reviewer context on initial review. Re-reviews use cached report (not recomputed).
 - Graceful degradation: if search fails (error, exit 144, timeout), review proceeds without it. Reviewer prompt includes fallback instruction for extra duplication scrutiny.
 
-### Enriched Review Checklist
-- Reviewer dispatch prompt (code-review-dispatch.md) updated with specific checks per dimension:
-  - correctness: fragility (paths/deps/params without fallbacks), performance (Big O, batching, nested loops), security (OWASP), error handling robustness
-  - verification: test-code correspondence, test quality (behavior not implementation), anti-shortcut (skipped tests, reduced assertions)
-  - hygiene: dead code (unused imports, unreachable branches, vestigial functions), inline suppression scrutiny (noqa/type:ignore must have justifying comments)
-  - design: duplication detection via similarity report, AHA/Rule of Three consolidation guidance (flag only at 3+ occurrences sharing same reason to change; keep separate when consolidation would require conditional branching or couple independently-evolving concerns), reuse of existing utilities
-  - maintainability: codebase consistency, naming conventions, import organization consistent with surrounding code
-- Anti-shortcut detection distributed: noqa/type:ignore -> hygiene, skipped tests -> verification, increased tolerances/removed assertions -> correctness.
-- Consolidation findings always severity=minor. No inline resolution. Orchestrator creates tracking ticket (tk create) for each.
+### Enriched Review Checklists (6 per-reviewer stories)
+The single "Enriched Review Checklist" criterion is decomposed into 6 stories, one per reviewer agent. Each story produces a dimension-specific checklist in the corresponding reviewer-delta file — a partial prompt file merged with reviewer-base.md at build time via build-review-agents.sh to produce the full reviewer prompt. All checklists are informed by research into Google engineering practices, OWASP, test smell literature, and criteria analysis from 5 popular Claude Code review plugins.
+
+**Story 1 — Light tier (haiku) checklist:**
+- 6 items only: silent failures (swallowed exceptions, empty catch blocks), tolerance/assertion weakening, test-code correspondence (production change → test change in same diff?), type system escape hatches without justification, dead code introduced in the diff, non-descriptive names in the diff
+- No codebase research (no Grep/Read), no similarity pipeline, no ticket context
+- Escape hatch: if no issues found, state so explicitly
+
+**Story 2 — Standard tier (sonnet) checklist:**
+- Full coverage across all 5 dimensions with researched sub-criteria
+- Ticket context: condensed (title + acceptance criteria, token-budgeted)
+- Correctness: edge cases/failure states with escape hatch, race conditions in async operations, silent failures, tolerance/assertion weakening, over-engineering/YAGNI
+- Verification: behavior-driven not implementation-driven tests, test-code correspondence in same changeset, assertion quality (meaningful assertions vs. "assert not None"), arrange-act-assert structure, test smells (naming after concepts not behaviors, verbose inline fixtures)
+- Hygiene: type system escape hatches (Any/any/interface{}) without justifying comments, nesting depth >2 levels (suggest early returns or extraction), dead code, suppression scrutiny (noqa/type:ignore must have justifying comments), explicit exclusion of linter-catchable issues
+- Design: SOLID adherence, architectural pattern adherence, correct file/folder placement, Rule of Three duplication via similarity pipeline (flag at 3+ occurrences with same reason to change), coupling/dependency direction (no circular deps, no cross-layer reaching), reuse of existing utilities
+- Maintainability: codebase consistency (local patterns — error handling style, return type patterns, abstraction level — not linter rules), clear and accurate naming (flag non-descriptive names AND names that imply different behavior than implementation), comments explain "why" not "what", doc correspondence for public interface changes (minor severity — flag only when a specific existing doc artifact is stale; do not flag documentation that never existed)
+- Anti-shortcut detection distributed: noqa/type:ignore -> hygiene, skipped tests -> verification, increased tolerances/removed assertions -> correctness
+- Consolidation findings always severity=minor. No inline resolution. Orchestrator creates tracking ticket (tk create) for each
+
+**Story 3 — Deep Sonnet A (correctness) checklist:**
+- Deep correctness specialist with full ticket context (minus verbose status update notes)
+- All Standard correctness criteria plus: acceptance criteria validation against ticket, deeper edge-case analysis with explicit escape hatch ("if code handles this adequately, state so — do not manufacture findings")
+- Inaccurate naming (name implies different behavior than implementation) elevated from minor to important at this tier
+
+**Story 4 — Deep Sonnet B (verification) checklist:**
+- Deep verification specialist, no ticket context
+- All Standard verification criteria plus: test as documentation (can someone read the test and understand intended behavior?), test isolation evaluation
+- Does not identify edge cases itself — evaluates whether test suite covers edge cases present in the code
+- Scope boundary with dso-ppwp: this story owns checklist criteria for how the reviewer evaluates test quality in the diff; dso-ppwp owns the pre-commit test gate enforcement that blocks commits when tests haven't been run
+
+**Story 5 — Deep Sonnet C (hygiene + design + maintainability) checklist:**
+- Deep structural specialist, no ticket context
+- All Standard hygiene/design/maintainability criteria plus: flag functions where branching depth suggests extraction opportunities, evaluate whether new abstractions follow single responsibility, flag in-place mutation of shared data structures when immutable patterns are established in surrounding code
+
+**Story 6 — Deep Opus (architectural synthesis) checklist:**
+- Cross-cutting synthesis reviewer with full ticket context and all 3 specialists' findings
+- Self-directed git history investigation (no orchestrator pre-gathering — opus runs targeted git blame/log on specific files based on what it sees in findings and diff)
+- Cross-cutting coherence: resolve contradictions between specialist findings
+- Untested edge cases: cross-reference Sonnet A edge cases against Sonnet B test coverage findings
+- Architectural boundary shifts: logic/validation/data moving between layers
+- Pattern divergence: new approach to something the codebase already has a pattern for
+- Acceptance criteria completeness: does the change fulfill what the ticket asked for?
+- Unrelated scope: flag changes that include modifications unrelated to the stated ticket objective
+- Regression awareness: repeated patches to same area suggesting deeper issue (via targeted git blame)
+- Root cause vs. symptom: does the fix address the underlying cause or just the visible symptom?
+
+### Shared Base Prompt Updates
+- Anti-manufacturing directive: "Report only findings where your confidence is high. If a dimension is well-handled by the code under review, state so explicitly — do not manufacture findings to fill gaps. A clean pass with rationale is more valuable than a low-confidence finding."
+- Independent validation: "Each flagged issue must be independently validated with high-confidence confirmation before reporting."
+- These are universal behavioral instructions in reviewer-base.md, not dimension-specific criteria.
+
+### Ticket Context Strategy
+- Light (haiku): none — context budget too small
+- Standard (sonnet): condensed (title + acceptance criteria, token-budgeted) — reduces false positives at the most common tier
+- Deep Sonnet A (correctness): full ticket (minus verbose status update notes) — acceptance criteria validation is a correctness checklist item
+- Deep Sonnet B (verification): none — test quality is code-observable
+- Deep Sonnet C (hygiene/design/maintainability): none — structural quality is ticket-independent
+- Deep Opus (architectural): full ticket (minus verbose status update notes) — cross-cutting synthesis needs intent context
+- Ticket context is optional — not all changes have tickets. Reviewers must not block on missing ticket context.
 
 ### Confidence Scoring
 - Per-finding confidence scores (integer 0-100) required in reviewer output.
@@ -51,9 +101,8 @@ Epic A (w21-ykic) owns the review dimension names (correctness, verification, hy
 - Subjective filters explicitly excluded per R2 no-dismissal rule.
 
 ### Escalation Tier Upgrade
-- After 2 consecutive failed review cycles (resolution sub-agent completes fix, subsequent re-review produces critical or important findings), the third cycle dispatches next higher model for BOTH reviewer and resolution sub-agent (sonnet -> opus).
-- Escalation state tracked via review_cycle_count in $ARTIFACTS_DIR/review-status. Escalation triggers at review.max_cycles - 1 (configured in .claude/dso-config.conf, default 3 if unset).
-- Maximum review.max_cycles cycles before user escalation. Configurable per project.
+- After 2 consecutive failed review cycles (resolution sub-agent completes fix, subsequent re-review produces critical or important findings), the third cycle uses the next higher model tier for both reviewer and resolution sub-agent (sonnet -> opus); the model upgrade is recorded in reviewer-findings.json (escalation_tier field).
+- Maximum cycles before user escalation configurable via review.max_cycles in dso-config.conf (default: 3).
 - Escalated reviewer evaluates whether persisting findings are legitimate. If cleared, review passes. If findings persist, escalate to user.
 
 ### Re-Review Scoping
@@ -63,18 +112,26 @@ Epic A (w21-ykic) owns the review dimension names (correctness, verification, hy
 - Resolution sub-agent MUST NOT read or write reviewer-findings.json. Receives findings via task prompt only.
 
 ### Validation Signals (post-deployment monitoring, not pre-launch gates)
-- False positive rate: re-review iteration count per commit in classifier telemetry. After 30 commits, compare median to pre-deployment baseline. Any reduction is directionally positive.
-- False negative rate: post-commit CI failures tracked 2 weeks pre/post deployment. Sustained increase (>10% week-over-week for 2 consecutive weeks) indicates a gap.
-- Debt accumulation: run new reviewer against last 10 merged commit diffs as calibration before go-live. Higher design/maintainability finding rate than current reviewer on same diffs.
-- Confidence threshold calibration: before deploying 60/80 thresholds, run against 20 labeled historical findings (labeled by implementing engineer as true-positive or false-positive). Thresholds must achieve >=80% precision AND >=80% recall. Adjust before deployment if not met.
+All four metrics must be instrumented and queryable at launch:
+- False positive rate: median re-review iteration count per commit is equal to or lower after 30 commits than the pre-deployment baseline. Baseline artifact: median iteration count over last 30 pre-deployment commits must be captured and committed before the similarity pipeline story ships.
+- False negative rate: post-commit CI failure rate is tracked 2 weeks pre/post deployment and queryable via classifier-telemetry.jsonl.
+- Debt accumulation: new reviewer run against last 10 merged commit diffs produces equal or higher design/maintainability finding rate than current reviewer on same diffs.
+- Confidence calibration: on 20 historical findings labeled by the implementing engineer against ground-truth outcomes from merged commits, the 60/80 threshold buckets achieve >=80% precision AND >=80% recall before deployment.
 
 ## Approach
 Enhance reviewers with codebase-wide visibility (similarity pipeline), confidence-aware reporting (scoring bands with investigation), and self-correcting escalation (tier upgrade on repeated failures). Measure impact against the three original failure modes with instrumented telemetry.
 
 ## Referenced Artifacts
-- code-review-dispatch.md (plugins/dso/docs/workflows/prompts/) — enriched checklist, confidence, filters — modified
-- REVIEW-WORKFLOW.md (plugins/dso/docs/workflows/) — escalation upgrade, re-review scoping — modified
-- reviewer-findings.json ($ARTIFACTS_DIR/) — confidence field added — modified
+- code-review-dispatch.md (plugins/dso/docs/workflows/prompts/) — legacy fallback, no longer primary modification target — modified
+- reviewer-base.md (plugins/dso/docs/workflows/prompts/) — anti-manufacturing directive, independent validation, confidence scoring, false-positive filters — modified
+- reviewer-delta-light.md (plugins/dso/docs/workflows/prompts/) — Light tier checklist — new file
+- reviewer-delta-standard.md (plugins/dso/docs/workflows/prompts/) — Standard tier checklist — new file
+- reviewer-delta-deep-correctness.md (plugins/dso/docs/workflows/prompts/) — Deep Sonnet A checklist — new file
+- reviewer-delta-deep-verification.md (plugins/dso/docs/workflows/prompts/) — Deep Sonnet B checklist — new file
+- reviewer-delta-deep-hygiene-design-maint.md (plugins/dso/docs/workflows/prompts/) — Deep Sonnet C checklist — new file
+- reviewer-delta-deep-architectural.md (plugins/dso/docs/workflows/prompts/) — Deep Opus checklist — new file
+- REVIEW-WORKFLOW.md (plugins/dso/docs/workflows/) — escalation upgrade, re-review scoping, ticket context dispatch — modified
+- reviewer-findings.json ($ARTIFACTS_DIR/) — confidence field, escalation_tier field added — modified
 - review-status ($ARTIFACTS_DIR/) — escalation cycle tracking — modified
 - .claude/dso-config.conf — read review.behavioral_patterns (from Epic A), review.max_cycles — read/modified
 - review-similarity-search.sh (plugins/dso/scripts/) — new file
@@ -83,8 +140,8 @@ Enhance reviewers with codebase-wide visibility (similarity pipeline), confidenc
 - classifier-telemetry.jsonl ($ARTIFACTS_DIR/) — add iteration count field — modified
 
 ## Dependencies
-- w21-ykic (Tiered Review Architecture): Hard dependency — requires classifier, tier routing, and renamed schema
-- dso-ppwp (Add test gate enforcement): Soft overlap on verification anti-shortcut checks
+- w21-ykic (Tiered Review Architecture): Hard dependency — requires classifier, tier routing, and renamed schema. Escalation tier upgrade adds dynamic model upgrade to w21-ykic's routing; this is additive (does not redefine tier boundaries) but requires explicit coordination checkpoint before escalation story implementation. Interface ownership: w21-ykic owns tier definitions, classifier, and routing dispatch; this epic owns escalation logic, confidence scoring, and checklist content within each tier's reviewer-delta files.
+- dso-ppwp (Add test gate enforcement): Soft overlap on verification anti-shortcut checks. Boundary: this epic owns reviewer checklist criteria for evaluating test quality in the diff; dso-ppwp owns pre-commit gate enforcement.
 - dso-t4k8 (Don't cover up problems): Aligned intent, no hard dependency
 
 
