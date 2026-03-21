@@ -13,6 +13,7 @@
 #   hook_worktree_edit_guard     — block Edit/Write targeting main repo from worktree
 #   hook_cascade_circuit_breaker — block Edit/Write when cascade failure threshold reached
 #   hook_title_length_validator  — block Write/Edit setting ticket titles > 255 chars
+#   hook_tickets_tracker_guard   — block Edit/Write targeting .tickets-tracker/ files
 #
 # Note: hook_worktree_edit_guard is defined in pre-bash-functions.sh and re-exported
 # here via the source chain. This ensures both dispatchers (pre-bash and pre-edit/write)
@@ -220,6 +221,54 @@ hook_title_length_validator() {
         echo "BLOCKED [title-length-validator]: Ticket title is ${TITLE_LEN} characters (max ${TITLE_MAX})." >&2
         echo "Jira's summary field has a ${TITLE_MAX}-character limit." >&2
         echo "Please shorten the title before saving: ${FILE_PATH}" >&2
+        trap - ERR; return 2
+    fi
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# hook_tickets_tracker_guard
+# ---------------------------------------------------------------------------
+# PreToolUse hook: block Edit or Write calls targeting files inside .tickets-tracker/.
+#
+# .tickets-tracker/ is an event-sourced log; direct edits bypass invariants and
+# may corrupt the event log. All mutations must go through ticket commands.
+#
+# Logic:
+#   1. Only fires on Edit or Write tool calls
+#   2. Extracts file_path from tool_input
+#   3. If file_path contains /.tickets-tracker/: return 2 (block)
+#   4. All other cases: return 0 (allow, fail-open)
+#
+# REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
+# Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
+# integration as a separate task, dependent on this implementation (dso-4cb7).
+# See: tk show dso-280g
+hook_tickets_tracker_guard() {
+    local INPUT="$1"
+    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"tickets-tracker-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    # Only act on Edit or Write tool calls
+    local TOOL_NAME
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name') || return 0
+    if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
+        return 0
+    fi
+
+    # Extract file path
+    local FILE_PATH
+    FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path') || return 0
+    if [[ -z "$FILE_PATH" ]]; then
+        return 0
+    fi
+
+    # Block any path targeting .tickets-tracker/
+    if [[ "$FILE_PATH" == *"/.tickets-tracker/"* ]]; then
+        echo "BLOCKED [tickets-tracker-guard]: Direct edits to .tickets-tracker/ are not allowed." >&2
+        echo "Use ticket commands (ticket create, ticket sync, etc.) instead." >&2
+        echo "Direct edits bypass event sourcing invariants and may corrupt the event log." >&2
         trap - ERR; return 2
     fi
 

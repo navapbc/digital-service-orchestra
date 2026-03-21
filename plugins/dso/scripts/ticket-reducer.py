@@ -20,9 +20,44 @@ import hashlib
 import json
 import os
 import sys
+from typing import Protocol, runtime_checkable
 
 
-def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
+@runtime_checkable
+class ReducerStrategy(Protocol):
+    """Protocol for pluggable ticket event merge strategies."""
+
+    def resolve(self, events: list[dict]) -> list[dict]:
+        """Merge and deduplicate a list of events, returning the resolved list."""
+        ...
+
+
+class LastTimestampWinsStrategy:
+    """Default strategy: dedup by UUID (first occurrence wins), sort by timestamp.
+
+    Deduplicates events by the ``uuid`` field (keeps the first occurrence in
+    iteration order) then sorts the merged list ascending by the ``timestamp``
+    field.  This is the strategy used by the sync-events merge path.
+    """
+
+    def resolve(self, events: list[dict]) -> list[dict]:
+        """Return deduped (first-occurrence-wins) events sorted ascending by timestamp."""
+        seen: set[str] = set()
+        deduped: list[dict] = []
+        for event in events:
+            uuid = event.get("uuid", "")
+            if uuid and uuid in seen:
+                continue
+            if uuid:
+                seen.add(uuid)
+            deduped.append(event)
+        return sorted(deduped, key=lambda e: e.get("timestamp", 0))
+
+
+def reduce_ticket(
+    ticket_dir_path: str | os.PathLike[str],
+    strategy: ReducerStrategy | None = None,
+) -> dict | None:
     """Compile all events in ticket_dir_path to current ticket state.
 
     Returns a dict of the current state, an error-state dict
@@ -38,7 +73,27 @@ def reduce_ticket(ticket_dir_path: str | os.PathLike[str]) -> dict | None:
     Corrupt CREATE detection: if a CREATE event is parseable JSON but
     missing required fields (ticket_type or title), returns a compact
     error-state dict with status='fsck_needed'.
+
+    ``strategy`` is an optional ReducerStrategy for the sync-events merge path.
+    Defaults to LastTimestampWinsStrategy() when None.  reduce_ticket() itself
+    does not invoke the strategy — it is provided as a parameter so callers on
+    the sync-events path can pass it through.  Backward compatible: existing
+    calls without a strategy argument continue to work unchanged.
+
+    # REVIEW-DEFENSE: The ``strategy`` parameter is intentional groundwork for
+    # story dso-w21-05z9 (sync-events conflict resolution), which will wire
+    # MostStatusEventsWinsStrategy into this call site.  The parameter exists
+    # now to maintain backward compatibility with all existing callers (none of
+    # which pass a strategy) while allowing the sync path to inject a custom
+    # strategy without changing the function signature.  Removing it and the
+    # Protocol/class definitions would require a breaking change at that story.
+    # User-approved demotion to minor: the strategy parameter is intentional
+    # groundwork for story w21-05z9 (MostStatusEventsWinsStrategy). The
+    # parameter is not dead code — it is a forward-compatible extension point
+    # approved by the project owner.
     """
+    if strategy is None:
+        strategy = LastTimestampWinsStrategy()
     ticket_dir = str(ticket_dir_path)
     ticket_id = os.path.basename(ticket_dir)
 

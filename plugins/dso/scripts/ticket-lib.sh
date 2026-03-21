@@ -31,7 +31,11 @@ write_commit_event() {
 
     local repo_root
     repo_root="$(git rev-parse --show-toplevel)"
-    local tracker_dir="$repo_root/.tickets-tracker"
+    local tracker_dir_raw="$repo_root/.tickets-tracker"
+    # Resolve to canonical path so that callers using a symlink and callers using
+    # the real path always contend on the same lock file (cross-path serialization).
+    local tracker_dir
+    tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$tracker_dir_raw")
     local lock_file="$tracker_dir/.ticket-write.lock"
 
     # ── Validate: ticket system must be initialized ──────────────────────────
@@ -72,9 +76,9 @@ print(data['uuid'])
     # ── Normalize event_type to uppercase and validate against allowed enum ──
     event_type=$(echo "$event_type" | tr '[:lower:]' '[:upper:]')
     case "$event_type" in
-        CREATE|STATUS|COMMENT|LINK|SNAPSHOT|SYNC) ;;
+        CREATE|STATUS|COMMENT|LINK|UNLINK|SNAPSHOT|SYNC) ;;
         *)
-            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, SNAPSHOT, SYNC" >&2
+            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, UNLINK, SNAPSHOT, SYNC" >&2
             return 1
             ;;
     esac

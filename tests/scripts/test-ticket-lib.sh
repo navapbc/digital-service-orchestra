@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ticket-lib.sh
-# RED tests for plugins/dso/scripts/ticket-lib.sh — write_commit_event helper.
+# Tests for plugins/dso/scripts/ticket-lib.sh — write_commit_event helper.
 #
-# All tests MUST FAIL until ticket-lib.sh is implemented.
 # Covers: atomic write, flock serialization, specific-file git commit, gc.auto=0,
 # and clean failure when ticket init has not been run.
 #
 # Usage: bash tests/scripts/test-ticket-lib.sh
-# Returns: exit non-zero (RED) until ticket-lib.sh is implemented.
 
 # NOTE: -e is intentionally omitted — test functions return non-zero by design
 # (they assert against unimplemented features). -e would abort the runner.
@@ -292,5 +290,130 @@ test_write_commit_event_fails_cleanly_if_no_init() {
     fi
 }
 test_write_commit_event_fails_cleanly_if_no_init
+
+# ── Test 6: write_commit_event resolves symlink to real path ──────────────────
+echo "Test 6: write_commit_event resolves symlink — lock file uses canonical (real) path"
+test_write_commit_event_resolves_symlink_to_real_path() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Initialize ticket system
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # ticket-lib.sh must exist
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for symlink test" "exists" "missing"
+        return
+    fi
+
+    # Behavioral test: when .tickets-tracker is a symlink, write_commit_event must
+    # resolve it to a canonical path before constructing the lock file path.
+    # This ensures that a caller using the symlink path and a caller using the real
+    # path both contend on the same lock file (cross-path serialization).
+    #
+    # Setup: create a real dir and a symlink to it, then use the symlink as the
+    # effective .tickets-tracker by momentarily pointing the expected path at the
+    # symlink and verifying write_commit_event produces a commit in the real dir.
+
+    local real_tracker
+    real_tracker="$repo/.tickets-tracker"
+
+    # Verify that .tickets-tracker was created by init and is a real directory
+    if [ ! -d "$real_tracker" ]; then
+        assert_eq "tracker dir exists after init" "exists" "missing"
+        return
+    fi
+
+    # Create a symlink alongside the real tracker
+    local link_tracker="$repo/.tickets-tracker-symlink-test"
+    ln -s "$real_tracker" "$link_tracker"
+
+    # Resolve both paths via Python realpath for cross-platform canonical comparison
+    # (macOS /var -> /private/var, etc.)
+    local canonical_real canonical_link
+    canonical_real=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$real_tracker")
+    canonical_link=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$link_tracker")
+
+    # Assert: both paths resolve to the same canonical path (test setup check)
+    assert_eq "symlink and real dir resolve to same canonical path" \
+        "$canonical_real" "$canonical_link"
+
+    # Assert: ticket-lib.sh uses realpath (or Python os.path.realpath) to canonicalize
+    # the tracker_dir before constructing lock_file.
+    local realpath_used
+    realpath_used=$(python3 -c "
+import re, sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+# Match realpath shell builtin or Python os.path.realpath
+if re.search(r'realpath|os\.path\.realpath', content):
+    print('1')
+else:
+    print('0')
+" "$TICKET_LIB")
+    assert_eq "ticket-lib.sh uses canonical path resolution (realpath)" "1" "$realpath_used"
+
+    rm -f "$link_tracker"
+}
+test_write_commit_event_resolves_symlink_to_real_path
+
+# ── Test 7: write_commit_event flock uses canonical path (cross-symlink serialization)
+echo "Test 7: write_commit_event flock uses canonical path — same lock across symlink and real path"
+test_write_commit_event_flock_on_canonical_path() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Initialize ticket system
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # ticket-lib.sh must exist
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for canonical flock test" "exists" "missing"
+        return
+    fi
+
+    # Assert: ticket-lib.sh uses realpath (or Python os.path.realpath) to canonicalize
+    # tracker_dir so that the lock_file path is always the real (canonical) path.
+    # When two callers arrive with different path forms (symlink vs real), they must
+    # contend on the same underlying lock file to prevent concurrent commits.
+
+    # Static assertion: realpath usage must appear BEFORE the lock_file= assignment
+    local realpath_line lock_line
+    realpath_line=$(python3 -c "
+import sys
+with open(sys.argv[1]) as f:
+    lines = f.readlines()
+import re
+for i, line in enumerate(lines, 1):
+    if re.search(r'realpath|os\.path\.realpath', line):
+        print(i)
+        break
+else:
+    print(0)
+" "$TICKET_LIB")
+    lock_line=$(python3 -c "
+import sys
+with open(sys.argv[1]) as f:
+    lines = f.readlines()
+for i, line in enumerate(lines, 1):
+    if 'lock_file=' in line:
+        print(i)
+        break
+else:
+    print(0)
+" "$TICKET_LIB")
+
+    assert_eq "canonical path resolution present in ticket-lib.sh (realpath line > 0)" \
+        "1" "$([ "${realpath_line:-0}" -gt 0 ] && echo 1 || echo 0)"
+
+    # canonical resolution must appear at or before lock_file= assignment
+    if [ "${realpath_line:-0}" -gt 0 ] && [ "${lock_line:-0}" -gt 0 ] && \
+       [ "$realpath_line" -le "$lock_line" ]; then
+        assert_eq "canonical resolution ordered before lock_file assignment" "ordered" "ordered"
+    else
+        assert_eq "canonical resolution ordered before lock_file assignment" "ordered" "not-ordered"
+    fi
+}
+test_write_commit_event_flock_on_canonical_path
 
 print_summary

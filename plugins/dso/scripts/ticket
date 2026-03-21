@@ -12,6 +12,8 @@
 #                                                     (requires current_status to match actual state;
 #                                                      exits non-zero if state has changed since read)
 #   ticket comment <ticket_id> <body>             — append a comment to a ticket
+#   ticket link <id1> <id2> <relation>            — link two tickets (blocks|depends_on|relates_to)
+#   ticket unlink <id1> <id2>                     — remove a link between two tickets
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,6 +28,8 @@ _usage() {
     echo "  list        List all tickets as JSON"
     echo "  transition  Transition ticket status (optimistic concurrency)"
     echo "  comment     Add a comment to a ticket"
+    echo "  link        Link two tickets (blocks|depends_on|relates_to)"
+    echo "  unlink      Remove a link between two tickets"
     exit 1
 }
 
@@ -81,6 +85,14 @@ case "$subcommand" in
     fsck)
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-fsck.sh" "$@"
+        ;;
+    link)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-link.sh" link "$@"
+        ;;
+    unlink)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-link.sh" unlink "$@"
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

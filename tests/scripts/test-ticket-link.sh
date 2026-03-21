@@ -640,4 +640,61 @@ PYEOF
 }
 test_ticket_link_relates_to_bidirectional
 
+# ── Test 8: unlinking an already-unlinked pair exits nonzero (no dangling UNLINK) ─
+echo "Test 8: ticket unlink on already-unlinked pair exits nonzero without writing a dangling UNLINK event"
+test_ticket_unlink_already_unlinked() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_already_unlinked"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Double-unlink source")
+    id2=$(_create_ticket "$repo" task "Double-unlink target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for double-unlink test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_already_unlinked"
+        return
+    fi
+
+    # Link then unlink once
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || true
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || true
+
+    local unlink_count_after_first
+    unlink_count_after_first=$(_count_unlink_events "$tracker_dir" "$id1")
+
+    # Second unlink call on already-unlinked pair — should exit nonzero
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (not a silent no-op — dangling UNLINK is an error)
+    assert_eq "double-unlink: second unlink exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: no additional UNLINK event written
+    local unlink_count_after_second
+    unlink_count_after_second=$(_count_unlink_events "$tracker_dir" "$id1")
+    assert_eq "double-unlink: UNLINK event count unchanged after second unlink" "$unlink_count_after_first" "$unlink_count_after_second"
+
+    # Assert: informative error message printed
+    if [ -n "$stderr_out" ]; then
+        assert_eq "double-unlink: error message printed" "has-message" "has-message"
+    else
+        assert_eq "double-unlink: error message printed" "has-message" "silent"
+    fi
+
+    assert_pass_if_clean "test_ticket_unlink_already_unlinked"
+}
+test_ticket_unlink_already_unlinked
+
 print_summary
