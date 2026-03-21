@@ -1,12 +1,13 @@
 ---
 id: w21-qsu5
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-21T03:36:06Z
 type: bug
 priority: 1
 assignee: Joe Oakhart
+parent: w22-ns6l
 ---
 # Bug: cascade-circuit-breaker ERR trap swallows exit-2 on CI Linux (6 test failures)
 

@@ -7,6 +7,7 @@ created: 2026-03-21T03:45:38Z
 type: bug
 priority: 1
 assignee: Joe Oakhart
+parent: w22-ns6l
 ---
 # Bug: test suite exceeds Claude Code tool timeout (~73s) despite test-batched.sh guidance in CLAUDE.md
 

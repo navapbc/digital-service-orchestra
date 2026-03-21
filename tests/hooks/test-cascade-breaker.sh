@@ -100,11 +100,51 @@ EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_cascade_breaker_allows_claude_config_at_threshold" "0" "$EXIT_CODE"
 
 # --- test_cascade_breaker_allows_tmp_files_at_threshold ---
-# /tmp/ files are exempt
+# /tmp/ files are exempt (file is outside the worktree)
 echo "10" > "$COUNTER_FILE"
 INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.py"}}'
 EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_cascade_breaker_allows_tmp_files_at_threshold" "0" "$EXIT_CODE"
+
+# --- test_cascade_breaker_blocks_source_file_in_tmp_worktree_at_threshold ---
+# Linux CI scenario: worktree root is under /tmp/ (e.g. mktemp on Linux creates
+# repos under /tmp/). A source file inside such a worktree must be BLOCKED at
+# threshold — the /tmp/* passthrough must NOT apply when the file is inside the
+# current worktree.
+#
+# We create a second fake root explicitly under /tmp/ to exercise this path.
+TMP_FAKE_ROOT=$(mktemp -d "/tmp/test-cascade-tmp-wt-XXXXXX")
+TMP_FAKE_ROOT_CLEANUP="$TMP_FAKE_ROOT"
+git init -q "$TMP_FAKE_ROOT"
+# On macOS /tmp is a symlink to /private/tmp; resolve to the canonical path
+# so the hook's git rev-parse and our hash computation agree.
+TMP_FAKE_ROOT=$(cd "$TMP_FAKE_ROOT" && git rev-parse --show-toplevel)
+
+# Compute the state hash for TMP_FAKE_ROOT (same logic as the hook)
+if command -v md5 &>/dev/null; then
+    TMP_WT_HASH=$(echo -n "$TMP_FAKE_ROOT" | md5)
+elif command -v md5sum &>/dev/null; then
+    TMP_WT_HASH=$(echo -n "$TMP_FAKE_ROOT" | md5sum | cut -d' ' -f1)
+else
+    TMP_WT_HASH=$(echo -n "$TMP_FAKE_ROOT" | tr '/' '_')
+fi
+TMP_STATE_DIR="/tmp/claude-cascade-${TMP_WT_HASH}"
+TMP_COUNTER_FILE="$TMP_STATE_DIR/counter"
+
+# Set counter at threshold
+mkdir -p "$TMP_STATE_DIR"
+echo "5" > "$TMP_COUNTER_FILE"
+
+# Source file is INSIDE the /tmp/-based worktree — must be BLOCKED
+SOURCE_IN_TMP_WT="${TMP_FAKE_ROOT}/app/src/test.py"
+INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$SOURCE_IN_TMP_WT"'"}}'
+TMP_EXIT_CODE=0
+(cd "$TMP_FAKE_ROOT" && echo "$INPUT" | bash "$HOOK" 2>/dev/null) || TMP_EXIT_CODE=$?
+assert_eq "test_cascade_breaker_blocks_source_file_in_tmp_worktree_at_threshold" "2" "$TMP_EXIT_CODE"
+
+# Cleanup tmp worktree state and directory
+rm -rf "$TMP_STATE_DIR" 2>/dev/null || true
+rm -rf "$TMP_FAKE_ROOT_CLEANUP" 2>/dev/null || true
 
 # --- Cleanup ---
 rm -rf "$STATE_DIR" 2>/dev/null || true

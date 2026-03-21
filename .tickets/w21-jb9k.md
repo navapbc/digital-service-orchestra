@@ -7,6 +7,7 @@ created: 2026-03-21T02:59:11Z
 type: bug
 priority: 2
 assignee: Joe Oakhart
+parent: w22-ns6l
 ---
 # Bug: Local validation sub-agent redundantly checks CI status during post-epic validation
 

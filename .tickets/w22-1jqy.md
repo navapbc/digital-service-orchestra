@@ -7,6 +7,7 @@ created: 2026-03-21T04:00:04Z
 type: bug
 priority: 3
 assignee: Joe Oakhart
+parent: w22-ns6l
 ---
 # Bug: test-discover-agents.sh flaky in full suite — passes in isolation
 

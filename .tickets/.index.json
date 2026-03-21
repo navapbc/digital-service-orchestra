@@ -516,6 +516,13 @@
     "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
     "type": "bug"
   },
+  "dso-udy1": {
+    "deps": [],
+    "priority": 0,
+    "status": "in_progress",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
   "dso-uu13": {
     "deps": [],
     "priority": 1,

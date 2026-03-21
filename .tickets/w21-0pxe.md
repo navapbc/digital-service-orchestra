@@ -7,6 +7,7 @@ created: 2026-03-21T00:15:37Z
 type: bug
 priority: 1
 assignee: Joe Oakhart
+parent: w22-ns6l
 ---
 # Bug: end-session merge blindly accepts worktree ticket changes over main without diff comparison
 
