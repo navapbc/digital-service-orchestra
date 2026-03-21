@@ -453,6 +453,9 @@ git -C "$T2_MAIN" push -q origin main
 mkdir -p "$T2/mock-scripts"
 _make_mock_merge_ticket_index "$T2/mock-scripts/merge-ticket-index.py"
 
+# Suppress pre-commit hooks in test repos (no hooks infrastructure available)
+git -C "$T2" config core.hooksPath /dev/null 2>/dev/null || true
+
 T2_OUTPUT=""
 T2_EXIT=0
 T2_OUTPUT=$(
@@ -478,6 +481,93 @@ elif [ "$T2_EXIT" -ne 0 ]; then
 else
     echo "  FAIL: MERGE_AUTO_RESOLVE not emitted (or wrong format)" >&2
     echo "  Output: $T2_OUTPUT" >&2
+fi
+
+# =============================================================================
+# Test 15: test_sync_stashes_uncommitted_index_json
+# Regression test for dso-62u0: when .tickets/.index.json has local uncommitted
+# changes, _worktree_sync_from_main must stash those changes before the merge
+# and restore them after (so the merge doesn't fail with "overwritten by merge").
+# =============================================================================
+echo ""
+echo "Test 15: test_sync_stashes_uncommitted_index_json"
+
+T15_ORIGIN="$_TMPDIR/t15-origin.git"
+T15="$_TMPDIR/t15"
+
+# Create a bare repo as origin
+git init -b main -q --bare "$T15_ORIGIN"
+
+# Create a main repo with initial commit
+T15_MAIN="$_TMPDIR/t15-main"
+git clone -q "$T15_ORIGIN" "$T15_MAIN"
+git -C "$T15_MAIN" config user.email "test@test.com"
+git -C "$T15_MAIN" config user.name "Test"
+git -C "$T15_MAIN" config commit.gpgsign false
+
+mkdir -p "$T15_MAIN/.tickets"
+echo '{"v1": "ticket-a"}' > "$T15_MAIN/.tickets/.index.json"
+git -C "$T15_MAIN" add .
+git -C "$T15_MAIN" commit -q -m "initial"
+git -C "$T15_MAIN" push -q origin HEAD:main
+
+# Clone as worktree
+git clone -q "$T15_ORIGIN" "$T15"
+git -C "$T15" config user.email "test@test.com"
+git -C "$T15" config user.name "Test"
+git -C "$T15" config commit.gpgsign false
+
+# Create feature branch with committed ticket
+git -C "$T15" checkout -q -b feature
+echo '{"v1": "ticket-a", "v2": "ticket-b"}' > "$T15/.tickets/.index.json"
+git -C "$T15" add .
+git -C "$T15" commit -q -m "feature: add ticket-b"
+
+# On main, modify .tickets/.index.json too — this creates a scenario where
+# git merge origin/main would conflict with local uncommitted changes to the same file.
+# Without stashing, git merge exits with "error: Your local changes to the following
+# files would be overwritten by merge" and fails.
+echo '{"v1": "ticket-a", "v4": "ticket-d"}' > "$T15_MAIN/.tickets/.index.json"
+git -C "$T15_MAIN" add .
+git -C "$T15_MAIN" commit -q -m "main: add ticket-d to index"
+git -C "$T15_MAIN" push -q origin main
+
+# Now put an uncommitted local change in .tickets/.index.json on the worktree
+# (simulates tk close/create writing to .index.json without committing)
+# This local change would be OVERWRITTEN by git merge without stashing.
+echo '{"v1": "ticket-a", "v2": "ticket-b", "v3": "ticket-c"}' > "$T15/.tickets/.index.json"
+
+# Set up mock scripts for auto-resolve (needed when merge conflicts arise post-stash)
+mkdir -p "$T15/mock-scripts"
+_make_mock_merge_ticket_index "$T15/mock-scripts/merge-ticket-index.py"
+
+T15_OUTPUT=""
+T15_EXIT=0
+T15_OUTPUT=$(
+    cd "$T15"
+    source "$SYNC_SCRIPT"
+    _SCRIPT_DIR="$T15/mock-scripts"
+    _worktree_sync_from_main 2>&1
+) || T15_EXIT=$?
+
+# Assert: sync succeeds (exit 0) despite local uncommitted .index.json changes
+assert_eq "test_sync_stashes_uncommitted_index_json_exit" "0" "$T15_EXIT"
+
+# Assert: the local .index.json change (ticket-c) is preserved after sync
+PRESERVED_AFTER_SYNC=0
+if grep -q "ticket-c" "$T15/.tickets/.index.json" 2>/dev/null; then
+    PRESERVED_AFTER_SYNC=1
+fi
+assert_eq "test_sync_preserves_local_index_json_after_stash" "1" "$PRESERVED_AFTER_SYNC"
+
+if [ "$T15_EXIT" -eq 0 ] && [ "$PRESERVED_AFTER_SYNC" -eq 1 ]; then
+    echo "  PASS: sync stashed and restored local .index.json changes"
+elif [ "$T15_EXIT" -ne 0 ]; then
+    echo "  FAIL: expected exit 0, got $T15_EXIT — sync failed with local uncommitted .index.json" >&2
+    echo "  Output: $T15_OUTPUT" >&2
+else
+    echo "  FAIL: local .index.json change (ticket-c) was lost after sync" >&2
+    echo "  index.json contents: $(cat "$T15/.tickets/.index.json" 2>/dev/null)" >&2
 fi
 
 # =============================================================================

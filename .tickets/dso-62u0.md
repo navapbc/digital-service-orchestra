@@ -1,6 +1,6 @@
 ---
 id: dso-62u0
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-19T16:57:49Z
@@ -12,3 +12,12 @@ parent: dso-9xnr
 ---
 # fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes
 
+
+## Notes
+
+<!-- note-id: lrbew7sb -->
+<!-- timestamp: 2026-03-20T23:54:13Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: stash .tickets/.index.json in _worktree_sync_from_main before git merge origin/main to prevent 'would be overwritten by merge' failure. Restore stash after sync. Test added: test_sync_stashes_uncommitted_index_json in test-worktree-sync-from-main-fallback.sh

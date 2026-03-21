@@ -2,7 +2,7 @@
   "dso-094a": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: agent-batch-lifecycle.sh cleanup-discoveries crashes \u2014 get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT points to main repo instead of plugin dir",
     "type": "bug"
   },
@@ -203,7 +203,7 @@
   "dso-62u0": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "fix: merge-to-main.sh sync phase fails when .tickets/.index.json has uncommitted local changes",
     "type": "bug"
   },
@@ -429,7 +429,7 @@
   "dso-fqxu": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: compute-diff-hash.sh hash mismatch when untracked temp test fixtures exist during review",
     "type": "bug"
   },
@@ -464,7 +464,7 @@
   "dso-g8cz": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "fix: compute-diff-hash.sh is not staging-invariant for new (untracked\u2192staged) files",
     "type": "bug"
   },
@@ -609,7 +609,7 @@
   "dso-kv4p": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "in_progress",
     "title": "fix: merge-to-main.sh push phase fails with retry_with_backoff: command not found",
     "type": "bug"
   },
@@ -645,6 +645,13 @@
     "priority": 2,
     "status": "open",
     "title": "Bug: tk sync windowed pull uses UTC but Jira reads JQL datetimes as user-local timezone",
+    "type": "bug"
+  },
+  "dso-lm92": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "record-review.sh CHANGED_FILES overlap check includes untracked files that may not be reviewed",
     "type": "bug"
   },
   "dso-lqyw": {
@@ -706,6 +713,13 @@
     "status": "closed",
     "title": "Update read-config.sh to resolve from .claude/dso-config.conf + move config file",
     "type": "task"
+  },
+  "dso-or3g": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: collect-discoveries.sh crashes with get_artifacts_dir not found when CLAUDE_PLUGIN_ROOT is wrong",
+    "type": "bug"
   },
   "dso-ozsx": {
     "deps": [
@@ -793,7 +807,7 @@
   "dso-qt4u": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Bug: merge-to-main.sh fails on archive rename/delete conflicts and doesn't support agent-driven conflict resolution",
     "type": "bug"
   },
@@ -1272,7 +1286,7 @@
   "w21-ae0s": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Validation gate times out on projects with >50s test suites \u2014 incorporate test-batched or split validate.sh",
     "type": "bug"
   },

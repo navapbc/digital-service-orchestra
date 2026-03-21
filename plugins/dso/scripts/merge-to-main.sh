@@ -812,11 +812,41 @@ _squash_rebase_recovery() {
     return 0
 }
 
-# --- Load hooks/lib/deps.sh for get_artifacts_dir ---
+# --- Load hooks/lib/deps.sh for get_artifacts_dir and retry_with_backoff ---
 # Needed for checkpoint sentinel verification (see below).
 _HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
 if [[ -f "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"
+fi
+
+# --- Fallback: define retry_with_backoff inline if deps.sh was not found ---
+# Regression guard for dso-kv4p: _phase_push calls retry_with_backoff; if deps.sh
+# is absent (e.g., fresh clone, CLAUDE_PLUGIN_ROOT misconfiguration), the function
+# would be undefined and cause "command not found" at runtime.
+if ! type retry_with_backoff >/dev/null 2>&1; then
+    retry_with_backoff() {
+        local max_retries="$1"
+        local initial_delay="$2"
+        shift 2
+        local attempt=0
+        local exit_code=0
+        local delay="$initial_delay"
+        while true; do
+            "$@"
+            exit_code=$?
+            if [[ $exit_code -eq 0 ]]; then
+                return 0
+            fi
+            if [[ $attempt -ge $max_retries ]]; then
+                echo "retry_with_backoff: all $max_retries retries exhausted (exit $exit_code)" >&2
+                return $exit_code
+            fi
+            attempt=$(( attempt + 1 ))
+            echo "retry_with_backoff: attempt $attempt/$max_retries failed (exit $exit_code), retrying in ${delay}s..." >&2
+            sleep "$delay"
+            delay=$(awk "BEGIN { printf \"%.2f\", $delay * 2 }")
+        done
+    }
 fi
 
 # --- Load project config (single batch call to read-config) ---
