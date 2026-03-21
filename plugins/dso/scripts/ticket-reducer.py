@@ -257,13 +257,25 @@ def reduce_ticket(
                     "timestamp": event.get("timestamp"),
                 }
             )
+        elif event_type == "LINK":
+            state["deps"].append(
+                {
+                    "target_id": data["target_id"],
+                    "relation": data["relation"],
+                    "link_uuid": event["uuid"],
+                }
+            )
+        elif event_type == "UNLINK":
+            link_uuid_to_remove = data.get("link_uuid")
+            state["deps"] = [
+                d for d in state["deps"] if d.get("link_uuid") != link_uuid_to_remove
+            ]
         elif event_type == "SNAPSHOT":
             compiled_state = data.get("compiled_state", {})
             # Restore compiled state from snapshot
             for key, value in compiled_state.items():
                 state[key] = value
-        # Unknown event types are silently ignored (LINK, etc.
-        # will be handled in future stories)
+        # Unknown event types are silently ignored
 
     # No CREATE event was processed
     if state["ticket_type"] is None:

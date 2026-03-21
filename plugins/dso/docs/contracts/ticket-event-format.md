@@ -26,7 +26,7 @@ All stories in the ticket-system-v3 epic that read or write event files **must**
 |---------------|-----------------------------------------------------|
 | `<timestamp>` | UTC epoch seconds (integer), unpadded (currently 10 digits; grows naturally) |
 | `<uuid>`      | Lowercase UUID4, hyphens preserved                  |
-| `<TYPE>`      | Uppercase event type: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `SNAPSHOT`, or `SYNC` |
+| `<TYPE>`      | Uppercase event type: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `SNAPSHOT`, or `SYNC` |
 
 **Example**: `1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json`
 
@@ -60,7 +60,7 @@ All event files are valid JSON objects containing the following base fields:
 |--------------|-------------------|----------------------------------------------------------|
 | `timestamp`  | integer           | UTC epoch seconds at the time the event was written      |
 | `uuid`       | string (UUID4)    | Unique event identifier; lowercase, hyphens preserved    |
-| `event_type` | string (enum)     | One of: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `SNAPSHOT`, `SYNC` |
+| `event_type` | string (enum)     | One of: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `SNAPSHOT`, `SYNC` |
 | `env_id`     | string (UUID4)    | Value of `.tickets-tracker/.env-id` at write time        |
 | `author`     | string            | `git user.name` of the writer (informational only — not used for attribution or access control; `env_id` provides machine identity) |
 | `data`       | object            | Event-type-specific payload (see below)                  |
@@ -103,6 +103,38 @@ All event files are valid JSON objects containing the following base fields:
 |--------|--------|--------------------------------------|
 | `body` | string | The comment text. Must be non-empty. |
 
+#### `LINK`
+
+```json
+{
+  "relation": "blocks|depends_on|relates_to",
+  "target_id": "<ticket-id>"
+}
+```
+
+| Field       | Type   | Description                                                                                         |
+|-------------|--------|-----------------------------------------------------------------------------------------------------|
+| `relation`  | string | The dependency direction. One of: `blocks`, `depends_on`, `relates_to`.                            |
+| `target_id` | string | The ticket ID that is the target of this relationship.                                              |
+
+**Note**: `relates_to` links generate reciprocal LINK events in both ticket directories — one in the source ticket's directory and one in the target ticket's directory, each pointing at the other.
+
+#### `UNLINK`
+
+```json
+{
+  "link_uuid": "<uuid of the LINK event being negated>",
+  "target_id": "<ticket-id>"
+}
+```
+
+| Field       | Type   | Description                                                                                         |
+|-------------|--------|-----------------------------------------------------------------------------------------------------|
+| `link_uuid` | string | The `uuid` field of the LINK event this UNLINK cancels. Used by reducers to remove the link from the net-active set. |
+| `target_id` | string | The ticket ID that was the target of the cancelled LINK (denormalized for readability; the authoritative reference is `link_uuid`). |
+
+**Note**: For `relates_to` unlinks, a reciprocal UNLINK event is written in the target ticket's directory as well.
+
 ### Event Type Contracts: Definition Status
 
 | Event Type | `data` Fields Defined In | Story    | Status   |
@@ -110,7 +142,8 @@ All event files are valid JSON objects containing the following base fields:
 | `CREATE`   | This document (above)    | w21-ablv | defined  |
 | `STATUS`   | This document (above)    | w21-o72z | defined  |
 | `COMMENT`  | This document (above)    | w21-o72z | defined  |
-| `LINK`     | Story contract           | w21-o72z | forward-reference |
+| `LINK`     | This document (above)    | w21-k2yz | defined  |
+| `UNLINK`   | This document (above)    | w21-k2yz | defined  |
 | `SNAPSHOT` | Story contract           | w21-q0nn | forward-reference |
 | `SYNC`     | Story contract           | w21-54wx (Epic 3) | forward-reference |
 

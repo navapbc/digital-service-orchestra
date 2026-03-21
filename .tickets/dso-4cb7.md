@@ -1,6 +1,6 @@
 ---
 id: dso-4cb7
-status: in_progress
+status: closed
 deps: [dso-yaao]
 links: []
 created: 2026-03-21T16:09:44Z

@@ -1,6 +1,6 @@
 ---
 id: dso-dipm
-status: open
+status: in_progress
 deps: [dso-4cb7]
 links: []
 created: 2026-03-21T16:10:05Z
@@ -34,3 +34,29 @@ At this point hook_tickets_tracker_bash_guard does not exist - new tests must fa
   Verify: bash $(git rev-parse --show-toplevel)/tests/hooks/test-tickets-tracker-guard.sh 2>&1; test $? -ne 0
 - [ ] Edit/Write tests (from dso-4cb7) still pass (GREEN section unchanged)
   Verify: bash $(git rev-parse --show-toplevel)/tests/hooks/test-tickets-tracker-guard.sh 2>&1 | grep -c 'PASS' | awk '{exit ($1 < 5)}'
+
+## Notes
+
+**2026-03-21T18:28:04Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T18:28:08Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T18:28:30Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-21T18:28:34Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T18:31:21Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — AC1: assert_eq count=13 (>=8), AC2: test exits non-zero RED, AC3: PASS lines=5 (>=5)
+
+**2026-03-21T18:31:57Z**
+
+CHECKPOINT 6/6: Done ✓ — All 3 ACs verified green. File: tests/hooks/test-tickets-tracker-guard.sh extended with 5 Bash guard tests + assert_eq_verbose helper. 13 assert_eq calls total, RED exit on missing hook_tickets_tracker_bash_guard, 5 Edit/Write PASS lines.

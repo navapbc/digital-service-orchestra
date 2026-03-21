@@ -1,6 +1,6 @@
 ---
 id: dso-smsg
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T16:09:28Z

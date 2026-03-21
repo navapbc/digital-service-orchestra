@@ -1,6 +1,6 @@
 ---
 id: dso-ael7
-status: in_progress
+status: closed
 deps: [dso-6lhe]
 links: []
 created: 2026-03-21T16:09:11Z

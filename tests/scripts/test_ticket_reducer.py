@@ -2019,4 +2019,4 @@ def test_reducer_deps_in_snapshot_not_duplicated(
         f"Dep must appear exactly once (no double-count), got {state['deps']}"
     )
     assert state["deps"][0]["link_uuid"] == _LINK_UUID
-    assert state["ticket_id"] == "tkt-all-corrupt"
+    assert state["ticket_id"] == "tkt-link-nodupe"
