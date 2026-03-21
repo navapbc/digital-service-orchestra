@@ -1,6 +1,6 @@
 ---
 id: dso-xf8w
-status: in_progress
+status: closed
 deps: [dso-4lbf]
 links: []
 created: 2026-03-21T18:00:11Z

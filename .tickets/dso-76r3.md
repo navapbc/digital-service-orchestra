@@ -1,6 +1,6 @@
 ---
 id: dso-76r3
-status: open
+status: in_progress
 deps: [dso-xf8w]
 links: []
 created: 2026-03-21T18:00:45Z
@@ -51,3 +51,47 @@ The test must be verifiable whether the file already exists or is newly created 
   Verify: grep -q 'test_hash_excludes_test_index' $(git rev-parse --show-toplevel)/tests/hooks/test-compute-diff-hash.sh
 - [ ] bash tests/run-all.sh passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/run-all.sh
+
+## Notes
+
+<!-- note-id: qwrvkkib -->
+<!-- timestamp: 2026-03-21T19:14:17Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: yvae1vql -->
+<!-- timestamp: 2026-03-21T19:14:29Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: ah2easgd -->
+<!-- timestamp: 2026-03-21T19:15:34Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ (RED confirmed — .test-index IS included in hash before fix)
+
+<!-- note-id: ti6qhw12 -->
+<!-- timestamp: 2026-03-21T19:15:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — added .test-index to review-gate-allowlist.conf under '# Test index metadata'
+
+<!-- note-id: 9qia10sb -->
+<!-- timestamp: 2026-03-21T19:20:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — all 4 compute-diff-hash test files pass (17 total assertions in test-compute-diff-hash.sh, including new test_hash_excludes_test_index)
+
+<!-- note-id: 7i2y1in8 -->
+<!-- timestamp: 2026-03-21T19:20:14Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — AC self-check: (1) .test-index in allowlist ✓ (2) PASS for test_hash_excludes_test_index ✓ (3) function name in test file ✓ (4) all hook tests pass ✓. No direct code change to compute-diff-hash.sh required (allowlist mechanism picks it up automatically).

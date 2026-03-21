@@ -123,4 +123,54 @@ assert_ne "fallback produces non-empty hash" "" "$HASH_FALLBACK"
 # Return to repo root for print_summary
 cd "$REPO_ROOT"
 
+# ============================================================
+# test_hash_excludes_test_index
+# Staging a .test-index file must NOT change the diff hash.
+# .test-index is auto-staged by the test gate and must be
+# treated as metadata (like .tickets/) — not code under review.
+# ============================================================
+echo "--- test_hash_excludes_test_index ---"
+
+TMPDIR_TI=$(mktemp -d)
+trap 'rm -rf "$TMPDIR_TI"' EXIT
+
+(
+    cd "$TMPDIR_TI"
+    git init -q -b main
+    git config user.email "test@test.com"
+    git config user.name "Test"
+
+    # Initial commit with a source file so HEAD is valid
+    echo "def foo(): pass" > foo.py
+    git add foo.py
+    git commit -q -m "init"
+
+    # Stage a change to the source file and record the baseline hash
+    echo "def bar(): pass" >> foo.py
+    git add foo.py
+    H1=$(bash "$HOOK" 2>/dev/null)
+
+    # Now also write and stage a .test-index file
+    printf 'foo.py=tests/test_foo.py\n' > .test-index
+    git add .test-index
+    H2=$(bash "$HOOK" 2>/dev/null)
+
+    if [[ "$H1" == "$H2" ]]; then
+        echo "PASS: test_hash_excludes_test_index"
+        exit 0
+    else
+        echo "FAIL: test_hash_excludes_test_index — staging .test-index changed the hash"
+        echo "  H1 (before .test-index staged): $H1"
+        echo "  H2 (after  .test-index staged): $H2"
+        exit 1
+    fi
+)
+_TI_EXIT=$?
+assert_eq "test_hash_excludes_test_index" "0" "$_TI_EXIT"
+
+# Also verify allowlist contains the .test-index pattern (static check)
+_TI_ALLOWLIST_MATCH=$(grep '\.test-index' "$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "review-gate-allowlist.conf contains .test-index pattern" "true" \
+    "$( [[ $_TI_ALLOWLIST_MATCH -ge 1 ]] && echo true || echo false )"
+
 print_summary
