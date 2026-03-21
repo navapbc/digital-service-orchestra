@@ -449,8 +449,8 @@
     "last_synced": "2026-03-19T18:38:35Z",
     "local_hash": "14c516947a151a3db8bdec4010e2fd6e"
   },
-  "last_pull_timestamp": "2026-03-20T19:35:49Z",
-  "last_sync_commit": "db3a7ad263b04f29b7a1eebfb27328c78906bae4",
+  "last_pull_timestamp": "2026-03-20T23:36:11Z",
+  "last_sync_commit": "3fcea320b02cddb5891a6cbe4ba984fb57fc5763",
   "w21-5cqr": {
     "jira_hash": "bce29d76f01c58613ee99cb1dd03920d",
     "jira_key": "DIG-61",
@@ -462,6 +462,18 @@
     "jira_key": "DIG-62",
     "last_synced": "2026-03-19T16:52:39Z",
     "local_hash": "0eb2d191aae4918ef083657aa1eced85"
+  },
+  "w21-bsnz": {
+    "jira_hash": "6ed4d1cbfe493833e0f9139f63e49304",
+    "jira_key": "DIG-87",
+    "last_synced": "2026-03-20T20:55:35Z",
+    "local_hash": "6ed4d1cbfe493833e0f9139f63e49304"
+  },
+  "w21-chse": {
+    "jira_hash": "638f3f1ef6def8cbf8fc479775287ad0",
+    "jira_key": "DIG-88",
+    "last_synced": "2026-03-20T20:55:35Z",
+    "local_hash": "638f3f1ef6def8cbf8fc479775287ad0"
   },
   "w21-tr4q": {
     "jira_hash": "879b4db0e4b69678e93a196dbb01a9ae",

@@ -1,7 +1,7 @@
 ---
 id: dso-ppwp
-status: open
-deps: [w22-uqfn, w22-sulb, w22-8jaf, w22-4ujv]
+status: closed
+deps: []
 links: []
 created: 2026-03-17T18:34:10Z
 type: epic

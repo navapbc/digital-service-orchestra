@@ -1,6 +1,6 @@
 ---
 id: dso-z6zi
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-20T04:01:57Z

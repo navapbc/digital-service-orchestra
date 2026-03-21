@@ -257,6 +257,26 @@ If either check fails, fix the issue and **restart from Step 1**.
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-lint-typecheck" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
+## Step 3.5: Record Test Status
+
+Run `record-test-status.sh` to discover and run tests for files about to be staged. This records the `test-gate-status` file that the pre-commit test gate will verify at commit time.
+
+```bash
+bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
+```
+
+- **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 3a.
+- **exit 144**: test runner was terminated; follow the actionable guidance printed by `record-test-status.sh`. Use `test-batched.sh` to run the tests in time-bounded chunks:
+  ```bash
+  bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/test-batched.sh" --timeout=50 "bash tests/hooks/test-<name>.sh"
+  ```
+  Run the `NEXT:` command printed by `test-batched.sh` in subsequent calls until the summary appears, then re-run Step 3.5.
+- **exit non-zero (other)**: tests failed; fix the failures and **restart from Step 1**.
+
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3.5-record-test-status" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+```
+
 ## Step 3a: Write Validation State File
 
 After Steps 1-3 all pass, write a validation state file so the review workflow can skip redundant re-validation:
