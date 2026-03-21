@@ -22,6 +22,13 @@ trap 'printf "{\"ts\":\"%s\",\"hook\":\"track-tool-errors.sh\",\"line\":%s}\n" "
 
 # Source shared dependency library
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# PATH-ANCHOR: HOOK_DIR is anchored to plugins/dso/hooks/ (this file's directory).
+# read-config.sh is one level up in plugins/dso/scripts/, so the correct path
+# is $HOOK_DIR/../scripts/read-config.sh (one "..").
+# If this hook were sourced from hooks/lib/ instead, the depth would be two ".."
+# ($HOOK_LIB_DIR/../../scripts/read-config.sh). The 2>/dev/null || echo 'false'
+# guard silently suppresses path errors — always verify depth with:
+#   ls "$(dirname "${BASH_SOURCE[0]}")/../scripts/read-config.sh"
 _MONITORING=$(bash "$HOOK_DIR/../scripts/read-config.sh" monitoring.tool_errors 2>/dev/null || echo "false")
 [[ "$_MONITORING" != "true" ]] && exit 0
 source "$HOOK_DIR/lib/deps.sh"

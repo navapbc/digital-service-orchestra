@@ -48,14 +48,14 @@
   "dso-1aaa": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: tk create rejects --parent=id flag (only --parent id works)",
     "type": "bug"
   },
   "dso-2da0": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (56 occurrences)",
     "type": "bug"
   },
@@ -66,12 +66,26 @@
     "title": "fix: ci-status.sh crashes with CFG_PYTHON_VENV unbound variable when config-paths.sh is absent",
     "type": "bug"
   },
+  "dso-2ef7": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test ticket for bug dso-1aaa",
+    "type": "task"
+  },
   "dso-2xqd": {
     "deps": [],
     "priority": 2,
     "status": "closed",
     "title": "fix: sprint skill Phase 4 references scripts/worktree-sync-from-main.sh instead of plugins/dso/scripts/worktree-sync-from-main.sh",
     "type": "bug"
+  },
+  "dso-3b23": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test dso-1aaa bug repro",
+    "type": "story"
   },
   "dso-3e30": {
     "deps": [],
@@ -90,7 +104,7 @@
   "dso-42w7": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Recurring tool error: command_exit_nonzero (64 occurrences)",
     "type": "bug"
   },
@@ -176,7 +190,7 @@
   "dso-cma6": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: quote $CLAUDE_PLUGIN_ROOT in INSTALL.md bash commands",
     "type": "bug"
   },
@@ -663,7 +677,7 @@
   "w21-5cqr": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "fix: document read-config.sh path anchoring in hook guards to prevent wrong relative path depth",
     "type": "bug"
   },
@@ -781,7 +795,7 @@
   "w21-bw1o": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Flaky test: test-merge-to-main-portability.sh intermittently fails (8/10 pass, then 10/10 on re-run)",
     "type": "bug"
   },
@@ -931,7 +945,7 @@
   "w21-j2cc": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "BUG: AC4 check in w21-cu3r incompatible with assert.sh output format",
     "type": "bug"
   },

@@ -1,6 +1,6 @@
 ---
 id: dso-2da0
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-19T18:21:38Z
@@ -37,3 +37,19 @@ Showing most recent 20 of 56 occurrences.
 | 19 | 2026-03-19T03:04:01Z | Bash | tests/run-all.sh (timeout 90) | Exit code 144 |
 | 20 | 2026-03-19T03:06:58Z | Bash | run-hook-tests.sh | Exit code 144 |
 
+
+## Notes
+
+<!-- note-id: bkqayfq8 -->
+<!-- timestamp: 2026-03-21T02:26:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Investigation: aggregate error log from past sessions. Underlying causes: exit 144 (tool timeout — fixed via w21-ae0s), merge conflicts (fixed via dso-qt4u), diff hash mismatches (fixed via dso-fqxu/dso-g8cz). No individual code fix needed — these are symptoms of resolved bugs.
+
+<!-- note-id: 9teyk1jo -->
+<!-- timestamp: 2026-03-21T02:26:10Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: underlying bugs resolved (w21-ae0s, dso-qt4u, dso-fqxu)
