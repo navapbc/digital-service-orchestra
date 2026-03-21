@@ -1,7 +1,7 @@
 """RED tests for ticket-reducer.py.
 
 These tests are RED — they test functionality that does not yet exist.
-All 11 test functions must FAIL before ticket-reducer.py is implemented.
+All test functions must FAIL before ticket-reducer.py is implemented.
 
 The reducer is expected to expose a single callable:
     reduce_ticket(ticket_dir_path: Path) -> dict | None
@@ -1036,4 +1036,331 @@ def test_cache_miss_on_same_filename_content_change(
         "After overwriting event file content, reduce_ticket() must recompute state "
         "and return the updated title (cache miss on content change); "
         f"got title={state2['title']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 18: SNAPSHOT event restores compiled state
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_snapshot_event_restores_compiled_state(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """A SNAPSHOT event with compiled_state in data must restore that state directly.
+
+    RED: ticket-reducer.py does not yet handle SNAPSHOT events. The reducer
+    will either ignore the event or raise, causing this test to fail.
+    """
+    ticket_dir = tmp_path / "tkt-snapshot-basic"
+    ticket_dir.mkdir()
+
+    compiled = {
+        "ticket_id": "tkt-snapshot-basic",
+        "ticket_type": "task",
+        "title": "Compacted title",
+        "status": "closed",
+        "author": "Alice",
+        "created_at": 1742605200,
+        "comments": [],
+        "deps": [],
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "parent_id": None,
+        "source_event_uuids": [_UUID, _UUID2],
+    }
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742606000,
+        uuid=_UUID3,
+        event_type="SNAPSHOT",
+        data={"compiled_state": compiled, "source_event_uuids": [_UUID, _UUID2]},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "SNAPSHOT event must produce non-None state"
+    assert state["title"] == "Compacted title", (
+        f"SNAPSHOT compiled_state title must be restored; got {state['title']!r}"
+    )
+    assert state["status"] == "closed", (
+        f"SNAPSHOT compiled_state status must be restored; got {state['status']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 19: SNAPSHOT + post-snapshot events applied correctly
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_snapshot_plus_post_snapshot_events_applied(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """A STATUS event after a SNAPSHOT (not in source_event_uuids) must be applied.
+
+    RED: SNAPSHOT handling not yet implemented.
+    """
+    ticket_dir = tmp_path / "tkt-snapshot-post"
+    ticket_dir.mkdir()
+
+    compiled = {
+        "ticket_id": "tkt-snapshot-post",
+        "ticket_type": "task",
+        "title": "Snapshot base",
+        "status": "open",
+        "author": "Alice",
+        "created_at": 1742605200,
+        "comments": [],
+        "deps": [],
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "parent_id": None,
+    }
+
+    # SNAPSHOT at t=1742606000
+    _write_event(
+        ticket_dir,
+        timestamp=1742606000,
+        uuid=_UUID,
+        event_type="SNAPSHOT",
+        data={"compiled_state": compiled, "source_event_uuids": ["pre-uuid-1"]},
+    )
+
+    # Post-snapshot STATUS event at t=1742607000 (uuid NOT in source_event_uuids)
+    _write_event(
+        ticket_dir,
+        timestamp=1742607000,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "open"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "SNAPSHOT + STATUS must produce non-None state"
+    assert state["status"] == "closed", (
+        "Post-snapshot STATUS event must be applied on top of SNAPSHOT state; "
+        f"got status={state['status']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 20: SNAPSHOT deduplicates events in source_event_uuids
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_snapshot_deduplicates_events_in_source_event_uuids(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """An event whose uuid is listed in source_event_uuids must be skipped.
+
+    RED: SNAPSHOT handling and deduplication not yet implemented.
+    """
+    ticket_dir = tmp_path / "tkt-snapshot-dedup"
+    ticket_dir.mkdir()
+
+    dup_uuid = "dup-uuid-0000-0000-0000-000000001234"
+
+    compiled = {
+        "ticket_id": "tkt-snapshot-dedup",
+        "ticket_type": "task",
+        "title": "Dedup test",
+        "status": "open",
+        "author": "Alice",
+        "created_at": 1742605200,
+        "comments": [],
+        "deps": [],
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "parent_id": None,
+    }
+
+    # SNAPSHOT listing dup_uuid in source_event_uuids
+    _write_event(
+        ticket_dir,
+        timestamp=1742606000,
+        uuid=_UUID,
+        event_type="SNAPSHOT",
+        data={
+            "compiled_state": compiled,
+            "source_event_uuids": [dup_uuid],
+        },
+    )
+
+    # Duplicate event — uuid matches one in source_event_uuids, must be SKIPPED
+    _write_event(
+        ticket_dir,
+        timestamp=1742607000,
+        uuid=dup_uuid,
+        event_type="STATUS",
+        data={"status": "closed", "current_status": "open"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "SNAPSHOT + dup event must produce non-None state"
+    assert state["status"] == "open", (
+        "Event with uuid in source_event_uuids must be skipped; "
+        f"expected status='open' (from SNAPSHOT), got status={state['status']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 21: SNAPSHOT-only ticket returns compiled state (no CREATE needed)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_snapshot_only_ticket_returns_compiled_state(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """A ticket with only a SNAPSHOT event (no CREATE) must return the compiled_state.
+
+    RED: SNAPSHOT handling not yet implemented; reducer currently returns None
+    when no CREATE event is found.
+    """
+    ticket_dir = tmp_path / "tkt-snapshot-only"
+    ticket_dir.mkdir()
+
+    compiled = {
+        "ticket_id": "tkt-snapshot-only",
+        "ticket_type": "task",
+        "title": "Snapshot only ticket",
+        "status": "in_progress",
+        "author": "Alice",
+        "created_at": 1742605200,
+        "comments": [],
+        "deps": [],
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "parent_id": "epic-123",
+    }
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742606000,
+        uuid=_UUID,
+        event_type="SNAPSHOT",
+        data={"compiled_state": compiled, "source_event_uuids": ["old-1", "old-2"]},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, (
+        "SNAPSHOT-only ticket must return compiled_state, not None"
+    )
+    assert state["title"] == "Snapshot only ticket", (
+        f"SNAPSHOT compiled_state must be used; got title={state['title']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 22: Cache invalidation after compaction (file deletion + SNAPSHOT)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cache_invalidation_after_compaction_file_deletion(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """After compaction (old files deleted, SNAPSHOT written), cache must invalidate.
+
+    Setup: write CREATE + 3 STATUS events, call reduce_ticket() to warm cache,
+    then delete those 4 files and write a SNAPSHOT event (simulating compaction).
+    Call reduce_ticket() again and assert the result matches the SNAPSHOT state.
+
+    RED: SNAPSHOT handling not yet implemented. Even if cache invalidation works
+    (file count change triggers cache miss), the reducer will fail on the
+    SNAPSHOT event type.
+    """
+    ticket_dir = tmp_path / "tkt-compact-cache"
+    ticket_dir.mkdir()
+
+    # Write CREATE + 3 STATUS events
+    create_path = _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "Pre-compaction title",
+            "parent_id": None,
+        },
+        author="Alice",
+    )
+
+    status_paths = []
+    for i, (uuid_val, ts) in enumerate(
+        [
+            ("11111111-1111-1111-1111-111111111111", 1742605300),
+            ("22222222-2222-2222-2222-222222222222", 1742605400),
+            ("33333333-3333-3333-3333-333333333333", 1742605500),
+        ]
+    ):
+        p = _write_event(
+            ticket_dir,
+            timestamp=ts,
+            uuid=uuid_val,
+            event_type="STATUS",
+            data={"status": "in_progress", "current_status": "open"},
+        )
+        status_paths.append(p)
+
+    # Warm cache
+    state1 = reducer.reduce_ticket(ticket_dir)
+    assert state1 is not None, "Setup: first reduce must return state"
+
+    # Simulate compaction: delete original files, write SNAPSHOT
+    create_path.unlink()
+    for p in status_paths:
+        p.unlink()
+
+    compacted_state = {
+        "ticket_id": "tkt-compact-cache",
+        "ticket_type": "task",
+        "title": "Compacted title",
+        "status": "closed",
+        "author": "Alice",
+        "created_at": 1742605200,
+        "comments": [],
+        "deps": [],
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "parent_id": None,
+    }
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742606000,
+        uuid="44444444-4444-4444-4444-444444444444",
+        event_type="SNAPSHOT",
+        data={
+            "compiled_state": compacted_state,
+            "source_event_uuids": [
+                _UUID,
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+                "33333333-3333-3333-3333-333333333333",
+            ],
+        },
+    )
+
+    # Second call — cache must be invalidated (file count changed), SNAPSHOT applied
+    state2 = reducer.reduce_ticket(ticket_dir)
+
+    assert state2 is not None, (
+        "After compaction, reduce_ticket must return SNAPSHOT compiled_state"
+    )
+    assert state2["title"] == "Compacted title", (
+        "After compaction + cache invalidation, title must come from SNAPSHOT; "
+        f"got title={state2['title']!r}"
+    )
+    assert state2["status"] == "closed", (
+        "After compaction, status must come from SNAPSHOT compiled_state; "
+        f"got status={state2['status']!r}"
     )
