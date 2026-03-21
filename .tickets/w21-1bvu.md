@@ -1,6 +1,6 @@
 ---
 id: w21-1bvu
-status: in_progress
+status: closed
 deps: [w21-cw8j, w21-kezk]
 links: []
 created: 2026-03-21T21:05:11Z

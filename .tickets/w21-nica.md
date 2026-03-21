@@ -1,6 +1,6 @@
 ---
 id: w21-nica
-status: open
+status: in_progress
 deps: [w21-1as4, w21-cw8j, w21-kezk, w21-1bvu]
 links: []
 created: 2026-03-21T21:05:12Z
@@ -31,9 +31,39 @@ parent: dso-2j6u
 
 - [Maintainability] Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting and conventions
 
+## ACCEPTANCE CRITERIA
+
+- [ ] CLAUDE.md architecture section mentions both dedicated agents
+  Verify: grep -q "complexity-evaluator" $(git rev-parse --show-toplevel)/CLAUDE.md && grep -q "conflict-analyzer" $(git rev-parse --show-toplevel)/CLAUDE.md
+- [ ] Shared rubric file deprecated or updated with pointer
+  Verify: grep -q "deprecated\|agent definition\|agents/complexity-evaluator" $(git rev-parse --show-toplevel)/plugins/dso/skills/shared/prompts/complexity-evaluator.md
 
 ## Notes
 
 **2026-03-21T21:06:37Z**
 
 Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions.
+
+**2026-03-21T23:01:56Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-21T23:02:05Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-21T23:02:08Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-21T23:02:22Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-21T23:02:31Z**
+
+CHECKPOINT 5/6: AC Verify passed — AC1: pass, AC2: pass ✓
+
+**2026-03-21T23:02:33Z**
+
+CHECKPOINT 6/6: Done ✓

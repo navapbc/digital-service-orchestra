@@ -1,5 +1,7 @@
 # Shared Complexity Evaluator
 
+> **DEPRECATED**: The canonical source for complexity evaluation is now `plugins/dso/agents/complexity-evaluator.md`. Callers should dispatch via the `dso:complexity-evaluator` named agent (using `subagent_type`) or read the agent definition file directly. This shared rubric file is retained as reference documentation only.
+
 Classify a ticket as TRIVIAL, MODERATE, or COMPLEX to determine routing in `/dso:debug-everything` and `/dso:sprint`.
 
 ## Input
