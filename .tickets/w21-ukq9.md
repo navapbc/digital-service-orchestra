@@ -1,6 +1,6 @@
 ---
 id: w21-ukq9
-status: in_progress
+status: closed
 deps: [w21-1plz, w21-g3x6, w21-6bmd, w21-ymip]
 links: []
 created: 2026-03-21T00:56:54Z
@@ -73,3 +73,7 @@ CHECKPOINT 5/6: Validation passed ✓ — all 4 ACs pass (file exists, flock con
 **2026-03-21T04:10:07Z**
 
 CHECKPOINT 6/6: Self-check AC complete ✓ — ADR covers all required sections: context, decision, consequences (positive + negative), alternatives considered, implementation story table, cross-story contracts
+
+**2026-03-21T04:16:10Z**
+
+CHECKPOINT 6/6: Done ✓ — ADR created.
