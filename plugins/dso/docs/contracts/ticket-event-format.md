@@ -103,16 +103,16 @@ All event files are valid JSON objects containing the following base fields:
 |--------|--------|--------------------------------------|
 | `body` | string | The comment text. Must be non-empty. |
 
-### Forward Reference: Event Type Contracts
+### Event Type Contracts: Definition Status
 
-| Event Type | `data` Fields Defined In | Story |
-|------------|--------------------------|-------|
-| `CREATE`   | This document (above)    | w21-ablv |
-| `STATUS`   | This document (above)    | w21-o72z |
-| `COMMENT`  | This document (above)    | w21-o72z |
-| `LINK`     | Story contract           | w21-o72z |
-| `SNAPSHOT`  | Story contract          | w21-q0nn |
-| `SYNC`     | Story contract           | w21-54wx (Epic 3) |
+| Event Type | `data` Fields Defined In | Story    | Status   |
+|------------|--------------------------|----------|----------|
+| `CREATE`   | This document (above)    | w21-ablv | defined  |
+| `STATUS`   | This document (above)    | w21-o72z | defined  |
+| `COMMENT`  | This document (above)    | w21-o72z | defined  |
+| `LINK`     | Story contract           | w21-o72z | forward-reference |
+| `SNAPSHOT` | Story contract           | w21-q0nn | forward-reference |
+| `SYNC`     | Story contract           | w21-54wx (Epic 3) | forward-reference |
 
 ---
 
@@ -130,3 +130,29 @@ This ordering guarantee is:
 Any reducer that processes `.tickets-tracker/<ticket-id>/` event files **must** sort the full list of filenames lexicographically before applying events.
 
 **Invariant**: Duplicate filenames (identical timestamp, UUID, and TYPE) are a system integrity violation. If detected, the reducer **must** report an error via `ticket fsck` rather than silently choosing one. UUID4 collision probability is negligible (~2^-122), so duplicate filenames indicate a bug, not a tie to break.
+
+---
+
+## Ghost Prevention
+
+A **ghost ticket** is a ticket directory (`.tickets-tracker/<ticket-id>/`) that contains no parseable `CREATE` event. Ghost tickets arise from partially failed writes or manual directory creation. The system enforces two layers of ghost prevention:
+
+### Reducer-level (read path)
+
+When `ticket-reducer.py` processes a ticket directory:
+
+- **No event files**: returns `None` (directory ignored by `ticket list`).
+- **All event files are corrupt JSON** (none parse): returns an error-state dict with `status='error'` and `error='no_valid_create_event'`. The ticket is surfaced in `ticket list` with `status='error'` rather than crashing.
+- **Event files present but no parseable CREATE**: same as above — `status='error'`, `error='no_valid_create_event'`.
+- **Corrupt CREATE event** (parseable JSON but missing required `ticket_type` or `title`): returns error-state dict with `status='fsck_needed'` and `error='corrupt_create_event'`.
+
+All error-state dicts have exactly three keys: `{status, error, ticket_id}`.
+
+### Command-level (write path)
+
+Before writing a `STATUS` or `COMMENT` event, the `ticket transition` and `ticket comment` subcommands check that the ticket directory contains at least one `*-CREATE.json` file. If no `CREATE` event exists:
+
+- `ticket transition <ghost_id> ...` → exits non-zero with `Error: ticket <id> has no CREATE event`.
+- `ticket comment <ghost_id> ...` → exits non-zero with `Error: ticket <id> has no CREATE event`.
+
+This prevents ghost tickets from accumulating additional events that would be silently ignored by the reducer.

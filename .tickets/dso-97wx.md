@@ -1,6 +1,6 @@
 ---
 id: dso-97wx
-status: in_progress
+status: closed
 deps: [dso-woj0, dso-lrpv]
 links: []
 created: 2026-03-21T04:57:08Z
@@ -88,3 +88,7 @@ CHECKPOINT 4/6: Implementation complete ✓
 **2026-03-21T06:15:09Z**
 
 CHECKPOINT 6/6: Done ✓
+
+**2026-03-21T06:32:04Z**
+
+CHECKPOINT 6/6: Done ✓ — ticket-list.sh. Tests: 10 passed, 0 failed.

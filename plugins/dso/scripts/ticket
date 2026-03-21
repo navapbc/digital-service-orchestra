@@ -4,9 +4,14 @@
 # Routes subcommands to their implementation scripts.
 #
 # Usage: ticket <subcommand> [args...]
-#   ticket init      — initialize ticket system (orphan branch + worktree)
-#   ticket create    — create a new ticket
-#   ticket show      — show ticket details
+#   ticket init                                   — initialize ticket system (orphan branch + worktree)
+#   ticket create <type> <title> [--parent <id>]  — create a new ticket
+#   ticket show <ticket_id>                       — show compiled ticket state as JSON
+#   ticket list                                   — list all tickets as a JSON array
+#   ticket transition <ticket_id> <current> <target> — transition status with optimistic concurrency
+#                                                     (requires current_status to match actual state;
+#                                                      exits non-zero if state has changed since read)
+#   ticket comment <ticket_id> <body>             — append a comment to a ticket
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,11 +20,12 @@ _usage() {
     echo "Usage: ticket <subcommand> [args...]"
     echo ""
     echo "Subcommands:"
-    echo "  init      Initialize the ticket system"
-    echo "  create    Create a new ticket"
-    echo "  show      Show ticket details"
-    echo "  list      List all tickets"
-    echo "  comment   Add a comment to a ticket"
+    echo "  init        Initialize the ticket system"
+    echo "  create      Create a new ticket"
+    echo "  show        Show ticket details"
+    echo "  list        List all tickets as JSON"
+    echo "  transition  Transition ticket status (optimistic concurrency)"
+    echo "  comment     Add a comment to a ticket"
     exit 1
 }
 

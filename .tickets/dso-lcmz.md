@@ -1,6 +1,6 @@
 ---
 id: dso-lcmz
-status: open
+status: closed
 deps: [dso-97wx, dso-7svw, dso-d08c]
 links: []
 created: 2026-03-21T04:58:04Z
@@ -53,3 +53,9 @@ Justification for test-exempt: (1) no conditional logic — case dispatch is str
   Verify: grep -q 'ticket-comment.sh' $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket
 - [ ] ticket dispatcher usage output includes all 6 subcommands
   Verify: bash $(git rev-parse --show-toplevel)/plugins/dso/scripts/ticket 2>&1 | grep -q 'list\|transition\|comment'
+
+## Notes
+
+**2026-03-21T06:32:33Z**
+
+CHECKPOINT 6/6: Done ✓ — Dispatcher already wired in previous implementation tasks (dso-7svw, dso-97wx, dso-d08c). No additional changes needed.

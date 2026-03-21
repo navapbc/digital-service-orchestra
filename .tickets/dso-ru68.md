@@ -1,6 +1,6 @@
 ---
 id: dso-ru68
-status: open
+status: in_progress
 deps: [dso-lcmz]
 links: []
 created: 2026-03-21T04:58:18Z
@@ -52,3 +52,26 @@ TDD Requirement: This test must pass (GREEN) after T10 (dso-lcmz) is complete an
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-list-transition-comment-e2e.sh
 - [ ] Integration test covers ghost prevention (transition + comment on ghost ticket exit non-zero)
   Verify: grep -q 'ghost\|no CREATE\|no event' $(git rev-parse --show-toplevel)/tests/scripts/test-ticket-list-transition-comment-e2e.sh
+
+## Notes
+
+<!-- note-id: pb8gs62n -->
+<!-- timestamp: 2026-03-21T06:33:16Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: cex02l8k -->
+<!-- timestamp: 2026-03-21T06:35:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: n21gxuds -->
+<!-- timestamp: 2026-03-21T06:37:30Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓
