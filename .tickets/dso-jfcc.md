@@ -1,6 +1,6 @@
 ---
 id: dso-jfcc
-status: in_progress
+status: closed
 deps: [dso-7wks, dso-0kz0]
 links: []
 created: 2026-03-22T02:00:00Z
