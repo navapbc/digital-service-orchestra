@@ -5,7 +5,7 @@ deps: []
 links: []
 created: 2026-03-21T16:55:05Z
 type: bug
-priority: 2
+priority: 1
 assignee: Joe Oakhart
 ---
 # Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts
