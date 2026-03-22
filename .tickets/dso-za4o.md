@@ -1,6 +1,6 @@
 ---
 id: dso-za4o
-status: in_progress
+status: closed
 deps: [dso-qwrw]
 links: []
 created: 2026-03-22T03:52:08Z

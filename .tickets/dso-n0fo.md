@@ -1,6 +1,6 @@
 ---
 id: dso-n0fo
-status: in_progress
+status: closed
 deps: [dso-4uys]
 links: []
 created: 2026-03-22T03:54:27Z
