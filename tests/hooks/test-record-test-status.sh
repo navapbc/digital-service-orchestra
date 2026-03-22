@@ -964,6 +964,382 @@ rm -f "$MOCK_PASS_RESTAMP"
 rm -rf "$TEST_REPO_RESTAMP" "$ARTIFACTS_RESTAMP"
 trap - EXIT
 
+# ============================================================
+# test_red_marker_tolerates_failure_after_marker
+# When .test-index entry has [test_red_function] marker and
+# the test file has failing tests at/after test_red_function,
+# record-test-status.sh exits 0 and writes 'passed'.
+# RED: feature not yet implemented; hook ignores markers.
+# ============================================================
+echo ""
+echo "=== test_red_marker_tolerates_failure_after_marker ==="
+
+TEST_REPO_RED1=$(create_test_repo)
+ARTIFACTS_RED1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_RED1" "$ARTIFACTS_RED1"' EXIT
+
+# Create a source file and a test file with both passing and failing tests
+mkdir -p "$TEST_REPO_RED1/src" "$TEST_REPO_RED1/tests"
+cat > "$TEST_REPO_RED1/src/alpha.py" << 'PYEOF'
+def alpha():
+    return "alpha"
+PYEOF
+
+cat > "$TEST_REPO_RED1/tests/test_alpha.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_alpha_passes: PASS"
+echo "test_red_function: FAIL (intentional RED zone failure)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_RED1/tests/test_alpha.sh"
+
+# .test-index maps alpha.py -> test_alpha.sh with [test_red_function] RED marker
+cat > "$TEST_REPO_RED1/.test-index" << 'IDXEOF'
+src/alpha.py: tests/test_alpha.sh [test_red_function]
+IDXEOF
+
+git -C "$TEST_REPO_RED1" add -A
+git -C "$TEST_REPO_RED1" commit -m "add alpha with RED marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_RED1/src/alpha.py"
+git -C "$TEST_REPO_RED1" add -A
+
+# Use a mock runner that simulates a test runner that fails (RED zone failure expected)
+MOCK_RED1_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-red1-runner-XXXXXX")
+chmod +x "$MOCK_RED1_RUNNER"
+cat > "$MOCK_RED1_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_red_function: FAIL (intentional RED zone)"
+exit 1
+MOCKEOF
+
+EXIT_CODE_RED1=$(
+    cd "$TEST_REPO_RED1"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RED1" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RED1_RUNNER" \
+    run_hook_exit
+)
+
+STATUS_FILE_RED1="$ARTIFACTS_RED1/test-gate-status"
+
+# EXPECTED (after implementation): hook reads [test_red_function] from .test-index,
+# detects failure is in the RED zone, exits 0, writes 'passed'.
+# RED phase: hook ignores markers → exits 1 (blocking), writes 'failed'.
+assert_eq "test_red_marker_tolerates_failure_after_marker: exits 0 (RED zone tolerated)" "0" "$EXIT_CODE_RED1"
+if [[ -f "$STATUS_FILE_RED1" ]]; then
+    FIRST_LINE_RED1=$(head -1 "$STATUS_FILE_RED1")
+    assert_eq "test_red_marker_tolerates_failure_after_marker: writes passed" "passed" "$FIRST_LINE_RED1"
+else
+    assert_eq "test_red_marker_tolerates_failure_after_marker: status file exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_RED1_RUNNER"
+rm -rf "$TEST_REPO_RED1" "$ARTIFACTS_RED1"
+trap - EXIT
+
+# ============================================================
+# test_red_marker_blocks_failure_before_marker
+# When .test-index entry has [test_red_function] and a test
+# BEFORE test_red_function fails, record-test-status.sh exits
+# 1 and writes 'failed' (normal blocking behavior preserved).
+# RED: feature not implemented; all failures block (same result
+# but for wrong reason — hook doesn't parse position at all).
+# ============================================================
+echo ""
+echo "=== test_red_marker_blocks_failure_before_marker ==="
+
+TEST_REPO_RED2=$(create_test_repo)
+ARTIFACTS_RED2=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_RED2" "$ARTIFACTS_RED2"' EXIT
+
+mkdir -p "$TEST_REPO_RED2/src" "$TEST_REPO_RED2/tests"
+cat > "$TEST_REPO_RED2/src/beta.py" << 'PYEOF'
+def beta():
+    return "beta"
+PYEOF
+
+# Test file: test_pre_red_failure fails BEFORE the marker; test_red_function is the marker
+cat > "$TEST_REPO_RED2/tests/test_beta.sh" << 'SHEOF'
+#!/usr/bin/env bash
+# test_pre_red_failure runs before test_red_function and fails
+echo "test_pre_red_failure: FAIL"
+echo "test_red_function: PASS (marker — not yet reached due to earlier failure)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_RED2/tests/test_beta.sh"
+
+cat > "$TEST_REPO_RED2/.test-index" << 'IDXEOF'
+src/beta.py: tests/test_beta.sh [test_red_function]
+IDXEOF
+
+git -C "$TEST_REPO_RED2" add -A
+git -C "$TEST_REPO_RED2" commit -m "add beta with RED marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_RED2/src/beta.py"
+git -C "$TEST_REPO_RED2" add -A
+
+# Mock runner simulating test failure BEFORE the RED marker
+MOCK_RED2_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-red2-runner-XXXXXX")
+chmod +x "$MOCK_RED2_RUNNER"
+cat > "$MOCK_RED2_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+# Simulate: test_pre_red_failure fails, test_red_function not yet reached
+echo "test_pre_red_failure: FAIL"
+exit 1
+MOCKEOF
+
+EXIT_CODE_RED2=$(
+    cd "$TEST_REPO_RED2"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RED2" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RED2_RUNNER" \
+    run_hook_exit
+)
+
+STATUS_FILE_RED2="$ARTIFACTS_RED2/test-gate-status"
+
+# EXPECTED (after implementation): failure is BEFORE marker → still blocks → exits 1, writes 'failed'.
+# RED phase: same exit code but for the wrong reason (hook doesn't know about position).
+# We verify the exit code AND the status file — both must be correct for the test to pass.
+assert_eq "test_red_marker_blocks_failure_before_marker: exits 1 (pre-marker failure blocks)" "1" "$EXIT_CODE_RED2"
+if [[ -f "$STATUS_FILE_RED2" ]]; then
+    FIRST_LINE_RED2=$(head -1 "$STATUS_FILE_RED2")
+    assert_eq "test_red_marker_blocks_failure_before_marker: writes failed" "failed" "$FIRST_LINE_RED2"
+fi
+
+rm -f "$MOCK_RED2_RUNNER"
+rm -rf "$TEST_REPO_RED2" "$ARTIFACTS_RED2"
+trap - EXIT
+
+# ============================================================
+# test_no_marker_backward_compat
+# When .test-index entry has NO marker (existing format),
+# behavior is identical to current — failures always block.
+# RED: This test should pass even pre-implementation (backward
+# compat check); it documents the invariant that no marker =
+# blocking behavior unchanged.
+# ============================================================
+echo ""
+echo "=== test_no_marker_backward_compat ==="
+
+TEST_REPO_COMPAT=$(create_test_repo)
+ARTIFACTS_COMPAT=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_COMPAT" "$ARTIFACTS_COMPAT"' EXIT
+
+mkdir -p "$TEST_REPO_COMPAT/src" "$TEST_REPO_COMPAT/tests"
+cat > "$TEST_REPO_COMPAT/src/compat.py" << 'PYEOF'
+def compat():
+    return "compat"
+PYEOF
+
+cat > "$TEST_REPO_COMPAT/tests/test_compat.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_something: FAIL (backward compat — no marker)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_COMPAT/tests/test_compat.sh"
+
+# .test-index entry WITHOUT any [marker] — existing format
+cat > "$TEST_REPO_COMPAT/.test-index" << 'IDXEOF'
+src/compat.py: tests/test_compat.sh
+IDXEOF
+
+git -C "$TEST_REPO_COMPAT" add -A
+git -C "$TEST_REPO_COMPAT" commit -m "add compat without marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_COMPAT/src/compat.py"
+git -C "$TEST_REPO_COMPAT" add -A
+
+MOCK_COMPAT_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-compat-runner-XXXXXX")
+chmod +x "$MOCK_COMPAT_RUNNER"
+cat > "$MOCK_COMPAT_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_something: FAIL"
+exit 1
+MOCKEOF
+
+EXIT_CODE_COMPAT=$(
+    cd "$TEST_REPO_COMPAT"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_COMPAT" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_COMPAT_RUNNER" \
+    run_hook_exit
+)
+
+STATUS_FILE_COMPAT="$ARTIFACTS_COMPAT/test-gate-status"
+
+# EXPECTED (pre and post implementation): no marker → failure always blocks → exits 1, writes 'failed'
+# This test documents the backward-compat invariant.
+assert_eq "test_no_marker_backward_compat: exits 1 (no marker, failure blocks)" "1" "$EXIT_CODE_COMPAT"
+if [[ -f "$STATUS_FILE_COMPAT" ]]; then
+    FIRST_LINE_COMPAT=$(head -1 "$STATUS_FILE_COMPAT")
+    assert_eq "test_no_marker_backward_compat: writes failed" "failed" "$FIRST_LINE_COMPAT"
+fi
+
+rm -f "$MOCK_COMPAT_RUNNER"
+rm -rf "$TEST_REPO_COMPAT" "$ARTIFACTS_COMPAT"
+trap - EXIT
+
+# ============================================================
+# test_marker_not_found_falls_back_to_blocking
+# When [marker_name] in .test-index does not match any function
+# in the test file, record-test-status.sh warns to stderr and
+# exits 1 (blocking, not silent tolerance).
+# RED: feature not implemented; unknown markers are ignored →
+# failing tests block as normal (exit 1), but no warning about
+# unrecognized marker is emitted.
+# ============================================================
+echo ""
+echo "=== test_marker_not_found_falls_back_to_blocking ==="
+
+TEST_REPO_NOMATCH=$(create_test_repo)
+ARTIFACTS_NOMATCH=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_NOMATCH" "$ARTIFACTS_NOMATCH"' EXIT
+
+mkdir -p "$TEST_REPO_NOMATCH/src" "$TEST_REPO_NOMATCH/tests"
+cat > "$TEST_REPO_NOMATCH/src/nomatch.py" << 'PYEOF'
+def nomatch():
+    return "nomatch"
+PYEOF
+
+cat > "$TEST_REPO_NOMATCH/tests/test_nomatch.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_existing_function: FAIL (no marker match)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_NOMATCH/tests/test_nomatch.sh"
+
+# .test-index entry with [nonexistent_marker] that won't match any test function
+cat > "$TEST_REPO_NOMATCH/.test-index" << 'IDXEOF'
+src/nomatch.py: tests/test_nomatch.sh [nonexistent_marker_xyz]
+IDXEOF
+
+git -C "$TEST_REPO_NOMATCH" add -A
+git -C "$TEST_REPO_NOMATCH" commit -m "add nomatch with unknown marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_NOMATCH/src/nomatch.py"
+git -C "$TEST_REPO_NOMATCH" add -A
+
+MOCK_NOMATCH_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-nomatch-runner-XXXXXX")
+chmod +x "$MOCK_NOMATCH_RUNNER"
+cat > "$MOCK_NOMATCH_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_existing_function: FAIL"
+exit 1
+MOCKEOF
+
+OUTPUT_NOMATCH=$(
+    cd "$TEST_REPO_NOMATCH"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOMATCH" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_NOMATCH_RUNNER" \
+    bash "$HOOK" 2>&1 || true
+)
+EXIT_CODE_NOMATCH=$(
+    cd "$TEST_REPO_NOMATCH"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOMATCH" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_NOMATCH_RUNNER" \
+    run_hook_exit
+)
+
+# EXPECTED (after implementation): unrecognized marker → warn on stderr, exit 1 (blocking).
+# Part 1: exit code must be 1 (blocking — this will pass even pre-implementation)
+assert_eq "test_marker_not_found_falls_back_to_blocking: exits 1 (unrecognized marker blocks)" "1" "$EXIT_CODE_NOMATCH"
+# Part 2: stderr must warn about unrecognized marker — this is the RED assertion.
+# Pre-implementation: no warning about marker name is emitted.
+assert_contains "test_marker_not_found_falls_back_to_blocking: warns about unrecognized marker" "nonexistent_marker_xyz" "$OUTPUT_NOMATCH"
+
+rm -f "$MOCK_NOMATCH_RUNNER"
+rm -rf "$TEST_REPO_NOMATCH" "$ARTIFACTS_NOMATCH"
+trap - EXIT
+
+# ============================================================
+# test_red_zone_bash_test_file
+# RED marker detection works for bash test files
+# (function/marker patterns), not only Python.
+# .test-index: source.sh: tests/test_source.sh [test_red_fn]
+# The bash test file has test_red_fn as a function boundary.
+# Failures after/at test_red_fn are tolerated; others block.
+# RED: feature not implemented; bash test markers ignored.
+# ============================================================
+echo ""
+echo "=== test_red_zone_bash_test_file ==="
+
+TEST_REPO_BASH_RED=$(create_test_repo)
+ARTIFACTS_BASH_RED=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_BASH_RED" "$ARTIFACTS_BASH_RED"' EXIT
+
+mkdir -p "$TEST_REPO_BASH_RED/scripts" "$TEST_REPO_BASH_RED/tests"
+cat > "$TEST_REPO_BASH_RED/scripts/deploy.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "deploying"
+SHEOF
+chmod +x "$TEST_REPO_BASH_RED/scripts/deploy.sh"
+
+# Bash test file that has test_red_fn as a named function boundary
+cat > "$TEST_REPO_BASH_RED/tests/test-deploy.sh" << 'SHEOF'
+#!/usr/bin/env bash
+# test_pre_deploy_check: runs before marker
+echo "test_pre_deploy_check: PASS"
+# test_red_fn: this is the RED zone marker function
+test_red_fn() {
+    echo "test_red_fn: FAIL (intentional RED zone in bash)"
+    return 1
+}
+test_red_fn || true
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_BASH_RED/tests/test-deploy.sh"
+
+# .test-index maps deploy.sh → test-deploy.sh with [test_red_fn] marker
+cat > "$TEST_REPO_BASH_RED/.test-index" << 'IDXEOF'
+scripts/deploy.sh: tests/test-deploy.sh [test_red_fn]
+IDXEOF
+
+git -C "$TEST_REPO_BASH_RED" add -A
+git -C "$TEST_REPO_BASH_RED" commit -m "add deploy with bash RED marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_BASH_RED/scripts/deploy.sh"
+git -C "$TEST_REPO_BASH_RED" add -A
+
+# Mock runner that simulates test failure in the RED zone (after bash marker)
+MOCK_BASH_RED_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-bash-red-runner-XXXXXX")
+chmod +x "$MOCK_BASH_RED_RUNNER"
+cat > "$MOCK_BASH_RED_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+# Simulate: test_pre_deploy_check passes, then test_red_fn fails (RED zone)
+echo "test_pre_deploy_check: PASS"
+echo "test_red_fn: FAIL (RED zone)"
+exit 1
+MOCKEOF
+
+EXIT_CODE_BASH_RED=$(
+    cd "$TEST_REPO_BASH_RED"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BASH_RED" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_BASH_RED_RUNNER" \
+    run_hook_exit
+)
+
+STATUS_FILE_BASH_RED="$ARTIFACTS_BASH_RED/test-gate-status"
+
+# EXPECTED (after implementation): failure is in RED zone (at/after bash marker) →
+# tolerated → exits 0, writes 'passed'.
+# RED phase: hook ignores markers → exits 1 (blocking), writes 'failed'.
+assert_eq "test_red_zone_bash_test_file: exits 0 (bash RED zone tolerated)" "0" "$EXIT_CODE_BASH_RED"
+if [[ -f "$STATUS_FILE_BASH_RED" ]]; then
+    FIRST_LINE_BASH_RED=$(head -1 "$STATUS_FILE_BASH_RED")
+    assert_eq "test_red_zone_bash_test_file: writes passed" "passed" "$FIRST_LINE_BASH_RED"
+else
+    assert_eq "test_red_zone_bash_test_file: status file exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_BASH_RED_RUNNER"
+rm -rf "$TEST_REPO_BASH_RED" "$ARTIFACTS_BASH_RED"
+trap - EXIT
+
 # Clean up mock runners if created
 if (( ! _PYTEST_AVAILABLE )); then
     rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true
