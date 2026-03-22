@@ -31,6 +31,15 @@
     "title": "Ticket system upgrade",
     "type": "epic"
   },
+  "dso-0kz0": {
+    "deps": [
+      "dso-7wks"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add clarification loop section to SKILL.md",
+    "type": "task"
+  },
   "dso-0wi2": {
     "deps": [],
     "priority": 2,
@@ -132,6 +141,13 @@
     "priority": 1,
     "status": "open",
     "title": "IMPL: Exclude .test-index from compute-diff-hash.sh and review-gate-allowlist.conf",
+    "type": "task"
+  },
+  "dso-7wks": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Structural validation tests for clarification loop in using-lockpick",
     "type": "task"
   },
   "dso-94ya": {
@@ -368,6 +384,15 @@
     "title": "[LOCK] debug-everything",
     "type": "task"
   },
+  "dso-h2gj": {
+    "deps": [
+      "dso-vxsh"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add rationalized-failures accountability step to end-session SKILL.md",
+    "type": "task"
+  },
   "dso-iwb4": {
     "deps": [],
     "priority": 1,
@@ -385,6 +410,16 @@
     "status": "open",
     "title": "As a DSO practitioner, the Deep Opus architectural reviewer applies cross-cutting synthesis checks across all specialist findings",
     "type": "story"
+  },
+  "dso-jfcc": {
+    "deps": [
+      "dso-7wks",
+      "dso-0kz0"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add abbreviated clarification loop to HOOK-INJECTION.md",
+    "type": "task"
   },
   "dso-jny6": {
     "deps": [
@@ -643,6 +678,13 @@
     "status": "open",
     "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved",
     "type": "bug"
+  },
+  "dso-vxsh": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Structural tests for rationalized-failures accountability step in end-session",
+    "type": "task"
   },
   "dso-w20r": {
     "deps": [],
