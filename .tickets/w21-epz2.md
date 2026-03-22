@@ -37,3 +37,23 @@ parent: w21-ykic
 **2026-03-21T00:04:39Z**
 
 Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions.
+
+**2026-03-22T23:05:11Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T23:06:19Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — Named-agent dispatch section in CLAUDE.md only mentions complexity-evaluator and conflict-analyzer, missing all 6 tiered code-reviewer agents. No other docs reference old dimension names (those are in code/prompt files which we must NOT change). Main change needed: update Named-agent dispatch sentence in CLAUDE.md to include the tiered review agents and classifier.
+
+**2026-03-22T23:07:54Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — Updated CLAUDE.md: (1) Named-agent dispatch paragraph now includes all 6 tiered code-reviewer agents + Tiered review system description with classifier factors, tier thresholds, size limits, and contract doc references; (2) Rule 14 updated to accurately describe multi-agent dispatch for deep tier. No other documentation files referenced old single-reviewer model or old dimension names as current (only prompt/build-source files retain old names per task instructions).
+
+**2026-03-22T23:08:43Z**
+
+CHECKPOINT 6/6: Done ✓ — Verified: (1) Dimension names in CLAUDE.md match actual validator (write-reviewer-findings.sh required_dims: hygiene, design, maintainability, correctness, verification); (2) No existing docs (outside ticket files and prompt templates) reference old single-reviewer model or old dimension names; (3) CLAUDE.md now accurately describes tiered review system, classifier script, 7 scoring factors, 3 tier thresholds, size-gating rules, 6 named review agents, and 5 dimension key names.
+
+**2026-03-22T23:09:06Z**
+
+CHECKPOINT 6/6: Done ✓ — CLAUDE.md updated with tiered review architecture
