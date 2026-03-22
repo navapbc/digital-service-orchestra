@@ -1,6 +1,6 @@
 ---
 id: dso-pcgh
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-22T17:37:26Z
@@ -33,3 +33,10 @@ Classification: mechanical (doc/prompt update only), Score: 2 (Tier 1 mechanical
 <!-- sync: unsynced -->
 
 Fix complete. Root cause: commit 9166151 only updated SUB-AGENT-BOUNDARIES.md permitted actions; task-execution.md (the actual sub-agent prompt template) still had '-t task' in both the discovered-work example (step 8) and the Rules section. Fixed: (1) task-execution.md step 8 example now uses '-t bug'; (2) Rules section now says 'tk create -t bug --parent=<parent-id>'. Tests: added TestTaskExecutionDiscoveredBugType class to tests/skills/test_task_execution_template.py (RED→GREEN). 282 tests pass. fix-task-tdd.md and fix-task-mechanical.md are deprecated (forward to /dso:fix-bug) so no change needed there.
+
+<!-- note-id: pw80c8qp -->
+<!-- timestamp: 2026-03-22T23:20:32Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: task-execution.md updated to use -t bug for discovered bugs

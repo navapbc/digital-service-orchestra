@@ -180,7 +180,7 @@
   "dso-9778": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: deduplicate sed function-body extractions in test-tk-sync-force-local.sh",
     "type": "bug"
   },
@@ -392,7 +392,7 @@
   "dso-gg0v": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "debug-everything validation prompts use soft \"Do NOT fix\" language instead of hard-stop READ-ONLY ENFORCEMENT",
     "type": "bug"
   },
@@ -567,7 +567,7 @@
   "dso-pcgh": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Sub-agents create tickets with type 'task' instead of 'bug' when tracking discovered bugs",
     "type": "bug"
   },
@@ -862,7 +862,7 @@
   "w21-4w0c": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Test gate blocks commits when RED tests exist for unimplemented functions",
     "type": "bug"
   },

@@ -1,6 +1,6 @@
 ---
 id: dso-gg0v
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-22T00:33:09Z
@@ -37,3 +37,10 @@ Bug w20-w7pm anti-pattern search (CLAUDE.md rule 9).
 <!-- sync: unsynced -->
 
 Classification: mechanical (pattern replication from w20-w7pm)
+
+<!-- note-id: 0gyvpfwx -->
+<!-- timestamp: 2026-03-22T23:20:33Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: added READ-ONLY ENFORCEMENT sections to all 5 debug-everything prompts
