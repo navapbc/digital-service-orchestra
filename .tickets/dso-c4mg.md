@@ -1,6 +1,6 @@
 ---
 id: dso-c4mg
-status: in_progress
+status: closed
 deps: [dso-sgqg, dso-b979, dso-flql]
 links: []
 created: 2026-03-22T01:00:07Z
