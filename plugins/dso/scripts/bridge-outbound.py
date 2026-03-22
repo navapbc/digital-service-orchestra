@@ -390,6 +390,152 @@ def process_outbound(
                             acli_client.update_issue(jira_key, status=compiled_status)
                             _status_updated.add(ticket_id)
 
+        elif event_type == "REVERT":
+            # REVERT check-before-overwrite:
+            # 1. Read the REVERT event file to determine target event uuid/type.
+            # 2. If target is STATUS: fetch Jira state before pushing; emit
+            #    BRIDGE_ALERT and skip if Jira has diverged; else push previous status.
+            # 3. If target is COMMENT: emit BRIDGE_ALERT (manual cleanup required).
+            # 4. REVERT-of-REVERT: treat as no-op (rejected at CLI layer).
+            event_data = _read_event_file(event.get("file_path", ""))
+            if not event_data:
+                logger.warning(
+                    "REVERT event file unreadable for %s — skipping", ticket_id
+                )
+                continue
+
+            revert_data = event_data.get("data", {})
+            target_event_uuid = revert_data.get("target_event_uuid", "")
+            target_event_type = revert_data.get("target_event_type", "")
+
+            # Resolve jira_key from SYNC event (required for all REVERT paths)
+            sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+            if not sync_files:
+                logger.warning(
+                    "REVERT for %s: no SYNC event found — cannot determine jira_key; skipping",
+                    ticket_id,
+                )
+                continue
+            sync_data = _read_event_file(sync_files[-1])
+            if not sync_data:
+                continue
+            jira_key = sync_data.get("jira_key", "")
+            if not jira_key:
+                continue
+
+            if target_event_type == "STATUS":
+                # Collect all STATUS events in ticket_dir sorted by timestamp
+                status_events_on_disk: list[tuple[int, str, str]] = []
+                for spath in ticket_dir.glob("*-STATUS.json"):
+                    sdata = _read_event_file(spath)
+                    if sdata is None:
+                        continue
+                    sts = sdata.get("timestamp", 0)
+                    suuid = sdata.get("uuid", "")
+                    sstatus = sdata.get("data", {}).get("status", "")
+                    if suuid and sstatus:
+                        status_events_on_disk.append((int(sts), suuid, sstatus))
+                status_events_on_disk.sort(key=lambda x: x[0])
+
+                # Find the bad action event and determine the status it set
+                bad_action_status: str | None = None
+                bad_action_idx: int | None = None
+                for idx, (_, suuid, sstatus) in enumerate(status_events_on_disk):
+                    if suuid == target_event_uuid:
+                        bad_action_status = sstatus
+                        bad_action_idx = idx
+                        break
+
+                if bad_action_status is None or bad_action_idx is None:
+                    logger.warning(
+                        "REVERT for %s: target STATUS event %s not found in ticket dir",
+                        ticket_id,
+                        target_event_uuid,
+                    )
+                    continue
+
+                # Fetch current Jira state BEFORE pushing any update
+                jira_state = acli_client.get_issue(jira_key)
+                current_jira_status = (
+                    jira_state.get("status", "") if isinstance(jira_state, dict) else ""
+                )
+
+                # Check-before-overwrite: if Jira has diverged since bad action
+                if current_jira_status != bad_action_status:
+                    logger.warning(
+                        "REVERT for %s: Jira status '%s' differs from bad action status '%s' "
+                        "— Jira state has diverged; emitting BRIDGE_ALERT and skipping push",
+                        ticket_id,
+                        current_jira_status,
+                        bad_action_status,
+                    )
+                    write_bridge_alert(
+                        ticket_dir,
+                        ticket_id=ticket_id,
+                        reason=(
+                            "REVERT check-before-overwrite: Jira state has diverged since bad "
+                            "action. Manual review required."
+                        ),
+                        bridge_env_id=bridge_env_id,
+                    )
+                    continue
+
+                # Jira matches expected — determine previous status to restore
+                previous_status: str | None = None
+                if bad_action_idx > 0:
+                    previous_status = status_events_on_disk[bad_action_idx - 1][2]
+
+                if previous_status:
+                    acli_client.update_issue(jira_key, status=previous_status)
+                    # Write SYNC for audit trail
+                    _write_sync_event(
+                        ticket_dir,
+                        jira_key=jira_key,
+                        local_id=ticket_id,
+                        bridge_env_id=bridge_env_id,
+                        run_id=run_id,
+                    )
+                    syncs_written.append(
+                        {
+                            "event_type": "SYNC",
+                            "jira_key": jira_key,
+                            "local_id": ticket_id,
+                        }
+                    )
+                else:
+                    logger.warning(
+                        "REVERT for %s: no previous STATUS event found before bad action %s; "
+                        "cannot determine revert target status",
+                        ticket_id,
+                        target_event_uuid,
+                    )
+
+            elif target_event_type == "COMMENT":
+                # REVERT of COMMENT: Jira comments cannot be auto-deleted via this
+                # bridge; emit BRIDGE_ALERT for manual cleanup.
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id,
+                    reason="REVERT of COMMENT: Jira comment not removed (manual cleanup required)",
+                    bridge_env_id=bridge_env_id,
+                )
+
+            elif target_event_type == "REVERT":
+                # REVERT-of-REVERT is rejected at the CLI layer; treat as no-op here.
+                logger.warning(
+                    "REVERT for %s targets another REVERT event (%s) — treating as no-op",
+                    ticket_id,
+                    target_event_uuid,
+                )
+
+            else:
+                # Unknown target type — treat as no-op with a warning
+                logger.warning(
+                    "REVERT for %s: unknown target_event_type '%s' — skipping",
+                    ticket_id,
+                    target_event_type,
+                )
+
         elif event_type == "COMMENT":
             # Read event file to get uuid, body, and env_id
             event_data = _read_event_file(event.get("file_path", ""))

@@ -1,6 +1,6 @@
 ---
 id: dso-yyll
-status: open
+status: closed
 deps: [dso-n0fo, dso-60uy, dso-zso6]
 links: []
 created: 2026-03-22T03:54:44Z
@@ -54,3 +54,47 @@ Run tests: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/script
 - [ ] [Gap Analysis AC amendment] REVERT events are surfaced to process_outbound() — either parse_git_diff_events() is extended to detect REVERT event files (via glob '*-REVERT.json') in ticket dirs, OR process_outbound() scans ticket dirs directly for REVERT events. Either approach is acceptable, but the implementer must explicitly choose and document which approach is used. Test dso-n0fo test_process_outbound_revert_fetches_jira_state_before_push must use the same event delivery mechanism.
   Verify: grep -qE 'REVERT|revert' $(git rev-parse --show-toplevel)/plugins/dso/scripts/bridge-outbound.py
 
+
+## Notes
+
+<!-- note-id: gb56u7yx -->
+<!-- timestamp: 2026-03-22T05:35:48Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: bn4k6o5a -->
+<!-- timestamp: 2026-03-22T05:35:53Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — bridge-outbound.py process_outbound() handles CREATE/STATUS/COMMENT; REVERT case not yet present; 4 RED tests define the contract
+
+<!-- note-id: 2a4ipfp1 -->
+<!-- timestamp: 2026-03-22T05:36:38Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ (RED tests already existed at tests/scripts/test_bridge_outbound_revert.py)
+
+<!-- note-id: wymnhnzr -->
+<!-- timestamp: 2026-03-22T05:36:54Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — added REVERT elif branch in process_outbound(); STATUS target: fetch Jira state, check divergence, push previous status or emit BRIDGE_ALERT; COMMENT target: BRIDGE_ALERT; REVERT-of-REVERT: no-op
+
+<!-- note-id: l4aydghg -->
+<!-- timestamp: 2026-03-22T06:08:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Tests GREEN ✓ — 4/4 tests pass; ruff check clean; ruff format clean; run-all.sh exit 144 is pre-existing timeout (confirmed same without changes); python test suite 288/288 pass
+
+<!-- note-id: msr2l5mf -->
+<!-- timestamp: 2026-03-22T06:09:00Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — AC verified: 4 pytest tests pass; ruff check passes; ruff format passes; REVERT grep passes; approach used: process_outbound() elif REVERT branch (event delivery via existing parse_git_diff_events regex which already matches REVERT event files)
