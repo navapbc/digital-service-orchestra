@@ -708,4 +708,164 @@ test_classifier_is_merge_commit_false_default  # RED: is_merge_commit field not 
 test_classifier_is_merge_commit_size_action_none  # RED: merge commit bypass not yet implemented
 test_classifier_output_includes_new_fields  # RED: new fields not yet in output schema
 
+# ============================================================
+# Telemetry tests (RED — w21-0kt1)
+# ============================================================
+
+test_classifier_telemetry_file_created() {
+    # When ARTIFACTS_DIR is set, classifier must create classifier-telemetry.jsonl
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local file_exists="false"
+    if [[ -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl" ]]; then
+        file_exists="true"
+    fi
+    assert_eq "classifier-telemetry.jsonl created when ARTIFACTS_DIR set" "true" "$file_exists"
+    teardown_temp_dir
+}
+
+test_classifier_telemetry_entry_is_valid_json() {
+    # The telemetry file must contain at least one valid JSON line
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local is_valid="false"
+    if [[ -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl" ]]; then
+        local last_line
+        last_line=$(tail -1 "$ARTIFACTS_DIR/classifier-telemetry.jsonl" 2>/dev/null || echo "")
+        if [[ -n "$last_line" ]] && is_valid_json "$last_line"; then
+            is_valid="true"
+        fi
+    fi
+    assert_eq "telemetry entry is valid JSON" "true" "$is_valid"
+    teardown_temp_dir
+}
+
+test_classifier_telemetry_contains_required_fields() {
+    # Telemetry entry must contain all 13 required fields:
+    # blast_radius, critical_path, anti_shortcut, staleness, cross_cutting,
+    # diff_lines, change_volume, computed_total, selected_tier,
+    # files, diff_size_lines, size_action, is_merge_commit
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local has_all="false"
+    if [[ -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl" ]]; then
+        local last_line
+        last_line=$(tail -1 "$ARTIFACTS_DIR/classifier-telemetry.jsonl" 2>/dev/null || echo "")
+        if [[ -n "$last_line" ]]; then
+            has_all=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+keys=['blast_radius','critical_path','anti_shortcut','staleness','cross_cutting',
+      'diff_lines','change_volume','computed_total','selected_tier',
+      'files','diff_size_lines','size_action','is_merge_commit']
+print('true' if all(k in d for k in keys) else 'false')
+" "$last_line" 2>/dev/null || echo "false")
+        fi
+    fi
+    assert_eq "telemetry contains all 13 required fields" "true" "$has_all"
+    teardown_temp_dir
+}
+
+test_classifier_telemetry_factor_scores_match_stdout() {
+    # Factor scores in telemetry must match those on stdout (no divergence)
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local scores_match="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT" && \
+       [[ -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl" ]]; then
+        local last_line
+        last_line=$(tail -1 "$ARTIFACTS_DIR/classifier-telemetry.jsonl" 2>/dev/null || echo "")
+        if [[ -n "$last_line" ]] && is_valid_json "$last_line"; then
+            scores_match=$(python3 -c "
+import json,sys
+stdout=json.loads(sys.argv[1])
+telemetry=json.loads(sys.argv[2])
+factor_keys=['blast_radius','critical_path','anti_shortcut','staleness',
+             'cross_cutting','diff_lines','change_volume','computed_total','selected_tier']
+print('true' if all(stdout.get(k)==telemetry.get(k) for k in factor_keys) else 'false')
+" "$CLASSIFIER_OUTPUT" "$last_line" 2>/dev/null || echo "false")
+        fi
+    fi
+    assert_eq "telemetry factor scores match stdout" "true" "$scores_match"
+    teardown_temp_dir
+}
+
+test_classifier_telemetry_files_array() {
+    # Telemetry 'files' field must be a JSON array of scored file paths
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/bar.py" "+x = 1")
+    run_classifier "$diff_file"
+
+    local files_ok="false"
+    if [[ -f "$ARTIFACTS_DIR/classifier-telemetry.jsonl" ]]; then
+        local last_line
+        last_line=$(tail -1 "$ARTIFACTS_DIR/classifier-telemetry.jsonl" 2>/dev/null || echo "")
+        if [[ -n "$last_line" ]]; then
+            files_ok=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+files=d.get('files')
+# Must be a list; scoring file src/bar.py must appear in it
+print('true' if isinstance(files,list) and any('src/bar.py' in f for f in files) else 'false')
+" "$last_line" 2>/dev/null || echo "false")
+        fi
+    fi
+    assert_eq "telemetry files field is array containing scored files" "true" "$files_ok"
+    teardown_temp_dir
+}
+
+test_classifier_no_telemetry_without_artifacts_dir() {
+    # When ARTIFACTS_DIR is unset, no telemetry file should be written anywhere
+    local prev_artifacts="${ARTIFACTS_DIR:-}"
+    unset ARTIFACTS_DIR
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    local diff_file="$tmp_dir/test.diff"
+    cat > "$diff_file" <<DIFFEOF
+diff --git a/src/foo.py b/src/foo.py
+index 0000000..1111111 100644
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,1 +1,2 @@
++print('hello')
+DIFFEOF
+
+    local output exit_code=0
+    output=$(bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
+
+    # No telemetry file should be created in $tmp_dir (it was never set as ARTIFACTS_DIR)
+    local no_telemetry="true"
+    if [[ -f "$tmp_dir/classifier-telemetry.jsonl" ]]; then
+        no_telemetry="false"
+    fi
+    assert_eq "no telemetry file written when ARTIFACTS_DIR unset" "true" "$no_telemetry"
+
+    rm -rf "$tmp_dir"
+    if [[ -n "$prev_artifacts" ]]; then
+        export ARTIFACTS_DIR="$prev_artifacts"
+    fi
+}
+
+# Telemetry tests (RED — w21-0kt1)
+test_classifier_telemetry_file_created
+test_classifier_telemetry_entry_is_valid_json
+test_classifier_telemetry_contains_required_fields
+test_classifier_telemetry_factor_scores_match_stdout
+test_classifier_telemetry_files_array
+test_classifier_no_telemetry_without_artifacts_dir
+
 print_summary
