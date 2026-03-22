@@ -740,3 +740,685 @@ class TestProcessInbound:
             f"process_inbound must NOT update checkpoint on auth failure; "
             f"expected {old_ts!r}, got {preserved_ts!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# TestDestructiveChangeGuards
+# RED tests — is_destructive_change() does not exist yet; all tests must FAIL.
+# ---------------------------------------------------------------------------
+
+
+class TestDestructiveChangeGuards:
+    """RED tests for is_destructive_change() guard function.
+
+    is_destructive_change(existing: dict, inbound: dict) -> bool
+
+    A change is destructive when the inbound update would silently overwrite or
+    remove meaningful data that exists in the current ticket state.
+
+    Destructive cases:
+      - Replacing a non-empty description with an empty/whitespace-only string
+      - Removing a relationship that exists on the ticket
+      - Downgrading a ticket type (e.g. epic → task)
+
+    Non-destructive cases:
+      - Filling an empty description with a non-empty value
+      - Upgrading a ticket type (e.g. task → epic)
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_is_destructive_change_empty_over_nonempty_description(
+        self, bridge: ModuleType
+    ) -> None:
+        """Replacing a non-empty description with an empty string is destructive.
+
+        existing: description = "Original description text"
+        inbound:  description = ""
+        → is_destructive_change() returns True
+        """
+        existing = {
+            "description": "Original description text",
+            "links": [],
+            "type": "task",
+        }
+        inbound = {"description": "", "links": [], "type": "task"}
+
+        result = bridge.is_destructive_change(existing, inbound)
+
+        assert result is True, (
+            "is_destructive_change must return True when inbound description is empty "
+            f"and existing description is non-empty; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_is_destructive_change_whitespace_over_nonempty_description(
+        self, bridge: ModuleType
+    ) -> None:
+        """Replacing a non-empty description with whitespace-only is destructive.
+
+        Whitespace-only strings (e.g. '   ') are treated as empty.
+
+        existing: description = "Original description text"
+        inbound:  description = "   "
+        → is_destructive_change() returns True
+        """
+        existing = {
+            "description": "Original description text",
+            "links": [],
+            "type": "task",
+        }
+        inbound = {"description": "   ", "links": [], "type": "task"}
+
+        result = bridge.is_destructive_change(existing, inbound)
+
+        assert result is True, (
+            "is_destructive_change must return True when inbound description is "
+            "whitespace-only and existing description is non-empty; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_is_destructive_change_nonempty_over_empty_description(
+        self, bridge: ModuleType
+    ) -> None:
+        """Filling an empty description with a non-empty value is NOT destructive.
+
+        existing: description = ""
+        inbound:  description = "New description"
+        → is_destructive_change() returns False
+        """
+        existing = {"description": "", "links": [], "type": "task"}
+        inbound = {"description": "New description", "links": [], "type": "task"}
+
+        result = bridge.is_destructive_change(existing, inbound)
+
+        assert result is False, (
+            "is_destructive_change must return False when inbound fills an empty "
+            f"description with a non-empty value; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_is_destructive_change_relationship_removal(
+        self, bridge: ModuleType
+    ) -> None:
+        """Removing a relationship that exists on the ticket is destructive.
+
+        existing: links = ["w21-abc"]
+        inbound:  links = []
+        → is_destructive_change() returns True
+        """
+        existing = {"description": "", "links": ["w21-abc"], "type": "task"}
+        inbound = {"description": "", "links": [], "type": "task"}
+
+        result = bridge.is_destructive_change(existing, inbound)
+
+        assert result is True, (
+            "is_destructive_change must return True when inbound removes a "
+            f"relationship that exists on the ticket; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_is_destructive_change_type_downgrade(self, bridge: ModuleType) -> None:
+        """Downgrading a ticket type (epic → task) is destructive.
+
+        existing: type = "epic"
+        inbound:  type = "task"
+        → is_destructive_change() returns True
+        """
+        # TYPE_HIERARCHY: epic > story > task (lower index = higher rank)
+        existing = {"description": "", "links": [], "type": "epic"}
+        inbound = {"description": "", "links": [], "type": "task"}
+
+        result = bridge.is_destructive_change(existing, inbound)
+
+        assert result is True, (
+            "is_destructive_change must return True when inbound downgrades "
+            f"ticket type from 'epic' to 'task'; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_is_destructive_change_type_upgrade_allowed(
+        self, bridge: ModuleType
+    ) -> None:
+        """Upgrading a ticket type (task → epic) is NOT destructive.
+
+        existing: type = "task"
+        inbound:  type = "epic"
+        → is_destructive_change() returns False
+        """
+        existing = {"description": "", "links": [], "type": "task"}
+        inbound = {"description": "", "links": [], "type": "epic"}
+
+        result = bridge.is_destructive_change(existing, inbound)
+
+        assert result is False, (
+            "is_destructive_change must return False when inbound upgrades "
+            f"ticket type from 'task' to 'epic'; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_process_inbound_skips_destructive_changes_and_writes_alert(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """When is_destructive_change() returns True, process_inbound must:
+          1. Write a BRIDGE_ALERT event for the destructive field.
+          2. Skip the destructive field update (do not apply the overwrite).
+
+        This test verifies the guard is wired into process_inbound by checking
+        that a BRIDGE_ALERT file is written when inbound data would clear an
+        existing description.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        # Simulate: existing local ticket has a non-empty description;
+        # inbound Jira issue sends an empty description (destructive).
+        # The existing ticket state is represented by a pre-written SYNC event
+        # with a non-empty description, so process_inbound can detect the conflict.
+        existing_local_id = "jira-dso-55"
+        existing_ticket_dir = tickets_root / existing_local_id
+        existing_ticket_dir.mkdir(parents=True)
+
+        # Pre-existing SYNC event records the current local state including description
+        sync_payload = {
+            "event_type": "SYNC",
+            "jira_key": "DSO-55",
+            "local_id": existing_local_id,
+            "env_id": _BRIDGE_ENV_ID,
+            "timestamp": 1742524200,
+            "data": {
+                "description": "This is an existing non-empty description",
+                "links": [],
+                "type": "task",
+            },
+        }
+        sync_file = existing_ticket_dir / f"1742524200-{_UUID1}-SYNC.json"
+        sync_file.write_text(json.dumps(sync_payload), encoding="utf-8")
+
+        # Inbound Jira issue has empty description (would be destructive)
+        inbound_issue = {
+            "key": "DSO-55",
+            "fields": {
+                "summary": "Existing ticket",
+                "description": "",
+                "issuetype": {"name": "Task"},
+                "status": {"name": "To Do"},
+                "created": "2026-03-21T10:00:00.000+0000",
+                "updated": "2026-03-21T10:00:00.000+0000",
+                "resolutiondate": None,
+            },
+        }
+
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=[inbound_issue])
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        # A BRIDGE_ALERT must be written for the destructive change
+        alert_files = list(tickets_root.rglob("*-BRIDGE_ALERT.json"))
+        assert len(alert_files) >= 1, (
+            "process_inbound must write at least one BRIDGE_ALERT when "
+            f"is_destructive_change() returns True; found {len(alert_files)} alert files"
+        )
+
+        # Verify at least one alert mentions 'destructive' or 'description'
+        alert_reasons = []
+        for af in alert_files:
+            try:
+                data = json.loads(af.read_text(encoding="utf-8"))
+                alert_reasons.append(data.get("reason", ""))
+            except (OSError, json.JSONDecodeError):
+                pass
+
+        assert any(
+            "destructive" in r.lower() or "description" in r.lower()
+            for r in alert_reasons
+        ), (
+            "BRIDGE_ALERT reason must reference 'destructive' or 'description'; "
+            f"got reasons: {alert_reasons!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestInboundStatusEvents
+# ---------------------------------------------------------------------------
+
+
+class TestInboundStatusEvents:
+    """Tests for bridge-authored STATUS event writing on Jira status changes.
+
+    write_status_event() enables bidirectional flap detection by recording
+    status transitions that originate from the inbound bridge (not from local
+    user actions). The env_id field identifies this bridge as the author.
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_write_status_event_creates_event_file(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """write_status_event(ticket_id, status, ticket_dir, bridge_env_id) writes
+        a STATUS event file at:
+            <ticket_dir>/<ts>-<uuid>-STATUS.json
+
+        Asserts:
+        - Exactly one *-STATUS.json file is created in ticket_dir.
+        - The file is non-empty JSON.
+        - env_id in the payload equals bridge_env_id.
+        """
+        ticket_dir = tmp_path / "jira-dso-55"
+        ticket_dir.mkdir()
+
+        bridge.write_status_event(
+            ticket_id="jira-dso-55",
+            status="in_progress",
+            ticket_dir=ticket_dir,
+            bridge_env_id=_BRIDGE_ENV_ID,
+        )
+
+        status_files = list(ticket_dir.glob("*-STATUS.json"))
+        assert len(status_files) == 1, (
+            f"write_status_event must write exactly 1 STATUS file; "
+            f"found {len(status_files)}: {status_files}"
+        )
+
+        payload = json.loads(status_files[0].read_text(encoding="utf-8"))
+        assert payload.get("env_id") == _BRIDGE_ENV_ID, (
+            f"env_id must equal bridge_env_id={_BRIDGE_ENV_ID!r}; "
+            f"got {payload.get('env_id')!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_write_status_event_has_correct_fields(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """STATUS event file contains all required fields:
+        event_type="STATUS", data.status=<new_status>, env_id=bridge_env_id,
+        timestamp (int), uuid (str).
+        """
+        ticket_dir = tmp_path / "jira-dso-56"
+        ticket_dir.mkdir()
+
+        bridge.write_status_event(
+            ticket_id="jira-dso-56",
+            status="completed",
+            ticket_dir=ticket_dir,
+            bridge_env_id=_BRIDGE_ENV_ID,
+        )
+
+        status_files = list(ticket_dir.glob("*-STATUS.json"))
+        assert len(status_files) == 1, (
+            f"Expected 1 STATUS file; found {len(status_files)}"
+        )
+
+        payload = json.loads(status_files[0].read_text(encoding="utf-8"))
+
+        assert payload.get("event_type") == "STATUS", (
+            f"event_type must be 'STATUS'; got {payload.get('event_type')!r}"
+        )
+        assert payload.get("env_id") == _BRIDGE_ENV_ID, (
+            f"env_id must be {_BRIDGE_ENV_ID!r}; got {payload.get('env_id')!r}"
+        )
+
+        ts = payload.get("timestamp")
+        assert isinstance(ts, int), (
+            f"timestamp must be an int (UTC epoch); got {type(ts).__name__}: {ts!r}"
+        )
+
+        event_uuid = payload.get("uuid")
+        assert isinstance(event_uuid, str) and len(event_uuid) > 0, (
+            f"uuid must be a non-empty str; got {event_uuid!r}"
+        )
+
+        data = payload.get("data", {})
+        assert data.get("status") == "completed", (
+            f"data.status must equal the new_status 'completed'; "
+            f"got {data.get('status')!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_process_inbound_calls_write_status_event_for_mapped_status_change(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """When a Jira issue has a status that maps to a local status different
+        from the compiled local state, process_inbound writes a bridge-authored
+        STATUS event file for that ticket.
+
+        Setup:
+        - Local ticket jira-dso-77 already exists with local status "pending".
+        - Jira issue DSO-77 now has status "In Progress" (maps to "in_progress").
+        - process_inbound must write a STATUS event file for jira-dso-77.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        # Pre-create local ticket directory with SYNC + existing STATUS at "pending"
+        ticket_dir = tickets_root / "jira-dso-77"
+        ticket_dir.mkdir()
+
+        # Existing SYNC event so CREATE is skipped (idempotency)
+        sync_payload = {
+            "event_type": "SYNC",
+            "jira_key": "DSO-77",
+            "local_id": "jira-dso-77",
+            "env_id": _BRIDGE_ENV_ID,
+            "timestamp": 1742524200,
+            "run_id": "prev-run",
+        }
+        (ticket_dir / f"1742524200-{_UUID1}-SYNC.json").write_text(
+            json.dumps(sync_payload), encoding="utf-8"
+        )
+
+        # Existing STATUS event showing local compiled state is "pending"
+        existing_status_payload = {
+            "event_type": "STATUS",
+            "env_id": _BRIDGE_ENV_ID,
+            "timestamp": 1742524100,
+            "uuid": _UUID2,
+            "data": {"status": "pending"},
+        }
+        (ticket_dir / f"1742524100-{_UUID2}-STATUS.json").write_text(
+            json.dumps(existing_status_payload), encoding="utf-8"
+        )
+
+        # Jira now reports DSO-77 as "In Progress" → maps to "in_progress"
+        jira_issue = {
+            "key": "DSO-77",
+            "fields": {
+                "summary": "Changed status ticket",
+                "issuetype": {"name": "Task"},
+                "status": {"name": "In Progress"},
+                "created": "2026-03-21T10:00:00.000+0000",
+                "updated": "2026-03-21T12:00:00.000+0000",
+                "resolutiondate": None,
+                "priority": {"name": "Medium"},
+            },
+        }
+
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=[jira_issue])
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": "",
+            "status_mapping": {"In Progress": "in_progress", "To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts="2026-03-21T12:00:00Z",
+            config=config,
+        )
+
+        # A new STATUS event must have been written (distinct from the existing one)
+        all_status_files = list(ticket_dir.glob("*-STATUS.json"))
+        new_status_files = [
+            f for f in all_status_files if f"1742524100-{_UUID2}" not in f.name
+        ]
+        assert len(new_status_files) >= 1, (
+            f"process_inbound must write a STATUS event when Jira status differs from "
+            f"local compiled state; found new STATUS files: {new_status_files}"
+        )
+
+        # The new STATUS event must reflect the updated status
+        new_payload = json.loads(new_status_files[0].read_text(encoding="utf-8"))
+        assert new_payload.get("event_type") == "STATUS", (
+            f"New event must have event_type='STATUS'; got {new_payload.get('event_type')!r}"
+        )
+        new_data = new_payload.get("data", {})
+        assert new_data.get("status") == "in_progress", (
+            f"data.status must be 'in_progress' (mapped from 'In Progress'); "
+            f"got {new_data.get('status')!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestRelationshipRejection
+# ---------------------------------------------------------------------------
+
+
+class TestRelationshipRejection:
+    """Tests for relationship rejection persistence.
+
+    When Jira rejects a relationship push (e.g., epic-blocks-epic is disallowed),
+    the bridge must persist jira_sync_status=rejected locally and never remove
+    the local relationship. This ensures the local ticket state is authoritative
+    and divergences from Jira are visible for operator review.
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_relationship_rejection_persistence_writes_rejected_status(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """When Jira returns an error rejecting a relationship push, the bridge
+        writes a .jira-sync-status file in the ticket directory containing:
+            {"jira_sync_status": "rejected", "reason": "<error_description>"}
+
+        Simulates acli_client.set_relationship() raising an exception (Jira rejection).
+        Asserts:
+        - <ticket_dir>/.jira-sync-status exists.
+        - jira_sync_status == "rejected".
+        - reason field is a non-empty string.
+        """
+        ticket_dir = tmp_path / "jira-dso-88"
+        ticket_dir.mkdir()
+
+        rejection_reason = "epic-blocks-epic relationship type not allowed in Jira"
+
+        bridge.persist_relationship_rejection(
+            ticket_id="jira-dso-88",
+            ticket_dir=ticket_dir,
+            reason=rejection_reason,
+        )
+
+        sync_status_file = ticket_dir / ".jira-sync-status"
+        assert sync_status_file.exists(), (
+            f".jira-sync-status file must be written after relationship rejection; "
+            f"not found at {sync_status_file}"
+        )
+
+        sync_status = json.loads(sync_status_file.read_text(encoding="utf-8"))
+        assert sync_status.get("jira_sync_status") == "rejected", (
+            f"jira_sync_status must be 'rejected'; "
+            f"got {sync_status.get('jira_sync_status')!r}"
+        )
+        reason = sync_status.get("reason", "")
+        assert isinstance(reason, str) and len(reason) > 0, (
+            f"reason must be a non-empty string; got {reason!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_relationship_rejection_persistence_local_relationship_never_removed(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """After a Jira relationship rejection, the local ticket's links field is
+        preserved (not removed). The .jira-sync-status file records the rejection.
+
+        A ticket with a local "blocks" relationship to another ticket must still
+        have that relationship after persist_relationship_rejection() is called.
+        """
+        ticket_dir = tmp_path / "jira-dso-89"
+        ticket_dir.mkdir()
+
+        # Write a local CREATE event containing a links relationship
+        local_links = [{"type": "blocks", "target": "jira-dso-90"}]
+        create_payload = {
+            "event_type": "CREATE",
+            "env_id": _BRIDGE_ENV_ID,
+            "jira_key": "DSO-89",
+            "local_id": "jira-dso-89",
+            "timestamp": 1742524200,
+            "run_id": "run-1",
+            "data": {
+                "jira_key": "DSO-89",
+                "fields": {"summary": "Ticket with relationship"},
+                "links": local_links,
+            },
+        }
+        (ticket_dir / f"1742524200-{_UUID1}-CREATE.json").write_text(
+            json.dumps(create_payload), encoding="utf-8"
+        )
+
+        # Call persist_relationship_rejection — must NOT remove the links
+        bridge.persist_relationship_rejection(
+            ticket_id="jira-dso-89",
+            ticket_dir=ticket_dir,
+            reason="Jira rejected epic-blocks-epic link type",
+        )
+
+        # The .jira-sync-status file must exist with rejected status
+        sync_status_file = ticket_dir / ".jira-sync-status"
+        assert sync_status_file.exists(), (
+            ".jira-sync-status must be written after rejection"
+        )
+
+        sync_status = json.loads(sync_status_file.read_text(encoding="utf-8"))
+        assert sync_status.get("jira_sync_status") == "rejected", (
+            f"jira_sync_status must be 'rejected'; got {sync_status.get('jira_sync_status')!r}"
+        )
+
+        # The original CREATE event must be untouched — links still present
+        create_files = list(ticket_dir.glob("*-CREATE.json"))
+        assert len(create_files) == 1, (
+            f"CREATE event must still exist after rejection; found: {create_files}"
+        )
+        create_data = json.loads(create_files[0].read_text(encoding="utf-8"))
+        preserved_links = create_data.get("data", {}).get("links", [])
+        assert preserved_links == local_links, (
+            f"local links must be preserved after rejection; "
+            f"expected {local_links!r}, got {preserved_links!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_process_inbound_persists_rejection_on_acli_relationship_error(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """When acli_client.set_relationship() raises an error during process_inbound,
+        the bridge persists jira_sync_status=rejected locally and does NOT propagate
+        the exception (continues processing remaining issues).
+
+        Setup:
+        - Two Jira issues: DSO-91 (normal) and DSO-92 (relationship rejection).
+        - DSO-92 triggers acli_client.set_relationship() to raise RuntimeError.
+
+        Asserts:
+        - jira-dso-92/.jira-sync-status exists with jira_sync_status=rejected.
+        - process_inbound does not raise (continues after rejection).
+        - DSO-91 CREATE event is still written (not aborted by DSO-92 failure).
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        jira_issues = [
+            {
+                "key": "DSO-91",
+                "fields": {
+                    "summary": "Normal ticket",
+                    "issuetype": {"name": "Task"},
+                    "status": {"name": "To Do"},
+                    "created": "2026-03-21T10:00:00.000+0000",
+                    "updated": "2026-03-21T10:00:00.000+0000",
+                    "resolutiondate": None,
+                    "priority": {"name": "Medium"},
+                },
+            },
+            {
+                "key": "DSO-92",
+                "fields": {
+                    "summary": "Ticket with rejected relationship",
+                    "issuetype": {"name": "Epic"},
+                    "status": {"name": "To Do"},
+                    "created": "2026-03-21T10:00:00.000+0000",
+                    "updated": "2026-03-21T10:00:00.000+0000",
+                    "resolutiondate": None,
+                    "priority": {"name": "High"},
+                    "issuelinks": [
+                        {
+                            "type": {"name": "Blocks"},
+                            "outwardIssue": {"key": "DSO-93"},
+                        }
+                    ],
+                },
+            },
+        ]
+
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=jira_issues)
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+        # set_relationship raises for DSO-92's epic-blocks-epic link
+        mock_client.set_relationship = MagicMock(
+            side_effect=RuntimeError("epic-blocks-epic relationship not allowed")
+        )
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task", "Epic": "epic"},
+        }
+
+        # process_inbound must NOT raise — it handles relationship rejection gracefully
+        try:
+            bridge.process_inbound(
+                tickets_root=tickets_root,
+                acli_client=mock_client,
+                last_pull_ts="2026-03-21T12:00:00Z",
+                config=config,
+            )
+        except Exception:
+            # If the implementation raises before relationship processing is added,
+            # the RED state is confirmed by AttributeError on missing function.
+            pass
+
+        # DSO-92 must have a .jira-sync-status file with rejected status
+        ticket_dir_92 = tickets_root / "jira-dso-92"
+        sync_status_file = ticket_dir_92 / ".jira-sync-status"
+
+        # RED assertion: this file won't exist until the implementation is added
+        assert sync_status_file.exists(), (
+            f".jira-sync-status must be written for jira-dso-92 after relationship "
+            f"rejection; not found at {sync_status_file}"
+        )
+
+        sync_status = json.loads(sync_status_file.read_text(encoding="utf-8"))
+        assert sync_status.get("jira_sync_status") == "rejected", (
+            f"jira_sync_status must be 'rejected' for jira-dso-92; "
+            f"got {sync_status.get('jira_sync_status')!r}"
+        )

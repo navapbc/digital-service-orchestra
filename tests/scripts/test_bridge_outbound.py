@@ -449,3 +449,330 @@ def test_idempotent_no_duplicate_sync_write(tmp_path: Path, bridge: ModuleType) 
     assert len(sync_files_after) == 1, (
         f"No duplicate SYNC file must be written; found {len(sync_files_after)} after process_outbound"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 6–11: Flap detection (RED — detect_status_flap() not yet implemented)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_detect_status_flap_returns_false_below_threshold(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given a ticket dir with 2 STATUS events alternating between two statuses,
+    detect_status_flap() returns False because the oscillation count is below
+    the default threshold of N=3.
+    """
+    ticket_dir = tmp_path / "w21-flap-below"
+    ticket_dir.mkdir()
+
+    base_ts = 1742605000
+    # Two alternating STATUS events: open → in_progress (only 1 oscillation)
+    _write_event(
+        ticket_dir,
+        timestamp=base_ts,
+        uuid=_UUID1,
+        event_type="STATUS",
+        data={"status": "open"},
+        env_id=_OTHER_ENV_ID,
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=base_ts + 60,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress"},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    result = bridge.detect_status_flap(ticket_dir)
+
+    assert result is False, (
+        "detect_status_flap must return False when oscillation count is below threshold (N=3)"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_detect_status_flap_returns_true_at_threshold(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given a ticket dir with 3+ STATUS events alternating between two statuses,
+    detect_status_flap() returns True because the oscillation threshold (N=3) is reached.
+    """
+    ticket_dir = tmp_path / "w21-flap-at-threshold"
+    ticket_dir.mkdir()
+
+    base_ts = 1742605000
+    # Four alternating STATUS events: open→in_progress→open→in_progress (3 oscillations)
+    statuses = ["open", "in_progress", "open", "in_progress"]
+    uuids = [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+        "44444444-4444-4444-4444-444444444444",
+    ]
+    for i, (status, uid) in enumerate(zip(statuses, uuids)):
+        _write_event(
+            ticket_dir,
+            timestamp=base_ts + i * 60,
+            uuid=uid,
+            event_type="STATUS",
+            data={"status": status},
+            env_id=_OTHER_ENV_ID,
+        )
+
+    result = bridge.detect_status_flap(ticket_dir)
+
+    assert result is True, (
+        "detect_status_flap must return True when oscillation count reaches threshold (N=3)"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_detect_status_flap_ignores_monotonic_progression(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given STATUS events in monotonic progression (open→in_progress→completed),
+    detect_status_flap() returns False because there is no oscillation.
+    """
+    ticket_dir = tmp_path / "w21-flap-monotonic"
+    ticket_dir.mkdir()
+
+    base_ts = 1742605000
+    progressions = [
+        ("open", "11111111-1111-1111-1111-111111111111"),
+        ("in_progress", "22222222-2222-2222-2222-222222222222"),
+        ("completed", "33333333-3333-3333-3333-333333333333"),
+    ]
+    for i, (status, uid) in enumerate(progressions):
+        _write_event(
+            ticket_dir,
+            timestamp=base_ts + i * 60,
+            uuid=uid,
+            event_type="STATUS",
+            data={"status": status},
+            env_id=_OTHER_ENV_ID,
+        )
+
+    result = bridge.detect_status_flap(ticket_dir)
+
+    assert result is False, (
+        "detect_status_flap must return False for monotonic open→in_progress→completed (no oscillation)"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_detect_status_flap_counts_only_within_window(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given STATUS events where enough oscillations exist but most are older than
+    the detection window, detect_status_flap() returns False because only recent
+    events count toward the threshold.
+
+    Old events (outside window) must not contribute to the oscillation count.
+    """
+    ticket_dir = tmp_path / "w21-flap-window"
+    ticket_dir.mkdir()
+
+    import time as _time
+
+    now = int(_time.time())
+    # Window default assumed to be 3600 seconds (1 hour); old events are >2 hours ago
+    old_base = now - 7200  # 2 hours ago — outside any reasonable window
+    recent_base = now - 60  # 1 minute ago — inside window
+
+    # Three old alternating events (outside window — should NOT count)
+    old_uuids = [
+        "aaaa0001-0000-0000-0000-000000000001",
+        "aaaa0002-0000-0000-0000-000000000002",
+        "aaaa0003-0000-0000-0000-000000000003",
+    ]
+    old_statuses = ["open", "in_progress", "open"]
+    for i, (status, uid) in enumerate(zip(old_statuses, old_uuids)):
+        _write_event(
+            ticket_dir,
+            timestamp=old_base + i * 60,
+            uuid=uid,
+            event_type="STATUS",
+            data={"status": status},
+            env_id=_OTHER_ENV_ID,
+        )
+
+    # One recent event (inside window — 1 oscillation total, below threshold)
+    _write_event(
+        ticket_dir,
+        timestamp=recent_base,
+        uuid="bbbb0001-0000-0000-0000-000000000001",
+        event_type="STATUS",
+        data={"status": "in_progress"},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    result = bridge.detect_status_flap(ticket_dir)
+
+    assert result is False, (
+        "detect_status_flap must return False when oscillations outside the window "
+        "are excluded and recent count is below threshold"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_process_outbound_emits_bridge_alert_on_flap(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """When detect_status_flap() returns True for a ticket's STATUS event,
+    process_outbound must:
+      1. Write a BRIDGE_ALERT event file in the ticket directory.
+      2. NOT call acli_client.update_issue for that ticket.
+    """
+    ticket_dir = tmp_path / "w21-flap-alert"
+    ticket_dir.mkdir()
+
+    base_ts = 1742605000
+    # Four alternating STATUS events to trigger flap (3 oscillations)
+    statuses = ["open", "in_progress", "open", "in_progress"]
+    uuids_list = [
+        "55555555-5555-5555-5555-555555555551",
+        "55555555-5555-5555-5555-555555555552",
+        "55555555-5555-5555-5555-555555555553",
+        "55555555-5555-5555-5555-555555555554",
+    ]
+    for i, (status, uid) in enumerate(zip(statuses, uuids_list)):
+        _write_event(
+            ticket_dir,
+            timestamp=base_ts + i * 60,
+            uuid=uid,
+            event_type="STATUS",
+            data={"status": status},
+            env_id=_OTHER_ENV_ID,
+        )
+
+    # Write a SYNC event so the bridge knows the Jira key
+    sync_payload = {
+        "event_type": "SYNC",
+        "jira_key": "DSO-42",
+        "local_id": "w21-flap-alert",
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": base_ts - 100,
+        "run_id": "99999999999",
+    }
+    (ticket_dir / f"{base_ts - 100}-{_UUID3}-SYNC.json").write_text(
+        json.dumps(sync_payload)
+    )
+
+    events = [
+        {
+            "ticket_id": "w21-flap-alert",
+            "event_type": "STATUS",
+            "file_path": str(
+                ticket_dir
+                / f"{base_ts + 3 * 60}-55555555-5555-5555-5555-555555555554-STATUS.json"
+            ),
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_client.update_issue = MagicMock(return_value={"key": "DSO-42"})
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # BRIDGE_ALERT file must be written
+    alert_files = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files) >= 1, (
+        "process_outbound must write a BRIDGE_ALERT event file when flap is detected"
+    )
+
+    # update_issue must NOT be called for the flapping ticket
+    mock_client.update_issue.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_process_outbound_halts_status_push_for_flapping_ticket(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """After a flap is detected, the ticket's STATUS event must NOT be pushed to Jira.
+
+    This test verifies the halt behavior in isolation: even when a SYNC event
+    (Jira key) exists and compiled status is resolvable, update_issue is never
+    called when detect_status_flap() returns True.
+    """
+    ticket_dir = tmp_path / "w21-flap-halt"
+    ticket_dir.mkdir()
+
+    base_ts = 1742606000
+    # Four alternating STATUS events (3 oscillations — triggers flap)
+    statuses = ["open", "in_progress", "open", "in_progress"]
+    uuids_list = [
+        "66666666-6666-6666-6666-666666666661",
+        "66666666-6666-6666-6666-666666666662",
+        "66666666-6666-6666-6666-666666666663",
+        "66666666-6666-6666-6666-666666666664",
+    ]
+    for i, (status, uid) in enumerate(zip(statuses, uuids_list)):
+        _write_event(
+            ticket_dir,
+            timestamp=base_ts + i * 30,
+            uuid=uid,
+            event_type="STATUS",
+            data={"status": status},
+            env_id=_OTHER_ENV_ID,
+        )
+
+    # SYNC event so the bridge can find the Jira key
+    sync_payload = {
+        "event_type": "SYNC",
+        "jira_key": "DSO-55",
+        "local_id": "w21-flap-halt",
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": base_ts - 200,
+        "run_id": "88888888888",
+    }
+    (ticket_dir / f"{base_ts - 200}-{_UUID1}-SYNC.json").write_text(
+        json.dumps(sync_payload)
+    )
+
+    # Also add a CREATE event so get_compiled_status can return a value
+    _write_event(
+        ticket_dir,
+        timestamp=base_ts - 300,
+        uuid=_UUID2,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Flapping halt ticket"},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": "w21-flap-halt",
+            "event_type": "STATUS",
+            "file_path": str(
+                ticket_dir
+                / f"{base_ts + 3 * 30}-66666666-6666-6666-6666-666666666664-STATUS.json"
+            ),
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_client.update_issue = MagicMock(return_value={"key": "DSO-55"})
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # update_issue must NEVER be called when flap is detected
+    mock_client.update_issue.assert_not_called()
