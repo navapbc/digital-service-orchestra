@@ -91,3 +91,5 @@ plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
 plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh
+plugins/dso/scripts/ci-generator.sh:tests/scripts/test-ci-generator.sh,tests/scripts/test-ci-generator-integration.sh
+plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh
