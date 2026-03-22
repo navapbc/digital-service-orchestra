@@ -1,6 +1,6 @@
 ---
 id: w21-bwfw
-status: in_progress
+status: closed
 deps: [w21-54wx]
 links: []
 created: 2026-03-20T03:28:20Z
