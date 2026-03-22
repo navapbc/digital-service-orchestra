@@ -1936,7 +1936,7 @@
   "w22-ns6l": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Project Health Restoration",
     "type": "epic"
   },
