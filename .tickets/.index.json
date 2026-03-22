@@ -718,6 +718,13 @@
     "title": "test-batched.sh state file not isolated by repo/worktree \u2014 causes cross-session interference",
     "type": "bug"
   },
+  "w20-keta": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts",
+    "type": "bug"
+  },
   "w21-05z9": {
     "deps": [
       "w21-6k7v",
