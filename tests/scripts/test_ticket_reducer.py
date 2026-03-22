@@ -2020,3 +2020,74 @@ def test_reducer_deps_in_snapshot_not_duplicated(
     )
     assert state["deps"][0]["link_uuid"] == _LINK_UUID
     assert state["ticket_id"] == "tkt-link-nodupe"
+
+
+# ---------------------------------------------------------------------------
+# RED test: same-second LINK + UNLINK sort order (dso-jwan)
+# LINK must always replay before UNLINK at the same Unix-second timestamp,
+# even when the UNLINK filename UUID sorts alphabetically before the LINK UUID.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_same_second_link_unlink_sort_order(
+    reducer: ModuleType, tmp_path: Path
+) -> None:
+    """When LINK and UNLINK share the same Unix-second timestamp, LINK must
+    replay before UNLINK so the dep is correctly cancelled.
+
+    Bug scenario (dso-jwan): If filenames sort lexicographically as
+    UNLINK < LINK (because UNLINK's UUID precedes LINK's UUID alphabetically),
+    the reducer processes UNLINK first — the link_uuid is not yet in deps,
+    so UNLINK is a no-op, then LINK adds the dep. The dep appears active when
+    it should be cancelled.
+
+    Fix: sort key must be (timestamp_segment, event_type_order, full_name)
+    with LINK=0, UNLINK=1, so LINK always processes before UNLINK at the same
+    second.
+    """
+    ticket_dir = tmp_path / "tkt-same-sec"
+    ticket_dir.mkdir()
+
+    ts = 1700000000
+    link_uuid = "ffff1111-2222-3333-4444-555566667777"  # sorts HIGH alphabetically
+    unlink_uuid = "aaaa9999-8888-7777-6666-555544443333"  # sorts LOW alphabetically
+
+    # Write CREATE event
+    _write_event(
+        ticket_dir,
+        timestamp=ts - 10,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Same-second sort test"},
+    )
+
+    # Write LINK event: link_uuid sorts HIGH → filename e.g. 1700000000-ffff1111-...-LINK.json
+    _write_event(
+        ticket_dir,
+        timestamp=ts,
+        uuid=link_uuid,
+        event_type="LINK",
+        data={"target_id": "tkt-target", "relation": "blocks"},
+    )
+
+    # Write UNLINK event: unlink_uuid sorts LOW → filename e.g. 1700000000-aaaa9999-...-UNLINK.json
+    # Lexicographic sort would put UNLINK before LINK (aaaa < ffff), causing the bug.
+    _write_event(
+        ticket_dir,
+        timestamp=ts,
+        uuid=unlink_uuid,
+        event_type="UNLINK",
+        data={"link_uuid": link_uuid},
+    )
+
+    state = reducer.reduce_ticket(str(ticket_dir))
+
+    assert state is not None, "reduce_ticket returned None"
+    assert isinstance(state, dict), f"Expected dict, got {type(state)}"
+    assert state["deps"] == [], (
+        f"Expected empty deps after same-second LINK+UNLINK (UNLINK cancels LINK), "
+        f"got {state['deps']!r}. "
+        "This indicates UNLINK was processed before LINK (lexicographic sort bug)."
+    )

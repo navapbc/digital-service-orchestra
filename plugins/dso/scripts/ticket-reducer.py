@@ -202,11 +202,30 @@ def reduce_ticket(
     except (OSError, json.JSONDecodeError, KeyError):
         pass  # Cache miss — recompute
 
-    # List and sort all event JSON files by filename (lexicographic).
+    # List and sort all event JSON files.
     # glob('*.json') excludes dotfiles by design, so .cache.json is never
     # included in event_files — this is intentional and must remain true
     # as long as the cache filename starts with '.'.
-    event_files = sorted(glob.glob(os.path.join(ticket_dir, "*.json")))
+    #
+    # Sort key: (timestamp_segment, event_type_order, full_basename)
+    # - timestamp_segment: first '-'-delimited field preserves chronological order
+    # - event_type_order: LINK=0, UNLINK=1 ensures LINK always replays before UNLINK
+    #   at the same Unix-second timestamp, even when the UNLINK filename's UUID sorts
+    #   alphabetically before the LINK UUID (dso-jwan fix)
+    # - full_basename: stable tiebreaker for remaining ambiguity within same type+timestamp
+    _EVENT_TYPE_ORDER = {"LINK": 0, "UNLINK": 1}
+
+    def _event_sort_key(path: str) -> tuple[str, int, str]:
+        name = os.path.basename(path)
+        ts_segment = name.split("-")[0]
+        # Extract event type from the stem before ".json" (last '-'-delimited token)
+        stem = name[: -len(".json")] if name.endswith(".json") else name
+        event_type = stem.rsplit("-", 1)[-1]
+        return (ts_segment, _EVENT_TYPE_ORDER.get(event_type, 99), name)
+
+    event_files = sorted(
+        glob.glob(os.path.join(ticket_dir, "*.json")), key=_event_sort_key
+    )
 
     if not event_files:
         return None

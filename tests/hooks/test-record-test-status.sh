@@ -1587,4 +1587,64 @@ if (( ! _PYTEST_AVAILABLE )); then
     rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true
 fi
 
+# ============================================================
+# test_timeout_file_appears_in_tested_files
+# When a test runner exits 144 (SIGURG timeout), the timed-out
+# test file is still recorded in the tested_files field of
+# test-gate-status. This verifies that TESTED_FILES_LIST is
+# appended BEFORE the test runs (intentional ordering), so
+# even tests that never complete are reflected in the audit
+# record for observability.
+# ============================================================
+echo ""
+echo "=== test_timeout_file_appears_in_tested_files ==="
+
+TEST_REPO_TIMEOUT=$(create_test_repo)
+ARTIFACTS_TIMEOUT=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_TIMEOUT" "$ARTIFACTS_TIMEOUT"' EXIT
+
+mkdir -p "$TEST_REPO_TIMEOUT/src" "$TEST_REPO_TIMEOUT/tests"
+cat > "$TEST_REPO_TIMEOUT/src/slow.py" << 'PYEOF'
+def slow():
+    pass
+PYEOF
+cat > "$TEST_REPO_TIMEOUT/tests/test_slow.py" << 'PYEOF'
+def test_slow():
+    assert True
+PYEOF
+git -C "$TEST_REPO_TIMEOUT" add -A
+git -C "$TEST_REPO_TIMEOUT" commit -m "add slow" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_TIMEOUT/src/slow.py"
+git -C "$TEST_REPO_TIMEOUT" add -A
+
+MOCK_TIMEOUT_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-timeout-runner-XXXXXX")
+chmod +x "$MOCK_TIMEOUT_RUNNER"
+cat > "$MOCK_TIMEOUT_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 144
+MOCKEOF
+
+(
+    cd "$TEST_REPO_TIMEOUT"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_TIMEOUT" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_TIMEOUT_RUNNER" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+STATUS_FILE_TIMEOUT="$ARTIFACTS_TIMEOUT/test-gate-status"
+if [[ -f "$STATUS_FILE_TIMEOUT" ]]; then
+    TESTED_LINE_TIMEOUT=$(grep '^tested_files=' "$STATUS_FILE_TIMEOUT" | head -1 | cut -d= -f2)
+    assert_contains "test_timeout_file_appears_in_tested_files: timed-out file in tested_files" "test_slow.py" "$TESTED_LINE_TIMEOUT"
+    FIRST_LINE_TIMEOUT=$(head -1 "$STATUS_FILE_TIMEOUT")
+    assert_eq "test_timeout_file_appears_in_tested_files: status is timeout" "timeout" "$FIRST_LINE_TIMEOUT"
+else
+    assert_eq "test_timeout_file_appears_in_tested_files: status file exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_TIMEOUT_RUNNER"
+rm -rf "$TEST_REPO_TIMEOUT" "$ARTIFACTS_TIMEOUT"
+trap - EXIT
+
 print_summary

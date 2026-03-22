@@ -55,3 +55,14 @@ Model tier: opus (w21-0oc6+dso-k7fe), sonnet (others)
 Critic review: skipped (post-batch validation passed)
 Outcome: 6 fixed, 0 failed, 0 reverted
 Remaining in tier: 1 (w22-1jqy)
+
+**2026-03-22T15:51:56Z**
+
+BATCH 1 | Tier 7
+Issues: dso-u5lt (fixed), w21-9tc4 (fixed), dso-2dxt (fixed), w21-1pyo (escalated), w21-bksy (fixed)
+Agent types: general-purpose (all)
+Model tier: sonnet
+Critic review: skipped (Tier 7 code bugs)
+Outcome: 4 fixed, 1 escalated, 0 reverted
+New bugs found: w22-w5wt (anti-pattern in REVIEW-WORKFLOW.md)
+Remaining in tier: 14

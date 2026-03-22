@@ -1697,6 +1697,13 @@
     "title": "Implement config key merge for test.suite.<name> entries",
     "type": "task"
   },
+  "w21-4jzh": {
+    "deps": [],
+    "priority": 3,
+    "status": "closed",
+    "title": "Fix unused imports in test_bridge_outbound.py (ruff F401)",
+    "type": "task"
+  },
   "w21-54wx": {
     "deps": [
       "dso-0k2k"
