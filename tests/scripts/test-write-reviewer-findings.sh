@@ -145,4 +145,39 @@ else
 fi
 assert_eq "test_no_pending_file_on_failure" "no_pending" "$actual"
 
+# test_write_new_dimension_names_accepted
+# Piping valid JSON with NEW dimension names should exit 0 and produce a hash.
+# RED: fails until Task w22-4391 renames the dimension keys in the validator.
+NEW_DIM_JSON='{
+  "scores": {
+    "correctness": 4,
+    "verification": 5,
+    "hygiene": 4,
+    "design": 4,
+    "maintainability": 5
+  },
+  "findings": [],
+  "summary": "New dimension names are valid after the rename."
+}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+new_hash_output=$(echo "$NEW_DIM_JSON" | "$SCRIPT" 2>/dev/null) && new_exit_code=0 || new_exit_code=$?
+assert_eq "test_write_new_dimension_names_accepted" "0" "$new_exit_code"
+
+# test_write_old_dimension_names_rejected
+# Piping JSON with OLD dimension names should exit 1 (validator rejects them).
+OLD_DIM_JSON='{
+  "scores": {
+    "functionality": 4,
+    "testing_coverage": 5,
+    "code_hygiene": 4,
+    "object_oriented_design": 4,
+    "readability": 5
+  },
+  "findings": [],
+  "summary": "Old dimension names should be rejected after rename."
+}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$OLD_DIM_JSON" | "$SCRIPT" 2>/dev/null && old_exit_code=0 || old_exit_code=$?
+assert_eq "test_write_old_dimension_names_rejected" "1" "$old_exit_code"
+
 print_summary

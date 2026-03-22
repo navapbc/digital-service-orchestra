@@ -680,4 +680,48 @@ assert_ne \
     "0" \
     "$NOT_APPLICABLE_NO_RATIONALE_EXIT"
 
+# ============================================================
+# 12. NEW dimension names: accepted (RED — fails until w22-4391)
+# ============================================================
+
+NEW_DIM_VALID_FILE=$(write_fixture "new-dim-valid.json" '{
+  "scores": {
+    "correctness": 4,
+    "verification": 3,
+    "hygiene": 4,
+    "design": 4,
+    "maintainability": 5
+  },
+  "findings": [],
+  "summary": "All new dimension names present and scores are valid."
+}')
+
+NEW_DIM_VALID_EXIT=$(run_script code-review-dispatch "$NEW_DIM_VALID_FILE")
+assert_eq \
+    "test_new_dimension_names_accepted: new dimension names (correctness/verification/hygiene/design/maintainability) are valid" \
+    "0" \
+    "$NEW_DIM_VALID_EXIT"
+
+# ============================================================
+# 13. OLD dimension names: rejected (RED — fails until w22-4391)
+# ============================================================
+
+OLD_DIM_FILE=$(write_fixture "old-dim.json" '{
+  "scores": {
+    "functionality": 4,
+    "testing_coverage": 3,
+    "code_hygiene": 4,
+    "object_oriented_design": 4,
+    "readability": 5
+  },
+  "findings": [],
+  "summary": "Old dimension names should be rejected after rename."
+}')
+
+OLD_DIM_EXIT=$(run_script code-review-dispatch "$OLD_DIM_FILE")
+assert_ne \
+    "test_old_dimension_names_rejected: old dimension names (functionality/testing_coverage/code_hygiene/object_oriented_design/readability) are rejected" \
+    "0" \
+    "$OLD_DIM_EXIT"
+
 print_summary
