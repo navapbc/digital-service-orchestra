@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -157,6 +159,41 @@ def _write_sync_event(
     return path
 
 
+def _read_dedup_map(ticket_dir: Path) -> dict[str, Any]:
+    """Read .jira-comment-map from ticket_dir. Returns empty dict on missing/corrupt."""
+    map_path = ticket_dir / ".jira-comment-map"
+    try:
+        with open(map_path, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {"uuid_to_jira_id": {}, "jira_id_to_uuid": {}}
+
+
+def _write_dedup_map(ticket_dir: Path, dedup_map: dict[str, Any]) -> None:
+    """Write .jira-comment-map atomically (write temp, rename)."""
+    map_path = ticket_dir / ".jira-comment-map"
+    fd, tmp_path = tempfile.mkstemp(dir=str(ticket_dir), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(dedup_map, f, ensure_ascii=False)
+        os.replace(tmp_path, str(map_path))
+    except BaseException:
+        # Clean up temp file on failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _embed_uuid_marker(body: str, event_uuid: str) -> str:
+    """Append <!-- origin-uuid: {event_uuid} --> as a new line at end of body."""
+    return f"{body}\n<!-- origin-uuid: {event_uuid} -->"
+
+
 def process_outbound(
     events: list[dict[str, Any]],
     acli_client: Any,
@@ -244,6 +281,54 @@ def process_outbound(
                         if jira_key:
                             acli_client.update_issue(jira_key, status=compiled_status)
                             _status_updated.add(ticket_id)
+
+        elif event_type == "COMMENT":
+            # Read event file to get uuid, body, and env_id
+            event_data = _read_event_file(event.get("file_path", ""))
+            if not event_data:
+                continue
+
+            event_uuid = event_data.get("uuid", "")
+            comment_body = event_data.get("data", {}).get("body", "")
+            event_env_id = event_data.get("env_id", "")
+
+            # Echo prevention: skip bridge-originated comments
+            if event_env_id == bridge_env_id:
+                continue
+
+            # Must have an existing SYNC event to know the Jira key
+            sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+            if not sync_files:
+                continue
+
+            sync_data = _read_event_file(sync_files[-1])
+            if not sync_data:
+                continue
+            jira_key = sync_data.get("jira_key", "")
+            if not jira_key:
+                continue
+
+            # Idempotency: check dedup map
+            dedup_map = _read_dedup_map(ticket_dir)
+            uuid_to_jira = dedup_map.get("uuid_to_jira_id", {})
+            if event_uuid in uuid_to_jira:
+                continue
+
+            # Embed UUID marker in body
+            body_with_marker = _embed_uuid_marker(comment_body, event_uuid)
+
+            # Push comment to Jira
+            result = acli_client.add_comment(jira_key, body_with_marker)
+            jira_comment_id = result.get("id", "") if isinstance(result, dict) else ""
+
+            if jira_comment_id:
+                # Update dedup map
+                jira_id_to_uuid = dedup_map.get("jira_id_to_uuid", {})
+                uuid_to_jira[event_uuid] = jira_comment_id
+                jira_id_to_uuid[jira_comment_id] = event_uuid
+                dedup_map["uuid_to_jira_id"] = uuid_to_jira
+                dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
+                _write_dedup_map(ticket_dir, dedup_map)
 
     return syncs_written
 
