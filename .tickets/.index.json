@@ -48,6 +48,15 @@
     "title": "Hook MostStatusEventsWinsStrategy into _sync_events in tk",
     "type": "task"
   },
+  "dso-22iz": {
+    "deps": [
+      "dso-za4o"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Display BRIDGE_ALERT health warning in ticket-show.sh and ticket-list.sh output",
+    "type": "task"
+  },
   "dso-24cw": {
     "deps": [],
     "priority": 1,
@@ -163,6 +172,22 @@
     "title": "Cleanup tests",
     "type": "epic"
   },
+  "dso-4uys": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Contract: REVERT event emit/parse interface",
+    "type": "task"
+  },
+  "dso-5gtd": {
+    "deps": [
+      "dso-qwrw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for ticket bridge-fsck command",
+    "type": "task"
+  },
   "dso-5nnr": {
     "deps": [
       "dso-1a6u"
@@ -170,6 +195,16 @@
     "priority": 1,
     "status": "closed",
     "title": "Call detect_newly_unblocked after conflict resolution in sync path",
+    "type": "task"
+  },
+  "dso-60uy": {
+    "deps": [
+      "dso-ed01",
+      "dso-4uys"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Add REVERT to ticket-lib.sh allowed event_type enum and create ticket-revert.sh",
     "type": "task"
   },
   "dso-6lhe": {
@@ -203,6 +238,13 @@
     "priority": 1,
     "status": "closed",
     "title": "IMPL: Exclude .test-index from compute-diff-hash.sh and review-gate-allowlist.conf",
+    "type": "task"
+  },
+  "dso-7n6c": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for BRIDGE_ALERT detection in ticket-reducer.py and ticket-show.sh/ticket-list.sh",
     "type": "task"
   },
   "dso-8l5h": {
@@ -427,6 +469,24 @@
     "priority": 1,
     "status": "closed",
     "title": "Implement ticket-graph.py (graph traversal, cycle detection, ready_to_work, cache)",
+    "type": "task"
+  },
+  "dso-ed01": {
+    "deps": [
+      "dso-4uys"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for REVERT event writing, CLI validation, and reducer handling",
+    "type": "task"
+  },
+  "dso-els2": {
+    "deps": [
+      "dso-60uy"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Register 'revert' subcommand in ticket dispatcher",
     "type": "task"
   },
   "dso-ez3s": {
@@ -666,6 +726,37 @@
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
   },
+  "dso-m91n": {
+    "deps": [
+      "dso-22iz",
+      "dso-wz2l",
+      "dso-rqj9",
+      "dso-els2",
+      "dso-yyll"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "E2E test: bridge observability and recovery full flow",
+    "type": "task"
+  },
+  "dso-n0fo": {
+    "deps": [
+      "dso-4uys"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for REVERT check-before-overwrite in bridge-outbound.py",
+    "type": "task"
+  },
+  "dso-nvzp": {
+    "deps": [
+      "dso-qwrw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for ticket bridge-status command",
+    "type": "task"
+  },
   "dso-o1u2": {
     "deps": [
       "dso-wqt4"
@@ -745,12 +836,29 @@
     "title": "Incorporate OpenRewrite",
     "type": "epic"
   },
+  "dso-qwrw": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Contract: BRIDGE_ALERT event emit/parse interface",
+    "type": "task"
+  },
   "dso-r97p": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "Implementation planning schema validation",
     "type": "epic"
+  },
+  "dso-rqj9": {
+    "deps": [
+      "dso-5gtd",
+      "dso-wz2l"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement ticket-bridge-fsck.py and register 'bridge-fsck' in ticket dispatcher",
+    "type": "task"
   },
   "dso-s12s": {
     "deps": [],
@@ -945,6 +1053,16 @@
     "title": "Fix: contradictory comment in pre-bash-functions.sh regex line",
     "type": "bug"
   },
+  "dso-wz2l": {
+    "deps": [
+      "dso-nvzp",
+      "dso-els2"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement ticket-bridge-status.sh and register 'bridge-status' in ticket dispatcher",
+    "type": "task"
+  },
   "dso-x1jt": {
     "deps": [],
     "priority": 2,
@@ -991,6 +1109,26 @@
     "title": "Implement add_comment and get_comments in acli-integration.py",
     "type": "task"
   },
+  "dso-yyll": {
+    "deps": [
+      "dso-n0fo",
+      "dso-60uy",
+      "dso-zso6"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement REVERT check-before-overwrite in bridge-outbound.py",
+    "type": "task"
+  },
+  "dso-za4o": {
+    "deps": [
+      "dso-qwrw"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement BRIDGE_ALERT detection in ticket-reducer.py: add bridge_alerts to compiled state",
+    "type": "task"
+  },
   "dso-zej9": {
     "deps": [
       "dso-tgye"
@@ -1006,6 +1144,17 @@
     "status": "open",
     "title": "Optimize skills and prompts for token usage",
     "type": "epic"
+  },
+  "dso-zso6": {
+    "deps": [
+      "dso-60uy",
+      "dso-ed01",
+      "dso-za4o"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement REVERT event handling in ticket-reducer.py: record reverts in compiled state",
+    "type": "task"
   },
   "w20-0aaw": {
     "deps": [],

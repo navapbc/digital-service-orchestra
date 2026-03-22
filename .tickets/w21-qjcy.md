@@ -36,3 +36,7 @@ parent: w21-bwfw
 - [Maintainability] REVERT-of-REVERT is rejected by CLI (REVERTs target non-REVERT events only)
 
 **Escalation policy**: Escalate to the user whenever you do not have high confidence in your understanding of the work, approach, or intent. High confidence means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess.
+
+**2026-03-22T03:48:07Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX
