@@ -1,0 +1,167 @@
+# Digital Service Orchestra — Outbound Bridge
+# Pushes local ticket changes to Jira when the tickets branch is updated.
+
+name: Outbound Bridge
+
+on:
+  push:
+    branches:
+      - tickets
+    paths:
+      - '.tickets/**'
+
+concurrency:
+  group: jira-bridge
+  cancel-in-progress: false
+
+jobs:
+  bridge:
+    name: Push tickets to Jira
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Skip commits made by the bridge bot itself (echo prevention).
+    # Fall back to 'dso-bridge[bot]' when BRIDGE_BOT_LOGIN is unset so the
+    # guard is never silently bypassed (unset var would evaluate to '' and
+    # always pass, causing an infinite push loop on the tickets branch).
+    if: github.actor != (vars.BRIDGE_BOT_LOGIN || 'dso-bridge[bot]')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Cache ACLI jar
+        id: cache-acli
+        uses: actions/cache@v4
+        with:
+          path: ~/.acli
+          key: acli-${{ runner.os }}-${{ vars.ACLI_VERSION || 'latest' }}
+
+      - name: Validate ACLI version before download
+        if: steps.cache-acli.outputs.cache-hit != 'true'
+        run: |
+          # Reject unset or unpinned version strings BEFORE any download occurs so
+          # no untrusted artifact is fetched with an interpolated/attacker-controlled
+          # version path.
+          ACLI_VERSION="${{ vars.ACLI_VERSION }}"
+          if [ -z "$ACLI_VERSION" ] || [ "$ACLI_VERSION" = "latest" ]; then
+            echo "ERROR: ACLI_VERSION is unset or 'latest' — cannot proceed with download."
+            echo "       Pin ACLI_VERSION to a specific release and set ACLI_SHA256 to its"
+            echo "       expected SHA256 digest before running this workflow."
+            exit 1
+          fi
+
+      - name: Download ACLI
+        if: steps.cache-acli.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.acli
+          curl -sSL "https://bobswift.atlassian.net/wiki/download/attachments/16285777/acli-${{ vars.ACLI_VERSION }}-distribution.zip" \
+            -o ~/.acli/acli.zip \
+            || curl -sSL "https://packages.atlassian.com/maven/public/com/atlassian/cli/acli/${{ vars.ACLI_VERSION }}/acli-${{ vars.ACLI_VERSION }}.jar" \
+               -o ~/.acli/acli.jar
+
+      - name: Verify ACLI checksum
+        if: steps.cache-acli.outputs.cache-hit != 'true'
+        run: |
+          # Verify the downloaded artifact BEFORE extraction so the zip is still
+          # present on disk. Without a checksum, a compromised or MITM'd download
+          # could execute arbitrary code.
+          ACLI_VERSION="${{ vars.ACLI_VERSION }}"
+          ACLI_SHA256="${{ vars.ACLI_SHA256 }}"
+
+          if [ -z "$ACLI_VERSION" ] || [ "$ACLI_VERSION" = "latest" ]; then
+            echo "ERROR: ACLI_VERSION is unset or 'latest' — checksum verification cannot proceed."
+            echo "       Pin ACLI_VERSION to a specific release and set ACLI_SHA256 to its expected"
+            echo "       SHA256 digest before running this workflow. Unpinned downloads are rejected"
+            echo "       to enforce supply-chain integrity."
+            exit 1
+          elif [ -z "$ACLI_SHA256" ]; then
+            echo "ERROR: ACLI_VERSION is pinned to '${ACLI_VERSION}' but ACLI_SHA256 is not set."
+            echo "       Set the ACLI_SHA256 repository variable to the expected SHA256 of the downloaded artifact."
+            exit 1
+          else
+            # Verify whichever artifact was downloaded (zip takes priority).
+            if [ -f ~/.acli/acli.zip ]; then
+              ARTIFACT=~/.acli/acli.zip
+            else
+              ARTIFACT=~/.acli/acli.jar
+            fi
+            echo "${ACLI_SHA256}  ${ARTIFACT}" | sha256sum -c --strict
+            echo "Checksum verified: ${ARTIFACT}"
+          fi
+
+      - name: Extract ACLI zip
+        if: steps.cache-acli.outputs.cache-hit != 'true'
+        run: |
+          # The download step attempts to fetch a zip first and falls back to a
+          # direct jar. If a zip was downloaded, extract the jar from it so the
+          # wrapper script can always reference ~/.acli/acli.jar consistently.
+          if [ -f ~/.acli/acli.zip ]; then
+            unzip -jo ~/.acli/acli.zip "*.jar" -d ~/.acli/
+            # Rename the extracted jar to the canonical name expected by the wrapper.
+            extracted=$(ls ~/.acli/*.jar 2>/dev/null | head -1)
+            if [ -z "$extracted" ]; then
+              echo "ERROR: No .jar found inside acli.zip" >&2
+              exit 1
+            fi
+            mv "$extracted" ~/.acli/acli.jar
+            rm -f ~/.acli/acli.zip
+            echo "Extracted acli.jar from zip."
+          else
+            echo "Direct jar download detected — no extraction needed."
+          fi
+
+      - name: Add ACLI to PATH
+        run: |
+          if [ ! -f "$HOME/.acli/acli.jar" ]; then
+            echo "ERROR: $HOME/.acli/acli.jar not found — download or extraction must have failed." >&2
+            exit 1
+          fi
+          cat > /usr/local/bin/acli <<'ACLI_WRAPPER'
+          #!/usr/bin/env bash
+          exec java -jar "$HOME/.acli/acli.jar" "$@"
+          ACLI_WRAPPER
+          chmod +x /usr/local/bin/acli
+
+      - name: Run outbound bridge
+        id: run-bridge
+        run: |
+          python3 plugins/dso/scripts/bridge-outbound.py
+        env:
+          JIRA_URL: ${{ secrets.JIRA_URL }}
+          JIRA_USER: ${{ secrets.JIRA_USER }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
+          GH_RUN_ID: ${{ github.run_id }}
+
+      - name: Commit SYNC events back to tickets branch
+        run: |
+          # Check if any new SYNC events were written
+          if git diff --quiet HEAD -- .tickets-tracker/; then
+            echo "No SYNC events to commit — skipping."
+            exit 0
+          fi
+
+          # Configure bridge bot identity (not the default github-actions[bot]).
+          # Values are read from env vars (set via the env: map below) rather than
+          # interpolated directly into the run: block to prevent expression injection.
+          git config user.name "${BRIDGE_BOT_NAME}"
+          git config user.email "${BRIDGE_BOT_EMAIL}"
+
+          git add .tickets-tracker/
+          git commit -m "chore: sync SYNC events from Jira bridge [run ${{ github.run_id }}]"
+          git push origin HEAD:tickets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRIDGE_BOT_NAME: ${{ vars.BRIDGE_BOT_NAME || 'dso-bridge[bot]' }}
+          BRIDGE_BOT_EMAIL: ${{ vars.BRIDGE_BOT_EMAIL || 'dso-bridge@users.noreply.github.com' }}
+
+      - name: Job timing report
+        if: always()
+        run: echo "outbound-bridge completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
