@@ -1,6 +1,6 @@
 ---
 id: dso-qxyd
-status: in_progress
+status: closed
 deps: [dso-ofdr]
 links: []
 created: 2026-03-22T15:15:54Z
