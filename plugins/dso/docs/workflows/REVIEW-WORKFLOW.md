@@ -346,6 +346,8 @@ Review failed. Enter the Autonomous Resolution Loop. Critical findings always fa
 
 #### Autonomous Resolution Loop
 
+**Deep tier note**: For deep tier reviews, the resolution sub-agent receives findings via the authoritative `$ARTIFACTS_DIR/reviewer-findings.json` — written by `dso:code-reviewer-deep-arch` (opus). The resolution sub-agent MUST NOT access `reviewer-findings-{a,b,c}.json`; those are sonnet-only artifacts consumed only during the opus synthesis pass.
+
 **INLINE FIX PROHIBITION**: The orchestrator MUST NOT use Edit, Write, or Bash to fix review findings directly. All fixes MUST go through a resolution sub-agent dispatch. There are no exceptions.
 
 **Architecture**: The resolution loop is split across two levels to avoid nested sub-agent nesting
@@ -372,7 +374,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and u
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
 - `{issue_ids}`: issue IDs associated with the current work (for `tk create` defers), or empty string
-- `{cached_model}`: model name derived from `REVIEW_TIER` in Step 3 (`light`→`haiku`, `standard`→`sonnet`, `deep`→`sonnet`)
+- `{cached_model}`: model name derived from `REVIEW_TIER` in Step 3 (`light`→`haiku`, `standard`→`sonnet`, `deep`→`opus`)
+- `{findings_file}`: for deep tier, this is the authoritative `$ARTIFACTS_DIR/reviewer-findings.json` — the file written by `dso:code-reviewer-deep-arch` (opus). The resolution sub-agent MUST NOT read or write `reviewer-findings-{a,b,c}.json`; those are sonnet-only artifacts consumed only during the opus synthesis pass.
 
 ```
 Task tool:
@@ -382,7 +385,7 @@ Task tool:
   prompt: <filled template from review-fix-dispatch.md>
 ```
 
-**NEVER set `isolation: "worktree"` on this sub-agent.** It must edit the same working tree files that the orchestrator and re-review agent will see.
+**NEVER set `isolation: "worktree"` on this sub-agent.** It must edit the same working tree files that the orchestrator and re-review agent will see. This ISOLATION PROHIBITION applies to all tiers including deep tier.
 
 **After resolution sub-agent returns**, interpret the compact output:
 

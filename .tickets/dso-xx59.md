@@ -1,6 +1,6 @@
 ---
 id: dso-xx59
-status: open
+status: in_progress
 deps: [dso-5uik]
 links: []
 created: 2026-03-22T17:45:05Z
@@ -45,3 +45,31 @@ File impact:
 **2026-03-22T19:17:34Z**
 
 CHECKPOINT 0/6: SESSION_END — Not started. Resume with /dso:sprint w21-ykic --resume
+
+**2026-03-22T21:36:54Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T21:37:28Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — Two RED tests need: (1) {cached_model} for deep tier must change from sonnet to opus at line 375; (2) Autonomous Resolution Loop must explicitly state {findings_file} is opus-written authoritative reviewer-findings.json, not temp a/b/c paths
+
+**2026-03-22T21:37:52Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓ — this is a doc task; tests from dso-5uik should turn GREEN
+
+**2026-03-22T21:38:12Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — Two changes to REVIEW-WORKFLOW.md: (1) {cached_model} deep→opus (was sonnet); (2) Added explicit note that {findings_file} for deep tier is opus-written authoritative reviewer-findings.json, not temp a/b/c paths. ISOLATION PROHIBITION note explicitly extended to deep tier.
+
+**2026-03-22T21:49:34Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — tests/run-all.sh: 55 passed 0 failed; ruff check: pass; ruff format: pass; test_deep_tier_resolution_uses_authoritative_findings: PASS; test_deep_tier_resolution_cached_model_is_opus: PASS; AC5 grep for opus in Autonomous Resolution Loop: PASS; AC6 grep for reviewer-findings-{a,b,c}: PASS
+
+**2026-03-22T21:51:25Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/docs/workflows/REVIEW-WORKFLOW.md. Changes: (1) {cached_model} deep→opus; (2) Added deep tier note at top of Autonomous Resolution Loop section; (3) Added {findings_file} note clarifying opus-written authoritative path, not temp a/b/c. All 6 ACs pass.
+
+**2026-03-22T21:51:49Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: REVIEW-WORKFLOW.md. 2 RED tests now GREEN.
