@@ -224,6 +224,7 @@ def reduce_ticket(
         "comments": [],
         "deps": [],
         "bridge_alerts": [],
+        "reverts": [],
     }
 
     valid_event_count = 0
@@ -381,6 +382,17 @@ def reduce_ticket(
                         "resolved": False,
                     }
                 )
+        elif event_type == "REVERT":
+            state["reverts"].append(
+                {
+                    "uuid": event_uuid,
+                    "target_event_uuid": data.get("target_event_uuid"),
+                    "target_event_type": data.get("target_event_type"),
+                    "reason": data.get("reason", ""),
+                    "timestamp": event.get("timestamp"),
+                    "author": event.get("author"),
+                }
+            )
         elif event_type == "SNAPSHOT":
             compiled_state = data.get("compiled_state", {})
             # Restore compiled state from snapshot

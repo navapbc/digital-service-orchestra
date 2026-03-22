@@ -334,9 +334,6 @@ def test_ticket_revert_rejects_nonexistent_target(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 @pytest.mark.scripts
-@pytest.mark.xfail(
-    reason="RED: dso-zso6 — REVERT event handling in reducer not yet implemented"
-)
 def test_reducer_records_reverts_in_compiled_state(
     tmp_path: Path, reducer: ModuleType
 ) -> None:
@@ -422,9 +419,6 @@ def test_reducer_records_reverts_in_compiled_state(
 
 @pytest.mark.unit
 @pytest.mark.scripts
-@pytest.mark.xfail(
-    reason="RED: dso-zso6 — REVERT event handling in reducer not yet implemented"
-)
 def test_reducer_revert_does_not_undo_status_automatically(
     tmp_path: Path, reducer: ModuleType
 ) -> None:
