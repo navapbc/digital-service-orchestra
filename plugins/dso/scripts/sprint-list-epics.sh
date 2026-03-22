@@ -107,11 +107,15 @@ for fname in files:
             title = line[2:].strip()
             break
 
+    parent = get_field('parent')
+
     entry = {'title': title, 'status': status, 'type': type_}
     if priority is not None:
         entry['priority'] = priority
     if deps:
         entry['deps'] = deps
+    if parent:
+        entry['parent'] = parent
     idx[ticket_id] = entry
 
 # Write atomically
@@ -215,8 +219,9 @@ try:
 except Exception:
     child_counts = {}
 
-# Build lookup for dep status resolution
+# Build lookup for dep status and parent resolution
 dep_status = {tid: entry.get('status', 'open') for tid, entry in index.items()}
+dep_parent = {tid: entry.get('parent', '') for tid, entry in index.items()}
 
 in_progress = []
 open_unblocked = []
@@ -230,8 +235,11 @@ for tid, entry in index.items():
         continue
 
     deps = entry.get('deps', [])
-    # An epic is blocked if it has at least one dep whose status is not 'closed'
-    is_blocked = any(dep_status.get(dep, 'open') != 'closed' for dep in deps)
+    # An epic is blocked only by external deps — exclude deps that are its own children.
+    # Preplanning may mistakenly add child story IDs to the epic's deps field (bug w21-3w8y).
+    # Children are identified by having parent == this epic's ID.
+    external_deps = [dep for dep in deps if dep_parent.get(dep, '') != tid]
+    is_blocked = any(dep_status.get(dep, 'open') != 'closed' for dep in external_deps)
 
     priority = entry.get('priority', 4)
     if priority is None:

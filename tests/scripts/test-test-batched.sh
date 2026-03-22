@@ -863,7 +863,6 @@ assert_eq "test_structured_action_required_block_run_line_contains_command: RUN:
 assert_pass_if_clean "test_structured_action_required_block_run_line_contains_command"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
-print_summary
 
 # ── test_default_state_file_includes_repo_hash ────────────────────────────────
 # When TEST_BATCHED_STATE_FILE is NOT set, the default state file path must
@@ -887,3 +886,6 @@ assert_eq "test_default_state_file_includes_repo_hash: default path contains rep
 _cleanup_path=$(echo "$default_path_out" | grep "^RUN:" | grep -oE "TEST_BATCHED_STATE_FILE=[^ ]+" | cut -d= -f2 | tr -d "'")
 [ -n "$_cleanup_path" ] && rm -f "$_cleanup_path" 2>/dev/null || true
 assert_pass_if_clean "test_default_state_file_includes_repo_hash"
+
+print_summary
+
