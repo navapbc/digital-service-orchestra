@@ -718,6 +718,15 @@ up to date and report completion.
 
 ## Guardrails
 
+### Epic Deps Must Not Contain Children (Critical)
+
+**Never run `tk dep <epic-id> <story-id>`** — this adds the story as a dependency of the epic, causing the epic to self-block in `sprint-list-epics.sh` (bug w21-3w8y).
+
+- `tk dep <story-id> <blocking-story-id>` — correct: story depends on another story
+- `tk dep <epic-id> <child-story-id>` — **WRONG**: child added as epic blocker
+
+Epic children are linked via `--parent=<epic-id>` at creation time. That parent field is how the epic knows what work to do. Adding a child as a dep means the epic will show as BLOCKED until the child is closed — which is backwards. Only add external dependencies (tickets from other epics/projects) to an epic's deps.
+
 ### No "How"
 Focus on requirements, constraints, and outcomes. Avoid dictating specific implementation code or library choices unless mandated by the Architecture Board.
 

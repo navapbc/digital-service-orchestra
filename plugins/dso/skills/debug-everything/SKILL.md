@@ -529,7 +529,7 @@ Environment: <CI failure | staging | local — from triage report>
 
 **Triage-to-scoring-rubric mapping** (how triage tier maps to dso:fix-bug scoring dimensions):
 - **Tier 0-1 (mechanical)**: fix-bug classifies as mechanical, bypasses scoring rubric entirely
-- **Tier 2+ (behavioral bugs)**: provide severity from triage priority (P0=critical/2pts, P1=high/2pts, P2=medium/1pt, P3=low/0pts), environment from triage report (CI failure/staging notes). This allows fix-bug to inherit the triage classification rather than re-score. Note: fix-bug performs its own post-investigation complexity evaluation and will return a `COMPLEX_ESCALATION` report if the bug requires multi-agent planning.
+- **Tier 2+ (behavioral bugs)**: provide severity from triage priority (P0=critical/2pts, P1=high/2pts, P2=medium/1pt, P3=low/0pts), environment from triage report (CI failure/staging notes). This allows fix-bug to inherit the triage classification rather than re-score. Note: fix-bug performs its own post-investigation complexity evaluation (Step 4.5) by reading the `complexity-evaluator` named agent definition inline — it does not dispatch a sub-agent to avoid nested dispatch within a sub-agent context. Fix-bug will return a `COMPLEX_ESCALATION` report if the bug requires multi-agent planning.
 
 **File ownership context**: Pass `{file_ownership_context}` from the blackboard step above in the sub-agent prompt. Each sub-agent receives its own tailored context showing which files it owns and which files other agents in the batch own.
 

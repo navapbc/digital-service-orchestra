@@ -31,6 +31,23 @@
     "title": "Ticket system upgrade",
     "type": "epic"
   },
+  "dso-0kz0": {
+    "deps": [
+      "dso-7wks"
+    ],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add clarification loop section to SKILL.md",
+    "type": "task"
+  },
+  "dso-0u2q": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: add comment clarifying TESTED_FILES_LIST append-before-run ordering is intentional in record-test-status.sh",
+    "type": "bug"
+  },
   "dso-0wi2": {
     "deps": [],
     "priority": 2,
@@ -158,6 +175,17 @@
     "title": "RED: Write failing tests for .test-index parsing and union merge in test-pre-commit-test-gate.sh",
     "type": "task"
   },
+  "dso-4mlr": {
+    "deps": [
+      "dso-fj1t",
+      "dso-4u0s"
+    ],
+    "parent": "dso-d3gr",
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect RED test gate tolerance",
+    "type": "story"
+  },
   "dso-4nm5": {
     "deps": [],
     "priority": 4,
@@ -171,6 +199,16 @@
     "status": "open",
     "title": "Cleanup tests",
     "type": "epic"
+  },
+  "dso-4u0s": {
+    "deps": [
+      "dso-fj1t"
+    ],
+    "parent": "dso-d3gr",
+    "priority": 2,
+    "status": "open",
+    "title": "As a developer, epic closure is blocked until all RED markers are removed from .test-index",
+    "type": "story"
   },
   "dso-4uys": {
     "deps": [],
@@ -196,6 +234,16 @@
     "status": "closed",
     "title": "Call detect_newly_unblocked after conflict resolution in sync path",
     "type": "task"
+  },
+  "dso-5ooy": {
+    "deps": [
+      "w21-ykic",
+      "w21-ovpn"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Conditional Security & Performance Review Overlays",
+    "type": "epic"
   },
   "dso-60uy": {
     "deps": [
@@ -231,6 +279,13 @@
     "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
     "type": "bug"
   },
+  "dso-6x8o": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: record-test-status.sh allows re-recording with stale test results \u2014 hash updated without re-running tests",
+    "type": "bug"
+  },
   "dso-76r3": {
     "deps": [
       "dso-xf8w"
@@ -245,6 +300,14 @@
     "priority": 1,
     "status": "open",
     "title": "RED: Write failing tests for BRIDGE_ALERT detection in ticket-reducer.py and ticket-show.sh/ticket-list.sh",
+    "type": "task"
+  },
+  "dso-7wks": {
+    "deps": [],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Structural validation tests for clarification loop in using-lockpick",
     "type": "task"
   },
   "dso-8l5h": {
@@ -356,6 +419,26 @@
     "title": "Implement MostStatusEventsWinsStrategy in ticket-reducer.py",
     "type": "task"
   },
+  "dso-b538": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet C reviewer applies deep hygiene, design, and maintainability checks",
+    "type": "story"
+  },
+  "dso-b7nb": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet A reviewer applies deep correctness checks with acceptance criteria validation",
+    "type": "story"
+  },
   "dso-b979": {
     "deps": [
       "dso-olb0",
@@ -365,6 +448,22 @@
     "status": "open",
     "title": "Implement COMMENT event handling in bridge-outbound.py (outbound comment push)",
     "type": "task"
+  },
+  "dso-boct": {
+    "deps": [],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Light tier haiku reviewer applies a focused 6-item checklist to low-complexity changes",
+    "type": "story"
+  },
+  "dso-bxng": {
+    "deps": [],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Standard tier sonnet reviewer applies full 5-dimension checklists with researched sub-criteria",
+    "type": "story"
   },
   "dso-c362": {
     "deps": [],
@@ -426,6 +525,13 @@
     "status": "closed",
     "title": "RED tests: cross-worktree ticket state visibility integration test",
     "type": "task"
+  },
+  "dso-d3gr": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "RED Test Gate Tolerance",
+    "type": "epic"
   },
   "dso-d8gi": {
     "deps": [
@@ -525,6 +631,14 @@
     "title": "IMPL: Rewrite pre-commit-test-gate.sh to use fuzzy-match.sh for multi-stack test association",
     "type": "task"
   },
+  "dso-fj1t": {
+    "deps": [],
+    "parent": "dso-d3gr",
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, record-test-status.sh tolerates failures in RED-flagged test zones",
+    "type": "story"
+  },
   "dso-flql": {
     "deps": [
       "dso-dpvo",
@@ -561,6 +675,23 @@
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
   },
+  "dso-gfry": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet B reviewer applies deep verification checks evaluating test quality and coverage",
+    "type": "story"
+  },
+  "dso-gg0v": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "debug-everything validation prompts use soft \"Do NOT fix\" language instead of hard-stop READ-ONLY ENFORCEMENT",
+    "type": "bug"
+  },
   "dso-gjww": {
     "deps": [],
     "priority": 4,
@@ -591,11 +722,28 @@
     "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
     "type": "bug"
   },
+  "dso-gxct": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh add --suites flag to Usage header comment",
+    "type": "bug"
+  },
   "dso-h04l": {
     "deps": [],
     "priority": 0,
     "status": "in_progress",
     "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
+  "dso-h2gj": {
+    "deps": [
+      "dso-vxsh"
+    ],
+    "parent": "dso-pxos",
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add rationalized-failures accountability step to end-session SKILL.md",
     "type": "task"
   },
   "dso-hdf8": {
@@ -635,6 +783,29 @@
     "priority": 1,
     "status": "closed",
     "title": "Implement ticket deps subcommand in ticket dispatcher",
+    "type": "task"
+  },
+  "dso-jf62": {
+    "deps": [
+      "dso-b7nb",
+      "dso-gfry",
+      "dso-b538"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Opus architectural reviewer applies cross-cutting synthesis checks across all specialist findings",
+    "type": "story"
+  },
+  "dso-jfcc": {
+    "deps": [
+      "dso-7wks",
+      "dso-0kz0"
+    ],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add abbreviated clarification loop to HOOK-INJECTION.md",
     "type": "task"
   },
   "dso-jny6": {
@@ -739,6 +910,14 @@
     "title": "E2E test: bridge observability and recovery full flow",
     "type": "task"
   },
+  "dso-mck2": {
+    "deps": [],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "closed",
+    "title": "Write failing tests for .test-index RED marker parsing in record-test-status.sh",
+    "type": "task"
+  },
   "dso-n0fo": {
     "deps": [
       "dso-4uys"
@@ -746,6 +925,16 @@
     "priority": 1,
     "status": "open",
     "title": "RED: Write failing tests for REVERT check-before-overwrite in bridge-outbound.py",
+    "type": "task"
+  },
+  "dso-n7f1": {
+    "deps": [
+      "dso-mck2"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Implement RED marker parsing in record-test-status.sh",
     "type": "task"
   },
   "dso-nvzp": {
@@ -815,6 +1004,13 @@
     "title": "Add dev-onboarding and design-onboarding to setup",
     "type": "epic"
   },
+  "dso-ptct": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: stat -f || stat -c fallback pattern broken on Linux \u2014 stat -f succeeds with wrong semantics",
+    "type": "bug"
+  },
   "dso-pxos": {
     "deps": [],
     "priority": 1,
@@ -835,6 +1031,13 @@
     "status": "open",
     "title": "Incorporate OpenRewrite",
     "type": "epic"
+  },
+  "dso-qv93": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh short-circuit python3 subprocess when entries is empty",
+    "type": "bug"
   },
   "dso-qwrw": {
     "deps": [],
@@ -860,12 +1063,29 @@
     "title": "Implement ticket-bridge-fsck.py and register 'bridge-fsck' in ticket dispatcher",
     "type": "task"
   },
+  "dso-rt8b": {
+    "deps": [
+      "dso-n7f1"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "open",
+    "title": "Add integration test for end-to-end RED marker commit flow",
+    "type": "task"
+  },
   "dso-s12s": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
+  },
+  "dso-sfoc": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: pre-commit test gate times out on large ticket-only commits (no allowlist filtering)",
+    "type": "bug"
   },
   "dso-sgqg": {
     "deps": [
@@ -951,6 +1171,13 @@
     "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
     "type": "bug"
   },
+  "dso-ubtf": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh replace find -print -quit with POSIX-portable alternative",
+    "type": "bug"
+  },
   "dso-udy1": {
     "deps": [],
     "priority": 0,
@@ -1012,6 +1239,14 @@
     "priority": 1,
     "status": "closed",
     "title": "RED: LINK event reduction tests in test_ticket_reducer.py",
+    "type": "task"
+  },
+  "dso-vxsh": {
+    "deps": [],
+    "parent": "dso-pxos",
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Structural tests for rationalized-failures accountability step in end-session",
     "type": "task"
   },
   "dso-vyxu": {
@@ -1388,6 +1623,13 @@
     "title": "Bug: end-session merge blindly accepts worktree ticket changes over main without diff comparison",
     "type": "bug"
   },
+  "w21-1pyo": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Bug: test-design-skills-cross-stack.sh arithmetic error from grep -c fallback pattern",
+    "type": "bug"
+  },
   "w21-24kl": {
     "deps": [
       "w21-bwfw"
@@ -1436,6 +1678,17 @@
     "status": "open",
     "title": "Preplanning adds epic's own children as deps, making the epic self-blocked",
     "type": "bug"
+  },
+  "w21-4d04": {
+    "deps": [
+      "w21-fljz",
+      "w21-v9tg"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement config key merge for test.suite.<name> entries",
+    "type": "task"
   },
   "w21-54wx": {
     "deps": [
@@ -1534,6 +1787,17 @@
     "title": "Add hypothetical scenario consideration to epic planning",
     "type": "epic"
   },
+  "w21-cxzv": {
+    "deps": [
+      "w21-f2k3",
+      "w21-okrb"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement --suites flag skeleton, Makefile heuristic, and pytest heuristic",
+    "type": "task"
+  },
   "w21-dww7": {
     "deps": [
       "w21-8cw2",
@@ -1563,6 +1827,36 @@
     "status": "open",
     "title": "Update project docs to reflect tiered review architecture",
     "type": "story"
+  },
+  "w21-etsx": {
+    "deps": [
+      "w21-cxzv",
+      "w21-v9tg",
+      "w21-4d04"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Update project-detect.sh script header comment and usage docs",
+    "type": "task"
+  },
+  "w21-f2k3": {
+    "deps": [],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write backward-compat regression tests for --suites flag",
+    "type": "task"
+  },
+  "w21-fljz": {
+    "deps": [
+      "w21-ulsg"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write config merge and fixture acceptance tests",
+    "type": "task"
   },
   "w21-fzzu": {
     "deps": [],
@@ -1650,6 +1944,16 @@
     "title": "As a developer, I have complete CLI documentation for all ticket commands",
     "type": "story"
   },
+  "w21-okrb": {
+    "deps": [
+      "w21-f2k3"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write --suites JSON schema, Makefile and pytest heuristic tests",
+    "type": "task"
+  },
   "w21-ovpn": {
     "deps": [
       "w21-ykic"
@@ -1704,6 +2008,27 @@
     "status": "open",
     "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation",
     "type": "bug"
+  },
+  "w21-ulsg": {
+    "deps": [
+      "w21-okrb"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write npm, bash runner, dedup, and precedence tests",
+    "type": "task"
+  },
+  "w21-v9tg": {
+    "deps": [
+      "w21-ulsg",
+      "w21-cxzv"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement npm and bash runner heuristics with dedup and precedence ordering",
+    "type": "task"
   },
   "w21-wbqz": {
     "deps": [

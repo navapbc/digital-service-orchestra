@@ -3,12 +3,14 @@ set -uo pipefail
 # scripts/project-detect.sh
 # Detect project characteristics by inspecting a target directory.
 #
-# Usage: project-detect.sh <project-dir>
-#   <project-dir>: path to the project directory to inspect
+# Usage: project-detect.sh [--suites] <project-dir>
+#   --suites      : discover test suites and emit a JSON array (see JSON schema below)
+#   <project-dir> : path to the project directory to inspect
 #
-# Output (stdout): key=value lines, one per detected attribute.
+# Default mode (no --suites): Output (stdout) is key=value lines, one per detected
+# attribute. This format is backward-compatible — adding --suites does not change it.
 #
-# Schema:
+# Default mode schema:
 #   stack=<value>                        — from detect-stack.sh
 #   targets=<comma-separated>            — Makefile targets or package.json scripts
 #   python_version=<value>|unknown       — detected Python version requirement
@@ -24,14 +26,55 @@ set -uo pipefail
 #   ports=<comma-separated>              — port numbers from .claude/dso-config.conf
 #   version_files=<comma-separated>      — files that carry a version field
 #
+# --suites mode: Output (stdout) is a JSON array of test suite objects. The script
+# exits immediately after emitting the array; key=value output is not produced.
+#
+# --suites JSON output schema (each array element):
+#   name        (string, unique) — short identifier for the suite (e.g. "unit", "e2e")
+#   command     (string)         — shell command to run the suite (e.g. "make test-unit")
+#   speed_class (string)         — "fast", "slow", or "unknown"
+#   runner      (string)         — one of: "make", "pytest", "npm", "bash", "config"
+#
+# Heuristic sources and Precedence order (highest wins):
+#   1. config   — .claude/dso-config.conf keys test.suite.<name>.command and
+#                 test.suite.<name>.speed_class (explicit, highest precedence)
+#   2. make     — Makefile targets matching /^test[-_]/ (e.g. test-unit -> name "unit")
+#   3. pytest   — subdirectories of tests/ or test/ containing test_*.py files
+#                 (e.g. tests/unit/ -> name "unit")
+#   4. npm      — package.json scripts matching /^test[:_-]/ (e.g. test:integration ->
+#                 name "integration")
+#   5. bash     — executable test-*.sh / test_*.sh / run-tests*.sh at project root
+#                 (e.g. test-hooks.sh -> name "hooks")
+#
+# Name derivation rules:
+#   Makefile test-foo / test_foo  -> strip "test[-_]" prefix -> "foo"
+#   pytest tests/unit/            -> basename of subdir -> "unit"
+#   npm test:integration          -> strip "test:" prefix -> "integration"
+#   bash test-hooks.sh            -> strip "test[-_]" prefix and ".sh" suffix -> "hooks"
+#
+# Backward compatibility guarantee:
+#   Without --suites, stdout output is unchanged KEY=VALUE format. The --suites flag
+#   adds a new output mode without modifying the existing key=value output path.
+#
 # Exit codes:
 #   0 — always (detection always succeeds)
 #   1 — argument error (missing or invalid project-dir)
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
+SUITES_MODE=0
+
 if [[ $# -lt 1 ]]; then
     echo "Error: project-dir argument required" >&2
     exit 1
+fi
+
+if [[ "$1" == "--suites" ]]; then
+    SUITES_MODE=1
+    shift
+    if [[ $# -lt 1 ]]; then
+        echo "Error: project-dir argument required after --suites" >&2
+        exit 1
+    fi
 fi
 
 PROJECT_DIR="$1"
@@ -40,6 +83,241 @@ if [[ ! -d "$PROJECT_DIR" ]]; then
     echo "Error: not a directory: $PROJECT_DIR" >&2
     exit 1
 fi
+
+# ── Suite discovery function ─────────────────────────────────────────────────
+# Discovers test suites via Makefile targets, pytest directories, npm scripts,
+# bash runners, and config keys. Deduplicates by name using precedence:
+# config > Makefile > pytest > npm > bash. Outputs a JSON array to stdout.
+_discover_suites() {
+    local project_dir="$1"
+    local entries=""
+
+    _append_entry() {
+        if [[ -n "$entries" ]]; then
+            entries="${entries},"
+        fi
+        entries="${entries}$1"
+    }
+
+    # Makefile heuristic: find targets matching /^test[-_]/
+    if [[ -f "$project_dir/Makefile" ]]; then
+        local makefile_test_targets
+        makefile_test_targets="$(grep -E '^test[-_][a-zA-Z0-9_-]+:' "$project_dir/Makefile" \
+            | sed 's/:.*//' || true)"
+        local target
+        while IFS= read -r target; do
+            [[ -z "$target" ]] && continue
+            local name
+            name="$(echo "$target" | sed -E 's/^test[-_]//')"
+            _append_entry "make:${target}=${name}"
+        done <<< "$makefile_test_targets"
+    fi
+
+    # pytest heuristic: find directories under tests/ or test/ containing test_*.py
+    local test_root=""
+    if [[ -d "$project_dir/tests" ]]; then
+        test_root="tests"
+    elif [[ -d "$project_dir/test" ]]; then
+        test_root="test"
+    fi
+
+    if [[ -n "$test_root" ]]; then
+        local subdir
+        for subdir in "$project_dir/$test_root"/*/; do
+            [[ -d "$subdir" ]] || continue
+            local has_test_files
+            has_test_files="$(find "$subdir" -maxdepth 1 -name 'test_*.py' -print -quit 2>/dev/null)"
+            if [[ -n "$has_test_files" ]]; then
+                local dirname
+                dirname="$(basename "$subdir")"
+                _append_entry "pytest:${test_root}/${dirname}=${dirname}"
+            fi
+        done
+    fi
+
+    # npm heuristic: parse package.json for scripts matching /^test/
+    if [[ -f "$project_dir/package.json" ]]; then
+        local npm_entries
+        npm_entries="$(python3 - "$project_dir/package.json" <<'PYEOF' 2>/dev/null || true
+import sys, json
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    scripts = data.get("scripts", {})
+    results = []
+    for key in sorted(scripts.keys()):
+        if key.startswith("test:") or key.startswith("test-") or key.startswith("test_"):
+            # Strip prefix to derive name
+            if key.startswith("test:"):
+                name = key[5:]
+            elif key.startswith("test-"):
+                name = key[5:]
+            else:
+                name = key[5:]
+            if name:
+                results.append("npm:" + key + "=" + name)
+        elif key == "test":
+            results.append("npm:" + key + "=test")
+    print(",".join(results))
+except Exception as e:
+    import sys as s
+    print("Warning: failed to parse package.json: " + str(e), file=s.stderr)
+PYEOF
+)"
+        if [[ -n "$npm_entries" ]]; then
+            local npm_entry
+            IFS=',' read -ra npm_parts <<< "$npm_entries"
+            for npm_entry in "${npm_parts[@]}"; do
+                [[ -z "$npm_entry" ]] && continue
+                _append_entry "$npm_entry"
+            done
+        fi
+    fi
+
+    # bash runner heuristic: find executable test-*.sh, test_*.sh, run-tests*.sh
+    local bash_file
+    for bash_file in "$project_dir"/test-*.sh "$project_dir"/test_*.sh "$project_dir"/run-tests*.sh; do
+        [[ -f "$bash_file" ]] || continue
+        [[ -x "$bash_file" ]] || continue
+        local basename_file
+        basename_file="$(basename "$bash_file")"
+        # Derive name: strip prefix and .sh suffix
+        local bash_name
+        bash_name="$(echo "$basename_file" | sed -E 's/\.sh$//; s/^run-tests[-_]//; s/^test[-_]//')"
+        [[ -z "$bash_name" ]] && continue
+        _append_entry "bash:${basename_file}=${bash_name}"
+    done
+
+    # config heuristic: parse .claude/dso-config.conf for test.suite.<name>.command
+    if [[ -f "$project_dir/.claude/dso-config.conf" ]]; then
+        local config_entries
+        config_entries="$(grep -E '^test\.suite\.[^.]+\.command=' "$project_dir/.claude/dso-config.conf" 2>/dev/null | while IFS= read -r line; do
+            local cfg_name cfg_command
+            # Extract name: test.suite.<name>.command=<value>
+            cfg_name="$(echo "$line" | sed -E 's/^test\.suite\.([^.]+)\.command=.*/\1/')"
+            cfg_command="$(echo "$line" | sed -E 's/^test\.suite\.[^.]+\.command=//')"
+            if [[ -n "$cfg_name" && -n "$cfg_command" ]]; then
+                echo "config:${cfg_command}=${cfg_name}"
+            fi
+        done | paste -sd',' -)"
+        if [[ -n "$config_entries" ]]; then
+            local cfg_entry
+            IFS=',' read -ra cfg_parts <<< "$config_entries"
+            for cfg_entry in "${cfg_parts[@]}"; do
+                [[ -z "$cfg_entry" ]] && continue
+                _append_entry "$cfg_entry"
+            done
+        fi
+    fi
+
+    # Generate JSON output via python3.
+    # Entries are passed via DSO_SUITE_ENTRIES env var, comma-delimited.
+    # Python handles dedup by name with precedence: config > make > pytest > npm > bash.
+    # Also reads config for speed_class overrides.
+    DSO_SUITE_ENTRIES="$entries" DSO_CONFIG_PATH="$project_dir/.claude/dso-config.conf" python3 - <<'PYEOF'
+import os, json
+
+PRECEDENCE = {"config": 0, "make": 1, "pytest": 2, "npm": 3, "bash": 4}
+
+entries_raw = os.environ.get("DSO_SUITE_ENTRIES", "")
+config_path = os.environ.get("DSO_CONFIG_PATH", "")
+
+# Parse config for speed_class overrides
+speed_overrides = {}
+if config_path:
+    try:
+        with open(config_path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("test.suite.") and ".speed_class=" in line:
+                    # test.suite.<name>.speed_class=<value>
+                    rest = line[len("test.suite."):]
+                    dot_idx = rest.index(".speed_class=")
+                    name = rest[:dot_idx]
+                    val = rest[dot_idx + len(".speed_class="):]
+                    speed_overrides[name] = val
+    except Exception:
+        pass
+
+# Parse all entries into a dict keyed by name, keeping highest precedence
+seen = {}  # name -> (precedence, entry_dict)
+
+if entries_raw:
+    for entry_str in entries_raw.split(","):
+        entry_str = entry_str.strip()
+        if not entry_str:
+            continue
+
+        # Parse prefix:detail=name
+        colon_idx = entry_str.index(":")
+        runner = entry_str[:colon_idx]
+        rest = entry_str[colon_idx + 1:]
+        detail, name = rest.split("=", 1)
+
+        prec = PRECEDENCE.get(runner, 99)
+
+        if runner == "make":
+            entry = {
+                "name": name,
+                "command": "make " + detail,
+                "speed_class": "unknown",
+                "runner": "make",
+            }
+        elif runner == "pytest":
+            entry = {
+                "name": name,
+                "command": "pytest " + detail + "/",
+                "speed_class": "unknown",
+                "runner": "pytest",
+            }
+        elif runner == "npm":
+            entry = {
+                "name": name,
+                "command": "npm run " + detail,
+                "speed_class": "unknown",
+                "runner": "npm",
+            }
+        elif runner == "bash":
+            entry = {
+                "name": name,
+                "command": "bash " + detail,
+                "speed_class": "unknown",
+                "runner": "bash",
+            }
+        elif runner == "config":
+            entry = {
+                "name": name,
+                "command": detail,
+                "speed_class": "unknown",
+                "runner": "config",
+            }
+        else:
+            continue
+
+        # Dedup: keep highest precedence (lowest number)
+        if name not in seen or prec < seen[name][0]:
+            seen[name] = (prec, entry)
+
+# Apply speed_class overrides from config
+for name, speed in speed_overrides.items():
+    if name in seen:
+        seen[name][1]["speed_class"] = speed
+
+# Sort by name for consistent output
+result = [entry for _, entry in sorted(seen.values(), key=lambda x: x[1]["name"])]
+print(json.dumps(result))
+PYEOF
+}
+
+# If --suites mode, run suite discovery and exit
+if [[ "$SUITES_MODE" -eq 1 ]]; then
+    _discover_suites "$PROJECT_DIR"
+    exit 0
+fi
+
+# BACKWARD_COMPAT: do not modify the key=value stdout output below this line without
+# a backward-compat test. The --suites JSON output path above is NOT subject to this
+# constraint — it exits before reaching the key=value section.
 
 # Resolve the directory containing this script so we can locate siblings.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

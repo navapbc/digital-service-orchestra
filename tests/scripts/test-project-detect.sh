@@ -565,4 +565,665 @@ assert_contains "test_project_detect_version_files_package_json: version_files c
     "package.json" "$(get_key "$_vf_pkg_out" version_files)"
 assert_pass_if_clean "test_project_detect_version_files_package_json"
 
+# ── Named tests: --suites backward compatibility (AC-required labels) ─────────
+
+# test_project_detect_suites_backward_compat_no_flag: without --suites flag,
+# output is identical KEY=VALUE format — no JSON emitted, all standard keys present.
+_snapshot_fail
+_compat_dir="$TMPDIR_FIXTURE/suites_compat_project"
+mkdir -p "$_compat_dir"
+cat > "$_compat_dir/Makefile" <<'MAKEFILE'
+.PHONY: test lint format
+
+test:
+	pytest
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+mkdir -p "$_compat_dir/.github/workflows"
+cat > "$_compat_dir/.github/workflows/ci.yml" <<'YAML'
+name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test
+YAML
+# Run WITHOUT --suites flag
+_compat_exit=0
+_compat_out=$(bash "$SCRIPT" "$_compat_dir" 2>&1) || _compat_exit=$?
+assert_eq "test_project_detect_suites_backward_compat_no_flag: exits 0" \
+    "0" "$_compat_exit"
+# All standard KEY=VALUE keys must be present
+assert_contains "test_project_detect_suites_backward_compat_no_flag: stack= present" \
+    "stack=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: targets= present" \
+    "targets=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: db_present= present" \
+    "db_present=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: ci_workflow_test_guarded= present" \
+    "ci_workflow_test_guarded=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: files_present= present" \
+    "files_present=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: installed_deps= present" \
+    "installed_deps=" "$_compat_out"
+# No JSON array brackets in output (--suites not active)
+_compat_json_count=$(echo "$_compat_out" | grep -cE '^\[' || true)
+assert_eq "test_project_detect_suites_backward_compat_no_flag: no JSON array in output" \
+    "0" "$_compat_json_count"
+assert_pass_if_clean "test_project_detect_suites_backward_compat_no_flag"
+
+# test_project_detect_suites_exit_zero_empty_repo: with --suites on empty repo,
+# exits 0 and outputs empty JSON array [].
+_snapshot_fail
+_suites_empty_dir="$TMPDIR_FIXTURE/suites_empty_project"
+mkdir -p "$_suites_empty_dir"
+_suites_empty_exit=0
+_suites_empty_out=$(bash "$SCRIPT" --suites "$_suites_empty_dir" 2>&1) || _suites_empty_exit=$?
+assert_eq "test_project_detect_suites_exit_zero_empty_repo: exits 0" \
+    "0" "$_suites_empty_exit"
+# Output must be valid JSON empty array
+_suites_empty_trimmed=$(echo "$_suites_empty_out" | tr -d '[:space:]')
+assert_eq "test_project_detect_suites_exit_zero_empty_repo: outputs []" \
+    "[]" "$_suites_empty_trimmed"
+assert_pass_if_clean "test_project_detect_suites_exit_zero_empty_repo"
+
+# test_project_detect_suites_exit_zero_always: with --suites on any repo, exits 0.
+_snapshot_fail
+_suites_any_dir="$TMPDIR_FIXTURE/suites_any_project"
+mkdir -p "$_suites_any_dir"
+cat > "$_suites_any_dir/Makefile" <<'MAKEFILE'
+.PHONY: test lint
+
+test:
+	pytest
+
+lint:
+	ruff check .
+MAKEFILE
+_suites_any_exit=0
+_suites_any_out=$(bash "$SCRIPT" --suites "$_suites_any_dir" 2>&1) || _suites_any_exit=$?
+assert_eq "test_project_detect_suites_exit_zero_always: exits 0" \
+    "0" "$_suites_any_exit"
+assert_pass_if_clean "test_project_detect_suites_exit_zero_always"
+
+# ── Named tests: --suites JSON schema and heuristic tests (T4 RED phase) ──────
+
+# test_project_detect_suites_json_schema: with --suites on a Makefile repo with
+# test-unit target, output is valid JSON array; each element has keys:
+# name (string), command (string), speed_class (one of fast|slow|unknown),
+# runner (one of make|pytest|npm|bash|config).
+_snapshot_fail
+_suites_schema_dir="$TMPDIR_FIXTURE/suites_schema_project"
+mkdir -p "$_suites_schema_dir"
+cat > "$_suites_schema_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit lint format
+
+test-unit:
+	pytest tests/unit/
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+_suites_schema_exit=0
+_suites_schema_out=$(bash "$SCRIPT" --suites "$_suites_schema_dir" 2>&1) || _suites_schema_exit=$?
+assert_eq "test_project_detect_suites_json_schema: exits 0" \
+    "0" "$_suites_schema_exit"
+# Output must be valid JSON (parseable by python3 json module)
+_suites_schema_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    assert isinstance(data, list), 'not a list'
+    assert len(data) > 0, 'empty list'
+    for entry in data:
+        assert isinstance(entry.get('name'), str), 'name not a string'
+        assert isinstance(entry.get('command'), str), 'command not a string'
+        assert entry.get('speed_class') in ('fast', 'slow', 'unknown'), 'bad speed_class: ' + str(entry.get('speed_class'))
+        assert entry.get('runner') in ('make', 'pytest', 'npm', 'bash', 'config'), 'bad runner: ' + str(entry.get('runner'))
+    print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_schema_out" 2>&1)
+assert_eq "test_project_detect_suites_json_schema: valid JSON schema" \
+    "valid" "$_suites_schema_valid"
+assert_pass_if_clean "test_project_detect_suites_json_schema"
+
+# test_project_detect_suites_makefile: fixture with Makefile containing
+# 'test-unit:' and 'test-e2e:' targets -> JSON array contains entries with
+# runner=make, name=unit, name=e2e, command='make test-unit', command='make test-e2e'.
+_snapshot_fail
+_suites_make_dir="$TMPDIR_FIXTURE/suites_makefile_project"
+mkdir -p "$_suites_make_dir"
+cat > "$_suites_make_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit test-e2e lint format
+
+test-unit:
+	pytest tests/unit/
+
+test-e2e:
+	pytest tests/e2e/
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+_suites_make_exit=0
+_suites_make_out=$(bash "$SCRIPT" --suites "$_suites_make_dir" 2>&1) || _suites_make_exit=$?
+assert_eq "test_project_detect_suites_makefile: exits 0" \
+    "0" "$_suites_make_exit"
+# Validate entries via python3
+_suites_make_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    names = {e['name'] for e in data}
+    runners = {e['runner'] for e in data}
+    commands = {e['command'] for e in data}
+    errors = []
+    if 'unit' not in names:
+        errors.append('missing name=unit')
+    if 'e2e' not in names:
+        errors.append('missing name=e2e')
+    if 'make' not in runners:
+        errors.append('missing runner=make')
+    if 'make test-unit' not in commands:
+        errors.append('missing command=make test-unit')
+    if 'make test-e2e' not in commands:
+        errors.append('missing command=make test-e2e')
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_make_out" 2>&1)
+assert_eq "test_project_detect_suites_makefile: correct entries" \
+    "valid" "$_suites_make_valid"
+assert_pass_if_clean "test_project_detect_suites_makefile"
+
+# test_project_detect_suites_pytest: fixture with tests/models/ directory
+# containing test_model.py -> JSON entry with runner=pytest, name=models,
+# command='pytest tests/models/'.
+_snapshot_fail
+_suites_pytest_dir="$TMPDIR_FIXTURE/suites_pytest_project"
+mkdir -p "$_suites_pytest_dir/tests/models"
+cat > "$_suites_pytest_dir/tests/models/test_model.py" <<'PY'
+def test_placeholder():
+    pass
+PY
+_suites_pytest_exit=0
+_suites_pytest_out=$(bash "$SCRIPT" --suites "$_suites_pytest_dir" 2>&1) || _suites_pytest_exit=$?
+assert_eq "test_project_detect_suites_pytest: exits 0" \
+    "0" "$_suites_pytest_exit"
+# Validate pytest entry
+_suites_pytest_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    found = [e for e in data if e.get('runner') == 'pytest' and e.get('name') == 'models']
+    if not found:
+        print('invalid: no entry with runner=pytest, name=models')
+    elif found[0].get('command') != 'pytest tests/models/':
+        print('invalid: command=' + str(found[0].get('command')) + ', expected pytest tests/models/')
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_pytest_out" 2>&1)
+assert_eq "test_project_detect_suites_pytest: correct pytest entry" \
+    "valid" "$_suites_pytest_valid"
+assert_pass_if_clean "test_project_detect_suites_pytest"
+
+# test_project_detect_suites_makefile_name_derivation: Makefile target
+# 'test-integration' -> name='integration'; target 'test_smoke' -> name='smoke'
+# (strip test- or test_ prefix for name).
+_snapshot_fail
+_suites_derive_dir="$TMPDIR_FIXTURE/suites_derivation_project"
+mkdir -p "$_suites_derive_dir"
+cat > "$_suites_derive_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-integration test_smoke
+
+test-integration:
+	pytest tests/integration/
+
+test_smoke:
+	pytest tests/smoke/
+MAKEFILE
+_suites_derive_exit=0
+_suites_derive_out=$(bash "$SCRIPT" --suites "$_suites_derive_dir" 2>&1) || _suites_derive_exit=$?
+assert_eq "test_project_detect_suites_makefile_name_derivation: exits 0" \
+    "0" "$_suites_derive_exit"
+# Validate name derivation
+_suites_derive_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    names = {e['name'] for e in data}
+    errors = []
+    if 'integration' not in names:
+        errors.append('missing name=integration (from test-integration)')
+    if 'smoke' not in names:
+        errors.append('missing name=smoke (from test_smoke)')
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_derive_out" 2>&1)
+assert_eq "test_project_detect_suites_makefile_name_derivation: correct names" \
+    "valid" "$_suites_derive_valid"
+assert_pass_if_clean "test_project_detect_suites_makefile_name_derivation"
+
+# ── Named tests: npm, bash runner, dedup, precedence (T5 RED phase) ────────
+
+# test_project_detect_suites_npm: fixture with package.json scripts 'test:unit'
+# and 'test:e2e' -> JSON entries with runner=npm, name=unit, name=e2e
+# (strip 'test:' prefix for name), command='npm run test:unit', command='npm run test:e2e'.
+_snapshot_fail
+_suites_npm_dir="$TMPDIR_FIXTURE/suites_npm_project"
+mkdir -p "$_suites_npm_dir"
+cat > "$_suites_npm_dir/package.json" <<'JSON'
+{
+  "name": "npm-test-app",
+  "version": "1.0.0",
+  "scripts": {
+    "test:unit": "jest --testPathPattern=unit",
+    "test:e2e": "jest --testPathPattern=e2e",
+    "build": "tsc",
+    "lint": "eslint ."
+  }
+}
+JSON
+_suites_npm_exit=0
+_suites_npm_out=$(bash "$SCRIPT" --suites "$_suites_npm_dir" 2>&1) || _suites_npm_exit=$?
+assert_eq "test_project_detect_suites_npm: exits 0" \
+    "0" "$_suites_npm_exit"
+# Validate npm entries via python3
+_suites_npm_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    names = {e['name'] for e in data}
+    runners = {e['runner'] for e in data}
+    commands = {e['command'] for e in data}
+    errors = []
+    if 'unit' not in names:
+        errors.append('missing name=unit')
+    if 'e2e' not in names:
+        errors.append('missing name=e2e')
+    if 'npm' not in runners:
+        errors.append('missing runner=npm')
+    if 'npm run test:unit' not in commands:
+        errors.append('missing command=npm run test:unit')
+    if 'npm run test:e2e' not in commands:
+        errors.append('missing command=npm run test:e2e')
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_npm_out" 2>&1)
+assert_eq "test_project_detect_suites_npm: correct npm entries" \
+    "valid" "$_suites_npm_valid"
+assert_pass_if_clean "test_project_detect_suites_npm"
+
+# test_project_detect_suites_bash_runner: fixture with executable test-hooks.sh
+# in repo root -> JSON entry with runner=bash, name=hooks (strip 'test-' prefix
+# and '.sh' suffix), command='bash test-hooks.sh'.
+_snapshot_fail
+_suites_bash_dir="$TMPDIR_FIXTURE/suites_bash_project"
+mkdir -p "$_suites_bash_dir"
+cat > "$_suites_bash_dir/test-hooks.sh" <<'BASH'
+#!/usr/bin/env bash
+echo "running hook tests"
+BASH
+chmod +x "$_suites_bash_dir/test-hooks.sh"
+_suites_bash_exit=0
+_suites_bash_out=$(bash "$SCRIPT" --suites "$_suites_bash_dir" 2>&1) || _suites_bash_exit=$?
+assert_eq "test_project_detect_suites_bash_runner: exits 0" \
+    "0" "$_suites_bash_exit"
+# Validate bash runner entry via python3
+_suites_bash_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    found = [e for e in data if e.get('runner') == 'bash' and e.get('name') == 'hooks']
+    if not found:
+        print('invalid: no entry with runner=bash, name=hooks')
+    elif found[0].get('command') != 'bash test-hooks.sh':
+        print('invalid: command=' + str(found[0].get('command')) + ', expected bash test-hooks.sh')
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_bash_out" 2>&1)
+assert_eq "test_project_detect_suites_bash_runner: correct bash entry" \
+    "valid" "$_suites_bash_valid"
+assert_pass_if_clean "test_project_detect_suites_bash_runner"
+
+# test_project_detect_suites_dedup_by_name: fixture with Makefile 'test-unit'
+# target AND tests/unit/ pytest dir -> only ONE entry for name=unit emitted;
+# Makefile (higher precedence) wins; runner=make.
+_snapshot_fail
+_suites_dedup_dir="$TMPDIR_FIXTURE/suites_dedup_project"
+mkdir -p "$_suites_dedup_dir/tests/unit"
+cat > "$_suites_dedup_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit
+
+test-unit:
+	pytest tests/unit/
+MAKEFILE
+cat > "$_suites_dedup_dir/tests/unit/test_example.py" <<'PY'
+def test_placeholder():
+    pass
+PY
+_suites_dedup_exit=0
+_suites_dedup_out=$(bash "$SCRIPT" --suites "$_suites_dedup_dir" 2>&1) || _suites_dedup_exit=$?
+assert_eq "test_project_detect_suites_dedup_by_name: exits 0" \
+    "0" "$_suites_dedup_exit"
+# Validate dedup: only ONE entry with name=unit, runner=make
+_suites_dedup_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    unit_entries = [e for e in data if e.get('name') == 'unit']
+    errors = []
+    if len(unit_entries) == 0:
+        errors.append('no entry with name=unit')
+    elif len(unit_entries) > 1:
+        errors.append('duplicate: found %d entries with name=unit, expected 1' % len(unit_entries))
+    else:
+        if unit_entries[0].get('runner') != 'make':
+            errors.append('runner=%s, expected make (Makefile has higher precedence)' % unit_entries[0].get('runner'))
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_dedup_out" 2>&1)
+assert_eq "test_project_detect_suites_dedup_by_name: one entry, runner=make" \
+    "valid" "$_suites_dedup_valid"
+assert_pass_if_clean "test_project_detect_suites_dedup_by_name"
+
+# test_project_detect_suites_precedence_config_over_makefile: fixture with
+# Makefile 'test-unit' AND config key test.suite.unit.command='custom-cmd'
+# -> config entry wins; runner=config, command='custom-cmd'.
+_snapshot_fail
+_suites_prec_dir="$TMPDIR_FIXTURE/suites_precedence_project"
+mkdir -p "$_suites_prec_dir/.claude"
+cat > "$_suites_prec_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit
+
+test-unit:
+	pytest tests/unit/
+MAKEFILE
+cat > "$_suites_prec_dir/.claude/dso-config.conf" <<'CONF'
+test.suite.unit.command=custom-cmd
+CONF
+_suites_prec_exit=0
+_suites_prec_out=$(bash "$SCRIPT" --suites "$_suites_prec_dir" 2>&1) || _suites_prec_exit=$?
+assert_eq "test_project_detect_suites_precedence_config_over_makefile: exits 0" \
+    "0" "$_suites_prec_exit"
+# Validate config precedence: runner=config, command=custom-cmd
+_suites_prec_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    unit_entries = [e for e in data if e.get('name') == 'unit']
+    errors = []
+    if len(unit_entries) == 0:
+        errors.append('no entry with name=unit')
+    elif len(unit_entries) > 1:
+        errors.append('duplicate: found %d entries with name=unit, expected 1' % len(unit_entries))
+    else:
+        entry = unit_entries[0]
+        if entry.get('runner') != 'config':
+            errors.append('runner=%s, expected config' % entry.get('runner'))
+        if entry.get('command') != 'custom-cmd':
+            errors.append('command=%s, expected custom-cmd' % entry.get('command'))
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_prec_out" 2>&1)
+assert_eq "test_project_detect_suites_precedence_config_over_makefile: config wins" \
+    "valid" "$_suites_prec_valid"
+assert_pass_if_clean "test_project_detect_suites_precedence_config_over_makefile"
+
+# test_project_detect_suites_bash_name_derivation: bash file 'run-tests-integration.sh'
+# -> name='integration' (strip 'test-', 'run-tests-', leading 'test' variants,
+# and '.sh' suffix).
+_snapshot_fail
+_suites_bash_derive_dir="$TMPDIR_FIXTURE/suites_bash_derivation_project"
+mkdir -p "$_suites_bash_derive_dir"
+cat > "$_suites_bash_derive_dir/run-tests-integration.sh" <<'BASH'
+#!/usr/bin/env bash
+echo "running integration tests"
+BASH
+chmod +x "$_suites_bash_derive_dir/run-tests-integration.sh"
+_suites_bash_derive_exit=0
+_suites_bash_derive_out=$(bash "$SCRIPT" --suites "$_suites_bash_derive_dir" 2>&1) || _suites_bash_derive_exit=$?
+assert_eq "test_project_detect_suites_bash_name_derivation: exits 0" \
+    "0" "$_suites_bash_derive_exit"
+# Validate name derivation: name=integration
+_suites_bash_derive_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    found = [e for e in data if e.get('name') == 'integration']
+    if not found:
+        names = [e.get('name') for e in data]
+        print('invalid: no entry with name=integration; found names: ' + str(names))
+    elif found[0].get('runner') != 'bash':
+        print('invalid: runner=%s, expected bash' % found[0].get('runner'))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_bash_derive_out" 2>&1)
+assert_eq "test_project_detect_suites_bash_name_derivation: name=integration" \
+    "valid" "$_suites_bash_derive_valid"
+assert_pass_if_clean "test_project_detect_suites_bash_name_derivation"
+
+# ── Named tests: config merge and fixture acceptance (T6 RED phase) ──────────
+
+# test_project_detect_suites_config_merge: fixture with dso-config.conf containing
+# test.suite.custom.command='bash run-custom.sh' and test.suite.custom.speed_class='fast';
+# AND Makefile 'test-unit' target; config entry has runner=config, speed_class=fast;
+# Makefile entry has speed_class=unknown.
+_snapshot_fail
+_suites_cfgmerge_dir="$TMPDIR_FIXTURE/suites_config_merge_project"
+mkdir -p "$_suites_cfgmerge_dir/.claude"
+cat > "$_suites_cfgmerge_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit
+
+test-unit:
+	pytest tests/unit/
+MAKEFILE
+cat > "$_suites_cfgmerge_dir/.claude/dso-config.conf" <<'CONF'
+test.suite.custom.command=bash run-custom.sh
+test.suite.custom.speed_class=fast
+CONF
+_suites_cfgmerge_exit=0
+_suites_cfgmerge_out=$(bash "$SCRIPT" --suites "$_suites_cfgmerge_dir" 2>&1) || _suites_cfgmerge_exit=$?
+assert_eq "test_project_detect_suites_config_merge: exits 0" \
+    "0" "$_suites_cfgmerge_exit"
+# Validate: config entry has runner=config, speed_class=fast; Makefile entry has speed_class=unknown
+_suites_cfgmerge_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    errors = []
+    # Find the custom entry (from config)
+    custom_entries = [e for e in data if e.get('name') == 'custom']
+    if len(custom_entries) == 0:
+        errors.append('no entry with name=custom')
+    else:
+        ce = custom_entries[0]
+        if ce.get('runner') != 'config':
+            errors.append('custom runner=%s, expected config' % ce.get('runner'))
+        if ce.get('speed_class') != 'fast':
+            errors.append('custom speed_class=%s, expected fast' % ce.get('speed_class'))
+        if ce.get('command') != 'bash run-custom.sh':
+            errors.append('custom command=%s, expected bash run-custom.sh' % ce.get('command'))
+    # Find the unit entry (from Makefile)
+    unit_entries = [e for e in data if e.get('name') == 'unit']
+    if len(unit_entries) == 0:
+        errors.append('no entry with name=unit')
+    else:
+        ue = unit_entries[0]
+        if ue.get('speed_class') != 'unknown':
+            errors.append('unit speed_class=%s, expected unknown' % ue.get('speed_class'))
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_cfgmerge_out" 2>&1)
+assert_eq "test_project_detect_suites_config_merge: correct entries" \
+    "valid" "$_suites_cfgmerge_valid"
+assert_pass_if_clean "test_project_detect_suites_config_merge"
+
+# test_project_detect_suites_config_overrides_autodiscovered: fixture where
+# dso-config.conf has test.suite.unit.command='custom-unit-cmd' AND Makefile
+# 'test-unit' target; result has ONE entry for name=unit with command='custom-unit-cmd'
+# (config wins) and runner=config.
+_snapshot_fail
+_suites_cfgoverride_dir="$TMPDIR_FIXTURE/suites_config_override_project"
+mkdir -p "$_suites_cfgoverride_dir/.claude"
+cat > "$_suites_cfgoverride_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit
+
+test-unit:
+	pytest tests/unit/
+MAKEFILE
+cat > "$_suites_cfgoverride_dir/.claude/dso-config.conf" <<'CONF'
+test.suite.unit.command=custom-unit-cmd
+CONF
+_suites_cfgoverride_exit=0
+_suites_cfgoverride_out=$(bash "$SCRIPT" --suites "$_suites_cfgoverride_dir" 2>&1) || _suites_cfgoverride_exit=$?
+assert_eq "test_project_detect_suites_config_overrides_autodiscovered: exits 0" \
+    "0" "$_suites_cfgoverride_exit"
+# Validate: ONE entry for name=unit, command=custom-unit-cmd, runner=config
+_suites_cfgoverride_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    unit_entries = [e for e in data if e.get('name') == 'unit']
+    errors = []
+    if len(unit_entries) == 0:
+        errors.append('no entry with name=unit')
+    elif len(unit_entries) > 1:
+        errors.append('duplicate: found %d entries with name=unit, expected 1' % len(unit_entries))
+    else:
+        entry = unit_entries[0]
+        if entry.get('command') != 'custom-unit-cmd':
+            errors.append('command=%s, expected custom-unit-cmd' % entry.get('command'))
+        if entry.get('runner') != 'config':
+            errors.append('runner=%s, expected config' % entry.get('runner'))
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_cfgoverride_out" 2>&1)
+assert_eq "test_project_detect_suites_config_overrides_autodiscovered: config wins" \
+    "valid" "$_suites_cfgoverride_valid"
+assert_pass_if_clean "test_project_detect_suites_config_overrides_autodiscovered"
+
+# test_project_detect_suites_fixture_acceptance: full fixture per story Done
+# Definition #4 — repo with Makefile 'test-unit' and 'test-e2e', a tests/models/
+# dir with test_model.py, and config test.suite.custom.command='bash run-custom.sh';
+# assert JSON output has exactly 4 entries (name: unit/make, e2e/make, models/pytest,
+# custom/config); each entry has all required fields.
+_snapshot_fail
+_suites_accept_dir="$TMPDIR_FIXTURE/suites_acceptance_project"
+mkdir -p "$_suites_accept_dir/.claude"
+mkdir -p "$_suites_accept_dir/tests/models"
+cat > "$_suites_accept_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit test-e2e lint format
+
+test-unit:
+	pytest tests/unit/
+
+test-e2e:
+	pytest tests/e2e/
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+cat > "$_suites_accept_dir/tests/models/test_model.py" <<'PY'
+def test_placeholder():
+    pass
+PY
+cat > "$_suites_accept_dir/.claude/dso-config.conf" <<'CONF'
+test.suite.custom.command=bash run-custom.sh
+CONF
+_suites_accept_exit=0
+_suites_accept_out=$(bash "$SCRIPT" --suites "$_suites_accept_dir" 2>&1) || _suites_accept_exit=$?
+assert_eq "test_project_detect_suites_fixture_acceptance: exits 0" \
+    "0" "$_suites_accept_exit"
+# Validate: exactly 4 entries with correct names, runners, and all required fields
+_suites_accept_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    errors = []
+    # Must have exactly 4 entries
+    if len(data) != 4:
+        errors.append('expected 4 entries, got %d' % len(data))
+    # Build lookup by name
+    by_name = {}
+    for e in data:
+        by_name[e.get('name')] = e
+    # Check required entries
+    expected = {
+        'unit': 'make',
+        'e2e': 'make',
+        'models': 'pytest',
+        'custom': 'config',
+    }
+    for name, runner in expected.items():
+        if name not in by_name:
+            errors.append('missing entry name=%s' % name)
+        else:
+            entry = by_name[name]
+            if entry.get('runner') != runner:
+                errors.append('%s: runner=%s, expected %s' % (name, entry.get('runner'), runner))
+            # All required fields present
+            for field in ('name', 'command', 'speed_class', 'runner'):
+                if field not in entry:
+                    errors.append('%s: missing field %s' % (name, field))
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_accept_out" 2>&1)
+assert_eq "test_project_detect_suites_fixture_acceptance: 4 entries with correct fields" \
+    "valid" "$_suites_accept_valid"
+assert_pass_if_clean "test_project_detect_suites_fixture_acceptance"
+
 print_summary

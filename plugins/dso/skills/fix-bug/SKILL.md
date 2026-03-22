@@ -280,12 +280,14 @@ When presenting fixes for user approval, display:
 
 ### Step 4.5: Fix Complexity Evaluation (/dso:fix-bug)
 
-Before writing a RED test or implementing the fix, evaluate the complexity of the proposed fix scope using the shared complexity evaluator:
+Before writing a RED test or implementing the fix, evaluate the complexity of the proposed fix scope using the complexity-evaluator agent definition:
 
 ```
-Read: skills/shared/prompts/complexity-evaluator.md
+Read: plugins/dso/agents/complexity-evaluator.md
 Input: approved fix description, files affected, estimated change scope
 ```
+
+**Note**: fix-bug reads the complexity-evaluator agent definition inline (rather than dispatching a sub-agent) to avoid nested dispatch — fix-bug often runs as a sub-agent of debug-everything, and dispatching a sub-agent from within a sub-agent risks Critical Rule 23 failures. The agent definition file contains the same five-dimension rubric and classification rules.
 
 **TRIVIAL or MODERATE fix**: proceed to Step 5 (RED Test).
 

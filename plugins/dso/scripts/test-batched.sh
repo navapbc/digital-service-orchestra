@@ -121,8 +121,26 @@ trap '_signal_handler URG'  SIGURG
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 DEFAULT_TIMEOUT=50
-DEFAULT_STATE_FILE="${TEST_BATCHED_STATE_FILE:-/tmp/test-batched-state.json}"
 DEFAULT_STATE_TTL=14400  # 4 hours in seconds
+
+# Derive a repo/worktree-isolated default state file path.
+# Uses a hash of the git root directory so each repo and worktree gets its own
+# state file, preventing cross-session interference on the same machine.
+# Falls back to /tmp/test-batched-state.json when git is unavailable.
+_derive_default_state_file() {
+    local git_root
+    git_root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "/tmp/test-batched-state.json"; return; }
+    local hash
+    hash=$(echo -n "$git_root" | sha256sum 2>/dev/null | awk '{print $1}' || \
+           echo -n "$git_root" | python3 -c "import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())" 2>/dev/null)
+    if [ -n "$hash" ]; then
+        echo "/tmp/test-batched-state-${hash:0:12}.json"
+    else
+        echo "/tmp/test-batched-state.json"
+    fi
+}
+
+DEFAULT_STATE_FILE="${TEST_BATCHED_STATE_FILE:-$(_derive_default_state_file)}"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 TIMEOUT=$DEFAULT_TIMEOUT

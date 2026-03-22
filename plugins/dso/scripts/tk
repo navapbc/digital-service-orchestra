@@ -313,13 +313,19 @@ except Exception:
     else:
         inner = raw_deps.strip().lstrip('[').rstrip(']')
         deps = [s.strip().strip('\"').strip(chr(39)) for s in inner.split(',') if s.strip()]
-idx[os.environ['TICKET_ID']] = {
+tid = os.environ['TICKET_ID']
+# Preserve existing parent field if present (parent is not passed as an argument)
+existing_parent = idx.get(tid, {}).get('parent', '')
+entry = {
     'title':    os.environ['TICKET_TITLE'],
     'status':   os.environ['TICKET_STATUS'],
     'type':     os.environ['TICKET_TYPE'],
     'priority': priority,
     'deps':     deps,
 }
+if existing_parent:
+    entry['parent'] = existing_parent
+idx[tid] = entry
 print(json.dumps(idx, indent=2, sort_keys=True))
 " > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$index_file" || true
 }
@@ -399,7 +405,12 @@ for fname in files:
             title = line[2:].strip()
             break
 
-    idx[ticket_id] = {'title': title, 'status': status, 'type': type_, 'priority': priority, 'deps': deps}
+    parent = get_field('parent')
+
+    entry = {'title': title, 'status': status, 'type': type_, 'priority': priority, 'deps': deps}
+    if parent:
+        entry['parent'] = parent
+    idx[ticket_id] = entry
 
 print(json.dumps(idx))
 " 2>/dev/null || echo "{}"
@@ -602,6 +613,18 @@ cmd_close() {
         echo "Usage: $(basename "$0") close <id> [--reason=\"...\"]" >&2
         return 1
     fi
+
+    # Block epic closure when .test-index still contains RED marker entries.
+    # RED markers ([marker_name] syntax) are transient and must be removed
+    # before an epic is considered done.
+    local ticket_file
+    ticket_file=$(ticket_path "$id")
+    local ticket_type
+    ticket_type=$(yaml_field "$ticket_file" "type" 2>/dev/null || true)
+    if [[ "$ticket_type" == "epic" ]]; then
+        _check_red_markers_in_test_index || return 1
+    fi
+
     if [[ -n "$reason" ]]; then
         cmd_add_note "$id" "CLOSE REASON: $reason"
     fi
@@ -611,6 +634,60 @@ cmd_close() {
     # This prevents silent partial-close where the file is updated locally
     # but git commit fails, leaving main out of sync.
     _warn_if_venv_absent "$id"
+}
+
+# Scans .test-index for entries with [marker] syntax (RED zone markers).
+# Returns 0 if none found; prints an error and returns 1 if any are found.
+# Accepts TK_REPO_ROOT env var override for testing.
+_check_red_markers_in_test_index() {
+    local repo_root="${TK_REPO_ROOT:-}"
+    if [[ -z "$repo_root" ]]; then
+        repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    fi
+    local index_file="${repo_root}/.test-index"
+
+    # No .test-index = no markers to check; proceed normally.
+    [[ -f "$index_file" ]] || return 0
+
+    # Collect all [marker] entries from non-comment, non-blank lines.
+    # Format: source/path: test/path.sh [marker_name], ...
+    # A marker is the text inside [...] appearing after a test path on a
+    # non-comment line.
+    local red_marker_entries=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip blank lines and comment lines
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # Extract right-hand side (after the first colon)
+        local rhs="${line#*:}"
+
+        # Split on commas and look for [marker] tokens
+        IFS=',' read -ra parts <<< "$rhs"
+        for part in "${parts[@]}"; do
+            # Trim whitespace
+            part="${part#"${part%%[![:space:]]*}"}"
+            part="${part%"${part##*[![:space:]]}"}"
+            # Match "test/path.ext [marker_name]" pattern
+            if [[ "$part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                local marker_name="${BASH_REMATCH[2]}"
+                local test_path="${BASH_REMATCH[1]}"
+                red_marker_entries+=("${test_path} [${marker_name}]")
+            fi
+        done
+    done < "$index_file"
+
+    if [[ ${#red_marker_entries[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    echo "ERROR: Epic closure blocked — .test-index still contains RED markers." >&2
+    echo "  Remove all [marker] entries from .test-index before closing this epic." >&2
+    echo "  Stale RED markers found:" >&2
+    for entry in "${red_marker_entries[@]}"; do
+        echo "    $entry" >&2
+    done
+    return 1
 }
 
 # Prints a warning to stderr if the Python venv is absent, which means

@@ -29,6 +29,14 @@
 #   Line 2: diff_hash=<sha256>
 #   Line 3: timestamp=<ISO8601>
 #   Line 4: tested_files=<comma-separated list of test files run>
+#
+# .test-index format (extended):
+#   source/path.ext: test/path1.ext [first_red_test_name], test/path2.ext
+#   The optional [first_red_test_name] marker after a test path indicates the
+#   first test in the RED zone. Failures at or after this marker are tolerated
+#   (non-blocking). Failures before this marker still block. If the marker name
+#   is not found in the test file, a warning is emitted and behavior falls back
+#   to blocking. Entries without a [marker] are unaffected (backward compatible).
 
 set -euo pipefail
 
@@ -39,12 +47,13 @@ source "$HOOK_DIR/lib/fuzzy-match.sh"
 
 # ── .test-index parsing ──────────────────────────────────────────────────────
 # Reads $REPO_ROOT/.test-index and returns test paths mapped to a given source file.
-# Format per line: 'source/path.ext: test/path1.ext, test/path2.ext'
+# Format per line: 'source/path.ext: test/path1.ext [marker], test/path2.ext'
 #   - Lines starting with # are comments; blank lines are ignored
 #   - Colons and commas in paths are not supported
 #   - Empty right-hand side = no association for that line
-# Returns test paths on stdout, one per line. Missing file = no output (no error).
-# Nonexistent test paths are emitted as warnings to stderr and skipped.
+#   - Optional [first_red_test_name] after a test path enables RED zone tolerance
+# Returns lines on stdout: "test/path.ext" or "test/path.ext [marker_name]"
+# Missing file = no output (no error). Nonexistent test paths: warning to stderr, skipped.
 read_test_index_for_source() {
     local src_file="$1"
     local repo_root="${REPO_ROOT:-.}"
@@ -73,22 +82,137 @@ read_test_index_for_source() {
             continue
         fi
 
-        # Split right side on commas and emit each non-empty test path
+        # Split right side on commas and emit each non-empty test path (with optional [marker])
         IFS=',' read -ra parts <<< "$right"
         for part in "${parts[@]}"; do
-            # Trim whitespace
+            # Trim leading/trailing whitespace
             part="${part#"${part%%[![:space:]]*}"}"
             part="${part%"${part##*[![:space:]]}"}"
             if [[ -n "$part" ]]; then
-                local full_path="${repo_root}/${part}"
+                # Extract optional [marker_name] suffix: "test/path.ext [marker]"
+                local test_path marker_name
+                if [[ "$part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                    test_path="${BASH_REMATCH[1]}"
+                    marker_name="${BASH_REMATCH[2]}"
+                    # Trim trailing whitespace from test_path
+                    test_path="${test_path%"${test_path##*[![:space:]]}"}"
+                else
+                    test_path="$part"
+                    marker_name=""
+                fi
+
+                local full_path="${repo_root}/${test_path}"
                 if [[ ! -f "$full_path" ]]; then
-                    echo "WARNING: .test-index entry points to nonexistent file: $part" >&2
+                    echo "WARNING: .test-index entry points to nonexistent file: $test_path" >&2
                     continue
                 fi
-                echo "$part"
+                if [[ -n "$marker_name" ]]; then
+                    echo "${test_path} [${marker_name}]"
+                else
+                    echo "$test_path"
+                fi
             fi
         done
     done < "$index_file"
+}
+
+# ── RED zone helpers ──────────────────────────────────────────────────────────
+
+# get_red_zone_line_number: find line number of marker in a test file.
+# For Python: matches 'def marker_name' or 'def marker_name('
+# For Bash: matches 'marker_name()' or 'marker_name (' or '# marker_name' pattern
+# For plain text / other: matches any line containing the marker name
+# Returns the line number on stdout, or -1 if not found.
+# Emits WARNING to stderr if marker provided but not found.
+get_red_zone_line_number() {
+    local test_file="$1"
+    local marker_name="$2"
+    local repo_root="${REPO_ROOT:-.}"
+    local full_path="${repo_root}/${test_file}"
+
+    if [[ ! -f "$full_path" ]]; then
+        echo "-1"
+        return 0
+    fi
+
+    local line_num=0
+    local found_line=-1
+    # Word-boundary pattern: marker_name not adjacent to other identifier chars [a-zA-Z0-9_-]
+    # Hyphens are included so that searching for 'test-foo' does not match 'test-foo-bar',
+    # and searching for 'test' does not accidentally match 'test-foo'.
+    local pat_word_boundary="(^|[^a-zA-Z0-9_-])${marker_name}([^a-zA-Z0-9_-]|\$)"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        (( line_num++ )) || true
+        # Skip pure comment lines (lines starting with optional whitespace then #)
+        # to avoid false positives from comment-only mentions
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        # Match marker_name as a word (not adjacent to other identifier chars)
+        if [[ "$line" =~ $pat_word_boundary ]]; then
+            found_line=$line_num
+            break
+        fi
+    done < "$full_path"
+
+    if [[ $found_line -eq -1 ]]; then
+        echo "WARNING: RED marker '${marker_name}' not found in test file: ${test_file}" >&2
+    fi
+    echo "$found_line"
+}
+
+# parse_failing_tests_from_output: extract failing test names from test runner output.
+# Supports:
+#   - Bash-style: "test_name: FAIL..." lines
+#   - Pytest FAILED lines: "FAILED path/to/test.py::test_name"
+# Returns one test name per line on stdout.
+parse_failing_tests_from_output() {
+    local output_file="$1"
+
+    if [[ ! -f "$output_file" ]]; then
+        return 0
+    fi
+
+    # Bash-style: "test_name: FAIL" (test_name is word chars + underscores/hyphens)
+    grep -oE '^[a-zA-Z_][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*FAIL' "$output_file" \
+        | sed 's/[[:space:]]*:[[:space:]]*FAIL//' \
+        || true
+
+    # Pytest-style: "FAILED path/to/test.py::test_name"
+    grep -oE '^FAILED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*' "$output_file" \
+        | sed 's/^FAILED [^:]*:://' \
+        || true
+}
+
+# get_test_line_number: find the line number of a test function in a test file.
+# For Python: 'def test_name('
+# For Bash: 'test_name()' or any line containing test_name as a word
+# Returns -1 if not found.
+get_test_line_number() {
+    local test_file="$1"
+    local test_name="$2"
+    local repo_root="${REPO_ROOT:-.}"
+    local full_path="${repo_root}/${test_file}"
+
+    if [[ ! -f "$full_path" ]]; then
+        echo "-1"
+        return 0
+    fi
+
+    local line_num=0
+    # Word-boundary pattern: test_name not adjacent to other identifier chars [a-zA-Z0-9_-]
+    # Hyphens are included so that searching for 'test-foo' does not match 'test-foo-bar',
+    # and searching for 'test' does not accidentally match 'test-foo'.
+    local pat_word_boundary="(^|[^a-zA-Z0-9_-])${test_name}([^a-zA-Z0-9_-]|\$)"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        (( line_num++ )) || true
+        # Skip pure comment lines to avoid false positives
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        if [[ "$line" =~ $pat_word_boundary ]]; then
+            echo "$line_num"
+            return 0
+        fi
+    done < "$full_path"
+
+    echo "-1"
 }
 
 # Parse arguments
@@ -144,6 +268,10 @@ fi
 
 # --- Discover associated test files ---
 ASSOCIATED_TESTS=()
+# Parallel array: RED marker for each entry in ASSOCIATED_TESTS (empty string = no marker)
+ASSOCIATED_TEST_MARKERS=()
+# Associative map: test_file -> marker (to preserve markers through dedup)
+declare -A _TEST_MARKER_MAP=()
 
 # Discover associated test files using fuzzy matching
 while IFS= read -r src_file; do
@@ -154,7 +282,7 @@ while IFS= read -r src_file; do
         continue
     fi
 
-    # Collect from fuzzy matching
+    # Collect from fuzzy matching (no markers from fuzzy match)
     while IFS= read -r test_file; do
         [[ -z "$test_file" ]] && continue
         full_test_path="$REPO_ROOT/$test_file"
@@ -170,27 +298,50 @@ while IFS= read -r src_file; do
         fi
 
         ASSOCIATED_TESTS+=("$test_file")
+        # No marker from fuzzy match; only set if not already set by .test-index
+        if [[ -z "${_TEST_MARKER_MAP[$test_file]+set}" ]]; then
+            _TEST_MARKER_MAP["$test_file"]=""
+        fi
     done < <(fuzzy_find_associated_tests "$src_file" "$REPO_ROOT" "$_TEST_DIRS")
 
-    # Collect from .test-index (union with fuzzy results; dedup happens below)
-    while IFS= read -r test_file; do
-        [[ -z "$test_file" ]] && continue
-        full_test_path="$REPO_ROOT/$test_file"
+    # Collect from .test-index (union with fuzzy results; may include [marker])
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
 
-        if [[ "$test_file" == *.sh ]] && [[ ! -x "$full_test_path" ]]; then
-            echo "WARNING: skipping non-executable shell test: $test_file" >&2
+        # Parse "test/path.ext [marker_name]" or just "test/path.ext"
+        local_test_file=""
+        local_marker=""
+        if [[ "$entry" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+            local_test_file="${BASH_REMATCH[1]}"
+            local_marker="${BASH_REMATCH[2]}"
+        else
+            local_test_file="$entry"
+            local_marker=""
+        fi
+
+        full_test_path="$REPO_ROOT/$local_test_file"
+
+        if [[ "$local_test_file" == *.sh ]] && [[ ! -x "$full_test_path" ]]; then
+            echo "WARNING: skipping non-executable shell test: $local_test_file" >&2
             continue
         fi
 
-        ASSOCIATED_TESTS+=("$test_file")
+        ASSOCIATED_TESTS+=("$local_test_file")
+        # .test-index marker wins over fuzzy (no marker)
+        _TEST_MARKER_MAP["$local_test_file"]="$local_marker"
     done < <(read_test_index_for_source "$src_file")
 
 done <<< "$STAGED_FILES"
 
-# Deduplicate
+# Deduplicate (preserving markers via the map)
 if [[ ${#ASSOCIATED_TESTS[@]} -gt 0 ]]; then
     readarray -t ASSOCIATED_TESTS < <(printf '%s\n' "${ASSOCIATED_TESTS[@]}" | sort -u)
 fi
+# Rebuild marker array in the same order as deduplicated ASSOCIATED_TESTS
+ASSOCIATED_TEST_MARKERS=()
+for _tf in "${ASSOCIATED_TESTS[@]}"; do
+    ASSOCIATED_TEST_MARKERS+=("${_TEST_MARKER_MAP[$_tf]:-}")
+done
 
 # --- No associated tests: exit cleanly (exempt) ---
 if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]]; then
@@ -204,12 +355,32 @@ fi
 # alter the untracked file list and produce a different hash.
 DIFF_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
 
+# --- Guard: clear stale status when code changed since last recorded test run ---
+# If an existing 'passed' status was recorded for a DIFFERENT hash, clear it so
+# the test loop below re-runs tests against the current code (dso-6x8o).
+_EXISTING_STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
+if [[ -f "$_EXISTING_STATUS_FILE" ]]; then
+    _EXISTING_STATUS=$(head -1 "$_EXISTING_STATUS_FILE" 2>/dev/null || echo "")
+    _EXISTING_HASH=$(grep '^diff_hash=' "$_EXISTING_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2 || echo "")
+    if [[ "$_EXISTING_STATUS" == "passed" ]] && [[ -n "$_EXISTING_HASH" ]] && [[ "$_EXISTING_HASH" != "$DIFF_HASH" ]]; then
+        echo "WARNING: stale test-gate-status cleared — re-running tests for current hash." >&2
+        echo "  Previously passed hash: ${_EXISTING_HASH:0:12}..." >&2
+        echo "  Current diff hash:      ${DIFF_HASH:0:12}..." >&2
+        rm -f "$_EXISTING_STATUS_FILE"
+    fi
+fi
+
+
 # --- Run associated tests ---
 STATUS="passed"
 HAD_TIMEOUT=false
 TESTED_FILES_LIST=""
 
+_test_idx=0
 for test_file in "${ASSOCIATED_TESTS[@]}"; do
+    red_marker="${ASSOCIATED_TEST_MARKERS[$_test_idx]:-}"
+    (( _test_idx++ )) || true
+
     [[ -z "$test_file" ]] && continue
 
     full_test_path="$REPO_ROOT/$test_file"
@@ -236,7 +407,87 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
         bash "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?
     fi
 
-    # Display output on failure so the user can diagnose without re-running
+    # Handle test failure with RED marker logic
+    if [[ $exit_code -eq 144 ]]; then
+        rm -f "$test_output_file"
+        STATUS="timeout"
+        HAD_TIMEOUT=true
+        continue
+    fi
+
+    if [[ $exit_code -ne 0 ]] && [[ -n "$red_marker" ]]; then
+        # RED marker present — check if all failures are in the RED zone
+        red_zone_line=$(get_red_zone_line_number "$test_file" "$red_marker")
+
+        if [[ "$red_zone_line" -eq -1 ]]; then
+            # Marker not found in file: warn (already done in get_red_zone_line_number) and block
+            echo "--- Test output for $test_file (exit $exit_code) ---" >&2
+            cat "$test_output_file" >&2
+            echo "--- End of test output ---" >&2
+            rm -f "$test_output_file"
+            if [[ "$STATUS" != "timeout" ]]; then
+                STATUS="failed"
+            fi
+            continue
+        fi
+
+        # Parse failing test names from output
+        mapfile -t failing_tests < <(parse_failing_tests_from_output "$test_output_file")
+
+        if [[ ${#failing_tests[@]} -eq 0 ]]; then
+            # Fail-safe: can't parse failing tests → block
+            echo "WARNING: RED marker '${red_marker}' set for ${test_file} but could not parse failing test names from output; treating as blocking failure." >&2
+            echo "--- Test output for $test_file (exit $exit_code) ---" >&2
+            cat "$test_output_file" >&2
+            echo "--- End of test output ---" >&2
+            rm -f "$test_output_file"
+            if [[ "$STATUS" != "timeout" ]]; then
+                STATUS="failed"
+            fi
+            continue
+        fi
+
+        # Check each failing test's position against the RED zone start
+        all_in_red_zone=true
+        for failing_test in "${failing_tests[@]}"; do
+            [[ -z "$failing_test" ]] && continue
+            test_line=$(get_test_line_number "$test_file" "$failing_test")
+            if [[ "$test_line" -eq -1 ]]; then
+                # Can't locate the test in the file — treat conservatively
+                # If the failing test name IS the marker, it's in the RED zone (at marker)
+                if [[ "$failing_test" == "$red_marker" ]]; then
+                    continue
+                fi
+                # Unknown position — fall back to blocking for this test
+                all_in_red_zone=false
+                break
+            fi
+            if [[ "$test_line" -lt "$red_zone_line" ]]; then
+                all_in_red_zone=false
+                break
+            fi
+        done
+
+        if [[ "$all_in_red_zone" == true ]]; then
+            # All failures are in the RED zone — tolerate
+            echo "INFO: RED zone failures tolerated for ${test_file} (marker: ${red_marker}, zone starts line ${red_zone_line})" >&2
+            rm -f "$test_output_file"
+            # Do NOT downgrade STATUS — this test is non-blocking
+            continue
+        else
+            # Some failures are before the RED zone — block
+            echo "--- Test output for $test_file (exit $exit_code) ---" >&2
+            cat "$test_output_file" >&2
+            echo "--- End of test output ---" >&2
+            rm -f "$test_output_file"
+            if [[ "$STATUS" != "timeout" ]]; then
+                STATUS="failed"
+            fi
+            continue
+        fi
+    fi
+
+    # No RED marker (or test passed) — standard behavior
     if [[ $exit_code -ne 0 ]]; then
         echo "--- Test output for $test_file (exit $exit_code) ---" >&2
         cat "$test_output_file" >&2
@@ -245,10 +496,7 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     rm -f "$test_output_file"
 
     # Apply severity hierarchy: timeout > failed > passed (never downgrade severity)
-    if [[ $exit_code -eq 144 ]]; then
-        STATUS="timeout"
-        HAD_TIMEOUT=true
-    elif [[ $exit_code -ne 0 ]] && [[ "$STATUS" != "timeout" ]]; then
+    if [[ $exit_code -ne 0 ]] && [[ "$STATUS" != "timeout" ]]; then
         STATUS="failed"
     fi
 done

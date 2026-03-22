@@ -223,7 +223,11 @@ is_old_enough() {
 
     if [[ "$created_epoch" -eq 0 ]]; then
         # Fall back to mtime of the directory
-        created_epoch=$(stat -f %m "$wt_path" 2>/dev/null || stat -c %Y "$wt_path" 2>/dev/null || echo "0")
+        if [[ "$(uname)" == "Darwin" ]]; then
+            created_epoch=$(stat -f %m "$wt_path" 2>/dev/null || echo "0")
+        else
+            created_epoch=$(stat -c %Y "$wt_path" 2>/dev/null || echo "0")
+        fi
     fi
 
     local now_epoch

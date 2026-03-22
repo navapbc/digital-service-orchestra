@@ -82,50 +82,15 @@ If code conflicts exist: proceed to Step 2.
 
 ### 2. Analyze Conflicts
 
-Dispatch a **sonnet-tier sub-agent** (via Task tool, `subagent_type: "general-purpose"`, `model: "sonnet"`) with this prompt structure:
-
-```
-You are analyzing git merge conflicts to propose resolutions.
-
-For each conflicted file, I will provide:
-- The file path
-- The conflict markers (full content with <<<<<<< / ======= / >>>>>>>)
-- Recent commits on each side that touched this file
-
-Your job: classify each conflict and propose a resolution.
-
-CONFLICT CLASSIFICATIONS:
-
-TRIVIAL — Auto-resolvable with high confidence:
-- Import ordering differences (both sides added different imports)
-- Non-overlapping additions (both sides added code in the same region but the additions don't interact)
-- Whitespace or formatting differences
-- Both sides made the identical change (duplicate work)
-- One side added code, the other only moved/reformatted nearby code
-
-SEMANTIC — Resolvable but needs human review:
-- Both sides modified the same function with compatible intent (e.g., one added a parameter, the other changed the body)
-- Both sides changed the same config/constant to different values
-- One side refactored code that the other side extended
-
-AMBIGUOUS — Cannot resolve without human decision:
-- Both sides changed the same logic with conflicting intent
-- Architectural disagreements (e.g., one side deleted a function the other side modified)
-- Changes where the correct merge depends on product requirements, not code logic
-
-For each file, output:
-1. File path
-2. Classification: TRIVIAL | SEMANTIC | AMBIGUOUS
-3. Proposed resolution (the merged code)
-4. Explanation: what each side intended and how you merged them
-5. Confidence: HIGH | MEDIUM | LOW
-```
+Dispatch the **`dso:conflict-analyzer`** dedicated agent (via Task tool, `subagent_type: "dso:conflict-analyzer"`) with the following context:
 
 Include in the sub-agent prompt:
 - The content of each conflicted file (with markers)
 - `git log main..<branch> --oneline -- <file>` for each file (branch-side intent)
 - `git log <merge-base>..main --oneline -- <file>` for each file (main-side intent)
 - Any ticket issue context from the branch name or commit messages
+
+**Fallback**: If the `dso:conflict-analyzer` agent file is missing (e.g., plugin not installed), fall back to `subagent_type: "general-purpose"` with model `sonnet` and include the full conflict classification procedure inline. Log a warning: "Fallback: dso:conflict-analyzer agent not found; using general-purpose with inline prompt."
 
 ### 3. Resolve
 

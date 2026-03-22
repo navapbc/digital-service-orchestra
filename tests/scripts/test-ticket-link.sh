@@ -697,4 +697,125 @@ test_ticket_unlink_already_unlinked() {
 }
 test_ticket_unlink_already_unlinked
 
+# ── Test 9: same-second LINK+UNLINK — sort order must not allow UNLINK before LINK ─
+echo "Test 9: same-second LINK+UNLINK event filenames always replay LINK before UNLINK regardless of UUID sort order"
+test_ticket_link_unlink_same_second_ordering() {
+    _snapshot_fail
+
+    # RED: ticket-link.sh must not exist yet
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_link_unlink_same_second_ordering"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Same-second source")
+    id2=$(_create_ticket "$repo" task "Same-second target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for same-second ordering test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_unlink_same_second_ordering"
+        return
+    fi
+
+    # Write a real LINK event first to get a valid link_uuid
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocks 2>/dev/null) || true
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || true
+
+    # Now craft a scenario where we manually rename the event files to share the same
+    # timestamp second and use UUIDs where UNLINK's UUID sorts before LINK's UUID.
+    # This directly exercises the filename sort-order bug.
+    local result
+    result=$(python3 - "$tracker_dir" "$id1" "$id2" <<'PYEOF'
+import json, sys, pathlib, shutil
+
+tracker_dir = pathlib.Path(sys.argv[1])
+source_id = sys.argv[2]
+target_id = sys.argv[3]
+
+ticket_dir = tracker_dir / source_id
+
+# Find existing LINK and UNLINK event files
+link_files = sorted(ticket_dir.glob('*-LINK.json'))
+unlink_files = sorted(ticket_dir.glob('*-UNLINK.json'))
+
+if not link_files or not unlink_files:
+    print("SETUP_ERROR: no LINK or UNLINK events found after link+unlink")
+    sys.exit(1)
+
+link_file = link_files[-1]
+unlink_file = unlink_files[-1]
+
+# Craft filenames where UNLINK sorts before LINK (same timestamp, unlink_uuid < link_uuid alpha)
+# Use a fixed timestamp and controlled UUIDs to guarantee the bad ordering
+same_ts = 1000000000
+# '00000000-...' < 'ffffffff-...' alphabetically, so UNLINK sorts before LINK
+crafted_link_name   = f"{same_ts}-ffffffff-0000-0000-0000-000000000000-LINK.json"
+crafted_unlink_name = f"{same_ts}-00000000-0000-0000-0000-000000000000-UNLINK.json"
+
+crafted_link_path   = ticket_dir / crafted_link_name
+crafted_unlink_path = ticket_dir / crafted_unlink_name
+
+shutil.copy2(link_file, crafted_link_path)
+shutil.copy2(unlink_file, crafted_unlink_path)
+
+# Remove the original files to make crafted files the only events
+link_file.unlink()
+unlink_file.unlink()
+
+# Verify: sorted order puts UNLINK before LINK
+all_files = sorted(f.name for f in ticket_dir.glob('*-*.json') if not f.name.startswith('.'))
+if not all_files:
+    print("SETUP_ERROR: no event files after crafting")
+    sys.exit(1)
+
+first = all_files[0]
+if first.endswith('-UNLINK.json'):
+    print(f"ORDERING_CONFIRMED: UNLINK sorts before LINK — {all_files}")
+else:
+    print(f"ORDERING_REVERSED: LINK sorts before UNLINK — {all_files}")
+sys.exit(0)
+PYEOF
+)
+
+    # Confirm the crafted files produce the bad sort order (prerequisite for the test)
+    if echo "$result" | grep -q "ORDERING_CONFIRMED"; then
+        assert_eq "same-second ordering: crafted files produce UNLINK-before-LINK sort order" "ORDERING_CONFIRMED" "ORDERING_CONFIRMED"
+    elif echo "$result" | grep -q "ORDERING_REVERSED"; then
+        # Crafted UUIDs don't produce the bad order — skip (precondition invalid)
+        assert_eq "same-second ordering: crafted files produce UNLINK-before-LINK sort order (precondition)" "ORDERING_CONFIRMED" "ORDERING_REVERSED_PRECONDITION_INVALID"
+        assert_pass_if_clean "test_ticket_link_unlink_same_second_ordering"
+        return
+    else
+        assert_eq "same-second ordering: setup succeeded" "ORDERING_CONFIRMED" "$result"
+        assert_pass_if_clean "test_ticket_link_unlink_same_second_ordering"
+        return
+    fi
+
+    # Now attempt a second unlink — with the bad sort order, the link appears active again,
+    # so the unlink would incorrectly SUCCEED (exit 0) and write a second UNLINK event.
+    # After the fix, this must exit non-zero (link is net-inactive).
+    local exit_code=0
+    local unlink_count_before
+    unlink_count_before=$(_count_unlink_events "$tracker_dir" "$id1")
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || exit_code=$?
+
+    # With the bug present: exits 0 (falsely treats link as active due to bad sort order)
+    # With the fix present: exits non-zero (correctly detects link is net-inactive)
+    assert_eq "same-second ordering: second unlink exits non-zero (link is net-inactive)" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: no additional UNLINK event written
+    local unlink_count_after
+    unlink_count_after=$(_count_unlink_events "$tracker_dir" "$id1")
+    assert_eq "same-second ordering: UNLINK count unchanged after failed second unlink" "$unlink_count_before" "$unlink_count_after"
+
+    assert_pass_if_clean "test_ticket_link_unlink_same_second_ordering"
+}
+test_ticket_link_unlink_same_second_ordering
+
 print_summary
