@@ -1,6 +1,6 @@
 ---
 id: dso-4u0s
-status: in_progress
+status: closed
 deps: [dso-fj1t]
 links: []
 created: 2026-03-22T03:27:34Z
