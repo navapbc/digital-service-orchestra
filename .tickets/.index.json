@@ -1,0 +1,9 @@
+{
+  "dso-jjli": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "merge-to-main.sh 'merge' phase name misleads agents into thinking code is on main",
+    "type": "bug"
+  }
+}
