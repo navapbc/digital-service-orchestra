@@ -120,7 +120,7 @@ else
     case "$REVIEW_TIER" in
         light)    REVIEW_AGENT="dso:code-reviewer-light" ;;
         standard) REVIEW_AGENT="dso:code-reviewer-standard" ;;
-        deep)     REVIEW_AGENT="dso:code-reviewer-deep-correctness" ;;  # Deep multi-reviewer dispatch comes in w21-txt8
+        deep)     REVIEW_AGENT="deep-multi-reviewer" ;;  # Dispatches 3 parallel sonnet agents — see Step 4 Deep Tier section
         *)        REVIEW_TIER="standard"; REVIEW_AGENT="dso:code-reviewer-standard" ;;
     esac
 fi
@@ -141,7 +141,7 @@ Dispatch the named review agent selected by the classifier in Step 3. The named 
 |---|---|---|
 | `light` | `dso:code-reviewer-light` | haiku |
 | `standard` | `dso:code-reviewer-standard` | sonnet |
-| `deep` | `dso:code-reviewer-deep-correctness` | opus (full parallel multi-reviewer dispatch comes in w21-txt8) |
+| `deep` | 3 parallel sonnet agents (see Deep Tier below) | sonnet |
 
 ### Per-Review Context (prompt content)
 
@@ -162,7 +162,9 @@ To view full issue details, run: tk show {issue_id}
 
 If no issue is associated with the current work, omit the issue context section.
 
-### Dispatch
+### Dispatch (Light / Standard Tiers)
+
+For `light` and `standard` tiers, dispatch a single named review agent:
 
 ```
 Task tool:
@@ -181,6 +183,67 @@ Task tool:
 ```
 
 **NEVER set `isolation: "worktree"` on this sub-agent.** The reviewer must read `reviewer-findings.json` and run `write-reviewer-findings.sh` in the same working directory as the orchestrator. Worktree isolation gives the agent a separate branch where those files are not present, causing the review to fail.
+
+### Deep Tier: 3 Parallel Sonnet Dispatch
+
+When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single message. Each agent focuses on a different review dimension. All three receive the same `DIFF_FILE`, `REPO_ROOT`, and `STAT_FILE` — no issue-context sharing is needed between them.
+
+| Slot | Named Agent | Temp Findings File |
+|------|-------------|-------------------|
+| a | `dso:code-reviewer-deep-correctness` | `$ARTIFACTS_DIR/reviewer-findings-a.json` |
+| b | `dso:code-reviewer-deep-verification` | `$ARTIFACTS_DIR/reviewer-findings-b.json` |
+| c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
+
+Dispatch all three in a single message (parallel launch). Each agent writes directly to its slot-specific findings path — pass `FINDINGS_OUTPUT` in the prompt so the agent writes to the correct file via `write-reviewer-findings.sh --output`:
+
+```
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-correctness"
+  description: "Deep review: correctness"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+    FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-a.json
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-verification"
+  description: "Deep review: verification"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+    FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-b.json
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-hygiene"
+  description: "Deep review: hygiene"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+    FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-c.json
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+```
+
+**No post-return copy step is needed** — each agent writes directly to its unique slot path, eliminating the parallel write race condition. The opus architectural reviewer (see downstream task) consumes all three slot files (`reviewer-findings-{a,b,c}.json`).
 
 **Retry on malformed output:** If the sub-agent does not return the fixed format (`REVIEW_RESULT:`, `REVIEWER_HASH=`, etc.) or does not include `REVIEWER_HASH=`, re-dispatch with a correction prompt. Never fabricate scores.
 
@@ -264,7 +327,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and u
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
 - `{issue_ids}`: issue IDs associated with the current work (for `tk create` defers), or empty string
-- `{cached_model}`: model name derived from `REVIEW_TIER` in Step 3 (`light`→`haiku`, `standard`→`sonnet`, `deep`→`opus`)
+- `{cached_model}`: model name derived from `REVIEW_TIER` in Step 3 (`light`→`haiku`, `standard`→`sonnet`, `deep`→`sonnet`)
 
 ```
 Task tool:
