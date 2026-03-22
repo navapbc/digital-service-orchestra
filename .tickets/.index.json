@@ -331,6 +331,15 @@
     "title": "IMPL: Exclude .test-index from compute-diff-hash.sh and review-gate-allowlist.conf",
     "type": "task"
   },
+  "dso-7bqs": {
+    "deps": [
+      "dso-z9qw"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Document validation signal thresholds and breach response protocol in REVIEW-WORKFLOW.md",
+    "type": "task"
+  },
   "dso-7hj9": {
     "deps": [
       "dso-guue"
@@ -745,6 +754,13 @@
     "status": "open",
     "title": "debug-everything validation prompts use soft \"Do NOT fix\" language instead of hard-stop READ-ONLY ENFORCEMENT",
     "type": "bug"
+  },
+  "dso-gifa": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "RED tests: classifier telemetry writes valid JSONL entry to ARTIFACTS_DIR",
+    "type": "task"
   },
   "dso-gjww": {
     "deps": [],
@@ -1495,6 +1511,15 @@
     "title": "Implement REVERT check-before-overwrite in bridge-outbound.py",
     "type": "task"
   },
+  "dso-z9qw": {
+    "deps": [
+      "dso-gifa"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Verify classifier telemetry output matches contract spec; fix any field gaps",
+    "type": "task"
+  },
   "dso-za4o": {
     "deps": [
       "dso-qwrw"
@@ -1502,6 +1527,15 @@
     "priority": 1,
     "status": "open",
     "title": "Implement BRIDGE_ALERT detection in ticket-reducer.py: add bridge_alerts to compiled state",
+    "type": "task"
+  },
+  "dso-zcge": {
+    "deps": [
+      "dso-z9qw"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Create contract document plugins/dso/docs/contracts/classifier-telemetry.md",
     "type": "task"
   },
   "dso-zej9": {
