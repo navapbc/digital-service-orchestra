@@ -77,6 +77,16 @@
     "title": "RED: Write failing tests for .test-index parsing and union merge in test-pre-commit-test-gate.sh",
     "type": "task"
   },
+  "dso-4mlr": {
+    "deps": [
+      "dso-fj1t",
+      "dso-4u0s"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect RED test gate tolerance",
+    "type": "story"
+  },
   "dso-4nm5": {
     "deps": [],
     "priority": 4,
@@ -90,6 +100,15 @@
     "status": "open",
     "title": "Cleanup tests",
     "type": "epic"
+  },
+  "dso-4u0s": {
+    "deps": [
+      "dso-fj1t"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a developer, epic closure is blocked until all RED markers are removed from .test-index",
+    "type": "story"
   },
   "dso-5ooy": {
     "deps": [
@@ -262,6 +281,13 @@
     "title": "Add a workflow-config flag that creates PRs instead of merging to main",
     "type": "epic"
   },
+  "dso-d3gr": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED Test Gate Tolerance",
+    "type": "epic"
+  },
   "dso-d8gi": {
     "deps": [
       "dso-x1jt",
@@ -304,6 +330,13 @@
     "status": "open",
     "title": "IMPL: Rewrite pre-commit-test-gate.sh to use fuzzy-match.sh for multi-stack test association",
     "type": "task"
+  },
+  "dso-fj1t": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, record-test-status.sh tolerates failures in RED-flagged test zones",
+    "type": "story"
   },
   "dso-fucm": {
     "deps": [],
