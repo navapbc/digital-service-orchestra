@@ -393,6 +393,112 @@ teardown_temp_dir
 assert_pass_if_clean "test_deep_tier_documents_orchestrator_copy_step"
 
 # ============================================================
+# Opus Architectural Reviewer Dispatch Tests (dso-spfe)
+# ============================================================
+
+echo ""
+echo "--- Opus arch reviewer dispatch ---"
+
+# test_deep_arch_reviewer_dispatched_after_sonnets
+# Verify that REVIEW-WORKFLOW.md documents dispatching dso:code-reviewer-deep-arch
+# after the 3 parallel sonnet agents (correctness/verification/hygiene) complete.
+# RED: REVIEW-WORKFLOW.md does not yet document the opus arch reviewer dispatch step.
+_snapshot_fail
+setup_temp_dir
+
+arch_dispatch_documented=false
+
+# Check that the workflow documents dispatching code-reviewer-deep-arch after sonnets
+if grep -q 'code-reviewer-deep-arch' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    # Must also document that it runs AFTER the 3 sonnet agents complete
+    if grep -qE 'after.*sonnet|after.*parallel|after.*three|after.*3.*agents|sonnet.*complete.*arch|arch.*after' "$REVIEW_WORKFLOW" 2>/dev/null; then
+        arch_dispatch_documented=true
+    fi
+fi
+
+assert_eq "test_deep_arch_reviewer_dispatched_after_sonnets: workflow should document dispatching dso:code-reviewer-deep-arch after 3 sonnet agents complete" "true" "$arch_dispatch_documented"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_arch_reviewer_dispatched_after_sonnets"
+
+# test_deep_arch_prompt_includes_inline_findings
+# Verify that REVIEW-WORKFLOW.md documents injecting SONNET-A FINDINGS, SONNET-B FINDINGS,
+# SONNET-C FINDINGS into the opus dispatch prompt (matching the input format expected by
+# code-reviewer-deep-arch.md).
+# RED: REVIEW-WORKFLOW.md does not yet document inline findings injection.
+_snapshot_fail
+setup_temp_dir
+
+findings_a_inline=false
+findings_b_inline=false
+findings_c_inline=false
+
+if grep -q 'SONNET-A FINDINGS\|SONNET_A_FINDINGS\|sonnet-a.*findings\|findings-a.*inline\|FINDINGS_A' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    findings_a_inline=true
+fi
+if grep -q 'SONNET-B FINDINGS\|SONNET_B_FINDINGS\|sonnet-b.*findings\|findings-b.*inline\|FINDINGS_B' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    findings_b_inline=true
+fi
+if grep -q 'SONNET-C FINDINGS\|SONNET_C_FINDINGS\|sonnet-c.*findings\|findings-c.*inline\|FINDINGS_C' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    findings_c_inline=true
+fi
+
+all_findings_inline=false
+if [[ "$findings_a_inline" == "true" && "$findings_b_inline" == "true" && "$findings_c_inline" == "true" ]]; then
+    all_findings_inline=true
+fi
+
+assert_eq "test_deep_arch_prompt_includes_inline_findings: workflow should document injecting SONNET-A/B/C FINDINGS into opus arch dispatch prompt" "true" "$all_findings_inline"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_arch_prompt_includes_inline_findings"
+
+# test_deep_arch_writes_authoritative_findings
+# Verify that REVIEW-WORKFLOW.md documents dso:code-reviewer-deep-arch as the sole writer
+# of the final reviewer-findings.json in deep tier (not any of the sonnet agents).
+# RED: REVIEW-WORKFLOW.md does not yet document the arch reviewer writing authoritative findings.
+_snapshot_fail
+setup_temp_dir
+
+arch_writes_final=false
+
+# Check that the workflow documents the arch reviewer writing the final/authoritative reviewer-findings.json
+if grep -q 'code-reviewer-deep-arch' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    # Must document that it writes the authoritative/final reviewer-findings.json
+    if grep -qE 'deep-arch.*(authoritative|final).*findings|authoritative.*reviewer-findings|arch.*writes.*reviewer-findings\.json' "$REVIEW_WORKFLOW" 2>/dev/null; then
+        arch_writes_final=true
+    fi
+fi
+
+assert_eq "test_deep_arch_writes_authoritative_findings: workflow should document dso:code-reviewer-deep-arch as sole writer of final reviewer-findings.json" "true" "$arch_writes_final"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_arch_writes_authoritative_findings"
+
+# test_deep_tier_single_writer_invariant
+# Verify that REVIEW-WORKFLOW.md does NOT document sonnet agents writing to the final
+# reviewer-findings.json path — only to temp a/b/c paths. The arch reviewer is the
+# single authoritative writer of the final findings file.
+# RED: REVIEW-WORKFLOW.md does not yet explicitly state the single-writer invariant.
+_snapshot_fail
+setup_temp_dir
+
+single_writer_invariant=false
+
+# The invariant requires:
+# 1. Sonnet agents write only to temp paths (reviewer-findings-{a,b,c}.json) — already documented
+# 2. The workflow explicitly states that only the arch reviewer writes to reviewer-findings.json (not temp paths)
+# Check for explicit single-writer documentation
+if grep -qE 'single.*writer|sole.*writer|only.*arch.*writes|arch.*only.*writer|one.*authoritative|single.*authoritative' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    single_writer_invariant=true
+fi
+
+assert_eq "test_deep_tier_single_writer_invariant: workflow should document single-writer invariant (only arch reviewer writes final reviewer-findings.json)" "true" "$single_writer_invariant"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_tier_single_writer_invariant"
+
+# ============================================================
 # Summary
 # ============================================================
 
