@@ -34,6 +34,13 @@
     "title": "Project level config flags to modify behavior",
     "type": "epic"
   },
+  "dso-141j": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, Jira bridge environment variables are configured with guided prompts",
+    "type": "story"
+  },
   "dso-1s1t": {
     "deps": [
       "dso-ncv2"
@@ -119,6 +126,17 @@
     "title": "As a DSO practitioner, deprecated sub-agent templates have consistent anti-cover-up guidance",
     "type": "story"
   },
+  "dso-6hb0": {
+    "deps": [
+      "dso-97xo",
+      "dso-141j",
+      "dso-mcq0"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a new user, the project setup skill guides me through Jira bridge configuration",
+    "type": "story"
+  },
   "dso-6r3o": {
     "deps": [],
     "parent": "dso-uu13",
@@ -165,6 +183,13 @@
     "status": "open",
     "title": "Fix: deduplicate sed function-body extractions in test-tk-sync-force-local.sh",
     "type": "bug"
+  },
+  "dso-97xo": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, the tickets branch is created and configured for Jira bridge workflows",
+    "type": "story"
   },
   "dso-9fgn": {
     "deps": [],
@@ -495,6 +520,16 @@
     "status": "open",
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
+  },
+  "dso-mcq0": {
+    "deps": [
+      "dso-97xo",
+      "dso-141j"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, the inbound bridge cron schedule is re-enabled after infrastructure is ready",
+    "type": "story"
   },
   "dso-ncv2": {
     "deps": [
