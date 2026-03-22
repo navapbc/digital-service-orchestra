@@ -1,6 +1,6 @@
 ---
 id: w22-oy6z
-status: in_progress
+status: closed
 deps: [w22-ds0m]
 links: []
 created: 2026-03-22T07:04:20Z
