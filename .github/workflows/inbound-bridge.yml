@@ -1,14 +1,15 @@
-# Digital Service Orchestra — Outbound Bridge
-# Pushes local ticket changes to Jira when the tickets branch is updated.
+# Digital Service Orchestra — Inbound Bridge
+# Pulls Jira changes into local ticket system on a scheduled interval.
 
-name: Outbound Bridge
+name: Inbound Bridge
 
 on:
-  push:
-    branches:
-      - tickets
-    paths:
-      - '.tickets/**'
+  schedule:
+    # Pull from Jira every 30 minutes. To change the interval, edit this cron
+    # expression directly — GitHub Actions does not support expressions in cron
+    # schedule values, so it cannot be set via a repository variable.
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
 
 concurrency:
   group: jira-bridge
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   bridge:
-    name: Push tickets to Jira
+    name: Pull tickets from Jira
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -31,7 +32,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 1
+          ref: tickets
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -125,28 +127,29 @@ jobs:
             echo "ERROR: $HOME/.acli/acli.jar not found — download or extraction must have failed." >&2
             exit 1
           fi
-          cat > /usr/local/bin/acli <<'ACLI_WRAPPER'
-          #!/usr/bin/env bash
-          exec java -jar "$HOME/.acli/acli.jar" "$@"
-          ACLI_WRAPPER
+          printf '#!/usr/bin/env bash\nexec java -jar "$HOME/.acli/acli.jar" "$@"\n' > /usr/local/bin/acli
           chmod +x /usr/local/bin/acli
 
-      - name: Run outbound bridge
+      - name: Run inbound bridge
         id: run-bridge
         run: |
-          python3 plugins/dso/scripts/bridge-outbound.py
+          python3 plugins/dso/scripts/bridge-inbound.py
         env:
           JIRA_URL: ${{ secrets.JIRA_URL }}
           JIRA_USER: ${{ secrets.JIRA_USER }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
           GH_RUN_ID: ${{ github.run_id }}
+          INBOUND_CHECKPOINT_PATH: ${{ vars.INBOUND_CHECKPOINT_PATH || '.tickets-tracker/.inbound-checkpoint.json' }}
+          INBOUND_OVERLAP_BUFFER_MINUTES: ${{ vars.INBOUND_OVERLAP_BUFFER_MINUTES || '15' }}
+          INBOUND_STATUS_MAPPING: ${{ vars.INBOUND_STATUS_MAPPING || '{}' }}
+          INBOUND_TYPE_MAPPING: ${{ vars.INBOUND_TYPE_MAPPING || '{}' }}
 
-      - name: Commit SYNC events back to tickets branch
+      - name: Commit CREATE events back to tickets branch
         run: |
-          # Check if any new SYNC events were written
+          # Check if any new CREATE (or BRIDGE_ALERT) events were written
           if git diff --quiet HEAD -- .tickets-tracker/; then
-            echo "No SYNC events to commit — skipping."
+            echo "No CREATE events to commit — skipping."
             exit 0
           fi
 
@@ -157,7 +160,7 @@ jobs:
           git config user.email "${BRIDGE_BOT_EMAIL}"
 
           git add .tickets-tracker/
-          git commit -m "chore: sync SYNC events from Jira bridge [run ${{ github.run_id }}]"
+          git commit -m "chore: sync CREATE events from Jira inbound bridge [run ${{ github.run_id }}]"
           git push origin HEAD:tickets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -166,4 +169,4 @@ jobs:
 
       - name: Job timing report
         if: always()
-        run: echo "outbound-bridge completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        run: echo "inbound-bridge completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

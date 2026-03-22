@@ -1,6 +1,6 @@
 ---
 id: w21-zbx7
-status: open
+status: in_progress
 deps: [w21-99wp]
 links: []
 created: 2026-03-22T01:00:04Z
@@ -74,3 +74,12 @@ DOCUMENTATION: Update .claude/dso-config.conf comments or plugins/dso/docs/CONFI
 - [ ] ruff check passes on bridge-inbound.py (no regressions)
   Verify: cd $(git rev-parse --show-toplevel) && ruff check plugins/dso/scripts/bridge-inbound.py
 
+
+## Notes
+
+<!-- note-id: rln03b86 -->
+<!-- timestamp: 2026-03-22T02:46:58Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — Created .github/workflows/inbound-bridge.yml: schedule trigger (*/30 cron + workflow_dispatch), concurrency group jira-bridge (cancel-in-progress: false), skip-self guard (BRIDGE_BOT_LOGIN || dso-bridge[bot]), full ACLI download/checksum/extraction pattern copied from outbound, bridge-inbound.py invoked with env-var indirection for all Jira creds + config vars, CREATE events committed back to tickets branch via explicit git push origin HEAD:tickets, bot identity via env-var indirection, all actions pinned to @v4/@v5. YAML validated with python3 yaml.safe_load. 20/20 AC checks pass.
