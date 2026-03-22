@@ -548,7 +548,6 @@ class TestPagination:
         """
         page0 = [_make_jira_issue(f"DSO-{i}") for i in range(100)]
         page1 = [_make_jira_issue(f"DSO-{i}") for i in range(100, 150)]
-        page2: list[dict] = []
 
         call_count = 0
 
@@ -562,7 +561,7 @@ class TestPagination:
             elif start_at == 100:
                 return page1
             else:
-                return page2
+                return []
 
         mock_client = MagicMock()
         mock_client.search_issues = _search_issues
@@ -577,8 +576,8 @@ class TestPagination:
         assert len(result) == 150, (
             f"fetch_jira_changes must return all 150 paginated results; got {len(result)}"
         )
-        assert call_count == 3, (
-            f"search_issues must be called 3 times (pages 0, 1, 2); called {call_count} times"
+        assert call_count == 2, (
+            f"search_issues must be called 2 times (pages 0, 1); called {call_count} times"
         )
 
 

@@ -20,7 +20,7 @@ Format:
   }
 
 The inbound bridge exposes:
-    pull_comments(ticket_id, jira_key, tickets_root, acli_client) -> list[dict]
+    pull_comments(jira_key, ticket_id, ticket_dir, acli_client, bridge_env_id) -> list[dict]
         Pull comments from Jira for the given ticket, writing new local COMMENT
         events only for comments not present in the dedup map. Returns list of
         newly written COMMENT event dicts.
@@ -231,10 +231,11 @@ def test_comment_round_trip_no_duplication(
         comment_body=_COMMENT_BODY_WITH_MARKER,
     )
     bridge_inbound.pull_comments(
-        ticket_id=_TICKET_ID,
         jira_key=_JIRA_KEY,
-        tickets_root=tracker_dir,
+        ticket_id=_TICKET_ID,
+        ticket_dir=ticket_dir,
         acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
     )
 
     # Step 4: assert no new COMMENT file was written
@@ -297,10 +298,11 @@ def test_comment_round_trip_stripped_marker_no_duplication(
         comment_body=_COMMENT_BODY_WITHOUT_MARKER,
     )
     bridge_inbound.pull_comments(
-        ticket_id=_TICKET_ID,
         jira_key=_JIRA_KEY,
-        tickets_root=tracker_dir,
+        ticket_id=_TICKET_ID,
+        ticket_dir=ticket_dir,
         acli_client=mock_acli,
+        bridge_env_id=_BRIDGE_ENV_ID,
     )
 
     # Step 4: assert no new COMMENT file was written (dedup by jira_id, not marker)

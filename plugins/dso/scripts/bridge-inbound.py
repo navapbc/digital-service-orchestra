@@ -116,12 +116,23 @@ def fetch_jira_changes(
             raise ValueError(msg)
         jql = f'project = "{sanitized_project}" AND {jql}'
 
-    # Single-page fetch (full pagination added in T4)
-    results = acli_client.search_issues(jql, start_at=0, max_results=100)
-    if not results:
-        return []
+    # Paginated fetch — loop until a page returns empty or fewer than max_results
+    all_results: list[dict[str, Any]] = []
+    start_at = 0
+    max_results = 100
 
-    return list(results)
+    while True:
+        page = acli_client.search_issues(
+            jql, start_at=start_at, max_results=max_results
+        )
+        if not page:
+            break
+        all_results.extend(page)
+        if len(page) < max_results:
+            break
+        start_at += max_results
+
+    return all_results
 
 
 def normalize_timestamps(issue: dict[str, Any]) -> dict[str, Any]:
@@ -238,6 +249,243 @@ def write_create_events(
         written.append(event_path)
 
     return written
+
+
+def map_status(jira_status: str, *, mapping: dict[str, str]) -> str | None:
+    """Look up jira_status in mapping dict; return local status or None if unmapped."""
+    return mapping.get(jira_status)
+
+
+def map_type(jira_type: str, *, mapping: dict[str, str]) -> str | None:
+    """Look up jira_type in mapping dict; return local type or None if unmapped."""
+    return mapping.get(jira_type)
+
+
+def write_bridge_alert(
+    *,
+    ticket_id: str,
+    reason: str,
+    tickets_root: Path,
+    bridge_env_id: str,
+) -> Path:
+    """Write a BRIDGE_ALERT event file for unmapped status/type values.
+
+    Args:
+        ticket_id: Local ticket ID.
+        reason: Human-readable reason for the alert.
+        tickets_root: Path to the .tickets-tracker directory.
+        bridge_env_id: UUID of this bridge environment.
+
+    Returns:
+        Path to the written BRIDGE_ALERT event file.
+    """
+    ticket_dir = tickets_root / ticket_id
+    ticket_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = int(time.time())
+    event_uuid = str(uuid.uuid4())
+    filename = f"{ts}-{event_uuid}-BRIDGE_ALERT.json"
+
+    payload: dict[str, Any] = {
+        "event_type": "BRIDGE_ALERT",
+        "reason": reason,
+        "env_id": bridge_env_id,
+        "timestamp": ts,
+    }
+
+    event_path = ticket_dir / filename
+    event_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return event_path
+
+
+def verify_jira_timezone_utc(acli_client: Any) -> bool:
+    """Check that the Jira server's service account timezone is UTC.
+
+    Args:
+        acli_client: Object with get_server_info() method.
+
+    Returns:
+        True if timezone is UTC, False otherwise.
+    """
+    import logging
+
+    server_info = acli_client.get_server_info()
+    tz = server_info.get("timeZone", "")
+    if tz == "UTC":
+        return True
+
+    logging.warning("Jira service account timezone is '%s', expected 'UTC'", tz)
+    return False
+
+
+def process_inbound(
+    *,
+    tickets_root: Path,
+    acli_client: Any,
+    last_pull_ts: str,
+    config: dict[str, Any],
+) -> None:
+    """Orchestrator entry point for inbound bridge sync.
+
+    Args:
+        tickets_root: Path to the .tickets-tracker directory.
+        acli_client: ACLI client object.
+        last_pull_ts: UTC ISO 8601 timestamp of last successful pull.
+        config: Configuration dict with keys:
+            - bridge_env_id (str)
+            - overlap_buffer_minutes (int, default 15)
+            - checkpoint_file (str): path to checkpoint JSON file
+            - status_mapping (dict)
+            - type_mapping (dict)
+            - run_id (str, optional)
+    """
+    import logging
+    import subprocess
+
+    # UTC health check — halt if not UTC
+    if not verify_jira_timezone_utc(acli_client):
+        msg = "Jira service account timezone is not UTC — aborting inbound sync"
+        logging.error(msg)
+        raise RuntimeError(msg)
+
+    overlap_buffer_minutes = config.get("overlap_buffer_minutes", 15)
+    bridge_env_id = config.get("bridge_env_id", "")
+    status_mapping = config.get("status_mapping", {})
+    type_mapping = config.get("type_mapping", {})
+    checkpoint_file = config.get("checkpoint_file", "")
+    run_id = config.get("run_id", "")
+
+    # Fetch changes (may raise CalledProcessError on auth failure)
+    try:
+        issues = fetch_jira_changes(
+            acli_client,
+            last_pull_ts=last_pull_ts,
+            overlap_buffer_minutes=overlap_buffer_minutes,
+        )
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 401:
+            logging.error("Authentication failure (401) — checkpoint NOT updated")
+        raise
+
+    # Process each issue: normalize, check mappings, write alerts/events
+    for issue in issues:
+        issue = normalize_timestamps(issue)
+
+        fields = issue.get("fields", {})
+
+        # Check status mapping
+        jira_status = (
+            fields.get("status", {}).get("name", "")
+            if isinstance(fields.get("status"), dict)
+            else ""
+        )
+        if jira_status and map_status(jira_status, mapping=status_mapping) is None:
+            local_id = f"jira-{issue.get('key', 'unknown').lower()}"
+            write_bridge_alert(
+                ticket_id=local_id,
+                reason=f"Unknown status value: '{jira_status}'",
+                tickets_root=tickets_root,
+                bridge_env_id=bridge_env_id,
+            )
+
+        # Check type mapping
+        jira_type = (
+            fields.get("issuetype", {}).get("name", "")
+            if isinstance(fields.get("issuetype"), dict)
+            else ""
+        )
+        if jira_type and map_type(jira_type, mapping=type_mapping) is None:
+            local_id = f"jira-{issue.get('key', 'unknown').lower()}"
+            write_bridge_alert(
+                ticket_id=local_id,
+                reason=f"Unknown type value: '{jira_type}'",
+                tickets_root=tickets_root,
+                bridge_env_id=bridge_env_id,
+            )
+
+    # Write CREATE events for new issues
+    write_create_events(
+        issues,
+        tickets_tracker=tickets_root,
+        bridge_env_id=bridge_env_id,
+        run_id=run_id,
+    )
+
+    # Update checkpoint ONLY on success
+    if checkpoint_file:
+        from datetime import timezone
+
+        new_ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        checkpoint_data = {"last_pull_ts": new_ts}
+        if run_id:
+            checkpoint_data["last_run_id"] = run_id
+        Path(checkpoint_file).write_text(
+            json.dumps(checkpoint_data, ensure_ascii=False), encoding="utf-8"
+        )
+
+
+# ---------------------------------------------------------------------------
+# __main__ entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import os
+
+    # Read env vars
+    jira_url = os.environ.get("JIRA_URL", "")
+    jira_user = os.environ.get("JIRA_USER", "")
+    jira_api_token = os.environ.get("JIRA_API_TOKEN", "")
+    bridge_env_id = os.environ.get("BRIDGE_ENV_ID", "")
+    run_id = os.environ.get("GH_RUN_ID", "")
+    checkpoint_path_str = os.environ.get("INBOUND_CHECKPOINT_PATH", "")
+    overlap_buffer_minutes = int(os.environ.get("INBOUND_OVERLAP_BUFFER_MINUTES", "15"))
+    status_mapping_str = os.environ.get("INBOUND_STATUS_MAPPING", "{}")
+    type_mapping_str = os.environ.get("INBOUND_TYPE_MAPPING", "{}")
+
+    # Parse JSON mapping strings
+    status_mapping = json.loads(status_mapping_str)
+    type_mapping = json.loads(type_mapping_str)
+
+    # Load ACLI client
+    script_dir = Path(__file__).resolve().parent
+    acli_mod = _load_module_from_path(
+        "acli_integration", script_dir / "acli-integration.py"
+    )
+    acli_client = acli_mod.AcliClient(
+        jira_url=jira_url, user=jira_user, api_token=jira_api_token
+    )
+
+    # Read checkpoint
+    if checkpoint_path_str:
+        checkpoint_path = Path(checkpoint_path_str)
+        if checkpoint_path.exists():
+            checkpoint_data = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            last_pull_ts = checkpoint_data.get("last_pull_ts", "")
+        else:
+            last_pull_ts = "1970-01-01T00:00:00Z"
+    else:
+        checkpoint_path = None
+        last_pull_ts = "1970-01-01T00:00:00Z"
+
+    # Derive tickets_root from repo root
+    repo_root = Path(__file__).resolve().parents[3]
+    tickets_root = repo_root / ".tickets-tracker"
+
+    config = {
+        "bridge_env_id": bridge_env_id,
+        "overlap_buffer_minutes": overlap_buffer_minutes,
+        "status_mapping": status_mapping,
+        "type_mapping": type_mapping,
+        "checkpoint_file": str(checkpoint_path) if checkpoint_path is not None else "",
+        "run_id": run_id,
+    }
+
+    process_inbound(
+        tickets_root=tickets_root,
+        acli_client=acli_client,
+        last_pull_ts=last_pull_ts,
+        config=config,
+    )
 
 
 # ---------------------------------------------------------------------------

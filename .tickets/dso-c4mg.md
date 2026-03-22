@@ -1,6 +1,6 @@
 ---
 id: dso-c4mg
-status: open
+status: in_progress
 deps: [dso-sgqg, dso-b979, dso-flql]
 links: []
 created: 2026-03-22T01:00:07Z
@@ -62,3 +62,13 @@ Depends on RED task `dso-sgqg`, outbound impl `dso-b979`, and inbound impl `dso-
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_bridge_comment_roundtrip.py::test_comment_round_trip_no_duplication -v 2>&1; test $? -eq 0
 - [ ] Round-trip still dedups when marker is stripped from Jira comment body
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_bridge_comment_roundtrip.py::test_comment_round_trip_stripped_marker_no_duplication -v 2>&1; test $? -eq 0
+
+## Notes
+
+**2026-03-22T02:06:34Z**
+
+CHECKPOINT 1/6: Task read, starting implementation
+
+**2026-03-22T02:36:22Z**
+
+CHECKPOINT 6/6: Done ✓ — Both roundtrip tests GREEN. Fixed test fixtures to match actual pull_comments() signature (tickets_root→ticket_dir, added bridge_env_id). Pre-existing timeout in test-cleanup-claude-session.sh unrelated to changes.
