@@ -196,3 +196,64 @@ def get_issue(
     ]
     result = _run_acli(cmd, acli_cmd=acli_cmd)
     return json.loads(result.stdout)
+
+
+def add_comment(
+    jira_key: str,
+    body: str,
+    *,
+    acli_cmd: list[str] | None = None,
+) -> dict[str, Any]:
+    """Add a comment to a Jira issue via ACLI.
+
+    Args:
+        jira_key: Jira issue key (e.g. "PROJ-42").
+        body: Comment body text (passed unchanged, may include markers).
+        acli_cmd: Override the ACLI base command (for testing).
+
+    Returns:
+        dict with comment data (id, body, etc.).
+
+    Raises:
+        subprocess.CalledProcessError: If ACLI fails after retries.
+    """
+    cmd = [
+        "--action",
+        "addComment",
+        "--issue",
+        jira_key,
+        "--comment",
+        body,
+    ]
+    result = _run_acli(cmd, acli_cmd=acli_cmd)
+    return json.loads(result.stdout)
+
+
+def get_comments(
+    jira_key: str,
+    *,
+    acli_cmd: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Get all comments on a Jira issue via ACLI.
+
+    Args:
+        jira_key: Jira issue key (e.g. "PROJ-55").
+        acli_cmd: Override the ACLI base command (for testing).
+
+    Returns:
+        list of dicts, each with comment data (id, body, etc.).
+        Returns empty list if no comments exist.
+
+    Raises:
+        subprocess.CalledProcessError: If ACLI fails after retries.
+    """
+    cmd = [
+        "--action",
+        "getComments",
+        "--issue",
+        jira_key,
+    ]
+    result = _run_acli(cmd, acli_cmd=acli_cmd)
+    # ACLI may output `null` for issues with no comments; `or []` ensures we always
+    # return a list as documented in the docstring.
+    return json.loads(result.stdout) or []
