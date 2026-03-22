@@ -44,6 +44,13 @@
     "title": "GREEN: Add clarification loop section to SKILL.md",
     "type": "task"
   },
+  "dso-0u2q": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: add comment clarifying TESTED_FILES_LIST append-before-run ordering is intentional in record-test-status.sh",
+    "type": "bug"
+  },
   "dso-0wi2": {
     "deps": [],
     "priority": 2,
@@ -254,7 +261,7 @@
   "dso-d3gr": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "in_progress",
     "title": "RED Test Gate Tolerance",
     "type": "epic"
   },
@@ -449,6 +456,24 @@
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
   },
+  "dso-mck2": {
+    "deps": [],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "closed",
+    "title": "Write failing tests for .test-index RED marker parsing in record-test-status.sh",
+    "type": "task"
+  },
+  "dso-n7f1": {
+    "deps": [
+      "dso-mck2"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Implement RED marker parsing in record-test-status.sh",
+    "type": "task"
+  },
   "dso-ogh7": {
     "deps": [],
     "priority": 4,
@@ -514,6 +539,16 @@
     "status": "open",
     "title": "Implementation planning schema validation",
     "type": "epic"
+  },
+  "dso-rt8b": {
+    "deps": [
+      "dso-n7f1"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "open",
+    "title": "Add integration test for end-to-end RED marker commit flow",
+    "type": "task"
   },
   "dso-s12s": {
     "deps": [],
