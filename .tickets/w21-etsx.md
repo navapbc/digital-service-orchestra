@@ -1,6 +1,6 @@
 ---
 id: w21-etsx
-status: open
+status: in_progress
 deps: [w21-cxzv, w21-v9tg, w21-4d04]
 links: []
 created: 2026-03-21T23:39:13Z
@@ -36,3 +36,29 @@ Implementation steps:
 - [ ] ruff check passes (exit 0) on py files
   Verify: ruff check $(git rev-parse --show-toplevel)/plugins/dso/scripts/*.py
 
+
+## Notes
+
+**2026-03-22T00:45:13Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T00:45:26Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-22T00:45:29Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-22T00:46:20Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-22T00:46:20Z**
+
+CHECKPOINT 5/6: Tests pass — 112 PASSED, 0 FAILED (bash tests/scripts/test-project-detect.sh) ✓
+
+**2026-03-22T00:46:20Z**
+
+CHECKPOINT 6/6: Done ✓ — AC1 (--suites grep) PASS, AC2 (speed_class grep) PASS, AC3 (precedence grep) PASS, AC4 (ruff format) PASS, AC5 (ruff check) PASS

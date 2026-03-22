@@ -3,12 +3,14 @@ set -uo pipefail
 # scripts/project-detect.sh
 # Detect project characteristics by inspecting a target directory.
 #
-# Usage: project-detect.sh <project-dir>
-#   <project-dir>: path to the project directory to inspect
+# Usage: project-detect.sh [--suites] <project-dir>
+#   --suites      : discover test suites and emit a JSON array (see JSON schema below)
+#   <project-dir> : path to the project directory to inspect
 #
-# Output (stdout): key=value lines, one per detected attribute.
+# Default mode (no --suites): Output (stdout) is key=value lines, one per detected
+# attribute. This format is backward-compatible — adding --suites does not change it.
 #
-# Schema:
+# Default mode schema:
 #   stack=<value>                        — from detect-stack.sh
 #   targets=<comma-separated>            — Makefile targets or package.json scripts
 #   python_version=<value>|unknown       — detected Python version requirement
@@ -23,6 +25,36 @@ set -uo pipefail
 #   installed_deps=<comma-separated>     — CLI tools detected as installed
 #   ports=<comma-separated>              — port numbers from .claude/dso-config.conf
 #   version_files=<comma-separated>      — files that carry a version field
+#
+# --suites mode: Output (stdout) is a JSON array of test suite objects. The script
+# exits immediately after emitting the array; key=value output is not produced.
+#
+# --suites JSON output schema (each array element):
+#   name        (string, unique) — short identifier for the suite (e.g. "unit", "e2e")
+#   command     (string)         — shell command to run the suite (e.g. "make test-unit")
+#   speed_class (string)         — "fast", "slow", or "unknown"
+#   runner      (string)         — one of: "make", "pytest", "npm", "bash", "config"
+#
+# Heuristic sources and Precedence order (highest wins):
+#   1. config   — .claude/dso-config.conf keys test.suite.<name>.command and
+#                 test.suite.<name>.speed_class (explicit, highest precedence)
+#   2. make     — Makefile targets matching /^test[-_]/ (e.g. test-unit -> name "unit")
+#   3. pytest   — subdirectories of tests/ or test/ containing test_*.py files
+#                 (e.g. tests/unit/ -> name "unit")
+#   4. npm      — package.json scripts matching /^test[:_-]/ (e.g. test:integration ->
+#                 name "integration")
+#   5. bash     — executable test-*.sh / test_*.sh / run-tests*.sh at project root
+#                 (e.g. test-hooks.sh -> name "hooks")
+#
+# Name derivation rules:
+#   Makefile test-foo / test_foo  -> strip "test[-_]" prefix -> "foo"
+#   pytest tests/unit/            -> basename of subdir -> "unit"
+#   npm test:integration          -> strip "test:" prefix -> "integration"
+#   bash test-hooks.sh            -> strip "test[-_]" prefix and ".sh" suffix -> "hooks"
+#
+# Backward compatibility guarantee:
+#   Without --suites, stdout output is unchanged KEY=VALUE format. The --suites flag
+#   adds a new output mode without modifying the existing key=value output path.
 #
 # Exit codes:
 #   0 — always (detection always succeeds)
