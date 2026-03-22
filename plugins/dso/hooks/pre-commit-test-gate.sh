@@ -165,12 +165,20 @@ parse_test_index() {
         fi
 
         # Split right side on commas and emit each non-empty test path
+        # Strip optional [marker] suffix (e.g., "tests/foo.sh [test_red]" → "tests/foo.sh")
+        # The gate only needs the real file path for association/coverage checks.
         IFS=',' read -ra parts <<< "$right"
         for part in "${parts[@]}"; do
             # Trim whitespace
             part="${part#"${part%%[![:space:]]*}"}"
             part="${part%"${part##*[![:space:]]}"}"
             if [[ -n "$part" ]]; then
+                # Strip optional [marker] suffix: "test/path.ext [marker_name]" → "test/path.ext"
+                if [[ "$part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                    part="${BASH_REMATCH[1]}"
+                    # Trim any trailing whitespace from the extracted path
+                    part="${part%"${part##*[![:space:]]}"}"
+                fi
                 echo "$part"
             fi
         done
@@ -216,6 +224,8 @@ prune_test_index() {
         left="${left%"${left##*[![:space:]]}"}"
 
         # Split right side on commas and check each test path
+        # Entries may have an optional [marker] suffix (e.g., "tests/foo.sh [test_red]").
+        # Strip the marker before checking file existence, but preserve it in valid_paths.
         local valid_paths=()
         IFS=',' read -ra parts <<< "$right"
         for part in "${parts[@]}"; do
@@ -224,9 +234,21 @@ prune_test_index() {
             part="${part%"${part##*[![:space:]]}"}"
             [[ -z "$part" ]] && continue
 
+            # Extract optional [marker] suffix to preserve it in rewritten output
+            local _test_path_bare _marker_suffix
+            if [[ "$part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                _test_path_bare="${BASH_REMATCH[1]}"
+                _test_path_bare="${_test_path_bare%"${_test_path_bare##*[![:space:]]}"}"
+                _marker_suffix=" [${BASH_REMATCH[2]}]"
+            else
+                _test_path_bare="$part"
+                _marker_suffix=""
+            fi
+
             # Check if the test file exists on disk (relative to REPO_ROOT)
-            if [[ -f "${REPO_ROOT:-.}/${part}" ]]; then
-                valid_paths+=("$part")
+            if [[ -f "${REPO_ROOT:-.}/${_test_path_bare}" ]]; then
+                # Preserve marker in the rewritten entry
+                valid_paths+=("${_test_path_bare}${_marker_suffix}")
             else
                 pruned_count=$((pruned_count + 1))
             fi

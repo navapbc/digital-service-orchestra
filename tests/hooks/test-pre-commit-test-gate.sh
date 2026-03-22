@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (29):
+# Test cases (31):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -36,6 +36,8 @@
 #  27. test_gate_allowlist_files_skipped — exits 0 for commits with only allowlisted files (e.g., .tickets/**)
 #  28. test_gate_allowlist_mixed_with_source — exits 0 for mixed commit (allowlisted + exempt source files)
 #  29. test_gate_fails_open_on_sigterm — exits 0 with warning when receiving SIGTERM (pre-commit timeout)
+#  30. test_gate_red_marker_index_passes — exits 0 when [marker] in .test-index and status is 'passed'
+#  31. test_gate_red_marker_blocks_when_no_status — exits non-zero when [marker] in .test-index but no status
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -1534,6 +1536,143 @@ test_gate_fails_open_on_sigterm() {
     fi
 }
 
+# ============================================================
+# TEST 30: test_gate_red_marker_index_passes
+# When .test-index has a [marker] annotation on a test path,
+# the gate should:
+#   a) recognize the test path (stripped of the [marker]) as the
+#      associated test file (not treat the marker-annotated string
+#      as a nonexistent file and prune it),
+#   b) pass when test-gate-status is 'passed' (which record-test-status.sh
+#      writes after tolerating RED zone failures).
+#
+# This verifies that the [marker] format documented in CLAUDE.md
+# is actually implemented in parse_test_index / prune_test_index.
+#
+# RED: Current gate does not strip [marker] from test paths in
+# parse_test_index. The marker-annotated path is treated as a
+# nonexistent file; prune_test_index removes the entry entirely.
+# After pruning, the source file has no association and the gate
+# exits 0 even without a valid test-gate-status (wrong behavior —
+# test gate is silently bypassed when RED markers are present).
+# ============================================================
+test_gate_red_marker_index_passes() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file (with unconventional name to avoid fuzzy match)
+    mkdir -p "$_repo/lib" "$_repo/tests"
+    echo 'def auth(): return True' > "$_repo/lib/auth_service.py"
+    # Test file has both GREEN tests (before marker) and RED tests (after marker)
+    cat > "$_repo/tests/test_auth_service.py" <<'TESTFILE'
+def test_green_existing(): assert True
+def test_red_unimplemented(): assert False, "not yet implemented"
+TESTFILE
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add auth_service"
+
+    # Write .test-index with [marker] annotation
+    # The marker test_red_unimplemented is after the boundary — failures there are tolerated
+    cat > "$_repo/.test-index" <<'IDX'
+lib/auth_service.py: tests/test_auth_service.py [test_red_unimplemented]
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index with RED marker"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/auth_service.py"
+    git -C "$_repo" add "$_repo/lib/auth_service.py"
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_red_marker_index_passes: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # Compute the real diff hash
+    local real_hash
+    real_hash=$(compute_hash_in_repo "$_repo" "$_artifacts")
+
+    # Write test-gate-status as 'passed' (simulating record-test-status.sh tolerating RED zone)
+    # The test gate should accept this status even though test_red_unimplemented would fail.
+    mkdir -p "$_artifacts"
+    printf 'passed\ndiff_hash=%s\ntimestamp=2026-03-20T00:00:00Z\ntested_files=tests/test_auth_service.py\n' \
+        "$real_hash" > "$_artifacts/test-gate-status"
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+
+    # Gate should PASS (exit 0):
+    # - test-gate-status is present and says 'passed'
+    # - hash matches current staged diff
+    # - tests/test_auth_service.py (without [marker]) is the real test path
+    # RED: Current gate emits the marker-annotated path as-is from parse_test_index,
+    # which prune_test_index removes as stale — so the source file appears unassociated
+    # and the gate passes regardless (no status check at all). This is wrong because
+    # the TDD developer loses test gate protection when RED markers are present.
+    # After fix: gate correctly strips [marker], recognizes the test file, checks status.
+    assert_eq "test_gate_red_marker_index_passes: gate passes with valid status + RED marker" "0" "$exit_code"
+
+    # Verify the .test-index was NOT pruned (the entry should still exist after the fix)
+    local index_content
+    index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
+    if echo "$index_content" | grep -q 'lib/auth_service.py'; then
+        assert_eq "test_gate_red_marker_index_passes: .test-index entry preserved (not pruned)" \
+            "preserved" "preserved"
+    else
+        assert_eq "test_gate_red_marker_index_passes: .test-index entry preserved (not pruned)" \
+            "preserved" "pruned"
+    fi
+}
+
+# ============================================================
+# TEST 31: test_gate_red_marker_blocks_when_no_status
+# When .test-index has a [marker] annotation and no test-gate-status
+# exists, the gate must BLOCK the commit (same as without marker).
+# The [marker] does not exempt the file from the gate — it only
+# affects how record-test-status.sh interprets failures. The gate
+# itself must still require valid test-gate-status.
+#
+# RED: Current gate prunes the marker-annotated path as stale,
+# causing the source file to appear unassociated — gate exits 0
+# even without status (bypasses test gate silently).
+# ============================================================
+test_gate_red_marker_blocks_when_no_status() {
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Create source file + test file
+    mkdir -p "$_repo/lib" "$_repo/tests"
+    echo 'def work(): pass' > "$_repo/lib/worker.py"
+    cat > "$_repo/tests/test_worker.py" <<'TESTFILE'
+def test_existing(): assert True
+def test_new_feature(): assert False, "not yet implemented"
+TESTFILE
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add worker"
+
+    # Write .test-index with [marker]
+    cat > "$_repo/.test-index" <<'IDX'
+lib/worker.py: tests/test_worker.py [test_new_feature]
+IDX
+    git -C "$_repo" add "$_repo/.test-index"
+    git -C "$_repo" commit -q -m "add .test-index with RED marker"
+
+    # Modify source and stage
+    echo '# changed' >> "$_repo/lib/worker.py"
+    git -C "$_repo" add "$_repo/lib/worker.py"
+
+    # Do NOT write test-gate-status
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+
+    # Gate should BLOCK (exit != 0): test-gate-status is absent
+    # RED: Current gate exits 0 because prune removes the marker-annotated path
+    assert_ne "test_gate_red_marker_blocks_when_no_status: gate blocks without status" "0" "$exit_code"
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -1577,5 +1716,7 @@ run_test test_gate_prune_skipped_during_merge_commit
 run_test test_gate_allowlist_files_skipped
 run_test test_gate_allowlist_mixed_with_source
 run_test test_gate_fails_open_on_sigterm
+run_test test_gate_red_marker_index_passes
+run_test test_gate_red_marker_blocks_when_no_status
 
 print_summary

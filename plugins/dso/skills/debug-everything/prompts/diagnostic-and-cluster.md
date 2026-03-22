@@ -160,6 +160,21 @@ Do NOT return the full failure inventory table in your response. The orchestrato
 
 ### Rules
 See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
-- Do NOT fix anything — diagnostic only
-- Do NOT `git commit`, `git push`, `tk close`, `tk status`
 - Report ALL errors, even if they seem trivial
+
+## READ-ONLY ENFORCEMENT
+
+You are a diagnostic reporting agent. You MUST NOT modify source files, tests, or system state.
+The ONLY permitted write is the diagnostic report file produced in "Save Report to Disk" above.
+
+**STOP immediately** if you find yourself about to use any of these tools or commands beyond the report write:
+- **Edit** — forbidden. Do not edit any source or config file.
+- **Write** — forbidden except for the designated `$DIAG_FILE` report path.
+- **Bash with modifying commands** — forbidden:
+  - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
+  - `tk close`, `tk status`, `tk update`, `tk create`
+  - `make`, `pip install`, `npm install`, `poetry install`
+  - Any command that changes source files or application state
+
+If you detect a problem, you must ONLY report it. You must not fix it.
+Fixing is the orchestrator's job, not yours. TERMINATE your response with findings only.
