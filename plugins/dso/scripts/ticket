@@ -15,6 +15,8 @@
 #   ticket link <id1> <id2> <relation>            — link two tickets (blocks|depends_on|relates_to)
 #   ticket unlink <id1> <id2>                     — remove a link between two tickets
 #   ticket deps <ticket_id>                       — show dependency graph for a ticket (JSON)
+#   ticket bridge-status [--format=json]          — show last bridge run status
+#   ticket bridge-fsck [--tickets-tracker=<path>] — audit bridge mappings (orphans, duplicates, stale SYNCs)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,6 +34,8 @@ _usage() {
     echo "  link        Link two tickets (blocks|depends_on|relates_to)"
     echo "  unlink      Remove a link between two tickets"
     echo "  deps        Show dependency graph for a ticket (<ticket_id>)"
+    echo "  bridge-status Show last bridge run status [--format=json]
+  bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
     exit 1
 }
 
@@ -85,8 +89,18 @@ case "$subcommand" in
         exec bash "$SCRIPT_DIR/ticket-compact.sh" "$@"
         ;;
     fsck)
+        # ticket-fsck.sh: JSON validity + CREATE presence + index.lock cleanup
         _ensure_initialized
         exec bash "$SCRIPT_DIR/ticket-fsck.sh" "$@"
+        ;;
+    bridge-fsck)
+        # ticket-bridge-fsck.py: bridge mapping audit (orphans, duplicates, stale SYNCs)
+        # Skip _ensure_initialized when TICKETS_TRACKER_DIR is set (test environments
+        # provide their own tracker dir and should not trigger ticket-init.sh).
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+            _ensure_initialized
+        fi
+        exec python3 "$SCRIPT_DIR/ticket-bridge-fsck.py" "$@"
         ;;
     link)
         _ensure_initialized
@@ -106,6 +120,22 @@ case "$subcommand" in
     deps)
         _ensure_initialized
         exec python3 "$SCRIPT_DIR/ticket-graph.py" "$@"
+        ;;
+    revert)
+        # Skip _ensure_initialized when TICKETS_TRACKER_DIR is set (test environments
+        # provide their own tracker dir and should not trigger ticket-init.sh).
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+            _ensure_initialized
+        fi
+        exec bash "$SCRIPT_DIR/ticket-revert.sh" "$@"
+        ;;
+    bridge-status)
+        # Skip _ensure_initialized when TICKETS_TRACKER_DIR is set (test environments
+        # provide their own tracker dir and should not trigger ticket-init.sh).
+        if [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+            _ensure_initialized
+        fi
+        exec bash "$SCRIPT_DIR/ticket-bridge-status.sh" "$@"
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

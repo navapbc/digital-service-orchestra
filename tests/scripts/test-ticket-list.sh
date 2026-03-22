@@ -392,4 +392,218 @@ PYEOF
 }
 test_ticket_list_corrupt_create_event
 
+# ── Test 6: ticket list --format=llm outputs JSONL (one ticket per line) ──────
+echo "Test 6: ticket list --format=llm outputs JSONL (one ticket per line)"
+test_ticket_list_llm_format_jsonl() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_list_llm_format_jsonl"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "LLM JSONL ticket one")
+    id2=$(_create_ticket "$repo" task "LLM JSONL ticket two")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "both tickets created for llm list test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_list_llm_format_jsonl"
+        return
+    fi
+
+    local llm_output
+    local exit_code=0
+    llm_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --format=llm 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "ticket list --format=llm exits 0" "0" "$exit_code"
+
+    # Assert: each line is valid JSON (JSONL format)
+    local check_result
+    check_result=$(python3 - "$llm_output" "$id1" "$id2" <<'PYEOF'
+import json, sys
+
+raw = sys.argv[1]
+id1 = sys.argv[2]
+id2 = sys.argv[3]
+
+lines = [l.strip() for l in raw.strip().split("\n") if l.strip()]
+
+if not lines:
+    print("ERROR:no output lines")
+    sys.exit(1)
+
+errors = []
+parsed = []
+for i, line in enumerate(lines):
+    try:
+        obj = json.loads(line)
+        parsed.append(obj)
+    except json.JSONDecodeError as e:
+        errors.append(f"line {i+1} is not valid JSON: {e}")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(2)
+
+# Assert: not a JSON array (that would be standard format, not JSONL)
+try:
+    maybe_array = json.loads(raw)
+    if isinstance(maybe_array, list):
+        errors.append("output is a JSON array — should be JSONL (one object per line)")
+except json.JSONDecodeError:
+    pass  # Not parseable as single JSON — good (it's JSONL)
+
+# Assert: both ticket IDs are present (using shortened 'id' key)
+found_ids = set()
+for obj in parsed:
+    tid = obj.get("id") or obj.get("ticket_id")
+    if tid:
+        found_ids.add(tid)
+
+if id1 not in found_ids:
+    errors.append(f"ticket {id1!r} not found in JSONL output")
+if id2 not in found_ids:
+    errors.append(f"ticket {id2!r} not found in JSONL output")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(3)
+
+print("OK")
+PYEOF
+) || true
+
+    if [ "$check_result" = "OK" ]; then
+        assert_eq "llm list format is valid JSONL with both tickets" "OK" "OK"
+    else
+        assert_eq "llm list format is valid JSONL with both tickets" "OK" "$check_result"
+    fi
+
+    assert_pass_if_clean "test_ticket_list_llm_format_jsonl"
+}
+test_ticket_list_llm_format_jsonl
+
+# ── Test 7: ticket list --format=llm uses shortened keys ──────────────────────
+echo "Test 7: ticket list --format=llm uses shortened keys (id, t, ttl, st)"
+test_ticket_list_llm_format_shortened_keys() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_list_llm_format_shortened_keys"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" task "LLM keys test ticket")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for llm keys test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_list_llm_format_shortened_keys"
+        return
+    fi
+
+    local llm_output
+    local exit_code=0
+    llm_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --format=llm 2>/dev/null) || exit_code=$?
+
+    assert_eq "ticket list --format=llm exits 0" "0" "$exit_code"
+
+    # Assert: each line uses shortened keys and has no null values
+    local check_result
+    check_result=$(python3 - "$llm_output" "$ticket_id" <<'PYEOF'
+import json, sys
+
+raw = sys.argv[1]
+target_id = sys.argv[2]
+
+lines = [l.strip() for l in raw.strip().split("\n") if l.strip()]
+errors = []
+
+for line in lines:
+    try:
+        obj = json.loads(line)
+    except json.JSONDecodeError as e:
+        errors.append(f"invalid JSON line: {e}")
+        continue
+
+    # Check for no null values
+    for k, v in obj.items():
+        if v is None:
+            errors.append(f"null value not stripped for key {k!r}")
+
+    # Check shortened keys on the target ticket
+    if obj.get("id") == target_id:
+        if "ticket_id" in obj:
+            errors.append("full key 'ticket_id' present — should use 'id'")
+        if "ticket_type" in obj:
+            errors.append("full key 'ticket_type' present — should use 't'")
+        if "title" in obj:
+            errors.append("full key 'title' present — should use 'ttl'")
+        if "status" in obj:
+            errors.append("full key 'status' present — should use 'st'")
+        if "id" not in obj:
+            errors.append("missing shortened key 'id'")
+        if "t" not in obj:
+            errors.append("missing shortened key 't'")
+        if "ttl" not in obj:
+            errors.append("missing shortened key 'ttl'")
+        if "st" not in obj:
+            errors.append("missing shortened key 'st'")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(1)
+
+print("OK")
+PYEOF
+) || true
+
+    if [ "$check_result" = "OK" ]; then
+        assert_eq "llm list uses shortened keys and no nulls" "OK" "OK"
+    else
+        assert_eq "llm list uses shortened keys and no nulls" "OK" "$check_result"
+    fi
+
+    assert_pass_if_clean "test_ticket_list_llm_format_shortened_keys"
+}
+test_ticket_list_llm_format_shortened_keys
+
+# ── Test 8: ticket list --format=llm with empty tracker → outputs nothing ──────
+echo "Test 8: ticket list --format=llm with empty tracker outputs nothing (not [])"
+test_ticket_list_llm_format_empty_tracker() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_list_llm_format_empty_tracker"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local llm_output
+    local exit_code=0
+    llm_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --format=llm 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "empty llm list exits 0" "0" "$exit_code"
+
+    # Assert: output is empty (not "[]" or any JSON array — matches documented 'nothing' behavior)
+    assert_eq "empty tracker --format=llm outputs nothing" "" "$llm_output"
+
+    assert_pass_if_clean "test_ticket_list_llm_format_empty_tracker"
+}
+test_ticket_list_llm_format_empty_tracker
+
 print_summary
