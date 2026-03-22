@@ -1,6 +1,6 @@
 ---
 id: dso-udy1
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-21T04:31:55Z
@@ -19,3 +19,10 @@ assignee: Joe Oakhart
 <!-- sync: unsynced -->
 
 Session: 2026-03-20T21:31:55-07:00 | Worktree: /Users/joeoakhart/digital-service-orchestra-worktrees/worktree-20260320-205800
+
+<!-- note-id: bsxrrh0n -->
+<!-- timestamp: 2026-03-22T06:54:55Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Stale lock — worktree no longer exists

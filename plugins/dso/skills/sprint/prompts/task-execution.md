@@ -26,8 +26,16 @@ Ticket ID: {id}
 8a. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-   DISC_DIR="$(get_artifacts_dir)/agent-discoveries"
+   # Resolve CLAUDE_PLUGIN_ROOT: prefer env var, fall back to plugins/dso under repo root.
+   # This prevents sub-agents from writing discovery files to .claude/ (protected dir).
+   _DEPS_SH="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}/hooks/lib/deps.sh"
+   if [[ ! -f "$_DEPS_SH" ]]; then
+     # Last-resort: write to a known /tmp/ path if deps.sh cannot be found
+     DISC_DIR="/tmp/workflow-plugin-fallback/agent-discoveries"
+   else
+     source "$_DEPS_SH"
+     DISC_DIR="$(get_artifacts_dir)/agent-discoveries"
+   fi
    mkdir -p "$DISC_DIR"
    cat > "$DISC_DIR/{id}.json.tmp" << 'DISC_EOF'
    {"task_id": "{id}", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line description>", "affected_files": ["<absolute-path>", ...]}

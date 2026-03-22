@@ -1,6 +1,6 @@
 ---
 id: w21-bksy
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-20T19:40:10Z
@@ -24,3 +24,10 @@ Tier 7: assigned for Project Health Restoration epic w22-ns6l triage.
 <!-- sync: unsynced -->
 
 Classification: mechanical (grep assertion is overly broad — should check tested_files field in test-gate-status specifically). Fix: replace grep -rq 'test_foo' with check for 'tested_files=.*test_foo' in the test-gate-status file.
+
+<!-- note-id: hw5epbso -->
+<!-- timestamp: 2026-03-22T15:40:39Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: replaced grep -rq 'test_foo' ARTIFACTS_1/ with grep -q 'tested_files=.*test_foo' ARTIFACTS_1/test-gate-status in test_discovers_associated_tests
