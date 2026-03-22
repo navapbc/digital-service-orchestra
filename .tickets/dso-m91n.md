@@ -1,6 +1,6 @@
 ---
 id: dso-m91n
-status: open
+status: closed
 deps: [dso-22iz, dso-wz2l, dso-rqj9, dso-els2, dso-yyll]
 links: []
 created: 2026-03-22T03:54:57Z
@@ -55,3 +55,29 @@ Run: bash tests/scripts/test_bridge_observability_e2e.sh
 - [ ] ticket revert creates REVERT event file
   Verify: bash tests/scripts/test_bridge_observability_e2e.sh 2>&1 | grep -qi 'REVERT\|revert'
 
+
+## Notes
+
+**2026-03-22T06:13:08Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T06:13:49Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ - Scripts use TICKETS_TRACKER_DIR env var for test isolation; ticket init creates .tickets-tracker/ in test repos; tests use clone_test_repo + assert.sh + git-fixtures.sh pattern
+
+**2026-03-22T06:15:00Z**
+
+CHECKPOINT 3/6: Tests written ✓ - Created tests/scripts/test-bridge-observability-e2e.sh with 11-step E2E scenario covering BRIDGE_ALERT injection, ticket show/list warnings, bridge-status, bridge-fsck, REVERT injection, and ticket revert CLI
+
+**2026-03-22T06:16:07Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ - Test passes 23/23 assertions covering all 11 E2E steps
+
+**2026-03-22T06:16:15Z**
+
+CHECKPOINT 5/6: Lint passed ✓ - ruff check and ruff format --check both pass clean
+
+**2026-03-22T06:19:35Z**
+
+CHECKPOINT 6/6: Done ✓ - All AC checks pass: test file executable, 23/23 assertions pass, bridge_alerts/bridge-status/bridge-fsck/REVERT keywords all in output, ruff lint clean, full test suite green
