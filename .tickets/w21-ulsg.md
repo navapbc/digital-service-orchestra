@@ -1,6 +1,6 @@
 ---
 id: w21-ulsg
-status: in_progress
+status: closed
 deps: [w21-okrb]
 links: []
 created: 2026-03-21T23:37:14Z
