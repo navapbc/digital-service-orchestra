@@ -1,6 +1,6 @@
 ---
 id: w22-tho5
-status: in_progress
+status: closed
 deps: [w22-ond9, w22-ybey]
 links: []
 created: 2026-03-21T16:59:29Z
