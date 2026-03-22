@@ -995,7 +995,7 @@
   "dso-ogh7": {
     "deps": [],
     "priority": 4,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: deduplicate FN_BODY_9 extraction in test-merge-to-main-qt4u.sh test 9",
     "type": "bug"
   },

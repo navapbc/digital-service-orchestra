@@ -172,6 +172,11 @@ assert_contains "test_portability_baseline_skip_info" \
 assert_contains "test_portability_ci_skip_info" \
     "INFO: merge.ci_workflow_name not configured" "$MERGE_OUTPUT1"
 
+# WARNING for no-args sequential run must appear — merge-to-main.sh always emits
+# this when invoked with no arguments (the normal single-step usage pattern).
+assert_contains "test_portability_noargs_warning_present" \
+    "WARNING: Running all phases sequentially" "$MERGE_OUTPUT1"
+
 cleanup_env "$TMPENV1"
 
 # =============================================================================
