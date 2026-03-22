@@ -1,6 +1,6 @@
 ---
 id: dso-ed01
-status: open
+status: in_progress
 deps: [dso-4uys]
 links: []
 created: 2026-03-22T03:53:32Z
