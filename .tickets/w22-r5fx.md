@@ -1,7 +1,7 @@
 ---
 id: w22-r5fx
 status: open
-deps: [w21-ykic]
+deps: []
 links: []
 created: 2026-03-22T06:54:59Z
 type: bug

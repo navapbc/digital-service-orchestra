@@ -4,7 +4,7 @@ status: open
 deps: []
 links: []
 created: 2026-03-21T22:22:54Z
-type: task
+type: bug
 priority: 3
 assignee: Joe Oakhart
 ---

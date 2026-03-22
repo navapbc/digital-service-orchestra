@@ -97,6 +97,13 @@
     "title": "bug LINK/UNLINK same-second timestamp ordering causes unlink to be ignored",
     "type": "task"
   },
+  "dso-2eu7": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Add review.behavioral_patterns key to .claude/dso-config.conf",
+    "type": "task"
+  },
   "dso-2fme": {
     "deps": [],
     "priority": 1,
@@ -168,11 +175,31 @@
     "title": "Implement hook_tickets_tracker_guard in pre-edit-write-functions.sh (Edit/Write)",
     "type": "task"
   },
+  "dso-4j40": {
+    "deps": [
+      "dso-ofdr",
+      "dso-qzn4",
+      "dso-4mdr"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Replace REVIEW-WORKFLOW.md Step 3 model selection and Step 4 dispatch with classifier-driven named agent routing",
+    "type": "task"
+  },
   "dso-4lbf": {
     "deps": [],
     "priority": 1,
     "status": "closed",
     "title": "RED: Write failing tests for .test-index parsing and union merge in test-pre-commit-test-gate.sh",
+    "type": "task"
+  },
+  "dso-4mdr": {
+    "deps": [
+      "dso-qzn4"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing integration test for classifier-to-named-agent dispatch pipeline",
     "type": "task"
   },
   "dso-4mlr": {
@@ -971,6 +998,13 @@
     "title": "E2E integration test for full dependency link/deps/cycle flow",
     "type": "task"
   },
+  "dso-ofdr": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Contract: classifier JSON output tier-selection interface",
+    "type": "task"
+  },
   "dso-ogh7": {
     "deps": [],
     "priority": 4,
@@ -1044,6 +1078,26 @@
     "priority": 1,
     "status": "open",
     "title": "Contract: BRIDGE_ALERT event emit/parse interface",
+    "type": "task"
+  },
+  "dso-qxyd": {
+    "deps": [
+      "dso-ofdr"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing unit tests for review-complexity-classifier.sh",
+    "type": "task"
+  },
+  "dso-qzn4": {
+    "deps": [
+      "dso-ofdr",
+      "dso-qxyd",
+      "dso-2eu7"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Create review-complexity-classifier.sh with 7 scoring factors, floor rules, and behavioral file detection",
     "type": "task"
   },
   "dso-r97p": {
@@ -1146,6 +1200,15 @@
     "status": "open",
     "title": "Remove 5-sub-agent cap for orchestration",
     "type": "epic"
+  },
+  "dso-tcoj": {
+    "deps": [
+      "dso-qzn4"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Add review-complexity-classifier.sh to CLAUDE.md rule #20 safeguard files list",
+    "type": "task"
   },
   "dso-tgye": {
     "deps": [
