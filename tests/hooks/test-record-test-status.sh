@@ -129,9 +129,9 @@ EXIT_CODE=$(
 # In RED phase, we verify the test infrastructure works by checking it fails.
 if [[ -f "$HOOK" ]]; then
     # When implementation exists: verify test_foo.py was discovered
-    # Check that artifacts contain evidence of test_foo.py being run
+    # Check that test-gate-status records test_foo.py in the tested_files field
     FOUND_TEST="no"
-    if grep -rq "test_foo" "$ARTIFACTS_1/" 2>/dev/null; then
+    if grep -q "tested_files=.*test_foo" "$ARTIFACTS_1/test-gate-status" 2>/dev/null; then
         FOUND_TEST="yes"
     fi
     assert_eq "test_discovers_associated_tests: test_foo.py discovered" "yes" "$FOUND_TEST"
