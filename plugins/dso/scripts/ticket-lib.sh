@@ -76,9 +76,9 @@ print(data['uuid'])
     # ── Normalize event_type to uppercase and validate against allowed enum ──
     event_type=$(echo "$event_type" | tr '[:lower:]' '[:upper:]')
     case "$event_type" in
-        CREATE|STATUS|COMMENT|LINK|UNLINK|SNAPSHOT|SYNC) ;;
+        CREATE|STATUS|COMMENT|LINK|UNLINK|SNAPSHOT|SYNC|REVERT) ;;
         *)
-            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, UNLINK, SNAPSHOT, SYNC" >&2
+            echo "Error: invalid event_type '$event_type'. Must be one of: CREATE, STATUS, COMMENT, LINK, UNLINK, SNAPSHOT, SYNC, REVERT" >&2
             return 1
             ;;
     esac

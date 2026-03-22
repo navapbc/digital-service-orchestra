@@ -22,8 +22,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+# Allow tests to inject a custom tracker directory via TICKETS_TRACKER_DIR env var.
+# When GIT_DIR is set (e.g., in tests), derive REPO_ROOT from its parent to avoid
+# requiring an actual git repository at that path.
+if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+    TRACKER_DIR="$TICKETS_TRACKER_DIR"
+elif [ -n "${GIT_DIR:-}" ]; then
+    REPO_ROOT="$(dirname "$GIT_DIR")"
+    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+else
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+fi
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
@@ -101,4 +111,14 @@ print(json.dumps(to_llm(state), ensure_ascii=False, separators=(',', ':')))
 else
     # Default: pretty-print JSON
     echo "$raw_output" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin), indent=2, ensure_ascii=False))"
+    # Emit a passive health warning to stderr when unresolved bridge alerts exist.
+    unresolved_count=$(echo "$raw_output" | python3 -c "
+import json, sys
+state = json.load(sys.stdin)
+alerts = state.get('bridge_alerts', [])
+print(sum(1 for a in alerts if not a.get('resolved', False)))
+" 2>/dev/null || echo "0")
+    if [ "${unresolved_count:-0}" -gt 0 ] 2>/dev/null; then
+        echo "WARNING: ticket $ticket_id has $unresolved_count unresolved bridge alert(s). Run: ticket bridge-status for details." >&2
+    fi
 fi

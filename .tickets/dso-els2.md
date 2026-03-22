@@ -1,6 +1,6 @@
 ---
 id: dso-els2
-status: open
+status: closed
 deps: [dso-60uy]
 links: []
 created: 2026-03-22T03:54:11Z

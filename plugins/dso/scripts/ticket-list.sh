@@ -22,8 +22,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REDUCER="$SCRIPT_DIR/ticket-reducer.py"
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+
+# Allow tests to inject a custom tracker directory via TICKETS_TRACKER_DIR env var.
+# When GIT_DIR is set (e.g., in tests), derive REPO_ROOT from its parent to avoid
+# requiring an actual git repository at that path.
+if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+    TRACKER_DIR="$TICKETS_TRACKER_DIR"
+elif [ -n "${GIT_DIR:-}" ]; then
+    REPO_ROOT="$(dirname "$GIT_DIR")"
+    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+else
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+fi
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 format="default"
@@ -123,6 +134,7 @@ for line in lines:
 " <<< "$collected_json"
 else
     # Default: JSON array
+    # Also emit a passive aggregate health warning to stderr when unresolved bridge alerts exist.
     python3 -c "
 import json, sys
 
@@ -138,5 +150,15 @@ for line in lines:
         print(f'WARNING: skipping malformed JSON line: {e}', file=sys.stderr)
 
 print(json.dumps(results, ensure_ascii=False))
+
+alerted_count = sum(
+    1 for t in results
+    if any(not a.get('resolved', False) for a in t.get('bridge_alerts', []))
+)
+if alerted_count > 0:
+    print(
+        f'WARNING: {alerted_count} ticket(s) have unresolved bridge alerts. Run: ticket bridge-status for details.',
+        file=sys.stderr,
+    )
 " <<< "$collected_json"
 fi

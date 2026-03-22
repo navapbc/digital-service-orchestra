@@ -1,6 +1,6 @@
 ---
 id: dso-22iz
-status: open
+status: closed
 deps: [dso-za4o]
 links: []
 created: 2026-03-22T03:52:22Z
@@ -58,3 +58,7 @@ Run tests: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/script
 **2026-03-22T04:23:31Z**
 
 CHECKPOINT 6/6: Done ✓ — impl complete, tests GREEN. BLOCKED: test gate hits pre-existing RED tests from w21-54wx epic (ticket-reducer, ticket-graph, etc.)
+
+**2026-03-22T05:05:08Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/scripts/ticket-show.sh, plugins/dso/scripts/ticket-list.sh. Tests: pass (5/5 bridge_alert_display). Commit blocked by compute-diff-hash.sh divergence between plugin cache and in-repo copies.

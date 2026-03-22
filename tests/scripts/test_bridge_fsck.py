@@ -238,7 +238,7 @@ def test_bridge_fsck_detects_orphaned_ticket(tmp_path: Path, fsck: ModuleType) -
         timestamp=_NOW_TS - 3600,
     )
 
-    findings = fsck.audit_bridge_mappings(tracker)
+    findings = fsck.audit_bridge_mappings(tracker, now_ts=_NOW_TS)
 
     orphaned = findings.get("orphaned", [])
     assert len(orphaned) >= 1, (
@@ -304,7 +304,7 @@ def test_bridge_fsck_detects_duplicate_jira_mapping(
         uuid=_UUID_SYNC_2,
     )
 
-    findings = fsck.audit_bridge_mappings(tracker)
+    findings = fsck.audit_bridge_mappings(tracker, now_ts=_NOW_TS)
 
     duplicates = findings.get("duplicates", [])
     assert len(duplicates) >= 1, (
@@ -357,7 +357,7 @@ def test_bridge_fsck_detects_stale_sync_events(
     )
     # No BRIDGE_ALERT event — so SYNC remains stale
 
-    findings = fsck.audit_bridge_mappings(tracker)
+    findings = fsck.audit_bridge_mappings(tracker, now_ts=_NOW_TS)
 
     stale = findings.get("stale", [])
     assert len(stale) >= 1, (
@@ -413,7 +413,7 @@ def test_bridge_fsck_clean_output_when_no_issues(
         uuid=_UUID_SYNC_1,
     )
 
-    findings = fsck.audit_bridge_mappings(tracker)
+    findings = fsck.audit_bridge_mappings(tracker, now_ts=_NOW_TS)
 
     assert findings.get("orphaned", []) == [], (
         f"No orphans expected for a clean ticket; got: {findings.get('orphaned')}"
@@ -461,9 +461,12 @@ def test_bridge_fsck_exit_code(tmp_path: Path, fsck: ModuleType) -> None:
     )
 
     # The implementation must either raise SystemExit(non-zero) or return non-zero
+    # Pass --now-ts so stale detection is deterministic regardless of when tests run.
     exit_code_issues: int | None = None
     try:
-        result = fsck.main(["--tickets-tracker", str(tracker_issues)])
+        result = fsck.main(
+            ["--tickets-tracker", str(tracker_issues), "--now-ts", str(_NOW_TS)]
+        )
         exit_code_issues = result if isinstance(result, int) else 1
     except SystemExit as exc:
         exit_code_issues = exc.code if isinstance(exc.code, int) else 1
@@ -490,7 +493,9 @@ def test_bridge_fsck_exit_code(tmp_path: Path, fsck: ModuleType) -> None:
 
     exit_code_clean: int | None = None
     try:
-        result = fsck.main(["--tickets-tracker", str(tracker_clean)])
+        result = fsck.main(
+            ["--tickets-tracker", str(tracker_clean), "--now-ts", str(_NOW_TS)]
+        )
         exit_code_clean = result if isinstance(result, int) else 0
     except SystemExit as exc:
         exit_code_clean = exc.code if isinstance(exc.code, int) else 1
