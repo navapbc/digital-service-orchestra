@@ -973,6 +973,7 @@ trap - EXIT
 # ============================================================
 echo ""
 echo "=== test_red_marker_tolerates_failure_after_marker ==="
+_snapshot_fail
 
 TEST_REPO_RED1=$(create_test_repo)
 ARTIFACTS_RED1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
@@ -1037,6 +1038,7 @@ fi
 rm -f "$MOCK_RED1_RUNNER"
 rm -rf "$TEST_REPO_RED1" "$ARTIFACTS_RED1"
 trap - EXIT
+assert_pass_if_clean "test_red_marker_tolerates_failure_after_marker"
 
 # ============================================================
 # test_red_marker_blocks_failure_before_marker
@@ -1048,6 +1050,7 @@ trap - EXIT
 # ============================================================
 echo ""
 echo "=== test_red_marker_blocks_failure_before_marker ==="
+_snapshot_fail
 
 TEST_REPO_RED2=$(create_test_repo)
 ARTIFACTS_RED2=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
@@ -1111,6 +1114,7 @@ fi
 rm -f "$MOCK_RED2_RUNNER"
 rm -rf "$TEST_REPO_RED2" "$ARTIFACTS_RED2"
 trap - EXIT
+assert_pass_if_clean "test_red_marker_blocks_failure_before_marker"
 
 # ============================================================
 # test_no_marker_backward_compat
@@ -1122,6 +1126,7 @@ trap - EXIT
 # ============================================================
 echo ""
 echo "=== test_no_marker_backward_compat ==="
+_snapshot_fail
 
 TEST_REPO_COMPAT=$(create_test_repo)
 ARTIFACTS_COMPAT=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
@@ -1180,6 +1185,7 @@ fi
 rm -f "$MOCK_COMPAT_RUNNER"
 rm -rf "$TEST_REPO_COMPAT" "$ARTIFACTS_COMPAT"
 trap - EXIT
+assert_pass_if_clean "test_no_marker_backward_compat"
 
 # ============================================================
 # test_marker_not_found_falls_back_to_blocking
@@ -1192,6 +1198,7 @@ trap - EXIT
 # ============================================================
 echo ""
 echo "=== test_marker_not_found_falls_back_to_blocking ==="
+_snapshot_fail
 
 TEST_REPO_NOMATCH=$(create_test_repo)
 ARTIFACTS_NOMATCH=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
@@ -1254,6 +1261,7 @@ assert_contains "test_marker_not_found_falls_back_to_blocking: warns about unrec
 rm -f "$MOCK_NOMATCH_RUNNER"
 rm -rf "$TEST_REPO_NOMATCH" "$ARTIFACTS_NOMATCH"
 trap - EXIT
+assert_pass_if_clean "test_marker_not_found_falls_back_to_blocking"
 
 # ============================================================
 # test_red_zone_bash_test_file
@@ -1266,6 +1274,7 @@ trap - EXIT
 # ============================================================
 echo ""
 echo "=== test_red_zone_bash_test_file ==="
+_snapshot_fail
 
 TEST_REPO_BASH_RED=$(create_test_repo)
 ARTIFACTS_BASH_RED=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
@@ -1339,6 +1348,95 @@ fi
 rm -f "$MOCK_BASH_RED_RUNNER"
 rm -rf "$TEST_REPO_BASH_RED" "$ARTIFACTS_BASH_RED"
 trap - EXIT
+assert_pass_if_clean "test_red_zone_bash_test_file"
+
+# ============================================================
+# test_hyphenated_test_name_red_zone
+# Verifies that hyphenated test names (e.g. 'test-foo') work
+# correctly with RED zone logic. The word-boundary pattern must
+# treat '-' as an identifier character so that:
+#   - Searching for 'test-foo' finds the correct line
+#   - Searching for 'test' does NOT match 'test-foo'
+# ============================================================
+echo ""
+echo "=== test_hyphenated_test_name_red_zone ==="
+_snapshot_fail
+
+TEST_REPO_HYPH=$(create_test_repo)
+ARTIFACTS_HYPH=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_HYPH" "$ARTIFACTS_HYPH"' EXIT
+
+mkdir -p "$TEST_REPO_HYPH/src" "$TEST_REPO_HYPH/tests"
+cat > "$TEST_REPO_HYPH/src/hyph.py" << 'PYEOF'
+def hyph():
+    return "hyph"
+PYEOF
+
+# Test file: test-pre-check passes (BEFORE the RED marker),
+# test-red-zone is the RED marker function, test-red-zone fails (in RED zone — tolerated).
+cat > "$TEST_REPO_HYPH/tests/test-hyph.sh" << 'SHEOF'
+#!/usr/bin/env bash
+# test-pre-check: runs before RED marker, must not be confused with test-red-zone
+echo "test-pre-check: PASS"
+# test-red-zone: this is the RED zone marker
+test-red-zone() {
+    echo "test-red-zone: FAIL (RED zone)"
+    return 1
+}
+test-red-zone || true
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_HYPH/tests/test-hyph.sh"
+
+# .test-index maps hyph.py -> test-hyph.sh with [test-red-zone] RED marker
+cat > "$TEST_REPO_HYPH/.test-index" << 'IDXEOF'
+src/hyph.py: tests/test-hyph.sh [test-red-zone]
+IDXEOF
+
+git -C "$TEST_REPO_HYPH" add -A
+git -C "$TEST_REPO_HYPH" commit -m "add hyph with hyphenated RED marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_HYPH/src/hyph.py"
+git -C "$TEST_REPO_HYPH" add -A
+
+# Mock runner: test-pre-check passes, test-red-zone fails (RED zone failure)
+MOCK_HYPH_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-hyph-runner-XXXXXX")
+chmod +x "$MOCK_HYPH_RUNNER"
+cat > "$MOCK_HYPH_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+# Simulate: test-pre-check passes, then test-red-zone fails (RED zone)
+echo "test-pre-check: PASS"
+echo "test-red-zone: FAIL (RED zone)"
+exit 1
+MOCKEOF
+
+EXIT_CODE_HYPH=$(
+    cd "$TEST_REPO_HYPH"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_HYPH" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_HYPH_RUNNER" \
+    run_hook_exit
+)
+
+STATUS_FILE_HYPH="$ARTIFACTS_HYPH/test-gate-status"
+
+# EXPECTED: failure is in RED zone (at/after hyphenated marker test-red-zone) →
+# tolerated → exits 0, writes 'passed'.
+# Word-boundary fix required: [^a-zA-Z0-9_-] must treat '-' as identifier char
+# so 'test-red-zone' marker locates the correct line and 'test-pre-check' (before marker)
+# is not confused with 'test-red-zone'.
+assert_eq "test_hyphenated_test_name_red_zone: exits 0 (hyphenated RED zone tolerated)" "0" "$EXIT_CODE_HYPH"
+if [[ -f "$STATUS_FILE_HYPH" ]]; then
+    FIRST_LINE_HYPH=$(head -1 "$STATUS_FILE_HYPH")
+    assert_eq "test_hyphenated_test_name_red_zone: writes passed" "passed" "$FIRST_LINE_HYPH"
+else
+    assert_eq "test_hyphenated_test_name_red_zone: status file exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_HYPH_RUNNER"
+rm -rf "$TEST_REPO_HYPH" "$ARTIFACTS_HYPH"
+trap - EXIT
+assert_pass_if_clean "test_hyphenated_test_name_red_zone"
 
 # Clean up mock runners if created
 if (( ! _PYTEST_AVAILABLE )); then

@@ -40,9 +40,16 @@
     ],
     "parent": "dso-9l2x",
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Add clarification loop section to SKILL.md",
     "type": "task"
+  },
+  "dso-0u2q": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: add comment clarifying TESTED_FILES_LIST append-before-run ordering is intentional in record-test-status.sh",
+    "type": "bug"
   },
   "dso-0wi2": {
     "deps": [],
@@ -76,26 +83,17 @@
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
   },
-<<<<<<< HEAD
-=======
-  "dso-4lbf": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Write failing tests for .test-index parsing and union merge in test-pre-commit-test-gate.sh",
-    "type": "task"
-  },
   "dso-4mlr": {
     "deps": [
       "dso-fj1t",
       "dso-4u0s"
     ],
+    "parent": "dso-d3gr",
     "priority": 3,
     "status": "open",
     "title": "Update project docs to reflect RED test gate tolerance",
     "type": "story"
   },
->>>>>>> origin/main
   "dso-4nm5": {
     "deps": [],
     "priority": 4,
@@ -114,6 +112,7 @@
     "deps": [
       "dso-fj1t"
     ],
+    "parent": "dso-d3gr",
     "priority": 2,
     "status": "open",
     "title": "As a developer, epic closure is blocked until all RED markers are removed from .test-index",
@@ -140,7 +139,7 @@
     "deps": [],
     "parent": "dso-9l2x",
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "RED: Structural validation tests for clarification loop in using-lockpick",
     "type": "task"
   },
@@ -168,7 +167,7 @@
   "dso-9l2x": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
     "type": "epic"
   },
@@ -262,7 +261,7 @@
   "dso-d3gr": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "in_progress",
     "title": "RED Test Gate Tolerance",
     "type": "epic"
   },
@@ -292,26 +291,14 @@
     "title": "Add full autonomous mode session override",
     "type": "epic"
   },
-<<<<<<< HEAD
-=======
-  "dso-fhfi": {
-    "deps": [
-      "dso-wqt4",
-      "dso-o1u2"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Rewrite pre-commit-test-gate.sh to use fuzzy-match.sh for multi-stack test association",
-    "type": "task"
-  },
   "dso-fj1t": {
     "deps": [],
+    "parent": "dso-d3gr",
     "priority": 1,
     "status": "open",
     "title": "As a developer, record-test-status.sh tolerates failures in RED-flagged test zones",
     "type": "story"
   },
->>>>>>> origin/main
   "dso-fucm": {
     "deps": [],
     "priority": 4,
@@ -427,7 +414,7 @@
     ],
     "parent": "dso-9l2x",
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "GREEN: Add abbreviated clarification loop to HOOK-INJECTION.md",
     "type": "task"
   },
@@ -468,6 +455,24 @@
     "status": "open",
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
+  },
+  "dso-mck2": {
+    "deps": [],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "closed",
+    "title": "Write failing tests for .test-index RED marker parsing in record-test-status.sh",
+    "type": "task"
+  },
+  "dso-n7f1": {
+    "deps": [
+      "dso-mck2"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Implement RED marker parsing in record-test-status.sh",
+    "type": "task"
   },
   "dso-ogh7": {
     "deps": [],
@@ -534,6 +539,16 @@
     "status": "open",
     "title": "Implementation planning schema validation",
     "type": "epic"
+  },
+  "dso-rt8b": {
+    "deps": [
+      "dso-n7f1"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "open",
+    "title": "Add integration test for end-to-end RED marker commit flow",
+    "type": "task"
   },
   "dso-s12s": {
     "deps": [],
@@ -699,7 +714,6 @@
     "title": "test-batched.sh state file not isolated by repo/worktree \u2014 causes cross-session interference",
     "type": "bug"
   },
-<<<<<<< HEAD
   "w20-fxpu": {
     "deps": [],
     "priority": 3,
@@ -718,7 +732,7 @@
   "w20-keta": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts",
     "type": "bug"
   },
@@ -731,20 +745,6 @@
   },
   "w20-w7pm": {
     "deps": [],
-=======
-  "w20-keta": {
-    "deps": [],
-    "priority": 2,
-    "status": "closed",
-    "title": "Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts",
-    "type": "bug"
-  },
-  "w21-05z9": {
-    "deps": [
-      "w21-6k7v",
-      "w21-8011"
-    ],
->>>>>>> origin/main
     "priority": 1,
     "status": "open",
     "title": "Validation sub-agents in /dso:validate-work fix errors instead of only reporting them",
