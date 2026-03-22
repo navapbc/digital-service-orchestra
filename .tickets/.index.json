@@ -1,10 +1,193 @@
 {
+  ".ti-2cu0": {
+    "deps": [],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Structural validation test for using-lockpick clarification loop",
+    "type": "task"
+  },
+  ".ti-xdi3": {
+    "deps": [
+      ".ti-2cu0"
+    ],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "open",
+    "title": "GREEN: Add confidence-gated clarification loop to using-lockpick SKILL.md",
+    "type": "task"
+  },
+  ".ti-zni0": {
+    "deps": [
+      ".ti-xdi3"
+    ],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "open",
+    "title": "Update HOOK-INJECTION.md with condensed clarification guidance",
+    "type": "task"
+  },
+  "dso-0ey5": {
+    "deps": [
+      "dso-9mvn",
+      "dso-1dws"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Add YAML validation, command sanitization, and edge-case handling to ci-generator.sh",
+    "type": "task"
+  },
+  "dso-0k2k": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Ticket system upgrade",
+    "type": "epic"
+  },
+  "dso-0kz0": {
+    "deps": [
+      "dso-7wks"
+    ],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add clarification loop section to SKILL.md",
+    "type": "task"
+  },
+  "dso-0u2q": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: add comment clarifying TESTED_FILES_LIST append-before-run ordering is intentional in record-test-status.sh",
+    "type": "bug"
+  },
+  "dso-0wi2": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Project level config flags to modify behavior",
+    "type": "epic"
+  },
+  "dso-1dws": {
+    "deps": [
+      "dso-oo92"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Implement ci-generator.sh: core YAML generation from discovered suites",
+    "type": "task"
+  },
+  "dso-22iz": {
+    "deps": [
+      "dso-za4o"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Display BRIDGE_ALERT health warning in ticket-show.sh and ticket-list.sh output",
+    "type": "task"
+  },
   "dso-2bmc": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "Add descriptive agent name guidance to /dso:debug-everything dispatch points",
     "type": "task"
+  },
+  "dso-2dxt": {
+    "deps": [],
+    "parent": "w22-ns6l",
+    "priority": 2,
+    "status": "in_progress",
+    "title": "bug LINK/UNLINK same-second timestamp ordering causes unlink to be ignored",
+    "type": "task"
+  },
+  "dso-3mb3": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "RED: Write failing tests for suite placement section in project-setup SKILL.md",
+    "type": "task"
+  },
+  "dso-3xhk": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Create a KNOWN ISSUES for this project",
+    "type": "epic"
+  },
+  "dso-47gy": {
+    "deps": [
+      "dso-d8gi"
+    ],
+    "parent": "dso-l2ct",
+    "priority": 3,
+    "status": "open",
+    "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
+    "type": "story"
+  },
+  "dso-4mlr": {
+    "deps": [
+      "dso-fj1t",
+      "dso-4u0s"
+    ],
+    "parent": "dso-d3gr",
+    "priority": 3,
+    "status": "in_progress",
+    "title": "Update project docs to reflect RED test gate tolerance",
+    "type": "story"
+  },
+  "dso-4nm5": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: fuzzy-match RED-phase counter swap fragility in test-fuzzy-match.sh",
+    "type": "bug"
+  },
+  "dso-4s8r": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Cleanup tests",
+    "type": "epic"
+  },
+  "dso-4u0s": {
+    "deps": [
+      "dso-fj1t"
+    ],
+    "parent": "dso-d3gr",
+    "priority": 2,
+    "status": "closed",
+    "title": "As a developer, epic closure is blocked until all RED markers are removed from .test-index",
+    "type": "story"
+  },
+  "dso-4uys": {
+    "deps": [],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Contract: REVERT event emit/parse interface",
+    "type": "task"
+  },
+  "dso-5gtd": {
+    "deps": [
+      "dso-qwrw"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for ticket bridge-fsck command",
+    "type": "task"
+  },
+  "dso-5ooy": {
+    "deps": [
+      "w21-ykic",
+      "w21-ovpn"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Conditional Security & Performance Review Overlays",
+    "type": "epic"
   },
   "dso-5rya": {
     "deps": [],
@@ -22,6 +205,17 @@
     "title": "As a DSO practitioner, deprecated sub-agent templates have consistent anti-cover-up guidance",
     "type": "story"
   },
+  "dso-60uy": {
+    "deps": [
+      "dso-ed01",
+      "dso-4uys"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Add REVERT to ticket-lib.sh allowed event_type enum and create ticket-revert.sh",
+    "type": "task"
+  },
   "dso-6r3o": {
     "deps": [],
     "priority": 1,
@@ -29,12 +223,296 @@
     "title": "As a developer, the CI auto-ticket-creation pattern is fully removed",
     "type": "story"
   },
+  "dso-6x8o": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: record-test-status.sh allows re-recording with stale test results — hash updated without re-running tests",
+    "type": "bug"
+  },
+  "dso-7n6c": {
+    "deps": [
+      "dso-qwrw"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for BRIDGE_ALERT detection in ticket-reducer.py and ticket-show.sh/ticket-list.sh",
+    "type": "task"
+  },
+  "dso-7wks": {
+    "deps": [],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Structural validation tests for clarification loop in using-lockpick",
+    "type": "task"
+  },
+  "dso-87p7": {
+    "deps": [
+      "dso-fjnc",
+      "dso-0ey5"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Update project-setup SKILL.md Step 5 to invoke ci-generator.sh for new projects",
+    "type": "task"
+  },
+  "dso-8l5h": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Extract review and evaluation sub-agents into dedicated plugin agents",
+    "type": "epic"
+  },
   "dso-917w": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "As a DSO practitioner, sub-agents receive comprehensive anti-cover-up guidance in active prompt templates",
     "type": "story"
+  },
+  "dso-94ya": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add a preflight check to sprint that validates current project state",
+    "type": "epic"
+  },
+  "dso-9fgn": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Limit tool use by sub-agents",
+    "type": "epic"
+  },
+  "dso-9l2x": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
+    "type": "epic"
+  },
+  "dso-9ltc": {
+    "deps": [],
+    "parent": "w21-ykic",
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, review agents are composed from source fragments and generated via a build process",
+    "type": "story"
+  },
+  "dso-9mvn": {
+    "deps": [
+      "dso-oo92"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "RED: Write failing tests for YAML validation, sanitization, and edge cases in ci-generator.sh",
+    "type": "task"
+  },
+  "dso-9xnr": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Project Health Restoration (2026-03-20)",
+    "type": "epic"
+  },
+  "dso-9zlg": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: use sub-second timing in fuzzy-match benchmark test for reliable CI signal",
+    "type": "bug"
+  },
+  "dso-9zsh": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Make sprint skill aware of ticket type",
+    "type": "epic"
+  },
+  "dso-a2p5": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: test_step_references_git_stash_baseline regex may be overly prescriptive for baseline detection",
+    "type": "bug"
+  },
+  "dso-ag1b": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Display Task titles during sprint batch execution",
+    "type": "epic"
+  },
+  "dso-b538": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet C reviewer applies deep hygiene, design, and maintainability checks",
+    "type": "story"
+  },
+  "dso-b7nb": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet A reviewer applies deep correctness checks with acceptance criteria validation",
+    "type": "story"
+  },
+  "dso-b979": {
+    "deps": [
+      "dso-olb0",
+      "dso-yx0j"
+    ],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement COMMENT event handling in bridge-outbound.py (outbound comment push)",
+    "type": "task"
+  },
+  "dso-boct": {
+    "deps": [],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Light tier haiku reviewer applies a focused 6-item checklist to low-complexity changes",
+    "type": "story"
+  },
+  "dso-bxng": {
+    "deps": [],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Standard tier sonnet reviewer applies full 5-dimension checklists with researched sub-criteria",
+    "type": "story"
+  },
+  "dso-c4mg": {
+    "deps": [
+      "dso-sgqg",
+      "dso-b979",
+      "dso-flql"
+    ],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "Integration test: comment round-trip without duplication",
+    "type": "task"
+  },
+  "dso-c9p5": {
+    "deps": [],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for ACLI comment operations (add_comment, get_comments)",
+    "type": "task"
+  },
+  "dso-cc6a": {
+    "deps": [],
+    "parent": "dso-9xnr",
+    "priority": 3,
+    "status": "open",
+    "title": "Worktree auto-cleanup fails when session ends with unmerged commits",
+    "type": "bug"
+  },
+  "dso-cpvp": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add a workflow-config flag that creates PRs instead of merging to main",
+    "type": "epic"
+  },
+  "dso-d3gr": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "RED Test Gate Tolerance",
+    "type": "epic"
+  },
+  "dso-d8gi": {
+    "deps": [
+      "dso-x1jt",
+      "dso-dghs"
+    ],
+    "parent": "dso-l2ct",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering",
+    "type": "story"
+  },
+  "dso-dghs": {
+    "deps": [],
+    "parent": "dso-l2ct",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the sprint skill contains no explanatory prose or motivation framing",
+    "type": "story"
+  },
+  "dso-dpvo": {
+    "deps": [],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for inbound comment pull and dedup in bridge-inbound.py",
+    "type": "task"
+  },
+  "dso-ed01": {
+    "deps": [
+      "dso-4uys"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for REVERT event writing, CLI validation, and reducer handling",
+    "type": "task"
+  },
+  "dso-els2": {
+    "deps": [
+      "dso-60uy"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Register 'revert' subcommand in ticket dispatcher",
+    "type": "task"
+  },
+  "dso-fbky": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Add full autonomous mode session override",
+    "type": "epic"
+  },
+  "dso-fj1t": {
+    "deps": [],
+    "parent": "dso-d3gr",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, record-test-status.sh tolerates failures in RED-flagged test zones",
+    "type": "story"
+  },
+  "dso-fjnc": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "RED: Write failing tests for project-setup SKILL.md CI generation step",
+    "type": "task"
+  },
+  "dso-flql": {
+    "deps": [
+      "dso-dpvo",
+      "dso-yx0j"
+    ],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement bridge-inbound.py: inbound Jira comment pull with dual-key dedup",
+    "type": "task"
   },
   "dso-fqye": {
     "deps": [
@@ -45,11 +523,283 @@
     "title": "Update project docs to reflect CI ticket removal",
     "type": "story"
   },
+  "dso-fucm": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "phase-10-merge-verify sub-agent redundantly checks CI via validate.sh --ci after ci-status.sh wait",
+    "type": "bug"
+  },
+  "dso-fxib": {
+    "deps": [
+      "dso-x1jt",
+      "dso-dghs",
+      "dso-d8gi",
+      "dso-47gy"
+    ],
+    "parent": "dso-l2ct",
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect dso:sprint optimization",
+    "type": "story"
+  },
+  "dso-g10j": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Using-lockpicks brainstorm enforcement",
+    "type": "epic"
+  },
+  "dso-gfry": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet B reviewer applies deep verification checks evaluating test quality and coverage",
+    "type": "story"
+  },
+  "dso-gg0v": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "debug-everything validation prompts use soft \"Do NOT fix\" language instead of hard-stop READ-ONLY ENFORCEMENT",
+    "type": "bug"
+  },
+  "dso-gjww": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: _test_state_already_passed accepts state files with missing command_hash",
+    "type": "bug"
+  },
+  "dso-gkct": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Implementation planning tradeoffs",
+    "type": "epic"
+  },
+  "dso-go0x": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
+    "type": "bug"
+  },
+  "dso-gxct": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh add --suites flag to Usage header comment",
+    "type": "bug"
+  },
+  "dso-h04l": {
+    "deps": [],
+    "priority": 0,
+    "status": "in_progress",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
+  "dso-h2gj": {
+    "deps": [
+      "dso-vxsh"
+    ],
+    "parent": "dso-pxos",
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add rationalized-failures accountability step to end-session SKILL.md",
+    "type": "task"
+  },
+  "dso-hdf8": {
+    "deps": [],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "Contract: comment sync dedup interface (UUID marker + Jira comment ID)",
+    "type": "task"
+  },
+  "dso-i867": {
+    "deps": [
+      "dso-3mb3"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "GREEN: Add uncovered-suite placement section to project-setup SKILL.md",
+    "type": "task"
+  },
+  "dso-iaxk": {
+    "deps": [
+      "dso-87p7"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Dogfooding: run /dso:project-setup on DSO repo and verify generated CI passes actionlint",
+    "type": "task"
+  },
+  "dso-iwb4": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Don't merge to main between batches",
+    "type": "epic"
+  },
+  "dso-jf62": {
+    "deps": [
+      "dso-b7nb",
+      "dso-gfry",
+      "dso-b538"
+    ],
+    "parent": "w21-ovpn",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Opus architectural reviewer applies cross-cutting synthesis checks across all specialist findings",
+    "type": "story"
+  },
+  "dso-jfcc": {
+    "deps": [
+      "dso-7wks",
+      "dso-0kz0"
+    ],
+    "parent": "dso-9l2x",
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add abbreviated clarification loop to HOOK-INJECTION.md",
+    "type": "task"
+  },
   "dso-jjli": {
     "deps": [],
     "priority": 2,
     "status": "open",
     "title": "merge-to-main.sh 'merge' phase name misleads agents into thinking code is on main",
+    "type": "bug"
+  },
+  "dso-khl2": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Using-lockpicks guidance to encourage using sub-agents",
+    "type": "epic"
+  },
+  "dso-kupq": {
+    "deps": [],
+    "parent": "w21-bwfw",
+    "priority": 3,
+    "status": "closed",
+    "title": "Deduplicate to_llm() function between ticket-show.sh and ticket-list.sh",
+    "type": "task"
+  },
+  "dso-l2ct": {
+    "deps": [
+      "dso-ag1b",
+      "dso-iwb4"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
+    "type": "epic"
+  },
+  "dso-lm92": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "record-review.sh CHANGED_FILES overlap check includes untracked files that may not be reviewed",
+    "type": "bug"
+  },
+  "dso-lqyw": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Integrate search into planning",
+    "type": "epic"
+  },
+  "dso-lwcp": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Retro skill should include an overall visual review",
+    "type": "epic"
+  },
+  "dso-m91n": {
+    "deps": [
+      "dso-22iz",
+      "dso-wz2l",
+      "dso-rqj9",
+      "dso-els2",
+      "dso-yyll"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "E2E test: bridge observability and recovery full flow",
+    "type": "task"
+  },
+  "dso-mck2": {
+    "deps": [],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "closed",
+    "title": "Write failing tests for .test-index RED marker parsing in record-test-status.sh",
+    "type": "task"
+  },
+  "dso-n0fo": {
+    "deps": [
+      "dso-4uys"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for REVERT check-before-overwrite in bridge-outbound.py",
+    "type": "task"
+  },
+  "dso-n7f1": {
+    "deps": [
+      "dso-mck2"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement RED marker parsing in record-test-status.sh",
+    "type": "task"
+  },
+  "dso-nvzp": {
+    "deps": [
+      "dso-qwrw"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for ticket bridge-status command",
+    "type": "task"
+  },
+  "dso-ogh7": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: deduplicate FN_BODY_9 extraction in test-merge-to-main-qt4u.sh test 9",
+    "type": "bug"
+  },
+  "dso-olb0": {
+    "deps": [],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for outbound comment push in bridge-outbound.py",
+    "type": "task"
+  },
+  "dso-oo92": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "RED: Write failing tests for ci-generator.sh core YAML generation logic",
+    "type": "task"
+  },
+  "dso-ovj9": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: add test for source-file-is-test-file edge case in fuzzy-match tests",
     "type": "bug"
   },
   "dso-pcgh": {
@@ -59,6 +809,23 @@
     "title": "Sub-agents create tickets with type 'task' instead of 'bug' when tracking discovered bugs",
     "type": "bug"
   },
+  "dso-psan": {
+    "deps": [
+      "w22-45i1",
+      "w22-5z9r"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "Add dev-onboarding and design-onboarding to setup",
+    "type": "epic"
+  },
+  "dso-ptct": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: stat -f || stat -c fallback pattern broken on Linux — stat -f succeeds with wrong semantics",
+    "type": "bug"
+  },
   "dso-ptzz": {
     "deps": [],
     "priority": 2,
@@ -66,11 +833,1221 @@
     "title": "sprint-next-batch.sh treats tk dep blockers as file conflicts, preventing non-overlapping tasks from batching",
     "type": "bug"
   },
-  "dso-uu13": {
+  "dso-pwt7": {
+    "deps": [
+      "dso-0ey5",
+      "dso-87p7"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Integration test: full discover → generate → validate → write workflow for new project",
+    "type": "task"
+  },
+  "dso-pxos": {
     "deps": [],
     "priority": 1,
     "status": "closed",
+    "title": "Update end-session to display a list of pre-existing failures encountered.",
+    "type": "epic"
+  },
+  "dso-q0lo": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Prevent the explosion of documentation created by LLMs",
+    "type": "epic"
+  },
+  "dso-qo0x": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Incorporate OpenRewrite",
+    "type": "epic"
+  },
+  "dso-qv93": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh short-circuit python3 subprocess when entries is empty",
+    "type": "bug"
+  },
+  "dso-qwrw": {
+    "deps": [],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Contract: BRIDGE_ALERT event emit/parse interface",
+    "type": "task"
+  },
+  "dso-r97p": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Implementation planning schema validation",
+    "type": "epic"
+  },
+  "dso-rqj9": {
+    "deps": [
+      "dso-5gtd",
+      "dso-wz2l"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement ticket-bridge-fsck.py and register 'bridge-fsck' in ticket dispatcher",
+    "type": "task"
+  },
+  "dso-rt8b": {
+    "deps": [
+      "dso-n7f1"
+    ],
+    "parent": "dso-fj1t",
+    "priority": 1,
+    "status": "closed",
+    "title": "Add integration test for end-to-end RED marker commit flow",
+    "type": "task"
+  },
+  "dso-s12s": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Generic agent invocations should be given descriptive names",
+    "type": "epic"
+  },
+  "dso-sfoc": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: pre-commit test gate times out on large ticket-only commits (no allowlist filtering)",
+    "type": "bug"
+  },
+  "dso-sgqg": {
+    "deps": [],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing round-trip comment dedup test",
+    "type": "task"
+  },
+  "dso-soyt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Incorporate Semantic Search & MCP (Model Context Protocol)",
+    "type": "epic"
+  },
+  "dso-sq4k": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Research and investigation in pre-planning or brainstorm",
+    "type": "epic"
+  },
+  "dso-t2wb": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "test-merge-to-main: sed sentinel range fragile to future refactoring",
+    "type": "bug"
+  },
+  "dso-t4k8": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Don't cover up problems",
+    "type": "epic"
+  },
+  "dso-t7af": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Remove 5-sub-agent cap for orchestration",
+    "type": "epic"
+  },
+  "dso-to7x": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Allow coding sub-agents to use worktree isolation",
+    "type": "epic"
+  },
+  "dso-u5lt": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
+    "type": "bug"
+  },
+  "dso-ubtf": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh replace find -print -quit with POSIX-portable alternative",
+    "type": "bug"
+  },
+  "dso-udy1": {
+    "deps": [],
+    "priority": 0,
+    "status": "in_progress",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
+  "dso-uu13": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
     "title": "Remove CI ticket creation pattern",
     "type": "epic"
+  },
+  "dso-uvyl": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Make implementation plan migration aware",
+    "type": "epic"
+  },
+  "dso-v558": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Figma integration for human design input",
+    "type": "epic"
+  },
+  "dso-vcrq": {
+    "deps": [],
+    "parent": "dso-9xnr",
+    "priority": 3,
+    "status": "open",
+    "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved",
+    "type": "bug"
+  },
+  "dso-vxsh": {
+    "deps": [],
+    "parent": "dso-pxos",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Structural tests for rationalized-failures accountability step in end-session",
+    "type": "task"
+  },
+  "dso-w20r": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "validate.sh: comment says do NOT use run_with_timeout but code does use it",
+    "type": "bug"
+  },
+  "dso-w7bs": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: assert pending state file content in test_validate_exits_2_on_partial_tests integration test",
+    "type": "bug"
+  },
+  "dso-wyqo": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: contradictory comment in pre-bash-functions.sh regex line",
+    "type": "bug"
+  },
+  "dso-wz2l": {
+    "deps": [
+      "dso-nvzp",
+      "dso-els2"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement ticket-bridge-status.sh and register 'bridge-status' in ticket dispatcher",
+    "type": "task"
+  },
+  "dso-x1jt": {
+    "deps": [],
+    "parent": "dso-l2ct",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
+    "type": "story"
+  },
+  "dso-xhhv": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: unquoted $* in validate.sh RUN: line produces incorrect resume command with space-containing args",
+    "type": "bug"
+  },
+  "dso-yx0j": {
+    "deps": [
+      "dso-c9p5"
+    ],
+    "parent": "w21-dww7",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement add_comment and get_comments in acli-integration.py",
+    "type": "task"
+  },
+  "dso-yyll": {
+    "deps": [
+      "dso-n0fo",
+      "dso-60uy",
+      "dso-zso6"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement REVERT check-before-overwrite in bridge-outbound.py",
+    "type": "task"
+  },
+  "dso-za4o": {
+    "deps": [
+      "dso-qwrw"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement BRIDGE_ALERT detection in ticket-reducer.py: add bridge_alerts to compiled state",
+    "type": "task"
+  },
+  "dso-zb25": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: .test-index header comment inconsistent with actual format (no space after colon)",
+    "type": "bug"
+  },
+  "dso-zj3r": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Optimize skills and prompts for token usage",
+    "type": "epic"
+  },
+  "dso-zso6": {
+    "deps": [
+      "dso-60uy",
+      "dso-ed01",
+      "dso-za4o"
+    ],
+    "parent": "w21-qjcy",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement REVERT event handling in ticket-reducer.py: record reverts in compiled state",
+    "type": "task"
+  },
+  "w20-4idh": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "test-batched.sh state file not isolated by repo/worktree — causes cross-session interference",
+    "type": "bug"
+  },
+  "w20-fxpu": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix test_auto_detect_main_worktree_via_git_list macOS path comparison bug",
+    "type": "task"
+  },
+  "w20-gm71": {
+    "deps": [],
+    "parent": "w22-ku13",
+    "priority": 3,
+    "status": "open",
+    "title": "generate-test-index.sh broader scan is O(n*m) — extremely slow on repos with many files",
+    "type": "task"
+  },
+  "w20-keta": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts",
+    "type": "bug"
+  },
+  "w20-kt6r": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Multiple [LOCK] tickets for debug-everything — no cleanup after session ends",
+    "type": "bug"
+  },
+  "w20-w7pm": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Validation sub-agents in /dso:validate-work fix errors instead of only reporting them",
+    "type": "bug"
+  },
+  "w21-0kt1": {
+    "deps": [
+      "w21-jtkr",
+      "w21-txt8",
+      "w21-nv42"
+    ],
+    "parent": "w21-ykic",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, every classification decision is logged and post-deployment calibration signals are defined",
+    "type": "story"
+  },
+  "w21-0nk2": {
+    "deps": [],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, I get token-efficient ticket output for LLM agent interactions",
+    "type": "story"
+  },
+  "w21-1pyo": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Bug: test-design-skills-cross-stack.sh arithmetic error from grep -c fallback pattern",
+    "type": "bug"
+  },
+  "w21-24kl": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Ticket system v3 — migration from tk and cutover",
+    "type": "epic"
+  },
+  "w21-25mq": {
+    "deps": [
+      "w21-7mlx"
+    ],
+    "parent": "w21-24kl",
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, the migration is validated against a pre-flight snapshot before any references change",
+    "type": "story"
+  },
+  "w21-2a9w": {
+    "deps": [],
+    "parent": "w21-24kl",
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, the cutover script orchestrates migration phases with logging, rollback, and dry-run",
+    "type": "story"
+  },
+  "w21-2r0x": {
+    "deps": [
+      "w21-8cw2",
+      "w21-gykt"
+    ],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, the Jira bridge handles failures gracefully without corrupting ticket state",
+    "type": "story"
+  },
+  "w21-37to": {
+    "deps": [
+      "w21-dsvz"
+    ],
+    "parent": "w21-8cw2",
+    "priority": 1,
+    "status": "closed",
+    "title": "Create GitHub Actions outbound bridge workflow",
+    "type": "task"
+  },
+  "w21-3bqw": {
+    "deps": [],
+    "parent": "w21-8cw2",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for bridge-outbound event processor",
+    "type": "task"
+  },
+  "w21-3w8y": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Preplanning adds epic's own children as deps, making the epic self-blocked",
+    "type": "bug"
+  },
+  "w21-4d04": {
+    "deps": [
+      "w21-fljz",
+      "w21-v9tg"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement config key merge for test.suite.<name> entries",
+    "type": "task"
+  },
+  "w21-4jzh": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix unused imports in test_bridge_outbound.py (ruff F401)",
+    "type": "task"
+  },
+  "w21-4w0c": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Test gate blocks commits when RED tests exist for unimplemented functions",
+    "type": "bug"
+  },
+  "w21-4zl2": {
+    "deps": [
+      "w21-bef9",
+      "w21-e159"
+    ],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement inbound STATUS event writer and jira_sync_status relationship rejection in bridge-inbound.py",
+    "type": "task"
+  },
+  "w21-54wx": {
+    "deps": [
+      "dso-0k2k"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "Ticket system v3 — dependency management, cross-worktree sync, and conflict resolution",
+    "type": "epic"
+  },
+  "w21-5mr1": {
+    "deps": [],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "Contract: SYNC event format interface",
+    "type": "task"
+  },
+  "w21-689o": {
+    "deps": [],
+    "parent": "dso-9xnr",
+    "priority": 2,
+    "status": "open",
+    "title": "Worktree left dirty after implementation-plan: task tickets not committed",
+    "type": "bug"
+  },
+  "w21-7mlx": {
+    "deps": [
+      "w21-2a9w"
+    ],
+    "parent": "w21-24kl",
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, all existing tickets are migrated to the new system preserving IDs, data, and relationships",
+    "type": "story"
+  },
+  "w21-81hy": {
+    "deps": [],
+    "parent": "w21-gykt",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: write failing tests for bridge-inbound.py windowed pull, timestamp normalization, CREATE event writing",
+    "type": "task"
+  },
+  "w21-86hr": {
+    "deps": [
+      "w21-dsvz"
+    ],
+    "parent": "w21-8cw2",
+    "priority": 1,
+    "status": "closed",
+    "title": "Integration test: bridge pipeline fixture-based end-to-end",
+    "type": "task"
+  },
+  "w21-8cw2": {
+    "deps": [
+      "w21-5mr1"
+    ],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, local ticket changes are automatically pushed to Jira via the outbound bridge",
+    "type": "story"
+  },
+  "w21-99wp": {
+    "deps": [
+      "w21-w5vc"
+    ],
+    "parent": "w21-gykt",
+    "priority": 1,
+    "status": "closed",
+    "title": "Complete bridge-inbound.py: configurable mapping, BRIDGE_ALERT, full pagination, UTC health check, process_inbound entry point",
+    "type": "task"
+  },
+  "w21-9tc4": {
+    "deps": [],
+    "parent": "dso-0k2k",
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: sub-agent wrote discovery file under .claude/ (protected folder) instead of artifacts dir",
+    "type": "bug"
+  },
+  "w21-bef9": {
+    "deps": [],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for inbound STATUS event writing and relationship rejection persistence",
+    "type": "task"
+  },
+  "w21-bksy": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: overly broad grep assertion in test_discovers_associated_tests in test-record-test-status.sh",
+    "type": "bug"
+  },
+  "w21-bsnz": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Create a process to remediate legacy code",
+    "type": "epic"
+  },
+  "w21-bwfw": {
+    "deps": [
+      "w21-54wx"
+    ],
+    "priority": 1,
+    "status": "closed",
+    "title": "Ticket system v3 — Jira bridge and LLM-optimized output",
+    "type": "epic"
+  },
+  "w21-chse": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Add hypothetical scenario consideration to epic planning",
+    "type": "epic"
+  },
+  "w21-cxzv": {
+    "deps": [
+      "w21-f2k3",
+      "w21-okrb"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement --suites flag skeleton, Makefile heuristic, and pytest heuristic",
+    "type": "task"
+  },
+  "w21-da9n": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test-cleanup-claude-session.sh times out (exceeds 120s)",
+    "type": "bug"
+  },
+  "w21-dixy": {
+    "deps": [
+      "w21-soe9"
+    ],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement detect_status_flap() and integrate flap halt into process_outbound()",
+    "type": "task"
+  },
+  "w21-dsvz": {
+    "deps": [
+      "w21-3bqw",
+      "w21-hbjx"
+    ],
+    "parent": "w21-8cw2",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement bridge-outbound.py event processor",
+    "type": "task"
+  },
+  "w21-dww7": {
+    "deps": [
+      "w21-8cw2",
+      "dso-hdf8"
+    ],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, comments sync bidirectionally between local tickets and Jira without duplication",
+    "type": "story"
+  },
+  "w21-e159": {
+    "deps": [
+      "w21-r97s"
+    ],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement is_destructive_change() guards in bridge-inbound.py",
+    "type": "task"
+  },
+  "w21-e447": {
+    "deps": [],
+    "parent": "dso-9xnr",
+    "priority": 3,
+    "status": "open",
+    "title": "dso-setup.sh supplement_template_file uses cat for append — not in _make_tool_path fake PATH",
+    "type": "bug"
+  },
+  "w21-epz2": {
+    "deps": [
+      "w21-zp4d",
+      "w21-jtkr",
+      "w21-txt8",
+      "w21-nv42",
+      "w21-0kt1"
+    ],
+    "parent": "w21-ykic",
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect tiered review architecture",
+    "type": "story"
+  },
+  "w21-etsx": {
+    "deps": [
+      "w21-cxzv",
+      "w21-v9tg",
+      "w21-4d04"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Update project-detect.sh script header comment and usage docs",
+    "type": "task"
+  },
+  "w21-f2k3": {
+    "deps": [],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write backward-compat regression tests for --suites flag",
+    "type": "task"
+  },
+  "w21-fljz": {
+    "deps": [
+      "w21-ulsg"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write config merge and fixture acceptance tests",
+    "type": "task"
+  },
+  "w21-fzzu": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: remove unused REPO_ROOT variable in test-record-test-status.sh",
+    "type": "bug"
+  },
+  "w21-gy45": {
+    "deps": [
+      "w21-wbqz"
+    ],
+    "parent": "w21-24kl",
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, the old ticket system is cleaned up after confirmed successful migration",
+    "type": "story"
+  },
+  "w21-gykt": {
+    "deps": [
+      "w21-8cw2"
+    ],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, Jira changes are automatically pulled into my local ticket system",
+    "type": "story"
+  },
+  "w21-hbjx": {
+    "deps": [
+      "w21-mrqh"
+    ],
+    "parent": "w21-8cw2",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement acli-integration.py ACLI subprocess wrapper",
+    "type": "task"
+  },
+  "w21-hget": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-merge-to-main-portability.sh pre-existing failures (sequential phase warning)",
+    "type": "bug"
+  },
+  "w21-j97n": {
+    "deps": [
+      "w21-zbx7"
+    ],
+    "parent": "w21-gykt",
+    "priority": 1,
+    "status": "closed",
+    "title": "Integration tests for bridge-inbound.py process_inbound() end-to-end pipeline",
+    "type": "task"
+  },
+  "w21-jg2l": {
+    "deps": [
+      "w21-m5zd",
+      "w21-4zl2"
+    ],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement per-batch checkpoint with dual-timestamp in bridge-inbound.py",
+    "type": "task"
+  },
+  "w21-jtkr": {
+    "deps": [
+      "w21-zp4d",
+      "dso-9ltc"
+    ],
+    "parent": "w21-ykic",
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, code changes are scored by a deterministic classifier and routed to the correct review tier",
+    "type": "story"
+  },
+  "w21-m5zd": {
+    "deps": [
+      "w21-4zl2"
+    ],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for per-batch checkpoint with dual-timestamp in bridge-inbound.py",
+    "type": "task"
+  },
+  "w21-mrqh": {
+    "deps": [],
+    "parent": "w21-8cw2",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for ACLI integration wrapper",
+    "type": "task"
+  },
+  "w21-nrpb": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: merge-to-main.sh test gate blocks after auto-resolve of .tickets/.index.json conflict",
+    "type": "bug"
+  },
+  "w21-nv42": {
+    "deps": [
+      "w21-jtkr"
+    ],
+    "parent": "w21-ykic",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, oversized diffs are rejected with actionable guidance and merge commits are reviewed efficiently",
+    "type": "story"
+  },
+  "w21-o2cn": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: test-behavioral-equivalence-allowlist.sh 6 failures (compute-diff-hash/both-consumers-agree)",
+    "type": "bug"
+  },
+  "w21-o44h": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "test",
+    "type": "task"
+  },
+  "w21-o5ap": {
+    "deps": [],
+    "parent": "w21-24kl",
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, I have complete CLI documentation for all ticket commands",
+    "type": "story"
+  },
+  "w21-okrb": {
+    "deps": [
+      "w21-f2k3"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write --suites JSON schema, Makefile and pytest heuristic tests",
+    "type": "task"
+  },
+  "w21-ovpn": {
+    "deps": [
+      "w21-ykic"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Review Intelligence & Precision",
+    "type": "epic"
+  },
+  "w21-pqsy": {
+    "deps": [
+      "w21-81hy"
+    ],
+    "parent": "w21-gykt",
+    "priority": 1,
+    "status": "closed",
+    "title": "Implement bridge-inbound.py core: fetch_jira_changes, normalize_timestamps, write_create_events",
+    "type": "task"
+  },
+  "w21-qjcy": {
+    "deps": [
+      "w21-2r0x"
+    ],
+    "parent": "w21-bwfw",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a developer, I can see bridge problems and recover from bad bridge actions",
+    "type": "story"
+  },
+  "w21-r97s": {
+    "deps": [],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for destructive change guards in bridge-inbound.py",
+    "type": "task"
+  },
+  "w21-raky": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "test-retry-with-backoff.sh fails with 0 pass, 0 fail",
+    "type": "bug"
+  },
+  "w21-soe9": {
+    "deps": [],
+    "parent": "w21-2r0x",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write failing tests for flap detection in bridge-outbound.py",
+    "type": "task"
+  },
+  "w21-txt8": {
+    "deps": [
+      "w21-jtkr"
+    ],
+    "parent": "w21-ykic",
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, high-complexity changes receive parallel multi-reviewer scrutiny with opus architectural oversight",
+    "type": "story"
+  },
+  "w21-u3bx": {
+    "deps": [],
+    "parent": "dso-9xnr",
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: bump-version.sh should sync from main before bumping to avoid version conflicts",
+    "type": "bug"
+  },
+  "w21-u3op": {
+    "deps": [],
+    "parent": "dso-9xnr",
+    "priority": 2,
+    "status": "open",
+    "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation",
+    "type": "bug"
+  },
+  "w21-ulsg": {
+    "deps": [
+      "w21-okrb"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write npm, bash runner, dedup, and precedence tests",
+    "type": "task"
+  },
+  "w21-v9tg": {
+    "deps": [
+      "w21-ulsg",
+      "w21-cxzv"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement npm and bash runner heuristics with dedup and precedence ordering",
+    "type": "task"
+  },
+  "w21-vhms": {
+    "deps": [
+      "w21-37to"
+    ],
+    "parent": "w21-8cw2",
+    "priority": 2,
+    "status": "closed",
+    "title": "ADR: outbound bridge architectural pattern",
+    "type": "task"
+  },
+  "w21-w5vc": {
+    "deps": [
+      "w21-pqsy"
+    ],
+    "parent": "w21-gykt",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: write failing tests for configurable status/type mapping, BRIDGE_ALERT, JQL pagination, UTC health check",
+    "type": "task"
+  },
+  "w21-wbqz": {
+    "deps": [
+      "w21-25mq",
+      "w21-o5ap"
+    ],
+    "parent": "w21-24kl",
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, all tk references are atomically updated to the new ticket CLI in a single commit",
+    "type": "story"
+  },
+  "w21-xz3m": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Untitled",
+    "type": "task"
+  },
+  "w21-ykic": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Tiered Review Architecture",
+    "type": "epic"
+  },
+  "w21-zbx7": {
+    "deps": [
+      "w21-99wp"
+    ],
+    "parent": "w21-gykt",
+    "priority": 1,
+    "status": "closed",
+    "title": "Create inbound-bridge.yml GitHub Actions scheduled workflow",
+    "type": "task"
+  },
+  "w21-zp4d": {
+    "deps": [
+      "dso-9ltc"
+    ],
+    "parent": "w21-ykic",
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO contributor, all review dimension references use the new 5-dimension schema",
+    "type": "story"
+  },
+  "w22-25ui": {
+    "deps": [
+      "w22-wwu2",
+      "w22-jg2k"
+    ],
+    "parent": "dso-5ooy",
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, overlay reviewers are dispatched in parallel or serially based on defense-in-depth classification signals",
+    "type": "story"
+  },
+  "w22-2avn": {
+    "deps": [],
+    "parent": "dso-5ooy",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, an aggressive security red team agent reviews diffs for AI-advantaged security concerns",
+    "type": "story"
+  },
+  "w22-45i1": {
+    "deps": [],
+    "parent": "dso-psan",
+    "priority": 1,
+    "status": "closed",
+    "title": "RED: Write structural validation test for onboarding integration in project-setup",
+    "type": "task"
+  },
+  "w22-528r": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Setup skill: auto-discover host project test suites for CI workflow generation",
+    "type": "epic"
+  },
+  "w22-53cg": {
+    "deps": [],
+    "parent": "dso-5ooy",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, a calibrated performance reviewer flags scaling failures and resource exhaustion using bright-line severity rules",
+    "type": "story"
+  },
+  "w22-5e4i": {
+    "deps": [],
+    "parent": "w22-528r",
+    "priority": 2,
+    "status": "closed",
+    "title": "As a platform engineer, I can run project-detect.sh --suites to discover test suites",
+    "type": "story"
+  },
+  "w22-5z9r": {
+    "deps": [
+      "w22-45i1"
+    ],
+    "parent": "dso-psan",
+    "priority": 1,
+    "status": "closed",
+    "title": "GREEN: Add Step 7 onboarding prompt to project-setup SKILL.md",
+    "type": "task"
+  },
+  "w22-7r1n": {
+    "deps": [
+      "w22-2avn"
+    ],
+    "parent": "dso-5ooy",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, a security blue team agent triages red team findings with ticket context to dismiss, downgrade, or sustain",
+    "type": "story"
+  },
+  "w22-9o1u": {
+    "deps": [
+      "w22-wwu2",
+      "w22-jg2k",
+      "w22-25ui",
+      "w22-2avn",
+      "w22-7r1n",
+      "w22-53cg",
+      "w22-agl5",
+      "w22-ubwu"
+    ],
+    "parent": "dso-5ooy",
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect conditional security and performance review overlays",
+    "type": "story"
+  },
+  "w22-agl5": {
+    "deps": [
+      "w22-2avn",
+      "w22-7r1n",
+      "w22-53cg"
+    ],
+    "parent": "dso-5ooy",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, overlay findings enter the resolution loop and create tracking tickets for minor issues",
+    "type": "story"
+  },
+  "w22-anm2": {
+    "deps": [
+      "w22-528r"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "CI workflow generation from discovered test suites",
+    "type": "epic"
+  },
+  "w22-j22e": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: preplanning uses ambiguous confirmation questions where yes/no answers conflict",
+    "type": "bug"
+  },
+  "w22-jg2k": {
+    "deps": [],
+    "parent": "dso-5ooy",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, tier reviewers carry lightweight security and performance classification checklist items",
+    "type": "story"
+  },
+  "w22-ku13": {
+    "deps": [
+      "w22-l60c"
+    ],
+    "parent": "w22-338o",
+    "priority": 1,
+    "status": "closed",
+    "title": "As a project maintainer, /dev-onboarding generates a .test-index for associations fuzzy match would miss",
+    "type": "story"
+  },
+  "w22-ns6l": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Project Health Restoration",
+    "type": "epic"
+  },
+  "w22-ond9": {
+    "deps": [],
+    "parent": "w22-anm2",
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can generate CI workflows for a new project from discovered suites",
+    "type": "story"
+  },
+  "w22-opu1": {
+    "deps": [
+      "w22-5e4i"
+    ],
+    "parent": "w22-528r",
+    "priority": 2,
+    "status": "closed",
+    "title": "As a platform engineer, I can declare unknown test patterns via config keys",
+    "type": "story"
+  },
+  "w22-rkur": {
+    "deps": [
+      "w22-5e4i",
+      "w22-opu1"
+    ],
+    "parent": "w22-528r",
+    "priority": 3,
+    "status": "closed",
+    "title": "Update project docs to reflect test suite discovery",
+    "type": "story"
+  },
+  "w22-tho5": {
+    "deps": [
+      "w22-ond9",
+      "w22-ybey"
+    ],
+    "parent": "w22-anm2",
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect CI workflow generation",
+    "type": "story"
+  },
+  "w22-ubwu": {
+    "deps": [
+      "w22-wwu2",
+      "w22-25ui",
+      "w22-2avn",
+      "w22-7r1n",
+      "w22-53cg",
+      "w22-agl5"
+    ],
+    "parent": "dso-5ooy",
+    "priority": 3,
+    "status": "open",
+    "title": "As a DSO practitioner, overlay calibration baselines are established from retrospective analysis of merged commits",
+    "type": "story"
+  },
+  "w22-wwu2": {
+    "deps": [],
+    "parent": "dso-5ooy",
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, code changes touching security-sensitive paths trigger a deterministic overlay signal from the classifier",
+    "type": "story"
+  },
+  "w22-ybey": {
+    "deps": [],
+    "parent": "w22-anm2",
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can identify and place uncovered suites in my existing CI",
+    "type": "story"
   }
 }
