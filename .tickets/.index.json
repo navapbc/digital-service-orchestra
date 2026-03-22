@@ -485,7 +485,7 @@
   "dso-lu5w": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Inbound Bridge workflow fails: tickets branch does not exist on remote",
     "type": "bug"
   },
@@ -695,6 +695,13 @@
     "status": "open",
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
+  },
+  "dso-xaf5": {
+    "deps": [],
+    "priority": 0,
+    "status": "closed",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
   },
   "dso-xhhv": {
     "deps": [],
