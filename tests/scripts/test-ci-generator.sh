@@ -208,5 +208,195 @@ assert_eq "test_mixed_suites_split_correctly: unit not in ci-slow.yml" \
     "no" "$mixed_slow_has_unit"
 assert_pass_if_clean "test_mixed_suites_split_correctly"
 
+# ── test_command_sanitization_strips_metacharacters ──────────────────────────
+# A suite command with shell metacharacters (e.g. 'make test; rm -rf /') must
+# produce a YAML run: field that contains ONLY the safe portion before the
+# semicolon — i.e. the dangerous fragment 'rm -rf' must NOT appear.
+#
+# The current sanitize_command strips the semicolon but retains the text after
+# it ('rm -rf /'), so the YAML run field ends up as 'make test rm -rf /'.
+# This test fails RED until dso-cwyt implements truncation-at-first-metachar
+# or a stricter rejection policy.
+_snapshot_fail
+METACHAR_SUITES='[{"name":"unit","command":"make test; rm -rf /","speed_class":"fast","runner":"make"}]'
+run_generator "sanitize_meta" "$METACHAR_SUITES" || true
+SANITIZE_CI_YML="$TMPDIR_OUTPUT/sanitize_meta/ci.yml"
+sanitize_run_field=""
+if [[ -f "$SANITIZE_CI_YML" ]]; then
+    sanitize_run_field="$(grep 'run:' "$SANITIZE_CI_YML" | head -1)"
+fi
+# Assert: exit 0 (script must not error on this input)
+sanitize_exit=0
+CI_NONINTERACTIVE=1 bash "$SCRIPT" \
+    --suites-json "$METACHAR_SUITES" \
+    --output-dir "$TMPDIR_OUTPUT/sanitize_meta_exit" \
+    2>/dev/null || sanitize_exit=$?
+assert_eq "test_command_sanitization_strips_metacharacters: exit 0" \
+    "0" "$sanitize_exit"
+# Assert: the dangerous fragment 'rm -rf' is NOT in the run: field
+rm_rf_in_yaml="no"
+if [[ "$sanitize_run_field" == *"rm -rf"* ]]; then
+    rm_rf_in_yaml="yes"
+fi
+assert_eq "test_command_sanitization_strips_metacharacters: no rm -rf in run field" \
+    "no" "$rm_rf_in_yaml"
+assert_pass_if_clean "test_command_sanitization_strips_metacharacters"
+
+# ── test_yaml_validation_blocks_invalid_yaml ─────────────────────────────────
+# When the generated YAML fails validation, the generator must exit 2 and
+# write no output file.  We simulate a validation failure by injecting a fake
+# python3 into PATH that always returns non-zero for yaml.safe_load calls.
+#
+# Additionally, the error message on stderr must contain the string
+# "invalid YAML" so callers can parse it programmatically.  The current
+# implementation emits "failed YAML validation" (not "invalid YAML"), so the
+# stderr-content assertion fails RED until dso-cwyt normalises the message.
+_snapshot_fail
+YAML_FAKE_BIN="$(mktemp -d)"
+cat > "$YAML_FAKE_BIN/python3" << 'FAKE_PYEOF'
+#!/usr/bin/env bash
+# Stub: pretend yaml.safe_load always fails
+if echo "$*" | grep -q 'yaml.safe_load'; then
+    exit 1
+fi
+exec /usr/bin/python3 "$@"
+FAKE_PYEOF
+chmod +x "$YAML_FAKE_BIN/python3"
+trap 'rm -rf "$YAML_FAKE_BIN"' EXIT
+
+YAML_VAL_DIR="$TMPDIR_OUTPUT/yaml_validation"
+mkdir -p "$YAML_VAL_DIR"
+yaml_val_stderr="$(PATH="$YAML_FAKE_BIN:$PATH" CI_NONINTERACTIVE=1 bash "$SCRIPT" \
+    --suites-json '[{"name":"unit","command":"make test","speed_class":"fast","runner":"make"}]' \
+    --output-dir "$YAML_VAL_DIR" \
+    2>&1 >/dev/null)"
+yaml_val_exit=$?
+
+assert_eq "test_yaml_validation_blocks_invalid_yaml: exit code is 2" \
+    "2" "$yaml_val_exit"
+
+yaml_val_file_written="yes"
+if [[ ! -f "$YAML_VAL_DIR/ci.yml" ]]; then
+    yaml_val_file_written="no"
+fi
+assert_eq "test_yaml_validation_blocks_invalid_yaml: no file written on failure" \
+    "no" "$yaml_val_file_written"
+
+yaml_val_msg_ok="no"
+if [[ "$yaml_val_stderr" == *"invalid YAML"* ]]; then
+    yaml_val_msg_ok="yes"
+fi
+assert_eq "test_yaml_validation_blocks_invalid_yaml: stderr contains 'invalid YAML'" \
+    "yes" "$yaml_val_msg_ok"
+assert_pass_if_clean "test_yaml_validation_blocks_invalid_yaml"
+
+# ── test_special_chars_in_suite_name_produce_valid_job_id ─────────────────────
+# Suite name 'my_test suite' (underscore + space) must produce the job ID
+# 'test-my-test-suite' in the generated YAML.  Both the job ID must appear
+# as a key in the YAML jobs: block and the YAML must remain structurally valid
+# (parseable by python3 yaml.safe_load).
+_snapshot_fail
+SPECIAL_NAME_SUITES='[{"name":"my_test suite","command":"make test","speed_class":"fast","runner":"make"}]'
+run_generator "special_name" "$SPECIAL_NAME_SUITES" || true
+SPECIAL_CI_YML="$TMPDIR_OUTPUT/special_name/ci.yml"
+
+special_job_id_present="no"
+special_yaml_valid="no"
+if [[ -f "$SPECIAL_CI_YML" ]]; then
+    if grep -q 'test-my-test-suite:' "$SPECIAL_CI_YML"; then
+        special_job_id_present="yes"
+    fi
+    if python3 -c "import yaml; yaml.safe_load(open('$SPECIAL_CI_YML'))" 2>/dev/null; then
+        special_yaml_valid="yes"
+    fi
+fi
+assert_eq "test_special_chars_in_suite_name_produce_valid_job_id: job ID test-my-test-suite present" \
+    "yes" "$special_job_id_present"
+assert_eq "test_special_chars_in_suite_name_produce_valid_job_id: generated YAML is valid" \
+    "yes" "$special_yaml_valid"
+assert_pass_if_clean "test_special_chars_in_suite_name_produce_valid_job_id"
+
+# ── test_all_unknown_suites_noninteractive_go_to_slow ─────────────────────────
+# In non-interactive mode, a JSON array where ALL suites have speed_class=unknown
+# must write ONLY ci-slow.yml (never ci.yml).  Having multiple unknown-class
+# suites exercises the all-unknown branch rather than the single-suite case
+# already covered by test_unknown_speed_class_noninteractive_defaults_to_slow.
+_snapshot_fail
+ALL_UNKNOWN_SUITES='[{"name":"load","command":"make load","speed_class":"unknown","runner":"make"},{"name":"smoke","command":"make smoke","speed_class":"unknown","runner":"make"}]'
+run_generator "all_unknown" "$ALL_UNKNOWN_SUITES" || true
+ALL_UNKNOWN_DIR="$TMPDIR_OUTPUT/all_unknown"
+
+all_unknown_slow_exists="no"
+all_unknown_fast_exists="no"
+all_unknown_slow_has_both="no"
+if [[ -f "$ALL_UNKNOWN_DIR/ci-slow.yml" ]]; then
+    all_unknown_slow_exists="yes"
+    slow_content="$(cat "$ALL_UNKNOWN_DIR/ci-slow.yml")"
+    if [[ "$slow_content" == *"load"* && "$slow_content" == *"smoke"* ]]; then
+        all_unknown_slow_has_both="yes"
+    fi
+fi
+if [[ -f "$ALL_UNKNOWN_DIR/ci.yml" ]]; then
+    all_unknown_fast_exists="yes"
+fi
+assert_eq "test_all_unknown_suites_noninteractive_go_to_slow: ci-slow.yml written" \
+    "yes" "$all_unknown_slow_exists"
+assert_eq "test_all_unknown_suites_noninteractive_go_to_slow: ci.yml not written" \
+    "no" "$all_unknown_fast_exists"
+assert_eq "test_all_unknown_suites_noninteractive_go_to_slow: both suites in ci-slow.yml" \
+    "yes" "$all_unknown_slow_has_both"
+assert_pass_if_clean "test_all_unknown_suites_noninteractive_go_to_slow"
+
+# ── test_temp_then_move_pattern ───────────────────────────────────────────────
+# The generator must write output atomically: compose content in a temp file
+# first, validate, then move to the final path.  On validation failure the
+# final output file must NOT exist and no stray temp files must remain in the
+# output directory itself.
+#
+# This test verifies the observable contract of the temp-then-move pattern:
+# (a) on success, ci.yml exists and contains valid YAML, and
+# (b) on failure (mocked), ci.yml does NOT exist and the output dir is empty.
+_snapshot_fail
+TTM_FAKE_BIN="$(mktemp -d)"
+cat > "$TTM_FAKE_BIN/python3" << 'TTM_PYEOF'
+#!/usr/bin/env bash
+if echo "$*" | grep -q 'yaml.safe_load'; then
+    exit 1
+fi
+exec /usr/bin/python3 "$@"
+TTM_PYEOF
+chmod +x "$TTM_FAKE_BIN/python3"
+trap 'rm -rf "$TTM_FAKE_BIN"' EXIT
+
+# Part (a): success path — output file must exist after validation passes
+TTM_SUCCESS_DIR="$TMPDIR_OUTPUT/ttm_success"
+mkdir -p "$TTM_SUCCESS_DIR"
+CI_NONINTERACTIVE=1 bash "$SCRIPT" \
+    --suites-json '[{"name":"unit","command":"make test","speed_class":"fast","runner":"make"}]' \
+    --output-dir "$TTM_SUCCESS_DIR" \
+    2>/dev/null || true
+ttm_success_file_exists="no"
+if [[ -f "$TTM_SUCCESS_DIR/ci.yml" ]]; then
+    ttm_success_file_exists="yes"
+fi
+assert_eq "test_temp_then_move_pattern: success path writes ci.yml" \
+    "yes" "$ttm_success_file_exists"
+
+# Part (b): failure path — no stray files must remain in output dir
+TTM_FAIL_DIR="$TMPDIR_OUTPUT/ttm_fail"
+mkdir -p "$TTM_FAIL_DIR"
+PATH="$TTM_FAKE_BIN:$PATH" CI_NONINTERACTIVE=1 bash "$SCRIPT" \
+    --suites-json '[{"name":"unit","command":"make test","speed_class":"fast","runner":"make"}]' \
+    --output-dir "$TTM_FAIL_DIR" \
+    2>/dev/null || true
+ttm_fail_dir_empty="yes"
+ttm_fail_stray_count="$(ls -1 "$TTM_FAIL_DIR" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$ttm_fail_stray_count" -gt 0 ]]; then
+    ttm_fail_dir_empty="no"
+fi
+assert_eq "test_temp_then_move_pattern: failure path leaves output dir empty" \
+    "yes" "$ttm_fail_dir_empty"
+assert_pass_if_clean "test_temp_then_move_pattern"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
