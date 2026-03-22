@@ -1,6 +1,6 @@
 ---
 id: dso-psan
-status: open
+status: closed
 deps: [w22-45i1, w22-5z9r]
 links: []
 created: 2026-03-19T18:20:58Z
