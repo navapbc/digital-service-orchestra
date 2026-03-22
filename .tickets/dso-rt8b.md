@@ -1,6 +1,6 @@
 ---
 id: dso-rt8b
-status: in_progress
+status: closed
 deps: [dso-n7f1]
 links: []
 created: 2026-03-22T03:54:56Z
