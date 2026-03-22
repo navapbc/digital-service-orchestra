@@ -1,6 +1,6 @@
 ---
 id: dso-pxos
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-17T18:33:49Z
