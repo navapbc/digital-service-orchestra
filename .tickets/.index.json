@@ -549,13 +549,6 @@
     "title": "Fix: project-detect.sh add --suites flag to Usage header comment",
     "type": "bug"
   },
-  "dso-h04l": {
-    "deps": [],
-    "priority": 0,
-    "status": "in_progress",
-    "title": "[LOCK] debug-everything",
-    "type": "task"
-  },
   "dso-h2gj": {
     "deps": [
       "dso-vxsh"
@@ -918,13 +911,6 @@
     "title": "Fix: project-detect.sh replace find -print -quit with POSIX-portable alternative",
     "type": "bug"
   },
-  "dso-udy1": {
-    "deps": [],
-    "priority": 0,
-    "status": "in_progress",
-    "title": "[LOCK] debug-everything",
-    "type": "task"
-  },
   "dso-uu13": {
     "deps": [],
     "priority": 1,
@@ -1002,11 +988,39 @@
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
   },
+  "dso-xaf5": {
+    "deps": [],
+    "priority": 0,
+    "status": "in_progress",
+    "title": "[LOCK] debug-everything",
+    "type": "task"
+  },
   "dso-xhhv": {
     "deps": [],
     "priority": 4,
     "status": "open",
     "title": "Fix: unquoted $* in validate.sh RUN: line produces incorrect resume command with space-containing args",
+    "type": "bug"
+  },
+  "dso-xrna": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "ci-generator tests fail in CI but pass locally (36 failures)",
+    "type": "bug"
+  },
+  "dso-y1hq": {
+    "deps": [],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "run-all.sh SUITE_TIMEOUT=180 too short \u2014 causes false test FAIL",
+    "type": "bug"
+  },
+  "dso-yfle": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "debug-everything orchestrator fixes bugs directly instead of delegating to /dso:fix-bug",
     "type": "bug"
   },
   "dso-yx0j": {
@@ -1367,7 +1381,7 @@
   "w21-da9n": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "test-cleanup-claude-session.sh times out (exceeds 120s)",
     "type": "bug"
   },
@@ -1648,7 +1662,7 @@
   "w21-raky": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "test-retry-with-backoff.sh fails with 0 pass, 0 fail",
     "type": "bug"
   },

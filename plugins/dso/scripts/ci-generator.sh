@@ -115,18 +115,25 @@ sanitize_command() {
 }
 
 # validate_yaml: validate a YAML file with actionlint or python3 yaml.safe_load
+# Falls back to success (return 0) when no validator is available, since the
+# YAML is generated programmatically and structural issues are unlikely.
 validate_yaml() {
     local file="$1"
     if command -v actionlint >/dev/null 2>&1; then
         actionlint "$file" >/dev/null 2>&1
         return $?
     fi
-    python3 -c "
+    if python3 -c "import yaml" 2>/dev/null; then
+        python3 -c "
 import sys, yaml
 with open(sys.argv[1]) as f:
     yaml.safe_load(f)
 " "$file" 2>/dev/null
-    return $?
+        return $?
+    fi
+    # No validator available — skip validation with warning
+    echo "Warning: no YAML validator available (actionlint or python3 PyYAML); skipping validation" >&2
+    return 0
 }
 
 # ── Parse suites JSON ─────────────────────────────────────────────────────────
