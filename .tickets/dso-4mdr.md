@@ -1,6 +1,6 @@
 ---
 id: dso-4mdr
-status: in_progress
+status: closed
 deps: [dso-qzn4]
 links: []
 created: 2026-03-22T15:17:21Z

@@ -1,6 +1,6 @@
 # Code Review Workflow
 
-Review the current code diff using a `general-purpose` sub-agent for deep analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
+Review the current code diff using a classifier-selected named review agent for analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
 
 ## Config Reference (from dso-config.conf)
 
@@ -103,37 +103,56 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 **Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state.
 
-## Step 3: Determine Model (MANDATORY — run the command, do not evaluate mentally)
+## Step 3: Classify Review Tier (MANDATORY — run the classifier, do not evaluate mentally)
 
-**You MUST run this command and use its output.** Do NOT select a model based on your assessment of diff complexity or file types — only file paths determine model selection.
+**You MUST run this command and use its output.** Do NOT select a tier based on your assessment of diff complexity or file types — the classifier computes the tier deterministically from the diff.
 
 ```bash
-CHANGED_FILES=$({ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u)
-MODEL="sonnet"
-if echo "$CHANGED_FILES" | grep -qE '^(\.claude/skills/|\.claude/workflows/|\.claude/hooks/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
-    MODEL="opus"
+# Run complexity classifier to determine review tier
+CLASSIFIER="${CLAUDE_PLUGIN_ROOT}/scripts/review-complexity-classifier.sh"
+CLASSIFIER_OUTPUT=$(bash "$CLASSIFIER" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
+if [[ "${CLASSIFIER_EXIT:-0}" -ne 0 ]] || ! echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+    # Classifier failed — default to standard tier per contract (classifier-tier-output.md)
+    REVIEW_TIER="standard"
+    REVIEW_AGENT="dso:code-reviewer-standard"
+else
+    REVIEW_TIER=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["selected_tier"])')
+    case "$REVIEW_TIER" in
+        light)    REVIEW_AGENT="dso:code-reviewer-light" ;;
+        standard) REVIEW_AGENT="dso:code-reviewer-standard" ;;
+        deep)     REVIEW_AGENT="dso:code-reviewer-deep-correctness" ;;  # Deep multi-reviewer dispatch comes in w21-txt8
+        *)        REVIEW_TIER="standard"; REVIEW_AGENT="dso:code-reviewer-standard" ;;
+    esac
 fi
-echo "REVIEW_MODEL=$MODEL"
+echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 ```
 
-Use the `REVIEW_MODEL=` value in Step 4. Do not substitute `sonnet` when the command outputs `opus`.
+Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. Do not override the classifier's tier selection.
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
 **You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
 
-Launch a `general-purpose` sub-agent using the Task tool. This agent type has full tool access, which is required to write `reviewer-findings.json` and compute its hash.
+Dispatch the named review agent selected by the classifier in Step 3. The named agent's system prompt contains the stable review procedure — do NOT load `code-review-dispatch.md` as a template. Pass only per-review context to the sub-agent prompt.
 
-**Do NOT use specialized sub-agent types** (e.g., `feature-dev:code-reviewer`). Those types lack the Bash tool, which is required to run `verify-review-diff.sh` and pipe JSON to `write-reviewer-findings.sh`. Using a non-general-purpose type will cause the review to fail with a malformed output and require a re-dispatch.
+### Tier-to-Agent Dispatch
 
-Read the prompt template at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
-- `{working_directory}`: current working directory
-- `{diff_stat}`: content of the stat file from Step 2
-- `{diff_file_path}`: the `DIFF_FILE` path from Step 2
-- `{repo_root}`: `REPO_ROOT` value
+| `REVIEW_TIER` | `REVIEW_AGENT` | Model |
+|---|---|---|
+| `light` | `dso:code-reviewer-light` | haiku |
+| `standard` | `dso:code-reviewer-standard` | sonnet |
+| `deep` | `dso:code-reviewer-deep-correctness` | opus (full parallel multi-reviewer dispatch comes in w21-txt8) |
+
+### Per-Review Context (prompt content)
+
+Pass only these items in the sub-agent prompt — the named agent's system prompt handles the review procedure:
+
+- `DIFF_FILE`: the `DIFF_FILE` path from Step 2 (the sub-agent reads the diff from disk)
+- `STAT_FILE` content: the stat summary from Step 2 (inline in the prompt)
+- `REPO_ROOT`: repository root path
 - `{issue_context}`: Issue context (see below)
 
-**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/dso:sprint`, present in the task prompt, or tracked by the orchestrator), populate this placeholder with:
+**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/dso:sprint`, present in the task prompt, or tracked by the orchestrator), populate this with:
 
 ```
 === ISSUE CONTEXT ===
@@ -141,16 +160,24 @@ This change is for issue {issue_id}.
 To view full issue details, run: tk show {issue_id}
 ```
 
-If no issue is associated with the current work, set `{issue_context}` to an empty string.
+If no issue is associated with the current work, omit the issue context section.
 
-**If you have already read `code-review-dispatch.md` earlier in this conversation and have not compacted since, use the version in context.**
+### Dispatch
 
 ```
 Task tool:
-  subagent_type: "general-purpose"
-  model: "{opus or sonnet from Step 3}"
+  subagent_type: "{REVIEW_AGENT from Step 3}"
   description: "Review code changes"
-  prompt: <filled template from code-review-dispatch.md>
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
 ```
 
 **NEVER set `isolation: "worktree"` on this sub-agent.** The reviewer must read `reviewer-findings.json` and run `write-reviewer-findings.sh` in the same working directory as the orchestrator. Worktree isolation gives the agent a separate branch where those files are not present, causing the review to fail.
@@ -237,12 +264,12 @@ Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and u
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
 - `{issue_ids}`: issue IDs associated with the current work (for `tk create` defers), or empty string
-- `{cached_model}`: model determined in Step 3 (`opus` or `sonnet`)
+- `{cached_model}`: model name derived from `REVIEW_TIER` in Step 3 (`light`→`haiku`, `standard`→`sonnet`, `deep`→`opus`)
 
 ```
 Task tool:
   subagent_type: "general-purpose"
-  model: "{cached_model}"
+  model: "sonnet"
   description: "Resolve review findings"
   prompt: <filled template from review-fix-dispatch.md>
 ```
@@ -268,13 +295,21 @@ Task tool:
    ".claude/scripts/dso capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
-2. Dispatch the re-review sub-agent using the same `code-review-dispatch.md` template:
+2. Dispatch the re-review sub-agent using the same named agent from Step 3:
    ```
    Task tool:
-     subagent_type: "general-purpose"
-     model: "{cached_model}"
+     subagent_type: "{REVIEW_AGENT from Step 3}"
      description: "Re-review after fixes"
-     prompt: <filled code-review-dispatch.md with NEW_DIFF_HASH, NEW_DIFF_FILE, NEW_STAT_FILE>
+     prompt: |
+       Review the code changes for this commit.
+
+       DIFF_FILE: {NEW_DIFF_FILE}
+       REPO_ROOT: {REPO_ROOT}
+
+       === DIFF STAT ===
+       {content of NEW_STAT_FILE}
+
+       {issue_context}
    ```
 
    **NEVER set `isolation: "worktree"` on this sub-agent.** It must access `reviewer-findings.json` and `write-reviewer-findings.sh` in the shared working directory.
