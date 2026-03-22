@@ -91,13 +91,23 @@ sanitize_job_id() {
     printf 'test-%s' "$lower"
 }
 
-# sanitize_command: strip shell metacharacters from command
-# Allowlist: alphanumeric, space, '-', '_', '/', '.', ':', '='
+# sanitize_command: truncate command at the first shell metacharacter, then
+# strip any remaining characters outside the allowlist.
+# Shell metacharacters (; | & ` $ > < ! ( ) { } \n) are dangerous injection
+# vectors — truncate at the first occurrence rather than stripping in-place,
+# which could silently compose a new harmful command from the fragments.
+# Allowlist (post-truncation): alphanumeric, space, '-', '_', '/', '.', ':', '='
 # Emits a warning to stderr if characters outside the allowlist are stripped.
 sanitize_command() {
     local cmd="$1"
+    # Truncate at first shell metacharacter
+    local truncated
+    truncated="$(printf '%s' "$cmd" | sed 's/[;|&`$><!(){}\\].*//')"
+    # Strip any remaining non-allowlist characters
     local safe
-    safe="$(printf '%s' "$cmd" | tr -cd 'a-zA-Z0-9 _/.:=-')"
+    safe="$(printf '%s' "$truncated" | tr -cd 'a-zA-Z0-9 _/.:=-')"
+    # Trim trailing whitespace
+    safe="${safe%"${safe##*[![:space:]]}"}"
     if [[ "$safe" != "$cmd" ]]; then
         printf 'Warning: sanitize_command stripped unsafe characters from command; original: %s\n' "$cmd" >&2
     fi
@@ -254,7 +264,7 @@ if [[ ${#FAST_SUITES[@]} -gt 0 ]]; then
     if validate_yaml "$CI_YML_TMP"; then
         mv "$CI_YML_TMP" "$OUTPUT_DIR/ci.yml"
     else
-        echo "Error: generated ci.yml failed YAML validation" >&2
+        echo "Error: generated ci.yml contains invalid YAML" >&2
         rm -f "$CI_YML_TMP"
         exit 2
     fi
@@ -282,7 +292,7 @@ if [[ ${#SLOW_SUITES[@]} -gt 0 ]]; then
     if validate_yaml "$CI_SLOW_TMP"; then
         mv "$CI_SLOW_TMP" "$OUTPUT_DIR/ci-slow.yml"
     else
-        echo "Error: generated ci-slow.yml failed YAML validation" >&2
+        echo "Error: generated ci-slow.yml contains invalid YAML" >&2
         rm -f "$CI_SLOW_TMP"
         exit 2
     fi
