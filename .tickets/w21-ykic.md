@@ -102,3 +102,17 @@ Additional referenced artifacts:
 - plugins/dso/docs/workflows/prompts/reviewer-delta-*.md (per-agent deltas)
 - plugins/dso/scripts/build-review-agents.sh (build script)
 
+
+<!-- note-id: sn46liow -->
+<!-- timestamp: 2026-03-22T13:11:59Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Schema Compliance Baseline (pre-tiered-agents):
+| Diff | Size | First-attempt pass | Notes |
+|------|------|-------------------|-------|
+| ec78680 | 255 lines | yes | Actual pipeline run (staleness enforcement commit); telemetry shows hash_match=true, outcome=pass at 2026-03-22T13:08:42Z; reviewer-findings.json written successfully |
+| ab509f8 | 1994 lines | yes | Large diff (6 generated agent files + build-review-agents.sh); write-reviewer-findings.sh validated on first attempt; schema-hash=6c0b61af0ff149ee |
+| 1b84ac9 | 1257 lines | yes | Medium diff (reviewer source fragments: base + 6 deltas); write-reviewer-findings.sh validated on first attempt; schema-hash=6c0b61af0ff149ee |
+
+All 3 diffs pass schema validation on first attempt. The existing code-review-dispatch prompt and write-reviewer-findings.sh schema enforcement are functioning correctly pre-integration of generated agents. This baseline confirms a 100% first-attempt pass rate to compare against after w21-jtkr integrates the tiered agents.
