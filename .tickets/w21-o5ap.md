@@ -35,3 +35,11 @@ parent: w21-24kl
 - [Maintainability] Files are written to working tree but NOT committed independently — S3's atomic commit includes them
 
 **Escalation policy**: Escalate to the user whenever you do not have high confidence in your understanding of the work, approach, or intent. High confidence means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess.
+
+<!-- note-id: d1nk5bk2 -->
+<!-- timestamp: 2026-03-22T16:06:51Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+[Adversarial review] Additional consideration:
+- [Reliability] S5 writes files to working tree without committing — fragile handoff to S4. If any intervening operation (git push, batch boundary) runs between S5 and S4, uncommitted files could be lost. S5 and S4 must execute in the same batch without intervening git operations.
