@@ -1928,7 +1928,7 @@
   "w21-hget": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: test-merge-to-main-portability.sh pre-existing failures (sequential phase warning)",
     "type": "bug"
   },
