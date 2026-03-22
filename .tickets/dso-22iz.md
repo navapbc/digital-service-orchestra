@@ -52,3 +52,9 @@ Run tests: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/script
 - [ ] LLM format does NOT emit stderr warnings (only human-readable default format does)
   Verify: cd $(git rev-parse --show-toplevel) && bash plugins/dso/scripts/ticket-show.sh --format=llm <test-ticket> 2>/tmp/stderr-out && ! grep -q 'WARNING' /tmp/stderr-out
 
+
+## Notes
+
+**2026-03-22T04:23:31Z**
+
+CHECKPOINT 6/6: Done ✓ — impl complete, tests GREEN. BLOCKED: test gate hits pre-existing RED tests from w21-54wx epic (ticket-reducer, ticket-graph, etc.)

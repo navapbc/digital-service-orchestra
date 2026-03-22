@@ -62,3 +62,9 @@ Run tests: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/script
 - [ ] ticket-revert.sh rejects nonexistent target UUID with non-zero exit
   Verify: cd $(git rev-parse --show-toplevel) && python3 -m pytest tests/scripts/test_revert_event.py::test_ticket_revert_rejects_nonexistent_target -v
 
+
+## Notes
+
+**2026-03-22T04:23:31Z**
+
+CHECKPOINT 6/6: Done ✓ — impl complete, tests GREEN. BLOCKED: test gate hits pre-existing RED tests from w21-54wx epic (ticket-reducer, ticket-graph, etc.)
