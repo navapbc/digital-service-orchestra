@@ -118,6 +118,13 @@
     "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
     "type": "bug"
   },
+  "dso-6x8o": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Bug: record-test-status.sh allows re-recording with stale test results \u2014 hash updated without re-running tests",
+    "type": "bug"
+  },
   "dso-76r3": {
     "deps": [
       "dso-xf8w"
