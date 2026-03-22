@@ -148,14 +148,17 @@ assert_eq "test_pre_write_dispatcher_exits_0_for_allowed_write" "0" "$_exit_code
 # ============================================================
 echo "--- test_pre_edit_write_functions_loaded_via_lib_file ---"
 
+# REVIEW-DEFENSE: hook_block_generated_reviewer_agents has dedicated tests in
+# tests/hooks/test-edit-block-generated-agents.sh (created in w22-ds0m).
 _fns_loaded=0
 (
     source "$FUNCTIONS_LIB"
     type hook_cascade_circuit_breaker &>/dev/null && \
     type hook_title_length_validator &>/dev/null && \
-    type hook_worktree_edit_guard &>/dev/null
+    type hook_worktree_edit_guard &>/dev/null && \
+    type hook_block_generated_reviewer_agents &>/dev/null
 ) 2>/dev/null && _fns_loaded=1
-assert_eq "test_pre_edit_write_functions_loaded_via_lib_file: all 3 functions defined" "1" "$_fns_loaded"
+assert_eq "test_pre_edit_write_functions_loaded_via_lib_file: all 4 functions defined" "1" "$_fns_loaded"
 
 # ============================================================
 # test_pre_edit_dispatcher_cascade_exempt_allows_tickets

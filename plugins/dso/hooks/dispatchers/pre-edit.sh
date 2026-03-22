@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # hooks/dispatchers/pre-edit.sh
-# PreToolUse Edit dispatcher: sources all 4 Edit hook functions and runs them
+# PreToolUse Edit dispatcher: sources all 5 Edit hook functions and runs them
 # sequentially. Stops at the first function that returns 2 (block/deny).
 #
 # Replaces 4 separate settings.json Edit PreToolUse entries with a single dispatcher entry:
@@ -11,6 +11,7 @@
 #   2. hook_cascade_circuit_breaker — block Edit when cascade failure threshold reached
 #   3. hook_title_length_validator  — block Edit setting ticket titles > 255 chars
 #   4. hook_tickets_tracker_guard   — block Edit targeting .tickets-tracker/ files
+#   5. hook_block_generated_reviewer_agents — block Edit to generated code-reviewer-*.md files
 #
 # Returns: 0 if all hooks allow, 2 if any hook blocks.
 
@@ -24,10 +25,10 @@ HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 # Source the dispatcher framework (provides run_hooks — kept for reference/reuse)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
-# Source all 4 Edit hook functions (also sources pre-bash-functions.sh via chain)
+# Source all 5 Edit hook functions (also sources pre-bash-functions.sh via chain)
 source "$HOOKS_LIB_DIR/pre-edit-write-functions.sh"
 
-# Run all 4 hook functions sequentially.
+# Run all 5 hook functions sequentially.
 # Stops at first function that returns 2 (block).
 # Non-zero exit codes other than 2 are intentionally allowed to fall through
 # (fail-open design): each hook function has its own ERR trap that logs the
@@ -50,7 +51,8 @@ _pre_edit_dispatch() {
         hook_worktree_edit_guard \
         hook_cascade_circuit_breaker \
         hook_title_length_validator \
-        hook_tickets_tracker_guard
+        hook_tickets_tracker_guard \
+        hook_block_generated_reviewer_agents
     do
         local _fn_exit=0
         _run_hook_fn "$_HOOK_FN" "$INPUT" || _fn_exit=$?

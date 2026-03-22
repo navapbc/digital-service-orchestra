@@ -1,6 +1,6 @@
 ---
 id: w22-ds0m
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T07:03:31Z
