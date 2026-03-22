@@ -505,6 +505,8 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 
 For each fix task, launch via the Task tool. **Launch all sub-agents in the batch within a single message** (parallel tool calls).
 
+**Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
+
 **Delegate to `/dso:fix-bug`**: Instead of selecting fix-task-tdd.md or fix-task-mechanical.md directly, delegate all bug resolution to `/dso:fix-bug`. The `dso:fix-bug` skill encapsulates the TDD vs. mechanical routing decision internally — it handles its own TDD enforcement and investigation routing.
 
 **Individual bug invocation:**
