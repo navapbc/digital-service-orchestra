@@ -376,6 +376,13 @@
     "title": "Make sprint skill aware of ticket type",
     "type": "epic"
   },
+  "dso-a2p5": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: test_step_references_git_stash_baseline regex may be overly prescriptive for baseline detection",
+    "type": "bug"
+  },
   "dso-a4fy": {
     "deps": [
       "dso-2igj"
@@ -1370,6 +1377,13 @@
     "status": "open",
     "title": "Implement BRIDGE_ALERT detection in ticket-reducer.py: add bridge_alerts to compiled state",
     "type": "task"
+  },
+  "dso-zb25": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: .test-index header comment inconsistent with actual format (no space after colon)",
+    "type": "bug"
   },
   "dso-zej9": {
     "deps": [
