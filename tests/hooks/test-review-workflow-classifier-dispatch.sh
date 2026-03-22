@@ -599,6 +599,86 @@ teardown_temp_dir
 assert_pass_if_clean "test_workflow_references_splitting_guide_file"
 
 # ============================================================
+# Resolution Sub-Agent Isolation Tests (dso-5uik)
+# ============================================================
+
+echo ""
+echo "--- Resolution sub-agent isolation ---"
+
+# test_deep_tier_resolution_uses_authoritative_findings
+# Verify that REVIEW-WORKFLOW.md Autonomous Resolution Loop explicitly documents
+# that the {findings_file} passed to the resolution sub-agent is the opus-written
+# authoritative reviewer-findings.json — NOT the temp slot paths (a/b/c).
+# This ensures the single-writer invariant: the resolution sub-agent reads the opus
+# synthesis, not an individual sonnet agent's partial findings.
+# RED: REVIEW-WORKFLOW.md does not yet explicitly state that {findings_file} is the
+# opus-written authoritative path (distinct from temp a/b/c paths) in the Autonomous
+# Resolution Loop section. dso-xx59 will add this language.
+_snapshot_fail
+setup_temp_dir
+
+resolution_uses_authoritative_findings=false
+
+# The Autonomous Resolution Loop section must document that {findings_file} is the
+# opus-written authoritative reviewer-findings.json, not the temp a/b/c paths.
+# Look for language explicitly linking findings_file to the opus-written/authoritative file
+# in the context of the resolution sub-agent dispatch.
+if grep -qE 'findings_file.*opus|opus.*findings_file|findings_file.*authoritative|authoritative.*findings_file' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    resolution_uses_authoritative_findings=true
+fi
+
+# Also check for explicit "not temp" or "not a/b/c" language near findings_file
+if [[ "$resolution_uses_authoritative_findings" == "false" ]]; then
+    if grep -qE 'findings_file.*not.*temp|findings_file.*not.*reviewer-findings-[abc]|resolution.*sub-agent.*authoritative.*findings' "$REVIEW_WORKFLOW" 2>/dev/null; then
+        resolution_uses_authoritative_findings=true
+    fi
+fi
+
+assert_eq "test_deep_tier_resolution_uses_authoritative_findings: REVIEW-WORKFLOW.md Autonomous Resolution Loop should explicitly document that {findings_file} is the opus-written authoritative reviewer-findings.json (not temp a/b/c paths)" "true" "$resolution_uses_authoritative_findings"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_tier_resolution_uses_authoritative_findings"
+
+# test_deep_tier_resolution_cached_model_is_opus
+# Verify that REVIEW-WORKFLOW.md documents {cached_model} for deep tier as 'opus'
+# (not 'sonnet'). The resolution sub-agent in review-fix-dispatch.md Step 4 uses
+# MODEL={cached_model} for validation — for deep tier reviews written by opus, the
+# resolution agent should also use opus for correct architectural validation.
+# RED: REVIEW-WORKFLOW.md line 375 currently documents deep->sonnet for {cached_model}.
+# dso-xx59 will update this to deep->opus to match review-fix-dispatch.md Step 4 semantics.
+_snapshot_fail
+setup_temp_dir
+
+cached_model_is_opus_for_deep=false
+
+# Check that the workflow documents deep->opus for the {cached_model} placeholder
+# (the line documenting cached_model tier mappings should show deep->opus)
+if grep -qE 'cached_model.*deep.*opus|deep.*opus.*cached_model' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    cached_model_is_opus_for_deep=true
+fi
+
+# Also accept the table/mapping form: deep)→opus or deep->opus or deep: opus
+if [[ "$cached_model_is_opus_for_deep" == "false" ]]; then
+    if grep -qE "deep['\`]?[[:space:]]*[→>)]+[[:space:]]*['\`]?opus" "$REVIEW_WORKFLOW" 2>/dev/null; then
+        cached_model_is_opus_for_deep=true
+    fi
+fi
+
+# Confirm we are NOT just matching the existing deep->sonnet entry
+# The test is specifically checking that the mapping shows opus for deep tier
+if [[ "$cached_model_is_opus_for_deep" == "false" ]]; then
+    # Verify the line with cached_model and deep explicitly maps to opus
+    if grep -E 'cached_model' "$REVIEW_WORKFLOW" 2>/dev/null | grep -q "deep.*opus"; then
+        cached_model_is_opus_for_deep=true
+    fi
+fi
+
+assert_eq "test_deep_tier_resolution_cached_model_is_opus: REVIEW-WORKFLOW.md should document {cached_model} for deep tier as 'opus' (not 'sonnet') to match review-fix-dispatch.md Step 4 validation semantics" "true" "$cached_model_is_opus_for_deep"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_tier_resolution_cached_model_is_opus"
+
+# ============================================================
 # Summary
 # ============================================================
 

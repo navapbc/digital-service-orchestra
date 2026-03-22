@@ -1,6 +1,6 @@
 ---
 id: dso-5uik
-status: open
+status: in_progress
 deps: [dso-gego]
 links: []
 created: 2026-03-22T17:44:55Z
@@ -39,3 +39,31 @@ File: tests/hooks/test-review-workflow-classifier-dispatch.sh
 **2026-03-22T19:17:34Z**
 
 CHECKPOINT 0/6: SESSION_END — Not started. Resume with /dso:sprint w21-ykic --resume
+
+**2026-03-22T21:19:50Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T21:20:51Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — Two new RED tests needed: (1) Autonomous Resolution Loop must explicitly document resolution sub-agent receives opus-written reviewer-findings.json (not temp a/b/c paths); (2) {cached_model} for deep tier must be opus (currently documents sonnet). Both need new language in REVIEW-WORKFLOW.md (dso-xx59 will implement).
+
+**2026-03-22T21:21:20Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-22T21:21:34Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — This is a RED test writing task; the tests ARE the implementation. Both new tests confirmed RED.
+
+**2026-03-22T21:30:58Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — tests/run-all.sh: 55 passed 0 failed; ruff check: pass; ruff format: pass; both test function names confirmed present; both tests confirmed RED
+
+**2026-03-22T21:31:04Z**
+
+CHECKPOINT 6/6: Done ✓
+
+**2026-03-22T21:33:02Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/hooks/test-review-workflow-classifier-dispatch.sh, .test-index. Tests: 2 RED tests added.
