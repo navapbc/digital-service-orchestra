@@ -288,6 +288,111 @@ teardown_temp_dir
 assert_pass_if_clean "test_classifier_json_schema_valid"
 
 # ============================================================
+# Deep Tier Multi-Reviewer Dispatch Tests (dso-guue)
+# ============================================================
+
+echo ""
+echo "--- Deep tier multi-reviewer dispatch ---"
+
+# test_deep_tier_documents_three_parallel_sonnet_dispatches
+# Verify that REVIEW-WORKFLOW.md Step 4 documents dispatching 3 parallel sonnet
+# agents: code-reviewer-deep-correctness, code-reviewer-deep-verification,
+# code-reviewer-deep-hygiene when tier is "deep".
+# RED: REVIEW-WORKFLOW.md currently falls back to single code-reviewer-deep-correctness.
+_snapshot_fail
+setup_temp_dir
+
+deep_correctness_dispatch=false
+deep_verification_dispatch=false
+deep_hygiene_dispatch=false
+
+# Check that the workflow documents all three parallel deep reviewer dispatches in Step 4
+if grep -q 'code-reviewer-deep-correctness' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    # correctness is referenced but we need all three as parallel dispatches
+    deep_correctness_dispatch=true
+fi
+if grep -q 'code-reviewer-deep-verification' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    deep_verification_dispatch=true
+fi
+if grep -q 'code-reviewer-deep-hygiene' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    deep_hygiene_dispatch=true
+fi
+
+# All three must be documented as parallel dispatches in Step 4
+all_three_documented=false
+if [[ "$deep_correctness_dispatch" == "true" && "$deep_verification_dispatch" == "true" && "$deep_hygiene_dispatch" == "true" ]]; then
+    # Additionally verify they are documented as parallel (not sequential) dispatches
+    if grep -qE 'parallel.*sonnet|3.*parallel|three.*parallel' "$REVIEW_WORKFLOW" 2>/dev/null; then
+        all_three_documented=true
+    fi
+fi
+
+assert_eq "test_deep_tier_documents_three_parallel_sonnet_dispatches: workflow Step 4 should document 3 parallel sonnet dispatches (correctness/verification/hygiene)" "true" "$all_three_documented"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_tier_documents_three_parallel_sonnet_dispatches"
+
+# test_deep_tier_documents_temp_file_naming
+# Verify that REVIEW-WORKFLOW.md references the temp findings file naming convention:
+# reviewer-findings-a.json, reviewer-findings-b.json, reviewer-findings-c.json
+# These temp files are where each parallel sonnet writes its findings before merge.
+# RED: REVIEW-WORKFLOW.md does not yet document temp findings file naming.
+_snapshot_fail
+setup_temp_dir
+
+findings_a_documented=false
+findings_b_documented=false
+findings_c_documented=false
+
+if grep -q 'reviewer-findings-a\.json' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    findings_a_documented=true
+fi
+if grep -q 'reviewer-findings-b\.json' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    findings_b_documented=true
+fi
+if grep -q 'reviewer-findings-c\.json' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    findings_c_documented=true
+fi
+
+all_temp_files_documented=false
+if [[ "$findings_a_documented" == "true" && "$findings_b_documented" == "true" && "$findings_c_documented" == "true" ]]; then
+    all_temp_files_documented=true
+fi
+
+assert_eq "test_deep_tier_documents_temp_file_naming: workflow should reference reviewer-findings-{a,b,c}.json" "true" "$all_temp_files_documented"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_tier_documents_temp_file_naming"
+
+# test_deep_tier_documents_orchestrator_copy_step
+# Verify that REVIEW-WORKFLOW.md documents the orchestrator copying reviewer-findings.json
+# to the temp path (reviewer-findings-{a,b,c}.json) after each sonnet agent completes.
+# Each sonnet writes to the standard reviewer-findings.json; the orchestrator copies it
+# to the slot-specific temp path before launching the next agent.
+# RED: REVIEW-WORKFLOW.md does not yet document the copy/rename step.
+_snapshot_fail
+setup_temp_dir
+
+copy_step_documented=false
+
+# Look for documentation of copying/moving reviewer-findings.json to temp slot files
+if grep -qE 'copy.*reviewer-findings|mv.*reviewer-findings|rename.*reviewer-findings|reviewer-findings\.json.*reviewer-findings-[abc]' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    copy_step_documented=true
+fi
+
+# Also check for the reverse pattern (temp file from reviewer-findings.json)
+if [[ "$copy_step_documented" == "false" ]]; then
+    if grep -qE 'reviewer-findings-[abc]\.json.*from.*reviewer-findings|reviewer-findings\.json.*→.*reviewer-findings-[abc]' "$REVIEW_WORKFLOW" 2>/dev/null; then
+        copy_step_documented=true
+    fi
+fi
+
+assert_eq "test_deep_tier_documents_orchestrator_copy_step: workflow should document copying reviewer-findings.json to temp paths after each sonnet completes" "true" "$copy_step_documented"
+
+teardown_temp_dir
+assert_pass_if_clean "test_deep_tier_documents_orchestrator_copy_step"
+
+# ============================================================
 # Summary
 # ============================================================
 

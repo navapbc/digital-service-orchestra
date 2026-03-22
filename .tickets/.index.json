@@ -272,6 +272,15 @@
     "title": "Conditional Security & Performance Review Overlays",
     "type": "epic"
   },
+  "dso-5uik": {
+    "deps": [
+      "dso-gego"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED test: resolution sub-agent isolation \u2014 receives findings via prompt path, not direct file access",
+    "type": "task"
+  },
   "dso-60uy": {
     "deps": [
       "dso-ed01",
@@ -320,6 +329,15 @@
     "priority": 1,
     "status": "closed",
     "title": "IMPL: Exclude .test-index from compute-diff-hash.sh and review-gate-allowlist.conf",
+    "type": "task"
+  },
+  "dso-7hj9": {
+    "deps": [
+      "dso-guue"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement deep tier dispatch: 3 parallel sonnets with temp findings files",
     "type": "task"
   },
   "dso-7n6c": {
@@ -702,6 +720,15 @@
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
   },
+  "dso-gego": {
+    "deps": [
+      "dso-spfe"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement opus arch reviewer dispatch: inject inline findings, write authoritative reviewer-findings.json",
+    "type": "task"
+  },
   "dso-gfry": {
     "deps": [
       "dso-bxng"
@@ -748,6 +775,13 @@
     "status": "open",
     "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
     "type": "bug"
+  },
+  "dso-guue": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED test: deep tier dispatches 3 parallel sonnet agents with temp findings files",
+    "type": "task"
   },
   "dso-gxct": {
     "deps": [],
@@ -842,6 +876,17 @@
     "priority": 1,
     "status": "closed",
     "title": "RED: Write failing tests for .test-index auto-prune and auto-stage in test-pre-commit-test-gate.sh",
+    "type": "task"
+  },
+  "dso-jzpv": {
+    "deps": [
+      "dso-7hj9",
+      "dso-gego",
+      "dso-xx59"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Integration test: deep tier sonnet-to-opus handoff \u2014 opus output passes record-review.sh validation",
     "type": "task"
   },
   "dso-k7fe": {
@@ -1173,6 +1218,15 @@
     "title": "Incorporate Semantic Search & MCP (Model Context Protocol)",
     "type": "epic"
   },
+  "dso-spfe": {
+    "deps": [
+      "dso-7hj9"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED test: opus arch reviewer receives all 3 sonnet findings inline and writes authoritative reviewer-findings.json",
+    "type": "task"
+  },
   "dso-sq4k": {
     "deps": [],
     "priority": 2,
@@ -1383,6 +1437,15 @@
     "status": "open",
     "title": "Fix: unquoted $* in validate.sh RUN: line produces incorrect resume command with space-containing args",
     "type": "bug"
+  },
+  "dso-xx59": {
+    "deps": [
+      "dso-5uik"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Document resolution sub-agent isolation for deep tier in REVIEW-WORKFLOW.md",
+    "type": "task"
   },
   "dso-yaao": {
     "deps": [],
