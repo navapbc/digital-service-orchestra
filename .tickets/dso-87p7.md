@@ -1,6 +1,6 @@
 ---
 id: dso-87p7
-status: in_progress
+status: closed
 deps: [dso-fjnc, dso-0ey5]
 links: []
 created: 2026-03-22T15:45:13Z
