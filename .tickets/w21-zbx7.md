@@ -1,6 +1,6 @@
 ---
 id: w21-zbx7
-status: in_progress
+status: closed
 deps: [w21-99wp]
 links: []
 created: 2026-03-22T01:00:04Z
