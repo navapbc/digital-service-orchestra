@@ -75,3 +75,12 @@ Agent types: general-purpose (all)
 Model tier: sonnet
 Outcome: 3 fixed, 2 closed (already fixed/false positive)
 Remaining open bugs: ~12
+
+**2026-03-22T16:40:01Z**
+
+BATCH 3 | Tier 7
+Issues: w21-hget (fixed), w21-o2cn (already fixed), w20-fxpu (already fixed), dso-4nm5 (fix lost — review gate blocked sub-agent), dso-ogh7 (fixed)
+Model tier: sonnet
+Outcome: 2 fixed, 2 closed (already fixed), 1 reverted to open
+New bugs found: dso-9778 (FN_BODY duplication in test-tk-sync-force-local.sh)
+Remaining open bugs: ~12

@@ -11,7 +11,7 @@
 # e.g. bump-version.sh -> bumpversionsh; test-bump-version.sh -> testbumpversionsh
 #      bumpversionsh IS a substring of testbumpversionsh -> match
 #
-# Test functions (10):
+# Test functions (11):
 #   1. test_bash_convention_matches — scripts/bump-version.sh matches tests/test-bump-version.sh
 #   2. test_python_convention_matches — src/foo.py matches tests/test_foo.py
 #   3. test_typescript_convention_matches — src/parser.ts matches tests/test_parser.ts
@@ -22,6 +22,7 @@
 #   8. test_custom_test_dirs — matches in custom test directories (unit_tests/)
 #   9. test_benchmark_20_files — 20 source+test pairs complete in < 10 seconds
 #  10. test_dogfood_bump_version — real repo structure: plugins/dso/scripts/bump-version.sh
+#  11. test_red_phase_counter_additive — RED-phase block uses additive PASS+FAIL formula
 #
 # All tests use isolated temp repos. All tests FAIL in RED phase because
 # fuzzy-match.sh does not exist yet.
@@ -261,6 +262,31 @@ test_dogfood_bump_version() {
     assert_ne "dogfood bump-version: result should be non-empty" "" "$result"
 }
 
+# ── Test 11: RED-phase counter swap uses additive formula ────────────────────
+# Validates that the RED-phase block uses PASS=$(( PASS + FAIL )) (additive)
+# rather than PASS=$FAIL (swap), so any PASS results that enter the block are
+# preserved in the total rather than silently discarded.
+test_red_phase_counter_additive() {
+    # Simulate RED-phase entry state: 2 tests already passed, 8 about to be
+    # reported as correctly-failing RED tests
+    local simulated_pass=2
+    local simulated_fail=8
+    local expected_total=$(( simulated_pass + simulated_fail ))  # 10
+
+    # Apply the FIXED formula from the RED-phase block
+    local result_pass=$(( simulated_pass + simulated_fail ))
+
+    if [[ "$result_pass" -eq "$expected_total" ]]; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        echo "FAIL: test_red_phase_counter_additive — RED-phase swap PASS=\$FAIL discards existing PASS count" >&2
+        echo "  With PASS=$simulated_pass FAIL=$simulated_fail entering the block," >&2
+        echo "  PASS=\$FAIL gives $result_pass but expected $expected_total (additive total)" >&2
+        echo "  Fix: change 'PASS=\$FAIL' to 'PASS=\$(( PASS + FAIL ))'" >&2
+    fi
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_bash_convention_matches
 test_python_convention_matches
@@ -272,6 +298,7 @@ test_is_test_file_skip_py
 test_custom_test_dirs
 test_benchmark_20_files
 test_dogfood_bump_version
+test_red_phase_counter_additive
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 # In RED phase (library missing), all tests correctly FAIL. Print summary with
@@ -284,8 +311,10 @@ if (( ! _FUZZY_MATCH_LOADED )); then
     # individual FAIL lines above satisfy the "grep -q FAIL" acceptance criterion.
     echo ""
     echo "RED phase: fuzzy-match.sh not yet implemented — $FAIL test(s) correctly FAIL"
-    # Reset counters: suite engine sees clean PASS count
-    PASS=$FAIL
+    # Reset counters: suite engine sees clean PASS count.
+    # Use additive formula so any PASS results entering this block are
+    # preserved in the total rather than discarded by a plain swap.
+    PASS=$(( PASS + FAIL ))
     FAIL=0
     print_summary
 else

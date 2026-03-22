@@ -1,6 +1,6 @@
 ---
 id: w20-fxpu
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-21T17:41:51Z
@@ -21,3 +21,10 @@ Test 12 in tests/scripts/test-ticket-init.sh (test_auto_detect_main_worktree_via
 **2026-03-22T07:51:11Z**
 
 Tier 7: assigned for Project Health Restoration epic w22-ns6l triage.
+
+<!-- note-id: lpdwuys4 -->
+<!-- timestamp: 2026-03-22T16:22:40Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Already fixed in commit 95bf595 — os.path.realpath() applied to expected_target in test_auto_detect_main_worktree_via_git_list; all 20 tests pass
