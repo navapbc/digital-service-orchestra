@@ -1,6 +1,6 @@
 ---
 id: dso-7bqs
-status: open
+status: in_progress
 deps: [dso-z9qw]
 links: []
 created: 2026-03-22T22:30:49Z
@@ -34,3 +34,25 @@ Add a Post-Deployment Calibration section to plugins/dso/docs/workflows/REVIEW-W
 - [ ] ruff format --check passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py
 
+
+## Notes
+
+**2026-03-22T22:44:11Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T22:44:16Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-22T22:44:49Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-22T23:02:09Z**
+
+CHECKPOINT 6/6: Done ✓
+
+**2026-03-22T23:02:34Z**
+
+CHECKPOINT 6/6: Done ✓ — Added Post-Deployment Calibration section to REVIEW-WORKFLOW.md

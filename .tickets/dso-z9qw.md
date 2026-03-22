@@ -1,6 +1,6 @@
 ---
 id: dso-z9qw
-status: open
+status: closed
 deps: [dso-gifa]
 links: []
 created: 2026-03-22T22:30:23Z

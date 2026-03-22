@@ -1,6 +1,6 @@
 ---
 id: dso-gifa
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T22:30:14Z

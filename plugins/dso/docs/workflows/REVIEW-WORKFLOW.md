@@ -503,3 +503,65 @@ Task tool:
 ### Actions Needed
 For each finding, reply: fix (I'll try a different approach), override (accept as-is), or defer (skip for now).
 ```
+
+---
+
+## Post-Deployment Calibration
+
+After deploying the classifier-based review routing, monitor `classifier-telemetry.jsonl` to verify the classifier is producing healthy tier distributions and that routing quality is meeting expectations. Use the signals below to detect miscalibration early and respond before it compounds.
+
+**Data source**: `$ARTIFACTS_DIR/classifier-telemetry.jsonl` (one JSON object per classification event; written by `review-complexity-classifier.sh` on every run). Aggregate over the most recent 30 commits as the baseline window.
+
+### Tier Distribution Baseline
+
+After 30 commits, compute the tier distribution from `classifier-telemetry.jsonl`:
+
+```bash
+python3 -c "
+import json, collections, sys
+entries = [json.loads(l) for l in open('classifier-telemetry.jsonl') if l.strip()]
+tiers = collections.Counter(e['selected_tier'] for e in entries[-30:])
+total = sum(tiers.values())
+for t, n in sorted(tiers.items()):
+    print(f'{t}: {n}/{total} ({100*n/total:.0f}%)')
+"
+```
+
+**Expected healthy baseline**:
+
+| Tier | Expected Range |
+|------|---------------|
+| Light | ~50-60% |
+| Standard | ~30-40% |
+| Deep | ~5-15% |
+
+**Signal**: any single tier exceeding 80% of all classifications indicates the classifier is miscalibrated. A Light-heavy skew suggests floor rules are under-catching risky changes; a Deep-heavy skew suggests scoring weights are too aggressive.
+
+### Light-Tier Finding Rate
+
+Track the rate at which Light-tier reviews surface `critical` or `important` findings. If Light-tier reviews produce critical/important findings at a rate greater than 10%, the floor rules are insufficient — Light is being assigned to commits that warrant Standard or Deep review.
+
+**Response**:
+1. Identify the pattern shared by the triggering commits (file types, change categories, or scoring features).
+2. Add a matching floor rule to `plugins/dso/scripts/review-complexity-classifier.sh`.
+3. Re-validate: re-run the classifier against the 30-commit sample and confirm the affected commits now route to Standard or Deep.
+
+### CI Failure Rate by Tier
+
+Track the post-merge CI failure rate per tier for the first 30 commits. A higher CI failure rate in Light tier than in Standard or Deep indicates under-classification — commits that broke CI were routed to the lightest review tier.
+
+**Response**: Lower the Light/Standard classification threshold or add floor rules targeting the file types or change patterns present in the failing commits.
+
+### Baseline Comparison
+
+Compare the overall CI failure rate for the 30 commits following deployment against the 30 commits preceding deployment. A sustained increase in post-merge CI failures is a routing gap signal — the classifier is not catching changes that need heavier review.
+
+**Response**: Audit `classifier-telemetry.jsonl` for the failing commits, identify whether tier mis-assignment is the common factor, then apply threshold or floor-rule adjustments as above.
+
+### Breach Response Protocol
+
+When any signal above crosses its threshold, follow this protocol:
+
+1. **Create a P1 bug ticket**: `tk create --type task --priority 1 "Classifier miscalibration: <signal description>"` — record the specific signal, threshold crossed, and the affected commit range.
+2. **Adjust the classifier**: modify floor rules or scoring weights in `plugins/dso/scripts/review-complexity-classifier.sh` to correct the miscalibration.
+3. **Re-validate**: re-run the classifier against the same 30-commit sample that triggered the breach and confirm the signal is no longer breaching its threshold before closing the ticket.
