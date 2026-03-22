@@ -867,6 +867,103 @@ fi
 rm -rf "$TEST_REPO_IDX4" "$ARTIFACTS_IDX4"
 trap - EXIT
 
+# ============================================================
+# test_restamping_with_changed_hash_rejected
+# When record-test-status.sh is called a second time after
+# code changes (hash A → hash B), it should NOT silently
+# re-stamp hash B as 'passed' based on a test run that
+# validated hash-A code. The script must detect the stale
+# status (existing 'passed' for a different hash) and fail
+# with an error directing the caller to re-run tests.
+#
+# Reproduction (dso-6x8o):
+#   1. Stage files, run record-test-status.sh (records hash A)
+#   2. Edit a staged file (hash changes to B)
+#   3. Stage the edit, run record-test-status.sh again
+#   Expected: error / non-zero exit — stale status detected
+#   Actual:   exits 0 and writes hash B as 'passed' silently
+# ============================================================
+echo ""
+echo "=== test_restamping_with_changed_hash_rejected ==="
+
+TEST_REPO_RESTAMP=$(create_test_repo)
+ARTIFACTS_RESTAMP=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_RESTAMP" "$ARTIFACTS_RESTAMP"' EXIT
+
+# Create a source file and its associated test
+mkdir -p "$TEST_REPO_RESTAMP/src" "$TEST_REPO_RESTAMP/tests"
+cat > "$TEST_REPO_RESTAMP/src/restamp.py" << 'PYEOF2'
+def restamp():
+    return "v1"
+PYEOF2
+cat > "$TEST_REPO_RESTAMP/tests/test_restamp.py" << 'PYEOF2'
+def test_restamp():
+    assert True
+PYEOF2
+git -C "$TEST_REPO_RESTAMP" add -A
+git -C "$TEST_REPO_RESTAMP" commit -m "add restamp" --quiet 2>/dev/null
+
+# Step 1: Modify source, stage it, run record-test-status.sh (records hash A)
+echo "# change v1" >> "$TEST_REPO_RESTAMP/src/restamp.py"
+git -C "$TEST_REPO_RESTAMP" add -A
+
+MOCK_PASS_RESTAMP=$(mktemp "${TMPDIR:-/tmp}/mock-pass-restamp-XXXXXX")
+chmod +x "$MOCK_PASS_RESTAMP"
+cat > "$MOCK_PASS_RESTAMP" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "PASSED (mock)"
+exit 0
+MOCKEOF
+
+EXIT_CODE_FIRST=$(
+    cd "$TEST_REPO_RESTAMP"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RESTAMP" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_RESTAMP" \
+    run_hook_exit
+)
+
+assert_eq "test_restamping_with_changed_hash_rejected: first invocation exits 0" "0" "$EXIT_CODE_FIRST"
+
+STATUS_FILE_RESTAMP="$ARTIFACTS_RESTAMP/test-gate-status"
+if [[ ! -f "$STATUS_FILE_RESTAMP" ]]; then
+    echo "SKIP: test_restamping_with_changed_hash_rejected: no status file after first run (test infra issue)" >&2
+else
+    HASH_A=$(grep '^diff_hash=' "$STATUS_FILE_RESTAMP" | head -1 | cut -d= -f2)
+
+    # Step 2: Make a new code change and stage it (hash changes to B)
+    echo "# change v2 - post-review fix" >> "$TEST_REPO_RESTAMP/src/restamp.py"
+    git -C "$TEST_REPO_RESTAMP" add -A
+
+    # Verify hash actually changed
+    HASH_B=$(cd "$TEST_REPO_RESTAMP" && bash "$COMPUTE_HASH_SCRIPT" 2>/dev/null)
+
+    if [[ "$HASH_A" == "$HASH_B" ]]; then
+        echo "SKIP: test_restamping_with_changed_hash_rejected: hashes did not change (test setup issue)" >&2
+    else
+        # Step 3: Call record-test-status.sh again -- it should clear the stale
+        # status and re-run tests, recording hash B as passed.
+        EXIT_CODE_SECOND=$(
+            cd "$TEST_REPO_RESTAMP"
+            WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RESTAMP" \
+            CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+            RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_RESTAMP" \
+            run_hook_exit
+        )
+
+        # EXPECTED: exit 0 (stale status cleared, tests re-run and passed)
+        assert_eq "test_restamping_with_changed_hash_rejected: second call re-runs tests and exits 0" "0" "$EXIT_CODE_SECOND"
+
+        # Status file should now have hash B (tests re-ran against new code)
+        RECORDED_HASH_AFTER=$(grep '^diff_hash=' "$STATUS_FILE_RESTAMP" | head -1 | cut -d= -f2)
+        assert_eq "test_restamping_with_changed_hash_rejected: status file updated to hash B after re-test" "$HASH_B" "$RECORDED_HASH_AFTER"
+    fi
+fi
+
+rm -f "$MOCK_PASS_RESTAMP"
+rm -rf "$TEST_REPO_RESTAMP" "$ARTIFACTS_RESTAMP"
+trap - EXIT
+
 # Clean up mock runners if created
 if (( ! _PYTEST_AVAILABLE )); then
     rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true

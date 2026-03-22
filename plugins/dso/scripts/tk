@@ -313,13 +313,19 @@ except Exception:
     else:
         inner = raw_deps.strip().lstrip('[').rstrip(']')
         deps = [s.strip().strip('\"').strip(chr(39)) for s in inner.split(',') if s.strip()]
-idx[os.environ['TICKET_ID']] = {
+tid = os.environ['TICKET_ID']
+# Preserve existing parent field if present (parent is not passed as an argument)
+existing_parent = idx.get(tid, {}).get('parent', '')
+entry = {
     'title':    os.environ['TICKET_TITLE'],
     'status':   os.environ['TICKET_STATUS'],
     'type':     os.environ['TICKET_TYPE'],
     'priority': priority,
     'deps':     deps,
 }
+if existing_parent:
+    entry['parent'] = existing_parent
+idx[tid] = entry
 print(json.dumps(idx, indent=2, sort_keys=True))
 " > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$index_file" || true
 }
@@ -399,7 +405,12 @@ for fname in files:
             title = line[2:].strip()
             break
 
-    idx[ticket_id] = {'title': title, 'status': status, 'type': type_, 'priority': priority, 'deps': deps}
+    parent = get_field('parent')
+
+    entry = {'title': title, 'status': status, 'type': type_, 'priority': priority, 'deps': deps}
+    if parent:
+        entry['parent'] = parent
+    idx[ticket_id] = entry
 
 print(json.dumps(idx))
 " 2>/dev/null || echo "{}"

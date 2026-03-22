@@ -85,7 +85,13 @@ for f in sorted(p.glob('*-UNLINK.json')):
     all_events.append(('UNLINK', f))
 
 # Re-sort by filename (basename) so LINK and UNLINK interleave in timestamp order.
-all_events.sort(key=lambda x: x[1].name)
+# Sort key: (timestamp, event_type_order, full_name)
+# - timestamp (first filename segment) preserves chronological order
+# - event_type_order (LINK=0, UNLINK=1) guarantees LINK processes before UNLINK
+#   when two events share the same second-level timestamp (different random UUIDs)
+# - full name as final tiebreaker for stable ordering within same type+timestamp
+_event_order = {'LINK': 0, 'UNLINK': 1}
+all_events.sort(key=lambda x: (x[1].name.split('-')[0], _event_order.get(x[0], 99), x[1].name))
 
 # Replay events to build net-active link set: maps uuid -> (target_id, relation)
 active_links: dict[str, tuple[str, str]] = {}
@@ -207,7 +213,13 @@ for f in sorted(p.glob('*-UNLINK.json')):
     all_events.append(('UNLINK', f))
 
 # Re-sort by filename (basename) so LINK and UNLINK interleave in timestamp order.
-all_events.sort(key=lambda x: x[1].name)
+# Sort key: (timestamp, event_type_order, full_name)
+# - timestamp (first filename segment) preserves chronological order
+# - event_type_order (LINK=0, UNLINK=1) guarantees LINK processes before UNLINK
+#   when two events share the same second-level timestamp (different random UUIDs)
+# - full name as final tiebreaker for stable ordering within same type+timestamp
+_event_order = {'LINK': 0, 'UNLINK': 1}
+all_events.sort(key=lambda x: (x[1].name.split('-')[0], _event_order.get(x[0], 99), x[1].name))
 
 # Replay events to build net-active link set: maps uuid -> (target_id, relation)
 active_links: dict[str, tuple[str, str]] = {}
