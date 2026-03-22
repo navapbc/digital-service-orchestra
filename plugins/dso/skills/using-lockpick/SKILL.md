@@ -95,3 +95,23 @@ When a skill or workflow specifies steps, phases, gates, or procedures, execute 
 ## User Instructions
 
 Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+## When No Skill Matches
+
+When no skill clearly applies, do not ask clarifying questions immediately. Follow this loop:
+
+**Silent Investigation**: Before asking anything, do silent investigation — use Read, Grep, tk show (tickets), git history, CLAUDE.md, and memory to gather context that already exists.
+
+**Confidence Test**: Ask yourself: can I state in one sentence what I will do and why? If you can articulate what the action is and why it addresses the user's goal as a single declarative statement, proceed. If you cannot, enter the clarification loop.
+
+**Clarification Loop**: Ask one question per message. Use multiple-choice options whenever possible. Use "tell me more" follow-ups to drill down. Focus each question on one of three labeled probing areas:
+
+- **(a) Intent** — what outcome does the user want? (Intent probe: ask what success looks like)
+- **(b) Scope** — how much should change, what else might be affected? (Scope probe: ask what boundary the change should stay within)
+- **(c) Risks** — what could break or go wrong, what constraints exist? (Risks probe: ask what concerns or side effects to avoid)
+
+Exit the loop as soon as the confidence test passes — do not ask more questions than necessary.
+
+**Proceed**: Once the confidence test passes, proceed immediately. Do not request explicit confirmation.
+
+**Dogfooding Evaluation**: Define *intent-match* as: the agent's final action matches the user's actual intent on the first attempt. Log each clarification loop entry and score intent-match after each interaction. Target: 80% intent-match rate across 20+ interactions. This measures success of the clarification loop.

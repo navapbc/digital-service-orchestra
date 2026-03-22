@@ -1,6 +1,6 @@
 ---
 id: dso-7wks
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T01:59:27Z
