@@ -1,6 +1,6 @@
 ---
 id: dso-gego
-status: in_progress
+status: closed
 deps: [dso-spfe]
 links: []
 created: 2026-03-22T17:44:41Z

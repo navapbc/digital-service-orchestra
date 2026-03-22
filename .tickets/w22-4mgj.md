@@ -1,6 +1,6 @@
 ---
 id: w22-4mgj
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T20:02:32Z

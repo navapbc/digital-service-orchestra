@@ -1,6 +1,6 @@
 ---
 id: w22-ebri
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-22T17:46:05Z

@@ -1,6 +1,6 @@
 ---
 id: w22-ah0i
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T19:58:56Z
