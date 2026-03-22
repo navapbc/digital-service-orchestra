@@ -1,6 +1,6 @@
 ---
 id: w22-ns6l
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-21T04:50:56Z
@@ -84,3 +84,17 @@ Model tier: sonnet
 Outcome: 2 fixed, 2 closed (already fixed), 1 reverted to open
 New bugs found: dso-9778 (FN_BODY duplication in test-tk-sync-force-local.sh)
 Remaining open bugs: ~12
+
+<!-- note-id: udr4rwo6 -->
+<!-- timestamp: 2026-03-22T22:39:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Health restored. All 10 children closed: 2 new bugs fixed (dso-xrna ci-generator, dso-y1hq timeout), 2 not reproducible (w21-da9n, w21-raky), 3 flaky tests fixed (w22-9wrx race, w22-g4ao shfmt, w22-j22e UX), 3 previously closed.
+
+<!-- note-id: dn26kivj -->
+<!-- timestamp: 2026-03-22T22:39:43Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: all 10 children resolved — project health restored

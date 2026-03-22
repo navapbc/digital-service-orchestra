@@ -56,7 +56,7 @@ test_no_shfmt_skips_gracefully() {
     _snapshot_fail
     local _exit=0
     local _out=""
-    _out=$(python3 "$SCRIPT" --scan-dir="${CLAUDE_PLUGIN_ROOT}" --shfmt-path=/nonexistent 2>&1) || _exit=$?
+    _out=$(python3 "$SCRIPT" --scan-dir="$DSO_PLUGIN_DIR" --shfmt-path=/nonexistent 2>&1) || _exit=$?
     assert_eq "test_no_shfmt_skips_gracefully: exit 0" "0" "$_exit"
     assert_contains "test_no_shfmt_skips_gracefully: output contains 'shfmt not found'" "shfmt not found" "$_out"
     assert_pass_if_clean "test_no_shfmt_skips_gracefully"

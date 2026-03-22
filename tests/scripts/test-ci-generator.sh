@@ -398,5 +398,38 @@ assert_eq "test_temp_then_move_pattern: failure path leaves output dir empty" \
     "yes" "$ttm_fail_dir_empty"
 assert_pass_if_clean "test_temp_then_move_pattern"
 
+# ── test_no_validator_available_succeeds ──────────────────────────────────────
+# When neither actionlint nor PyYAML is available, validate_yaml must return 0
+# (skip validation) so the generator succeeds instead of exit 2.
+_snapshot_fail
+NOVAL_FAKE_BIN="$(mktemp -d)"
+cat > "$NOVAL_FAKE_BIN/python3" << 'NOVAL_PYEOF'
+#!/usr/bin/env bash
+# Stub: pretend PyYAML is not installed (import yaml fails)
+if echo "$*" | grep -q 'import yaml'; then
+    exit 1
+fi
+exec /usr/bin/python3 "$@"
+NOVAL_PYEOF
+chmod +x "$NOVAL_FAKE_BIN/python3"
+# Also hide actionlint by putting our fake bin first and not including it
+NOVAL_DIR="$TMPDIR_OUTPUT/no_validator"
+mkdir -p "$NOVAL_DIR"
+noval_exit=0
+PATH="$NOVAL_FAKE_BIN:$PATH" CI_NONINTERACTIVE=1 bash "$SCRIPT" \
+    --suites-json '[{"name":"unit","command":"make test","speed_class":"fast","runner":"make"}]' \
+    --output-dir "$NOVAL_DIR" \
+    2>/dev/null || noval_exit=$?
+assert_eq "test_no_validator_available_succeeds: exit code is 0" \
+    "0" "$noval_exit"
+noval_file_exists="no"
+if [[ -f "$NOVAL_DIR/ci.yml" ]]; then
+    noval_file_exists="yes"
+fi
+assert_eq "test_no_validator_available_succeeds: ci.yml written despite no validator" \
+    "yes" "$noval_file_exists"
+rm -rf "$NOVAL_FAKE_BIN"
+assert_pass_if_clean "test_no_validator_available_succeeds"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
