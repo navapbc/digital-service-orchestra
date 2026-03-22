@@ -656,6 +656,99 @@ Full documentation: plugins/dso/docs/INSTALL.md
 
 ---
 
+## Step 7: Onboarding Foundations
+
+After completing project setup, offer to run the architecture and design onboarding skills. These skills produce foundational documents that guide future Claude sessions in the target project.
+
+- `/dso:dev-onboarding` — produces `ARCH_ENFORCEMENT.md`: an architecture blueprint and enforcement rules for the codebase
+- `/dso:design-onboarding` — produces `DESIGN_NOTES.md`: visual language conventions and component golden paths
+
+### Artifact detection
+
+Check for the sentinel files that indicate whether each onboarding skill has already run:
+
+```bash
+ARCH_SENTINEL="$TARGET_REPO/ARCH_ENFORCEMENT.md"
+DESIGN_SENTINEL="$TARGET_REPO/DESIGN_NOTES.md"
+
+dev_done=false
+design_done=false
+
+[ -f "$ARCH_SENTINEL" ] && dev_done=true
+[ -f "$DESIGN_SENTINEL" ] && design_done=true
+```
+
+- **`ARCH_ENFORCEMENT.md`** is the sentinel for `/dso:dev-onboarding`
+- **`DESIGN_NOTES.md`** is the sentinel for `/dso:design-onboarding`
+
+### Conditional prompt
+
+**Case 1: Both artifacts present — skip this step entirely**
+
+If both `ARCH_ENFORCEMENT.md` and `DESIGN_NOTES.md` already exist in the target project, both onboarding skills have already run. Skip the prompt entirely and log:
+
+```
+(skipping onboarding prompt — both artifacts already present: ARCH_ENFORCEMENT.md, DESIGN_NOTES.md)
+```
+
+No further action is needed. Setup is complete.
+
+---
+
+**Case 2: Both artifacts missing — 4-option AskUserQuestion**
+
+When both `ARCH_ENFORCEMENT.md` and `DESIGN_NOTES.md` are missing, use `AskUserQuestion` to offer all onboarding options:
+
+```
+Would you like to set up architecture and design foundations for this project?
+
+1) Both (recommended) — runs dev-onboarding then design-onboarding: produces ARCH_ENFORCEMENT.md (architecture blueprint and enforcement rules) and DESIGN_NOTES.md (visual design language and golden paths)
+2) Architecture only — runs /dso:dev-onboarding: produces ARCH_ENFORCEMENT.md with codebase architecture guide and enforcement rules for future Claude sessions
+3) Design system only — runs /dso:design-onboarding: produces DESIGN_NOTES.md with visual language conventions and component golden paths
+4) Skip for now — setup is complete with no additional steps
+
+Enter 1, 2, 3, or 4:
+```
+
+Handle each selection:
+
+- **Option 1 (Both)**: Invoke `/dso:dev-onboarding` first, then invoke `/dso:design-onboarding` after it completes.
+- **Option 2 (Architecture only)**: Invoke `/dso:dev-onboarding`.
+- **Option 3 (Design system only)**: Invoke `/dso:design-onboarding`.
+- **Option 4 (Skip)**: End setup. No additional steps are run.
+
+---
+
+**Case 3: Only one artifact missing — yes/no AskUserQuestion**
+
+When only one skill is still needed (if only one artifact is missing), use a yes/no prompt for the remaining skill.
+
+**If only `ARCH_ENFORCEMENT.md` is missing** (dev-onboarding not yet run):
+
+```
+Would you like to run /dso:dev-onboarding?
+dev-onboarding produces ARCH_ENFORCEMENT.md — an architecture blueprint and enforcement rules
+that guide future Claude sessions through your codebase structure and conventions. (yes/no)
+```
+
+If yes: invoke `/dso:dev-onboarding`. If no: skip — no additional steps.
+
+**If only `DESIGN_NOTES.md` is missing** (design-onboarding not yet run):
+
+```
+Would you like to run /dso:design-onboarding?
+design-onboarding produces DESIGN_NOTES.md — a visual design language guide and component
+golden paths that keep UI decisions consistent across Claude sessions. (yes/no)
+```
+
+If yes: invoke `/dso:design-onboarding`. If no: skip — no additional steps.
+
+### Invocation order
+
+When both skills are selected (option 1 in the 4-option prompt), always invoke `/dso:dev-onboarding` before `/dso:design-onboarding`. This ordering ensures the architecture context is available when the design onboarding runs.
+
+---
+
 ## Error Handling Reference
 
 | Situation | Response |
