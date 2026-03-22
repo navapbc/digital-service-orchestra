@@ -1,6 +1,6 @@
 ---
 id: dso-fjnc
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-22T15:44:50Z
@@ -48,3 +48,33 @@ test-exempt: N/A — this task writes tests, not production code.
   Verify: bash $(git rev-parse --show-toplevel)/tests/skills/test-project-setup-ci-generation.sh 2>&1; test $? -ne 0
 - [ ] .test-index entry maps project-setup/SKILL.md to test-project-setup-ci-generation.sh
   Verify: grep -q 'test-project-setup-ci-generation' $(git rev-parse --show-toplevel)/.test-index
+
+## Notes
+
+**2026-03-22T15:53:06Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T15:53:56Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — existing test uses grep-for-text-patterns in SKILL.md; Step 5 currently describes copying ci.example.yml (no ci-generator.sh reference); test file must check for new Step 5 behavior that doesn't exist yet (RED)
+
+**2026-03-22T15:54:31Z**
+
+CHECKPOINT 3/6: Tests written ✓ — 5 tests in tests/skills/test-project-setup-ci-generation.sh checking for ci-generator.sh, suites JSON input, static template removal, YAML validation, and speed_class prompting
+
+**2026-03-22T15:55:02Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — test file created at tests/skills/test-project-setup-ci-generation.sh; .test-index updated with RED marker [test_skill_step5_invokes_ci_generator_when_no_workflows]
+
+**2026-03-22T16:12:49Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — test file runs RED (5 FAILED, 0 PASSED); AC criteria all pass; ruff check/format pass; .test-index has RED marker
+
+**2026-03-22T16:12:54Z**
+
+CHECKPOINT 6/6: Done ✓ — all 4 AC criteria verified: test file exists, 15 assertions (≥5), tests are RED, .test-index entry present with RED marker [test_skill_step5_invokes_ci_generator_when_no_workflows]
+
+**2026-03-22T16:18:30Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/skills/test-project-setup-ci-generation.sh, .test-index. Tests: 5 RED (expected).

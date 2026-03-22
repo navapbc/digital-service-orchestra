@@ -1,6 +1,6 @@
 ---
 id: dso-3mb3
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-22T15:43:30Z
@@ -49,3 +49,51 @@ Files:
 - [ ] ruff format --check passes on new test file (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && ruff format --check tests/skills/test_project_setup_suite_placement.py
 
+
+## Notes
+
+<!-- note-id: 1pvtathp -->
+<!-- timestamp: 2026-03-22T15:53:22Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: tjghywx1 -->
+<!-- timestamp: 2026-03-22T15:53:27Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: 4j9ob2zg -->
+<!-- timestamp: 2026-03-22T15:54:18Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓
+
+<!-- note-id: s3xrob9k -->
+<!-- timestamp: 2026-03-22T15:54:50Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: xu6mgyt3 -->
+<!-- timestamp: 2026-03-22T15:55:09Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — 7 tests FAILED (RED) as expected, ruff check+format clean
+
+<!-- note-id: vnpwq76p -->
+<!-- timestamp: 2026-03-22T15:55:31Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — all 7 AC criteria pass
+
+**2026-03-22T16:18:30Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/skills/test_project_setup_suite_placement.py, .test-index. Tests: 7 RED (expected).
