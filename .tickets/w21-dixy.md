@@ -1,6 +1,6 @@
 ---
 id: w21-dixy
-status: in_progress
+status: closed
 deps: [w21-soe9]
 links: []
 created: 2026-03-22T03:07:39Z

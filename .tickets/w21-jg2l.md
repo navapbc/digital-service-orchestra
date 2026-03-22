@@ -1,6 +1,6 @@
 ---
 id: w21-jg2l
-status: in_progress
+status: closed
 deps: [w21-m5zd, w21-4zl2]
 links: []
 created: 2026-03-22T03:07:57Z
