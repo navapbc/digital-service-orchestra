@@ -1,6 +1,6 @@
 ---
 id: dso-2eu7
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T15:15:24Z

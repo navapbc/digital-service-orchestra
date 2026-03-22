@@ -1,0 +1,512 @@
+#!/usr/bin/env bash
+# tests/hooks/test-review-complexity-classifier.sh
+# RED tests for review-complexity-classifier.sh (dso-qxyd)
+#
+# Tests the deterministic complexity classifier that scores diffs on 7 factors
+# and routes to light/standard/deep review tiers.
+#
+# All tests are RED — the classifier script does not exist yet.
+# They will turn GREEN when dso-qzn4 implements review-complexity-classifier.sh.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+source "$REPO_ROOT/tests/lib/assert.sh"
+
+CLASSIFIER="$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh"
+ALLOWLIST="$REPO_ROOT/plugins/dso/hooks/lib/review-gate-allowlist.conf"
+CONFIG="$REPO_ROOT/.claude/dso-config.conf"
+
+# --- Helpers ---
+
+setup_temp_dir() {
+    TEST_TMPDIR="$(mktemp -d)"
+    export ARTIFACTS_DIR="$TEST_TMPDIR/artifacts"
+    mkdir -p "$ARTIFACTS_DIR"
+}
+
+teardown_temp_dir() {
+    [[ -n "${TEST_TMPDIR:-}" ]] && rm -rf "$TEST_TMPDIR"
+}
+
+# Create a minimal git diff fixture in TEST_TMPDIR
+# Usage: create_diff_fixture "filename" "diff_content"
+create_diff_fixture() {
+    local filename="$1"
+    local content="$2"
+    local diff_file="$TEST_TMPDIR/test.diff"
+    cat > "$diff_file" <<DIFFEOF
+diff --git a/$filename b/$filename
+index 0000000..1111111 100644
+--- a/$filename
++++ b/$filename
+@@ -1,3 +1,5 @@
+$content
+DIFFEOF
+    echo "$diff_file"
+}
+
+# Run the classifier with a diff file and capture output + exit code
+# Usage: run_classifier diff_file
+# Sets: CLASSIFIER_OUTPUT, CLASSIFIER_EXIT
+run_classifier() {
+    local diff_file="$1"
+    CLASSIFIER_OUTPUT=""
+    CLASSIFIER_EXIT=0
+    if [[ -x "$CLASSIFIER" ]]; then
+        CLASSIFIER_OUTPUT=$(bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+    else
+        # Classifier doesn't exist — simulate failure for RED tests
+        CLASSIFIER_EXIT=127
+    fi
+}
+
+# Extract a JSON field value using python3 (no jq dependency)
+# Usage: json_field "key" "$json_string"
+json_field() {
+    local key="$1" json="$2"
+    python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('$key',''))" "$json" 2>/dev/null || echo ""
+}
+
+# Check if string is valid JSON
+is_valid_json() {
+    python3 -c "import json,sys; json.loads(sys.argv[1])" "$1" 2>/dev/null
+}
+
+# ============================================================
+# Output Schema Tests
+# ============================================================
+
+test_classifier_outputs_json_object() {
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        assert_eq "classifier outputs valid JSON" "true" "true"
+    else
+        assert_eq "classifier outputs valid JSON" "true" "false"
+    fi
+    teardown_temp_dir
+}
+
+test_classifier_exits_zero_on_success() {
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    assert_eq "classifier exits 0 on success" "0" "$CLASSIFIER_EXIT"
+    teardown_temp_dir
+}
+
+test_classifier_outputs_all_seven_factor_keys() {
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local all_present="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        local has_all
+        has_all=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+keys=['blast_radius','critical_path','anti_shortcut','staleness','cross_cutting','diff_lines','change_volume']
+print('true' if all(k in d for k in keys) else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+        all_present="$has_all"
+    fi
+    assert_eq "all 7 factor keys present" "true" "$all_present"
+    teardown_temp_dir
+}
+
+test_classifier_outputs_computed_total() {
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local has_total="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        has_total=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+print('true' if 'computed_total' in d and isinstance(d['computed_total'],int) else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+    fi
+    assert_eq "computed_total field present (integer)" "true" "$has_total"
+    teardown_temp_dir
+}
+
+test_classifier_outputs_selected_tier() {
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local has_tier="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        has_tier=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+print('true' if d.get('selected_tier') in ('light','standard','deep') else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+    fi
+    assert_eq "selected_tier field present (light|standard|deep)" "true" "$has_tier"
+    teardown_temp_dir
+}
+
+# ============================================================
+# Tier Threshold Tests
+# ============================================================
+
+test_classifier_tier_light_score_0_2() {
+    # A trivial single-line change to a non-critical file should score 0-2 → light
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "README.md" "+typo fix")
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "score 0-2 selects light tier" "light" "$tier"
+    teardown_temp_dir
+}
+
+test_classifier_tier_standard_score_3_6() {
+    # A change touching auth/security (critical_path floor rule) should force at least standard
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/auth/login.py" "+def authenticate(user): pass")
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    # critical_path floor forces minimum score 3 → standard
+    local is_standard_or_deep="false"
+    if [[ "$tier" == "standard" || "$tier" == "deep" ]]; then
+        is_standard_or_deep="true"
+    fi
+    assert_eq "score 3-6 selects standard tier (or higher)" "true" "$is_standard_or_deep"
+    teardown_temp_dir
+}
+
+test_classifier_tier_deep_score_7_plus() {
+    # A large cross-cutting change touching many directories, critical paths, with shortcuts
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test.diff"
+    # Construct a diff that should score 7+ across multiple factors
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/auth/login.py b/src/auth/login.py
+index 0000000..1111111 100644
+--- a/src/auth/login.py
++++ b/src/auth/login.py
+@@ -1,3 +1,50 @@
++# noqa: E501
++def authenticate(user):
++    try:
++        pass
++    except Exception:
++        pass
+diff --git a/src/models/user.py b/src/models/user.py
+index 0000000..1111111 100644
+--- a/src/models/user.py
++++ b/src/models/user.py
+@@ -1,3 +1,30 @@
++class User:
++    pass
+diff --git a/plugins/dso/skills/review.md b/plugins/dso/skills/review.md
+index 0000000..1111111 100644
+--- a/plugins/dso/skills/review.md
++++ b/plugins/dso/skills/review.md
+@@ -1,3 +1,20 @@
++# Updated review skill content
+diff --git a/lib/utils/helpers.py b/lib/utils/helpers.py
+index 0000000..1111111 100644
+--- a/lib/utils/helpers.py
++++ b/lib/utils/helpers.py
+@@ -1,3 +1,15 @@
++def helper(): pass
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "score 7+ selects deep tier" "deep" "$tier"
+    teardown_temp_dir
+}
+
+# ============================================================
+# Floor Rule Tests
+# ============================================================
+
+test_floor_rule_anti_shortcut_forces_standard() {
+    # A diff containing noqa comment should force minimum standard tier
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+x = 1  # noqa: E501")
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    local is_at_least_standard="false"
+    if [[ "$tier" == "standard" || "$tier" == "deep" ]]; then
+        is_at_least_standard="true"
+    fi
+    assert_eq "anti-shortcut (noqa) forces minimum standard" "true" "$is_at_least_standard"
+    teardown_temp_dir
+}
+
+test_floor_rule_critical_path_forces_standard() {
+    # A diff touching an auth/security file should force minimum standard tier
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/auth/handler.py" "+pass")
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    local is_at_least_standard="false"
+    if [[ "$tier" == "standard" || "$tier" == "deep" ]]; then
+        is_at_least_standard="true"
+    fi
+    assert_eq "critical-path file forces minimum standard" "true" "$is_at_least_standard"
+    teardown_temp_dir
+}
+
+test_floor_rule_safeguard_file_forces_standard() {
+    # A diff touching CLAUDE.md should force minimum standard tier
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "CLAUDE.md" "+## New rule")
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    local is_at_least_standard="false"
+    if [[ "$tier" == "standard" || "$tier" == "deep" ]]; then
+        is_at_least_standard="true"
+    fi
+    assert_eq "safeguard file (CLAUDE.md) forces minimum standard" "true" "$is_at_least_standard"
+    teardown_temp_dir
+}
+
+test_floor_rule_test_deletion_forces_standard() {
+    # Deleting a test file without corresponding source deletion should force standard
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/tests/test_foo.py b/tests/test_foo.py
+deleted file mode 100644
+index 1111111..0000000
+--- a/tests/test_foo.py
++++ /dev/null
+@@ -1,10 +0,0 @@
+-def test_foo():
+-    assert True
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    local is_at_least_standard="false"
+    if [[ "$tier" == "standard" || "$tier" == "deep" ]]; then
+        is_at_least_standard="true"
+    fi
+    assert_eq "test deletion without source deletion forces minimum standard" "true" "$is_at_least_standard"
+    teardown_temp_dir
+}
+
+test_floor_rule_exception_broadening_forces_standard() {
+    # A diff with 'catch Exception' or 'except Exception' should force standard
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/handler.py" "+    except Exception:\n+        pass")
+    run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    local is_at_least_standard="false"
+    if [[ "$tier" == "standard" || "$tier" == "deep" ]]; then
+        is_at_least_standard="true"
+    fi
+    assert_eq "exception broadening forces minimum standard" "true" "$is_at_least_standard"
+    teardown_temp_dir
+}
+
+# ============================================================
+# Behavioral File Detection Tests
+# ============================================================
+
+test_behavioral_file_gets_full_scoring_weight() {
+    # A behavioral file (matching review.behavioral_patterns) should get full scoring weight
+    # i.e., it should count toward change_volume and other factors just like source code
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "plugins/dso/skills/foo.md" "+# Updated skill instructions")
+    run_classifier "$diff_file"
+
+    local change_volume=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        change_volume=$(json_field "change_volume" "$CLASSIFIER_OUTPUT")
+    fi
+    # A behavioral file should contribute to change_volume (score >= 1)
+    local has_weight="false"
+    if [[ -n "$change_volume" && "$change_volume" -ge 1 ]] 2>/dev/null; then
+        has_weight="true"
+    fi
+    assert_eq "behavioral file gets full scoring weight (change_volume >= 1)" "true" "$has_weight"
+    teardown_temp_dir
+}
+
+test_allowlist_file_exempt_from_scoring() {
+    # A file matching review-gate-allowlist.conf should score 0 across all factors
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture ".tickets/dso-abc1.md" "+status: closed")
+    run_classifier "$diff_file"
+
+    local total=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        total=$(json_field "computed_total" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "allowlist-exempt file scores 0" "0" "$total"
+    teardown_temp_dir
+}
+
+# ============================================================
+# Performance Test
+# ============================================================
+
+test_classifier_completes_in_under_2s() {
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+
+    local start_time end_time elapsed
+    start_time=$(python3 -c "import time; print(time.time())")
+
+    run_classifier "$diff_file"
+
+    end_time=$(python3 -c "import time; print(time.time())")
+    elapsed=$(python3 -c "print(float($end_time) - float($start_time))")
+
+    local under_2s="false"
+    under_2s=$(python3 -c "print('true' if $elapsed < 2.0 else 'false')")
+
+    # When classifier doesn't exist, it "completes" instantly (exit 127).
+    # This test is meaningful once the classifier is implemented.
+    if [[ "$CLASSIFIER_EXIT" -eq 127 ]]; then
+        # Classifier missing — cannot validate performance, mark as fail
+        assert_eq "classifier completes in under 2s (classifier missing)" "true" "false"
+    else
+        assert_eq "classifier completes in under 2s (${elapsed}s)" "true" "$under_2s"
+    fi
+    teardown_temp_dir
+}
+
+# ============================================================
+# Failure Handling Tests
+# ============================================================
+
+test_classifier_failure_defaults_to_standard() {
+    # Per the contract: if classifier exits non-zero, parser must default to standard tier.
+    # This test validates that a broken/missing classifier results in standard being the safe default.
+    # The classifier itself doesn't need to output "standard" on failure — the PARSER does.
+    # But the classifier contract says exit non-zero → parser defaults to standard.
+    # We test that the classifier exits non-zero when given invalid input (or doesn't exist).
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+
+    if [[ ! -x "$CLASSIFIER" ]]; then
+        # Classifier missing — confirm it would fail (RED test)
+        assert_eq "classifier failure detected (script missing)" "true" "false"
+    else
+        # Force a failure scenario: pipe empty stdin
+        local exit_code=0
+        local output
+        output=$(echo "" | bash "$CLASSIFIER" --invalid-flag 2>/dev/null) || exit_code=$?
+        if [[ "$exit_code" -ne 0 ]]; then
+            assert_eq "classifier exits non-zero on failure" "true" "true"
+        else
+            assert_eq "classifier exits non-zero on failure" "true" "false"
+        fi
+    fi
+    teardown_temp_dir
+}
+
+test_classifier_stdout_parseable_on_success() {
+    # When classifier exits 0, stdout must be valid JSON
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]]; then
+        if is_valid_json "$CLASSIFIER_OUTPUT"; then
+            assert_eq "stdout is valid JSON on exit 0" "true" "true"
+        else
+            assert_eq "stdout is valid JSON on exit 0" "true" "false"
+        fi
+    else
+        # Classifier failed or missing — this is expected in RED state
+        assert_eq "classifier exits 0 (required for parseable output test)" "0" "$CLASSIFIER_EXIT"
+    fi
+    teardown_temp_dir
+}
+
+# ============================================================
+# Run All Tests
+# ============================================================
+
+# Output schema
+test_classifier_outputs_json_object
+test_classifier_exits_zero_on_success
+test_classifier_outputs_all_seven_factor_keys
+test_classifier_outputs_computed_total
+test_classifier_outputs_selected_tier
+
+# Tier thresholds
+test_classifier_tier_light_score_0_2
+test_classifier_tier_standard_score_3_6
+test_classifier_tier_deep_score_7_plus
+
+# Floor rules
+test_floor_rule_anti_shortcut_forces_standard
+test_floor_rule_critical_path_forces_standard
+test_floor_rule_safeguard_file_forces_standard
+test_floor_rule_test_deletion_forces_standard
+test_floor_rule_exception_broadening_forces_standard
+
+# Behavioral file detection
+test_behavioral_file_gets_full_scoring_weight
+test_allowlist_file_exempt_from_scoring
+
+# Performance
+test_classifier_completes_in_under_2s
+
+# Failure handling
+test_classifier_failure_defaults_to_standard
+test_classifier_stdout_parseable_on_success
+
+print_summary
