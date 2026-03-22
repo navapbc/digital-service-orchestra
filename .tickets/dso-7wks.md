@@ -1,6 +1,6 @@
 ---
 id: dso-7wks
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-22T01:59:27Z
@@ -42,3 +42,33 @@ TDD: This IS the RED test task. All tests FAIL because neither file contains cla
 - [ ] Running the test returns non-zero pre-implementation (RED)
   Verify: ! bash $(git rev-parse --show-toplevel)/tests/skills/test-using-lockpick-clarification.sh
 
+
+## Notes
+
+**2026-03-22T02:41:44Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T02:43:33Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — tests/skills/ tests use bash assert.sh framework; standalone (not in run-all.sh); pattern matches test-quick-ref-skill.sh
+
+**2026-03-22T02:44:24Z**
+
+CHECKPOINT 3/6: Tests written ✓ — 13 named test functions in tests/skills/test-using-lockpick-clarification.sh
+
+**2026-03-22T02:59:39Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — tests/skills/test-using-lockpick-clarification.sh created with 13 named test functions using assert.sh framework
+
+**2026-03-22T02:59:43Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — test exits 1 (RED: 12 fail, 1 pass for routing preservation); run-all.sh unaffected; assert count=13
+
+**2026-03-22T02:59:55Z**
+
+CHECKPOINT 6/6: Done ✓ — All AC checks pass: AC1 (run-all unaffected), AC2 (file executable), AC3 (13 asserts), AC4 (RED exits 1)
+
+**2026-03-22T03:04:59Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/skills/test-using-lockpick-clarification.sh. Tests: 1 pass, 12 fail (RED phase expected).

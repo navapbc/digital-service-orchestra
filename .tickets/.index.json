@@ -1,6 +1,7 @@
 {
   ".ti-2cu0": {
     "deps": [],
+    "parent": "dso-9l2x",
     "priority": 1,
     "status": "open",
     "title": "RED: Structural validation test for using-lockpick clarification loop",
@@ -10,6 +11,7 @@
     "deps": [
       ".ti-2cu0"
     ],
+    "parent": "dso-9l2x",
     "priority": 1,
     "status": "open",
     "title": "GREEN: Add confidence-gated clarification loop to using-lockpick SKILL.md",
@@ -19,6 +21,7 @@
     "deps": [
       ".ti-xdi3"
     ],
+    "parent": "dso-9l2x",
     "priority": 1,
     "status": "open",
     "title": "Update HOOK-INJECTION.md with condensed clarification guidance",
@@ -35,6 +38,7 @@
     "deps": [
       "dso-7wks"
     ],
+    "parent": "dso-9l2x",
     "priority": 1,
     "status": "open",
     "title": "GREEN: Add clarification loop section to SKILL.md",
@@ -47,20 +51,12 @@
     "title": "Project level config flags to modify behavior",
     "type": "epic"
   },
-  "dso-2fme": {
+  "dso-2dxt": {
     "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Write failing tests for generate-test-index.sh scanner",
-    "type": "task"
-  },
-  "dso-3s9o": {
-    "deps": [
-      "dso-ez3s"
-    ],
+    "parent": "w22-ns6l",
     "priority": 2,
-    "status": "open",
-    "title": "SKILL: Add test-index generation step to /dso:dev-onboarding",
+    "status": "in_progress",
+    "title": "bug LINK/UNLINK same-second timestamp ordering causes unlink to be ignored",
     "type": "task"
   },
   "dso-3xhk": {
@@ -74,17 +70,11 @@
     "deps": [
       "dso-d8gi"
     ],
+    "parent": "dso-l2ct",
     "priority": 3,
     "status": "open",
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
-  },
-  "dso-4lbf": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Write failing tests for .test-index parsing and union merge in test-pre-commit-test-gate.sh",
-    "type": "task"
   },
   "dso-4nm5": {
     "deps": [],
@@ -110,45 +100,27 @@
     "title": "Conditional Security & Performance Review Overlays",
     "type": "epic"
   },
-  "dso-6oo5": {
-    "deps": [
-      "dso-wqt4",
-      "dso-a6nl"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Update record-test-status.sh to use fuzzy-match.sh for test discovery",
-    "type": "task"
-  },
-  "dso-6q4p": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
-    "type": "bug"
-  },
   "dso-6x8o": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: record-test-status.sh allows re-recording with stale test results \u2014 hash updated without re-running tests",
     "type": "bug"
   },
-  "dso-76r3": {
-    "deps": [
-      "dso-xf8w"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Exclude .test-index from compute-diff-hash.sh and review-gate-allowlist.conf",
-    "type": "task"
-  },
   "dso-7wks": {
     "deps": [],
+    "parent": "dso-9l2x",
     "priority": 1,
     "status": "open",
     "title": "RED: Structural validation tests for clarification loop in using-lockpick",
     "type": "task"
+  },
+  "dso-8l5h": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Extract review and evaluation sub-agents into dedicated plugin agents",
+    "type": "epic"
   },
   "dso-94ya": {
     "deps": [],
@@ -164,22 +136,20 @@
     "title": "Limit tool use by sub-agents",
     "type": "epic"
   },
-  "dso-9gpx": {
-    "deps": [
-      "dso-fhfi",
-      "dso-6oo5"
-    ],
-    "priority": 2,
-    "status": "open",
-    "title": "Document test_gate.test_dirs config key in dso-config.conf",
-    "type": "task"
-  },
   "dso-9l2x": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "Incorporate the brainstorm tell me more loop into using lockpicks",
     "type": "epic"
+  },
+  "dso-9ltc": {
+    "deps": [],
+    "parent": "w21-ykic",
+    "priority": 1,
+    "status": "open",
+    "title": "As a DSO practitioner, review agents are composed from source fragments and generated via a build process",
+    "type": "story"
   },
   "dso-9xnr": {
     "deps": [],
@@ -202,15 +172,6 @@
     "title": "Make sprint skill aware of ticket type",
     "type": "epic"
   },
-  "dso-a6nl": {
-    "deps": [
-      "dso-wqt4"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Extend test-record-test-status.sh with fuzzy match discovery tests",
-    "type": "task"
-  },
   "dso-ag1b": {
     "deps": [],
     "priority": 1,
@@ -222,6 +183,7 @@
     "deps": [
       "dso-bxng"
     ],
+    "parent": "w21-ovpn",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, the Deep Sonnet C reviewer applies deep hygiene, design, and maintainability checks",
@@ -231,41 +193,31 @@
     "deps": [
       "dso-bxng"
     ],
+    "parent": "w21-ovpn",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, the Deep Sonnet A reviewer applies deep correctness checks with acceptance criteria validation",
     "type": "story"
   },
   "dso-boct": {
-    "deps": [
-      "dso-9ltc"
-    ],
+    "deps": [],
+    "parent": "w21-ovpn",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, the Light tier haiku reviewer applies a focused 6-item checklist to low-complexity changes",
     "type": "story"
   },
   "dso-bxng": {
-    "deps": [
-      "dso-9ltc"
-    ],
+    "deps": [],
+    "parent": "w21-ovpn",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, the Standard tier sonnet reviewer applies full 5-dimension checklists with researched sub-criteria",
     "type": "story"
   },
-  "dso-cb9v": {
-    "deps": [
-      "dso-ocfn",
-      "dso-xf8w"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Add .test-index union merge to record-test-status.sh",
-    "type": "task"
-  },
   "dso-cc6a": {
     "deps": [],
+    "parent": "dso-9xnr",
     "priority": 3,
     "status": "open",
     "title": "Worktree auto-cleanup fails when session ends with unmerged commits",
@@ -283,6 +235,7 @@
       "dso-x1jt",
       "dso-dghs"
     ],
+    "parent": "dso-l2ct",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, batch preparation is a single phase with pre-flight then claim then sync then compose ordering",
@@ -290,19 +243,11 @@
   },
   "dso-dghs": {
     "deps": [],
+    "parent": "dso-l2ct",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, the sprint skill contains no explanatory prose or motivation framing",
     "type": "story"
-  },
-  "dso-ez3s": {
-    "deps": [
-      "dso-2fme"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Implement generate-test-index.sh scanner script",
-    "type": "task"
   },
   "dso-fbky": {
     "deps": [],
@@ -310,16 +255,6 @@
     "status": "open",
     "title": "Add full autonomous mode session override",
     "type": "epic"
-  },
-  "dso-fhfi": {
-    "deps": [
-      "dso-wqt4",
-      "dso-o1u2"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Rewrite pre-commit-test-gate.sh to use fuzzy-match.sh for multi-stack test association",
-    "type": "task"
   },
   "dso-fucm": {
     "deps": [],
@@ -335,6 +270,7 @@
       "dso-d8gi",
       "dso-47gy"
     ],
+    "parent": "dso-l2ct",
     "priority": 3,
     "status": "open",
     "title": "Update project docs to reflect dso:sprint optimization",
@@ -351,10 +287,18 @@
     "deps": [
       "dso-bxng"
     ],
+    "parent": "w21-ovpn",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, the Deep Sonnet B reviewer applies deep verification checks evaluating test quality and coverage",
     "type": "story"
+  },
+  "dso-gg0v": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "debug-everything validation prompts use soft \"Do NOT fix\" language instead of hard-stop READ-ONLY ENFORCEMENT",
+    "type": "bug"
   },
   "dso-gjww": {
     "deps": [],
@@ -377,6 +321,13 @@
     "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
     "type": "bug"
   },
+  "dso-gxct": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh add --suites flag to Usage header comment",
+    "type": "bug"
+  },
   "dso-h04l": {
     "deps": [],
     "priority": 0,
@@ -388,6 +339,7 @@
     "deps": [
       "dso-vxsh"
     ],
+    "parent": "dso-pxos",
     "priority": 1,
     "status": "open",
     "title": "GREEN: Add rationalized-failures accountability step to end-session SKILL.md",
@@ -406,6 +358,7 @@
       "dso-gfry",
       "dso-b538"
     ],
+    "parent": "w21-ovpn",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, the Deep Opus architectural reviewer applies cross-cutting synthesis checks across all specialist findings",
@@ -416,34 +369,10 @@
       "dso-7wks",
       "dso-0kz0"
     ],
+    "parent": "dso-9l2x",
     "priority": 1,
     "status": "open",
     "title": "GREEN: Add abbreviated clarification loop to HOOK-INJECTION.md",
-    "type": "task"
-  },
-  "dso-jny6": {
-    "deps": [
-      "dso-4lbf"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Write failing tests for .test-index auto-prune and auto-stage in test-pre-commit-test-gate.sh",
-    "type": "task"
-  },
-  "dso-k7fe": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "Bug: pre-commit review gate blocks merge commits with non-allowlisted files from incoming branch",
-    "type": "bug"
-  },
-  "dso-kaaa": {
-    "deps": [
-      "dso-ez3s"
-    ],
-    "priority": 2,
-    "status": "open",
-    "title": "DOGFOOD: Run generate-test-index.sh against this repo to produce initial .test-index",
     "type": "task"
   },
   "dso-khl2": {
@@ -462,16 +391,6 @@
     "status": "open",
     "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
-  },
-  "dso-li0w": {
-    "deps": [
-      "dso-jny6",
-      "dso-xf8w"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Add auto-prune and auto-stage of .test-index to pre-commit-test-gate.sh",
-    "type": "task"
   },
   "dso-lm92": {
     "deps": [],
@@ -493,22 +412,6 @@
     "status": "open",
     "title": "Retro skill should include an overall visual review",
     "type": "epic"
-  },
-  "dso-o1u2": {
-    "deps": [
-      "dso-wqt4"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Extend test-pre-commit-test-gate.sh with multi-stack fuzzy match tests",
-    "type": "task"
-  },
-  "dso-ocfn": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Write failing tests for .test-index support in test-record-test-status.sh",
-    "type": "task"
   },
   "dso-ogh7": {
     "deps": [],
@@ -561,6 +464,13 @@
     "status": "open",
     "title": "Incorporate OpenRewrite",
     "type": "epic"
+  },
+  "dso-qv93": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh short-circuit python3 subprocess when entries is empty",
+    "type": "bug"
   },
   "dso-r97p": {
     "deps": [],
@@ -632,23 +542,18 @@
     "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
     "type": "bug"
   },
+  "dso-ubtf": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh replace find -print -quit with POSIX-portable alternative",
+    "type": "bug"
+  },
   "dso-udy1": {
     "deps": [],
     "priority": 0,
     "status": "in_progress",
     "title": "[LOCK] debug-everything",
-    "type": "task"
-  },
-  "dso-utw2": {
-    "deps": [
-      "dso-xf8w",
-      "dso-li0w",
-      "dso-cb9v",
-      "dso-76r3"
-    ],
-    "priority": 2,
-    "status": "open",
-    "title": "DOCS: Document .test-index support in the test gate",
     "type": "task"
   },
   "dso-uu13": {
@@ -674,6 +579,7 @@
   },
   "dso-vcrq": {
     "deps": [],
+    "parent": "dso-9xnr",
     "priority": 3,
     "status": "open",
     "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved",
@@ -681,6 +587,7 @@
   },
   "dso-vxsh": {
     "deps": [],
+    "parent": "dso-pxos",
     "priority": 1,
     "status": "open",
     "title": "RED: Structural tests for rationalized-failures accountability step in end-session",
@@ -700,15 +607,6 @@
     "title": "Fix: assert pending state file content in test_validate_exits_2_on_partial_tests integration test",
     "type": "bug"
   },
-  "dso-wqt4": {
-    "deps": [
-      "dso-ydzw"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Create plugins/dso/hooks/lib/fuzzy-match.sh shared fuzzy match library",
-    "type": "task"
-  },
   "dso-wyqo": {
     "deps": [],
     "priority": 4,
@@ -718,19 +616,11 @@
   },
   "dso-x1jt": {
     "deps": [],
+    "parent": "dso-l2ct",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, Phase 1 and Phase 3 no longer contain TaskCreate/TaskUpdate checklist blocks",
     "type": "story"
-  },
-  "dso-xf8w": {
-    "deps": [
-      "dso-4lbf"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "IMPL: Add parse_test_index() and union merge to pre-commit-test-gate.sh",
-    "type": "task"
   },
   "dso-xhhv": {
     "deps": [],
@@ -738,13 +628,6 @@
     "status": "open",
     "title": "Fix: unquoted $* in validate.sh RUN: line produces incorrect resume command with space-containing args",
     "type": "bug"
-  },
-  "dso-ydzw": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "RED: Write failing tests for fuzzy_find_associated_tests() in hooks/lib/fuzzy-match.sh",
-    "type": "task"
   },
   "dso-zj3r": {
     "deps": [],
@@ -760,15 +643,41 @@
     "title": "test-batched.sh state file not isolated by repo/worktree \u2014 causes cross-session interference",
     "type": "bug"
   },
-  "w21-05z9": {
-    "deps": [
-      "w21-6k7v",
-      "w21-8011"
-    ],
+  "w20-fxpu": {
+    "deps": [],
+    "priority": 3,
+    "status": "open",
+    "title": "Fix test_auto_detect_main_worktree_via_git_list macOS path comparison bug",
+    "type": "task"
+  },
+  "w20-gm71": {
+    "deps": [],
+    "parent": "w22-ku13",
+    "priority": 3,
+    "status": "open",
+    "title": "generate-test-index.sh broader scan is O(n*m) \u2014 extremely slow on repos with many files",
+    "type": "task"
+  },
+  "w20-keta": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts",
+    "type": "bug"
+  },
+  "w20-kt6r": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Multiple [LOCK] tickets for debug-everything \u2014 no cleanup after session ends",
+    "type": "bug"
+  },
+  "w20-w7pm": {
+    "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "As a developer, divergent environments resolve ticket status conflicts deterministically",
-    "type": "story"
+    "title": "Validation sub-agents in /dso:validate-work fix errors instead of only reporting them",
+    "type": "bug"
   },
   "w21-0kt1": {
     "deps": [
@@ -776,6 +685,7 @@
       "w21-txt8",
       "w21-nv42"
     ],
+    "parent": "w21-ykic",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, every classification decision is logged and post-deployment calibration signals are defined",
@@ -783,23 +693,17 @@
   },
   "w21-0nk2": {
     "deps": [],
+    "parent": "w21-bwfw",
     "priority": 1,
     "status": "open",
     "title": "As a developer, I get token-efficient ticket output for LLM agent interactions",
     "type": "story"
   },
-  "w21-0oc6": {
+  "w21-1pyo": {
     "deps": [],
-    "priority": 1,
+    "priority": 4,
     "status": "open",
-    "title": "Bug: review gate blocks merge commits from main into worktree \u2014 pre-commit-review-gate treats incoming main changes as requiring review",
-    "type": "bug"
-  },
-  "w21-0pxe": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "Bug: end-session merge blindly accepts worktree ticket changes over main without diff comparison",
+    "title": "Bug: test-design-skills-cross-stack.sh arithmetic error from grep -c fallback pattern",
     "type": "bug"
   },
   "w21-24kl": {
@@ -815,6 +719,7 @@
     "deps": [
       "w21-7mlx"
     ],
+    "parent": "w21-24kl",
     "priority": 1,
     "status": "open",
     "title": "As a developer, the migration is validated against a pre-flight snapshot before any references change",
@@ -822,23 +727,18 @@
   },
   "w21-2a9w": {
     "deps": [],
+    "parent": "w21-24kl",
     "priority": 1,
     "status": "open",
     "title": "As a developer, the cutover script orchestrates migration phases with logging, rollback, and dry-run",
     "type": "story"
-  },
-  "w21-2dby": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "Bug: test suite exceeds Claude Code tool timeout (~73s) despite test-batched.sh guidance in CLAUDE.md",
-    "type": "bug"
   },
   "w21-2r0x": {
     "deps": [
       "w21-8cw2",
       "w21-gykt"
     ],
+    "parent": "w21-bwfw",
     "priority": 1,
     "status": "open",
     "title": "As a developer, the Jira bridge handles failures gracefully without corrupting ticket state",
@@ -851,61 +751,47 @@
     "title": "Preplanning adds epic's own children as deps, making the epic self-blocked",
     "type": "bug"
   },
+  "w21-4d04": {
+    "deps": [
+      "w21-fljz",
+      "w21-v9tg"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement config key merge for test.suite.<name> entries",
+    "type": "task"
+  },
   "w21-54wx": {
     "deps": [
       "dso-0k2k"
     ],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Ticket system v3 \u2014 dependency management, cross-worktree sync, and conflict resolution",
     "type": "epic"
   },
   "w21-689o": {
     "deps": [],
+    "parent": "dso-9xnr",
     "priority": 2,
     "status": "open",
     "title": "Worktree left dirty after implementation-plan: task tickets not committed",
     "type": "bug"
   },
-  "w21-6k7v": {
-    "deps": [
-      "w21-p1y3"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "As a developer, I can sync ticket events with remote environments without timeout risk",
-    "type": "story"
-  },
-  "w21-6llo": {
-    "deps": [
-      "w21-k2yz",
-      "w21-6k7v"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "As a developer, I can archive closed tickets without breaking dependency references",
-    "type": "story"
-  },
   "w21-7mlx": {
     "deps": [
       "w21-2a9w"
     ],
+    "parent": "w21-24kl",
     "priority": 1,
     "status": "open",
     "title": "As a developer, all existing tickets are migrated to the new system preserving IDs, data, and relationships",
     "type": "story"
   },
-  "w21-8011": {
-    "deps": [
-      "w21-k2yz"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "As a developer, closing a ticket automatically reports which blocked tickets are now ready",
-    "type": "story"
-  },
   "w21-8cw2": {
     "deps": [],
+    "parent": "w21-bwfw",
     "priority": 1,
     "status": "open",
     "title": "As a developer, local ticket changes are automatically pushed to Jira via the outbound bridge",
@@ -913,6 +799,7 @@
   },
   "w21-9tc4": {
     "deps": [],
+    "parent": "dso-0k2k",
     "priority": 2,
     "status": "open",
     "title": "Bug: sub-agent wrote discovery file under .claude/ (protected folder) instead of artifacts dir",
@@ -948,10 +835,22 @@
     "title": "Add hypothetical scenario consideration to epic planning",
     "type": "epic"
   },
+  "w21-cxzv": {
+    "deps": [
+      "w21-f2k3",
+      "w21-okrb"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement --suites flag skeleton, Makefile heuristic, and pytest heuristic",
+    "type": "task"
+  },
   "w21-dww7": {
     "deps": [
       "w21-8cw2"
     ],
+    "parent": "w21-bwfw",
     "priority": 1,
     "status": "open",
     "title": "As a developer, comments sync bidirectionally between local tickets and Jira without duplication",
@@ -959,6 +858,7 @@
   },
   "w21-e447": {
     "deps": [],
+    "parent": "dso-9xnr",
     "priority": 3,
     "status": "open",
     "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
@@ -972,10 +872,41 @@
       "w21-nv42",
       "w21-0kt1"
     ],
+    "parent": "w21-ykic",
     "priority": 3,
     "status": "open",
     "title": "Update project docs to reflect tiered review architecture",
     "type": "story"
+  },
+  "w21-etsx": {
+    "deps": [
+      "w21-cxzv",
+      "w21-v9tg",
+      "w21-4d04"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Update project-detect.sh script header comment and usage docs",
+    "type": "task"
+  },
+  "w21-f2k3": {
+    "deps": [],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write backward-compat regression tests for --suites flag",
+    "type": "task"
+  },
+  "w21-fljz": {
+    "deps": [
+      "w21-ulsg"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write config merge and fixture acceptance tests",
+    "type": "task"
   },
   "w21-fzzu": {
     "deps": [],
@@ -984,17 +915,11 @@
     "title": "Fix: remove unused REPO_ROOT variable in test-record-test-status.sh",
     "type": "bug"
   },
-  "w21-goqp": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "As a developer, agents are prevented from directly editing ticket event files",
-    "type": "story"
-  },
   "w21-gy45": {
     "deps": [
       "w21-wbqz"
     ],
+    "parent": "w21-24kl",
     "priority": 1,
     "status": "open",
     "title": "As a developer, the old ticket system is cleaned up after confirmed successful migration",
@@ -1004,6 +929,7 @@
     "deps": [
       "w21-8cw2"
     ],
+    "parent": "w21-bwfw",
     "priority": 1,
     "status": "open",
     "title": "As a developer, Jira changes are automatically pulled into my local ticket system",
@@ -1016,33 +942,22 @@
     "title": "Fix: test-merge-to-main-portability.sh pre-existing failures (sequential phase warning)",
     "type": "bug"
   },
-  "w21-jb9k": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "Bug: Local validation sub-agent redundantly checks CI status during post-epic validation",
-    "type": "bug"
-  },
   "w21-jtkr": {
     "deps": [
-      "w21-zp4d"
+      "w21-zp4d",
+      "dso-9ltc"
     ],
+    "parent": "w21-ykic",
     "priority": 1,
     "status": "open",
     "title": "As a DSO practitioner, code changes are scored by a deterministic classifier and routed to the correct review tier",
-    "type": "story"
-  },
-  "w21-k2yz": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "As a developer, I can track dependencies between tickets and query which are ready to work",
     "type": "story"
   },
   "w21-nv42": {
     "deps": [
       "w21-jtkr"
     ],
+    "parent": "w21-ykic",
     "priority": 2,
     "status": "open",
     "title": "As a DSO practitioner, oversized diffs are rejected with actionable guidance and merge commits are reviewed efficiently",
@@ -1057,10 +972,21 @@
   },
   "w21-o5ap": {
     "deps": [],
+    "parent": "w21-24kl",
     "priority": 1,
     "status": "open",
     "title": "As a developer, I have complete CLI documentation for all ticket commands",
     "type": "story"
+  },
+  "w21-okrb": {
+    "deps": [
+      "w21-f2k3"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write --suites JSON schema, Makefile and pytest heuristic tests",
+    "type": "task"
   },
   "w21-ovpn": {
     "deps": [
@@ -1071,33 +997,21 @@
     "title": "Review Intelligence & Precision",
     "type": "epic"
   },
-  "w21-p1y3": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "As a developer, all my worktrees see the same ticket state instantly via shared storage",
-    "type": "story"
-  },
   "w21-qjcy": {
     "deps": [
       "w21-2r0x"
     ],
+    "parent": "w21-bwfw",
     "priority": 1,
     "status": "open",
     "title": "As a developer, I can see bridge problems and recover from bad bridge actions",
     "type": "story"
   },
-  "w21-qsu5": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "Bug: cascade-circuit-breaker ERR trap swallows exit-2 on CI Linux (6 test failures)",
-    "type": "bug"
-  },
   "w21-txt8": {
     "deps": [
       "w21-jtkr"
     ],
+    "parent": "w21-ykic",
     "priority": 1,
     "status": "open",
     "title": "As a DSO practitioner, high-complexity changes receive parallel multi-reviewer scrutiny with opus architectural oversight",
@@ -1105,6 +1019,7 @@
   },
   "w21-u3bx": {
     "deps": [],
+    "parent": "dso-9xnr",
     "priority": 2,
     "status": "open",
     "title": "Bug: bump-version.sh should sync from main before bumping to avoid version conflicts",
@@ -1112,16 +1027,39 @@
   },
   "w21-u3op": {
     "deps": [],
+    "parent": "dso-9xnr",
     "priority": 2,
     "status": "open",
     "title": "Investigate inconsistency between 'Acceptance criteria:' and '## ACCEPTANCE CRITERIA' formats in ticket creation",
     "type": "bug"
+  },
+  "w21-ulsg": {
+    "deps": [
+      "w21-okrb"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "RED: write npm, bash runner, dedup, and precedence tests",
+    "type": "task"
+  },
+  "w21-v9tg": {
+    "deps": [
+      "w21-ulsg",
+      "w21-cxzv"
+    ],
+    "parent": "w22-5e4i",
+    "priority": 2,
+    "status": "closed",
+    "title": "Implement npm and bash runner heuristics with dedup and precedence ordering",
+    "type": "task"
   },
   "w21-wbqz": {
     "deps": [
       "w21-25mq",
       "w21-o5ap"
     ],
+    "parent": "w21-24kl",
     "priority": 1,
     "status": "open",
     "title": "As a developer, all tk references are atomically updated to the new ticket CLI in a single commit",
@@ -1135,86 +1073,127 @@
     "type": "epic"
   },
   "w21-zp4d": {
-    "deps": [],
+    "deps": [
+      "dso-9ltc"
+    ],
+    "parent": "w21-ykic",
     "priority": 1,
     "status": "open",
     "title": "As a DSO contributor, all review dimension references use the new 5-dimension schema",
     "type": "story"
   },
-  "w22-1jqy": {
-    "deps": [],
-    "priority": 3,
-    "status": "open",
-    "title": "Bug: test-discover-agents.sh flaky in full suite \u2014 passes in isolation",
-    "type": "bug"
-  },
-  "w22-338o": {
-    "deps": [],
-    "priority": 1,
-    "status": "in_progress",
-    "title": "Tech-stack-agnostic test gate",
-    "type": "epic"
-  },
   "w22-45i1": {
     "deps": [],
+    "parent": "dso-psan",
     "priority": 1,
     "status": "open",
     "title": "RED: Write structural validation test for onboarding integration in project-setup",
     "type": "task"
   },
+  "w22-528r": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Setup skill: auto-discover host project test suites for CI workflow generation",
+    "type": "epic"
+  },
+  "w22-5e4i": {
+    "deps": [],
+    "parent": "w22-528r",
+    "priority": 2,
+    "status": "closed",
+    "title": "As a platform engineer, I can run project-detect.sh --suites to discover test suites",
+    "type": "story"
+  },
   "w22-5z9r": {
     "deps": [
       "w22-45i1"
     ],
+    "parent": "dso-psan",
     "priority": 1,
     "status": "open",
     "title": "GREEN: Add Step 7 onboarding prompt to project-setup SKILL.md",
     "type": "task"
   },
-  "w22-bc31": {
+  "w22-anm2": {
     "deps": [
-      "w22-tpzd"
+      "w22-528r"
     ],
     "priority": 2,
     "status": "open",
-    "title": "As a developer using /implementation-plan, I get guidance to name tests for fuzzy-match compatibility",
-    "type": "story"
+    "title": "CI workflow generation from discovered test suites",
+    "type": "epic"
+  },
+  "w22-j22e": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Bug: preplanning uses ambiguous confirmation questions where yes/no answers conflict",
+    "type": "bug"
   },
   "w22-ku13": {
     "deps": [
       "w22-l60c"
     ],
+    "parent": "w22-338o",
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "As a project maintainer, /dev-onboarding generates a .test-index for associations fuzzy match would miss",
     "type": "story"
   },
-  "w22-l60c": {
-    "deps": [
-      "w22-tpzd"
-    ],
-    "priority": 1,
-    "status": "open",
-    "title": "As a host project developer, I can explicitly map source files to unconventionally-named tests via .test-index",
-    "type": "story"
-  },
-  "w22-nlwa": {
-    "deps": [
-      "w22-tpzd",
-      "w22-l60c",
-      "w22-ku13",
-      "w22-bc31"
-    ],
-    "priority": 2,
-    "status": "open",
-    "title": "Update project docs to reflect tech-stack-agnostic test gate",
-    "type": "story"
-  },
-  "w22-tpzd": {
+  "w22-ns6l": {
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "As a host project developer, my non-Python source changes are caught by the test gate via fuzzy matching",
+    "title": "Project Health Restoration",
+    "type": "epic"
+  },
+  "w22-ond9": {
+    "deps": [],
+    "parent": "w22-anm2",
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can generate CI workflows for a new project from discovered suites",
+    "type": "story"
+  },
+  "w22-opu1": {
+    "deps": [
+      "w22-5e4i"
+    ],
+    "parent": "w22-528r",
+    "priority": 2,
+    "status": "closed",
+    "title": "As a platform engineer, I can declare unknown test patterns via config keys",
+    "type": "story"
+  },
+  "w22-rkur": {
+    "deps": [
+      "w22-5e4i",
+      "w22-opu1"
+    ],
+    "parent": "w22-528r",
+    "priority": 3,
+    "status": "closed",
+    "title": "Update project docs to reflect test suite discovery",
+    "type": "story"
+  },
+  "w22-tho5": {
+    "deps": [
+      "w22-ond9",
+      "w22-ybey"
+    ],
+    "parent": "w22-anm2",
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect CI workflow generation",
+    "type": "story"
+  },
+  "w22-ybey": {
+    "deps": [],
+    "parent": "w22-anm2",
+    "priority": 2,
+    "status": "open",
+    "title": "As a platform engineer, I can identify and place uncovered suites in my existing CI",
     "type": "story"
   }
 }
