@@ -1,6 +1,6 @@
 ---
 id: dso-b979
-status: in_progress
+status: closed
 deps: [dso-olb0, dso-yx0j]
 links: []
 created: 2026-03-22T00:59:01Z

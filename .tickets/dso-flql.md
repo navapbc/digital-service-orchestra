@@ -1,6 +1,6 @@
 ---
 id: dso-flql
-status: in_progress
+status: closed
 deps: [dso-dpvo, dso-yx0j]
 links: []
 created: 2026-03-22T00:59:37Z

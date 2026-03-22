@@ -424,3 +424,320 @@ def test_write_create_events_skips_existing_local_ticket(
         f"No CREATE event files must be written for already-synced ticket; "
         f"found: {all_create_files}"
     )
+
+
+# ---------------------------------------------------------------------------
+# TestStatusTypeMapping
+# ---------------------------------------------------------------------------
+
+
+class TestStatusTypeMapping:
+    """Tests for configurable status and type mapping functions."""
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_map_status_known_value_returns_local_status(
+        self, bridge: ModuleType
+    ) -> None:
+        """map_status('In Progress', mapping={'In Progress': 'in_progress'})
+        returns 'in_progress'.
+        """
+        mapping = {
+            "In Progress": "in_progress",
+            "To Do": "pending",
+            "Done": "completed",
+        }
+        result = bridge.map_status("In Progress", mapping=mapping)
+        assert result == "in_progress", (
+            f"map_status must return 'in_progress' for known value 'In Progress'; "
+            f"got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_map_status_unknown_value_returns_none(self, bridge: ModuleType) -> None:
+        """map_status('Unknown Status', mapping={...}) returns None.
+        The caller is responsible for writing a BRIDGE_ALERT event.
+        """
+        mapping = {"In Progress": "in_progress"}
+        result = bridge.map_status("Unknown Status", mapping=mapping)
+        assert result is None, (
+            f"map_status must return None for unknown value 'Unknown Status'; "
+            f"got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_map_type_known_value_returns_local_type(self, bridge: ModuleType) -> None:
+        """map_type('Story', mapping={'Story': 'story'}) returns 'story'."""
+        mapping = {"Story": "story", "Task": "task", "Bug": "task"}
+        result = bridge.map_type("Story", mapping=mapping)
+        assert result == "story", (
+            f"map_type must return 'story' for known value 'Story'; got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_map_type_unknown_value_returns_none(self, bridge: ModuleType) -> None:
+        """map_type('Custom Jira Type', mapping={}) returns None."""
+        result = bridge.map_type("Custom Jira Type", mapping={})
+        assert result is None, (
+            f"map_type must return None for unknown value 'Custom Jira Type' with empty mapping; "
+            f"got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_write_bridge_alert_writes_event_file(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """write_bridge_alert(ticket_id, reason, tickets_root, bridge_env_id) writes a
+        BRIDGE_ALERT event file at:
+            .tickets-tracker/<ticket_id>/<ts>-<uuid>-BRIDGE_ALERT.json
+
+        Event file must contain: event_type=BRIDGE_ALERT, reason=reason, env_id=bridge_env_id.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-99"
+        ticket_dir = tickets_root / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        reason = "Unknown status value: 'Wontfix'"
+
+        bridge.write_bridge_alert(
+            ticket_id=ticket_id,
+            reason=reason,
+            tickets_root=tickets_root,
+            bridge_env_id=_BRIDGE_ENV_ID,
+        )
+
+        alert_files = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+        assert len(alert_files) == 1, (
+            f"write_bridge_alert must write exactly 1 BRIDGE_ALERT file; "
+            f"found {len(alert_files)}: {alert_files}"
+        )
+
+        alert_data = json.loads(alert_files[0].read_text(encoding="utf-8"))
+        assert alert_data.get("event_type") == "BRIDGE_ALERT", (
+            f"event_type must be 'BRIDGE_ALERT'; got {alert_data.get('event_type')!r}"
+        )
+        assert alert_data.get("reason") == reason, (
+            f"reason must be {reason!r}; got {alert_data.get('reason')!r}"
+        )
+        assert alert_data.get("env_id") == _BRIDGE_ENV_ID, (
+            f"env_id must be {_BRIDGE_ENV_ID!r}; got {alert_data.get('env_id')!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestPagination
+# ---------------------------------------------------------------------------
+
+
+class TestPagination:
+    """Tests for JQL pagination in fetch_jira_changes."""
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_fetch_jira_changes_paginates_all_results(self, bridge: ModuleType) -> None:
+        """When acli_client.search_issues returns 100 results on page 0,
+        50 results on page 1, and 0 results on page 2, fetch_jira_changes
+        returns all 150 issues.
+
+        search_issues must be called 3 times with start_at=0, 100, 200.
+        """
+        page0 = [_make_jira_issue(f"DSO-{i}") for i in range(100)]
+        page1 = [_make_jira_issue(f"DSO-{i}") for i in range(100, 150)]
+        page2: list[dict] = []
+
+        call_count = 0
+
+        def _search_issues(
+            jql: str, start_at: int = 0, max_results: int = 100
+        ) -> list[dict]:
+            nonlocal call_count
+            call_count += 1
+            if start_at == 0:
+                return page0
+            elif start_at == 100:
+                return page1
+            else:
+                return page2
+
+        mock_client = MagicMock()
+        mock_client.search_issues = _search_issues
+
+        result = bridge.fetch_jira_changes(
+            mock_client,
+            last_pull_ts="2026-03-21T12:00:00Z",
+            overlap_buffer_minutes=0,
+        )
+
+        assert isinstance(result, list), "fetch_jira_changes must return a list"
+        assert len(result) == 150, (
+            f"fetch_jira_changes must return all 150 paginated results; got {len(result)}"
+        )
+        assert call_count == 3, (
+            f"search_issues must be called 3 times (pages 0, 1, 2); called {call_count} times"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestUTCHealthCheck
+# ---------------------------------------------------------------------------
+
+
+class TestUTCHealthCheck:
+    """Tests for UTC timezone health check against the Jira server."""
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_verify_jira_timezone_utc_passes_when_utc(self, bridge: ModuleType) -> None:
+        """verify_jira_timezone_utc(acli_client) returns True when
+        acli_client.get_server_info() returns {'timeZone': 'UTC'}.
+        """
+        mock_client = MagicMock()
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        result = bridge.verify_jira_timezone_utc(mock_client)
+
+        assert result is True, (
+            f"verify_jira_timezone_utc must return True when server timeZone is 'UTC'; "
+            f"got {result!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_verify_jira_timezone_utc_fails_when_non_utc(
+        self, bridge: ModuleType
+    ) -> None:
+        """verify_jira_timezone_utc(acli_client) returns False when
+        timeZone is 'America/New_York' (and logs a warning).
+        """
+        mock_client = MagicMock()
+        mock_client.get_server_info = MagicMock(
+            return_value={"timeZone": "America/New_York"}
+        )
+
+        result = bridge.verify_jira_timezone_utc(mock_client)
+
+        assert result is False, (
+            f"verify_jira_timezone_utc must return False for non-UTC timeZone "
+            f"'America/New_York'; got {result!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestProcessInbound
+# ---------------------------------------------------------------------------
+
+
+class TestProcessInbound:
+    """Tests for the process_inbound orchestrator entry point."""
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_process_inbound_writes_create_events_for_new_issues(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """process_inbound(tickets_root, acli_client, last_pull_ts, config)
+        calls fetch, normalize, write_create_events, and updates the checkpoint file
+        with a new last_pull_ts after a successful run.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        sample_issues = [_make_jira_issue("DSO-1"), _make_jira_issue("DSO-2")]
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=sample_issues)
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 5,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        # Checkpoint must be updated
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        new_ts = updated.get("last_pull_ts", "")
+        assert new_ts != old_ts, (
+            f"process_inbound must update checkpoint last_pull_ts; "
+            f"still set to old_ts={old_ts!r}"
+        )
+
+        # CREATE events must have been written
+        create_files = list(tickets_root.rglob("*-CREATE.json"))
+        assert len(create_files) == 2, (
+            f"process_inbound must write 2 CREATE events for 2 new issues; "
+            f"found {len(create_files)}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_process_inbound_fast_aborts_on_auth_failure(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """When acli_client raises an authentication error (returncode=401),
+        process_inbound does NOT update the checkpoint file (preserves last good ts).
+        """
+        import subprocess
+
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        mock_client = MagicMock()
+        # Simulate authentication failure: search_issues raises CalledProcessError(401)
+        mock_client.search_issues = MagicMock(
+            side_effect=subprocess.CalledProcessError(401, "acli")
+        )
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 5,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {},
+            "type_mapping": {},
+        }
+
+        try:
+            bridge.process_inbound(
+                tickets_root=tickets_root,
+                acli_client=mock_client,
+                last_pull_ts=old_ts,
+                config=config,
+            )
+        except Exception:
+            # process_inbound may raise or swallow; either is acceptable —
+            # what matters is the checkpoint is NOT updated.
+            pass
+
+        # Checkpoint must NOT be updated — last_pull_ts preserved
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        preserved_ts = updated.get("last_pull_ts", "")
+        assert preserved_ts == old_ts, (
+            f"process_inbound must NOT update checkpoint on auth failure; "
+            f"expected {old_ts!r}, got {preserved_ts!r}"
+        )
