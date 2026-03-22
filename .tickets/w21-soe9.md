@@ -1,6 +1,6 @@
 ---
 id: w21-soe9
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T03:06:59Z
