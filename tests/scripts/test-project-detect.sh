@@ -826,4 +826,219 @@ assert_eq "test_project_detect_suites_makefile_name_derivation: correct names" \
     "valid" "$_suites_derive_valid"
 assert_pass_if_clean "test_project_detect_suites_makefile_name_derivation"
 
+# ── Named tests: npm, bash runner, dedup, precedence (T5 RED phase) ────────
+
+# test_project_detect_suites_npm: fixture with package.json scripts 'test:unit'
+# and 'test:e2e' -> JSON entries with runner=npm, name=unit, name=e2e
+# (strip 'test:' prefix for name), command='npm run test:unit', command='npm run test:e2e'.
+_snapshot_fail
+_suites_npm_dir="$TMPDIR_FIXTURE/suites_npm_project"
+mkdir -p "$_suites_npm_dir"
+cat > "$_suites_npm_dir/package.json" <<'JSON'
+{
+  "name": "npm-test-app",
+  "version": "1.0.0",
+  "scripts": {
+    "test:unit": "jest --testPathPattern=unit",
+    "test:e2e": "jest --testPathPattern=e2e",
+    "build": "tsc",
+    "lint": "eslint ."
+  }
+}
+JSON
+_suites_npm_exit=0
+_suites_npm_out=$(bash "$SCRIPT" --suites "$_suites_npm_dir" 2>&1) || _suites_npm_exit=$?
+assert_eq "test_project_detect_suites_npm: exits 0" \
+    "0" "$_suites_npm_exit"
+# Validate npm entries via python3
+_suites_npm_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    names = {e['name'] for e in data}
+    runners = {e['runner'] for e in data}
+    commands = {e['command'] for e in data}
+    errors = []
+    if 'unit' not in names:
+        errors.append('missing name=unit')
+    if 'e2e' not in names:
+        errors.append('missing name=e2e')
+    if 'npm' not in runners:
+        errors.append('missing runner=npm')
+    if 'npm run test:unit' not in commands:
+        errors.append('missing command=npm run test:unit')
+    if 'npm run test:e2e' not in commands:
+        errors.append('missing command=npm run test:e2e')
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_npm_out" 2>&1)
+assert_eq "test_project_detect_suites_npm: correct npm entries" \
+    "valid" "$_suites_npm_valid"
+assert_pass_if_clean "test_project_detect_suites_npm"
+
+# test_project_detect_suites_bash_runner: fixture with executable test-hooks.sh
+# in repo root -> JSON entry with runner=bash, name=hooks (strip 'test-' prefix
+# and '.sh' suffix), command='bash test-hooks.sh'.
+_snapshot_fail
+_suites_bash_dir="$TMPDIR_FIXTURE/suites_bash_project"
+mkdir -p "$_suites_bash_dir"
+cat > "$_suites_bash_dir/test-hooks.sh" <<'BASH'
+#!/usr/bin/env bash
+echo "running hook tests"
+BASH
+chmod +x "$_suites_bash_dir/test-hooks.sh"
+_suites_bash_exit=0
+_suites_bash_out=$(bash "$SCRIPT" --suites "$_suites_bash_dir" 2>&1) || _suites_bash_exit=$?
+assert_eq "test_project_detect_suites_bash_runner: exits 0" \
+    "0" "$_suites_bash_exit"
+# Validate bash runner entry via python3
+_suites_bash_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    found = [e for e in data if e.get('runner') == 'bash' and e.get('name') == 'hooks']
+    if not found:
+        print('invalid: no entry with runner=bash, name=hooks')
+    elif found[0].get('command') != 'bash test-hooks.sh':
+        print('invalid: command=' + str(found[0].get('command')) + ', expected bash test-hooks.sh')
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_bash_out" 2>&1)
+assert_eq "test_project_detect_suites_bash_runner: correct bash entry" \
+    "valid" "$_suites_bash_valid"
+assert_pass_if_clean "test_project_detect_suites_bash_runner"
+
+# test_project_detect_suites_dedup_by_name: fixture with Makefile 'test-unit'
+# target AND tests/unit/ pytest dir -> only ONE entry for name=unit emitted;
+# Makefile (higher precedence) wins; runner=make.
+_snapshot_fail
+_suites_dedup_dir="$TMPDIR_FIXTURE/suites_dedup_project"
+mkdir -p "$_suites_dedup_dir/tests/unit"
+cat > "$_suites_dedup_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit
+
+test-unit:
+	pytest tests/unit/
+MAKEFILE
+cat > "$_suites_dedup_dir/tests/unit/test_example.py" <<'PY'
+def test_placeholder():
+    pass
+PY
+_suites_dedup_exit=0
+_suites_dedup_out=$(bash "$SCRIPT" --suites "$_suites_dedup_dir" 2>&1) || _suites_dedup_exit=$?
+assert_eq "test_project_detect_suites_dedup_by_name: exits 0" \
+    "0" "$_suites_dedup_exit"
+# Validate dedup: only ONE entry with name=unit, runner=make
+_suites_dedup_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    unit_entries = [e for e in data if e.get('name') == 'unit']
+    errors = []
+    if len(unit_entries) == 0:
+        errors.append('no entry with name=unit')
+    elif len(unit_entries) > 1:
+        errors.append('duplicate: found %d entries with name=unit, expected 1' % len(unit_entries))
+    else:
+        if unit_entries[0].get('runner') != 'make':
+            errors.append('runner=%s, expected make (Makefile has higher precedence)' % unit_entries[0].get('runner'))
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_dedup_out" 2>&1)
+assert_eq "test_project_detect_suites_dedup_by_name: one entry, runner=make" \
+    "valid" "$_suites_dedup_valid"
+assert_pass_if_clean "test_project_detect_suites_dedup_by_name"
+
+# test_project_detect_suites_precedence_config_over_makefile: fixture with
+# Makefile 'test-unit' AND config key test.suite.unit.command='custom-cmd'
+# -> config entry wins; runner=config, command='custom-cmd'.
+_snapshot_fail
+_suites_prec_dir="$TMPDIR_FIXTURE/suites_precedence_project"
+mkdir -p "$_suites_prec_dir/.claude"
+cat > "$_suites_prec_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit
+
+test-unit:
+	pytest tests/unit/
+MAKEFILE
+cat > "$_suites_prec_dir/.claude/dso-config.conf" <<'CONF'
+test.suite.unit.command=custom-cmd
+CONF
+_suites_prec_exit=0
+_suites_prec_out=$(bash "$SCRIPT" --suites "$_suites_prec_dir" 2>&1) || _suites_prec_exit=$?
+assert_eq "test_project_detect_suites_precedence_config_over_makefile: exits 0" \
+    "0" "$_suites_prec_exit"
+# Validate config precedence: runner=config, command=custom-cmd
+_suites_prec_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    unit_entries = [e for e in data if e.get('name') == 'unit']
+    errors = []
+    if len(unit_entries) == 0:
+        errors.append('no entry with name=unit')
+    elif len(unit_entries) > 1:
+        errors.append('duplicate: found %d entries with name=unit, expected 1' % len(unit_entries))
+    else:
+        entry = unit_entries[0]
+        if entry.get('runner') != 'config':
+            errors.append('runner=%s, expected config' % entry.get('runner'))
+        if entry.get('command') != 'custom-cmd':
+            errors.append('command=%s, expected custom-cmd' % entry.get('command'))
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_prec_out" 2>&1)
+assert_eq "test_project_detect_suites_precedence_config_over_makefile: config wins" \
+    "valid" "$_suites_prec_valid"
+assert_pass_if_clean "test_project_detect_suites_precedence_config_over_makefile"
+
+# test_project_detect_suites_bash_name_derivation: bash file 'run-tests-integration.sh'
+# -> name='integration' (strip 'test-', 'run-tests-', leading 'test' variants,
+# and '.sh' suffix).
+_snapshot_fail
+_suites_bash_derive_dir="$TMPDIR_FIXTURE/suites_bash_derivation_project"
+mkdir -p "$_suites_bash_derive_dir"
+cat > "$_suites_bash_derive_dir/run-tests-integration.sh" <<'BASH'
+#!/usr/bin/env bash
+echo "running integration tests"
+BASH
+chmod +x "$_suites_bash_derive_dir/run-tests-integration.sh"
+_suites_bash_derive_exit=0
+_suites_bash_derive_out=$(bash "$SCRIPT" --suites "$_suites_bash_derive_dir" 2>&1) || _suites_bash_derive_exit=$?
+assert_eq "test_project_detect_suites_bash_name_derivation: exits 0" \
+    "0" "$_suites_bash_derive_exit"
+# Validate name derivation: name=integration
+_suites_bash_derive_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    found = [e for e in data if e.get('name') == 'integration']
+    if not found:
+        names = [e.get('name') for e in data]
+        print('invalid: no entry with name=integration; found names: ' + str(names))
+    elif found[0].get('runner') != 'bash':
+        print('invalid: runner=%s, expected bash' % found[0].get('runner'))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_bash_derive_out" 2>&1)
+assert_eq "test_project_detect_suites_bash_name_derivation: name=integration" \
+    "valid" "$_suites_bash_derive_valid"
+assert_pass_if_clean "test_project_detect_suites_bash_name_derivation"
+
 print_summary
