@@ -652,4 +652,178 @@ assert_eq "test_project_detect_suites_exit_zero_always: exits 0" \
     "0" "$_suites_any_exit"
 assert_pass_if_clean "test_project_detect_suites_exit_zero_always"
 
+# ── Named tests: --suites JSON schema and heuristic tests (T4 RED phase) ──────
+
+# test_project_detect_suites_json_schema: with --suites on a Makefile repo with
+# test-unit target, output is valid JSON array; each element has keys:
+# name (string), command (string), speed_class (one of fast|slow|unknown),
+# runner (one of make|pytest|npm|bash|config).
+_snapshot_fail
+_suites_schema_dir="$TMPDIR_FIXTURE/suites_schema_project"
+mkdir -p "$_suites_schema_dir"
+cat > "$_suites_schema_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit lint format
+
+test-unit:
+	pytest tests/unit/
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+_suites_schema_exit=0
+_suites_schema_out=$(bash "$SCRIPT" --suites "$_suites_schema_dir" 2>&1) || _suites_schema_exit=$?
+assert_eq "test_project_detect_suites_json_schema: exits 0" \
+    "0" "$_suites_schema_exit"
+# Output must be valid JSON (parseable by python3 json module)
+_suites_schema_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    assert isinstance(data, list), 'not a list'
+    assert len(data) > 0, 'empty list'
+    for entry in data:
+        assert isinstance(entry.get('name'), str), 'name not a string'
+        assert isinstance(entry.get('command'), str), 'command not a string'
+        assert entry.get('speed_class') in ('fast', 'slow', 'unknown'), 'bad speed_class: ' + str(entry.get('speed_class'))
+        assert entry.get('runner') in ('make', 'pytest', 'npm', 'bash', 'config'), 'bad runner: ' + str(entry.get('runner'))
+    print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_schema_out" 2>&1)
+assert_eq "test_project_detect_suites_json_schema: valid JSON schema" \
+    "valid" "$_suites_schema_valid"
+assert_pass_if_clean "test_project_detect_suites_json_schema"
+
+# test_project_detect_suites_makefile: fixture with Makefile containing
+# 'test-unit:' and 'test-e2e:' targets -> JSON array contains entries with
+# runner=make, name=unit, name=e2e, command='make test-unit', command='make test-e2e'.
+_snapshot_fail
+_suites_make_dir="$TMPDIR_FIXTURE/suites_makefile_project"
+mkdir -p "$_suites_make_dir"
+cat > "$_suites_make_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-unit test-e2e lint format
+
+test-unit:
+	pytest tests/unit/
+
+test-e2e:
+	pytest tests/e2e/
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+_suites_make_exit=0
+_suites_make_out=$(bash "$SCRIPT" --suites "$_suites_make_dir" 2>&1) || _suites_make_exit=$?
+assert_eq "test_project_detect_suites_makefile: exits 0" \
+    "0" "$_suites_make_exit"
+# Validate entries via python3
+_suites_make_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    names = {e['name'] for e in data}
+    runners = {e['runner'] for e in data}
+    commands = {e['command'] for e in data}
+    errors = []
+    if 'unit' not in names:
+        errors.append('missing name=unit')
+    if 'e2e' not in names:
+        errors.append('missing name=e2e')
+    if 'make' not in runners:
+        errors.append('missing runner=make')
+    if 'make test-unit' not in commands:
+        errors.append('missing command=make test-unit')
+    if 'make test-e2e' not in commands:
+        errors.append('missing command=make test-e2e')
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_make_out" 2>&1)
+assert_eq "test_project_detect_suites_makefile: correct entries" \
+    "valid" "$_suites_make_valid"
+assert_pass_if_clean "test_project_detect_suites_makefile"
+
+# test_project_detect_suites_pytest: fixture with tests/models/ directory
+# containing test_model.py -> JSON entry with runner=pytest, name=models,
+# command='pytest tests/models/'.
+_snapshot_fail
+_suites_pytest_dir="$TMPDIR_FIXTURE/suites_pytest_project"
+mkdir -p "$_suites_pytest_dir/tests/models"
+cat > "$_suites_pytest_dir/tests/models/test_model.py" <<'PY'
+def test_placeholder():
+    pass
+PY
+_suites_pytest_exit=0
+_suites_pytest_out=$(bash "$SCRIPT" --suites "$_suites_pytest_dir" 2>&1) || _suites_pytest_exit=$?
+assert_eq "test_project_detect_suites_pytest: exits 0" \
+    "0" "$_suites_pytest_exit"
+# Validate pytest entry
+_suites_pytest_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    found = [e for e in data if e.get('runner') == 'pytest' and e.get('name') == 'models']
+    if not found:
+        print('invalid: no entry with runner=pytest, name=models')
+    elif found[0].get('command') != 'pytest tests/models/':
+        print('invalid: command=' + str(found[0].get('command')) + ', expected pytest tests/models/')
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_pytest_out" 2>&1)
+assert_eq "test_project_detect_suites_pytest: correct pytest entry" \
+    "valid" "$_suites_pytest_valid"
+assert_pass_if_clean "test_project_detect_suites_pytest"
+
+# test_project_detect_suites_makefile_name_derivation: Makefile target
+# 'test-integration' -> name='integration'; target 'test_smoke' -> name='smoke'
+# (strip test- or test_ prefix for name).
+_snapshot_fail
+_suites_derive_dir="$TMPDIR_FIXTURE/suites_derivation_project"
+mkdir -p "$_suites_derive_dir"
+cat > "$_suites_derive_dir/Makefile" <<'MAKEFILE'
+.PHONY: test-integration test_smoke
+
+test-integration:
+	pytest tests/integration/
+
+test_smoke:
+	pytest tests/smoke/
+MAKEFILE
+_suites_derive_exit=0
+_suites_derive_out=$(bash "$SCRIPT" --suites "$_suites_derive_dir" 2>&1) || _suites_derive_exit=$?
+assert_eq "test_project_detect_suites_makefile_name_derivation: exits 0" \
+    "0" "$_suites_derive_exit"
+# Validate name derivation
+_suites_derive_valid=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    names = {e['name'] for e in data}
+    errors = []
+    if 'integration' not in names:
+        errors.append('missing name=integration (from test-integration)')
+    if 'smoke' not in names:
+        errors.append('missing name=smoke (from test_smoke)')
+    if errors:
+        print('invalid: ' + '; '.join(errors))
+    else:
+        print('valid')
+except Exception as e:
+    print('invalid: ' + str(e))
+" "$_suites_derive_out" 2>&1)
+assert_eq "test_project_detect_suites_makefile_name_derivation: correct names" \
+    "valid" "$_suites_derive_valid"
+assert_pass_if_clean "test_project_detect_suites_makefile_name_derivation"
+
 print_summary
