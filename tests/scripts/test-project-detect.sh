@@ -565,4 +565,91 @@ assert_contains "test_project_detect_version_files_package_json: version_files c
     "package.json" "$(get_key "$_vf_pkg_out" version_files)"
 assert_pass_if_clean "test_project_detect_version_files_package_json"
 
+# ── Named tests: --suites backward compatibility (AC-required labels) ─────────
+
+# test_project_detect_suites_backward_compat_no_flag: without --suites flag,
+# output is identical KEY=VALUE format — no JSON emitted, all standard keys present.
+_snapshot_fail
+_compat_dir="$TMPDIR_FIXTURE/suites_compat_project"
+mkdir -p "$_compat_dir"
+cat > "$_compat_dir/Makefile" <<'MAKEFILE'
+.PHONY: test lint format
+
+test:
+	pytest
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+mkdir -p "$_compat_dir/.github/workflows"
+cat > "$_compat_dir/.github/workflows/ci.yml" <<'YAML'
+name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test
+YAML
+# Run WITHOUT --suites flag
+_compat_exit=0
+_compat_out=$(bash "$SCRIPT" "$_compat_dir" 2>&1) || _compat_exit=$?
+assert_eq "test_project_detect_suites_backward_compat_no_flag: exits 0" \
+    "0" "$_compat_exit"
+# All standard KEY=VALUE keys must be present
+assert_contains "test_project_detect_suites_backward_compat_no_flag: stack= present" \
+    "stack=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: targets= present" \
+    "targets=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: db_present= present" \
+    "db_present=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: ci_workflow_test_guarded= present" \
+    "ci_workflow_test_guarded=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: files_present= present" \
+    "files_present=" "$_compat_out"
+assert_contains "test_project_detect_suites_backward_compat_no_flag: installed_deps= present" \
+    "installed_deps=" "$_compat_out"
+# No JSON array brackets in output (--suites not active)
+_compat_json_count=$(echo "$_compat_out" | grep -cE '^\[' || true)
+assert_eq "test_project_detect_suites_backward_compat_no_flag: no JSON array in output" \
+    "0" "$_compat_json_count"
+assert_pass_if_clean "test_project_detect_suites_backward_compat_no_flag"
+
+# test_project_detect_suites_exit_zero_empty_repo: with --suites on empty repo,
+# exits 0 and outputs empty JSON array [].
+_snapshot_fail
+_suites_empty_dir="$TMPDIR_FIXTURE/suites_empty_project"
+mkdir -p "$_suites_empty_dir"
+_suites_empty_exit=0
+_suites_empty_out=$(bash "$SCRIPT" --suites "$_suites_empty_dir" 2>&1) || _suites_empty_exit=$?
+assert_eq "test_project_detect_suites_exit_zero_empty_repo: exits 0" \
+    "0" "$_suites_empty_exit"
+# Output must be valid JSON empty array
+_suites_empty_trimmed=$(echo "$_suites_empty_out" | tr -d '[:space:]')
+assert_eq "test_project_detect_suites_exit_zero_empty_repo: outputs []" \
+    "[]" "$_suites_empty_trimmed"
+assert_pass_if_clean "test_project_detect_suites_exit_zero_empty_repo"
+
+# test_project_detect_suites_exit_zero_always: with --suites on any repo, exits 0.
+_snapshot_fail
+_suites_any_dir="$TMPDIR_FIXTURE/suites_any_project"
+mkdir -p "$_suites_any_dir"
+cat > "$_suites_any_dir/Makefile" <<'MAKEFILE'
+.PHONY: test lint
+
+test:
+	pytest
+
+lint:
+	ruff check .
+MAKEFILE
+_suites_any_exit=0
+_suites_any_out=$(bash "$SCRIPT" --suites "$_suites_any_dir" 2>&1) || _suites_any_exit=$?
+assert_eq "test_project_detect_suites_exit_zero_always: exits 0" \
+    "0" "$_suites_any_exit"
+assert_pass_if_clean "test_project_detect_suites_exit_zero_always"
+
 print_summary
