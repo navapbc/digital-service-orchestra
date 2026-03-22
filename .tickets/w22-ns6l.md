@@ -66,3 +66,12 @@ Critic review: skipped (Tier 7 code bugs)
 Outcome: 4 fixed, 1 escalated, 0 reverted
 New bugs found: w22-w5wt (anti-pattern in REVIEW-WORKFLOW.md)
 Remaining in tier: 14
+
+**2026-03-22T16:05:29Z**
+
+BATCH 2 | Tier 7
+Issues: dso-jwan (fixed), w21-4jzh (already fixed), w21-fzzu (false positive), dso-gxct (fixed), dso-0u2q (fixed)
+Agent types: general-purpose (all)
+Model tier: sonnet
+Outcome: 3 fixed, 2 closed (already fixed/false positive)
+Remaining open bugs: ~12
