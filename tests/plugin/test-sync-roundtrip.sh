@@ -454,12 +454,24 @@ _issue8='{"key":"TEST-8","fields":{"summary":"Idempotent pull","description":"bo
 pull_ticket_direct "$_T8" "$_ledger8" "$_issue8" "${ACLI_PATH_PREFIX:-}" >/dev/null 2>&1 || true
 _ticket8=$(ls "$_T8"/*.md 2>/dev/null | head -1)
 _mtime8_before=""
-[[ -n "$_ticket8" ]] && _mtime8_before=$(stat -f "%m" "$_ticket8" 2>/dev/null || stat -c "%Y" "$_ticket8" 2>/dev/null || echo "")
+if [[ -n "$_ticket8" ]]; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+        _mtime8_before=$(stat -f "%m" "$_ticket8" 2>/dev/null || echo "")
+    else
+        _mtime8_before=$(stat -c "%Y" "$_ticket8" 2>/dev/null || echo "")
+    fi
+fi
 sleep 1
 # Second pull: same JSON → skip
 _out8=$(pull_ticket_direct "$_T8" "$_ledger8" "$_issue8" "${ACLI_PATH_PREFIX:-}" 2>&1) || true
 _mtime8_after=""
-[[ -n "$_ticket8" ]] && _mtime8_after=$(stat -f "%m" "$_ticket8" 2>/dev/null || stat -c "%Y" "$_ticket8" 2>/dev/null || echo "")
+if [[ -n "$_ticket8" ]]; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+        _mtime8_after=$(stat -f "%m" "$_ticket8" 2>/dev/null || echo "")
+    else
+        _mtime8_after=$(stat -c "%Y" "$_ticket8" 2>/dev/null || echo "")
+    fi
+fi
 if echo "$_out8" | grep -qiE "skip(ped)?|unchanged"; then
     echo "  PASS: pull_second_call_skips_unchanged"
     ((PASS++))
