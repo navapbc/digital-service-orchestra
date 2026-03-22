@@ -394,6 +394,30 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 18: Epic whose deps are only its own children is NOT blocked ─────────
+echo "Test 18: epic whose deps are only its own children is not blocked"
+test_self_children_not_blocked() {
+    local TDIR18
+    TDIR18=$(mktemp -d)
+    trap 'rm -rf "$TDIR18"' RETURN
+    # epic-p lists story-p1 and story-p2 as deps (preplanning bug w21-3w8y)
+    make_ticket "$TDIR18" "epic-p"   "epic"  "open" "2" "[story-p1, story-p2]" "Epic P Self-Blocked"
+    make_ticket "$TDIR18" "story-p1" "story" "open" "2" "[]" "Story P1" "epic-p"
+    make_ticket "$TDIR18" "story-p2" "story" "open" "2" "[]" "Story P2" "epic-p"
+    make_index "$TDIR18"
+    local out18
+    out18=$(TICKETS_DIR="$TDIR18" bash "$SCRIPT" --all 2>/dev/null)
+    # epic-p should NOT appear with BLOCKED prefix
+    ! echo "$out18" | grep -q "^BLOCKED.*epic-p"
+}
+if test_self_children_not_blocked; then
+    echo "  PASS: epic-p not blocked by its own children"
+    (( PASS++ ))
+else
+    echo "  FAILED: epic-p appeared as BLOCKED even though deps are its own children" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

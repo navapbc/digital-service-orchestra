@@ -1,6 +1,6 @@
 ---
 id: w20-4idh
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-21T16:04:19Z
@@ -33,3 +33,12 @@ Search for similar patterns of non-isolated /tmp file usage across the codebase.
 - tests/scripts/test-batched-state-integrity.sh (update tests)
 - Potentially other scripts found during audit
 
+
+## Notes
+
+<!-- note-id: u0s49rck -->
+<!-- timestamp: 2026-03-22T01:04:02Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: derive default state file path using SHA256 hash of git root (12 hex chars) — df51136. 49/49 tests passing.

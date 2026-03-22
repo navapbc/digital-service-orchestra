@@ -1,6 +1,6 @@
 ---
 id: dso-6x8o
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-22T00:00:28Z

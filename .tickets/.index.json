@@ -756,7 +756,7 @@
   "w20-4idh": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "test-batched.sh state file not isolated by repo/worktree \u2014 causes cross-session interference",
     "type": "bug"
   },
@@ -847,7 +847,7 @@
   "w21-3w8y": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Preplanning adds epic's own children as deps, making the epic self-blocked",
     "type": "bug"
   },
