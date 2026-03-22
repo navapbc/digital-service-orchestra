@@ -1,6 +1,6 @@
 ---
 id: dso-xx59
-status: in_progress
+status: closed
 deps: [dso-5uik]
 links: []
 created: 2026-03-22T17:45:05Z
