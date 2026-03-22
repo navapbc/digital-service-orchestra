@@ -1,6 +1,6 @@
 ---
 id: dso-7n6c
-status: in_progress
+status: closed
 deps: [dso-qwrw]
 links: []
 created: 2026-03-22T03:51:55Z
