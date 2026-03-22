@@ -941,8 +941,8 @@ else
     if [[ "$HASH_A" == "$HASH_B" ]]; then
         echo "SKIP: test_restamping_with_changed_hash_rejected: hashes did not change (test setup issue)" >&2
     else
-        # Step 3: Call record-test-status.sh again -- it should FAIL because
-        # the existing 'passed' status was recorded for a different hash (A).
+        # Step 3: Call record-test-status.sh again -- it should clear the stale
+        # status and re-run tests, recording hash B as passed.
         EXIT_CODE_SECOND=$(
             cd "$TEST_REPO_RESTAMP"
             WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RESTAMP" \
@@ -951,13 +951,12 @@ else
             run_hook_exit
         )
 
-        # EXPECTED: non-zero exit (stale status detected, re-stamp rejected)
-        # ACTUAL (bug): exits 0 and writes hash B as 'passed'
-        assert_ne "test_restamping_with_changed_hash_rejected: second call with changed hash must fail" "0" "$EXIT_CODE_SECOND"
+        # EXPECTED: exit 0 (stale status cleared, tests re-run and passed)
+        assert_eq "test_restamping_with_changed_hash_rejected: second call re-runs tests and exits 0" "0" "$EXIT_CODE_SECOND"
 
-        # Also verify the status file was NOT updated to hash B
+        # Status file should now have hash B (tests re-ran against new code)
         RECORDED_HASH_AFTER=$(grep '^diff_hash=' "$STATUS_FILE_RESTAMP" | head -1 | cut -d= -f2)
-        assert_eq "test_restamping_with_changed_hash_rejected: status file hash must NOT be updated to hash B" "$HASH_A" "$RECORDED_HASH_AFTER"
+        assert_eq "test_restamping_with_changed_hash_rejected: status file updated to hash B after re-test" "$HASH_B" "$RECORDED_HASH_AFTER"
     fi
 fi
 

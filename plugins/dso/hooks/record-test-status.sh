@@ -204,20 +204,18 @@ fi
 # alter the untracked file list and produce a different hash.
 DIFF_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
 
-# --- Guard: reject re-stamping when code changed since last recorded test run ---
-# If an existing 'passed' status was recorded for a DIFFERENT hash, refuse to
-# overwrite it. This prevents the test gate from being satisfied without re-running
-# tests against the actual code being committed (dso-6x8o).
+# --- Guard: clear stale status when code changed since last recorded test run ---
+# If an existing 'passed' status was recorded for a DIFFERENT hash, clear it so
+# the test loop below re-runs tests against the current code (dso-6x8o).
 _EXISTING_STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
 if [[ -f "$_EXISTING_STATUS_FILE" ]]; then
     _EXISTING_STATUS=$(head -1 "$_EXISTING_STATUS_FILE" 2>/dev/null || echo "")
     _EXISTING_HASH=$(grep '^diff_hash=' "$_EXISTING_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2 || echo "")
     if [[ "$_EXISTING_STATUS" == "passed" ]] && [[ -n "$_EXISTING_HASH" ]] && [[ "$_EXISTING_HASH" != "$DIFF_HASH" ]]; then
-        echo "ERROR: stale test-gate-status detected — code changed since tests last passed." >&2
+        echo "WARNING: stale test-gate-status cleared — re-running tests for current hash." >&2
         echo "  Previously passed hash: ${_EXISTING_HASH:0:12}..." >&2
         echo "  Current diff hash:      ${DIFF_HASH:0:12}..." >&2
-        echo "  Re-run your tests from a clean state before committing." >&2
-        exit 1
+        rm -f "$_EXISTING_STATUS_FILE"
     fi
 fi
 
