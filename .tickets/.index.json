@@ -507,6 +507,13 @@
     "title": "validate.sh: sha256sum fallback chain uses inconsistent output post-processing",
     "type": "bug"
   },
+  "dso-gxct": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh add --suites flag to Usage header comment",
+    "type": "bug"
+  },
   "dso-h04l": {
     "deps": [],
     "priority": 0,
@@ -705,6 +712,13 @@
     "title": "Incorporate OpenRewrite",
     "type": "epic"
   },
+  "dso-qv93": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh short-circuit python3 subprocess when entries is empty",
+    "type": "bug"
+  },
   "dso-r97p": {
     "deps": [],
     "priority": 2,
@@ -792,6 +806,13 @@
     "priority": 2,
     "status": "open",
     "title": "COMMIT-WORKFLOW.md uses CLAUDE_PLUGIN_ROOT without fallback for unset env var",
+    "type": "bug"
+  },
+  "dso-ubtf": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: project-detect.sh replace find -print -quit with POSIX-portable alternative",
     "type": "bug"
   },
   "dso-udy1": {

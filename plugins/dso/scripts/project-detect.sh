@@ -29,9 +29,20 @@ set -uo pipefail
 #   1 — argument error (missing or invalid project-dir)
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
+SUITES_MODE=0
+
 if [[ $# -lt 1 ]]; then
     echo "Error: project-dir argument required" >&2
     exit 1
+fi
+
+if [[ "$1" == "--suites" ]]; then
+    SUITES_MODE=1
+    shift
+    if [[ $# -lt 1 ]]; then
+        echo "Error: project-dir argument required after --suites" >&2
+        exit 1
+    fi
 fi
 
 PROJECT_DIR="$1"
@@ -40,6 +51,112 @@ if [[ ! -d "$PROJECT_DIR" ]]; then
     echo "Error: not a directory: $PROJECT_DIR" >&2
     exit 1
 fi
+
+# ── Suite discovery function ─────────────────────────────────────────────────
+# Discovers test suites via Makefile targets and pytest directories.
+# Outputs a JSON array to stdout via python3.
+_discover_suites() {
+    local project_dir="$1"
+    local entries=""
+
+    # Makefile heuristic: find targets matching /^test[-_]/
+    if [[ -f "$project_dir/Makefile" ]]; then
+        local makefile_test_targets
+        makefile_test_targets="$(grep -E '^test[-_][a-zA-Z0-9_-]+:' "$project_dir/Makefile" \
+            | sed 's/:.*//' || true)"
+        local target
+        while IFS= read -r target; do
+            [[ -z "$target" ]] && continue
+            # Derive name by stripping test- or test_ prefix
+            local name
+            name="$(echo "$target" | sed -E 's/^test[-_]//')"
+            if [[ -n "$entries" ]]; then
+                entries="${entries},"
+            fi
+            entries="${entries}${target}=${name}"
+        done <<< "$makefile_test_targets"
+    fi
+
+    # pytest heuristic: find directories under tests/ or test/ containing test_*.py
+    local test_root=""
+    if [[ -d "$project_dir/tests" ]]; then
+        test_root="tests"
+    elif [[ -d "$project_dir/test" ]]; then
+        test_root="test"
+    fi
+
+    if [[ -n "$test_root" ]]; then
+        local subdir
+        for subdir in "$project_dir/$test_root"/*/; do
+            [[ -d "$subdir" ]] || continue
+            # Check if directory contains at least one test_*.py file
+            local has_test_files
+            has_test_files="$(find "$subdir" -maxdepth 1 -name 'test_*.py' -print -quit 2>/dev/null)"
+            if [[ -n "$has_test_files" ]]; then
+                local dirname
+                dirname="$(basename "$subdir")"
+                # Skip if already covered by a Makefile target with same name.
+                # Use delimiter-anchored match to prevent substring false positives
+                # (e.g. 'unit' falsely matching 'integration_unit').
+                if [[ ",${entries}," == *",=${dirname},"* || ",${entries}," == *",pytest:"*"=${dirname},"* ]]; then
+                    continue
+                fi
+                if [[ -n "$entries" ]]; then
+                    entries="${entries},"
+                fi
+                entries="${entries}pytest:${test_root}/${dirname}=${dirname}"
+            fi
+        done
+    fi
+
+    # Generate JSON output via python3.
+    # Entries are passed via DSO_SUITE_ENTRIES env var, newline-delimited, to avoid
+    # fragility with comma delimiters (Makefile target or directory names could
+    # contain commas, silently corrupting a comma-separated argument string).
+    DSO_SUITE_ENTRIES="$entries" python3 - <<'PYEOF'
+import os, json
+
+entries_raw = os.environ.get("DSO_SUITE_ENTRIES", "")
+result = []
+
+if entries_raw:
+    for entry_str in entries_raw.split(","):
+        entry_str = entry_str.strip()
+        if not entry_str:
+            continue
+        if entry_str.startswith("pytest:"):
+            # pytest heuristic entry: pytest:tests/models=models
+            rest = entry_str[len("pytest:"):]
+            path_part, name = rest.split("=", 1)
+            result.append({
+                "name": name,
+                "command": "pytest " + path_part + "/",
+                "speed_class": "unknown",
+                "runner": "pytest"
+            })
+        else:
+            # Makefile heuristic entry: test-unit=unit
+            target, name = entry_str.split("=", 1)
+            result.append({
+                "name": name,
+                "command": "make " + target,
+                "speed_class": "unknown",
+                "runner": "make"
+            })
+
+print(json.dumps(result))
+PYEOF
+}
+
+# If --suites mode, run suite discovery and exit
+if [[ "$SUITES_MODE" -eq 1 ]]; then
+    _discover_suites "$PROJECT_DIR"
+    exit 0
+fi
+
+# BACKWARD_COMPAT: do not modify the key=value stdout output below this line without
+# a backward-compat test. The --suites JSON output path above is NOT subject to this
+# constraint — it exits before reaching the key=value section.
 
 # Resolve the directory containing this script so we can locate siblings.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

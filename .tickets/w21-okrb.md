@@ -1,6 +1,6 @@
 ---
 id: w21-okrb
-status: in_progress
+status: closed
 deps: [w21-f2k3]
 links: []
 created: 2026-03-21T23:36:59Z
