@@ -1,6 +1,6 @@
 ---
 id: w21-etsx
-status: in_progress
+status: closed
 deps: [w21-cxzv, w21-v9tg, w21-4d04]
 links: []
 created: 2026-03-21T23:39:13Z
