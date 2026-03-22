@@ -1,6 +1,6 @@
 ---
 id: dso-4mdr
-status: open
+status: in_progress
 deps: [dso-qzn4]
 links: []
 created: 2026-03-22T15:17:21Z
@@ -61,3 +61,29 @@ The full end-to-end test (invoking the actual named agent) requires a running Cl
 - [ ] .test-index entry for REVIEW-WORKFLOW.md added
   Verify: grep -q 'REVIEW-WORKFLOW.md' $(git rev-parse --show-toplevel)/.test-index
 
+
+## Notes
+
+**2026-03-22T16:49:51Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T16:50:21Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-22T16:51:37Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-22T16:51:48Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ (RED tests only)
+
+**2026-03-22T16:51:57Z**
+
+CHECKPOINT 5/6: Validation passed ✓ (no Python files to lint)
+
+**2026-03-22T16:52:12Z**
+
+CHECKPOINT 6/6: Done ✓

@@ -1,6 +1,6 @@
 ---
 id: dso-qzn4
-status: in_progress
+status: closed
 deps: [dso-ofdr, dso-qxyd, dso-2eu7]
 links: []
 created: 2026-03-22T15:16:39Z
