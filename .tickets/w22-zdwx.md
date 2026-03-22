@@ -1,6 +1,6 @@
 ---
 id: w22-zdwx
-status: in_progress
+status: closed
 deps: [w22-zggi, w22-4s5q]
 links: []
 created: 2026-03-22T07:02:17Z
