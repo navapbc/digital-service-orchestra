@@ -1,6 +1,6 @@
 ---
 id: dso-tcoj
-status: in_progress
+status: closed
 deps: [dso-qzn4]
 links: []
 created: 2026-03-22T15:16:56Z
