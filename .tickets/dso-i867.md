@@ -1,6 +1,6 @@
 ---
 id: dso-i867
-status: in_progress
+status: closed
 deps: [dso-3mb3]
 links: []
 created: 2026-03-22T15:43:49Z
