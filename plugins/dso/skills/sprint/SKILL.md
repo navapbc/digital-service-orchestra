@@ -260,6 +260,7 @@ The epic's requirements are clear and the scope is small. Skip preplanning entir
    - Fill `{story-id}` with the **epic ID** (not a story ID — /dso:implementation-plan handles epic type detection)
    - Fill `{evaluator-context}` with the epic complexity evaluator JSON output
    - Launch with `subagent_type="general-purpose"` and `model="sonnet"`
+   - **Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
 3. Parse sub-agent return value using the same STATUS protocol as Phase 2's Implementation Planning Gate
 4. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
 5. Continue to Phase 2
@@ -379,6 +380,7 @@ b. Dispatch up to 3 concurrent Task tool calls in a single message — fill the 
    - `{evaluator-context}` → complexity-evaluator JSON if available; otherwise `""`
    - `{answers-context}` → empty string `""` (no prior questions on first dispatch)
    - Launch using the Task tool with `subagent_type="general-purpose"` and `model="sonnet"`
+   - **Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
 c. Wait for all sub-agents in the layer to return before proceeding to the next layer
 d. For each sub-agent result, **parse STATUS:**
@@ -745,6 +747,8 @@ the sub-agent prompt: `"Before implementing, check if a skill applies to this ta
 type (e.g., /writing-skills for skill files, /claude-md-improver for CLAUDE.md
 updates, /writing-rules for hookify rules)."` The sub-agent uses its judgment to
 invoke the appropriate skill based on the task content.
+
+**Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
 
 **Important**: Launch ALL sub-agents in the batch within a single message (parallel tool calls). Do not launch them sequentially. Maximum 5 Task calls per message — all foreground Tasks return before the next batch, so you cannot exceed the limit mid-flight.
 
