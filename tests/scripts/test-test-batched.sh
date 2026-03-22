@@ -864,3 +864,26 @@ assert_pass_if_clean "test_structured_action_required_block_run_line_contains_co
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
+
+# ── test_default_state_file_includes_repo_hash ────────────────────────────────
+# When TEST_BATCHED_STATE_FILE is NOT set, the default state file path must
+# include a repo-specific component (hash of git root path) so that sessions
+# from different repos/worktrees do not collide.
+#
+# This is a test for bug w20-4idh: state file not isolated by repo/worktree.
+echo ""
+echo "--- test_default_state_file_includes_repo_hash ---"
+_snapshot_fail
+default_path_out=""
+default_path_out=$(bash "$SCRIPT" --timeout=1 "sleep 10" 2>/dev/null) || true
+default_path_has_fixed=0
+echo "$default_path_out" | grep "^RUN:" | grep -q "test-batched-state\.json$" && default_path_has_fixed=1
+assert_eq "test_default_state_file_includes_repo_hash: default path is NOT the fixed /tmp/test-batched-state.json" \
+    "0" "$default_path_has_fixed"
+default_path_has_hash=0
+echo "$default_path_out" | grep "^RUN:" | grep -qE "test-batched-state-[a-f0-9]" && default_path_has_hash=1
+assert_eq "test_default_state_file_includes_repo_hash: default path contains repo hash segment" \
+    "1" "$default_path_has_hash"
+_cleanup_path=$(echo "$default_path_out" | grep "^RUN:" | grep -oE "TEST_BATCHED_STATE_FILE=[^ ]+" | cut -d= -f2 | tr -d "'")
+[ -n "$_cleanup_path" ] && rm -f "$_cleanup_path" 2>/dev/null || true
+assert_pass_if_clean "test_default_state_file_includes_repo_hash"
