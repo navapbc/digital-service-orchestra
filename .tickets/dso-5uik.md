@@ -1,6 +1,6 @@
 ---
 id: dso-5uik
-status: in_progress
+status: closed
 deps: [dso-gego]
 links: []
 created: 2026-03-22T17:44:55Z
