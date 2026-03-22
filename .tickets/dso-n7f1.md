@@ -1,6 +1,6 @@
 ---
 id: dso-n7f1
-status: in_progress
+status: closed
 deps: [dso-mck2]
 links: []
 created: 2026-03-22T03:54:45Z

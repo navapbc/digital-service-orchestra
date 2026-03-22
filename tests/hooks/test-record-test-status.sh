@@ -1438,6 +1438,150 @@ rm -rf "$TEST_REPO_HYPH" "$ARTIFACTS_HYPH"
 trap - EXIT
 assert_pass_if_clean "test_hyphenated_test_name_red_zone"
 
+# ============================================================
+# test_integration_red_marker_end_to_end
+# End-to-end integration test for the RED marker commit flow.
+# Exercises the full stack: .test-index parsing, RED zone line
+# detection, test runner execution, and test-gate-status writing.
+#
+# Scenario A: GREEN tests pass before marker, RED tests fail
+#   after marker — record-test-status.sh exits 0, writes 'passed'.
+# Scenario B: A GREEN test BEFORE the marker fails — exits 1,
+#   writes 'failed'.
+#
+# This test is exempt from TDD RED-first order per the Integration
+# Test Task Rule (criterion 1): the external boundary (test runner
+# execution + file system) is already established by existing tests.
+# ============================================================
+echo ""
+echo "=== test_integration_red_marker_end_to_end ==="
+_snapshot_fail
+
+# ── Scenario A: RED zone failures tolerated ──────────────────
+
+TEST_REPO_ITEG_A=$(create_test_repo)
+ARTIFACTS_ITEG_A=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_ITEG_A" "$ARTIFACTS_ITEG_A"' EXIT
+
+mkdir -p "$TEST_REPO_ITEG_A/src" "$TEST_REPO_ITEG_A/tests"
+
+# Source file under test
+cat > "$TEST_REPO_ITEG_A/src/feature.py" << 'PYEOF'
+def feature():
+    return "feature"
+PYEOF
+
+# Bash test file: GREEN tests before marker pass, RED tests at/after marker fail
+cat > "$TEST_REPO_ITEG_A/tests/test-feature.sh" << 'SHEOF'
+#!/usr/bin/env bash
+# test_green_before_marker: passing test BEFORE the RED zone
+echo "test_green_before_marker: PASS"
+# test_red_start: first test in RED zone (the marker)
+test_red_start() {
+    echo "test_red_start: FAIL (intentional RED zone failure)"
+    return 1
+}
+test_red_start || true
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_ITEG_A/tests/test-feature.sh"
+
+# .test-index maps feature.py -> test-feature.sh with [test_red_start] RED marker
+cat > "$TEST_REPO_ITEG_A/.test-index" << 'IDXEOF'
+src/feature.py: tests/test-feature.sh [test_red_start]
+IDXEOF
+
+git -C "$TEST_REPO_ITEG_A" add -A
+git -C "$TEST_REPO_ITEG_A" commit -m "add feature with RED marker" --quiet 2>/dev/null
+
+# Stage a change to the source file
+echo "# changed" >> "$TEST_REPO_ITEG_A/src/feature.py"
+git -C "$TEST_REPO_ITEG_A" add -A
+
+# Run record-test-status.sh (no mock runner — full integration)
+EXIT_CODE_ITEG_A=$(
+    cd "$TEST_REPO_ITEG_A"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_ITEG_A" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+STATUS_FILE_ITEG_A="$ARTIFACTS_ITEG_A/test-gate-status"
+
+# EXPECTED: RED zone failure tolerated → exits 0, writes 'passed'
+assert_eq "test_integration_red_marker_end_to_end (scenario A): exits 0" "0" "$EXIT_CODE_ITEG_A"
+if [[ -f "$STATUS_FILE_ITEG_A" ]]; then
+    FIRST_LINE_ITEG_A=$(head -1 "$STATUS_FILE_ITEG_A")
+    assert_eq "test_integration_red_marker_end_to_end (scenario A): writes passed" "passed" "$FIRST_LINE_ITEG_A"
+else
+    assert_eq "test_integration_red_marker_end_to_end (scenario A): status file exists" "exists" "missing"
+fi
+
+rm -rf "$TEST_REPO_ITEG_A" "$ARTIFACTS_ITEG_A"
+trap - EXIT
+
+# ── Scenario B: GREEN failure before marker blocks commit ────
+
+TEST_REPO_ITEG_B=$(create_test_repo)
+ARTIFACTS_ITEG_B=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_ITEG_B" "$ARTIFACTS_ITEG_B"' EXIT
+
+mkdir -p "$TEST_REPO_ITEG_B/src" "$TEST_REPO_ITEG_B/tests"
+
+# Source file under test
+cat > "$TEST_REPO_ITEG_B/src/feature2.py" << 'PYEOF'
+def feature2():
+    return "feature2"
+PYEOF
+
+# Bash test file: GREEN test BEFORE the marker fails (blocking)
+cat > "$TEST_REPO_ITEG_B/tests/test-feature2.sh" << 'SHEOF'
+#!/usr/bin/env bash
+# test_green_fails_before_marker: GREEN test that fails — BEFORE the RED zone
+echo "test_green_fails_before_marker: FAIL (pre-marker failure)"
+# test_red_start2: the RED zone marker (never reached due to earlier failure)
+test_red_start2() {
+    echo "test_red_start2: PASS"
+}
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_ITEG_B/tests/test-feature2.sh"
+
+# .test-index maps feature2.py -> test-feature2.sh with [test_red_start2] RED marker
+cat > "$TEST_REPO_ITEG_B/.test-index" << 'IDXEOF'
+src/feature2.py: tests/test-feature2.sh [test_red_start2]
+IDXEOF
+
+git -C "$TEST_REPO_ITEG_B" add -A
+git -C "$TEST_REPO_ITEG_B" commit -m "add feature2 with RED marker (GREEN fails)" --quiet 2>/dev/null
+
+# Stage a change to the source file
+echo "# changed" >> "$TEST_REPO_ITEG_B/src/feature2.py"
+git -C "$TEST_REPO_ITEG_B" add -A
+
+# Run record-test-status.sh (no mock runner — full integration)
+EXIT_CODE_ITEG_B=$(
+    cd "$TEST_REPO_ITEG_B"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_ITEG_B" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    run_hook_exit
+)
+
+STATUS_FILE_ITEG_B="$ARTIFACTS_ITEG_B/test-gate-status"
+
+# EXPECTED: pre-marker failure blocks → exits 1, writes 'failed'
+assert_eq "test_integration_red_marker_end_to_end (scenario B): exits 1" "1" "$EXIT_CODE_ITEG_B"
+if [[ -f "$STATUS_FILE_ITEG_B" ]]; then
+    FIRST_LINE_ITEG_B=$(head -1 "$STATUS_FILE_ITEG_B")
+    assert_eq "test_integration_red_marker_end_to_end (scenario B): writes failed" "failed" "$FIRST_LINE_ITEG_B"
+else
+    assert_eq "test_integration_red_marker_end_to_end (scenario B): status file exists" "exists" "missing"
+fi
+
+rm -rf "$TEST_REPO_ITEG_B" "$ARTIFACTS_ITEG_B"
+trap - EXIT
+assert_pass_if_clean "test_integration_red_marker_end_to_end"
+
 # Clean up mock runners if created
 if (( ! _PYTEST_AVAILABLE )); then
     rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true
