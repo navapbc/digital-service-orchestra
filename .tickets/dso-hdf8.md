@@ -1,6 +1,6 @@
 ---
 id: dso-hdf8
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T00:58:03Z
