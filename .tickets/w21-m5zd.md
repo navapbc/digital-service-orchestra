@@ -1,6 +1,6 @@
 ---
 id: w21-m5zd
-status: open
+status: in_progress
 deps: [w21-4zl2]
 links: []
 created: 2026-03-22T03:07:54Z
@@ -45,3 +45,9 @@ These tests are RED — they will fail until bridge-inbound.py implements per-ba
   Verify: ruff format --check tests/scripts/test_bridge_inbound.py
 - [ ] ruff check passes on the test file
   Verify: ruff check tests/scripts/test_bridge_inbound.py
+
+## Notes
+
+**2026-03-22T03:34:02Z**
+
+CHECKPOINT 6/6: Done ✓

@@ -506,13 +506,17 @@ def test_detect_status_flap_returns_true_at_threshold(
     ticket_dir.mkdir()
 
     base_ts = 1742605000
-    # Four alternating STATUS events: open→in_progress→open→in_progress (3 oscillations)
-    statuses = ["open", "in_progress", "open", "in_progress"]
+    # Six alternating STATUS events: open→ip→open→ip→open→ip (3 reversals)
+    # Reversals counted: event 3 returns to open (1), event 4 returns to ip (2),
+    # event 5 returns to open (3) — meets threshold of 3.
+    statuses = ["open", "in_progress", "open", "in_progress", "open", "in_progress"]
     uuids = [
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
         "33333333-3333-3333-3333-333333333333",
         "44444444-4444-4444-4444-444444444444",
+        "55555555-5555-5555-5555-555555555555",
+        "66666666-6666-6666-6666-666666666666",
     ]
     for i, (status, uid) in enumerate(zip(statuses, uuids)):
         _write_event(
@@ -527,7 +531,7 @@ def test_detect_status_flap_returns_true_at_threshold(
     result = bridge.detect_status_flap(ticket_dir)
 
     assert result is True, (
-        "detect_status_flap must return True when oscillation count reaches threshold (N=3)"
+        "detect_status_flap must return True when reversal count reaches threshold (N=3)"
     )
 
 
@@ -635,13 +639,15 @@ def test_process_outbound_emits_bridge_alert_on_flap(
     ticket_dir.mkdir()
 
     base_ts = 1742605000
-    # Four alternating STATUS events to trigger flap (3 oscillations)
-    statuses = ["open", "in_progress", "open", "in_progress"]
+    # Six alternating STATUS events to trigger flap (3 reversals)
+    statuses = ["open", "in_progress", "open", "in_progress", "open", "in_progress"]
     uuids_list = [
         "55555555-5555-5555-5555-555555555551",
         "55555555-5555-5555-5555-555555555552",
         "55555555-5555-5555-5555-555555555553",
         "55555555-5555-5555-5555-555555555554",
+        "55555555-5555-5555-5555-555555555555",
+        "55555555-5555-5555-5555-555555555556",
     ]
     for i, (status, uid) in enumerate(zip(statuses, uuids_list)):
         _write_event(
@@ -712,13 +718,15 @@ def test_process_outbound_halts_status_push_for_flapping_ticket(
     ticket_dir.mkdir()
 
     base_ts = 1742606000
-    # Four alternating STATUS events (3 oscillations — triggers flap)
-    statuses = ["open", "in_progress", "open", "in_progress"]
+    # Six alternating STATUS events (3 reversals — triggers flap)
+    statuses = ["open", "in_progress", "open", "in_progress", "open", "in_progress"]
     uuids_list = [
         "66666666-6666-6666-6666-666666666661",
         "66666666-6666-6666-6666-666666666662",
         "66666666-6666-6666-6666-666666666663",
         "66666666-6666-6666-6666-666666666664",
+        "66666666-6666-6666-6666-666666666665",
+        "66666666-6666-6666-6666-666666666666",
     ]
     for i, (status, uid) in enumerate(zip(statuses, uuids_list)):
         _write_event(

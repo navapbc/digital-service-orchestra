@@ -1422,3 +1422,348 @@ class TestRelationshipRejection:
             f"jira_sync_status must be 'rejected' for jira-dso-92; "
             f"got {sync_status.get('jira_sync_status')!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# TestPerBatchCheckpoint
+# ---------------------------------------------------------------------------
+
+
+class TestPerBatchCheckpoint:
+    """Tests for per-batch checkpoint with dual-timestamp model.
+
+    Dual-timestamp model:
+      - last_pull_ts (main timestamp): advances ONLY after the entire run
+        completes successfully.
+      - batch_resume_cursor (per-batch): tracks the last successfully processed
+        batch page; used for resume-only (never advances the pull window).
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_last_pull_ts_advances_only_on_full_success(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """Simulate a run that completes successfully; assert last_pull_ts in
+        checkpoint file advances to a new timestamp.
+
+        After a full successful run, last_pull_ts must be updated AND
+        batch_resume_cursor must be cleared (no stale cursor left behind).
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        sample_issues = [_make_jira_issue("DSO-200")]
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=sample_issues)
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        new_ts = updated.get("last_pull_ts", "")
+        assert new_ts != old_ts, (
+            f"last_pull_ts must advance after full successful run; still {old_ts!r}"
+        )
+
+        # batch_resume_cursor must be absent after full success
+        assert "batch_resume_cursor" not in updated, (
+            "batch_resume_cursor must be cleared after a full successful run; "
+            f"found {updated.get('batch_resume_cursor')!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_last_pull_ts_not_advanced_on_mid_run_failure(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """Simulate a run that fails partway through (exception during processing);
+        assert last_pull_ts in checkpoint file is unchanged.
+
+        A mid-run failure must NOT advance last_pull_ts. The batch_resume_cursor
+        may remain (for resume), but last_pull_ts must stay at the old value.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        # Return issues on first page, then raise on second page
+        page0 = [_make_jira_issue(f"DSO-{i}") for i in range(100)]
+
+        call_count = 0
+
+        def _search_issues_with_failure(
+            jql: str, start_at: int = 0, max_results: int = 100
+        ) -> list[dict]:
+            nonlocal call_count
+            call_count += 1
+            if start_at == 0:
+                return page0
+            raise ConnectionError("Network failure mid-pagination")
+
+        mock_client = MagicMock()
+        mock_client.search_issues = _search_issues_with_failure
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        try:
+            bridge.process_inbound(
+                tickets_root=tickets_root,
+                acli_client=mock_client,
+                last_pull_ts=old_ts,
+                config=config,
+            )
+        except Exception:
+            pass
+
+        # last_pull_ts must NOT have advanced
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        preserved_ts = updated.get("last_pull_ts", "")
+        assert preserved_ts == old_ts, (
+            f"last_pull_ts must NOT advance on mid-run failure; "
+            f"expected {old_ts!r}, got {preserved_ts!r}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_batch_resume_cursor_written_per_batch(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """Simulate a paginated run with 3 pages; assert after each page, a
+        batch_resume_cursor field is written to the checkpoint file.
+
+        The on_batch_complete callback in fetch_jira_changes must write
+        batch_resume_cursor to the checkpoint file after each page.
+        """
+        import os
+        import unittest.mock
+
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        page0 = [_make_jira_issue(f"DSO-{i}") for i in range(100)]
+        page1 = [_make_jira_issue(f"DSO-{i}") for i in range(100, 200)]
+        page2 = [_make_jira_issue(f"DSO-{i}") for i in range(200, 250)]
+
+        cursor_values: list[int] = []
+        checkpoint_str = str(checkpoint_file)
+
+        def _search_issues_tracking(
+            jql: str, start_at: int = 0, max_results: int = 100
+        ) -> list[dict]:
+            if start_at == 0:
+                return page0
+            if start_at == 100:
+                return page1
+            if start_at == 200:
+                return page2
+            return []
+
+        mock_client = MagicMock()
+        mock_client.search_issues = _search_issues_tracking
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": checkpoint_str,
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        # Intercept os.replace to capture checkpoint writes (atomic write path)
+        original_replace = os.replace
+
+        def _tracking_replace(src: str, dst: str) -> None:
+            original_replace(src, dst)
+            if os.path.abspath(dst) == os.path.abspath(checkpoint_str):
+                try:
+                    data = json.loads(Path(dst).read_text(encoding="utf-8"))
+                    if "batch_resume_cursor" in data:
+                        cursor_values.append(data["batch_resume_cursor"])
+                except (OSError, json.JSONDecodeError):
+                    pass
+
+        with unittest.mock.patch("os.replace", _tracking_replace):
+            bridge.process_inbound(
+                tickets_root=tickets_root,
+                acli_client=mock_client,
+                last_pull_ts=old_ts,
+                config=config,
+            )
+
+        # batch_resume_cursor must have been written at least once per page
+        assert len(cursor_values) >= 2, (
+            "batch_resume_cursor must be written to checkpoint after each batch page; "
+            f"captured cursor writes: {cursor_values}"
+        )
+
+        # Cursor values must be increasing (tracking pagination progress)
+        assert cursor_values == sorted(cursor_values), (
+            "batch_resume_cursor values must be monotonically increasing; "
+            f"got: {cursor_values}"
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_batch_resume_cursor_does_not_advance_last_pull_ts(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """Verify that writing per-batch cursor does NOT change last_pull_ts.
+
+        During pagination, batch_resume_cursor is written per page but
+        last_pull_ts must remain at the old value until full run success.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        page0 = [_make_jira_issue(f"DSO-{i}") for i in range(100)]
+        page1 = [_make_jira_issue(f"DSO-{i}") for i in range(100, 150)]
+
+        ts_during_pagination: list[str] = []
+
+        def _search_issues_spy(
+            jql: str, start_at: int = 0, max_results: int = 100
+        ) -> list[dict]:
+            # After the first page is fetched, read checkpoint to see if
+            # last_pull_ts was prematurely advanced
+            if start_at > 0:
+                try:
+                    data = json.loads(
+                        Path(str(checkpoint_file)).read_text(encoding="utf-8")
+                    )
+                    ts_during_pagination.append(data.get("last_pull_ts", ""))
+                except (OSError, json.JSONDecodeError):
+                    pass
+
+            if start_at == 0:
+                return page0
+            elif start_at == 100:
+                return page1
+            return []
+
+        mock_client = MagicMock()
+        mock_client.search_issues = _search_issues_spy
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        # During pagination, last_pull_ts must NOT have changed
+        for ts in ts_during_pagination:
+            assert ts == old_ts, (
+                f"last_pull_ts must NOT change during pagination; "
+                f"expected {old_ts!r}, got {ts!r}"
+            )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_per_batch_checkpoint_enables_resume(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """Write a checkpoint with batch_resume_cursor: 100; call process_inbound
+        with resume=True; assert pagination starts from page 100, not page 0.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts, "batch_resume_cursor": 100}),
+            encoding="utf-8",
+        )
+
+        page1 = [_make_jira_issue(f"DSO-{i}") for i in range(100, 150)]
+        start_at_values: list[int] = []
+
+        def _search_issues_tracking_start(
+            jql: str, start_at: int = 0, max_results: int = 100
+        ) -> list[dict]:
+            start_at_values.append(start_at)
+            if start_at == 100:
+                return page1
+            return []
+
+        mock_client = MagicMock()
+        mock_client.search_issues = _search_issues_tracking_start
+        mock_client.get_server_info = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+            "resume": True,
+            "batch_resume_cursor": 100,
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        # The first search_issues call must start at 100 (resume), not 0
+        assert len(start_at_values) >= 1, "search_issues must be called at least once"
+        assert start_at_values[0] == 100, (
+            f"With batch_resume_cursor=100 and resume=True, pagination must start "
+            f"at start_at=100; got first start_at={start_at_values[0]}"
+        )

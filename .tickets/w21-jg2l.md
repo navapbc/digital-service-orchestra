@@ -1,6 +1,6 @@
 ---
 id: w21-jg2l
-status: open
+status: in_progress
 deps: [w21-m5zd, w21-4zl2]
 links: []
 created: 2026-03-22T03:07:57Z
@@ -64,3 +64,9 @@ Implement dual-timestamp checkpoint in `plugins/dso/scripts/bridge-inbound.py`:
   Verify: python3 -c "import pathlib; content=pathlib.Path('$(git rev-parse --show-toplevel)/plugins/dso/scripts/bridge-inbound.py').read_text(); assert 'os.replace' in content or 'replace' in content, 'atomic write pattern not found'"
 - [ ] ruff format --check and ruff check pass
   Verify: ruff format --check plugins/dso/scripts/bridge-inbound.py && ruff check plugins/dso/scripts/bridge-inbound.py
+
+## Notes
+
+**2026-03-22T03:36:34Z**
+
+CHECKPOINT 6/6: Done ✓
