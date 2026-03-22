@@ -1,6 +1,6 @@
 ---
 id: w21-chse
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-20T20:55:35Z
@@ -15,3 +15,12 @@ When creating an epic using brainstorm, the skill should conduct a red team scen
 
 Our goal is to harden the epic in a way that creates a more reliable solution without forcing the epic to go into implementation details. We are trying to understand the different ways our desired functionality could be used, and make sure we have clearly accounted for them.
 
+
+## Notes
+
+<!-- note-id: gzyq17fx -->
+<!-- timestamp: 2026-03-22T22:54:35Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Superseded by dso-d63r (Planning Intelligence — Research & Scenario Hardening)
