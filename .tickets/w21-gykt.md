@@ -1,6 +1,6 @@
 ---
 id: w21-gykt
-status: open
+status: closed
 deps: [w21-8cw2]
 links: []
 created: 2026-03-20T15:46:08Z
