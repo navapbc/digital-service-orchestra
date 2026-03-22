@@ -1,6 +1,6 @@
 ---
 id: w22-rkur
-status: in_progress
+status: closed
 deps: [w22-5e4i, w22-opu1]
 links: []
 created: 2026-03-21T16:58:51Z
