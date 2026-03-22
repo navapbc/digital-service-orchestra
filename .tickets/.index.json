@@ -190,6 +190,16 @@
     "title": "Call detect_newly_unblocked after conflict resolution in sync path",
     "type": "task"
   },
+  "dso-5ooy": {
+    "deps": [
+      "w21-ykic",
+      "w21-ovpn"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "Conditional Security & Performance Review Overlays",
+    "type": "epic"
+  },
   "dso-6lhe": {
     "deps": [],
     "priority": 1,
@@ -211,7 +221,14 @@
     "deps": [],
     "priority": 2,
     "status": "closed",
-    "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree \u2014 grep patterns don't match synced ticket format",
+    "title": "Bug: agent-batch-lifecycle.sh lock-acquire fails to find lock ticket in worktree — grep patterns don't match synced ticket format",
+    "type": "bug"
+  },
+  "dso-6x8o": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Bug: record-test-status.sh allows re-recording with stale test results — hash updated without re-running tests",
     "type": "bug"
   },
   "dso-76r3": {
@@ -331,6 +348,42 @@
     "status": "closed",
     "title": "Implement MostStatusEventsWinsStrategy in ticket-reducer.py",
     "type": "task"
+  },
+  "dso-b538": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet C reviewer applies deep hygiene, design, and maintainability checks",
+    "type": "story"
+  },
+  "dso-b7nb": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet A reviewer applies deep correctness checks with acceptance criteria validation",
+    "type": "story"
+  },
+  "dso-boct": {
+    "deps": [
+      "dso-9ltc"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Light tier haiku reviewer applies a focused 6-item checklist to low-complexity changes",
+    "type": "story"
+  },
+  "dso-bxng": {
+    "deps": [
+      "dso-9ltc"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Standard tier sonnet reviewer applies full 5-dimension checklists with researched sub-criteria",
+    "type": "story"
   },
   "dso-c362": {
     "deps": [],
@@ -477,6 +530,15 @@
     "title": "Using-lockpicks brainstorm enforcement",
     "type": "epic"
   },
+  "dso-gfry": {
+    "deps": [
+      "dso-bxng"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Sonnet B reviewer applies deep verification checks evaluating test quality and coverage",
+    "type": "story"
+  },
   "dso-gjww": {
     "deps": [],
     "priority": 4,
@@ -553,6 +615,17 @@
     "title": "Implement ticket deps subcommand in ticket dispatcher",
     "type": "task"
   },
+  "dso-jf62": {
+    "deps": [
+      "dso-b7nb",
+      "dso-gfry",
+      "dso-b538"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a DSO practitioner, the Deep Opus architectural reviewer applies cross-cutting synthesis checks across all specialist findings",
+    "type": "story"
+  },
   "dso-jny6": {
     "deps": [
       "dso-4lbf"
@@ -592,7 +665,7 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-l77u": {
@@ -691,6 +764,13 @@
     "title": "Add dev-onboarding and design-onboarding to setup",
     "type": "epic"
   },
+  "dso-ptct": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: stat -f || stat -c fallback pattern broken on Linux — stat -f succeeds with wrong semantics",
+    "type": "bug"
+  },
   "dso-pxos": {
     "deps": [],
     "priority": 1,
@@ -732,6 +812,13 @@
     "status": "open",
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
+  },
+  "dso-sfoc": {
+    "deps": [],
+    "priority": 1,
+    "status": "closed",
+    "title": "Bug: pre-commit test gate times out on large ticket-only commits (no allowlist filtering)",
+    "type": "bug"
   },
   "dso-si1e": {
     "deps": [
@@ -985,7 +1072,7 @@
     ],
     "priority": 1,
     "status": "closed",
-    "title": "E2E test: archive \u2192 tombstone \u2192 dep tree resolution",
+    "title": "E2E test: archive → tombstone → dep tree resolution",
     "type": "task"
   },
   "w20-3rjr": {
@@ -999,7 +1086,7 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "test-batched.sh state file not isolated by repo/worktree \u2014 causes cross-session interference",
+    "title": "test-batched.sh state file not isolated by repo/worktree — causes cross-session interference",
     "type": "bug"
   },
   "w20-6dad": {
@@ -1057,7 +1144,7 @@
     "deps": [],
     "priority": 3,
     "status": "open",
-    "title": "generate-test-index.sh broader scan is O(n*m) \u2014 extremely slow on repos with many files",
+    "title": "generate-test-index.sh broader scan is O(n*m) — extremely slow on repos with many files",
     "type": "task"
   },
   "w20-hrdm": {
@@ -1094,7 +1181,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Multiple [LOCK] tickets for debug-everything \u2014 no cleanup after session ends",
+    "title": "Multiple [LOCK] tickets for debug-everything — no cleanup after session ends",
     "type": "bug"
   },
   "w20-p35v": {
@@ -1192,7 +1279,7 @@
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "Bug: review gate blocks merge commits from main into worktree \u2014 pre-commit-review-gate treats incoming main changes as requiring review",
+    "title": "Bug: review gate blocks merge commits from main into worktree — pre-commit-review-gate treats incoming main changes as requiring review",
     "type": "bug"
   },
   "w21-0pxe": {
@@ -1232,7 +1319,7 @@
     ],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 \u2014 migration from tk and cutover",
+    "title": "Ticket system v3 — migration from tk and cutover",
     "type": "epic"
   },
   "w21-25mq": {
@@ -1281,7 +1368,7 @@
     ],
     "priority": 1,
     "status": "closed",
-    "title": "Ticket system v3 \u2014 dependency management, cross-worktree sync, and conflict resolution",
+    "title": "Ticket system v3 — dependency management, cross-worktree sync, and conflict resolution",
     "type": "epic"
   },
   "w21-689o": {
@@ -1362,7 +1449,7 @@
     ],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 \u2014 Jira bridge and LLM-optimized output",
+    "title": "Ticket system v3 — Jira bridge and LLM-optimized output",
     "type": "epic"
   },
   "w21-chse": {
@@ -1394,7 +1481,7 @@
     "deps": [],
     "priority": 3,
     "status": "open",
-    "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
+    "title": "dso-setup.sh supplement_template_file uses cat for append — not in _make_tool_path fake PATH",
     "type": "bug"
   },
   "w21-epz2": {
@@ -1600,7 +1687,7 @@
     "deps": [],
     "priority": 3,
     "status": "closed",
-    "title": "Bug: test-discover-agents.sh flaky in full suite \u2014 passes in isolation",
+    "title": "Bug: test-discover-agents.sh flaky in full suite — passes in isolation",
     "type": "bug"
   },
   "w22-338o": {
@@ -1644,7 +1731,7 @@
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "Bug: CI Script Tests \u2014 2 failures (test-doc-migration legacy ref, test-ticket-comment ordering)",
+    "title": "Bug: CI Script Tests — 2 failures (test-doc-migration legacy ref, test-ticket-comment ordering)",
     "type": "bug"
   },
   "w22-anm2": {
