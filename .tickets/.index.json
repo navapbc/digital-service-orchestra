@@ -324,6 +324,13 @@
     "title": "Add a preflight check to sprint that validates current project state",
     "type": "epic"
   },
+  "dso-9778": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "Fix: deduplicate sed function-body extractions in test-tk-sync-force-local.sh",
+    "type": "task"
+  },
   "dso-9fgn": {
     "deps": [],
     "priority": 3,
@@ -1482,7 +1489,7 @@
   "w20-fxpu": {
     "deps": [],
     "priority": 3,
-    "status": "open",
+    "status": "closed",
     "title": "Fix test_auto_detect_main_worktree_via_git_list macOS path comparison bug",
     "type": "task"
   },
@@ -1961,7 +1968,7 @@
   "w21-o2cn": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: test-behavioral-equivalence-allowlist.sh 6 failures (compute-diff-hash/both-consumers-agree)",
     "type": "bug"
   },
