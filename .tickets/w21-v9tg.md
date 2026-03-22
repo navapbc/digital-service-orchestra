@@ -1,6 +1,6 @@
 ---
 id: w21-v9tg
-status: open
+status: in_progress
 deps: [w21-ulsg, w21-cxzv]
 links: []
 created: 2026-03-21T23:38:25Z
@@ -51,3 +51,29 @@ This task does NOT implement config merge (that is T7).
 - [ ] Malformed package.json does not crash --suites (script emits warning to stderr, continues, exits 0)
   Verify: TMPD=$(mktemp -d) && echo 'not valid json' > "$TMPD/package.json" && bash $(git rev-parse --show-toplevel)/plugins/dso/scripts/project-detect.sh --suites "$TMPD" > /dev/null && echo $? | grep -q '^0$' && rm -rf "$TMPD"
 
+
+## Notes
+
+**2026-03-22T00:35:43Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T00:36:03Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-22T00:36:06Z**
+
+CHECKPOINT 3/6: Tests written (none required — RED tests exist) ✓
+
+**2026-03-22T00:38:02Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-22T00:38:04Z**
+
+CHECKPOINT 5/6: All tests pass — 112 PASSED, 0 FAILED. All 5 RED tests now GREEN: suites_npm, suites_bash_runner, suites_dedup_by_name, suites_precedence_config_over_makefile, suites_bash_name_derivation ✓
+
+**2026-03-22T00:38:05Z**
+
+CHECKPOINT 6/6: Done ✓

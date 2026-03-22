@@ -53,11 +53,19 @@ if [[ ! -d "$PROJECT_DIR" ]]; then
 fi
 
 # ── Suite discovery function ─────────────────────────────────────────────────
-# Discovers test suites via Makefile targets and pytest directories.
-# Outputs a JSON array to stdout via python3.
+# Discovers test suites via Makefile targets, pytest directories, npm scripts,
+# bash runners, and config keys. Deduplicates by name using precedence:
+# config > Makefile > pytest > npm > bash. Outputs a JSON array to stdout.
 _discover_suites() {
     local project_dir="$1"
     local entries=""
+
+    _append_entry() {
+        if [[ -n "$entries" ]]; then
+            entries="${entries},"
+        fi
+        entries="${entries}$1"
+    }
 
     # Makefile heuristic: find targets matching /^test[-_]/
     if [[ -f "$project_dir/Makefile" ]]; then
@@ -67,13 +75,9 @@ _discover_suites() {
         local target
         while IFS= read -r target; do
             [[ -z "$target" ]] && continue
-            # Derive name by stripping test- or test_ prefix
             local name
             name="$(echo "$target" | sed -E 's/^test[-_]//')"
-            if [[ -n "$entries" ]]; then
-                entries="${entries},"
-            fi
-            entries="${entries}${target}=${name}"
+            _append_entry "make:${target}=${name}"
         done <<< "$makefile_test_targets"
     fi
 
@@ -89,61 +93,186 @@ _discover_suites() {
         local subdir
         for subdir in "$project_dir/$test_root"/*/; do
             [[ -d "$subdir" ]] || continue
-            # Check if directory contains at least one test_*.py file
             local has_test_files
             has_test_files="$(find "$subdir" -maxdepth 1 -name 'test_*.py' -print -quit 2>/dev/null)"
             if [[ -n "$has_test_files" ]]; then
                 local dirname
                 dirname="$(basename "$subdir")"
-                # Skip if already covered by a Makefile target with same name.
-                # Use delimiter-anchored match to prevent substring false positives
-                # (e.g. 'unit' falsely matching 'integration_unit').
-                if [[ ",${entries}," == *",=${dirname},"* || ",${entries}," == *",pytest:"*"=${dirname},"* ]]; then
-                    continue
-                fi
-                if [[ -n "$entries" ]]; then
-                    entries="${entries},"
-                fi
-                entries="${entries}pytest:${test_root}/${dirname}=${dirname}"
+                _append_entry "pytest:${test_root}/${dirname}=${dirname}"
             fi
         done
     fi
 
+    # npm heuristic: parse package.json for scripts matching /^test/
+    if [[ -f "$project_dir/package.json" ]]; then
+        local npm_entries
+        npm_entries="$(python3 - "$project_dir/package.json" <<'PYEOF' 2>/dev/null || true
+import sys, json
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    scripts = data.get("scripts", {})
+    results = []
+    for key in sorted(scripts.keys()):
+        if key.startswith("test:") or key.startswith("test-") or key.startswith("test_"):
+            # Strip prefix to derive name
+            if key.startswith("test:"):
+                name = key[5:]
+            elif key.startswith("test-"):
+                name = key[5:]
+            else:
+                name = key[5:]
+            if name:
+                results.append("npm:" + key + "=" + name)
+        elif key == "test":
+            results.append("npm:" + key + "=test")
+    print(",".join(results))
+except Exception as e:
+    import sys as s
+    print("Warning: failed to parse package.json: " + str(e), file=s.stderr)
+PYEOF
+)"
+        if [[ -n "$npm_entries" ]]; then
+            local npm_entry
+            IFS=',' read -ra npm_parts <<< "$npm_entries"
+            for npm_entry in "${npm_parts[@]}"; do
+                [[ -z "$npm_entry" ]] && continue
+                _append_entry "$npm_entry"
+            done
+        fi
+    fi
+
+    # bash runner heuristic: find executable test-*.sh, test_*.sh, run-tests*.sh
+    local bash_file
+    for bash_file in "$project_dir"/test-*.sh "$project_dir"/test_*.sh "$project_dir"/run-tests*.sh; do
+        [[ -f "$bash_file" ]] || continue
+        [[ -x "$bash_file" ]] || continue
+        local basename_file
+        basename_file="$(basename "$bash_file")"
+        # Derive name: strip prefix and .sh suffix
+        local bash_name
+        bash_name="$(echo "$basename_file" | sed -E 's/\.sh$//; s/^run-tests[-_]//; s/^test[-_]//')"
+        [[ -z "$bash_name" ]] && continue
+        _append_entry "bash:${basename_file}=${bash_name}"
+    done
+
+    # config heuristic: parse .claude/dso-config.conf for test.suite.<name>.command
+    if [[ -f "$project_dir/.claude/dso-config.conf" ]]; then
+        local config_entries
+        config_entries="$(grep -E '^test\.suite\.[^.]+\.command=' "$project_dir/.claude/dso-config.conf" 2>/dev/null | while IFS= read -r line; do
+            local cfg_name cfg_command
+            # Extract name: test.suite.<name>.command=<value>
+            cfg_name="$(echo "$line" | sed -E 's/^test\.suite\.([^.]+)\.command=.*/\1/')"
+            cfg_command="$(echo "$line" | sed -E 's/^test\.suite\.[^.]+\.command=//')"
+            if [[ -n "$cfg_name" && -n "$cfg_command" ]]; then
+                echo "config:${cfg_command}=${cfg_name}"
+            fi
+        done | paste -sd',' -)"
+        if [[ -n "$config_entries" ]]; then
+            local cfg_entry
+            IFS=',' read -ra cfg_parts <<< "$config_entries"
+            for cfg_entry in "${cfg_parts[@]}"; do
+                [[ -z "$cfg_entry" ]] && continue
+                _append_entry "$cfg_entry"
+            done
+        fi
+    fi
+
     # Generate JSON output via python3.
-    # Entries are passed via DSO_SUITE_ENTRIES env var, newline-delimited, to avoid
-    # fragility with comma delimiters (Makefile target or directory names could
-    # contain commas, silently corrupting a comma-separated argument string).
-    DSO_SUITE_ENTRIES="$entries" python3 - <<'PYEOF'
+    # Entries are passed via DSO_SUITE_ENTRIES env var, comma-delimited.
+    # Python handles dedup by name with precedence: config > make > pytest > npm > bash.
+    # Also reads config for speed_class overrides.
+    DSO_SUITE_ENTRIES="$entries" DSO_CONFIG_PATH="$project_dir/.claude/dso-config.conf" python3 - <<'PYEOF'
 import os, json
 
+PRECEDENCE = {"config": 0, "make": 1, "pytest": 2, "npm": 3, "bash": 4}
+
 entries_raw = os.environ.get("DSO_SUITE_ENTRIES", "")
-result = []
+config_path = os.environ.get("DSO_CONFIG_PATH", "")
+
+# Parse config for speed_class overrides
+speed_overrides = {}
+if config_path:
+    try:
+        with open(config_path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("test.suite.") and ".speed_class=" in line:
+                    # test.suite.<name>.speed_class=<value>
+                    rest = line[len("test.suite."):]
+                    dot_idx = rest.index(".speed_class=")
+                    name = rest[:dot_idx]
+                    val = rest[dot_idx + len(".speed_class="):]
+                    speed_overrides[name] = val
+    except Exception:
+        pass
+
+# Parse all entries into a dict keyed by name, keeping highest precedence
+seen = {}  # name -> (precedence, entry_dict)
 
 if entries_raw:
     for entry_str in entries_raw.split(","):
         entry_str = entry_str.strip()
         if not entry_str:
             continue
-        if entry_str.startswith("pytest:"):
-            # pytest heuristic entry: pytest:tests/models=models
-            rest = entry_str[len("pytest:"):]
-            path_part, name = rest.split("=", 1)
-            result.append({
-                "name": name,
-                "command": "pytest " + path_part + "/",
-                "speed_class": "unknown",
-                "runner": "pytest"
-            })
-        else:
-            # Makefile heuristic entry: test-unit=unit
-            target, name = entry_str.split("=", 1)
-            result.append({
-                "name": name,
-                "command": "make " + target,
-                "speed_class": "unknown",
-                "runner": "make"
-            })
 
+        # Parse prefix:detail=name
+        colon_idx = entry_str.index(":")
+        runner = entry_str[:colon_idx]
+        rest = entry_str[colon_idx + 1:]
+        detail, name = rest.split("=", 1)
+
+        prec = PRECEDENCE.get(runner, 99)
+
+        if runner == "make":
+            entry = {
+                "name": name,
+                "command": "make " + detail,
+                "speed_class": "unknown",
+                "runner": "make",
+            }
+        elif runner == "pytest":
+            entry = {
+                "name": name,
+                "command": "pytest " + detail + "/",
+                "speed_class": "unknown",
+                "runner": "pytest",
+            }
+        elif runner == "npm":
+            entry = {
+                "name": name,
+                "command": "npm run " + detail,
+                "speed_class": "unknown",
+                "runner": "npm",
+            }
+        elif runner == "bash":
+            entry = {
+                "name": name,
+                "command": "bash " + detail,
+                "speed_class": "unknown",
+                "runner": "bash",
+            }
+        elif runner == "config":
+            entry = {
+                "name": name,
+                "command": detail,
+                "speed_class": "unknown",
+                "runner": "config",
+            }
+        else:
+            continue
+
+        # Dedup: keep highest precedence (lowest number)
+        if name not in seen or prec < seen[name][0]:
+            seen[name] = (prec, entry)
+
+# Apply speed_class overrides from config
+for name, speed in speed_overrides.items():
+    if name in seen:
+        seen[name][1]["speed_class"] = speed
+
+# Sort by name for consistent output
+result = [entry for _, entry in sorted(seen.values(), key=lambda x: x[1]["name"])]
 print(json.dumps(result))
 PYEOF
 }
