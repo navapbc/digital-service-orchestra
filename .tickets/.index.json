@@ -869,6 +869,13 @@
     "title": "GREEN: Add abbreviated clarification loop to HOOK-INJECTION.md",
     "type": "task"
   },
+  "dso-jn8v": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: classifier-size-output.md contract should use full relative path for large-diff-splitting-guide.md",
+    "type": "bug"
+  },
   "dso-jny6": {
     "deps": [
       "dso-4lbf"
@@ -1301,6 +1308,13 @@
     "status": "in_progress",
     "title": "[LOCK] debug-everything",
     "type": "task"
+  },
+  "dso-utat": {
+    "deps": [],
+    "priority": 4,
+    "status": "open",
+    "title": "Fix: test_classifier_is_merge_commit_size_action_none should use run_classifier helper instead of duplicating dispatch logic",
+    "type": "bug"
   },
   "dso-utw2": {
     "deps": [

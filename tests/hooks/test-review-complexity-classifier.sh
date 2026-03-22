@@ -509,4 +509,203 @@ test_classifier_completes_in_under_2s
 test_classifier_failure_defaults_to_standard
 test_classifier_stdout_parseable_on_success
 
+# ============================================================
+# Diff Size Threshold and Merge Commit Detection Tests (RED — w22-pccy)
+# ============================================================
+
+# Helper: create a diff with N added non-test source lines
+create_n_line_diff() {
+    local n="$1"
+    local filename="${2:-src/foo.py}"
+    local diff_file="$TEST_TMPDIR/test_n_lines.diff"
+    {
+        echo "diff --git a/${filename} b/${filename}"
+        echo "index 0000000..1111111 100644"
+        echo "--- a/${filename}"
+        echo "+++ b/${filename}"
+        echo "@@ -1,1 +1,${n} @@"
+        local i
+        for (( i = 1; i <= n; i++ )); do
+            echo "+line_${i} = ${i}"
+        done
+    } > "$diff_file"
+    echo "$diff_file"
+}
+
+test_classifier_diff_size_lines_raw_count() {
+    # Assert diff_size_lines field exists, is integer >= 0, and equals 50 for 50-line diff
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 50 "src/foo.py")
+    run_classifier "$diff_file"
+
+    local has_field="false"
+    local value_correct="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        has_field=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+print('true' if 'diff_size_lines' in d and isinstance(d['diff_size_lines'],int) and d['diff_size_lines'] >= 0 else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+        value_correct=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+print('true' if d.get('diff_size_lines') == 50 else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+    fi
+    assert_eq "diff_size_lines field exists and is integer >= 0" "true" "$has_field"
+    assert_eq "diff_size_lines equals 50 for 50-line diff" "true" "$value_correct"
+    teardown_temp_dir
+}
+
+test_classifier_size_action_none_below_300() {
+    # 10 scorable lines → size_action = "none"
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 10 "src/foo.py")
+    run_classifier "$diff_file"
+
+    local size_action=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "10-line diff has size_action=none" "none" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_size_action_upgrade_at_300() {
+    # 300 scorable added lines → size_action = "upgrade"
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 300 "src/foo.py")
+    run_classifier "$diff_file"
+
+    local size_action=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "300-line diff has size_action=upgrade" "upgrade" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_size_action_reject_at_600() {
+    # 600+ scorable added lines → size_action = "reject"
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 600 "src/foo.py")
+    run_classifier "$diff_file"
+
+    local size_action=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "600-line diff has size_action=reject" "reject" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_size_action_none_for_test_only_diff() {
+    # Diff touching only test files → size_action = "none" regardless of line count
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 400 "tests/test_foo.py")
+    run_classifier "$diff_file"
+
+    local size_action=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "test-only diff (400 lines) has size_action=none" "none" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_size_action_none_for_generated_files() {
+    # Diff touching only migration/lock files → size_action = "none"
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 400 "poetry.lock")
+    run_classifier "$diff_file"
+
+    local size_action=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "generated-file-only diff (poetry.lock, 400 lines) has size_action=none" "none" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_is_merge_commit_false_default() {
+    # Normal diff (no MOCK_MERGE_HEAD) → is_merge_commit = false
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    unset MOCK_MERGE_HEAD 2>/dev/null || true
+    run_classifier "$diff_file"
+
+    local is_merge="true"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        is_merge=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+v=d.get('is_merge_commit',True)
+print(str(v).lower() if isinstance(v,bool) else str(v))
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "true")
+    fi
+    assert_eq "normal diff has is_merge_commit=false" "false" "$is_merge"
+    teardown_temp_dir
+}
+
+test_classifier_is_merge_commit_size_action_none() {
+    # When MOCK_MERGE_HEAD=1, size_action = "none" even with 600+ lines
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_n_line_diff 600 "src/foo.py")
+    export MOCK_MERGE_HEAD=1
+    CLASSIFIER_OUTPUT=""
+    CLASSIFIER_EXIT=0
+    if [[ -x "$CLASSIFIER" ]]; then
+        CLASSIFIER_OUTPUT=$(MOCK_MERGE_HEAD=1 bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+    else
+        CLASSIFIER_EXIT=127
+    fi
+    unset MOCK_MERGE_HEAD
+
+    local size_action=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
+    fi
+    assert_eq "merge commit (MOCK_MERGE_HEAD=1) with 600 lines has size_action=none" "none" "$size_action"
+    teardown_temp_dir
+}
+
+test_classifier_output_includes_new_fields() {
+    # Verify JSON output contains diff_size_lines, size_action, and is_merge_commit keys
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
+    run_classifier "$diff_file"
+
+    local has_new_fields="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        has_new_fields=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+keys=['diff_size_lines','size_action','is_merge_commit']
+print('true' if all(k in d for k in keys) else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+    fi
+    assert_eq "JSON output includes diff_size_lines, size_action, is_merge_commit" "true" "$has_new_fields"
+    teardown_temp_dir
+}
+
+# Diff size thresholds and merge commit detection (RED — w22-pccy)
+test_classifier_diff_size_lines_raw_count  # RED: diff_size_lines field not yet implemented
+test_classifier_size_action_none_below_300  # RED: size_action field not yet implemented
+test_classifier_size_action_upgrade_at_300  # RED: size_action field not yet implemented
+test_classifier_size_action_reject_at_600  # RED: size_action field not yet implemented
+test_classifier_size_action_none_for_test_only_diff  # RED: size_action bypass not yet implemented
+test_classifier_size_action_none_for_generated_files  # RED: size_action bypass not yet implemented
+test_classifier_is_merge_commit_false_default  # RED: is_merge_commit field not yet implemented
+test_classifier_is_merge_commit_size_action_none  # RED: merge commit bypass not yet implemented
+test_classifier_output_includes_new_fields  # RED: new fields not yet in output schema
+
 print_summary

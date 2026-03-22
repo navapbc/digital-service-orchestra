@@ -499,6 +499,106 @@ teardown_temp_dir
 assert_pass_if_clean "test_deep_tier_single_writer_invariant"
 
 # ============================================================
+# Step 3 Size Rejection and Model Override Tests (w21-nv42)
+# ============================================================
+
+echo ""
+echo "--- Step 3 size rejection and model override ---"
+
+# test_workflow_step3_checks_size_action_field
+# Verify that REVIEW-WORKFLOW.md Step 3 references the size_action field from
+# classifier output and acts on it (rejects the diff when size_action is "reject").
+# RED: REVIEW-WORKFLOW.md does not yet reference size_action from classifier output.
+_snapshot_fail
+setup_temp_dir
+
+size_action_referenced=false
+
+if grep -q 'size_action' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    size_action_referenced=true
+fi
+
+assert_eq "test_workflow_step3_checks_size_action_field: REVIEW-WORKFLOW.md should reference size_action field from classifier output" "true" "$size_action_referenced"
+
+teardown_temp_dir
+assert_pass_if_clean "test_workflow_step3_checks_size_action_field"
+
+# test_workflow_step3_checks_model_override_field
+# Verify that REVIEW-WORKFLOW.md Step 3 references the model_override field from
+# classifier output and uses it to override the dispatched named agent's model.
+# RED: REVIEW-WORKFLOW.md does not yet reference model_override from classifier output.
+_snapshot_fail
+setup_temp_dir
+
+model_override_referenced=false
+
+if grep -q 'model_override' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    model_override_referenced=true
+fi
+
+assert_eq "test_workflow_step3_checks_model_override_field: REVIEW-WORKFLOW.md should reference model_override field to override named agent model" "true" "$model_override_referenced"
+
+teardown_temp_dir
+assert_pass_if_clean "test_workflow_step3_checks_model_override_field"
+
+# test_workflow_step3_rejection_only_on_initial_dispatch
+# Verify that REVIEW-WORKFLOW.md clarifies size rejection is skipped during re-review
+# (i.e., the Autonomous Resolution Loop does NOT apply size rejection).
+# RED: REVIEW-WORKFLOW.md does not yet document this skipping behavior.
+_snapshot_fail
+setup_temp_dir
+
+rerereview_skips_rejection=false
+
+# Look for language clarifying size rejection is skipped/not applied during re-review
+# Match patterns like: "re-review...skip...size", "size rejection...not apply...re-review",
+# "Autonomous Resolution Loop...size_action...skip", etc.
+if grep -qE 're-?review.*skip.*size|size.*skip.*re-?review|re-?review.*size_action.*skip|size_action.*re-?review.*not|Autonomous.*Resolution.*size|size.*rejection.*not.*re-?review|re-?review.*bypass.*size|skip.*size.*action.*re-?review' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    rerereview_skips_rejection=true
+fi
+
+assert_eq "test_workflow_step3_rejection_only_on_initial_dispatch: REVIEW-WORKFLOW.md should clarify size rejection is skipped during re-review (Autonomous Resolution Loop)" "true" "$rerereview_skips_rejection"
+
+teardown_temp_dir
+assert_pass_if_clean "test_workflow_step3_rejection_only_on_initial_dispatch"
+
+# test_workflow_step3_rejection_message_references_guide
+# Verify that the rejection message template in REVIEW-WORKFLOW.md includes a reference
+# to the large-diff-splitting-guide (by path) so practitioners know where to get help.
+# RED: REVIEW-WORKFLOW.md does not yet include the splitting guide reference.
+_snapshot_fail
+setup_temp_dir
+
+guide_in_rejection_message=false
+
+if grep -q 'large-diff-splitting-guide' "$REVIEW_WORKFLOW" 2>/dev/null; then
+    guide_in_rejection_message=true
+fi
+
+assert_eq "test_workflow_step3_rejection_message_references_guide: REVIEW-WORKFLOW.md rejection message should reference large-diff-splitting-guide" "true" "$guide_in_rejection_message"
+
+teardown_temp_dir
+assert_pass_if_clean "test_workflow_step3_rejection_message_references_guide"
+
+# test_workflow_references_splitting_guide_file
+# Verify that plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md exists.
+# RED: The file does not exist yet (will be created in T5).
+_snapshot_fail
+setup_temp_dir
+
+SPLITTING_GUIDE="$REPO_ROOT/plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md"
+splitting_guide_exists=false
+
+if [[ -f "$SPLITTING_GUIDE" ]]; then
+    splitting_guide_exists=true
+fi
+
+assert_eq "test_workflow_references_splitting_guide_file: plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md should exist" "true" "$splitting_guide_exists"
+
+teardown_temp_dir
+assert_pass_if_clean "test_workflow_references_splitting_guide_file"
+
+# ============================================================
 # Summary
 # ============================================================
 

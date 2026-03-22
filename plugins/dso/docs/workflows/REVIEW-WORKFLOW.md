@@ -243,7 +243,50 @@ Task tool:
     {issue_context}
 ```
 
-**No post-return copy step is needed** — each agent writes directly to its unique slot path, eliminating the parallel write race condition. The opus architectural reviewer (see downstream task) consumes all three slot files (`reviewer-findings-{a,b,c}.json`).
+**No post-return copy step is needed** — each agent writes directly to its unique slot path, eliminating the parallel write race condition. The opus arch reviewer consumes all three slot files (`reviewer-findings-a.json`, `reviewer-findings-b.json`, `reviewer-findings-c.json`) after all sonnet agents complete.
+
+### Deep Tier: Opus Architectural Review (after 3 parallel sonnet agents complete)
+
+After all 3 parallel sonnet agents complete and their temp findings files are saved, dispatch the opus architectural reviewer `dso:code-reviewer-deep-arch`. This agent runs sequentially after the sonnet agents, not in parallel — it synthesizes their specialist findings into the authoritative final reviewer-findings.json.
+
+**Single-writer invariant**: Only the arch reviewer (opus) writes the final authoritative `reviewer-findings.json` for deep tier reviews. The sonnet agents write only to their temp slot paths (`reviewer-findings-{a,b,c}.json`). This single-writer invariant ensures the final findings file is a coherent synthesis, not a race-condition artifact.
+
+**Step 1: Read findings from each sonnet temp file:**
+
+```bash
+FINDINGS_A=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings-a.json')); print(json.dumps(d['findings']))")
+FINDINGS_B=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings-b.json')); print(json.dumps(d['findings']))")
+FINDINGS_C=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings-c.json')); print(json.dumps(d['findings']))")
+```
+
+**Step 2: Dispatch `dso:code-reviewer-deep-arch` (model: opus) with inline sonnet findings:**
+
+```
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-arch"
+  description: "Deep architectural review (opus) — synthesize sonnet findings"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+
+    === SONNET-A FINDINGS (correctness) ===
+    {FINDINGS_A}
+    === SONNET-B FINDINGS (verification) ===
+    {FINDINGS_B}
+    === SONNET-C FINDINGS (hygiene/design) ===
+    {FINDINGS_C}
+```
+
+**Step 3: The deep-arch agent writes the final authoritative `reviewer-findings.json`** — this is the sole writer of the final findings file for deep tier. Extract `REVIEWER_HASH` from the arch agent's output for use in Step 5.
+
+**Step 4: Pass `REVIEWER_HASH` from the opus arch agent output to `record-review.sh` in Step 5** — not the REVIEWER_HASH from any of the sonnet agents.
 
 **Retry on malformed output:** If the sub-agent does not return the fixed format (`REVIEW_RESULT:`, `REVIEWER_HASH=`, etc.) or does not include `REVIEWER_HASH=`, re-dispatch with a correction prompt. Never fabricate scores.
 
@@ -252,6 +295,8 @@ Task tool:
 ## Step 5: Record Review
 
 **Prerequisite**: You MUST have a sub-agent result from Step 4. If you do not have a Task tool result to reference, STOP — you skipped Step 4.
+
+**Deep tier note**: For deep tier reviews, `REVIEWER_HASH` comes from the opus arch agent (`dso:code-reviewer-deep-arch`) output — not from any of the 3 sonnet agents. The arch agent is the sole writer of the final `reviewer-findings.json`, so its `REVIEWER_HASH` is the one that `record-review.sh` must validate.
 
 ### Extract sub-agent output
 

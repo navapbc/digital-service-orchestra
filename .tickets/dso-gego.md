@@ -1,6 +1,6 @@
 ---
 id: dso-gego
-status: open
+status: in_progress
 deps: [dso-spfe]
 links: []
 created: 2026-03-22T17:44:41Z
@@ -63,3 +63,49 @@ File impact:
 **2026-03-22T19:17:34Z**
 
 CHECKPOINT 0/6: SESSION_END — Not started. Resume with /dso:sprint w21-ykic --resume
+
+<!-- note-id: jdmyntaj -->
+<!-- timestamp: 2026-03-22T20:11:10Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 7yns47kn -->
+<!-- timestamp: 2026-03-22T20:11:40Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — 4 RED tests confirmed in test-review-workflow-classifier-dispatch.sh (opus arch reviewer section). REVIEW-WORKFLOW.md Step 4 Deep Tier section ends at line 246 with a note about the arch reviewer consuming temp files.
+
+<!-- note-id: 90jvozfn -->
+<!-- timestamp: 2026-03-22T20:11:50Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (none required — RED tests already written by dso-spfe in tests/hooks/test-review-workflow-classifier-dispatch.sh) ✓
+
+<!-- note-id: 18s73phm -->
+<!-- timestamp: 2026-03-22T20:49:01Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — Added opus arch reviewer dispatch section to REVIEW-WORKFLOW.md Step 4 Deep Tier, including: FINDINGS_A/B/C extraction, dso:code-reviewer-deep-arch dispatch with inline sonnet findings, single-writer invariant documentation, REVIEWER_HASH note. Updated Step 5 with deep tier REVIEWER_HASH provenance note.
+
+<!-- note-id: j38o7or0 -->
+<!-- timestamp: 2026-03-22T20:49:08Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — tests/run-all.sh: 55 passed, 0 failed; test-review-workflow-classifier-dispatch.sh: 18 passed (4 new GREEN from dso-spfe, 5 RED from w22-hwmo remain out-of-scope); ruff check: all passed; ruff format: 84 files already formatted. All 7 AC criteria verified.
+
+<!-- note-id: qtx2w12n -->
+<!-- timestamp: 2026-03-22T20:49:13Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓
+
+**2026-03-22T21:02:03Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/docs/workflows/REVIEW-WORKFLOW.md (modified). Tests: pass.

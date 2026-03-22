@@ -176,6 +176,11 @@ parse_failing_tests_from_output() {
         | sed 's/[[:space:]]*:[[:space:]]*FAIL//' \
         || true
 
+    # Bash-style (assert_pass_if_clean): "FAIL: test_name" on stderr merged into output
+    grep -oE '^FAIL: [a-zA-Z_][a-zA-Z0-9_-]*' "$output_file" \
+        | sed 's/^FAIL: //' \
+        || true
+
     # Pytest-style: "FAILED path/to/test.py::test_name"
     grep -oE '^FAILED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*' "$output_file" \
         | sed 's/^FAILED [^:]*:://' \
