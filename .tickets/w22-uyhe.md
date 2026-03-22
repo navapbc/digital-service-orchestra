@@ -82,3 +82,33 @@ Add Step 3 post-classifier branching to `plugins/dso/docs/workflows/REVIEW-WORKF
   Verify: grep -q "REVIEW_AGENT_OVERRIDE" $(git rev-parse --show-toplevel)/plugins/dso/docs/workflows/REVIEW-WORKFLOW.md && grep -A5 "REVIEW_AGENT_OVERRIDE" $(git rev-parse --show-toplevel)/plugins/dso/docs/workflows/REVIEW-WORKFLOW.md | grep -q "REVIEW_AGENT"
 - [ ] Rejection branch outputs `REVIEW_RESULT: rejected` line before `exit 1` (gap analysis finding: callers must parse structured output, not only exit code)
   Verify: grep -A3 "size_action.*reject\|SIZE_ACTION.*reject" $(git rev-parse --show-toplevel)/plugins/dso/docs/workflows/REVIEW-WORKFLOW.md | grep -q "REVIEW_RESULT"
+
+## Notes
+
+**2026-03-22T21:54:23Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T21:54:50Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-22T21:54:51Z**
+
+CHECKPOINT 3/6: Tests written (none required — w22-8g9v RED tests should turn GREEN) ✓
+
+**2026-03-22T21:55:40Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-22T22:05:05Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-22T22:05:20Z**
+
+CHECKPOINT 6/6: Done ✓
+
+**2026-03-22T22:05:38Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: REVIEW-WORKFLOW.md, .test-index. 5 RED tests now GREEN.

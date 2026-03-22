@@ -127,7 +127,44 @@ fi
 echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 ```
 
-Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. Do not override the classifier's tier selection.
+### Step 3b: Size-Based Branching (post-classifier)
+
+After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or is rejected. See `plugins/dso/docs/contracts/classifier-size-output.md` for the full contract.
+
+```bash
+# Extract size fields from classifier output (defaults match failure contract)
+SIZE_ACTION=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","none"))' 2>/dev/null || echo "none")
+IS_MERGE=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "false")
+DIFF_SIZE_LINES=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("diff_size_lines",0))' 2>/dev/null || echo "0")
+
+# REVIEW_PASS_NUM tracks initial vs re-review passes.
+# Pass 1 = initial review dispatch; pass >= 2 = re-review from Autonomous Resolution Loop.
+# Size limits apply ONLY to pass 1. The Autonomous Resolution Loop caller must set
+# REVIEW_PASS_NUM before invoking this workflow for re-review passes.
+REVIEW_PASS_NUM="${REVIEW_PASS_NUM:-1}"
+
+# Merge commits bypass size limits entirely (contract: is_merge_commit always checked first)
+# Re-review passes (REVIEW_PASS_NUM >= 2) bypass size limits (re-review exemption rule)
+if [[ "$IS_MERGE" != "true" ]] && [[ "$REVIEW_PASS_NUM" -le 1 ]]; then
+    # Size action branching (initial review, non-merge only)
+    if [[ "$SIZE_ACTION" == "upgrade" ]]; then
+        # Upgrade model to opus at current tier's checklist scope
+        REVIEW_AGENT_OVERRIDE="dso:code-reviewer-deep-arch"  # opus model
+        echo "SIZE_UPGRADE: diff has ${DIFF_SIZE_LINES} scorable lines — upgrading to opus reviewer at ${REVIEW_TIER} tier scope"
+    fi
+
+    if [[ "$SIZE_ACTION" == "reject" ]]; then
+        echo "REVIEW_RESULT: rejected"
+        echo "REVIEW_REJECTED: diff has ${DIFF_SIZE_LINES} scorable lines (≥600 threshold)."
+        echo "Large diffs exhaust reviewer context and degrade review quality."
+        echo "Split your changes into smaller commits before re-running review."
+        echo "Guidance: plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md"
+        exit 1
+    fi
+fi
+```
+
+Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OVERRIDE` is set (size upgrade case), Step 4 dispatch uses `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT`. Do not override the classifier's tier selection.
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
@@ -164,11 +201,16 @@ If no issue is associated with the current work, omit the issue context section.
 
 ### Dispatch (Light / Standard Tiers)
 
-For `light` and `standard` tiers, dispatch a single named review agent:
+For `light` and `standard` tiers, dispatch a single named review agent. When `REVIEW_AGENT_OVERRIDE` is set (from the size upgrade path in Step 3b), use `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT` — this ensures the opus upgrade takes effect at the current tier's scope:
+
+```bash
+# Resolve the dispatch agent — REVIEW_AGENT_OVERRIDE takes precedence when set
+DISPATCH_AGENT="${REVIEW_AGENT_OVERRIDE:-$REVIEW_AGENT}"
+```
 
 ```
 Task tool:
-  subagent_type: "{REVIEW_AGENT from Step 3}"
+  subagent_type: "{DISPATCH_AGENT — i.e., REVIEW_AGENT_OVERRIDE if set, else REVIEW_AGENT from Step 3}"
   description: "Review code changes"
   prompt: |
     Review the code changes for this commit.
