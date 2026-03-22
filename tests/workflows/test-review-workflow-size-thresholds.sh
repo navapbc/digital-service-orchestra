@@ -223,6 +223,146 @@ test_workflow_step3_no_change_when_size_action_none() {
 }
 
 # ============================================================
+# Integration test helpers
+# ============================================================
+
+# _generate_diff_lines(n, file_path)
+# Generates a minimal unified diff with exactly n added lines in a non-test source file.
+_generate_diff_lines() {
+    local n="$1"
+    local file_path="${2:-src/feature.py}"
+    printf 'diff --git a/%s b/%s\nnew file mode 100644\nindex 0000000..abc1234\n--- /dev/null\n+++ b/%s\n@@ -0,0 +1,%d @@\n' \
+        "$file_path" "$file_path" "$file_path" "$n"
+    local i
+    for (( i=0; i<n; i++ )); do
+        printf '+# line %d\n' "$i"
+    done
+}
+
+# _simulate_step3b_from_classifier_json(classifier_json, review_pass_num)
+# Implements Step 3b shell branching logic from REVIEW-WORKFLOW.md using the classifier JSON.
+#
+# Outputs (environment variables):
+#   REVIEW_AGENT_OVERRIDE — set to opus agent when size_action=upgrade (non-merge, pass 1)
+#   STEP3B_REVIEW_RESULT  — set to "rejected" when size_action=reject (non-merge, pass 1)
+#   STEP3B_REJECTION_MSG  — human-readable rejection message when STEP3B_REVIEW_RESULT=rejected
+_simulate_step3b_from_classifier_json() {
+    local classifier_json="$1"
+    local review_pass_num="${2:-1}"
+
+    # Reset outputs
+    REVIEW_AGENT_OVERRIDE=""
+    STEP3B_REVIEW_RESULT=""
+    STEP3B_REJECTION_MSG=""
+
+    local size_action is_merge diff_size_lines
+    size_action=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","none"))' 2>/dev/null || echo "none")
+    is_merge=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "false")
+    diff_size_lines=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("diff_size_lines",0))' 2>/dev/null || echo "0")
+
+    # Merge commits and re-review passes bypass size limits
+    if [[ "$is_merge" != "true" ]] && [[ "$review_pass_num" -le 1 ]]; then
+        if [[ "$size_action" == "upgrade" ]]; then
+            REVIEW_AGENT_OVERRIDE="dso:code-reviewer-deep-arch"
+        fi
+        if [[ "$size_action" == "reject" ]]; then
+            STEP3B_REVIEW_RESULT="rejected"
+            STEP3B_REJECTION_MSG="REVIEW_RESULT: rejected
+REVIEW_REJECTED: diff has ${diff_size_lines} scorable lines (>=600 threshold).
+Large diffs exhaust reviewer context and degrade review quality.
+Split your changes into smaller commits before re-running review.
+Guidance: plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md"
+        fi
+    fi
+
+    return 0
+}
+
+# ============================================================
+# Integration test functions (3 GREEN integration tests)
+# ============================================================
+
+test_integration_upgrade_path_end_to_end() {
+    # End-to-end: pipe a 300-line non-test diff through the classifier,
+    # capture size_action, then run Step 3b logic and assert REVIEW_AGENT_OVERRIDE
+    # is set to the opus agent.
+    _snapshot_fail
+
+    local diff_input classifier_json size_action_actual
+    diff_input=$(_generate_diff_lines 300)
+    classifier_json=$(echo "$diff_input" | "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+
+    # Verify classifier produced valid JSON with size_action=upgrade
+    size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_integration_upgrade_path_end_to_end: classifier returns size_action=upgrade for 300-line diff" \
+        "upgrade" "$size_action_actual"
+
+    # Run Step 3b branching logic
+    _simulate_step3b_from_classifier_json "$classifier_json" 1
+    assert_eq "test_integration_upgrade_path_end_to_end: REVIEW_AGENT_OVERRIDE is set to opus agent" \
+        "dso:code-reviewer-deep-arch" "$REVIEW_AGENT_OVERRIDE"
+    assert_eq "test_integration_upgrade_path_end_to_end: STEP3B_REVIEW_RESULT is not rejected (upgrade path)" \
+        "" "$STEP3B_REVIEW_RESULT"
+
+    assert_pass_if_clean "test_integration_upgrade_path_end_to_end"
+}
+
+test_integration_reject_path_end_to_end() {
+    # End-to-end: pipe a 600-line diff through the classifier, capture size_action,
+    # run Step 3b logic, assert rejection message contains "large-diff-splitting-guide.md"
+    # and STEP3B_REVIEW_RESULT is "rejected".
+    _snapshot_fail
+
+    local diff_input classifier_json size_action_actual
+    diff_input=$(_generate_diff_lines 600)
+    classifier_json=$(echo "$diff_input" | "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+
+    # Verify classifier produced valid JSON with size_action=reject
+    size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_integration_reject_path_end_to_end: classifier returns size_action=reject for 600-line diff" \
+        "reject" "$size_action_actual"
+
+    # Run Step 3b branching logic
+    _simulate_step3b_from_classifier_json "$classifier_json" 1
+    assert_eq "test_integration_reject_path_end_to_end: STEP3B_REVIEW_RESULT is rejected" \
+        "rejected" "$STEP3B_REVIEW_RESULT"
+    assert_contains "test_integration_reject_path_end_to_end: rejection message contains large-diff-splitting-guide.md" \
+        "large-diff-splitting-guide.md" "$STEP3B_REJECTION_MSG"
+
+    assert_pass_if_clean "test_integration_reject_path_end_to_end"
+}
+
+test_integration_merge_commit_bypass_end_to_end() {
+    # End-to-end: pipe a 600-line diff with MOCK_MERGE_HEAD=1 through the classifier,
+    # verify is_merge_commit=true in classifier output, and confirm Step 3b logic
+    # does NOT set STEP3B_REVIEW_RESULT to rejected.
+    _snapshot_fail
+
+    local diff_input classifier_json is_merge_actual size_action_actual
+    diff_input=$(_generate_diff_lines 600)
+    classifier_json=$(echo "$diff_input" | MOCK_MERGE_HEAD=1 "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+
+    # Verify classifier produced valid JSON with is_merge_commit=true
+    is_merge_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: classifier returns is_merge_commit=true with MOCK_MERGE_HEAD=1" \
+        "true" "$is_merge_actual"
+
+    # Verify size_action is none (merge bypass applied at classifier level)
+    size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: classifier returns size_action=none for merge commit (bypass at classifier)" \
+        "none" "$size_action_actual"
+
+    # Run Step 3b branching logic — merge commit must not be rejected
+    _simulate_step3b_from_classifier_json "$classifier_json" 1
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: STEP3B_REVIEW_RESULT is not rejected for merge commit" \
+        "" "$STEP3B_REVIEW_RESULT"
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: REVIEW_AGENT_OVERRIDE not set for merge commit" \
+        "" "$REVIEW_AGENT_OVERRIDE"
+
+    assert_pass_if_clean "test_integration_merge_commit_bypass_end_to_end"
+}
+
+# ============================================================
 # Run all tests
 # ============================================================
 test_workflow_step3_upgrade_when_size_action_is_upgrade
@@ -234,5 +374,11 @@ echo ""
 test_workflow_step3_merge_commit_bypass
 echo ""
 test_workflow_step3_no_change_when_size_action_none
+echo ""
+test_integration_upgrade_path_end_to_end
+echo ""
+test_integration_reject_path_end_to_end
+echo ""
+test_integration_merge_commit_bypass_end_to_end
 echo ""
 print_summary

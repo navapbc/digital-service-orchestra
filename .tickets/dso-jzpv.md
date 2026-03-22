@@ -1,6 +1,6 @@
 ---
 id: dso-jzpv
-status: open
+status: in_progress
 deps: [dso-7hj9, dso-gego, dso-xx59]
 links: []
 created: 2026-03-22T17:45:19Z
@@ -46,3 +46,49 @@ This is an integration test task (crosses file system boundary). Does not requir
 **2026-03-22T19:17:34Z**
 
 CHECKPOINT 0/6: SESSION_END — Not started. Resume with /dso:sprint w21-ykic --resume
+
+<!-- note-id: is4njd18 -->
+<!-- timestamp: 2026-03-22T22:08:49Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: p9duzayl -->
+<!-- timestamp: 2026-03-22T22:09:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — validate-review-output.sh uses hygiene/design/maintainability/correctness/verification dimensions; write-reviewer-findings.sh pipes JSON and returns SHA256; record-review.sh reads from ARTIFACTS_DIR/reviewer-findings.json and requires --reviewer-hash; test uses WORKFLOW_PLUGIN_ARTIFACTS_DIR env var for isolation
+
+<!-- note-id: 5mac73d1 -->
+<!-- timestamp: 2026-03-22T22:11:24Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — added test_deep_tier_sonnet_to_opus_handoff_schema_passes_validation to tests/hooks/test-review-workflow-classifier-dispatch.sh
+
+<!-- note-id: yame1le9 -->
+<!-- timestamp: 2026-03-22T22:12:19Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — test_deep_tier_sonnet_to_opus_handoff_schema_passes_validation PASS
+
+<!-- note-id: 0twjl2db -->
+<!-- timestamp: 2026-03-22T22:22:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — test_deep_tier_sonnet_to_opus_handoff_schema_passes_validation PASS; ruff check/format both exit 0; grep AC verified
+
+<!-- note-id: zgfs4ebv -->
+<!-- timestamp: 2026-03-22T22:23:10Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All AC verify commands pass. Pre-existing run-all.sh failures (test_workflow_step3_checks_model_override_field, test_workflow_step3_rejection_only_on_initial_dispatch, test-doc-migration) are RED markers from prior stories, not introduced by this task.
+
+**2026-03-22T22:23:37Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: test-review-workflow-classifier-dispatch.sh. Integration test passes.

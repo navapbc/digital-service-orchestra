@@ -1,6 +1,6 @@
 ---
 id: w22-dzuq
-status: open
+status: in_progress
 deps: [w22-uyhe, w22-4mgj]
 links: []
 created: 2026-03-22T20:02:57Z
@@ -46,3 +46,33 @@ Write integration tests that verify the complete flow from a diff input through 
   Verify: grep -q "test_integration_reject_path_end_to_end" $(git rev-parse --show-toplevel)/tests/workflows/test-review-workflow-size-thresholds.sh
 - [ ] Integration test for merge commit bypass verifies no rejection
   Verify: grep -q "test_integration_merge_commit_bypass_end_to_end" $(git rev-parse --show-toplevel)/tests/workflows/test-review-workflow-size-thresholds.sh
+
+## Notes
+
+**2026-03-22T22:08:54Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T22:09:37Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — classifier outputs size_action+is_merge_commit; Step 3b reads them; upgrade→REVIEW_AGENT_OVERRIDE=dso:code-reviewer-deep-arch; reject→REVIEW_RESULT: rejected + large-diff-splitting-guide.md; merge bypass skips size routing
+
+**2026-03-22T22:10:28Z**
+
+CHECKPOINT 3/6: Tests written ✓ — 3 integration tests added: test_integration_upgrade_path_end_to_end, test_integration_reject_path_end_to_end, test_integration_merge_commit_bypass_end_to_end
+
+**2026-03-22T22:10:33Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — integration tests call real classifier binary, pipe actual diffs, then run Step 3b shell logic simulation to verify branching decisions end-to-end
+
+**2026-03-22T22:13:50Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — all AC verifications pass: run-all (workflow suite), ruff check, ruff format, 3 integration tests GREEN, all 3 function names present
+
+**2026-03-22T22:13:59Z**
+
+CHECKPOINT 6/6: Done ✓ — self-check complete; no ! bang negation in AC Verify commands; all ACs satisfied
+
+**2026-03-22T22:23:37Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: test-review-workflow-size-thresholds.sh. 3 integration tests pass.
