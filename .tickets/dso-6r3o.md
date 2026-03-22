@@ -1,6 +1,6 @@
 ---
 id: dso-6r3o
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T19:16:51Z
@@ -38,3 +38,12 @@ parent: dso-uu13
 - [Testing] Test file tests/scripts/test-bulk-delete-stale-tickets.sh must be deleted alongside the script
 - [Reliability] Confirmed no other scripts invoke ci-create-failure-bug.sh or bulk-delete-stale-tickets.sh
 
+
+## Notes
+
+<!-- note-id: 6h84826z -->
+<!-- timestamp: 2026-03-22T20:08:32Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: deleted ci-create-failure-bug.sh, bulk-delete-stale-tickets.sh, test file; removed CI job from workflows

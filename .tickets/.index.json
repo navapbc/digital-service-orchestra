@@ -25,7 +25,7 @@
   "dso-6r3o": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "As a developer, the CI auto-ticket-creation pattern is fully removed",
     "type": "story"
   },
@@ -41,7 +41,7 @@
       "dso-6r3o"
     ],
     "priority": 2,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Update project docs to reflect CI ticket removal",
     "type": "story"
   },
@@ -69,7 +69,7 @@
   "dso-uu13": {
     "deps": [],
     "priority": 1,
-    "status": "in_progress",
+    "status": "closed",
     "title": "Remove CI ticket creation pattern",
     "type": "epic"
   }
