@@ -1,6 +1,6 @@
 ---
 id: dso-yx0j
-status: in_progress
+status: closed
 deps: [dso-c9p5]
 links: []
 created: 2026-03-22T00:58:28Z

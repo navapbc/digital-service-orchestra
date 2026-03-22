@@ -1,6 +1,6 @@
 ---
 id: w21-pqsy
-status: in_progress
+status: closed
 deps: [w21-81hy]
 links: []
 created: 2026-03-22T00:58:50Z
