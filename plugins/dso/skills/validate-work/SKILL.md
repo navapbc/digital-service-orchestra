@@ -335,6 +335,21 @@ If Local checks = WARN:
 | Database not running | Run the project's database start command (see `database.ensure_cmd` in config) |
 | Unpushed commits | Push with `git push` before expecting CI/staging updates |
 
+## Read-Only Enforcement
+
+All sub-agents dispatched by this skill are read-only. The orchestrator MUST NOT instruct sub-agents to fix any issue it discovers, and sub-agents MUST NOT use modifying tools or commands regardless of how the situation is framed.
+
+**Sub-agents must STOP and report — never fix. Prohibited tools and commands for all sub-agents:**
+- **Edit** — forbidden. Sub-agents must not edit any file.
+- **Write** — forbidden. Sub-agents must not write any file.
+- **Bash with modifying commands** — forbidden:
+  - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
+  - `tk close`, `tk status`, `tk update`, `tk create`
+  - `make`, `pip install`, `npm install`, `poetry install`
+  - Any command that changes system state
+
+Each prompt file in `prompts/` contains a `## READ-ONLY ENFORCEMENT` section with this hard-stop language. If a sub-agent rationalizes fixing a problem ("it's a quick fix", "it will save time"), that is a violation — it must TERMINATE its turn and report the finding instead.
+
 ## Important Constraints
 
 - **Never fix issues** — this skill is verification-only

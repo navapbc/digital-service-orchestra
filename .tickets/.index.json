@@ -76,6 +76,26 @@
     "title": "As a DSO practitioner, model selection is a decision table and reference/recovery content is in a single section",
     "type": "story"
   },
+<<<<<<< HEAD
+=======
+  "dso-4lbf": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED: Write failing tests for .test-index parsing and union merge in test-pre-commit-test-gate.sh",
+    "type": "task"
+  },
+  "dso-4mlr": {
+    "deps": [
+      "dso-fj1t",
+      "dso-4u0s"
+    ],
+    "priority": 3,
+    "status": "open",
+    "title": "Update project docs to reflect RED test gate tolerance",
+    "type": "story"
+  },
+>>>>>>> origin/main
   "dso-4nm5": {
     "deps": [],
     "priority": 4,
@@ -89,6 +109,15 @@
     "status": "open",
     "title": "Cleanup tests",
     "type": "epic"
+  },
+  "dso-4u0s": {
+    "deps": [
+      "dso-fj1t"
+    ],
+    "priority": 2,
+    "status": "open",
+    "title": "As a developer, epic closure is blocked until all RED markers are removed from .test-index",
+    "type": "story"
   },
   "dso-5ooy": {
     "deps": [
@@ -230,6 +259,13 @@
     "title": "Add a workflow-config flag that creates PRs instead of merging to main",
     "type": "epic"
   },
+  "dso-d3gr": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED Test Gate Tolerance",
+    "type": "epic"
+  },
   "dso-d8gi": {
     "deps": [
       "dso-x1jt",
@@ -256,6 +292,26 @@
     "title": "Add full autonomous mode session override",
     "type": "epic"
   },
+<<<<<<< HEAD
+=======
+  "dso-fhfi": {
+    "deps": [
+      "dso-wqt4",
+      "dso-o1u2"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "IMPL: Rewrite pre-commit-test-gate.sh to use fuzzy-match.sh for multi-stack test association",
+    "type": "task"
+  },
+  "dso-fj1t": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "As a developer, record-test-status.sh tolerates failures in RED-flagged test zones",
+    "type": "story"
+  },
+>>>>>>> origin/main
   "dso-fucm": {
     "deps": [],
     "priority": 4,
@@ -643,6 +699,7 @@
     "title": "test-batched.sh state file not isolated by repo/worktree \u2014 causes cross-session interference",
     "type": "bug"
   },
+<<<<<<< HEAD
   "w20-fxpu": {
     "deps": [],
     "priority": 3,
@@ -674,6 +731,20 @@
   },
   "w20-w7pm": {
     "deps": [],
+=======
+  "w20-keta": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Bug: sprint-next-batch.sh overlap detector treats AC Verify commands as file impacts",
+    "type": "bug"
+  },
+  "w21-05z9": {
+    "deps": [
+      "w21-6k7v",
+      "w21-8011"
+    ],
+>>>>>>> origin/main
     "priority": 1,
     "status": "open",
     "title": "Validation sub-agents in /dso:validate-work fix errors instead of only reporting them",

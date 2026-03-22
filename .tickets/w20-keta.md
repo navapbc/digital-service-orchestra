@@ -1,6 +1,6 @@
 ---
 id: w20-keta
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-21T16:55:05Z
@@ -25,3 +25,12 @@ Every ready task overlaps via shared test runner commands, producing batch size 
 ## Impact
 Reduces sprint throughput from 5 tasks/batch to 1 task/batch.
 
+
+## Notes
+
+<!-- note-id: 2a5vphaw -->
+<!-- timestamp: 2026-03-22T01:52:25Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: AC_LINE_RE filter in extract_files() strips AC Verify lines before file path extraction (sprint-next-batch.sh:329-332); committed in 7b9dad4 alongside dso-dsa8; Test 13 in tests/scripts/test-sprint-next-batch.sh validates the fix (batch_size=2, skipped_overlap=0 for two tasks sharing AC Verify command)
