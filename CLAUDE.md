@@ -72,7 +72,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 ### Never Do These
 1. **Never close tasks before CI passes** — fix if you broke it; create tracking issue if pre-existing.
 2. **Never use `--no-verify`** without human approval. Pre-commit hooks: format-check (Ruff), lint (Ruff/MyPy). If hooks fail: `make format` for formatting; fix lint manually.
-3. **Tracking issues are auto-created** by commit-failure-tracker hook. Create manually for failures validation won't catch. Duplicates OK; gaps not.
+3. **Create tracking issues** for ALL failures discovered, even "infrastructure" ones
 4. **Never use `app/` in paths when CWD is `app/`** — use `src/`, `tests/` directly. When CWD is the repo root, `app/` prefix is required. `.claude/` is always at the repo root; plugin scripts are at `plugins/dso/scripts/`. (This is this project's convention; `app/` is configured via `paths.app_dir` in `.claude/dso-config.conf` and is project-specific, not a universal plugin requirement.)
 5. **Never skip issue validation after creating issues or adding deps** — run `validate-issues.sh --quick --terse`.
 6. **Never create more than 5 sub-agents at a time** — batch into groups of 5.

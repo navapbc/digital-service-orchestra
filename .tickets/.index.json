@@ -22,11 +22,27 @@
     "title": "As a DSO practitioner, deprecated sub-agent templates have consistent anti-cover-up guidance",
     "type": "story"
   },
+  "dso-6r3o": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "As a developer, the CI auto-ticket-creation pattern is fully removed",
+    "type": "story"
+  },
   "dso-917w": {
     "deps": [],
     "priority": 1,
     "status": "open",
     "title": "As a DSO practitioner, sub-agents receive comprehensive anti-cover-up guidance in active prompt templates",
+    "type": "story"
+  },
+  "dso-fqye": {
+    "deps": [
+      "dso-6r3o"
+    ],
+    "priority": 2,
+    "status": "in_progress",
+    "title": "Update project docs to reflect CI ticket removal",
     "type": "story"
   },
   "dso-jjli": {
@@ -42,5 +58,19 @@
     "status": "open",
     "title": "Sub-agents create tickets with type 'task' instead of 'bug' when tracking discovered bugs",
     "type": "bug"
+  },
+  "dso-ptzz": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "sprint-next-batch.sh treats tk dep blockers as file conflicts, preventing non-overlapping tasks from batching",
+    "type": "bug"
+  },
+  "dso-uu13": {
+    "deps": [],
+    "priority": 1,
+    "status": "in_progress",
+    "title": "Remove CI ticket creation pattern",
+    "type": "epic"
   }
 }
