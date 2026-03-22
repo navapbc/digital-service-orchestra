@@ -1,6 +1,6 @@
 ---
 id: dso-i867
-status: open
+status: in_progress
 deps: [dso-3mb3]
 links: []
 created: 2026-03-22T15:43:49Z
@@ -52,3 +52,33 @@ Files:
 - [ ] ruff format --check passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/skills/
 
+
+## Notes
+
+**2026-03-22T16:21:24Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T16:22:09Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — SKILL.md Step 5 has 3 sub-sections; need to add Suite Placement after CI Guard Analysis section. .test-index line 70 exists but does not yet include test_project_setup_suite_placement.py
+
+**2026-03-22T16:22:16Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓ — test_project_setup_suite_placement.py has 7 tests checking for: coverage detection, placement prompts (fast-gate/separate/skip), ci_placement config, non-interactive fallback, append-to-existing, new workflow file creation, YAML validation
+
+**2026-03-22T16:22:50Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — Added Suite Placement for Uncovered Suites sub-section to Step 5 of SKILL.md with all 7 required sub-sections: coverage detection, placement prompt, non-interactive fallback, incorporated definition, YAML validation
+
+**2026-03-22T16:22:59Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — All 7 tests in test_project_setup_suite_placement.py pass GREEN
+
+**2026-03-22T16:23:32Z**
+
+CHECKPOINT 6/6: Done ✓ — All 9 acceptance criteria pass. SKILL.md updated with Suite Placement section. .test-index updated to include test_project_setup_suite_placement.py (no RED marker). 7/7 tests GREEN.
+
+**2026-03-22T16:29:14Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/skills/project-setup/SKILL.md, .test-index. Tests: 7 GREEN.

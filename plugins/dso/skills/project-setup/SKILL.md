@@ -565,6 +565,95 @@ When a guard key is `false`, the analysis emits a recommendation:
 
 In dryrun mode these messages are prefixed with `[dryrun][ci-guard]`.
 
+### Suite Placement for Uncovered Suites
+
+After guard analysis, identify which test suites detected by `project-detect.sh` are not yet covered by any CI workflow step. Then offer to place each uncovered suite into CI.
+
+#### COVERAGE DETECTION
+
+Parse each `.github/workflows/*.yml` file and collect all `run:` values from every workflow step. A suite is **covered** if its command string appears as a substring of any step's `run:` value. `uses:` steps (reusable workflow references) are treated as uncovered — they are not inspected for suite commands.
+
+```bash
+# For each detected suite, check if suite.command is a substring of any step run: value
+# Suites with no matching run: substring are 'uncovered'
+# uses: steps are skipped (treated as uncovered)
+```
+
+A suite is **uncovered** when its command does not appear as a substring in any `run:` value across all workflow files.
+
+#### PLACEMENT PROMPT
+
+For each uncovered suite (one at a time), prompt the user with three options using `AskUserQuestion`:
+
+```
+Uncovered suite: <suite-name> (command: <suite.command>)
+
+How would you like to place this suite in CI?
+
+1) fast-gate  — append a new job to the existing gating workflow (e.g. ci.yml)
+               Job ID derived from suite name: unit → test-unit
+               Job template: checkout → setup runtime → run command
+2) separate   — create a new workflow file (.github/workflows/ci-<suitename>.yml)
+               Triggered on push to main; suite is the sole job
+3) skip       — record test.suite.<name>.ci_placement=skip in .claude/dso-config.conf
+               Suite will not be prompted again on subsequent runs
+
+Enter 1, 2, or 3:
+```
+
+Handle each selection:
+
+- **Option 1 (fast-gate)**: Append to the existing gating workflow (e.g., `ci.yml`). Add a new job whose ID is derived from the suite name (e.g., `unit` → `test-unit`). The job template contains: checkout step, setup runtime step, and a step that runs `<suite.command>`. Validate YAML before writing (see YAML Validation below).
+- **Option 2 (separate)**: Create a new workflow file at `.github/workflows/ci-<suitename>.yml` with the suite as its sole job, triggered on push to main. Validate YAML before writing (see YAML Validation below).
+- **Option 3 (skip)**: Write `test.suite.<name>.ci_placement=skip` to `.claude/dso-config.conf` (add or update the key). Do not write any workflow file.
+
+#### NON-INTERACTIVE FALLBACK
+
+When running in non-interactive mode (`test -t 0` returns false), apply defaults automatically without prompting:
+
+- **fast suites** (`speed_class=fast`) → fast-gate (append to the existing ci.yml)
+- **slow or unknown suites** (`speed_class=slow` or `speed_class=unknown`) → separate workflow (create new file)
+- The skip option is unavailable in non-interactive mode
+
+```bash
+if ! test -t 0; then
+  # non-interactive: apply default placement
+  if [ "$speed_class" = "fast" ]; then
+    placement="fast-gate"
+  else
+    placement="separate"
+  fi
+fi
+```
+
+#### INCORPORATED DEFINITION
+
+A suite is **incorporated** when its workflow file or job has been written to disk AND `git add` has been run on the file. Both conditions must be met before the suite is considered incorporated.
+
+#### YAML VALIDATION
+
+Before writing any workflow file (whether appending to an existing file for fast-gate, or creating a new file for separate), validate the YAML output:
+
+1. Write the YAML content to a temporary path (e.g., `<dest>.tmp`).
+2. Validate the temporary file:
+   - If `actionlint` is on PATH: run `actionlint <tmpfile>`. Exit non-zero blocks the write.
+   - Otherwise: run `python3 -c "import yaml; yaml.safe_load(open('<tmpfile>'))"`. Exit non-zero blocks the write.
+3. If validation passes: move the temporary file to the final destination path.
+4. If validation fails: print the error, remove the temporary file, and do not write the workflow file. Report the failure to the user.
+
+```bash
+# temp path → validate → move pattern
+TMPFILE="${DEST}.tmp"
+write_yaml_to "$TMPFILE"
+if command -v actionlint >/dev/null 2>&1; then
+  actionlint "$TMPFILE" || { rm -f "$TMPFILE"; echo "YAML validation failed (actionlint)"; exit 1; }
+else
+  python3 -c "import yaml; yaml.safe_load(open('$TMPFILE'))" || { rm -f "$TMPFILE"; echo "YAML validation failed (yaml.safe_load)"; exit 1; }
+fi
+mv "$TMPFILE" "$DEST"
+git add "$DEST"
+```
+
 ### Dryrun Preview
 
 In dryrun mode, `dso-setup.sh` prints a preview of the actions it would take for each file. The skill should surface this output as part of the Step 4 dryrun preview (see Step 4). No files are written or modified in dryrun mode.

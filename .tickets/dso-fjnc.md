@@ -1,6 +1,6 @@
 ---
 id: dso-fjnc
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T15:44:50Z
