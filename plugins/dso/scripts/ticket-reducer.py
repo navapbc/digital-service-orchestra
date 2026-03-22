@@ -223,6 +223,7 @@ def reduce_ticket(
         "parent_id": None,
         "comments": [],
         "deps": [],
+        "bridge_alerts": [],
     }
 
     valid_event_count = 0
@@ -346,6 +347,40 @@ def reduce_ticket(
             state["deps"] = [
                 d for d in state["deps"] if d.get("link_uuid") != link_uuid_to_remove
             ]
+        elif event_type == "BRIDGE_ALERT":
+            # Normalize reason: prefer data.alert_type (inbound format), fall back to
+            # data.reason (outbound format), then data.detail, then empty string.
+            reason = (
+                data.get("alert_type") or data.get("reason") or data.get("detail") or ""
+            )
+            if data.get("resolved"):
+                # Resolution event: mark the referenced alert as resolved.
+                # resolves_uuid (test contract) takes precedence over alert_uuid (ticket spec).
+                target_uuid = data.get("resolves_uuid") or data.get("alert_uuid")
+                matched = False
+                for existing in state["bridge_alerts"]:
+                    if existing.get("uuid") == target_uuid:
+                        existing["resolved"] = True
+                        matched = True
+                if not matched:
+                    # No matching alert found — record the resolution event itself
+                    state["bridge_alerts"].append(
+                        {
+                            "uuid": event_uuid,
+                            "reason": reason,
+                            "timestamp": event.get("timestamp"),
+                            "resolved": True,
+                        }
+                    )
+            else:
+                state["bridge_alerts"].append(
+                    {
+                        "uuid": event_uuid,
+                        "reason": reason,
+                        "timestamp": event.get("timestamp"),
+                        "resolved": False,
+                    }
+                )
         elif event_type == "SNAPSHOT":
             compiled_state = data.get("compiled_state", {})
             # Restore compiled state from snapshot
