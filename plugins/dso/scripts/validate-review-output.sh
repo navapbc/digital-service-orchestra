@@ -9,7 +9,7 @@ set -euo pipefail
 #   validate-review-output.sh --list-callers
 #
 # Prompt IDs and their schema hashes:
-#   code-review-dispatch   6c0b61af0ff149ee   (reviewer-findings.json schema)
+#   code-review-dispatch   d2c2c0f6c66b4ae5   (reviewer-findings.json schema)
 #   review-protocol        3053fa9a43e12b79   (REVIEW-SCHEMA.md base structure)
 #   plan-review            9dba6875b85b7bc3   (structured text verdict format)
 #
@@ -46,7 +46,7 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 
 # --- Prompt-level schema hashes ---
-HASH_CODE_REVIEW_DISPATCH="6c0b61af0ff149ee"
+HASH_CODE_REVIEW_DISPATCH="d2c2c0f6c66b4ae5"
 HASH_REVIEW_PROTOCOL="3053fa9a43e12b79"
 HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
@@ -214,7 +214,7 @@ scores = data.get("scores")
 if not isinstance(scores, dict):
     errors.append("'scores' must be an object")
 else:
-    required_dims = ["code_hygiene", "object_oriented_design", "readability", "functionality", "testing_coverage"]
+    required_dims = ["hygiene", "design", "maintainability", "correctness", "verification"]
     for dim in required_dims:
         if dim not in scores:
             errors.append(f"missing score dimension: '{dim}'")
@@ -235,7 +235,7 @@ elif not isinstance(findings, list):
     errors.append("'findings' must be an array")
 else:
     valid_severities = {"critical", "important", "minor"}
-    valid_categories = {"code_hygiene", "object_oriented_design", "readability", "functionality", "testing_coverage"}
+    valid_categories = {"hygiene", "design", "maintainability", "correctness", "verification"}
     for i, finding in enumerate(findings):
         prefix = f"findings[{i}]"
         if not isinstance(finding, dict):

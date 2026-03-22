@@ -1,6 +1,6 @@
 ---
 id: w22-vea4
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T13:19:56Z

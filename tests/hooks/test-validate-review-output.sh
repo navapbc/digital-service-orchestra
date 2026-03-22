@@ -202,11 +202,11 @@ assert_ne \
 
 VALID_CRD_FILE=$(write_fixture "valid-crd.json" '{
   "scores": {
-    "code_hygiene": 4,
-    "object_oriented_design": 4,
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": 3
+    "hygiene": 4,
+    "design": 4,
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": 3
   },
   "findings": [],
   "summary": "Code is well-structured and tests are adequate."
@@ -227,16 +227,16 @@ assert_contains \
 # code-review-dispatch: valid with N/A scores and findings
 VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
   "scores": {
-    "code_hygiene": 1,
-    "object_oriented_design": 4,
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": "N/A"
+    "hygiene": 1,
+    "design": 4,
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": "N/A"
   },
   "findings": [
     {
       "severity": "critical",
-      "category": "code_hygiene",
+      "category": "hygiene",
       "description": "Syntax error in module",
       "file": "app/src/broken.py"
     }
@@ -257,11 +257,11 @@ assert_eq \
 # Missing required top-level key 'summary'
 MISSING_SUMMARY_FILE=$(write_fixture "missing-summary.json" '{
   "scores": {
-    "code_hygiene": 4,
-    "object_oriented_design": 4,
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": 4
+    "hygiene": 4,
+    "design": 4,
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": 4
   },
   "findings": []
 }')
@@ -274,10 +274,10 @@ assert_ne \
 # Missing required score dimension
 MISSING_DIM_FILE=$(write_fixture "missing-dim.json" '{
   "scores": {
-    "code_hygiene": 4,
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": 4
+    "hygiene": 4,
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": 4
   },
   "findings": [],
   "summary": "A sufficiently long summary string here."
@@ -291,11 +291,11 @@ assert_ne \
 # Score out of valid range (1-5)
 OUT_OF_RANGE_FILE=$(write_fixture "out-of-range.json" '{
   "scores": {
-    "code_hygiene": 6,
-    "object_oriented_design": 4,
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": 4
+    "hygiene": 6,
+    "design": 4,
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": 4
   },
   "findings": [],
   "summary": "A sufficiently long summary string here."
@@ -309,11 +309,11 @@ assert_ne \
 # Unexpected extra top-level key
 EXTRA_KEY_FILE=$(write_fixture "extra-key.json" '{
   "scores": {
-    "code_hygiene": 4,
-    "object_oriented_design": 4,
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": 4
+    "hygiene": 4,
+    "design": 4,
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": 4
   },
   "findings": [],
   "summary": "A sufficiently long summary string here.",
@@ -708,19 +708,19 @@ assert_eq \
 
 OLD_DIM_FILE=$(write_fixture "old-dim.json" '{
   "scores": {
-    "functionality": 4,
-    "testing_coverage": 3,
-    "code_hygiene": 4,
-    "object_oriented_design": 4,
-    "readability": 5
+    "invalid_dim_a": 4,
+    "invalid_dim_b": 3,
+    "invalid_dim_c": 4,
+    "invalid_dim_d": 4,
+    "invalid_dim_e": 5
   },
   "findings": [],
-  "summary": "Old dimension names should be rejected after rename."
+  "summary": "Unknown dimension names should be rejected by the validator."
 }')
 
 OLD_DIM_EXIT=$(run_script code-review-dispatch "$OLD_DIM_FILE")
 assert_ne \
-    "test_old_dimension_names_rejected: old dimension names (functionality/testing_coverage/code_hygiene/object_oriented_design/readability) are rejected" \
+    "test_old_dimension_names_rejected: unknown dimension names are rejected" \
     "0" \
     "$OLD_DIM_EXIT"
 

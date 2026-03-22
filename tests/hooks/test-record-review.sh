@@ -41,7 +41,7 @@ run_hook_exit() {
 # No --reviewer-hash → exit 1
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 EXIT_CODE=$(run_hook_exit)
 assert_ne "test_record_review_exits_nonzero_without_reviewer_hash" "0" "$EXIT_CODE"
 
@@ -55,7 +55,7 @@ assert_ne "test_record_review_exits_nonzero_without_findings_file" "0" "$EXIT_CO
 # Wrong hash → exit 1
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 EXIT_CODE=$(run_hook_exit --reviewer-hash "0000000000000000000000000000000000000000000000000000000000000000")
 assert_ne "test_record_review_exits_nonzero_on_hash_mismatch" "0" "$EXIT_CODE"
 
@@ -72,7 +72,7 @@ assert_ne "test_record_review_exits_nonzero_on_missing_scores" "0" "$EXIT_CODE"
 # Findings file without summary → exit 1
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[]}' > "$FINDINGS_FILE"
+echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[]}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
 assert_ne "test_record_review_exits_nonzero_on_missing_summary" "0" "$EXIT_CODE"
@@ -81,7 +81,7 @@ assert_ne "test_record_review_exits_nonzero_on_missing_summary" "0" "$EXIT_CODE"
 # Score of 6 → exit 1
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"code_hygiene":6,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"Score out of range test review"}' > "$FINDINGS_FILE"
+echo '{"scores":{"hygiene":6,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"Score out of range test review"}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=$(run_hook_exit --reviewer-hash "$HASH")
 assert_ne "test_record_review_exits_nonzero_on_score_out_of_range" "0" "$EXIT_CODE"
@@ -90,7 +90,7 @@ assert_ne "test_record_review_exits_nonzero_on_score_out_of_range" "0" "$EXIT_CO
 # Piped stdin should be drained without error (backward compat)
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=0
 echo "some old stdin json" | bash "$HOOK" --reviewer-hash "$HASH" 2>/dev/null || EXIT_CODE=$?
@@ -143,7 +143,7 @@ assert_eq \
 # ---------------------------------------------------------------------------
 cleanup
 mkdir -p "$ARTIFACTS_DIR"
-echo '{"scores":{"code_hygiene":5,"object_oriented_design":5,"readability":5,"functionality":5,"testing_coverage":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
+echo '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}' > "$FINDINGS_FILE"
 HASH=$(shasum -a 256 "$FINDINGS_FILE" | awk '{print $1}')
 EXIT_CODE=0
 bash "$HOOK" "--reviewer-hash=${HASH}" 2>/dev/null || EXIT_CODE=$?

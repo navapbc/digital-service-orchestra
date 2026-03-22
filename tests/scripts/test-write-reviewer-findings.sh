@@ -34,16 +34,16 @@ trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
 # Valid findings JSON
 VALID_JSON='{
   "scores": {
-    "code_hygiene": 5,
-    "object_oriented_design": "N/A",
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": 5
+    "hygiene": 5,
+    "design": "N/A",
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": 5
   },
   "findings": [
     {
       "severity": "minor",
-      "category": "readability",
+      "category": "maintainability",
       "description": "Test finding",
       "file": "test.py"
     }
@@ -54,7 +54,7 @@ VALID_JSON='{
 # Invalid JSON (missing required score dimensions)
 INVALID_JSON='{
   "scores": {
-    "code_hygiene": 5
+    "hygiene": 5
   },
   "findings": [],
   "summary": "Incomplete scores"
@@ -63,11 +63,11 @@ INVALID_JSON='{
 # Invalid JSON (out-of-range score value)
 OUT_OF_RANGE_JSON='{
   "scores": {
-    "code_hygiene": 5,
-    "object_oriented_design": "N/A",
-    "readability": 10,
-    "functionality": 4,
-    "testing_coverage": 5
+    "hygiene": 5,
+    "design": "N/A",
+    "maintainability": 10,
+    "correctness": 4,
+    "verification": 5
   },
   "findings": [],
   "summary": "Score 10 is out of range (max is 5)."
@@ -167,14 +167,14 @@ assert_eq "test_write_new_dimension_names_accepted" "0" "$new_exit_code"
 # Piping JSON with OLD dimension names should exit 1 (validator rejects them).
 OLD_DIM_JSON='{
   "scores": {
-    "functionality": 4,
-    "testing_coverage": 5,
-    "code_hygiene": 4,
-    "object_oriented_design": 4,
-    "readability": 5
+    "invalid_dim_a": 4,
+    "invalid_dim_b": 5,
+    "invalid_dim_c": 4,
+    "invalid_dim_d": 4,
+    "invalid_dim_e": 5
   },
   "findings": [],
-  "summary": "Old dimension names should be rejected after rename."
+  "summary": "Unknown dimension names should be rejected by the validator."
 }'
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 echo "$OLD_DIM_JSON" | "$SCRIPT" 2>/dev/null && old_exit_code=0 || old_exit_code=$?
