@@ -1,6 +1,6 @@
 ---
 id: w22-uyhe
-status: in_progress
+status: closed
 deps: [w22-t2nm, w22-8g9v]
 links: []
 created: 2026-03-22T20:01:55Z
