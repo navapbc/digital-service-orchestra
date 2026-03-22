@@ -1,6 +1,6 @@
 ---
 id: w22-zdwx
-status: open
+status: in_progress
 deps: [w22-zggi, w22-4s5q]
 links: []
 created: 2026-03-22T07:02:17Z
@@ -34,3 +34,29 @@ Implement build-review-agents.sh that composes reviewer-base.md + per-agent delt
   Verify: grep -qE 'sha256sum|shasum' $(git rev-parse --show-toplevel)/plugins/dso/scripts/build-review-agents.sh
 - [ ] Hash algorithm is documented in a comment: specifies concatenation order (base content + newline + delta content) so T7 staleness check can reproduce it exactly
   Verify: grep -q 'content-hash\|hash.*base.*delta\|HASH_ALGORITHM' $(git rev-parse --show-toplevel)/plugins/dso/scripts/build-review-agents.sh
+
+## Notes
+
+**2026-03-22T11:13:51Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T11:14:18Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-22T11:14:26Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-22T11:15:11Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-22T11:15:28Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-22T11:50:57Z**
+
+CHECKPOINT 6/6: Done ✓
