@@ -1873,6 +1873,13 @@
     "title": "Update project docs to reflect conditional security and performance review overlays",
     "type": "story"
   },
+  "w22-9wrx": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Bug: test-merge-to-main-ucq2.sh flakes in full suite (race condition in temp dir cleanup)",
+    "type": "bug"
+  },
   "w22-agl5": {
     "deps": [
       "w22-2avn",
@@ -1894,10 +1901,17 @@
     "title": "CI workflow generation from discovered test suites",
     "type": "epic"
   },
+  "w22-g4ao": {
+    "deps": [],
+    "priority": 2,
+    "status": "closed",
+    "title": "Bug: test-check-script-writes.sh flakes in full suite (shfmt availability race)",
+    "type": "bug"
+  },
   "w22-j22e": {
     "deps": [],
     "priority": 2,
-    "status": "open",
+    "status": "closed",
     "title": "Bug: preplanning uses ambiguous confirmation questions where yes/no answers conflict",
     "type": "bug"
   },

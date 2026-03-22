@@ -1,6 +1,6 @@
 ---
 id: dso-xrna
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-22T21:45:07Z
@@ -13,3 +13,19 @@ parent: w22-ns6l
 
 All 36 failures are in ci-generator test files (test-ci-generator.sh, test-ci-generator-integration.sh, test-ci-generator-dogfooding.sh). Tests pass locally (2550/2550) but fail in CI (2488 pass, 36 fail). Likely environment difference - actionlint or yaml validation tool availability on CI runner.
 
+
+## Notes
+
+<!-- note-id: fwnrnmxr -->
+<!-- timestamp: 2026-03-22T22:19:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Fixed: validate_yaml() graceful degradation + pyyaml in CI deps
+
+<!-- note-id: 70ydb96f -->
+<!-- timestamp: 2026-03-22T22:19:06Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: ci-generator.sh validate_yaml graceful degradation when no validator available

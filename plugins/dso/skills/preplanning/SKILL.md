@@ -579,9 +579,6 @@ Summary:
 Next Steps:
 1. Review the story dashboard above
 2. Confirm priorities and dependencies make sense
-3. Approve to sync to tickets, or request adjustments
-
-Does this plan fully capture your vision and the necessary technical safeguards? Should we adjust any priorities before I finalize this in the ticket system?
 ```
 
 Use `AskUserQuestion` to get user approval:

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SKILL_DIR="${CLAUDE_PLUGIN_ROOT}/skills/preplanning"
+SKILL_DIR="${REPO_ROOT}/plugins/dso/skills/preplanning"
 RED_TEAM="$SKILL_DIR/prompts/red-team-review.md"
 BLUE_TEAM="$SKILL_DIR/prompts/blue-team-review.md"
 SKILL_MD="$SKILL_DIR/SKILL.md"
@@ -94,6 +94,18 @@ for amendment in "new_story|new story" "modify_done_definition|done def" "add_de
     fail "SKILL.md missing amendment type: $amendment"
   fi
 done
+
+echo ""
+echo "=== Step 5 unambiguous confirmation ==="
+# The Step 5 final review prompt must NOT contain paired contradictory questions
+# where 'yes' means approval for one but disapproval for the other.
+# The prose template block should not contain both "capture your vision" and
+# "Should we adjust" in the same sentence — this creates a yes/no ambiguity.
+if grep -q "Should we adjust any priorities before I finalize" "$SKILL_MD"; then
+  fail "Step 5 contains ambiguous paired question 'Should we adjust any priorities before I finalize' — remove it; AskUserQuestion handles approval unambiguously"
+else
+  pass "Step 5 does not contain ambiguous paired confirmation question"
+fi
 
 echo ""
 echo "=== Results ==="
