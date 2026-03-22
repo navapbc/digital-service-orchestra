@@ -1,6 +1,6 @@
 ---
 id: w22-anm2
-status: open
+status: closed
 deps: [w22-528r]
 links: []
 created: 2026-03-21T16:50:59Z

@@ -87,13 +87,6 @@
     "title": "Display BRIDGE_ALERT health warning in ticket-show.sh and ticket-list.sh output",
     "type": "task"
   },
-  "dso-2bmc": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "Add descriptive agent name guidance to /dso:debug-everything dispatch points",
-    "type": "task"
-  },
   "dso-2dxt": {
     "deps": [],
     "parent": "w22-ns6l",
@@ -189,22 +182,6 @@
     "title": "Conditional Security & Performance Review Overlays",
     "type": "epic"
   },
-  "dso-5rya": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "Add descriptive agent name guidance to /dso:sprint dispatch points",
-    "type": "task"
-  },
-  "dso-6026": {
-    "deps": [
-      "dso-917w"
-    ],
-    "priority": 2,
-    "status": "open",
-    "title": "As a DSO practitioner, deprecated sub-agent templates have consistent anti-cover-up guidance",
-    "type": "story"
-  },
   "dso-60uy": {
     "deps": [
       "dso-ed01",
@@ -216,18 +193,11 @@
     "title": "Add REVERT to ticket-lib.sh allowed event_type enum and create ticket-revert.sh",
     "type": "task"
   },
-  "dso-6r3o": {
-    "deps": [],
-    "priority": 1,
-    "status": "closed",
-    "title": "As a developer, the CI auto-ticket-creation pattern is fully removed",
-    "type": "story"
-  },
   "dso-6x8o": {
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "Bug: record-test-status.sh allows re-recording with stale test results — hash updated without re-running tests",
+    "title": "Bug: record-test-status.sh allows re-recording with stale test results \u2014 hash updated without re-running tests",
     "type": "bug"
   },
   "dso-7n6c": {
@@ -264,13 +234,6 @@
     "status": "open",
     "title": "Extract review and evaluation sub-agents into dedicated plugin agents",
     "type": "epic"
-  },
-  "dso-917w": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "As a DSO practitioner, sub-agents receive comprehensive anti-cover-up guidance in active prompt templates",
-    "type": "story"
   },
   "dso-94ya": {
     "deps": [],
@@ -514,15 +477,6 @@
     "title": "Implement bridge-inbound.py: inbound Jira comment pull with dual-key dedup",
     "type": "task"
   },
-  "dso-fqye": {
-    "deps": [
-      "dso-6r3o"
-    ],
-    "priority": 2,
-    "status": "closed",
-    "title": "Update project docs to reflect CI ticket removal",
-    "type": "story"
-  },
   "dso-fucm": {
     "deps": [],
     "priority": 4,
@@ -668,13 +622,6 @@
     "title": "GREEN: Add abbreviated clarification loop to HOOK-INJECTION.md",
     "type": "task"
   },
-  "dso-jjli": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "merge-to-main.sh 'merge' phase name misleads agents into thinking code is on main",
-    "type": "bug"
-  },
   "dso-khl2": {
     "deps": [],
     "priority": 2,
@@ -697,7 +644,7 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Optimize /dso:sprint skill — prune bloat, merge phases, remove Task tracking",
+    "title": "Optimize /dso:sprint skill \u2014 prune bloat, merge phases, remove Task tracking",
     "type": "epic"
   },
   "dso-lm92": {
@@ -802,13 +749,6 @@
     "title": "Fix: add test for source-file-is-test-file edge case in fuzzy-match tests",
     "type": "bug"
   },
-  "dso-pcgh": {
-    "deps": [],
-    "priority": 1,
-    "status": "open",
-    "title": "Sub-agents create tickets with type 'task' instead of 'bug' when tracking discovered bugs",
-    "type": "bug"
-  },
   "dso-psan": {
     "deps": [
       "w22-45i1",
@@ -823,14 +763,7 @@
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "Bug: stat -f || stat -c fallback pattern broken on Linux — stat -f succeeds with wrong semantics",
-    "type": "bug"
-  },
-  "dso-ptzz": {
-    "deps": [],
-    "priority": 2,
-    "status": "open",
-    "title": "sprint-next-batch.sh treats tk dep blockers as file conflicts, preventing non-overlapping tasks from batching",
+    "title": "Bug: stat -f || stat -c fallback pattern broken on Linux \u2014 stat -f succeeds with wrong semantics",
     "type": "bug"
   },
   "dso-pwt7": {
@@ -840,7 +773,7 @@
     ],
     "priority": 2,
     "status": "open",
-    "title": "Integration test: full discover → generate → validate → write workflow for new project",
+    "title": "Integration test: full discover \u2192 generate \u2192 validate \u2192 write workflow for new project",
     "type": "task"
   },
   "dso-pxos": {
@@ -1138,7 +1071,7 @@
     "deps": [],
     "priority": 1,
     "status": "closed",
-    "title": "test-batched.sh state file not isolated by repo/worktree — causes cross-session interference",
+    "title": "test-batched.sh state file not isolated by repo/worktree \u2014 causes cross-session interference",
     "type": "bug"
   },
   "w20-fxpu": {
@@ -1153,7 +1086,7 @@
     "parent": "w22-ku13",
     "priority": 3,
     "status": "open",
-    "title": "generate-test-index.sh broader scan is O(n*m) — extremely slow on repos with many files",
+    "title": "generate-test-index.sh broader scan is O(n*m) \u2014 extremely slow on repos with many files",
     "type": "task"
   },
   "w20-keta": {
@@ -1167,7 +1100,7 @@
     "deps": [],
     "priority": 2,
     "status": "open",
-    "title": "Multiple [LOCK] tickets for debug-everything — no cleanup after session ends",
+    "title": "Multiple [LOCK] tickets for debug-everything \u2014 no cleanup after session ends",
     "type": "bug"
   },
   "w20-w7pm": {
@@ -1208,7 +1141,7 @@
     "deps": [],
     "priority": 1,
     "status": "open",
-    "title": "Ticket system v3 — migration from tk and cutover",
+    "title": "Ticket system v3 \u2014 migration from tk and cutover",
     "type": "epic"
   },
   "w21-25mq": {
@@ -1307,7 +1240,7 @@
     ],
     "priority": 1,
     "status": "closed",
-    "title": "Ticket system v3 — dependency management, cross-worktree sync, and conflict resolution",
+    "title": "Ticket system v3 \u2014 dependency management, cross-worktree sync, and conflict resolution",
     "type": "epic"
   },
   "w21-5mr1": {
@@ -1410,7 +1343,7 @@
     ],
     "priority": 1,
     "status": "closed",
-    "title": "Ticket system v3 — Jira bridge and LLM-optimized output",
+    "title": "Ticket system v3 \u2014 Jira bridge and LLM-optimized output",
     "type": "epic"
   },
   "w21-chse": {
@@ -1485,7 +1418,7 @@
     "parent": "dso-9xnr",
     "priority": 3,
     "status": "open",
-    "title": "dso-setup.sh supplement_template_file uses cat for append — not in _make_tool_path fake PATH",
+    "title": "dso-setup.sh supplement_template_file uses cat for append \u2014 not in _make_tool_path fake PATH",
     "type": "bug"
   },
   "w21-epz2": {
