@@ -2,7 +2,7 @@
 id: dso-8l5h
 status: open
 deps: []
-links: []
+links: [dso-5ooy]
 created: 2026-03-21T18:37:37Z
 type: epic
 priority: 2

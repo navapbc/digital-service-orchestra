@@ -16,3 +16,9 @@ One flag should indicate that the project has no UI, causing any references to d
 One flag should indicate that this project will be handling sensitive information (PII, PHI, CFI). This should trigger an additional step in the sprint skill, debug everything skill, and end session skill: a specialized sub-agent using opus that performs a security review of all commits before they are merged to main. This review should be skipped if there is nothing to merge. 
 One flag should indicate that this is a hybrid project where changes will be made by both human and AI developers. When this flag is present, the workflow should be modified to replace merging to main with a PR process. This will mean that merge-to-main will need a second workflow that creates a PR instead of merging. Any workflow like debug everything or sprint that waits on CI completion will need to be modified to look for CI completion for the PR branch instead of main. When implementing this flag, we could carefully consider other workflow impacts of using PRs instead of merging directly to main.
 
+
+## Notes
+
+**2026-03-22T05:52:46Z**
+
+The sensitive-info security review flag originally scoped in this epic has been superseded by dso-5ooy (Conditional Security & Performance Review Overlays), which provides classifier-triggered conditional security review rather than a blanket project-level flag. This epic retains two remaining flags: no-UI skip and hybrid PR mode.
