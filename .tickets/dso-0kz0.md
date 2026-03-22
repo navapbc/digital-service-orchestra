@@ -1,6 +1,6 @@
 ---
 id: dso-0kz0
-status: open
+status: closed
 deps: [dso-7wks]
 links: []
 created: 2026-03-22T01:59:48Z
@@ -37,3 +37,33 @@ test-exempt: static assets only — markdown agent guidance with no executable a
 - [ ] Task 1 SKILL.md tests pass (GREEN)
   Verify: bash $(git rev-parse --show-toplevel)/tests/skills/test-using-lockpick-clarification.sh 2>&1 | grep -q 'FAIL' && exit 1 || true
 
+
+## Notes
+
+**2026-03-22T03:08:22Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-22T03:08:35Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-22T03:08:35Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-22T03:09:18Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-22T03:09:18Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-22T03:16:05Z**
+
+CHECKPOINT 6/6: Done ✓
+
+**2026-03-22T03:19:08Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/skills/using-lockpick/SKILL.md. Tests: 10 pass (SKILL.md), 3 fail (HOOK-INJECTION.md — expected).

@@ -30,3 +30,17 @@ Process skills first (`/dso:brainstorm`, `/dso:fix-bug` for bug fixes, `/dso:tdd
 ## User Instructions
 
 Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+
+## When No Skill Matches
+
+**Silent Investigation**: Before asking anything, read code, tickets (`tk show`), git history, CLAUDE.md, and memory to gather context that already exists.
+
+**Confidence Test**: Ask yourself: can I state in one sentence what I will do and why? If yes, proceed. If no, enter the clarification loop.
+
+**Clarification Loop**: Ask one question per message. Use multiple-choice options when possible. Focus on one probing area at a time:
+
+- **(a) Intent** — what outcome does the user want? Ask what success looks like.
+- **(b) Scope** — how much should change, what else might be affected? Ask what boundary the change should stay within.
+- **(c) Risks** — what could break or go wrong, what constraints exist? Ask what concerns or side effects to avoid.
+
+**Exit Condition**: Once the confidence test passes, proceed immediately. Do not request explicit confirmation.
