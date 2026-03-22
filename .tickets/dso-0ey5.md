@@ -1,6 +1,6 @@
 ---
 id: dso-0ey5
-status: in_progress
+status: closed
 deps: [dso-9mvn, dso-1dws]
 links: []
 created: 2026-03-22T15:44:28Z

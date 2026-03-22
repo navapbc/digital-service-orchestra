@@ -1,6 +1,6 @@
 ---
 id: dso-87p7
-status: open
+status: in_progress
 deps: [dso-fjnc, dso-0ey5]
 links: []
 created: 2026-03-22T15:45:13Z
@@ -58,3 +58,51 @@ Also depends on dso-0ey5 (complete ci-generator.sh) — SKILL.md invokes the ful
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/skills/test-project-setup-ci-generation.sh; test $? -eq 0
 - [ ] Skill file is valid markdown
   Verify: test -f $(git rev-parse --show-toplevel)/plugins/dso/skills/project-setup/SKILL.md
+
+## Notes
+
+<!-- note-id: zlk7ret5 -->
+<!-- timestamp: 2026-03-22T17:26:11Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: 6rip4ps1 -->
+<!-- timestamp: 2026-03-22T17:35:29Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+<!-- note-id: vn2hn8gv -->
+<!-- timestamp: 2026-03-22T17:35:38Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓
+
+<!-- note-id: 7eqal01e -->
+<!-- timestamp: 2026-03-22T17:36:29Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+<!-- note-id: svm3mx72 -->
+<!-- timestamp: 2026-03-22T17:37:01Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓
+
+<!-- note-id: ode1ltx6 -->
+<!-- timestamp: 2026-03-22T17:37:11Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓
+
+**2026-03-22T17:39:18Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: plugins/dso/skills/project-setup/SKILL.md, .test-index. Tests: 5 GREEN.

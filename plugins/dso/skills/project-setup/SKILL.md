@@ -540,8 +540,54 @@ Output messages from `merge_precommit_hooks`:
 
 `dso-setup.sh` handles CI workflows differently from the other file types:
 
-- **No `.github/workflows/*.yml` found**: copies `examples/ci.example.yml` to `.github/workflows/ci.yml` (only if no workflow file exists).
+- **No `.github/workflows/*.yml` found**: generate CI workflows from discovered test suites using `ci-generator.sh` (see "New Project: Generate from Discovered Suites" below).
 - **Workflow file(s) exist**: does **not** copy or modify any workflow file. Instead, runs `_run_ci_guard_analysis` to report missing CI guards.
+
+#### New Project: Generate from Discovered Suites
+
+When no CI workflow files exist, run `project-detect.sh --suites <TARGET_REPO>` to get the discovered suites JSON array, then invoke `ci-generator.sh` to generate CI workflows:
+
+```bash
+# Step 1: Discover test suites
+SUITES_JSON="$(project-detect.sh --suites "$TARGET_REPO")"
+
+# Step 2: If suites discovered (non-empty array), invoke the generator
+if [[ "$SUITES_JSON" != "[]" && -n "$SUITES_JSON" ]]; then
+    # For suites with speed_class=unknown: prompt user (fast/slow/skip, default: slow)
+    # In non-interactive mode, default all unknown to slow
+    NONINTERACTIVE_FLAG=""
+    if ! test -t 0; then
+        NONINTERACTIVE_FLAG="--non-interactive"
+    fi
+
+    # Write suites JSON to a temp file and invoke ci-generator.sh
+    SUITES_TMP="$(mktemp)"
+    printf '%s' "$SUITES_JSON" > "$SUITES_TMP"
+    ci-generator.sh \
+        --suites-json "$SUITES_TMP" \
+        --output-dir "$TARGET_REPO/.github/workflows/" \
+        $NONINTERACTIVE_FLAG
+    rm -f "$SUITES_TMP"
+
+    # ci-generator.sh handles YAML validation internally (actionlint or yaml.safe_load)
+    # and exits non-zero on failure — surface any error to the user.
+    # Report generated files:
+    #   "Generated .github/workflows/ci.yml (N fast suites)"  (if fast suites exist)
+    #   "Generated .github/workflows/ci-slow.yml (N slow suites)"  (if slow suites exist)
+else
+    # Step 3: No suites discovered — fall back to copying the generic CI template
+    # (only if no workflow file exists)
+    mkdir -p "$TARGET_REPO/.github/workflows/"
+    cp "$DSO_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+    echo "No test suites discovered — copied generic CI template. Review and customize .github/workflows/ci.yml."
+fi
+```
+
+**speed_class=unknown prompting**: When a discovered suite has `speed_class=unknown`, `ci-generator.sh` prompts the user interactively:
+```
+Suite '<name>' has unknown speed_class. Classify as [f]ast/[s]low/[k]ip (default: slow):
+```
+In non-interactive mode (`--non-interactive` flag or `CI_NONINTERACTIVE=1`), all suites with `speed_class=unknown` are defaulted to slow without prompting.
 
 #### DETECT_ env var contract for CI guard analysis
 
@@ -672,7 +718,9 @@ The following changes will be made to <TARGET_REPO>:
   - will merge DSO hooks into .pre-commit-config.yaml  (if .pre-commit-config.yaml exists)
   - will copy pre-commit-config.example.yaml → <TARGET_REPO>/.pre-commit-config.yaml  (if absent)
   - will run CI guard analysis and report missing guards  (if CI workflow files exist)
-  - will copy ci.example.yml → <TARGET_REPO>/.github/workflows/ci.yml  (only if no CI workflow exists)
+  - will generate .github/workflows/ci.yml from N fast suites  (if suites discovered and fast suites exist)
+  - will generate .github/workflows/ci-slow.yml from N slow suites  (if suites discovered and slow suites exist)
+  - will copy ci.example.yml → <TARGET_REPO>/.github/workflows/ci.yml (no suites discovered, fallback only)
 ```
 
 Omit any line whose action would be skipped (e.g., if CLAUDE.md already has DSO markers, omit the supplement line).
