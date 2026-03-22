@@ -809,7 +809,7 @@
   "w20-w7pm": {
     "deps": [],
     "priority": 1,
-    "status": "open",
+    "status": "closed",
     "title": "Validation sub-agents in /dso:validate-work fix errors instead of only reporting them",
     "type": "bug"
   },

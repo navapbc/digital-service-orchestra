@@ -28,3 +28,12 @@ Each validation/diagnostic prompt should have a dedicated ## READ-ONLY ENFORCEME
 ## Discovered by
 
 Bug w20-w7pm anti-pattern search (CLAUDE.md rule 9).
+
+## Notes
+
+<!-- note-id: elp3zdbl -->
+<!-- timestamp: 2026-03-22T23:01:54Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Classification: mechanical (pattern replication from w20-w7pm)

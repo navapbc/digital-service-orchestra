@@ -93,3 +93,8 @@ plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scrip
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh
 plugins/dso/scripts/ci-generator.sh:tests/scripts/test-ci-generator.sh,tests/scripts/test-ci-generator-integration.sh
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh
+plugins/dso/skills/debug-everything/prompts/full-validation.md:tests/plugin/test-debug-everything-readonly-enforcement.sh
+plugins/dso/skills/debug-everything/prompts/post-batch-validation.md:tests/plugin/test-debug-everything-readonly-enforcement.sh
+plugins/dso/skills/debug-everything/prompts/tier-transition-validation.md:tests/plugin/test-debug-everything-readonly-enforcement.sh
+plugins/dso/skills/debug-everything/prompts/critic-review.md:tests/plugin/test-debug-everything-readonly-enforcement.sh
+plugins/dso/skills/debug-everything/prompts/diagnostic-and-cluster.md:tests/plugin/test-debug-everything-readonly-enforcement.sh
