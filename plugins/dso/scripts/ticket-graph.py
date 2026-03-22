@@ -423,18 +423,27 @@ def _is_active_link(
     if not os.path.isdir(ticket_dir):
         return False
 
-    # Collect all LINK and UNLINK event files, sorted by filename (= chronological order)
-    link_files = sorted(
-        (("LINK", f) for f in _glob.glob(os.path.join(ticket_dir, "*-LINK.json"))),
-        key=lambda x: os.path.basename(x[1]),
-    )
-    unlink_files = sorted(
-        (("UNLINK", f) for f in _glob.glob(os.path.join(ticket_dir, "*-UNLINK.json"))),
-        key=lambda x: os.path.basename(x[1]),
-    )
+    # Collect all LINK and UNLINK event files and sort with a tie-breaker that
+    # guarantees LINK always replays before UNLINK at the same Unix-second timestamp.
+    # Sort key: (timestamp_segment, event_type_order, full_basename)
+    # - timestamp_segment: first '-'-delimited field preserves chronological order
+    # - event_type_order (LINK=0, UNLINK=1): LINK processes before UNLINK at same second,
+    #   even when the UNLINK filename's UUID sorts alphabetically before the LINK's UUID
+    # - full_basename: stable tiebreaker for remaining ambiguity within same type+timestamp
+    _event_order = {"LINK": 0, "UNLINK": 1}
+    link_files = [
+        ("LINK", f) for f in _glob.glob(os.path.join(ticket_dir, "*-LINK.json"))
+    ]
+    unlink_files = [
+        ("UNLINK", f) for f in _glob.glob(os.path.join(ticket_dir, "*-UNLINK.json"))
+    ]
     all_events = sorted(
         link_files + unlink_files,
-        key=lambda x: os.path.basename(x[1]),
+        key=lambda x: (
+            os.path.basename(x[1]).split("-")[0],
+            _event_order.get(x[0], 99),
+            os.path.basename(x[1]),
+        ),
     )
 
     # Replay events to determine net-active links

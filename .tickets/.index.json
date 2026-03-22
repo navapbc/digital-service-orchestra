@@ -739,7 +739,7 @@
   "dso-h04l": {
     "deps": [],
     "priority": 0,
-    "status": "in_progress",
+    "status": "closed",
     "title": "[LOCK] debug-everything",
     "type": "task"
   },
@@ -822,6 +822,13 @@
     "priority": 1,
     "status": "closed",
     "title": "RED: Write failing tests for .test-index auto-prune and auto-stage in test-pre-commit-test-gate.sh",
+    "type": "task"
+  },
+  "dso-jwan": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "task bug ticket-reducer.py same-second LINK+UNLINK filename sort causes UNLINK to be ignored",
     "type": "task"
   },
   "dso-k7fe": {
@@ -1188,7 +1195,7 @@
   "dso-udy1": {
     "deps": [],
     "priority": 0,
-    "status": "in_progress",
+    "status": "closed",
     "title": "[LOCK] debug-everything",
     "type": "task"
   },
@@ -1704,6 +1711,13 @@
     "title": "Implement config key merge for test.suite.<name> entries",
     "type": "task"
   },
+  "w21-4jzh": {
+    "deps": [],
+    "priority": 3,
+    "status": "closed",
+    "title": "Fix unused imports in test_bridge_outbound.py (ruff F401)",
+    "type": "task"
+  },
   "w21-54wx": {
     "deps": [
       "dso-0k2k"
@@ -1774,7 +1788,7 @@
   "w21-bksy": {
     "deps": [],
     "priority": 4,
-    "status": "open",
+    "status": "closed",
     "title": "Fix: overly broad grep assertion in test_discovers_associated_tests in test-record-test-status.sh",
     "type": "bug"
   },

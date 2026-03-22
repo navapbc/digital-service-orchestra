@@ -1,12 +1,13 @@
 ---
 id: w21-nrpb
 status: open
-deps: []
+deps: [w22-jucp]
 links: []
 created: 2026-03-22T06:51:36Z
 type: bug
 priority: 2
 assignee: Joe Oakhart
+parent: w22-ns6l
 ---
 # Bug: merge-to-main.sh test gate blocks after auto-resolve of .tickets/.index.json conflict
 
@@ -32,3 +33,15 @@ After auto-resolve, merge-to-main.sh should re-run record-test-status.sh before 
 
 ## Workaround
 Manually resolve the merge: git merge origin/main --no-commit, resolve conflicts, run record-test-status.sh, then commit.
+
+**2026-03-22T07:50:58Z**
+
+SAFEGUARDED: fix requires editing protected file(s): plugins/dso/scripts/merge-to-main.sh
+
+**2026-03-22T07:51:12Z**
+
+Tier 7: assigned for Project Health Restoration epic w22-ns6l triage.
+
+**2026-03-22T15:24:37Z**
+
+SAFEGUARD DEFERRED: requires editing plugins/dso/scripts/merge-to-main.sh. Proposed record-test-status.sh fix is mechanically correct but fragile (timeout risk mid-rebase). Deferred to epic w22-jucp for proper rebase-aware test gate design.

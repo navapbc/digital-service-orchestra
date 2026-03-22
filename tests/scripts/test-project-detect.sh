@@ -1226,4 +1226,17 @@ assert_eq "test_project_detect_suites_fixture_acceptance: 4 entries with correct
     "valid" "$_suites_accept_valid"
 assert_pass_if_clean "test_project_detect_suites_fixture_acceptance"
 
+# ── Named test: Usage header documents --suites flag (dso-gxct regression guard) ──
+
+# test_project_detect_header_documents_suites: the script header comment must
+# include --suites in its Usage line and describe it so future edits do not
+# accidentally drop the flag from the documentation.
+_snapshot_fail
+_header_content=$(head -20 "$SCRIPT")
+assert_contains "test_project_detect_header_documents_suites: Usage line includes --suites" \
+    "--suites" "$_header_content"
+assert_contains "test_project_detect_header_documents_suites: header describes --suites flag" \
+    "discover test suites" "$_header_content"
+assert_pass_if_clean "test_project_detect_header_documents_suites"
+
 print_summary
