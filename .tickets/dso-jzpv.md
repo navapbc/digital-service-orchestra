@@ -1,6 +1,6 @@
 ---
 id: dso-jzpv
-status: in_progress
+status: closed
 deps: [dso-7hj9, dso-gego, dso-xx59]
 links: []
 created: 2026-03-22T17:45:19Z

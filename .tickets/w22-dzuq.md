@@ -1,6 +1,6 @@
 ---
 id: w22-dzuq
-status: in_progress
+status: closed
 deps: [w22-uyhe, w22-4mgj]
 links: []
 created: 2026-03-22T20:02:57Z

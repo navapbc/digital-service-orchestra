@@ -1,6 +1,6 @@
 ---
 id: w21-txt8
-status: open
+status: closed
 deps: [w21-jtkr]
 links: []
 created: 2026-03-21T00:02:52Z
