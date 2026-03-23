@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/hooks/test-pre-bash-dispatcher.sh
-# Unit tests for the pre-bash dispatcher and the 7 hook functions it sources.
+# Unit tests for the pre-bash dispatcher and the hook functions it sources.
 #
 # Tests:
 #   test_pre_bash_dispatcher_exits_0_for_exempt_command
@@ -81,13 +81,7 @@ _exit_code=0
 ) 2>/dev/null || _exit_code=$?
 assert_eq "test_pre_bash_dispatcher_non_exit2_codes_pass_through: exit 0 (not blocked)" "0" "$_exit_code"
 
-# ============================================================
-# test_pre_bash_dispatcher_bug_close_guard_blocks_without_reason
-# The bug-close-guard hook must block `tk close` on bug tickets without --reason.
-# ============================================================
-echo "--- test_pre_bash_dispatcher_bug_close_guard_blocks_without_reason ---"
-
-# Create a temp repo with a bug ticket
+# Set up a temp repo used by the cat_command and review_integrity_guard tests below.
 _bug_test_repo=$(mktemp -d)
 _bug_artifacts_dir=$(mktemp -d)
 trap 'rm -rf "$_bug_test_repo" "$_bug_artifacts_dir"' EXIT
@@ -95,30 +89,9 @@ trap 'rm -rf "$_bug_test_repo" "$_bug_artifacts_dir"' EXIT
 git -C "$_bug_test_repo" init -q -b main 2>/dev/null || git -C "$_bug_test_repo" init -q
 git -C "$_bug_test_repo" config user.email "test@test.com"
 git -C "$_bug_test_repo" config user.name "Test"
-# Create initial commit so rev-parse works
 echo "init" > "$_bug_test_repo/README.md"
 git -C "$_bug_test_repo" add README.md
 git -C "$_bug_test_repo" commit -q -m "init"
-
-# Create a bug ticket
-mkdir -p "$_bug_test_repo/.tickets"
-cat > "$_bug_test_repo/.tickets/test-bug-123.md" <<'TICKET'
----
-title: Test bug
-type: bug
-status: open
-priority: 2
----
-A test bug ticket.
-TICKET
-
-_INPUT='{"tool_name":"Bash","tool_input":{"command":"tk close test-bug-123"}}'
-_exit_code=0
-_output=""
-_output=$(cd "$_bug_test_repo" && printf '%s' "$_INPUT" | ARTIFACTS_DIR="$_bug_artifacts_dir" bash "$DISPATCHER" 2>&1) || _exit_code=$?
-assert_eq "test_pre_bash_dispatcher_bug_close_guard_blocks_without_reason: exit 2" "2" "$_exit_code"
-assert_contains "test_pre_bash_dispatcher_bug_close_guard_blocks_without_reason: BLOCKED in output" \
-    "BLOCKED" "$_output"
 
 # ============================================================
 # test_pre_bash_dispatcher_cat_command_exits_0

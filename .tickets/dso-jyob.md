@@ -1,6 +1,6 @@
 ---
 id: dso-jyob
-status: in_progress
+status: closed
 deps: [dso-bdk5, dso-sroj]
 links: []
 created: 2026-03-23T17:34:49Z

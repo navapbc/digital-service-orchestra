@@ -4,7 +4,7 @@
 #   - REPO_ROOT caching (at most 1 git rev-parse --show-toplevel per dispatcher)
 #   - tool_logging removed from all dispatchers
 #   - tool_use_guard removed from all dispatchers
-#   - early-exit guards in bug_close_guard and post-bash validation/cascade
+#   - early-exit guards in post-bash validation/cascade
 #   - validation_gate removed from pre-edit.sh and pre-write.sh
 #   - preserved hooks: exit_144_forensic_logger, review_gate, commit_failure_tracker
 #
@@ -96,60 +96,6 @@ assert_eq "validation_gate removed from pre-edit.sh" "0" "$_found_edit"
 _found_write=0
 grep -q 'validation_gate' "$DISPATCHERS_DIR/pre-write.sh" 2>/dev/null && _found_write=1
 assert_eq "validation_gate removed from pre-write.sh" "0" "$_found_write"
-
-# ============================================================
-# AC: bug_close_guard has early-exit for non-tk commands
-# ============================================================
-echo "--- test_bug_close_guard_early_exit ---"
-_found=0
-grep -q 'tk' "$PRE_BASH_FUNCTIONS" 2>/dev/null && _found=1
-assert_eq "bug_close_guard references tk for early-exit" "1" "$_found"
-
-# ============================================================
-# Behavioral: bug_close_guard still blocks tk close without --reason
-# ============================================================
-echo "--- test_bug_close_guard_still_blocks_without_reason ---"
-
-_bug_test_repo=$(mktemp -d)
-_bug_artifacts_dir=$(mktemp -d)
-_cleanup_dirs=("$_bug_test_repo" "$_bug_artifacts_dir")
-_cleanup() { for d in "${_cleanup_dirs[@]}"; do rm -rf "$d"; done; }
-trap _cleanup EXIT
-
-git -C "$_bug_test_repo" init -q -b main 2>/dev/null || git -C "$_bug_test_repo" init -q
-git -C "$_bug_test_repo" config user.email "test@test.com"
-git -C "$_bug_test_repo" config user.name "Test"
-echo "init" > "$_bug_test_repo/README.md"
-git -C "$_bug_test_repo" add README.md
-git -C "$_bug_test_repo" commit -q -m "init"
-
-mkdir -p "$_bug_test_repo/.tickets"
-cat > "$_bug_test_repo/.tickets/test-bug-123.md" <<'TICKET'
----
-title: Test bug
-type: bug
-status: open
-priority: 2
----
-A test bug ticket.
-TICKET
-
-_INPUT='{"tool_name":"Bash","tool_input":{"command":"tk close test-bug-123"}}'
-_exit_code=0
-_output=""
-_output=$(cd "$_bug_test_repo" && printf '%s' "$_INPUT" | ARTIFACTS_DIR="$_bug_artifacts_dir" bash "$DISPATCHERS_DIR/pre-bash.sh" 2>&1) || _exit_code=$?
-assert_eq "bug_close_guard still blocks without --reason: exit 2" "2" "$_exit_code"
-assert_contains "bug_close_guard still blocks without --reason: BLOCKED" "BLOCKED" "$_output"
-
-# ============================================================
-# Behavioral: bug_close_guard skips early for non-tk commands
-# (should still allow ls, git, etc.)
-# ============================================================
-echo "--- test_bug_close_guard_allows_non_tk_commands ---"
-_INPUT='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
-_exit_code=0
-printf '%s' "$_INPUT" | bash "$DISPATCHERS_DIR/pre-bash.sh" 2>/dev/null || _exit_code=$?
-assert_eq "bug_close_guard allows non-tk commands" "0" "$_exit_code"
 
 # ============================================================
 # Behavioral: post-bash validation/cascade checks still work for test commands

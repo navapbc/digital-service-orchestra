@@ -413,7 +413,6 @@ Configure hooks that fire **before** an action executes and can **block** it. Th
 | `review-gate.sh` | **Review Gate** | Blocks commits without code review. Computes diff hash; stale reviews are rejected. Exempts WIP and emergency saves |
 | `cascade-circuit-breaker.sh` | **Circuit Breaker** | Blocks edits after N consecutive failures. Paired with `track-cascade-failures.sh` (PostToolUse). Forces `/dso:fix-cascade-recovery` skill |
 | `worktree-edit-guard.sh` | **Boundary Guard** | Blocks cross-worktree file edits |
-| `bug-close-guard.sh` | **Boundary Guard** | Blocks closing bugs without a code change |
 | `plan-review-gate.sh` | **Review Gate** | Blocks ExitPlanMode without `/dso:plan-review` |
 | `review-integrity-guard.sh` | **Integrity Guard** | Blocks fabrication of review artifacts |
 

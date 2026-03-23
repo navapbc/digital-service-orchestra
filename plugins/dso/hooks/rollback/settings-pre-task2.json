@@ -80,10 +80,6 @@
           },
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/bug-close-guard.sh"
-          },
-          {
-            "type": "command",
             "command": "cd \"$(git rev-parse --show-toplevel)\" && hooks/run-hook.sh hooks/tool-use-guard.sh"
           },
           {

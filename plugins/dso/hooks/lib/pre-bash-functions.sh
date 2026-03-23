@@ -14,7 +14,6 @@
 #   hook_commit_failure_tracker  — warn at commit time about untracked failures
 #   hook_worktree_bash_guard     — block cd into main repo from worktree
 #   hook_worktree_edit_guard     — block mkdir targeting main repo from worktree
-#   hook_bug_close_guard         — require --reason flag on bug ticket closes
 #   hook_review_integrity_guard  — block direct writes to review-status files
 #   hook_blocked_test_command    — block broad test commands, redirect to validate.sh
 #   hook_tickets_tracker_bash_guard — block Bash commands referencing .tickets-tracker/
@@ -490,79 +489,6 @@ hook_worktree_edit_guard() {
         echo "" >&2
         echo "Edit the file on the worktree branch instead — the merge will propagate it to main." >&2
         trap - ERR; return 2
-    fi
-
-    return 0
-}
-
-# ---------------------------------------------------------------------------
-# hook_bug_close_guard
-# ---------------------------------------------------------------------------
-# PreToolUse hook: enforce --reason flag on bug ticket closes.
-hook_bug_close_guard() {
-    local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"
-    trap 'printf "{\"ts\":\"%s\",\"hook\":\"bug-close-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
-
-    # Early-exit: skip unless command contains 'tk' (substring match)
-    if [[ "$INPUT" != *"tk"* ]]; then
-        return 0
-    fi
-
-    local COMMAND
-    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
-    if [[ -z "$COMMAND" ]]; then
-        return 0
-    fi
-
-    # Only act on `tk close` commands
-    if ! [[ "$COMMAND" =~ tk[[:space:]]+close[[:space:]]+([^[:space:]]+) ]]; then
-        return 0
-    fi
-    local TICKET_ID="${BASH_REMATCH[1]}"
-
-    # Find ticket file
-    local REPO_ROOT
-    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-    if [[ -z "$REPO_ROOT" ]]; then
-        return 0
-    fi
-
-    local TICKET_FILE=""
-    if [[ -f "$REPO_ROOT/.tickets/${TICKET_ID}.md" ]]; then
-        TICKET_FILE="$REPO_ROOT/.tickets/${TICKET_ID}.md"
-    else
-        TICKET_FILE=$(find "$REPO_ROOT/.tickets" -maxdepth 1 -name "*${TICKET_ID}.md" ! -name "*${TICKET_ID}.*.*" 2>/dev/null | head -1)
-    fi
-
-    if [[ -z "$TICKET_FILE" ]] || [[ ! -f "$TICKET_FILE" ]]; then
-        return 0
-    fi
-
-    # Read type from frontmatter
-    local TICKET_TYPE
-    TICKET_TYPE=$(head -10 "$TICKET_FILE" | grep -m1 '^type:' | sed 's/^type:[[:space:]]*//' | tr -d '[:space:]')
-
-    # Non-bug tickets are always allowed
-    if [[ "$TICKET_TYPE" != "bug" ]]; then
-        return 0
-    fi
-
-    # Bug ticket — require --reason flag
-    if [[ "$COMMAND" != *"--reason"* ]]; then
-        echo "BLOCKED [bug-close-guard]: Bug tickets require --reason flag." >&2
-        echo "Add --reason=\"Fixed: <description>\" or --reason=\"Escalated to user: <findings>\"" >&2
-        trap - ERR; return 2
-    fi
-
-    # Check for investigation-only language without escalation
-    local INVESTIGATION_PATTERN='(Investigated|investigated|code path|works correctly|no fix needed|correct behavior|feature works correctly|no code change)'
-    local ESCALATION_PATTERN='([Ee]scalat|[Uu]ser confirmed|[Uu]ser decision|[Uu]ser approved|[Bb]y design|[Ww]orks as designed)'
-
-    if [[ "$COMMAND" =~ $INVESTIGATION_PATTERN ]] && ! [[ "$COMMAND" =~ $ESCALATION_PATTERN ]]; then
-        echo "WARNING [bug-close-guard]: Reason looks like investigation findings, not a fix." >&2
-        echo "Consider using --reason=\"Escalated to user: <findings>\" instead." >&2
-        return 0
     fi
 
     return 0
