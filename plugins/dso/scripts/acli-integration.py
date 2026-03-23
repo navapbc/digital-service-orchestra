@@ -73,8 +73,12 @@ def _run_acli(
                 delay = 2 ** (attempt + 1)  # 2s, 4s
                 time.sleep(delay)
 
-    # All attempts exhausted — re-raise the last error
+    # All attempts exhausted — include stderr in the error message for debugging
     assert last_error is not None
+    if last_error.stderr:
+        import sys
+
+        print(f"ACLI stderr: {last_error.stderr.strip()}", file=sys.stderr)
     raise last_error
 
 
