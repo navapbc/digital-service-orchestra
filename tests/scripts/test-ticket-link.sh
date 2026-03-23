@@ -818,4 +818,129 @@ PYEOF
 }
 test_ticket_link_unlink_same_second_ordering
 
+# ── Test 10 (RED): depends_on link to closed target is blocked ─────────────────
+echo "Test 10 (RED): ticket link depends_on to a closed target ticket exits non-zero"
+test_link_depends_on_closed_target_blocked() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create source ticket (will depend on target)
+    local source_id
+    source_id=$(_create_ticket "$repo" task "Source ticket for depends_on guard")
+
+    # Create and close target ticket
+    local target_id
+    target_id=$(_create_ticket "$repo" task "Target ticket that will be closed")
+
+    if [ -z "$source_id" ] || [ -z "$target_id" ]; then
+        assert_eq "tickets created for closed-target depends_on test" "non-empty" "empty"
+        assert_pass_if_clean "test_link_depends_on_closed_target_blocked"
+        return
+    fi
+
+    # Close the target ticket
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$target_id" open closed 2>/dev/null) || true
+
+    # Verify target is actually closed
+    local target_status
+    target_status=$(python3 "$REPO_ROOT/plugins/dso/scripts/ticket-reducer.py" \
+        "$tracker_dir/$target_id" 2>/dev/null \
+        | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('status',''))" 2>/dev/null) || true
+
+    if [ "$target_status" != "closed" ]; then
+        assert_eq "link-closed-target: target is closed before test" "closed" "$target_status"
+        assert_pass_if_clean "test_link_depends_on_closed_target_blocked"
+        return
+    fi
+
+    # Attempt to link source depends_on closed target — must exit non-zero
+    # RED: current ticket-link.sh does not enforce this guard → exits 0
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" link "$source_id" "$target_id" depends_on 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (guard not yet implemented → currently exits 0, so FAILS RED)
+    assert_eq "link-depends_on-closed-target: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error message mentions closed or not allowed
+    if echo "$stderr_out" | grep -qiE 'closed|not allowed|cannot|target'; then
+        assert_eq "link-depends_on-closed-target: error mentions closed target" "has-closed-hint" "has-closed-hint"
+    else
+        assert_eq "link-depends_on-closed-target: error mentions closed target" "has-closed-hint" "no-hint: $stderr_out"
+    fi
+
+    # Assert: no LINK event was written in source_id dir
+    local link_count
+    link_count=$(_count_link_events "$tracker_dir" "$source_id")
+    assert_eq "link-depends_on-closed-target: no LINK event written" "0" "$link_count"
+
+    assert_pass_if_clean "test_link_depends_on_closed_target_blocked"
+}
+test_link_depends_on_closed_target_blocked
+
+# ── Test 11 (RED): relates_to link to closed target is allowed ────────────────
+echo "Test 11 (RED): ticket link relates_to to a closed target ticket exits 0 (allowed)"
+test_link_relates_to_closed_target_allowed() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create source and target tickets
+    local source_id
+    source_id=$(_create_ticket "$repo" task "Source for relates_to closed-target test")
+
+    local target_id
+    target_id=$(_create_ticket "$repo" task "Closed target for relates_to test")
+
+    if [ -z "$source_id" ] || [ -z "$target_id" ]; then
+        assert_eq "tickets created for relates_to closed-target test" "non-empty" "empty"
+        assert_pass_if_clean "test_link_relates_to_closed_target_allowed"
+        return
+    fi
+
+    # Close the target ticket
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$target_id" open closed 2>/dev/null) || true
+
+    # Verify target is closed
+    local target_status
+    target_status=$(python3 "$REPO_ROOT/plugins/dso/scripts/ticket-reducer.py" \
+        "$tracker_dir/$target_id" 2>/dev/null \
+        | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('status',''))" 2>/dev/null) || true
+
+    if [ "$target_status" != "closed" ]; then
+        assert_eq "relates_to-closed-target: target is closed before test" "closed" "$target_status"
+        assert_pass_if_clean "test_link_relates_to_closed_target_allowed"
+        return
+    fi
+
+    # Link source relates_to closed target — must exit 0 (relates_to is not blocked)
+    # This is the ALLOW path: relates_to should work even when target is closed.
+    # RED: this test may currently pass (ticket-link.sh has no guards at all → exits 0).
+    # After guard implementation, it must STILL exit 0 (relates_to bypasses the guard).
+    local before_count
+    before_count=$(_count_link_events "$tracker_dir" "$source_id")
+
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" link "$source_id" "$target_id" relates_to 2>&1) || exit_code=$?
+
+    # Assert: exits 0 (relates_to to closed ticket is explicitly allowed)
+    assert_eq "link-relates_to-closed-target: exits 0" "0" "$exit_code"
+
+    # Assert: a LINK event was written (link was actually created)
+    local after_count
+    after_count=$(_count_link_events "$tracker_dir" "$source_id")
+    local new_events
+    new_events=$(( after_count - before_count ))
+    assert_eq "link-relates_to-closed-target: LINK event written" "1" "$new_events"
+
+    assert_pass_if_clean "test_link_relates_to_closed_target_allowed"
+}
+test_link_relates_to_closed_target_allowed
+
 print_summary

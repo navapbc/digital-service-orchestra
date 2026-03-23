@@ -1,6 +1,6 @@
 ---
 id: dso-1cje
-status: in_progress
+status: closed
 deps: [dso-5fbs]
 links: []
 created: 2026-03-23T15:19:45Z

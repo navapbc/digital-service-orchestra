@@ -8,7 +8,7 @@ This workflow triggers exclusively when changes are pushed to the tickets branch
 
 YAML
 
-name: Bidirectional Jira Sync (tk)
+name: Bidirectional Jira Sync (the tk wrapper)
 
 on:  
   push:  

@@ -22,14 +22,14 @@ When dryrun mode is active, follow the target skill's full workflow but apply th
 
 ### Do NOT execute
 
-- `tk` commands that modify state (create, update, close, dep, status)
+- ticket CLI commands that modify state (`ticket create`, `ticket transition`, `ticket link`, `ticket comment`)
 - File writes (`Write`, `Edit`, `NotebookEdit`)
 - Git commands (commit, push, add)
 - Any script that modifies state
 
 ### DO execute
 
-- Read-only commands (`tk ready`, `tk blocked`, `tk show`, `git status`, `git log`)
+- Read-only commands (`tk ready`, `tk blocked`, `ticket show`, `git status`, `git log`)
 - File reads (`Read`, `Glob`, `Grep`)
 - Check scripts (`check-onboarding.sh`, `validate-issues.sh`)
 - `AskUserQuestion` — the interview/dialogue portions run normally
@@ -39,9 +39,9 @@ When dryrun mode is active, follow the target skill's full workflow but apply th
 For every action that would modify state, show it as a preview block:
 
 ```
-[DRYRUN] Would run: tk create "Phase 1: Authentication System" -t epic -p 1
+[DRYRUN] Would run: ticket create "Phase 1: Authentication System" -t epic -p 1
 [DRYRUN] Would write: DESIGN_NOTES.md (47 lines)
-[DRYRUN] Would run: tk dep ticket-042 ticket-041
+[DRYRUN] Would run: ticket link ticket-042 ticket-041
 ```
 
 For file writes, show the full content that would be written inside a fenced code block after the `[DRYRUN]` line.

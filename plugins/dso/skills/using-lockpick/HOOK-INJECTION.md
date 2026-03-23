@@ -33,7 +33,7 @@ Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 
 ## When No Skill Matches
 
-**Silent Investigation**: Before asking anything, read code, tickets (`tk show`), git history, CLAUDE.md, and memory to gather context that already exists.
+**Silent Investigation**: Before asking anything, read code, tickets (`ticket show`), git history, CLAUDE.md, and memory to gather context that already exists.
 
 **Confidence Test**: Ask yourself: can I state in one sentence what I will do and why? If yes, proceed. If no, enter the clarification loop.
 

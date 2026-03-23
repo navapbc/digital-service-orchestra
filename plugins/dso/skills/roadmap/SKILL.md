@@ -201,10 +201,10 @@ AVOID/LATER (Low Impact, High Effort):
 
    ```bash
    # Create epic
-   tk create "Phase 1: Authentication System" -t epic -p 1
+   ticket create "Phase 1: Authentication System" -t epic -p 1
 
    # Update epic with full description
-   tk add-note <epic-id> "
+   ticket comment <epic-id> "
    ## Context
    [Why this matters, user need, business goal]
 
@@ -224,7 +224,7 @@ AVOID/LATER (Low Impact, High Effort):
 3. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.
 
    ```bash
-   tk dep <blocked-epic-id> <blocking-epic-id>
+   ticket link <blocked-epic-id> <blocking-epic-id>
    ```
 
 4. **Constraint**: Do NOT create child tasks. Maintain the high-level strategic structure. Child tasks will be created later during sprint planning.

@@ -58,7 +58,7 @@ Task has prefix (MC-, V-, A-, I-, L-, RR-) but no parent epic.
 tk ready; tk blocked
 
 # Assign parent (use add-note to record the epic association)
-tk add-note <task-id> "Parent epic: <epic-id>"
+ticket comment <task-id> "Parent epic: <epic-id>"
 ```
 
 ### Task Listed as Dependency Instead of Child
@@ -66,9 +66,9 @@ tk add-note <task-id> "Parent epic: <epic-id>"
 Epic depends on task, but task should be a child of epic.
 
 ```bash
-# Remove incorrect dependency (tk does not have dep remove; note to user)
-# Use tk add-note to record the correct parent association
-tk add-note <task-id> "Parent epic: <epic-id> (was incorrectly set as dep)"
+# Remove incorrect dependency (ticket unlink <id1> <id2> to remove a link; note to user)
+# Use ticket comment to record the correct parent association
+ticket comment <task-id> "Parent epic: <epic-id> (was incorrectly set as dep)"
 ```
 
 ### Empty Epic
@@ -91,11 +91,11 @@ Task A blocks B, B blocks A (directly or through chain).
 
 ```bash
 # Find the cycle
-tk show <task-id>  # Check blockedBy
+ticket show <task-id>  # Check blockedBy
 
-# Break the cycle (tk does not have dep remove; contact user to resolve manually)
+# Break the cycle (use `ticket unlink <id1> <id2>` to break the cycle)
 # Document the cycle with a note:
-tk add-note <task-a> "Circular dependency detected with <task-b> — review and break manually"
+ticket comment <task-a> "Circular dependency detected with <task-b> — review and break manually"
 ```
 
 ### Interface Task Without Documentation
@@ -103,7 +103,7 @@ tk add-note <task-a> "Circular dependency detected with <task-b> — review and 
 Task mentions "interface", "contract", "abstract", or "protocol" but has no notes documenting the file path and key methods.
 
 ```bash
-tk add-note <task-id> "Interface: src/path/to/base.py
+ticket comment <task-id> "Interface: src/path/to/base.py
 Key methods: method1(), method2()
 Constraint: Must be thread-safe"
 ```
@@ -114,14 +114,14 @@ When 3 or more tasks are blocked by the same task, consider extracting an interf
 
 ```bash
 # Check what's blocked
-tk show <blocking-task-id>
+ticket show <blocking-task-id>
 
 # If >3 tasks blocked, create interface contract
-tk create "Define interface contract for <feature>" -t task -p 1
+ticket create "Define interface contract for <feature>" -t task -p 1
 
 # Then add implementations as separate tasks that depend on the interface
-tk create "Implement ConcreteA" -t task -p 2
-tk dep <impl-task-id> <interface-task-id>
+ticket create "Implement ConcreteA" -t task -p 2
+ticket link <impl-task-id> <interface-task-id> depends_on
 ```
 
 ## Interface Contract Validation
@@ -136,8 +136,8 @@ These checks encourage designing for parallel agent development by identifying t
 
 ```
 States: pending → in_progress → completed
-  pending:      Ready if no blockers and not assigned. Created via `tk create`.
-  in_progress:  Agent actively working. Set via `tk status <id> in_progress`.
+  pending:      Ready if no blockers and not assigned. Created via `ticket create`.
+  in_progress:  Agent actively working. Set via `ticket transition <id> in_progress`.
                 Can revert to pending if blocked by dependency.
-  completed:    Only after CI passes and all acceptance criteria met. Set via `tk close`.
+  completed:    Only after CI passes and all acceptance criteria met. Set via `ticket transition`.
 ```

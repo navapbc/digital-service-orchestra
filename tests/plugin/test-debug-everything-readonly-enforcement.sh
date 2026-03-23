@@ -9,7 +9,7 @@
 # This test verifies:
 #   A. All 5 prompt files contain a "READ-ONLY ENFORCEMENT" section header
 #   B. Each prompt file explicitly names prohibited tools (Edit, Write)
-#   C. Each prompt file explicitly names prohibited Bash commands (git commit, git push, tk close)
+#   C. Each prompt file explicitly names prohibited Bash commands (git commit, git push, ticket transition)
 #   D. The enforcement uses hard-stop framing (STOP/TERMINATE/HALT or "must not")
 #
 # Manual run:
@@ -96,8 +96,8 @@ for prompt_file in "${PROMPT_FILES[@]}"; do
         "$(file_contains_pattern "$prompt_file" "git commit")"
     assert_eq "$filename names 'git push' as prohibited" "true" \
         "$(file_contains_pattern "$prompt_file" "git push")"
-    assert_eq "$filename names 'tk close' or 'tk status' as prohibited" "true" \
-        "$(file_contains_pattern "$prompt_file" "tk close|tk status")"
+    assert_eq "$filename names 'ticket transition' as prohibited" "true" \
+        "$(file_contains_pattern "$prompt_file" "ticket transition")"
 done
 
 # ---------------------------------------------------------------------------

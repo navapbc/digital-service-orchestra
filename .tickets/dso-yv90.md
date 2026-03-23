@@ -1,6 +1,6 @@
 ---
 id: dso-yv90
-status: in_progress
+status: closed
 deps: [dso-5fbs]
 links: []
 created: 2026-03-23T15:20:14Z

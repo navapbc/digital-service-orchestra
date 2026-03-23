@@ -8,7 +8,7 @@ Technical Story: w21-ablv (ticket-system-v3 epic — initialize ticket system an
 
 ## Context and Problem Statement
 
-The current `tk` ticket system stores ticket state as mutable Markdown files under `.tickets/`. This design has three compounding problems:
+The current ticket system (the tk wrapper) stores ticket state as mutable Markdown files under `.tickets/`. This design has three compounding problems:
 
 1. **Merge conflicts**: `.tickets/` files change in-place on each update. Concurrent writers (multiple Claude worktrees or agents) create unresolvable merge conflicts on the same file.
 2. **Data loss on concurrent writes**: Without serialization, two simultaneous writes to the same ticket file produce a race condition where one write silently overwrites the other.

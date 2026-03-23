@@ -1,6 +1,6 @@
 ---
 id: dso-hu14
-status: open
+status: in_progress
 deps: [dso-1cje, dso-yv90]
 links: []
 created: 2026-03-23T15:20:45Z
@@ -91,3 +91,38 @@ After all documentation updates complete:
 5. Test suite:
    bash tests/run-all.sh
 
+## ACCEPTANCE CRITERIA
+
+- [ ] No enumerable tk refs remain in skills/docs/CLAUDE.md
+  Verify: { grep -rn '\btk show\b\|\btk create\b\|\btk close\b\|\btk add-note\b\|\btk status\b\|\btk transition\b\|\btk dep tree\b' plugins/dso/skills/ plugins/dso/docs/ CLAUDE.md; test $? -ne 0; }
+- [ ] All surviving tk refs are tk-wrapper-only commands
+  Verify: grep -rn '\btk\b' plugins/dso/skills/ plugins/dso/docs/ CLAUDE.md | grep -vE 'tk sync|tk ready|tk blocked|tk dep |tk wrapper|tk CLI|tk commands|the tk|using tk' | head -1 | { read line; test -z "$line"; }
+- [ ] Bash syntax validation passes
+  Verify: bash -n plugins/dso/hooks/lib/pre-bash-functions.sh
+
+
+## Notes
+
+**2026-03-23T17:38:49Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T17:45:02Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T17:45:06Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-23T17:58:40Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T18:03:36Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — AC1: no banned tk refs, AC2: surviving refs are wrapper-only, AC3: bash syntax OK, AC4: python syntax OK, AC5: test suite passes (pre-existing failures unchanged)
+
+**2026-03-23T18:03:59Z**
+
+CHECKPOINT 6/6: Done ✓

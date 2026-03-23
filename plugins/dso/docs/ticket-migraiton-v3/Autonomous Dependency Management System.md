@@ -4,7 +4,7 @@ To solve Requirement \#5 without making the system brittle or adding external da
 
 Here is the design for the dependency tracking engine and how an agent interacts with it.
 
-### **1\. Writing Dependencies (tk link)**
+### **1\. Writing Dependencies (ticket link)**
 
 We need a command that allows either a human or an agent to define a relationship.
 
@@ -12,17 +12,17 @@ We need a command that allows either a human or an agent to define a relationshi
 
 Bash
 
-tk link \<source\_id\> \<relation\> \<target\_id\>  
-\# Example: tk link TKT-a1b2c3d4 blocks TKT-f5g4h3j2
+ticket link \<source\_id\> \<relation\> \<target\_id\>  
+# Example: ticket link TKT-a1b2c3d4 blocks TKT-f5g4h3j2
 
-**Bash Implementation (tk link):**
+**Bash Implementation (ticket link):**
 
 This script generates a LINK event and drops it into the source ticket's directory.
 
 Bash
 
 \#\!/bin/bash  
-\# Usage: tk link \<source\_id\> \<relation\> \<target\_id\>
+\# Usage: ticket link \<source\_id\> \<relation\> \<target\_id\>
 
 TRACKER\_DIR=".tickets-tracker"  
 SOURCE\_ID=$1  
@@ -62,7 +62,7 @@ cd ..
 \# 5\. Output for LLM  
 echo '{"status":"success","action":"link","source":"'"$SOURCE\_ID"'","target":"'"$TARGET\_ID"'"}'
 
-### **2\. Reading the Graph (tk deps)**
+### **2\. Reading the Graph (ticket deps)**
 
 When an agent wants to know if a ticket is ready to be worked on, it needs to know if any of its depends\_on targets are still in an "open" or "in progress" state.
 
@@ -72,16 +72,16 @@ Because jq is incredibly fast, we can compile the entire state of all \~200 open
 
 Bash
 
-tk deps TKT-f5g4h3j2 \--format=llm
+ticket deps TKT-f5g4h3j2 \--format=llm
 
-**The Graph Resolution Script (tk deps):**
+**The Graph Resolution Script (ticket deps):**
 
 This script compiles all tickets, finds the requested ticket, and evaluates its blockers.
 
 Bash
 
 \#\!/bin/bash  
-\# Usage: tk deps \<ticket\_id\> \[--format=llm\]
+# Usage: ticket deps \<ticket\_id\> \[--format=llm\]
 
 TARGET\_TICKET=$1  
 FORMAT=$2
@@ -136,11 +136,11 @@ JSON
 
 ### **3\. The Autonomous "Unblock" Trigger**
 
-To make the system fully autonomous, we modify the tk transition command we built earlier.
+To make the system fully autonomous, we modify the ticket transition command we built earlier.
 
-When an agent finishes its HCD review cycle or passing TDD tests, it runs tk transition TKT-a1b2c3d4 closed.
+When an agent finishes its HCD review cycle or passing TDD tests, it runs ticket transition TKT-a1b2c3d4 closed.
 
-Inside the tk transition script, we add a post-transition hook:
+Inside the ticket transition script, we add a post-transition hook:
 
 1. State changes to closed.  
 2. The script quietly runs a reverse-lookup on the graph: *Did TKT-a1b2c3d4 block anything else?*  
@@ -150,7 +150,7 @@ Inside the tk transition script, we add a post-transition hook:
 
 Bash
 
-tk transition TKT-a1b2c3d4 closed \--format=llm
+ticket transition TKT-a1b2c3d4 closed \--format=llm
 
 **LLM-Optimized Output (with trigger):**
 

@@ -1,14 +1,14 @@
 # Contract: Tombstone File Format for Archived Ticket Dependency Resolution
 
 - Status: accepted
-- Scope: archive-closed-tickets.sh / tk dep tree (epic w21-6llo)
+- Scope: archive-closed-tickets.sh / ticket deps (epic w21-6llo)
 - Date: 2026-03-21
 
 ## Purpose
 
 This document defines the cross-component contract for tombstone files written by
-`archive-closed-tickets.sh` and consumed by `tk dep tree`. When a ticket is archived
-and a tombstone exists, `tk dep tree` renders it as `[archived: <final_status> (<type>)]`
+`archive-closed-tickets.sh` and consumed by `ticket deps`. When a ticket is archived
+and a tombstone exists, `ticket deps` renders it as `[archived: <final_status> (<type>)]`
 instead of `[missing — treated as satisfied]`. Tombstone deps continue to be treated as
 satisfied for `ready_to_work` computation.
 
@@ -42,7 +42,7 @@ The emitter writes a tombstone for every ticket it moves to `.tickets/archive/`.
 
 ## Parser
 
-**Component**: `tk dep tree`
+**Component**: `ticket deps`
 
 The parser reads tombstone files to provide human-readable labels for archived
 dependencies. Behavior:
@@ -93,7 +93,7 @@ File path: `.tickets/archive/tombstones/w20-0aaw.json`
 }
 ```
 
-`tk dep tree` output for a ticket that depends on `w20-0aaw` after it has been archived:
+`ticket deps` output for a ticket that depends on `w20-0aaw` after it has been archived:
 
 ```
 w21-6llo
@@ -106,6 +106,6 @@ w21-6llo
 
 | Consumer story | Obligation |
 |----------------|-----------|
-| w20-p35v (tk dep tree tombstone resolution) | Must read `.tickets/archive/tombstones/<id>.json` and render `[archived: <final_status> (<type>)]`; fall back to `[missing — treated as satisfied]` on missing file or parse error |
+| w20-p35v (ticket deps tombstone resolution) | Must read `.tickets/archive/tombstones/<id>.json` and render `[archived: <final_status> (<type>)]`; fall back to `[missing — treated as satisfied]` on missing file or parse error |
 | w20-v9eo (archive-closed-tickets.sh tombstone write) | Must write atomically to `.tmp` then `mv`; must skip if tombstone already exists with matching `id`; must create `tombstones/` dir via `mkdir -p` |
 | w20-qxu2 (RED test: tombstone file written on archive) | Must verify that running the archiver produces a valid tombstone at the expected path with all 3 required fields |

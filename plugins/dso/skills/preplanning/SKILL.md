@@ -52,7 +52,7 @@ If `<epic-id>` was not provided:
 
 Load the epic:
 ```bash
-tk show <epic-id>
+ticket show <epic-id>
 ```
 
 ### Step 1b: Select Escalation Policy (/dso:preplanning)
@@ -112,10 +112,10 @@ If `--lightweight` was NOT passed, continue to Phase 1 Step 2 as normal.
 
 Gather all existing child items:
 ```bash
-tk dep tree <epic-id>
+ticket deps <epic-id>
 ```
 
-For each child, run `tk show <child-id>` to read full details.
+For each child, run `ticket show <child-id>` to read full details.
 
 ### Step 3: Reconcile Existing Work (/dso:preplanning)
 
@@ -222,7 +222,7 @@ Dispatch an **opus** sub-agent using the red team prompt template. Fill all plac
   - `{epic-description}`: Epic description from Phase 1
   - `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase 2 output)
   - `{risk-register}`: Risk Register table from Phase 2
-  - `{dependency-graph}`: Dependency graph from `tk dep tree <epic-id>`
+  - `{dependency-graph}`: Dependency graph from `ticket deps <epic-id>`
 
 The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
 
@@ -251,9 +251,9 @@ Parse the blue team's accepted findings and apply each one based on its `type`:
 
 | Finding Type | Action |
 |-------------|--------|
-| `new_story` | Create a new story with the full body at creation time: `tk create "<title>" -t story --parent=<epic-id> --description "<finding description and rationale, done definitions, and considerations>"`. Do not create a bare-title ticket and backfill later — pass `--description` with the assembled content at creation time. |
+| `new_story` | Create a new story with the full body at creation time: `ticket create "<title>" -t story --parent=<epic-id> --description "<finding description and rationale, done definitions, and considerations>"`. Do not create a bare-title ticket and backfill later — pass `--description` with the assembled content at creation time. |
 | `modify_done_definition` | Edit the target story's ticket file (`.tickets/<target_story_id>.md`) to add or modify done definitions per the finding's description. |
-| `add_dependency` | Add the dependency: `tk dep <target_story_id> <dependency_id>` (extract dependency ID from the finding's description). |
+| `add_dependency` | Add the dependency: `ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
 | `add_consideration` | Edit the target story's ticket file to append the consideration to its Considerations section. |
 
 Log a summary after applying findings:
@@ -337,7 +337,7 @@ For each story flagged as a **split candidate** in Phase 2, evaluate whether spl
 For each split:
 - Create both stories as children of the epic
 - Foundation gets higher priority than Enhancement
-- Add dependency: `tk dep <enhancement-id> <foundation-id>`
+- Add dependency: `ticket link <enhancement-id> <foundation-id> depends_on`
 - Both trace to the same epic criterion
 
 **Note**: `/dso:design-wireframe` has its own Pragmatic Scope Splitter (Step 10) that may trigger UI-specific splits during design. If preplanning already split a story, the design agent works within the Foundation story's scope.
@@ -358,7 +358,7 @@ For new stories, pass the full story body at creation time via `--description` a
 # - Escalation Policy: selected in Phase 1 Step 1b (omit if Autonomous)
 
 # Step 2: create the ticket with full body — capture the generated ID
-STORY_ID=$(tk create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id> \
+STORY_ID=$(ticket create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id> \
   --description "$(cat <<'BODY'
 ## Description
 
@@ -388,13 +388,13 @@ BODY
 
 The `--description` flag writes the full story body into the ticket file at creation time, ensuring the ticket is never a bare title. Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b.
 
-If the story body is too long to pass inline, use the Write or Edit tool immediately after `tk create` to set the content below the frontmatter. The ticket file is `.tickets/<story-id>.md`. Preserve the YAML frontmatter (lines 1–N ending with `---`) and replace everything after it with the structured markdown body.
+If the story body is too long to pass inline, use the Write or Edit tool immediately after `ticket create` to set the content below the frontmatter. The ticket file is `.tickets/<story-id>.md`. Preserve the YAML frontmatter (lines 1–N ending with `---`) and replace everything after it with the structured markdown body.
 
 For modified stories, edit `.tickets/<existing-id>.md` directly to update the title heading and body sections.
 
 For stories to delete:
 ```bash
-tk close <id>
+ticket transition <id> open closed
 ```
 
 ### Step 2: Story Structure Requirements (/dso:preplanning)
@@ -482,7 +482,7 @@ Omit this section entirely if the user selected **Autonomous** — the absence o
 #### Dependencies
 Add blocking relationships:
 ```bash
-tk dep <story-id> <blocking-story-id>
+ticket link <story-id> <blocking-story-id> depends_on
 ```
 
 ### Documentation Update Story
@@ -497,9 +497,9 @@ After all implementation stories are drafted, create one final story to update p
 - **Title format**: "Update project docs to reflect [epic summary]"
 - **Skip if**: The epic makes no changes that would affect existing documentation (document rationale)
 
-When creating the documentation update story via `tk create`, add a note with the guide reference so sub-agents find it in their ticket payload:
+When creating the documentation update story via `ticket create`, add a note with the guide reference so sub-agents find it in their ticket payload:
 ```bash
-tk add-note <story-id> "Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions."
+ticket comment <story-id> "Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions."
 ```
 
 ### TDD Test Story Requirements (/dso:preplanning)
@@ -523,7 +523,7 @@ For epics that span multiple types (e.g., both user-facing and external-API), cr
 TDD test stories have a specific dependency structure that differs from other stories:
 
 - The **TDD test story's `depends_on` list must contain no implementation story IDs** from the same epic — the test story has no blockers and must be created first.
-- **All implementation stories in the epic must depend on the TDD test story**: run `tk dep <impl-story-id> <test-story-id>` for each implementation story so that implementation cannot begin until tests exist.
+- **All implementation stories in the epic must depend on the TDD test story**: run `ticket link <impl-story-id> <test-story-id> depends_on` for each implementation story so that implementation cannot begin until tests exist.
 - The documentation update story does NOT depend on the TDD test story (it depends on implementation stories as usual).
 
 #### RED Acceptance Criteria
@@ -533,7 +533,7 @@ Every TDD test story must include the following acceptance criterion:
 ```
 Tests must be run and confirmed failing (RED) before any implementation story begins.
 The failing run result must be recorded in a story note:
-  tk add-note <test-story-id> "RED confirmed: <test output summary>"
+  ticket comment <test-story-id> "RED confirmed: <test output summary>"
 ```
 
 This RED acceptance criteria ensures the TDD test story's tests are observed to fail before implementation begins, not written alongside or after implementation.
@@ -689,7 +689,7 @@ redundant reads across serial `/dso:design-wireframe` invocations.
 **After each `/dso:design-wireframe` completes**:
 
 1. Read the design manifest path from the story's `design` field:
-   `tk show <story-id>`
+   `ticket show <story-id>`
 2. Append the story to the session file's `processedStories` array:
    ```json
    {
@@ -717,10 +717,10 @@ up to date and report completion.
 
 ### Epic Deps Must Not Contain Children (Critical)
 
-**Never run `tk dep <epic-id> <story-id>`** — this adds the story as a dependency of the epic, causing the epic to self-block in `sprint-list-epics.sh` (bug w21-3w8y).
+**Never run `ticket link <epic-id> <story-id> depends_on`** — this adds the story as a dependency of the epic, causing the epic to self-block in `sprint-list-epics.sh` (bug w21-3w8y).
 
-- `tk dep <story-id> <blocking-story-id>` — correct: story depends on another story
-- `tk dep <epic-id> <child-story-id>` — **WRONG**: child added as epic blocker
+- `ticket link <story-id> <blocking-story-id> depends_on` — correct: story depends on another story
+- `ticket link <epic-id> <child-story-id> depends_on` — **WRONG**: child added as epic blocker
 
 Epic children are linked via `--parent=<epic-id>` at creation time. That parent field is how the epic knows what work to do. Adding a child as a dep means the epic will show as BLOCKED until the child is closed — which is backwards. Only add external dependencies (tickets from other epics/projects) to an epic's deps.
 
@@ -758,11 +758,11 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 
 | Phase | Key Actions | Tools |
 |-------|-------------|-------|
-| 1: Reconciliation | Audit children, clarify scope | `tk show`, `tk dep tree` |
+| 1: Reconciliation | Audit children, clarify scope | `ticket show`, `ticket deps` |
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
-| 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `tk dep` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `tk create`, `tk dep`, `.tickets/<id>.md` editing, `validate-issues.sh`, `/dso:design-wireframe` |
+| 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `ticket link` |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `ticket create`, `ticket link`, `.tickets/<id>.md` editing, `validate-issues.sh`, `/dso:design-wireframe` |
 
 ## Example: Reconciliation + Story Creation
 

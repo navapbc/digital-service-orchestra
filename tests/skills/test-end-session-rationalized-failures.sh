@@ -14,7 +14,7 @@
 #   5. test_accountability_questions_interrogative  — accountability questions contain "?" (interrogative form)
 #   6. test_step_references_git_stash_baseline      — step references git stash baseline check pattern
 #   7. test_step_references_tk_list_bug             — step references tk list --type=bug for deduplication
-#   8. test_step_references_tk_create               — step references tk create for bug ticket creation
+#   8. test_step_references_ticket_create               — step references ticket create for bug ticket creation
 #   9. test_step_has_summary_display                — Step 6 references rationalized failures display
 #  10. test_step6_references_stored_failures        — Step 6 references RATIONALIZED_FAILURES_FROM_2_77
 #  11. test_step_ordering_before_learnings          — rationalized-failures step line < Step 2.8 line
@@ -138,19 +138,19 @@ assert_eq "test_step_references_tk_list_bug" "found" "$has_tk_list_bug"
 assert_pass_if_clean "test_step_references_tk_list_bug"
 
 # ---------------------------------------------------------------------------
-# test_step_references_tk_create
-# The step must reference "tk create" for creating bug tickets for
+# test_step_references_ticket_create
+# The step must reference "ticket create" for creating bug tickets for
 # pre-existing failures that lack tickets.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qE "tk create"; then
-    has_tk_create="found"
+if echo "$step_content" | grep -qE "ticket create"; then
+    has_ticket_create="found"
 else
-    has_tk_create="missing"
+    has_ticket_create="missing"
 fi
-assert_eq "test_step_references_tk_create" "found" "$has_tk_create"
-assert_pass_if_clean "test_step_references_tk_create"
+assert_eq "test_step_references_ticket_create" "found" "$has_ticket_create"
+assert_pass_if_clean "test_step_references_ticket_create"
 
 # ---------------------------------------------------------------------------
 # test_step_has_summary_display

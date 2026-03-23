@@ -123,21 +123,21 @@ Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` w
 
 ### Validate Epic
 
-1. Run `tk show <epic-id>` — confirm it is type `epic` and status is `open` or `in_progress`
-2. Run `tk dep tree <epic-id>` — if 100% complete, skip to Phase 7 (validation)
-3. Mark epic in-progress: `tk status <epic-id> in_progress`
+1. Run `ticket show <epic-id>` — confirm it is type `epic` and status is `open` or `in_progress`
+2. Run `ticket deps <epic-id>` — if 100% complete, skip to Phase 7 (validation)
+3. Mark epic in-progress: `ticket transition <epic-id> in_progress`
 4. Mark the **Select and validate epic** todo item `completed`.
 
 ### Context Efficiency Rules
 
-**Status checks**: Use `$REPO_ROOT/plugins/dso/scripts/issue-summary.sh <id>` or `tk ready` for orchestrator status checks (is it done? what's blocking?). Reserve full `tk show <id>` only when sub-agents need to read their complete task context.
+**Status checks**: Use `$REPO_ROOT/plugins/dso/scripts/issue-summary.sh <id>` or `tk ready` for orchestrator status checks (is it done? what's blocking?). Reserve full `ticket show <id>` only when sub-agents need to read their complete task context.
 
-**Ticket-as-prompt**: Sub-agents read their own task context via `tk show` instead of receiving it inline. Before dispatch, run the quality gate:
+**Ticket-as-prompt**: Sub-agents read their own task context via `ticket show` instead of receiving it inline. Before dispatch, run the quality gate:
 ```bash
 $REPO_ROOT/plugins/dso/scripts/issue-quality-check.sh <id>
 ```
 - **Exit 0** (quality pass): Use the ticket-as-prompt template (`task-execution.md`) — sub-agent reads its own context
-- **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `tk show <id>` and includes output in the Task prompt
+- **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `ticket show <id>` and includes output in the Task prompt
 
 **Writing quality ticket**: When creating tasks for sub-agent execution, include:
 - Concrete file paths (`src/`, `tests/`)
@@ -151,13 +151,13 @@ This ensures `issue-quality-check.sh` passes and sub-agents can self-serve their
 ### If `--resume` Flag
 
 1. Run `tk ready` and filter for in-progress tasks under `<epic-id>` for interrupted tasks
-2. For each in-progress task, run `tk show <id>` and parse its notes for CHECKPOINT lines
+2. For each in-progress task, run `ticket show <id>` and parse its notes for CHECKPOINT lines
 3. Apply checkpoint resume rules:
-   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `tk close <id> --reason="Fixed: <summary>"`
+   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `ticket comment <id> "Fixed: <summary>"` + `ticket transition <id> open closed`
    - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
    - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
-   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `tk status <id> open` for full re-execution
-   - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `tk status <id> open`
+   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `ticket transition <id> open` for full re-execution
+   - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `ticket transition <id> open`
 4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
 5. Proceed to Phase 3
 
@@ -194,7 +194,7 @@ After the epic is validated and counters are initialized, check whether the epic
 #### Step 1: Check for Existing Children (/dso:sprint)
 
 ```bash
-tk dep tree <epic-id>
+ticket deps <epic-id>
 ```
 
 Count the number of child tasks returned.
@@ -300,9 +300,9 @@ The epic needs structural decomposition into stories. This is the current behavi
 
 ### Gather Tasks
 
-1. `tk dep tree <epic-id>` — get all child tasks
+1. `ticket deps <epic-id>` — get all child tasks
 2. `tk ready` (filtered by parent) — get unblocked tasks ready to work
-3. `tk show <id>` for each ready task to read full descriptions
+3. `ticket show <id>` for each ready task to read full descriptions
 
 ### Implementation Planning Gate
 
@@ -317,7 +317,7 @@ Log: `"Skipping Implementation Planning Gate — epic was routed as <epic_routin
 #### Step 1: Identify Stories Needing Implementation Planning (/dso:sprint)
 
 For each ready task from `tk ready` (filtered by parent):
-1. Run `tk dep tree <task-id>` to check if the story already has child implementation tasks
+1. Run `ticket deps <task-id>` to check if the story already has child implementation tasks
 2. If it has children → **skip** (already planned)
 3. If it has zero children → run the complexity evaluator:
 
@@ -335,7 +335,7 @@ For each ready task from `tk ready` (filtered by parent):
 
 **Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase 5 can upgrade implementation task models:
 ```bash
-tk add-note <story-id> "COMPLEXITY_CLASSIFICATION: COMPLEX"
+ticket comment <story-id> "COMPLEXITY_CLASSIFICATION: COMPLEX"
 ```
 
 **When in doubt, the evaluator defaults to COMPLEX** — medium confidence always routes to `/dso:implementation-plan`. The cost of an unnecessary `/dso:implementation-plan` is low; the cost of a sub-agent floundering without a plan is high.
@@ -347,7 +347,7 @@ Before dispatching any `/dso:implementation-plan` sub-agents, group the stories 
 **Step A: Collect intra-sprint dependency edges**
 
 For each story in the needs-planning list:
-1. Run `tk show <story-id>` and read the `DEPENDS ON` field
+1. Run `ticket show <story-id>` and read the `DEPENDS ON` field
 2. For each dependency listed, check whether it is also in the needs-planning list
 3. Record the edge only if both the story and its blocker are in the needs-planning list (ignore cross-sprint or already-completed dependencies)
 
@@ -392,13 +392,13 @@ d. For each sub-agent result, **parse STATUS:**
    - On `STATUS:blocked QUESTIONS:<json-array>`:
      - **Add to blocked-stories list** — do not ask the user inline; collect all `STATUS:blocked` results from this layer batch and present them together after the full layer batch completes (see step d-collect below)
    - **Fallback — if no STATUS line in sub-agent output:**
-     - Run `tk dep tree <story-id>` to check whether tasks were created
-     - If children exist → treat as success; log a warning: `"WARNING: sub-agent returned no STATUS line for story <id>, but tk dep tree shows tasks — continuing"`; proceed to post-dispatch validation
+     - Run `ticket deps <story-id>` to check whether tasks were created
+     - If children exist → treat as success; log a warning: `"WARNING: sub-agent returned no STATUS line for story <id>, but ticket deps shows tasks — continuing"`; proceed to post-dispatch validation
      - If no children → retry the sub-agent dispatch once (same prompt, same parameters)
-     - If retry also produces no children → revert story to open (`tk status <story-id> open`); log: `"ERROR: /dso:implementation-plan sub-agent failed for story <id> after retry — story reverted to open"`; skip to next story
+     - If retry also produces no children → revert story to open (`ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan sub-agent failed for story <id> after retry — story reverted to open"`; skip to next story
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
    - **Parse the QUESTIONS field**: Extract the JSON array from the `STATUS:blocked` line. If parsing fails (malformed JSON) or the array is empty (`[]`), treat as a sub-agent failure:
-     - Revert the story to open: `tk status <story-id> open`
+     - Revert the story to open: `ticket transition <story-id> open`
      - Log: `"ERROR: /dso:implementation-plan returned STATUS:blocked with no parseable questions for story <story-id> — story reverted to open"`
      - Remove story from blocked-stories list
    - **Present all remaining blocked stories' questions to the user at once** — separate by `kind` field:
@@ -445,7 +445,7 @@ CLARIFICATIONS
        Q: <question 2 text>
        A: <user answer 2>
        ```
-   - **If the re-dispatched sub-agent returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`tk status <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
+   - **If the re-dispatched sub-agent returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`ticket transition <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
 e. **Post-layer-batch ticket validation** — after all stories in the layer are resolved (complete, blocked-and-resolved, or failed), run:
    ```bash
    $(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
@@ -498,7 +498,7 @@ Create tasks via `TaskCreate` for the current batch's items. Replace `N` with th
 ```
 [ ] Batch N — Plan (sprint-next-batch.sh)
 [ ] Batch N — Pre-batch checks (session usage, git clean, db status)
-[ ] Batch N — Claim tasks (tk status in_progress)
+[ ] Batch N — Claim tasks (ticket transition in_progress)
 [ ] Batch N — Launch sub-agents
 [ ] Batch N — Verify sub-agent results + acceptance criteria
 [ ] Batch N — Integrate discovered tasks
@@ -551,10 +551,10 @@ $REPO_ROOT/plugins/dso/scripts/sprint-next-batch.sh <epic-id> --limit=<max_agent
 #### Output format
 
 Each `TASK:` line is tab-separated with all fields the orchestrator needs to launch
-the sub-agent — **no further `tk show` or `classify-task.sh` calls required**:
+the sub-agent — **no further `ticket show` or `classify-task.sh` calls required**:
 
 ```
-TASK: <id>  P<tk-priority>  <issue-type>  <model>  <subagent-type>  <class>  <title>  [story:<id>]
+TASK: <id>  P<priority>  <issue-type>  <model>  <subagent-type>  <class>  <title>  [story:<id>]
 ```
 
 | Line prefix | Meaning |
@@ -575,7 +575,7 @@ Use `--json` for machine-readable output with full detail including file lists.
 - **Story-level blocking**: Blocked story → all child tasks deferred, regardless of
   their own dependency state (3-tier propagation: epic → story → task).
 - **File overlap**: Higher classify-priority task wins; lower-priority task defers to
-  the next cycle. No `tk dep` is needed — the task reappears as ready naturally.
+  the next cycle. No `ticket link` is needed — the task reappears as ready naturally.
 - **Classification**: Each TASK line includes `model`, `subagent`, and `class` from
   `classify-task.py` — sorted by classify priority (interface-contract first, then
   fan-out-blocker, then independent, then db-dependent), then ticket priority.
@@ -641,7 +641,7 @@ single-task batch. Log: `"Session usage >90%, limiting to 1 sub-agent."`
 
 For each task in the batch:
 ```bash
-tk status <id> in_progress
+ticket transition <id> in_progress
 ```
 
 ### Update from Main
@@ -673,7 +673,7 @@ Before dispatching any sub-agents, print a numbered list of all tasks in the bat
 3. [dso-ghi3] Refactor session management
 ```
 
-Titles are parsed from the `TASK:` tab-separated lines produced by `sprint-next-batch.sh` — the last field in each `TASK:` line is the title. No additional `tk show` calls are needed.
+Titles are parsed from the `TASK:` tab-separated lines produced by `sprint-next-batch.sh` — the last field in each `TASK:` line is the title. No additional `ticket show` calls are needed.
 
 ### Blackboard Write and File Ownership Context
 
@@ -708,8 +708,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 $REPO_ROOT/plugins/dso/scripts/issue-quality-check.sh <task-id>
 ```
 
-- **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `tk show`.
-- **Exit 1 (too sparse)**: Try enriching the ticket first with `$REPO_ROOT/plugins/dso/scripts/enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `tk show <id>`, then include the full description inline in the prompt alongside the template instructions.
+- **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `ticket show`.
+- **Exit 1 (too sparse)**: Try enriching the ticket first with `$REPO_ROOT/plugins/dso/scripts/enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `ticket show <id>`, then include the full description inline in the prompt alongside the template instructions.
 
 **Acceptance criteria gate**: After the quality gate, run:
 ```bash
@@ -734,10 +734,10 @@ When launching each Task tool call, set:
 story was tagged COMPLEX. Only upgrade if ALL three conditions hold:
 1. The task's `model` field from `classify-task.py` is `"sonnet"` (skip if already `"opus"`)
 2. The task's `class` field is not `"skill-guided"` (docs/config tasks do not benefit from opus)
-3. The parent story is COMPLEX: run `tk show <task-id>` and read the `parent` field;
-   if a parent story ID exists, run `tk show <parent-story-id>` and grep its output with
+3. The parent story is COMPLEX: run `ticket show <task-id>` and read the `parent` field;
+   if a parent story ID exists, run `ticket show <parent-story-id>` and grep its output with
    `grep -Fx "COMPLEXITY_CLASSIFICATION: COMPLEX"` (exact full-line match to avoid false positives).
-   `tk show` outputs the full ticket body including note text, so this grep works on note content.
+   `ticket show` outputs the full ticket body including note text, so this grep works on note content.
 
 When all three conditions hold, override `model` to `"opus"` and log:
 `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."`
@@ -801,7 +801,7 @@ For each sub-agent that returned successfully, check whether its code changes in
    ```
    The task <task-id> modified source files (<file list>) but did not include any test changes.
    Review the changes and write appropriate tests following TDD principles.
-   Read the task's acceptance criteria: tk show <task-id>
+   Read the task's acceptance criteria: ticket show <task-id>
    Ensure tests cover the modified behavior. Run the tests to confirm they pass.
    ```
 5. Log: `"Test coverage enforcement for <task-id>: dispatched test sub-agent for untested changes in <files>"`
@@ -817,8 +817,8 @@ For each sub-agent result, check the `TASKS_CREATED` line:
 - If `none` → skip
 - If `error: <reason>` → log the error, no action needed
 - If task IDs listed (e.g., `ticket-042, ticket-043`):
-  1. Run `tk show <id>` for each created task to review title and description
-  2. Wire dependencies via `tk dep` if the new task blocks or is blocked by existing work
+  1. Run `ticket show <id>` for each created task to review title and description
+  2. Wire dependencies via `ticket link` if the new task blocks or is blocked by existing work
   3. Log: "Sub-agent for <task-id> discovered N new tasks: <ids>"
 
 After processing all sub-agents in the batch, if any tasks were created:
@@ -855,7 +855,7 @@ Universal criteria (test, lint, format) are already verified by Step 4
 (validate-phase.sh post-batch). Do not re-run per task.
 
 **Per-task structural criteria**:
-For each task in the batch, extract the `ACCEPTANCE CRITERIA` block from `tk show <id>` output
+For each task in the batch, extract the `ACCEPTANCE CRITERIA` block from `ticket show <id>` output
 and run each task-specific (non-universal) `Verify:` command:
 
 1. File existence: `test -f {file}` — exit 0 = pass
@@ -880,7 +880,7 @@ After all sub-agents in the batch have been verified (Steps 1–2), print a comp
 ✗ [dso-abc2] Other task (fail — reverted to open)
 ```
 
-Titles are retained from the pre-launch batch list printed in Phase 5 — no additional `tk show` calls are needed.
+Titles are retained from the pre-launch batch list printed in Phase 5 — no additional `ticket show` calls are needed.
 
 ### Step 3: File Overlap Check (Safety Net) (/dso:sprint)
 
@@ -1004,15 +1004,15 @@ For each task in the batch, write checkpoint-format notes for crash recovery:
 
 | Outcome | Command |
 |---------|---------|
-| Success | `tk add-note <id> "CHECKPOINT 6/6: Done ✓ — Files: <files created/modified>. Tests: pass."` |
-| Failure | `tk add-note <id> "CHECKPOINT <N>/6: Failed — <error summary>. Files modified: <files>. Resume from: <what remains>."` |
+| Success | `ticket comment <id> "CHECKPOINT 6/6: Done ✓ — Files: <files created/modified>. Tests: pass."` |
+| Failure | `ticket comment <id> "CHECKPOINT <N>/6: Failed — <error summary>. Files modified: <files>. Resume from: <what remains>."` |
 
 The checkpoint number on failure should reflect the last successfully completed substep (e.g., if tests passed but implementation failed, use `CHECKPOINT 4/6`).
 
 ### Step 9: Handle Failures (/dso:sprint)
 
 For tasks that failed:
-- Revert to open: `tk status <id> open`
+- Revert to open: `ticket transition <id> open`
 - Record the failure reason in notes (already done in Step 8)
 
 ### Step 10: Commit & Push (/dso:sprint)
@@ -1050,7 +1050,8 @@ Do NOT merge to main here — merging to main happens only at epic completion in
 After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
 
 ```bash
-tk close <id> --reason="Fixed: <summary>"
+ticket comment <id> "Fixed: <summary>"
+ticket transition <id> open closed
 ```
 
 Do NOT close tasks that are still open or in a failed state.
@@ -1295,7 +1296,7 @@ If it returns CLEAR: proceed to create tasks normally.
 For each item in the validation agent's FAIL/REMEDIATION output:
 
 ```bash
-tk create "Fix: {issue description}" -t bug -p 1 --parent=<epic-id>
+ticket create "Fix: {issue description}" -t bug -p 1 --parent=<epic-id>
 ```
 
 ### Step 2: Validate Ticket Health (/dso:sprint)
@@ -1329,7 +1330,8 @@ Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which
 
 1. Close the epic:
    ```bash
-   tk close <epic-id> --reason="Epic complete: all tasks closed, validation score 5/5"
+   ticket comment <epic-id> "Epic complete: all tasks closed, validation score 5/5"
+   ticket transition <epic-id> open closed
    ```
 2. Bump the minor version to signal a new feature-level capability:
    ```bash
@@ -1356,7 +1358,7 @@ Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which
    ```
 4. Update ALL in-progress tasks with checkpoint-format progress notes:
    ```bash
-   tk add-note <id> "CHECKPOINT <N>/6: SESSION_END — Progress: <summary>. Next: <what remains>."
+   ticket comment <id> "CHECKPOINT <N>/6: SESSION_END — Progress: <summary>. Next: <what remains>."
    ```
    Use the highest checkpoint number actually reached (e.g., `CHECKPOINT 3/6` if tests were written but implementation not started). This enables `/dso:sprint --resume` to recover from the correct substep.
 5. Set sprint context for `/dso:end-session` report:
@@ -1371,10 +1373,10 @@ Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which
 
 | Phase | Purpose | Key Commands |
 |-------|---------|-------------|
-| 1 | Select epic | `sprint-list-epics.sh --all`, `tk show`, `tk dep tree` |
-| 1b | Preplanning gate | `tk dep tree`, `/dso:preplanning` (if 0 children or ambiguous) |
-| 2 | Analyze tasks | `tk dep tree`, `tk ready`, `tk show` |
-| 2b | Implementation planning gate | `tk dep tree <story>`, `/dso:implementation-plan` (if story has 0 impl tasks) |
+| 1 | Select epic | `sprint-list-epics.sh --all`, `ticket show`, `ticket deps` |
+| 1b | Preplanning gate | `ticket deps`, `/dso:preplanning` (if 0 children or ambiguous) |
+| 2 | Analyze tasks | `ticket deps`, `tk ready`, `ticket show` |
+| 2b | Implementation planning gate | `ticket deps <story>`, `/dso:implementation-plan` (if story has 0 impl tasks) |
 | 3 | Plan batches | Priority classification, batch sizing |
 | 4 | Pre-batch checks | Session usage check, counter files, git status, db-status |
 | 5 | Launch agents | Task tool with structured prompts |

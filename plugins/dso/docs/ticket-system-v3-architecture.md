@@ -246,7 +246,7 @@ git -C .tickets-tracker rebase origin/tickets
 
 ## --format=llm Design Rationale
 
-The `--format=llm` flag on `tk show` and `tk list` exists to minimize token overhead when agents read ticket state. The standard (human) output format includes verbose timestamps, null fields, and long key names — all of which consume context window tokens without providing information useful to an agent.
+The `--format=llm` flag on `ticket show` and `ticket list` exists to minimize token overhead when agents read ticket state. The standard (human) output format includes verbose timestamps, null fields, and long key names — all of which consume context window tokens without providing information useful to an agent.
 
 The LLM format applies three transformations:
 
@@ -256,7 +256,7 @@ The LLM format applies three transformations:
 
 The formatting logic is centralized in `plugins/dso/scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`.
 
-`tk list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
+`ticket list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
 
 ---
 

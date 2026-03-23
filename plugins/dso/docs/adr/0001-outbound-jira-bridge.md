@@ -8,7 +8,7 @@ Technical Story: w21-vhms (ADR — outbound bridge architectural pattern)
 
 ## Context and Problem Statement
 
-The Digital Service Orchestra ticket system (`tk`) stores tickets as event-sourced JSON files in a
+The Digital Service Orchestra ticket system (the tk/`ticket` CLI) stores tickets as event-sourced JSON files in a
 `.tickets-tracker/` directory committed to a `tickets` git branch. When a developer creates or
 updates a ticket locally, those changes must propagate to Jira so the two systems remain in sync.
 

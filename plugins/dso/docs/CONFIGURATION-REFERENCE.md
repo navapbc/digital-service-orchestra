@@ -278,7 +278,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Jira project key used by `tk sync`. The `JIRA_PROJECT` environment variable takes precedence over this value. |
 | **Accepted values** | Jira project key string (e.g., `DIG`, `MYPROJ`) |
 | **Default** | No default — required when using `tk sync` |
-| **Used by** | `.claude/scripts/dso tk`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
+| **Used by** | the tk script (`.claude/scripts/dso tk`), `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
 
 ---
 
@@ -287,7 +287,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | | |
 |---|---|
 | **Description** | Command to search for existing tickets by substring. Used by `plugins/dso/hooks/lib/pre-bash-functions.sh` (commit-failure-tracker) to detect duplicate tickets. |
-| **Accepted values** | Any shell command string (e.g., `grep -rl`, `tk search`) |
+| **Accepted values** | Any shell command string (e.g., `grep -rl`, `ticket list --filter`) |
 | **Default** | `grep -rl` |
 | **Used by** | `plugins/dso/hooks/lib/pre-bash-functions.sh` |
 
@@ -298,8 +298,8 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | | |
 |---|---|
 | **Description** | Command to create a new tracking issue. Used when a validation failure has no existing ticket. |
-| **Accepted values** | Any shell command string (e.g., `tk create`, `gh issue create`) |
-| **Default** | `tk create` |
+| **Accepted values** | Any shell command string (e.g., `ticket create`, `gh issue create`) |
+| **Default** | `ticket create` |
 | **Used by** | `.claude/scripts/dso check-validation-failures.sh`, `plugins/dso/hooks/lib/pre-bash-functions.sh` |
 
 ---
@@ -723,10 +723,10 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 | | |
 |---|---|
-| **Description** | Ticket ID prefix used when generating new ticket IDs. When absent, `tk` derives the prefix from the project directory name. |
+| **Description** | Ticket ID prefix used when generating new ticket IDs. When absent, the tk wrapper derives the prefix from the project directory name. |
 | **Accepted values** | Short string without spaces (e.g., `dso`, `my-project`) |
 | **Default** | Derived from repo directory name |
-| **Used by** | `.claude/scripts/dso tk` |
+| **Used by** | the tk script (`.claude/scripts/dso tk`) |
 
 ---
 
@@ -737,7 +737,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Directory where ticket markdown files are stored, relative to repo root. |
 | **Accepted values** | Relative directory path |
 | **Default** | `.tickets` |
-| **Used by** | `.claude/scripts/dso tk`, `.claude/scripts/dso orphaned-tasks.sh`, `plugins/dso/hooks/check-validation-failures.sh` |
+| **Used by** | the tk script (`.claude/scripts/dso tk`), `.claude/scripts/dso orphaned-tasks.sh`, `plugins/dso/hooks/check-validation-failures.sh` |
 
 ---
 
@@ -748,7 +748,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Jira project key for ticket sync. Only needed when using `tk sync` with Jira. Superseded by `jira.project` — prefer `jira.project` for new configurations. |
 | **Accepted values** | Jira project key string (e.g., `DTL`, `MYPROJ`) |
 | **Default** | Absent |
-| **Used by** | `.claude/scripts/dso tk` (sync subcommand) |
+| **Used by** | the tk script (`.claude/scripts/dso tk`) (sync subcommand) |
 
 ---
 
@@ -759,7 +759,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Enable bidirectional comment sync between local tickets and Jira. When true, comments added locally are pushed to Jira and vice versa. |
 | **Accepted values** | `true`, `false` |
 | **Default** | `true` |
-| **Used by** | `.claude/scripts/dso tk` (sync subcommand) |
+| **Used by** | the tk script (`.claude/scripts/dso tk`) (sync subcommand) |
 
 ---
 
@@ -828,9 +828,9 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by `.claude/scripts/dso tk` when adding remote links to Jira issues. |
+| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by the tk script (`.claude/scripts/dso tk`) when adding remote links to Jira issues. |
 | **Required** | Required for `tk sync` remote-link features |
-| **Usage context** | `.claude/scripts/dso tk` (sync subcommand, remote link creation) |
+| **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand, remote link creation) |
 
 ---
 
@@ -840,7 +840,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira username (email address) for API authentication. Used with `JIRA_API_TOKEN` via HTTP Basic Auth. |
 | **Required** | Required for `tk sync` remote-link features |
-| **Usage context** | `.claude/scripts/dso tk` (sync subcommand) |
+| **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand) |
 
 ---
 
@@ -850,7 +850,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira API token for authentication. Generate at https://id.atlassian.com/manage-profile/security/api-tokens. Used with `JIRA_USER` via HTTP Basic Auth. |
 | **Required** | Required for `tk sync` remote-link features |
-| **Usage context** | `.claude/scripts/dso tk` (sync subcommand) |
+| **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand) |
 
 ---
 
@@ -860,7 +860,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `dso-config.conf`. Required by `tk sync` unless `jira.project` is configured. |
 | **Required** | Required for `tk sync` unless `jira.project` is set in config |
-| **Usage context** | `.claude/scripts/dso tk`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
+| **Usage context** | the tk script (`.claude/scripts/dso tk`), `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
 
 ---
 
@@ -1004,7 +1004,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | When set to `1`, suppresses the worktree push step during `tk sync`. Used internally by `.claude/scripts/dso reset-tickets.sh` when doing a bulk sync to prevent duplicate push operations. |
 | **Required** | Internal — set and unset by `.claude/scripts/dso reset-tickets.sh` |
-| **Usage context** | `.claude/scripts/dso tk` (sync subcommand), `.claude/scripts/dso reset-tickets.sh` |
+| **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand), `.claude/scripts/dso reset-tickets.sh` |
 
 ---
 

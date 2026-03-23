@@ -66,7 +66,7 @@ test-failure debugging sub-agent:
 | `exit_code` | int | yes | Process exit code from the test run |
 | `stderr_tail` | string | yes | Last 50 lines of stderr/stdout from the failed command |
 | `changed_files` | list[string] | yes | Files modified in the current batch/commit (from `git diff --name-only`) |
-| `task_id` | string | yes | Ticket ID for checkpoint notes (`tk add-note`) |
+| `task_id` | string | yes | Ticket ID for checkpoint notes (`ticket comment`) |
 | `context` | enum | yes | One of: `commit-time`, `sprint-post-batch`, `sprint-ci-failure` |
 | `attempt` | int | yes | 1-based attempt counter (for model escalation) |
 | `parent_task_id` | string | no | Parent epic/task ID for discovered-work tickets |
@@ -214,7 +214,7 @@ Each sub-agent fix attempt produces artifacts that can be audited:
 
 - **Disk reports**: `$(get_artifacts_dir)/agent-result-${task_id}.md`
   contains the full validation output for post-hoc analysis.
-- **Ticket notes**: `tk add-note` checkpoints record attempt number, model used,
+- **Ticket notes**: `ticket comment` checkpoints record attempt number, model used,
   and outcome for each fix attempt.
 - **Tool-use logging**: When enabled (`toggle-tool-logging.sh`), JSONL logs capture
   every tool call made by the sub-agent, enabling `analyze-tool-use.py` to detect

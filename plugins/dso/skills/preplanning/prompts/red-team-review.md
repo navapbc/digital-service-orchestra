@@ -96,7 +96,7 @@ Return a JSON object with a single `findings` array. Each finding must have thes
       "type": "add_dependency",
       "target_story_id": "abc-004",
       "title": "Add dependency on abc-001 for database migration ordering",
-      "description": "abc-004 assumes the users table has a 'role' column added by abc-001, but no dependency is declared. Add: tk dep abc-004 abc-001",
+      "description": "abc-004 assumes the users table has a 'role' column added by abc-001, but no dependency is declared. Add: ticket link abc-004 abc-001",
       "rationale": "If abc-004 runs first, its migration will fail because the 'role' column does not yet exist.",
       "taxonomy_category": "dependency_gap"
     },

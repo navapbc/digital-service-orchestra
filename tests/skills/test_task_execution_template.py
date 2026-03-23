@@ -41,7 +41,7 @@ class TestTaskExecutionContainsFileOwnershipSection:
     def test_existing_content_not_disturbed(self) -> None:
         """Existing template content must remain intact."""
         content = _read_template()
-        assert "tk show {id}" in content
+        assert "ticket show {id}" in content
         assert "### Rules" in content
         assert "### Instructions" in content
 

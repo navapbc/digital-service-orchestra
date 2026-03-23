@@ -100,7 +100,7 @@ Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 
 When no skill clearly applies, do not ask clarifying questions immediately. Follow this loop:
 
-**Silent Investigation**: Before asking anything, do silent investigation — use Read, Grep, tk show (tickets), git history, CLAUDE.md, and memory to gather context that already exists.
+**Silent Investigation**: Before asking anything, do silent investigation — use Read, Grep, ticket show (tickets), git history, CLAUDE.md, and memory to gather context that already exists.
 
 **Confidence Test**: Ask yourself: can I state in one sentence what I will do and why? If you can articulate what the action is and why it addresses the user's goal as a single declarative statement, proceed. If you cannot, enter the clarification loop.
 

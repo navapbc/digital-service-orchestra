@@ -647,4 +647,143 @@ PYEOF
 }
 test_close_ticket_succeeds_even_if_unblock_fails
 
+# ── Test 12 (RED): bug close requires --reason flag ───────────────────────────
+echo "Test 12 (RED): closing a bug ticket without --reason exits non-zero"
+test_transition_bug_close_requires_reason() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a bug ticket
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" bug "Bug that needs a reason to close")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "bug ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_transition_bug_close_requires_reason"
+        return
+    fi
+
+    # Attempt to close the bug WITHOUT --reason — must exit non-zero
+    # RED: current ticket-transition.sh does not enforce this guard → exits 0
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open closed 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (guard not yet implemented → currently exits 0, so FAILS RED)
+    assert_eq "bug-close-no-reason: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error message mentions '--reason' or 'reason' (guard feedback)
+    if echo "$stderr_out" | grep -qiE 'reason|--reason'; then
+        assert_eq "bug-close-no-reason: error mentions --reason" "has-reason-hint" "has-reason-hint"
+    else
+        assert_eq "bug-close-no-reason: error mentions --reason" "has-reason-hint" "no-hint: $stderr_out"
+    fi
+
+    assert_pass_if_clean "test_transition_bug_close_requires_reason"
+}
+test_transition_bug_close_requires_reason
+
+# ── Test 13 (RED): bug close with --reason succeeds ──────────────────────────
+echo "Test 13 (RED): closing a bug ticket WITH --reason exits 0"
+test_transition_bug_close_with_reason_succeeds() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a bug ticket
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" bug "Bug with a reason to close")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "bug ticket created for reason-close test" "non-empty" "empty"
+        assert_pass_if_clean "test_transition_bug_close_with_reason_succeeds"
+        return
+    fi
+
+    # Close the bug WITH --reason — must exit 0
+    # RED: current ticket-transition.sh does not accept --reason → may exit 0 for wrong reason
+    # (it exits 0 because it doesn't validate, but after guard implementation it must only exit 0
+    # when --reason is supplied). We verify the STATUS event is written to confirm it succeeded.
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open closed --reason "Fixed in commit abc123" 2>&1) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "bug-close-with-reason: exits 0" "0" "$exit_code"
+
+    # Assert: a STATUS event for 'closed' was written (confirms the transition happened)
+    local tracker_dir="$repo/.tickets-tracker"
+    local status_count
+    status_count=$(_count_status_events "$tracker_dir" "$ticket_id")
+    assert_eq "bug-close-with-reason: STATUS event written" "1" "$status_count"
+
+    # Assert: compiled status is now closed
+    local compiled_status
+    compiled_status=$(_get_ticket_status "$repo" "$ticket_id")
+    assert_eq "bug-close-with-reason: compiled status is closed" "closed" "$compiled_status"
+
+    assert_pass_if_clean "test_transition_bug_close_with_reason_succeeds"
+}
+test_transition_bug_close_with_reason_succeeds
+
+# ── Test 14 (RED): close blocked by open children ─────────────────────────────
+echo "Test 14 (RED): closing a ticket with open children exits non-zero"
+test_transition_close_blocked_with_open_children() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a parent epic ticket
+    local parent_id
+    parent_id=$(_create_ticket "$repo" epic "Epic with open children")
+
+    if [ -z "$parent_id" ]; then
+        assert_eq "parent epic ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_transition_close_blocked_with_open_children"
+        return
+    fi
+
+    # Create a child ticket under the parent
+    local child_id
+    child_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Open child task" --parent "$parent_id" 2>/dev/null) || true
+    child_id=$(echo "$child_id" | tail -1)
+
+    if [ -z "$child_id" ]; then
+        # Child creation with --parent may not yet exist; this test should still fail RED
+        # by detecting open children via ticket_find_open_children which won't be implemented yet.
+        # If children can't be created, guard can't be triggered — assert failure to stay RED.
+        assert_eq "child ticket created under parent" "non-empty" "empty"
+        assert_pass_if_clean "test_transition_close_blocked_with_open_children"
+        return
+    fi
+
+    # Attempt to close the parent epic while it has an open child — must exit non-zero
+    # RED: current ticket-transition.sh does not check open children → exits 0
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (guard not yet implemented → currently exits 0, so FAILS RED)
+    assert_eq "close-with-open-children: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error message mentions children or open tickets
+    if echo "$stderr_out" | grep -qiE 'child|children|open|block'; then
+        assert_eq "close-with-open-children: error mentions children" "has-children-hint" "has-children-hint"
+    else
+        assert_eq "close-with-open-children: error mentions children" "has-children-hint" "no-hint: $stderr_out"
+    fi
+
+    # Assert: the parent's status is still open (transition was blocked)
+    local compiled_status
+    compiled_status=$(_get_ticket_status "$repo" "$parent_id")
+    assert_eq "close-with-open-children: parent status unchanged (still open)" "open" "$compiled_status"
+
+    assert_pass_if_clean "test_transition_close_blocked_with_open_children"
+}
+test_transition_close_blocked_with_open_children
+
 print_summary

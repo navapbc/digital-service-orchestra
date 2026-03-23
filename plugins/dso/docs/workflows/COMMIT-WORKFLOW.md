@@ -201,7 +201,7 @@ Task(
 6. **Parse the result**:
    - `RESULT: PASS` — continue to Step 1.5 (re-run validation first to confirm the fix is clean).
    - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
-   - `RESULT: PARTIAL` — log concerns via `tk add-note`, continue to Step 1.5 with caveats.
+   - `RESULT: PARTIAL` — log concerns via `ticket comment`, continue to Step 1.5 with caveats.
 
 7. **Fallback**: If the sub-agent times out (>5 min) or returns malformed output (missing RESULT line), fall back to an inline fix attempt by the orchestrator and restart from Step 1.
 
@@ -261,7 +261,7 @@ CHANGED_FILES=$(git diff --name-only)
 4. **Parse the result**:
    - `RESULT: PASS` — re-run the config-driven test command (`$REPO_ROOT/$TEST_CHANGED_CMD`) to confirm the fix, then continue to Step 2.
    - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
-   - `RESULT: PARTIAL` — log concerns via `tk add-note`, continue to Step 2 with caveats.
+   - `RESULT: PARTIAL` — log concerns via `ticket comment`, continue to Step 2 with caveats.
 
 5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.
 

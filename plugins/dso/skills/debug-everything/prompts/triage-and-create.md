@@ -22,7 +22,7 @@ For EACH cluster and standalone error:
 3. If no existing issue: proceed to Step 2
 
 For EACH open ticket bug (`tk ready; tk blocked`):
-1. `tk show <id>` — if it overlaps with a validation failure cluster, merge it
+1. `ticket show <id>` — if it overlaps with a validation failure cluster, merge it
 2. If independent: add to the fix queue with its existing priority, assign to Tier 7
 
 ### Step 2: Create Issues for New Problems (/dso:debug-everything)
@@ -31,20 +31,20 @@ For each cluster or standalone error without an existing ticket issue:
 
 ```bash
 # For clusters: title describes root cause, not individual symptoms
-tk create "Fix: <root cause description> (N related errors)" -t bug -p <priority>
+ticket create "Fix: <root cause description> (N related errors)" -t bug -p <priority>
 
 # For standalone errors:
-tk create "Fix: <specific failure description>" -t bug -p <priority>
+ticket create "Fix: <specific failure description>" -t bug -p <priority>
 ```
 
 Update each new issue with its full error details:
 ```bash
-tk add-note <id> "<full list of errors in the cluster>"
+ticket comment <id> "<full list of errors in the cluster>"
 ```
 
 When a bug's root cause requires editing a safeguarded file (matching patterns from CLAUDE.md rule 20: `.claude/skills/**`, `.claude/hooks/**`, `.claude/settings.json`, `.claude/docs/**`, `scripts/**`, `CLAUDE.md`), also tag it after creation:
 ```bash
-tk add-note <id> "SAFEGUARDED: fix requires editing protected file(s): <paths>"
+ticket comment <id> "SAFEGUARDED: fix requires editing protected file(s): <paths>"
 ```
 
 **Priority assignment:**
@@ -75,9 +75,9 @@ Provide the following context when brainstorm asks "What feature or capability a
 
 Follow the `/dso:brainstorm` phases (Socratic dialogue, approach design, spec validation) to create a well-defined epic. After `/dso:brainstorm` Phase 3 creates the epic, use its ID as the tracking epic.
 
-Set each discovered issue as a child of the epic:
+Link each discovered issue to the epic:
 ```bash
-tk parent <issue-id> <epic-id>  # issue is a child of the epic
+ticket link <issue-id> <epic-id> relates_to  # issue is linked to the epic
 ```
 
 ### Step 4: Validate Issue Health (/dso:debug-everything)
@@ -113,7 +113,7 @@ SUMMARY:
 ### Rules
 See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Do NOT fix any code
-- Do NOT `git commit`, `git push`, `tk close`
-- You CAN run `tk create`, `tk add-note`, `tk parent`, `tk show`, `tk ready`, `tk blocked`
+- Do NOT `git commit`, `git push`, `ticket transition`
+- You CAN run `ticket create`, `ticket comment`, `ticket link`, `ticket show`, `tk ready`, `tk blocked`
 - Create exactly ONE issue per cluster, ONE issue per standalone error
 - Never create duplicate issues — always search first

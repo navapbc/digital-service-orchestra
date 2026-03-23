@@ -8,7 +8,7 @@ Reference for the orchestrator during Phase 3 (Fix Planning) and Phase 10 (final
 
 | Outcome | Criteria | Action |
 |---------|----------|--------|
-| **Fixed** | Code change made + tests pass | `tk close <id>` (add note with reason first) |
+| **Fixed** | Code change made + tests pass | `ticket transition <id> open closed` (add note with reason first) |
 | **Escalated** | No code change can resolve this | Present findings to user. **Never close autonomously.** |
 | **Deferred** | Blocked by a specific, verifiable prerequisite | Report the blocker. Never close autonomously. |
 

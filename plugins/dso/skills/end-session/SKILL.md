@@ -19,7 +19,7 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 ### 2. Close Completed Issues
 1. Run `tk ready` (lists open/in_progress tasks with resolved deps) and `git log main..HEAD --oneline`
 2. Cross-reference: which issues were completed based on commits?
-3. Ask user which to close. Close confirmed: `tk close <id>` for each
+3. Ask user which to close. Close confirmed: `ticket transition <id> open closed` for each
 4. **Skip if no in-progress issues** — this is common when called after `/dso:debug-everything` or `/dso:sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
 ### 2.5. Close Orphaned Epics (safety net)
@@ -28,13 +28,13 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
 
 1. List in-progress epics:
    ```bash
-   tk list --type epic --status in_progress
+   ticket list --type epic --status in_progress
    ```
    If none, skip this step.
 
 2. For each in-progress epic, check whether all children are closed:
    ```bash
-   tk dep tree <epic-id>
+   ticket deps <epic-id>
    ```
    Parse the output: if **every** child line shows `[closed]` (and at least one child exists), the epic is a candidate.
 
@@ -55,7 +55,7 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
 
 4. For each session-related candidate, close it:
    ```bash
-   tk close <epic-id> --reason="Epic complete: all children closed (safety-net close by /dso:end-session)"
+   ticket transition <epic-id> --reason="Epic complete: all children closed (safety-net close by /dso:end-session)"
    ```
    Report: `"Closed orphaned epic <epic-id>: <title> (all children were already closed)."`
 
@@ -102,7 +102,7 @@ Where `<test-command>` is obtained from `commands.test` via `read-config.sh`. If
 Search existing bug tickets to avoid duplicates:
 
 ```bash
-tk list --type=bug
+ticket list --type=bug
 ```
 
 Scan titles for a match to the failure. A ticket already exists if a close title match is found.
@@ -110,7 +110,7 @@ Scan titles for a match to the failure. A ticket already exists if a close title
 **Auto-Create Bug Tickets**: For each failure that does **not** have an existing bug ticket, create one:
 
 ```bash
-tk create "<descriptive title>" -t bug -p <priority>
+ticket create "<descriptive title>" -t bug -p <priority>
 ```
 
 Where `<priority>` is assigned based on actual severity:
@@ -144,7 +144,7 @@ Focus on reusable knowledge. Exclude: workflow phases run, git operations perfor
 
 ### 2.85. Create Bug Tickets from Learnings (pre-commit)
 
-Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Create a bug ticket (`tk create "<title>" -t bug -p <priority>`) for any learning that describes:
+Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Create a bug ticket (`ticket create "<title>" -t bug -p <priority>`) for any learning that describes:
 - A defect, regression, or broken behavior that hasn't been fixed yet
 - A footgun or edge case that will bite users/developers again if not addressed
 - A workaround that was applied instead of a proper fix
@@ -177,7 +177,7 @@ sweep_validation_failures
 1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
 2. Run `$REPO_ROOT/plugins/dso/scripts/verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
-4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `tk create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
+4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `ticket create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
 
 ### 4. Sync Tickets and Merge to Main
 

@@ -189,12 +189,12 @@ Pass only these items in the sub-agent prompt — the named agent's system promp
 - `REPO_ROOT`: repository root path
 - `{issue_context}`: Issue context (see below)
 
-**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/dso:sprint`, present in the task prompt, or tracked by the orchestrator), populate this with:
+**Resolving `{issue_context}`**: If a ticket issue ID is known for the current work (e.g., passed from `/dso:sprint`, present in the task prompt, or tracked by the orchestrator), populate this with:
 
 ```
 === ISSUE CONTEXT ===
 This change is for issue {issue_id}.
-To view full issue details, run: tk show {issue_id}
+To view full issue details, run: ticket show {issue_id}
 ```
 
 If no issue is associated with the current work, omit the issue context section.
@@ -415,7 +415,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and u
 - `{diff_file}`: the `DIFF_FILE` path from Step 2
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
-- `{issue_ids}`: issue IDs associated with the current work (for `tk create` defers), or empty string
+- `{issue_ids}`: issue IDs associated with the current work (for `ticket create` defers), or empty string
 - `{cached_model}`: model name derived from `REVIEW_TIER` in Step 3 (`light`→`haiku`, `standard`→`sonnet`, `deep`→`opus`)
 - `{findings_file}`: for deep tier, this is the authoritative `$ARTIFACTS_DIR/reviewer-findings.json` — the file written by `dso:code-reviewer-deep-arch` (opus). The resolution sub-agent MUST NOT read or write `reviewer-findings-{a,b,c}.json`; those are sonnet-only artifacts consumed only during the opus synthesis pass.
 
@@ -562,6 +562,6 @@ Compare the overall CI failure rate for the 30 commits following deployment agai
 
 When any signal above crosses its threshold, follow this protocol:
 
-1. **Create a P1 bug ticket**: `tk create --type task --priority 1 "Classifier miscalibration: <signal description>"` — record the specific signal, threshold crossed, and the affected commit range.
+1. **Create a P1 bug ticket**: `ticket create --type task --priority 1 "Classifier miscalibration: <signal description>"` — record the specific signal, threshold crossed, and the affected commit range.
 2. **Adjust the classifier**: modify floor rules or scoring weights in `plugins/dso/scripts/review-complexity-classifier.sh` to correct the miscalibration.
 3. **Re-validate**: re-run the classifier against the same 30-commit sample that triggered the breach and confirm the signal is no longer breaching its threshold before closing the ticket.

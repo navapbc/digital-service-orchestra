@@ -131,7 +131,7 @@ Create a ticket epic with remediation tasks based on user-confirmed scope.
 
 ### Steps
 
-1. **Create epic**: `tk create "Retro: {YYYY-MM-DD} - {key-findings-summary}" -t epic` with description documenting assessment date, health score, top 3 findings, and target outcome.
+1. **Create epic**: `ticket create "Retro: {YYYY-MM-DD} - {key-findings-summary}" -t epic` with description documenting assessment date, health score, top 3 findings, and target outcome.
 
 2. **Create child tasks**: For each finding in scope, create a task with appropriate type/priority. Each task description must include: Issue (what), Location (file paths), Acceptance Criteria (checkboxes), and Context (why it matters).
 
@@ -177,4 +177,4 @@ If yes: execute sequentially, one commit per fix, close corresponding task after
 
 ## Output
 
-At the end of the retro, report: epic ID/title, findings summary (critical/improvement/cleanup counts), tasks created (ready/blocked counts), quick wins completed (if Phase 5 ran), current and target health scores, and next steps (`tk show`, `tk ready`, `/dso:sprint`).
+At the end of the retro, report: epic ID/title, findings summary (critical/improvement/cleanup counts), tasks created (ready/blocked counts), quick wins completed (if Phase 5 ran), current and target health scores, and next steps (`ticket show`, `tk ready`, `/dso:sprint`).

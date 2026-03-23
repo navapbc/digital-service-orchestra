@@ -5,7 +5,7 @@ Do NOT fix any issues — only report findings.
 
 ## Config Keys Used
 
-This prompt uses plugin scripts (`validate-issues.sh`, `tk`) which are inherently portable.
+This prompt uses plugin scripts (`validate-issues.sh`, `ticket`, the tk wrapper) which are inherently portable.
 The orchestrator injects a `### Config Values` block with the plugin scripts directory.
 
 | Config Key / Variable    | Purpose                                         | Required? |
@@ -18,7 +18,7 @@ The orchestrator provides this as:
 PLUGIN_SCRIPTS_DIR=<absolute path to plugin scripts directory>
 ```
 
-Note: `tk` is a CLI command available in PATH — no config key needed.
+Note: `ticket` and the tk wrapper are CLI commands available in PATH — no config key needed.
 
 ## Commands to Run
 
@@ -32,7 +32,7 @@ Note: `tk` is a CLI command available in PATH — no config key needed.
 Also run these supplementary checks:
 4. `tk ready`            (report open/in-progress issues with all deps resolved)
 5. `tk blocked`          (report blocked issues)
-6. `tk closed --limit=50` (report recently closed issues)
+6. `ticket list --status closed` (report recently closed issues)
 
 ## Return
 
@@ -47,7 +47,7 @@ You are a read-only reporting agent. You MUST NOT modify any files or system sta
 - **Write** — forbidden. Do not write any file.
 - **Bash with modifying commands** — forbidden:
   - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
-  - `tk close`, `tk status`, `tk update`, `tk create`
+  - `ticket transition`, `ticket create`
   - `make`, `pip install`, `npm install`, `poetry install`
   - Any command that changes system state
 

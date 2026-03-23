@@ -172,7 +172,7 @@ The ONLY permitted write is the diagnostic report file produced in "Save Report 
 - **Write** — forbidden except for the designated `$DIAG_FILE` report path.
 - **Bash with modifying commands** — forbidden:
   - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
-  - `tk close`, `tk status`, `tk update`, `tk create`
+  - `ticket transition`, `ticket create`
   - `make`, `pip install`, `npm install`, `poetry install`
   - Any command that changes source files or application state
 

@@ -21,13 +21,13 @@ The wrapper reads two keys from `dso-config.conf` via `read-config.sh`:
 | Key | Purpose | Default |
 |-----|---------|---------|
 | `session.artifact_prefix` | Prefix for `/tmp` artifact directories | `<repo-basename>-test-artifacts` |
-| `issue_tracker.create_cmd` | Command to create a tracking ticket (e.g., `tk create`) | absent = skip ticket creation with warning |
+| `issue_tracker.create_cmd` | Command to create a tracking ticket (e.g., `ticket create`) | absent = skip ticket creation with warning |
 
 Example config:
 
 ```conf
 session.artifact_prefix=myproject-test-artifacts
-issue_tracker.create_cmd=tk create
+issue_tracker.create_cmd=ticket create
 ```
 
 ## Timeout Detection

@@ -9,7 +9,7 @@ The ticket system has two CLI entry points:
 | Entry point | Purpose |
 |---|---|
 | `ticket <subcommand>` | Low-level event-sourced ticket system (dispatcher at `plugins/dso/scripts/ticket`) |
-| `tk <subcommand>` | High-level ticket workflow tool (`plugins/dso/scripts/tk`) — wraps `ticket` and adds Jira sync, dependency trees, and human-friendly output |
+| the tk wrapper: `tk <subcommand>` | High-level ticket workflow tool (`plugins/dso/scripts/tk`) — wraps `ticket` and adds Jira sync, dependency trees, and human-friendly output |
 
 Source of truth for each subcommand is in `plugins/dso/scripts/ticket-*.sh` and `plugins/dso/scripts/ticket-*.py`. The dispatcher at `plugins/dso/scripts/ticket` routes all subcommands to those implementation scripts.
 
@@ -479,13 +479,13 @@ $ ticket deps w21-a3f7
 
 ### `sync`
 
-Synchronize tickets with Jira (via the `tk` wrapper).
+Synchronize tickets with Jira (via the tk wrapper).
 
 ```
 tk sync [--check] [--include-closed] [--force-local] [--no-lock] [--break-lock] [--lock-timeout=N] [--full]
 ```
 
-`sync` is a `tk` command (not a `ticket` dispatcher subcommand). It requires `acli` (Atlassian CLI) in `PATH` and Jira credentials configured (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`).
+`sync` is a tk wrapper command (not a `ticket` dispatcher subcommand). It requires `acli` (Atlassian CLI) in `PATH` and Jira credentials configured (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`).
 
 **Arguments:**
 
@@ -531,7 +531,7 @@ Archive a ticket's event history using snapshot compaction (`ticket compact`).
 ticket compact <ticket_id> [--threshold=N]
 ```
 
-The compaction operation archives a ticket's raw event history into a single `SNAPSHOT` event, reducing the number of files on the tickets branch. The term "archive" in the event-sourced system refers to this compaction process; it is distinct from the `tk` move-to-archive-directory operation used by the legacy markdown ticket system.
+The compaction operation archives a ticket's raw event history into a single `SNAPSHOT` event, reducing the number of files on the tickets branch. The term "archive" in the event-sourced system refers to this compaction process; it is distinct from the tk move-to-archive-directory operation used by the legacy markdown ticket system.
 
 **Arguments:**
 

@@ -29,7 +29,7 @@ Resolved commands used in this skill:
 If a ticket issue ID is available for the task that triggered the cascade, read its checkpoint notes before doing git archaeology:
 
 ```bash
-tk show <id> 2>/dev/null
+ticket show <id> 2>/dev/null
 ```
 
 This is best-effort (non-mandatory). The CHECKPOINT notes reveal which substep the cascade started from and which files were already modified before things went wrong. Use this context to focus Step 1's damage assessment.
@@ -49,7 +49,7 @@ cd $(git rev-parse --show-toplevel) && $TEST_CMD 2>&1 | tail -50
 git log --oneline -10
 ```
 
-Write down (in a ticket note via `tk add-note <id> "..."`) :
+Write down (in a ticket note via `ticket comment <id> "..."`) :
 - How many files were changed
 - How many distinct errors exist now
 - What the original task/bug was
@@ -79,7 +79,7 @@ After reverting (or deciding not to revert), hand off to `/dso:fix-bug` with cas
 Before invoking, add a cascade context note to the ticket:
 
 ```bash
-tk add-note <id> "Cascading failure: <N> failed fix attempts caused new failures. Files changed during cascade: <list>. Original error before cascade: <description>"
+ticket comment <id> "Cascading failure: <N> failed fix attempts caused new failures. Files changed during cascade: <list>. Original error before cascade: <description>"
 ```
 
 Then invoke:

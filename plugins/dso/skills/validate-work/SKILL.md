@@ -344,7 +344,7 @@ All sub-agents dispatched by this skill are read-only. The orchestrator MUST NOT
 - **Write** — forbidden. Sub-agents must not write any file.
 - **Bash with modifying commands** — forbidden:
   - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
-  - `tk close`, `tk status`, `tk update`, `tk create`
+  - `ticket transition`, `ticket create`
   - `make`, `pip install`, `npm install`, `poetry install`
   - Any command that changes system state
 

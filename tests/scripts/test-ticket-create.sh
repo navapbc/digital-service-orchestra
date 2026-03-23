@@ -359,4 +359,61 @@ test_ticket_create_rejects_invalid_ticket_type() {
 }
 test_ticket_create_rejects_invalid_ticket_type
 
+# ── Test 7 (RED): ticket create with a closed parent is blocked ────────────────
+echo "Test 7 (RED): ticket create with a closed parent exits non-zero"
+test_create_with_closed_parent_blocked() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create and close a parent ticket
+    local parent_id
+    parent_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Parent epic to close" 2>/dev/null) || true
+    parent_id=$(echo "$parent_id" | tail -1)
+
+    if [ -z "$parent_id" ]; then
+        assert_eq "parent ticket created for closed-parent test" "non-empty" "empty"
+        return
+    fi
+
+    # Close the parent (transition open → closed)
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>/dev/null) || true
+
+    # Verify the parent is actually closed before proceeding
+    local parent_status
+    parent_status=$(python3 "$REPO_ROOT/plugins/dso/scripts/ticket-reducer.py" \
+        "$repo/.tickets-tracker/$parent_id" 2>/dev/null \
+        | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('status',''))" 2>/dev/null) || true
+
+    if [ "$parent_status" != "closed" ]; then
+        # Can't run the guard test if parent isn't closed — fail RED to signal setup issue
+        assert_eq "create-closed-parent: parent is closed before test" "closed" "$parent_status"
+        return
+    fi
+
+    # Attempt to create a child under the closed parent — must exit non-zero
+    # RED: current ticket-create.sh does not enforce this guard → exits 0
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Orphan child under closed parent" --parent "$parent_id" 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero (guard not yet implemented → currently exits 0, so FAILS RED)
+    assert_eq "create-closed-parent: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error message mentions parent, closed, or not allowed
+    if echo "$stderr_out" | grep -qiE 'parent|closed|not allowed|cannot'; then
+        assert_eq "create-closed-parent: error mentions closed parent" "has-closed-hint" "has-closed-hint"
+    else
+        assert_eq "create-closed-parent: error mentions closed parent" "has-closed-hint" "no-hint: $stderr_out"
+    fi
+
+    # Assert: no CREATE event file was written for any new child
+    local tracker_dir="$repo/.tickets-tracker"
+    # Count CREATE events excluding the parent's own CREATE event
+    local new_events
+    new_events=$(find "$tracker_dir" -maxdepth 2 -name '*-CREATE.json' ! -name '.*' 2>/dev/null \
+        | grep -v "/$parent_id/" | wc -l | tr -d ' ')
+    assert_eq "create-closed-parent: no CREATE event written for blocked child" "0" "$new_events"
+}
+test_create_with_closed_parent_blocked
+
 print_summary

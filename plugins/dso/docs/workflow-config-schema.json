@@ -224,13 +224,13 @@
           "type": "string",
           "description": "Command to search for existing tickets by substring. Used by commit-failure-tracker.sh.",
           "minLength": 1,
-          "examples": ["grep -rl", "tk search"]
+          "examples": ["grep -rl", "ticket list --filter"]
         },
         "create_cmd": {
           "type": "string",
           "description": "Command to create a new tracking issue. Used by check-validation-failures.sh.",
           "minLength": 1,
-          "examples": ["tk create", "gh issue create"]
+          "examples": ["ticket create", "gh issue create"]
         }
       }
     },
@@ -510,7 +510,7 @@
       "properties": {
         "prefix": {
           "type": "string",
-          "description": "Ticket ID prefix used when generating new ticket IDs. When omitted, tk derives the prefix from the project directory name.",
+          "description": "Ticket ID prefix used when generating new ticket IDs. When omitted, the tk wrapper derives the prefix from the project directory name.",
           "minLength": 1,
           "examples": ["lockpick-doc-to-logic", "my-project"]
         },

@@ -78,8 +78,8 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
 
 ### Rules
 Read `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
-- Do NOT: `git commit`, `git push`, `tk close`, `tk status`, `tk dep`
-- You MAY run: `tk create --parent=<parent-id>` for discovered work outside your fix scope
+- Do NOT: `git commit`, `git push`, `ticket transition`, `ticket link`
+- You MAY run: `ticket create --parent=<parent-id>` for discovered work outside your fix scope
 - Do NOT skip, disable, or delete any tests
 - Do NOT add `# type: ignore`, `# noqa`, `@pytest.mark.skip`, or any suppression comments
 - Do NOT modify files outside the scope of this fix

@@ -35,7 +35,7 @@ source of truth for an implementation agent.
 
 - DESIGN_NOTES exists: !`test -f DESIGN_NOTES.md && echo "YES — will load in Phase 1" || echo "NO — will need to proceed without design context or run onboarding first"`
 - Playwright available: !`npx playwright --version 2>/dev/null && echo "YES" || echo "NO — live app review will be skipped; source code analysis only"`
-- tk available: !`which tk 2>/dev/null && echo "YES" || echo "NO — cannot proceed without tk CLI"`
+- ticket CLI available: !`which ticket 2>/dev/null && echo "YES" || echo "NO — cannot proceed without ticket CLI"`
 - UI Discovery Cache: !`test -f .ui-discovery-cache/manifest.json && echo "YES" || echo "NO"`
 
 ## Stack Adapter Resolution
@@ -80,7 +80,7 @@ prevents spending 20 steps on a text change.
 
 ### Step 0: Load the story and classify
 
-Run: `tk show $ARGUMENTS`
+Run: `ticket show $ARGUMENTS`
 
 Parse the JSON output. Extract the **Type**, **Title**, **Description**, and
 **Acceptance criteria**.
@@ -190,7 +190,7 @@ If any check fails, fix the brief. No multi-reviewer committee is needed.
 
 Link the brief to the story:
 ```
-tk add-note $ARGUMENTS "Design Brief: designs/<uuid>/brief.md"
+ticket comment $ARGUMENTS "Design Brief: designs/<uuid>/brief.md"
 ```
 
 Summarize for the user:
@@ -238,13 +238,13 @@ Extract and note (if not already noted):
 
 1. Inspect the story's dependency data (from the output above) for a `parent-child`
    relationship where this story is the child. Alternatively, run:
-   `tk dep tree $ARGUMENTS` to visualize the relationship.
+   `ticket deps $ARGUMENTS` to visualize the relationship.
 
 2. **If a parent epic exists**:
 
    #### Context File Check (skip epic tree walk if fresh context exists)
 
-   Before fetching epic data via `tk` commands, check for a preplanning context
+   Before fetching epic data via `ticket` commands, check for a preplanning context
    file that may already contain all the information needed:
 
    a. Look for `/tmp/preplanning-context-<epic-id>.json`.
@@ -258,7 +258,7 @@ Extract and note (if not already noted):
         `storyDashboard` field)
       - For each sibling story, check its `hasWireframe` flag. If true, read
         the referenced design manifest from disk (the file path is still on the
-        ticket story's notes — run `tk show <sibling-id>` only
+        ticket story's notes — run `ticket show <sibling-id>` only
         for siblings with `hasWireframe: true` to get the manifest path).
       - Carry forward review findings (especially accessibility and security
         safeguards) into the Epic UX Map.
@@ -270,9 +270,9 @@ Extract and note (if not already noted):
 
    #### Full epic tree walk (when no fresh context file exists)
 
-   a. Run `tk show <epic-id>` to load the epic's vision and description.
-   b. Run `tk dep tree <epic-id>` to identify all sibling stories in the epic.
-   c. For each sibling story, run `tk show <sibling-id>` and check
+   a. Run `ticket show <epic-id>` to load the epic's vision and description.
+   b. Run `ticket deps <epic-id>` to identify all sibling stories in the epic.
+   c. For each sibling story, run `ticket show <sibling-id>` and check
       whether it references a design. If it does, read the referenced
       design manifest (e.g., `designs/<uuid>/manifest.md`) and note:
       - The sibling story's scope and how it fits the epic's UX vision
@@ -313,7 +313,7 @@ processing multiple UI stories in sequence):
       disk. Log: `"Loaded DESIGN_NOTES from wireframe session file — skipping
       disk read."`
    b. Read the `siblingDesigns` array. For each entry, the design manifest path
-      is already known — skip the per-sibling `tk show` + manifest read done in
+      is already known — skip the per-sibling `ticket show` + manifest read done in
       Step 1's epic context section (these are designs from stories already
       processed in this session). Read the manifest files directly from the
       paths listed.
@@ -812,13 +812,13 @@ Follow `/dso:review-protocol`'s revision protocol:
 Link the approved design artifacts to the story:
 
 ```
-tk add-note $ARGUMENTS "Design Manifest: designs/<uuid>/manifest.md | Spatial Layout: designs/<uuid>/spatial-layout.json | Wireframe: designs/<uuid>/wireframe.svg | Tokens: designs/<uuid>/tokens.md | Review: designs/<uuid>/review-log.md"
+ticket comment $ARGUMENTS "Design Manifest: designs/<uuid>/manifest.md | Spatial Layout: designs/<uuid>/spatial-layout.json | Wireframe: designs/<uuid>/wireframe.svg | Tokens: designs/<uuid>/tokens.md | Review: designs/<uuid>/review-log.md"
 ```
 
 If the story was split in Step 10, also create the enhancement story:
 ```
-tk create "Enhancement: <title>" -t story -p <same priority> -d "<description referencing foundation story $ARGUMENTS>"
-tk dep <new-story-id> $ARGUMENTS
+ticket create "Enhancement: <title>" -t story -p <same priority> -d "<description referencing foundation story $ARGUMENTS>"
+ticket link <new-story-id> $ARGUMENTS depends_on
 ```
 
 Update `progress.json`: set `"status": "complete"` and `"currentPhase": 6`.
@@ -841,7 +841,7 @@ Summarize for the user:
 
 | Condition | Action |
 |-----------|--------|
-| `tk` not installed | Stop. Tell user to install tk. |
+| `ticket` CLI not installed | Stop. Tell user to install ticket CLI. |
 | Story ID not found | Stop. Report invalid story ID. |
 | DESIGN_NOTES.md missing | Warn. Ask user whether to proceed or run onboarding. |
 | Playwright unavailable | Warn. Skip live review; rely on source analysis. Note in manifest. |

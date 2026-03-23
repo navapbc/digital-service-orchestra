@@ -14,6 +14,6 @@ Run auto-fixers, validate, and report what changed.
 
 ### Rules
 See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
-- Do NOT: `git commit`, `git push`, `tk close`, `tk status`
+- Do NOT: `git commit`, `git push`, `ticket transition`
 - Do NOT manually fix lint or type errors — only use auto-fixers
 - Report remaining manual-fix-required violations for the orchestrator
