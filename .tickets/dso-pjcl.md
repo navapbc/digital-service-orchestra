@@ -1,6 +1,6 @@
 ---
 id: dso-pjcl
-status: in_progress
+status: closed
 deps: [dso-710r]
 links: []
 created: 2026-03-23T00:23:47Z

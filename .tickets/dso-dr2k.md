@@ -1,6 +1,6 @@
 ---
 id: dso-dr2k
-status: open
+status: in_progress
 deps: [dso-710r, dso-pjcl]
 links: []
 created: 2026-03-23T00:24:23Z
@@ -47,3 +47,47 @@ Append to existing test file — do NOT overwrite T1 or T3 tests.
 - [ ] New resume tests FAIL before T6 implementation (RED state)
   Verify: bash $(git rev-parse --show-toplevel)/tests/scripts/test-cutover-tickets-migration.sh 2>&1 | grep -q 'FAIL.*resume\|FAIL.*state_file'
 
+
+## Notes
+
+<!-- note-id: on9z7x08 -->
+<!-- timestamp: 2026-03-23T02:54:19Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+<!-- note-id: rjtszy5j -->
+<!-- timestamp: 2026-03-23T02:54:38Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 2/6: Code patterns understood ✓ — cutover script uses PHASES array (validate/snapshot/migrate/verify/finalize), _state_append_phase() writes JSON state file, no --resume flag yet. Test file uses _setup_fixture(), assert_eq/assert_ne/assert_contains, _snapshot_fail/_pass_if_clean pattern.
+
+<!-- note-id: m6u5jm1u -->
+<!-- timestamp: 2026-03-23T02:55:21Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 3/6: Tests written ✓ — appended test_cutover_state_file_written_after_each_phase, test_cutover_resume_skips_completed_phases, test_cutover_resume_does_not_rerun_already_completed_phase to tests/scripts/test-cutover-tickets-migration.sh
+
+<!-- note-id: 0hjlz3vy -->
+<!-- timestamp: 2026-03-23T02:55:29Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 4/6: Implementation complete ✓ — RED tests are the deliverable for this task
+
+<!-- note-id: fnjopg6b -->
+<!-- timestamp: 2026-03-23T02:56:30Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 5/6: Validation passed ✓ — bash -n syntax: OK; resume tests FAIL as expected (RED state); grep pattern 'FAIL.*resume|FAIL.*state_file' matches 7 lines
+
+<!-- note-id: 12i5dz5u -->
+<!-- timestamp: 2026-03-23T02:56:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CHECKPOINT 6/6: Done ✓ — All 5 AC pass. Tests written and confirmed RED. No discovered out-of-scope work.

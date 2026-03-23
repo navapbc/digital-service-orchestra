@@ -434,4 +434,188 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
 
 # =============================================================================
+# Test 8: test_cutover_state_file_written_after_each_phase
+#
+# RED phase: state file is written by _state_append_phase after each phase, but
+# the resume logic does not yet exist — this test validates state-file content.
+# The assertion for all 5 phase names should PASS (state file already written),
+# but the --resume flag handling tested in T9/T10 does NOT exist — those tests
+# will FAIL in RED.
+#
+# Setup: temp git repo. Set CUTOVER_STATE_FILE to a temp path.
+# Run script to completion with all stubs succeeding.
+# Assert: state file exists and contains all 5 phase names.
+# =============================================================================
+_setup_fixture
+
+_STATE_WRITTEN_FILE="$_FIXTURE_DIR/.cutover-state-written.json"
+_STATE_WRITTEN_RC=0
+
+_STATE_WRITTEN_OUTPUT=$(
+    CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+    CUTOVER_STATE_FILE="$_STATE_WRITTEN_FILE" \
+    bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1
+) || _STATE_WRITTEN_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_cutover_state_file_written_after_each_phase_exit_0" "0" "$_STATE_WRITTEN_RC"
+
+# Assert state file exists
+if [[ -f "$_STATE_WRITTEN_FILE" ]]; then
+    _STATE_FILE_EXISTS="true"
+else
+    _STATE_FILE_EXISTS="false"
+fi
+assert_eq "test_cutover_state_file_written_after_each_phase_file_exists" "true" "$_STATE_FILE_EXISTS"
+
+# Assert all 5 phase names appear in the state file
+_STATE_HAS_ALL_PHASES="false"
+if [[ -f "$_STATE_WRITTEN_FILE" ]]; then
+    _STATE_CONTENT=$(cat "$_STATE_WRITTEN_FILE")
+    if echo "$_STATE_CONTENT" | grep -q 'validate' && \
+       echo "$_STATE_CONTENT" | grep -q 'snapshot' && \
+       echo "$_STATE_CONTENT" | grep -q 'migrate'  && \
+       echo "$_STATE_CONTENT" | grep -q 'verify'   && \
+       echo "$_STATE_CONTENT" | grep -q 'finalize'; then
+        _STATE_HAS_ALL_PHASES="true"
+    fi
+fi
+assert_eq "test_cutover_state_file_written_after_each_phase" "true" "$_STATE_HAS_ALL_PHASES"
+assert_pass_if_clean "test_cutover_state_file_written_after_each_phase"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
+# Test 9: test_cutover_resume_skips_completed_phases
+#
+# RED phase: --resume flag and skip logic do not exist yet — FAILS.
+#
+# Setup: temp git repo. Pre-write a state file indicating 'validate' and
+# 'snapshot' (PRE_FLIGHT and SNAPSHOT) are completed.
+# Run script with --resume flag.
+# Assert: output does NOT contain 'Running phase: validate' or
+#         'Running phase: snapshot'.
+# Assert: output DOES contain 'Skipping completed phase: validate' (or equivalent).
+# Assert: output DOES contain 'Running phase: migrate' (resumes from third phase).
+# =============================================================================
+_setup_fixture
+
+_RESUME_SKIP_STATE_FILE="$_FIXTURE_DIR/.cutover-resume-skip.json"
+_RESUME_SKIP_RC=0
+
+# Pre-write state file with first two phases completed
+python3 -c "
+import json
+data = {'completed_phases': ['validate', 'snapshot']}
+with open('$_RESUME_SKIP_STATE_FILE', 'w') as fh:
+    json.dump(data, fh)
+    fh.write('\n')
+"
+
+_RESUME_SKIP_OUTPUT=$(
+    CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+    CUTOVER_STATE_FILE="$_RESUME_SKIP_STATE_FILE" \
+    bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" --resume 2>&1
+) || _RESUME_SKIP_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_cutover_resume_skips_completed_phases_exit_0" "0" "$_RESUME_SKIP_RC"
+
+# Assert output does NOT contain 'Running phase: validate'
+if echo "$_RESUME_SKIP_OUTPUT" | grep -q 'Running phase: validate'; then
+    _SKIP_VALIDATE="false"
+else
+    _SKIP_VALIDATE="true"
+fi
+assert_eq "test_cutover_resume_skips_completed_phases_no_validate" "true" "$_SKIP_VALIDATE"
+
+# Assert output does NOT contain 'Running phase: snapshot'
+if echo "$_RESUME_SKIP_OUTPUT" | grep -q 'Running phase: snapshot'; then
+    _SKIP_SNAPSHOT="false"
+else
+    _SKIP_SNAPSHOT="true"
+fi
+assert_eq "test_cutover_resume_skips_completed_phases_no_snapshot" "true" "$_SKIP_SNAPSHOT"
+
+# Assert output DOES contain a skip message for validate
+if echo "$_RESUME_SKIP_OUTPUT" | grep -qiE 'Skipping.*validate|validate.*skip'; then
+    _HAS_SKIP_MSG="true"
+else
+    _HAS_SKIP_MSG="false"
+fi
+assert_eq "test_cutover_resume_skips_completed_phases_skip_msg" "true" "$_HAS_SKIP_MSG"
+
+# Assert output DOES contain 'Running phase: migrate' (resumes from third phase)
+if echo "$_RESUME_SKIP_OUTPUT" | grep -q 'Running phase: migrate'; then
+    _RESUMES_AT_MIGRATE="true"
+else
+    _RESUMES_AT_MIGRATE="false"
+fi
+assert_eq "test_cutover_resume_skips_completed_phases" "true" "$_RESUMES_AT_MIGRATE"
+assert_pass_if_clean "test_cutover_resume_skips_completed_phases"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
+# Test 10: test_cutover_resume_does_not_rerun_already_completed_phase
+#
+# RED phase: --resume flag and all-phases-complete logic do not exist — FAILS.
+#
+# Setup: temp git repo. Pre-write state file showing ALL 5 phases completed.
+# Run script with --resume.
+# Assert: output contains 'All phases already completed' or similar; exit 0.
+# Assert: no phase was re-executed (no 'Running phase:' lines in output).
+# =============================================================================
+_setup_fixture
+
+_RESUME_ALL_STATE_FILE="$_FIXTURE_DIR/.cutover-resume-all.json"
+_RESUME_ALL_RC=0
+
+# Pre-write state file with all phases completed
+python3 -c "
+import json
+data = {'completed_phases': ['validate', 'snapshot', 'migrate', 'verify', 'finalize']}
+with open('$_RESUME_ALL_STATE_FILE', 'w') as fh:
+    json.dump(data, fh)
+    fh.write('\n')
+"
+
+_RESUME_ALL_OUTPUT=$(
+    CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+    CUTOVER_STATE_FILE="$_RESUME_ALL_STATE_FILE" \
+    bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" --resume 2>&1
+) || _RESUME_ALL_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_cutover_resume_does_not_rerun_already_completed_phase_exit_0" "0" "$_RESUME_ALL_RC"
+
+# Assert output contains 'All phases already completed' or similar
+if echo "$_RESUME_ALL_OUTPUT" | grep -qiE 'all phases already completed|nothing to resume|all.*complete'; then
+    _HAS_COMPLETE_MSG="true"
+else
+    _HAS_COMPLETE_MSG="false"
+fi
+assert_eq "test_cutover_resume_does_not_rerun_already_completed_phase_msg" "true" "$_HAS_COMPLETE_MSG"
+
+# Assert no phase was re-executed (no 'Running phase:' lines)
+if echo "$_RESUME_ALL_OUTPUT" | grep -q 'Running phase:'; then
+    _NO_RERUN="false"
+else
+    _NO_RERUN="true"
+fi
+assert_eq "test_cutover_resume_does_not_rerun_already_completed_phase" "true" "$_NO_RERUN"
+assert_pass_if_clean "test_cutover_resume_does_not_rerun_already_completed_phase"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
 print_summary
