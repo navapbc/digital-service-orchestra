@@ -19,7 +19,10 @@ plugins/dso/docs/workflows/TEST-FAILURE-DISPATCH.md:plugins/dso/skills/sprint/pr
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
-plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
+plugins/dso/hooks/closed-parent-guard.sh:tests/hooks/test-pre-bash-functions-ticket-guards.sh [test_bug_close_guard_fires_on_ticket_transition_closed]
+plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh [test_allowlist_uses_tickets_tracker_path]
+plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-pre-bash-functions-ticket-guards.sh [test_bug_close_guard_fires_on_ticket_transition_closed]
+plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh [test_allowlist_uses_tickets_tracker_path]
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-docker-skip.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
 plugins/dso/scripts/ci-generator.sh:tests/scripts/test-ci-generator.sh,tests/scripts/test-ci-generator-integration.sh
