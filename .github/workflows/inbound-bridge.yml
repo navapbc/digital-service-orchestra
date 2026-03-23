@@ -100,8 +100,9 @@ jobs:
       - name: Extract ACLI binary
         if: steps.cache-acli.outputs.cache-hit != 'true'
         run: |
-          # ACLI v1.3+ is a Go binary distributed as tar.gz.
-          tar xzf ~/.acli/acli.tar.gz -C ~/.acli/
+          # ACLI v1.3+ is a Go binary in a tar.gz with a version-prefixed directory.
+          # --strip-components=1 removes the top-level dir (e.g., acli_1.3.14-stable_linux_amd64/).
+          tar xzf ~/.acli/acli.tar.gz -C ~/.acli/ --strip-components=1
           chmod +x ~/.acli/acli
           rm -f ~/.acli/acli.tar.gz
           echo "Extracted acli binary from tar.gz."
