@@ -34,16 +34,16 @@ trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
 # Valid findings JSON
 VALID_JSON='{
   "scores": {
-    "code_hygiene": 5,
-    "object_oriented_design": "N/A",
-    "readability": 4,
-    "functionality": 4,
-    "testing_coverage": 5
+    "hygiene": 5,
+    "design": "N/A",
+    "maintainability": 4,
+    "correctness": 4,
+    "verification": 5
   },
   "findings": [
     {
       "severity": "minor",
-      "category": "readability",
+      "category": "maintainability",
       "description": "Test finding",
       "file": "test.py"
     }
@@ -54,7 +54,7 @@ VALID_JSON='{
 # Invalid JSON (missing required score dimensions)
 INVALID_JSON='{
   "scores": {
-    "code_hygiene": 5
+    "hygiene": 5
   },
   "findings": [],
   "summary": "Incomplete scores"
@@ -63,11 +63,11 @@ INVALID_JSON='{
 # Invalid JSON (out-of-range score value)
 OUT_OF_RANGE_JSON='{
   "scores": {
-    "code_hygiene": 5,
-    "object_oriented_design": "N/A",
-    "readability": 10,
-    "functionality": 4,
-    "testing_coverage": 5
+    "hygiene": 5,
+    "design": "N/A",
+    "maintainability": 10,
+    "correctness": 4,
+    "verification": 5
   },
   "findings": [],
   "summary": "Score 10 is out of range (max is 5)."
@@ -144,5 +144,40 @@ else
     actual="no_pending"
 fi
 assert_eq "test_no_pending_file_on_failure" "no_pending" "$actual"
+
+# test_write_new_dimension_names_accepted
+# Piping valid JSON with NEW dimension names should exit 0 and produce a hash.
+# RED: fails until Task w22-4391 renames the dimension keys in the validator.
+NEW_DIM_JSON='{
+  "scores": {
+    "correctness": 4,
+    "verification": 5,
+    "hygiene": 4,
+    "design": 4,
+    "maintainability": 5
+  },
+  "findings": [],
+  "summary": "New dimension names are valid after the rename."
+}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+new_hash_output=$(echo "$NEW_DIM_JSON" | "$SCRIPT" 2>/dev/null) && new_exit_code=0 || new_exit_code=$?
+assert_eq "test_write_new_dimension_names_accepted" "0" "$new_exit_code"
+
+# test_write_old_dimension_names_rejected
+# Piping JSON with OLD dimension names should exit 1 (validator rejects them).
+OLD_DIM_JSON='{
+  "scores": {
+    "invalid_dim_a": 4,
+    "invalid_dim_b": 5,
+    "invalid_dim_c": 4,
+    "invalid_dim_d": 4,
+    "invalid_dim_e": 5
+  },
+  "findings": [],
+  "summary": "Unknown dimension names should be rejected by the validator."
+}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+echo "$OLD_DIM_JSON" | "$SCRIPT" 2>/dev/null && old_exit_code=0 || old_exit_code=$?
+assert_eq "test_write_old_dimension_names_rejected" "1" "$old_exit_code"
 
 print_summary

@@ -1,6 +1,6 @@
 ---
 id: w21-jtkr
-status: open
+status: closed
 deps: [w21-zp4d, dso-9ltc]
 links: []
 created: 2026-03-21T00:02:51Z
@@ -69,3 +69,7 @@ Done definition 3 (REVIEW-WORKFLOW.md Step 3 replacement) should reference named
 
 Integration test: invoke at least one generated agent with a minimal diff and verify schema-valid output on first attempt. This validates the end-to-end path from classifier → named agent → write-reviewer-findings.sh.
 
+
+**2026-03-22T14:17:49Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX

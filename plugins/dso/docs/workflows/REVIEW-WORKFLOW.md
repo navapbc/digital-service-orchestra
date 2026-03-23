@@ -1,6 +1,6 @@
 # Code Review Workflow
 
-Review the current code diff using a `general-purpose` sub-agent for deep analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
+Review the current code diff using a classifier-selected named review agent for analysis of bugs, logic errors, security vulnerabilities, code quality, and adherence to project conventions.
 
 ## Config Reference (from dso-config.conf)
 
@@ -103,37 +103,93 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 **Note**: The diff hash is staging-invariant for tracked file changes — `git add -u` produces the same hash as the pre-add state.
 
-## Step 3: Determine Model (MANDATORY — run the command, do not evaluate mentally)
+## Step 3: Classify Review Tier (MANDATORY — run the classifier, do not evaluate mentally)
 
-**You MUST run this command and use its output.** Do NOT select a model based on your assessment of diff complexity or file types — only file paths determine model selection.
+**You MUST run this command and use its output.** Do NOT select a tier based on your assessment of diff complexity or file types — the classifier computes the tier deterministically from the diff.
 
 ```bash
-CHANGED_FILES=$({ git diff HEAD --name-only; git ls-files --others --exclude-standard; } | sort -u)
-MODEL="sonnet"
-if echo "$CHANGED_FILES" | grep -qE '^(\.claude/skills/|\.claude/workflows/|\.claude/hooks/|\.claude/docs/|CLAUDE\.md$|\.github/workflows/|scripts/|\.pre-commit-config\.yaml$|Makefile$|app/src/app\.py$)'; then
-    MODEL="opus"
+# Run complexity classifier to determine review tier
+CLASSIFIER="${CLAUDE_PLUGIN_ROOT}/scripts/review-complexity-classifier.sh"
+CLASSIFIER_OUTPUT=$(bash "$CLASSIFIER" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
+if [[ "${CLASSIFIER_EXIT:-0}" -ne 0 ]] || ! echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+    # Classifier failed — default to standard tier per contract (classifier-tier-output.md)
+    REVIEW_TIER="standard"
+    REVIEW_AGENT="dso:code-reviewer-standard"
+else
+    REVIEW_TIER=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["selected_tier"])')
+    case "$REVIEW_TIER" in
+        light)    REVIEW_AGENT="dso:code-reviewer-light" ;;
+        standard) REVIEW_AGENT="dso:code-reviewer-standard" ;;
+        deep)     REVIEW_AGENT="deep-multi-reviewer" ;;  # Dispatches 3 parallel sonnet agents — see Step 4 Deep Tier section
+        *)        REVIEW_TIER="standard"; REVIEW_AGENT="dso:code-reviewer-standard" ;;
+    esac
 fi
-echo "REVIEW_MODEL=$MODEL"
+echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 ```
 
-Use the `REVIEW_MODEL=` value in Step 4. Do not substitute `sonnet` when the command outputs `opus`.
+### Step 3b: Size-Based Branching (post-classifier)
+
+After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or is rejected. See `plugins/dso/docs/contracts/classifier-size-output.md` for the full contract.
+
+```bash
+# Extract size fields from classifier output (defaults match failure contract)
+SIZE_ACTION=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","none"))' 2>/dev/null || echo "none")
+IS_MERGE=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "false")
+DIFF_SIZE_LINES=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("diff_size_lines",0))' 2>/dev/null || echo "0")
+
+# REVIEW_PASS_NUM tracks initial vs re-review passes.
+# Pass 1 = initial review dispatch; pass >= 2 = re-review from Autonomous Resolution Loop.
+# Size limits apply ONLY to pass 1. The Autonomous Resolution Loop caller must set
+# REVIEW_PASS_NUM before invoking this workflow for re-review passes.
+REVIEW_PASS_NUM="${REVIEW_PASS_NUM:-1}"
+
+# Merge commits bypass size limits entirely (contract: is_merge_commit always checked first)
+# Re-review passes (REVIEW_PASS_NUM >= 2) bypass size limits (re-review exemption rule)
+if [[ "$IS_MERGE" != "true" ]] && [[ "$REVIEW_PASS_NUM" -le 1 ]]; then
+    # Size action branching (initial review, non-merge only)
+    if [[ "$SIZE_ACTION" == "upgrade" ]]; then
+        # Upgrade model to opus at current tier's checklist scope
+        REVIEW_AGENT_OVERRIDE="dso:code-reviewer-deep-arch"  # opus model
+        echo "SIZE_UPGRADE: diff has ${DIFF_SIZE_LINES} scorable lines — upgrading to opus reviewer at ${REVIEW_TIER} tier scope"
+    fi
+
+    if [[ "$SIZE_ACTION" == "reject" ]]; then
+        echo "REVIEW_RESULT: rejected"
+        echo "REVIEW_REJECTED: diff has ${DIFF_SIZE_LINES} scorable lines (≥600 threshold)."
+        echo "Large diffs exhaust reviewer context and degrade review quality."
+        echo "Split your changes into smaller commits before re-running review."
+        echo "Guidance: plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md"
+        exit 1
+    fi
+fi
+```
+
+Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OVERRIDE` is set (size upgrade case), Step 4 dispatch uses `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT`. Do not override the classifier's tier selection.
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
 **You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
 
-Launch a `general-purpose` sub-agent using the Task tool. This agent type has full tool access, which is required to write `reviewer-findings.json` and compute its hash.
+Dispatch the named review agent selected by the classifier in Step 3. The named agent's system prompt contains the stable review procedure — do NOT load `code-review-dispatch.md` as a template. Pass only per-review context to the sub-agent prompt.
 
-**Do NOT use specialized sub-agent types** (e.g., `feature-dev:code-reviewer`). Those types lack the Bash tool, which is required to run `verify-review-diff.sh` and pipe JSON to `write-reviewer-findings.sh`. Using a non-general-purpose type will cause the review to fail with a malformed output and require a re-dispatch.
+### Tier-to-Agent Dispatch
 
-Read the prompt template at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/code-review-dispatch.md` and fill in placeholders:
-- `{working_directory}`: current working directory
-- `{diff_stat}`: content of the stat file from Step 2
-- `{diff_file_path}`: the `DIFF_FILE` path from Step 2
-- `{repo_root}`: `REPO_ROOT` value
+| `REVIEW_TIER` | `REVIEW_AGENT` | Model |
+|---|---|---|
+| `light` | `dso:code-reviewer-light` | haiku |
+| `standard` | `dso:code-reviewer-standard` | sonnet |
+| `deep` | 3 parallel sonnet agents (see Deep Tier below) | sonnet |
+
+### Per-Review Context (prompt content)
+
+Pass only these items in the sub-agent prompt — the named agent's system prompt handles the review procedure:
+
+- `DIFF_FILE`: the `DIFF_FILE` path from Step 2 (the sub-agent reads the diff from disk)
+- `STAT_FILE` content: the stat summary from Step 2 (inline in the prompt)
+- `REPO_ROOT`: repository root path
 - `{issue_context}`: Issue context (see below)
 
-**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/dso:sprint`, present in the task prompt, or tracked by the orchestrator), populate this placeholder with:
+**Resolving `{issue_context}`**: If a tk issue ID is known for the current work (e.g., passed from `/dso:sprint`, present in the task prompt, or tracked by the orchestrator), populate this with:
 
 ```
 === ISSUE CONTEXT ===
@@ -141,19 +197,138 @@ This change is for issue {issue_id}.
 To view full issue details, run: tk show {issue_id}
 ```
 
-If no issue is associated with the current work, set `{issue_context}` to an empty string.
+If no issue is associated with the current work, omit the issue context section.
 
-**If you have already read `code-review-dispatch.md` earlier in this conversation and have not compacted since, use the version in context.**
+### Dispatch (Light / Standard Tiers)
+
+For `light` and `standard` tiers, dispatch a single named review agent. When `REVIEW_AGENT_OVERRIDE` is set (from the size upgrade path in Step 3b), use `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT` — this ensures the opus upgrade takes effect at the current tier's scope:
+
+```bash
+# Resolve the dispatch agent — REVIEW_AGENT_OVERRIDE takes precedence when set
+DISPATCH_AGENT="${REVIEW_AGENT_OVERRIDE:-$REVIEW_AGENT}"
+```
 
 ```
 Task tool:
-  subagent_type: "general-purpose"
-  model: "{opus or sonnet from Step 3}"
+  subagent_type: "{DISPATCH_AGENT — i.e., REVIEW_AGENT_OVERRIDE if set, else REVIEW_AGENT from Step 3}"
   description: "Review code changes"
-  prompt: <filled template from code-review-dispatch.md>
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
 ```
 
 **NEVER set `isolation: "worktree"` on this sub-agent.** The reviewer must read `reviewer-findings.json` and run `write-reviewer-findings.sh` in the same working directory as the orchestrator. Worktree isolation gives the agent a separate branch where those files are not present, causing the review to fail.
+
+### Deep Tier: 3 Parallel Sonnet Dispatch
+
+When `REVIEW_TIER` is `deep`, dispatch 3 parallel sonnet sub-agents in a single message. Each agent focuses on a different review dimension. All three receive the same `DIFF_FILE`, `REPO_ROOT`, and `STAT_FILE` — no issue-context sharing is needed between them.
+
+| Slot | Named Agent | Temp Findings File |
+|------|-------------|-------------------|
+| a | `dso:code-reviewer-deep-correctness` | `$ARTIFACTS_DIR/reviewer-findings-a.json` |
+| b | `dso:code-reviewer-deep-verification` | `$ARTIFACTS_DIR/reviewer-findings-b.json` |
+| c | `dso:code-reviewer-deep-hygiene` | `$ARTIFACTS_DIR/reviewer-findings-c.json` |
+
+Dispatch all three in a single message (parallel launch). Each agent writes directly to its slot-specific findings path — pass `FINDINGS_OUTPUT` in the prompt so the agent writes to the correct file via `write-reviewer-findings.sh --output`:
+
+```
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-correctness"
+  description: "Deep review: correctness"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+    FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-a.json
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-verification"
+  description: "Deep review: verification"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+    FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-b.json
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-hygiene"
+  description: "Deep review: hygiene"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+    FINDINGS_OUTPUT: $ARTIFACTS_DIR/reviewer-findings-c.json
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+```
+
+**No post-return copy step is needed** — each agent writes directly to its unique slot path, eliminating the parallel write race condition. The opus arch reviewer consumes all three slot files (`reviewer-findings-a.json`, `reviewer-findings-b.json`, `reviewer-findings-c.json`) after all sonnet agents complete.
+
+### Deep Tier: Opus Architectural Review (after 3 parallel sonnet agents complete)
+
+After all 3 parallel sonnet agents complete and their temp findings files are saved, dispatch the opus architectural reviewer `dso:code-reviewer-deep-arch`. This agent runs sequentially after the sonnet agents, not in parallel — it synthesizes their specialist findings into the authoritative final reviewer-findings.json.
+
+**Single-writer invariant**: Only the arch reviewer (opus) writes the final authoritative `reviewer-findings.json` for deep tier reviews. The sonnet agents write only to their temp slot paths (`reviewer-findings-{a,b,c}.json`). This single-writer invariant ensures the final findings file is a coherent synthesis, not a race-condition artifact.
+
+**Step 1: Read findings from each sonnet temp file:**
+
+```bash
+FINDINGS_A=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings-a.json')); print(json.dumps(d['findings']))")
+FINDINGS_B=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings-b.json')); print(json.dumps(d['findings']))")
+FINDINGS_C=$(python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings-c.json')); print(json.dumps(d['findings']))")
+```
+
+**Step 2: Dispatch `dso:code-reviewer-deep-arch` (model: opus) with inline sonnet findings:**
+
+```
+Task tool:
+  subagent_type: "dso:code-reviewer-deep-arch"
+  description: "Deep architectural review (opus) — synthesize sonnet findings"
+  prompt: |
+    Review the code changes for this commit.
+
+    DIFF_FILE: {DIFF_FILE from Step 2}
+    REPO_ROOT: {REPO_ROOT}
+
+    === DIFF STAT ===
+    {content of STAT_FILE from Step 2}
+
+    {issue_context}
+
+    === SONNET-A FINDINGS (correctness) ===
+    {FINDINGS_A}
+    === SONNET-B FINDINGS (verification) ===
+    {FINDINGS_B}
+    === SONNET-C FINDINGS (hygiene/design) ===
+    {FINDINGS_C}
+```
+
+**Step 3: The deep-arch agent writes the final authoritative `reviewer-findings.json`** — this is the sole writer of the final findings file for deep tier. Extract `REVIEWER_HASH` from the arch agent's output for use in Step 5.
+
+**Step 4: Pass `REVIEWER_HASH` from the opus arch agent output to `record-review.sh` in Step 5** — not the REVIEWER_HASH from any of the sonnet agents.
 
 **Retry on malformed output:** If the sub-agent does not return the fixed format (`REVIEW_RESULT:`, `REVIEWER_HASH=`, etc.) or does not include `REVIEWER_HASH=`, re-dispatch with a correction prompt. Never fabricate scores.
 
@@ -162,6 +337,8 @@ Task tool:
 ## Step 5: Record Review
 
 **Prerequisite**: You MUST have a sub-agent result from Step 4. If you do not have a Task tool result to reference, STOP — you skipped Step 4.
+
+**Deep tier note**: For deep tier reviews, `REVIEWER_HASH` comes from the opus arch agent (`dso:code-reviewer-deep-arch`) output — not from any of the 3 sonnet agents. The arch agent is the sole writer of the final `reviewer-findings.json`, so its `REVIEWER_HASH` is the one that `record-review.sh` must validate.
 
 ### Extract sub-agent output
 
@@ -211,6 +388,8 @@ Review failed. Enter the Autonomous Resolution Loop. Critical findings always fa
 
 #### Autonomous Resolution Loop
 
+**Deep tier note**: For deep tier reviews, the resolution sub-agent receives findings via the authoritative `$ARTIFACTS_DIR/reviewer-findings.json` — written by `dso:code-reviewer-deep-arch` (opus). The resolution sub-agent MUST NOT access `reviewer-findings-{a,b,c}.json`; those are sonnet-only artifacts consumed only during the opus synthesis pass.
+
 **INLINE FIX PROHIBITION**: The orchestrator MUST NOT use Edit, Write, or Bash to fix review findings directly. All fixes MUST go through a resolution sub-agent dispatch. There are no exceptions.
 
 **Architecture**: The resolution loop is split across two levels to avoid nested sub-agent nesting
@@ -237,17 +416,18 @@ Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and u
 - `{repo_root}`: `REPO_ROOT` value
 - `{worktree}`: `WORKTREE` value
 - `{issue_ids}`: issue IDs associated with the current work (for `tk create` defers), or empty string
-- `{cached_model}`: model determined in Step 3 (`opus` or `sonnet`)
+- `{cached_model}`: model name derived from `REVIEW_TIER` in Step 3 (`light`→`haiku`, `standard`→`sonnet`, `deep`→`opus`)
+- `{findings_file}`: for deep tier, this is the authoritative `$ARTIFACTS_DIR/reviewer-findings.json` — the file written by `dso:code-reviewer-deep-arch` (opus). The resolution sub-agent MUST NOT read or write `reviewer-findings-{a,b,c}.json`; those are sonnet-only artifacts consumed only during the opus synthesis pass.
 
 ```
 Task tool:
   subagent_type: "general-purpose"
-  model: "{cached_model}"
+  model: "sonnet"
   description: "Resolve review findings"
   prompt: <filled template from review-fix-dispatch.md>
 ```
 
-**NEVER set `isolation: "worktree"` on this sub-agent.** It must edit the same working tree files that the orchestrator and re-review agent will see.
+**NEVER set `isolation: "worktree"` on this sub-agent.** It must edit the same working tree files that the orchestrator and re-review agent will see. This ISOLATION PROHIBITION applies to all tiers including deep tier.
 
 **After resolution sub-agent returns**, interpret the compact output:
 
@@ -268,13 +448,21 @@ Task tool:
    ".claude/scripts/dso capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
-2. Dispatch the re-review sub-agent using the same `code-review-dispatch.md` template:
+2. Dispatch the re-review sub-agent using the same named agent from Step 3:
    ```
    Task tool:
-     subagent_type: "general-purpose"
-     model: "{cached_model}"
+     subagent_type: "{REVIEW_AGENT from Step 3}"
      description: "Re-review after fixes"
-     prompt: <filled code-review-dispatch.md with NEW_DIFF_HASH, NEW_DIFF_FILE, NEW_STAT_FILE>
+     prompt: |
+       Review the code changes for this commit.
+
+       DIFF_FILE: {NEW_DIFF_FILE}
+       REPO_ROOT: {REPO_ROOT}
+
+       === DIFF STAT ===
+       {content of NEW_STAT_FILE}
+
+       {issue_context}
    ```
 
    **NEVER set `isolation: "worktree"` on this sub-agent.** It must access `reviewer-findings.json` and `write-reviewer-findings.sh` in the shared working directory.
@@ -315,3 +503,65 @@ Task tool:
 ### Actions Needed
 For each finding, reply: fix (I'll try a different approach), override (accept as-is), or defer (skip for now).
 ```
+
+---
+
+## Post-Deployment Calibration
+
+After deploying the classifier-based review routing, monitor `classifier-telemetry.jsonl` to verify the classifier is producing healthy tier distributions and that routing quality is meeting expectations. Use the signals below to detect miscalibration early and respond before it compounds.
+
+**Data source**: `$ARTIFACTS_DIR/classifier-telemetry.jsonl` (one JSON object per classification event; written by `review-complexity-classifier.sh` on every run). Aggregate over the most recent 30 commits as the baseline window.
+
+### Tier Distribution Baseline
+
+After 30 commits, compute the tier distribution from `classifier-telemetry.jsonl`:
+
+```bash
+python3 -c "
+import json, collections, sys
+entries = [json.loads(l) for l in open('classifier-telemetry.jsonl') if l.strip()]
+tiers = collections.Counter(e['selected_tier'] for e in entries[-30:])
+total = sum(tiers.values())
+for t, n in sorted(tiers.items()):
+    print(f'{t}: {n}/{total} ({100*n/total:.0f}%)')
+"
+```
+
+**Expected healthy baseline**:
+
+| Tier | Expected Range |
+|------|---------------|
+| Light | ~50-60% |
+| Standard | ~30-40% |
+| Deep | ~5-15% |
+
+**Signal**: any single tier exceeding 80% of all classifications indicates the classifier is miscalibrated. A Light-heavy skew suggests floor rules are under-catching risky changes; a Deep-heavy skew suggests scoring weights are too aggressive.
+
+### Light-Tier Finding Rate
+
+Track the rate at which Light-tier reviews surface `critical` or `important` findings. If Light-tier reviews produce critical/important findings at a rate greater than 10%, the floor rules are insufficient — Light is being assigned to commits that warrant Standard or Deep review.
+
+**Response**:
+1. Identify the pattern shared by the triggering commits (file types, change categories, or scoring features).
+2. Add a matching floor rule to `plugins/dso/scripts/review-complexity-classifier.sh`.
+3. Re-validate: re-run the classifier against the 30-commit sample and confirm the affected commits now route to Standard or Deep.
+
+### CI Failure Rate by Tier
+
+Track the post-merge CI failure rate per tier for the first 30 commits. A higher CI failure rate in Light tier than in Standard or Deep indicates under-classification — commits that broke CI were routed to the lightest review tier.
+
+**Response**: Lower the Light/Standard classification threshold or add floor rules targeting the file types or change patterns present in the failing commits.
+
+### Baseline Comparison
+
+Compare the overall CI failure rate for the 30 commits following deployment against the 30 commits preceding deployment. A sustained increase in post-merge CI failures is a routing gap signal — the classifier is not catching changes that need heavier review.
+
+**Response**: Audit `classifier-telemetry.jsonl` for the failing commits, identify whether tier mis-assignment is the common factor, then apply threshold or floor-rule adjustments as above.
+
+### Breach Response Protocol
+
+When any signal above crosses its threshold, follow this protocol:
+
+1. **Create a P1 bug ticket**: `tk create --type task --priority 1 "Classifier miscalibration: <signal description>"` — record the specific signal, threshold crossed, and the affected commit range.
+2. **Adjust the classifier**: modify floor rules or scoring weights in `plugins/dso/scripts/review-complexity-classifier.sh` to correct the miscalibration.
+3. **Re-validate**: re-run the classifier against the same 30-commit sample that triggered the breach and confirm the signal is no longer breaching its threshold before closing the ticket.

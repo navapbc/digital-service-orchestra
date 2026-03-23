@@ -268,6 +268,87 @@ if [[ ${#NON_ALLOWLISTED_FILES[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# ── Source fragment staleness check ──────────────────────────────────────────
+# When reviewer source fragments (reviewer-base.md or reviewer-delta-*.md) are
+# staged, verify that every generated agent file's embedded content-hash matches
+# the expected hash of its source inputs. Blocks commit if any hash is stale.
+#
+# Hash algorithm: sha256(base_content + "\n" + delta_content) — identical to
+# build-review-agents.sh (see HASH_ALGORITHM comment in that script).
+_has_staged_fragments=false
+for _sf in "${STAGED_FILES[@]}"; do
+    case "$_sf" in
+        plugins/dso/docs/workflows/prompts/reviewer-base.md|plugins/dso/docs/workflows/prompts/reviewer-delta-*.md)
+            _has_staged_fragments=true
+            break
+            ;;
+    esac
+done
+
+if [[ "$_has_staged_fragments" == "true" ]]; then
+    # Portable sha256 wrapper — same as build-review-agents.sh _sha256()
+    _sha256_gate() {
+        if command -v sha256sum &>/dev/null; then
+            sha256sum | awk '{print $1}'
+        elif command -v shasum &>/dev/null; then
+            shasum -a 256 | awk '{print $1}'
+        else
+            echo "ERROR: no sha256sum or shasum available" >&2
+            return 1
+        fi
+    }
+
+    # Read base content from the staged (index) version
+    _base_content=$(git show ":plugins/dso/docs/workflows/prompts/reviewer-base.md" 2>/dev/null || echo "")
+
+    # Find all generated agent files in the repo
+    _stale_agents=()
+    for _agent_file in plugins/dso/agents/code-reviewer-*.md; do
+        [[ -f "$_agent_file" ]] || continue
+
+        # Extract tier from filename: code-reviewer-<tier>.md
+        _tier_name="$(basename "$_agent_file")"
+        _tier_name="${_tier_name#code-reviewer-}"
+        _tier_name="${_tier_name%.md}"
+
+        # Find the corresponding delta file
+        _delta_path="plugins/dso/docs/workflows/prompts/reviewer-delta-${_tier_name}.md"
+
+        # Read delta content from staged (index) version if staged, else from working tree
+        _delta_content=$(git show ":${_delta_path}" 2>/dev/null || cat "$_delta_path" 2>/dev/null || echo "")
+
+        # Compute expected hash: sha256(base_content + "\n" + delta_content)
+        _expected_hash=$(printf '%s\n%s' "$_base_content" "$_delta_content" | _sha256_gate)
+
+        # Extract embedded content-hash from the agent file (staged version if staged, else committed)
+        _agent_content=$(git show ":${_agent_file}" 2>/dev/null || git show "HEAD:${_agent_file}" 2>/dev/null || cat "$_agent_file" 2>/dev/null || echo "")
+        _embedded_hash=$(echo "$_agent_content" | sed -n 's/.*<!-- content-hash: \([a-f0-9]*\) -->.*/\1/p' 2>/dev/null | head -1)
+
+        if [[ -z "$_embedded_hash" ]]; then
+            _stale_agents+=("$_agent_file (no content-hash found)")
+        elif [[ "$_expected_hash" != "$_embedded_hash" ]]; then
+            _stale_agents+=("$_agent_file (expected=${_expected_hash:0:12}..., found=${_embedded_hash:0:12}...)")
+        fi
+    done
+
+    if [[ ${#_stale_agents[@]} -gt 0 ]]; then
+        echo "" >&2
+        echo "BLOCKED: reviewer agent staleness check" >&2
+        echo "" >&2
+        echo "  Source fragments were modified but generated agent files are stale." >&2
+        echo "  Stale agents:" >&2
+        for _sa in "${_stale_agents[@]}"; do
+            echo "    - ${_sa}" >&2
+        done
+        echo "" >&2
+        echo "  Fix: run 'bash plugins/dso/scripts/build-review-agents.sh' to regenerate," >&2
+        echo "  then stage the updated agent files." >&2
+        echo "" >&2
+        log_decision "block"
+        exit 1
+    fi
+fi
+
 # ── Non-allowlisted files present → check review-status ──────────────────────
 # Resolve artifacts directory (portable: does not depend on CLAUDE_PLUGIN_ROOT
 # or PreToolUse hook environment variables — works in any shell context).

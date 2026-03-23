@@ -1,6 +1,6 @@
 ---
 id: w21-txt8
-status: open
+status: closed
 deps: [w21-jtkr]
 links: []
 created: 2026-03-21T00:02:52Z
@@ -63,3 +63,7 @@ Each agent's system prompt already contains the universal review procedure (sche
 
 Done definitions about dispatching 3 parallel sonnet sub-agents should reference the named agent types. The opus reviewer (dso:code-reviewer-deep-arch) receives all 3 sonnet findings + full diff and writes the authoritative reviewer-findings.json.
 
+
+**2026-03-22T17:41:00Z**
+
+COMPLEXITY_CLASSIFICATION: COMPLEX

@@ -21,8 +21,8 @@
 #                          wrote it.
 #
 # reviewer-findings.json must contain (written by sub-agent):
-#   - scores: object with code_hygiene, object_oriented_design, readability,
-#             functionality, testing_coverage (each 1-5 or "N/A")
+#   - scores: object with hygiene, design, maintainability,
+#             correctness, verification (each 1-5 or "N/A")
 #   - summary: non-empty string (min 10 chars)
 #   - findings: array of finding objects (may be empty)
 #
@@ -150,7 +150,7 @@ with open(os.environ['FINDINGS_PATH']) as f:
     data = json.load(f)
 
 scores = data.get('scores', {})
-required = ['code_hygiene', 'object_oriented_design', 'readability', 'functionality', 'testing_coverage']
+required = ['hygiene', 'design', 'maintainability', 'correctness', 'verification']
 
 # Normalize string digits to int so both '4' and 4 are accepted
 for key in list(scores.keys()):
@@ -165,11 +165,11 @@ for key in required:
         print('Required schema for reviewer-findings.json:')
         print('{')
         print('  \"scores\": {')
-        print('    \"code_hygiene\": <1-5 or \"N/A\">,')
-        print('    \"object_oriented_design\": <1-5 or \"N/A\">,')
-        print('    \"readability\": <1-5 or \"N/A\">,')
-        print('    \"functionality\": <1-5 or \"N/A\">,')
-        print('    \"testing_coverage\": <1-5 or \"N/A\">}')
+        print('    \"hygiene\": <1-5 or \"N/A\">,')
+        print('    \"design\": <1-5 or \"N/A\">,')
+        print('    \"maintainability\": <1-5 or \"N/A\">,')
+        print('    \"correctness\": <1-5 or \"N/A\">,')
+        print('    \"verification\": <1-5 or \"N/A\">}')
         print('  },')
         print('  \"findings\": [{\"severity\": \"critical|important|minor\", \"category\": \"<one of 5 score dims>\", \"file\": \"path\", \"description\": \"...\"}],')
         print('  \"summary\": \"<10+ char assessment>\"')

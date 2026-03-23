@@ -73,6 +73,8 @@ assert_pass_if_clean() {
     fi
     if [[ "$FAIL" -eq "$_fail_snapshot" ]]; then
         echo "$label ... PASS"
+    else
+        echo "FAIL: $label" >&2
     fi
 }
 
