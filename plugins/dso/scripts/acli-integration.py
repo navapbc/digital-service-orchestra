@@ -281,14 +281,12 @@ class AcliClient:
     def get_server_info(self) -> dict[str, Any]:
         """Get Jira server info for timezone verification.
 
-        ACLI Go has no direct server-info command. Returns timeZone=UTC
-        because Jira Cloud always stores timestamps in UTC, and the ACLI Go
-        binary does not apply JVM timezone transformations like the legacy
-        Java ACLI did.
+        Jira Cloud always stores timestamps in UTC. The legacy Java ACLI
+        needed a JVM timezone flag to avoid locale-dependent serialization;
+        the Go ACLI has no such issue. Connectivity is already verified by
+        the workflow's ``acli auth login`` step — a redundant API call here
+        would add latency and a failure mode with no diagnostic value.
         """
-        # Connectivity check — verify ACLI can reach Jira
-        cmd = ["jira", "project", "list", "--json"]
-        self._run(cmd)  # raises on auth/network failure
         return {"timeZone": "UTC", "serverTitle": "Jira Cloud"}
 
     def get_comments(self, jira_key: str) -> list[dict[str, Any]]:
