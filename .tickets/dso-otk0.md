@@ -39,3 +39,33 @@ Fuzzy-match: 'cutoverticketsmigrationssh' IS a substring of 'testcutoverticketsm
 - [ ] Tests FAIL before T2 implementation (RED state confirmed)
   Verify: { bash $(git rev-parse --show-toplevel)/tests/scripts/test-cutover-tickets-migration.sh 2>&1 | grep -q 'FAIL\|not found\|No such file'; }
 
+
+## Notes
+
+**2026-03-23T00:59:16Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T00:59:31Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T01:00:10Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-23T01:00:14Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T01:00:27Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — tests confirmed RED (7 failures expected, script does not exist yet)
+
+**2026-03-23T01:00:39Z**
+
+CHECKPOINT 6/6: Done ✓ — all 6 AC pass; test file created at tests/scripts/test-cutover-tickets-migration.sh; RED state confirmed (7 failures: script not found)
+
+**2026-03-23T01:05:54Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: tests/scripts/test-cutover-tickets-migration.sh. Tests: 7 RED (expected). AC: all pass.

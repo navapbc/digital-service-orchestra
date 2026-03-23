@@ -41,3 +41,7 @@ A1: JIRA_URL and JIRA_USER are Repository Variables. JIRA_API_TOKEN is a Reposit
 
 Q2: Should changes be reflected in CI templates/examples?
 A2: Yes — verify that any CI templates or examples used during setup (dso-setup.sh, project-setup skill) reflect the correct vars vs secrets distinction for the workflows.
+
+**2026-03-23T01:05:53Z**
+
+CHECKPOINT 6/6: Done ✓ — Files: .github/workflows/inbound-bridge.yml, .github/workflows/outbound-bridge.yml, plugins/dso/scripts/dso-setup.sh. Tests: TDD exempt (CI config). AC: all pass.

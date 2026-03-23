@@ -1,0 +1,274 @@
+# Ticket System v3: Operational Architecture Guide
+
+- Status: current
+- Scope: ticket-system-v3 (epic w21-ablv and follow-on epics)
+- Date: 2026-03-22
+
+This document is a high-level operational guide for the event-sourced ticket system. It consolidates topics deferred from Epics 1–3 that are not covered by the ADR or per-story contracts. For design rationale and decision trade-offs, see the cross-referenced ADR below.
+
+---
+
+## Cross-Reference to ADR
+
+All architectural decisions — why event sourcing was chosen, why orphan branch over SQLite or a separate repository, and the full consequences analysis — are documented in:
+
+- `plugins/dso/docs/designs/adr-ticket-v3-event-sourced-storage.md`
+
+This guide focuses on **how to operate and call** the system; the ADR explains **why** it is designed this way.
+
+---
+
+## Storage Layout
+
+### Tracker Directory Structure
+
+The tracker lives at `.tickets-tracker/` in the repository root. It is a git worktree mounted on the `tickets` orphan branch — a branch with no shared history with `main` or any feature branch.
+
+```
+.tickets-tracker/
+  <ticket-id>/
+    <timestamp>-<uuid>-<TYPE>.json   # event files, committed to tickets branch
+    .cache.json                       # compiled-state cache, gitignored on tickets branch
+  .env-id                             # UUID4 environment identity, gitignored
+  .ticket-write.lock                  # global write-serialization lock file
+  .git                                # worktree git file (points to shared object store)
+  .gitignore                          # excludes .env-id and .cache.json from tickets branch
+```
+
+`.tickets-tracker/` is listed in `.git/info/exclude` so it never appears in `git status` on the main branch. It is **not** in `.gitignore` (which is committed), because it is machine-local state.
+
+### Ticket Directory Layout
+
+Each ticket lives in its own subdirectory named by its local ID (e.g., `dso-9aq2/`). The directory contains only append-only event files and the compiled-state cache. Event files are committed to the `tickets` branch; the cache file is gitignored.
+
+### Event File Naming Convention
+
+```
+<timestamp>-<uuid>-<TYPE>.json
+```
+
+| Component     | Format                                                          |
+|---------------|-----------------------------------------------------------------|
+| `<timestamp>` | UTC epoch seconds (integer), unpadded (10 digits since 2001-09-09) |
+| `<uuid>`      | Lowercase UUID4, hyphens preserved                              |
+| `<TYPE>`      | Uppercase event type: `CREATE`, `STATUS`, `COMMENT`, `LINK`, `UNLINK`, `SNAPSHOT`, or `SYNC` |
+
+Example: `1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-CREATE.json`
+
+The timestamp prefix guarantees that lexicographic filename sort equals chronological sort. Any reducer must sort filenames explicitly and must never rely on `readdir` order.
+
+For the complete event file JSON schema (base fields and per-type `data` payloads), see `plugins/dso/docs/contracts/ticket-event-format.md`.
+
+### How the Reducer Assembles State from Event Files
+
+The reducer performs two passes over the sorted event file list:
+
+1. **Pass 1 — SNAPSHOT scan**: Finds the latest `SNAPSHOT` event (if any) and records its `source_event_uuids`. All events before the snapshot index are skipped in Pass 2.
+2. **Pass 2 — Replay**: Starting from the snapshot index, each event is applied in order. Events whose UUID appears in `source_event_uuids` are skipped (they are already baked into the snapshot). Unknown event types are silently ignored for forward compatibility.
+
+The sort key for event files is a three-tuple `(timestamp_segment, event_type_order, full_basename)`. `LINK` events sort before `UNLINK` events at the same timestamp to ensure links are always applied before their cancellations.
+
+---
+
+## Reducer Usage
+
+### CLI Invocation
+
+```bash
+python3 plugins/dso/scripts/ticket-reducer.py <ticket_dir_path>
+```
+
+Prints the compiled ticket state as a single-line JSON object to stdout. Exits non-zero for corrupt or ghost tickets.
+
+Examples:
+
+```bash
+# Compile a specific ticket
+python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2
+
+# Pipe to jq for pretty-printing
+python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 | jq .
+```
+
+### Public Module Interface: `reduce_ticket()`
+
+The reducer is a standalone Python module. Tests and other callers import it directly without spawning a subprocess:
+
+```python
+import importlib, importlib.util, pathlib
+
+# Load module (hyphenated filename requires importlib)
+spec = importlib.util.spec_from_file_location(
+    "ticket_reducer",
+    pathlib.Path("plugins/dso/scripts/ticket-reducer.py"),
+)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+state = mod.reduce_ticket("/path/to/.tickets-tracker/dso-9aq2")
+```
+
+#### Signature
+
+```python
+def reduce_ticket(
+    ticket_dir_path: str | os.PathLike[str],
+    strategy: ReducerStrategy | None = None,
+) -> dict | None:
+```
+
+#### Return Values
+
+| Condition | Return value |
+|-----------|-------------|
+| Normal ticket with CREATE event | `dict` of compiled state (see fields below) |
+| No event files in directory | `None` |
+| Event files present but no parseable CREATE event | `dict` with `{"status": "error", "error": "no_valid_create_event", "ticket_id": ...}` |
+| CREATE event present but missing required fields | `dict` with `{"status": "fsck_needed", "error": "corrupt_create_event", "ticket_id": ...}` |
+
+Error-state dicts always have exactly three keys: `{status, error, ticket_id}`.
+
+#### Compiled State Fields
+
+| Field          | Type     | Description                                      |
+|----------------|----------|--------------------------------------------------|
+| `ticket_id`    | str      | Directory name (e.g., `dso-9aq2`)               |
+| `ticket_type`  | str      | `bug`, `epic`, `story`, or `task`                |
+| `title`        | str      | Ticket title from CREATE event                   |
+| `status`       | str      | Current status: `open`, `in_progress`, `closed`, `blocked` |
+| `author`       | str      | `git user.name` from CREATE event                |
+| `created_at`   | int      | UTC epoch seconds of CREATE event                |
+| `env_id`       | str      | UUID4 environment ID from CREATE event           |
+| `parent_id`    | str\|None | Parent ticket ID, or None                       |
+| `comments`     | list     | List of `{body, author, timestamp}` dicts        |
+| `deps`         | list     | List of `{target_id, relation, link_uuid}` dicts |
+| `bridge_alerts`| list     | List of bridge alert dicts (Epic 3 feature)      |
+| `reverts`      | list     | List of revert record dicts                      |
+| `conflicts`    | list     | Optimistic concurrency conflicts (if any)        |
+
+#### State Cache
+
+`reduce_ticket()` maintains a `.cache.json` file in each ticket directory. The cache key is a SHA-256 hash of `filename:size` pairs for all event files. On cache hit (hash matches), the cached state is returned without reading event files. On cache miss, all events are replayed and the cache is atomically written via `os.rename()`.
+
+The cache is gitignored on the `tickets` branch and is never committed.
+
+#### `strategy` Parameter
+
+The optional `strategy` parameter accepts a `ReducerStrategy`-compatible object for the sync-events merge path. Callers that do not pass a strategy get `LastTimestampWinsStrategy` by default (dedup by UUID, sort ascending by timestamp). See `plugins/dso/docs/contracts/ticket-reducer-strategy-contract.md` for the full interface contract.
+
+---
+
+## Flock Contract Summary
+
+### What the Write Lock Protects
+
+`.tickets-tracker/.ticket-write.lock` is a single global lock file that serializes **all** ticket write operations across all concurrent writers, regardless of which ticket is being written. This prevents index corruption from simultaneous writes on different tickets.
+
+The operations performed while holding the lock are:
+1. Atomic rename of staging temp file to final event path (`os.rename()`)
+2. `git -C .tickets-tracker add <ticket-id>/<filename>`
+3. `git -C .tickets-tracker commit -q -m "ticket: <TYPE> <id>"`
+
+### Timeout Budget
+
+| Parameter        | Value      |
+|------------------|------------|
+| Per-attempt timeout | 30 seconds |
+| Max retries       | 2          |
+| Worst-case total  | 60 seconds |
+
+The 60-second worst case is intentionally below the ~73-second Claude tool-call timeout ceiling, leaving ~13 seconds of headroom for the rename and git operations inside the lock.
+
+The lock uses Python `fcntl.flock(LOCK_EX | LOCK_NB)` polled at 100 ms intervals. This is portable across macOS and Linux.
+
+### Recovery Path
+
+| Exit code | Meaning | Action |
+|-----------|---------|--------|
+| 0 | Lock acquired, write succeeded | None |
+| 1 | Lock not acquired within 30s | Retry (up to 2 times); on exhaustion, command exits with `flock: could not acquire lock after 60s` |
+| 2 | git operation failed while holding lock | No retry; command exits non-zero |
+| 3 | Atomic rename failed while holding lock | Staging temp removed; no retry; command exits non-zero |
+
+On lock exhaustion, the staging temp is removed. No partial state is left on disk. A half-written event that survived a rename but failed git commit is recoverable by `ticket fsck`.
+
+For the full lock contract including downstream story obligations (compaction, concurrency stress, sync-events), see `plugins/dso/docs/contracts/ticket-flock-contract.md`.
+
+---
+
+## Worktree Integration
+
+### How Multi-Agent Sessions Share the Tracker
+
+The `tickets` branch is mounted as a worktree at `.tickets-tracker/` in the **main** repository checkout. When a new code worktree is created (e.g., `git worktree add ../feature-branch feature`), ticket init creates a **symlink** in the new worktree that points to the main repo's `.tickets-tracker/`:
+
+```bash
+# What ticket-init.sh does in a secondary worktree
+ln -s <main-repo-root>/.tickets-tracker <worktree-root>/.tickets-tracker
+```
+
+Because the symlink resolves to the same physical directory, all worktrees share the same tracker state in real time — no commit or push is needed for ticket changes to be visible across local worktrees. The flock lock (`ticket-write.lock`) provides write serialization across all worktrees sharing the same `.tickets-tracker/`.
+
+### Initialization
+
+Run once per repository clone:
+
+```bash
+plugins/dso/scripts/ticket-init.sh
+```
+
+For a secondary worktree, run the same command from inside the worktree. `ticket-init.sh` detects that `.git` is a file (worktree marker) and creates the symlink instead of mounting a new worktree.
+
+`ticket-init.sh` is idempotent: if `.tickets-tracker/` already exists and is valid (real worktree or correct symlink), it exits 0 immediately.
+
+### gc.auto=0 Safety Setting
+
+`ticket-init.sh` sets `gc.auto=0` in the tickets worktree's local git config (`.tickets-tracker/.git/config`) only — never in the host repository config or the global `~/.gitconfig`. The `write_commit_event` function in `ticket-lib.sh` re-applies this setting idempotently before each write, so even worktrees that did not run `ticket init` directly have GC disabled before their first write.
+
+This prevents git's automatic garbage collection from holding repository locks during the ~60-second flock window.
+
+### Pushing and Pulling Ticket State
+
+To share tickets between machines or environments:
+
+```bash
+# Push local ticket commits to remote tickets branch
+git -C .tickets-tracker push origin tickets
+
+# Pull remote ticket commits from remote tickets branch
+git -C .tickets-tracker fetch origin tickets
+git -C .tickets-tracker rebase origin/tickets
+```
+
+`tk sync-events` automates this as a split-phase protocol (fetch → merge under lock → push), ensuring the write lock is never held during network I/O. See `plugins/dso/docs/contracts/ticket-sync-events-contract.md`.
+
+---
+
+## --format=llm Design Rationale
+
+The `--format=llm` flag on `tk show` and `tk list` exists to minimize token overhead when agents read ticket state. The standard (human) output format includes verbose timestamps, null fields, and long key names — all of which consume context window tokens without providing information useful to an agent.
+
+The LLM format applies three transformations:
+
+1. **Key shortening**: Long field names are mapped to abbreviated equivalents (e.g., `ticket_id` → `id`, `ticket_type` → `t`, `title` → `ttl`). See `plugins/dso/scripts/ticket-llm-format.py` for the full key map.
+2. **Null and empty-list stripping**: Fields with `null` values or empty lists are omitted entirely. A ticket with no dependencies produces no `deps` key in LLM output.
+3. **Timestamp omission**: `created_at` and `env_id` are omitted (`OMIT_KEYS` in `ticket-llm-format.py`). Comment timestamps are also omitted — agents care about comment content, not when it was written.
+
+The formatting logic is centralized in `plugins/dso/scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`.
+
+`tk list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
+
+---
+
+## Multi-Environment Sync Behavior
+
+Ticket sync between environments (e.g., local machine and CI, or two developer machines) uses the `tickets` orphan branch as the shared transport. Each environment pushes and pulls the `tickets` branch independently of the main code branch.
+
+Because event files are append-only and named with timestamp + UUID, concurrent pushes from two environments always produce distinct filenames. `git merge` on the `tickets` branch is always a fast-forward or a trivially auto-resolvable merge — no textual merge conflicts arise between event files.
+
+Conflict detection is handled at the **semantic** level by the reducer, not at the git level:
+
+- **STATUS conflicts**: If two environments independently transition a ticket to different statuses, the reducer detects the mismatch via the `current_status` field in each STATUS event (optimistic concurrency proof). Conflicts are recorded in `state["conflicts"]` and surfaced by `ticket fsck`.
+- **Deduplication**: The `LastTimestampWinsStrategy` deduplicates events by UUID (first occurrence wins) and sorts by timestamp. This handles the case where the same event file appears in both environments' histories after a sync.
+
+For multi-environment conflict resolution strategy (`MostStatusEventsWinsStrategy`), see `plugins/dso/docs/contracts/ticket-reducer-strategy-contract.md`.

@@ -465,6 +465,14 @@ echo 'JIRA_URL=https://your-org.atlassian.net  # Required for Jira sync'
 echo 'JIRA_USER=you@example.com  # Required for Jira sync'
 echo 'JIRA_API_TOKEN=...  # Required for Jira sync'
 
+# ── GitHub Repository Configuration (for Jira bridge workflows) ──────────────
+echo ''
+echo '=== GitHub Repository Configuration (for Jira bridge CI) ==='
+echo 'Repository Variables (gh variable set):  JIRA_URL, JIRA_USER, ACLI_VERSION,'
+echo '  ACLI_SHA256, BRIDGE_BOT_LOGIN, BRIDGE_BOT_NAME, BRIDGE_BOT_EMAIL, BRIDGE_ENV_ID'
+echo 'Repository Secrets (gh secret set):      JIRA_API_TOKEN'
+echo 'Note: Bridge workflows use vars.JIRA_URL and vars.JIRA_USER (not secrets).'
+
 # ── Next steps ────────────────────────────────────────────────────────────────
 echo '=== Setup complete. Next steps: ==='
 echo '1. Edit .claude/dso-config.conf to configure your project'
