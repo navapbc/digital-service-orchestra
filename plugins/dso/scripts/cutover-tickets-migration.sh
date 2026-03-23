@@ -908,12 +908,20 @@ _rollback_phase() {
     local commit_before="$3"
     local log_file="$4"
 
-    # Determine rollback strategy: dirty working tree → checkout, clean → revert
+    # Determine rollback strategy:
+    #   - Commits were made since run start (HEAD moved)  → git revert
+    #   - Working-tree dirty (staged/unstaged changes)    → git checkout HEAD -- .
+    #   - No changes at all                               → no-op
+    local current_head
+    current_head=$(git -C "$_REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
+
     local rollback_strategy
-    if git -C "$_REPO_ROOT" diff --quiet HEAD 2>/dev/null; then
+    if [[ "$commit_before" != "unknown" && "$current_head" != "$commit_before" ]]; then
         rollback_strategy="revert"
-    else
+    elif ! git -C "$_REPO_ROOT" diff --quiet HEAD 2>/dev/null; then
         rollback_strategy="checkout"
+    else
+        rollback_strategy="noop"
     fi
 
     echo "Rollback: phase '${phase}' failed (exit ${phase_rc}); strategy=${rollback_strategy}" >&2
@@ -921,20 +929,24 @@ _rollback_phase() {
         "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$phase" "$phase_rc" "$rollback_strategy" >> "$log_file"
 
     local rollback_exit=0
-    if [[ "$rollback_strategy" == "checkout" ]]; then
-        git -C "$_REPO_ROOT" checkout HEAD -- . 2>&1 || rollback_exit=$?
-    else
-        # revert: undo all commits made during this phase by reverting from
-        # commit_before up to HEAD, so multi-commit phases are fully unwound.
+    if [[ "$rollback_strategy" == "revert" ]]; then
+        # revert: undo all commits made during this run by reverting from
+        # commit_before up to HEAD, so multi-phase commits are fully unwound.
         git -C "$_REPO_ROOT" revert --no-edit "${commit_before}..HEAD" 2>&1 || rollback_exit=$?
+    elif [[ "$rollback_strategy" == "checkout" ]]; then
+        git -C "$_REPO_ROOT" checkout HEAD -- . 2>&1 || rollback_exit=$?
     fi
 
     # Remove the state file so a subsequent re-run starts fresh
     rm -f "$CUTOVER_STATE_FILE"
 
-    # Remove any untracked files/dirs created during the run (log dir, temp
-    # files, etc.) so the working tree is left fully clean.
-    git -C "$_REPO_ROOT" clean -fd 2>&1 || true
+    # Remove any untracked files/dirs created during the run, preserving the
+    # log directory so the error message path remains valid after rollback.
+    local _clean_excludes=()
+    if [[ -n "${CUTOVER_LOG_DIR:-}" ]]; then
+        _clean_excludes+=("-e" "$CUTOVER_LOG_DIR")
+    fi
+    git -C "$_REPO_ROOT" clean -fd "${_clean_excludes[@]}" 2>&1 || true
 
     if [[ "$rollback_exit" -eq 0 ]]; then
         echo "Rollback complete." >&2
@@ -969,6 +981,8 @@ if [[ "$_RESUME" == "true" ]]; then
     fi
 fi
 
+_run_commit_before=$(git -C "$_REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
+
 for _phase in "${PHASES[@]}"; do
     # Resume: skip phases already recorded in the state file
     if [[ "$_RESUME" == "true" ]] && _phase_is_completed "$_phase"; then
@@ -979,12 +993,9 @@ for _phase in "${PHASES[@]}"; do
     if [[ "$_DRY_RUN" == "true" ]]; then
         "_run_phase_dry" "$_phase" || { _rc=$?; echo "[DRY RUN] ERROR: phase ${_phase} failed (exit ${_rc}) — see ${_LOG_FILE}" >&2; exit "$_rc"; }
     else
-        _phase_commit_before=$(git -C "$_REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
         "_phase_${_phase}" || {
             _rc=$?
-            _rollback_phase "$_phase" "$_rc" "$_phase_commit_before" "$_LOG_FILE"
-            echo "ERROR: phase ${_phase} failed (exit ${_rc}) — see ${_LOG_FILE}" >&2
-            exit "$_rc"
+            _rollback_phase "$_phase" "$_rc" "$_run_commit_before" "$_LOG_FILE"
         }
         _state_append_phase "$_phase"
     fi

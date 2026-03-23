@@ -51,6 +51,7 @@ if [[ -f "$_ALLOWLIST_FILE" ]]; then
 else
     # Graceful degradation: fall back to hardcoded patterns when allowlist is missing
     _ALLOWLIST_PATTERNS=(
+        ".tickets/*"
         ".tickets-tracker/*"
         ".sync-state.json"
         ".checkpoint-needs-review"

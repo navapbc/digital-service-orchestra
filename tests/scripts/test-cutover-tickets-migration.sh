@@ -1033,22 +1033,28 @@ _snapshot_fail
 assert_eq "test_phase_migrate_preserves_notes_with_timestamps_exit_0" "0" "$_NOTES_RC"
 
 # Assert COMMENT event JSON exists for dso-notes1
-# Note: -S 65536 is required on macOS where the default replsize is 255 bytes,
-# which is insufficient when the path appears twice in the -c script.
-_COMMENT_EVENT=$(find "$_NOTES_TRACKER_DIR" -path "*/dso-notes1/*" -name "*.json" 2>/dev/null | \
-    xargs -I{} -S 65536 python3 -c "
+# Use a while-read loop to avoid xargs platform portability issues
+# (-S flag is macOS-specific; GNU xargs does not support it).
+_COMMENT_EVENT=""
+while IFS= read -r _json_file; do
+    if python3 - "$_json_file" <<'PYEOF' 2>/dev/null; then
 import json, sys
+path = sys.argv[1]
 try:
-    with open('{}') as fh:
+    with open(path) as fh:
         d = json.load(fh)
     t = d.get('type', d.get('event_type', ''))
     if t.upper() == 'COMMENT':
-        print('{}')
+        print(path)
         sys.exit(0)
 except Exception:
     pass
 sys.exit(1)
-" 2>/dev/null | head -1)
+PYEOF
+        _COMMENT_EVENT="$_json_file"
+        break
+    fi
+done < <(find "$_NOTES_TRACKER_DIR" -path "*/dso-notes1/*" -name "*.json" 2>/dev/null)
 
 if [[ -n "$_COMMENT_EVENT" ]]; then
     _HAS_COMMENT_EVENT="true"

@@ -1,6 +1,6 @@
 ---
 id: dso-qki2
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-23T20:26:38Z
@@ -53,3 +53,38 @@ Env var injection for tests:
 **2026-03-23T20:29:04Z**
 
 Gap Analysis AC Amendment: Ensure the test script is runnable (bash-executable). Add to acceptance criteria: 'Test file runs without bash syntax errors: Verify: bash -n $(git rev-parse --show-toplevel)/tests/hooks/test-pre-commit-ticket-gate.sh'
+
+## ACCEPTANCE CRITERIA
+
+- [ ] tests/hooks/test-pre-commit-ticket-gate.sh exists and is executable
+  Verify: test -x tests/hooks/test-pre-commit-ticket-gate.sh
+- [ ] Test file contains at least 8 test functions
+  Verify: grep -c "^test_" tests/hooks/test-pre-commit-ticket-gate.sh | awk "{exit (\$1 < 8)}"
+- [ ] .test-index entry added with RED marker
+  Verify: grep -q "test-pre-commit-ticket-gate" .test-index
+- [ ] All tests fail RED (hook does not exist yet)
+  Verify: bash tests/hooks/test-pre-commit-ticket-gate.sh 2>&1 | grep -qi fail
+
+**2026-03-23T20:35:56Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T20:36:00Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T20:37:21Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-23T20:37:25Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T20:47:54Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — syntax OK; 10/10 tests fail RED (hook not yet implemented); .test-index entry added with RED marker [test_blocks_missing_ticket_id]
+
+**2026-03-23T20:48:07Z**
+
+CHECKPOINT 6/6: Done ✓ — all 6 ACs verified: file exists, executable, 20 test_ functions (>=8 required), .test-index entry present, 10/10 tests fail RED, no bash syntax errors

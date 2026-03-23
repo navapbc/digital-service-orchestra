@@ -102,8 +102,8 @@ for prompt_file in "${PROMPT_FILES[@]}"; do
         "$(file_contains_pattern "$prompt_file" "git commit")"
     assert_eq "$filename names 'git push' as prohibited" "true" \
         "$(file_contains_pattern "$prompt_file" "git push")"
-    assert_eq "$filename names 'tk close' or 'tk status' as prohibited" "true" \
-        "$(file_contains_pattern "$prompt_file" "tk close|tk status")"
+    assert_eq "$filename names 'ticket transition' or 'ticket create' as prohibited" "true" \
+        "$(file_contains_pattern "$prompt_file" "ticket transition|ticket create")"
 done
 
 # ---------------------------------------------------------------------------

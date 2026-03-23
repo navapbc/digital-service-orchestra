@@ -700,6 +700,13 @@
     "title": "Fix: project-detect.sh short-circuit python3 subprocess when entries is empty",
     "type": "bug"
   },
+  "dso-qxsw": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Fix remaining CI failures from v3 path migration",
+    "type": "bug"
+  },
   "dso-r97p": {
     "deps": [],
     "priority": 2,
