@@ -1,6 +1,6 @@
 ---
 id: dso-vl19
-status: in_progress
+status: closed
 deps: [dso-qki2]
 links: []
 created: 2026-03-23T20:27:05Z

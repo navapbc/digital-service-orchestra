@@ -196,6 +196,18 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      # Ticket gate (commit-msg stage, timeout: 10s)
+      # Blocks commits lacking a valid v3 ticket ID when non-allowlisted files are staged.
+      # Runs at commit-msg stage so the hook receives the commit message file ($1) from git.
+      # Debug command: DSO_ROOT=$(scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/hooks/pre-commit-ticket-gate.sh" .git/COMMIT_EDITMSG
+      - id: pre-commit-ticket-gate
+        name: Ticket Gate (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-ticket-gate 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-ticket-gate.sh\" \"$(git rev-parse --git-dir)/COMMIT_EDITMSG\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit-msg]
+
       # Pre-push format and lint check (read-only)
       # Catches format/lint violations before they reach CI.
       # Does NOT modify files — only checks. Run `make format-fix-all` to fix.

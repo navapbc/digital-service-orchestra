@@ -1,6 +1,6 @@
 ---
 id: dso-cnj5
-status: open
+status: in_progress
 deps: [dso-vl19]
 links: []
 created: 2026-03-23T20:27:32Z
@@ -60,4 +60,35 @@ CHECK FIRST: search for 'pre-commit-ticket-gate' in dso-setup.sh and project-set
   Verify: ruff check $(git rev-parse --show-toplevel)/plugins/dso/scripts/*.py $(git rev-parse --show-toplevel)/tests/**/*.py
 - [ ] ruff format --check passes (exit 0)
   Verify: ruff format --check $(git rev-parse --show-toplevel)/plugins/dso/scripts/*.py $(git rev-parse --show-toplevel)/tests/**/*.py
+## ACCEPTANCE CRITERIA
 
+- [ ] pre-commit-config.example.yaml has ticket gate entry
+  Verify: grep -q 'ticket-gate' .pre-commit-config.yaml || grep -q 'ticket-gate' plugins/dso/docs/examples/pre-commit-config.example.yaml
+- [ ] dso-setup.sh registers ticket gate
+  Verify: grep -q 'ticket.gate\|ticket-gate' plugins/dso/scripts/dso-setup.sh
+
+## Notes
+
+**2026-03-23T21:22:37Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T21:23:35Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — merge_precommit_hooks reads hook IDs from examples/pre-commit-config.example.yaml automatically; dso-setup.sh and SKILL.md require no code changes
+
+**2026-03-23T21:23:39Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓ — TDD exemption applies: structural config wiring, no conditional logic
+
+**2026-03-23T21:26:04Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — added pre-commit-ticket-gate to examples/pre-commit-config.example.yaml and .pre-commit-config.yaml; dso-setup.sh and SKILL.md require no changes (merge_precommit_hooks auto-picks up from example file)
+
+**2026-03-23T21:34:50Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — ticket gate tests: 12/12 pass; review gate tests: 21/21 pass; ruff check: clean; ruff format: 85 files formatted
+
+**2026-03-23T21:35:00Z**
+
+CHECKPOINT 6/6: Done ✓ — all ACs satisfied. examples/pre-commit-config.example.yaml and .pre-commit-config.yaml both have pre-commit-ticket-gate entry with commit-msg stage. dso-setup.sh and SKILL.md required no changes.

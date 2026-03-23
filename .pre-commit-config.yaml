@@ -54,6 +54,17 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      # Ticket gate (commit-msg stage, timeout: 10s)
+      # Blocks commits lacking a valid v3 ticket ID when non-allowlisted files are staged.
+      # Runs at commit-msg stage so the hook receives the commit message file ($1) from git.
+      - id: pre-commit-ticket-gate
+        name: Ticket Gate (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-ticket-gate 10 "./plugins/dso/hooks/pre-commit-ticket-gate.sh"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit-msg]
+
       # --- push-stage hooks ---
 
       - id: pre-push-lint

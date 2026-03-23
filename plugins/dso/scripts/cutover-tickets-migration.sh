@@ -11,6 +11,9 @@
 #   CUTOVER_LOG_DIR          Directory for timestamped log file (default: /tmp)
 #   CUTOVER_STATE_FILE       Path for the run state file (default: /tmp/cutover-tickets-migration-state.json)
 #   CUTOVER_PHASE_EXIT_OVERRIDE  "PHASE_NAME=EXIT_CODE" — inject a failure for testing
+#   CUTOVER_TICKET_ID        Ticket ID included in the finalize cleanup commit message
+#                            (e.g. "w21-24kl"). Defaults to empty string (commit message
+#                            omits ticket ID when unset or empty).
 #
 # Exit codes: 0=success, 1=error
 
@@ -875,6 +878,143 @@ PYEOF
 _phase_finalize() {
     echo "Running phase: finalize"
     _check_override "finalize" || return $?
+
+    local _tickets_dir="${CUTOVER_TICKETS_DIR:-${_REPO_ROOT}/.tickets}"
+
+    # Idempotency: if .tickets/ is already absent, log and continue
+    # (tag creation and commit may still be needed on a partial re-run)
+    if [[ ! -d "$_tickets_dir" ]]; then
+        echo "finalize: .tickets/ directory already absent — skipping removal"
+    fi
+
+    # ------------------------------------------------------------------
+    # 1. Create pre-cleanup git tag (idempotent)
+    # ------------------------------------------------------------------
+    if [[ "$_DRY_RUN" != "true" ]]; then
+        if git -C "$_REPO_ROOT" tag | grep -qx 'pre-cleanup-migration'; then
+            echo "finalize: tag 'pre-cleanup-migration' already exists — skipping"
+        else
+            git -C "$_REPO_ROOT" tag pre-cleanup-migration
+            echo "finalize: created git tag 'pre-cleanup-migration'"
+        fi
+    else
+        echo "finalize: [would] create git tag 'pre-cleanup-migration'"
+    fi
+
+    # ------------------------------------------------------------------
+    # 2. Remove .tickets/ directory
+    # ------------------------------------------------------------------
+    if [[ "$_DRY_RUN" != "true" ]]; then
+        if [[ -d "$_tickets_dir" ]]; then
+            rm -rf "$_tickets_dir"
+            echo "finalize: removed $_tickets_dir"
+        fi
+    else
+        echo "finalize: [would] rm -rf $_tickets_dir"
+    fi
+
+    # ------------------------------------------------------------------
+    # 3. Remove tk script
+    # ------------------------------------------------------------------
+    local _tk_script="${_REPO_ROOT}/plugins/dso/scripts/tk"
+    if [[ "$_DRY_RUN" != "true" ]]; then
+        rm -f "$_tk_script"
+        echo "finalize: removed $_tk_script"
+    else
+        echo "finalize: [would] rm -f $_tk_script"
+    fi
+
+    # ------------------------------------------------------------------
+    # 4. Remove tk-specific test fixtures
+    # ------------------------------------------------------------------
+    # bench-tk-ready.sh scripts
+    local _bench_script="${_REPO_ROOT}/plugins/dso/scripts/bench-tk-ready.sh"
+    local _bench_test="${_REPO_ROOT}/tests/plugin/test-bench-tk-ready.sh"
+    local _sync_force_local_test="${_REPO_ROOT}/tests/hooks/test-tk-sync-force-local.sh"
+
+    if [[ "$_DRY_RUN" != "true" ]]; then
+        # Remove test-tk-*.sh glob under tests/scripts/
+        # Use find to handle the glob safely (no error if no matches)
+        find "${_REPO_ROOT}/tests/scripts" -maxdepth 1 -name 'test-tk-*.sh' -print -delete 2>/dev/null || true
+
+        rm -f "$_bench_script"
+        rm -f "$_bench_test"
+        rm -f "$_sync_force_local_test"
+        echo "finalize: removed tk-specific test fixtures"
+    else
+        echo "finalize: [would] rm -f tests/scripts/test-tk-*.sh"
+        echo "finalize: [would] rm -f $_bench_script"
+        echo "finalize: [would] rm -f $_bench_test"
+        echo "finalize: [would] rm -f $_sync_force_local_test"
+    fi
+
+    # ------------------------------------------------------------------
+    # 5. Clean up stale .tickets/.index.json merge driver entry
+    #    in .gitattributes (if present).
+    #    Must NOT remove the .tickets-tracker/.index.json entry.
+    # ------------------------------------------------------------------
+    local _gitattributes="${_REPO_ROOT}/.gitattributes"
+    if [[ -f "$_gitattributes" ]] && grep -q '\.tickets/\.index\.json' "$_gitattributes"; then
+        if [[ "$_DRY_RUN" != "true" ]]; then
+            # Remove only the .tickets/.index.json line (not .tickets-tracker/.index.json)
+            python3 - "$_gitattributes" <<'PYEOF'
+import sys
+path = sys.argv[1]
+with open(path) as fh:
+    lines = fh.readlines()
+filtered = [
+    line for line in lines
+    if '.tickets/.index.json' not in line
+]
+with open(path, 'w') as fh:
+    fh.writelines(filtered)
+PYEOF
+            echo "finalize: removed stale .tickets/.index.json entry from .gitattributes"
+        else
+            echo "finalize: [would] remove .tickets/.index.json entry from .gitattributes"
+        fi
+    fi
+
+    # ------------------------------------------------------------------
+    # 6. Re-enable compaction (TICKET_COMPACT_DISABLED was set by _phase_migrate
+    #    but is already unset when _phase_finalize runs because the env var does
+    #    not persist across phase function calls unless explicitly exported).
+    #    Log that compaction is re-enabled for clarity.
+    # ------------------------------------------------------------------
+    unset TICKET_COMPACT_DISABLED 2>/dev/null || true
+    echo "finalize: compaction re-enabled (TICKET_COMPACT_DISABLED unset)"
+
+    # ------------------------------------------------------------------
+    # 7. Commit all removals as a single atomic commit
+    # ------------------------------------------------------------------
+    if [[ "$_DRY_RUN" != "true" ]]; then
+        git -C "$_REPO_ROOT" add -A
+        # Only commit if there is something staged
+        if ! git -C "$_REPO_ROOT" diff --cached --quiet; then
+            local _cleanup_ticket="${CUTOVER_TICKET_ID:-}"
+            local _cleanup_msg
+            if [[ -n "$_cleanup_ticket" ]]; then
+                _cleanup_msg="chore(${_cleanup_ticket}): remove old ticket system after v3 migration"
+            else
+                _cleanup_msg="chore: remove old ticket system after v3 migration"
+            fi
+            git -C "$_REPO_ROOT" commit -m "$_cleanup_msg"
+            echo "finalize: committed cleanup changes"
+        else
+            echo "finalize: nothing to commit (all files already removed)"
+        fi
+    else
+        local _cleanup_ticket_dry="${CUTOVER_TICKET_ID:-}"
+        local _cleanup_msg_dry
+        if [[ -n "$_cleanup_ticket_dry" ]]; then
+            _cleanup_msg_dry="chore(${_cleanup_ticket_dry}): remove old ticket system after v3 migration"
+        else
+            _cleanup_msg_dry="chore: remove old ticket system after v3 migration"
+        fi
+        echo "finalize: [would] git add -A && git commit -m '${_cleanup_msg_dry}'"
+    fi
+
+    echo "finalize: phase complete"
 }
 
 # ---------------------------------------------------------------------------
