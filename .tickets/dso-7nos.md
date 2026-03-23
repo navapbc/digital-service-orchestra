@@ -25,3 +25,7 @@ Phase 2: Add ACLI version/hash configuration to the project setup guided prompts
 
 ## Notes
 Originally tracked as bug dso-7nos (ACLI_VERSION unset). Upgraded to epic per user request to automate the full configuration lifecycle.
+
+**2026-03-23T04:39:18Z**
+
+Design decision: The Inbound Bridge workflow checks out ref:tickets — not main. This means all code (including bridge scripts and workflow changes) must be present on the tickets branch. Currently achieved by pushing main → tickets to sync. Long-term, the workflow should be restructured to checkout main for code and only use the tickets branch for .tickets-tracker/ data — this avoids coupling code deployment to the tickets branch sync cycle.

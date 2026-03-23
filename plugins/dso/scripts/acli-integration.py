@@ -229,34 +229,14 @@ class AcliClient:
         self._acli_cmd = acli_cmd
 
     def _run(self, cmd: list[str]) -> subprocess.CompletedProcess[str]:
-        """Run an ACLI command with credentials injected into env."""
-        base = self._acli_cmd if self._acli_cmd is not None else _DEFAULT_ACLI_CMD
-        full_cmd = base + cmd
-        env = _build_env()
-        env["JIRA_URL"] = self.jira_url
-        env["JIRA_USER"] = self.user
-        env["JIRA_API_TOKEN"] = self.api_token
+        """Run an ACLI command.
 
-        last_error: subprocess.CalledProcessError | None = None
-        for attempt in range(_MAX_ATTEMPTS):
-            try:
-                return subprocess.run(
-                    full_cmd,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    env=env,
-                )
-            except subprocess.CalledProcessError as exc:
-                last_error = exc
-                if exc.returncode == _AUTH_FAILURE_CODE:
-                    raise
-                if attempt < _MAX_ATTEMPTS - 1:
-                    delay = 2 ** (attempt + 1)
-                    time.sleep(delay)
-
-        assert last_error is not None
-        raise last_error
+        ACLI Go reads auth from its config file (set by ``acli auth login``).
+        Credentials stored on self are available for callers that need them
+        (e.g., direct REST calls), but are not injected into the subprocess
+        environment — ACLI does not read env vars for auth.
+        """
+        return _run_acli(cmd, acli_cmd=self._acli_cmd)
 
     def search_issues(
         self,

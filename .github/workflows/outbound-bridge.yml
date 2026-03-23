@@ -109,6 +109,17 @@ jobs:
           fi
           ln -sf "$HOME/.acli/acli" /usr/local/bin/acli
 
+      - name: Authenticate ACLI
+        run: |
+          echo "$JIRA_API_TOKEN" | acli jira auth login \
+            --site "$JIRA_URL" \
+            --email "$JIRA_USER" \
+            --token
+        env:
+          JIRA_URL: ${{ vars.JIRA_URL }}
+          JIRA_USER: ${{ vars.JIRA_USER }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
       - name: Run outbound bridge
         id: run-bridge
         run: |

@@ -115,6 +115,19 @@ jobs:
           fi
           ln -sf "$HOME/.acli/acli" /usr/local/bin/acli
 
+      - name: Authenticate ACLI
+        run: |
+          # ACLI Go binary requires explicit auth login (no env var auto-detection).
+          # Pipe the API token to stdin via --token flag.
+          echo "$JIRA_API_TOKEN" | acli jira auth login \
+            --site "$JIRA_URL" \
+            --email "$JIRA_USER" \
+            --token
+        env:
+          JIRA_URL: ${{ vars.JIRA_URL }}
+          JIRA_USER: ${{ vars.JIRA_USER }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
       - name: Run inbound bridge
         id: run-bridge
         run: |
