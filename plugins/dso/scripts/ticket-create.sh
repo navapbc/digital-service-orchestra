@@ -87,6 +87,15 @@ if [ -n "$parent_id" ]; then
         echo "Error: parent ticket '$parent_id' has no CREATE event" >&2
         exit 1
     fi
+    # Guard: cannot create a child under a closed parent
+    parent_status=$(ticket_read_status "$TRACKER_DIR" "$parent_id") || {
+        echo "Error: could not read status for parent ticket '$parent_id'" >&2
+        exit 1
+    }
+    if [ "$parent_status" = "closed" ]; then
+        echo "Error: cannot create child of closed ticket '$parent_id'. Reopen the parent first with: ticket transition $parent_id closed open" >&2
+        exit 1
+    fi
 fi
 
 # ── Generate ticket ID and event metadata ─────────────────────────────────────

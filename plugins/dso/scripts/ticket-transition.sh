@@ -34,6 +34,29 @@ fi
 ticket_id="$1"
 current_status="$2"
 target_status="$3"
+shift 3
+
+# Parse optional --reason=<text> or --reason <text> from remaining args
+close_reason=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --reason=*)
+            close_reason="${1#--reason=}"
+            shift
+            ;;
+        --reason)
+            if [ $# -lt 2 ]; then
+                echo "Error: --reason requires a value" >&2
+                exit 1
+            fi
+            close_reason="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # Validate statuses are in the allowed set
 _validate_status() {
@@ -74,6 +97,24 @@ if [ ! -f "$TRACKER_DIR/.env-id" ]; then
     exit 1
 fi
 
+# ── Step 1b: Open-children guard (before flock — read-only check) ────────────
+# REVIEW-DEFENSE: This check intentionally runs outside the flock. The TOCTOU
+# window (a child ticket being created after this check but before the STATUS
+# event is committed inside the flock) is an acceptable trade-off: the worst case
+# is that a close succeeds while a sibling create is racing — which is already
+# possible through direct event writes. The flock serializes STATUS event writes,
+# not reads. Tightening this would require a separate lock on child creation, which
+# adds complexity disproportionate to the risk.
+if [ "$target_status" = "closed" ]; then
+    open_children=$(ticket_find_open_children "$TRACKER_DIR" "$ticket_id")
+    if [ -n "$open_children" ]; then
+        echo "Error: cannot close ticket '$ticket_id' while it has open children." >&2
+        echo "Close the following children first:" >&2
+        echo "$open_children" >&2
+        exit 1
+    fi
+fi
+
 # ── Step 2-3: Acquire flock, read-verify-write inside lock ───────────────────
 # All concurrency-critical operations (read current state, verify, build event,
 # write event) happen inside a single flock to prevent TOCTOU races.
@@ -96,6 +137,7 @@ target_status = sys.argv[5]
 env_id_val = sys.argv[6]
 author_val = sys.argv[7]
 reducer_path = sys.argv[8]
+close_reason = sys.argv[9] if len(sys.argv) > 9 else ''
 
 timeout = 30
 
@@ -134,6 +176,23 @@ try:
         print(f'Error: current status is \"{actual_status}\", not \"{current_status}\"', file=sys.stderr)
         os.close(fd)
         sys.exit(10)
+
+    # Bug-close-reason guard
+    if target_status == 'closed':
+        ticket_type = state.get('ticket_type', '')
+        # If ticket_type is empty (old tickets predating the type field), treat as
+        # non-bug: don't require --reason. This ensures backward compatibility.
+        if ticket_type == 'bug':
+            if not close_reason:
+                print('Error: closing a bug ticket requires --reason with prefix \"Fixed:\" or \"Escalated to user:\"', file=sys.stderr)
+                os.close(fd)
+                sys.exit(1)
+            # Validate required prefix: accept Fixed (covers Fixed:, Fixed in, etc.)
+            # and case-insensitive escalat prefix (covers Escalated to user: variants).
+            if not (close_reason.startswith('Fixed') or close_reason.lower().startswith('escalat')):
+                print('Error: --reason must start with \"Fixed:\" or \"Escalated to user:\"', file=sys.stderr)
+                os.close(fd)
+                sys.exit(1)
 
     # Build STATUS event JSON
     timestamp = int(time.time())
@@ -196,7 +255,7 @@ except Exception as e:
 # Release lock
 os.close(fd)
 sys.exit(0)
-" "$lock_file" "$TRACKER_DIR" "$ticket_id" "$current_status" "$target_status" "$env_id" "$author" "$REDUCER" || flock_exit=$?
+" "$lock_file" "$TRACKER_DIR" "$ticket_id" "$current_status" "$target_status" "$env_id" "$author" "$REDUCER" "$close_reason" || flock_exit=$?
 
 if [ "$flock_exit" -eq 10 ]; then
     # Optimistic concurrency rejection

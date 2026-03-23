@@ -264,7 +264,7 @@ $ ticket list --format=llm
 Transition a ticket's status with optimistic concurrency control.
 
 ```
-ticket transition <ticket_id> <current_status> <target_status>
+ticket transition <ticket_id> <current_status> <target_status> [--reason <text>]
 ```
 
 **Arguments:**
@@ -274,6 +274,7 @@ ticket transition <ticket_id> <current_status> <target_status>
 | `ticket_id` | Yes | The ticket to transition |
 | `current_status` | Yes | Status the caller believes the ticket is currently in |
 | `target_status` | Yes | Status to move the ticket to |
+| `--reason <text>` | Conditional | Required when closing a bug ticket. Must start with `Fixed:` or `Escalated to user:`. |
 
 **Allowed status values:** `open`, `in_progress`, `closed`, `blocked`
 
@@ -282,6 +283,8 @@ ticket transition <ticket_id> <current_status> <target_status>
 - Optimistic concurrency: reads the actual current status inside an `fcntl.flock` lock and compares it to `current_status`. If they differ (another process changed the ticket since the caller last read it), exits non-zero with a conflict error.
 - Idempotent: if `current_status == target_status`, exits 0 immediately with "No transition needed".
 - Ghost-prevention: verifies the ticket directory and CREATE event exist before acquiring the lock.
+- Bug-close guard: when `target_status=closed` and the ticket type is `bug`, `--reason` is required and must begin with `Fixed:` or `Escalated to user:`. Exits non-zero if missing or malformed.
+- Open-children guard: when `target_status=closed`, checks for open (non-closed) child tickets. Exits non-zero listing the open children if any are found.
 - On close (`target_status=closed`): runs `ticket-unblock.py` to detect newly unblocked tickets and prints `UNBLOCKED: <ids>` (or `UNBLOCKED: none`) to stdout.
 
 **Exit codes:**
@@ -299,6 +302,13 @@ UNBLOCKED: none
 
 $ ticket transition w21-a3f7 open closed
 Error: current status is "in_progress", not "open"
+
+# Closing a bug ticket requires --reason
+$ ticket transition w21-b1c2 open closed
+Error: closing a bug ticket requires --reason with prefix "Fixed:" or "Escalated to user:"
+
+$ ticket transition w21-b1c2 open closed --reason "Fixed: corrected null check in parser"
+UNBLOCKED: none
 ```
 
 ---

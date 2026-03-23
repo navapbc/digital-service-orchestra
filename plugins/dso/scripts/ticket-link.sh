@@ -141,6 +141,19 @@ _write_link_event() {
     _check_ticket_exists "$source_id"
     _check_ticket_exists "$target_id"
 
+    # Guard: depends_on to a closed ticket is not allowed
+    if [ "$relation" = "depends_on" ]; then
+        local target_status
+        # Fail-open: if ticket_read_status fails (e.g., reducer unavailable or old
+        # ticket format), target_status will be empty and we allow the link rather
+        # than blocking valid operations due to a transient read failure.
+        target_status=$(ticket_read_status "$TRACKER_DIR" "$target_id" 2>/dev/null) || target_status=""
+        if [ -n "$target_status" ] && [ "$target_status" = "closed" ]; then
+            echo "Error: cannot create depends_on link — target ticket '$target_id' is closed" >&2
+            exit 1
+        fi
+    fi
+
     # Idempotency: skip if same (target_id, relation) pair already exists
     if _is_duplicate_link "$source_id" "$target_id" "$relation"; then
         return 0

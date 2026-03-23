@@ -1,6 +1,6 @@
 ---
 id: dso-sroj
-status: in_progress
+status: closed
 deps: [dso-bdk5]
 links: []
 created: 2026-03-23T17:34:49Z

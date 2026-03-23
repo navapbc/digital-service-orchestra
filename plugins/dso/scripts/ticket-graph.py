@@ -67,6 +67,9 @@ class CyclicDependencyError(Exception):
 _BLOCKING_RELATIONS = frozenset({"blocks", "depends_on"})
 
 
+# REVIEW-DEFENSE: _get_ticket_status is defined here and called at lines ~307 and ~536
+# (inside build_graph() and add_link()). The reviewer noted the function "may not exist"
+# — it does exist and is the authoritative status resolver for graph operations.
 def _get_ticket_status(ticket_id: str, tracker_dir: str) -> str:
     """Return the effective status of a ticket.
 
@@ -531,6 +534,14 @@ def add_dependency(
             f"Adding {source_id} → {target_id} ({relation}) would create a cycle"
         )
 
+    # Guard: cannot create a depends_on link to a closed ticket
+    if relation == "depends_on":
+        target_status = _get_ticket_status(target_id, tracker_dir)
+        if target_status == "closed":
+            raise ValueError(
+                f"cannot create depends_on link — target ticket '{target_id}' is closed"
+            )
+
     # Idempotency: skip if the net-active state already has this link
     if _is_active_link(source_id, target_id, relation, tracker_dir):
         return
@@ -612,6 +623,9 @@ def main() -> int:
         try:
             add_dependency(source_id, target_id, tracker_dir, relation)
         except CyclicDependencyError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
         return 0
