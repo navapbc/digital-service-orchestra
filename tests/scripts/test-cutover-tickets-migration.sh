@@ -844,4 +844,374 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
 
 # =============================================================================
+# Test 14: test_phase_migrate_creates_ticket_events
+#
+# RED phase: _phase_migrate is a stub — no event files written — FAILS.
+#
+# Setup: temp git repo fixture with 2 .tickets/*.md files with known IDs,
+#        titles, and open status.
+# Env:   CUTOVER_TICKETS_DIR → fixture .tickets/ dir
+#        CUTOVER_TRACKER_DIR → fixture .tickets-tracker/ dir
+# Run:   full cutover run on fixture.
+# Assert: CREATE event JSON exists for each migrated ticket under fixture
+#         tracker dir; ticket IDs preserved as directory names.
+# RED:   fails because _phase_migrate stub creates no event files.
+# =============================================================================
+_setup_fixture
+
+cat > "$_FIXTURE_DIR/.tickets/dso-mig1.md" <<'TICKET_EOF'
+---
+id: dso-mig1
+title: Migration Ticket One
+status: open
+type: task
+priority: 2
+---
+# Migration Ticket One
+
+Body of ticket one.
+TICKET_EOF
+
+cat > "$_FIXTURE_DIR/.tickets/dso-mig2.md" <<'TICKET_EOF'
+---
+id: dso-mig2
+title: Migration Ticket Two
+status: open
+type: task
+priority: 3
+---
+# Migration Ticket Two
+
+Body of ticket two.
+TICKET_EOF
+
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with migration tickets"
+
+_MIG_TRACKER_DIR="$_FIXTURE_DIR/.tickets-tracker"
+mkdir -p "$_MIG_TRACKER_DIR"
+_MIG_STATE_FILE="$_FIXTURE_DIR/.cutover-state-test14.json"
+_MIG_RC=0
+
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_MIG_STATE_FILE" \
+CUTOVER_TICKETS_DIR="$_FIXTURE_DIR/.tickets" \
+CUTOVER_TRACKER_DIR="$_MIG_TRACKER_DIR" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _MIG_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_phase_migrate_creates_ticket_events_exit_0" "0" "$_MIG_RC"
+
+# Assert CREATE event file exists for dso-mig1 (ID preserved as directory name)
+_MIG1_EVENT_FILE=$(find "$_MIG_TRACKER_DIR" -path "*/dso-mig1/*" -name "*.json" 2>/dev/null | head -1)
+if [[ -n "$_MIG1_EVENT_FILE" ]]; then
+    _MIG1_HAS_EVENT="true"
+else
+    _MIG1_HAS_EVENT="false"
+fi
+assert_eq "test_phase_migrate_creates_ticket_events_mig1" "true" "$_MIG1_HAS_EVENT"
+
+# Assert CREATE event file exists for dso-mig2
+_MIG2_EVENT_FILE=$(find "$_MIG_TRACKER_DIR" -path "*/dso-mig2/*" -name "*.json" 2>/dev/null | head -1)
+if [[ -n "$_MIG2_EVENT_FILE" ]]; then
+    _MIG2_HAS_EVENT="true"
+else
+    _MIG2_HAS_EVENT="false"
+fi
+assert_eq "test_phase_migrate_creates_ticket_events_mig2" "true" "$_MIG2_HAS_EVENT"
+
+# Assert at least one event file contains a CREATE-type entry
+_MIG_HAS_CREATE="false"
+_MIG_ANY_JSON=$(find "$_MIG_TRACKER_DIR" -name "*.json" 2>/dev/null | head -1)
+if [[ -n "$_MIG_ANY_JSON" ]]; then
+    if python3 -c "
+import json, sys
+try:
+    with open('$_MIG_ANY_JSON') as fh:
+        data = json.load(fh)
+    event_type = data.get('type', data.get('event_type', ''))
+    sys.exit(0 if event_type.upper() == 'CREATE' else 1)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null; then
+        _MIG_HAS_CREATE="true"
+    fi
+fi
+assert_eq "test_phase_migrate_creates_ticket_events" "true" "$_MIG_HAS_CREATE"
+assert_pass_if_clean "test_phase_migrate_creates_ticket_events"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR _MIG_TRACKER_DIR _MIG_STATE_FILE _MIG1_EVENT_FILE _MIG2_EVENT_FILE _MIG_ANY_JSON
+
+# =============================================================================
+# Test 15: test_phase_migrate_is_idempotent
+#
+# RED phase: _phase_migrate is a stub — no event files written — FAILS.
+#
+# Setup: fixture with 1 .tickets/*.md and initialized tracker. Run migration
+#        once. Then delete state file and run again.
+# Assert: exactly 1 CREATE event file per ticket (not duplicated); exit 0 both runs.
+# RED:   fails because stub creates nothing.
+# =============================================================================
+_setup_fixture
+
+cat > "$_FIXTURE_DIR/.tickets/dso-idem1.md" <<'TICKET_EOF'
+---
+id: dso-idem1
+title: Idempotent Ticket
+status: open
+type: task
+priority: 3
+---
+# Idempotent Ticket
+
+Body of idempotent ticket.
+TICKET_EOF
+
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with idempotent ticket"
+
+_IDEM_TRACKER_DIR="$_FIXTURE_DIR/.tickets-tracker"
+mkdir -p "$_IDEM_TRACKER_DIR"
+_IDEM_STATE_FILE="$_FIXTURE_DIR/.cutover-state-test15.json"
+_IDEM_RC1=0
+_IDEM_RC2=0
+
+# First run
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_IDEM_STATE_FILE" \
+CUTOVER_TICKETS_DIR="$_FIXTURE_DIR/.tickets" \
+CUTOVER_TRACKER_DIR="$_IDEM_TRACKER_DIR" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _IDEM_RC1=$?
+
+# Delete state file for fresh second run
+rm -f "$_IDEM_STATE_FILE"
+
+# Second run
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_IDEM_STATE_FILE" \
+CUTOVER_TICKETS_DIR="$_FIXTURE_DIR/.tickets" \
+CUTOVER_TRACKER_DIR="$_IDEM_TRACKER_DIR" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _IDEM_RC2=$?
+
+_snapshot_fail
+
+# Assert both runs exit 0
+assert_eq "test_phase_migrate_is_idempotent_run1_exit_0" "0" "$_IDEM_RC1"
+assert_eq "test_phase_migrate_is_idempotent_run2_exit_0" "0" "$_IDEM_RC2"
+
+# Assert exactly 1 CREATE event file for dso-idem1 (not duplicated)
+_IDEM_EVENT_COUNT=$(find "$_IDEM_TRACKER_DIR" -path "*/dso-idem1/*" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "test_phase_migrate_is_idempotent" "1" "$_IDEM_EVENT_COUNT"
+assert_pass_if_clean "test_phase_migrate_is_idempotent"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR _IDEM_TRACKER_DIR _IDEM_STATE_FILE
+
+# =============================================================================
+# Test 16: test_phase_migrate_skips_malformed_tickets
+#
+# RED phase: _phase_migrate is a stub — no events written, no skip output — FAILS.
+#
+# Setup: fixture with 1 valid .tickets/*.md and 1 malformed file (no ---
+#        frontmatter delimiters).
+# Run:   full migration on fixture.
+# Assert: exit 0; valid ticket has CREATE event; malformed ticket has no CREATE
+#         event; combined output contains skip/malformed indicator.
+# RED:   fails because stub creates no events.
+# =============================================================================
+_setup_fixture
+
+# Valid ticket
+cat > "$_FIXTURE_DIR/.tickets/dso-valid1.md" <<'TICKET_EOF'
+---
+id: dso-valid1
+title: Valid Ticket
+status: open
+type: task
+priority: 3
+---
+# Valid Ticket
+
+Body of valid ticket.
+TICKET_EOF
+
+# Malformed ticket — no frontmatter delimiters
+cat > "$_FIXTURE_DIR/.tickets/dso-malformed.md" <<'TICKET_EOF'
+id: dso-malformed
+title: Malformed Ticket
+This file has no YAML frontmatter delimiters (no --- lines).
+TICKET_EOF
+
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with valid and malformed tickets"
+
+_MALFORM_TRACKER_DIR="$_FIXTURE_DIR/.tickets-tracker"
+mkdir -p "$_MALFORM_TRACKER_DIR"
+_MALFORM_STATE_FILE="$_FIXTURE_DIR/.cutover-state-test16.json"
+_MALFORM_RC=0
+_MALFORM_OUTPUT=""
+
+_MALFORM_OUTPUT=$(
+    CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+    CUTOVER_STATE_FILE="$_MALFORM_STATE_FILE" \
+    CUTOVER_TICKETS_DIR="$_FIXTURE_DIR/.tickets" \
+    CUTOVER_TRACKER_DIR="$_MALFORM_TRACKER_DIR" \
+    bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1
+) || _MALFORM_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_phase_migrate_skips_malformed_tickets_exit_0" "0" "$_MALFORM_RC"
+
+# Assert valid ticket has CREATE event
+_VALID1_EVENT=$(find "$_MALFORM_TRACKER_DIR" -path "*/dso-valid1/*" -name "*.json" 2>/dev/null | head -1)
+if [[ -n "$_VALID1_EVENT" ]]; then
+    _VALID1_HAS_EVENT="true"
+else
+    _VALID1_HAS_EVENT="false"
+fi
+assert_eq "test_phase_migrate_skips_malformed_tickets_valid_has_event" "true" "$_VALID1_HAS_EVENT"
+
+# Assert malformed ticket has no CREATE event
+_MALFORMED_EVENT=$(find "$_MALFORM_TRACKER_DIR" -path "*/dso-malformed/*" -name "*.json" 2>/dev/null | head -1)
+if [[ -z "$_MALFORMED_EVENT" ]]; then
+    _MALFORMED_NO_EVENT="true"
+else
+    _MALFORMED_NO_EVENT="false"
+fi
+assert_eq "test_phase_migrate_skips_malformed_tickets_malformed_no_event" "true" "$_MALFORMED_NO_EVENT"
+
+# Assert output contains skip/malformed indicator
+if echo "$_MALFORM_OUTPUT" | grep -qiE 'skip|malformed|invalid.*frontmatter|no.*frontmatter'; then
+    _HAS_SKIP_MSG="true"
+else
+    _HAS_SKIP_MSG="false"
+fi
+assert_eq "test_phase_migrate_skips_malformed_tickets" "true" "$_HAS_SKIP_MSG"
+assert_pass_if_clean "test_phase_migrate_skips_malformed_tickets"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR _MALFORM_TRACKER_DIR _MALFORM_STATE_FILE _VALID1_EVENT _MALFORMED_EVENT
+
+# =============================================================================
+# Test 17: test_phase_migrate_preserves_notes_with_timestamps
+#
+# RED phase: _phase_migrate is a stub — no COMMENT event written — FAILS.
+#
+# Setup: fixture with 1 .tickets/*.md whose Notes section has a timestamped
+#        note containing special chars (dollar sign, ampersand, angle brackets).
+# Run:   full migration.
+# Assert: COMMENT event JSON exists; python3 json.load of that file returns
+#         body field containing the note text.
+# RED:   fails because stub creates no events.
+# =============================================================================
+_setup_fixture
+
+# Ticket with a timestamped note containing special characters
+cat > "$_FIXTURE_DIR/.tickets/dso-notes1.md" <<'TICKET_EOF'
+---
+id: dso-notes1
+title: Ticket With Notes
+status: open
+type: task
+priority: 2
+---
+# Ticket With Notes
+
+Body content.
+
+## Notes
+
+[2026-01-15T10:30:00Z] Fixed issue with $VAR & <template> handling.
+TICKET_EOF
+
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with notes ticket"
+
+_NOTES_TRACKER_DIR="$_FIXTURE_DIR/.tickets-tracker"
+mkdir -p "$_NOTES_TRACKER_DIR"
+_NOTES_STATE_FILE="$_FIXTURE_DIR/.cutover-state-test17.json"
+_NOTES_RC=0
+
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_NOTES_STATE_FILE" \
+CUTOVER_TICKETS_DIR="$_FIXTURE_DIR/.tickets" \
+CUTOVER_TRACKER_DIR="$_NOTES_TRACKER_DIR" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _NOTES_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_phase_migrate_preserves_notes_with_timestamps_exit_0" "0" "$_NOTES_RC"
+
+# Assert COMMENT event JSON exists for dso-notes1
+_COMMENT_EVENT=$(find "$_NOTES_TRACKER_DIR" -path "*/dso-notes1/*" -name "*.json" 2>/dev/null | \
+    xargs -I{} python3 -c "
+import json, sys
+try:
+    with open('{}') as fh:
+        d = json.load(fh)
+    t = d.get('type', d.get('event_type', ''))
+    if t.upper() == 'COMMENT':
+        print('{}')
+        sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+" 2>/dev/null | head -1)
+
+if [[ -n "$_COMMENT_EVENT" ]]; then
+    _HAS_COMMENT_EVENT="true"
+else
+    _HAS_COMMENT_EVENT="false"
+fi
+assert_eq "test_phase_migrate_preserves_notes_with_timestamps_has_comment" "true" "$_HAS_COMMENT_EVENT"
+
+# Assert body field contains the note text (with special chars preserved)
+_COMMENT_BODY_OK="false"
+if [[ -n "$_COMMENT_EVENT" ]]; then
+    if python3 -c "
+import json, sys
+try:
+    with open('$_COMMENT_EVENT') as fh:
+        d = json.load(fh)
+    body = d.get('body', '')
+    # Must contain key elements of the note
+    if '\$VAR' in body and '&' in body and '<template>' in body:
+        sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+" 2>/dev/null; then
+        _COMMENT_BODY_OK="true"
+    fi
+fi
+assert_eq "test_phase_migrate_preserves_notes_with_timestamps" "true" "$_COMMENT_BODY_OK"
+assert_pass_if_clean "test_phase_migrate_preserves_notes_with_timestamps"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR _NOTES_TRACKER_DIR _NOTES_STATE_FILE _COMMENT_EVENT
+
+# =============================================================================
+# Test 18: test_phase_migrate_disables_compaction
+#
+# Structural RED test: asserts on script source content.
+# Assert: grep -q 'TICKET_COMPACT_DISABLED' plugins/dso/scripts/cutover-tickets-migration.sh
+# RED:   fails because the stub does not reference TICKET_COMPACT_DISABLED.
+# =============================================================================
+_snapshot_fail
+
+if grep -q 'TICKET_COMPACT_DISABLED' "$CUTOVER_SCRIPT" 2>/dev/null; then
+    _HAS_COMPACT_DISABLED="true"
+else
+    _HAS_COMPACT_DISABLED="false"
+fi
+assert_eq "test_phase_migrate_disables_compaction" "true" "$_HAS_COMPACT_DISABLED"
+assert_pass_if_clean "test_phase_migrate_disables_compaction"
+
+# =============================================================================
 print_summary

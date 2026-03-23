@@ -793,6 +793,280 @@ Full documentation: plugins/dso/docs/INSTALL.md
 
 ---
 
+## Step 6.5: Jira Bridge Configuration (Skippable)
+
+This step configures the GitHub Actions-based Jira bridge that syncs tickets between the local `tickets` branch and Jira. It is **optional and skippable** — projects without Jira integration continue to work without it.
+
+> **Prerequisite**: This step only runs if the user enabled Jira integration in Step 3 (question 11). If the user declined Jira integration, skip this step entirely.
+
+### Offer the bridge setup
+
+Use `AskUserQuestion`:
+
+```
+Would you like to configure the Jira bridge?
+The bridge syncs your local tickets to Jira via GitHub Actions, keeping issues in sync automatically.
+This requires a GitHub repository with Actions enabled and a Jira API token.
+Set up the Jira bridge? (yes/no, default: no)
+```
+
+If no (or Enter with default): skip this step entirely. Note:
+```
+(skipping Jira bridge setup — bridge workflows will remain disabled)
+```
+
+If yes: proceed through the sub-steps below in order.
+
+---
+
+### Sub-step A: Ensure the `tickets` branch exists
+
+The bridge CI workflow reads from and writes to a `tickets` branch on the remote. Check whether it exists:
+
+```bash
+# Check if tickets branch exists on remote
+if git ls-remote --exit-code origin tickets >/dev/null 2>&1; then
+  echo "[tickets-branch] Remote branch 'tickets' already exists — skipping creation"
+else
+  echo "[tickets-branch] Remote branch 'tickets' not found — will create it"
+fi
+```
+
+If the branch does not exist, create it:
+
+```bash
+# Create orphan tickets branch (no commit history from main)
+git checkout --orphan tickets
+git rm -rf . >/dev/null 2>&1 || true
+git commit --allow-empty -m "chore: initialize tickets branch for Jira bridge"
+git push origin tickets
+git checkout -
+```
+
+Report the outcome to the user:
+- Branch existed: `tickets branch already present on remote — no action needed.`
+- Branch created: `Created and pushed remote branch 'tickets'.`
+
+---
+
+### Sub-step B: Collect required GitHub Variables
+
+The bridge workflow reads configuration from GitHub Actions repository **variables** (not secrets). Collect each one using `AskUserQuestion`, one at a time. For each variable, explain what it is and how to find or derive the value.
+
+**B1. JIRA_URL** — Use `AskUserQuestion`:
+```
+JIRA_URL — The base URL of your Jira instance (e.g., https://your-org.atlassian.net).
+This is the same value as your JIRA_URL environment variable.
+Enter value (or press Enter to use your JIRA_URL env var value):
+```
+If the user presses Enter and `$JIRA_URL` is set in the environment, use that value.
+
+**B2. JIRA_USER** — Use `AskUserQuestion`:
+```
+JIRA_USER — The email address of the Jira account used by the bridge bot.
+This is the same value as your JIRA_USER environment variable.
+Enter value (or press Enter to use your JIRA_USER env var value):
+```
+If the user presses Enter and `$JIRA_USER` is set in the environment, use that value.
+
+**B3. ACLI_VERSION** — Use `AskUserQuestion`:
+```
+ACLI_VERSION — The version of the Atlassian CLI (acli) to install in CI (e.g., 1.3.0).
+ACLI v1.3+ is required for auth via 'acli jira auth login --site --email --token'.
+Check available versions at: https://github.com/ankitpokhrel/jira-cli/releases
+Enter value:
+```
+
+**B4. ACLI_SHA256** — Use `AskUserQuestion`:
+```
+ACLI_SHA256 — The SHA-256 checksum of the acli linux/amd64 tar.gz release asset.
+This is used to verify the download integrity in CI.
+
+Options:
+  a) Enter the SHA-256 now (find it in the release's checksum file or brew formula)
+  b) Leave blank to bootstrap — the first CI run will log the actual hash; update this
+     variable after reviewing the log output.
+
+Enter SHA-256 (or leave blank to bootstrap):
+```
+If blank, record as empty — the bridge workflow will perform hash-bootstrap logging on first run.
+
+**B5. BRIDGE_BOT_LOGIN** — Use `AskUserQuestion`:
+```
+BRIDGE_BOT_LOGIN — The GitHub username of the bot account that commits ticket sync changes.
+This account needs write access to the repository.
+Enter GitHub username:
+```
+
+**B6. BRIDGE_BOT_NAME** — Use `AskUserQuestion`:
+```
+BRIDGE_BOT_NAME — The display name for commit authorship in bridge sync commits.
+Example: "DSO Bridge Bot"
+Enter display name:
+```
+
+**B7. BRIDGE_BOT_EMAIL** — Use `AskUserQuestion`:
+```
+BRIDGE_BOT_EMAIL — The email address for commit authorship in bridge sync commits.
+For GitHub bots, use the noreply format: <id>+<username>@users.noreply.github.com
+Enter email address:
+```
+
+**B8. BRIDGE_ENV_ID** — Use `AskUserQuestion`:
+```
+BRIDGE_ENV_ID — An identifier for the bridge environment (e.g., "prod" or "staging").
+Used to namespace bridge state and prevent conflicts when multiple environments are syncing.
+Enter environment ID:
+```
+
+---
+
+### Sub-step C: Collect required GitHub Secret
+
+**C1. JIRA_API_TOKEN** — Use `AskUserQuestion`:
+```
+JIRA_API_TOKEN — The Jira API token used by the bridge to authenticate with Jira.
+This will be stored as a GitHub Actions repository SECRET (encrypted, not visible after entry).
+Generate a token at: https://id.atlassian.com/manage-profile/security/api-tokens
+
+Enter the API token (it will NOT be shown back or stored locally):
+```
+
+> **Security note**: Do NOT write this value to `dso-config.conf` or any local file. It must only be stored as a GitHub Actions secret.
+
+---
+
+### Sub-step D: Apply GitHub Variables and Secrets
+
+Using the `gh` CLI, set all collected variables and the secret on the GitHub repository.
+
+```bash
+# Set repository variables (visible in workflow logs, not encrypted)
+gh variable set JIRA_URL       --body "<JIRA_URL_VALUE>"
+gh variable set JIRA_USER      --body "<JIRA_USER_VALUE>"
+gh variable set ACLI_VERSION   --body "<ACLI_VERSION_VALUE>"
+gh variable set BRIDGE_BOT_LOGIN   --body "<BRIDGE_BOT_LOGIN_VALUE>"
+gh variable set BRIDGE_BOT_NAME    --body "<BRIDGE_BOT_NAME_VALUE>"
+gh variable set BRIDGE_BOT_EMAIL   --body "<BRIDGE_BOT_EMAIL_VALUE>"
+gh variable set BRIDGE_ENV_ID  --body "<BRIDGE_ENV_ID_VALUE>"
+
+# Set ACLI_SHA256 only if a non-empty value was provided
+if [[ -n "<ACLI_SHA256_VALUE>" ]]; then
+    gh variable set ACLI_SHA256 --body "<ACLI_SHA256_VALUE>"
+fi
+
+# Set the API token as a secret (encrypted)
+gh secret set JIRA_API_TOKEN --body "<JIRA_API_TOKEN_VALUE>"
+```
+
+Report each variable/secret as it is set:
+```
+[bridge] Set variable: JIRA_URL
+[bridge] Set variable: JIRA_USER
+[bridge] Set variable: ACLI_VERSION
+[bridge] Set variable: ACLI_SHA256  (or: [bridge] ACLI_SHA256 skipped — will bootstrap on first CI run)
+[bridge] Set variable: BRIDGE_BOT_LOGIN
+[bridge] Set variable: BRIDGE_BOT_NAME
+[bridge] Set variable: BRIDGE_BOT_EMAIL
+[bridge] Set variable: BRIDGE_ENV_ID
+[bridge] Set secret:   JIRA_API_TOKEN
+```
+
+If `gh variable set` or `gh secret set` fails (non-zero exit), report the error and ask the user whether to retry or skip. Do not abort the entire setup on a single variable failure.
+
+---
+
+### Sub-step E: Validate ACLI connectivity
+
+After setting the secret, validate that the ACLI authentication works correctly. This requires `acli` to be installed (Step 3, Optional dependencies).
+
+If `acli` is not installed on the local machine, skip connectivity validation with a note:
+```
+(skipping ACLI auth validation — acli not installed locally; connectivity will be verified on first CI run)
+```
+
+If `acli` is installed, run the auth login command:
+
+```bash
+acli jira auth login \
+    --site "$JIRA_URL" \
+    --email "$JIRA_USER" \
+    --token "$JIRA_API_TOKEN_VALUE"
+```
+
+Interpret the result:
+- **Exit 0**: Report `[bridge] ACLI auth validated — Jira connectivity confirmed.`
+- **Non-zero exit**: Report the error output and prompt:
+  ```
+  ACLI auth login failed. This may indicate an incorrect JIRA_URL, JIRA_USER, or JIRA_API_TOKEN.
+  Options:
+    1) Re-enter credentials and retry
+    2) Skip validation (bridge setup continues; verify connectivity manually)
+  Enter 1 or 2:
+  ```
+  If option 1: return to Sub-step B1 to re-collect JIRA_URL/JIRA_USER, and C1 for the token. Re-run Sub-steps D and E.
+  If option 2: skip validation and continue to Sub-step F.
+
+---
+
+### Sub-step F: Enable the bridge cron and run a test sync
+
+After credentials are validated, instruct the user to enable the bridge cron workflow manually in the GitHub Actions UI (automated cron cannot be enabled via `gh` CLI):
+
+```
+[bridge] Manual step required:
+  1. Go to your repository on GitHub → Actions → Jira Bridge (Inbound) workflow
+  2. Click "Enable workflow" to activate the scheduled cron trigger
+  3. Optionally click "Run workflow" to trigger an immediate sync
+
+The bridge cron runs on a schedule defined in the workflow file.
+```
+
+Then optionally offer to run a test sync immediately via `gh workflow run`:
+
+Use `AskUserQuestion`:
+```
+Would you like to trigger a test sync now via 'gh workflow run'? (yes/no, default: no)
+This dispatches the bridge workflow immediately to verify end-to-end connectivity.
+```
+
+If yes:
+```bash
+gh workflow run jira-bridge-inbound.yml
+```
+Report: `[bridge] Test sync dispatched. Check GitHub Actions for the workflow run status.`
+Provide the link: `https://github.com/<owner>/<repo>/actions`
+
+If no: skip.
+
+---
+
+### Sub-step G: Bridge setup summary
+
+Report the final bridge setup outcome:
+
+```
+=== Jira Bridge Setup Complete ===
+
+tickets branch: <created | already existed>
+GitHub variables set: JIRA_URL, JIRA_USER, ACLI_VERSION, ACLI_SHA256 (or: bootstrap), BRIDGE_BOT_LOGIN, BRIDGE_BOT_NAME, BRIDGE_BOT_EMAIL, BRIDGE_ENV_ID
+GitHub secret set:    JIRA_API_TOKEN
+ACLI connectivity:    <validated | skipped — not installed | skipped — user choice>
+Bridge cron:          Manual activation required (see GitHub Actions UI)
+Test sync:            <dispatched | skipped>
+```
+
+If `ACLI_SHA256` was left blank (bootstrap mode), include a reminder:
+```
+IMPORTANT: ACLI_SHA256 bootstrap reminder
+On the first bridge CI run, the workflow will log the actual SHA-256 hash.
+After reviewing the log, run:
+  gh variable set ACLI_SHA256 --body "<hash-from-log>"
+This ensures subsequent runs verify the download integrity.
+```
+
+---
+
 ## Step 7: Onboarding Foundations
 
 After completing project setup, offer to run the architecture and design onboarding skills. These skills produce foundational documents that guide future Claude sessions in the target project.
