@@ -1,6 +1,6 @@
 ---
 id: dso-otk0
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-23T00:22:33Z

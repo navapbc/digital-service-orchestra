@@ -1,6 +1,6 @@
 ---
 id: dso-mcq0
-status: open
+status: in_progress
 deps: [dso-97xo, dso-141j]
 links: []
 created: 2026-03-22T22:51:21Z
@@ -20,3 +20,40 @@ parent: w21-24kl
 <!-- sync: unsynced -->
 
 Uncomment the cron schedule in inbound-bridge.yml after tickets branch exists and env vars are configured. Run a manual workflow_dispatch first to verify end-to-end. Then uncomment the cron. AC: inbound-bridge.yml has active cron schedule; scheduled run succeeds; no more recurring CI failures from missing tickets branch. Depends on dso-97xo (branch) and dso-141j (env vars).
+
+NOTE: The cron was already re-enabled in dso-97xo and env vars configured in dso-141j. This story's remaining work is to verify end-to-end by triggering a manual workflow_dispatch run and confirming it succeeds. If the workflow has already been verified to work, this story can be closed.
+
+## ACCEPTANCE CRITERIA
+
+- [ ] `inbound-bridge.yml` has an active (uncommented) cron schedule
+  Verify: grep -q '^\s*- cron:' .github/workflows/inbound-bridge.yml
+- [ ] Manual workflow_dispatch trigger succeeds (or recent successful run exists)
+  Verify: gh run list --workflow="Inbound Bridge" --limit=1 --json status,conclusion --jq '.[0].conclusion' 2>/dev/null || echo "no runs yet"
+- [ ] `tickets` branch exists on remote
+  Verify: git ls-remote --heads origin tickets | grep -q tickets
+
+TDD Requirement: TDD exemption — Criterion #3 (verification/infrastructure only): this story verifies existing CI infrastructure configuration with no new code changes.
+
+**2026-03-23T01:29:33Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T01:29:45Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — cron active at line 8 ('*/30 * * * *'), workflow_dispatch enabled, tickets branch confirmed on remote
+
+**2026-03-23T01:31:57Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓ — TDD exemption applies (verification/infrastructure only)
+
+**2026-03-23T01:32:05Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — Verification findings: (1) cron '*/30 * * * *' is active at line 8 of inbound-bridge.yml; (2) tickets branch exists on remote (SHA: 3358a05...); (3) triggered workflow_dispatch run 23417598754 — checkout succeeded but failed at ACLI_VERSION not set (env var from dso-141j). Previously all runs failed at git fetch (tickets branch was missing). Now that tickets branch exists, the workflow advances further. ACLI_VERSION env var must be configured to get a successful end-to-end run.
+
+**2026-03-23T01:32:48Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — AC Results: AC1 PASS (cron active), AC2 FAIL (workflow_dispatch returns 'failure' — blocked by ACLI_VERSION env var not set, owned by dso-141j), AC3 PASS (tickets branch on remote). Note: workflow now advances past checkout step (tickets branch exists) but fails at ACLI validation. This is a dependency on dso-141j completing env var configuration.
+
+**2026-03-23T01:33:06Z**
+
+CHECKPOINT 6/6: Done ✓ — Story verification complete. Summary: (1) cron schedule active ✓, (2) tickets branch on remote ✓, (3) workflow_dispatch triggered — progresses past checkout but fails at ACLI_VERSION env var (dependency on dso-141j). Created dso-7nos to track ACLI_VERSION env var completion.

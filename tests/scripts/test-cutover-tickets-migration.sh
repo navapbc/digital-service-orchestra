@@ -79,6 +79,7 @@ fi
 assert_eq "test_cutover_phases_execute_in_order_exit_0" "0" "$_PHASES_RC"
 
 # Assert all 5 phase names appear, in order
+_snapshot_fail
 _PHASE_ORDER_OK="false"
 if [[ "$_PHASES_RC" -eq 0 ]]; then
     # Extract only lines containing phase names, check ordering
@@ -101,6 +102,7 @@ if [[ "$_PHASES_RC" -eq 0 ]]; then
     fi
 fi
 assert_eq "test_cutover_phases_execute_in_order" "true" "$_PHASE_ORDER_OK"
+assert_pass_if_clean "test_cutover_phases_execute_in_order"
 
 rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
@@ -128,6 +130,7 @@ fi
 # Find a log file matching the timestamp pattern
 _LOG_MATCH=$(find "$_FIXTURE_LOG_DIR" -maxdepth 1 -name 'cutover-????-??-??T??-??-??.log' 2>/dev/null | head -1)
 
+_snapshot_fail
 if [[ -n "$_LOG_MATCH" ]]; then
     _LOG_EXISTS="true"
 else
@@ -143,6 +146,7 @@ else
     _LOG_NONEMPTY="false"
 fi
 assert_eq "test_cutover_log_file_is_nonempty" "true" "$_LOG_NONEMPTY"
+assert_pass_if_clean "test_cutover_creates_log_file_with_timestamp"
 
 rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
@@ -178,6 +182,7 @@ fi
 # Assert exit 0
 assert_eq "test_cutover_dry_run_flag_produces_output_without_creating_state_file_exit_0" "0" "$_DRYRUN_RC"
 
+_snapshot_fail
 # Assert [DRY RUN] prefix appears in output
 if echo "$_DRYRUN_OUTPUT" | grep -q '\[DRY RUN\]'; then
     _DRYRUN_PREFIX_OK="true"
@@ -193,6 +198,7 @@ else
     _NO_STATE_FILE="true"
 fi
 assert_eq "test_cutover_dry_run_flag_produces_output_without_creating_state_file" "true" "$_NO_STATE_FILE"
+assert_pass_if_clean "test_cutover_dry_run_flag_produces_output_without_creating_state_file"
 
 rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
