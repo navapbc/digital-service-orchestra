@@ -332,9 +332,9 @@ else
         git add README.md
         git commit -m "initial commit" --quiet
 
-        mkdir -p .tickets
-        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}}))" > .tickets/.index.json
-        git add .tickets/.index.json
+        mkdir -p .tickets-tracker
+        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}}))" > .tickets-tracker/.index.json
+        git add .tickets-tracker/.index.json
         git commit -m "add initial tickets index" --quiet
         git push origin main --quiet 2>/dev/null
 
@@ -342,8 +342,8 @@ else
         git checkout -b test-autoresolve --quiet
 
         # Commit ticket-bbb on the feature branch
-        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}, 'ticket-bbb': {'status': 'open', 'title': 'Ticket B'}}))" > .tickets/.index.json
-        git add .tickets/.index.json
+        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}, 'ticket-bbb': {'status': 'open', 'title': 'Ticket B'}}))" > .tickets-tracker/.index.json
+        git add .tickets-tracker/.index.json
         git commit -m "add ticket-bbb on branch" --quiet
     )
 
@@ -354,8 +354,8 @@ else
         cd "$_WORK2"
         git config user.email "test2@test.com"
         git config user.name "Test2"
-        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}, 'ticket-ccc': {'status': 'closed', 'title': 'Ticket C'}}))" > .tickets/.index.json
-        git add .tickets/.index.json
+        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}, 'ticket-ccc': {'status': 'closed', 'title': 'Ticket C'}}))" > .tickets-tracker/.index.json
+        git add .tickets-tracker/.index.json
         git commit -m "add ticket-ccc on main" --quiet
         git push origin main --quiet 2>/dev/null
     )
@@ -374,7 +374,7 @@ else
     assert_eq "test_auto_resolves_tickets_exits_0" "0" "$_T6_RC"
 
     # Verify the merged index contains both new tickets
-    _T6_INDEX=$(cd "$_WORK_DIR" && cat .tickets/.index.json 2>/dev/null || echo "{}")
+    _T6_INDEX=$(cd "$_WORK_DIR" && cat .tickets-tracker/.index.json 2>/dev/null || echo "{}")
     _T6_HAS_BBB=0
     _T6_HAS_CCC=0
     if echo "$_T6_INDEX" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'ticket-bbb' in d else 1)" 2>/dev/null; then

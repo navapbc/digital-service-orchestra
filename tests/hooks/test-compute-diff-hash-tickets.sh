@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/hooks/test-compute-diff-hash-tickets.sh
-# Tests that .tickets/ and .sync-state.json files are EXCLUDED from compute-diff-hash.sh.
+# Tests that .tickets-tracker/ and .sync-state.json files are EXCLUDED from compute-diff-hash.sh.
 #
 # Ticket metadata changes (checkpoint notes, status updates) must not invalidate
 # code reviews. The diff hash should be stable across ticket-only changes.
@@ -27,7 +27,7 @@ if ! git rev-parse --is-inside-work-tree &>/dev/null; then
 fi
 
 # Work in a temp directory that is a fresh git repo so we don't pollute the
-# real working tree with stray .tickets/ files.
+# real working tree with stray .tickets-tracker/ files.
 TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
@@ -42,15 +42,15 @@ echo "init" > README.md
 git add README.md
 git commit -q -m "init"
 
-# Create .tickets/ directory and an initial ticket file, then commit it
-mkdir -p .tickets
-echo "status: open" > .tickets/ticket-001.md
-git add .tickets/ticket-001.md
+# Create .tickets-tracker/ directory and an initial ticket file, then commit it
+mkdir -p .tickets-tracker
+echo "status: open" > .tickets-tracker/ticket-001.md
+git add .tickets-tracker/ticket-001.md
 git commit -q -m "add ticket"
 
 # ============================================================
 # test_compute_diff_hash_excludes_tickets_directory
-# Modifying a .tickets/ file should NOT change the hash
+# Modifying a .tickets-tracker/ file should NOT change the hash
 # ============================================================
 echo "--- test_compute_diff_hash_excludes_tickets_directory ---"
 
@@ -58,16 +58,16 @@ HASH_BEFORE=$(bash "$HOOK" 2>/dev/null)
 assert_ne "hash produces non-empty output before" "" "$HASH_BEFORE"
 
 # Modify the ticket file (unstaged change)
-echo "status: closed" >> .tickets/ticket-001.md
+echo "status: closed" >> .tickets-tracker/ticket-001.md
 
 HASH_AFTER=$(bash "$HOOK" 2>/dev/null)
 assert_ne "hash produces non-empty output after" "" "$HASH_AFTER"
 
-# Hashes must be EQUAL — .tickets/ is excluded from the hash
+# Hashes must be EQUAL — .tickets-tracker/ is excluded from the hash
 assert_eq "ticket change does not alter hash" "$HASH_BEFORE" "$HASH_AFTER"
 
 # Reset the ticket change
-git checkout -- .tickets/ticket-001.md
+git checkout -- .tickets-tracker/ticket-001.md
 
 # ============================================================
 # test_compute_diff_hash_excludes_sync_state_json
@@ -104,13 +104,13 @@ assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
 
 # ============================================================
 # test_tickets_exclusion_pathspec_exists
-# The allowlist must contain a .tickets/ pattern (source of truth for pathspec exclusions)
+# The allowlist must contain a .tickets-tracker/ pattern (source of truth for pathspec exclusions)
 # ============================================================
 echo "--- test_tickets_exclusion_pathspec_exists ---"
 
 ALLOWLIST="$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf"
-PATHSPEC_MATCH=$(grep '\.tickets/' "$ALLOWLIST" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "review-gate-allowlist.conf contains .tickets/ pattern" "true" \
+PATHSPEC_MATCH=$(grep '\.tickets-tracker/' "$ALLOWLIST" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "review-gate-allowlist.conf contains .tickets-tracker/ pattern" "true" \
     "$( [[ $PATHSPEC_MATCH -ge 1 ]] && echo true || echo false )"
 
 # ============================================================

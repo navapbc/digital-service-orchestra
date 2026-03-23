@@ -134,7 +134,6 @@ is_critical_path_file() {
     local file="$1"
     case "$file" in
         */db/*|*/database/*|*/auth/*|*/security/*|*/routes/*|*/handlers/*|*/request/*|*/middleware/*|*/persistence/*) return 0 ;;
-        src/auth/*|src/security/*|src/db/*|src/routes/*|src/handlers/*) return 0 ;;
     esac
     return 1
 }
@@ -152,7 +151,7 @@ is_test_file() {
 is_generated_file() {
     local file="$1"
     case "$file" in
-        */migrations/*|*.lock|*package-lock.json|*yarn.lock|*poetry.lock|*.generated.*|*/generated/*) return 0 ;;
+        */migrations/*|*.lock|*package-lock.json|*.generated.*|*/generated/*) return 0 ;;
     esac
     return 1
 }

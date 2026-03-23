@@ -42,6 +42,13 @@
     "title": "As a developer, Jira bridge environment variables are configured with guided prompts",
     "type": "story"
   },
+  "dso-1pwb": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Fix CI failures from allowlist path migration",
+    "type": "bug"
+  },
   "dso-1s1t": {
     "deps": [
       "dso-ncv2"

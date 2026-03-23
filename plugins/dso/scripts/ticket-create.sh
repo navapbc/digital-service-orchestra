@@ -33,7 +33,27 @@ fi
 
 ticket_type="$1"
 title="$2"
-parent_id="${3:-}"
+shift 2
+
+# Parse remaining args: support both positional parent_id and --parent <id>
+parent_id=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --parent)
+            parent_id="$2"
+            shift 2
+            ;;
+        --parent=*)
+            parent_id="${1#--parent=}"
+            shift
+            ;;
+        *)
+            # Positional: treat as parent_id (backward-compatible)
+            parent_id="$1"
+            shift
+            ;;
+    esac
+done
 
 # Validate ticket_type
 case "$ticket_type" in

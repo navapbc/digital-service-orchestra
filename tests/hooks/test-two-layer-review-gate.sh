@@ -96,7 +96,7 @@ run_pre_commit_hook() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$PRE_COMMIT_HOOK" 2>/dev/null
     ) || exit_code=$?
     echo "$exit_code"
@@ -109,7 +109,7 @@ run_pre_commit_hook_stderr() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$PRE_COMMIT_HOOK" 2>&1 >/dev/null
     ) || true
 }
@@ -130,7 +130,7 @@ compute_hash_in_repo() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null
     )
 }
@@ -149,15 +149,15 @@ call_sentinel() {
 
 # test_allowlist_pass_tickets_only
 #
-# A commit containing only .tickets/ files must pass Layer 1 without a review.
+# A commit containing only .tickets-tracker/ files must pass Layer 1 without a review.
 test_allowlist_pass_tickets_only() {
     local _repo _artifacts
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
 
-    mkdir -p "$_repo/.tickets"
-    echo "# Task: My task" > "$_repo/.tickets/lockpick-test-abc1.md"
-    git -C "$_repo" add ".tickets/lockpick-test-abc1.md"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo "# Task: My task" > "$_repo/.tickets-tracker/lockpick-test-abc1.md"
+    git -C "$_repo" add ".tickets-tracker/lockpick-test-abc1.md"
 
     local exit_code
     exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
@@ -417,9 +417,9 @@ test_merge_head_present_allowlisted_commit_passes() {
     echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
 
     # Stage only allowlisted files (ticket index merge resolution)
-    mkdir -p "$_repo/.tickets"
-    echo '{"version":2}' > "$_repo/.tickets/.index.json"
-    git -C "$_repo" add ".tickets/.index.json"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo '{"version":2}' > "$_repo/.tickets-tracker/.index.json"
+    git -C "$_repo" add ".tickets-tracker/.index.json"
 
     local exit_code
     exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
@@ -514,7 +514,7 @@ test_gate_layer1_blocks_commit_without_test_status() {
     (
         cd "$_repo"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$PRE_COMMIT_TEST_GATE" 2>/dev/null
     ) || exit_code=$?
 

@@ -6,7 +6,7 @@
 #   During the sprint implementing the two-layer review gate (epic gju5), we
 #   repeatedly hit a failure pattern (bug 50is):
 #     1. Developer makes code changes and gets a valid review
-#     2. A git merge main is run, creating conflicts in .tickets/.index.json
+#     2. A git merge main is run, creating conflicts in .tickets-tracker/.index.json
 #     3. Developer resolves the conflict and stages only .tickets/ files
 #     4. The pre-commit hook BLOCKS with "diff hash mismatch" because
 #        the review-status diff_hash was stale (computed before the merge)
@@ -85,12 +85,12 @@ make_two_branch_repo() {
     git -C "$tmpdir" config user.name "Test"
 
     # Create initial commit on main
-    mkdir -p "$tmpdir/.tickets"
+    mkdir -p "$tmpdir/.tickets-tracker"
     cat > "$tmpdir/mycode.py" << 'PYEOF'
 def compute(x):
     return x * 2
 PYEOF
-    cat > "$tmpdir/.tickets/.index.json" << 'JSONEOF'
+    cat > "$tmpdir/.tickets-tracker/.index.json" << 'JSONEOF'
 {"version": 1, "tickets": []}
 JSONEOF
 
@@ -112,12 +112,12 @@ PYEOF
     git -C "$tmpdir" add "mycode.py"
     git -C "$tmpdir" commit -q -m "feat: add new_feature"
 
-    # Go back to main and make a conflicting change to .tickets/.index.json
+    # Go back to main and make a conflicting change to .tickets-tracker/.index.json
     git -C "$tmpdir" checkout -q main
-    cat > "$tmpdir/.tickets/.index.json" << 'JSONEOF'
+    cat > "$tmpdir/.tickets-tracker/.index.json" << 'JSONEOF'
 {"version": 1, "tickets": ["lockpick-abc1"]}
 JSONEOF
-    git -C "$tmpdir" add ".tickets/.index.json"
+    git -C "$tmpdir" add ".tickets-tracker/.index.json"
     git -C "$tmpdir" commit -q -m "chore: update ticket index on main"
 
     # Return to feature branch (the branch the developer is working on)
@@ -143,7 +143,7 @@ run_pre_commit_hook() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$HOOK" 2>/dev/null
     ) || exit_code=$?
     echo "$exit_code"
@@ -156,7 +156,7 @@ run_pre_commit_hook_stderr() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$HOOK" 2>&1 >/dev/null
     ) || true
 }
@@ -168,7 +168,7 @@ compute_hash_in_repo() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null
     )
 }
@@ -191,9 +191,9 @@ write_valid_review_status() {
 #   1. Developer stages code changes (mycode.py) on feature branch
 #   2. A valid review is recorded for that staged diff hash
 #   3. git merge main --no-commit creates MERGE_HEAD (merge in progress)
-#      The conflict is ONLY in .tickets/.index.json (allowlisted file)
+#      The conflict is ONLY in .tickets-tracker/.index.json (allowlisted file)
 #   4. Developer resolves by accepting the main version of the index
-#   5. Developer stages ONLY the resolved .tickets/.index.json
+#   5. Developer stages ONLY the resolved .tickets-tracker/.index.json
 #   6. pre-commit hook runs: ALL staged files are allowlisted (.tickets/)
 #      → Should exit 0 WITHOUT checking the (now-stale) diff hash
 #
@@ -222,17 +222,17 @@ test_ticket_only_merge_conflict_commit_passes() {
     #
     # Simulate git merge --no-commit (which would be interrupted by conflict):
     # Manually create MERGE_HEAD (pointing to main's HEAD) and stage the
-    # conflict resolution of .tickets/.index.json only.
+    # conflict resolution of .tickets-tracker/.index.json only.
     local main_sha
     main_sha=$(git -C "$_repo" rev-parse main)
     echo "$main_sha" > "$_repo/.git/MERGE_HEAD"
 
     # Step 4: Resolve the conflict — stage ONLY the ticket index (allowlisted)
     # Write the resolved version of the conflicted file
-    cat > "$_repo/.tickets/.index.json" << 'JSONEOF'
+    cat > "$_repo/.tickets-tracker/.index.json" << 'JSONEOF'
 {"version": 1, "tickets": ["lockpick-abc1"]}
 JSONEOF
-    git -C "$_repo" add ".tickets/.index.json"
+    git -C "$_repo" add ".tickets-tracker/.index.json"
 
     # Sanity check: MERGE_HEAD is present (in-progress merge state)
     local merge_head_present=0
@@ -244,7 +244,7 @@ JSONEOF
     local staged_files
     staged_files=$(git -C "$_repo" diff --cached --name-only 2>/dev/null || true)
     assert_contains "test_ticket_only_merge_conflict_commit_passes: only tickets staged" \
-        ".tickets/" "$staged_files"
+        ".tickets-tracker/" "$staged_files"
 
     # Step 5: Run the pre-commit hook
     # Expected: exit 0 — ALL staged files are allowlisted (.tickets/)
@@ -302,11 +302,11 @@ def another_from_main(z):
 PYEOF
     git -C "$_repo" add "mycode.py"
 
-    # - .tickets/.index.json: merge resolution (ticket metadata)
-    cat > "$_repo/.tickets/.index.json" << 'JSONEOF'
+    # - .tickets-tracker/.index.json: merge resolution (ticket metadata)
+    cat > "$_repo/.tickets-tracker/.index.json" << 'JSONEOF'
 {"version": 1, "tickets": ["lockpick-abc1", "lockpick-abc2"]}
 JSONEOF
-    git -C "$_repo" add ".tickets/.index.json"
+    git -C "$_repo" add ".tickets-tracker/.index.json"
 
     # Sanity check: both code and ticket files are staged
     local staged_files
@@ -314,7 +314,7 @@ JSONEOF
     assert_contains "test_code_and_ticket_merge_conflict_requires_review: code staged" \
         "mycode.py" "$staged_files"
     assert_contains "test_code_and_ticket_merge_conflict_requires_review: tickets staged" \
-        ".tickets/" "$staged_files"
+        ".tickets-tracker/" "$staged_files"
 
     # Step 4: Run the hook — should BLOCK because:
     # - mycode.py is staged (non-allowlisted)
@@ -364,11 +364,11 @@ test_multiple_sequential_merge_conflicts_pass() {
     main_sha=$(git -C "$_repo" rev-parse main)
     echo "$main_sha" > "$_repo/.git/MERGE_HEAD"
 
-    # Resolve: update .tickets/.index.json (allowlisted)
-    cat > "$_repo/.tickets/.index.json" << 'JSONEOF'
+    # Resolve: update .tickets-tracker/.index.json (allowlisted)
+    cat > "$_repo/.tickets-tracker/.index.json" << 'JSONEOF'
 {"version": 1, "tickets": ["lockpick-abc1"]}
 JSONEOF
-    git -C "$_repo" add ".tickets/.index.json"
+    git -C "$_repo" add ".tickets-tracker/.index.json"
 
     # First commit after merge conflict: should pass (ticket-only staged)
     local exit_code_1
@@ -387,10 +387,10 @@ JSONEOF
     echo "$main_sha_2" > "$_repo/.git/MERGE_HEAD"
 
     # Resolve: another ticket index update (allowlisted)
-    cat > "$_repo/.tickets/.index.json" << 'JSONEOF'
+    cat > "$_repo/.tickets-tracker/.index.json" << 'JSONEOF'
 {"version": 1, "tickets": ["lockpick-abc1", "lockpick-abc2"]}
 JSONEOF
-    git -C "$_repo" add ".tickets/.index.json"
+    git -C "$_repo" add ".tickets-tracker/.index.json"
 
     # Second commit after merge conflict: should also pass (ticket-only staged)
     local exit_code_2
@@ -436,10 +436,10 @@ test_allowlist_gate_fires_before_stale_hash_check() {
     echo "$main_sha" > "$_repo/.git/MERGE_HEAD"
 
     # Stage ONLY an allowlisted file (the merge conflict resolution for tickets)
-    cat > "$_repo/.tickets/.index.json" << 'JSONEOF'
+    cat > "$_repo/.tickets-tracker/.index.json" << 'JSONEOF'
 {"version": 1, "tickets": ["lockpick-abc1"]}
 JSONEOF
-    git -C "$_repo" add ".tickets/.index.json"
+    git -C "$_repo" add ".tickets-tracker/.index.json"
 
     # Sanity check: the stale hash is definitely different from the current hash
     local current_hash

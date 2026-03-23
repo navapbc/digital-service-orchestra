@@ -88,10 +88,10 @@ test_contract_deduplication() {
   local _section
   _section=$(awk '/^### Contract Detection Pass/{found=1} found && /^### / && !/^### Contract Detection Pass/{exit} found{print}' "$IMPL_PLAN_SKILL")
   local _has_tk_dep=0 _has_contract_ref=0
-  echo "$_section" | grep -q "tk dep tree" && _has_tk_dep=1
+  { echo "$_section" | grep -q "tk dep tree" || echo "$_section" | grep -q "ticket deps"; } && _has_tk_dep=1
   { echo "$_section" | grep -q "existing contract" || echo "$_section" | grep -q "Contract:"; } \
     && _has_contract_ref=1
-  assert_eq "test_contract_deduplication: 'tk dep tree' within Contract Detection Pass section" \
+  assert_eq "test_contract_deduplication: 'tk dep tree' or 'ticket deps' within Contract Detection Pass section" \
     "1" "$_has_tk_dep"
   assert_eq "test_contract_deduplication: 'existing contract' or 'Contract:' within Contract Detection Pass section" \
     "1" "$_has_contract_ref"

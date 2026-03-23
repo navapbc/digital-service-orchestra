@@ -55,7 +55,7 @@ assert_pass_if_clean "test_commit_workflow_references_skip_review_check"
 # Script exits 0 when only non-reviewable files are passed (tickets and sync-state).
 _snapshot_fail
 tickets_exit=1
-printf '.tickets/abc.md\n.sync-state.json\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && tickets_exit=0
+printf '.tickets-tracker/abc.md\n.sync-state.json\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && tickets_exit=0
 assert_eq "test_skip_review_check_tickets_only_exits_zero: exits 0 for tickets-only files" "0" "$tickets_exit"
 assert_pass_if_clean "test_skip_review_check_tickets_only_exits_zero"
 
@@ -98,10 +98,10 @@ assert_pass_if_clean "test_skip_review_check_claude_md_exits_nonzero"
 # The script must read classification patterns from the shared allowlist file.
 _snapshot_fail
 
-# Sub-test 1: .tickets/ file → exit 0 (allowlist covers it)
+# Sub-test 1: .tickets-tracker/ file → exit 0 (allowlist covers it)
 allowlist_tickets=1
-printf '.tickets/some-ticket.md\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_tickets=0
-assert_eq "test_skip_review_check_reads_from_allowlist: .tickets/ file exits 0" "0" "$allowlist_tickets"
+printf '.tickets-tracker/some-ticket.md\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_tickets=0
+assert_eq "test_skip_review_check_reads_from_allowlist: .tickets-tracker/ file exits 0" "0" "$allowlist_tickets"
 
 # Sub-test 2: docs/ file → exit 0 (allowlist covers it)
 allowlist_docs=1
@@ -129,7 +129,7 @@ assert_pass_if_clean "test_skip_review_check_reads_from_allowlist"
 # When the allowlist file is missing, the script must still work (fallback).
 _snapshot_fail
 fallback_exit=1
-printf '.tickets/x.md\n' | ALLOWLIST_OVERRIDE=/tmp/nonexistent-allowlist-$$ bash "$CANONICAL_SCRIPT" 2>/dev/null && fallback_exit=0
+printf '.tickets-tracker/x.md\n' | ALLOWLIST_OVERRIDE=/tmp/nonexistent-allowlist-$$ bash "$CANONICAL_SCRIPT" 2>/dev/null && fallback_exit=0
 assert_eq "test_skip_review_check_allowlist_graceful_degradation: falls back when allowlist missing" "0" "$fallback_exit"
 assert_pass_if_clean "test_skip_review_check_allowlist_graceful_degradation"
 
@@ -141,7 +141,7 @@ _snapshot_fail
 # Files that should skip review (exit 0) — matching old hardcoded patterns
 equiv_pass=1
 for f in \
-    ".tickets/abc.md" \
+    ".tickets-tracker/abc.md" \
     ".sync-state.json" \
     "screenshot.png" \
     "photo.jpg" \

@@ -94,7 +94,7 @@ run_hook_in_repo() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$HOOK" 2>/dev/null
     ) || exit_code=$?
     echo "$exit_code"
@@ -107,7 +107,7 @@ run_hook_stderr() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$HOOK" 2>&1 >/dev/null
     ) || true
 }
@@ -128,7 +128,7 @@ compute_hash_in_repo() {
     (
         cd "$repo_dir"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null
     )
 }
@@ -144,10 +144,10 @@ test_allowlisted_only_commit_passes() {
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
 
-    # Stage only an allowlisted .tickets/ file
-    mkdir -p "$_repo/.tickets"
-    echo "ticket content" > "$_repo/.tickets/test-ticket.md"
-    git -C "$_repo" add ".tickets/test-ticket.md"
+    # Stage only an allowlisted .tickets-tracker/ file
+    mkdir -p "$_repo/.tickets-tracker"
+    echo "ticket content" > "$_repo/.tickets-tracker/test-ticket.md"
+    git -C "$_repo" add ".tickets-tracker/test-ticket.md"
 
     local exit_code
     exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
@@ -165,10 +165,10 @@ test_tickets_only_commit_passes() {
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
 
-    mkdir -p "$_repo/.tickets"
-    echo "# Task: My task" > "$_repo/.tickets/lockpick-test-abc1.md"
-    echo '{"version":1}' > "$_repo/.tickets/.index.json"
-    git -C "$_repo" add ".tickets/"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo "# Task: My task" > "$_repo/.tickets-tracker/lockpick-test-abc1.md"
+    echo '{"version":1}' > "$_repo/.tickets-tracker/.index.json"
+    git -C "$_repo" add ".tickets-tracker/"
 
     local exit_code
     exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
@@ -240,9 +240,9 @@ test_merge_head_allowlisted_commit_passes() {
     echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
 
     # Stage an allowlisted tickets file as part of the merge resolution
-    mkdir -p "$_repo/.tickets"
-    echo "# Merge resolution note" > "$_repo/.tickets/merge-note.md"
-    git -C "$_repo" add ".tickets/merge-note.md"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo "# Merge resolution note" > "$_repo/.tickets-tracker/merge-note.md"
+    git -C "$_repo" add ".tickets-tracker/merge-note.md"
 
     local exit_code
     exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
@@ -373,7 +373,7 @@ PYEOF
     exit_code=$(
         cd "$_repo"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         export PATH="$(dirname "$ruff_bin"):$PATH"
         bash "$HOOK" 2>/dev/null; echo $?
     )
@@ -439,7 +439,7 @@ PYEOF
     exit_code=$(
         cd "$_repo"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
-        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         export PATH="$(dirname "$ruff_bin"):$PATH"
         bash "$HOOK" 2>/dev/null; echo $?
     )
@@ -474,9 +474,9 @@ test_cross_worktree_merge_commit_passes() {
     echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
 
     # Stage only allowlisted files (merge resolution of ticket index)
-    mkdir -p "$_repo/.tickets"
-    echo '{"version":2}' > "$_repo/.tickets/.index.json"
-    git -C "$_repo" add ".tickets/.index.json"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo '{"version":2}' > "$_repo/.tickets-tracker/.index.json"
+    git -C "$_repo" add ".tickets-tracker/.index.json"
 
     # Hook runs in worktree B's context — MERGE_HEAD is natively visible
     local exit_code
@@ -576,9 +576,9 @@ test_merge_commit_with_incoming_non_allowlisted_passes() {
     git -C "$_repo" checkout -q worktree-branch
 
     # Add only an allowlisted file on the worktree branch
-    mkdir -p "$_repo/.tickets"
-    echo "ticket" > "$_repo/.tickets/wt-001.md"
-    git -C "$_repo" add ".tickets/wt-001.md"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo "ticket" > "$_repo/.tickets-tracker/wt-001.md"
+    git -C "$_repo" add ".tickets-tracker/wt-001.md"
     git -C "$_repo" commit -q -m "add ticket on worktree"
 
     # Merge main into the worktree branch (this brings in main_feature.py)

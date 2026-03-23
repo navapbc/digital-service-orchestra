@@ -1,6 +1,6 @@
 ---
 id: dso-bdk5
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-23T17:34:42Z

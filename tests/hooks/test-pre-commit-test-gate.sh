@@ -1416,17 +1416,17 @@ test_gate_allowlist_files_skipped() {
     # Create a ticket file whose name fuzzy-matches the test file
     # "example.md" normalizes to "examplemd", "test-example.sh" normalizes
     # to "testexamplesh" — "examplemd" is NOT a substring of "testexamplesh"
-    # so we need a better name. Use "example.sh" in .tickets/ which normalizes
+    # so we need a better name. Use "example.sh" in .tickets-tracker/ which normalizes
     # to "examplesh" — substring of "testexamplesh" = match.
-    mkdir -p "$_repo/.tickets"
-    echo "ticket data" > "$_repo/.tickets/example.sh"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo "ticket data" > "$_repo/.tickets-tracker/example.sh"
 
-    git -C "$_repo" add .tickets/example.sh tests/test-example.sh
+    git -C "$_repo" add .tickets-tracker/example.sh tests/test-example.sh
     git -C "$_repo" commit -q -m "add test"
 
     # Now modify the ticket file and stage it
-    echo "updated" > "$_repo/.tickets/example.sh"
-    git -C "$_repo" add .tickets/example.sh
+    echo "updated" > "$_repo/.tickets-tracker/example.sh"
+    git -C "$_repo" add .tickets-tracker/example.sh
 
     # Without allowlist filtering: fuzzy match finds tests/test-example.sh,
     # gate blocks because no test-gate-status exists.
@@ -1452,13 +1452,13 @@ test_gate_allowlist_mixed_with_source() {
     _artifacts=$(make_artifacts_dir)
 
     # Create ticket files (allowlisted) and a source file (not allowlisted)
-    mkdir -p "$_repo/.tickets"
-    echo "ticket" > "$_repo/.tickets/dso-test1.md"
+    mkdir -p "$_repo/.tickets-tracker"
+    echo "ticket" > "$_repo/.tickets-tracker/dso-test1.md"
 
     # Create a source file with no associated test — should pass (exempt)
     echo "standalone code" > "$_repo/standalone.py"
 
-    git -C "$_repo" add .tickets/ standalone.py
+    git -C "$_repo" add .tickets-tracker/ standalone.py
 
     # Gate should exit 0: ticket files filtered by allowlist,
     # standalone.py has no associated test so it's exempt

@@ -106,10 +106,10 @@ compute_diff_hash_excludes_file() {
 }
 
 # ============================================================
-# Pattern group 1: .tickets/**
+# Pattern group 1: .tickets-tracker/**
 # ============================================================
 test_tickets_non_reviewable_both_consumers() {
-    local file=".tickets/test-ticket.md"
+    local file=".tickets-tracker/test-ticket.md"
 
     local skip_rc=0
     skip_review_classifies_non_reviewable "$file" || skip_rc=$?

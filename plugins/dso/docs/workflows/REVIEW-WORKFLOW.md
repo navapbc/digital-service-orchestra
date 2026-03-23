@@ -109,8 +109,7 @@ The diff hash is captured here — AFTER Step 1's format/lint/type-check pass �
 
 ```bash
 # Run complexity classifier to determine review tier
-CLASSIFIER="${CLAUDE_PLUGIN_ROOT}/scripts/review-complexity-classifier.sh"
-CLASSIFIER_OUTPUT=$(bash "$CLASSIFIER" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
+CLASSIFIER_OUTPUT=$(".claude/scripts/dso review-complexity-classifier.sh" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
 if [[ "${CLASSIFIER_EXIT:-0}" -ne 0 ]] || ! echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
     # Classifier failed — default to standard tier per contract (classifier-tier-output.md)
     REVIEW_TIER="standard"
@@ -144,12 +143,12 @@ DIFF_SIZE_LINES=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=jso
 REVIEW_PASS_NUM="${REVIEW_PASS_NUM:-1}"
 
 # Merge commits bypass size limits entirely (contract: is_merge_commit always checked first)
-# Re-review passes (REVIEW_PASS_NUM >= 2) bypass size limits (re-review exemption rule)
+# re-review passes (REVIEW_PASS_NUM >= 2) bypass size limits (re-review exemption rule)
 if [[ "$IS_MERGE" != "true" ]] && [[ "$REVIEW_PASS_NUM" -le 1 ]]; then
     # Size action branching (initial review, non-merge only)
     if [[ "$SIZE_ACTION" == "upgrade" ]]; then
-        # Upgrade model to opus at current tier's checklist scope
-        REVIEW_AGENT_OVERRIDE="dso:code-reviewer-deep-arch"  # opus model
+        # Upgrade: size_action=upgrade triggers a model_override — use opus reviewer
+        REVIEW_AGENT_OVERRIDE="dso:code-reviewer-deep-arch"  # model_override: opus
         echo "SIZE_UPGRADE: diff has ${DIFF_SIZE_LINES} scorable lines — upgrading to opus reviewer at ${REVIEW_TIER} tier scope"
     fi
 
