@@ -1,6 +1,6 @@
 ---
 id: dso-gq8v
-status: in_progress
+status: closed
 deps: [dso-pjcl]
 links: []
 created: 2026-03-23T00:24:07Z

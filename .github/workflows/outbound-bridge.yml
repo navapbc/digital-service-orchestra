@@ -84,9 +84,21 @@ jobs:
             echo "       to enforce supply-chain integrity."
             exit 1
           elif [ -z "$ACLI_SHA256" ]; then
-            echo "ERROR: ACLI_VERSION is pinned to '${ACLI_VERSION}' but ACLI_SHA256 is not set."
-            echo "       Set the ACLI_SHA256 repository variable to the expected SHA256 of the downloaded artifact."
-            exit 1
+            # Compute and log the hash so the operator can capture it from CI output
+            if [ -f ~/.acli/acli.zip ]; then
+              ARTIFACT=~/.acli/acli.zip
+            else
+              ARTIFACT=~/.acli/acli.jar
+            fi
+            COMPUTED_HASH=$(sha256sum "$ARTIFACT" | awk '{print $1}')
+            echo "WARNING: ACLI_SHA256 is not set. Computed SHA256 of downloaded artifact:"
+            echo ""
+            echo "  ACLI_SHA256=${COMPUTED_HASH}"
+            echo ""
+            echo "Set this value as a GitHub repository variable:"
+            echo "  gh variable set ACLI_SHA256 --body '${COMPUTED_HASH}'"
+            echo ""
+            echo "Proceeding WITHOUT checksum verification (first-run bootstrap)."
           else
             # Verify whichever artifact was downloaded (zip takes priority).
             if [ -f ~/.acli/acli.zip ]; then

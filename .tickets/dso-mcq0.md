@@ -1,6 +1,6 @@
 ---
 id: dso-mcq0
-status: open
+status: in_progress
 deps: [dso-97xo, dso-141j]
 links: []
 created: 2026-03-22T22:51:21Z
@@ -61,3 +61,27 @@ CHECKPOINT 6/6: Done ✓ — Story verification complete. Summary: (1) cron sche
 **2026-03-23T01:48:36Z**
 
 CHECKPOINT 5/6: Partial — AC1 pass (cron active), AC3 pass (tickets branch exists). AC2 fail — workflow_dispatch runs but fails at ACLI_VERSION unset. Blocked by dso-7nos (ACLI env var config). Reverted to open.
+
+**2026-03-23T03:45:41Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T03:45:50Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — cron active in inbound-bridge.yml, tickets branch confirmed on remote, AC2 still dependent on ACLI_VERSION env var config
+
+**2026-03-23T03:45:57Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓ — TDD exemption applies (verification/infrastructure only)
+
+**2026-03-23T03:46:13Z**
+
+CHECKPOINT 4/6: Re-verification complete ✓ — Status change since last attempt: dso-141j is now CLOSED. ACLI_VERSION is now set to '1.3.14-stable' (previously unset). However ACLI_SHA256 is still empty string. Most recent run (23420219253, 2026-03-23T03:31:20Z) fails at 'Verify ACLI checksum' step with: 'ACLI_VERSION is pinned to 1.3.14-stable but ACLI_SHA256 is not set.' Dependency on dso-7nos (ACLI SHA256 config) remains.
+
+**2026-03-23T03:46:20Z**
+
+CHECKPOINT 5/6: AC Verification Results — AC1 PASS: cron '*/30 * * * *' active in inbound-bridge.yml; AC2 FAIL: most recent run (23420219253) conclusion=failure — ACLI_SHA256 not set (ACLI_VERSION now set to 1.3.14-stable, progress since last check, but SHA256 still missing, tracked by dso-7nos); AC3 PASS: tickets branch exists on remote. No change in overall pass/fail status from previous attempt; dependency on dso-7nos still blocks AC2.
+
+**2026-03-23T03:46:25Z**
+
+CHECKPOINT 6/6: Done ✓ — Re-verification complete. Summary: AC1 PASS (cron active), AC3 PASS (tickets branch on remote), AC2 FAIL (workflow runs but fails at ACLI_SHA256 not set). Progress since last attempt: dso-141j closed, ACLI_VERSION now pinned to 1.3.14-stable — workflow now fails at SHA256 verification rather than ACLI_VERSION unset. Remaining blocker: dso-7nos (Automate ACLI configuration — set ACLI_SHA256). Story remains open pending dso-7nos completion.

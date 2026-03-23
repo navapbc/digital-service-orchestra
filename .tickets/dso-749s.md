@@ -1,6 +1,6 @@
 ---
 id: dso-749s
-status: open
+status: in_progress
 deps: [dso-dr2k, dso-gq8v]
 links: []
 created: 2026-03-23T00:24:38Z
@@ -44,3 +44,29 @@ TDD FIRST: implement only after T5 tests are confirmed RED.
 - [ ] ruff format --check passes
   Verify: cd $(git rev-parse --show-toplevel) && ruff format --check plugins/dso/scripts/*.py tests/**/*.py
 
+
+## Notes
+
+**2026-03-23T03:40:04Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T03:40:23Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — cutover script uses JSON state file, phases array, _state_append_phase() already exists; need --resume flag, completed_phases loading, phase-skip check, all-complete exit
+
+**2026-03-23T03:40:27Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓ — test_cutover_resume_skips_completed_phases and test_cutover_resume_does_not_rerun_already_completed_phase are RED; test_cutover_state_file_written_after_each_phase is already GREEN
+
+**2026-03-23T03:41:11Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — added --resume flag to arg parser, _phase_is_completed() helper, completed-phases loading from JSON state file on resume, skip logic in phase loop, all-complete early exit
+
+**2026-03-23T03:41:23Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — resume tests GREEN (28 passed, 2 pre-existing failures out of scope for this task)
+
+**2026-03-23T03:44:56Z**
+
+CHECKPOINT 6/6: Done ✓ — All AC pass: test_cutover_state_file_written_after_each_phase PASS, test_cutover_resume_skips_completed_phases PASS, test_cutover_resume_does_not_rerun_already_completed_phase PASS, state file write/read verified by grep, ruff check PASS, ruff format PASS. 2 pre-existing failures out of scope (rollback_committed_uses_revert, exits_with_error_and_log_path) — creating discovery tickets

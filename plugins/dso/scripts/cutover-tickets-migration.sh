@@ -5,7 +5,7 @@
 # Phases (in order): validate, snapshot, migrate, verify, finalize
 #   Constant names:  PRE_FLIGHT, SNAPSHOT, MIGRATE, VERIFY, FINALIZE
 #
-# Usage: cutover-tickets-migration.sh [--dry-run] [--repo-root=PATH] [--help]
+# Usage: cutover-tickets-migration.sh [--dry-run] [--resume] [--repo-root=PATH] [--help]
 #
 # Environment variables:
 #   CUTOVER_LOG_DIR          Directory for timestamped log file (default: /tmp)
@@ -27,16 +27,18 @@ readonly PHASES=( validate snapshot migrate verify finalize )
 # Argument parsing
 # ---------------------------------------------------------------------------
 _DRY_RUN="false"
+_RESUME="false"
 _REPO_ROOT=""
 
 for _arg in "$@"; do
     case "$_arg" in
         --help)
             cat <<'USAGE'
-Usage: cutover-tickets-migration.sh [--dry-run] [--repo-root=PATH] [--help]
+Usage: cutover-tickets-migration.sh [--dry-run] [--resume] [--repo-root=PATH] [--help]
 
   --dry-run           Execute phase stubs but skip state-file writes and
                       any git-modifying actions. Prefixes output with [DRY RUN].
+  --resume            Read state file and skip already-completed phases.
   --repo-root=PATH    Override the git repo root (default: git rev-parse --show-toplevel).
   --help              Print this usage message and exit.
 
@@ -57,6 +59,9 @@ USAGE
             ;;
         --dry-run)
             _DRY_RUN="true"
+            ;;
+        --resume)
+            _RESUME="true"
             ;;
         --repo-root=*)
             _REPO_ROOT="${_arg#--repo-root=}"
@@ -99,6 +104,32 @@ fi
 # State file
 # ---------------------------------------------------------------------------
 : "${CUTOVER_STATE_FILE:=/tmp/cutover-tickets-migration-state.json}"
+
+# ---------------------------------------------------------------------------
+# Resume: load completed phases from state file
+# ---------------------------------------------------------------------------
+# _COMPLETED_PHASES is a newline-separated list of phase names already done.
+_COMPLETED_PHASES=""
+
+if [[ "$_RESUME" == "true" && -f "$CUTOVER_STATE_FILE" ]]; then
+    _COMPLETED_PHASES=$(python3 - "$CUTOVER_STATE_FILE" <<'PYEOF'
+import sys, json
+path = sys.argv[1]
+try:
+    with open(path) as fh:
+        data = json.load(fh)
+    for phase in data.get("completed_phases", []):
+        print(phase)
+except Exception:
+    pass
+PYEOF
+)
+fi
+
+_phase_is_completed() {
+    local phase="$1"
+    echo "$_COMPLETED_PHASES" | grep -qx "$phase"
+}
 
 _state_append_phase() {
     local phase="$1"
@@ -256,9 +287,30 @@ _rollback_phase() {
 # ---------------------------------------------------------------------------
 # Phase gate loop
 # ---------------------------------------------------------------------------
-echo "cutover-tickets-migration: starting (dry_run=${_DRY_RUN})"
+echo "cutover-tickets-migration: starting (dry_run=${_DRY_RUN}, resume=${_RESUME})"
+
+# If resuming, check whether all phases are already completed
+if [[ "$_RESUME" == "true" ]]; then
+    _all_done="true"
+    for _phase in "${PHASES[@]}"; do
+        if ! _phase_is_completed "$_phase"; then
+            _all_done="false"
+            break
+        fi
+    done
+    if [[ "$_all_done" == "true" ]]; then
+        echo "cutover-tickets-migration: All phases already completed — nothing to do"
+        exit 0
+    fi
+fi
 
 for _phase in "${PHASES[@]}"; do
+    # Resume: skip phases already recorded in the state file
+    if [[ "$_RESUME" == "true" ]] && _phase_is_completed "$_phase"; then
+        echo "Skipping completed phase: ${_phase}"
+        continue
+    fi
+
     if [[ "$_DRY_RUN" == "true" ]]; then
         "_run_phase_dry" "$_phase" || { _rc=$?; echo "[DRY RUN] ERROR: phase ${_phase} failed (exit ${_rc}) — see ${_LOG_FILE}" >&2; exit "$_rc"; }
     else
