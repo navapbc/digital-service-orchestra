@@ -132,8 +132,9 @@ def fetch_jira_changes(
     dt = datetime.fromisoformat(last_pull_ts.replace("Z", "+00:00"))
     buffered_dt = dt - timedelta(minutes=overlap_buffer_minutes)
 
-    # Format as Jira JQL datetime string (UTC)
-    buffered_ts_str = buffered_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Format as Jira JQL datetime string — Jira accepts 'yyyy-mm-dd HH:mm'
+    # (space separator, no seconds, no timezone suffix).
+    buffered_ts_str = buffered_dt.strftime("%Y-%m-%d %H:%M")
 
     # Build JQL — sanitize project to block JQL injection
     jql = f'updatedDate >= "{buffered_ts_str}"'
