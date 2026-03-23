@@ -1,6 +1,6 @@
 ---
 id: dso-mcq0
-status: open
+status: closed
 deps: [dso-97xo, dso-141j]
 links: []
 created: 2026-03-22T22:51:21Z

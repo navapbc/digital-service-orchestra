@@ -29,3 +29,43 @@ Originally tracked as bug dso-7nos (ACLI_VERSION unset). Upgraded to epic per us
 **2026-03-23T04:39:18Z**
 
 Design decision: The Inbound Bridge workflow checks out ref:tickets — not main. This means all code (including bridge scripts and workflow changes) must be present on the tickets branch. Currently achieved by pushing main → tickets to sync. Long-term, the workflow should be restructured to checkout main for code and only use the tickets branch for .tickets-tracker/ data — this avoids coupling code deployment to the tickets branch sync cycle.
+
+## Decision Log — ACLI Migration to Go Binary (2026-03-23)
+
+### Summary
+Migrated bridge workflows from legacy Java ACLI (zip/jar from bobswift.atlassian.net) to Go ACLI v1.3+ (tar.gz binary from acli.atlassian.com). Required 6 iterative fix commits to resolve cascading issues.
+
+### Changes Made
+
+| Commit | Change | Root Cause |
+|--------|--------|------------|
+| 56a55e6 | Download URL → acli.atlassian.com tar.gz, extract via tar, direct binary symlink | ACLI migrated from Java to Go; old URLs return invalid files |
+| bc822f0 | Add `--strip-components=1` to tar extraction | tar.gz contains version-prefixed directory wrapping the binary |
+| 4c6ef71 | Add `AcliClient` class, migrate functions to Go CLI syntax | bridge-inbound.py expects class interface; old `--action` syntax replaced with `jira workitem` subcommands |
+| 91044fb | Add `acli jira auth login` step to workflows | Go ACLI requires explicit auth (no env var auto-detection like Java ACLI) |
+| 02fd8de | Remove `acli jira project list` from get_server_info | Redundant connectivity check failed because ACLI auth is per-process; Jira Cloud is always UTC |
+| 07a7550 | Add stderr logging to `_run_acli` | CalledProcessError only showed exit code, not the actual ACLI error message |
+| 772549a | Fix JQL date format: `%Y-%m-%dT%H:%M:%SZ` → `%Y-%m-%d %H:%M` | Jira JQL rejects ISO 8601 T-separator and Z-suffix |
+
+### Key Architectural Decisions
+
+1. **Auth via workflow step, not Python code**: ACLI Go stores auth in a config file after `acli auth login`. The workflow runs auth once; all subsequent ACLI calls in the same job inherit it. The Python `AcliClient` no longer injects credentials into subprocess env.
+
+2. **search_issues pagination**: ACLI Go has no `--offset` flag. Uses `--paginate` to fetch all results in one call, then caches and slices by `start_at`/`max_results` to satisfy the bridge's pagination loop contract.
+
+3. **get_server_info returns static UTC**: Jira Cloud timestamps are always UTC. The legacy Java ACLI needed a JVM timezone flag; the Go binary has no such issue. No API call needed.
+
+4. **tickets branch must sync from main**: Bridge workflows run from `ref:tickets`. Code changes on main must be pushed to tickets (`git push origin main:tickets`) before they take effect.
+
+### GitHub Variables Configured
+
+| Variable | Value | Type |
+|----------|-------|------|
+| ACLI_VERSION | 1.3.14-stable | Repository variable |
+| ACLI_SHA256 | 2c76293e9ba9ce6a233756b13e9c3eea1fc3fce992fc0ccefe8c32f6dbf36f29 | Repository variable |
+| JIRA_API_TOKEN | (refreshed — was expired) | Repository secret |
+
+### Remaining Work (this epic)
+- SC2: Automate version/hash discovery via setup script (currently manual)
+- SC4: Integrate ACLI configuration into /dso:project-setup
+- Design: Restructure workflow to checkout main for code (decouple from tickets branch sync)
