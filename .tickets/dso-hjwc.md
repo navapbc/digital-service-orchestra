@@ -1,6 +1,6 @@
 ---
 id: dso-hjwc
-status: in_progress
+status: closed
 deps: [dso-9trm, dso-6ye6]
 links: []
 created: 2026-03-23T03:58:57Z

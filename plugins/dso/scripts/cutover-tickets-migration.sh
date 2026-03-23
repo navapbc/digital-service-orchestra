@@ -574,6 +574,302 @@ PYEOF
 _phase_verify() {
     echo "Running phase: verify"
     _check_override "verify" || return $?
+
+    local _tracker_dir="${CUTOVER_TRACKER_DIR:-${_REPO_ROOT}/.tickets-tracker}"
+    local _snapshot_file="${CUTOVER_SNAPSHOT_FILE:-}"
+
+    # Require snapshot file — it must have been written by _phase_snapshot.
+    # If the snapshot file is absent, check whether any tickets were migrated.
+    # If the tracker has no ticket dirs, there is nothing to verify → pass.
+    # If the tracker has ticket dirs but no snapshot, fail (can't verify).
+    if [[ -z "$_snapshot_file" || ! -f "$_snapshot_file" ]]; then
+        # Count ticket dirs (subdirectories) in tracker
+        local _tracker_ticket_count=0
+        if [[ -d "$_tracker_dir" ]]; then
+            _tracker_ticket_count=$(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+        fi
+        if [[ "$_tracker_ticket_count" -eq 0 ]]; then
+            echo "Verify: no snapshot file and no migrated tickets — nothing to verify"
+            return 0
+        fi
+        echo "ERROR: verify: snapshot file not found: '${_snapshot_file:-<unset>}'" >&2
+        echo "ERROR: _phase_snapshot must complete before _phase_verify (${_tracker_ticket_count} ticket(s) in tracker cannot be verified)" >&2
+        return 1
+    fi
+
+    echo "Verifying migration against snapshot: $_snapshot_file"
+
+    # Parse snapshot and verify each ticket
+    local _mismatch_count=0
+    local _verify_total=0
+
+    # Use python3 to parse snapshot JSON and compare against tracker events
+    _mismatch_count=$(python3 - "$_snapshot_file" "$_tracker_dir" <<'PYEOF'
+import json, sys, os
+
+snapshot_file = sys.argv[1]
+tracker_dir   = sys.argv[2]
+
+mismatches = 0
+
+try:
+    with open(snapshot_file) as fh:
+        snapshot = json.load(fh)
+except Exception as e:
+    print(f"ERROR: cannot read snapshot file: {e}", file=sys.stderr)
+    sys.exit(1)
+
+tickets = snapshot.get("tickets", [])
+print(f"Verifying {len(tickets)} tickets from snapshot...")
+
+def parse_frontmatter(output):
+    """Extract fields from a ticket .md output string (raw file or tk show).
+    Returns (fields_dict, valid) where valid=False means no parseable frontmatter.
+    """
+    fields = {
+        "id": "",
+        "status": "open",
+        "type": "task",
+        "priority": "",
+        "deps": [],
+        "notes": [],
+    }
+    if not output or output.startswith("ERROR:"):
+        return fields, False
+
+    lines = output.splitlines()
+    # Find frontmatter block (--- delimiters)
+    if len(lines) < 2 or lines[0].strip() != "---":
+        return fields, False
+
+    end_idx = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end_idx = i
+            break
+    if end_idx is None:
+        return fields, False
+
+    fm_lines = lines[1:end_idx]
+    body_lines = lines[end_idx + 1:]
+
+    # Simple YAML key:value parser (same logic as _phase_migrate)
+    fm = {}
+    i = 0
+    while i < len(fm_lines):
+        line = fm_lines[i]
+        if ":" in line and not line.startswith(" "):
+            key, _, rest = line.partition(":")
+            key = key.strip()
+            rest = rest.strip()
+            if rest.startswith("[") and rest.endswith("]"):
+                inner = rest[1:-1].strip()
+                if inner:
+                    fm[key] = [x.strip().strip("\"'") for x in inner.split(",") if x.strip()]
+                else:
+                    fm[key] = []
+            elif rest == "":
+                items = []
+                j = i + 1
+                while j < len(fm_lines) and fm_lines[j].startswith(" "):
+                    stripped = fm_lines[j].strip()
+                    if stripped.startswith("- "):
+                        items.append(stripped[2:].strip().strip("\"'"))
+                    j += 1
+                if items:
+                    fm[key] = items
+                    i = j
+                    continue
+                else:
+                    fm[key] = rest
+            else:
+                fm[key] = rest
+        i += 1
+
+    fields["id"]       = fm.get("id", "")
+    fields["status"]   = fm.get("status", "open")
+    fields["type"]     = fm.get("type", "task")
+    fields["priority"] = fm.get("priority", "")
+    raw_deps = fm.get("deps", [])
+    fields["deps"] = raw_deps if isinstance(raw_deps, list) else []
+
+    # Extract notes from body (same logic as _phase_migrate)
+    notes = []
+    in_notes = False
+    for line in body_lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("## notes"):
+            in_notes = True
+            continue
+        if stripped.startswith("## ") and in_notes:
+            in_notes = False
+            continue
+        if in_notes and stripped.startswith("[") and "]" in stripped:
+            bracket_end = stripped.index("]")
+            note_body = stripped[bracket_end + 1:].strip()
+            if note_body:
+                notes.append(note_body)
+    fields["notes"] = notes
+
+    return fields, True
+
+
+def read_tracker_events(ticket_dir):
+    """Read all event JSON files from a tracker ticket directory."""
+    events = []
+    if not os.path.isdir(ticket_dir):
+        return events
+    for fname in sorted(os.listdir(ticket_dir)):
+        if not fname.endswith(".json"):
+            continue
+        fpath = os.path.join(ticket_dir, fname)
+        try:
+            with open(fpath) as fh:
+                evt = json.load(fh)
+            events.append(evt)
+        except Exception:
+            pass
+    return events
+
+
+def get_event_type(evt):
+    return (evt.get("event_type") or evt.get("type") or "").upper()
+
+
+for ticket in tickets:
+    tid       = ticket.get("id", "")
+    output    = ticket.get("output", "")
+
+    snap_fields, snap_valid = parse_frontmatter(output)
+
+    # If the output has no parseable frontmatter, this ticket was malformed and
+    # would have been skipped by _phase_migrate. Skip verification too.
+    if not snap_valid:
+        print(f"WARN: snapshot entry {tid!r} has no parseable frontmatter — skipping (would have been skipped by migrate)", file=sys.stderr)
+        continue
+
+    snap_id = snap_fields["id"] or tid  # fall back to snapshot id key
+
+    if not snap_id:
+        print(f"WARN: snapshot entry has no id — skipping", file=sys.stderr)
+        continue
+
+    ticket_dir = os.path.join(tracker_dir, snap_id)
+    events     = read_tracker_events(ticket_dir)
+
+    if not events:
+        print(f"MISMATCH: ticket {snap_id} — not found in tracker (no events in {ticket_dir})")
+        mismatches += 1
+        continue
+
+    # --- type check (from CREATE event data.ticket_type) ---
+    snap_type = snap_fields["type"]
+    tracker_type = None
+    for evt in events:
+        if get_event_type(evt) == "CREATE":
+            tracker_type = evt.get("data", {}).get("ticket_type", "")
+            break
+    if tracker_type is None:
+        print(f"MISMATCH: ticket {snap_id} — no CREATE event found in tracker")
+        mismatches += 1
+        # Continue to check other fields even when CREATE is missing
+    elif tracker_type != snap_type:
+        print(f"MISMATCH: ticket {snap_id} — type: snapshot={snap_type!r}, tracker={tracker_type!r}")
+        mismatches += 1
+
+    # --- status check ---
+    snap_status = snap_fields["status"]
+    if snap_status in ("open", ""):
+        # open is the default; no STATUS event is expected
+        has_status_evt = any(get_event_type(e) == "STATUS" for e in events)
+        if has_status_evt:
+            # A STATUS event exists but snapshot shows open — check actual value
+            status_from_tracker = None
+            for evt in events:
+                if get_event_type(evt) == "STATUS":
+                    status_from_tracker = evt.get("data", {}).get("status", "")
+            if status_from_tracker and status_from_tracker != "open":
+                print(f"MISMATCH: ticket {snap_id} — status: snapshot=open, tracker STATUS event has status={status_from_tracker!r}")
+                mismatches += 1
+    else:
+        # Non-open: a STATUS event with matching status must exist
+        matching_status = False
+        for evt in events:
+            if get_event_type(evt) == "STATUS":
+                if evt.get("data", {}).get("status", "") == snap_status:
+                    matching_status = True
+                    break
+        if not matching_status:
+            # Determine what status the tracker recorded (if any)
+            tracker_statuses = [
+                evt.get("data", {}).get("status", "")
+                for evt in events if get_event_type(evt) == "STATUS"
+            ]
+            tracker_status_summary = tracker_statuses[0] if tracker_statuses else "(no STATUS event)"
+            print(f"MISMATCH: ticket {snap_id} — status: snapshot={snap_status!r}, tracker={tracker_status_summary!r}")
+            mismatches += 1
+
+    # --- deps check (LINK events) ---
+    snap_deps = snap_fields["deps"]
+    if snap_deps:
+        tracker_deps = set()
+        for evt in events:
+            if get_event_type(evt) == "LINK":
+                data = evt.get("data", {})
+                if data.get("relation", "") == "depends_on":
+                    target = data.get("target", data.get("target_id", ""))
+                    if target:
+                        tracker_deps.add(target)
+        missing_deps = [d for d in snap_deps if d not in tracker_deps]
+        if missing_deps:
+            print(f"MISMATCH: ticket {snap_id} — deps: snapshot has {snap_deps!r}, tracker missing {missing_deps!r}")
+            mismatches += 1
+
+    # --- notes check (COMMENT events) ---
+    snap_notes = snap_fields["notes"]
+    if snap_notes:
+        comment_bodies = set()
+        for evt in events:
+            if get_event_type(evt) == "COMMENT":
+                body = evt.get("body") or evt.get("data", {}).get("body", "")
+                if body:
+                    comment_bodies.add(body)
+        missing_notes = [n for n in snap_notes if n not in comment_bodies]
+        if missing_notes:
+            print(f"MISMATCH: ticket {snap_id} — notes: {len(missing_notes)} note(s) not found in tracker COMMENT events")
+            mismatches += 1
+
+print(f"Verification complete: {mismatches} mismatch(es) found in {len(tickets)} ticket(s)")
+sys.exit(mismatches)
+PYEOF
+) || { local _py_rc=$?; echo "ERROR: verify phase failed with ${_py_rc} mismatch(es)" >&2; return "$_py_rc"; }
+
+    # CLI smoke test: verify ticket list and ticket show produce output
+    # (only if the 'ticket' command is available in PATH)
+    if command -v ticket >/dev/null 2>&1; then
+        echo "Smoke test: running 'ticket list'..."
+        if ! ticket list 2>&1 | grep -q .; then
+            echo "WARN: 'ticket list' produced no output — smoke test inconclusive" >&2
+        else
+            echo "Smoke test: ticket list OK"
+        fi
+
+        # Show first ticket ID from tracker if any
+        local _first_id=""
+        _first_id=$(ls "$_tracker_dir" 2>/dev/null | head -1)
+        if [[ -n "$_first_id" ]]; then
+            echo "Smoke test: running 'ticket show $_first_id'..."
+            if ! ticket show "$_first_id" 2>&1 | grep -q .; then
+                echo "WARN: 'ticket show $_first_id' produced no output — smoke test inconclusive" >&2
+            else
+                echo "Smoke test: ticket show OK"
+            fi
+        fi
+    else
+        echo "Smoke test: 'ticket' command not found — skipping CLI smoke test"
+    fi
+
+    echo "Verify phase complete: no mismatches"
 }
 
 _phase_finalize() {
