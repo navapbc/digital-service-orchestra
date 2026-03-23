@@ -1,6 +1,6 @@
 ---
 id: dso-6hb0
-status: in_progress
+status: closed
 deps: [dso-97xo, dso-141j, dso-mcq0]
 links: []
 created: 2026-03-22T22:51:31Z

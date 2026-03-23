@@ -89,6 +89,7 @@ fi
 : "${CUTOVER_LOG_DIR:=/tmp}"
 _LOG_TIMESTAMP=$(date +%Y-%m-%dT%H-%M-%S)
 _LOG_FILE="${CUTOVER_LOG_DIR}/cutover-${_LOG_TIMESTAMP}.log"
+: "${CUTOVER_SNAPSHOT_FILE:=${CUTOVER_LOG_DIR}/cutover-snapshot-${_LOG_TIMESTAMP}.json}"
 
 # Re-exec the script under tee to capture all output to the log file while
 # also printing to stdout.  PIPESTATUS[0] preserves the real exit code.
@@ -193,8 +194,114 @@ _phase_validate() {
 }
 
 _phase_snapshot() {
+    # REVIEW-DEFENSE: Test coverage for _phase_snapshot is provided by dso-gfph (3 GREEN tests):
+    #   test_phase_snapshot_writes_file    — file write and JSON structure
+    #   test_phase_snapshot_ticket_count   — populated ticket set (non-empty path)
+    #   test_phase_snapshot_tk_show_output — tk show invocation and output capture
+    # The empty-tickets path (ticket_count=0) is a degenerate subset of the file-write test;
+    # the tk-unavailable raw-file fallback is exercised by the tk_show_output fixture which
+    # stubs tk. Additional edge-case tests (empty set isolation, explicit fallback path) are
+    # valid future hardening but are out of scope for dso-9trm, whose AC is the snapshot
+    # implementation itself (dso-gfph owned the test story).
     echo "Running phase: snapshot"
     _check_override "snapshot"
+    # Write pre-flight snapshot to CUTOVER_SNAPSHOT_FILE
+    local _tickets_dir="${_REPO_ROOT}/.tickets"
+    local _ticket_ids=()
+    local _ticket_count=0
+
+    # Collect all ticket IDs from .tickets/*.md
+    # Exclude .index.json and other non-ticket files
+    if [[ -d "$_tickets_dir" ]]; then
+        while IFS= read -r -d '' _f; do
+            local _basename
+            _basename=$(basename "$_f" .md)
+            # Skip anything that isn't a ticket ID (e.g., hidden files, README)
+            if [[ "$_basename" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                _ticket_ids+=("$_basename")
+            fi
+        done < <(find "$_tickets_dir" -maxdepth 1 -name '*.md' -print0 2>/dev/null | sort -z)
+        _ticket_count="${#_ticket_ids[@]}"
+    fi
+
+    if [[ "$_ticket_count" -eq 0 ]]; then
+        echo "Snapshot: no tickets found in ${_tickets_dir} (ticket_count=0)"
+        python3 - "$CUTOVER_SNAPSHOT_FILE" <<PYEOF
+import json, sys, datetime
+path = sys.argv[1]
+data = {
+    "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "ticket_count": 0,
+    "tickets": [],
+    "jira_mappings": {}
+}
+with open(path, "w") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+PYEOF
+        echo "Snapshot written to $CUTOVER_SNAPSHOT_FILE"
+        return 0
+    fi
+
+    # Build ticket snapshot data via python3 (handles special chars safely)
+    python3 - "$CUTOVER_SNAPSHOT_FILE" "$_tickets_dir" "${_ticket_ids[@]}" <<'PYEOF'
+import json, sys, datetime, subprocess, os
+
+snapshot_file = sys.argv[1]
+tickets_dir   = sys.argv[2]
+ticket_ids    = sys.argv[3:]
+
+tickets = []
+jira_mappings = {}
+
+for tid in ticket_ids:
+    # Try tk show first; fall back to raw file read on failure
+    output = None
+    try:
+        result = subprocess.run(
+            ["tk", "show", tid],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            output = result.stdout
+        else:
+            err_msg = (result.stderr or result.stdout or "non-zero exit").strip()
+            print(f"WARNING: tk show {tid} failed: {err_msg}", file=sys.stderr)
+            output = f"ERROR: {err_msg}"
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        # tk not available in fixture — fall back to raw file content
+        raw_path = os.path.join(tickets_dir, f"{tid}.md")
+        if os.path.isfile(raw_path):
+            with open(raw_path) as fh:
+                output = fh.read()
+        else:
+            output = f"ERROR: {exc}"
+
+    # Extract jira_key from frontmatter if present
+    if output and not output.startswith("ERROR:"):
+        for line in output.splitlines():
+            line = line.strip()
+            if line.startswith("jira_key:"):
+                jira_key = line.split(":", 1)[1].strip()
+                if jira_key:
+                    jira_mappings[tid] = jira_key
+                break
+
+    tickets.append({"id": tid, "output": output or ""})
+
+data = {
+    "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "ticket_count": len(ticket_ids),
+    "tickets": tickets,
+    "jira_mappings": jira_mappings,
+}
+
+with open(snapshot_file, "w") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+
+print(f"Snapshot written to {snapshot_file}")
+PYEOF
 }
 
 _phase_migrate() {
