@@ -1202,6 +1202,13 @@
     "title": "Generic agent invocations should be given descriptive names",
     "type": "epic"
   },
+  "dso-s16u": {
+    "deps": [],
+    "priority": 2,
+    "status": "open",
+    "title": "bug Test gate blocks merge commits due to stale diff hash from incoming-only changes",
+    "type": "task"
+  },
   "dso-sfoc": {
     "deps": [],
     "priority": 1,
