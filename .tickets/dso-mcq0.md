@@ -1,6 +1,6 @@
 ---
 id: dso-mcq0
-status: open
+status: in_progress
 deps: [dso-97xo, dso-141j]
 links: []
 created: 2026-03-22T22:51:21Z
@@ -85,3 +85,27 @@ CHECKPOINT 5/6: AC Verification Results — AC1 PASS: cron '*/30 * * * *' active
 **2026-03-23T03:46:25Z**
 
 CHECKPOINT 6/6: Done ✓ — Re-verification complete. Summary: AC1 PASS (cron active), AC3 PASS (tickets branch on remote), AC2 FAIL (workflow runs but fails at ACLI_SHA256 not set). Progress since last attempt: dso-141j closed, ACLI_VERSION now pinned to 1.3.14-stable — workflow now fails at SHA256 verification rather than ACLI_VERSION unset. Remaining blocker: dso-7nos (Automate ACLI configuration — set ACLI_SHA256). Story remains open pending dso-7nos completion.
+
+**2026-03-23T04:04:37Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T04:05:11Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — batch 6 (31d7ddb) added ACLI hash logging to inbound-bridge.yml lines 85-100. When ACLI_SHA256 is unset, it computes SHA256 of the downloaded artifact, logs it, and proceeds without blocking. Most recent CI run (23420219253) used headSha e113f2a (batch 4 — before this code). No run yet on the new code (31d7ddb or faac49a). Will trigger workflow_dispatch to test.
+
+**2026-03-23T04:06:26Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓ — TDD exemption applies (verification/infrastructure only)
+
+**2026-03-23T04:06:36Z**
+
+CHECKPOINT 4/6: Re-verification complete ✓ — Triggered workflow_dispatch run 23420947283 on headSha faac49a (latest main, includes batch 6 ACLI hash logging). Key findings: (1) 'Validate ACLI version before download' PASS — ACLI_VERSION=1.3.14-stable is set; (2) 'Verify ACLI checksum' PASS — ACLI_SHA256 was empty, so new logging code ran successfully, computed and logged hash: ACLI_SHA256=2927eb361034ce4684895e9987d39cc4e6ab33682e631113e1860c165d60f74f; (3) New failure at 'Extract ACLI zip' — downloaded file is not a valid zip ('End-of-central-directory signature not found'). The ACLI download URL format may be returning a JAR directly (or an error page) rather than a zip. This is a new downstream issue, separate from the ACLI_SHA256 blocker.
+
+**2026-03-23T04:06:43Z**
+
+CHECKPOINT 5/6: AC Verification Results — AC1 PASS: cron '*/30 * * * *' active in inbound-bridge.yml; AC2 FAIL: run 23420947283 conclusion=failure — new failure point at 'Extract ACLI zip' (not a valid zip), but progress since last check: 'Verify ACLI checksum' now PASSES (ACLI_SHA256 hash logged: 2927eb361034ce4684895e9987d39cc4e6ab33682e631113e1860c165d60f74f, workflow proceeds without blocking on missing SHA256); AC3 PASS: tickets branch exists on remote. The ACLI_SHA256 blocker from dso-7nos is resolved by the hash logging code — operator can now capture and set the hash. New downstream blocker: invalid zip from ACLI download URL.
+
+**2026-03-23T04:06:49Z**
+
+CHECKPOINT 6/6: Done ✓ — 3rd verification attempt complete. Summary: AC1 PASS (cron active), AC3 PASS (tickets branch on remote), AC2 FAIL (workflow fails at 'Extract ACLI zip' — downloaded file not a valid zip). Progress since 2nd attempt: ACLI hash logging code (batch 6) is live and working — 'Verify ACLI checksum' step now succeeds, logged ACLI_SHA256=2927eb361034ce4684895e9987d39cc4e6ab33682e631113e1860c165d60f74f. The ACLI_SHA256 blocker from dso-7nos is unblocked by this run's output. New blocker: ACLI download returns invalid zip artifact. Story remains open pending resolution of ACLI zip download issue.

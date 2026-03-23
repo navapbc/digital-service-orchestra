@@ -618,4 +618,230 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
 
 # =============================================================================
+# Test 11: test_phase_snapshot_writes_snapshot_file
+#
+# RED phase: _phase_snapshot is a stub — writes no snapshot file — FAILS.
+#
+# Setup: temp git repo fixture with 2 minimal .tickets/*.md files.
+#        Frontmatter written directly (not via tk) to keep the fixture
+#        portable and dependency-free.
+# Env:   CUTOVER_SNAPSHOT_FILE pointing to a known temp path.
+#        CUTOVER_STATE_FILE pointing to a known temp path.
+# Run:   full run (bash cutover-tickets-migration.sh --repo-root=FIXTURE).
+# Assert: CUTOVER_SNAPSHOT_FILE exists on disk after exit 0.
+# RED:   fails because the _phase_snapshot stub writes no snapshot file.
+# =============================================================================
+_setup_fixture
+
+# Write 2 minimal ticket files directly (bypassing tk)
+cat > "$_FIXTURE_DIR/.tickets/dso-aaa1.md" <<'TICKET_EOF'
+---
+id: dso-aaa1
+title: Ticket AAA1
+status: open
+type: task
+priority: 3
+---
+# Ticket AAA1
+
+Body of ticket AAA1.
+TICKET_EOF
+
+cat > "$_FIXTURE_DIR/.tickets/dso-aaa2.md" <<'TICKET_EOF'
+---
+id: dso-aaa2
+title: Ticket AAA2
+status: open
+type: task
+priority: 3
+---
+# Ticket AAA2
+
+Body of ticket AAA2.
+TICKET_EOF
+
+# Commit the tickets so the fixture repo is in a clean state
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with tickets"
+
+_SNAP_SNAPSHOT_FILE="$_FIXTURE_DIR/cutover-snapshot-test11.json"
+_SNAP_STATE_FILE="$_FIXTURE_DIR/.cutover-state-test11.json"
+_SNAP_RC=0
+
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_SNAP_STATE_FILE" \
+CUTOVER_SNAPSHOT_FILE="$_SNAP_SNAPSHOT_FILE" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _SNAP_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_phase_snapshot_writes_snapshot_file_exit_0" "0" "$_SNAP_RC"
+
+# Assert CUTOVER_SNAPSHOT_FILE exists on disk
+if [[ -f "$_SNAP_SNAPSHOT_FILE" ]]; then
+    _SNAP_FILE_EXISTS="true"
+else
+    _SNAP_FILE_EXISTS="false"
+fi
+assert_eq "test_phase_snapshot_writes_snapshot_file" "true" "$_SNAP_FILE_EXISTS"
+assert_pass_if_clean "test_phase_snapshot_writes_snapshot_file"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
+# Test 12: test_phase_snapshot_captures_ticket_count
+#
+# RED phase: _phase_snapshot is a stub — no snapshot file written — FAILS.
+#
+# Setup: fixture with exactly 3 .tickets/*.md files.
+# Env:   CUTOVER_SNAPSHOT_FILE set to a known temp path.
+# Run:   full run.
+# Assert: snapshot JSON file contains 'ticket_count' field equal to 3.
+# RED:   fails for same reason as Test 11.
+# =============================================================================
+_setup_fixture
+
+# Write exactly 3 ticket files
+for _idx in 1 2 3; do
+    cat > "$_FIXTURE_DIR/.tickets/dso-cnt${_idx}.md" <<TICKET_EOF
+---
+id: dso-cnt${_idx}
+title: Count Ticket ${_idx}
+status: open
+type: task
+priority: 3
+---
+# Count Ticket ${_idx}
+
+Body of count ticket ${_idx}.
+TICKET_EOF
+done
+
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with 3 tickets"
+
+_CNT_SNAPSHOT_FILE="$_FIXTURE_DIR/cutover-snapshot-test12.json"
+_CNT_STATE_FILE="$_FIXTURE_DIR/.cutover-state-test12.json"
+_CNT_RC=0
+
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_CNT_STATE_FILE" \
+CUTOVER_SNAPSHOT_FILE="$_CNT_SNAPSHOT_FILE" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _CNT_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_phase_snapshot_captures_ticket_count_exit_0" "0" "$_CNT_RC"
+
+# Assert snapshot JSON contains 'ticket_count' equal to 3
+_CNT_VALUE="not_found"
+if [[ -f "$_CNT_SNAPSHOT_FILE" ]]; then
+    _CNT_VALUE=$(python3 -c "
+import json, sys
+try:
+    with open('$_CNT_SNAPSHOT_FILE') as fh:
+        data = json.load(fh)
+    print(data.get('ticket_count', 'missing'))
+except Exception as e:
+    print('error:' + str(e))
+" 2>/dev/null || echo "error")
+fi
+assert_eq "test_phase_snapshot_captures_ticket_count" "3" "$_CNT_VALUE"
+assert_pass_if_clean "test_phase_snapshot_captures_ticket_count"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR _idx
+
+# =============================================================================
+# Test 13: test_phase_snapshot_captures_full_tk_show_output
+#
+# RED phase: _phase_snapshot is a stub — no snapshot file written — FAILS.
+#
+# Setup: fixture with 1 .tickets/dso-test1.md containing a known title.
+# Env:   CUTOVER_SNAPSHOT_FILE set to a known temp path.
+# Run:   full run.
+# Assert: snapshot JSON 'tickets' array contains an entry with id=dso-test1
+#         and a non-empty captured output field.
+# RED:   fails for same reason as Tests 11 and 12.
+# =============================================================================
+_setup_fixture
+
+cat > "$_FIXTURE_DIR/.tickets/dso-test1.md" <<'TICKET_EOF'
+---
+id: dso-test1
+title: Known Title For Snapshot Test
+status: open
+type: task
+priority: 3
+---
+# Known Title For Snapshot Test
+
+This ticket has a known title used to verify snapshot capture.
+TICKET_EOF
+
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with dso-test1"
+
+_TK_SNAPSHOT_FILE="$_FIXTURE_DIR/cutover-snapshot-test13.json"
+_TK_STATE_FILE="$_FIXTURE_DIR/.cutover-state-test13.json"
+_TK_RC=0
+
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_TK_STATE_FILE" \
+CUTOVER_SNAPSHOT_FILE="$_TK_SNAPSHOT_FILE" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _TK_RC=$?
+
+_snapshot_fail
+
+# Assert exit 0
+assert_eq "test_phase_snapshot_captures_full_tk_show_output_exit_0" "0" "$_TK_RC"
+
+# Assert snapshot JSON 'tickets' array has an entry with id=dso-test1 and
+# a non-empty output field (the captured tk show / raw content).
+_TK_ENTRY_ID="not_found"
+_TK_ENTRY_HAS_OUTPUT="false"
+if [[ -f "$_TK_SNAPSHOT_FILE" ]]; then
+    _TK_ENTRY_ID=$(python3 -c "
+import json, sys
+try:
+    with open('$_TK_SNAPSHOT_FILE') as fh:
+        data = json.load(fh)
+    tickets = data.get('tickets', [])
+    for t in tickets:
+        if t.get('id') == 'dso-test1':
+            print(t.get('id', 'missing'))
+            sys.exit(0)
+    print('not_found')
+except Exception as e:
+    print('error:' + str(e))
+" 2>/dev/null || echo "error")
+
+    _TK_ENTRY_HAS_OUTPUT=$(python3 -c "
+import json, sys
+try:
+    with open('$_TK_SNAPSHOT_FILE') as fh:
+        data = json.load(fh)
+    tickets = data.get('tickets', [])
+    for t in tickets:
+        if t.get('id') == 'dso-test1':
+            output = t.get('output', '')
+            print('true' if output else 'false')
+            sys.exit(0)
+    print('false')
+except Exception as e:
+    print('false')
+" 2>/dev/null || echo "false")
+fi
+
+assert_eq "test_phase_snapshot_captures_full_tk_show_output_id" "dso-test1" "$_TK_ENTRY_ID"
+assert_eq "test_phase_snapshot_captures_full_tk_show_output" "true" "$_TK_ENTRY_HAS_OUTPUT"
+assert_pass_if_clean "test_phase_snapshot_captures_full_tk_show_output"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
 print_summary
