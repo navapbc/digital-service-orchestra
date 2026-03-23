@@ -1,6 +1,6 @@
 ---
 id: dso-vl19
-status: open
+status: in_progress
 deps: [dso-qki2]
 links: []
 created: 2026-03-23T20:27:05Z
@@ -66,3 +66,37 @@ DO NOT modify review-gate-allowlist.conf, pre-commit-review-gate.sh, review-gate
 - [ ] ruff format --check passes (exit 0)
   Verify: ruff format --check $(git rev-parse --show-toplevel)/plugins/dso/scripts/*.py $(git rev-parse --show-toplevel)/tests/**/*.py
 
+## ACCEPTANCE CRITERIA
+
+- [ ] plugins/dso/hooks/pre-commit-ticket-gate.sh exists and is executable
+  Verify: test -x plugins/dso/hooks/pre-commit-ticket-gate.sh
+- [ ] Bash syntax validation passes
+  Verify: bash -n plugins/dso/hooks/pre-commit-ticket-gate.sh
+- [ ] RED tests from dso-qki2 now pass (GREEN)
+  Verify: bash tests/hooks/test-pre-commit-ticket-gate.sh 2>&1 | grep -qi passed
+
+## Notes
+
+**2026-03-23T21:12:52Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T21:13:08Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T21:13:08Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-23T21:13:56Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T21:14:10Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-23T21:15:07Z**
+
+CHECKPOINT 6/6: Done ✓
