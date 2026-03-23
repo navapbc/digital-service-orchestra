@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Cache ACLI jar
+      - name: Cache ACLI binary
         id: cache-acli
         uses: actions/cache@v4
         with:
@@ -62,33 +62,27 @@ jobs:
         if: steps.cache-acli.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.acli
-          curl -sSL "https://bobswift.atlassian.net/wiki/download/attachments/16285777/acli-${{ vars.ACLI_VERSION }}-distribution.zip" \
-            -o ~/.acli/acli.zip \
-            || curl -sSL "https://packages.atlassian.com/maven/public/com/atlassian/cli/acli/${{ vars.ACLI_VERSION }}/acli-${{ vars.ACLI_VERSION }}.jar" \
-               -o ~/.acli/acli.jar
+          # ACLI v1.3+ is a Go binary distributed as tar.gz from acli.atlassian.com.
+          # The runner is linux/amd64 (ubuntu-latest).
+          curl -sSL "https://acli.atlassian.com/linux/${{ vars.ACLI_VERSION }}/acli_${{ vars.ACLI_VERSION }}_linux_amd64.tar.gz" \
+            -o ~/.acli/acli.tar.gz
 
       - name: Verify ACLI checksum
         if: steps.cache-acli.outputs.cache-hit != 'true'
         run: |
-          # Verify the downloaded artifact BEFORE extraction so the zip is still
-          # present on disk. Without a checksum, a compromised or MITM'd download
-          # could execute arbitrary code.
+          # Verify the downloaded artifact BEFORE extraction so a compromised
+          # or MITM'd download cannot execute arbitrary code.
           ACLI_VERSION="${{ vars.ACLI_VERSION }}"
           ACLI_SHA256="${{ vars.ACLI_SHA256 }}"
+          ARTIFACT=~/.acli/acli.tar.gz
 
           if [ -z "$ACLI_VERSION" ] || [ "$ACLI_VERSION" = "latest" ]; then
             echo "ERROR: ACLI_VERSION is unset or 'latest' — checksum verification cannot proceed."
             echo "       Pin ACLI_VERSION to a specific release and set ACLI_SHA256 to its expected"
-            echo "       SHA256 digest before running this workflow. Unpinned downloads are rejected"
-            echo "       to enforce supply-chain integrity."
+            echo "       SHA256 digest before running this workflow."
             exit 1
           elif [ -z "$ACLI_SHA256" ]; then
             # Compute and log the hash so the operator can capture it from CI output
-            if [ -f ~/.acli/acli.zip ]; then
-              ARTIFACT=~/.acli/acli.zip
-            else
-              ARTIFACT=~/.acli/acli.jar
-            fi
             COMPUTED_HASH=$(sha256sum "$ARTIFACT" | awk '{print $1}')
             echo "WARNING: ACLI_SHA256 is not set. Computed SHA256 of downloaded artifact:"
             echo ""
@@ -99,45 +93,26 @@ jobs:
             echo ""
             echo "Proceeding WITHOUT checksum verification (first-run bootstrap)."
           else
-            # Verify whichever artifact was downloaded (zip takes priority).
-            if [ -f ~/.acli/acli.zip ]; then
-              ARTIFACT=~/.acli/acli.zip
-            else
-              ARTIFACT=~/.acli/acli.jar
-            fi
             echo "${ACLI_SHA256}  ${ARTIFACT}" | sha256sum -c --strict
             echo "Checksum verified: ${ARTIFACT}"
           fi
 
-      - name: Extract ACLI zip
+      - name: Extract ACLI binary
         if: steps.cache-acli.outputs.cache-hit != 'true'
         run: |
-          # The download step attempts to fetch a zip first and falls back to a
-          # direct jar. If a zip was downloaded, extract the jar from it so the
-          # wrapper script can always reference ~/.acli/acli.jar consistently.
-          if [ -f ~/.acli/acli.zip ]; then
-            unzip -jo ~/.acli/acli.zip "*.jar" -d ~/.acli/
-            # Rename the extracted jar to the canonical name expected by the wrapper.
-            extracted=$(ls ~/.acli/*.jar 2>/dev/null | head -1)
-            if [ -z "$extracted" ]; then
-              echo "ERROR: No .jar found inside acli.zip" >&2
-              exit 1
-            fi
-            mv "$extracted" ~/.acli/acli.jar
-            rm -f ~/.acli/acli.zip
-            echo "Extracted acli.jar from zip."
-          else
-            echo "Direct jar download detected — no extraction needed."
-          fi
+          # ACLI v1.3+ is a Go binary distributed as tar.gz.
+          tar xzf ~/.acli/acli.tar.gz -C ~/.acli/
+          chmod +x ~/.acli/acli
+          rm -f ~/.acli/acli.tar.gz
+          echo "Extracted acli binary from tar.gz."
 
       - name: Add ACLI to PATH
         run: |
-          if [ ! -f "$HOME/.acli/acli.jar" ]; then
-            echo "ERROR: $HOME/.acli/acli.jar not found — download or extraction must have failed." >&2
+          if [ ! -f "$HOME/.acli/acli" ]; then
+            echo "ERROR: $HOME/.acli/acli not found — download or extraction must have failed." >&2
             exit 1
           fi
-          printf '#!/usr/bin/env bash\nexec java -jar "$HOME/.acli/acli.jar" "$@"\n' > /usr/local/bin/acli
-          chmod +x /usr/local/bin/acli
+          ln -sf "$HOME/.acli/acli" /usr/local/bin/acli
 
       - name: Run inbound bridge
         id: run-bridge
