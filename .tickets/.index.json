@@ -318,6 +318,13 @@
     "title": "Add a workflow-config flag that creates PRs instead of merging to main",
     "type": "epic"
   },
+  "dso-cvtx": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "Fix CI failures on commit 9b7a7f3 \u2014 rollback strategy and log dir preservation",
+    "type": "bug"
+  },
   "dso-d63r": {
     "deps": [],
     "priority": 2,

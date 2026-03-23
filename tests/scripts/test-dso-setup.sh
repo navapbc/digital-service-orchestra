@@ -1202,6 +1202,167 @@ EOF
     fi
 }
 
+# ── Ticket gate hook merge tests (dso-8jp8) ──────────────────────────────────
+#
+# Verifies that dso-setup.sh merges the pre-commit-ticket-gate hook entry from
+# examples/pre-commit-config.example.yaml into an existing .pre-commit-config.yaml.
+#
+# These tests use a minimal pre-commit config (just a repos: section) to isolate
+# the ticket-gate merge behavior from other hook merging.
+
+# _make_minimal_precommit: write a minimal .pre-commit-config.yaml (no DSO hooks)
+# into TARGET_DIR. Used by ticket-gate merge tests.
+_make_minimal_precommit() {
+    local target_dir="$1"
+    cat > "$target_dir/.pre-commit-config.yaml" << 'PCEOF'
+repos:
+  - repo: local
+    hooks:
+      - id: my-project-hook
+        name: My Project Hook
+        entry: ./scripts/my-hook.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+PCEOF
+}
+
+# test_ticket_gate_hook_merged: when an existing .pre-commit-config.yaml lacks
+# the pre-commit-ticket-gate hook, running dso-setup.sh merges it in.
+test_ticket_gate_hook_merged() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_minimal_precommit "$T"
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    if grep -q 'pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_ticket_gate_hook_merged" "found" "found"
+    else
+        assert_eq "test_ticket_gate_hook_merged" "found" "missing"
+    fi
+}
+
+# test_ticket_gate_hook_idempotent: running dso-setup.sh twice does NOT duplicate
+# the pre-commit-ticket-gate hook id in .pre-commit-config.yaml.
+test_ticket_gate_hook_idempotent() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_minimal_precommit "$T"
+
+    # Run twice — second run must not add a duplicate ticket-gate entry
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    local count
+    count=$(grep -c 'id: pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null || echo "0")
+    assert_eq "test_ticket_gate_hook_idempotent" "1" "$count"
+}
+
+# test_ticket_gate_hook_preserves_existing_hooks: after merging the ticket-gate hook,
+# pre-existing hooks in .pre-commit-config.yaml are NOT removed.
+test_ticket_gate_hook_preserves_existing_hooks() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_minimal_precommit "$T"
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    # The original project hook must still be present
+    if grep -q 'my-project-hook' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_ticket_gate_hook_preserves_existing_hooks: original hook preserved" "found" "found"
+    else
+        assert_eq "test_ticket_gate_hook_preserves_existing_hooks: original hook preserved" "found" "missing"
+    fi
+
+    # The ticket-gate must also be present (additive merge)
+    if grep -q 'pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_ticket_gate_hook_preserves_existing_hooks: ticket-gate added" "found" "found"
+    else
+        assert_eq "test_ticket_gate_hook_preserves_existing_hooks: ticket-gate added" "found" "missing"
+    fi
+}
+
+# test_ticket_gate_hook_dryrun_no_changes: in --dryrun mode, the ticket-gate hook is
+# NOT written to .pre-commit-config.yaml, but dryrun output mentions it.
+test_ticket_gate_hook_dryrun_no_changes() {
+    local T output
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+    _make_minimal_precommit "$T"
+
+    local original_content
+    original_content=$(cat "$T/.pre-commit-config.yaml")
+
+    output=$(bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" --dryrun 2>&1) || true
+
+    # File must be unchanged after --dryrun
+    local after_content
+    after_content=$(cat "$T/.pre-commit-config.yaml")
+    assert_eq "test_ticket_gate_hook_dryrun_no_changes: file unchanged" "$original_content" "$after_content"
+
+    # Dryrun output must mention both [dryrun] and pre-commit-ticket-gate
+    if [[ "$output" == *"[dryrun]"* ]] && [[ "$output" == *"pre-commit-ticket-gate"* ]]; then
+        assert_eq "test_ticket_gate_hook_dryrun_no_changes: dryrun output mentions ticket-gate" "found" "found"
+    else
+        assert_eq "test_ticket_gate_hook_dryrun_no_changes: dryrun output mentions ticket-gate" "found" "missing"
+    fi
+}
+
+# test_ticket_gate_hook_not_duplicated_when_already_present: when the existing config
+# already contains 'id: pre-commit-ticket-gate', dso-setup.sh does NOT add it again.
+test_ticket_gate_hook_not_duplicated_when_already_present() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Pre-populate with a config that already has the ticket-gate hook
+    cat > "$T/.pre-commit-config.yaml" << 'PCEOF'
+repos:
+  - repo: local
+    hooks:
+      - id: pre-commit-ticket-gate
+        name: Ticket Gate (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-ticket-gate 10 "echo gate"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit-msg]
+PCEOF
+
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    local count
+    count=$(grep -c 'id: pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null || echo "0")
+    assert_eq "test_ticket_gate_hook_not_duplicated_when_already_present" "1" "$count"
+}
+
+# test_ticket_gate_hook_fresh_install: when no .pre-commit-config.yaml exists, the
+# full example config is copied — which includes the pre-commit-ticket-gate entry.
+test_ticket_gate_hook_fresh_install() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # No pre-commit config — fresh install path
+    bash "$SETUP_SCRIPT" "$T" "$PLUGIN_ROOT" >/dev/null 2>&1 || true
+
+    if grep -q 'pre-commit-ticket-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_ticket_gate_hook_fresh_install" "found" "found"
+    else
+        assert_eq "test_ticket_gate_hook_fresh_install" "found" "missing"
+    fi
+}
+
 # ── .claude/dso-config.conf path tests (dso-hui3) ────────────────────────────
 #
 # RED-phase: All 3 tests FAIL until dso-setup.sh is updated to write
@@ -1305,5 +1466,11 @@ test_ci_guard_missing_format_guard_detected
 test_setup_writes_dso_config_conf
 test_setup_dso_config_conf_idempotent
 test_setup_dryrun_no_dso_config_conf_written
+test_ticket_gate_hook_merged
+test_ticket_gate_hook_idempotent
+test_ticket_gate_hook_preserves_existing_hooks
+test_ticket_gate_hook_dryrun_no_changes
+test_ticket_gate_hook_not_duplicated_when_already_present
+test_ticket_gate_hook_fresh_install
 
 print_summary

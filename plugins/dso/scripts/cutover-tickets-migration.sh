@@ -14,6 +14,10 @@
 #   CUTOVER_TICKET_ID        Ticket ID included in the finalize cleanup commit message
 #                            (e.g. "w21-24kl"). Defaults to empty string (commit message
 #                            omits ticket ID when unset or empty).
+#   CUTOVER_COMMIT_BEFORE    Override the baseline commit for rollback strategy detection.
+#                            When set, treated as if HEAD was at this commit before the run.
+#                            Primarily for testing: allows tests to pre-seed a migration
+#                            commit and have the script treat it as a mid-run commit.
 #
 # Exit codes: 0=success, 1=error
 
@@ -1066,7 +1070,7 @@ _rollback_phase() {
 
     echo "Rollback: phase '${phase}' failed (exit ${phase_rc}); strategy=${rollback_strategy}" >&2
     printf '[%s] Rollback: phase "%s" failed (exit %s); strategy=%s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$phase" "$phase_rc" "$rollback_strategy" >> "$log_file"
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$phase" "$phase_rc" "$rollback_strategy" >> "$log_file" || true
 
     local rollback_exit=0
     if [[ "$rollback_strategy" == "revert" ]]; then
@@ -1082,19 +1086,28 @@ _rollback_phase() {
 
     # Remove any untracked files/dirs created during the run, preserving the
     # log directory so the error message path remains valid after rollback.
+    # git clean -e requires a path RELATIVE to the repo root; absolute paths
+    # are not recognised and the directory would be deleted.
     local _clean_excludes=()
     if [[ -n "${CUTOVER_LOG_DIR:-}" ]]; then
-        _clean_excludes+=("-e" "$CUTOVER_LOG_DIR")
+        local _log_dir_rel
+        _log_dir_rel=$(realpath --relative-to="$_REPO_ROOT" "$CUTOVER_LOG_DIR" 2>/dev/null \
+            || python3 -c "import os,sys; print(os.path.relpath(sys.argv[1],sys.argv[2]))" \
+                "$CUTOVER_LOG_DIR" "$_REPO_ROOT" 2>/dev/null \
+            || true)
+        if [[ -n "$_log_dir_rel" ]]; then
+            _clean_excludes+=("-e" "$_log_dir_rel")
+        fi
     fi
     git -C "$_REPO_ROOT" clean -fd "${_clean_excludes[@]}" 2>&1 || true
 
     if [[ "$rollback_exit" -eq 0 ]]; then
         echo "Rollback complete." >&2
-        printf '[%s] Rollback complete.\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$log_file"
+        printf '[%s] Rollback complete.\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$log_file" || true
     else
         echo "Rollback failed: git ${rollback_strategy} exited ${rollback_exit}" >&2
         printf '[%s] Rollback failed: git %s exited %s\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rollback_strategy" "$rollback_exit" >> "$log_file"
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rollback_strategy" "$rollback_exit" >> "$log_file" || true
     fi
 
     echo "ERROR: phase ${phase} failed — see ${log_file}" >&2
@@ -1121,7 +1134,14 @@ if [[ "$_RESUME" == "true" ]]; then
     fi
 fi
 
-_run_commit_before=$(git -C "$_REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
+# Allow tests to override the baseline commit (CUTOVER_COMMIT_BEFORE env var).
+# This lets test fixtures pre-seed a migration commit and treat it as a
+# mid-run commit for rollback strategy detection.
+if [[ -n "${CUTOVER_COMMIT_BEFORE:-}" ]]; then
+    _run_commit_before="$CUTOVER_COMMIT_BEFORE"
+else
+    _run_commit_before=$(git -C "$_REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
+fi
 
 for _phase in "${PHASES[@]}"; do
     # Resume: skip phases already recorded in the state file

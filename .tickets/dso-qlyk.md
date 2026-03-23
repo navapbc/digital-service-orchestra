@@ -1,6 +1,6 @@
 ---
 id: dso-qlyk
-status: in_progress
+status: closed
 deps: [dso-rmn7]
 links: []
 created: 2026-03-23T20:26:33Z

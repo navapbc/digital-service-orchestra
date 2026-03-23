@@ -234,8 +234,11 @@ _snapshot_fail
 # Assert non-zero exit
 assert_ne "test_cutover_rollback_uncommitted_uses_checkout_exit_nonzero" "0" "$_ROLLBACK_UC_RC"
 
-# Assert working-tree is clean (rollback reversed uncommitted changes)
-_WT_STATUS=$(git -C "$_FIXTURE_DIR" status --porcelain 2>/dev/null)
+# Assert working-tree is clean (rollback reversed uncommitted changes).
+# Exclude the cutover-logs/ directory: it is created by the script for output
+# and is intentionally preserved by rollback for post-mortem inspection.
+_WT_STATUS=$(git -C "$_FIXTURE_DIR" status --porcelain 2>/dev/null \
+    | grep -v '^?? cutover-logs/' || true)
 if [[ -z "$_WT_STATUS" ]]; then
     _WT_CLEAN="true"
 else
@@ -304,8 +307,11 @@ _BOUNDARY_HEAD_AFTER=$(git -C "$_FIXTURE_DIR" rev-parse HEAD 2>/dev/null)
 assert_eq "test_cutover_rollback_distinguishes_commit_boundary_head_unchanged" \
     "$_BOUNDARY_INITIAL_HEAD" "$_BOUNDARY_HEAD_AFTER"
 
-# Assert working tree is clean (rollback used checkout --, not revert)
-_BOUNDARY_WT_STATUS=$(git -C "$_FIXTURE_DIR" status --porcelain 2>/dev/null)
+# Assert working tree is clean (rollback used checkout --, not revert).
+# Exclude the cutover-logs/ directory: it is created by the script for output
+# and is intentionally preserved by rollback for post-mortem inspection.
+_BOUNDARY_WT_STATUS=$(git -C "$_FIXTURE_DIR" status --porcelain 2>/dev/null \
+    | grep -v '^?? cutover-logs/' || true)
 if [[ -z "$_BOUNDARY_WT_STATUS" ]]; then
     _BOUNDARY_WT_CLEAN="true"
 else
@@ -1778,10 +1784,13 @@ git -C "$_FIXTURE_DIR" commit -q -m "cutover: migrate data"
 _PRE_FAILURE_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
 
 # Run the cutover script with VERIFY phase failing (post-commit scenario).
+# CUTOVER_COMMIT_BEFORE overrides the baseline commit so the script treats
+# _INITIAL_HEAD as "before the run" and detects that HEAD moved (revert strategy).
 # Rollback should detect committed changes and revert them (git revert).
 CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
 CUTOVER_STATE_FILE="$_ROLLBACK_CM_STATE_FILE" \
 CUTOVER_PHASE_EXIT_OVERRIDE="VERIFY=1" \
+CUTOVER_COMMIT_BEFORE="$_INITIAL_HEAD" \
 bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _ROLLBACK_CM_RC=$?
 
 _snapshot_fail

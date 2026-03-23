@@ -1,6 +1,6 @@
 ---
 id: dso-cnj5
-status: in_progress
+status: closed
 deps: [dso-vl19]
 links: []
 created: 2026-03-23T20:27:32Z
