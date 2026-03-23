@@ -461,6 +461,16 @@
     "title": "Fix: project-detect.sh add --suites flag to Usage header comment",
     "type": "bug"
   },
+  "dso-hyvp": {
+    "deps": [
+      "dso-qlyk",
+      "dso-rmn7"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "RED test + integration test for finalize dry-run on branch",
+    "type": "task"
+  },
   "dso-ie76": {
     "deps": [
       "dso-lc3c",
@@ -667,6 +677,15 @@
     "title": "Prevent the explosion of documentation created by LLMs",
     "type": "epic"
   },
+  "dso-qlyk": {
+    "deps": [
+      "dso-rmn7"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Implement _phase_finalize() in cutover-tickets-migration.sh",
+    "type": "task"
+  },
   "dso-qo0x": {
     "deps": [],
     "priority": 2,
@@ -697,6 +716,13 @@
     "status": "open",
     "title": "As a developer, all RED test workflows dispatch through the dedicated agent",
     "type": "story"
+  },
+  "dso-rmn7": {
+    "deps": [],
+    "priority": 1,
+    "status": "open",
+    "title": "RED tests for _phase_finalize() in cutover-tickets-migration.sh",
+    "type": "task"
   },
   "dso-rrob": {
     "deps": [],
@@ -753,6 +779,15 @@
     "status": "open",
     "title": "Remove 5-sub-agent cap for orchestration",
     "type": "epic"
+  },
+  "dso-tdzq": {
+    "deps": [
+      "dso-qlyk"
+    ],
+    "priority": 1,
+    "status": "open",
+    "title": "Write ROLLBACK-PROCEDURE.md documenting git revert recovery steps",
+    "type": "task"
   },
   "dso-to7x": {
     "deps": [],

@@ -1,6 +1,6 @@
 ---
 id: dso-k4sw
-status: open
+status: closed
 deps: [w21-wbqz]
 links: []
 created: 2026-03-23T17:06:44Z

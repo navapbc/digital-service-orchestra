@@ -1,6 +1,6 @@
 ---
 id: dso-b25k
-status: in_progress
+status: closed
 deps: [dso-jyob, dso-1459, dso-9p30]
 links: []
 created: 2026-03-23T17:34:49Z
