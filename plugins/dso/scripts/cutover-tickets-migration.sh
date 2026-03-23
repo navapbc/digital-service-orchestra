@@ -539,6 +539,26 @@ for i, note_body in enumerate(notes):
     comment_filename = f"{ts3}-{comment_uuid}-COMMENT.json"
     with open(f"{ticket_dir}/{comment_filename}", "w", encoding="utf-8") as fh:
         json.dump(comment_event, fh, ensure_ascii=False)
+
+# Write LINK events for dependencies (deps frontmatter field)
+deps = parsed.get("deps", [])
+if not isinstance(deps, list):
+    deps = []
+for j, dep_id in enumerate(deps):
+    ts4 = ts + 2 + len(notes) + j
+    link_uuid = str(uuid.uuid4())
+    link_event = {
+        "timestamp": ts4,
+        "uuid": link_uuid,
+        "event_type": "LINK",
+        "data": {
+            "relation": "depends_on",
+            "target": dep_id,
+        }
+    }
+    link_filename = f"{ts4}-{link_uuid}-LINK.json"
+    with open(f"{ticket_dir}/{link_filename}", "w", encoding="utf-8") as fh:
+        json.dump(link_event, fh, ensure_ascii=False)
 PYEOF
 
         echo "Migrated: $_ticket_id ($_ticket_type)"

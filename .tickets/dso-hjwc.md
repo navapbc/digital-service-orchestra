@@ -1,6 +1,6 @@
 ---
 id: dso-hjwc
-status: open
+status: in_progress
 deps: [dso-9trm, dso-6ye6]
 links: []
 created: 2026-03-23T03:58:57Z
@@ -54,3 +54,29 @@ File to edit: tests/scripts/test-cutover-tickets-migration.sh
 - [ ] Integration test passes (exit 0 from test file)
   Verify: cd $(git rev-parse --show-toplevel) && bash tests/scripts/test-cutover-tickets-migration.sh 2>&1 | grep -q 'PASSED:' && ! bash tests/scripts/test-cutover-tickets-migration.sh 2>&1 | grep -q 'FAIL.*pipeline'
 
+
+## Notes
+
+**2026-03-23T06:20:03Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T06:20:55Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T06:21:50Z**
+
+CHECKPOINT 3/6: Tests written ✓
+
+**2026-03-23T06:21:50Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T06:24:23Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-23T06:25:21Z**
+
+CHECKPOINT 6/6: Done ✓ — All 7 integration test assertions pass (AC4+AC5 verified). Added LINK event writing to _phase_migrate to satisfy assertion 6 (deps→LINK events); this was a gap in the dso-6ye6 implementation. Pre-existing RED tests (rollback+error-path, Tests 5+6) remain at 2 failures as before my changes (PASS 64 FAIL 2 vs PASS 50 FAIL 2 before).

@@ -1100,6 +1100,244 @@ assert_eq "test_phase_migrate_disables_compaction" "true" "$_HAS_COMPACT_DISABLE
 assert_pass_if_clean "test_phase_migrate_disables_compaction"
 
 # =============================================================================
+# Test 19: test_cutover_snapshot_and_migrate_pipeline_end_to_end
+#
+# Integration test: verifies the full snapshot + migrate pipeline runs
+# end-to-end on a populated fixture.
+#
+# Setup:
+#   - Temp git repo with initial commit
+#   - 3 .tickets/*.md files with different types, statuses, and one with a note
+#     containing special characters (dollar sign, ampersand, angle brackets)
+#   - One ticket has a dependency (deps frontmatter field) on another
+#   - CUTOVER_SNAPSHOT_FILE, CUTOVER_TICKETS_DIR, CUTOVER_TRACKER_DIR all
+#     pointed at fixture paths
+#
+# Run: bash cutover-tickets-migration.sh --repo-root=FIXTURE (all phases)
+#
+# Assertions:
+#   1. Exit 0
+#   2. Snapshot file exists and contains ticket_count=3
+#   3. CREATE event exists in tracker for each of the 3 tickets (by old ticket ID)
+#   4. Ticket with non-open status: STATUS event exists
+#   5. Ticket with note: COMMENT event exists and body matches note content
+#   6. Ticket with dep: LINK event exists (or CREATE data contains deps)
+#   7. Idempotency: run again, exit 0, still exactly 1 CREATE event per ticket
+# =============================================================================
+_setup_fixture
+
+# Ticket 1: type=epic, status=open (no STATUS event expected), has a dep on ticket 2
+cat > "$_FIXTURE_DIR/.tickets/dso-e2e-t1.md" <<'TICKET_EOF'
+---
+id: dso-e2e-t1
+title: E2E Epic Ticket One
+status: open
+type: epic
+priority: 1
+deps: [dso-e2e-t2]
+---
+# E2E Epic Ticket One
+
+This is the epic ticket for the e2e integration test.
+TICKET_EOF
+
+# Ticket 2: type=story, status=in_progress (STATUS event expected)
+cat > "$_FIXTURE_DIR/.tickets/dso-e2e-t2.md" <<'TICKET_EOF'
+---
+id: dso-e2e-t2
+title: E2E Story Ticket Two
+status: in_progress
+type: story
+priority: 2
+---
+# E2E Story Ticket Two
+
+This story is in progress during the e2e test.
+TICKET_EOF
+
+# Ticket 3: type=task, status=open, has a note with special characters
+cat > "$_FIXTURE_DIR/.tickets/dso-e2e-t3.md" <<'TICKET_EOF'
+---
+id: dso-e2e-t3
+title: E2E Task Ticket Three
+status: open
+type: task
+priority: 3
+---
+# E2E Task Ticket Three
+
+Body content.
+
+## Notes
+
+[2026-01-15T10:00:00Z] Fixed issue with $VAR & <template> processing.
+TICKET_EOF
+
+git -C "$_FIXTURE_DIR" add .tickets/
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit with 3 e2e tickets"
+
+_E2E_SNAPSHOT_FILE="$_FIXTURE_DIR/e2e-snapshot.json"
+_E2E_TRACKER_DIR="$_FIXTURE_DIR/.tickets-tracker"
+_E2E_STATE_FILE="$_FIXTURE_DIR/.cutover-state-e2e.json"
+mkdir -p "$_E2E_TRACKER_DIR"
+_E2E_RC=0
+
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_E2E_STATE_FILE" \
+CUTOVER_SNAPSHOT_FILE="$_E2E_SNAPSHOT_FILE" \
+CUTOVER_TICKETS_DIR="$_FIXTURE_DIR/.tickets" \
+CUTOVER_TRACKER_DIR="$_E2E_TRACKER_DIR" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _E2E_RC=$?
+
+_snapshot_fail
+
+# Assertion 1: exit 0
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_exit_0" "0" "$_E2E_RC"
+
+# Assertion 2a: snapshot file exists
+if [[ -f "$_E2E_SNAPSHOT_FILE" ]]; then
+    _E2E_SNAP_EXISTS="true"
+else
+    _E2E_SNAP_EXISTS="false"
+fi
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_snapshot_exists" "true" "$_E2E_SNAP_EXISTS"
+
+# Assertion 2b: snapshot file contains ticket_count=3
+_E2E_TICKET_COUNT="not_found"
+if [[ -f "$_E2E_SNAPSHOT_FILE" ]]; then
+    _E2E_TICKET_COUNT=$(python3 -c "
+import json, sys
+try:
+    with open('$_E2E_SNAPSHOT_FILE') as fh:
+        data = json.load(fh)
+    print(data.get('ticket_count', 'missing'))
+except Exception as e:
+    print('error:' + str(e))
+" 2>/dev/null || echo "error")
+fi
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_ticket_count" "3" "$_E2E_TICKET_COUNT"
+
+# Assertion 3: CREATE event exists for each of the 3 tickets
+for _e2e_id in dso-e2e-t1 dso-e2e-t2 dso-e2e-t3; do
+    _E2E_CREATE_FILE=$(find "$_E2E_TRACKER_DIR" -path "*/${_e2e_id}/*" -name "*-CREATE.json" 2>/dev/null | head -1)
+    if [[ -n "$_E2E_CREATE_FILE" ]]; then
+        _E2E_HAS_CREATE="true"
+    else
+        _E2E_HAS_CREATE="false"
+    fi
+    assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_create_${_e2e_id}" "true" "$_E2E_HAS_CREATE"
+done
+
+# Assertion 4: STATUS event exists for dso-e2e-t2 (status=in_progress, not open)
+_E2E_STATUS_FILE=$(find "$_E2E_TRACKER_DIR" -path "*/dso-e2e-t2/*" -name "*-STATUS.json" 2>/dev/null | head -1)
+if [[ -n "$_E2E_STATUS_FILE" ]]; then
+    _E2E_HAS_STATUS="true"
+else
+    _E2E_HAS_STATUS="false"
+fi
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_status_event" "true" "$_E2E_HAS_STATUS"
+
+# Assertion 5: COMMENT event exists for dso-e2e-t3 (has a note) and body contains the note text
+_E2E_COMMENT_FILE=$(find "$_E2E_TRACKER_DIR" -path "*/dso-e2e-t3/*" -name "*-COMMENT.json" 2>/dev/null | head -1)
+if [[ -n "$_E2E_COMMENT_FILE" ]]; then
+    _E2E_HAS_COMMENT="true"
+else
+    _E2E_HAS_COMMENT="false"
+fi
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_comment_event" "true" "$_E2E_HAS_COMMENT"
+
+_E2E_COMMENT_BODY_OK="false"
+if [[ -n "$_E2E_COMMENT_FILE" ]]; then
+    if python3 -c "
+import json, sys
+try:
+    with open('$_E2E_COMMENT_FILE') as fh:
+        d = json.load(fh)
+    body = d.get('body', d.get('data', {}).get('body', ''))
+    if '\$VAR' in body and '&' in body and '<template>' in body:
+        sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+" 2>/dev/null; then
+        _E2E_COMMENT_BODY_OK="true"
+    fi
+fi
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_comment_body" "true" "$_E2E_COMMENT_BODY_OK"
+
+# Assertion 6: LINK event exists for dso-e2e-t1 (has deps on dso-e2e-t2)
+# The migrate phase writes a LINK event with relation=depends_on when deps are present.
+# If no separate LINK event is found, also accept the dep stored in the CREATE data.
+_E2E_LINK_FILE=$(find "$_E2E_TRACKER_DIR" -path "*/dso-e2e-t1/*" -name "*-LINK.json" 2>/dev/null | head -1)
+_E2E_HAS_DEP="false"
+if [[ -n "$_E2E_LINK_FILE" ]]; then
+    # LINK event found: verify it references dso-e2e-t2
+    if python3 -c "
+import json, sys
+try:
+    with open('$_E2E_LINK_FILE') as fh:
+        d = json.load(fh)
+    data = d.get('data', {})
+    target = data.get('target', data.get('target_id', ''))
+    relation = data.get('relation', data.get('link_type', ''))
+    if 'dso-e2e-t2' in target and 'depends' in relation.lower():
+        sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+" 2>/dev/null; then
+        _E2E_HAS_DEP="true"
+    fi
+fi
+# Fallback: check CREATE event data.deps for the dependency
+if [[ "$_E2E_HAS_DEP" == "false" ]]; then
+    _E2E_CREATE_T1=$(find "$_E2E_TRACKER_DIR" -path "*/dso-e2e-t1/*" -name "*-CREATE.json" 2>/dev/null | head -1)
+    if [[ -n "$_E2E_CREATE_T1" ]]; then
+        if python3 -c "
+import json, sys
+try:
+    with open('$_E2E_CREATE_T1') as fh:
+        d = json.load(fh)
+    deps = d.get('data', {}).get('deps', [])
+    if isinstance(deps, list) and 'dso-e2e-t2' in deps:
+        sys.exit(0)
+    # Also check top-level deps field
+    deps2 = d.get('deps', [])
+    if isinstance(deps2, list) and 'dso-e2e-t2' in deps2:
+        sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+" 2>/dev/null; then
+            _E2E_HAS_DEP="true"
+        fi
+    fi
+fi
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_link_event" "true" "$_E2E_HAS_DEP"
+
+# Assertion 7: Idempotency — run again, exit 0, still exactly 1 CREATE event per ticket
+rm -f "$_E2E_STATE_FILE"
+_E2E_RC2=0
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_E2E_STATE_FILE" \
+CUTOVER_SNAPSHOT_FILE="$_E2E_SNAPSHOT_FILE" \
+CUTOVER_TICKETS_DIR="$_FIXTURE_DIR/.tickets" \
+CUTOVER_TRACKER_DIR="$_E2E_TRACKER_DIR" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _E2E_RC2=$?
+
+assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_idempotent_exit_0" "0" "$_E2E_RC2"
+
+for _e2e_id in dso-e2e-t1 dso-e2e-t2 dso-e2e-t3; do
+    _E2E_CREATE_COUNT=$(find "$_E2E_TRACKER_DIR" -path "*/${_e2e_id}/*" -name "*-CREATE.json" 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "test_cutover_snapshot_and_migrate_pipeline_end_to_end_idempotent_create_count_${_e2e_id}" "1" "$_E2E_CREATE_COUNT"
+done
+
+assert_pass_if_clean "test_cutover_snapshot_and_migrate_pipeline_end_to_end"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR _E2E_SNAPSHOT_FILE _E2E_TRACKER_DIR _E2E_STATE_FILE _E2E_COMMENT_FILE _E2E_LINK_FILE _E2E_CREATE_T1 _e2e_id
+
+# =============================================================================
 # =============================================================================
 # Test 5: test_cutover_rollback_committed_uses_revert
 #

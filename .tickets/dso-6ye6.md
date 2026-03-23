@@ -1,6 +1,6 @@
 ---
 id: dso-6ye6
-status: in_progress
+status: closed
 deps: [dso-62hs, dso-9trm]
 links: []
 created: 2026-03-23T03:58:36Z
