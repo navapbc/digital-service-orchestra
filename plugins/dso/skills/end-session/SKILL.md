@@ -73,6 +73,54 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
 **If released**: note it in the session summary.
 **If not found or belongs to another worktree**: skip silently (one-line report is fine).
 
+### 2.77. Rationalized Failures Accountability (pre-commit)
+
+Silently scan the conversation context for failures that were observed but not fixed during this session. Store results as `RATIONALIZED_FAILURES_FROM_2_77` for display in Step 6.
+
+**Conversation Context Scan**: Review the full conversation for any error output, test failures noted but not fixed, validation issues acknowledged, or rationalization phrases such as "pre-existing", "infrastructure issue", "known issue", "not related to this session". Collect each distinct failure into a numbered list.
+
+**If no failures found**: skip display entirely — store an empty list in `RATIONALIZED_FAILURES_FROM_2_77` and proceed silently to Step 2.8.
+
+For each failure found, ask the following accountability questions:
+
+**(a) "Was this failure observed before or after changes were made on this worktree?"**
+
+Determine by running a `git stash` baseline check:
+
+```bash
+# stash current changes, run the test command, then always restore regardless of exit code
+git stash
+<test-command>; stash_exit=$?
+git stash pop
+exit $stash_exit
+```
+
+Where `<test-command>` is obtained from `commands.test` via `read-config.sh`. If the failure reproduces on main (i.e., the stash baseline shows the same failure), it is pre-existing. If it only appears after the stash is popped, it was introduced in this session.
+
+**(b) "Does a bug ticket already exist for this failure?"**
+
+Search existing bug tickets to avoid duplicates:
+
+```bash
+tk list --type=bug
+```
+
+Scan titles for a match to the failure. A ticket already exists if a close title match is found.
+
+**Auto-Create Bug Tickets**: For each failure that does **not** have an existing bug ticket, create one:
+
+```bash
+tk create "<descriptive title>" -t bug -p <priority>
+```
+
+Where `<priority>` is assigned based on actual severity:
+- Session-introduced failures: use priority 1 for blocking failures (tests fail, CI would fail, functionality broken), priority 2 for degraded-but-functional issues
+- Pre-existing failures: use priority 2 as default; lower to priority 3 for clearly minor issues (cosmetic, flaky tests, non-blocking warnings)
+
+**Store results**: Collect all rationalized failures (with their accountability answers and ticket IDs) into `RATIONALIZED_FAILURES_FROM_2_77` for Step 6. If no failures were found, store an empty list.
+
+**This step runs silently** — do not print findings here. Step 6 will display them.
+
 ### 2.8. Extract Technical Learnings (pre-commit)
 
 Silently scan the git diff and conversation context to extract technical learnings before committing. Store the results for display in Step 6.
@@ -239,6 +287,8 @@ Keep the primary `config-cache` file (no suffix) — only delete the hash-suffix
 ### 6. Report: Task Summary and Completion
 
 Display a comprehensive session summary using stored learnings from Step 2.8.
+
+**Rationalized Failures** — display the stored failures from `RATIONALIZED_FAILURES_FROM_2_77` (omit if empty). For each failure, show: the failure description, whether it was pre-existing or session-introduced, and the bug ticket ID created or referenced. If `RATIONALIZED_FAILURES_FROM_2_77` is empty, omit this section entirely.
 
 **Technical Learnings** — display the stored learnings generated in Step 2.8 (omit if empty). Do not re-scan the git diff or conversation — show what was captured before the commit.
 

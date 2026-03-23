@@ -1,6 +1,6 @@
 ---
 id: w22-ns6l
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-21T04:50:56Z
@@ -55,3 +55,46 @@ Model tier: opus (w21-0oc6+dso-k7fe), sonnet (others)
 Critic review: skipped (post-batch validation passed)
 Outcome: 6 fixed, 0 failed, 0 reverted
 Remaining in tier: 1 (w22-1jqy)
+
+**2026-03-22T15:51:56Z**
+
+BATCH 1 | Tier 7
+Issues: dso-u5lt (fixed), w21-9tc4 (fixed), dso-2dxt (fixed), w21-1pyo (escalated), w21-bksy (fixed)
+Agent types: general-purpose (all)
+Model tier: sonnet
+Critic review: skipped (Tier 7 code bugs)
+Outcome: 4 fixed, 1 escalated, 0 reverted
+New bugs found: w22-w5wt (anti-pattern in REVIEW-WORKFLOW.md)
+Remaining in tier: 14
+
+**2026-03-22T16:05:29Z**
+
+BATCH 2 | Tier 7
+Issues: dso-jwan (fixed), w21-4jzh (already fixed), w21-fzzu (false positive), dso-gxct (fixed), dso-0u2q (fixed)
+Agent types: general-purpose (all)
+Model tier: sonnet
+Outcome: 3 fixed, 2 closed (already fixed/false positive)
+Remaining open bugs: ~12
+
+**2026-03-22T16:40:01Z**
+
+BATCH 3 | Tier 7
+Issues: w21-hget (fixed), w21-o2cn (already fixed), w20-fxpu (already fixed), dso-4nm5 (fix lost — review gate blocked sub-agent), dso-ogh7 (fixed)
+Model tier: sonnet
+Outcome: 2 fixed, 2 closed (already fixed), 1 reverted to open
+New bugs found: dso-9778 (FN_BODY duplication in test-tk-sync-force-local.sh)
+Remaining open bugs: ~12
+
+<!-- note-id: udr4rwo6 -->
+<!-- timestamp: 2026-03-22T22:39:42Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+Health restored. All 10 children closed: 2 new bugs fixed (dso-xrna ci-generator, dso-y1hq timeout), 2 not reproducible (w21-da9n, w21-raky), 3 flaky tests fixed (w22-9wrx race, w22-g4ao shfmt, w22-j22e UX), 3 previously closed.
+
+<!-- note-id: dn26kivj -->
+<!-- timestamp: 2026-03-22T22:39:43Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+CLOSE REASON: Fixed: all 10 children resolved — project health restored

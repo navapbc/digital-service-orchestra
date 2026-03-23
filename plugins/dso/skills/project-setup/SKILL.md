@@ -540,8 +540,54 @@ Output messages from `merge_precommit_hooks`:
 
 `dso-setup.sh` handles CI workflows differently from the other file types:
 
-- **No `.github/workflows/*.yml` found**: copies `examples/ci.example.yml` to `.github/workflows/ci.yml` (only if no workflow file exists).
+- **No `.github/workflows/*.yml` found**: generate CI workflows from discovered test suites using `ci-generator.sh` (see "New Project: Generate from Discovered Suites" below).
 - **Workflow file(s) exist**: does **not** copy or modify any workflow file. Instead, runs `_run_ci_guard_analysis` to report missing CI guards.
+
+#### New Project: Generate from Discovered Suites
+
+When no CI workflow files exist, run `project-detect.sh --suites <TARGET_REPO>` to get the discovered suites JSON array, then invoke `ci-generator.sh` to generate CI workflows:
+
+```bash
+# Step 1: Discover test suites
+SUITES_JSON="$(project-detect.sh --suites "$TARGET_REPO")"
+
+# Step 2: If suites discovered (non-empty array), invoke the generator
+if [[ "$SUITES_JSON" != "[]" && -n "$SUITES_JSON" ]]; then
+    # For suites with speed_class=unknown: prompt user (fast/slow/skip, default: slow)
+    # In non-interactive mode, default all unknown to slow
+    NONINTERACTIVE_FLAG=""
+    if ! test -t 0; then
+        NONINTERACTIVE_FLAG="--non-interactive"
+    fi
+
+    # Write suites JSON to a temp file and invoke ci-generator.sh
+    SUITES_TMP="$(mktemp)"
+    printf '%s' "$SUITES_JSON" > "$SUITES_TMP"
+    ci-generator.sh \
+        --suites-json "$SUITES_TMP" \
+        --output-dir "$TARGET_REPO/.github/workflows/" \
+        $NONINTERACTIVE_FLAG
+    rm -f "$SUITES_TMP"
+
+    # ci-generator.sh handles YAML validation internally (actionlint or yaml.safe_load)
+    # and exits non-zero on failure — surface any error to the user.
+    # Report generated files:
+    #   "Generated .github/workflows/ci.yml (N fast suites)"  (if fast suites exist)
+    #   "Generated .github/workflows/ci-slow.yml (N slow suites)"  (if slow suites exist)
+else
+    # Step 3: No suites discovered — fall back to copying the generic CI template
+    # (only if no workflow file exists)
+    mkdir -p "$TARGET_REPO/.github/workflows/"
+    cp "$DSO_ROOT/examples/ci.example.yml" "$TARGET_REPO/.github/workflows/ci.yml"
+    echo "No test suites discovered — copied generic CI template. Review and customize .github/workflows/ci.yml."
+fi
+```
+
+**speed_class=unknown prompting**: When a discovered suite has `speed_class=unknown`, `ci-generator.sh` prompts the user interactively:
+```
+Suite '<name>' has unknown speed_class. Classify as [f]ast/[s]low/[k]ip (default: slow):
+```
+In non-interactive mode (`--non-interactive` flag or `CI_NONINTERACTIVE=1`), all suites with `speed_class=unknown` are defaulted to slow without prompting.
 
 #### DETECT_ env var contract for CI guard analysis
 
@@ -565,6 +611,95 @@ When a guard key is `false`, the analysis emits a recommendation:
 
 In dryrun mode these messages are prefixed with `[dryrun][ci-guard]`.
 
+### Suite Placement for Uncovered Suites
+
+After guard analysis, identify which test suites detected by `project-detect.sh` are not yet covered by any CI workflow step. Then offer to place each uncovered suite into CI.
+
+#### COVERAGE DETECTION
+
+Parse each `.github/workflows/*.yml` file and collect all `run:` values from every workflow step. A suite is **covered** if its command string appears as a substring of any step's `run:` value. `uses:` steps (reusable workflow references) are treated as uncovered — they are not inspected for suite commands.
+
+```bash
+# For each detected suite, check if suite.command is a substring of any step run: value
+# Suites with no matching run: substring are 'uncovered'
+# uses: steps are skipped (treated as uncovered)
+```
+
+A suite is **uncovered** when its command does not appear as a substring in any `run:` value across all workflow files.
+
+#### PLACEMENT PROMPT
+
+For each uncovered suite (one at a time), prompt the user with three options using `AskUserQuestion`:
+
+```
+Uncovered suite: <suite-name> (command: <suite.command>)
+
+How would you like to place this suite in CI?
+
+1) fast-gate  — append a new job to the existing gating workflow (e.g. ci.yml)
+               Job ID derived from suite name: unit → test-unit
+               Job template: checkout → setup runtime → run command
+2) separate   — create a new workflow file (.github/workflows/ci-<suitename>.yml)
+               Triggered on push to main; suite is the sole job
+3) skip       — record test.suite.<name>.ci_placement=skip in .claude/dso-config.conf
+               Suite will not be prompted again on subsequent runs
+
+Enter 1, 2, or 3:
+```
+
+Handle each selection:
+
+- **Option 1 (fast-gate)**: Append to the existing gating workflow (e.g., `ci.yml`). Add a new job whose ID is derived from the suite name (e.g., `unit` → `test-unit`). The job template contains: checkout step, setup runtime step, and a step that runs `<suite.command>`. Validate YAML before writing (see YAML Validation below).
+- **Option 2 (separate)**: Create a new workflow file at `.github/workflows/ci-<suitename>.yml` with the suite as its sole job, triggered on push to main. Validate YAML before writing (see YAML Validation below).
+- **Option 3 (skip)**: Write `test.suite.<name>.ci_placement=skip` to `.claude/dso-config.conf` (add or update the key). Do not write any workflow file.
+
+#### NON-INTERACTIVE FALLBACK
+
+When running in non-interactive mode (`test -t 0` returns false), apply defaults automatically without prompting:
+
+- **fast suites** (`speed_class=fast`) → fast-gate (append to the existing ci.yml)
+- **slow or unknown suites** (`speed_class=slow` or `speed_class=unknown`) → separate workflow (create new file)
+- The skip option is unavailable in non-interactive mode
+
+```bash
+if ! test -t 0; then
+  # non-interactive: apply default placement
+  if [ "$speed_class" = "fast" ]; then
+    placement="fast-gate"
+  else
+    placement="separate"
+  fi
+fi
+```
+
+#### INCORPORATED DEFINITION
+
+A suite is **incorporated** when its workflow file or job has been written to disk AND `git add` has been run on the file. Both conditions must be met before the suite is considered incorporated.
+
+#### YAML VALIDATION
+
+Before writing any workflow file (whether appending to an existing file for fast-gate, or creating a new file for separate), validate the YAML output:
+
+1. Write the YAML content to a temporary path (e.g., `<dest>.tmp`).
+2. Validate the temporary file:
+   - If `actionlint` is on PATH: run `actionlint <tmpfile>`. Exit non-zero blocks the write.
+   - Otherwise: run `python3 -c "import yaml; yaml.safe_load(open('<tmpfile>'))"`. Exit non-zero blocks the write.
+3. If validation passes: move the temporary file to the final destination path.
+4. If validation fails: print the error, remove the temporary file, and do not write the workflow file. Report the failure to the user.
+
+```bash
+# temp path → validate → move pattern
+TMPFILE="${DEST}.tmp"
+write_yaml_to "$TMPFILE"
+if command -v actionlint >/dev/null 2>&1; then
+  actionlint "$TMPFILE" || { rm -f "$TMPFILE"; echo "YAML validation failed (actionlint)"; exit 1; }
+else
+  python3 -c "import yaml; yaml.safe_load(open('$TMPFILE'))" || { rm -f "$TMPFILE"; echo "YAML validation failed (yaml.safe_load)"; exit 1; }
+fi
+mv "$TMPFILE" "$DEST"
+git add "$DEST"
+```
+
 ### Dryrun Preview
 
 In dryrun mode, `dso-setup.sh` prints a preview of the actions it would take for each file. The skill should surface this output as part of the Step 4 dryrun preview (see Step 4). No files are written or modified in dryrun mode.
@@ -583,7 +718,9 @@ The following changes will be made to <TARGET_REPO>:
   - will merge DSO hooks into .pre-commit-config.yaml  (if .pre-commit-config.yaml exists)
   - will copy pre-commit-config.example.yaml → <TARGET_REPO>/.pre-commit-config.yaml  (if absent)
   - will run CI guard analysis and report missing guards  (if CI workflow files exist)
-  - will copy ci.example.yml → <TARGET_REPO>/.github/workflows/ci.yml  (only if no CI workflow exists)
+  - will generate .github/workflows/ci.yml from N fast suites  (if suites discovered and fast suites exist)
+  - will generate .github/workflows/ci-slow.yml from N slow suites  (if suites discovered and slow suites exist)
+  - will copy ci.example.yml → <TARGET_REPO>/.github/workflows/ci.yml (no suites discovered, fallback only)
 ```
 
 Omit any line whose action would be skipped (e.g., if CLAUDE.md already has DSO markers, omit the supplement line).

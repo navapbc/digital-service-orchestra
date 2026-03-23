@@ -1,5 +1,5 @@
 # Digital Service Orchestra (DSO) — Continuous Integration
-# Runs shellcheck, Python linting, plugin tests, and auto-creates failure tickets.
+# Runs shellcheck, Python linting, and plugin tests.
 
 name: CI
 
@@ -95,7 +95,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install Python dependencies
-        run: pip install ruff
+        run: pip install ruff pyyaml
 
       - name: Run script tests
         run: bash tests/scripts/run-script-tests.sh
@@ -117,23 +117,3 @@ jobs:
       - name: Job timing report
         if: always()
         run: echo "test-evals completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-  # ── Failure ticket ──────────────────────────────────────────
-
-  create-failure-bug:
-    name: Create Failure Bug Ticket
-    runs-on: ubuntu-latest
-    needs: [shellcheck, lint-python, test-hooks, test-scripts, test-evals]
-    if: failure() && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install tk CLI
-        run: pip install tk
-
-      - name: Create failure bug
-        run: bash plugins/dso/scripts/ci-create-failure-bug.sh "${{ github.run_id }}"
-
-      - name: Job timing report
-        if: always()
-        run: echo "create-failure-bug completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

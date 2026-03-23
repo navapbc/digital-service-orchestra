@@ -4,11 +4,11 @@
 name: Inbound Bridge
 
 on:
-  schedule:
-    # Pull from Jira every 30 minutes. To change the interval, edit this cron
-    # expression directly — GitHub Actions does not support expressions in cron
-    # schedule values, so it cannot be set via a repository variable.
-    - cron: '*/30 * * * *'
+  # Schedule disabled until 'tickets' branch and Jira bridge infrastructure
+  # (JIRA_URL, ACLI_VERSION, ACLI_SHA256) are configured. See dso-lu5w.
+  # Uncomment when ready:
+  # schedule:
+  #   - cron: '*/30 * * * *'
   workflow_dispatch: {}
 
 concurrency:

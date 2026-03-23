@@ -75,16 +75,23 @@ _T2_HAS_CONDITIONAL=$(grep -B2 'export TK_SYNC_FORCE_LOCAL=1' "$TK_SCRIPT" | gre
 assert_ne "test_export_conditional_on_flag" "0" "$_T2_HAS_CONDITIONAL"
 
 # ---------------------------------------------------------------------------
+# Shared function-body extractions for Tests 3-5
+# Extract once here; reuse across all three tests to avoid repeated sed calls.
+# ---------------------------------------------------------------------------
+PUSH_FN_BODY=$(sed -n '/_sync_push_ticket()/,/^}/p' "$TK_SCRIPT")
+PULL_FN_BODY=$(sed -n '/_sync_pull_ticket()/,/^}/p' "$TK_SCRIPT")
+
+# ---------------------------------------------------------------------------
 # Test 3: _sync_push_ticket reads TK_SYNC_FORCE_LOCAL for conflict resolution
 # Static analysis: verify the push function checks the env var.
 # ---------------------------------------------------------------------------
 echo "Test 3: _sync_push_ticket checks TK_SYNC_FORCE_LOCAL"
 # Extract the _sync_push_ticket function body and check for env var reference
-_T3_PUSH_CHECK=$(sed -n '/_sync_push_ticket()/,/^}/p' "$TK_SCRIPT" | grep -c 'TK_SYNC_FORCE_LOCAL' || true)
+_T3_PUSH_CHECK=$(echo "$PUSH_FN_BODY" | grep -c 'TK_SYNC_FORCE_LOCAL' || true)
 assert_ne "test_push_checks_force_local" "0" "$_T3_PUSH_CHECK"
 
 # Verify: push conflict path with force-local sets _SYNC_FORCE_RESOLVED=1
-_T3_FORCE_RESOLVED=$(sed -n '/_sync_push_ticket()/,/^}/p' "$TK_SCRIPT" | grep -c '_SYNC_FORCE_RESOLVED=1' || true)
+_T3_FORCE_RESOLVED=$(echo "$PUSH_FN_BODY" | grep -c '_SYNC_FORCE_RESOLVED=1' || true)
 assert_ne "test_push_sets_force_resolved" "0" "$_T3_FORCE_RESOLVED"
 
 # ---------------------------------------------------------------------------
@@ -92,11 +99,11 @@ assert_ne "test_push_sets_force_resolved" "0" "$_T3_FORCE_RESOLVED"
 # Static analysis: verify the pull function checks the env var and returns 4.
 # ---------------------------------------------------------------------------
 echo "Test 4: _sync_pull_ticket checks TK_SYNC_FORCE_LOCAL and returns 4"
-_T4_PULL_CHECK=$(sed -n '/_sync_pull_ticket()/,/^}/p' "$TK_SCRIPT" | grep -c 'TK_SYNC_FORCE_LOCAL' || true)
+_T4_PULL_CHECK=$(echo "$PULL_FN_BODY" | grep -c 'TK_SYNC_FORCE_LOCAL' || true)
 assert_ne "test_pull_checks_force_local" "0" "$_T4_PULL_CHECK"
 
 # Verify: pull conflict path with force-local returns 4
-_T4_PULL_RETURN4=$(sed -n '/_sync_pull_ticket()/,/^}/p' "$TK_SCRIPT" | grep -c 'return 4' || true)
+_T4_PULL_RETURN4=$(echo "$PULL_FN_BODY" | grep -c 'return 4' || true)
 assert_ne "test_pull_returns_4_on_force" "0" "$_T4_PULL_RETURN4"
 
 # ---------------------------------------------------------------------------
@@ -105,11 +112,11 @@ assert_ne "test_pull_returns_4_on_force" "0" "$_T4_PULL_RETURN4"
 # ---------------------------------------------------------------------------
 echo "Test 5: conflict paths return 3 without --force-local"
 # Push conflict: "return 3" exists in the else branch (non-force path)
-_T5_PUSH_RETURN3=$(sed -n '/_sync_push_ticket()/,/^}/p' "$TK_SCRIPT" | grep -c 'return 3' || true)
+_T5_PUSH_RETURN3=$(echo "$PUSH_FN_BODY" | grep -c 'return 3' || true)
 assert_ne "test_push_returns_3_on_conflict" "0" "$_T5_PUSH_RETURN3"
 
 # Pull conflict: "return 3" exists in the else branch (non-force path)
-_T5_PULL_RETURN3=$(sed -n '/_sync_pull_ticket()/,/^}/p' "$TK_SCRIPT" | grep -c 'return 3' || true)
+_T5_PULL_RETURN3=$(echo "$PULL_FN_BODY" | grep -c 'return 3' || true)
 assert_ne "test_pull_returns_3_on_conflict" "0" "$_T5_PULL_RETURN3"
 
 # ---------------------------------------------------------------------------

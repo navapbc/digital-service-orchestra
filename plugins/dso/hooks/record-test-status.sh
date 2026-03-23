@@ -390,7 +390,11 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
 
     full_test_path="$REPO_ROOT/$test_file"
 
-    # Build comma-separated list
+    # Append to tested_files list BEFORE running the test — intentional ordering.
+    # This ensures that every test we attempted (including ones that time out with
+    # exit 144 and hit `continue` below) appears in the audit record. Recording
+    # attempted tests rather than only completed ones gives accurate observability
+    # when tests are interrupted mid-run.
     if [[ -n "$TESTED_FILES_LIST" ]]; then
         TESTED_FILES_LIST="${TESTED_FILES_LIST},${test_file}"
     else

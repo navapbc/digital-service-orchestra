@@ -248,8 +248,10 @@ git clone "$_ORIGIN_DIR" "$_WORK2" --quiet 2>/dev/null
     git commit -m "local diverge" --quiet
 ) 2>/dev/null
 
-# Set up state file so _set_phase_status has something to write to
-BRANCH="test-conflict-integ"
+# Set up state file so _set_phase_status has something to write to.
+# Use a PID-suffixed branch name so concurrent test instances don't race on
+# the same /tmp/merge-to-main-state-test-conflict-integ.json file.
+BRANCH="test-conflict-integ-$$"
 _state_init
 _STATE_FILE=$(_state_file_path)
 

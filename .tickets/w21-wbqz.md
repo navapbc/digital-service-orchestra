@@ -37,3 +37,12 @@ parent: w21-24kl
 - [Maintainability] CLAUDE.md prose descriptions updated alongside command references
 
 **Escalation policy**: Escalate to the user whenever you do not have high confidence in your understanding of the work, approach, or intent. High confidence means clear evidence from the codebase or ticket context — not inference or reasonable assumption. When in doubt, stop and ask rather than guess.
+
+<!-- note-id: ohmotare -->
+<!-- timestamp: 2026-03-22T16:06:13Z -->
+<!-- origin: agent -->
+<!-- sync: unsynced -->
+
+[Adversarial review] Additional done definitions:
+- Enumerated patterns must include .tickets/ path references in review-gate-allowlist.conf and compute-diff-hash.sh (not just tk command references) — update to v3 storage paths or the review gate will block/miss v3 ticket writes
+- .gitattributes merge driver entry and merge-ticket-index.py must be updated or removed — stale merge infrastructure causes worktree workflow failures

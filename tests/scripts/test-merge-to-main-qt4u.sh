@@ -94,16 +94,16 @@ assert_eq "test_bash_syntax_passes" "pass" "$SYNTAX_OK"
 # Test 9: _auto_resolve_archive_conflicts has archive-pattern logic
 # The function body must reference archive-path patterns to distinguish archive
 # rename/delete conflicts from other types of conflict.
+# (Reuses FN_BODY extracted in Test 3 — no re-extraction needed.)
 # =============================================================================
-FN_BODY_9=$(sed -n '/_auto_resolve_archive_conflicts()/,/^}/p' "$MERGE_SCRIPT")
-HAS_ARCHIVE_PATTERN=$(echo "$FN_BODY_9" | grep -cE '\.tickets/archive|archive/' || true)
+HAS_ARCHIVE_PATTERN=$(echo "$FN_BODY" | grep -cE '\.tickets/archive|archive/' || true)
 assert_ne "test_archive_rename_delete_auto_resolved" "0" "$HAS_ARCHIVE_PATTERN"
 
 # =============================================================================
 # Test 10: _auto_resolve_archive_conflicts has an abort path for non-archive conflicts
 # Non-archive conflicts must not be silently resolved — function must return 1.
 # =============================================================================
-HAS_ABORT_PATH=$(echo "$FN_BODY_9" | grep -cE 'return 1|rebase --abort' || true)
+HAS_ABORT_PATH=$(echo "$FN_BODY" | grep -cE 'return 1|rebase --abort' || true)
 assert_ne "test_non_archive_conflict_still_aborts" "0" "$HAS_ABORT_PATH"
 
 print_summary

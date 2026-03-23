@@ -32,3 +32,7 @@ After auto-resolve, merge-to-main.sh should re-run record-test-status.sh before 
 
 ## Workaround
 Manually resolve the merge: git merge origin/main --no-commit, resolve conflicts, run record-test-status.sh, then commit.
+
+**2026-03-22T19:03:47Z**
+
+Additional data from w22-anm2 sprint session (2026-03-22): merge-to-main.sh sync phase re-runs even after conflicts were manually resolved and committed, because it re-fetches and re-merges main. The state file does not record that sync completed after manual conflict resolution. Workaround: manually write the state file with sync marked as completed, then --resume. Related: created w20-xqxq for MAIN_REPO unbound variable in validate/ci_trigger phases during --resume.
