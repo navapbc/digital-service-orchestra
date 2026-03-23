@@ -1,6 +1,6 @@
 ---
 id: dso-749s
-status: in_progress
+status: closed
 deps: [dso-dr2k, dso-gq8v]
 links: []
 created: 2026-03-23T00:24:38Z
