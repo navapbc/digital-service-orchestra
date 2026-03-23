@@ -1,6 +1,6 @@
 ---
 id: dso-hyvp
-status: in_progress
+status: closed
 deps: [dso-qlyk, dso-rmn7]
 links: []
 created: 2026-03-23T20:30:06Z

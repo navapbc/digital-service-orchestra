@@ -1,6 +1,6 @@
 ---
 id: dso-8jp8
-status: in_progress
+status: closed
 deps: [dso-vl19, dso-cnj5]
 links: []
 created: 2026-03-23T20:27:52Z

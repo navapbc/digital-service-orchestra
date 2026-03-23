@@ -1,6 +1,6 @@
 ---
 id: dso-tdzq
-status: in_progress
+status: closed
 deps: [dso-qlyk]
 links: []
 created: 2026-03-23T20:29:31Z

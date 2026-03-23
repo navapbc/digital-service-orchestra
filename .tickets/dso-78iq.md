@@ -1,6 +1,6 @@
 ---
 id: dso-78iq
-status: open
+status: closed
 deps: [w21-wbqz]
 links: []
 created: 2026-03-22T16:05:49Z
