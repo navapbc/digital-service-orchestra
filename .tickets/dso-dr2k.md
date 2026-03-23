@@ -1,6 +1,6 @@
 ---
 id: dso-dr2k
-status: in_progress
+status: closed
 deps: [dso-710r, dso-pjcl]
 links: []
 created: 2026-03-23T00:24:23Z

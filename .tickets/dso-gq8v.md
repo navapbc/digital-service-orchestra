@@ -1,6 +1,6 @@
 ---
 id: dso-gq8v
-status: open
+status: in_progress
 deps: [dso-pjcl]
 links: []
 created: 2026-03-23T00:24:07Z
@@ -56,3 +56,29 @@ TDD FIRST: implement only after T3 tests are confirmed RED.
 - [ ] When rollback itself fails (git revert/checkout returns non-zero), script logs rollback failure to stderr and still exits non-zero with the original error — rollback failure does not swallow original error
   Verify: grep -q 'Rollback failed\|rollback_exit\|revert_rc\|checkout_rc\|rollback.*fail' $(git rev-parse --show-toplevel)/plugins/dso/scripts/cutover-tickets-migration.sh
 
+
+## Notes
+
+**2026-03-23T03:04:49Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T03:10:22Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓ — git diff --quiet HEAD detects both staged/unstaged changes; rollback logic: dirty WT → checkout, clean WT → revert HEAD; state file deletion needed for clean WT assertion
+
+**2026-03-23T03:11:35Z**
+
+CHECKPOINT 3/6: Tests written (RED tests pre-exist) ✓ — all 4 rollback tests confirmed RED before implementation, now GREEN
+
+**2026-03-23T03:11:35Z**
+
+CHECKPOINT 4/6: Implementation complete ✓ — _rollback_phase() added: captures HEAD before each phase; git diff --quiet HEAD to detect committed vs uncommitted; revert for clean WT, checkout for dirty WT; git clean -fd for untracked files; state file deletion on rollback
+
+**2026-03-23T03:31:09Z**
+
+CHECKPOINT 5/6: Validation passed ✓ — all 4 rollback tests GREEN; full suite: same pre-existing failures (test-review-workflow-classifier-dispatch: 2 fail, test-doc-migration: 1 fail); resume tests (T9/T10) remain RED as expected (belong to dso-749s)
+
+**2026-03-23T03:32:08Z**
+
+CHECKPOINT 6/6: Done ✓ — all AC pass: 4 rollback tests GREEN, grep checks pass, ruff pass. Pre-existing failures (review-workflow-classifier-dispatch, doc-migration, resume tests for dso-749s) unchanged.

@@ -1,6 +1,6 @@
 ---
 id: dso-a15u
-status: in_progress
+status: closed
 deps: [dso-ech8]
 links: []
 created: 2026-03-23T00:25:56Z
