@@ -204,4 +204,234 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
 
 # =============================================================================
+# Test 4: test_cutover_rollback_uncommitted_uses_checkout
+#
+# RED phase: rollback logic does not exist yet — these tests FAIL.
+#
+# Setup: temp git repo with an initial commit. The MIGRATE phase touches a
+# tracked file but exits non-zero WITHOUT committing the change.
+# Assert: the working-tree modification is reversed after the script exits
+#         (git checkout -- restores the file); exit code non-zero.
+# =============================================================================
+_setup_fixture
+
+# Create a tracked file with a known initial state
+printf 'initial content\n' > "$_FIXTURE_DIR/tracked.txt"
+git -C "$_FIXTURE_DIR" add tracked.txt
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit"
+
+_ROLLBACK_UC_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
+_ROLLBACK_UC_RC=0
+
+# Run the script; MIGRATE phase will exit 1 (non-zero, no commit).
+# The phase has no rollback today so the file remains modified — RED.
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_ROLLBACK_UC_STATE_FILE" \
+CUTOVER_PHASE_EXIT_OVERRIDE="MIGRATE=1" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _ROLLBACK_UC_RC=$?
+
+_snapshot_fail
+# Assert non-zero exit
+assert_ne "test_cutover_rollback_uncommitted_uses_checkout_exit_nonzero" "0" "$_ROLLBACK_UC_RC"
+
+# Assert working-tree is clean (rollback reversed uncommitted changes)
+_WT_STATUS=$(git -C "$_FIXTURE_DIR" status --porcelain 2>/dev/null)
+if [[ -z "$_WT_STATUS" ]]; then
+    _WT_CLEAN="true"
+else
+    _WT_CLEAN="false"
+fi
+assert_eq "test_cutover_rollback_uncommitted_uses_checkout" "true" "$_WT_CLEAN"
+assert_pass_if_clean "test_cutover_rollback_uncommitted_uses_checkout"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
+# Test 5: test_cutover_rollback_committed_uses_revert
+#
+# RED phase: rollback logic does not exist yet — this test FAILS.
+#
+# Setup: temp git repo. The MIGRATE phase makes a file change and commits it;
+# the VERIFY phase then exits non-zero (simulating a post-commit failure).
+# Assert: committed change is absent in HEAD after rollback (git revert applied);
+#         exit code non-zero.
+# =============================================================================
+_setup_fixture
+
+# Create tracked file and initial commit
+printf 'initial content\n' > "$_FIXTURE_DIR/data.txt"
+git -C "$_FIXTURE_DIR" add data.txt
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit"
+
+_INITIAL_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
+_ROLLBACK_CM_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
+_ROLLBACK_CM_RC=0
+
+# We need the MIGRATE phase to commit a change, then VERIFY to fail.
+# Inject a helper by writing a wrapper script that sources the real cutover
+# script's phases but intercepts MIGRATE to make a real commit first.
+# Strategy: use CUTOVER_PHASE_EXIT_OVERRIDE="VERIFY=1" and a pre-seeded commit
+# by adding a commit directly in the fixture before the run. We also need
+# the script to "see" that commit as having been made during the run.
+# Simplest approach: produce a commit via a phase wrapper env mechanism.
+# Since the real implementation doesn't have commit-in-phase yet, we simulate
+# by pre-staging a commit and asserting rollback reverses it.
+
+# Add a "migration commit" to simulate what MIGRATE would do
+printf 'migrated content\n' > "$_FIXTURE_DIR/data.txt"
+git -C "$_FIXTURE_DIR" add data.txt
+git -C "$_FIXTURE_DIR" commit -q -m "cutover: migrate data"
+_PRE_FAILURE_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
+
+# Run the cutover script with VERIFY phase failing (post-commit scenario).
+# Rollback should detect committed changes and revert them (git revert).
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_ROLLBACK_CM_STATE_FILE" \
+CUTOVER_PHASE_EXIT_OVERRIDE="VERIFY=1" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _ROLLBACK_CM_RC=$?
+
+_snapshot_fail
+# Assert non-zero exit
+assert_ne "test_cutover_rollback_committed_uses_revert_exit_nonzero" "0" "$_ROLLBACK_CM_RC"
+
+# Assert HEAD advanced past the initial commit (a revert commit was created,
+# not a hard reset which would leave HEAD == _INITIAL_HEAD).
+_HEAD_AFTER=$(git -C "$_FIXTURE_DIR" rev-parse HEAD 2>/dev/null || echo "ERROR")
+if [[ "$_HEAD_AFTER" != "$_INITIAL_HEAD" ]]; then
+    _HEAD_ADVANCED="true"
+else
+    _HEAD_ADVANCED="false"
+fi
+assert_eq "test_cutover_rollback_committed_uses_revert_head_advanced" "true" "$_HEAD_ADVANCED"
+
+# Assert content at HEAD equals initial content (revert restored the original,
+# distinguishing git revert from a checkout/reset that leaves no revert commit).
+_HEAD_DATA=$(git -C "$_FIXTURE_DIR" show HEAD:data.txt 2>/dev/null || echo "ERROR")
+if [[ "$_HEAD_DATA" == "initial content" ]]; then
+    _COMMIT_ROLLED_BACK="true"
+else
+    _COMMIT_ROLLED_BACK="false"
+fi
+assert_eq "test_cutover_rollback_committed_uses_revert" "true" "$_COMMIT_ROLLED_BACK"
+assert_pass_if_clean "test_cutover_rollback_committed_uses_revert"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
+# Test 6: test_cutover_exits_with_error_and_log_path_on_failure
+#
+# RED phase: error output format with log path is not yet guaranteed — FAILS.
+#
+# Setup: temp git repo. Force any phase to exit non-zero.
+# Assert: stderr contains "ERROR" and the log file path; exit code non-zero.
+# =============================================================================
+_setup_fixture
+
+_ERR_LOG_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
+_ERR_LOG_RC=0
+_ERR_COMBINED=""
+
+_ERR_COMBINED=$(
+    CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+    CUTOVER_STATE_FILE="$_ERR_LOG_STATE_FILE" \
+    CUTOVER_PHASE_EXIT_OVERRIDE="MIGRATE=1" \
+    bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1
+) || _ERR_LOG_RC=$?
+
+_snapshot_fail
+# Assert non-zero exit
+assert_ne "test_cutover_exits_with_error_and_log_path_on_failure_exit_nonzero" "0" "$_ERR_LOG_RC"
+
+# Assert stderr contains "ERROR"
+if echo "$_ERR_COMBINED" | grep -q 'ERROR'; then
+    _HAS_ERROR_WORD="true"
+else
+    _HAS_ERROR_WORD="false"
+fi
+assert_eq "test_cutover_exits_with_error_and_log_path_on_failure_has_ERROR" "true" "$_HAS_ERROR_WORD"
+
+# Assert stderr contains a log file path (pattern: /path/to/cutover-*.log)
+if echo "$_ERR_COMBINED" | grep -qE 'cutover-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}\.log'; then
+    _HAS_LOG_PATH="true"
+else
+    _HAS_LOG_PATH="false"
+fi
+assert_eq "test_cutover_exits_with_error_and_log_path_on_failure" "true" "$_HAS_LOG_PATH"
+assert_pass_if_clean "test_cutover_exits_with_error_and_log_path_on_failure"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
+# Test 7: test_cutover_rollback_distinguishes_commit_boundary
+#
+# RED phase: commit-boundary detection logic does not exist — FAILS.
+#
+# Critical adversarial case: when a pre-commit hook REJECTS a commit
+# (exits 1, HEAD unchanged), rollback must use working-tree reset (git checkout --)
+# NOT git revert (which would fail — there's nothing to revert).
+#
+# Setup: temp git repo with a pre-commit hook that always exits 1.
+# Phase: working-tree modification + git add + attempted git commit (hook rejects).
+# Assert: rollback performs working-tree reset; HEAD is unchanged (no new commits,
+#         no revert commits); working tree is clean after rollback.
+# =============================================================================
+_setup_fixture
+
+# Create tracked file with initial commit
+printf 'initial content\n' > "$_FIXTURE_DIR/boundary.txt"
+git -C "$_FIXTURE_DIR" add boundary.txt
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit"
+
+_BOUNDARY_INITIAL_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
+
+# Install a pre-commit hook that always rejects commits
+mkdir -p "$_FIXTURE_DIR/.git/hooks"
+printf '#!/bin/sh\necho "pre-commit: rejected"\nexit 1\n' > "$_FIXTURE_DIR/.git/hooks/pre-commit"
+chmod +x "$_FIXTURE_DIR/.git/hooks/pre-commit"
+
+# Simulate the scenario: MIGRATE phase modifies + stages the file, then
+# the attempted commit is rejected by the hook. MIGRATE exits non-zero.
+# The script should detect HEAD is unchanged (no commit occurred) and use
+# working-tree reset, not git revert.
+
+_BOUNDARY_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
+_BOUNDARY_RC=0
+
+# We use CUTOVER_PHASE_EXIT_OVERRIDE="MIGRATE=1" to simulate the commit-reject
+# scenario. Before running, manually stage a change to simulate what a real
+# MIGRATE phase would do (modify + add, then fail to commit due to hook).
+printf 'modified content\n' > "$_FIXTURE_DIR/boundary.txt"
+git -C "$_FIXTURE_DIR" add boundary.txt
+
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_BOUNDARY_STATE_FILE" \
+CUTOVER_PHASE_EXIT_OVERRIDE="MIGRATE=1" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _BOUNDARY_RC=$?
+
+_snapshot_fail
+# Assert non-zero exit
+assert_ne "test_cutover_rollback_distinguishes_commit_boundary_exit_nonzero" "0" "$_BOUNDARY_RC"
+
+# Assert HEAD is unchanged (no new commit, no revert commit)
+_BOUNDARY_HEAD_AFTER=$(git -C "$_FIXTURE_DIR" rev-parse HEAD 2>/dev/null)
+assert_eq "test_cutover_rollback_distinguishes_commit_boundary_head_unchanged" \
+    "$_BOUNDARY_INITIAL_HEAD" "$_BOUNDARY_HEAD_AFTER"
+
+# Assert working tree is clean (rollback used checkout --, not revert)
+_BOUNDARY_WT_STATUS=$(git -C "$_FIXTURE_DIR" status --porcelain 2>/dev/null)
+if [[ -z "$_BOUNDARY_WT_STATUS" ]]; then
+    _BOUNDARY_WT_CLEAN="true"
+else
+    _BOUNDARY_WT_CLEAN="false"
+fi
+assert_eq "test_cutover_rollback_distinguishes_commit_boundary" "true" "$_BOUNDARY_WT_CLEAN"
+assert_pass_if_clean "test_cutover_rollback_distinguishes_commit_boundary"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
 print_summary

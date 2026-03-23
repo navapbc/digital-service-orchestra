@@ -1,6 +1,6 @@
 ---
 id: dso-710r
-status: in_progress
+status: closed
 deps: [dso-otk0]
 links: []
 created: 2026-03-23T00:22:57Z

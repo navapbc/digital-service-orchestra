@@ -1,6 +1,6 @@
 ---
 id: dso-mcq0
-status: in_progress
+status: open
 deps: [dso-97xo, dso-141j]
 links: []
 created: 2026-03-22T22:51:21Z
@@ -57,3 +57,7 @@ CHECKPOINT 5/6: Validation passed ✓ — AC Results: AC1 PASS (cron active), AC
 **2026-03-23T01:33:06Z**
 
 CHECKPOINT 6/6: Done ✓ — Story verification complete. Summary: (1) cron schedule active ✓, (2) tickets branch on remote ✓, (3) workflow_dispatch triggered — progresses past checkout but fails at ACLI_VERSION env var (dependency on dso-141j). Created dso-7nos to track ACLI_VERSION env var completion.
+
+**2026-03-23T01:48:36Z**
+
+CHECKPOINT 5/6: Partial — AC1 pass (cron active), AC3 pass (tickets branch exists). AC2 fail — workflow_dispatch runs but fails at ACLI_VERSION unset. Blocked by dso-7nos (ACLI env var config). Reverted to open.

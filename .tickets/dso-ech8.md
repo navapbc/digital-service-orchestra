@@ -1,6 +1,6 @@
 ---
 id: dso-ech8
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-03-23T00:25:28Z
@@ -36,3 +36,29 @@ TDD Requirement: TDD exemption — Criterion #3 (static assets only): this task 
 - [ ] File is NOT committed (lives in working tree only; will be included in w21-wbqz atomic commit)
   Verify: git -C $(git rev-parse --show-toplevel) status --short | grep -q 'ticket-cli-reference.md'
 
+
+## Notes
+
+**2026-03-23T01:50:00Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T01:51:33Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T01:51:37Z**
+
+CHECKPOINT 3/6: Tests written (none required) ✓
+
+**2026-03-23T01:53:38Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T02:04:42Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-23T02:04:53Z**
+
+CHECKPOINT 6/6: Done ✓
