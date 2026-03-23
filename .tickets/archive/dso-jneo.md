@@ -1,7 +1,7 @@
 ---
 id: dso-jneo
 status: closed
-deps: [dso-l19q, dso-5lb8]
+deps: [dso-5lb8]
 links: []
 created: 2026-03-18T17:15:25Z
 type: story

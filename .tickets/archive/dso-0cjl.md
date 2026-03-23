@@ -1,7 +1,7 @@
 ---
 id: dso-0cjl
 status: closed
-deps: [dso-ff9f]
+deps: []
 links: []
 created: 2026-03-18T04:37:01Z
 type: story
