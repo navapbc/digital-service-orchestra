@@ -247,122 +247,6 @@ assert_pass_if_clean "test_cutover_rollback_uncommitted_uses_checkout"
 rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR
 
-# =============================================================================
-# Test 5: test_cutover_rollback_committed_uses_revert
-#
-# RED phase: rollback logic does not exist yet — this test FAILS.
-#
-# Setup: temp git repo. The MIGRATE phase makes a file change and commits it;
-# the VERIFY phase then exits non-zero (simulating a post-commit failure).
-# Assert: committed change is absent in HEAD after rollback (git revert applied);
-#         exit code non-zero.
-# =============================================================================
-_setup_fixture
-
-# Create tracked file and initial commit
-printf 'initial content\n' > "$_FIXTURE_DIR/data.txt"
-git -C "$_FIXTURE_DIR" add data.txt
-git -C "$_FIXTURE_DIR" commit -q -m "initial commit"
-
-_INITIAL_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
-_ROLLBACK_CM_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
-_ROLLBACK_CM_RC=0
-
-# We need the MIGRATE phase to commit a change, then VERIFY to fail.
-# Inject a helper by writing a wrapper script that sources the real cutover
-# script's phases but intercepts MIGRATE to make a real commit first.
-# Strategy: use CUTOVER_PHASE_EXIT_OVERRIDE="VERIFY=1" and a pre-seeded commit
-# by adding a commit directly in the fixture before the run. We also need
-# the script to "see" that commit as having been made during the run.
-# Simplest approach: produce a commit via a phase wrapper env mechanism.
-# Since the real implementation doesn't have commit-in-phase yet, we simulate
-# by pre-staging a commit and asserting rollback reverses it.
-
-# Add a "migration commit" to simulate what MIGRATE would do
-printf 'migrated content\n' > "$_FIXTURE_DIR/data.txt"
-git -C "$_FIXTURE_DIR" add data.txt
-git -C "$_FIXTURE_DIR" commit -q -m "cutover: migrate data"
-_PRE_FAILURE_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
-
-# Run the cutover script with VERIFY phase failing (post-commit scenario).
-# Rollback should detect committed changes and revert them (git revert).
-CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
-CUTOVER_STATE_FILE="$_ROLLBACK_CM_STATE_FILE" \
-CUTOVER_PHASE_EXIT_OVERRIDE="VERIFY=1" \
-bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _ROLLBACK_CM_RC=$?
-
-_snapshot_fail
-# Assert non-zero exit
-assert_ne "test_cutover_rollback_committed_uses_revert_exit_nonzero" "0" "$_ROLLBACK_CM_RC"
-
-# Assert HEAD advanced past the initial commit (a revert commit was created,
-# not a hard reset which would leave HEAD == _INITIAL_HEAD).
-_HEAD_AFTER=$(git -C "$_FIXTURE_DIR" rev-parse HEAD 2>/dev/null || echo "ERROR")
-if [[ "$_HEAD_AFTER" != "$_INITIAL_HEAD" ]]; then
-    _HEAD_ADVANCED="true"
-else
-    _HEAD_ADVANCED="false"
-fi
-assert_eq "test_cutover_rollback_committed_uses_revert_head_advanced" "true" "$_HEAD_ADVANCED"
-
-# Assert content at HEAD equals initial content (revert restored the original,
-# distinguishing git revert from a checkout/reset that leaves no revert commit).
-_HEAD_DATA=$(git -C "$_FIXTURE_DIR" show HEAD:data.txt 2>/dev/null || echo "ERROR")
-if [[ "$_HEAD_DATA" == "initial content" ]]; then
-    _COMMIT_ROLLED_BACK="true"
-else
-    _COMMIT_ROLLED_BACK="false"
-fi
-assert_eq "test_cutover_rollback_committed_uses_revert" "true" "$_COMMIT_ROLLED_BACK"
-assert_pass_if_clean "test_cutover_rollback_committed_uses_revert"
-
-rm -rf "$_FIXTURE_DIR"
-unset _FIXTURE_DIR _FIXTURE_LOG_DIR
-
-# =============================================================================
-# Test 6: test_cutover_exits_with_error_and_log_path_on_failure
-#
-# RED phase: error output format with log path is not yet guaranteed — FAILS.
-#
-# Setup: temp git repo. Force any phase to exit non-zero.
-# Assert: stderr contains "ERROR" and the log file path; exit code non-zero.
-# =============================================================================
-_setup_fixture
-
-_ERR_LOG_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
-_ERR_LOG_RC=0
-_ERR_COMBINED=""
-
-_ERR_COMBINED=$(
-    CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
-    CUTOVER_STATE_FILE="$_ERR_LOG_STATE_FILE" \
-    CUTOVER_PHASE_EXIT_OVERRIDE="MIGRATE=1" \
-    bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1
-) || _ERR_LOG_RC=$?
-
-_snapshot_fail
-# Assert non-zero exit
-assert_ne "test_cutover_exits_with_error_and_log_path_on_failure_exit_nonzero" "0" "$_ERR_LOG_RC"
-
-# Assert stderr contains "ERROR"
-if echo "$_ERR_COMBINED" | grep -q 'ERROR'; then
-    _HAS_ERROR_WORD="true"
-else
-    _HAS_ERROR_WORD="false"
-fi
-assert_eq "test_cutover_exits_with_error_and_log_path_on_failure_has_ERROR" "true" "$_HAS_ERROR_WORD"
-
-# Assert stderr contains a log file path (pattern: /path/to/cutover-*.log)
-if echo "$_ERR_COMBINED" | grep -qE 'cutover-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}\.log'; then
-    _HAS_LOG_PATH="true"
-else
-    _HAS_LOG_PATH="false"
-fi
-assert_eq "test_cutover_exits_with_error_and_log_path_on_failure" "true" "$_HAS_LOG_PATH"
-assert_pass_if_clean "test_cutover_exits_with_error_and_log_path_on_failure"
-
-rm -rf "$_FIXTURE_DIR"
-unset _FIXTURE_DIR _FIXTURE_LOG_DIR
 
 # =============================================================================
 # Test 7: test_cutover_rollback_distinguishes_commit_boundary
@@ -1149,8 +1033,10 @@ _snapshot_fail
 assert_eq "test_phase_migrate_preserves_notes_with_timestamps_exit_0" "0" "$_NOTES_RC"
 
 # Assert COMMENT event JSON exists for dso-notes1
+# Note: -S 65536 is required on macOS where the default replsize is 255 bytes,
+# which is insufficient when the path appears twice in the -c script.
 _COMMENT_EVENT=$(find "$_NOTES_TRACKER_DIR" -path "*/dso-notes1/*" -name "*.json" 2>/dev/null | \
-    xargs -I{} python3 -c "
+    xargs -I{} -S 65536 python3 -c "
 import json, sys
 try:
     with open('{}') as fh:
@@ -1214,4 +1100,120 @@ assert_eq "test_phase_migrate_disables_compaction" "true" "$_HAS_COMPACT_DISABLE
 assert_pass_if_clean "test_phase_migrate_disables_compaction"
 
 # =============================================================================
+# =============================================================================
+# Test 5: test_cutover_rollback_committed_uses_revert
+#
+# RED phase: rollback logic does not exist yet — this test FAILS.
+#
+# Setup: temp git repo. The MIGRATE phase makes a file change and commits it;
+# the VERIFY phase then exits non-zero (simulating a post-commit failure).
+# Assert: committed change is absent in HEAD after rollback (git revert applied);
+#         exit code non-zero.
+# =============================================================================
+_setup_fixture
+
+# Create tracked file and initial commit
+printf 'initial content\n' > "$_FIXTURE_DIR/data.txt"
+git -C "$_FIXTURE_DIR" add data.txt
+git -C "$_FIXTURE_DIR" commit -q -m "initial commit"
+
+_INITIAL_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
+_ROLLBACK_CM_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
+_ROLLBACK_CM_RC=0
+
+# We need the MIGRATE phase to commit a change, then VERIFY to fail.
+# Inject a helper by writing a wrapper script that sources the real cutover
+# script's phases but intercepts MIGRATE to make a real commit first.
+# Strategy: use CUTOVER_PHASE_EXIT_OVERRIDE="VERIFY=1" and a pre-seeded commit
+# by adding a commit directly in the fixture before the run. We also need
+# the script to "see" that commit as having been made during the run.
+# Simplest approach: produce a commit via a phase wrapper env mechanism.
+# Since the real implementation doesn't have commit-in-phase yet, we simulate
+# by pre-staging a commit and asserting rollback reverses it.
+
+# Add a "migration commit" to simulate what MIGRATE would do
+printf 'migrated content\n' > "$_FIXTURE_DIR/data.txt"
+git -C "$_FIXTURE_DIR" add data.txt
+git -C "$_FIXTURE_DIR" commit -q -m "cutover: migrate data"
+_PRE_FAILURE_HEAD=$(git -C "$_FIXTURE_DIR" rev-parse HEAD)
+
+# Run the cutover script with VERIFY phase failing (post-commit scenario).
+# Rollback should detect committed changes and revert them (git revert).
+CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+CUTOVER_STATE_FILE="$_ROLLBACK_CM_STATE_FILE" \
+CUTOVER_PHASE_EXIT_OVERRIDE="VERIFY=1" \
+bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1 >/dev/null || _ROLLBACK_CM_RC=$?
+
+_snapshot_fail
+# Assert non-zero exit
+assert_ne "test_cutover_rollback_committed_uses_revert_exit_nonzero" "0" "$_ROLLBACK_CM_RC"
+
+# Assert HEAD advanced past the initial commit (a revert commit was created,
+# not a hard reset which would leave HEAD == _INITIAL_HEAD).
+_HEAD_AFTER=$(git -C "$_FIXTURE_DIR" rev-parse HEAD 2>/dev/null || echo "ERROR")
+if [[ "$_HEAD_AFTER" != "$_INITIAL_HEAD" ]]; then
+    _HEAD_ADVANCED="true"
+else
+    _HEAD_ADVANCED="false"
+fi
+assert_eq "test_cutover_rollback_committed_uses_revert_head_advanced" "true" "$_HEAD_ADVANCED"
+
+# Assert content at HEAD equals initial content (revert restored the original,
+# distinguishing git revert from a checkout/reset that leaves no revert commit).
+_HEAD_DATA=$(git -C "$_FIXTURE_DIR" show HEAD:data.txt 2>/dev/null || echo "ERROR")
+if [[ "$_HEAD_DATA" == "initial content" ]]; then
+    _COMMIT_ROLLED_BACK="true"
+else
+    _COMMIT_ROLLED_BACK="false"
+fi
+assert_eq "test_cutover_rollback_committed_uses_revert" "true" "$_COMMIT_ROLLED_BACK"
+assert_pass_if_clean "test_cutover_rollback_committed_uses_revert"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
+
+# =============================================================================
+# Test 6: test_cutover_exits_with_error_and_log_path_on_failure
+#
+# RED phase: error output format with log path is not yet guaranteed — FAILS.
+#
+# Setup: temp git repo. Force any phase to exit non-zero.
+# Assert: stderr contains "ERROR" and the log file path; exit code non-zero.
+# =============================================================================
+_setup_fixture
+
+_ERR_LOG_STATE_FILE="$_FIXTURE_DIR/.cutover-state.json"
+_ERR_LOG_RC=0
+_ERR_COMBINED=""
+
+_ERR_COMBINED=$(
+    CUTOVER_LOG_DIR="$_FIXTURE_LOG_DIR" \
+    CUTOVER_STATE_FILE="$_ERR_LOG_STATE_FILE" \
+    CUTOVER_PHASE_EXIT_OVERRIDE="MIGRATE=1" \
+    bash "$CUTOVER_SCRIPT" --repo-root="$_FIXTURE_DIR" 2>&1
+) || _ERR_LOG_RC=$?
+
+_snapshot_fail
+# Assert non-zero exit
+assert_ne "test_cutover_exits_with_error_and_log_path_on_failure_exit_nonzero" "0" "$_ERR_LOG_RC"
+
+# Assert stderr contains "ERROR"
+if echo "$_ERR_COMBINED" | grep -q 'ERROR'; then
+    _HAS_ERROR_WORD="true"
+else
+    _HAS_ERROR_WORD="false"
+fi
+assert_eq "test_cutover_exits_with_error_and_log_path_on_failure_has_ERROR" "true" "$_HAS_ERROR_WORD"
+
+# Assert stderr contains a log file path (pattern: /path/to/cutover-*.log)
+if echo "$_ERR_COMBINED" | grep -qE 'cutover-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}\.log'; then
+    _HAS_LOG_PATH="true"
+else
+    _HAS_LOG_PATH="false"
+fi
+assert_eq "test_cutover_exits_with_error_and_log_path_on_failure" "true" "$_HAS_LOG_PATH"
+assert_pass_if_clean "test_cutover_exits_with_error_and_log_path_on_failure"
+
+rm -rf "$_FIXTURE_DIR"
+unset _FIXTURE_DIR _FIXTURE_LOG_DIR
 print_summary

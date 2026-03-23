@@ -84,6 +84,12 @@ if [[ -z "$_REPO_ROOT" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Ticket directory env vars (used by _phase_migrate)
+# ---------------------------------------------------------------------------
+# CUTOVER_TICKETS_DIR  — source .tickets/ dir (default: REPO_ROOT/.tickets)
+# CUTOVER_TRACKER_DIR  — destination .tickets-tracker/ dir (default: REPO_ROOT/.tickets-tracker)
+
+# ---------------------------------------------------------------------------
 # Log file setup
 # ---------------------------------------------------------------------------
 : "${CUTOVER_LOG_DIR:=/tmp}"
@@ -190,7 +196,7 @@ _check_override() {
 
 _phase_validate() {
     echo "Running phase: validate"
-    _check_override "validate"
+    _check_override "validate" || return $?
 }
 
 _phase_snapshot() {
@@ -204,7 +210,7 @@ _phase_snapshot() {
     # valid future hardening but are out of scope for dso-9trm, whose AC is the snapshot
     # implementation itself (dso-gfph owned the test story).
     echo "Running phase: snapshot"
-    _check_override "snapshot"
+    _check_override "snapshot" || return $?
     # Write pre-flight snapshot to CUTOVER_SNAPSHOT_FILE
     local _tickets_dir="${_REPO_ROOT}/.tickets"
     local _ticket_ids=()
@@ -306,17 +312,253 @@ PYEOF
 
 _phase_migrate() {
     echo "Running phase: migrate"
-    _check_override "migrate"
+    _check_override "migrate" || return $?
+
+    # Disable compaction during migration
+    export TICKET_COMPACT_DISABLED=1
+
+    local _tickets_dir="${CUTOVER_TICKETS_DIR:-${_REPO_ROOT}/.tickets}"
+    local _tracker_dir="${CUTOVER_TRACKER_DIR:-${_REPO_ROOT}/.tickets-tracker}"
+
+    local _migrated=0
+    local _skipped_already=0
+    local _skipped_malformed=0
+
+    if [[ ! -d "$_tickets_dir" ]]; then
+        echo "WARN: tickets directory not found: $_tickets_dir" >&2
+        unset TICKET_COMPACT_DISABLED
+        return 0
+    fi
+
+    mkdir -p "$_tracker_dir"
+
+    # Process each .tickets/*.md file
+    while IFS= read -r -d '' _md_file; do
+        local _basename
+        _basename=$(basename "$_md_file")
+
+        # Skip non-ticket files
+        case "$_basename" in
+            README.md|.index.json) continue ;;
+        esac
+        # Must end in .md
+        [[ "$_basename" == *.md ]] || continue
+
+        # Parse frontmatter via python3
+        local _parse_result
+        _parse_result=$(python3 - "$_md_file" <<'PYEOF'
+import sys, json
+
+md_path = sys.argv[1]
+try:
+    with open(md_path, encoding='utf-8') as fh:
+        content = fh.read()
+except Exception as e:
+    print(json.dumps({"error": str(e)}))
+    sys.exit(0)
+
+lines = content.splitlines()
+
+# Find frontmatter delimiters
+if len(lines) < 2 or lines[0].strip() != '---':
+    print(json.dumps({"error": "no_frontmatter"}))
+    sys.exit(0)
+
+end_idx = None
+for i in range(1, len(lines)):
+    if lines[i].strip() == '---':
+        end_idx = i
+        break
+
+if end_idx is None:
+    print(json.dumps({"error": "no_closing_delimiter"}))
+    sys.exit(0)
+
+fm_lines = lines[1:end_idx]
+body_lines = lines[end_idx+1:]
+
+# Simple YAML key:value parser (handles lists as yaml: [a, b] or multi-line "- item")
+fm = {}
+i = 0
+while i < len(fm_lines):
+    line = fm_lines[i]
+    if ':' in line and not line.startswith(' '):
+        key, _, rest = line.partition(':')
+        key = key.strip()
+        rest = rest.strip()
+        if rest.startswith('[') and rest.endswith(']'):
+            inner = rest[1:-1].strip()
+            if inner:
+                fm[key] = [x.strip().strip('"\'') for x in inner.split(',') if x.strip()]
+            else:
+                fm[key] = []
+        elif rest == '':
+            # Possible multi-line list: collect indented "- item" lines that follow
+            items = []
+            j = i + 1
+            while j < len(fm_lines) and fm_lines[j].startswith(' '):
+                stripped = fm_lines[j].strip()
+                if stripped.startswith('- '):
+                    items.append(stripped[2:].strip().strip('"\''))
+                j += 1
+            if items:
+                fm[key] = items
+                i = j
+                continue
+            else:
+                fm[key] = rest
+        else:
+            fm[key] = rest
+    i += 1
+
+# Collect notes from body (lines under ## Notes that match [timestamp] text)
+notes = []
+in_notes = False
+for line in body_lines:
+    stripped = line.strip()
+    if stripped.lower().startswith('## notes'):
+        in_notes = True
+        continue
+    if stripped.startswith('## ') and in_notes:
+        in_notes = False
+        continue
+    if in_notes and stripped.startswith('[') and ']' in stripped:
+        # Timestamped note line: [timestamp] body text
+        bracket_end = stripped.index(']')
+        note_body = stripped[bracket_end+1:].strip()
+        if note_body:
+            notes.append(note_body)
+
+result = {
+    "id": fm.get("id", ""),
+    "title": fm.get("title", ""),
+    "status": fm.get("status", "open"),
+    "type": fm.get("type", "task"),
+    "priority": fm.get("priority", "2"),
+    "parent": fm.get("parent", ""),
+    "deps": fm.get("deps", []) if isinstance(fm.get("deps"), list) else [],
+    "links": fm.get("links", []) if isinstance(fm.get("links"), list) else [],
+    "notes": notes,
+}
+print(json.dumps(result))
+PYEOF
+)
+
+        # Check for parse errors
+        local _parse_error
+        _parse_error=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('error',''))" "$_parse_result" 2>/dev/null || echo "python_error")
+        if [[ -n "$_parse_error" ]]; then
+            echo "WARN: skipping malformed ticket $_basename (${_parse_error})" >&2
+            (( _skipped_malformed++ )) || true
+            continue
+        fi
+
+        local _ticket_id
+        _ticket_id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('id',''))" "$_parse_result" 2>/dev/null || echo "")
+        if [[ -z "$_ticket_id" ]]; then
+            echo "WARN: skipping malformed ticket $_basename (no id)" >&2
+            (( _skipped_malformed++ )) || true
+            continue
+        fi
+
+        # Idempotency check: skip if CREATE event already exists
+        if find "$_tracker_dir/$_ticket_id" -maxdepth 1 -name '*-CREATE.json' 2>/dev/null | grep -q .; then
+            echo "Skipping already-migrated ticket: $_ticket_id"
+            (( _skipped_already++ )) || true
+            continue
+        fi
+
+        # Extract remaining fields
+        local _ticket_type _ticket_title _ticket_status _ticket_notes
+        _ticket_type=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('type','task'))" "$_parse_result")
+        _ticket_title=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('title',''))" "$_parse_result")
+        _ticket_status=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('status','open'))" "$_parse_result")
+
+        # Create ticket directory and write CREATE event JSON directly
+        mkdir -p "$_tracker_dir/$_ticket_id"
+        python3 - "$_tracker_dir/$_ticket_id" "$_ticket_id" "$_ticket_type" "$_ticket_title" "$_ticket_status" "$_parse_result" <<'PYEOF'
+import json, sys, uuid, time
+
+ticket_dir   = sys.argv[1]
+ticket_id    = sys.argv[2]
+ticket_type  = sys.argv[3]
+title        = sys.argv[4]
+status       = sys.argv[5]
+parse_json   = sys.argv[6]
+
+parsed = json.loads(parse_json)
+notes  = parsed.get("notes", [])
+
+ts = int(time.time())
+event_uuid = str(uuid.uuid4())
+
+# Write CREATE event
+create_event = {
+    "timestamp": ts,
+    "uuid": event_uuid,
+    "event_type": "CREATE",
+    "data": {
+        "ticket_type": ticket_type,
+        "title": title,
+    }
+}
+create_filename = f"{ts}-{event_uuid}-CREATE.json"
+with open(f"{ticket_dir}/{create_filename}", "w", encoding="utf-8") as fh:
+    json.dump(create_event, fh, ensure_ascii=False)
+
+# Write STATUS event if status != open
+if status not in ("open", ""):
+    ts2 = ts + 1
+    status_uuid = str(uuid.uuid4())
+    status_event = {
+        "timestamp": ts2,
+        "uuid": status_uuid,
+        "event_type": "STATUS",
+        "data": {
+            "status": status,
+            "current_status": "open",
+        }
+    }
+    status_filename = f"{ts2}-{status_uuid}-STATUS.json"
+    with open(f"{ticket_dir}/{status_filename}", "w", encoding="utf-8") as fh:
+        json.dump(status_event, fh, ensure_ascii=False)
+
+# Write COMMENT events for notes
+for i, note_body in enumerate(notes):
+    ts3 = ts + 2 + i
+    comment_uuid = str(uuid.uuid4())
+    comment_event = {
+        "timestamp": ts3,
+        "uuid": comment_uuid,
+        "event_type": "COMMENT",
+        "body": note_body,
+        "data": {
+            "body": note_body,
+        }
+    }
+    comment_filename = f"{ts3}-{comment_uuid}-COMMENT.json"
+    with open(f"{ticket_dir}/{comment_filename}", "w", encoding="utf-8") as fh:
+        json.dump(comment_event, fh, ensure_ascii=False)
+PYEOF
+
+        echo "Migrated: $_ticket_id ($_ticket_type)"
+        (( _migrated++ )) || true
+
+    done < <(find "$_tickets_dir" -maxdepth 1 -name '*.md' -print0 2>/dev/null | sort -z)
+
+    echo "Migration complete: $_migrated tickets migrated, $_skipped_already skipped (already done), $_skipped_malformed skipped (malformed)"
+
+    unset TICKET_COMPACT_DISABLED
 }
 
 _phase_verify() {
     echo "Running phase: verify"
-    _check_override "verify"
+    _check_override "verify" || return $?
 }
 
 _phase_finalize() {
     echo "Running phase: finalize"
-    _check_override "finalize"
+    _check_override "finalize" || return $?
 }
 
 # ---------------------------------------------------------------------------
@@ -425,6 +667,8 @@ for _phase in "${PHASES[@]}"; do
         "_phase_${_phase}" || {
             _rc=$?
             _rollback_phase "$_phase" "$_rc" "$_phase_commit_before" "$_LOG_FILE"
+            echo "ERROR: phase ${_phase} failed (exit ${_rc}) — see ${_LOG_FILE}" >&2
+            exit "$_rc"
         }
         _state_append_phase "$_phase"
     fi

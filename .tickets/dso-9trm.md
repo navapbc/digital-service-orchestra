@@ -1,6 +1,6 @@
 ---
 id: dso-9trm
-status: in_progress
+status: closed
 deps: [dso-gfph]
 links: []
 created: 2026-03-23T03:57:20Z
