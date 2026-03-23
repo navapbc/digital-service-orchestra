@@ -48,10 +48,10 @@ test_allowlist_file_parseable() {
 
 # --- Test: contains required pattern groups ---
 test_allowlist_contains_tickets_pattern() {
-    if grep -q '\.tickets/' "$ALLOWLIST" 2>/dev/null; then
-        assert_eq "contains .tickets/ pattern" "true" "true"
+    if grep -q '\.tickets-tracker/' "$ALLOWLIST" 2>/dev/null; then
+        assert_eq "contains .tickets-tracker/ pattern" "true" "true"
     else
-        assert_eq "contains .tickets/ pattern" "true" "false"
+        assert_eq "contains .tickets-tracker/ pattern" "true" "false"
     fi
 }
 

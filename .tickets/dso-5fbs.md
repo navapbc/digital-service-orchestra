@@ -1,6 +1,6 @@
 ---
 id: dso-5fbs
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-03-23T15:19:28Z

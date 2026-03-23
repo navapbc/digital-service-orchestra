@@ -5,8 +5,8 @@ set -euo pipefail
 # Called by /dso:end-session after all worktree commits are done.
 #
 # Replaces the old two-script flow (sprintend-sync.sh + merge-to-main.sh).
-# tk (the issue tracker) uses file-per-issue storage under .tickets/ and requires
-# no sync step; changes to .tickets/ are committed normally as part of regular commits.
+# The ticket CLI (event-sourced v3 system) uses .tickets-tracker/ as a git worktree
+# branch; changes to .tickets-tracker/ are managed via the ticket CLI commands.
 #
 # Usage: scripts/merge-to-main.sh
 # Exit codes: 0=success, 1=error
@@ -732,9 +732,9 @@ _squash_rebase_recovery() {
     local _CONFLICTED_FILES
     _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
 
-    # Filter out .tickets/.index.json to see if there are other conflicts
+    # Filter out .tickets-tracker/.index.json to see if there are other conflicts
     local _OTHER_CONFLICTS
-    _OTHER_CONFLICTS=$(echo "$_CONFLICTED_FILES" | grep -v '^\.tickets/\.index\.json$' || true)
+    _OTHER_CONFLICTS=$(echo "$_CONFLICTED_FILES" | grep -v '^\.tickets-tracker/\.index\.json$' || true)
 
     if [[ -z "$_CONFLICTED_FILES" ]]; then
         # No conflicts detected — unknown rebase failure
@@ -751,7 +751,7 @@ _squash_rebase_recovery() {
         return 1
     fi
 
-    # Only .tickets/.index.json is conflicted — auto-resolve via merge-ticket-index.py
+    # Only .tickets-tracker/.index.json is conflicted — auto-resolve via merge-ticket-index.py
     # Prefer CLAUDE_PLUGIN_ROOT (set at top-level in merge-to-main.sh and exported) so
     # the driver path is stable even when this function is eval'd in test contexts.
     local _MERGE_DRIVER
@@ -777,20 +777,20 @@ _squash_rebase_recovery() {
     local _THEIRS_FILE="$_TMP_RESOLVE/theirs.json"
 
     # :1: = common ancestor (base), :2: = ours (current branch), :3: = theirs (incoming)
-    if ! git show :1:.tickets/.index.json > "$_BASE_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract base version of .tickets/.index.json." >&2
+    if ! git show :1:.tickets-tracker/.index.json > "$_BASE_FILE" 2>/dev/null; then
+        echo "ERROR: Could not extract base version of .tickets-tracker/.index.json." >&2
         rm -rf "$_TMP_RESOLVE"
         git rebase --abort 2>/dev/null || true
         return 1
     fi
-    if ! git show :2:.tickets/.index.json > "$_OURS_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract ours version of .tickets/.index.json." >&2
+    if ! git show :2:.tickets-tracker/.index.json > "$_OURS_FILE" 2>/dev/null; then
+        echo "ERROR: Could not extract ours version of .tickets-tracker/.index.json." >&2
         rm -rf "$_TMP_RESOLVE"
         git rebase --abort 2>/dev/null || true
         return 1
     fi
-    if ! git show :3:.tickets/.index.json > "$_THEIRS_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract theirs version of .tickets/.index.json." >&2
+    if ! git show :3:.tickets-tracker/.index.json > "$_THEIRS_FILE" 2>/dev/null; then
+        echo "ERROR: Could not extract theirs version of .tickets-tracker/.index.json." >&2
         rm -rf "$_TMP_RESOLVE"
         git rebase --abort 2>/dev/null || true
         return 1
@@ -798,19 +798,19 @@ _squash_rebase_recovery() {
 
     # Run the merge driver (writes result back to _OURS_FILE)
     if ! python3 "$_MERGE_DRIVER" "$_BASE_FILE" "$_OURS_FILE" "$_THEIRS_FILE" 2>/dev/null; then
-        echo "ERROR: merge-ticket-index.py failed to auto-resolve .tickets/.index.json." >&2
+        echo "ERROR: merge-ticket-index.py failed to auto-resolve .tickets-tracker/.index.json." >&2
         rm -rf "$_TMP_RESOLVE"
         git rebase --abort 2>/dev/null || true
         return 1
     fi
 
     # Copy resolved result back into the working tree
-    cp "$_OURS_FILE" ".tickets/.index.json"
+    cp "$_OURS_FILE" ".tickets-tracker/.index.json"
     rm -rf "$_TMP_RESOLVE"
 
-    git add ".tickets/.index.json"
+    git add ".tickets-tracker/.index.json"
     if ! GIT_EDITOR=: git rebase --continue 2>/dev/null; then
-        echo "ERROR: rebase --continue failed after auto-resolving .tickets/.index.json." >&2
+        echo "ERROR: rebase --continue failed after auto-resolving .tickets-tracker/.index.json." >&2
         git rebase --abort 2>/dev/null || true
         return 1
     fi
@@ -895,7 +895,7 @@ if [ -z "$BRANCH" ]; then
 fi
 
 # --- Check for uncommitted or untracked changes on worktree ---
-# Exclude the configured tickets directory — ticket files are created by tk
+# Exclude the configured tickets directory — ticket files are created by ticket CLI
 # and should never block a merge regardless of sync infrastructure.
 DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
 DIRTY_CACHED=$(git diff --cached --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
@@ -908,9 +908,9 @@ if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     exit 1
 fi
 
-# --- Auto-commit dirty .tickets/ files on the worktree ---
-# tk commands (close, create, add-note) write .tickets/ files without staging them.
-# The pre-flight check above excludes .tickets/ so the merge isn't blocked, but
+# --- Auto-commit dirty ticket files on the worktree ---
+# ticket commands write .tickets-tracker/ files without staging them.
+# The pre-flight check above excludes .tickets-tracker/ so the merge isn't blocked, but
 # these files must be committed before merging so they (a) appear in the merge on
 # main and (b) don't leave the worktree dirty for post-merge cleanup checks.
 TICKETS_DIRTY=$(git diff --name-only -- "$TICKETS_DIR"/ 2>/dev/null || true)

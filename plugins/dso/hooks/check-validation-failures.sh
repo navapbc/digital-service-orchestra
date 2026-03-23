@@ -72,7 +72,7 @@ VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
 
 # Check .tickets/ for existing open issues and auto-create missing ones.
-# TICKETS_DIR env var overrides ticket storage location (consistent with tk CLI).
+# TICKETS_DIR env var overrides ticket storage location (consistent with ticket CLI).
 TICKETS_DIR="${TICKETS_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)/.tickets}"
 
 declare -a ALREADY_TRACKED=()
@@ -176,7 +176,7 @@ for category in "${FAILED_CATEGORIES[@]}"; do
 done
 
 # Report results to the agent — single-line CSV format, silent on zero failures
-# Format: "Tracked: mypy (tk-789); Untracked (logged): format, ruff"
+# Format: "Tracked: mypy (dso-abc1); Untracked (logged): format, ruff"
 # Only categories with results are included; output nothing when all arrays empty.
 
 PARTS=()

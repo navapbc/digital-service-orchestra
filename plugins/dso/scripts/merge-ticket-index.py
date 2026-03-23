@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-merge-ticket-index.py — Custom Git merge driver for .tickets/.index.json
+merge-ticket-index.py — Custom Git merge driver for .tickets-tracker/.index.json
 
-Performs a pure-Python JSON union merge of .tickets/.index.json when two branches
+Performs a pure-Python JSON union merge of .tickets-tracker/.index.json when two branches
 both modify the file. Git invokes this driver with three positional arguments:
   ancestor (%O)  — path to common ancestor version
   ours (%A)      — path to our version (ALSO the output path)
@@ -20,7 +20,7 @@ The merge strategy is:
   6. Write the result to the ours file (%A) with sorted keys and 2-space indent.
 
 Emits structured log line to stderr:
-  MERGE_AUTO_RESOLVE: path=.tickets/.index.json layer=driver
+  MERGE_AUTO_RESOLVE: path=.tickets-tracker/.index.json layer=driver
 
 Usage:
   merge-ticket-index.py <ancestor> <ours> <theirs>
@@ -32,7 +32,7 @@ Git config registration (per-clone, run once):
   git config merge.tickets-index-merge.name "Ticket index JSON union merge"
 
 .gitattributes entry:
-  .tickets/.index.json merge=tickets-index-merge
+  .tickets-tracker/.index.json merge=tickets-index-merge
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ def merge_ticket_index(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Custom Git merge driver for .tickets/.index.json. "
+            "Custom Git merge driver for .tickets-tracker/.index.json. "
             "Performs a pure-Python JSON union merge. "
             "Git invokes with: ancestor(%O) ours(%A) theirs(%B). "
             "Writes merged result to the ours(%A) file."
@@ -167,7 +167,7 @@ def main() -> None:
 
     # Emit structured log line to stderr
     print(
-        "MERGE_AUTO_RESOLVE: path=.tickets/.index.json layer=driver",
+        "MERGE_AUTO_RESOLVE: path=.tickets-tracker/.index.json layer=driver",
         file=sys.stderr,
     )
 

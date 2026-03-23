@@ -1,6 +1,6 @@
 ---
 id: dso-yv90
-status: open
+status: in_progress
 deps: [dso-5fbs]
 links: []
 created: 2026-03-23T15:20:14Z
@@ -64,3 +64,42 @@ After editing all files:
   bash -n plugins/dso/hooks/check-validation-failures.sh
   bash -n plugins/dso/scripts/merge-to-main.sh
 
+## ACCEPTANCE CRITERIA
+
+- [ ] pre-bash-functions.sh uses "ticket " pattern for early-exit guard
+  Verify: grep -q '"ticket "' plugins/dso/hooks/lib/pre-bash-functions.sh || grep -q "'ticket '" plugins/dso/hooks/lib/pre-bash-functions.sh
+- [ ] closed-parent-guard.sh detects "ticket create --parent" pattern
+  Verify: grep -q 'ticket\[' plugins/dso/hooks/closed-parent-guard.sh || grep -q 'ticket.*create' plugins/dso/hooks/closed-parent-guard.sh
+- [ ] bug-close-guard.sh detects "ticket transition" pattern
+  Verify: grep -q 'ticket.*transition' plugins/dso/hooks/bug-close-guard.sh
+- [ ] All bash syntax validation passes
+  Verify: bash -n plugins/dso/hooks/lib/pre-bash-functions.sh && bash -n plugins/dso/hooks/closed-parent-guard.sh && bash -n plugins/dso/hooks/bug-close-guard.sh && bash -n plugins/dso/hooks/lib/deps.sh && bash -n plugins/dso/hooks/check-validation-failures.sh && bash -n plugins/dso/scripts/merge-to-main.sh
+- [ ] RED tests from dso-5fbs for hook guards now pass (GREEN)
+  Verify: bash tests/hooks/test-pre-bash-functions-ticket-guards.sh 2>&1 | grep -q "passed"
+
+
+## Notes
+
+**2026-03-23T15:50:48Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T15:51:24Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T15:51:30Z**
+
+CHECKPOINT 3/6: Tests written (none required — RED tests from dso-5fbs already exist at tests/hooks/test-pre-bash-functions-ticket-guards.sh) ✓
+
+**2026-03-23T15:54:13Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T15:54:27Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-23T15:55:28Z**
+
+CHECKPOINT 6/6: Done ✓ — AC1-AC4 pass. AC5 verify command has case mismatch (grep -q 'passed' vs PASSED output), but 4/4 tests actually PASS. Created dso-b4vl for tracking.

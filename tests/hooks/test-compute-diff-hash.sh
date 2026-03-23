@@ -67,7 +67,7 @@ assert_eq "compute-diff-hash.sh references review-gate-allowlist" "true" \
 HAS_HARDCODED=$(grep -cE "EXCLUDE_PATHSPECS=\([^)]" "$HOOK" 2>/dev/null | tail -1 || echo "0")
 assert_eq "no hardcoded EXCLUDE_PATHSPECS=( in compute-diff-hash.sh" "0" "$HAS_HARDCODED"
 
-# 3. Behavioral: .tickets/ files are excluded (hash stable across ticket changes)
+# 3. Behavioral: .tickets-tracker/ files are excluded (hash stable across ticket changes)
 TMPDIR_ALLOWLIST_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_ALLOWLIST_TEST"' EXIT
 
@@ -79,17 +79,17 @@ echo "init" > README.md
 git add README.md
 git commit -q -m "init"
 
-# Create and commit a .tickets/ file
-mkdir -p .tickets
-echo "status: open" > .tickets/test-ticket.md
-git add .tickets/test-ticket.md
+# Create and commit a .tickets-tracker/ file
+mkdir -p .tickets-tracker
+echo "status: open" > .tickets-tracker/test-ticket.md
+git add .tickets-tracker/test-ticket.md
 git commit -q -m "add ticket"
 
 HASH_BEFORE_TICKET=$(bash "$HOOK" 2>/dev/null)
-echo "status: closed" >> .tickets/test-ticket.md
+echo "status: closed" >> .tickets-tracker/test-ticket.md
 HASH_AFTER_TICKET=$(bash "$HOOK" 2>/dev/null)
 assert_eq "ticket change does not alter hash (allowlist)" "$HASH_BEFORE_TICKET" "$HASH_AFTER_TICKET"
-git checkout -- .tickets/test-ticket.md
+git checkout -- .tickets-tracker/test-ticket.md
 
 # 4. Behavioral: *.png files are excluded from untracked file list
 HASH_BEFORE_PNG=$(bash "$HOOK" 2>/dev/null)

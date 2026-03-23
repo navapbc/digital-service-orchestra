@@ -1,6 +1,6 @@
 ---
 id: dso-1cje
-status: open
+status: in_progress
 deps: [dso-5fbs]
 links: []
 created: 2026-03-23T15:19:45Z
@@ -46,3 +46,46 @@ After editing, verify:
   bash -n plugins/dso/hooks/compute-diff-hash.sh
   python3 -m py_compile plugins/dso/scripts/merge-ticket-index.py
 
+## ACCEPTANCE CRITERIA
+
+- [ ] review-gate-allowlist.conf contains .tickets-tracker/** pattern
+  Verify: grep -q '.tickets-tracker/\*\*' plugins/dso/hooks/lib/review-gate-allowlist.conf
+- [ ] compute-diff-hash.sh fallback uses .tickets-tracker/** exclusion
+  Verify: grep -q 'tickets-tracker' plugins/dso/hooks/compute-diff-hash.sh
+- [ ] merge-ticket-index.py references .tickets-tracker/.index.json
+  Verify: grep -q 'tickets-tracker' plugins/dso/scripts/merge-ticket-index.py
+- [ ] .gitattributes exists at repo root with tickets-tracker merge driver
+  Verify: test -f .gitattributes && grep -q 'tickets-tracker' .gitattributes
+- [ ] Syntax validation passes for bash files
+  Verify: bash -n plugins/dso/hooks/compute-diff-hash.sh
+- [ ] Syntax validation passes for Python files
+  Verify: python3 -m py_compile plugins/dso/scripts/merge-ticket-index.py
+- [ ] RED tests from dso-5fbs now pass (GREEN)
+  Verify: bash tests/hooks/test-compute-diff-hash-tickets-tracker.sh 2>&1 | grep -q "passed"
+
+
+## Notes
+
+**2026-03-23T15:50:41Z**
+
+CHECKPOINT 1/6: Task context loaded ✓
+
+**2026-03-23T15:50:55Z**
+
+CHECKPOINT 2/6: Code patterns understood ✓
+
+**2026-03-23T15:51:01Z**
+
+CHECKPOINT 3/6: Tests written (none required — RED tests from dso-5fbs will turn GREEN) ✓
+
+**2026-03-23T15:51:31Z**
+
+CHECKPOINT 4/6: Implementation complete ✓
+
+**2026-03-23T15:51:42Z**
+
+CHECKPOINT 5/6: Validation passed ✓
+
+**2026-03-23T15:52:10Z**
+
+CHECKPOINT 6/6: Done ✓

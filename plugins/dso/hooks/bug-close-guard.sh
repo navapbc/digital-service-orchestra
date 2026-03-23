@@ -6,7 +6,7 @@
 #   hooks/lib/pre-bash-functions.sh (hook_bug_close_guard)
 #
 # Logic:
-#   1. Only fires on `tk close` commands
+#   1. Only fires on `ticket transition ... closed` commands
 #   2. Looks up the ticket file and checks if type == bug
 #   3. Non-bug tickets: always allowed (exit 0)
 #   4. Bug tickets without --reason: BLOCKED (exit 2)

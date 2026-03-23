@@ -149,7 +149,7 @@ hook_commit_failure_tracker() {
     local _SEARCH_CMD_FROM_ENV="${SEARCH_CMD:-}"
     local _CREATE_CMD_FROM_ENV="${CREATE_CMD:-}"
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
-    local _CREATE_CMD="${CREATE_CMD:-tk create}"
+    local _CREATE_CMD="${CREATE_CMD:-ticket create}"
     local _READ_CONFIG=""
     if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
         _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
@@ -274,7 +274,7 @@ except Exception:
     echo "" >&2
     echo "Issues should have been auto-created by check-validation-failures.sh." >&2
     echo "Search: $_SEARCH_CMD '<check> failure' $TICKETS_DIR" >&2
-    echo "Create manually if needed: tk create \"Fix <check> failure\" -t bug -p 1" >&2
+    echo "Create manually if needed: ticket create \"Fix <check> failure\" -t bug -p 1" >&2
     echo "" >&2
 
     # Never block
@@ -382,7 +382,7 @@ hook_worktree_bash_guard() {
         echo "HOW TO FIX:" >&2
         echo "  • Run the same command from the worktree root (current working directory)." >&2
         echo "  • Use REPO_ROOT=\$(git rev-parse --show-toplevel) instead of a hardcoded path." >&2
-        echo "  • tk commands work from any directory — drop 'cd MAIN_REPO && tk ...' prefix." >&2
+        echo "  • ticket commands work from any directory — drop 'cd MAIN_REPO && ticket ...' prefix." >&2
         echo "  • To merge worktree changes to main: \$REPO_ROOT/scripts/merge-to-main.sh (allow-listed)." >&2
         echo "  • To read a main-repo file: use the Read tool with the absolute path." >&2
         trap - ERR; return 2

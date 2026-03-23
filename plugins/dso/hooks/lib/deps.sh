@@ -615,7 +615,7 @@ _allowlist_to_grep_regex() {
 # Array of path patterns that hooks should skip.
 # Entries are substring patterns — a file path matching any entry is excluded.
 #
-# .tickets/ — ticket files managed by the tk CLI; hooks should not interfere.
+# .tickets-tracker/ — ticket files managed by the ticket CLI; hooks should not interfere.
 #
 # Usage:
 #   for pat in "${EXCLUDE_PATTERNS[@]}"; do

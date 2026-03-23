@@ -4,7 +4,7 @@
 # Includes changes in the git index (staged) and modifications to tracked files.
 # Excludes untracked files — new files must be staged before review (per COMMIT-WORKFLOW.md).
 # This prevents temp test fixtures from causing hash mismatches between review and pre-commit.
-# Excludes .tickets/ files from hash — ticket metadata changes must not invalidate code reviews.
+# Excludes .tickets-tracker/ files from hash — ticket metadata changes must not invalidate code reviews.
 #
 # Usage:
 #   HASH=$(.claude/hooks/compute-diff-hash.sh)
@@ -21,7 +21,7 @@ source "$SCRIPT_DIR/lib/deps.sh"
 source "$SCRIPT_DIR/lib/config-paths.sh"
 
 # Anchor all git pathspec exclusions and file operations to the repo root,
-# regardless of the caller's CWD. Without this, pathspecs like ':!app/.tickets/'
+# regardless of the caller's CWD. Without this, pathspecs like ':!app/.tickets-tracker/'
 # resolve relative to CWD, producing different hashes when called from app/.
 cd "$(git rev-parse --show-toplevel)"
 
@@ -111,7 +111,7 @@ fi
 # Fallback defaults when allowlist or helpers are unavailable
 _FALLBACK_PATHSPECS=(
     ':!.checkpoint-needs-review'
-    ':!.tickets/**'
+    ':!.tickets-tracker/**'
     ':!.sync-state.json'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
     ':!*.pdf' ':!*.docx'
