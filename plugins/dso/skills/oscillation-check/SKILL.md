@@ -47,10 +47,10 @@ The orchestrator provides:
 
 1. Get closed remediation tasks from the epic:
    ```bash
-   ticket deps {epic_id}
+   .claude/scripts/dso ticket deps {epic_id}
    ```
    Filter for tasks with "Fix:" prefix and status=closed.
-2. For each closed remediation task, read its notes (`ticket show <id>`) to find
+2. For each closed remediation task, read its notes (`.claude/scripts/dso ticket show <id>`) to find
    modified files.
 3. Compare `files_targeted` against the closed tasks' modified files.
 4. If overlap exists -> `OSCILLATION` (same files being re-remediated)
@@ -87,6 +87,6 @@ Recommendation: Stop loop. Present both positions to user.
 
 ### Rules
 - Do NOT modify any code files
-- Do NOT `git commit`, `git push`, `ticket transition`, edit `.tickets/` files
-- You CAN run `git diff`, `git log`, `ticket show`, `ticket deps`
+- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`, edit `.tickets/` files
+- You CAN run `git diff`, `git log`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`
 - This is a read-only analysis -- report findings only

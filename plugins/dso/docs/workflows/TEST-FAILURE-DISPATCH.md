@@ -53,7 +53,7 @@ The orchestrator provides these fields when dispatching a test-failure sub-agent
 | `exit_code` | int | yes | Process exit code from the test run |
 | `stderr_tail` | string | yes | Last 50 lines of stderr/stdout from the failed command |
 | `changed_files` | list[string] | yes | Files modified in the current batch/commit (from `git diff --name-only`) |
-| `task_id` | string | yes | Ticket ID for checkpoint notes (`ticket comment`) |
+| `task_id` | string | yes | Ticket ID for checkpoint notes (`.claude/scripts/dso ticket comment`) |
 | `context` | enum | yes | One of: `commit-time`, `sprint-post-batch`, `sprint-ci-failure` |
 | `attempt` | int | yes | 1-based attempt counter (drives model escalation) |
 | `parent_task_id` | string | no | Parent epic/task ID for discovered-work tickets |

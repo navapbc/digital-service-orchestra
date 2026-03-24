@@ -14,7 +14,7 @@
 
 `ticket-revert.sh` (via `write_commit_event` in `ticket-lib.sh`)
 
-The `ticket revert` subcommand writes a REVERT event into the target ticket's
+The `.claude/scripts/dso ticket revert` subcommand writes a REVERT event into the target ticket's
 `.tickets-tracker/<ticket-id>/` directory. The event records which earlier event is being
 reverted and who initiated it. The emitter **must** validate that the target event is not itself a
 REVERT event before writing (see [REVERT-of-REVERT constraint](#revert-of-revert-constraint)
@@ -201,7 +201,7 @@ operators using `bridge-status` or `bridge-fsck` output.
 | `SYNC` | Primary REVERT target; bridge-outbound performs check-before-overwrite |
 | `COMMENT` | Can be reverted (no Jira deletion; orphaned comments are expected post-REVERT state) |
 | `LINK` / `UNLINK` | Can be reverted; no Jira outbound check required |
-| `CREATE` | Reverting a CREATE is not supported (use `ticket close` or `ticket fsck` for cleanup) |
+| `CREATE` | Reverting a CREATE is not supported (use `ticket close` or `.claude/scripts/dso ticket fsck` for cleanup) |
 | `REVERT` | Cannot be reverted — REVERT-of-REVERT is rejected by the CLI |
 | `BRIDGE_ALERT` | Cannot be reverted — alerts are informational; use `bridge-fsck` for resolution |
 

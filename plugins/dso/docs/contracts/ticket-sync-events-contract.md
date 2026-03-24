@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This document defines the cross-story contract for `tk sync-events` — the split-phase git sync
+This document defines the cross-story contract for `.claude/scripts/dso ticket sync` — the split-phase git sync
 protocol for the tickets branch. It documents phase boundaries, lock scope, timeout budget, retry
 behavior, and error paths. Downstream stories that archive tickets or compact event logs **must**
 conform to this contract.
@@ -15,7 +15,7 @@ conform to this contract.
 
 ## Command Entry Point
 
-**Command**: `tk sync-events`
+**Command**: `.claude/scripts/dso ticket sync`
 
 **Shell function**: `_sync_events` (defined in the tk wrapper at `plugins/dso/scripts/tk`)
 
@@ -37,7 +37,7 @@ If `origin` is not configured:
 error: origin remote not configured in <tracker_dir>
 ```
 
-To satisfy these prerequisites, run `ticket init` to initialize the tracker store. See
+To satisfy these prerequisites, run `.claude/scripts/dso ticket init` to initialize the tracker store. See
 `plugins/dso/scripts/ticket-init.sh`.
 
 ---
@@ -194,15 +194,15 @@ is updated, or the remote is unchanged.
 | Consumer story | Dependency |
 |---|---|
 | w21-6k7v (split-phase git sync) | Implements `_sync_events` per this contract |
-| w21-6llo (archiving must sync before compacting) | Must call `tk sync-events` before running compaction; compaction must not begin while a sync is in progress |
+| w21-6llo (archiving must sync before compacting) | Must call `.claude/scripts/dso ticket sync` before running compaction; compaction must not begin while a sync is in progress |
 | w20-bkid (this document) | Documents the contract |
 
 ### w21-6llo (archive before compact)
 
 The archiving pipeline must:
 
-1. Call `tk sync-events` to pull remote events before reading the event log
-2. Complete `tk sync-events` successfully (exit 0) before beginning compaction
+1. Call `.claude/scripts/dso ticket sync` to pull remote events before reading the event log
+2. Complete `.claude/scripts/dso ticket sync` successfully (exit 0) before beginning compaction
 3. Not interleave sync and compaction — the two operations must be strictly sequential
 
 This ordering ensures that compaction reads the most recent event state and does not overwrite
@@ -210,7 +210,7 @@ events committed by other environments since the last local fetch.
 
 ---
 
-## Prerequisites for `tk sync-events`
+## Prerequisites for `.claude/scripts/dso ticket sync`
 
 Operators setting up a new environment must ensure:
 
@@ -226,7 +226,7 @@ Operators setting up a new environment must ensure:
    git -C .tickets-tracker push origin tickets:tickets
    ```
 
-3. **`.tickets-tracker/` initialized**: run `ticket init` from the repo root (see
+3. **`.tickets-tracker/` initialized**: run `.claude/scripts/dso ticket init` from the repo root (see
    `plugins/dso/scripts/ticket-init.sh`). This creates the tracker store and sets `gc.auto=0`
    in the worktree's local git config.
 

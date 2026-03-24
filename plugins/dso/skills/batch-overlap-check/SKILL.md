@@ -29,7 +29,7 @@ The orchestrator provides:
 ### Step 1: Extract Target Files (/dso:batch-overlap-check)
 
 For each candidate task ID:
-1. Run `ticket show <id>` to read the full description
+1. Run `.claude/scripts/dso ticket show <id>` to read the full description
 2. Extract target files from the description:
    - **Explicit file paths** (e.g., `src/services/pipeline.py`)
    - **Module paths from error traces** (e.g., `src.models.document` -> `src/models/document.py`)
@@ -47,15 +47,15 @@ Report the mapping for orchestrator visibility.
 For each file that appears in 2+ tasks:
 1. Identify the higher-priority task (from ticket priority or batch priority class)
 2. The lower-priority task should depend on the higher-priority one
-3. **Circular dependency guard** before running `ticket link B A depends_on`:
-   a. Run `ticket show A` and read its `blockedBy` field
-   b. Walk the chain: for each ID in A's `blockedBy`, run `ticket show <id>` and check
+3. **Circular dependency guard** before running `.claude/scripts/dso ticket link B A depends_on`:
+   a. Run `.claude/scripts/dso ticket show A` and read its `blockedBy` field
+   b. Walk the chain: for each ID in A's `blockedBy`, run `.claude/scripts/dso ticket show <id>` and check
       its `blockedBy` field (up to 5 levels deep -- sufficient for practical cases)
    c. If B appears anywhere in the chain -> adding B depends-on A would create a cycle
    d. **On cycle detection**: Do NOT add the dependency. Instead, report to the
       orchestrator: "Tasks A and B overlap on file X but cannot be serialized due to
       existing circular dependency. Recommend: run A in this batch, defer B to next."
-4. If no cycle: run `ticket link <lower-priority> <higher-priority> depends_on`
+4. If no cycle: run `.claude/scripts/dso ticket link <lower-priority> <higher-priority> depends_on`
 
 ### Step 4: Report (/dso:batch-overlap-check)
 
@@ -85,6 +85,6 @@ READY TASKS (post-serialization):
 
 ### Rules
 - Do NOT modify any code files
-- Do NOT `git commit`, `git push`, `ticket transition`
-- You CAN run `ticket show`, `ticket link`, `tk ready`
+- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`
+- You CAN run `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket list`
 - Maximum 5 levels deep for cycle detection walk

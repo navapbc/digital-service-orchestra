@@ -65,8 +65,8 @@ make test-e2e args="-v --tb=short" 2>&1
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
 # Existing ticket issues
-tk ready
-tk blocked
+.claude/scripts/dso ticket list
+.claude/scripts/dso ticket list
 
 # Issue health
 $REPO_ROOT/plugins/dso/scripts/validate-issues.sh
@@ -172,7 +172,7 @@ The ONLY permitted write is the diagnostic report file produced in "Save Report 
 - **Write** — forbidden except for the designated `$DIAG_FILE` report path.
 - **Bash with modifying commands** — forbidden:
   - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
-  - `ticket transition`, `ticket create`
+  - `.claude/scripts/dso ticket transition`, `.claude/scripts/dso ticket create`
   - `make`, `pip install`, `npm install`, `poetry install`
   - Any command that changes source files or application state
 

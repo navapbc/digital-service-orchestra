@@ -386,4 +386,85 @@ test_auto_detect_main_worktree_via_git_list() {
 }
 test_auto_detect_main_worktree_via_git_list
 
+# ── Test 13: test_ticket_init_generates_env_id_when_symlink_exists_but_env_id_missing
+echo "Test 13: ticket init generates .env-id when symlink is correct but .env-id is missing"
+test_ticket_init_generates_env_id_when_symlink_exists_but_env_id_missing() {
+    local tmp main_repo worktree_dir
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+
+    # Set up a main repo with tickets initialized
+    main_repo="$tmp/main"
+    clone_test_repo "$main_repo"
+    (cd "$main_repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Create a real git worktree
+    worktree_dir="$tmp/worktree"
+    git -C "$main_repo" worktree add "$worktree_dir" -b wt-branch-envid 2>/dev/null
+
+    # First init — creates symlink and .env-id
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Delete .env-id from the tracker (simulates fresh clone or cleanup)
+    local real_tracker
+    real_tracker=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$worktree_dir/.tickets-tracker" 2>/dev/null)
+    rm -f "$real_tracker/.env-id"
+
+    # Verify .env-id is actually missing
+    if [ -f "$real_tracker/.env-id" ]; then
+        assert_eq "pre-condition: .env-id deleted" "missing" "still-exists"
+        return
+    fi
+
+    # Second init — should regenerate .env-id even though symlink is correct
+    local exit_code=0
+    (cd "$worktree_dir" && bash "$TICKET_SCRIPT" init 2>/dev/null) || exit_code=$?
+
+    assert_eq "env-id regeneration: init exits 0" "0" "$exit_code"
+
+    # Assert: .env-id now exists
+    if [ -f "$real_tracker/.env-id" ]; then
+        assert_eq "env-id regeneration: .env-id exists after re-init" "exists" "exists"
+    else
+        assert_eq "env-id regeneration: .env-id exists after re-init" "exists" "missing"
+        return
+    fi
+
+    # Assert: content is valid UUID4
+    local env_id
+    env_id=$(cat "$real_tracker/.env-id")
+    if echo "$env_id" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'; then
+        assert_eq "env-id regeneration: content is valid UUID4" "valid" "valid"
+    else
+        assert_eq "env-id regeneration: content is valid UUID4" "valid" "invalid: $env_id"
+    fi
+}
+test_ticket_init_generates_env_id_when_symlink_exists_but_env_id_missing
+
+# ── Test 14: test_ticket_init_generates_env_id_on_main_repo_idempotent_path
+echo "Test 14: ticket init generates .env-id on main repo idempotent re-run"
+test_ticket_init_generates_env_id_on_main_repo_idempotent_path() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # First init
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Delete .env-id
+    rm -f "$repo/.tickets-tracker/.env-id"
+
+    # Second init — should regenerate .env-id
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || exit_code=$?
+
+    assert_eq "main-repo env-id regen: init exits 0" "0" "$exit_code"
+
+    if [ -f "$repo/.tickets-tracker/.env-id" ]; then
+        assert_eq "main-repo env-id regen: .env-id exists" "exists" "exists"
+    else
+        assert_eq "main-repo env-id regen: .env-id exists" "exists" "missing"
+    fi
+}
+test_ticket_init_generates_env_id_on_main_repo_idempotent_path
+
 print_summary

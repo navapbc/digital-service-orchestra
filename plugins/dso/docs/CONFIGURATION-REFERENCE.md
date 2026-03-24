@@ -275,9 +275,9 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 | | |
 |---|---|
-| **Description** | Jira project key used by `tk sync`. The `JIRA_PROJECT` environment variable takes precedence over this value. |
+| **Description** | Jira project key used by `.claude/scripts/dso ticket sync`. The `JIRA_PROJECT` environment variable takes precedence over this value. |
 | **Accepted values** | Jira project key string (e.g., `DIG`, `MYPROJ`) |
-| **Default** | No default — required when using `tk sync` |
+| **Default** | No default — required when using `.claude/scripts/dso ticket sync` |
 | **Used by** | the tk script (`.claude/scripts/dso tk`), `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
 
 ---
@@ -287,7 +287,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | | |
 |---|---|
 | **Description** | Command to search for existing tickets by substring. Used by `plugins/dso/hooks/lib/pre-bash-functions.sh` (commit-failure-tracker) to detect duplicate tickets. |
-| **Accepted values** | Any shell command string (e.g., `grep -rl`, `ticket list --filter`) |
+| **Accepted values** | Any shell command string (e.g., `grep -rl`, `.claude/scripts/dso ticket list --filter`) |
 | **Default** | `grep -rl` |
 | **Used by** | `plugins/dso/hooks/lib/pre-bash-functions.sh` |
 
@@ -298,8 +298,8 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | | |
 |---|---|
 | **Description** | Command to create a new tracking issue. Used when a validation failure has no existing ticket. |
-| **Accepted values** | Any shell command string (e.g., `ticket create`, `gh issue create`) |
-| **Default** | `ticket create` |
+| **Accepted values** | Any shell command string (e.g., `.claude/scripts/dso ticket create`, `gh issue create`) |
+| **Default** | `.claude/scripts/dso ticket create` |
 | **Used by** | `.claude/scripts/dso check-validation-failures.sh`, `plugins/dso/hooks/lib/pre-bash-functions.sh` |
 
 ---
@@ -745,7 +745,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 | | |
 |---|---|
-| **Description** | Jira project key for ticket sync. Only needed when using `tk sync` with Jira. Superseded by `jira.project` — prefer `jira.project` for new configurations. |
+| **Description** | Jira project key for .claude/scripts/dso ticket sync. Only needed when using `.claude/scripts/dso ticket sync` with Jira. Superseded by `jira.project` — prefer `jira.project` for new configurations. |
 | **Accepted values** | Jira project key string (e.g., `DTL`, `MYPROJ`) |
 | **Default** | Absent |
 | **Used by** | the tk script (`.claude/scripts/dso tk`) (sync subcommand) |
@@ -829,7 +829,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | | |
 |---|---|
 | **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by the tk script (`.claude/scripts/dso tk`) when adding remote links to Jira issues. |
-| **Required** | Required for `tk sync` remote-link features |
+| **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
 | **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand, remote link creation) |
 
 ---
@@ -839,7 +839,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | | |
 |---|---|
 | **Description** | Jira username (email address) for API authentication. Used with `JIRA_API_TOKEN` via HTTP Basic Auth. |
-| **Required** | Required for `tk sync` remote-link features |
+| **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
 | **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand) |
 
 ---
@@ -849,7 +849,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | | |
 |---|---|
 | **Description** | Jira API token for authentication. Generate at https://id.atlassian.com/manage-profile/security/api-tokens. Used with `JIRA_USER` via HTTP Basic Auth. |
-| **Required** | Required for `tk sync` remote-link features |
+| **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
 | **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand) |
 
 ---
@@ -858,8 +858,8 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `dso-config.conf`. Required by `tk sync` unless `jira.project` is configured. |
-| **Required** | Required for `tk sync` unless `jira.project` is set in config |
+| **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `dso-config.conf`. Required by `.claude/scripts/dso ticket sync` unless `jira.project` is configured. |
+| **Required** | Required for `.claude/scripts/dso ticket sync` unless `jira.project` is set in config |
 | **Usage context** | the tk script (`.claude/scripts/dso tk`), `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` |
 
 ---
@@ -1002,7 +1002,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | When set to `1`, suppresses the worktree push step during `tk sync`. Used internally by `.claude/scripts/dso reset-tickets.sh` when doing a bulk sync to prevent duplicate push operations. |
+| **Description** | When set to `1`, suppresses the worktree push step during `.claude/scripts/dso ticket sync`. Used internally by `.claude/scripts/dso reset-tickets.sh` when doing a bulk sync to prevent duplicate push operations. |
 | **Required** | Internal — set and unset by `.claude/scripts/dso reset-tickets.sh` |
 | **Usage context** | the tk script (`.claude/scripts/dso tk`) (sync subcommand), `.claude/scripts/dso reset-tickets.sh` |
 
@@ -1032,6 +1032,6 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Override for the ticket create command used by `plugins/dso/hooks/lib/pre-bash-functions.sh` (commit-failure-tracker). When set, takes precedence over `issue_tracker.create_cmd` from config. Used in tests. |
+| **Description** | Override for the .claude/scripts/dso ticket create command used by `plugins/dso/hooks/lib/pre-bash-functions.sh` (commit-failure-tracker). When set, takes precedence over `issue_tracker.create_cmd` from config. Used in tests. |
 | **Required** | Optional — testing override only |
 | **Usage context** | `plugins/dso/hooks/lib/pre-bash-functions.sh` |

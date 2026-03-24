@@ -84,21 +84,21 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
 ### Select Story
 
 If `<story-id>` was not provided:
-1. Run `tk ready` to show open, unblocked stories
-2. If none, fall back to `tk blocked` and `tk closed` to understand state
+1. Run `.claude/scripts/dso ticket list` to show open, unblocked stories
+2. If none, fall back to `.claude/scripts/dso ticket list` to understand state
 3. If no open stories exist, report and exit
 4. Present stories to the user and get selection
 
 Load the story:
 ```bash
-ticket show <story-id>
+.claude/scripts/dso ticket show <story-id>
 ```
 
 If the story is not found, report the error and exit.
 
 ### Epic Type Detection
 
-After loading the item with `ticket show`, check the `type` field in the output:
+After loading the item with `.claude/scripts/dso ticket show`, check the `type` field in the output:
 
 - **If `type` is `epic`**: Enter **epic-direct mode**:
   - The epic's done definitions serve as acceptance criteria source (same role as story done definitions)
@@ -112,13 +112,13 @@ After loading the item with `ticket show`, check the `type` field in the output:
 
 ### Context File Check
 
-After loading the story with `ticket show <story-id>`, check for a preplanning context file:
+After loading the story with `.claude/scripts/dso ticket show <story-id>`, check for a preplanning context file:
 
 1. Extract the parent epic ID from the story's `parent` field
 2. Check for `/tmp/preplanning-context-<parent-epic-id>.json`
 3. If found AND `generatedAt` is within the last 24 hours:
-   - Load epic data from the context file (skip `ticket show <parent-epic-id>`)
-   - Load sibling stories from the context file (skip `ticket deps` + per-sibling `ticket show`)
+   - Load epic data from the context file (skip `.claude/scripts/dso ticket show <parent-epic-id>`)
+   - Load sibling stories from the context file (skip `.claude/scripts/dso ticket deps` + per-sibling `.claude/scripts/dso ticket show`)
    - Carry forward: review findings, walking skeleton flags, classifications, traceability lines, story dashboard
    - Log: `"Context loaded from preplanning — skipping redundant epic/sibling fetch"`
    - **Skip the Input Analysis section below** and proceed directly to Architectural Alignment
@@ -130,11 +130,11 @@ After loading the story with `ticket show <story-id>`, check for a preplanning c
 Load the story and its parent epic for full context:
 
 ```bash
-ticket show <story-id>
+.claude/scripts/dso ticket show <story-id>
 # Extract parent ID from the 'parent' field, then:
-ticket show <parent-epic-id>
+.claude/scripts/dso ticket show <parent-epic-id>
 # Review sibling stories for context:
-ticket deps <parent-epic-id>
+.claude/scripts/dso ticket deps <parent-epic-id>
 ```
 
 If no parent epic exists, proceed with story context alone but note the limited context.
@@ -398,13 +398,13 @@ Contract document sections:
 Before creating a contract task, check for an existing contract task in the epic:
 
 ```bash
-ticket deps <parent-epic-id>
+.claude/scripts/dso ticket deps <parent-epic-id>
 ```
 
 Scan the output for any existing task whose title contains `Contract:` and the same interface name. If an existing contract task is found, wire the implementation tasks as dependents of that existing contract task — do not create a duplicate. If no existing contract task is found, create one:
 
 ```bash
-ticket create "Contract: <interface-name> signal emit/parse interface" -t task -p 2 --parent=<parent-epic-id>
+.claude/scripts/dso ticket create "Contract: <interface-name> signal emit/parse interface" -t task -p 2 --parent=<parent-epic-id>
 ```
 
 #### Contract Task as First Dependency
@@ -447,15 +447,15 @@ For each task in the plan:
 
 ```bash
 # Full creation with description and parent in one command:
-ticket create "{task title}" -t task -p {priority} --parent=<story-id> -d "{description with TDD requirement and acceptance criteria}"
+.claude/scripts/dso ticket create "{task title}" -t task -p {priority} --parent=<story-id> -d "{description with TDD requirement and acceptance criteria}"
 
 # Full creation with parent and description in one command:
-TASK_ID=$(ticket create "{task title}" -t task -p {priority} --parent=<story-id> -d "{detailed description}")
+TASK_ID=$(.claude/scripts/dso ticket create "{task title}" -t task -p {priority} --parent=<story-id> -d "{detailed description}")
 ```
 
-**Prefer `ticket create`** with all flags in one command. For multi-line descriptions, use heredoc syntax with `-d`.
+**Prefer `.claude/scripts/dso ticket create`** with all flags in one command. For multi-line descriptions, use heredoc syntax with `-d`.
 
-If `ticket create` fails, retry once. If still failing, report the error.
+If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
 
 ### Task Content Requirements
 
@@ -468,11 +468,11 @@ Each task must include:
 | **TDD Requirement** | Specific failing test to write first |
 | **Acceptance Criteria** | Set via `--acceptance` flag (see format below) |
 
-**Acceptance criteria format** (set via `ticket create --acceptance="..."` at creation time, or edit `.tickets/<id>.md` directly to add/update):
+**Acceptance criteria format** (set via `.claude/scripts/dso ticket create --acceptance="..."` at creation time, or edit `.tickets/<id>.md` directly to add/update):
 
 ```bash
 # At creation time:
-ticket create "{title}" -t task --acceptance="- [ ] \`make test-unit-only\` passes (exit 0)
+.claude/scripts/dso ticket create "{title}" -t task --acceptance="- [ ] \`make test-unit-only\` passes (exit 0)
   Verify: cd \$(git rev-parse --show-toplevel)/app && make test-unit-only
 - [ ] \`make lint\` passes (exit 0)
   Verify: cd \$(git rev-parse --show-toplevel)/app && make lint
@@ -486,12 +486,12 @@ ticket create "{title}" -t task --acceptance="- [ ] \`make test-unit-only\` pass
 
 Universal criteria (test, lint, format) are always the first three lines.
 Task-specific criteria follow, drawn from the template library and customized.
-The `ACCEPTANCE CRITERIA` section appears as a separate section in `ticket show` output.
+The `ACCEPTANCE CRITERIA` section appears as a separate section in `.claude/scripts/dso ticket show` output.
 
 ### Add Dependencies
 
 ```bash
-ticket link <downstream-task> <upstream-task> depends_on
+.claude/scripts/dso ticket link <downstream-task> <upstream-task> depends_on
 ```
 
 Follow the sequential order from Step 3:
@@ -512,7 +512,7 @@ If validation fails, fix dependency issues before presenting the summary.
 
 ### Present Summary
 
-Run `tk ready` (filtered by story) to confirm which tasks are immediately workable.
+Run `.claude/scripts/dso ticket list` (filtered by story) to confirm which tasks are immediately workable.
 
 Output a summary table:
 
@@ -535,8 +535,8 @@ Actions: **Create**, **Edit**, or **Remove**. If multiple tasks touch the same f
 Report:
 - Total tasks created
 - File impact summary (above)
-- Dependency graph (`ticket deps <story-id>`)
-- Ready tasks (`tk ready` filtered by story)
+- Dependency graph (`.claude/scripts/dso ticket deps <story-id>`)
+- Ready tasks (`.claude/scripts/dso ticket list` filtered by story)
 - Whether documentation/E2E tasks were included and why
 
 **Stop and wait for user instructions** — do not begin implementing any tasks.
@@ -562,17 +562,17 @@ Fill the template placeholders with:
 
 | Placeholder | Source |
 |-------------|--------|
-| `{story-title}` | Story title from `ticket show` |
-| `{story-description}` | Story description from `ticket show` |
+| `{story-title}` | Story title from `.claude/scripts/dso ticket show` |
+| `{story-description}` | Story description from `.claude/scripts/dso ticket show` |
 | `{task-list-with-descriptions}` | Full task list: titles, descriptions, TDD requirements, acceptance criteria |
-| `{dependency-graph}` | Output from `ticket deps <story-id>` |
+| `{dependency-graph}` | Output from `.claude/scripts/dso ticket deps <story-id>` |
 | `{file-impact-summary}` | File Impact Summary table from Step 5 |
 
 ### Parse Findings
 
 Parse the JSON `findings` array from the sub-agent response. For each finding:
 
-- **If `type: "new_task"`**: Create a new task via `ticket create` with the finding's title and description, parent set to the story, add dependency on the appropriate existing task(s), and add to the summary table.
+- **If `type: "new_task"`**: Create a new task via `.claude/scripts/dso ticket create` with the finding's title and description, parent set to the story, add dependency on the appropriate existing task(s), and add to the summary table.
 - **If `type: "ac_amendment"`**: Edit `.tickets/<target_task_id>.md` to append the finding's description as an additional acceptance criterion under the `## ACCEPTANCE CRITERIA` section.
 
 ### Fallback Behavior
@@ -600,11 +600,11 @@ After processing findings (or skipping/failing), update the summary output to in
 
 | Step | Purpose | Key Commands |
 |------|---------|--------------|
-| 1 | Contextual Discovery | `ticket show`, `ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection |
+| 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection |
 | 2 | Architectural Review | `/dso:review-protocol` (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
 | 4 | Plan Review | `/dso:review-protocol` (all dims = 5, max 3 iterations) |
-| 5 | Task Creation | `ticket create`, `ticket link`, `validate-issues.sh`, `tk ready` |
+| 5 | Task Creation | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `validate-issues.sh`, `.claude/scripts/dso ticket list` |
 | 6 | Gap Analysis | TRIVIAL skip gate, opus sub-agent via `prompts/gap-analysis.md`, parse findings |
 
 ## Common Mistakes
@@ -616,7 +616,7 @@ After processing findings (or skipping/failing), update the summary output to in
 | Missing backward compatibility | Add migration/bridge step before breaking changes |
 | E2E tests forgotten | Always evaluate; document rationale if skipped |
 | No ADR for new patterns | Step 2 approval = ADR needed. Include doc task. |
-| Implicit dependencies | Make all task ordering explicit via `ticket link` |
+| Implicit dependencies | Make all task ordering explicit via `.claude/scripts/dso ticket link` |
 | Skipping plan review | Always run Step 4 — unreviewed plans miss edge cases |
 | Infinite refinement loops | Max 3 iterations, then escalate to user |
 | Skipping cross-cutting detection | Count layers and interfaces before deciding to skip Step 2 — a "simple" change touching route → service → agent → provider is already cross-cutting |

@@ -28,7 +28,7 @@ processing for that ticket. Conditions include:
   is preserved unmodified.
 
 `BRIDGE_ALERT` events are **informational only** — they do not alter the compiled ticket state.
-Reducers and `ticket list` ignore them; operators must inspect them manually.
+Reducers and `.claude/scripts/dso ticket list` ignore them; operators must inspect them manually.
 
 ---
 

@@ -21,7 +21,7 @@ For EACH bug ID in `SAFEGUARD_BUGS`:
 
 1. Read the ticket:
    ```bash
-   ticket show <id>
+   .claude/scripts/dso ticket show <id>
    ```
 
 2. Identify the safeguarded file(s) referenced in the title, description, or notes.
@@ -82,8 +82,8 @@ Do NOT return the full proposals inline. The orchestrator reads the file from di
 
 See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Do NOT use Edit, Write, or any file-modifying Bash commands (no `>`, `>>`, `tee` to source files)
-- Do NOT `git commit`, `git push`, `ticket transition`
-- You MAY use Read, Grep, Glob, Bash (read-only commands only), `ticket show`
+- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`
+- You MAY use Read, Grep, Glob, Bash (read-only commands only), `.claude/scripts/dso ticket show`
 - Writing to `/tmp/` is permitted (the proposals output file)
 - If a bug is ambiguous (cannot identify exact lines), write `LINES: unknown` and describe what needs investigation in DESCRIPTION
 - If a safeguarded file cannot be read (permissions, missing), note it in DESCRIPTION and set RISK: high

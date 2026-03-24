@@ -59,7 +59,7 @@ The read path (`plugins/dso/scripts/ticket-reducer.py`) is a standalone Python m
 Separating the reducer into a Python module (rather than inline shell logic) means:
 - Unit tests can import and call `reduce_ticket()` directly without spawning a subprocess.
 - The reducer has no dependency on shell state, git, or the flock layer.
-- The module interface is stable across callers: `ticket-show.sh`, the caching layer (w21-f8tg), and `ticket fsck`.
+- The module interface is stable across callers: `ticket-show.sh`, the caching layer (w21-f8tg), and `.claude/scripts/dso ticket fsck`.
 
 #### flock serialization for atomic writes
 
@@ -69,11 +69,11 @@ The timeout budget (30s per attempt, 2 retries, 60s worst case) is intentionally
 
 #### Atomic rename before git commit
 
-The staging temp file is created inside `.tickets-tracker/` (same filesystem as the final path) so that `os.rename()` is guaranteed atomic by POSIX. The rename occurs inside the flock critical section. If the rename succeeds but the subsequent `git commit` fails, the file is on-disk in the tracker directory but not committed — this is recoverable by `ticket fsck`. If the rename fails, the staging temp is removed and no partial state is left.
+The staging temp file is created inside `.tickets-tracker/` (same filesystem as the final path) so that `os.rename()` is guaranteed atomic by POSIX. The rename occurs inside the flock critical section. If the rename succeeds but the subsequent `git commit` fails, the file is on-disk in the tracker directory but not committed — this is recoverable by `.claude/scripts/dso ticket fsck`. If the rename fails, the staging temp is removed and no partial state is left.
 
 #### gc.auto=0 on the tickets worktree
 
-Git's automatic garbage collection (`gc.auto`) can hold repository locks for seconds to minutes. A GC run triggered mid-write could exhaust the 60-second flock budget. `ticket-init.sh` sets `gc.auto=0` in the tickets worktree's local git config (`.tickets-tracker/.git/config`) only — never in the host repository or global git config. An idempotent guard in `write_commit_event` re-applies this setting before each write to handle worktrees mounted on machines that did not run `ticket init` directly.
+Git's automatic garbage collection (`gc.auto`) can hold repository locks for seconds to minutes. A GC run triggered mid-write could exhaust the 60-second flock budget. `ticket-init.sh` sets `gc.auto=0` in the tickets worktree's local git config (`.tickets-tracker/.git/config`) only — never in the host repository or global git config. An idempotent guard in `write_commit_event` re-applies this setting before each write to handle worktrees mounted on machines that did not run `.claude/scripts/dso ticket init` directly.
 
 ## Consequences
 
@@ -88,7 +88,7 @@ Git's automatic garbage collection (`gc.auto`) can hold repository locks for sec
 
 ### Negative consequences
 
-- **All reads require reducer compilation**: Every `ticket show` command must sort and fold all event files for a ticket. For tickets with many events this is O(n) over the event log. This is mitigated by the state cache (`.state-cache` per ticket directory) implemented in story w21-f8tg — the cache is invalidated by filename-based mtime comparison and bypassed when stale.
+- **All reads require reducer compilation**: Every `.claude/scripts/dso ticket show` command must sort and fold all event files for a ticket. For tickets with many events this is O(n) over the event log. This is mitigated by the state cache (`.state-cache` per ticket directory) implemented in story w21-f8tg — the cache is invalidated by filename-based mtime comparison and bypassed when stale.
 - **Orphan branch adds one git operation per write**: Each write incurs a `git commit` on the tickets worktree. This is faster than a full `git add -A` + `git commit` on the main branch, but slower than a pure filesystem write.
 - **Lock file must exist before concurrent stress**: The lock file (`.tickets-tracker/.ticket-write.lock`) is created on first write. In race conditions at system initialization, two processes could attempt the first write simultaneously; `ticket-init.sh` uses a `mkdir`-based lock to serialize initialization itself.
 
@@ -119,7 +119,7 @@ This ADR is implemented across the following stories in epic w21-ablv:
 
 | Story | Scope |
 |-------|-------|
-| w21-ablv | `ticket init`, `ticket create`, `ticket show` — core read/write pipeline |
+| w21-ablv | `.claude/scripts/dso ticket init`, `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket show` — core read/write pipeline |
 | w21-o72z | Additional event types: STATUS, COMMENT, LINK |
 | w21-f8tg | State cache for the reducer (`.state-cache` per ticket) |
 | w21-q0nn | Compaction: SNAPSHOT events + deletion of original event files |

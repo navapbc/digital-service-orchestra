@@ -11,7 +11,7 @@ Epic ID passed as argument.
 ### 1. Load Context
 
 ```bash
-ticket show <epic-id>
+.claude/scripts/dso ticket show <epic-id>
 ```
 
 Read the epic title, description, and any existing done definitions or success criteria.

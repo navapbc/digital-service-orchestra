@@ -19,7 +19,7 @@ Two constraints make a naive synchronous approach unworkable:
 - **SC9 (no local credentials)**: Jira API credentials must not be required on developer machines.
   Storing long-lived API tokens locally increases the blast radius of a compromised workstation.
 
-`tk sync` (the existing local synchronization command) runs the Atlassian CLI (ACLI) directly.
+`.claude/scripts/dso ticket sync` (the existing local synchronization command) runs the Atlassian CLI (ACLI) directly.
 This requires local Jira credentials and runs synchronously in the developer's shell session.
 It cannot satisfy SC1 (it is a pull, not a push trigger) or SC9 (credentials must be present
 locally).
@@ -98,18 +98,18 @@ fields (`event_type`, `jira_key`, `local_id`, `env_id`, `timestamp`, `run_id`) a
 
 ## Alternatives Considered
 
-### Alternative: Extend `tk sync` to run in CI
+### Alternative: Extend `.claude/scripts/dso ticket sync` to run in CI
 
-Run the existing `tk sync` command in a CI step instead of a dedicated bridge script.
+Run the existing `.claude/scripts/dso ticket sync` command in a CI step instead of a dedicated bridge script.
 
 **Rejected** because:
-- `tk sync` requires local ACLI credentials to be present on the runner or passed as environment
+- `.claude/scripts/dso ticket sync` requires local ACLI credentials to be present on the runner or passed as environment
   variables. While CI can supply secrets, this approach re-introduces credential management
   complexity that the bridge pattern avoids.
-- `tk sync` runs synchronously and performs a full incremental scan of the ticket store. The
+- `.claude/scripts/dso ticket sync` runs synchronously and performs a full incremental scan of the ticket store. The
   outbound bridge uses `git diff` to process only the events introduced by the triggering commit,
   which is significantly more efficient for large ticket stores.
-- `tk sync` does not emit SYNC events — it cannot serve as the emitter side of the
+- `.claude/scripts/dso ticket sync` does not emit SYNC events — it cannot serve as the emitter side of the
   outbound/inbound bridge contract.
 - Cannot satisfy SC1 (push-trigger) without additional wrapper logic equivalent to what the
   outbound bridge already provides.

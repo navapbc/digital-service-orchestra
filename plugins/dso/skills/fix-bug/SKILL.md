@@ -88,7 +88,7 @@ Before any investigation, check whether this bug (or a similar pattern) is alrea
 grep -i "<keyword>" "$(git rev-parse --show-toplevel)/.claude/docs/KNOWN-ISSUES.md" 2>/dev/null || true
 ```
 
-If a known issue matches, add its details to the bug ticket via `ticket comment <id> "Known issue match: ..."`. The known issue context informs investigation but does not skip it.
+If a known issue matches, add its details to the bug ticket via `.claude/scripts/dso ticket comment <id> "Known issue match: ..."`. The known issue context informs investigation but does not skip it.
 
 ### Step 1: Score and Classify (/dso:fix-bug)
 
@@ -96,7 +96,7 @@ If a known issue matches, add its details to the bug ticket via `ticket comment 
 2. Classify: **mechanical** or **behavioral** (see Error Type Classification above)
 3. If mechanical: follow the Mechanical Fix Path, then skip to Step 8
 4. If behavioral: apply the Scoring Rubric to determine investigation tier
-5. Record the classification and score in a ticket note: `ticket comment <id> "Classification: behavioral, Score: <N> (<tier>)"`
+5. Record the classification and score in a ticket note: `.claude/scripts/dso ticket comment <id> "Classification: behavioral, Score: <N> (<tier>)"`
 
 ### Step 2: Investigation Sub-Agent Dispatch (/dso:fix-bug)
 
@@ -294,12 +294,12 @@ Input: approved fix description, files affected, estimated change scope
 **COMPLEX fix**: the fix scope is too large for a single bug fix track. The behavior depends on execution context:
 
 **When running as orchestrator (not a sub-agent)**:
-1. Record the finding: `ticket comment <id> "Fix complexity: COMPLEX — escalating to epic"`
+1. Record the finding: `.claude/scripts/dso ticket comment <id> "Fix complexity: COMPLEX — escalating to epic"`
 2. Invoke `/dso:brainstorm` to create an epic for the refactor or larger change
 3. Stop — do NOT proceed to Step 5 or Step 6 in this session
 
 **When running as a sub-agent** (detected per Sub-Agent Context Detection below):
-1. Record the finding: `ticket comment <id> "Fix complexity: COMPLEX — returning escalation to orchestrator"`
+1. Record the finding: `.claude/scripts/dso ticket comment <id> "Fix complexity: COMPLEX — returning escalation to orchestrator"`
 2. Return a COMPLEX_ESCALATION report to the calling orchestrator instead of invoking `/dso:brainstorm` directly (sub-agents cannot reliably invoke skills):
 
 ```
