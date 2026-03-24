@@ -148,6 +148,51 @@ fi
 # New files must be explicitly staged (git add) before running /dso:review so that
 # they appear in `git diff HEAD` and are included in the hash at both review and
 # pre-commit time (dso-g8cz: staging-invariant for new files).
-{
-    git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
-} | hash_stdin
+#
+# Merge-aware: when MERGE_HEAD exists, scope the diff to only files changed on
+# the worktree branch (merge-base..HEAD), excluding incoming-only files from the
+# merge source. This matches the pre-commit review gate's MERGE_HEAD filtering
+# (1ded-89e6) so the hash is consistent between review and commit time.
+_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
+if [[ -f "$_GIT_DIR/MERGE_HEAD" ]]; then
+    _merge_head_sha=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null)
+    _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
+    _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+    # Guard: MERGE_HEAD must resolve to a real commit different from HEAD.
+    # If MERGE_HEAD == HEAD (fake/self-referencing), skip merge-mode to prevent bypass.
+    # In a real merge, MERGE_HEAD points to the incoming branch tip (different from HEAD).
+    if [[ -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
+        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
+        if [[ -n "$_merge_base" ]]; then
+            # Only hash changes from the worktree branch (merge-base..HEAD + working tree)
+            # This excludes incoming-only files from the merge source.
+            _worktree_files=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
+            if [[ -n "$_worktree_files" ]]; then
+                _file_pathspecs=()
+                while IFS= read -r _f; do
+                    [[ -n "$_f" ]] && _file_pathspecs+=("$_f")
+                done <<< "$_worktree_files"
+                {
+                    git diff "$DIFF_BASE" -- "${_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+                } | hash_stdin
+            else
+                # No worktree-branch changes — hash an empty diff
+                echo "" | hash_stdin
+            fi
+        else
+            # merge-base failed — fall through to default behavior
+            {
+                git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+            } | hash_stdin
+        fi
+    else
+        # MERGE_HEAD == HEAD or unresolvable — skip merge-mode, use default behavior
+        {
+            git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+        } | hash_stdin
+    fi
+else
+    {
+        git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+    } | hash_stdin
+fi
