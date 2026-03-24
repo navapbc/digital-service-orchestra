@@ -1,0 +1,1 @@
+{"timestamp": 1774390574, "uuid": "a9aca6f9-d8f5-48cd-9a67-59c78b4969ae", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update CONFIGURATION-REFERENCE.md: remove issue_tracker.create_cmd and update tk Used-by fields", "parent_id": "985e-0421", "priority": 2, "assignee": "Joe Oakhart"}}
