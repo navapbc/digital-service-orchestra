@@ -1721,6 +1721,44 @@ def test_reducer_compiles_link_event_into_deps_list(
 
 @pytest.mark.unit
 @pytest.mark.scripts
+def test_reducer_link_event_with_target_key_instead_of_target_id(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """LINK events using 'target' key (legacy format) are accepted and normalized
+    to 'target_id' in the compiled state. All 112 existing LINK events on disk use
+    'target' rather than 'target_id'. Fix for ticket 9e0f-0828."""
+    ticket_dir = tmp_path / "tkt-link-legacy"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Legacy link test", "parent_id": None},
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605300,
+        uuid=_LINK_UUID,
+        event_type="LINK",
+        data={"relation": "depends_on", "target": "tkt-legacy-001"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket must return state"
+    assert len(state["deps"]) == 1, f"Expected 1 dep, got {len(state['deps'])}"
+    dep = state["deps"][0]
+    assert dep["target_id"] == "tkt-legacy-001", (
+        f"Expected target_id='tkt-legacy-001', got {dep.get('target_id')!r}"
+    )
+    assert dep["relation"] == "depends_on"
+    assert dep["link_uuid"] == _LINK_UUID
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
 def test_reducer_compiles_multiple_link_events(
     tmp_path: Path, reducer: ModuleType
 ) -> None:

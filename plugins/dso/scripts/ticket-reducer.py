@@ -361,8 +361,8 @@ def reduce_ticket(
         elif event_type == "LINK":
             state["deps"].append(
                 {
-                    "target_id": data["target_id"],
-                    "relation": data["relation"],
+                    "target_id": data.get("target_id", data.get("target", "")),
+                    "relation": data.get("relation", ""),
                     "link_uuid": event["uuid"],
                 }
             )
