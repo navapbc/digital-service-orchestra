@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "0.25.21",
+  "version": "0.25.23",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/session-start.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/session-start.sh"
           }
         ]
       }
@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-bash.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-bash.sh"
           }
         ]
       },
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-edit.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-edit.sh"
           }
         ]
       },
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-write.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-write.sh"
           }
         ]
       },
@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-exitplanmode.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-exitplanmode.sh"
           }
         ]
       },
@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-agent.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-agent.sh"
           }
         ]
       },
@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-taskoutput.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/pre-taskoutput.sh"
           }
         ]
       }
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/post-bash.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-bash.sh"
           }
         ]
       },
@@ -87,7 +87,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/post-edit.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-edit.sh"
           }
         ]
       },
@@ -96,7 +96,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/post-write.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-write.sh"
           }
         ]
       }
@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/stop.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/stop.sh"
           }
         ]
       }
@@ -118,7 +118,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh ${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/post-failure.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-failure.sh"
           }
         ]
       }

@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="$SCRIPT_DIR/../scripts/estimate-context-load.sh"
+SCRIPT="$SCRIPT_DIR/../plugins/dso/scripts/estimate-context-load.sh"
 FAILURES=0
 TESTS=0
 
