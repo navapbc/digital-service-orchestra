@@ -1,0 +1,1 @@
+{"timestamp": 1774389440, "uuid": "61562e93-31fa-4bce-94a8-fe9ad5ca4959", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Write RED test: assert no .tickets/ patterns in CI workflows and example files", "parent_id": "98d9-8f9a", "priority": 2, "assignee": "Joe Oakhart"}}
