@@ -1206,8 +1206,11 @@ _phase_push() {
         fi
         # Pull inbound bridge changes (SYNC events, Jira-originated tickets)
         if git -C "$_TRACKER_DIR" pull --rebase origin tickets 2>&1; then
-            # Push local ticket events to trigger outbound bridge
-            if git -C "$_TRACKER_DIR" push origin tickets 2>&1; then
+            # Push local ticket events to trigger outbound bridge.
+            # Skip hooks: the tickets orphan branch has no .pre-commit-config.yaml
+            # and pre-push hooks are designed for the main branch, not ticket data.
+            # (ticket-lib.sh already uses --no-verify for ticket commits.)
+            if PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$_TRACKER_DIR" push origin tickets 2>&1; then
                 echo "OK: Tickets branch synced with remote."
             else
                 echo "WARNING: Tickets branch push failed — ticket changes will sync on next merge."
