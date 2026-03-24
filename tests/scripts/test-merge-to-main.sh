@@ -146,59 +146,10 @@ assert_ne "test_parallel_validation_fmt_exit_code_captured" "0" "$_FMT_RC"
 assert_ne "test_parallel_validation_lint_exit_code_captured" "0" "$_LINT_RC"
 
 # =============================================================================
-# Test: _count_closed_tickets() function exists in merge-to-main.sh
+# Test: _count_closed_tickets() removed (v2 cleanup — v3 uses ticket list)
 # =============================================================================
 HAS_COUNT_FUNCTION=$(grep -c '_count_closed_tickets' "$MERGE_SCRIPT" || true)
-assert_ne "test_count_closed_tickets_function_exists" "0" "$HAS_COUNT_FUNCTION"
-
-# =============================================================================
-# Test: _count_closed_tickets() uses single awk pass (not -exec awk per file)
-# =============================================================================
-HAS_EXEC_AWK=$(grep -c '\-exec awk' "$MERGE_SCRIPT" || true)
-assert_eq "test_count_closed_tickets_no_exec_awk" "0" "$HAS_EXEC_AWK"
-
-# =============================================================================
-# Test: _count_closed_tickets() returns correct count for temp dir fixture
-# Create a temp dir with 2 open + 3 closed tickets; assert count == 3
-# =============================================================================
-_TC_TMPDIR=$(mktemp -d)
-trap 'rm -rf "$_TC_TMPDIR"' EXIT
-
-# Helper to write a minimal markdown ticket with given status
-_write_ticket() {
-    local file="$1" status="$2"
-    printf -- '---\nstatus: %s\ntitle: Ticket %s\n---\nBody text.\n' "$status" "$status" > "$file"
-}
-
-_write_ticket "$_TC_TMPDIR/open1.md" "open"
-_write_ticket "$_TC_TMPDIR/open2.md" "open"
-_write_ticket "$_TC_TMPDIR/closed1.md" "closed"
-_write_ticket "$_TC_TMPDIR/closed2.md" "closed"
-_write_ticket "$_TC_TMPDIR/closed3.md" "closed"
-
-# Source the function under test by extracting and eval-ing just the function
-# definition from merge-to-main.sh (avoid executing the full script).
-_FN_BODY=$(awk '/^_count_closed_tickets\(\)/{found=1} found{print; if(/^\}$/){exit}}' "$MERGE_SCRIPT")
-if [[ -z "$_FN_BODY" ]]; then
-    # Function not yet defined — RED: mark both behavioural tests as failing
-    assert_eq "test_count_closed_tickets_correct_count" "3" "FUNCTION_NOT_FOUND"
-    assert_eq "test_count_closed_tickets_open_not_counted" "0" "FUNCTION_NOT_FOUND"
-else
-    eval "$_FN_BODY"
-    _GOT_COUNT=$(_count_closed_tickets "$_TC_TMPDIR")
-    assert_eq "test_count_closed_tickets_correct_count" "3" "$_GOT_COUNT"
-
-    # Also verify open tickets are NOT counted (open-only dir)
-    _OPEN_TMPDIR=$(mktemp -d)
-    trap 'rm -rf "$_OPEN_TMPDIR"' EXIT
-    _write_ticket "$_OPEN_TMPDIR/open1.md" "open"
-    _write_ticket "$_OPEN_TMPDIR/open2.md" "open"
-    _GOT_OPEN_COUNT=$(_count_closed_tickets "$_OPEN_TMPDIR")
-    assert_eq "test_count_closed_tickets_open_not_counted" "0" "$_GOT_OPEN_COUNT"
-    rm -rf "$_OPEN_TMPDIR"
-fi
-
-rm -rf "$_TC_TMPDIR"
+assert_eq "test_count_closed_tickets_removed" "0" "$HAS_COUNT_FUNCTION"
 
 # =============================================================================
 # State file helper function tests
@@ -691,10 +642,10 @@ HAS_HELP_PHASE=$(grep -c 'phase' "$MERGE_SCRIPT" || true)
 assert_ne "test_cli_help_output_contains_phase" "0" "$HAS_HELP_PHASE"
 
 # =============================================================================
-# Test: --phase argument is parsed in the script
+# Test: --phase argument has been removed from the script
 # =============================================================================
 HAS_PHASE_ARG=$(grep -c '\-\-phase' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_phase_arg_handled" "0" "$HAS_PHASE_ARG"
+assert_eq "test_cli_phase_arg_removed" "0" "$HAS_PHASE_ARG"
 
 # =============================================================================
 # Test: --resume argument is parsed in the script
@@ -725,12 +676,10 @@ assert_eq "test_cli_help_output_mentions_phase" "true" "$_HELP_HAS_PHASE"
 assert_eq "test_cli_help_exits_0" "0" "$_HELP_RC"
 
 # =============================================================================
-# Test: --phase=<name> dispatches a single named phase and exits
-# We use a no-op phase by checking that passing --phase=push invokes _phase_push
-# via structural check (arg parsing dispatches _phase_$name)
+# Test: --phase flag has been removed (agents should use --resume instead)
 # =============================================================================
-HAS_PHASE_DISPATCH=$(grep -cE '_phase_\$|_phase_.*\$\{.*\}|"_phase_\$' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_phase_dispatches_function" "0" "$HAS_PHASE_DISPATCH"
+HAS_PHASE_FLAG=$(grep -c '\-\-phase=' "$MERGE_SCRIPT" || true)
+assert_eq "test_cli_phase_flag_removed" "0" "$HAS_PHASE_FLAG"
 
 # =============================================================================
 # Test: --resume reads state file (structural: script uses completed_phases or _state_is_fresh)

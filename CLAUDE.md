@@ -148,7 +148,7 @@ After ExitPlanMode approval, do NOT begin implementation. Create a ticket epic (
 #    Review uses autonomous resolution (2 fix/defend attempts before user escalation).
 #    On attempt 2+, /dso:oscillation-check runs automatically if same files targeted.
 # 2. git push (or plugins/dso/scripts/merge-to-main.sh in worktree sessions — handles .claude/scripts/dso ticket sync + merge + push)
-#    Supports phased execution: --phase=<name> (run one phase) or --resume (continue from last state file checkpoint).
+#    Supports --resume (continue from last state file checkpoint).
 #    Phases: sync → merge → validate → push → archive → ci_trigger
 #    # REVIEW-DEFENSE: checkpoint_verify phase removed from docs here intentionally — story dso-q0df (batch 2) removes _phase_checkpoint_verify() from merge-to-main.sh. Docs lead code in this multi-story epic.
 #    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>

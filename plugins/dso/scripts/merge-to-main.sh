@@ -18,15 +18,13 @@ set -euo pipefail
 for _arg in "$@"; do
     if [[ "$_arg" == "--help" ]]; then
         cat <<'USAGE'
-Usage: merge-to-main.sh [--phase=<name>|--resume|--help]
+Usage: merge-to-main.sh [--resume|--help]
 
-  --phase=<name>  Run a single named phase and exit. Valid phase names:
-                    sync  merge  validate  push  archive  ci_trigger
   --resume        Resume from last incomplete phase. On merge failure, squash-rebase
                   recovery runs automatically before retrying (up to 5 retries).
   --help          Print this usage message and exit.
 
-  (no args)       Run all phases sequentially (backward compatible).
+  (no args)       Run all phases sequentially.
 
 Merge recovery: on git merge failure the script squash-rebases the branch onto
 main and retries. If recovery fails, run --resume (retry budget: 5 attempts).
@@ -47,24 +45,6 @@ WORKTREE_DIR="$REPO_ROOT"
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 
-# --- Count closed tickets using a single awk pass over all .md files ---
-# Usage: _count_closed_tickets <tickets_dir>
-# Returns: integer count of .md files whose YAML front-matter contains "status: closed"
-_count_closed_tickets() {
-    local dir="$1"
-    local _result
-    _result=$(find "$dir" -maxdepth 1 -name "*.md" -type f -print0 \
-        | xargs -0 awk '
-            FILENAME != _prev {
-                if (_prev != "" && _found) count++
-                _prev=FILENAME; _found=0; _n=0
-            }
-            /^---$/ { _n++; if(_n==2) nextfile }
-            _n==1 && /^status:[[:space:]]*closed/ { _found=1 }
-            END { if (_prev != "" && _found) count++; print count+0 }
-        ' 2>/dev/null)
-    echo "${_result:-0}"
-}
 
 # --- State file helpers (resumable merge support) ---
 
@@ -917,6 +897,22 @@ fi
 _state_init
 trap '_sigurg_handler' URG
 
+# --- Resolve MAIN_REPO early so all phases can use it (including --resume) ---
+# MAIN_REPO is the path to the main (non-worktree) checkout. Phases like
+# validate and ci_trigger need it, but it was previously set only inside
+# _phase_sync — causing unbound variable errors on --resume.
+MAIN_REPO=$(dirname "$(git rev-parse --git-common-dir)")
+if [ -z "$MAIN_REPO" ]; then
+    echo "ERROR: Could not determine main repo path."
+    exit 1
+fi
+
+# PRE_MERGE_SHA: set to current HEAD as a safe default. _phase_merge overwrites
+# it with the actual pre-merge SHA before merging. On --resume (merge already
+# done), this default is stale but _phase_ci_trigger handles empty/stale values
+# gracefully via git diff error suppression (2>/dev/null).
+PRE_MERGE_SHA=$(git -C "$MAIN_REPO" rev-parse HEAD 2>/dev/null || echo "")
+
 # =============================================================================
 # Phase functions — each wraps a sequential phase with state recording
 # =============================================================================
@@ -1230,38 +1226,10 @@ _phase_push() {
     fi
 }
 
-# --- 4.5) Archive closed tickets if count exceeds threshold ---
+# --- 4.5) Archive phase (no-op — archive-closed-tickets.sh removed in v3 cleanup) ---
 _phase_archive() {
     _CURRENT_PHASE="archive"
     _state_write_phase "archive"
-
-    _ARCHIVE_SCRIPT="$_SCRIPT_DIR/archive-closed-tickets.sh"
-    if [ ! -f "$_ARCHIVE_SCRIPT" ]; then
-        _ARCHIVE_SCRIPT="$MAIN_REPO/scripts/archive-closed-tickets.sh"
-    fi
-    if [ -f "$_ARCHIVE_SCRIPT" ]; then
-        _CLOSED_COUNT=$(_count_closed_tickets "$TICKETS_DIR")
-        if [ "$_CLOSED_COUNT" -gt 100 ]; then
-            echo "Archiving $_CLOSED_COUNT closed ticket(s)..."
-            _ARCHIVE_OUT=$(TICKETS_DIR="$TICKETS_DIR" bash "$_ARCHIVE_SCRIPT" 2>&1)
-            echo "$_ARCHIVE_OUT"
-            # Commit archived tickets if any were moved
-            if echo "$_ARCHIVE_OUT" | grep -qE '^Archived [1-9]'; then
-                git add "$TICKETS_DIR"/archive/ 2>/dev/null || true
-                git add -u "$TICKETS_DIR"/ 2>/dev/null || true
-                if ! git diff --cached --quiet 2>/dev/null; then
-                    git commit -m "chore: archive closed tickets [skip ci]" --quiet
-                    git push --quiet 2>&1 || echo "WARNING: Push of archive commit failed — retry with git push."
-                    echo "OK: Archived tickets committed and pushed."
-                fi
-            fi
-        else
-            echo "INFO: $_CLOSED_COUNT closed ticket(s) — below threshold (100), skipping archive."
-        fi
-    else
-        echo "INFO: archive-closed-tickets.sh not found — skipping archive step."
-    fi
-
     _state_mark_complete "archive"
 }
 
@@ -1304,14 +1272,10 @@ _phase_ci_trigger() {
 _ALL_PHASES=(sync merge validate push archive ci_trigger)
 
 # --- Parse CLI arguments ---
-_CLI_PHASE=""
 _CLI_RESUME=false
 
 for _arg in "$@"; do
     case "$_arg" in
-        --phase=*)
-            _CLI_PHASE="${_arg#--phase=}"
-            ;;
         --resume)
             _CLI_RESUME=true
             ;;
@@ -1324,19 +1288,6 @@ for _arg in "$@"; do
             ;;
     esac
 done
-
-# --- Dispatch: --phase=<name> ---
-if [[ -n "$_CLI_PHASE" ]]; then
-    _DISPATCH_FN="_phase_${_CLI_PHASE}"
-    if declare -f "$_DISPATCH_FN" > /dev/null 2>&1; then
-        "$_DISPATCH_FN"
-        echo "DONE: phase '$_CLI_PHASE' completed."
-        exit 0
-    else
-        echo "ERROR: Unknown phase '$_CLI_PHASE'. Valid phases: ${_ALL_PHASES[*]}" >&2
-        exit 1
-    fi
-fi
 
 # --- Dispatch: --resume ---
 if [[ "$_CLI_RESUME" == "true" ]]; then
@@ -1448,8 +1399,8 @@ fi
 
 # --- No-args (or state file missing for --resume): run all phases sequentially ---
 if [[ $# -eq 0 ]]; then
-    echo "WARNING: Running all phases sequentially. Use --phase=<name> to run a single phase" \
-         "or --resume to continue from the last incomplete phase." >&2
+    echo "Running all phases sequentially. Use --resume to continue from the last" \
+         "incomplete phase if interrupted." >&2
 fi
 
 _phase_sync
