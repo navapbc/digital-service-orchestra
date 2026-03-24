@@ -459,13 +459,14 @@ _auto_resolve_archive_conflicts() {
     fi
 
     # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
-    # Ticket data lives in .tickets-tracker/<id>/*.json event files or .tickets-tracker/.index.json.
+    # Ticket data: v2 .tickets/*.md (including .tickets/archive/*.md),
+    #              v3 .tickets-tracker/<id>/*.json or .tickets-tracker/.index.json.
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
         case "$_file" in
-            .tickets-tracker/*.json | .tickets-tracker/*/*.json)
-                # v3: ticket event JSON files or index — safe to auto-resolve
+            .tickets-tracker/*.json | .tickets/*.md)
+                # v2 ticket .md files or v3 ticket event JSON — safe to auto-resolve
                 ;;
             *)
                 _non_archive_conflicts=$(( _non_archive_conflicts + 1 ))
@@ -488,8 +489,8 @@ _auto_resolve_archive_conflicts() {
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
 
-        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then
-            # v3: Ticket event JSON files / index — accept ours (git add if present, git rm if absent)
+        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json || "$_file" == .tickets/*.md || "$_file" == .tickets/archive/*.md ]]; then
+            # v2 ticket .md or v3 ticket event JSON — accept ours (git add if present, git rm if absent)
             if [[ -f "$_file" ]]; then
                 git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
             else
@@ -558,7 +559,7 @@ _auto_resolve_archive_conflicts() {
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 case "$_nf" in
-                    .tickets-tracker/*.json | .tickets-tracker/*/*.json) ;;
+                    .tickets-tracker/*.json | .tickets/*.md) ;;
                     *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
                 esac
             done <<< "$_new_all"
@@ -573,8 +574,8 @@ _auto_resolve_archive_conflicts() {
             local _new_resolved=0 _new_failed=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
-                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then
-                    # v3: ticket event JSON / index — accept ours
+                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json || "$_nf" == .tickets/*.md || "$_nf" == .tickets/archive/*.md ]]; then
+                    # v2 ticket .md or v3 ticket event JSON — accept ours
                     if [[ -f "$_nf" ]]; then
                         git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
                     else
