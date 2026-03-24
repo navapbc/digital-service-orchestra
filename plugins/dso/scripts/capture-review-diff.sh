@@ -39,13 +39,49 @@ for ex in "$@"; do
     EXCLUDES+=("$ex")
 done
 
+# --- Merge-aware: scope diff to worktree-branch files only (1ded-89e6) ---
+# When MERGE_HEAD exists, restrict the diff to files changed on the worktree
+# branch (merge-base..HEAD), excluding incoming-only files from the merge source.
+# This matches pre-commit-review-gate.sh's MERGE_HEAD filtering.
+_MERGE_FILE_PATHSPECS=()
+_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
+if [[ -f "$_GIT_DIR/MERGE_HEAD" ]]; then
+    _merge_head_sha=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null)
+    _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
+    _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+    # Guard: MERGE_HEAD must resolve to a real commit different from HEAD.
+    # If MERGE_HEAD == HEAD (fake/self-referencing), skip merge-mode to prevent bypass.
+    if [[ -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
+        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
+        if [[ -n "$_merge_base" ]]; then
+            while IFS= read -r _f; do
+                [[ -n "$_f" ]] && _MERGE_FILE_PATHSPECS+=("$_f")
+            done <<< "$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")"
+        fi
+    fi
+fi
+
 # --- Capture diff with exclusions (tee for worktree fd compatibility) ---
-{ git diff --staged -- "${EXCLUDES[@]}"; git diff -- "${EXCLUDES[@]}"; } | tee "$DIFF_FILE" > /dev/null
+if [[ ${#_MERGE_FILE_PATHSPECS[@]} -gt 0 ]]; then
+    # Merge mode: diff from merge-base to show only worktree-branch changes.
+    # git diff --staged/git diff don't work here because during a merge the
+    # staged files are the incoming changes, not the worktree branch's work.
+    git diff "$_merge_base" -- "${_MERGE_FILE_PATHSPECS[@]}" "${EXCLUDES[@]}" | tee "$DIFF_FILE" > /dev/null
+else
+    { git diff --staged -- "${EXCLUDES[@]}"; git diff -- "${EXCLUDES[@]}"; } | tee "$DIFF_FILE" > /dev/null
+fi
 
 # Guard: if empty after exclusions (snapshot-only commit), fall back to a diff
 # without any exclusions so verify-review-diff.sh doesn't reject the empty file.
-[ -s "$DIFF_FILE" ] || \
-    { git diff --staged; git diff; } | tee "$DIFF_FILE" > /dev/null
+# Merge-aware: if in merge mode, use the merge-base diff instead of the staged diff
+# to avoid capturing incoming-only changes from the merge source.
+if ! [ -s "$DIFF_FILE" ]; then
+    if [[ ${#_MERGE_FILE_PATHSPECS[@]} -gt 0 ]]; then
+        git diff "$_merge_base" -- "${_MERGE_FILE_PATHSPECS[@]}" | tee "$DIFF_FILE" > /dev/null
+    else
+        { git diff --staged; git diff; } | tee "$DIFF_FILE" > /dev/null
+    fi
+fi
 
 # Final fallback: last commit (e.g., post-compaction checkpoint scenario)
 [ -s "$DIFF_FILE" ] || git diff HEAD~1 | tee "$DIFF_FILE" > /dev/null
@@ -53,5 +89,10 @@ done
 # --- Capture stat with exclusions ---
 # Guard grep -v with || true to prevent pipefail crash when no untracked files
 # match (grep -v returns exit 1 when all lines are filtered out).
-{ git diff HEAD --stat -- "${EXCLUDES[@]}"; \
-  git ls-files --others --exclude-standard | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
+if [[ ${#_MERGE_FILE_PATHSPECS[@]} -gt 0 ]]; then
+    { git diff "$_merge_base" --stat -- "${_MERGE_FILE_PATHSPECS[@]}" "${EXCLUDES[@]}"; \
+      git ls-files --others --exclude-standard | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
+else
+    { git diff HEAD --stat -- "${EXCLUDES[@]}"; \
+      git ls-files --others --exclude-standard | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
+fi
