@@ -493,9 +493,17 @@ _auto_resolve_archive_conflicts() {
     # each `git rebase --continue` advances past one conflict commit and may
     # stop again at the next. We keep resolving and continuing until REBASE_HEAD
     # is gone (rebase complete) or we encounter a non-archive conflict (abort).
+    # Clean up orphaned REBASE_HEAD if the rebase-merge dir is already gone.
+    # Git doesn't always remove REBASE_HEAD after a successful rebase --continue
+    # on the final conflicted commit (git quirk: rebase-merge/ is removed but
+    # REBASE_HEAD is left behind).
+    if [[ -f "$_git_dir/REBASE_HEAD" ]] && [[ ! -d "$_git_dir/rebase-merge" ]] && [[ ! -d "$_git_dir/rebase-apply" ]]; then
+        rm -f "$_git_dir/REBASE_HEAD"
+    fi
+
     local _loop_iters=0
     local _max_iters=50  # guard against infinite loops
-    while [[ -f "$_git_dir/REBASE_HEAD" ]]; do
+    while [[ -f "$_git_dir/REBASE_HEAD" && ( -d "$_git_dir/rebase-merge" || -d "$_git_dir/rebase-apply" ) ]]; do
         _loop_iters=$(( _loop_iters + 1 ))
         if [[ "$_loop_iters" -gt "$_max_iters" ]]; then
             echo "ERROR: _auto_resolve_archive_conflicts: rebase loop exceeded $_max_iters iterations — aborting." >&2
@@ -506,6 +514,11 @@ _auto_resolve_archive_conflicts() {
         # Try to continue; capture exit code to distinguish conflict vs failure.
         local _continue_out _continue_rc=0
         _continue_out=$(GIT_EDITOR=: git rebase --continue 2>&1) || _continue_rc=$?
+
+        # Clean up orphaned REBASE_HEAD after successful continue
+        if [[ -f "$_git_dir/REBASE_HEAD" ]] && [[ ! -d "$_git_dir/rebase-merge" ]] && [[ ! -d "$_git_dir/rebase-apply" ]]; then
+            rm -f "$_git_dir/REBASE_HEAD"
+        fi
 
         # After --continue, check if we stopped again (new conflicts).
         if [[ -f "$_git_dir/REBASE_HEAD" ]]; then
