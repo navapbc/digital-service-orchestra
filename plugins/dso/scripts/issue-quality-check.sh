@@ -29,9 +29,16 @@ fi
 ID="$1"
 
 # Get the full issue output (stays in script, not in orchestrator context).
-# tk show exits 0 even when an issue is not found (error goes to stderr).
-# Detect failure by checking for an empty output after suppressing stderr.
-output=$("$TK" show "$ID" 2>/dev/null)
+# Prefer ticket show (v3-aware), fall back to tk show, then fall back to
+# reading .tickets/<id>.md directly (test environments with TICKETS_DIR).
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
+if [ -n "${TICKETS_TRACKER_DIR:-}" ] && [ -x "$TICKET_CMD" ]; then
+    output=$("$TICKET_CMD" show "$ID" 2>/dev/null) || output=""
+elif [ -n "${TICKETS_DIR:-}" ] && [ -f "${TICKETS_DIR}/${ID}.md" ]; then
+    output=$(cat "${TICKETS_DIR}/${ID}.md" 2>/dev/null) || output=""
+else
+    output=$("$TK" show "$ID" 2>/dev/null) || output=""
+fi
 if [ -z "$output" ]; then
     echo "QUALITY: fail - could not load issue $ID, using inline prompt"
     exit 1
