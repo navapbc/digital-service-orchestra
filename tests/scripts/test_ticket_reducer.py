@@ -2238,3 +2238,34 @@ def test_reducer_assignee_defaults_to_none_when_absent(
     assert state["assignee"] is None, (
         f"Expected state['assignee'] is None, got {state['assignee']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: trailing-slash path must not produce empty ticket_id (b146-4802)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reduce_ticket_trailing_slash_produces_correct_ticket_id(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """reduce_ticket() called with a trailing-slash path must set ticket_id to the directory name."""
+    ticket_dir = tmp_path / "tkt-slash"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={"ticket_type": "bug", "title": "Trailing slash test"},
+    )
+
+    # Pass path WITH trailing slash — this is what bash glob */; produces
+    state = reducer.reduce_ticket(str(ticket_dir) + "/")
+
+    assert state is not None, "reduce_ticket returned None"
+    assert state["ticket_id"] == "tkt-slash", (
+        f"Expected ticket_id='tkt-slash', got {state['ticket_id']!r}"
+    )
