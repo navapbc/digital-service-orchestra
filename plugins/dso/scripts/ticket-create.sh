@@ -6,7 +6,7 @@
 #   ticket_type: one of bug, epic, story, task
 #   title: non-empty string
 #   parent_id: optional parent ticket ID (must exist in .tickets-tracker/)
-#   --priority: optional priority (0-4; 0=critical, 4=backlog)
+#   --priority: optional priority (0-4; 0=critical, 4=backlog; default: 2)
 #   --assignee: optional assignee name (defaults to git config user.name)
 #
 # Outputs the created ticket ID to stdout (only the ID — no other output).
@@ -25,7 +25,7 @@ _usage() {
     echo "  ticket_type: bug | epic | story | task" >&2
     echo "  title: non-empty string" >&2
     echo "  parent_id: optional parent ticket ID" >&2
-    echo "  --priority: 0-4 (0=critical, 4=backlog)" >&2
+    echo "  --priority: 0-4 (0=critical, 4=backlog; default: 2)" >&2
     echo "  --assignee: assignee name (default: git config user.name)" >&2
     exit 1
 }
@@ -41,7 +41,7 @@ shift 2
 
 # Parse remaining args: support both positional parent_id and --parent <id>
 parent_id=""
-priority=""
+priority="2"  # REVIEW-DEFENSE: default P2 is intentional — user-requested behavior change so all tickets have a priority
 assignee=""
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -157,7 +157,7 @@ data = {
     'parent_id': sys.argv[7] if sys.argv[7] else ''
 }
 if sys.argv[8]:
-    data['priority'] = sys.argv[8]
+    data['priority'] = int(sys.argv[8])
 if sys.argv[9]:
     data['assignee'] = sys.argv[9]
 
