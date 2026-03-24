@@ -1,0 +1,1 @@
+{"timestamp": 1774391222, "uuid": "8f40addd-53f3-4f50-bc7c-14ea8c10f74f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write guard tests for .tickets/*.md fixtures in validate-issues and orphaned-tasks tests", "parent_id": "9180-1d78", "priority": 2, "assignee": "Joe Oakhart"}}
