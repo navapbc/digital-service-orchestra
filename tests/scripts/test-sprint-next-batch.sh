@@ -500,6 +500,161 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 15: AC section headers (## ACCEPTANCE CRITERIA) do not cause false conflicts ─
+echo "Test 15: AC section headers do not cause false-positive batch conflicts (w21-v0ad, w22-uyaq)"
+_t15_mock_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t15_mock_dir")
+_t15_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t15_fake_repo")
+git init -q -b main "$_t15_fake_repo"
+mkdir -p "$_t15_fake_repo/.tickets" "$_t15_fake_repo/scripts"
+
+# Two tasks: different source files but BOTH have acceptance criteria in
+# "## ACCEPTANCE CRITERIA" section format referencing the same validation script.
+# The current AC_LINE_RE only strips "AC <word>:" lines — not section headers.
+printf -- "---\nid: t15-task-a\nstatus: open\ntype: task\npriority: 2\nparent: t15-epic\n---\n# Task A\n\nEdit \`src/foo.py\`\n\n## ACCEPTANCE CRITERIA\n\n- Run \`bash scripts/validate.sh --ci\`\n" \
+    > "$_t15_fake_repo/.tickets/t15-task-a.md"
+printf -- "---\nid: t15-task-b\nstatus: open\ntype: task\npriority: 2\nparent: t15-epic\n---\n# Task B\n\nEdit \`src/bar.py\`\n\n## ACCEPTANCE CRITERIA\n\n- Run \`bash scripts/validate.sh --ci\`\n" \
+    > "$_t15_fake_repo/.tickets/t15-task-b.md"
+
+cat > "$_t15_mock_dir/tk" << 'T15_TK'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "t15-epic" ]]; then
+            printf -- "---\nid: t15-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+        else
+            echo ""; exit 1
+        fi; exit 0 ;;
+    ready)
+        echo "t15-task-a [P2][open] - Task A"
+        echo "t15-task-b [P2][open] - Task B"
+        exit 0 ;;
+    blocked) exit 0 ;;
+    children) echo "t15-task-a"; echo "t15-task-b"; exit 0 ;;
+    *) exit 0 ;;
+esac
+T15_TK
+chmod +x "$_t15_mock_dir/tk"
+
+cat > "$_t15_fake_repo/scripts/classify-task.py" << 'T15_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T15_SCORER
+
+cat > "$_t15_fake_repo/scripts/read-config.sh" << 'T15_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T15_CFG
+chmod +x "$_t15_fake_repo/scripts/read-config.sh"
+printf '' > "$_t15_fake_repo/dso-config.conf"
+cp "$PLUGIN_SCRIPT" "$_t15_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t15_fake_repo/scripts/sprint-next-batch.sh"
+
+t15_exit=0
+t15_output=$(cd "$_t15_fake_repo" && TK="$_t15_mock_dir/tk" bash "$_t15_fake_repo/scripts/sprint-next-batch.sh" "t15-epic" --json 2>/dev/null) || t15_exit=$?
+rm -rf "$_t15_mock_dir" "$_t15_fake_repo"
+
+t15_batch_size=$(echo "$t15_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('batch_size',0))" 2>/dev/null || echo "0")
+t15_skipped=$(echo "$t15_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_overlap',[])))" 2>/dev/null || echo "1")
+if [ "$t15_exit" -eq 0 ] && [ "$t15_batch_size" -eq 2 ] && [ "$t15_skipped" -eq 0 ]; then
+    echo "  PASS: AC section headers do not cause false-positive conflicts (batch_size=2, skipped_overlap=0)"
+    (( PASS++ ))
+else
+    echo "  FAIL: AC section headers caused false-positive conflicts (exit=$t15_exit batch_size=$t15_batch_size skipped_overlap=$t15_skipped)" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 16: dso-prefix blocked story IDs are recognized (dso-ptzz) ──────────
+echo "Test 16: dso-prefix blocked story IDs are recognized by blocked_ids regex"
+_t16_mock_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t16_mock_dir")
+_t16_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t16_fake_repo")
+git init -q -b main "$_t16_fake_repo"
+mkdir -p "$_t16_fake_repo/.tickets" "$_t16_fake_repo/scripts"
+
+# One task whose parent story (dso-story1) is blocked
+printf -- "---\nid: t16-task\nstatus: open\ntype: task\npriority: 2\nparent: dso-story1\n---\n# Task under blocked story\n\nEdit \`src/agents/base.py\`\n" \
+    > "$_t16_fake_repo/.tickets/t16-task.md"
+
+cat > "$_t16_mock_dir/tk" << 'T16_TK'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "t16-epic" ]]; then
+            printf -- "---\nid: t16-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+        elif [[ "$TICKET_ID" == "t16-task" ]]; then
+            printf '{"id":"t16-task","parent":"dso-story1","status":"open"}'
+        else
+            echo ""; exit 1
+        fi; exit 0 ;;
+    ready)
+        echo "t16-task [P2][open] - Task under blocked story"
+        exit 0 ;;
+    blocked)
+        # dso-story1 is blocked by dso-blocker1 (which is open)
+        echo "dso-story1 blocked by dso-blocker1"
+        exit 0 ;;
+    children) echo "t16-task"; exit 0 ;;
+    *) exit 0 ;;
+esac
+T16_TK
+chmod +x "$_t16_mock_dir/tk"
+
+cat > "$_t16_fake_repo/scripts/classify-task.py" << 'T16_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T16_SCORER
+
+cat > "$_t16_fake_repo/scripts/read-config.sh" << 'T16_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T16_CFG
+chmod +x "$_t16_fake_repo/scripts/read-config.sh"
+printf '' > "$_t16_fake_repo/dso-config.conf"
+cp "$PLUGIN_SCRIPT" "$_t16_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t16_fake_repo/scripts/sprint-next-batch.sh"
+
+t16_exit=0
+t16_output=$(cd "$_t16_fake_repo" && TK="$_t16_mock_dir/tk" bash "$_t16_fake_repo/scripts/sprint-next-batch.sh" "t16-epic" --json 2>/dev/null) || t16_exit=$?
+rm -rf "$_t16_mock_dir" "$_t16_fake_repo"
+
+# Task should be SKIPPED_BLOCKED_STORY (batch_size=0) because its parent dso-story1 is blocked
+t16_batch_size=$(echo "$t16_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('batch_size',0))" 2>/dev/null || echo "1")
+t16_blocked=$(echo "$t16_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_blocked_story',[])))" 2>/dev/null || echo "0")
+if [ "$t16_exit" -eq 0 ] && [ "$t16_batch_size" -eq 0 ] && [ "$t16_blocked" -eq 1 ]; then
+    echo "  PASS: dso-prefix blocked story recognized (batch_size=0, skipped_blocked_story=1)"
+    (( PASS++ ))
+else
+    echo "  FAIL: dso-prefix blocked story not recognized (exit=$t16_exit batch_size=$t16_batch_size skipped_blocked_story=$t16_blocked)" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
