@@ -416,4 +416,74 @@ test_create_with_closed_parent_blocked() {
 }
 test_create_with_closed_parent_blocked
 
+# ── Test 8 (RED): ticket create --priority writes priority to CREATE event ─────
+echo "Test 8 (RED): ticket create --priority writes priority to CREATE event data"
+test_ticket_create_with_priority_writes_priority_to_create_event() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Priority test" --priority 1 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for priority test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for priority test" "found" "not-found"
+        return
+    fi
+
+    local priority_val
+    priority_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('priority','MISSING'))" "$event_file" 2>/dev/null) || true
+    assert_eq "priority in CREATE event data" "1" "$priority_val"
+}
+test_ticket_create_with_priority_writes_priority_to_create_event
+
+# ── Test 9 (RED): ticket create --assignee writes assignee to CREATE event ────
+echo "Test 9 (RED): ticket create --assignee writes assignee to CREATE event data"
+test_ticket_create_with_assignee_writes_assignee_to_create_event() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Assignee test" --assignee "Joe Oakhart" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for assignee test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for assignee test" "found" "not-found"
+        return
+    fi
+
+    local assignee_val
+    assignee_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('assignee','MISSING'))" "$event_file" 2>/dev/null) || true
+    assert_eq "assignee in CREATE event data" "Joe Oakhart" "$assignee_val"
+}
+test_ticket_create_with_assignee_writes_assignee_to_create_event
+
 print_summary

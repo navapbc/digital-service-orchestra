@@ -2,10 +2,12 @@
 # plugins/dso/scripts/ticket-create.sh
 # Create a new ticket with a CREATE event committed to the tickets branch.
 #
-# Usage: ticket-create.sh <ticket_type> <title> [parent_id]
+# Usage: ticket-create.sh <ticket_type> <title> [parent_id] [--priority <n>] [--assignee <name>]
 #   ticket_type: one of bug, epic, story, task
 #   title: non-empty string
 #   parent_id: optional parent ticket ID (must exist in .tickets-tracker/)
+#   --priority: optional priority (0-4; 0=critical, 4=backlog)
+#   --assignee: optional assignee name (defaults to git config user.name)
 #
 # Outputs the created ticket ID to stdout (only the ID — no other output).
 set -euo pipefail
@@ -19,10 +21,12 @@ TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket create <ticket_type> <title> [parent_id]" >&2
+    echo "Usage: ticket create <ticket_type> <title> [parent_id] [--priority <n>] [--assignee <name>]" >&2
     echo "  ticket_type: bug | epic | story | task" >&2
     echo "  title: non-empty string" >&2
     echo "  parent_id: optional parent ticket ID" >&2
+    echo "  --priority: 0-4 (0=critical, 4=backlog)" >&2
+    echo "  --assignee: assignee name (default: git config user.name)" >&2
     exit 1
 }
 
@@ -37,6 +41,8 @@ shift 2
 
 # Parse remaining args: support both positional parent_id and --parent <id>
 parent_id=""
+priority=""
+assignee=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --parent)
@@ -47,6 +53,22 @@ while [ $# -gt 0 ]; do
             parent_id="${1#--parent=}"
             shift
             ;;
+        --priority)
+            priority="$2"
+            shift 2
+            ;;
+        --priority=*)
+            priority="${1#--priority=}"
+            shift
+            ;;
+        --assignee)
+            assignee="$2"
+            shift 2
+            ;;
+        --assignee=*)
+            assignee="${1#--assignee=}"
+            shift
+            ;;
         *)
             # Positional: treat as parent_id (backward-compatible)
             parent_id="$1"
@@ -54,6 +76,11 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+# Default assignee to git user.name if not provided
+if [ -z "$assignee" ]; then
+    assignee=$(git config user.name 2>/dev/null || echo "")
+fi
 
 # Validate ticket_type
 case "$ticket_type" in
@@ -124,22 +151,28 @@ temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
 python3 -c "
 import json, sys
 
+data = {
+    'ticket_type': sys.argv[5],
+    'title': sys.argv[6],
+    'parent_id': sys.argv[7] if sys.argv[7] else ''
+}
+if sys.argv[8]:
+    data['priority'] = sys.argv[8]
+if sys.argv[9]:
+    data['assignee'] = sys.argv[9]
+
 event = {
     'timestamp': int(sys.argv[1]),
     'uuid': sys.argv[2],
     'event_type': 'CREATE',
     'env_id': sys.argv[3],
     'author': sys.argv[4],
-    'data': {
-        'ticket_type': sys.argv[5],
-        'title': sys.argv[6],
-        'parent_id': sys.argv[7] if sys.argv[7] else ''
-    }
+    'data': data
 }
 
-with open(sys.argv[8], 'w', encoding='utf-8') as f:
+with open(sys.argv[10], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$temp_event" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$temp_event" || {
     rm -f "$temp_event"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1

@@ -436,13 +436,24 @@ for line in body_lines:
         if note_body:
             notes.append(note_body)
 
+# Extract title from first heading in body (not in frontmatter)
+title = ""
+for line in body_lines:
+    stripped = line.strip()
+    if stripped.startswith('# '):
+        title = stripped[2:].strip()
+        break
+
 result = {
     "id": fm.get("id", ""),
-    "title": fm.get("title", ""),
+    "title": title,
     "status": fm.get("status", "open"),
     "type": fm.get("type", "task"),
     "priority": fm.get("priority", "2"),
     "parent": fm.get("parent", ""),
+    "created": fm.get("created", ""),
+    "assignee": fm.get("assignee", ""),
+    "jira_key": fm.get("jira_key", ""),
     "deps": fm.get("deps", []) if isinstance(fm.get("deps"), list) else [],
     "links": fm.get("links", []) if isinstance(fm.get("links"), list) else [],
     "notes": notes,
@@ -481,10 +492,24 @@ PYEOF
         _ticket_title=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('title',''))" "$_parse_result")
         _ticket_status=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('status','open'))" "$_parse_result")
 
+        if [[ -z "$_ticket_title" ]]; then
+            echo "WARN: skipping ticket $_ticket_id (empty title)" >&2
+            (( _skipped_malformed++ )) || true
+            continue
+        fi
+
+        local _ticket_parent _ticket_created _ticket_assignee _ticket_jira_key _ticket_priority
+        _ticket_parent=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('parent',''))" "$_parse_result")
+        _ticket_created=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('created',''))" "$_parse_result")
+        _ticket_assignee=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('assignee',''))" "$_parse_result")
+        _ticket_jira_key=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('jira_key',''))" "$_parse_result")
+        _ticket_priority=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('priority',''))" "$_parse_result")
+
         # Create ticket directory and write CREATE event JSON directly
         mkdir -p "$_tracker_dir/$_ticket_id"
-        python3 - "$_tracker_dir/$_ticket_id" "$_ticket_id" "$_ticket_type" "$_ticket_title" "$_ticket_status" "$_parse_result" <<'PYEOF'
+        python3 - "$_tracker_dir/$_ticket_id" "$_ticket_id" "$_ticket_type" "$_ticket_title" "$_ticket_status" "$_parse_result" "$_ticket_parent" "$_ticket_created" "$_ticket_assignee" "$_ticket_jira_key" "$_ticket_priority" <<'PYEOF'
 import json, sys, uuid, time
+from datetime import datetime
 
 ticket_dir   = sys.argv[1]
 ticket_id    = sys.argv[2]
@@ -492,22 +517,53 @@ ticket_type  = sys.argv[3]
 title        = sys.argv[4]
 status       = sys.argv[5]
 parse_json   = sys.argv[6]
+parent       = sys.argv[7] if len(sys.argv) > 7 else ""
+created_str  = sys.argv[8] if len(sys.argv) > 8 else ""
+assignee     = sys.argv[9] if len(sys.argv) > 9 else ""
+jira_key     = sys.argv[10] if len(sys.argv) > 10 else ""
+priority_str = sys.argv[11] if len(sys.argv) > 11 else ""
 
 parsed = json.loads(parse_json)
 notes  = parsed.get("notes", [])
 
-ts = int(time.time())
+# Parse original timestamp
+if created_str:
+    try:
+        dt = datetime.fromisoformat(created_str.replace('Z', '+00:00'))
+        ts = int(dt.timestamp())
+    except (ValueError, OSError):
+        ts = int(time.time())
+else:
+    ts = int(time.time())
+
 event_uuid = str(uuid.uuid4())
+
+# Parse priority to int if possible
+priority = None
+if priority_str:
+    try:
+        priority = int(priority_str)
+    except ValueError:
+        priority = None
+
+# Build CREATE event data
+create_data = {
+    "ticket_type": ticket_type,
+    "title": title,
+}
+if parent:
+    create_data["parent_id"] = parent
+if priority is not None:
+    create_data["priority"] = priority
+if assignee:
+    create_data["assignee"] = assignee
 
 # Write CREATE event
 create_event = {
     "timestamp": ts,
     "uuid": event_uuid,
     "event_type": "CREATE",
-    "data": {
-        "ticket_type": ticket_type,
-        "title": title,
-    }
+    "data": create_data,
 }
 create_filename = f"{ts}-{event_uuid}-CREATE.json"
 with open(f"{ticket_dir}/{create_filename}", "w", encoding="utf-8") as fh:
@@ -566,6 +622,20 @@ for j, dep_id in enumerate(deps):
     link_filename = f"{ts4}-{link_uuid}-LINK.json"
     with open(f"{ticket_dir}/{link_filename}", "w", encoding="utf-8") as fh:
         json.dump(link_event, fh, ensure_ascii=False)
+
+# Write SYNC event if jira_key is present
+if jira_key:
+    sync_ts = ts + 2 + len(notes) + len(deps) + 1
+    sync_uuid = str(uuid.uuid4())
+    sync_event = {
+        "timestamp": sync_ts,
+        "uuid": sync_uuid,
+        "event_type": "SYNC",
+        "jira_key": jira_key,
+    }
+    sync_filename = f"{sync_ts}-{sync_uuid}-SYNC.json"
+    with open(f"{ticket_dir}/{sync_filename}", "w", encoding="utf-8") as fh:
+        json.dump(sync_event, fh, ensure_ascii=False)
 PYEOF
 
         echo "Migrated: $_ticket_id ($_ticket_type)"

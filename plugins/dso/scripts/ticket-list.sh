@@ -14,6 +14,8 @@
 #                   status      → st
 #                   author      → au
 #                   parent_id   → pid
+#                   priority    → pr
+#                   assignee    → asn
 #                   comments    → cm (sub-keys: body→b, author→au)
 #                   deps        → dp (sub-keys: target_id→tid, relation→r)
 #   Errors go to stderr; exits 0 on success (even if some tickets have errors).

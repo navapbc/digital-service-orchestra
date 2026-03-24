@@ -34,6 +34,7 @@ _usage() {
     echo "  link        Link two tickets (blocks|depends_on|relates_to)"
     echo "  unlink      Remove a link between two tickets"
     echo "  deps        Show dependency graph for a ticket (<ticket_id>)"
+    echo "  edit          Edit ticket fields (--title, --priority, --assignee, --ticket_type)"
     echo "  bridge-status Show last bridge run status [--format=json]
   bridge-fsck   Audit bridge mappings (orphans, duplicates, stale SYNCs)"
     exit 1
@@ -136,6 +137,10 @@ case "$subcommand" in
             _ensure_initialized
         fi
         exec bash "$SCRIPT_DIR/ticket-bridge-status.sh" "$@"
+        ;;
+    edit)
+        _ensure_initialized
+        exec bash "$SCRIPT_DIR/ticket-edit.sh" "$@"
         ;;
     *)
         echo "Error: unknown subcommand '$subcommand'" >&2

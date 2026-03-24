@@ -245,3 +245,18 @@ class TestToLlmSubkeyShortening:
         assert dp[0].get("tid") == "dso-002"
         assert dp[0].get("r") == "blocks"
         assert "link_uuid" not in dp[0]
+
+
+# ---------------------------------------------------------------------------
+# RED tests: priority and assignee get dedicated short keys
+# ---------------------------------------------------------------------------
+
+
+class TestPriorityAssigneeMapping:
+    def test_priority_mapped_to_pr(self, mod):
+        result = mod.to_llm({"priority": 2})
+        assert result.get("pr") == 2
+
+    def test_assignee_mapped_to_asn(self, mod):
+        result = mod.to_llm({"assignee": "Joe"})
+        assert result.get("asn") == "Joe"

@@ -240,6 +240,8 @@ def reduce_ticket(
         "created_at": None,
         "env_id": None,
         "parent_id": None,
+        "priority": None,
+        "assignee": None,
         "comments": [],
         "deps": [],
         "bridge_alerts": [],
@@ -330,6 +332,8 @@ def reduce_ticket(
             state["created_at"] = event.get("timestamp")
             state["env_id"] = event.get("env_id")
             state["parent_id"] = data.get("parent_id") or None
+            state["priority"] = data.get("priority")
+            state["assignee"] = data.get("assignee")
         elif event_type == "STATUS":
             current_status = data.get("current_status")
             if current_status is not None and current_status != state["status"]:
@@ -412,6 +416,11 @@ def reduce_ticket(
                     "author": event.get("author"),
                 }
             )
+        elif event_type == "EDIT":
+            fields = data.get("fields", {})
+            for field_name, new_value in fields.items():
+                if field_name in state:
+                    state[field_name] = new_value
         elif event_type == "SNAPSHOT":
             compiled_state = data.get("compiled_state", {})
             # Restore compiled state from snapshot

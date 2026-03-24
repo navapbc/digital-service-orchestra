@@ -2091,3 +2091,112 @@ def test_same_second_link_unlink_sort_order(
         f"got {state['deps']!r}. "
         "This indicates UNLINK was processed before LINK (lexicographic sort bug)."
     )
+
+
+# ---------------------------------------------------------------------------
+# RED tests: priority and assignee fields in reducer output
+# ---------------------------------------------------------------------------
+
+_UUID4 = "11111111-2222-3333-4444-555555555555"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_reads_priority_from_create_event(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """CREATE event with priority in data must surface as state['priority']."""
+    ticket_dir = tmp_path / "tkt-priority"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID4,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Test", "priority": 2},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket returned None"
+    assert state["priority"] == 2, (
+        f"Expected state['priority'] == 2, got {state.get('priority')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_reads_assignee_from_create_event(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """CREATE event with assignee in data must surface as state['assignee']."""
+    ticket_dir = tmp_path / "tkt-assignee"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID4,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Test", "assignee": "Joe Oakhart"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket returned None"
+    assert state["assignee"] == "Joe Oakhart", (
+        f"Expected state['assignee'] == 'Joe Oakhart', got {state.get('assignee')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_priority_defaults_to_none_when_absent(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """CREATE event without priority must still produce state['priority'] is None."""
+    ticket_dir = tmp_path / "tkt-no-priority"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID4,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "No priority"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket returned None"
+    assert "priority" in state, "state must contain 'priority' key"
+    assert state["priority"] is None, (
+        f"Expected state['priority'] is None, got {state['priority']!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_assignee_defaults_to_none_when_absent(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """CREATE event without assignee must still produce state['assignee'] is None."""
+    ticket_dir = tmp_path / "tkt-no-assignee"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID4,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "No assignee"},
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket returned None"
+    assert "assignee" in state, "state must contain 'assignee' key"
+    assert state["assignee"] is None, (
+        f"Expected state['assignee'] is None, got {state['assignee']!r}"
+    )

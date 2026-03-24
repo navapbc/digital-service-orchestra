@@ -8,7 +8,7 @@ on:
     branches:
       - tickets
     paths:
-      - '.tickets/**'
+      - '.tickets-tracker/**'
 
 concurrency:
   group: jira-bridge
@@ -28,10 +28,17 @@ jobs:
     if: github.actor != (vars.BRIDGE_BOT_LOGIN || 'dso-bridge[bot]')
 
     steps:
-      - name: Checkout repository
+      - name: Checkout main (scripts and plugin code)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 1
+          ref: main
+
+      - name: Mount tickets branch as worktree
+        run: |
+          git fetch origin tickets --depth=2
+          rm -rf .tickets-tracker
+          git worktree add .tickets-tracker tickets
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -133,8 +140,8 @@ jobs:
 
       - name: Commit SYNC events back to tickets branch
         run: |
-          # Check if any new SYNC events were written
-          if git diff --quiet HEAD -- .tickets-tracker/; then
+          cd .tickets-tracker
+          if [ -z "$(git status --porcelain)" ]; then
             echo "No SYNC events to commit — skipping."
             exit 0
           fi
@@ -145,7 +152,7 @@ jobs:
           git config user.name "${BRIDGE_BOT_NAME}"
           git config user.email "${BRIDGE_BOT_EMAIL}"
 
-          git add .tickets-tracker/
+          git add -A
           git commit -m "chore: sync SYNC events from Jira bridge [run ${{ github.run_id }}]"
           git push origin HEAD:tickets
         env:

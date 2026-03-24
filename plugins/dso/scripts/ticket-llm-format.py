@@ -13,6 +13,8 @@ Key mapping:
   status      → st
   author      → au
   parent_id   → pid
+  priority    → pr
+  assignee    → asn
   comments    → cm  (sub-keys: body→b, author→au; timestamp omitted)
   deps        → dp  (sub-keys: target_id→tid, relation→r; link_uuid omitted)
   conflicts   → cf
@@ -25,6 +27,8 @@ KEY_MAP = {
     "status": "st",
     "author": "au",
     "parent_id": "pid",
+    "priority": "pr",
+    "assignee": "asn",
     "comments": "cm",
     "deps": "dp",
     "conflicts": "cf",
