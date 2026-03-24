@@ -1,0 +1,1 @@
+{"timestamp": 1774388770, "uuid": "21a0cd2e-49c5-4ac5-a2e7-78be0d465e7b", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED tests: assert no v2 dual-path code in classify-task.sh", "parent_id": "12b9-45d8", "priority": 1, "assignee": "Joe Oakhart"}}
