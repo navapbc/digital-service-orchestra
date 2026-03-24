@@ -4,22 +4,17 @@
 #
 # _phase_finalize is the cleanup phase that:
 #   1. Creates a pre-cleanup git tag (pre-cleanup-migration)
-#   2. Removes .tickets/ directory and tk script
-#   3. Removes tk-specific test fixtures
-#   4. Re-enables compaction (unsets TICKET_COMPACT_DISABLED)
+#   2. Removes .tickets/ directory
+#   3. Re-enables compaction (unsets TICKET_COMPACT_DISABLED)
 #
 # Tests (all must FAIL before _phase_finalize is implemented beyond its stub):
 #   1. test_finalize_creates_git_tag
 #   2. test_finalize_removes_tickets_dir
-#   3. test_finalize_removes_tk_script
-#   4. test_finalize_removes_tk_test_fixtures
-#   5. test_finalize_removes_bench_tk
-#   6. test_finalize_removes_tk_sync_force_local_test
-#   7. test_finalize_commits_as_single_commit
-#   8. test_finalize_dry_run_makes_no_changes
-#   9. test_finalize_unsets_compaction_disable_env
-#  10. test_finalize_skips_if_tickets_dir_missing
-#  11. test_finalize_handles_existing_tag
+#   3. test_finalize_commits_as_single_commit
+#   4. test_finalize_dry_run_makes_no_changes
+#   5. test_finalize_unsets_compaction_disable_env
+#   6. test_finalize_skips_if_tickets_dir_missing
+#   7. test_finalize_handles_existing_tag
 #
 # Usage: bash tests/scripts/test-cutover-tickets-migration-finalize.sh
 
@@ -37,11 +32,6 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 # Creates a temp git repo with:
 #   - An initial commit (so HEAD exists)
 #   - .tickets/ directory (simulating pre-migration state)
-#   - plugins/dso/scripts/tk stub script
-#   - tests/scripts/test-tk-*.sh fixture files
-#   - plugins/dso/scripts/bench-tk-ready.sh stub
-#   - tests/plugin/test-bench-tk-ready.sh stub
-#   - tests/hooks/test-tk-sync-force-local.sh stub
 # Sets _FIXTURE_DIR and _FIXTURE_LOG_DIR; registers EXIT trap.
 _setup_finalize_fixture() {
     _FIXTURE_DIR=$(mktemp -d)
@@ -55,27 +45,6 @@ _setup_finalize_fixture() {
     # Create .tickets/ directory (the main thing finalize should remove)
     mkdir -p "$_FIXTURE_DIR/.tickets"
     printf 'dso-abc123\n' > "$_FIXTURE_DIR/.tickets/.index.json"
-
-    # Create stub tk script
-    mkdir -p "$_FIXTURE_DIR/plugins/dso/scripts"
-    printf '#!/usr/bin/env bash\necho "tk stub"\n' > "$_FIXTURE_DIR/plugins/dso/scripts/tk"
-    chmod +x "$_FIXTURE_DIR/plugins/dso/scripts/tk"
-
-    # Create tk-specific test fixture stubs
-    mkdir -p "$_FIXTURE_DIR/tests/scripts"
-    printf '#!/usr/bin/env bash\necho "tk test"\n' > "$_FIXTURE_DIR/tests/scripts/test-tk-commands.sh"
-    printf '#!/usr/bin/env bash\necho "tk test"\n' > "$_FIXTURE_DIR/tests/scripts/test-tk-sync.sh"
-    chmod +x "$_FIXTURE_DIR/tests/scripts/test-tk-commands.sh"
-    chmod +x "$_FIXTURE_DIR/tests/scripts/test-tk-sync.sh"
-
-    # Create bench-tk stubs
-    printf '#!/usr/bin/env bash\necho "bench stub"\n' > "$_FIXTURE_DIR/plugins/dso/scripts/bench-tk-ready.sh"
-    mkdir -p "$_FIXTURE_DIR/tests/plugin"
-    printf '#!/usr/bin/env bash\necho "bench test"\n' > "$_FIXTURE_DIR/tests/plugin/test-bench-tk-ready.sh"
-
-    # Create tk-sync-force-local test stub
-    mkdir -p "$_FIXTURE_DIR/tests/hooks"
-    printf '#!/usr/bin/env bash\necho "sync-force-local test"\n' > "$_FIXTURE_DIR/tests/hooks/test-tk-sync-force-local.sh"
 
     # Initial commit (so HEAD exists for tagging)
     git -C "$_FIXTURE_DIR" add -A
@@ -167,121 +136,7 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC
 
 # =============================================================================
-# Test 3: test_finalize_removes_tk_script
-#
-# Run finalize phase only.
-# Assert: plugins/dso/scripts/tk does NOT exist after run.
-# Assert: exit 0.
-#
-# RED: fails because _phase_finalize stub does not remove the tk script.
-# =============================================================================
-_setup_finalize_fixture
-_run_finalize_only "$_FIXTURE_DIR" "$_FIXTURE_LOG_DIR"
-
-_snapshot_fail
-assert_eq "test_finalize_removes_tk_script_exit_0" "0" "$_FINALIZE_RC"
-
-if [[ ! -f "$_FIXTURE_DIR/plugins/dso/scripts/tk" ]]; then
-    _TK_REMOVED="true"
-else
-    _TK_REMOVED="false"
-fi
-assert_eq "test_finalize_removes_tk_script" "true" "$_TK_REMOVED"
-assert_pass_if_clean "test_finalize_removes_tk_script"
-
-rm -rf "$_FIXTURE_DIR"
-unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC
-
-# =============================================================================
-# Test 4: test_finalize_removes_tk_test_fixtures
-#
-# Run finalize phase only.
-# Assert: tests/scripts/test-tk-*.sh files do NOT exist after run.
-# Assert: exit 0.
-#
-# RED: fails because _phase_finalize stub does not remove test fixtures.
-# =============================================================================
-_setup_finalize_fixture
-_run_finalize_only "$_FIXTURE_DIR" "$_FIXTURE_LOG_DIR"
-
-_snapshot_fail
-assert_eq "test_finalize_removes_tk_test_fixtures_exit_0" "0" "$_FINALIZE_RC"
-
-# Check that no test-tk-*.sh files remain
-_TK_FIXTURES_REMAIN=$(find "$_FIXTURE_DIR/tests/scripts" -name 'test-tk-*.sh' 2>/dev/null | wc -l | tr -d ' ')
-if [[ "$_TK_FIXTURES_REMAIN" -eq 0 ]]; then
-    _TK_FIXTURES_REMOVED="true"
-else
-    _TK_FIXTURES_REMOVED="false"
-fi
-assert_eq "test_finalize_removes_tk_test_fixtures" "true" "$_TK_FIXTURES_REMOVED"
-assert_pass_if_clean "test_finalize_removes_tk_test_fixtures"
-
-rm -rf "$_FIXTURE_DIR"
-unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC _TK_FIXTURES_REMAIN
-
-# =============================================================================
-# Test 5: test_finalize_removes_bench_tk
-#
-# Run finalize phase only.
-# Assert: plugins/dso/scripts/bench-tk-ready.sh does NOT exist after run.
-# Assert: tests/plugin/test-bench-tk-ready.sh does NOT exist after run.
-# Assert: exit 0.
-#
-# RED: fails because _phase_finalize stub does not remove bench-tk files.
-# =============================================================================
-_setup_finalize_fixture
-_run_finalize_only "$_FIXTURE_DIR" "$_FIXTURE_LOG_DIR"
-
-_snapshot_fail
-assert_eq "test_finalize_removes_bench_tk_exit_0" "0" "$_FINALIZE_RC"
-
-if [[ ! -f "$_FIXTURE_DIR/plugins/dso/scripts/bench-tk-ready.sh" ]]; then
-    _BENCH_SCRIPT_REMOVED="true"
-else
-    _BENCH_SCRIPT_REMOVED="false"
-fi
-assert_eq "test_finalize_removes_bench_tk_script" "true" "$_BENCH_SCRIPT_REMOVED"
-
-if [[ ! -f "$_FIXTURE_DIR/tests/plugin/test-bench-tk-ready.sh" ]]; then
-    _BENCH_TEST_REMOVED="true"
-else
-    _BENCH_TEST_REMOVED="false"
-fi
-assert_eq "test_finalize_removes_bench_tk" "true" "$_BENCH_TEST_REMOVED"
-assert_pass_if_clean "test_finalize_removes_bench_tk"
-
-rm -rf "$_FIXTURE_DIR"
-unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC
-
-# =============================================================================
-# Test 6: test_finalize_removes_tk_sync_force_local_test
-#
-# Run finalize phase only.
-# Assert: tests/hooks/test-tk-sync-force-local.sh does NOT exist after run.
-# Assert: exit 0.
-#
-# RED: fails because _phase_finalize stub does not remove this test file.
-# =============================================================================
-_setup_finalize_fixture
-_run_finalize_only "$_FIXTURE_DIR" "$_FIXTURE_LOG_DIR"
-
-_snapshot_fail
-assert_eq "test_finalize_removes_tk_sync_force_local_test_exit_0" "0" "$_FINALIZE_RC"
-
-if [[ ! -f "$_FIXTURE_DIR/tests/hooks/test-tk-sync-force-local.sh" ]]; then
-    _SYNC_LOCAL_TEST_REMOVED="true"
-else
-    _SYNC_LOCAL_TEST_REMOVED="false"
-fi
-assert_eq "test_finalize_removes_tk_sync_force_local_test" "true" "$_SYNC_LOCAL_TEST_REMOVED"
-assert_pass_if_clean "test_finalize_removes_tk_sync_force_local_test"
-
-rm -rf "$_FIXTURE_DIR"
-unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC
-
-# =============================================================================
-# Test 7: test_finalize_commits_as_single_commit
+# Test 3: test_finalize_commits_as_single_commit
 #
 # Run finalize phase only. Count commits before and after.
 # Assert: exactly one new commit is created by finalize (all removals in one commit).
@@ -306,11 +161,10 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC _COMMITS_BEFORE _COMMITS_AFTER _NEW_COMMITS
 
 # =============================================================================
-# Test 8: test_finalize_dry_run_makes_no_changes
+# Test 4: test_finalize_dry_run_makes_no_changes
 #
 # Run finalize phase with --dry-run.
 # Assert: .tickets/ directory still exists (no changes made).
-# Assert: tk script still exists (no changes made).
 # Assert: output contains "[DRY RUN]" prefix.
 # Assert: exit 0.
 #
@@ -355,21 +209,13 @@ else
     _TICKETS_PRESERVED="false"
 fi
 assert_eq "test_finalize_dry_run_makes_no_changes" "true" "$_TICKETS_PRESERVED"
-
-# Assert tk script still exists (dry-run must not remove it)
-if [[ -f "$_FIXTURE_DIR/plugins/dso/scripts/tk" ]]; then
-    _TK_PRESERVED="true"
-else
-    _TK_PRESERVED="false"
-fi
-assert_eq "test_finalize_dry_run_preserves_tk_script" "true" "$_TK_PRESERVED"
 assert_pass_if_clean "test_finalize_dry_run_makes_no_changes"
 
 rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR _DRYRUN_OUTPUT _DRYRUN_RC _DRYRUN_STATE_FILE
 
 # =============================================================================
-# Test 9: test_finalize_unsets_compaction_disable_env
+# Test 5: test_finalize_unsets_compaction_disable_env
 #
 # Run finalize phase with TICKET_COMPACT_DISABLED pre-set.
 # Assert: finalize exits 0.
@@ -399,7 +245,7 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC TICKET_COMPACT_DISABLED
 
 # =============================================================================
-# Test 10: test_finalize_skips_if_tickets_dir_missing
+# Test 6: test_finalize_skips_if_tickets_dir_missing
 #
 # Run finalize when .tickets/ does not exist (already removed / idempotent).
 # Assert: exit 0 (graceful skip, not an error).
@@ -408,7 +254,7 @@ unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC TICKET_COMPACT
 # RED: fails because _phase_finalize stub would either error trying to remove a
 #      missing directory (rm -rf is safe, but tag creation and commit may fail
 #      or be skipped incorrectly depending on implementation).
-#      The stub currently exits 0 trivially — but the commit assertion (T7) fails.
+#      The stub currently exits 0 trivially — but the commit assertion (T3) fails.
 #      This test checks the idempotent path: if .tickets/ is already gone,
 #      finalize should still create the tag and commit (or skip gracefully).
 # =============================================================================
@@ -435,7 +281,7 @@ rm -rf "$_FIXTURE_DIR"
 unset _FIXTURE_DIR _FIXTURE_LOG_DIR _FINALIZE_OUTPUT _FINALIZE_RC
 
 # =============================================================================
-# Test 11: test_finalize_handles_existing_tag
+# Test 7: test_finalize_handles_existing_tag
 #
 # Run finalize when 'pre-cleanup-migration' tag already exists (idempotent run).
 # Assert: exit 0 (tag creation step must not fail or must skip gracefully).
