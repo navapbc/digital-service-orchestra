@@ -416,4 +416,22 @@ else:
 }
 test_write_commit_event_flock_on_canonical_path
 
+# ── Test 8: write_commit_event uses --no-verify on git commit ──────────────────
+echo "Test 8: write_commit_event git commit uses --no-verify (skip pre-commit hooks in tickets worktree)"
+test_write_commit_event_uses_no_verify() {
+    # ticket-lib.sh must exist
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for --no-verify test" "exists" "missing"
+        return
+    fi
+
+    # Static assertion: the git commit call inside the Python flock block must
+    # include --no-verify so that pre-commit hooks (which expect .pre-commit-config.yaml)
+    # don't break the tickets worktree's internal commits.
+    local no_verify_count
+    no_verify_count=$(grep -c '\-\-no-verify' "$TICKET_LIB" 2>/dev/null || echo "0")
+    assert_eq "ticket-lib.sh git commit uses --no-verify" "1" "$([ "$no_verify_count" -ge 1 ] && echo 1 || echo 0)"
+}
+test_write_commit_event_uses_no_verify
+
 print_summary

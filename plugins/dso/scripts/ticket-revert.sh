@@ -175,7 +175,7 @@ with open(sys.argv[2], 'w', encoding='utf-8') as f:
 if [ -f "$TRACKER_DIR/.git" ] && git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
     git -C "$TRACKER_DIR" config gc.auto 0 2>/dev/null || true
     git -C "$TRACKER_DIR" add "$ticket_id/$final_filename" 2>/dev/null || true
-    git -C "$TRACKER_DIR" commit -q -m "ticket: REVERT $ticket_id" 2>/dev/null || true
+    git -C "$TRACKER_DIR" commit -q --no-verify -m "ticket: REVERT $ticket_id" 2>/dev/null || true
 fi
 
 echo "Reverted event '$target_uuid' on ticket '$ticket_id'"
