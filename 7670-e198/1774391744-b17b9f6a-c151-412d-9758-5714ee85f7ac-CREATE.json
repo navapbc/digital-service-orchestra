@@ -1,0 +1,1 @@
+{"timestamp": 1774391744, "uuid": "b17b9f6a-c151-412d-9758-5714ee85f7ac", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Write RED test: CLAUDE.md has no v2 tk or .tickets/ references", "parent_id": "c726-e5a9", "priority": 2, "assignee": "Joe Oakhart"}}
