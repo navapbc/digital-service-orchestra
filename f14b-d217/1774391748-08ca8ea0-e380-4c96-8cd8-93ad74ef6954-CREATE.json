@@ -1,0 +1,1 @@
+{"timestamp": 1774391748, "uuid": "08ca8ea0-e380-4c96-8cd8-93ad74ef6954", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update CLAUDE.md to remove v2 tk command and .tickets/ path references", "parent_id": "c726-e5a9", "priority": 2, "assignee": "Joe Oakhart"}}
