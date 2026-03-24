@@ -580,6 +580,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh
 |-------|-------------|
 | `sync` | Sync ticket state from main before merging |
 | `merge` | Merge worktree branch into main |
+| `version_bump` | Bump patch version (when `version.file_path` is configured and `--bump` is passed) |
 | `validate` | Run post-merge validation checks |
 | `push` | Push main to origin (idempotent if already up to date) |
 | `archive` | Archive worktree branch |

@@ -18,13 +18,15 @@ set -euo pipefail
 for _arg in "$@"; do
     if [[ "$_arg" == "--help" ]]; then
         cat <<'USAGE'
-Usage: merge-to-main.sh [--resume|--help]
+Usage: merge-to-main.sh [--bump [patch|minor]] [--resume|--help]
 
+  --bump [TYPE]   Bump the project version before pushing. TYPE is 'patch' (default)
+                  or 'minor'. Requires version.file_path in .claude/dso-config.conf.
   --resume        Resume from last incomplete phase. On merge failure, squash-rebase
                   recovery runs automatically before retrying (up to 5 retries).
   --help          Print this usage message and exit.
 
-  (no args)       Run all phases sequentially.
+  (no args)       Run all phases sequentially (no version bump).
 
 Merge recovery: on git merge failure the script squash-rebases the branch onto
 main and retries. If recovery fails, run --resume (retry budget: 5 attempts).
@@ -94,6 +96,9 @@ with open('${_sf}.tmp', 'w') as f:
     json.dump(d, f)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     fi
+    # Write a per-process marker so phases can distinguish a fresh init from inherited state.
+    local _marker_file="/tmp/merge-state-init-marker-${BRANCH//\//-}"
+    echo "${BASHPID:-$$}" > "$_marker_file" 2>/dev/null || true
     return 0
 }
 
@@ -1106,6 +1111,35 @@ _phase_merge() {
     _state_mark_complete "merge"
 }
 
+# --- 3.25) Version bump (between merge and validate) ---
+_phase_version_bump() {
+    _CURRENT_PHASE="version_bump"; _state_write_phase "version_bump"
+    # Idempotency: skip if completed in state AND _state_init not called in this process.
+    # The marker file records the PID of the process that ran _state_init; if the current
+    # process did not call _state_init (i.e. PIDs differ), a prior run may have already
+    # completed this phase — check the state file before running again.
+    local _marker_file="/tmp/merge-state-init-marker-${BRANCH//\//-}" _init_pid=""
+    [[ -f "$_marker_file" ]] && _init_pid=$(cat "$_marker_file" 2>/dev/null || echo "")
+    if [[ "$_init_pid" != "${BASHPID:-$$}" ]]; then
+        local _state_file; _state_file=$(_state_file_path) 2>/dev/null || true
+        if [[ -n "$_state_file" && -f "$_state_file" ]] && [[ "$(python3 -c "import json;d=json.load(open('$_state_file'));print('y' if 'version_bump' in d.get('completed_phases',[]) else 'n')" 2>/dev/null)" == "y" ]]; then
+            echo "INFO: version_bump already completed (resume skip)."; return 0; fi; fi
+    if [[ -z "${BUMP_TYPE:-}" ]]; then echo 'INFO: --bump not specified -- skipping version bump.'
+        _state_mark_complete "version_bump"; return 0; fi
+    if [[ "${VERSION_FILE_PATH+SET}" == "SET" && -z "${VERSION_FILE_PATH:-}" ]]; then
+        echo 'INFO: version.file_path not configured -- skipping version bump.'
+        _state_mark_complete "version_bump"; return 0; fi
+    local _bf="--${BUMP_TYPE:-patch}" _bs
+    _bs=$(command -v bump-version.sh 2>/dev/null || echo "${_SCRIPT_DIR:-${CLAUDE_PLUGIN_ROOT:-}/scripts}/bump-version.sh")
+    echo "Bumping version ($_bf)..."
+    if ! bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
+    echo "OK: Version bumped."
+    git add -u 2>/dev/null || true
+    if ! git diff --cached --quiet 2>/dev/null; then git commit --amend --no-edit --quiet
+        echo 'OK: Folded version bump into merge commit.'; fi
+    _state_mark_complete "version_bump"
+}
+
 # --- 3.5) Post-merge validation ---
 _phase_validate() {
     _CURRENT_PHASE="validate"
@@ -1282,15 +1316,41 @@ _phase_ci_trigger() {
 # =============================================================================
 
 # Ordered list of all phase names (used by --resume to find next incomplete phase)
-_ALL_PHASES=(sync merge validate push archive ci_trigger)
+_ALL_PHASES=(sync merge version_bump validate push archive ci_trigger)
 
 # --- Parse CLI arguments ---
 _CLI_RESUME=false
+BUMP_TYPE=""
 
-for _arg in "$@"; do
+_CLI_ARGS=("$@")
+_CLI_IDX=0
+while [[ $_CLI_IDX -lt ${#_CLI_ARGS[@]} ]]; do
+    _arg="${_CLI_ARGS[$_CLI_IDX]}"
     case "$_arg" in
         --resume)
             _CLI_RESUME=true
+            ;;
+        --bump=*)
+            BUMP_TYPE="${_arg#--bump=}"
+            ;;
+        --bump)
+            # Look ahead for optional type argument (patch|minor)
+            _NEXT_IDX=$(( _CLI_IDX + 1 ))
+            if [[ $_NEXT_IDX -lt ${#_CLI_ARGS[@]} ]]; then
+                _next="${_CLI_ARGS[$_NEXT_IDX]}"
+                case "$_next" in
+                    patch|minor)
+                        BUMP_TYPE="$_next"
+                        _CLI_IDX=$_NEXT_IDX
+                        ;;
+                    *)
+                        # Next arg is not a bump type — default to patch
+                        BUMP_TYPE="patch"
+                        ;;
+                esac
+            else
+                BUMP_TYPE="patch"
+            fi
             ;;
         --help)
             # Already handled above (before worktree checks); should not reach here
@@ -1300,7 +1360,9 @@ for _arg in "$@"; do
             echo "WARNING: Unknown argument '$_arg'. See --help for usage." >&2
             ;;
     esac
+    _CLI_IDX=$(( _CLI_IDX + 1 ))
 done
+export BUMP_TYPE
 
 # --- Dispatch: --resume ---
 if [[ "$_CLI_RESUME" == "true" ]]; then
@@ -1406,6 +1468,7 @@ for name, info in phases.items():
         echo "DONE: $BRANCH resumed, merged, committed, and pushed."
         _state_reset_retry_count
         rm -f "$(_state_file_path)" 2>/dev/null
+        rm -f "/tmp/merge-state-init-marker-${BRANCH//\//-}" 2>/dev/null
         exit 0
     fi
 fi
@@ -1418,10 +1481,12 @@ fi
 
 _phase_sync
 _phase_merge
+_phase_version_bump
 _phase_validate
 _phase_push
 _phase_archive
 _phase_ci_trigger
 
 rm -f "$(_state_file_path)" 2>/dev/null
+rm -f "/tmp/merge-state-init-marker-${BRANCH//\//-}" 2>/dev/null
 echo "DONE: $BRANCH merged, committed, and pushed."

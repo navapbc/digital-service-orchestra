@@ -61,6 +61,14 @@ For reproducible environments, pin to a specific tag rather than a branch. Recor
 
 ## Release Workflow
 
+### Patch Bumps (automated, merge-time)
+
+Patch version bumps happen automatically during the `merge-to-main.sh` workflow when `version.file_path` is configured in `.claude/dso-config.conf` and `--bump` is passed (or bump mode is on). The `version_bump` phase (between `merge` and `validate`) runs `bump-version.sh --patch` — no manual commit step is required.
+
+### Minor and Major Releases (manual, via tag-release.sh)
+
+For MINOR and MAJOR version bumps (new capabilities or breaking changes), use the standalone `tag-release.sh` workflow:
+
 1. Determine the next version per the policy above.
 2. Run `.claude/scripts/dso tag-release.sh <VERSION>` — this updates `plugin.json` and `marketplace.json` and prints the `git tag` command.
 3. Commit the version bump (`git commit -m "chore: bump version to vX.Y.Z"`).
