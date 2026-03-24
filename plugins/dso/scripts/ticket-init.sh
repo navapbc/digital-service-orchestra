@@ -20,11 +20,26 @@ done
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
+# ── Ensure .env-id exists ────────────────────────────────────────────────────
+# .env-id is gitignored and must be generated locally on each environment.
+# Called before every early exit to guarantee the postcondition that .env-id
+# exists whenever the tracker directory is a valid worktree.
+_ensure_env_id() {
+    local _tracker="$1"
+    # Resolve symlinks so we write to the real directory
+    local _real_tracker
+    _real_tracker=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$_tracker" 2>/dev/null) || _real_tracker="$_tracker"
+    if [ -d "$_real_tracker" ] && [ ! -f "$_real_tracker/.env-id" ]; then
+        python3 -c "import uuid; print(uuid.uuid4())" > "$_real_tracker/.env-id"
+    fi
+}
+
 # ── Idempotency guard ────────────────────────────────────────────────────────
 # If .tickets-tracker/ already exists and is a valid worktree, exit 0.
 if [ -d "$TRACKER_DIR" ] && [ -f "$TRACKER_DIR/.git" ]; then
     # Verify it's actually a valid worktree
     if git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+        _ensure_env_id "$TRACKER_DIR"
         if [[ "$_silent" == false ]]; then
             echo "Ticket system already initialized."
         fi
@@ -68,6 +83,7 @@ if [ -f "$REPO_ROOT/.git" ]; then
         _current_target="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$TRACKER_DIR" 2>/dev/null || true)"
         _expected_target="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$_main_tracker" 2>/dev/null || true)"
         if [ "$_current_target" = "$_expected_target" ]; then
+            _ensure_env_id "$TRACKER_DIR"
             if [[ "$_silent" == false ]]; then
                 echo "Ticket system already initialized."
             fi
@@ -108,6 +124,7 @@ if [ -f "$REPO_ROOT/.git" ]; then
         echo ".tickets-tracker" >> "$_wt_exclude_file"
     fi
 
+    _ensure_env_id "$TRACKER_DIR"
     if [[ "$_silent" == false ]]; then
         echo "Ticket system initialized (symlink to main repo)."
     fi
