@@ -253,7 +253,7 @@ class AcliClient:
         title from ticket_data (matching the CREATE event data schema).
         """
         project = self.jira_project
-        issue_type = ticket_data.get("ticket_type", "Task")
+        issue_type = ticket_data.get("ticket_type", "Task").capitalize()
         summary = ticket_data.get("title", "")
         return create_issue(project, issue_type, summary, acli_cmd=self._acli_cmd)
 
