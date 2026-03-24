@@ -104,26 +104,6 @@ test_setup_is_idempotent() {
     assert_eq "test_setup_is_idempotent (pre-existing entry)" "1" "$count2"
 }
 
-# ── test_setup_dso_tk_help_works ──────────────────────────────────────────────
-# After setup, invoking the installed shim with 'tk --help' (without
-# CLAUDE_PLUGIN_ROOT set — forcing the shim to read from dso-config.conf)
-# must exit 0.
-test_setup_dso_tk_help_works() {
-    local T
-    T=$(mktemp -d)
-    TMPDIRS+=("$T")
-
-    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
-
-    local exit_code=0
-    (
-        cd "$T"
-        unset CLAUDE_PLUGIN_ROOT 2>/dev/null || true
-        "./.claude/scripts/dso" tk --help >/dev/null 2>&1
-    ) || exit_code=$?
-    assert_eq "test_setup_dso_tk_help_works" "0" "$exit_code"
-}
-
 # REVIEW-DEFENSE: Error-path tests (missing arguments, invalid TARGET_DIR) are out of
 # scope for this RED-phase task. The RED phase covers the happy-path contract that the
 # script must satisfy. Error-path and edge-case coverage belongs in the GREEN implementation
@@ -1423,7 +1403,6 @@ test_setup_creates_shim
 test_setup_shim_executable
 test_setup_writes_plugin_root
 test_setup_is_idempotent
-test_setup_dso_tk_help_works
 test_prereq_bash_version_fatal
 test_prereq_missing_coreutils_fatal
 test_prereq_missing_precommit_warning

@@ -12,11 +12,7 @@
 #   1. Create tickets with dependencies (closed tickets with no active dependents)
 #   2. Archive the closed ticket via archive-closed-tickets.sh
 #      → tombstone must be created at .tickets/archive/tombstones/<id>.json
-#   3. Run `tk dep tree` on a ticket that references the archived dep and verify
-#      the archived dep renders as "[archived: closed (<type>)]"
-#      (NOT "[missing — treated as satisfied]")
-#   4. Run `tk ready` and verify the dependent ticket is in the ready list
-#      (the archived dep counts as satisfied)
+#   3. Verify tombstone content is correct (id, type, final_status fields)
 #
 # Key invariant (archive protection):
 #   archive-closed-tickets.sh does NOT archive a closed ticket that is still
@@ -35,7 +31,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 ARCHIVE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/archive-closed-tickets.sh"
-TK_SCRIPT="$REPO_ROOT/plugins/dso/scripts/tk"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
@@ -45,12 +40,6 @@ echo "=== test-archive-tombstone-e2e.sh ==="
 
 if [[ ! -f "$ARCHIVE_SCRIPT" ]]; then
     echo "FAIL: archive-closed-tickets.sh not found at $ARCHIVE_SCRIPT" >&2
-    (( ++FAIL ))
-    print_summary
-fi
-
-if [[ ! -f "$TK_SCRIPT" ]]; then
-    echo "FAIL: tk script not found at $TK_SCRIPT" >&2
     (( ++FAIL ))
     print_summary
 fi
@@ -99,8 +88,6 @@ _make_tickets_dir() {
 # created. A separate open ticket (open-a) references dep-a in its deps list.
 # After archival:
 #   - dep-a is in .tickets/archive/ with a tombstone
-#   - dep tree for open-a shows dep-a as "[archived: closed (task)]"
-#   - tk ready includes open-a (archived dep treated as satisfied)
 #
 # Note: to trigger archival, dep-a must have no active dependents. Here open-a
 # lists dep-a in deps[], which would ordinarily protect dep-a. So we simulate
@@ -153,32 +140,6 @@ if [[ -f "$tombstone_a" ]]; then
     assert_eq "scenario_a: tombstone final_status = closed" "closed" "$ts_a_status"
 fi
 
-# Phase 2: introduce open-a that references dep-a (now archived)
-_make_ticket "$TICKETS_DIR_A" "open-a" "open" "task" "[dep-a]"
-
-# Verify dep tree shows dep-a as archived (not "missing")
-dep_tree_a=$(TICKETS_DIR="$TICKETS_DIR_A" bash "$TK_SCRIPT" dep tree open-a 2>/dev/null) || true
-
-assert_contains \
-    "scenario_a: dep tree shows dep-a as [archived: closed (task)]" \
-    "[archived: closed (task)]" \
-    "$dep_tree_a"
-
-# Ensure the "missing" fallback is NOT used
-dep_missing_a=$(echo "$dep_tree_a" | grep "dep-a" | grep "missing" || true)
-assert_eq \
-    "scenario_a: dep tree does NOT render dep-a as missing" \
-    "" \
-    "$dep_missing_a"
-
-# Verify tk ready includes open-a (dep-a archived = treated as satisfied)
-ready_a=$(TICKETS_DIR="$TICKETS_DIR_A" bash "$TK_SCRIPT" ready 2>/dev/null) || true
-
-assert_contains \
-    "scenario_a: tk ready includes open-a (archived dep treated as satisfied)" \
-    "open-a" \
-    "$ready_a"
-
 assert_pass_if_clean "scenario_a_archive_then_dep_tree_and_ready"
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -193,8 +154,7 @@ assert_pass_if_clean "scenario_a_archive_then_dep_tree_and_ready"
 #
 # Expected flow:
 #   1. Archive dep-b1 and dep-b2 in one run → two tombstones
-#   2. open-b introduced; dep tree for open-b shows dep-b1 as archived
-#   3. tk ready includes open-b
+#   2. Both tombstones contain correct metadata
 # ══════════════════════════════════════════════════════════════════════════════
 
 echo ""
@@ -236,23 +196,6 @@ if [[ -f "$tombstone_b2" ]]; then
     assert_eq "scenario_b: tombstone type for story ticket = story" "story" "$ts_b2_type"
 fi
 
-# Introduce open-b referencing dep-b1 (now archived)
-_make_ticket "$TICKETS_DIR_B" "open-b" "open" "task" "[dep-b1]"
-
-dep_tree_b=$(TICKETS_DIR="$TICKETS_DIR_B" bash "$TK_SCRIPT" dep tree open-b 2>/dev/null) || true
-
-assert_contains \
-    "scenario_b: dep tree shows dep-b1 as [archived: closed (task)]" \
-    "[archived: closed (task)]" \
-    "$dep_tree_b"
-
-ready_b=$(TICKETS_DIR="$TICKETS_DIR_B" bash "$TK_SCRIPT" ready 2>/dev/null) || true
-
-assert_contains \
-    "scenario_b: tk ready includes open-b" \
-    "open-b" \
-    "$ready_b"
-
 assert_pass_if_clean "scenario_b_multiple_closed_archived_one_run"
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -267,8 +210,6 @@ assert_pass_if_clean "scenario_b_multiple_closed_archived_one_run"
 # After running the archiver:
 #   - dep-c remains in .tickets/ (NOT archived)
 #   - no tombstone created for dep-c
-#   - dep tree for open-c shows dep-c as "[closed]" (still in active tickets)
-#   - tk ready includes open-c (its dep dep-c is closed in active tickets)
 # ══════════════════════════════════════════════════════════════════════════════
 
 echo ""
@@ -297,29 +238,6 @@ assert_eq \
     "scenario_c: no tombstone for dep-c (not archived)" \
     "0" \
     "$(test -f "$TICKETS_DIR_C/archive/tombstones/dep-c.json" && echo 1 || echo 0)"
-
-# dep tree shows dep-c as [closed] — it's still in active tickets
-dep_tree_c=$(TICKETS_DIR="$TICKETS_DIR_C" bash "$TK_SCRIPT" dep tree open-c 2>/dev/null) || true
-
-assert_contains \
-    "scenario_c: dep tree shows dep-c as [closed] (not archived)" \
-    "dep-c [closed]" \
-    "$dep_tree_c"
-
-# No [archived:] label should appear
-dep_archived_c=$(echo "$dep_tree_c" | grep "archived" || true)
-assert_eq \
-    "scenario_c: dep tree does not show archived label (dep-c not archived)" \
-    "" \
-    "$dep_archived_c"
-
-# open-c must still appear in tk ready (dep-c is closed)
-ready_c=$(TICKETS_DIR="$TICKETS_DIR_C" bash "$TK_SCRIPT" ready 2>/dev/null) || true
-
-assert_contains \
-    "scenario_c: tk ready includes open-c (dep is closed in active tickets)" \
-    "open-c" \
-    "$ready_c"
 
 assert_pass_if_clean "scenario_c_protected_dep_not_archived"
 

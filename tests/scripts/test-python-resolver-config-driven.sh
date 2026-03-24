@@ -24,7 +24,7 @@ echo "=== test-python-resolver-config-driven.sh ==="
 
 SCRIPTS_DIR="$DSO_PLUGIN_DIR/scripts"
 
-# List of 8 scripts that must use config-driven paths
+# List of 7 scripts that must use config-driven paths
 SCRIPTS=(
     "read-config.sh"
     "ci-status.sh"
@@ -33,7 +33,6 @@ SCRIPTS=(
     "classify-task.sh"
     "issue-batch.sh"
     "worktree-sync-from-main.sh"
-    "tk"
 )
 
 # ── test_<script>_uses_config_python_venv ──────────────────────────────────

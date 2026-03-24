@@ -62,7 +62,7 @@ test_shim_no_nonposix_constructs() {
 }
 
 # ── test_shim_exits_0_with_valid_dso_root ─────────────────────────────────────
-# When CLAUDE_PLUGIN_ROOT is set to the plugin root, invoking 'dso tk --help'
+# When CLAUDE_PLUGIN_ROOT is set to the plugin root, invoking 'dso read-config.sh --help'
 # must exit 0 (script is found and delegates successfully).
 test_shim_exits_0_with_valid_dso_root() {
     if [[ ! -x "$SHIM" ]]; then
@@ -70,7 +70,7 @@ test_shim_exits_0_with_valid_dso_root() {
         return
     fi
     local exit_code=0
-    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$SHIM" tk --help >/dev/null 2>&1 || exit_code=$?
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$SHIM" read-config.sh --help >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_shim_exits_0_with_valid_dso_root" "0" "$exit_code"
 }
 
@@ -121,7 +121,7 @@ test_shim_resolves_dso_root_from_config() {
     (
         cd "$fake_repo"
         unset CLAUDE_PLUGIN_ROOT
-        bash "$SHIM" tk --help >/dev/null 2>&1
+        bash "$SHIM" read-config.sh --help >/dev/null 2>&1
     ) || exit_code=$?
     assert_eq "test_shim_resolves_dso_root_from_config" "0" "$exit_code"
 }
@@ -148,7 +148,7 @@ test_shim_error_names_config_key_when_no_dso_root() {
     stderr_output=$(
         cd "$empty_repo"
         unset CLAUDE_PLUGIN_ROOT
-        bash "$SHIM" tk --help 2>&1 >/dev/null
+        bash "$SHIM" read-config.sh --help 2>&1 >/dev/null
     ) || exit_code=$?
 
     # Must exit non-zero

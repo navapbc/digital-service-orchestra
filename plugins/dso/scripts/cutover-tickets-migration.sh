@@ -988,18 +988,7 @@ _phase_finalize() {
     fi
 
     # ------------------------------------------------------------------
-    # 3. Remove tk script
-    # ------------------------------------------------------------------
-    local _tk_script="${_REPO_ROOT}/plugins/dso/scripts/tk"
-    if [[ "$_DRY_RUN" != "true" ]]; then
-        rm -f "$_tk_script"
-        echo "finalize: removed $_tk_script"
-    else
-        echo "finalize: [would] rm -f $_tk_script"
-    fi
-
-    # ------------------------------------------------------------------
-    # 4. Remove tk-specific test fixtures
+    # 3. Remove tk-specific test fixtures
     # ------------------------------------------------------------------
     # bench-tk-ready.sh scripts
     local _bench_script="${_REPO_ROOT}/plugins/dso/scripts/bench-tk-ready.sh"

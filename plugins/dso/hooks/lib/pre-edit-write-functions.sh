@@ -245,7 +245,7 @@ hook_title_length_validator() {
 # REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
 # integration as a separate task, dependent on this implementation (dso-4cb7).
-# See: tk show dso-280g
+# See: ticket show dso-280g
 hook_tickets_tracker_guard() {
     local INPUT="$1"
     local HOOK_ERROR_LOG="$HOME/.claude/hook-error-log.jsonl"

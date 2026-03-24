@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-no-import-yaml-probe.sh
-# TDD tests verifying that tk, worktree-create.sh, check-local-env.sh, and
+# TDD tests verifying that worktree-create.sh, check-local-env.sh, and
 # issue-batch.sh do NOT contain 'import yaml' interpreter probes or pyyaml/PyYAML
 # references. These probes were used solely to find Python for read-config.sh,
 # which no longer needs Python (the YAML path was removed). Scripts that use
@@ -27,9 +27,8 @@ echo "=== test-no-import-yaml-probe.sh ==="
 
 SCRIPTS_DIR="$DSO_PLUGIN_DIR/scripts"
 
-# The 4 scripts that must NOT contain import yaml probes
+# The 3 scripts that must NOT contain import yaml probes
 TARGET_SCRIPTS=(
-    "tk"
     "worktree-create.sh"
     "check-local-env.sh"
     "issue-batch.sh"

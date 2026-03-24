@@ -783,12 +783,12 @@ hook_tickets_tracker_bash_guard() {
         return 0
     fi
 
-    # Allowlist: ticket CLI patterns (ticket *, tk *) — sanctioned write path
-    # Check if command's first meaningful token is 'ticket' or 'tk'
+    # Allowlist: ticket CLI patterns (ticket *) — sanctioned write path
+    # Check if command's first meaningful token is 'ticket'
     local FIRST_TOKEN
     FIRST_TOKEN="${COMMAND##*([[:space:]])}"   # trim leading whitespace
     FIRST_TOKEN="${FIRST_TOKEN%%[[:space:]]*}" # first token
-    if [[ "$FIRST_TOKEN" == "ticket" || "$FIRST_TOKEN" == "tk" ]]; then
+    if [[ "$FIRST_TOKEN" == "ticket" ]]; then
         return 0
     fi
 

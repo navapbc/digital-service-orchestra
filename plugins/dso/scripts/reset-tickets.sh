@@ -11,7 +11,7 @@ set -euo pipefail
 #   4. Applies type hierarchy fixes (task→story for epic children)
 #   5. Deletes .sync-state.json to force a full resync
 #   6. Commits the reset
-#   7. Runs tk sync to push all tickets to the clean Jira project
+#   7. Runs ticket sync to push all tickets to the clean Jira project
 #   8. Verifies idempotency with a second sync
 #
 # Usage:
@@ -149,7 +149,7 @@ echo "  3. Restore .tickets/ from commit $COMMIT_SHA ($BASELINE_COUNT files)"
 echo "  4. Fix type hierarchy (task→story for epic children)"
 echo "  5. Delete .sync-state.json"
 echo "  6. Commit the reset"
-echo "  7. Run tk sync to push $BASELINE_COUNT tickets to Jira"
+echo "  7. Run ticket sync to push $BASELINE_COUNT tickets to Jira"
 echo "  8. Verify idempotency"
 echo ""
 
@@ -253,12 +253,12 @@ EOF
 
 if [[ "$SKIP_JIRA" == "false" ]]; then
     echo ""
-    echo "Step 7/8: Running tk sync to push tickets to '$JIRA_PROJECT'..."
+    echo "Step 7/8: Running ticket sync to push tickets to '$JIRA_PROJECT'..."
     # Skip per-ticket git push during bulk sync — we do a single batch push afterward.
     # Without this, each of N tickets triggers an individual git push (N round-trips),
     # which causes hangs from rate limiting after ~196 pushes.
     TK_SYNC_SKIP_WORKTREE_PUSH=1 JIRA_PROJECT="$JIRA_PROJECT" \
-        "${CLAUDE_PLUGIN_ROOT}/scripts/tk" sync 2>&1 | tail -10
+        ticket sync 2>&1 | tail -10
     echo "  Sync complete."
 
     # Batch commit+push: jira_key stamps were written to .tickets/ files during sync
@@ -277,7 +277,7 @@ EOF
     echo ""
     echo "Step 8/8: Verifying idempotency (second sync)..."
     SECOND_SYNC=$(TK_SYNC_SKIP_WORKTREE_PUSH=1 JIRA_PROJECT="$JIRA_PROJECT" \
-        "${CLAUDE_PLUGIN_ROOT}/scripts/tk" sync 2>&1)
+        ticket sync 2>&1)
     CREATED_COUNT=$(echo "$SECOND_SYNC" | grep -c 'created' || true)
     if [[ "$CREATED_COUNT" -gt 0 ]]; then
         echo "  WARNING: Second sync created $CREATED_COUNT new issues — not idempotent!"

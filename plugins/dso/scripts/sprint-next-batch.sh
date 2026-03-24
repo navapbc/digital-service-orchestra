@@ -6,7 +6,7 @@ set -euo pipefail
 # fully-classified, conflict-free batch in one script call — the orchestrator
 # receives everything it needs to launch sub-agents without further analysis.
 #
-# NOTE: Delegates to scripts/issue-batch.sh for tk-based issue tracking.
+# NOTE: Delegates to scripts/issue-batch.sh for ticket-based issue tracking.
 #
 # Handles the 3-tier hierarchy (epic -> story -> task):
 #   - If a story has open blockers, all its child tasks are deferred regardless
