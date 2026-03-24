@@ -200,32 +200,9 @@ fi
 assert_eq "test_session_start_calls_cleanup" "yes" "$_DISPATCHER_CALLS_CLEANUP"
 
 # ============================================================
-# Test: function scans workflow-nohup-pids path
-# ============================================================
-_SCANS_REGISTRY="no"
-if grep -q 'workflow-nohup-pids' "$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
-    _SCANS_REGISTRY="yes"
-fi
-assert_eq "test_scans_nohup_pid_registry" "yes" "$_SCANS_REGISTRY"
-
-# ============================================================
-# Test: function checks command match (PID recycling protection)
-# ============================================================
-_CHECKS_CMD="no"
-if grep -qE 'command|cmd' "$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
-    _CHECKS_CMD="yes"
-fi
-assert_eq "test_checks_command_match" "yes" "$_CHECKS_CMD"
-
-# ============================================================
-# Test: function removes entry files
-# ============================================================
-_REMOVES_ENTRY="no"
-if grep -qE 'rm.*entry|remove.*entry' "$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh" 2>/dev/null; then
-    _REMOVES_ENTRY="yes"
-fi
-assert_eq "test_removes_entry_files" "yes" "$_REMOVES_ENTRY"
-
+# (Tests for registry scanning, command matching, and entry removal are
+# covered behaviorally by tests above: dead_process_entry_removed,
+# pid_recycling_protection_process_not_killed, multiple_dead_entries_removed.)
 # ============================================================
 # Test: 'test-plugin' orphan pattern is NOT in session-misc-functions.sh
 # ============================================================
