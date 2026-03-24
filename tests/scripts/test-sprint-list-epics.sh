@@ -418,6 +418,64 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 19 (RED): v3 event-sourced tickets found without .md files ──────────
+# RED: sprint-list-epics.sh currently reads .tickets/*.md files.
+# After v3 migration, tickets are event-sourced in .tickets-tracker/.
+# This test verifies the script can find epics from v3 event data.
+echo "Test 19 (RED): test_v3_event_sourced_epics — finds epics from v3 tracker"
+test_v3_event_sourced_epics() {
+    local TDIR19 TRACKER19
+    TDIR19=$(mktemp -d)
+    TRACKER19="$TDIR19/tracker"
+    mkdir -p "$TRACKER19"
+    mkdir -p "$TDIR19/tickets"  # empty .tickets/ dir (no .md files)
+
+    # Create v3 event-sourced epic: epic-v3a (open, priority 1)
+    mkdir -p "$TRACKER19/epic-v3a"
+    cat > "$TRACKER19/epic-v3a/1000000001-aaaa-CREATE.json" << 'EVTEOF'
+{"timestamp": 1000000001, "uuid": "aaaa", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "V3 Epic Alpha", "priority": 1}}
+EVTEOF
+
+    # Create v3 event-sourced epic: epic-v3b (in_progress, priority 2)
+    mkdir -p "$TRACKER19/epic-v3b"
+    cat > "$TRACKER19/epic-v3b/1000000002-bbbb-CREATE.json" << 'EVTEOF'
+{"timestamp": 1000000002, "uuid": "bbbb", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "V3 Epic Beta", "priority": 2}}
+EVTEOF
+    cat > "$TRACKER19/epic-v3b/1000000003-cccc-STATUS.json" << 'EVTEOF'
+{"timestamp": 1000000003, "uuid": "cccc", "event_type": "STATUS", "data": {"status": "in_progress"}}
+EVTEOF
+
+    # Create v3 event-sourced child story under epic-v3b
+    mkdir -p "$TRACKER19/story-v3c"
+    cat > "$TRACKER19/story-v3c/1000000004-dddd-CREATE.json" << 'EVTEOF'
+{"timestamp": 1000000004, "uuid": "dddd", "event_type": "CREATE", "data": {"ticket_type": "story", "title": "V3 Story Under Beta", "priority": 2, "parent_id": "epic-v3b"}}
+EVTEOF
+
+    local out19 exit19=0
+    # The script should find epics from the tracker, not from .tickets/*.md
+    out19=$(TICKETS_DIR="$TDIR19/tickets" TICKETS_TRACKER_DIR="$TRACKER19" bash "$SCRIPT" --all 2>/dev/null) || exit19=$?
+
+    rm -rf "$TDIR19"
+
+    # Exit 0: unblocked epics exist
+    [ "$exit19" -eq 0 ] || return 1
+    # epic-v3a should appear as unblocked open epic with P1
+    echo "$out19" | grep -q "epic-v3a" || return 1
+    # epic-v3b should appear with P* prefix (in_progress)
+    echo "$out19" | grep -qE "epic-v3b.*P\*" || return 1
+    # epic-v3b should show child count 1 (story-v3c is its child)
+    local v3b_children
+    v3b_children=$(echo "$out19" | grep "epic-v3b" | awk -F'\t' '{print $4}')
+    [ "$v3b_children" = "1" ] || return 1
+}
+if test_v3_event_sourced_epics; then
+    echo "  PASS: v3 event-sourced epics found"
+    (( PASS++ ))
+else
+    echo "  FAILED: sprint-list-epics.sh cannot find epics from v3 event-sourced tracker" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
