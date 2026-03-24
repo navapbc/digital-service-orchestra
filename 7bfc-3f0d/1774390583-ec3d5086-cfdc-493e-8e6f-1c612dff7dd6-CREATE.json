@@ -1,0 +1,1 @@
+{"timestamp": 1774390583, "uuid": "ec3d5086-cfdc-493e-8e6f-1c612dff7dd6", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update validate-work skill files: remove tk references from SKILL.md and tickets-health.md", "parent_id": "985e-0421", "priority": 2, "assignee": "Joe Oakhart"}}
