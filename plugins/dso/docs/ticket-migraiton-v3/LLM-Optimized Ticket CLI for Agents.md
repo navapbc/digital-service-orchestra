@@ -16,7 +16,7 @@ When an agent appends \--format=llm to the tk command, our jq reducer applies th
 
 ### **2\. Core Commands & Sample Output**
 
-#### **A. Fetching a Single Ticket (ticket show)**
+#### **A. Fetching a Single Ticket (.claude/scripts/dso ticket show)**
 
 When an agent picks up a task, it needs the full context of the ticket to write the implementation plan or tests.
 
@@ -24,7 +24,7 @@ When an agent picks up a task, it needs the full context of the ticket to write 
 
 Bash
 
-ticket show TKT-a1b2c3d4 \--format=llm
+.claude/scripts/dso ticket show TKT-a1b2c3d4 \--format=llm
 
 **Standard Human Output (\~150 tokens):**
 
@@ -54,7 +54,7 @@ JSON
 
 *Notice how parent\_id, dependencies, and verbose author metadata are stripped, and keys are shortened (id instead of local\_id).*
 
-#### **B. Listing Tickets (ticket list)**
+#### **B. Listing Tickets (.claude/scripts/dso ticket list)**
 
 When an agent is orchestrating work or trying to find the next task, returning a massive JSON array of 200 tickets is brittle. Instead, we output **JSON Lines (JSONL)**. This allows the agent's CLI tool to stream and process each ticket line-by-line using standard Unix tools like grep.
 
@@ -62,7 +62,7 @@ When an agent is orchestrating work or trying to find the next task, returning a
 
 Bash
 
-ticket list \--status=open \--type\=bug \--format=llm
+.claude/scripts/dso ticket list \--status=open \--type\=bug \--format=llm
 
 **LLM-Optimized Output (JSONL format):**
 
@@ -72,7 +72,7 @@ JSON
 {"id":"TKT-b9c8d7e6","jid":"PROJ-124","title":"Race condition in cache","status":"open"}  
 {"id":"TKT-f5g4h3j2","jid":null,"title":"Missing error boundary on dashboard","status":"open"}
 
-#### **C. Updating Ticket State (ticket transition & ticket comment)**
+#### **C. Updating Ticket State (.claude/scripts/dso ticket transition & .claude/scripts/dso ticket comment)**
 
 Agents need minimal, deterministic feedback to confirm their actions succeeded. They do not need a summary of the ticket they just updated.
 
@@ -80,7 +80,7 @@ Agents need minimal, deterministic feedback to confirm their actions succeeded. 
 
 Bash
 
-ticket transition TKT-a1b2c3d4 "in progress" \--format=llm
+.claude/scripts/dso ticket transition TKT-a1b2c3d4 "in progress" \--format=llm
 
 **LLM-Optimized Output:**
 
@@ -98,18 +98,18 @@ With these optimized commands, you can build highly deterministic orchestration 
 
 You can provide an agent with a specialized skill or hook that requires it to read the ticket state before writing code.
 
-1. The agent executes ticket list \--status=open \--type=task \--format=llm | head \-n 1 to grab the top priority task.  
-2. It parses the minified JSON, extracts the id, and runs ticket show \<id\> \--format=llm.  
+1. The agent executes .claude/scripts/dso ticket list \--status=open \--type=task \--format=llm | head \-n 1 to grab the top priority task.  
+2. It parses the minified JSON, extracts the id, and runs .claude/scripts/dso ticket show \<id\> \--format=llm.  
 3. Based on the ticket description, the agent generates the failing unit tests (TDD).  
-4. Once tests pass, the agent autonomously executes ticket transition \<id\> "closed" \--format=llm.
+4. Once tests pass, the agent autonomously executes .claude/scripts/dso ticket transition \<id\> "closed" \--format=llm.
 
 **Scenario: Human-Centered Design (HCD) Review Cycles**
 
 If a ticket requires human validation, the agent can be instructed to pause its loop and hand off control.
 
 1. The agent finishes a UI component implementation in its isolated worktree.  
-2. It executes ticket comment \<id\> "Implementation complete. Awaiting HCD review." \--format=llm.  
-3. It executes ticket transition \<id\> "review" \--format=llm.  
+2. It executes .claude/scripts/dso ticket comment \<id\> "Implementation complete. Awaiting HCD review." \--format=llm.  
+3. It executes .claude/scripts/dso ticket transition \<id\> "review" \--format=llm.  
 4. The agent halts and waits for the state of that ticket to return to "in progress" or "closed" before resuming.
 
 ### ---

@@ -48,9 +48,9 @@ Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 1
 
 `/dso:debug-everything` creates a "Project Health Restoration" epic to track all discovered bugs for a session. The epic follows this lifecycle:
 
-1. **Creation** (Phase 2): The triage sub-agent creates the epic via `/dso:brainstorm` and sets all discovered issues as children via `ticket link <issue-id> <epic-id> relates_to`.
+1. **Creation** (Phase 2): The triage sub-agent creates the epic via `/dso:brainstorm` and sets all discovered issues as children via `.claude/scripts/dso ticket link <issue-id> <epic-id> relates_to`.
 2. **Resume** (Phase 1, on re-entry): If a "Project Health Restoration" epic already exists from a previous session, it is reused — no new epic is created. New issues are added as children of the existing epic.
-3. **Closure on success** (Phase 9, "On Success"): When all checks pass and zero open bugs remain, the epic is closed with `ticket transition <epic-id> open closed` after adding a "Health restored." note.
+3. **Closure on success** (Phase 9, "On Success"): When all checks pass and zero open bugs remain, the epic is closed with `.claude/scripts/dso ticket transition <epic-id> open closed` after adding a "Health restored." note.
 4. **Left open on graceful shutdown** (Phase 9, "On Graceful Shutdown"): When the session shuts down with work remaining, the epic is left open with a summary note listing resolved vs. remaining issues. The next session resumes it.
 
 ---
@@ -91,15 +91,15 @@ This ensures a fresh start — no stale discoveries from a previous session. Cle
 
 **Resume check** — find and reuse previous work:
 
-1. `tk ready` and grep for "Project Health Restoration"
+1. `.claude/scripts/dso ticket list` and grep for "Project Health Restoration"
 2. If found: use that epic as the tracker (skip creating a new one in Phase 2)
-3. Check in-progress issues: `tk ready` and grep for `in_progress`
-4. For each in-progress issue: read notes via `ticket show <id>`, parse CHECKPOINT lines, and apply these rules:
-   - **CHECKPOINT 6/6 ✓** — fast-close: verify files exist, close with `ticket transition <id> open closed`
+3. Check in-progress issues: `.claude/scripts/dso ticket list` and grep for `in_progress`
+4. For each in-progress issue: read notes via `.claude/scripts/dso ticket show <id>`, parse CHECKPOINT lines, and apply these rules:
+   - **CHECKPOINT 6/6 ✓** — fast-close: verify files exist, close with `.claude/scripts/dso ticket transition <id> open closed`
    - **CHECKPOINT 5/6 ✓** — near-complete; fast-close without re-execution
    - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial; re-dispatch with the checkpoint note as resume context
-   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early; revert to open: `ticket transition <id> open`
-   - **No CHECKPOINT lines or malformed/ambiguous lines** — revert to open: `ticket transition <id> open`
+   - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early; revert to open: `.claude/scripts/dso ticket transition <id> open`
+   - **No CHECKPOINT lines or malformed/ambiguous lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
 
 ### Step 0.5: Context Budget Check (/dso:debug-everything)
 
@@ -265,7 +265,7 @@ DIAGNOSTIC_FILE: $(get_artifacts_dir)/debug-diag.md
 
 If all validation categories passed but open ticket bugs exist, also append: `All validation categories passed — only open ticket bugs need triage. Skip cluster cross-referencing (no validation failures to cluster). Assign all bugs to Tier 7.`
 
-If resuming an existing tracker, append: `Existing epic ID: <epic-id>. Do NOT create a new epic. Link new issues to this epic with ticket link <issue-id> <epic-id> relates_to.`
+If resuming an existing tracker, append: `Existing epic ID: <epic-id>. Do NOT create a new epic. Link new issues to this epic with .claude/scripts/dso ticket link <issue-id> <epic-id> relates_to.`
 
 **Subagent**: `subagent_type="general-purpose"`, `model="sonnet"`  # Tier 2: must cross-reference failure clusters with existing issues and make severity/priority judgments for new issue creation
 
@@ -335,11 +335,11 @@ Wait for user response. The user may approve all, approve specific bugs, or defe
 
 - **Approved bugs**: Add to `NORMAL_BUGS` list with the proposal as fix guidance.
   ```bash
-  ticket comment <id> "SAFEGUARD APPROVED: user approved editing <file>. Proposed fix: <description>"
+  .claude/scripts/dso ticket comment <id> "SAFEGUARD APPROVED: user approved editing <file>. Proposed fix: <description>"
   ```
 - **Deferred bugs**: Leave open with note:
   ```bash
-  ticket comment <id> "SAFEGUARD DEFERRED: requires editing <file>, deferred by user."
+  .claude/scripts/dso ticket comment <id> "SAFEGUARD DEFERRED: requires editing <file>, deferred by user."
   ```
   Remove from the fix queue.
 
@@ -429,7 +429,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 ### Orchestrator Actions After Sub-Agent Returns
 
 1. Verify the sub-agent's report
-2. Close any issues resolved by auto-fix: `ticket comment <id> "Resolved by auto-fix (format/lint)"` then `ticket transition <id> open closed`
+2. Close any issues resolved by auto-fix: `.claude/scripts/dso ticket comment <id> "Resolved by auto-fix (format/lint)"` then `.claude/scripts/dso ticket transition <id> open closed`
 3. Update the failure inventory with remaining errors
 4. **CONTEXT ANCHOR**: After the commit workflow completes, continue immediately at Step 5 below (Phase 4). Do NOT stop or wait for user input after committing.
 
@@ -464,7 +464,7 @@ Exit 0 means all checks pass. Exit 1 means at least one check requires action (d
 ### Claim Tasks
 
 ```bash
-ticket transition <id> in_progress
+.claude/scripts/dso ticket transition <id> in_progress
 ```
 
 **Known-solution detection**: Before selecting `subagent_type` for a Tier 7 bug, check if its notes contain `SAFEGUARD APPROVED:` (written by Phase 2.6 Step 4). If present, classify as "known fix" — resolve via `discover-agents.sh` routing category `code_simplify` (see `agent-routing.conf`) and pass the approval note as `fix_guidance` in the prompt context.
@@ -652,15 +652,15 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 
 | Sub-agent outcome | Action |
 |------------------|--------|
-| Success + tests pass | `ticket comment <id> "Fixed: <summary>"` then `ticket transition <id> open closed` |
-| Partial success | `ticket comment <id> "Partial: <details>."` |
-| Failure | `ticket transition <id> open` then `ticket comment <id> "Failed: <error>."` |
+| Success + tests pass | `.claude/scripts/dso ticket comment <id> "Fixed: <summary>"` then `.claude/scripts/dso ticket transition <id> open closed` |
+| Partial success | `.claude/scripts/dso ticket comment <id> "Partial: <details>."` |
+| Failure | `.claude/scripts/dso ticket transition <id> open` then `.claude/scripts/dso ticket comment <id> "Failed: <error>."` |
 | Regression | Revert changes (`git checkout -- <files>`), reopen, note regression |
 
 **Bug close constraint (enforced by hookify)**: Only close a bug issue if the note references specific changed files (code fix) OR explicitly escalates to the user. Investigation findings alone are never sufficient.
-- `ticket comment <id> "Fixed: added comment_penalty to quality_helpers.py"` (code change)
-- `ticket comment <id> "Escalated to user: code path is correct, no fix possible"` (escalation)
-- Do NOT close with only `ticket comment <id> "Investigated: code path is correct"` — use add-note for findings, then escalate or fix before closing
+- `.claude/scripts/dso ticket comment <id> "Fixed: added comment_penalty to quality_helpers.py"` (code change)
+- `.claude/scripts/dso ticket comment <id> "Escalated to user: code path is correct, no fix possible"` (escalation)
+- Do NOT close with only `.claude/scripts/dso ticket comment <id> "Investigated: code path is correct"` — use add-note for findings, then escalate or fix before closing
 
 ### Step 3a: COMPLEX Escalation Handling (/dso:debug-everything)
 
@@ -685,7 +685,7 @@ COMPLEX_ESCALATION: true
 
 1. Add a note to the bug ticket with the investigation findings:
    ```bash
-   ticket comment <bug-id> "fix-bug escalation: COMPLEX — <escalation_reason>. Investigation found: <investigation_findings>. Requires <investigation_tier_needed> orchestrator-level re-dispatch."
+   .claude/scripts/dso ticket comment <bug-id> "fix-bug escalation: COMPLEX — <escalation_reason>. Investigation found: <investigation_findings>. Requires <investigation_tier_needed> orchestrator-level re-dispatch."
    ```
 
 2. Invoke `/dso:fix-bug` directly at orchestrator level (not as a Task sub-agent), passing the investigation findings as pre-loaded context so the orchestrator-level fix-bug can skip re-investigation:
@@ -711,7 +711,7 @@ COMPLEX_ESCALATION: true
 Record the batch decisions and outcomes on the epic for observability:
 
 ```bash
-ticket comment <epic-id> "BATCH {N} | Tier {T}
+.claude/scripts/dso ticket comment <epic-id> "BATCH {N} | Tier {T}
 Issues: {id1} ({status}), {id2} ({status}), ...
 Agent types: {type} ({id1}), {type} ({id2}), ...
 Model tier: {model}
@@ -823,8 +823,8 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
    ```bash
    $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
    $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "All diagnostics passing, all bugs resolved"
-   ticket comment <epic-id> "Health restored."
-   ticket transition <epic-id> open closed
+   .claude/scripts/dso ticket comment <epic-id> "Health restored."
+   .claude/scripts/dso ticket transition <epic-id> open closed
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
 2. Proceed to **Phase 10** (Merge to Main & Verify).
@@ -851,14 +851,14 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
    ```
 5. Update ALL in-progress issues:
    ```bash
-   ticket comment <id> "Session shutdown. Progress: <summary>. Next: <what remains>."
+   .claude/scripts/dso ticket comment <id> "Session shutdown. Progress: <summary>. Next: <what remains>."
    ```
 6. Update the epic with remaining work summary:
    ```bash
    # List remaining open issues linked to the epic
-   ticket show <epic-id>
+   .claude/scripts/dso ticket show <epic-id>
    # Add a note summarizing what remains
-   ticket comment <epic-id> "Graceful shutdown. Resolved: <N resolved>/<M total> issues. Remaining open: <list IDs and titles>. Next session should resume with tk ready."
+   .claude/scripts/dso ticket comment <epic-id> "Graceful shutdown. Resolved: <N resolved>/<M total> issues. Remaining open: <list IDs and titles>. Next session should resume with .claude/scripts/dso ticket list."
    ```
    The epic stays open so the next `/dso:debug-everything` session can resume it (see [Epic Lifecycle](#epic-lifecycle)).
 7. Commit partial work and proceed to **Phase 10** (Merge to Main & Verify). After Phase 10 completes successfully, check context usage:
@@ -899,10 +899,10 @@ Read `$PLUGIN_ROOT/skills/debug-everything/prompts/bug-accountability-guide.md` 
 
 Run:
 ```bash
-tk ready; tk blocked
+.claude/scripts/dso ticket list
 ```
 
-For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `ticket transition <id> open closed`. Present escalated bugs to the user.
+For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `.claude/scripts/dso ticket transition <id> open closed`. Present escalated bugs to the user.
 
 **On Success** — report to user:
 - Open bug accountability table (above)

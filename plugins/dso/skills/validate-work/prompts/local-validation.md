@@ -128,7 +128,7 @@ You are a read-only reporting agent. You MUST NOT modify any files or system sta
 - **Write** — forbidden. Do not write any file.
 - **Bash with modifying commands** — forbidden:
   - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
-  - `ticket transition`, `ticket create`
+  - `.claude/scripts/dso ticket transition`, `.claude/scripts/dso ticket create`
   - `make`, `pip install`, `npm install`, `poetry install`
   - Any command that changes system state
 

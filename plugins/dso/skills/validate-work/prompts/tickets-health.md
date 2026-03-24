@@ -30,9 +30,9 @@ Note: `ticket` and the tk wrapper are CLI commands available in PATH — no conf
    ```
 
 Also run these supplementary checks:
-4. `tk ready`            (report open/in-progress issues with all deps resolved)
-5. `tk blocked`          (report blocked issues)
-6. `ticket list --status closed` (report recently closed issues)
+4. `.claude/scripts/dso ticket list`            (report open/in-progress issues with all deps resolved)
+5. `.claude/scripts/dso ticket list`          (report blocked issues)
+6. `.claude/scripts/dso ticket list --status closed` (report recently closed issues)
 
 ## Return
 
@@ -47,7 +47,7 @@ You are a read-only reporting agent. You MUST NOT modify any files or system sta
 - **Write** — forbidden. Do not write any file.
 - **Bash with modifying commands** — forbidden:
   - `git commit`, `git push`, `git add`, `git checkout`, `git reset`
-  - `ticket transition`, `ticket create`
+  - `.claude/scripts/dso ticket transition`, `.claude/scripts/dso ticket create`
   - `make`, `pip install`, `npm install`, `poetry install`
   - Any command that changes system state
 

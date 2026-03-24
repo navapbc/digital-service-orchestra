@@ -6,7 +6,7 @@ Rules for all sub-agents dispatched by orchestrators (`/dso:sprint`, `/dso:debug
 
 Sub-agents must NOT:
 - `git commit`, `git push` — orchestrator handles all commits
-- `ticket transition <id> open closed`, `ticket link`, `ticket transition <id> <current> <status>` — orchestrator manages issue lifecycle
+- `.claude/scripts/dso ticket transition <id> open closed`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket transition <id> <current> <status>` — orchestrator manages issue lifecycle
 - Invoke `/dso:commit`, `/dso:review`, or any slash-command — sub-agents are workers, not orchestrators
 - Dispatch nested Task tool calls or code-review sub-agents
 - **NEVER set `isolation: "worktree"` on this sub-agent.** Code-review and fix-resolution
@@ -32,7 +32,7 @@ Sub-agents MUST:
 - Run `pwd` first to confirm working directory
 - Write code + tests (TDD: tests before implementation when possible)
 - Run `make format-check && make lint` from `app/`, then `$(git rev-parse --show-toplevel)/plugins/dso/scripts/validate.sh --ci` as final validation
-- Write checkpoint notes: `ticket comment {id} "CHECKPOINT N/6: ..."`
+- Write checkpoint notes: `.claude/scripts/dso ticket comment {id} "CHECKPOINT N/6: ..."`
 - Use absolute paths for scripts: `$(git rev-parse --show-toplevel)/scripts/`
 - Follow existing code patterns and naming conventions
 - Read code before modifying it
@@ -40,8 +40,8 @@ Sub-agents MUST:
 ## Permitted Actions
 
 Sub-agents MAY:
-- `ticket create "..." --parent <parent-id> --type bug` for discovered bugs (use `--type bug` when filing defects, not `--type task`)
-- `ticket comment <id> "..."` for checkpoint progress notes
+- `.claude/scripts/dso ticket create "..." --parent <parent-id> --type bug` for discovered bugs (use `--type bug` when filing defects, not `--type task`)
+- `.claude/scripts/dso ticket comment <id> "..."` for checkpoint progress notes
 - Read any file in the repo to understand context
 - Write discovery files to `$ARTIFACTS_DIR/agent-discoveries/<task-id>.json` (resolve via: `source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir`) (atomic: write `.tmp`, then `mv`) when encountering bugs, missing dependencies, API changes, or convention violations during execution. Schema: `{"task_id": "<id>", "type": "<bug|dependency|api_change|convention>", "summary": "<one-line>", "affected_files": ["<path>", ...]}`. Discovery writing is non-fatal — failures must not block task completion.
 - Read `${TMPDIR:-/tmp}/dso-blackboard-<worktree-name>/blackboard.json` for file ownership awareness (written by orchestrator before dispatch). Respect ownership boundaries: only modify files listed under your ownership; report concerns for files owned by other agents. If a required modification falls outside your listed `files_owned`, add a checkpoint note explaining the deviation before proceeding.
@@ -77,7 +77,7 @@ Dispatch failure retries are sequential and do not count toward batch size limit
 
 ## Checkpoint Protocol
 
-Sub-agents write progress via `ticket comment {id} "CHECKPOINT N/6: ..."`:
+Sub-agents write progress via `.claude/scripts/dso ticket comment {id} "CHECKPOINT N/6: ..."`:
 
 | Checkpoint | Meaning |
 |-----------|---------|

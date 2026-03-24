@@ -22,13 +22,13 @@ When no `tier_schema` is specified, default to `TRIVIAL`.
 ### Step 1: Load Context
 
 ```bash
-tk show <ticket-id>
+.claude/scripts/dso ticket show <ticket-id>
 ```
 
 Read the ticket title, description, type, acceptance criteria, and any done definitions or success criteria. If a parent epic exists (`parent` field), also load:
 
 ```bash
-tk show <parent-epic-id>
+.claude/scripts/dso ticket show <parent-epic-id>
 ```
 
 Note any preplanning split-candidate flags or risk register entries.

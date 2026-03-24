@@ -125,7 +125,7 @@ except `version`. Below are the most commonly needed keys for initial setup:
 | `commands.format` | stack-derived | Auto-formatter command |
 | `dso.plugin_root` | set by `dso-setup.sh` | Absolute path to DSO plugin. Written by `dso-setup.sh`; rarely set manually. |
 | `ci.workflow_name` | absent | GitHub Actions workflow name for post-push CI trigger recovery (e.g. `CI`). Preferred over deprecated `merge.ci_workflow_name`. |
-| `jira.project` | absent | Jira project key for `tk sync` (e.g. `DIG`) |
+| `jira.project` | absent | Jira project key for `.claude/scripts/dso ticket sync` (e.g. `DIG`) |
 | `monitoring.tool_errors` | absent (disabled) | Set to `true` to enable tool error tracking and auto-ticket creation |
 
 For the full key reference including staging, CI, design, infrastructure, and worktree keys,
@@ -139,7 +139,7 @@ see **[docs/CONFIGURATION-REFERENCE.md](CONFIGURATION-REFERENCE.md)**.
 | `JIRA_USER` | Jira account email address |
 | `JIRA_API_TOKEN` | Jira API token (generate at https://id.atlassian.com/manage-profile/security/api-tokens) |
 
-These are only required when using `tk sync`. For the full environment variable reference, see
+These are only required when using `.claude/scripts/dso ticket sync`. For the full environment variable reference, see
 **[docs/CONFIGURATION-REFERENCE.md — Section 2](CONFIGURATION-REFERENCE.md#section-2--environment-variables)**.
 
 ---
@@ -148,7 +148,7 @@ These are only required when using `tk sync`. For the full environment variable 
 
 ### acli (Atlassian CLI)
 
-`acli` enables Jira ticket management from the command line as part of `tk sync` remote link
+`acli` enables Jira ticket management from the command line as part of `.claude/scripts/dso ticket sync` remote link
 creation workflows. It is not required for core DSO functionality.
 
 Install:
@@ -190,18 +190,18 @@ prompt. No manual configuration is required.
 
 ---
 
-## tk sync-events Prerequisites
+## .claude/scripts/dso ticket sync Prerequisites
 
-`tk sync-events` syncs the tickets branch with a shared remote using a split-phase protocol
+`.claude/scripts/dso ticket sync` syncs the tickets branch with a shared remote using a split-phase protocol
 (fetch → lock → merge → unlock → push). It requires the following setup before first use:
 
 | Requirement | How to satisfy |
 |---|---|
-| `.tickets-tracker/` initialized | Run `ticket init` from the repo root (see `plugins/dso/scripts/ticket-init.sh`) |
+| `.tickets-tracker/` initialized | Run `.claude/scripts/dso ticket init` from the repo root (see `plugins/dso/scripts/ticket-init.sh`) |
 | `origin` remote configured | `git -C .tickets-tracker remote add origin <url>` |
 | `tickets` branch exists in remote | `git -C .tickets-tracker push origin tickets:tickets` (on first environment only) |
 
-If `.tickets-tracker/` has not been initialized, `tk sync-events` exits with:
+If `.tickets-tracker/` has not been initialized, `.claude/scripts/dso ticket sync` exits with:
 ```
 error: ticket tracker not initialized (.tickets-tracker/ not found)
 ```

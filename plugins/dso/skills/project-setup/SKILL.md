@@ -893,7 +893,7 @@ If blank, record as empty — the bridge workflow will perform hash-bootstrap lo
 
 **B5. BRIDGE_BOT_LOGIN** — Use `AskUserQuestion`:
 ```
-BRIDGE_BOT_LOGIN — The GitHub username of the bot account that commits ticket sync changes.
+BRIDGE_BOT_LOGIN — The GitHub username of the bot account that commits .claude/scripts/dso ticket sync changes.
 This account needs write access to the repository.
 Enter GitHub username:
 ```
