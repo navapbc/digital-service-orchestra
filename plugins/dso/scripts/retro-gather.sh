@@ -70,44 +70,48 @@ section "TICKETS_HEALTH"
 "${CLAUDE_PLUGIN_ROOT}/scripts/validate-issues.sh" 2>&1 || true
 
 section "TICKETS_STATS"
-# Aggregate ticket stats from .tickets/ directory
-_tickets_dir="$REPO_ROOT/.tickets"
-if [ -d "$_tickets_dir" ]; then
-    _total=$(find "$_tickets_dir" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')
-    _open=$(grep -rl '^status: open' "$_tickets_dir" 2>/dev/null | wc -l | tr -d ' ')
-    _in_progress=$(grep -rl '^status: in_progress' "$_tickets_dir" 2>/dev/null | wc -l | tr -d ' ')
-    _closed=$(grep -rl '^status: closed' "$_tickets_dir" 2>/dev/null | wc -l | tr -d ' ')
-    echo "total: $_total, open: $_open, in_progress: $_in_progress, closed: $_closed"
+# Aggregate ticket stats via v3 ticket system (event-sourced, JSON reducer)
+TICKET_CMD="$SCRIPT_DIR/ticket"
+if [ -x "$TICKET_CMD" ]; then
+    "$TICKET_CMD" list 2>/dev/null | python3 -c "
+import json, sys, collections
+tickets = json.load(sys.stdin)
+valid = [t for t in tickets if 'status' in t and t.get('status') != 'error']
+stats = collections.Counter(t['status'] for t in valid)
+print('total: ' + str(len(valid)) + ', ' + ', '.join(f'{k}: {v}' for k, v in sorted(stats.items())))
+" 2>/dev/null || echo "ticket list failed"
 else
-    echo "No .tickets/ directory found"
+    echo "ticket command not found"
 fi
 
 section "TICKETS_OPEN"
-_tickets_dir="$REPO_ROOT/.tickets"
-if [ -d "$_tickets_dir" ]; then
-    _found=0
-    while IFS= read -r _ticket_file; do
-        _id=$(basename "$_ticket_file" .md)
-        _title=$(grep -m1 '^# ' "$_ticket_file" 2>/dev/null | sed 's/^# //')
-        echo "$_id $_title"
-        _found=1
-    done < <(grep -rl '^status: open' "$_tickets_dir" 2>/dev/null | sort)
-    [ "$_found" -eq 0 ] && echo "none"
+if [ -x "$TICKET_CMD" ]; then
+    "$TICKET_CMD" list 2>/dev/null | python3 -c "
+import json, sys
+tickets = json.load(sys.stdin)
+found = False
+for t in sorted((t for t in tickets if t.get('status') == 'open'), key=lambda x: x.get('ticket_id','')):
+    print(t['ticket_id'] + ' ' + t.get('title','(no title)'))
+    found = True
+if not found:
+    print('none')
+" 2>/dev/null || echo "none"
 else
     echo "none"
 fi
 
 section "TICKETS_IN_PROGRESS"
-_tickets_dir="$REPO_ROOT/.tickets"
-if [ -d "$_tickets_dir" ]; then
-    _found=0
-    while IFS= read -r _ticket_file; do
-        _id=$(basename "$_ticket_file" .md)
-        _title=$(grep -m1 '^# ' "$_ticket_file" 2>/dev/null | sed 's/^# //')
-        echo "$_id $_title"
-        _found=1
-    done < <(grep -rl '^status: in_progress' "$_tickets_dir" 2>/dev/null | sort)
-    [ "$_found" -eq 0 ] && echo "none"
+if [ -x "$TICKET_CMD" ]; then
+    "$TICKET_CMD" list 2>/dev/null | python3 -c "
+import json, sys
+tickets = json.load(sys.stdin)
+found = False
+for t in sorted((t for t in tickets if t.get('status') == 'in_progress'), key=lambda x: x.get('ticket_id','')):
+    print(t['ticket_id'] + ' ' + t.get('title','(no title)'))
+    found = True
+if not found:
+    print('none')
+" 2>/dev/null || echo "none"
 else
     echo "none"
 fi
