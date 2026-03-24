@@ -1212,6 +1212,14 @@ _phase_push() {
             # (ticket-lib.sh already uses --no-verify for ticket commits.)
             if PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$_TRACKER_DIR" push origin tickets 2>&1; then
                 echo "OK: Tickets branch synced with remote."
+                # Trigger outbound bridge explicitly — the push trigger on the
+                # tickets orphan branch is unreliable (GitHub Actions may not
+                # detect workflow files on orphan branches).
+                if command -v gh &>/dev/null; then
+                    gh workflow run "Outbound Bridge" --ref main 2>/dev/null && \
+                        echo "OK: Outbound Bridge triggered." || \
+                        echo "WARNING: Could not trigger Outbound Bridge workflow."
+                fi
             else
                 echo "WARNING: Tickets branch push failed — ticket changes will sync on next merge."
             fi
