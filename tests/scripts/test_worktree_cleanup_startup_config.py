@@ -2,7 +2,7 @@
 
 The startup config block must:
   - Define PLUGIN_SCRIPTS relative to BASH_SOURCE[0]
-  - Read all six project-specific config values via read-config.sh once at startup
+  - Read all five project-specific config values via read-config.sh once at startup
   - Store values in CONFIG_* shell variables
   - Fail gracefully (empty string) if read-config.sh is absent or returns error
 
@@ -22,22 +22,20 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "plugins" / "dso" / "scripts" / "worktree-cleanup.sh"
 
-# The six CONFIG_* variables that must be declared by the startup config block
+# The five CONFIG_* variables that must be declared by the startup config block
 REQUIRED_CONFIG_VARS = [
     "CONFIG_COMPOSE_DB_FILE",
     "CONFIG_COMPOSE_PROJECT",
     "CONFIG_CONTAINER_PREFIX",
-    "CONFIG_TICKETS_DIR",
     "CONFIG_BRANCH_PATTERN",
     "CONFIG_MAX_AGE_DAYS",
 ]
 
-# The six read-config.sh keys that must be read
+# The five read-config.sh keys that must be read
 REQUIRED_CONFIG_KEYS = [
     "infrastructure.compose_db_file",
     "infrastructure.compose_project",
     "infrastructure.container_prefix",
-    "tickets.directory",
     "worktree.branch_pattern",
     "worktree.max_age_days",
 ]
@@ -83,7 +81,7 @@ class TestStartupConfigBlock:
     """The startup config cache block reads all required keys via read-config.sh."""
 
     def test_startup_config_block_reads_all_required_keys(self) -> None:
-        """Sourcing the startup config block sets all six CONFIG_* variables.
+        """Sourcing the startup config block sets all five CONFIG_* variables.
 
         Uses a mock read-config.sh so the test is hermetic (no YAML/Python needed).
         The mock returns 'mock-value' for any key lookup.
@@ -220,8 +218,8 @@ class TestStartupConfigBlock:
                 f"Variable {var} was not printed at all.\nstdout: {output}"
             )
 
-    def test_read_config_called_exactly_six_times(self) -> None:
-        """read-config.sh is called exactly once per config key (6 total).
+    def test_read_config_called_exactly_five_times(self) -> None:
+        """read-config.sh is called exactly once per config key (5 total).
 
         Ensures no per-use read-config.sh calls sneak in later.
         """
@@ -232,8 +230,8 @@ class TestStartupConfigBlock:
             for line in content.splitlines()
             if "read-config.sh" in line and "bash" in line
         ]
-        assert len(lines_with_calls) == 6, (
-            f"Expected exactly 6 'bash ... read-config.sh' calls, found {len(lines_with_calls)}.\n"
+        assert len(lines_with_calls) == 5, (
+            f"Expected exactly 5 'bash ... read-config.sh' calls, found {len(lines_with_calls)}.\n"
             f"Lines: {lines_with_calls}"
         )
 
@@ -256,19 +254,19 @@ class TestStartupConfigBlock:
                 break
 
     def test_all_six_config_vars_present_in_script(self) -> None:
-        """All six CONFIG_* variable names appear in the script."""
+        """All five CONFIG_* variable names appear in the script."""
         content = SCRIPT.read_text()
         for var in REQUIRED_CONFIG_VARS:
             assert var in content, f"CONFIG variable '{var}' not found in {SCRIPT}"
 
     def test_all_six_config_keys_present_in_script(self) -> None:
-        """All six read-config.sh key paths appear in the script."""
+        """All five read-config.sh key paths appear in the script."""
         content = SCRIPT.read_text()
         for key in REQUIRED_CONFIG_KEYS:
             assert key in content, f"Config key '{key}' not found in {SCRIPT}"
 
     def test_graceful_fallback_syntax_present(self) -> None:
-        """All six read-config.sh calls use '2>/dev/null || true' for graceful fallback."""
+        """All five read-config.sh calls use '2>/dev/null || true' for graceful fallback."""
         content = SCRIPT.read_text()
         lines_with_calls = [
             line
@@ -397,104 +395,6 @@ class TestDockerTeardownConfig:
         assert not hardcoded_sed, (
             "Found hardcoded sed pattern 's/^lockpick-db-' in non-comment line — "
             "replace with a pattern derived from $CONFIG_COMPOSE_PROJECT"
-        )
-
-
-@pytest.mark.scripts
-class TestTicketsDirConfig:
-    """git status/diff filters use CONFIG_TICKETS_DIR instead of a hardcoded .tickets/ path."""
-
-    def test_tickets_dir_uses_config_tickets_directory(self) -> None:
-        """git status filter uses ${CONFIG_TICKETS_DIR:-.tickets}/ instead of hardcoded .tickets/.
-
-        RED: fails while the script still hardcodes '^.. \\.tickets/' in the grep -v filter.
-        GREEN: passes after replacing '.tickets/' with '${CONFIG_TICKETS_DIR:-.tickets}/'.
-
-        The test sets CONFIG_TICKETS_DIR='.custom-tickets' and sources the relevant
-        section of the script to verify the git status filter uses the custom path.
-        The acceptance check is done statically: the script must contain
-        '${CONFIG_TICKETS_DIR' in the grep -v pattern used for clean-status detection.
-        """
-        content = SCRIPT.read_text()
-        non_comment_lines = [
-            line for line in content.splitlines() if not line.lstrip().startswith("#")
-        ]
-        # The grep -v filter for .tickets/ must reference CONFIG_TICKETS_DIR
-        grep_filter_lines = [
-            line
-            for line in non_comment_lines
-            if "grep -v" in line and ("tickets" in line.lower() or "TICKETS" in line)
-        ]
-        assert grep_filter_lines, (
-            "No 'grep -v' line referencing tickets dir found in script — "
-            "the git status filter must exist."
-        )
-        # All grep -v filter lines for tickets must use CONFIG_TICKETS_DIR, not hardcoded '.tickets/'
-        hardcoded_filter = any(
-            "grep -v" in line and "'\\.tickets/'" in line for line in non_comment_lines
-        )
-        assert not hardcoded_filter, (
-            "Found 'grep -v' with hardcoded '\\.tickets/' in non-comment line — "
-            "replace with '${CONFIG_TICKETS_DIR:-.tickets}/' so the filter uses the config var."
-        )
-        # CONFIG_TICKETS_DIR must appear in the grep filter lines
-        config_used = any("CONFIG_TICKETS_DIR" in line for line in grep_filter_lines)
-        assert config_used, (
-            "grep -v filter for tickets dir does not reference CONFIG_TICKETS_DIR — "
-            "replace hardcoded '.tickets/' with '${CONFIG_TICKETS_DIR:-.tickets}/'."
-        )
-
-    def test_diff_commands_use_config_tickets_dir(self) -> None:
-        """git diff commands exclude tickets dir via CONFIG_TICKETS_DIR, not hardcoded '.tickets/'.
-
-        RED: fails while diff commands still hardcode ':!.tickets/' or 'main -- .tickets/'.
-        GREEN: passes after replacing hardcoded '.tickets/' with '${CONFIG_TICKETS_DIR:-.tickets}/'.
-        """
-        content = SCRIPT.read_text()
-        non_comment_lines = [
-            line for line in content.splitlines() if not line.lstrip().startswith("#")
-        ]
-        # Any non-comment diff lines that use '.tickets/' directly (not via CONFIG_TICKETS_DIR)
-        # must not exist
-        hardcoded_diff = [
-            line
-            for line in non_comment_lines
-            if "git" in line
-            and "diff" in line
-            and ".tickets/" in line
-            and "CONFIG_TICKETS_DIR" not in line
-        ]
-        assert not hardcoded_diff, (
-            "Found git diff lines with hardcoded '.tickets/' path — "
-            "replace with '${CONFIG_TICKETS_DIR:-.tickets}/' (CONFIG_TICKETS_DIR):\n"
-            + "\n".join(hardcoded_diff)
-        )
-
-    def test_no_hardcoded_tickets_dir_in_git_commands(self) -> None:
-        """No git command line uses a hardcoded literal '.tickets/' path without CONFIG_TICKETS_DIR.
-
-        RED: fails while git commands still hardcode '.tickets/'.
-        GREEN: passes after all occurrences in git commands are replaced with the config var.
-
-        This test targets lines that contain 'git' and either 'grep' or 'diff' and '.tickets/',
-        which are the operational lines that should use CONFIG_TICKETS_DIR.
-        Excludes usage heredoc text and variable declaration comment strings.
-        """
-        content = SCRIPT.read_text()
-        non_comment_lines = [
-            line for line in content.splitlines() if not line.lstrip().startswith("#")
-        ]
-        # Only check lines that actually invoke git or grep (operational lines)
-        violations = [
-            line
-            for line in non_comment_lines
-            if ".tickets/" in line
-            and "CONFIG_TICKETS_DIR" not in line
-            and ("git " in line or "grep " in line)
-        ]
-        assert not violations, (
-            "Found hardcoded '.tickets/' in git/grep command lines — "
-            "replace with '${CONFIG_TICKETS_DIR:-.tickets}/':\n" + "\n".join(violations)
         )
 
 
