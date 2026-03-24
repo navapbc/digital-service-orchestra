@@ -413,6 +413,12 @@ _abort_stale_rebase() {
 # accepting the archive move: git rm the old path (if still present) and git add the
 # archived path (if present). Non-archive conflicts cause an immediate abort.
 #
+# v3 ticket system (.tickets-tracker/): ticket event JSON files and the index
+# (.tickets-tracker/<id>/*.json, .tickets-tracker/.index.json) are managed on a
+# separate orphan branch and are excluded from the main repo's tracked files.
+# However, if they appear as conflicts during rebase (e.g., during worktree sync),
+# they are always safe ticket-data files and can be auto-resolved by accepting ours.
+#
 # Usage: call from the git pull --rebase failure handler in _phase_sync.
 # Must be called while a rebase is in progress (REBASE_HEAD exists).
 # Returns 0 on success (rebase continued), 1 on failure (rebase aborted).
@@ -452,15 +458,14 @@ _auto_resolve_archive_conflicts() {
         return 1
     fi
 
-    # Safety check: ALL conflicts must be archive-type ticket files.
-    # Archive-type = either .tickets/archive/xxx.md or .tickets/xxx.md being
-    # deleted in favor of .tickets/archive/xxx.md.
+    # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
+    # Ticket data lives in .tickets-tracker/<id>/*.json event files or .tickets-tracker/.index.json.
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
         case "$_file" in
-            .tickets/archive/*.md | .tickets/*.md)
-                # These are archive-type ticket paths — safe to auto-resolve
+            .tickets-tracker/*.json | .tickets-tracker/*/*.json)
+                # v3: ticket event JSON files or index — safe to auto-resolve
                 ;;
             *)
                 _non_archive_conflicts=$(( _non_archive_conflicts + 1 ))
@@ -474,30 +479,20 @@ _auto_resolve_archive_conflicts() {
         return 1
     fi
 
-    # All conflicts are archive-type — resolve each one.
-    # For rename/delete: accept the deletion (git rm old path) and
-    # accept the addition of the archive path (git add archive path, if it exists).
+    # All conflicts are ticket-data files — resolve each one.
+    # For JSON event file conflicts: accept ours (git add) — event files are
+    # append-only and our version is always the authoritative local state.
     local _resolved=0
     local _failed=0
 
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
 
-        # Determine if this is the old path or the archive path
-        if [[ "$_file" == .tickets/archive/*.md ]]; then
-            # This is the archive destination — add it if it exists in working tree
+        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then
+            # v3: Ticket event JSON files / index — accept ours (git add if present, git rm if absent)
             if [[ -f "$_file" ]]; then
                 git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
             else
-                # File doesn't exist in working tree — this side deleted it; skip
-                _resolved=$(( _resolved + 1 ))
-            fi
-        elif [[ "$_file" == .tickets/*.md ]]; then
-            # This is the old (pre-archive) path — remove it if still present
-            if [[ -f "$_file" ]]; then
-                git rm --force --quiet "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
-            else
-                # Already gone — mark as resolved
                 git rm --quiet --cached "$_file" 2>/dev/null || true
                 _resolved=$(( _resolved + 1 ))
             fi
@@ -558,35 +553,30 @@ _auto_resolve_archive_conflicts() {
                 continue
             fi
 
-            # Validate that all new conflicts are still archive-type.
+            # Validate that all new conflicts are still ticket-data files.
             local _new_non_archive=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 case "$_nf" in
-                    .tickets/archive/*.md | .tickets/*.md) ;;
+                    .tickets-tracker/*.json | .tickets-tracker/*/*.json) ;;
                     *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
                 esac
             done <<< "$_new_all"
 
             if [[ "$_new_non_archive" -gt 0 ]]; then
-                echo "INFO: _auto_resolve_archive_conflicts: non-archive conflicts in subsequent commit — aborting auto-resolve." >&2
+                echo "INFO: _auto_resolve_archive_conflicts: non-ticket conflicts in subsequent commit — aborting auto-resolve." >&2
                 git rebase --abort 2>/dev/null || true
                 return 1
             fi
 
-            # Resolve the new archive conflicts.
+            # Resolve the new ticket-data conflicts (v3 JSON event files).
             local _new_resolved=0 _new_failed=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
-                if [[ "$_nf" == .tickets/archive/*.md ]]; then
+                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then
+                    # v3: ticket event JSON / index — accept ours
                     if [[ -f "$_nf" ]]; then
                         git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
-                    else
-                        _new_resolved=$(( _new_resolved + 1 ))
-                    fi
-                elif [[ "$_nf" == .tickets/*.md ]]; then
-                    if [[ -f "$_nf" ]]; then
-                        git rm --force --quiet "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
                     else
                         git rm --quiet --cached "$_nf" 2>/dev/null || true
                         _new_resolved=$(( _new_resolved + 1 ))
@@ -1015,11 +1005,11 @@ _phase_sync() {
     fi
     _abort_stale_rebase
     if ! git pull --rebase 2>&1; then
-        # Attempt auto-resolution of archive rename/delete conflicts before giving up.
-        # Archive conflicts occur when a previous merge archived tickets and the remote
-        # has a different archive commit — always safe to resolve automatically.
+        # Attempt auto-resolution of ticket-data conflicts before giving up.
+        # Ticket-data conflicts (v2 archive rename/delete or v3 JSON event files)
+        # are always safe to resolve automatically.
         if _auto_resolve_archive_conflicts 2>&1; then
-            echo "OK: Archive rename/delete conflicts auto-resolved during pull --rebase."
+            echo "OK: Ticket-data conflicts auto-resolved during pull --rebase."
         else
             if $STASHED; then git stash pop --quiet 2>/dev/null || true; fi
             _set_phase_status "pull_rebase" "conflict"
@@ -1033,8 +1023,8 @@ _phase_sync() {
         echo "Restoring stashed changes..."
         if ! git stash pop --quiet 2>/dev/null; then
             # Stash pop conflicted — discard the stash. The pre-stash files were
-            # .tickets/ files, which the merge step will overwrite
-            # anyway. Keeping an unmerged stash pop would block all subsequent ops.
+            # ticket data files (.tickets/ or .tickets-tracker/), which the merge
+            # step will overwrite anyway. Keeping an unmerged stash pop would block all subsequent ops.
             echo "WARNING: Stash pop had conflicts — resetting. Merge step will reconcile."
             git reset --merge 2>/dev/null || true
             git stash drop --quiet 2>/dev/null || true
@@ -1067,7 +1057,7 @@ _phase_merge() {
     MERGE_MSG="$LAST_MSG (merge $BRANCH)"
 
     # Capture pre-merge SHA so we can later detect whether the merge contained
-    # non-.tickets/ changes (used for the CI trigger check after push).
+    # non-ticket-data changes (used for the CI trigger check after push).
     PRE_MERGE_SHA=$(git rev-parse HEAD)
 
     echo "Merging $BRANCH into main..."
@@ -1162,9 +1152,10 @@ _phase_validate() {
     # Stage any post-merge artifacts (.gitignore entries for worktree dirs)
     git add .gitignore 2>/dev/null || true
 
-    # Auto-stage .tickets/ changes — CI failure tracking pushes ticket commits directly
-    # to main, and the merge can leave .tickets/ files dirty. These are data files, not
-    # code, so auto-staging into the merge commit is safe.
+    # Auto-stage ticket-data changes ($TICKETS_DIR/) — CI failure tracking pushes ticket
+    # commits directly to main, and the merge can leave ticket data files dirty.
+    # These are data files, not code, so auto-staging into the merge commit is safe.
+    # (v2: .tickets/*.md files; v3: $TICKETS_DIR/ may be absent if fully on .tickets-tracker/ branch)
     git add "$TICKETS_DIR"/ 2>/dev/null || true
 
     # Check for dirty tracked files (modified but not staged) excluding tickets dir

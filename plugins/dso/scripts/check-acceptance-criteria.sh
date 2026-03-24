@@ -41,6 +41,6 @@ if [ "$ac_count" -ge 1 ]; then
     echo "AC_CHECK: pass ($ac_count criteria lines)"
     exit 0
 else
-    echo "AC_CHECK: fail - no ACCEPTANCE CRITERIA section in $ID (use: tk create with --acceptance flag or edit .tickets/$ID.md directly)"
+    echo "AC_CHECK: fail - no ACCEPTANCE CRITERIA section in $ID (use: tk create with --acceptance flag or add an '## Acceptance Criteria' section with checklist items)"
     exit 1
 fi

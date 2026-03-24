@@ -297,6 +297,97 @@ echo "Test 9: single task ID uses tk show"
     rm -rf "$_tmpdir"
 }
 
+
+# ── Test 10: v3 event-sourced tickets work without .tickets/*.md files ──────
+echo "Test 10: --from-epic works with v3 event-sourced tickets (no .md files)"
+{
+    _v3_tmpdir="$(mktemp -d)"
+    _CLEANUP_DIRS+=("$_v3_tmpdir")
+
+    # Create a minimal v3 .tickets-tracker directory structure with two tickets:
+    # - an epic (parent)
+    # - a story that belongs to the epic
+    _tracker_dir="$_v3_tmpdir/.tickets-tracker"
+    _story_id="v3-story-test01"
+    _epic_id="v3-epic-test01"
+    mkdir -p "$_tracker_dir/$_epic_id"
+    mkdir -p "$_tracker_dir/$_story_id"
+
+    # Epic CREATE event
+    cat > "$_tracker_dir/$_epic_id/20260101T000000Z_CREATE.json" <<JSON
+{"event_type":"CREATE","ticket_id":"$_epic_id","data":{"ticket_type":"epic","title":"Test Epic","status":"open","priority":2},"created_at":"2026-01-01T00:00:00Z","env_id":"test"}
+JSON
+
+    # Story CREATE event — parent_id points to epic
+    cat > "$_tracker_dir/$_story_id/20260101T000001Z_CREATE.json" <<JSON
+{"event_type":"CREATE","ticket_id":"$_story_id","data":{"ticket_type":"story","title":"Implement v3 widget parser","status":"open","priority":2,"parent_id":"$_epic_id"},"created_at":"2026-01-01T00:00:01Z","env_id":"test"}
+JSON
+
+    # STATUS event — move story to ready
+    cat > "$_tracker_dir/$_story_id/20260101T000002Z_STATUS.json" <<JSON
+{"event_type":"STATUS","ticket_id":"$_story_id","data":{"status":"ready"},"created_at":"2026-01-01T00:00:02Z","env_id":"test"}
+JSON
+
+    # Create a fake `ticket` stub that serves `ticket show <id>` from the tracker dir
+    # and `ticket list` returning both ticket IDs.
+    cat > "$_v3_tmpdir/ticket" <<STUB
+#!/usr/bin/env bash
+SUBCOMMAND="\$1"; shift
+case "\$SUBCOMMAND" in
+    show)
+        python3 "${SCRIPT_DIR}/../../plugins/dso/scripts/ticket-reducer.py" "$_tracker_dir/\$1" 2>/dev/null || echo '{}'
+        ;;
+    list)
+        echo '[{"ticket_id":"$_story_id","status":"ready"},{"ticket_id":"$_epic_id","status":"open"}]'
+        ;;
+    *)
+        echo "[]"
+        ;;
+esac
+STUB
+    chmod +x "$_v3_tmpdir/ticket"
+
+    # Create a fake `tk` stub that uses `ticket show` for parent filtering and
+    # returns the story ID from `tk ready`.
+    cat > "$_v3_tmpdir/tk" <<STUB
+#!/usr/bin/env bash
+SUBCOMMAND="\$1"; shift
+if [ "\$SUBCOMMAND" = "ready" ]; then
+    echo "$_story_id"
+fi
+STUB
+    chmod +x "$_v3_tmpdir/tk"
+
+    # Run --from-epic with TICKETS_TRACKER_DIR pointing to our v3 tracker
+    # and NO TICKETS_DIR set — script must NOT look for .md files.
+    # The story has parent_id set to the epic and status=ready, so it must be returned.
+    unset TICKETS_DIR 2>/dev/null || true
+    output=$(TICKETS_TRACKER_DIR="$_tracker_dir" PATH="$_v3_tmpdir:$PATH" bash "$SCRIPT" --from-epic "$_epic_id" 2>&1) || true
+
+    # The key assertion: the story must appear in the classification result.
+    # The v2 code reads .tickets/$id.md (which does not exist) and silently drops
+    # the story — so the result is [], failing this test.
+    # After the fix, the script must use `ticket show` (JSON) for parent filtering.
+    found_story=$(echo "$output" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    ids = [item.get('id', '') for item in data]
+    print('yes' if '$_story_id' in ids else 'no')
+except Exception:
+    print('no')
+" 2>/dev/null) || found_story="no"
+
+    if [ "$found_story" = "yes" ]; then
+        echo "  PASS: classify_from_epic_v3_no_md_files — story found in result using v3 ticket data"
+        (( PASS++ ))
+    else
+        echo "  FAIL: classify_from_epic_v3_no_md_files — story not returned; script likely fell back to .tickets/*.md lookup" >&2
+        echo "    output: $output" >&2
+        (( FAIL++ ))
+    fi
+}
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

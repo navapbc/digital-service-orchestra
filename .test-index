@@ -27,6 +27,8 @@ plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/dedup-tickets.sh:tests/scripts/test-dedup-tickets-sync-state.sh
 plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-config-paths.sh
+plugins/dso/scripts/check-acceptance-criteria.sh:tests/scripts/test_issue_quality_check_file_impact.py
+plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/merge-ticket-index.py:tests/scripts/test-merge-ticket-index.sh
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh

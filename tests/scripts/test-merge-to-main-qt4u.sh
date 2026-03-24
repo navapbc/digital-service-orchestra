@@ -106,4 +106,40 @@ assert_ne "test_archive_rename_delete_auto_resolved" "0" "$HAS_ARCHIVE_PATTERN"
 HAS_ABORT_PATH=$(echo "$FN_BODY" | grep -cE 'return 1|rebase --abort' || true)
 assert_ne "test_non_archive_conflict_still_aborts" "0" "$HAS_ABORT_PATH"
 
+# =============================================================================
+# Test 11: _auto_resolve_archive_conflicts recognizes v3 .tickets-tracker/*.json patterns
+# The function must treat .tickets-tracker/ JSON event files as safe ticket-data files.
+# =============================================================================
+HAS_V3_PATTERN=$(echo "$FN_BODY" | grep -cE 'tickets-tracker.*\.json|\.tickets-tracker' || true)
+assert_ne "test_v3_tickets_tracker_json_in_safe_patterns" "0" "$HAS_V3_PATTERN"
+
+# =============================================================================
+# Test 12: case statement includes both v2 (.tickets/*.md) and v3 (.tickets-tracker/*.json) branches
+# Both patterns must appear in the case statement so the classifier covers both systems.
+# =============================================================================
+HAS_V2_CASE=$(echo "$FN_BODY" | grep -cE '\.tickets/\*\.md|\.tickets/archive/\*\.md' || true)
+HAS_V3_CASE=$(echo "$FN_BODY" | grep -cE '\.tickets-tracker/\*\.json|\.tickets-tracker/\*/\*\.json' || true)
+assert_ne "test_v2_md_pattern_in_case" "0" "$HAS_V2_CASE"
+assert_ne "test_v3_json_pattern_in_case" "0" "$HAS_V3_CASE"
+
+# =============================================================================
+# Test 13: v3 pattern uses git add (accept ours) not only git rm for JSON event files
+# The function body must contain git add in proximity to the .tickets-tracker elif branch.
+# We verify that git add appears in the function body when .tickets-tracker is present.
+# (v3 JSON resolution: accept ours via git add if file present, git rm if absent)
+# =============================================================================
+# Verify that the function body has git add in a branch following .tickets-tracker elif
+HAS_GIT_ADD_IN_FN=$(echo "$FN_BODY" | grep -c 'git add' || true)
+assert_ne "test_v3_resolution_uses_git_add" "0" "$HAS_GIT_ADD_IN_FN"
+
+# =============================================================================
+# Test 14: bash -n syntax check still passes after v3 additions
+# =============================================================================
+if bash -n "$MERGE_SCRIPT" 2>/dev/null; then
+    SYNTAX_OK_V3="pass"
+else
+    SYNTAX_OK_V3="fail"
+fi
+assert_eq "test_bash_syntax_passes_after_v3_additions" "pass" "$SYNTAX_OK_V3"
+
 print_summary

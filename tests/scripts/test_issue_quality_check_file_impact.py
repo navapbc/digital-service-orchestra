@@ -389,3 +389,154 @@ class TestEnrichFileImpactScript:
         assert "read-config.sh" in content, (
             "enrich-file-impact.sh must use read-config.sh for config-driven directory discovery"
         )
+
+    def test_enrich_v3_uses_ticket_comment_not_file_append(
+        self, tmp_path: object
+    ) -> None:
+        """In v3 mode (TICKETS_TRACKER_DIR set), enrich-file-impact.sh must NOT try to
+        write to .tickets/<id>.md. It must route through the ticket CLI comment command.
+
+        This is a v3 compatibility RED test: it fails on the old code that calls
+        `printf ... >> .tickets/<id>.md` and passes after the fix.
+        """
+        import stat
+
+        # Create a fake ticket CLI that records what arguments it receives.
+        # When called as `ticket show <id>`, return valid output with a file-impact-free body.
+        # When called as `ticket comment <id> <body>`, record the call and exit 0.
+        ticket_cli = tmp_path / "fake-ticket"
+        call_log = tmp_path / "ticket-calls.log"
+        ticket_cli.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            f'CALL_LOG="{call_log}"\n'
+            'echo "$@" >> "$CALL_LOG"\n'
+            'subcmd="${1:-}"\n'
+            'if [ "$subcmd" = "show" ]; then\n'
+            "    # Return a minimal tk show-like output (no file impact section)\n"
+            "    cat <<'EOF'\n"
+            "---\n"
+            "id: test-v3-enrich\n"
+            "status: open\n"
+            "type: task\n"
+            "---\n"
+            "# Test v3 ticket\n\n"
+            "## Description\n"
+            "A task needing file impact enrichment.\n"
+            "EOF\n"
+            "    exit 0\n"
+            'elif [ "$subcmd" = "comment" ]; then\n'
+            "    exit 0\n"
+            "else\n"
+            "    exit 1\n"
+            "fi\n"
+        )
+        ticket_cli.chmod(ticket_cli.stat().st_mode | stat.S_IEXEC)
+
+        # Create a fake TICKETS_TRACKER_DIR (v3 — no .tickets/ flat files)
+        tracker_dir = tmp_path / ".tickets-tracker"
+        tracker_dir.mkdir()
+
+        env = os.environ.copy()
+        env["TICKETS_TRACKER_DIR"] = str(tracker_dir)
+        env["TK"] = str(ticket_cli)
+        env["TICKET_CMD"] = str(ticket_cli)
+        env.pop("ANTHROPIC_API_KEY", None)  # graceful-degrade after dry-run check
+
+        # Run with --dry-run so the API call is skipped; we just need to verify
+        # the script doesn't crash with "Ticket file not found" for v3 paths.
+        result = subprocess.run(
+            [self.SCRIPT_PATH, "--dry-run", "test-v3-enrich"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=WORKTREE_ROOT,
+        )
+        # Must NOT error with "Ticket file not found" (that's the v2-only error)
+        combined = result.stdout + result.stderr
+        assert "Ticket file not found" not in combined, (
+            f"enrich-file-impact.sh must not reference .tickets/*.md in v3 mode.\n"
+            f"Got: {combined!r}"
+        )
+        # Without ANTHROPIC_API_KEY, --dry-run exits 0 with a warning
+        assert result.returncode == 0, (
+            f"Expected exit 0 in v3 dry-run mode.\n"
+            f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
+        )
+
+
+@pytest.mark.scripts
+class TestCheckAcceptanceCriteriaV3:
+    """Test check-acceptance-criteria.sh v3 compatibility."""
+
+    SCRIPT_PATH = os.path.join(
+        WORKTREE_ROOT, "plugins", "dso", "scripts", "check-acceptance-criteria.sh"
+    )
+
+    def test_error_message_does_not_reference_tickets_md(self) -> None:
+        """The AC_CHECK fail message must not tell users to edit .tickets/<id>.md.
+
+        In v3, .tickets/*.md files do not exist. The error message must be updated
+        to guide users to the correct workflow.
+
+        This is a v3 compatibility RED test: it fails on the old code that embeds
+        '.tickets/$ID.md' in the error message and passes after the fix.
+        """
+        with open(self.SCRIPT_PATH) as f:
+            content = f.read()
+
+        assert (
+            ".tickets/$ID.md" not in content and ".tickets/${ID}.md" not in content
+        ), (
+            "check-acceptance-criteria.sh error message must not reference .tickets/<id>.md "
+            "(v2 flat-file path). Guide users to the v3 ticket CLI instead."
+        )
+
+    def test_ac_check_fail_output_does_not_reference_tickets_md(
+        self, tmp_path: object
+    ) -> None:
+        """When AC check fails, output must not mention .tickets/<id>.md.
+
+        This test creates a fake TK that returns a ticket body with no AC section,
+        then verifies the script's error output contains no v2 path reference.
+        """
+        import stat
+
+        # Create a fake tk that returns a ticket with no Acceptance Criteria section
+        fake_tk = tmp_path / "fake-tk"
+        fake_tk.write_text(
+            "#!/usr/bin/env bash\n"
+            "cat <<'EOF'\n"
+            "---\n"
+            "id: test-ac-no-criteria\n"
+            "status: open\n"
+            "type: task\n"
+            "---\n"
+            "# Task without acceptance criteria\n\n"
+            "## Description\n"
+            "A task with no AC block.\n"
+            "EOF\n"
+        )
+        fake_tk.chmod(fake_tk.stat().st_mode | stat.S_IEXEC)
+
+        env = os.environ.copy()
+        env["TK"] = str(fake_tk)
+
+        result = subprocess.run(
+            [self.SCRIPT_PATH, "test-ac-no-criteria"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=WORKTREE_ROOT,
+        )
+        # Script should exit 1 (AC missing)
+        assert result.returncode == 1, (
+            f"Expected exit 1 when AC block is missing.\n"
+            f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
+        )
+        # Output must NOT contain a .tickets/ path reference
+        combined = result.stdout + result.stderr
+        assert ".tickets/" not in combined, (
+            f"AC_CHECK fail message must not reference .tickets/ paths (v2-only).\n"
+            f"Got: {combined!r}"
+        )

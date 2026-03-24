@@ -50,15 +50,35 @@ task_ids=()
 
 if [ "$1" = "--from-epic" ]; then
     epic_id="${2:?Missing epic ID}"
-    # Use tk ready to list open/in-progress tickets, then filter by parent field
-    # (tk ready does not support --parent, so we filter via file-based grep)
+
+    # Determine whether to use v3 (event-sourced) or v2 (.md files) for parent filtering.
+    # Priority: explicit TICKETS_DIR env (v2) > explicit TICKETS_TRACKER_DIR env (v3) >
+    #           auto-detect based on .tickets-tracker/ existence.
+    _use_v3=false
+    if [ -n "${TICKETS_DIR:-}" ]; then
+        _use_v3=false
+    elif [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+        _use_v3=true
+    elif [ -d "$REPO_ROOT/.tickets-tracker" ]; then
+        _use_v3=true
+    fi
+
+    # Use tk ready to list open/in-progress tickets, then filter by parent field.
+    # v3: use `ticket show <id>` JSON and check parent_id field.
+    # v2: use .tickets/$id.md file grep (backward compat).
     while IFS= read -r tid; do
         [ -n "$tid" ] && task_ids+=("$tid")
     done < <(tk ready 2>/dev/null | awk '{print $1}' \
         | while read -r id; do
-            ticket_file="$(git rev-parse --show-toplevel)/.tickets/$id.md"
-            if [ -f "$ticket_file" ] && grep -q "parent: $epic_id" "$ticket_file" 2>/dev/null; then
-                echo "$id"
+            if $_use_v3; then
+                parent=$(ticket show "$id" 2>/dev/null \
+                    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('parent_id',''))" 2>/dev/null || echo "")
+                [ "$parent" = "$epic_id" ] && echo "$id"
+            else
+                ticket_file="$REPO_ROOT/.tickets/$id.md"
+                if [ -f "$ticket_file" ] && grep -q "parent: $epic_id" "$ticket_file" 2>/dev/null; then
+                    echo "$id"
+                fi
             fi
           done || true)
 

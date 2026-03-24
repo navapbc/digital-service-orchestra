@@ -56,6 +56,29 @@ TK="${TK:-${CLAUDE_PLUGIN_ROOT}/scripts/tk}"
 
 ISSUE_BATCH="${CLAUDE_PLUGIN_ROOT}/scripts/issue-batch.sh"
 ANALYZE_IMPACT="${CLAUDE_PLUGIN_ROOT}/scripts/analyze-file-impact.py"
+REDUCER="${CLAUDE_PLUGIN_ROOT}/scripts/ticket-reducer.py"
+
+# ---------------------------------------------------------------------------
+# Detect v3 event-sourced ticket system (mirrors sprint-list-epics.sh logic).
+# v3 stores events in .tickets-tracker/ (or TICKETS_TRACKER_DIR env override).
+# Detection:
+#   - TICKETS_TRACKER_DIR explicitly set → v3 (test override for v3)
+#   - TICKETS_DIR explicitly set without TICKETS_TRACKER_DIR → v2
+#   - Neither set → auto-detect: use v3 if .tickets-tracker/ exists
+# ---------------------------------------------------------------------------
+_TICKETS_DIR_EXPLICIT="${TICKETS_DIR+yes}"
+USE_V3=false
+if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+    TRACKER_DIR="$TICKETS_TRACKER_DIR"
+    USE_V3=true
+elif [ "$_TICKETS_DIR_EXPLICIT" != "yes" ]; then
+    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+    if [ -d "$TRACKER_DIR" ]; then
+        USE_V3=true
+    fi
+else
+    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+fi
 
 # Resolve Python — prefer config-driven venv path; fallback to python3
 READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" # reads dso-config.conf
@@ -166,10 +189,93 @@ if [ -n "$epic_id_canonical" ]; then
     epic_id="$epic_id_canonical"
 fi
 
-# Descendants of epic — recursively scan .tickets/ for parent: references
-# Handles 3-tier hierarchy: epic -> story -> task (grandchildren)
-TICKETS_DIR="$REPO_ROOT/.tickets"
-if [ -d "$TICKETS_DIR" ]; then
+# Descendants of epic — scan ticket data for parent references.
+# Handles 3-tier hierarchy: epic -> story -> task (grandchildren).
+# v3: scan .tickets-tracker/ dirs via the reducer (reads parent_id from CREATE events)
+# v2: scan .tickets/*.md frontmatter for parent: field (legacy)
+TICKETS_DIR="${TICKETS_DIR:-$REPO_ROOT/.tickets}"
+touch "$tmpdir/epic_children.txt"
+touch "$tmpdir/parent_ids_with_children.txt"
+if [ "$USE_V3" = true ] && [ -d "$TRACKER_DIR" ]; then
+    SPRINT_TRACKER_DIR="$TRACKER_DIR" \
+    SPRINT_EPIC_ID_BFS="$epic_id" \
+    SPRINT_REDUCER="$REDUCER" \
+    python3 - "$tmpdir/epic_children.txt" "$tmpdir/parent_ids_with_children.txt" <<'DESCEOF_V3'
+import os, sys, json, importlib.util, pathlib
+
+outfile = sys.argv[1]
+parents_outfile = sys.argv[2]
+tracker_dir = os.environ["SPRINT_TRACKER_DIR"]
+root_id = os.environ["SPRINT_EPIC_ID_BFS"]
+reducer_path = os.environ.get("SPRINT_REDUCER", "")
+
+# Load reducer module
+reduce_ticket = None
+if reducer_path and os.path.exists(reducer_path):
+    try:
+        spec = importlib.util.spec_from_file_location("ticket_reducer", reducer_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        reduce_ticket = mod.reduce_ticket
+    except Exception:
+        pass
+
+# Build parent_map by scanning each ticket dir via the reducer
+parent_map = {}  # parent_id -> [child_id, ...]
+try:
+    for tid in os.listdir(tracker_dir):
+        tdir = os.path.join(tracker_dir, tid)
+        if not os.path.isdir(tdir) or tid.startswith("."):
+            continue
+        parent_id = None
+        if reduce_ticket:
+            try:
+                state = reduce_ticket(tdir)
+                if state and isinstance(state, dict):
+                    parent_id = state.get("parent_id") or None
+            except Exception:
+                pass
+        else:
+            # Fallback: scan event files for CREATE event parent_id
+            try:
+                for fname in sorted(os.listdir(tdir)):
+                    if not fname.endswith(".json") or fname == ".cache.json":
+                        continue
+                    try:
+                        with open(os.path.join(tdir, fname), encoding="utf-8") as f:
+                            ev = json.load(f)
+                        if ev.get("event_type") == "CREATE":
+                            parent_id = ev.get("data", {}).get("parent_id") or None
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        if parent_id:
+            parent_map.setdefault(parent_id, []).append(tid)
+except Exception:
+    pass
+
+# BFS from root to find all descendants
+descendants = set()
+queue = [root_id]
+while queue:
+    pid = queue.pop(0)
+    for child in parent_map.get(pid, []):
+        if child not in descendants:
+            descendants.add(child)
+            queue.append(child)
+
+# Identify descendants that have children (stories with impl tasks)
+parents_with_children = {pid for pid in parent_map if pid in descendants and parent_map[pid]}
+with open(outfile, "w") as f:
+    for d in sorted(descendants):
+        f.write(d + "\n")
+with open(parents_outfile, "w") as f:
+    for p in sorted(parents_with_children):
+        f.write(p + "\n")
+DESCEOF_V3
+elif [ -d "$TICKETS_DIR" ]; then
     python3 - "$TICKETS_DIR" "$epic_id" "$tmpdir/epic_children.txt" "$tmpdir/parent_ids_with_children.txt" <<'DESCEOF'
 import os, sys, re
 tickets_dir, root_id, outfile, parents_outfile = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
@@ -206,8 +312,6 @@ with open(parents_outfile, "w") as f:
     for p in sorted(parents_with_children):
         f.write(p + "\n")
 DESCEOF
-else
-    touch "$tmpdir/epic_children.txt"
 fi
 
 # Ready tasks (no unresolved deps) via tk ready
@@ -229,6 +333,9 @@ SPRINT_REPO_ROOT="$REPO_ROOT" \
 SPRINT_CFG_SRC_DIR="$CFG_SRC_DIR" \
 SPRINT_CFG_TEST_DIR="$CFG_TEST_DIR" \
 SPRINT_CFG_TEST_UNIT_DIR="$CFG_TEST_UNIT_DIR" \
+SPRINT_USE_V3="$USE_V3" \
+SPRINT_TRACKER_DIR="$TRACKER_DIR" \
+SPRINT_REDUCER="$REDUCER" \
 python3 - <<'PYEOF'
 import json
 import os
@@ -248,6 +355,21 @@ repo_root       = os.environ.get("SPRINT_REPO_ROOT", "")
 cfg_src_dir     = os.environ.get("SPRINT_CFG_SRC_DIR", "src")
 cfg_test_dir    = os.environ.get("SPRINT_CFG_TEST_DIR", "tests")
 cfg_test_unit_dir = os.environ.get("SPRINT_CFG_TEST_UNIT_DIR", "tests/unit")
+use_v3          = os.environ.get("SPRINT_USE_V3", "false").lower() == "true"
+tracker_dir     = os.environ.get("SPRINT_TRACKER_DIR", "")
+reducer_path    = os.environ.get("SPRINT_REDUCER", "")
+
+# Load v3 reducer module once if available
+_reduce_ticket = None
+if use_v3 and reducer_path and os.path.exists(reducer_path):
+    try:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("ticket_reducer", reducer_path)
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        _reduce_ticket = _mod.reduce_ticket
+    except Exception:
+        pass
 
 OPUS_CAP = 2
 
@@ -373,11 +495,57 @@ def extract_files(text):
     return files
 
 def _load_ticket_body(ticket_id):
-    """Read the markdown body of a ticket from .tickets/<id>.md.
+    """Return ticket text content for file path extraction.
 
-    Returns the full text content (frontmatter + body) for file path extraction.
+    v3 (event-sourced): compile ticket state via the reducer; build text
+    from title + comment bodies (the markdown body fields in CREATE events
+    are not stored separately — file references appear in comments).
+
+    v2 (legacy): read the full text from .tickets/<id>.md (frontmatter + body).
+
     Falls back to empty string on any error.
     """
+    if use_v3 and tracker_dir:
+        ticket_dir = os.path.join(tracker_dir, ticket_id)
+        if os.path.isdir(ticket_dir):
+            parts = []
+            if _reduce_ticket:
+                try:
+                    state = _reduce_ticket(ticket_dir)
+                    if state and isinstance(state, dict):
+                        # Include title for file references mentioned there
+                        if state.get("title"):
+                            parts.append(state["title"])
+                        # Include all comment bodies — file paths live here
+                        for comment in state.get("comments") or []:
+                            body = comment.get("body", "")
+                            if body:
+                                parts.append(body)
+                except Exception:
+                    pass
+            else:
+                # Fallback: scan event JSON files directly without the reducer
+                try:
+                    for fname in sorted(os.listdir(ticket_dir)):
+                        if not fname.endswith(".json") or fname == ".cache.json":
+                            continue
+                        try:
+                            with open(os.path.join(ticket_dir, fname), encoding="utf-8") as f:
+                                ev = json.load(f)
+                            etype = ev.get("event_type", "")
+                            data = ev.get("data", {})
+                            if etype == "CREATE" and data.get("title"):
+                                parts.append(data["title"])
+                            elif etype == "COMMENT" and data.get("body"):
+                                parts.append(data["body"])
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            return "\n".join(parts)
+        return ""
+
+    # v2 path: read .tickets/<id>.md
     tickets_dir = os.path.join(repo_root, ".tickets")
     ticket_path = os.path.join(tickets_dir, f"{ticket_id}.md")
     try:
