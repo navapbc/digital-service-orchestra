@@ -744,7 +744,7 @@ print(json.dumps(entry))
 #
 # .tickets-tracker/ is an event-sourced log; direct Bash modifications bypass
 # event sourcing invariants and may corrupt the event log. All mutations must
-# go through ticket CLI commands (ticket *, tk *).
+# go through ticket CLI commands (ticket *, .claude/scripts/dso ticket *).
 #
 # Logic:
 #   1. Only fires on Bash tool calls
@@ -753,7 +753,7 @@ print(json.dumps(entry))
 #   4. If command contains .tickets-tracker/ AND NOT allowlisted: return 2 (block)
 #   5. All other cases: return 0 (allow, fail-open)
 #
-# Allowlist: ticket CLI scripts (ticket, tk) are the sanctioned write path.
+# Allowlist: ticket CLI scripts (ticket, .claude/scripts/dso ticket) are the sanctioned write path.
 #
 # REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
@@ -783,12 +783,24 @@ hook_tickets_tracker_bash_guard() {
         return 0
     fi
 
-    # Allowlist: ticket CLI patterns (ticket *) — sanctioned write path
-    # Check if command's first meaningful token is 'ticket'
-    local FIRST_TOKEN
-    FIRST_TOKEN="${COMMAND##*([[:space:]])}"   # trim leading whitespace
-    FIRST_TOKEN="${FIRST_TOKEN%%[[:space:]]*}" # first token
-    if [[ "$FIRST_TOKEN" == "ticket" ]]; then
+    # Allowlist: ticket CLI patterns — sanctioned write path.
+    # Three invocation forms:
+    #   1. "ticket <subcommand> ..." — bare ticket dispatcher
+    #   2. ".claude/scripts/dso ticket <subcommand> ..." — via DSO shim
+    #   3. "bash .claude/scripts/dso ticket <subcommand> ..." — shim via bash
+    local _TRIMMED
+    _TRIMMED="${COMMAND##*([[:space:]])}"   # trim leading whitespace
+    local _FIRST_TOKEN="${_TRIMMED%%[[:space:]]*}"
+    # Form 1: bare "ticket" command
+    if [[ "$_FIRST_TOKEN" == "ticket" ]]; then
+        return 0
+    fi
+    # Form 2: DSO shim — command starts with the shim path + "ticket"
+    if [[ "$_TRIMMED" == ".claude/scripts/dso ticket "* ]] || [[ "$_TRIMMED" == ".claude/scripts/dso ticket" ]]; then
+        return 0
+    fi
+    # Form 3: shim invoked via bash
+    if [[ "$_TRIMMED" == "bash .claude/scripts/dso ticket "* ]] || [[ "$_TRIMMED" == "bash .claude/scripts/dso ticket" ]]; then
         return 0
     fi
 
