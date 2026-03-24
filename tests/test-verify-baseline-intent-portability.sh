@@ -19,8 +19,8 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CANONICAL_SCRIPT="$SCRIPT_DIR/../scripts/verify-baseline-intent.sh"
-READ_CONFIG_SH="$SCRIPT_DIR/../scripts/read-config.sh"
+CANONICAL_SCRIPT="$SCRIPT_DIR/../plugins/dso/scripts/verify-baseline-intent.sh"
+READ_CONFIG_SH="$SCRIPT_DIR/../plugins/dso/scripts/read-config.sh"
 
 FAILURES=0
 TESTS=0
