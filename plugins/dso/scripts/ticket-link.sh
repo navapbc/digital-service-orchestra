@@ -107,7 +107,7 @@ for event_type, f in all_events:
     uuid = ev.get('uuid', '')
     if event_type == 'LINK':
         if uuid:
-            active_links[uuid] = (data.get('target_id', ''), data.get('relation', ''))
+            active_links[uuid] = (data.get('target_id', data.get('target', '')), data.get('relation', ''))
     elif event_type == 'UNLINK':
         link_uuid = data.get('link_uuid', '')
         if link_uuid:
@@ -247,7 +247,7 @@ for event_type, f in all_events:
     uuid = ev.get('uuid', '')
     if event_type == 'LINK':
         if uuid:
-            active_links[uuid] = (data.get('target_id', ''), data.get('relation', ''))
+            active_links[uuid] = (data.get('target_id', data.get('target', '')), data.get('relation', ''))
     elif event_type == 'UNLINK':
         link_uuid = data.get('link_uuid', '')
         if link_uuid:
