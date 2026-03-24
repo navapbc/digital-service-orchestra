@@ -1,0 +1,1 @@
+{"timestamp": 1774370460, "uuid": "345ba238-3004-4e7c-96e2-36ae37e945ee", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Add auto-detect path test for bash runner in test-test-batched.sh", "parent_id": "", "assignee": "Joe Oakhart"}}
