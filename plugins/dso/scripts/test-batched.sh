@@ -28,10 +28,15 @@ set -uo pipefail
 #             files exist under --test-dir.
 #             Falls back to generic when: pytest not installed, no test files found,
 #             collection fails, or collection yields no test IDs.
+#   bash      Discovers test-*.sh and run-*-tests.sh files under --test-dir
+#             and runs each via: bash <file>
+#             Auto-detected when: test-*.sh or run-*-tests.sh files exist
+#             under --test-dir (after node and pytest auto-detect).
+#             Falls back to generic when: no matching files found.
 #   generic   (default) Runs <command> as a single test item.
 #
 # The <command> positional argument is required for the generic runner.
-# For the node runner, <command> is optional (used as fallback command).
+# For the node, pytest, and bash runners, <command> is optional (used as fallback).
 #
 # Output format:
 #   Between batches: progress line + Structured Action-Required Block (ACTION REQUIRED / RUN: / DO NOT PROCEED)
@@ -187,7 +192,7 @@ done
 
 # ── Validate required argument ─────────────────────────────────────────────────
 # CMD is required for generic runner; node and pytest runners can operate without it.
-if [ -z "$CMD" ] && [ "$RUNNER" != "node" ] && [ "$RUNNER" != "pytest" ]; then
+if [ -z "$CMD" ] && [ "$RUNNER" != "node" ] && [ "$RUNNER" != "pytest" ] && [ "$RUNNER" != "bash" ]; then
     echo "ERROR: Missing required argument: <command>" >&2
     echo ""
     sed -n '2,/^$/s/^# \{0,1\}//p' "$0" | head -60 >&2
@@ -400,6 +405,16 @@ source "$(dirname "$0")/runners/pytest-runner.sh"
 # ── Pytest runner execution path ──────────────────────────────────────────────
 if [ "$USE_PYTEST_RUNNER" -eq 1 ]; then
     _pytest_runner_run
+fi
+
+# ── Bash runner driver (sourced from runners/bash-runner.sh) ─────────────────
+# Sets USE_BASH_RUNNER and BASH_FILES; provides _bash_runner_run function.
+# shellcheck source=runners/bash-runner.sh
+source "$(dirname "$0")/runners/bash-runner.sh"
+
+# ── Bash runner execution path ───────────────────────────────────────────────
+if [ "$USE_BASH_RUNNER" -eq 1 ]; then
+    _bash_runner_run
 fi
 
 # ── Generic fallback runner ───────────────────────────────────────────────────

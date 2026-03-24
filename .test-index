@@ -41,6 +41,7 @@ plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scrip
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_create_with_closed_parent_blocked]
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh [test_link_depends_on_closed_target_blocked]
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh [test_transition_bug_close_requires_reason]
+plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
 plugins/dso/scripts/validate-phase.sh:tests/test-validate-phase-portability.sh
 plugins/dso/scripts/validate.sh:tests/plugin/test-validate-work-portability.sh,tests/hooks/test-validate-review-output.sh,tests/hooks/test-validate-crash-detection.sh,tests/scripts/test-validate-test-batched-integration.sh,tests/scripts/test-validate-flock-timeout.sh,tests/scripts/test-validate-background.sh,tests/scripts/test-validate-skip-ci-flag.sh,tests/scripts/test-validate-issues.sh,tests/scripts/test-validate-config.sh,tests/scripts/test-validate-script-writes-integration.sh,tests/scripts/test-validate-config-driven.sh,tests/scripts/test-validate-state-lifecycle.sh,tests/test-validate-phase-portability.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py

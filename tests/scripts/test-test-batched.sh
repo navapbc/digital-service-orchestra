@@ -887,5 +887,155 @@ _cleanup_path=$(echo "$default_path_out" | grep "^RUN:" | grep -oE "TEST_BATCHED
 [ -n "$_cleanup_path" ] && rm -f "$_cleanup_path" 2>/dev/null || true
 assert_pass_if_clean "test_default_state_file_includes_repo_hash"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Bash runner tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── test_bash_runner_discovers_test_scripts ──────────────────────────────────
+# --runner=bash --test-dir=<dir> should discover test-*.sh files under the dir
+# and run each as a separate test item (not a single monolithic command).
+echo ""
+echo "--- test_bash_runner_discovers_test_scripts ---"
+_snapshot_fail
+TMPDIR_BASH_DISC="$(mktemp -d)"
+BASH_DISC_STATE="$TMPDIR_BASH_DISC/state.json"
+
+# Create two tiny test scripts
+cat > "$TMPDIR_BASH_DISC/test-alpha.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_BASH_DISC/test-alpha.sh"
+cat > "$TMPDIR_BASH_DISC/test-beta.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_BASH_DISC/test-beta.sh"
+
+bash_disc_out=""
+bash_disc_exit=0
+bash_disc_out=$(TEST_BATCHED_STATE_FILE="$BASH_DISC_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_BASH_DISC" --timeout=30 2>&1) \
+    || bash_disc_exit=$?
+
+# Should mention both test scripts in output
+disc_alpha=0
+disc_beta=0
+echo "$bash_disc_out" | grep -q "test-alpha.sh" && disc_alpha=1
+echo "$bash_disc_out" | grep -q "test-beta.sh" && disc_beta=1
+assert_eq "test_bash_runner_discovers_test_scripts: found test-alpha.sh" "1" "$disc_alpha"
+assert_eq "test_bash_runner_discovers_test_scripts: found test-beta.sh" "1" "$disc_beta"
+# Should show 2/2 progress (two separate items, not 1/1)
+disc_two=0
+echo "$bash_disc_out" | grep -q "2/2" && disc_two=1
+assert_eq "test_bash_runner_discovers_test_scripts: shows 2/2 progress" "1" "$disc_two"
+assert_eq "test_bash_runner_discovers_test_scripts: exits 0" "0" "$bash_disc_exit"
+rm -rf "$TMPDIR_BASH_DISC"
+assert_pass_if_clean "test_bash_runner_discovers_test_scripts"
+
+# ── test_bash_runner_resumes_skipping_completed ─────────────────────────────
+# After partial completion, resuming should skip already-completed scripts.
+echo ""
+echo "--- test_bash_runner_resumes_skipping_completed ---"
+_snapshot_fail
+TMPDIR_BASH_RESUME="$(mktemp -d)"
+BASH_RESUME_STATE="$TMPDIR_BASH_RESUME/state.json"
+
+cat > "$TMPDIR_BASH_RESUME/test-first.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_BASH_RESUME/test-first.sh"
+cat > "$TMPDIR_BASH_RESUME/test-second.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_BASH_RESUME/test-second.sh"
+
+# Pre-populate state file marking test-first.sh as completed
+python3 -c "
+import json, sys, time
+state = {
+  'runner': 'bash:' + sys.argv[1],
+  'completed': ['test-first.sh'],
+  'results': {'test-first.sh': 'pass'},
+  'command_hash': '',
+  'created_at': int(time.time())
+}
+with open(sys.argv[2], 'w') as f:
+    json.dump(state, f, indent=2)
+" "$TMPDIR_BASH_RESUME" "$BASH_RESUME_STATE"
+
+bash_resume_out=""
+bash_resume_exit=0
+bash_resume_out=$(TEST_BATCHED_STATE_FILE="$BASH_RESUME_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_BASH_RESUME" --timeout=30 2>&1) \
+    || bash_resume_exit=$?
+
+# Should skip test-first.sh and run test-second.sh
+skip_first=0
+echo "$bash_resume_out" | grep -q "Skipping.*test-first.sh" && skip_first=1
+assert_eq "test_bash_runner_resumes_skipping_completed: skips test-first.sh" "1" "$skip_first"
+ran_second=0
+echo "$bash_resume_out" | grep -q "Running.*test-second.sh" && ran_second=1
+assert_eq "test_bash_runner_resumes_skipping_completed: runs test-second.sh" "1" "$ran_second"
+rm -rf "$TMPDIR_BASH_RESUME"
+assert_pass_if_clean "test_bash_runner_resumes_skipping_completed"
+
+# ── test_bash_runner_fallback_when_no_test_dir ──────────────────────────────
+# --runner=bash without --test-dir should warn and fall back to generic.
+echo ""
+echo "--- test_bash_runner_fallback_when_no_test_dir ---"
+_snapshot_fail
+TMPDIR_BASH_NODIR="$(mktemp -d)"
+BASH_NODIR_STATE="$TMPDIR_BASH_NODIR/state.json"
+bash_nodir_out=""
+bash_nodir_exit=0
+bash_nodir_out=$(TEST_BATCHED_STATE_FILE="$BASH_NODIR_STATE" \
+    bash "$SCRIPT" --runner=bash --timeout=10 "bash -c 'exit 0'" 2>&1) \
+    || bash_nodir_exit=$?
+nodir_fallback=0
+echo "$bash_nodir_out" | grep -qi "fallback\|falling back" && nodir_fallback=1
+assert_eq "test_bash_runner_fallback_when_no_test_dir: warns about fallback" "1" "$nodir_fallback"
+rm -rf "$TMPDIR_BASH_NODIR"
+assert_pass_if_clean "test_bash_runner_fallback_when_no_test_dir"
+
+# ── test_bash_runner_records_failures ────────────────────────────────────────
+# A failing test script should be recorded as "fail" in results.
+echo ""
+echo "--- test_bash_runner_records_failures ---"
+_snapshot_fail
+TMPDIR_BASH_FAIL="$(mktemp -d)"
+BASH_FAIL_STATE="$TMPDIR_BASH_FAIL/state.json"
+
+cat > "$TMPDIR_BASH_FAIL/test-pass.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_BASH_FAIL/test-pass.sh"
+cat > "$TMPDIR_BASH_FAIL/test-fail.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 1
+SHEOF
+chmod +x "$TMPDIR_BASH_FAIL/test-fail.sh"
+
+bash_fail_out=""
+bash_fail_exit=0
+bash_fail_out=$(TEST_BATCHED_STATE_FILE="$BASH_FAIL_STATE" \
+    bash "$SCRIPT" --runner=bash --test-dir="$TMPDIR_BASH_FAIL" --timeout=30 2>&1) \
+    || bash_fail_exit=$?
+
+# Should report 1 passed, 1 failed
+bash_fail_has_pass=0
+echo "$bash_fail_out" | grep -q "1 passed" && bash_fail_has_pass=1
+assert_eq "test_bash_runner_records_failures: reports 1 passed" "1" "$bash_fail_has_pass"
+bash_fail_has_fail=0
+echo "$bash_fail_out" | grep -q "1 failed" && bash_fail_has_fail=1
+assert_eq "test_bash_runner_records_failures: reports 1 failed" "1" "$bash_fail_has_fail"
+# Should exit non-zero when a test fails
+assert_ne "test_bash_runner_records_failures: exits non-zero" "0" "$bash_fail_exit"
+rm -rf "$TMPDIR_BASH_FAIL"
+assert_pass_if_clean "test_bash_runner_records_failures"
+
 print_summary
 
