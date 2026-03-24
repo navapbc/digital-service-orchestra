@@ -1,0 +1,1 @@
+{"timestamp": 1774372802, "uuid": "38ab0dc9-05bf-4b95-8acd-b535ecbe9fd8", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "merge-to-main.sh PATH resolution gap: venv not guaranteed in PATH when git merge triggers pre-commit hooks", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
