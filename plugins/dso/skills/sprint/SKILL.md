@@ -1333,20 +1333,15 @@ Phase 9 delegates all completion and shutdown logic to `/dso:end-session`, which
    .claude/scripts/dso ticket comment <epic-id> "Epic complete: all tasks closed, validation score 5/5"
    .claude/scripts/dso ticket transition <epic-id> open closed
    ```
-2. Bump the minor version to signal a new feature-level capability:
-   ```bash
-   REPO_ROOT=$(git rev-parse --show-toplevel)
-   bash "$REPO_ROOT/plugins/dso/scripts/bump-version.sh" --minor
-   git add -u
-   ```
-   This increments the minor version and resets patch to 0. Stage the bumped version file so it is included in the epic completion commit. If `version.file_path` is not configured in `dso-config.conf`, `bump-version.sh` exits 0 with no changes and `git add -u` is a no-op (safe to run regardless).
-
-   > **Sprint-skip note for the subsequent commit step**: The commit workflow's Step 3b (patch version bump) must be skipped when the epic completion commit is made via `/dso:end-session` or `COMMIT-WORKFLOW.md`. The minor bump performed in this step takes precedence — a redundant patch bump in the same commit would produce an incorrect version. The existing sprint-skip guidance in `COMMIT-WORKFLOW.md` Step 3b already enforces this; no additional action is needed here.
-3. Set sprint context for `/dso:end-session` report:
+2. Set sprint context for `/dso:end-session` report:
    - Epic ID and title
    - Total tasks completed this session
    - Validation score: 5/5
-4. Invoke `/dso:end-session`
+3. Invoke `/dso:end-session` with `--bump minor` so that `merge-to-main.sh` performs the minor version bump at merge time rather than on the worktree branch:
+   ```
+   /dso:end-session --bump minor
+   ```
+   This passes `--bump minor` through to the `merge-to-main.sh` invocation inside `/dso:end-session`, which increments the minor version and resets patch to 0 as part of the merge commit. If `version.file_path` is not configured in `dso-config.conf`, the flag is a no-op (safe to pass regardless).
 
 ### On Graceful Shutdown (Compaction, Failures)
 
