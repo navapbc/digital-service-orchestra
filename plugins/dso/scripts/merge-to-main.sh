@@ -926,25 +926,18 @@ _phase_sync() {
     _CURRENT_PHASE="sync"
     _state_write_phase "sync"
 
-    # Delegates to worktree-sync-from-main.sh which handles:
-    #   - Fetching and merging origin/main
+    # Fetch and merge origin/main into the worktree branch.
     # This surfaces merge conflicts here (where /dso:resolve-conflicts can operate)
     # rather than discovering them during the main-repo merge.
-
-    # Fallback: try plugin dir first, then repo-root scripts/
-    if [ -f "$_SCRIPT_DIR/worktree-sync-from-main.sh" ]; then
-        source "$_SCRIPT_DIR/worktree-sync-from-main.sh"
-    elif [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-sync-from-main.sh" ]; then
-        source "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-sync-from-main.sh"
-    else
-        echo "ERROR: worktree-sync-from-main.sh not found in $_SCRIPT_DIR or $REPO_ROOT/scripts/"
-        exit 1
-    fi
-
-    if ! _worktree_sync_from_main --quiet; then
+    echo "Syncing worktree with main..."
+    git fetch origin main 2>&1 || {
+        echo "WARNING: git fetch origin main failed — continuing with local state."
+    }
+    if ! git merge origin/main --no-edit -q 2>&1; then
         echo "ERROR: Syncing worktree with main failed. Resolve conflicts, then re-run."
         exit 1
     fi
+    echo "OK: Worktree synced with main."
 
     # --- Check visual baseline intent ---
     # Use merge-base against origin/main (not local main) to detect only branch-originated
@@ -1196,6 +1189,37 @@ _phase_push() {
     fi
 
     _state_mark_complete "push"
+
+    # --- Push tickets branch (triggers outbound bridge) ---
+    # The ticket CLI commits events to the local tickets branch but never pushes.
+    # Push here so the outbound bridge workflow picks up local ticket changes.
+    # Pull first (with rebase) to incorporate inbound bridge changes from CI.
+    _TRACKER_DIR="$MAIN_REPO/.tickets-tracker"
+    if [ -d "$_TRACKER_DIR" ] && git -C "$_TRACKER_DIR" rev-parse --verify tickets &>/dev/null; then
+        echo "Syncing tickets branch..."
+        # Commit any uncommitted ticket changes before syncing.
+        # The ticket CLI commits per-mutation, but cache files and
+        # interrupted operations can leave uncommitted state.
+        if [ -n "$(git -C "$_TRACKER_DIR" status --porcelain 2>/dev/null)" ]; then
+            git -C "$_TRACKER_DIR" add -A 2>/dev/null
+            git -C "$_TRACKER_DIR" commit -q --no-verify -m "chore: commit uncommitted ticket state before sync" 2>/dev/null || true
+        fi
+        # Pull inbound bridge changes (SYNC events, Jira-originated tickets)
+        if git -C "$_TRACKER_DIR" pull --rebase origin tickets 2>&1; then
+            # Push local ticket events to trigger outbound bridge.
+            # Skip hooks: the tickets orphan branch has no .pre-commit-config.yaml
+            # and pre-push hooks are designed for the main branch, not ticket data.
+            # (ticket-lib.sh already uses --no-verify for ticket commits.)
+            if PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$_TRACKER_DIR" push origin tickets 2>&1; then
+                echo "OK: Tickets branch synced with remote."
+            else
+                echo "WARNING: Tickets branch push failed — ticket changes will sync on next merge."
+            fi
+        else
+            echo "WARNING: Tickets branch pull failed — aborting rebase and skipping push."
+            git -C "$_TRACKER_DIR" rebase --abort 2>/dev/null || true
+        fi
+    fi
 }
 
 # --- 4.5) Archive closed tickets if count exceeds threshold ---
