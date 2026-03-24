@@ -1,0 +1,1 @@
+{"timestamp": 1774389913, "uuid": "708826f0-e8c5-4999-a5a5-f94a49bdacb8", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Remove v2 .tickets entry and comment from review-gate-allowlist.conf", "parent_id": "4506-e5da", "priority": 2, "assignee": "Joe Oakhart"}}
