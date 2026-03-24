@@ -146,7 +146,7 @@ Setting `gc.auto=0` disables automatic GC for the tickets worktree only, ensurin
 | Host repo config | Never | — |
 | Global git config | Never | — |
 
-The idempotent guard in `write_commit_event` ensures that even if the worktree is mounted on a machine where `ticket init` was not run directly, GC is still disabled before the first write.
+The idempotent guard in `write_commit_event` ensures that even if the worktree is mounted on a machine where `.claude/scripts/dso ticket init` was not run directly, GC is still disabled before the first write.
 
 ---
 

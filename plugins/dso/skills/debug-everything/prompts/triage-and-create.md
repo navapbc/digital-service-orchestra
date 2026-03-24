@@ -17,12 +17,12 @@ This file contains the full FAILURE INVENTORY, CLUSTERS, STANDALONE ERRORS, and 
 **Note**: If no validation failure clusters exist (all-pass case), skip cluster cross-referencing below. Only enumerate open bugs and assign them to Tier 7 with their existing priority.
 
 For EACH cluster and standalone error:
-1. Search tickets: `tk ready; tk blocked` and grep for relevant keywords to find matches
+1. Search tickets: `.claude/scripts/dso ticket list` and grep for relevant keywords to find matches
 2. If an existing issue covers this cluster/error: record its ID (do NOT create a duplicate)
 3. If no existing issue: proceed to Step 2
 
-For EACH open ticket bug (`tk ready; tk blocked`):
-1. `ticket show <id>` — if it overlaps with a validation failure cluster, merge it
+For EACH open ticket bug (`.claude/scripts/dso ticket list`):
+1. `.claude/scripts/dso ticket show <id>` — if it overlaps with a validation failure cluster, merge it
 2. If independent: add to the fix queue with its existing priority, assign to Tier 7
 
 ### Step 2: Create Issues for New Problems (/dso:debug-everything)
@@ -31,20 +31,20 @@ For each cluster or standalone error without an existing ticket issue:
 
 ```bash
 # For clusters: title describes root cause, not individual symptoms
-ticket create "Fix: <root cause description> (N related errors)" -t bug -p <priority>
+.claude/scripts/dso ticket create "Fix: <root cause description> (N related errors)" -t bug -p <priority>
 
 # For standalone errors:
-ticket create "Fix: <specific failure description>" -t bug -p <priority>
+.claude/scripts/dso ticket create "Fix: <specific failure description>" -t bug -p <priority>
 ```
 
 Update each new issue with its full error details:
 ```bash
-ticket comment <id> "<full list of errors in the cluster>"
+.claude/scripts/dso ticket comment <id> "<full list of errors in the cluster>"
 ```
 
 When a bug's root cause requires editing a safeguarded file (matching patterns from CLAUDE.md rule 20: `.claude/skills/**`, `.claude/hooks/**`, `.claude/settings.json`, `.claude/docs/**`, `scripts/**`, `CLAUDE.md`), also tag it after creation:
 ```bash
-ticket comment <id> "SAFEGUARDED: fix requires editing protected file(s): <paths>"
+.claude/scripts/dso ticket comment <id> "SAFEGUARDED: fix requires editing protected file(s): <paths>"
 ```
 
 **Priority assignment:**
@@ -77,7 +77,7 @@ Follow the `/dso:brainstorm` phases (Socratic dialogue, approach design, spec va
 
 Link each discovered issue to the epic:
 ```bash
-ticket link <issue-id> <epic-id> relates_to  # issue is linked to the epic
+.claude/scripts/dso ticket link <issue-id> <epic-id> relates_to  # issue is linked to the epic
 ```
 
 ### Step 4: Validate Issue Health (/dso:debug-everything)
@@ -113,7 +113,7 @@ SUMMARY:
 ### Rules
 See `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules.
 - Do NOT fix any code
-- Do NOT `git commit`, `git push`, `ticket transition`
-- You CAN run `ticket create`, `ticket comment`, `ticket link`, `ticket show`, `tk ready`, `tk blocked`
+- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`
+- You CAN run `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket comment`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket list`
 - Create exactly ONE issue per cluster, ONE issue per standalone error
 - Never create duplicate issues — always search first

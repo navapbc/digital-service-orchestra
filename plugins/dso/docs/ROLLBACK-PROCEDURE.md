@@ -63,7 +63,7 @@ git revert "$REF_SHA"
 Verify:
 
 ```bash
-grep -r 'tk show\|tk create\|tk list' plugins/dso/skills/ | head -5
+grep -r '.claude/scripts/dso ticket show\|tk create\|tk list' plugins/dso/skills/ | head -5
 ```
 
 ## Full Rollback (both commits)

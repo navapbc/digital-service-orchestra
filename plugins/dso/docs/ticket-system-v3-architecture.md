@@ -190,7 +190,7 @@ The lock uses Python `fcntl.flock(LOCK_EX | LOCK_NB)` polled at 100 ms intervals
 | 2 | git operation failed while holding lock | No retry; command exits non-zero |
 | 3 | Atomic rename failed while holding lock | Staging temp removed; no retry; command exits non-zero |
 
-On lock exhaustion, the staging temp is removed. No partial state is left on disk. A half-written event that survived a rename but failed git commit is recoverable by `ticket fsck`.
+On lock exhaustion, the staging temp is removed. No partial state is left on disk. A half-written event that survived a rename but failed git commit is recoverable by `.claude/scripts/dso ticket fsck`.
 
 For the full lock contract including downstream story obligations (compaction, concurrency stress, sync-events), see `plugins/dso/docs/contracts/ticket-flock-contract.md`.
 
@@ -200,7 +200,7 @@ For the full lock contract including downstream story obligations (compaction, c
 
 ### How Multi-Agent Sessions Share the Tracker
 
-The `tickets` branch is mounted as a worktree at `.tickets-tracker/` in the **main** repository checkout. When a new code worktree is created (e.g., `git worktree add ../feature-branch feature`), ticket init creates a **symlink** in the new worktree that points to the main repo's `.tickets-tracker/`:
+The `tickets` branch is mounted as a worktree at `.tickets-tracker/` in the **main** repository checkout. When a new code worktree is created (e.g., `git worktree add ../feature-branch feature`), .claude/scripts/dso ticket init creates a **symlink** in the new worktree that points to the main repo's `.tickets-tracker/`:
 
 ```bash
 # What ticket-init.sh does in a secondary worktree
@@ -223,7 +223,7 @@ For a secondary worktree, run the same command from inside the worktree. `ticket
 
 ### gc.auto=0 Safety Setting
 
-`ticket-init.sh` sets `gc.auto=0` in the tickets worktree's local git config (`.tickets-tracker/.git/config`) only — never in the host repository config or the global `~/.gitconfig`. The `write_commit_event` function in `ticket-lib.sh` re-applies this setting idempotently before each write, so even worktrees that did not run `ticket init` directly have GC disabled before their first write.
+`ticket-init.sh` sets `gc.auto=0` in the tickets worktree's local git config (`.tickets-tracker/.git/config`) only — never in the host repository config or the global `~/.gitconfig`. The `write_commit_event` function in `ticket-lib.sh` re-applies this setting idempotently before each write, so even worktrees that did not run `.claude/scripts/dso ticket init` directly have GC disabled before their first write.
 
 This prevents git's automatic garbage collection from holding repository locks during the ~60-second flock window.
 
@@ -240,13 +240,13 @@ git -C .tickets-tracker fetch origin tickets
 git -C .tickets-tracker rebase origin/tickets
 ```
 
-`tk sync-events` automates this as a split-phase protocol (fetch → merge under lock → push), ensuring the write lock is never held during network I/O. See `plugins/dso/docs/contracts/ticket-sync-events-contract.md`.
+`.claude/scripts/dso ticket sync` automates this as a split-phase protocol (fetch → merge under lock → push), ensuring the write lock is never held during network I/O. See `plugins/dso/docs/contracts/ticket-sync-events-contract.md`.
 
 ---
 
 ## --format=llm Design Rationale
 
-The `--format=llm` flag on `ticket show` and `ticket list` exists to minimize token overhead when agents read ticket state. The standard (human) output format includes verbose timestamps, null fields, and long key names — all of which consume context window tokens without providing information useful to an agent.
+The `--format=llm` flag on `.claude/scripts/dso ticket show` and `.claude/scripts/dso ticket list` exists to minimize token overhead when agents read ticket state. The standard (human) output format includes verbose timestamps, null fields, and long key names — all of which consume context window tokens without providing information useful to an agent.
 
 The LLM format applies three transformations:
 
@@ -256,7 +256,7 @@ The LLM format applies three transformations:
 
 The formatting logic is centralized in `plugins/dso/scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`.
 
-`ticket list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
+`.claude/scripts/dso ticket list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
 
 ---
 
@@ -268,7 +268,7 @@ Because event files are append-only and named with timestamp + UUID, concurrent 
 
 Conflict detection is handled at the **semantic** level by the reducer, not at the git level:
 
-- **STATUS conflicts**: If two environments independently transition a ticket to different statuses, the reducer detects the mismatch via the `current_status` field in each STATUS event (optimistic concurrency proof). Conflicts are recorded in `state["conflicts"]` and surfaced by `ticket fsck`.
+- **STATUS conflicts**: If two environments independently transition a ticket to different statuses, the reducer detects the mismatch via the `current_status` field in each STATUS event (optimistic concurrency proof). Conflicts are recorded in `state["conflicts"]` and surfaced by `.claude/scripts/dso ticket fsck`.
 - **Deduplication**: The `LastTimestampWinsStrategy` deduplicates events by UUID (first occurrence wins) and sorts by timestamp. This handles the case where the same event file appears in both environments' histories after a sync.
 
 For multi-environment conflict resolution strategy (`MostStatusEventsWinsStrategy`), see `plugins/dso/docs/contracts/ticket-reducer-strategy-contract.md`.

@@ -120,20 +120,20 @@ Pattern: Main Agent → Create interface contract (ABC, tests, docs)
 
 ```bash
 # 1. Create interface task (unblocks others)
-ticket create "Define MyProvider interface contract" -t task -p 1
+.claude/scripts/dso ticket create "Define MyProvider interface contract" -t task -p 1
 # Returns: <issue-id>
 
 # 2. Create implementation tasks
-ticket create "Implement ConcreteProviderA" -t task -p 2
-ticket create "Implement ConcreteProviderB" -t task -p 2
+.claude/scripts/dso ticket create "Implement ConcreteProviderA" -t task -p 2
+.claude/scripts/dso ticket create "Implement ConcreteProviderB" -t task -p 2
 # Returns: <issue-id-a>, <issue-id-b>
 
 # 3. Set dependencies
-ticket link <issue-id-a> <issue-id> depends_on
-ticket link <issue-id-b> <issue-id> depends_on
+.claude/scripts/dso ticket link <issue-id-a> <issue-id> depends_on
+.claude/scripts/dso ticket link <issue-id-b> <issue-id> depends_on
 
 # 4. Document interface after completion
-ticket comment <issue-id> "Interface: src/services/domain/base.py
+.claude/scripts/dso ticket comment <issue-id> "Interface: src/services/domain/base.py
 Key methods: process(), validate()
 Constraint: All implementations thread-safe"
 ```

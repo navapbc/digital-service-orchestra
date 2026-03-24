@@ -6,7 +6,7 @@ Classify a ticket as TRIVIAL, MODERATE, or COMPLEX to determine routing in `/dso
 
 ## Input
 
-Ticket ID passed as argument. Load the ticket via: `ticket show <ticket-id>`
+Ticket ID passed as argument. Load the ticket via: `.claude/scripts/dso ticket show <ticket-id>`
 
 ## Five-Dimension Rubric
 

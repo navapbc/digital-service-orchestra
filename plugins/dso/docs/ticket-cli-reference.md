@@ -21,9 +21,9 @@ The ticket tracker is stored as an orphan git branch (`tickets`) mounted as a wo
 
 ### Default JSON output
 
-`ticket show` and `ticket list` produce pretty-printed JSON by default.
+`.claude/scripts/dso ticket show` and `.claude/scripts/dso ticket list` produce pretty-printed JSON by default.
 
-**`ticket show` default output** — one JSON object per ticket:
+**`.claude/scripts/dso ticket show` default output** — one JSON object per ticket:
 
 ```json
 {
@@ -40,14 +40,14 @@ The ticket tracker is stored as an orphan git branch (`tickets`) mounted as a wo
 }
 ```
 
-**`ticket list` default output** — JSON array of the same objects.
+**`.claude/scripts/dso ticket list` default output** — JSON array of the same objects.
 
 ### `--format=llm` output mode
 
-Both `ticket show` and `ticket list` accept `--format=llm`.
+Both `.claude/scripts/dso ticket show` and `.claude/scripts/dso ticket list` accept `--format=llm`.
 
-`ticket show --format=llm` outputs a single minified JSON object on one line.
-`ticket list --format=llm` outputs JSONL — one minified object per line, one ticket per line.
+`.claude/scripts/dso ticket show --format=llm` outputs a single minified JSON object on one line.
+`.claude/scripts/dso ticket list --format=llm` outputs JSONL — one minified object per line, one ticket per line.
 
 Key differences from default output:
 
@@ -74,7 +74,7 @@ Key differences from default output:
 **Comment sub-keys:** `body` → `b`, `author` → `au` (timestamp omitted)
 **Dep sub-keys:** `target_id` → `tid`, `relation` → `r` (link_uuid omitted)
 
-**Example — `ticket show --format=llm abc1-def2`:**
+**Example — `.claude/scripts/dso ticket show --format=llm abc1-def2`:**
 
 ```
 {"id":"abc1-def2","t":"task","ttl":"Fix login redirect","st":"open","au":"Alice"}
@@ -89,7 +89,7 @@ Key differences from default output:
 Initialize the ticket system.
 
 ```
-ticket init [--silent]
+.claude/scripts/dso ticket init [--silent]
 ```
 
 **Arguments:**
@@ -118,7 +118,7 @@ ticket init [--silent]
 **Example:**
 
 ```
-$ ticket init
+$ .claude/scripts/dso ticket init
 Ticket system initialized.
 ```
 
@@ -129,7 +129,7 @@ Ticket system initialized.
 Create a new ticket.
 
 ```
-ticket create <ticket_type> <title> [parent_id]
+.claude/scripts/dso ticket create <ticket_type> <title> [parent_id]
 ```
 
 **Arguments:**
@@ -160,10 +160,10 @@ ticket create <ticket_type> <title> [parent_id]
 **Example:**
 
 ```
-$ ticket create task "Add rate limiting to API"
+$ .claude/scripts/dso ticket create task "Add rate limiting to API"
 w21-a3f7
 
-$ ticket create story "As a user, I can reset my password" w21-a3f7
+$ .claude/scripts/dso ticket create story "As a user, I can reset my password" w21-a3f7
 w21-b9c2
 ```
 
@@ -174,7 +174,7 @@ w21-b9c2
 Show compiled state for a ticket.
 
 ```
-ticket show [--format=llm] <ticket_id>
+.claude/scripts/dso ticket show [--format=llm] <ticket_id>
 ```
 
 **Arguments:**
@@ -196,7 +196,7 @@ ticket show [--format=llm] <ticket_id>
 **Example:**
 
 ```
-$ ticket show w21-a3f7
+$ .claude/scripts/dso ticket show w21-a3f7
 {
   "ticket_id": "w21-a3f7",
   "ticket_type": "task",
@@ -210,7 +210,7 @@ $ ticket show w21-a3f7
   "deps": []
 }
 
-$ ticket show --format=llm w21-a3f7
+$ .claude/scripts/dso ticket show --format=llm w21-a3f7
 {"id":"w21-a3f7","t":"task","ttl":"Add rate limiting to API","st":"open","au":"Alice"}
 ```
 
@@ -221,7 +221,7 @@ $ ticket show --format=llm w21-a3f7
 List all tickets.
 
 ```
-ticket list [--format=llm]
+.claude/scripts/dso ticket list [--format=llm]
 ```
 
 **Arguments:**
@@ -249,10 +249,10 @@ ticket list [--format=llm]
 **Example:**
 
 ```
-$ ticket list
+$ .claude/scripts/dso ticket list
 [{"ticket_id":"w21-a3f7","ticket_type":"task","title":"Add rate limiting to API","status":"open",...}]
 
-$ ticket list --format=llm
+$ .claude/scripts/dso ticket list --format=llm
 {"id":"w21-a3f7","t":"task","ttl":"Add rate limiting to API","st":"open","au":"Alice"}
 {"id":"w21-b9c2","t":"story","ttl":"As a user, I can reset my password","st":"open","au":"Alice"}
 ```
@@ -264,7 +264,7 @@ $ ticket list --format=llm
 Transition a ticket's status with optimistic concurrency control.
 
 ```
-ticket transition <ticket_id> <current_status> <target_status> [--reason <text>]
+.claude/scripts/dso ticket transition <ticket_id> <current_status> <target_status> [--reason <text>]
 ```
 
 **Arguments:**
@@ -297,17 +297,17 @@ ticket transition <ticket_id> <current_status> <target_status> [--reason <text>]
 **Example:**
 
 ```
-$ ticket transition w21-a3f7 open in_progress
+$ .claude/scripts/dso ticket transition w21-a3f7 open in_progress
 UNBLOCKED: none
 
-$ ticket transition w21-a3f7 open closed
+$ .claude/scripts/dso ticket transition w21-a3f7 open closed
 Error: current status is "in_progress", not "open"
 
 # Closing a bug ticket requires --reason
-$ ticket transition w21-b1c2 open closed
+$ .claude/scripts/dso ticket transition w21-b1c2 open closed
 Error: closing a bug ticket requires --reason with prefix "Fixed:" or "Escalated to user:"
 
-$ ticket transition w21-b1c2 open closed --reason "Fixed: corrected null check in parser"
+$ .claude/scripts/dso ticket transition w21-b1c2 open closed --reason "Fixed: corrected null check in parser"
 UNBLOCKED: none
 ```
 
@@ -318,7 +318,7 @@ UNBLOCKED: none
 Append a comment to a ticket.
 
 ```
-ticket comment <ticket_id> <body>
+.claude/scripts/dso ticket comment <ticket_id> <body>
 ```
 
 **Arguments:**
@@ -333,7 +333,7 @@ ticket comment <ticket_id> <body>
 - Ghost prevention: verifies CREATE event exists before writing COMMENT event
 - Writes a `COMMENT` event JSON file and commits it atomically to the tickets branch
 - Comment timestamp uses nanosecond precision (`time.time_ns()`)
-- Comments are surfaced in `ticket show` output under the `comments` array
+- Comments are surfaced in `.claude/scripts/dso ticket show` output under the `comments` array
 
 **Exit codes:**
 
@@ -345,7 +345,7 @@ ticket comment <ticket_id> <body>
 **Example:**
 
 ```
-$ ticket comment w21-a3f7 "Rate limiting implementation started. Using token bucket algorithm."
+$ .claude/scripts/dso ticket comment w21-a3f7 "Rate limiting implementation started. Using token bucket algorithm."
 ```
 
 ---
@@ -355,7 +355,7 @@ $ ticket comment w21-a3f7 "Rate limiting implementation started. Using token buc
 Link two tickets with a directional relationship.
 
 ```
-ticket link <source_id> <target_id> <relation>
+.claude/scripts/dso ticket link <source_id> <target_id> <relation>
 ```
 
 **Arguments:**
@@ -385,9 +385,9 @@ ticket link <source_id> <target_id> <relation>
 **Example:**
 
 ```
-$ ticket link w21-a3f7 w21-b9c2 blocks
-$ ticket link w21-b9c2 w21-c0d1 depends_on
-$ ticket link w21-a3f7 w21-e5f6 relates_to
+$ .claude/scripts/dso ticket link w21-a3f7 w21-b9c2 blocks
+$ .claude/scripts/dso ticket link w21-b9c2 w21-c0d1 depends_on
+$ .claude/scripts/dso ticket link w21-a3f7 w21-e5f6 relates_to
 ```
 
 ---
@@ -397,7 +397,7 @@ $ ticket link w21-a3f7 w21-e5f6 relates_to
 Remove a link between two tickets.
 
 ```
-ticket unlink <source_id> <target_id>
+.claude/scripts/dso ticket unlink <source_id> <target_id>
 ```
 
 **Arguments:**
@@ -426,7 +426,7 @@ ticket unlink <source_id> <target_id>
 **Example:**
 
 ```
-$ ticket unlink w21-a3f7 w21-b9c2
+$ .claude/scripts/dso ticket unlink w21-a3f7 w21-b9c2
 ```
 
 ---
@@ -436,7 +436,7 @@ $ ticket unlink w21-a3f7 w21-b9c2
 Show the dependency graph for a ticket.
 
 ```
-ticket deps <ticket_id> [--tickets-dir=<path>]
+.claude/scripts/dso ticket deps <ticket_id> [--tickets-dir=<path>]
 ```
 
 **Arguments:**
@@ -481,7 +481,7 @@ ticket deps <ticket_id> [--tickets-dir=<path>]
 **Example:**
 
 ```
-$ ticket deps w21-a3f7
+$ .claude/scripts/dso ticket deps w21-a3f7
 {"ticket_id":"w21-a3f7","deps":[{"target_id":"w21-b9c2","relation":"blocks"}],"blockers":[],"ready_to_work":true}
 ```
 
@@ -492,7 +492,7 @@ $ ticket deps w21-a3f7
 Synchronize tickets with Jira (via the tk wrapper).
 
 ```
-tk sync [--check] [--include-closed] [--force-local] [--no-lock] [--break-lock] [--lock-timeout=N] [--full]
+.claude/scripts/dso ticket sync [--check] [--include-closed] [--force-local] [--no-lock] [--break-lock] [--lock-timeout=N] [--full]
 ```
 
 `sync` is a tk wrapper command (not a `ticket` dispatcher subcommand). It requires `acli` (Atlassian CLI) in `PATH` and Jira credentials configured (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`).
@@ -526,19 +526,19 @@ tk sync [--check] [--include-closed] [--force-local] [--no-lock] [--break-lock] 
 **Example:**
 
 ```
-$ tk sync
-$ tk sync --check
-$ tk sync --full
+$ .claude/scripts/dso ticket sync
+$ .claude/scripts/dso ticket sync --check
+$ .claude/scripts/dso ticket sync --full
 ```
 
 ---
 
 ### `archive`
 
-Archive a ticket's event history using snapshot compaction (`ticket compact`).
+Archive a ticket's event history using snapshot compaction (`.claude/scripts/dso ticket compact`).
 
 ```
-ticket compact <ticket_id> [--threshold=N]
+.claude/scripts/dso ticket compact <ticket_id> [--threshold=N]
 ```
 
 The compaction operation archives a ticket's raw event history into a single `SNAPSHOT` event, reducing the number of files on the tickets branch. The term "archive" in the event-sourced system refers to this compaction process; it is distinct from the tk move-to-archive-directory operation used by the legacy markdown ticket system.
@@ -552,7 +552,7 @@ The compaction operation archives a ticket's raw event history into a single `SN
 
 **Behavior:**
 
-1. Runs `ticket sync` before compacting to pull the latest remote state (gracefully skipped if sync is unavailable)
+1. Runs `.claude/scripts/dso ticket sync` before compacting to pull the latest remote state (gracefully skipped if sync is unavailable)
 2. Skips compaction if a remote `SNAPSHOT` file already exists (to avoid redundant snapshots)
 3. Checks event count against threshold — skips if below threshold
 4. Runs the reducer to compile the current state
@@ -571,10 +571,10 @@ The compaction operation archives a ticket's raw event history into a single `SN
 **Example:**
 
 ```
-$ ticket compact w21-a3f7
+$ .claude/scripts/dso ticket compact w21-a3f7
 compacted 15 events into SNAPSHOT for w21-a3f7
 
-$ ticket compact w21-a3f7 --threshold=5
+$ .claude/scripts/dso ticket compact w21-a3f7 --threshold=5
 below threshold (3 <= 5) — skipping compaction
 ```
 
@@ -585,7 +585,7 @@ below threshold (3 <= 5) — skipping compaction
 Show the status of the last bridge (Jira sync) run.
 
 ```
-ticket bridge-status [--format=json]
+.claude/scripts/dso ticket bridge-status [--format=json]
 ```
 
 **Arguments:**
@@ -633,13 +633,13 @@ Unresolved BRIDGE_ALERTs: 2
 **Example:**
 
 ```
-$ ticket bridge-status
+$ .claude/scripts/dso ticket bridge-status
 Last run time:            1711123200
 Status:                   success
 Unresolved conflicts:     0
 Unresolved BRIDGE_ALERTs: 0
 
-$ ticket bridge-status --format=json
+$ .claude/scripts/dso ticket bridge-status --format=json
 {"last_run_timestamp":1711123200,"success":true,"error":null,"unresolved_conflicts":0,"unresolved_alerts_count":0}
 ```
 
@@ -650,7 +650,7 @@ $ ticket bridge-status --format=json
 Audit bridge mappings for anomalies.
 
 ```
-ticket bridge-fsck [--tickets-tracker=<path>] [--now-ts=<epoch>]
+.claude/scripts/dso ticket bridge-fsck [--tickets-tracker=<path>] [--now-ts=<epoch>]
 ```
 
 **Arguments:**
@@ -692,7 +692,7 @@ Stale SYNCs: 1
 **Example:**
 
 ```
-$ ticket bridge-fsck
+$ .claude/scripts/dso ticket bridge-fsck
 === Bridge FSck Report ===
 Orphans: none found
 Duplicates: none found
@@ -700,7 +700,7 @@ Stale SYNCs: none found
 
 No issues found.
 
-$ ticket bridge-fsck --tickets-tracker=/path/to/tracker
+$ .claude/scripts/dso ticket bridge-fsck --tickets-tracker=/path/to/tracker
 ```
 
 ---
@@ -709,12 +709,12 @@ $ ticket bridge-fsck --tickets-tracker=/path/to/tracker
 
 | Variable | Used by | Description |
 |---|---|---|
-| `TICKETS_TRACKER_DIR` | `ticket show`, `ticket list`, `ticket bridge-status`, `ticket bridge-fsck` | Override the tracker directory (used in tests) |
-| `COMPACT_THRESHOLD` | `ticket compact` | Default event count threshold for compaction (default: `10`) |
-| `TICKET_SYNC_CMD` | `ticket compact` | Override the sync command run before compact (default: `ticket sync`) |
-| `DSO_UNBLOCK_SCRIPT` | `ticket transition` | Override the path to `ticket-unblock.py` |
-| `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN` | `tk sync` | Jira credentials for sync |
-| `JIRA_SYNC_TIMEOUT_SECONDS` | `tk sync` | Override the sync lock timeout |
+| `TICKETS_TRACKER_DIR` | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket list`, `.claude/scripts/dso ticket bridge-status`, `.claude/scripts/dso ticket bridge-fsck` | Override the tracker directory (used in tests) |
+| `COMPACT_THRESHOLD` | `.claude/scripts/dso ticket compact` | Default event count threshold for compaction (default: `10`) |
+| `TICKET_SYNC_CMD` | `.claude/scripts/dso ticket compact` | Override the sync command run before compact (default: `.claude/scripts/dso ticket sync`) |
+| `DSO_UNBLOCK_SCRIPT` | `.claude/scripts/dso ticket transition` | Override the path to `ticket-unblock.py` |
+| `JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN` | `.claude/scripts/dso ticket sync` | Jira credentials for sync |
+| `JIRA_SYNC_TIMEOUT_SECONDS` | `.claude/scripts/dso ticket sync` | Override the sync lock timeout |
 
 ---
 
@@ -724,12 +724,12 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 
 | Event type | Written by | Description |
 |---|---|---|
-| `CREATE` | `ticket create` | Creates the ticket with type, title, and optional parent |
-| `STATUS` | `ticket transition` | Changes ticket status (open, in_progress, closed, blocked) |
-| `COMMENT` | `ticket comment` | Appends a comment |
-| `LINK` | `ticket link` | Creates a directional relationship to another ticket |
-| `UNLINK` | `ticket unlink` | Cancels a prior LINK event (references the original LINK UUID) |
-| `SNAPSHOT` | `ticket compact` | Compacts event history; replaces prior events with compiled state |
+| `CREATE` | `.claude/scripts/dso ticket create` | Creates the ticket with type, title, and optional parent |
+| `STATUS` | `.claude/scripts/dso ticket transition` | Changes ticket status (open, in_progress, closed, blocked) |
+| `COMMENT` | `.claude/scripts/dso ticket comment` | Appends a comment |
+| `LINK` | `.claude/scripts/dso ticket link` | Creates a directional relationship to another ticket |
+| `UNLINK` | `.claude/scripts/dso ticket unlink` | Cancels a prior LINK event (references the original LINK UUID) |
+| `SNAPSHOT` | `.claude/scripts/dso ticket compact` | Compacts event history; replaces prior events with compiled state |
 | `SYNC` | bridge scripts | Records a Jira synchronization mapping (`jira_key`) |
 | `BRIDGE_ALERT` | bridge scripts | Records a bridge anomaly; may include a resolution event |
 
@@ -740,38 +740,38 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 **Create a bug and transition to in-progress:**
 
 ```bash
-id=$(ticket create bug "Login fails on mobile Safari")
-ticket transition "$id" open in_progress
+id=$(.claude/scripts/dso ticket create bug "Login fails on mobile Safari")
+.claude/scripts/dso ticket transition "$id" open in_progress
 ```
 
 **Link a task as a dependency of a story:**
 
 ```bash
-ticket link w21-story depends_on w21-task
+.claude/scripts/dso ticket link w21-story depends_on w21-task
 # Now w21-story is blocked until w21-task is closed
 ```
 
 **Check if a ticket is ready to work:**
 
 ```bash
-ticket deps w21-story | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['ready_to_work'])"
+.claude/scripts/dso ticket deps w21-story | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['ready_to_work'])"
 ```
 
 **List all tickets in LLM-friendly format:**
 
 ```bash
-ticket list --format=llm
+.claude/scripts/dso ticket list --format=llm
 ```
 
 **Compact a ticket after heavy editing:**
 
 ```bash
-ticket compact w21-a3f7 --threshold=20
+.claude/scripts/dso ticket compact w21-a3f7 --threshold=20
 ```
 
 **Audit bridge health after a sync run:**
 
 ```bash
-ticket bridge-status
-ticket bridge-fsck
+.claude/scripts/dso ticket bridge-status
+.claude/scripts/dso ticket bridge-fsck
 ```

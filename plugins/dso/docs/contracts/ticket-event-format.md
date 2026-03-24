@@ -162,7 +162,7 @@ This ordering guarantee is:
 
 Any reducer that processes `.tickets-tracker/<ticket-id>/` event files **must** sort the full list of filenames lexicographically before applying events.
 
-**Invariant**: Duplicate filenames (identical timestamp, UUID, and TYPE) are a system integrity violation. If detected, the reducer **must** report an error via `ticket fsck` rather than silently choosing one. UUID4 collision probability is negligible (~2^-122), so duplicate filenames indicate a bug, not a tie to break.
+**Invariant**: Duplicate filenames (identical timestamp, UUID, and TYPE) are a system integrity violation. If detected, the reducer **must** report an error via `.claude/scripts/dso ticket fsck` rather than silently choosing one. UUID4 collision probability is negligible (~2^-122), so duplicate filenames indicate a bug, not a tie to break.
 
 ---
 
@@ -174,8 +174,8 @@ A **ghost ticket** is a ticket directory (`.tickets-tracker/<ticket-id>/`) that 
 
 When `ticket-reducer.py` processes a ticket directory:
 
-- **No event files**: returns `None` (directory ignored by `ticket list`).
-- **All event files are corrupt JSON** (none parse): returns an error-state dict with `status='error'` and `error='no_valid_create_event'`. The ticket is surfaced in `ticket list` with `status='error'` rather than crashing.
+- **No event files**: returns `None` (directory ignored by `.claude/scripts/dso ticket list`).
+- **All event files are corrupt JSON** (none parse): returns an error-state dict with `status='error'` and `error='no_valid_create_event'`. The ticket is surfaced in `.claude/scripts/dso ticket list` with `status='error'` rather than crashing.
 - **Event files present but no parseable CREATE**: same as above — `status='error'`, `error='no_valid_create_event'`.
 - **Corrupt CREATE event** (parseable JSON but missing required `ticket_type` or `title`): returns error-state dict with `status='fsck_needed'` and `error='corrupt_create_event'`.
 
@@ -183,9 +183,9 @@ All error-state dicts have exactly three keys: `{status, error, ticket_id}`.
 
 ### Command-level (write path)
 
-Before writing a `STATUS` or `COMMENT` event, the `ticket transition` and `ticket comment` subcommands check that the ticket directory contains at least one `*-CREATE.json` file. If no `CREATE` event exists:
+Before writing a `STATUS` or `COMMENT` event, the `.claude/scripts/dso ticket transition` and `.claude/scripts/dso ticket comment` subcommands check that the ticket directory contains at least one `*-CREATE.json` file. If no `CREATE` event exists:
 
-- `ticket transition <ghost_id> ...` → exits non-zero with `Error: ticket <id> has no CREATE event`.
-- `ticket comment <ghost_id> ...` → exits non-zero with `Error: ticket <id> has no CREATE event`.
+- `.claude/scripts/dso ticket transition <ghost_id> ...` → exits non-zero with `Error: ticket <id> has no CREATE event`.
+- `.claude/scripts/dso ticket comment <ghost_id> ...` → exits non-zero with `Error: ticket <id> has no CREATE event`.
 
 This prevents ghost tickets from accumulating additional events that would be silently ignored by the reducer.

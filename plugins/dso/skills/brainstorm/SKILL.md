@@ -24,7 +24,7 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 
 When invoked without an epic ID, open with: *"What feature or capability are you trying to build?"* and proceed to Phase 1.
 
-When invoked with an epic ID, load the epic first (`ticket show <epic-id>`), summarize what's already defined, then enter Phase 1 to fill gaps.
+When invoked with an epic ID, load the epic first (`.claude/scripts/dso ticket show <epic-id>`), summarize what's already defined, then enter Phase 1 to fill gaps.
 
 ---
 
@@ -40,7 +40,7 @@ Before asking any questions, silently scan for context:
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cat "$REPO_ROOT/PRD.md" 2>/dev/null || cat "$REPO_ROOT/docs/PRD.md" 2>/dev/null
 cat "$REPO_ROOT/DESIGN_NOTES.md" 2>/dev/null
-tk ready  # then filter to epics via: grep -l '^type: epic' .tickets/*.md
+.claude/scripts/dso ticket list  # then filter to epics via: grep -l '^type: epic' .tickets/*.md
 ```
 
 If a PRD or DESIGN_NOTES.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
@@ -207,9 +207,9 @@ Wait for explicit approval. If changes are requested, revise and re-run affected
 ### Step 1: Create the Epic
 
 ```bash
-ticket create "<title>" -t epic -p <priority>
+.claude/scripts/dso ticket create "<title>" -t epic -p <priority>
 
-ticket comment <epic-id> "
+.claude/scripts/dso ticket comment <epic-id> "
 ## Context
 [context narrative]
 
@@ -235,7 +235,7 @@ ticket comment <epic-id> "
 If the epic depends on others identified in Phase 1:
 
 ```bash
-ticket link <this-epic-id> <blocking-epic-id> depends_on
+.claude/scripts/dso ticket link <this-epic-id> <blocking-epic-id> depends_on
 ```
 
 ### Step 3: Validate Ticket Health
@@ -331,4 +331,4 @@ Skill tool:
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
-| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
+| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

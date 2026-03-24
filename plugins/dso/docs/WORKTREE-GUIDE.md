@@ -508,8 +508,8 @@ claude
 Work normally -- write code, run tests, commit. Ticket commands work as usual:
 
 ```bash
-tk ready
-ticket transition <id> in_progress
+.claude/scripts/dso ticket list
+.claude/scripts/dso ticket transition <id> in_progress
 # ... do the work ...
 make lint && make test
 git add <files> && git commit -m "feat: auth redesign"

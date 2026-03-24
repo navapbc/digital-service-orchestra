@@ -131,10 +131,16 @@ for my $i (0 .. $#lines) {
     $line =~ s/(?<![\/\.`\w])tk\s+($tk_direct)\b/$SHIM ticket $1/g;
 
     # ── 3. tk ready/blocked/closed → .claude/scripts/dso ticket list
+    # REVIEW-DEFENSE: tk ready/blocked/closed were convenience filters over ticket list
+    # that were never implemented (plugins/dso/scripts/tk does not exist). Collapsing
+    # to ticket list is intentional — the semantic filtering was aspirational, not real.
     $line =~ s/(?<=`)tk\s+($tk_query)\b/$SHIM ticket list/g;
     $line =~ s/(?<![\/\.`\w])tk\s+($tk_query)\b/$SHIM ticket list/g;
 
     # ── 4. tk sync / tk sync-events → replace with ticket sync via shim
+    # REVIEW-DEFENSE: tk sync-events was a planned split-phase protocol that was
+    # never implemented (plugins/dso/scripts/tk does not exist). Mapping to ticket
+    # sync is intentional — it points to the canonical command path.
     # Inline backtick-wrapped: `tk sync` → `.claude/scripts/dso ticket sync`
     $line =~ s/(?<=`)tk\s+sync-events\b/$SHIM ticket sync/g;
     $line =~ s/(?<=`)tk\s+sync\b/$SHIM ticket sync/g;
