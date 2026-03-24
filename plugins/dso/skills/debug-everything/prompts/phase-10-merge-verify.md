@@ -74,15 +74,24 @@ EOF
 ```
 
 **After graceful shutdown (Phase 8 not reached)**:
+
+If Step 1b returned `CI_STATUS: pass`, skip the CI domain (already verified by `ci-status.sh --wait`):
 ```bash
 TIMESTAMP=$(date +%s)
+if [ "$CI_STATUS_RESULT" = "pass" ]; then
+    _CI_SKIP='"ci": "Verified by ci-status.sh --wait in Step 1b"'
+    _DOMAINS='["local", "issues", "deploy", "staging_test"]'
+else
+    _CI_SKIP=""
+    _DOMAINS='["local", "ci", "issues", "deploy", "staging_test"]'
+fi
 cat > "/tmp/validate-work-scope-${TIMESTAMP}.json" <<EOF
 {
   "version": 1,
   "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "generatedBy": "debug-everything",
-  "domains": ["local", "ci", "issues", "deploy", "staging_test"],
-  "skippedDomains": {}
+  "domains": $_DOMAINS,
+  "skippedDomains": {${_CI_SKIP:+$_CI_SKIP}}
 }
 EOF
 ```
