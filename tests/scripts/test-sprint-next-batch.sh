@@ -366,6 +366,140 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 14: v3 event-sourced tickets — descendants BFS uses tracker, not .md ─
+# RED test: when .tickets/ directory exists but has NO .md files (v3 migration),
+# the script must still correctly identify descendants via .tickets-tracker/
+# and read ticket body content from the reducer (not .tickets/<id>.md).
+#
+# Specifically: two tasks both reference `src/agents/base.py` in their ticket
+# body (via COMMENT event). With v2, _load_ticket_body() would read the .md
+# file and detect the conflict. With v3 and broken code, body is empty so
+# both tasks appear conflict-free when they should conflict.
+echo "Test 14: v3 event-sourced tickets — body content read from tracker for conflict detection"
+_t14_mock_dir=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t14_mock_dir")
+_t14_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t14_fake_repo")
+git init -q -b main "$_t14_fake_repo"
+mkdir -p "$_t14_fake_repo/scripts"
+
+# v3: create event-sourced tracker directory structure — .tickets/ exists but empty (v3 migration)
+mkdir -p "$_t14_fake_repo/.tickets"  # exists but no .md files
+mkdir -p "$_t14_fake_repo/.tickets-tracker/t14-epic"
+mkdir -p "$_t14_fake_repo/.tickets-tracker/t14-task-a"
+mkdir -p "$_t14_fake_repo/.tickets-tracker/t14-task-b"
+
+# Epic CREATE event
+python3 -c "
+import json, time
+with open('$_t14_fake_repo/.tickets-tracker/t14-epic/0001-CREATE.json', 'w') as f:
+    json.dump({'timestamp': 1000, 'uuid': 'u1', 'event_type': 'CREATE',
+               'env_id': 'test', 'author': 'test',
+               'data': {'ticket_type': 'epic', 'title': 'Test Epic v3',
+                        'parent_id': '', 'priority': 1}}, f)
+"
+
+# Task A CREATE + COMMENT with file reference in body
+python3 -c "
+import json
+with open('$_t14_fake_repo/.tickets-tracker/t14-task-a/0001-CREATE.json', 'w') as f:
+    json.dump({'timestamp': 1001, 'uuid': 'u2', 'event_type': 'CREATE',
+               'env_id': 'test', 'author': 'test',
+               'data': {'ticket_type': 'task', 'title': 'Task A',
+                        'parent_id': 't14-epic', 'priority': 2}}, f)
+with open('$_t14_fake_repo/.tickets-tracker/t14-task-a/0002-COMMENT.json', 'w') as f:
+    json.dump({'timestamp': 1002, 'uuid': 'u3', 'event_type': 'COMMENT',
+               'env_id': 'test', 'author': 'test',
+               'data': {'body': 'Edit \`src/agents/base.py\` to add feature A'}}, f)
+"
+
+# Task B CREATE + COMMENT also referencing the same file (should conflict with Task A)
+python3 -c "
+import json
+with open('$_t14_fake_repo/.tickets-tracker/t14-task-b/0001-CREATE.json', 'w') as f:
+    json.dump({'timestamp': 1003, 'uuid': 'u4', 'event_type': 'CREATE',
+               'env_id': 'test', 'author': 'test',
+               'data': {'ticket_type': 'task', 'title': 'Task B',
+                        'parent_id': 't14-epic', 'priority': 2}}, f)
+with open('$_t14_fake_repo/.tickets-tracker/t14-task-b/0002-COMMENT.json', 'w') as f:
+    json.dump({'timestamp': 1004, 'uuid': 'u5', 'event_type': 'COMMENT',
+               'env_id': 'test', 'author': 'test',
+               'data': {'body': 'Edit \`src/agents/base.py\` to add feature B'}}, f)
+"
+
+# Mock tk: both tasks are ready, epic returns YAML frontmatter
+cat > "$_t14_mock_dir/tk" << 'T14_TK'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "t14-epic" ]]; then
+            printf -- "---\nid: t14-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic v3\n"
+        else
+            echo ""; exit 1
+        fi; exit 0 ;;
+    ready)
+        echo "t14-task-a [P2][open] - Task A"
+        echo "t14-task-b [P2][open] - Task B"
+        exit 0 ;;
+    blocked) exit 0 ;;
+    children) echo "t14-task-a"; echo "t14-task-b"; exit 0 ;;
+    *) exit 0 ;;
+esac
+T14_TK
+chmod +x "$_t14_mock_dir/tk"
+
+cat > "$_t14_fake_repo/scripts/classify-task.py" << 'T14_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T14_SCORER
+
+cat > "$_t14_fake_repo/scripts/read-config.sh" << 'T14_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T14_CFG
+chmod +x "$_t14_fake_repo/scripts/read-config.sh"
+printf '' > "$_t14_fake_repo/dso-config.conf"
+cp "$PLUGIN_SCRIPT" "$_t14_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t14_fake_repo/scripts/sprint-next-batch.sh"
+# Copy the reducer so _load_ticket_body() v3 path can use it
+cp "$DSO_PLUGIN_DIR/scripts/ticket-reducer.py" "$_t14_fake_repo/scripts/ticket-reducer.py"
+
+t14_exit=0
+t14_output=$(
+    cd "$_t14_fake_repo" && \
+    TICKETS_TRACKER_DIR="$_t14_fake_repo/.tickets-tracker" \
+    CLAUDE_PLUGIN_ROOT="$_t14_fake_repo" \
+    TK="$_t14_mock_dir/tk" \
+    bash "$_t14_fake_repo/scripts/sprint-next-batch.sh" "t14-epic" --json 2>/dev/null
+) || t14_exit=$?
+rm -rf "$_t14_mock_dir" "$_t14_fake_repo"
+
+# Task A and Task B both reference src/agents/base.py in their COMMENT bodies.
+# v3-compatible code reads that body from the tracker and detects the conflict.
+# batch_size must be 1 (one task wins), skipped_overlap must be 1 (one deferred).
+t14_batch_size=$(echo "$t14_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('batch_size',0))" 2>/dev/null || echo "-1")
+t14_skipped=$(echo "$t14_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_overlap',[])))" 2>/dev/null || echo "-1")
+if [ "$t14_exit" -eq 0 ] && [ "$t14_batch_size" -eq 1 ] && [ "$t14_skipped" -eq 1 ]; then
+    echo "  PASS: v3 tracker body used for conflict detection (batch=1, skipped_overlap=1)"
+    (( PASS++ ))
+else
+    echo "  FAIL: v3 tracker body not read — conflict undetected (exit=$t14_exit batch_size=$t14_batch_size skipped_overlap=$t14_skipped)" >&2
+    echo "  Output: $t14_output" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

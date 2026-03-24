@@ -535,12 +535,15 @@ def process_inbound(
     if resume and batch_resume_cursor is not None:
         start_at_override = int(batch_resume_cursor)
 
+    project = config.get("project") or None
+
     # Fetch changes (may raise CalledProcessError on auth failure)
     try:
         issues = fetch_jira_changes(
             acli_client,
             last_pull_ts=last_pull_ts,
             overlap_buffer_minutes=overlap_buffer_minutes,
+            project=project,
             on_batch_complete=_save_batch_cursor,
             start_at_override=start_at_override,
         )
@@ -748,6 +751,7 @@ if __name__ == "__main__":
     jira_url = os.environ.get("JIRA_URL", "")
     jira_user = os.environ.get("JIRA_USER", "")
     jira_api_token = os.environ.get("JIRA_API_TOKEN", "")
+    jira_project = os.environ.get("JIRA_PROJECT", "")
     bridge_env_id = os.environ.get("BRIDGE_ENV_ID", "")
     run_id = os.environ.get("GH_RUN_ID", "")
     checkpoint_path_str = os.environ.get("INBOUND_CHECKPOINT_PATH", "")
@@ -791,6 +795,7 @@ if __name__ == "__main__":
         "type_mapping": type_mapping,
         "checkpoint_file": str(checkpoint_path) if checkpoint_path is not None else "",
         "run_id": run_id,
+        "project": jira_project,
     }
 
     process_inbound(
