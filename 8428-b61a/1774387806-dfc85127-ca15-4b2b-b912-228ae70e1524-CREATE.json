@@ -1,0 +1,1 @@
+{"timestamp": 1774387806, "uuid": "dfc85127-ca15-4b2b-b912-228ae70e1524", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "test-verify-baseline-intent-portability.sh fails: script path resolves to missing scripts/ shim", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
