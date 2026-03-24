@@ -170,14 +170,14 @@ run_check() {
 
 # run_test_batched: time-bounded test runner using test-batched.sh.
 # When test-batched.sh is available, delegates test execution to it.
-# If test-batched.sh outputs "NEXT:", sets any_fail_ref=2 (pending).
+# If test-batched.sh outputs "RUN:", sets any_fail_ref=2 (pending).
 # Falls back to direct eval when test-batched.sh is not available.
 #
 # Usage: run_test_batched <any_fail_ref>
 #   any_fail_ref — name of the integer variable to set on failure or pending
 #
 # Outputs a TESTS: PASS / FAIL / PENDING line to stdout.
-# Sets $any_fail_ref to 1 on failure, 2 on pending (NEXT: detected).
+# Sets $any_fail_ref to 1 on failure, 2 on pending (RUN: detected).
 run_test_batched() {
     local -n _any_fail="$1"
     local batched_script="$VALIDATE_TEST_BATCHED_SCRIPT"
@@ -193,9 +193,9 @@ run_test_batched() {
             bash "$batched_script" --timeout="$batched_timeout" "$CMD_TEST_UNIT" 2>&1
         ) || rc=$?
 
-        # Detect partial run: test-batched.sh prints "NEXT:" when time budget exhausted.
+        # Detect partial run: test-batched.sh prints "RUN:" when time budget exhausted.
         # In that case it exits 0, but tests are not done — emit TESTS: PENDING.
-        if [ "$rc" = "0" ] && echo "$batched_output" | grep -q "^NEXT:"; then
+        if [ "$rc" = "0" ] && echo "$batched_output" | grep -q "^RUN:"; then
             echo "TESTS: PENDING (run validate-phase.sh again to continue)"
             _any_fail=2
             return
