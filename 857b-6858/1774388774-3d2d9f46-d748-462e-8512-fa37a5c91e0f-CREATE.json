@@ -1,0 +1,1 @@
+{"timestamp": 1774388774, "uuid": "3d2d9f46-d748-462e-8512-fa37a5c91e0f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Collapse v2/v3 dual-path in classify-task.sh to v3-only ticket CLI", "parent_id": "12b9-45d8", "priority": 1, "assignee": "Joe Oakhart"}}
