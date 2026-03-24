@@ -304,6 +304,27 @@ def _compute_dep_graph(ticket_id: str, tracker_dir: str) -> dict[str, Any]:
     # Find direct blockers
     direct_blockers = _find_direct_blockers(ticket_id, tracker_dir)
 
+    # Find children: tickets whose parent_id matches this ticket (8cbf-e13b)
+    children: list[str] = []
+    try:
+        entries = os.listdir(tracker_dir)
+    except OSError:
+        entries = []
+
+    for entry in entries:
+        if entry == ticket_id:
+            continue
+        entry_path = os.path.join(tracker_dir, entry)
+        if not os.path.isdir(entry_path):
+            continue
+        try:
+            child_state = _reduce_ticket(entry_path)
+        except Exception:
+            continue
+        if child_state is not None and isinstance(child_state, dict):
+            if child_state.get("parent_id") == ticket_id:
+                children.append(entry)
+
     # Determine ready_to_work: all direct blockers must be closed/tombstoned
     ready_to_work = True
     for blocker_id in direct_blockers:
@@ -316,6 +337,7 @@ def _compute_dep_graph(ticket_id: str, tracker_dir: str) -> dict[str, Any]:
         "ticket_id": ticket_id,
         "deps": deps,
         "blockers": direct_blockers,
+        "children": children,
         "ready_to_work": ready_to_work,
     }
 

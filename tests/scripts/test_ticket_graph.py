@@ -72,6 +72,8 @@ def _write_ticket(
     tracker_dir: Path,
     ticket_id: str,
     status: str = "open",
+    parent_id: str | None = None,
+    ticket_type: str = "task",
 ) -> Path:
     """Write a minimal ticket directory with a CREATE event and optional STATUS event.
 
@@ -87,9 +89,9 @@ def _write_ticket(
         "author": "Test User",
         "env_id": "00000000-0000-4000-8000-000000000001",
         "data": {
-            "ticket_type": "task",
+            "ticket_type": ticket_type,
             "title": f"Ticket {ticket_id}",
-            "parent_id": None,
+            "parent_id": parent_id,
         },
     }
     with open(ticket_dir / f"1000-create-{ticket_id}-CREATE.json", "w") as f:
@@ -658,4 +660,59 @@ def test_is_active_link_same_second_unlink_sorts_after_link(
         "_is_active_link returned True but the link was cancelled by an UNLINK event. "
         "This indicates same-second UNLINK is sorting before LINK — the timestamp "
         "tie-breaker (event_type_order: LINK=0, UNLINK=1) is missing or incorrect."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Parent-child (children) tests — bug 8cbf-e13b
+# ---------------------------------------------------------------------------
+
+
+def test_build_dep_graph_includes_children(graph: ModuleType, tmp_path: Path) -> None:
+    """build_dep_graph must return a 'children' field listing tickets whose
+    parent_id matches the queried ticket.
+
+    Bug 8cbf-e13b: ticket deps returns empty deps for epics with parent-linked
+    children because it only traverses dependency links, not parent_id.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    # Create an epic
+    _write_ticket(tracker_dir, "epic-001", ticket_type="epic")
+    # Create 3 child stories with parent_id pointing to the epic
+    _write_ticket(tracker_dir, "story-a", parent_id="epic-001", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="epic-001", ticket_type="story")
+    _write_ticket(tracker_dir, "story-c", parent_id="epic-001", ticket_type="story")
+    # Create an unrelated ticket (no parent)
+    _write_ticket(tracker_dir, "unrelated")
+
+    result = graph.build_dep_graph("epic-001", str(tracker_dir))
+
+    assert "children" in result, (
+        "build_dep_graph result is missing 'children' field — "
+        "parent-child relationships are not included in the graph output"
+    )
+    children = sorted(result["children"])
+    assert children == ["story-a", "story-b", "story-c"], (
+        f"Expected 3 children [story-a, story-b, story-c], got {children}"
+    )
+
+
+def test_build_dep_graph_children_empty_when_no_children(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """build_dep_graph must return an empty 'children' list when no tickets
+    have parent_id matching the queried ticket."""
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "lonely-ticket")
+    _write_ticket(tracker_dir, "other-ticket")
+
+    result = graph.build_dep_graph("lonely-ticket", str(tracker_dir))
+
+    assert "children" in result, "build_dep_graph result missing 'children' field"
+    assert result["children"] == [], (
+        f"Expected empty children, got {result['children']}"
     )
