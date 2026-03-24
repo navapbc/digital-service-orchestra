@@ -1,0 +1,1 @@
+{"timestamp": 1774327606, "uuid": "f0556779-f2be-49d2-bf36-b3528429ca8a", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "test-batched.sh treats interrupted tests as completed on resume, preventing re-run", "parent_id": "", "assignee": "Joe Oakhart"}}
