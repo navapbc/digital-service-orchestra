@@ -1,0 +1,1 @@
+{"timestamp": 1774391210, "uuid": "6852acc3-c062-4e35-b5ab-207c19304891", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Replace TK mock patterns in hook tests (check-validation-failures, session-safety)", "parent_id": "9180-1d78", "priority": 2, "assignee": "Joe Oakhart"}}
