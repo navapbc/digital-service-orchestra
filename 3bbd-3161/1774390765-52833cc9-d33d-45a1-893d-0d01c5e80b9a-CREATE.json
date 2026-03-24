@@ -1,0 +1,1 @@
+{"timestamp": 1774390765, "uuid": "52833cc9-d33d-45a1-893d-0d01c5e80b9a", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Write integration test: sequential two-worktree merges produce correct version increments", "parent_id": "a0a3-29f8", "priority": 1, "assignee": "Joe Oakhart"}}
