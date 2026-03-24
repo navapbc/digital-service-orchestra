@@ -191,8 +191,11 @@ for arg in "$@"; do
 done
 
 # ── Validate required argument ─────────────────────────────────────────────────
-# CMD is required for generic runner; node and pytest runners can operate without it.
-if [ -z "$CMD" ] && [ "$RUNNER" != "node" ] && [ "$RUNNER" != "pytest" ] && [ "$RUNNER" != "bash" ]; then
+# CMD is required for generic runner; named runners (node, pytest, bash) can
+# operate without it. When TEST_DIR is set and RUNNER is empty (auto-detect mode),
+# skip CMD validation — a runner driver may claim the work before the generic
+# fallback is reached.
+if [ -z "$CMD" ] && [ "$RUNNER" != "node" ] && [ "$RUNNER" != "pytest" ] && [ "$RUNNER" != "bash" ] && [ -z "$TEST_DIR" ]; then
     echo "ERROR: Missing required argument: <command>" >&2
     echo ""
     sed -n '2,/^$/s/^# \{0,1\}//p' "$0" | head -60 >&2
