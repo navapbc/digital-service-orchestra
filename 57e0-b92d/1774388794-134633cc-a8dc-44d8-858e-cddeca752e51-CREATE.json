@@ -1,0 +1,1 @@
+{"timestamp": 1774388794, "uuid": "134633cc-a8dc-44d8-858e-cddeca752e51", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Remove v2 .tickets/*.md path patterns from merge-to-main.sh conflict resolver", "parent_id": "12b9-45d8", "priority": 1, "assignee": "Joe Oakhart"}}
