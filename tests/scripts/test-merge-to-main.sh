@@ -72,10 +72,11 @@ exit 0
 MOCK
 chmod +x "$_TMPDIR/mock-lint.sh"
 
-# Get millisecond timestamp via perl (portable, no GNU date needed)
-_ms_now() { perl -MTime::HiRes=time -e 'printf "%.0f\n", time()*1000' 2>/dev/null || echo $(( $(date +%s) * 1000 )); }
-
-_START=$(_ms_now)
+# Use bash SECONDS builtin for timing — no external process overhead.
+# Previous approach used perl -MTime::HiRes for millisecond timestamps, but
+# perl interpreter startup (50-300ms per call under load) consumed the slack
+# budget and caused flaky failures when 8+ tests ran in parallel (w21-dkwi).
+SECONDS=0
 POST_MERGE_FAIL=false
 
 CMD_FORMAT_CHECK="$_TMPDIR/mock-format-check.sh"
@@ -96,11 +97,12 @@ _LINT_RC=$?
 [[ $_FMT_RC -ne 0 ]] && POST_MERGE_FAIL=true
 [[ $_LINT_RC -ne 0 ]] && POST_MERGE_FAIL=true
 
-_END=$(_ms_now)
-_ELAPSED_MS=$(( _END - _START ))
+_ELAPSED_S=$SECONDS
 
-# Serial would take ≥4000ms; parallel should finish in <3500ms
-if [[ "$_ELAPSED_MS" -lt 3500 ]]; then
+# Serial would take ≥4s (2×sleep 2); parallel should finish in <4s.
+# Using SECONDS builtin (1-second granularity) eliminates perl startup overhead
+# that caused flaky failures under CPU contention from parallel test execution.
+if [[ "$_ELAPSED_S" -lt 4 ]]; then
     _TIMING_OK="true"
 else
     _TIMING_OK="false"
