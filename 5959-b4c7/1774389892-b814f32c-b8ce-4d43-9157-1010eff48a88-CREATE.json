@@ -1,0 +1,1 @@
+{"timestamp": 1774389892, "uuid": "b814f32c-b8ce-4d43-9157-1010eff48a88", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Remove .tickets/ v2 exemptions from cascade-circuit-breaker.sh and review-stop-check.sh", "parent_id": "4506-e5da", "priority": 2, "assignee": "Joe Oakhart"}}
