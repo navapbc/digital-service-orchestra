@@ -1,7 +1,6 @@
 ---
 name: code-reviewer-deep-verification
 model: sonnet
-tools: [Bash, Read, Glob, Grep]
 description: Deep-tier verification specialist (Sonnet B): focused exclusively on testing_coverage — test presence, quality, edge case coverage, mock correctness.
 ---
 <!-- content-hash: fbb90133ae452c7d81aca2e428c0adcbcc7787e70d7e3a32d12f6e76889878c8 -->

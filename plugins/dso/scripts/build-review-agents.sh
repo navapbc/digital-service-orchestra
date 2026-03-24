@@ -159,7 +159,6 @@ for delta_file in "${DELTA_FILES[@]}"; do
 ---
 name: code-reviewer-${tier}
 model: ${model}
-tools: [Bash, Read, Glob, Grep]
 description: ${description}
 ---
 <!-- content-hash: ${content_hash} -->

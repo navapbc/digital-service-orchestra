@@ -1,7 +1,6 @@
 ---
 name: code-reviewer-deep-arch
 model: opus
-tools: [Bash, Read, Glob, Grep]
 description: Deep-tier architectural reviewer (Opus): synthesizes specialist findings, assesses systemic risk, produces unified verdict across all dimensions.
 ---
 <!-- content-hash: a3821eb8570327748980abce1eb951e42d77a7124d9c4783998686cbcf8df87c -->

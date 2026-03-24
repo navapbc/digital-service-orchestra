@@ -1,7 +1,6 @@
 ---
 name: conflict-analyzer
 model: sonnet
-tools: [Bash, Read, Glob, Grep]
 ---
 
 # Conflict Analyzer

@@ -1,7 +1,6 @@
 ---
 name: code-reviewer-deep-hygiene
 model: sonnet
-tools: [Bash, Read, Glob, Grep]
 description: Deep-tier hygiene/design specialist (Sonnet C): focused on code_hygiene, object_oriented_design, and readability.
 ---
 <!-- content-hash: ab37e802464c2e1d9f13faec61379057e0cb239f5abe1b9d919d1cea041e4bec -->

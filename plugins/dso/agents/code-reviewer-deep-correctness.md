@@ -1,7 +1,6 @@
 ---
 name: code-reviewer-deep-correctness
 model: sonnet
-tools: [Bash, Read, Glob, Grep]
 description: Deep-tier correctness specialist (Sonnet A): focused exclusively on functionality — correctness, edge cases, error handling, security, efficiency.
 ---
 <!-- content-hash: 697a53b74017c751c2335fe41dfab4d3cbef5c400328df02a740f4e18a426361 -->

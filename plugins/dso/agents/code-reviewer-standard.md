@@ -1,7 +1,6 @@
 ---
 name: code-reviewer-standard
 model: sonnet
-tools: [Bash, Read, Glob, Grep]
 description: Standard-tier code reviewer: comprehensive review across all five scoring dimensions for moderate-to-high-risk changes.
 ---
 <!-- content-hash: b5aa6016cb0c19a0a810de2397e034a12eb69f702ed6b3541493e96d39431fdb -->

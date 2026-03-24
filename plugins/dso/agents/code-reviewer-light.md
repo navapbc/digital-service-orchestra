@@ -1,7 +1,6 @@
 ---
 name: code-reviewer-light
 model: haiku
-tools: [Bash, Read, Glob, Grep]
 description: Light-tier code reviewer: single-pass, highest-signal checklist for fast feedback on low-to-medium-risk changes.
 ---
 <!-- content-hash: 30cd0f00eb5fa1ace0a539d071ce5617745e5437cb9ca092218d1d407532c33b -->
