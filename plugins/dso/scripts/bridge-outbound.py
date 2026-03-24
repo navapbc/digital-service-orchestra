@@ -654,3 +654,43 @@ def process_events(
         bridge_env_id=bridge_env_id,
         run_id=run_id,
     )
+
+
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    # Read env vars (set by .github/workflows/outbound-bridge.yml)
+    bridge_env_id = os.environ.get("BRIDGE_ENV_ID", "")
+    run_id = os.environ.get("GH_RUN_ID", "")
+    jira_url = os.environ.get("JIRA_URL", "")
+    jira_user = os.environ.get("JIRA_USER", "")
+    jira_api_token = os.environ.get("JIRA_API_TOKEN", "")
+    jira_project = os.environ.get("JIRA_PROJECT", "")
+
+    # Load ACLI client with outbound methods
+    script_dir = Path(__file__).resolve().parent
+    acli_mod = _load_module_from_path(
+        "acli_integration", script_dir / "acli-integration.py"
+    )
+    acli_client = acli_mod.AcliClient(
+        jira_url=jira_url,
+        user=jira_user,
+        api_token=jira_api_token,
+        jira_project=jira_project,
+    )
+
+    tickets_dir = ".tickets-tracker"
+    syncs = process_events(
+        tickets_dir=tickets_dir,
+        acli_client=acli_client,
+        bridge_env_id=bridge_env_id,
+        run_id=run_id,
+    )
+
+    logger.info("Outbound bridge complete: %d SYNC events written", len(syncs))
+    for s in syncs:
+        logger.info("  %s -> %s", s.get("local_id", "?"), s.get("jira_key", "?"))
+
+    sys.exit(0)

@@ -225,11 +225,13 @@ class AcliClient:
         user: str,
         api_token: str,
         *,
+        jira_project: str = "",
         acli_cmd: list[str] | None = None,
     ) -> None:
         self.jira_url = jira_url
         self.user = user
         self.api_token = api_token
+        self.jira_project = jira_project
         self._acli_cmd = acli_cmd
 
     def _run(self, cmd: list[str]) -> subprocess.CompletedProcess[str]:
@@ -241,6 +243,31 @@ class AcliClient:
         environment — ACLI does not read env vars for auth.
         """
         return _run_acli(cmd, acli_cmd=self._acli_cmd)
+
+    # --- Outbound bridge methods ---
+
+    def create_issue(self, ticket_data: dict[str, Any]) -> dict[str, Any]:
+        """Create a Jira issue from a ticket data dict.
+
+        Uses self.jira_project as the project key. Extracts ticket_type and
+        title from ticket_data (matching the CREATE event data schema).
+        """
+        project = self.jira_project
+        issue_type = ticket_data.get("ticket_type", "Task")
+        summary = ticket_data.get("title", "")
+        return create_issue(project, issue_type, summary, acli_cmd=self._acli_cmd)
+
+    def update_issue(self, jira_key: str, **kwargs: Any) -> dict[str, Any]:
+        """Update a Jira issue via ACLI."""
+        return update_issue(jira_key, acli_cmd=self._acli_cmd, **kwargs)
+
+    def get_issue(self, jira_key: str) -> dict[str, Any]:
+        """Get a Jira issue via ACLI."""
+        return get_issue(jira_key, acli_cmd=self._acli_cmd)
+
+    def add_comment(self, jira_key: str, body: str) -> dict[str, Any]:
+        """Add a comment to a Jira issue via ACLI."""
+        return add_comment(jira_key, body, acli_cmd=self._acli_cmd)
 
     def search_issues(
         self,
