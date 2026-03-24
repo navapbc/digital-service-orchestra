@@ -11,7 +11,7 @@
 # Returns: 0 always (the hook uses JSON-based deny, not exit code 2, per claude-code#26923)
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" || ! -d "${CLAUDE_PLUGIN_ROOT}/hooks/lib" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

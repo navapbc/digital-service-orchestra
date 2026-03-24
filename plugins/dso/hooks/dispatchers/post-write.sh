@@ -12,7 +12,7 @@ trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
 trap 'exit 0' ERR
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" || ! -d "${CLAUDE_PLUGIN_ROOT}/hooks/lib" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 

@@ -10,7 +10,7 @@
 # Canonical location: scripts/write-reviewer-findings.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" || ! -d "${CLAUDE_PLUGIN_ROOT}/hooks/lib" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
 exec "$CLAUDE_PLUGIN_ROOT/scripts/write-reviewer-findings.sh" "$@"

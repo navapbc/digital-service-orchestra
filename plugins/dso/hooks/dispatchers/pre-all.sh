@@ -18,7 +18,7 @@
 # Tool logging remains available for Bash, Edit, and Write via their dedicated dispatchers.
 
 # Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
-if [[ -z "${CLAUDE_PLUGIN_ROOT}" || ! -d "${CLAUDE_PLUGIN_ROOT}/hooks/lib" ]]; then
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
     CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
 
