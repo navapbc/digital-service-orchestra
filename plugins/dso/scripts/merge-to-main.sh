@@ -18,15 +18,13 @@ set -euo pipefail
 for _arg in "$@"; do
     if [[ "$_arg" == "--help" ]]; then
         cat <<'USAGE'
-Usage: merge-to-main.sh [--phase=<name>|--resume|--help]
+Usage: merge-to-main.sh [--resume|--help]
 
-  --phase=<name>  Run a single named phase and exit. Valid phase names:
-                    sync  merge  validate  push  archive  ci_trigger
   --resume        Resume from last incomplete phase. On merge failure, squash-rebase
                   recovery runs automatically before retrying (up to 5 retries).
   --help          Print this usage message and exit.
 
-  (no args)       Run all phases sequentially (backward compatible).
+  (no args)       Run all phases sequentially.
 
 Merge recovery: on git merge failure the script squash-rebases the branch onto
 main and retries. If recovery fails, run --resume (retry budget: 5 attempts).
@@ -1274,14 +1272,10 @@ _phase_ci_trigger() {
 _ALL_PHASES=(sync merge validate push archive ci_trigger)
 
 # --- Parse CLI arguments ---
-_CLI_PHASE=""
 _CLI_RESUME=false
 
 for _arg in "$@"; do
     case "$_arg" in
-        --phase=*)
-            _CLI_PHASE="${_arg#--phase=}"
-            ;;
         --resume)
             _CLI_RESUME=true
             ;;
@@ -1294,19 +1288,6 @@ for _arg in "$@"; do
             ;;
     esac
 done
-
-# --- Dispatch: --phase=<name> ---
-if [[ -n "$_CLI_PHASE" ]]; then
-    _DISPATCH_FN="_phase_${_CLI_PHASE}"
-    if declare -f "$_DISPATCH_FN" > /dev/null 2>&1; then
-        "$_DISPATCH_FN"
-        echo "DONE: phase '$_CLI_PHASE' completed."
-        exit 0
-    else
-        echo "ERROR: Unknown phase '$_CLI_PHASE'. Valid phases: ${_ALL_PHASES[*]}" >&2
-        exit 1
-    fi
-fi
 
 # --- Dispatch: --resume ---
 if [[ "$_CLI_RESUME" == "true" ]]; then
@@ -1418,8 +1399,8 @@ fi
 
 # --- No-args (or state file missing for --resume): run all phases sequentially ---
 if [[ $# -eq 0 ]]; then
-    echo "WARNING: Running all phases sequentially. Use --phase=<name> to run a single phase" \
-         "or --resume to continue from the last incomplete phase." >&2
+    echo "Running all phases sequentially. Use --resume to continue from the last" \
+         "incomplete phase if interrupted." >&2
 fi
 
 _phase_sync

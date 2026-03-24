@@ -642,10 +642,10 @@ HAS_HELP_PHASE=$(grep -c 'phase' "$MERGE_SCRIPT" || true)
 assert_ne "test_cli_help_output_contains_phase" "0" "$HAS_HELP_PHASE"
 
 # =============================================================================
-# Test: --phase argument is parsed in the script
+# Test: --phase argument has been removed from the script
 # =============================================================================
 HAS_PHASE_ARG=$(grep -c '\-\-phase' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_phase_arg_handled" "0" "$HAS_PHASE_ARG"
+assert_eq "test_cli_phase_arg_removed" "0" "$HAS_PHASE_ARG"
 
 # =============================================================================
 # Test: --resume argument is parsed in the script
@@ -676,12 +676,10 @@ assert_eq "test_cli_help_output_mentions_phase" "true" "$_HELP_HAS_PHASE"
 assert_eq "test_cli_help_exits_0" "0" "$_HELP_RC"
 
 # =============================================================================
-# Test: --phase=<name> dispatches a single named phase and exits
-# We use a no-op phase by checking that passing --phase=push invokes _phase_push
-# via structural check (arg parsing dispatches _phase_$name)
+# Test: --phase flag has been removed (agents should use --resume instead)
 # =============================================================================
-HAS_PHASE_DISPATCH=$(grep -cE '_phase_\$|_phase_.*\$\{.*\}|"_phase_\$' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_phase_dispatches_function" "0" "$HAS_PHASE_DISPATCH"
+HAS_PHASE_FLAG=$(grep -c '\-\-phase=' "$MERGE_SCRIPT" || true)
+assert_eq "test_cli_phase_flag_removed" "0" "$HAS_PHASE_FLAG"
 
 # =============================================================================
 # Test: --resume reads state file (structural: script uses completed_phases or _state_is_fresh)
