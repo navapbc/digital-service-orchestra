@@ -16,17 +16,17 @@ fi
 #
 # Safety checks (ALL must pass before a worktree is eligible for removal):
 #   1. Older than 2 days (age check)
-#   2. Branch is merged to main (or only .tickets/ changes, already synced)
-#   3. No uncommitted changes (excluding .tickets/ which syncs independently)
-#   4. No unpushed commits (excluding .tickets/-only branches synced to main)
+#   2. Branch is merged to main (or only ticket-tracker changes, already synced)
+#   3. No uncommitted changes (excluding ticket dir which syncs independently)
+#   4. No unpushed commits (excluding ticket-dir-only branches synced to main)
 #   5. No stashes
 #   6. No active Claude session
 #   - Never removes the main repo worktree
 #   - Never removes the worktree you're currently in
 #   - Creates patch backups before removing dirty worktrees (--force-dirty)
 #   - Deletes both local and remote branches by default (--no-branches to skip)
-#   - .tickets/ files are excluded from dirty/merge checks because the cross-worktree
-#     ticket sync hook pushes them to main independently via detached-index commits
+#   - Ticket dir files are excluded from dirty/merge checks because the ticket
+#     system pushes them to main independently
 #
 # Opt-in:
 #   Set WORKTREE_CLEANUP_ENABLED=1 to allow non-interactive (scheduled) use.
@@ -72,7 +72,6 @@ PLUGIN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_COMPOSE_DB_FILE=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.compose_db_file 2>/dev/null || true)
 CONFIG_COMPOSE_PROJECT=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.compose_project 2>/dev/null || true)
 CONFIG_CONTAINER_PREFIX=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.container_prefix 2>/dev/null || true)
-CONFIG_TICKETS_DIR=$(bash "$PLUGIN_SCRIPTS/read-config.sh" tickets.directory 2>/dev/null || true)
 CONFIG_BRANCH_PATTERN=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.branch_pattern 2>/dev/null || true)
 CONFIG_MAX_AGE_DAYS=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.max_age_days 2>/dev/null || true)
 
@@ -114,9 +113,9 @@ Interactive cleanup of stale git worktrees created by claude-safe.
 
 A worktree is eligible for removal only when ALL safety criteria are met:
   1. Older than ${AGE_DAYS} days
-  2. Branch is merged to main (or only .tickets/ changes, already synced)
-  3. No uncommitted changes (excluding .tickets/)
-  4. No unpushed commits (excluding .tickets/-only)
+  2. Branch is merged to main (or only ticket-tracker changes, already synced)
+  3. No uncommitted changes (excluding ticket dir)
+  4. No unpushed commits (excluding ticket-dir-only)
   5. No stashes
   6. No active Claude session
 
@@ -311,7 +310,7 @@ is_claude_active() {
 }
 
 # Delete a local branch, falling back to -D if -d fails (needed for branches
-# whose only unmerged commits are .tickets/ files already synced to main).
+# whose only unmerged commits are ticket dir files already synced to main).
 _delete_local_branch() {
     local repo="$1" branch="$2"
     git -C "$repo" branch -d "$branch" 2>/dev/null || \
@@ -352,7 +351,6 @@ declare -a WT_ACTIVE=()      # "yes" or "no"
 declare -a WT_OLD_ENOUGH=()  # "yes" or "no" (older than AGE_DAYS days)
 declare -a WT_STASHED=()     # "yes" or "no" (has stashes)
 declare -a WT_UNPUSHED=()    # "yes" or "no" (has unpushed commits)
-declare -a WT_TICKETS_ONLY=()  # "yes" or "no" (unmerged changes are .tickets/-only and synced to main)
 declare -a WT_ACTIONS=()     # "remove" or reason to keep
 declare -a WT_REMOVABLE=()   # "true" or "false"
 
@@ -390,9 +388,8 @@ while IFS= read -r line; do
             WT_MERGED+=("no")
         fi
 
-        # Clean status (no uncommitted changes, excluding tickets dir which syncs independently
-        # and contains .sync-state.json for Jira sync state)
-        if [[ -z $(git -C "$current_path" status --porcelain 2>/dev/null | grep -v "^.. ${CONFIG_TICKETS_DIR:-.tickets}/" || true) ]]; then
+        # Clean status (no uncommitted changes)
+        if [[ -z $(git -C "$current_path" status --porcelain 2>/dev/null || true) ]]; then
             WT_CLEAN+=("yes")
         else
             WT_CLEAN+=("no")
@@ -426,24 +423,6 @@ while IFS= read -r line; do
             WT_UNPUSHED+=("no")
         fi
 
-        # Tickets-only unmerged: branch has unmerged commits but they only touch
-        # .tickets/ files, and the .tickets/ content matches main (already synced
-        # by the cross-worktree ticket sync hook).
-        if [[ "${WT_MERGED[${#WT_MERGED[@]}-1]}" == "no" && -n "$current_branch" && "$current_branch" != "detached" ]]; then
-            unmerged_non_tickets=$(git -C "$current_path" diff --name-only "$MAIN_BRANCH"..HEAD -- ":!${CONFIG_TICKETS_DIR:-.tickets}/" 2>/dev/null || true)
-            if [[ -z "$unmerged_non_tickets" ]]; then
-                tickets_diff=$(git -C "$current_path" diff "$MAIN_BRANCH" -- "${CONFIG_TICKETS_DIR:-.tickets}/" 2>/dev/null || true)
-                if [[ -z "$tickets_diff" ]]; then
-                    WT_TICKETS_ONLY+=("yes")
-                else
-                    WT_TICKETS_ONLY+=("no")
-                fi
-            else
-                WT_TICKETS_ONLY+=("no")
-            fi
-        else
-            WT_TICKETS_ONLY+=("no")
-        fi
 
         current_path=""
         current_branch=""
@@ -467,13 +446,13 @@ for i in "${!WT_NAMES[@]}"; do
     elif [[ "${WT_OLD_ENOUGH[$i]}" == "no" ]]; then
         removable=false
         reason="too recent (<${AGE_DAYS}d)"
-    elif [[ "${WT_MERGED[$i]}" == "no" && "${WT_TICKETS_ONLY[$i]}" == "no" ]]; then
+    elif [[ "${WT_MERGED[$i]}" == "no" ]]; then
         removable=false
         reason="not merged"
     elif [[ "${WT_CLEAN[$i]}" == "no" && "$FORCE_DIRTY" != "true" ]]; then
         removable=false
         reason="uncommitted changes"
-    elif [[ "${WT_UNPUSHED[$i]}" == "yes" && "${WT_TICKETS_ONLY[$i]}" == "no" ]]; then
+    elif [[ "${WT_UNPUSHED[$i]}" == "yes" ]]; then
         removable=false
         reason="unpushed commits"
     elif [[ "${WT_STASHED[$i]}" == "yes" ]]; then
@@ -547,11 +526,6 @@ for i in "${!WT_NAMES[@]}"; do
     clean_color="$YELLOW"
     merged_display="${WT_MERGED[$i]}"
     [[ "${WT_MERGED[$i]}" == "yes" ]] && merged_color="$GREEN"
-    # tickets-only-unmerged: content is on main even though branch isn't ancestor
-    if [[ "${WT_TICKETS_ONLY[$i]}" == "yes" ]]; then
-        merged_color="$GREEN"
-        merged_display="yes*"
-    fi
     [[ "${WT_CLEAN[$i]}" == "yes" ]] && clean_color="$GREEN"
 
     printf "  "

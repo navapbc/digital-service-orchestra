@@ -32,7 +32,6 @@ if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository"
     exit 2
 fi
-TICKETS_DIR="$REPO_ROOT/.tickets"
 
 # ─── Config helpers ──────────────────────────────────────────────────────────
 # _read_cfg <key> — read a config value, respecting WORKFLOW_CONFIG env var override.
@@ -99,11 +98,9 @@ cmd_pre_check() {
     echo "MAX_AGENTS: $max_agents"
     echo "SESSION_USAGE: $usage"
 
-    # Clean working tree — exclude .tickets/ entries from dirty check.
-    # Ticket files are tracked normally but changes to them should not
-    # block batch execution (they are metadata, not code).
+    # Clean working tree
     local dirty_files
-    dirty_files=$(git status --short 2>/dev/null | grep -v '\.tickets/' || true)
+    dirty_files=$(git status --short 2>/dev/null || true)
     if [ -n "$dirty_files" ]; then
         echo "GIT_CLEAN: false"
         echo "GIT_DIRTY_FILES: $(echo "$dirty_files" | wc -l | tr -d ' ')"
