@@ -448,7 +448,7 @@ def extract_files(text):
         return set()
 
     # Strip acceptance-criteria content: shell commands, not files to be modified.
-    # Phase 1: remove entire ## ACCEPTANCE CRITERIA sections (through next ## or EOF)
+    # Phase 1: remove entire ## Acceptance Criteria sections (case-insensitive, through next ## or EOF)
     text = re.sub(
         r'(?m)^##\s+ACCEPTANCE\s+CRITERIA\b.*?(?=^##\s|\Z)',
         '', text, flags=re.IGNORECASE | re.DOTALL,

@@ -352,20 +352,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Test i: post-batch with NEXT: output from test-batched.sh exits 2 (pending)
+# Test i: post-batch with RUN: output from test-batched.sh exits 2 (pending)
 # ---------------------------------------------------------------------------
 echo ""
-echo "Test i: post-batch / NEXT: output from test-batched.sh → exit 2 (dso-qlgq)"
+echo "Test i: post-batch / RUN: output from test-batched.sh → exit 2 (dso-qlgq, 2731-c62d)"
 write_all_pass_config
 
 STUB_NEXT="$TMPDIR/stub-test-batched-next.sh"
 STUB_SENTINEL_I="$TMPDIR/test-batched-called-i"
 cat > "$STUB_NEXT" << 'STUB'
 #!/usr/bin/env bash
-# Stub: simulate a partial (time-bounded) run — emit NEXT: and exit 0
+# Stub: simulate a partial (time-bounded) run — emit RUN: and exit 0
 touch "$STUB_SENTINEL_PATH"
 echo "0/1 tests completed."
-echo "NEXT: TEST_BATCHED_STATE_FILE=/tmp/state.json bash /path/to/test-batched.sh 'bash tests/run-all.sh'"
+echo "RUN: TEST_BATCHED_STATE_FILE=/tmp/state.json bash /path/to/test-batched.sh 'bash tests/run-all.sh'"
 exit 0
 STUB
 chmod +x "$STUB_NEXT"
@@ -380,15 +380,15 @@ RUN_OUTPUT=$(
 ) || RUN_EXIT=$?
 
 if [ "$RUN_EXIT" -eq 2 ]; then
-    pass "post-batch NEXT: pending: exit 2"
+    pass "post-batch RUN: pending: exit 2"
 else
-    fail "post-batch NEXT: pending: expected exit 2 (pending), got $RUN_EXIT (output: $RUN_OUTPUT)"
+    fail "post-batch RUN: pending: expected exit 2 (pending), got $RUN_EXIT (output: $RUN_OUTPUT)"
 fi
 
 if echo "$RUN_OUTPUT" | grep -q "TESTS: PENDING"; then
-    pass "post-batch NEXT: pending: output has TESTS: PENDING"
+    pass "post-batch RUN: pending: output has TESTS: PENDING"
 else
-    fail "post-batch NEXT: pending: output missing TESTS: PENDING (output: $RUN_OUTPUT)"
+    fail "post-batch RUN: pending: output missing TESTS: PENDING (output: $RUN_OUTPUT)"
 fi
 
 # ---------------------------------------------------------------------------
