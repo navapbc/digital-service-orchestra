@@ -486,7 +486,7 @@ Each task must include:
 
 Universal criteria (test, lint, format) are always the first three lines.
 Task-specific criteria follow, drawn from the template library and customized.
-The `ACCEPTANCE CRITERIA` section appears as a separate section in `.claude/scripts/dso ticket show` output.
+The `Acceptance Criteria` section appears as a separate section in `.claude/scripts/dso ticket show` output.
 
 ### Add Dependencies
 
@@ -573,7 +573,7 @@ Fill the template placeholders with:
 Parse the JSON `findings` array from the sub-agent response. For each finding:
 
 - **If `type: "new_task"`**: Create a new task via `.claude/scripts/dso ticket create` with the finding's title and description, parent set to the story, add dependency on the appropriate existing task(s), and add to the summary table.
-- **If `type: "ac_amendment"`**: Edit `.tickets/<target_task_id>.md` to append the finding's description as an additional acceptance criterion under the `## ACCEPTANCE CRITERIA` section.
+- **If `type: "ac_amendment"`**: Edit `.tickets/<target_task_id>.md` to append the finding's description as an additional acceptance criterion under the `## Acceptance Criteria` section.
 
 ### Fallback Behavior
 
