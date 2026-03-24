@@ -1,0 +1,1 @@
+{"timestamp": 1774396130, "uuid": "349be115-6c44-437b-bfa3-6038935a2538", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix: REVIEW-PROTOCOL-WORKFLOW.md Quick Reference omits critical+major escalation case", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
