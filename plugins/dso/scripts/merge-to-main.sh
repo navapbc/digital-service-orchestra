@@ -1197,6 +1197,13 @@ _phase_push() {
     _TRACKER_DIR="$MAIN_REPO/.tickets-tracker"
     if [ -d "$_TRACKER_DIR" ] && git -C "$_TRACKER_DIR" rev-parse --verify tickets &>/dev/null; then
         echo "Syncing tickets branch..."
+        # Commit any uncommitted ticket changes before syncing.
+        # The ticket CLI commits per-mutation, but cache files and
+        # interrupted operations can leave uncommitted state.
+        if [ -n "$(git -C "$_TRACKER_DIR" status --porcelain 2>/dev/null)" ]; then
+            git -C "$_TRACKER_DIR" add -A 2>/dev/null
+            git -C "$_TRACKER_DIR" commit -q --no-verify -m "chore: commit uncommitted ticket state before sync" 2>/dev/null || true
+        fi
         # Pull inbound bridge changes (SYNC events, Jira-originated tickets)
         if git -C "$_TRACKER_DIR" pull --rebase origin tickets 2>&1; then
             # Push local ticket events to trigger outbound bridge
