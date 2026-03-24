@@ -1,0 +1,1 @@
+{"timestamp": 1774389990, "uuid": "34c7021f-dbe0-4b10-8e29-12ff398b72ed", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can complete a sprint epic and get a minor version bump via --bump minor", "parent_id": "f8b7-4e3f", "priority": 2, "assignee": "Joe Oakhart"}}
