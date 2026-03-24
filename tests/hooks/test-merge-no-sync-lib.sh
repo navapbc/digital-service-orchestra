@@ -39,10 +39,14 @@ FORCE_CLEAN_MATCHES=$(grep -ciE 'force.*clean.*ticket|skip.worktree.*ticket' "$M
 assert_eq "test_merge_no_force_clean_ticket_logic" "0" "$FORCE_CLEAN_MATCHES"
 
 # =============================================================================
-# Test 3: worktree-sync-from-main.sh has no sync lib references
+# Test 3: worktree-sync-from-main.sh has been removed (v2 cleanup)
 # =============================================================================
-SYNC_MATCHES=$(grep -c 'tk-sync-lib\|_clear_ticket_skip_worktree' "$SYNC_SCRIPT" 2>/dev/null || true)
-assert_eq "test_worktree_sync_no_ticket_handling" "0" "$SYNC_MATCHES"
+if [ -f "$SYNC_SCRIPT" ]; then
+    SYNC_EXISTS="exists"
+else
+    SYNC_EXISTS="removed"
+fi
+assert_eq "test_worktree_sync_script_removed" "removed" "$SYNC_EXISTS"
 
 # =============================================================================
 # Test 4: merge-to-main.sh basic sanity (--help or first line of output)
