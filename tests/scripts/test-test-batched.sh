@@ -1037,5 +1037,46 @@ assert_ne "test_bash_runner_records_failures: exits non-zero" "0" "$bash_fail_ex
 rm -rf "$TMPDIR_BASH_FAIL"
 assert_pass_if_clean "test_bash_runner_records_failures"
 
+# ── test_bash_auto_detected_when_test_scripts_exist ─────────────────────────
+# Auto-detect: when test-*.sh files exist under --test-dir and no explicit
+# --runner flag is given, the bash driver should activate automatically
+# (after node and pytest auto-detect fail to claim the runner).
+echo ""
+echo "--- test_bash_auto_detected_when_test_scripts_exist ---"
+_snapshot_fail
+TMPDIR_BASH_AUTO="$(mktemp -d)"
+BASH_AUTO_STATE="$TMPDIR_BASH_AUTO/state.json"
+
+cat > "$TMPDIR_BASH_AUTO/test-auto-one.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_BASH_AUTO/test-auto-one.sh"
+cat > "$TMPDIR_BASH_AUTO/test-auto-two.sh" << 'SHEOF'
+#!/usr/bin/env bash
+exit 0
+SHEOF
+chmod +x "$TMPDIR_BASH_AUTO/test-auto-two.sh"
+
+bash_auto_out=""
+bash_auto_exit=0
+bash_auto_out=$(TEST_BATCHED_STATE_FILE="$BASH_AUTO_STATE" \
+    bash "$SCRIPT" --test-dir="$TMPDIR_BASH_AUTO" --timeout=30 2>&1) \
+    || bash_auto_exit=$?
+# Should auto-detect bash runner and show both scripts
+auto_one=0
+auto_two=0
+echo "$bash_auto_out" | grep -q "test-auto-one.sh" && auto_one=1
+echo "$bash_auto_out" | grep -q "test-auto-two.sh" && auto_two=1
+assert_eq "test_bash_auto_detected_when_test_scripts_exist: found test-auto-one.sh" "1" "$auto_one"
+assert_eq "test_bash_auto_detected_when_test_scripts_exist: found test-auto-two.sh" "1" "$auto_two"
+# Should show 2/2 progress (not 1/1 generic fallback)
+auto_progress=0
+echo "$bash_auto_out" | grep -q "2/2" && auto_progress=1
+assert_eq "test_bash_auto_detected_when_test_scripts_exist: shows 2/2 progress" "1" "$auto_progress"
+assert_eq "test_bash_auto_detected_when_test_scripts_exist: exits 0" "0" "$bash_auto_exit"
+rm -rf "$TMPDIR_BASH_AUTO"
+assert_pass_if_clean "test_bash_auto_detected_when_test_scripts_exist"
+
 print_summary
 
