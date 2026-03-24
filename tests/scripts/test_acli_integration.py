@@ -253,3 +253,155 @@ def test_auth_failure_fast_abort(acli: ModuleType) -> None:
     assert mock_sleep.call_count == 0, (
         f"Auth failures must not trigger backoff sleep; got {mock_sleep.call_count} sleep call(s)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: AcliClient has outbound methods (create_issue, update_issue, get_issue, add_comment)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_has_outbound_methods(acli: ModuleType) -> None:
+    """AcliClient must expose create_issue, update_issue, get_issue, add_comment
+    methods for the outbound bridge contract."""
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    assert hasattr(client, "create_issue"), "AcliClient must have create_issue method"
+    assert hasattr(client, "update_issue"), "AcliClient must have update_issue method"
+    assert hasattr(client, "get_issue"), "AcliClient must have get_issue method"
+    assert hasattr(client, "add_comment"), "AcliClient must have add_comment method"
+    assert callable(client.create_issue)
+    assert callable(client.update_issue)
+    assert callable(client.get_issue)
+    assert callable(client.add_comment)
+
+
+# ---------------------------------------------------------------------------
+# Test 8: AcliClient.create_issue accepts ticket_data dict and uses jira_project
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_create_issue_uses_ticket_data(acli: ModuleType) -> None:
+    """AcliClient.create_issue(ticket_data) must extract type and title from the
+    dict and use the client's jira_project for the project parameter."""
+    created_response = json.dumps({"key": "DSO-42", "summary": "Test ticket"})
+    verified_response = json.dumps(
+        {"key": "DSO-42", "summary": "Test ticket", "status": "To Do"}
+    )
+    mock_create = MagicMock(returncode=0, stdout=created_response, stderr="")
+    mock_verify = MagicMock(returncode=0, stdout=verified_response, stderr="")
+
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    ticket_data = {
+        "ticket_type": "task",
+        "title": "Test ticket",
+    }
+
+    with patch("subprocess.run", side_effect=[mock_create, mock_verify]) as mock_run:
+        result = client.create_issue(ticket_data)
+
+    assert result is not None
+    assert result.get("key") == "DSO-42"
+    # The ACLI create command must include the project from the client
+    first_call_cmd = mock_run.call_args_list[0][0][0]
+    assert any("DSO" in str(arg) for arg in first_call_cmd), (
+        f"Expected project 'DSO' in ACLI command, got: {first_call_cmd}"
+    )
+    assert any("Test ticket" in str(arg) for arg in first_call_cmd), (
+        f"Expected title 'Test ticket' in ACLI command, got: {first_call_cmd}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 9: AcliClient.update_issue delegates with jira_key and kwargs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_update_issue_delegates(acli: ModuleType) -> None:
+    """AcliClient.update_issue(jira_key, status=...) must call ACLI edit."""
+    update_response = json.dumps({"key": "DSO-42", "status": "In Progress"})
+    mock_proc = MagicMock(returncode=0, stdout=update_response, stderr="")
+
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    with patch("subprocess.run", return_value=mock_proc) as mock_run:
+        result = client.update_issue("DSO-42", status="In Progress")
+
+    assert result is not None
+    cmd = mock_run.call_args[0][0]
+    assert any("DSO-42" in str(arg) for arg in cmd)
+
+
+# ---------------------------------------------------------------------------
+# Test 10: AcliClient.get_issue delegates
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_get_issue_delegates(acli: ModuleType) -> None:
+    """AcliClient.get_issue(jira_key) must call ACLI view and return parsed JSON."""
+    view_response = json.dumps({"key": "DSO-42", "status": "Open"})
+    mock_proc = MagicMock(returncode=0, stdout=view_response, stderr="")
+
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    with patch("subprocess.run", return_value=mock_proc):
+        result = client.get_issue("DSO-42")
+
+    assert isinstance(result, dict)
+    assert result.get("key") == "DSO-42"
+
+
+# ---------------------------------------------------------------------------
+# Test 11: AcliClient.add_comment delegates
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_add_comment_delegates(acli: ModuleType) -> None:
+    """AcliClient.add_comment(jira_key, body) must call ACLI comment create."""
+    comment_response = json.dumps({"id": "10042", "body": "Hello"})
+    mock_proc = MagicMock(returncode=0, stdout=comment_response, stderr="")
+
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    with patch("subprocess.run", return_value=mock_proc) as mock_run:
+        result = client.add_comment("DSO-42", "Hello")
+
+    assert result is not None
+    cmd = mock_run.call_args[0][0]
+    assert any("DSO-42" in str(arg) for arg in cmd)
+    assert any("Hello" in str(arg) for arg in cmd)
