@@ -212,7 +212,7 @@ else
     git -C "$TRACKER_DIR" config user.email "$_user_email"
     git -C "$TRACKER_DIR" config user.name "$_user_name"
 
-    git -C "$TRACKER_DIR" commit --allow-empty -q -m "chore: initialize ticket tracker"
+    git -C "$TRACKER_DIR" commit --allow-empty -q --no-verify -m "chore: initialize ticket tracker"
 fi
 
 # ── Ensure user config is set (for remount case) ─────────────────────────────
@@ -231,7 +231,7 @@ if ! git -C "$TRACKER_DIR" show tickets:.gitignore &>/dev/null 2>&1; then
 .state-cache
 GITIGNORE
     git -C "$TRACKER_DIR" add .gitignore
-    git -C "$TRACKER_DIR" commit -q -m "chore: add .gitignore for env-id and state-cache"
+    git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add .gitignore for env-id and state-cache"
 fi
 
 # ── Generate env-id ───────────────────────────────────────────────────────────
