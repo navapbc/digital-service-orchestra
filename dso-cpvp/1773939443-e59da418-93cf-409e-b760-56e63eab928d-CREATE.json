@@ -1,0 +1,1 @@
+{"timestamp": 1773939443, "uuid": "e59da418-93cf-409e-b760-56e63eab928d", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "Add a workflow-config flag that creates PRs instead of merging to main", "priority": 2, "assignee": "Joe Oakhart"}}

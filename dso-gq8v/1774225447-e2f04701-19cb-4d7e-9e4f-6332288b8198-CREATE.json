@@ -1,0 +1,1 @@
+{"timestamp": 1774225447, "uuid": "e2f04701-19cb-4d7e-9e4f-6332288b8198", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Implement cutover rollback logic: detect committed vs uncommitted failure and revert", "parent_id": "w21-2a9w", "priority": 1, "assignee": "Joe Oakhart"}}

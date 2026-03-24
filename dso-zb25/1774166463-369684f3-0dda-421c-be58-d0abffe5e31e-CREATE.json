@@ -1,0 +1,1 @@
+{"timestamp": 1774166463, "uuid": "369684f3-0dda-421c-be58-d0abffe5e31e", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: .test-index header comment inconsistent with actual format (no space after colon)", "priority": 4, "assignee": "Joe Oakhart"}}

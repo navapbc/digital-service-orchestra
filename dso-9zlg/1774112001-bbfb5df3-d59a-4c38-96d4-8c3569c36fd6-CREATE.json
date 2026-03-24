@@ -1,0 +1,1 @@
+{"timestamp": 1774112001, "uuid": "bbfb5df3-d59a-4c38-96d4-8c3569c36fd6", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: use sub-second timing in fuzzy-match benchmark test for reliable CI signal", "priority": 4, "assignee": "Joe Oakhart"}}

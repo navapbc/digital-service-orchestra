@@ -1,0 +1,1 @@
+{"timestamp": 1774111995, "uuid": "653fc3b1-1343-4fd7-8a38-b05098752cc5", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: fuzzy-match RED-phase counter swap fragility in test-fuzzy-match.sh", "priority": 4, "assignee": "Joe Oakhart"}}

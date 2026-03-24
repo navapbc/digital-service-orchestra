@@ -1,0 +1,1 @@
+{"timestamp": 1774112000, "uuid": "26fa88e4-f094-4fe6-8dde-3a82a4c615ca", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: add test for source-file-is-test-file edge case in fuzzy-match tests", "priority": 4, "assignee": "Joe Oakhart"}}

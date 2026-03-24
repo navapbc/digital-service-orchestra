@@ -1,0 +1,1 @@
+{"timestamp": 1774297625, "uuid": "14396184-4656-4c98-b0be-3325b38f7526", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Implement hooks/pre-commit-ticket-gate.sh", "parent_id": "dso-78iq", "priority": 1, "assignee": "Joe Oakhart"}}

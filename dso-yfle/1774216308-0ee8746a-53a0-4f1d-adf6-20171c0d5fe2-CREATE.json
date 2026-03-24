@@ -1,0 +1,1 @@
+{"timestamp": 1774216308, "uuid": "0ee8746a-53a0-4f1d-adf6-20171c0d5fe2", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "debug-everything orchestrator fixes bugs directly instead of delegating to /dso:fix-bug", "priority": 2, "assignee": "Joe Oakhart"}}

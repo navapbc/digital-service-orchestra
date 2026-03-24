@@ -1,0 +1,1 @@
+{"timestamp": 1774279168, "uuid": "af406d58-a111-4848-872a-c065caa146e9", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "RED Test: write failing tests for tk→ticket infrastructure and hook guard updates", "parent_id": "w21-wbqz", "priority": 1, "assignee": "Joe Oakhart"}}

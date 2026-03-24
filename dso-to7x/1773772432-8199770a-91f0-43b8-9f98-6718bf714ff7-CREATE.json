@@ -1,0 +1,1 @@
+{"timestamp": 1773772432, "uuid": "8199770a-91f0-43b8-9f98-6718bf714ff7", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "Allow coding sub-agents to use worktree isolation", "priority": 3, "assignee": "Joe Oakhart"}}

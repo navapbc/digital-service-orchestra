@@ -1,0 +1,1 @@
+{"timestamp": 1774048419, "uuid": "349e3eea-5b83-430a-9336-f9f49eadfde6", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: deduplicate FN_BODY_9 extraction in test-merge-to-main-qt4u.sh test 9", "priority": 4, "assignee": "Joe Oakhart"}}

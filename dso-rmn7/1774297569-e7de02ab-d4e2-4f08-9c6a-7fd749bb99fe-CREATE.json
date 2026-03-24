@@ -1,0 +1,1 @@
+{"timestamp": 1774297569, "uuid": "e7de02ab-d4e2-4f08-9c6a-7fd749bb99fe", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "RED tests for _phase_finalize() in cutover-tickets-migration.sh", "parent_id": "w21-gy45", "priority": 1, "assignee": "Joe Oakhart"}}

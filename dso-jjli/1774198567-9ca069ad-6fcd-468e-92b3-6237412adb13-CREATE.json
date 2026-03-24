@@ -1,0 +1,1 @@
+{"timestamp": 1774198567, "uuid": "9ca069ad-6fcd-468e-92b3-6237412adb13", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "merge-to-main.sh 'merge' phase name misleads agents into thinking code is on main", "priority": 2, "assignee": "Joe Oakhart"}}

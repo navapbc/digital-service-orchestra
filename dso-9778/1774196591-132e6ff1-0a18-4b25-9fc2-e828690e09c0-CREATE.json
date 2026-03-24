@@ -1,0 +1,1 @@
+{"timestamp": 1774196591, "uuid": "132e6ff1-0a18-4b25-9fc2-e828690e09c0", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: deduplicate sed function-body extractions in test-tk-sync-force-local.sh", "priority": 2, "assignee": "Joe Oakhart"}}

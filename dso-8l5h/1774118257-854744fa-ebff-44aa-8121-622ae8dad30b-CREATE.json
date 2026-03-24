@@ -1,0 +1,1 @@
+{"timestamp": 1774118257, "uuid": "854744fa-ebff-44aa-8121-622ae8dad30b", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "Extract review and evaluation sub-agents into dedicated plugin agents", "priority": 2, "assignee": "Joe Oakhart"}}

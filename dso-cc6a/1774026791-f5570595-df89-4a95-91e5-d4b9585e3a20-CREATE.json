@@ -1,0 +1,1 @@
+{"timestamp": 1774026791, "uuid": "f5570595-df89-4a95-91e5-d4b9585e3a20", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Worktree auto-cleanup fails when session ends with unmerged commits", "parent_id": "dso-9xnr", "priority": 3, "assignee": "Joe Oakhart"}}

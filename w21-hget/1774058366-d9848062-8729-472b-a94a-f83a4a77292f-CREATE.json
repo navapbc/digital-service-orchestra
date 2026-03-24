@@ -1,0 +1,1 @@
+{"timestamp": 1774058366, "uuid": "d9848062-8729-472b-a94a-f83a4a77292f", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: test-merge-to-main-portability.sh pre-existing failures (sequential phase warning)", "parent_id": "w22-ns6l", "priority": 2, "assignee": "Joe Oakhart"}}

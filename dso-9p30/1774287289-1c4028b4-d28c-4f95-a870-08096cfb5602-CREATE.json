@@ -1,0 +1,1 @@
+{"timestamp": 1774287289, "uuid": "1c4028b4-d28c-4f95-a870-08096cfb5602", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Add closed-parent guard to ticket-link.sh for depends_on", "parent_id": "dso-k4sw", "priority": 1, "assignee": "Joe Oakhart"}}

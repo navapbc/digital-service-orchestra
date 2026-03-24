@@ -1,0 +1,1 @@
+{"timestamp": 1774303283, "uuid": "9862d476-6ff1-44e6-b344-aa199ce4f0ba", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix CI failures on commit 9b7a7f3 — rollback strategy and log dir preservation", "priority": 1, "assignee": "Joe Oakhart"}}

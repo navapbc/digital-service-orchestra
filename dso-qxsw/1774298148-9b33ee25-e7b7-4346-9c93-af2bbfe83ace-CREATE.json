@@ -1,0 +1,1 @@
+{"timestamp": 1774298148, "uuid": "9b33ee25-e7b7-4346-9c93-af2bbfe83ace", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix remaining CI failures from v3 path migration", "priority": 1, "assignee": "Joe Oakhart"}}

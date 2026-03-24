@@ -1,0 +1,1 @@
+{"timestamp": 1774193981, "uuid": "356f111a-a43b-4f21-93c7-f12acf76e1f3", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Inbound Bridge workflow fails: tickets branch does not exist on remote", "priority": 1, "assignee": "Joe Oakhart"}}

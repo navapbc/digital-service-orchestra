@@ -1,0 +1,1 @@
+{"timestamp": 1774297672, "uuid": "bffa5021-cf0e-45e3-a4ae-21f4f66bfd0a", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Integration test: verify dso-setup.sh registers ticket gate hook", "parent_id": "dso-78iq", "priority": 1, "assignee": "Joe Oakhart"}}

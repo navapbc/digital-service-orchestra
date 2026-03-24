@@ -1,0 +1,1 @@
+{"timestamp": 1774297598, "uuid": "aead1f67-b7a9-4cc3-bcb8-5fc8596c5fbe", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "RED: Write failing tests for pre-commit-ticket-gate.sh", "parent_id": "dso-78iq", "priority": 1, "assignee": "Joe Oakhart"}}

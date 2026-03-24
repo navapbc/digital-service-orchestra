@@ -1,0 +1,1 @@
+{"timestamp": 1774165828, "uuid": "446df047-314b-417b-8132-1daa5b6b70e2", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Bug: test-check-script-writes.sh flakes in full suite (shfmt availability race)", "parent_id": "w22-ns6l", "priority": 2, "assignee": "Joe Oakhart"}}

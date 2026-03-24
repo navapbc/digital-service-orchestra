@@ -1,0 +1,1 @@
+{"timestamp": 1774139589, "uuid": "a0bf2ddd-a3b0-418a-8789-72ad9e8733de", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "debug-everything validation prompts use soft \"Do NOT fix\" language instead of hard-stop READ-ONLY ENFORCEMENT", "priority": 2, "assignee": "Joe Oakhart"}}

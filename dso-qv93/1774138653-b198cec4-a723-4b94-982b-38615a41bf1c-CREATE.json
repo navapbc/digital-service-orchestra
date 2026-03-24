@@ -1,0 +1,1 @@
+{"timestamp": 1774138653, "uuid": "b198cec4-a723-4b94-982b-38615a41bf1c", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: project-detect.sh short-circuit python3 subprocess when entries is empty", "priority": 4, "assignee": "Joe Oakhart"}}

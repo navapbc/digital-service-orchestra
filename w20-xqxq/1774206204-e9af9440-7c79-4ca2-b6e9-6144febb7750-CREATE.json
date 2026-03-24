@@ -1,0 +1,1 @@
+{"timestamp": 1774206204, "uuid": "e9af9440-7c79-4ca2-b6e9-6144febb7750", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Bug: merge-to-main.sh MAIN_REPO unbound variable in validate and ci_trigger phases when using --resume", "priority": 2, "assignee": "Joe Oakhart"}}

@@ -1,0 +1,1 @@
+{"timestamp": 1774201046, "uuid": "edfac32b-f64b-49da-9a36-5fbc66dc51dc", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Sub-agents create tickets with type 'task' instead of 'bug' when tracking discovered bugs", "priority": 1, "assignee": "Joe Oakhart"}}

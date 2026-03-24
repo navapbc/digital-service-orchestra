@@ -1,0 +1,1 @@
+{"timestamp": 1774290729, "uuid": "2f31a30b-1e7a-4801-a0d4-a46f14cafb54", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix CI failures from allowlist path migration", "priority": 1, "assignee": "Joe Oakhart"}}

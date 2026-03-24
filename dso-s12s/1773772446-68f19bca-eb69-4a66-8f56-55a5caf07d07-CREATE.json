@@ -1,0 +1,1 @@
+{"timestamp": 1773772446, "uuid": "68f19bca-eb69-4a66-8f56-55a5caf07d07", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "Generic agent invocations should be given descriptive names", "priority": 1, "assignee": "Joe Oakhart"}}

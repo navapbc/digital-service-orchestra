@@ -1,0 +1,1 @@
+{"timestamp": 1774130348, "uuid": "8a275b25-2aa6-4c91-a8b2-b872e1236e2a", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "test-retry-with-backoff.sh fails with 0 pass, 0 fail", "parent_id": "w22-ns6l", "priority": 2, "assignee": "Joe Oakhart"}}

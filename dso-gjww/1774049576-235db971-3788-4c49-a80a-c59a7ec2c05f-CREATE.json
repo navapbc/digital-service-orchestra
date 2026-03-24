@@ -1,0 +1,1 @@
+{"timestamp": 1774049576, "uuid": "235db971-3788-4c49-a80a-c59a7ec2c05f", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "validate.sh: _test_state_already_passed accepts state files with missing command_hash", "priority": 4, "assignee": "Joe Oakhart"}}

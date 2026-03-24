@@ -1,0 +1,1 @@
+{"timestamp": 1774209667, "uuid": "d867782f-c47b-4d44-be32-7a94e87cdb03", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "sprint-next-batch.sh treats tk dep blockers as file conflicts, preventing non-overlapping tasks from batching", "parent_id": "dso-uu13", "priority": 2, "assignee": "Joe Oakhart"}}

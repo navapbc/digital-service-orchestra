@@ -1,0 +1,1 @@
+{"timestamp": 1774225478, "uuid": "779b030e-cef4-48f4-8e27-294ed8ca3da2", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Implement cutover idempotent resume: write state file per phase, skip completed on re-run", "parent_id": "w21-2a9w", "priority": 1, "assignee": "Joe Oakhart"}}

@@ -1,0 +1,1 @@
+{"timestamp": 1774114911, "uuid": "5dd21c62-4d87-4df2-ba90-a23978faba62", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix test_auto_detect_main_worktree_via_git_list macOS path comparison bug", "parent_id": "w22-ns6l", "priority": 3, "assignee": "Joe Oakhart"}}

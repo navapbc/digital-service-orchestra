@@ -1,0 +1,1 @@
+{"timestamp": 1774138649, "uuid": "ecdb2c53-55c5-4368-8cdc-c92fe2946332", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: project-detect.sh add --suites flag to Usage header comment", "priority": 4, "assignee": "Joe Oakhart"}}

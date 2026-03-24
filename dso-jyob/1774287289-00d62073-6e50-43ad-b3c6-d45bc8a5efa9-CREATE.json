@@ -1,0 +1,1 @@
+{"timestamp": 1774287289, "uuid": "00d62073-6e50-43ad-b3c6-d45bc8a5efa9", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Add bug-close-reason and open-children guards to ticket-transition.sh", "parent_id": "dso-k4sw", "priority": 1, "assignee": "Joe Oakhart"}}

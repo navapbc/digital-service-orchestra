@@ -1,0 +1,1 @@
+{"timestamp": 1773976460, "uuid": "12d86612-e5ed-433c-82f9-2b91ef6dfba0", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "resolve-conflicts skill misdetects merge state when conflicts are pre-resolved", "parent_id": "dso-9xnr", "priority": 3, "assignee": "Joe Oakhart"}}

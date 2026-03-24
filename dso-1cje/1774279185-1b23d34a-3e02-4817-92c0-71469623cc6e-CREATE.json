@@ -1,0 +1,1 @@
+{"timestamp": 1774279185, "uuid": "1b23d34a-3e02-4817-92c0-71469623cc6e", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Update infrastructure path references (.tickets/ → .tickets-tracker/)", "parent_id": "w21-wbqz", "priority": 1, "assignee": "Joe Oakhart"}}

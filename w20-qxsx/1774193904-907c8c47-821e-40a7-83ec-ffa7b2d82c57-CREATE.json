@@ -1,0 +1,1 @@
+{"timestamp": 1774193904, "uuid": "907c8c47-821e-40a7-83ec-ffa7b2d82c57", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "test-batched.sh treats run-all.sh as single command — cannot resume sub-test progress", "priority": 2, "assignee": "Joe Oakhart"}}

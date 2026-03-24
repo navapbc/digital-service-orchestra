@@ -1,0 +1,1 @@
+{"timestamp": 1774225463, "uuid": "fd763ae7-26bc-475c-930b-ca5b4c67cd4e", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "RED: Write failing tests for cutover idempotent resume from state file", "parent_id": "w21-2a9w", "priority": 1, "assignee": "Joe Oakhart"}}

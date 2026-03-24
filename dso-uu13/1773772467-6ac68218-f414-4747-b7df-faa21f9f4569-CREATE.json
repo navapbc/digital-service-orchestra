@@ -1,0 +1,1 @@
+{"timestamp": 1773772467, "uuid": "6ac68218-f414-4747-b7df-faa21f9f4569", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "Remove CI ticket creation pattern", "priority": 1, "assignee": "Joe Oakhart"}}

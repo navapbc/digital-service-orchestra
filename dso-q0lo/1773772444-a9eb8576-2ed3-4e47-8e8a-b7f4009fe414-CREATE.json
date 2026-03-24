@@ -1,0 +1,1 @@
+{"timestamp": 1773772444, "uuid": "a9eb8576-2ed3-4e47-8e8a-b7f4009fe414", "event_type": "CREATE", "data": {"ticket_type": "epic", "title": "Prevent the explosion of documentation created by LLMs", "priority": 2, "assignee": "Joe Oakhart"}}

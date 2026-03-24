@@ -1,0 +1,1 @@
+{"timestamp": 1774138658, "uuid": "45187bfd-1f89-4035-bdd9-c0e6396e1c67", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Fix: project-detect.sh replace find -print -quit with POSIX-portable alternative", "priority": 4, "assignee": "Joe Oakhart"}}

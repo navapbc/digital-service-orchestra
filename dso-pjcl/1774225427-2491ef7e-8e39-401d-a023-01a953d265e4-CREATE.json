@@ -1,0 +1,1 @@
+{"timestamp": 1774225427, "uuid": "2491ef7e-8e39-401d-a023-01a953d265e4", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "RED: Write failing tests for cutover rollback (committed vs uncommitted detection)", "parent_id": "w21-2a9w", "priority": 1, "assignee": "Joe Oakhart"}}

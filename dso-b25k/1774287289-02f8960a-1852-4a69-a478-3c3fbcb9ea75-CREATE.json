@@ -1,0 +1,1 @@
+{"timestamp": 1774287289, "uuid": "02f8960a-1852-4a69-a478-3c3fbcb9ea75", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Remove hook_bug_close_guard and delete closed-parent-guard.sh", "parent_id": "dso-k4sw", "priority": 1, "assignee": "Joe Oakhart"}}
