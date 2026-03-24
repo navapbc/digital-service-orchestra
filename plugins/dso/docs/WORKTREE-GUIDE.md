@@ -598,15 +598,15 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --resume
 
 **Lock file**: `/tmp/merge-to-main-lock-<hash>` — prevents concurrent merge runs against the same repo. If a stale lock exists (process died), it is automatically broken on the next run.
 
-### Running a Single Phase
+### Resuming After a Failure
 
-To re-run one specific phase (e.g., after a partial failure):
+To resume from the last incomplete phase after a partial failure:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --phase=push
+${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --resume
 ```
 
-Valid phase names: `sync`, `merge`, `validate`, `push`, `archive`, `ci_trigger`.
+The script records completed phases in a state file and resumes from the first incomplete one.
 
 ---
 
