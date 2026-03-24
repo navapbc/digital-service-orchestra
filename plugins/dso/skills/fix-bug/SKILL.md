@@ -43,11 +43,12 @@ Types of mechanical errors:
 - **config syntax** — malformed YAML, TOML, JSON, or conf file
 
 Mechanical Fix Path:
-1. Read the error message and identify the exact file and line
-2. Apply the deterministic fix (add import, fix type, fix lint, fix syntax)
-3. Run `$TEST_CMD` and `$LINT_CMD` to validate
-4. If validation passes, proceed to Step 8 (Commit)
-5. If validation fails with a NEW error, reclassify — it may be behavioral
+1. Complete Step 0.5 (Ticket Lifecycle Setup) — ensure a bug ticket exists and is in-progress
+2. Read the error message and identify the exact file and line
+3. Apply the deterministic fix (add import, fix type, fix lint, fix syntax)
+4. Run `$TEST_CMD` and `$LINT_CMD` to validate
+5. If validation passes, proceed to Step 8 (Commit and Close)
+6. If validation fails with a NEW error, reclassify — it may be behavioral
 
 ### Behavioral Errors
 
@@ -88,7 +89,31 @@ Before any investigation, check whether this bug (or a similar pattern) is alrea
 grep -i "<keyword>" "$(git rev-parse --show-toplevel)/.claude/docs/KNOWN-ISSUES.md" 2>/dev/null || true
 ```
 
-If a known issue matches, add its details to the bug ticket via `.claude/scripts/dso ticket comment <id> "Known issue match: ..."`. The known issue context informs investigation but does not skip it.
+If a known issue matches, note the match for later — after Step 0.5 establishes `BUG_TICKET_ID`, record it via `ticket comment <BUG_TICKET_ID> "Known issue match: ..."`. The known issue context informs investigation but does not skip it.
+
+### Step 0.5: Ticket Lifecycle Setup (/dso:fix-bug)
+
+Ensure a bug ticket exists and is set to in-progress before investigation begins.
+
+1. **If a ticket ID was provided** (via argument or orchestrator context): use it.
+2. **If no ticket ID was provided**: search for an existing open bug ticket matching the error description to avoid duplicates:
+   ```bash
+   ticket list | python3 -c "import json,sys; tickets=json.load(sys.stdin); bugs=[t for t in tickets if t.get('ticket_type')=='bug' and t.get('status')=='open']; [print(t['ticket_id'],t['title']) for t in bugs]"
+   ```
+   - If a matching bug is found (same error, same file, or same root symptom): use that ticket ID.
+   - If no match: create a new bug ticket:
+     ```bash
+     ticket create bug "<concise bug title derived from the error>"
+     ```
+3. **Set the ticket to in-progress** (check current status first to avoid optimistic concurrency errors):
+   ```bash
+   CURRENT_STATUS=$(ticket show <id> | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','open'))")
+   if [ "$CURRENT_STATUS" != "in_progress" ] && [ "$CURRENT_STATUS" != "closed" ]; then
+       ticket transition <id> "$CURRENT_STATUS" in_progress
+   fi
+   ```
+
+Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 
 ### Step 1: Score and Classify (/dso:fix-bug)
 
@@ -96,7 +121,7 @@ If a known issue matches, add its details to the bug ticket via `.claude/scripts
 2. Classify: **mechanical** or **behavioral** (see Error Type Classification above)
 3. If mechanical: follow the Mechanical Fix Path, then skip to Step 8
 4. If behavioral: apply the Scoring Rubric to determine investigation tier
-5. Record the classification and score in a ticket note: `.claude/scripts/dso ticket comment <id> "Classification: behavioral, Score: <N> (<tier>)"`
+5. Record the classification and score in a ticket note: `ticket comment <BUG_TICKET_ID> "Classification: behavioral, Score: <N> (<tier>)"`
 
 ### Step 2: Investigation Sub-Agent Dispatch (/dso:fix-bug)
 
@@ -294,12 +319,12 @@ Input: approved fix description, files affected, estimated change scope
 **COMPLEX fix**: the fix scope is too large for a single bug fix track. The behavior depends on execution context:
 
 **When running as orchestrator (not a sub-agent)**:
-1. Record the finding: `.claude/scripts/dso ticket comment <id> "Fix complexity: COMPLEX — escalating to epic"`
+1. Record the finding: `ticket comment <BUG_TICKET_ID> "Fix complexity: COMPLEX — escalating to epic"`
 2. Invoke `/dso:brainstorm` to create an epic for the refactor or larger change
 3. Stop — do NOT proceed to Step 5 or Step 6 in this session
 
 **When running as a sub-agent** (detected per Sub-Agent Context Detection below):
-1. Record the finding: `.claude/scripts/dso ticket comment <id> "Fix complexity: COMPLEX — returning escalation to orchestrator"`
+1. Record the finding: `ticket comment <BUG_TICKET_ID> "Fix complexity: COMPLEX — returning escalation to orchestrator"`
 2. Return a COMPLEX_ESCALATION report to the calling orchestrator instead of invoking `/dso:brainstorm` directly (sub-agents cannot reliably invoke skills):
 
 ```
@@ -355,9 +380,31 @@ $FORMAT_CHECK_CMD   # No format regressions
 - All hypothesis test results
 - Recommendation for manual investigation
 
-### Step 8: Commit (/dso:fix-bug)
+### Step 8: Commit and Close (/dso:fix-bug)
 
-Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
+**When running as orchestrator (not a sub-agent)**:
+
+1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
+2. Close the bug ticket:
+   ```bash
+   ticket transition <BUG_TICKET_ID> in_progress closed
+   ticket comment <BUG_TICKET_ID> "Fixed: <one-line summary of the fix>"
+   ```
+
+**When running as a sub-agent** (detected per Sub-Agent Context Detection below):
+
+1. Do NOT commit — the orchestrator owns the commit workflow.
+2. Do NOT close the ticket — the orchestrator handles ticket lifecycle after the sub-agent returns.
+3. Return the resolved ticket ID in the sub-agent result so the orchestrator can commit and close:
+
+```
+FIX_RESULT: resolved
+BUG_TICKET_ID: <ticket-id>
+fix_summary: <one-line description of what was fixed>
+files_changed: <comma-separated list of modified files>
+```
+
+The orchestrator receives this result and is responsible for committing the changes and closing the ticket.
 
 ## Cluster Investigation Mode
 
@@ -468,6 +515,8 @@ This avoids re-running classification and investigation work that was already co
 
 ### Behavior in Sub-Agent Context
 
+- **Ticket lifecycle (Step 0.5)**: Step 0.5 runs normally in sub-agent context — the sub-agent creates the ticket if needed and sets it to in-progress. The sub-agent does NOT close the ticket; it returns `BUG_TICKET_ID` in its result for the orchestrator to close after committing.
+- **Commit and Close (Step 8)**: the sub-agent does NOT commit or close the ticket. It returns a `FIX_RESULT` report with the ticket ID, fix summary, and changed files. The orchestrator handles commit and ticket closure.
 - **BASIC and INTERMEDIATE** investigation tiers: fully supported in sub-agent context (single sub-agent dispatch).
 - **ADVANCED investigation** (two concurrent agents): check Agent tool availability before dispatch; if unavailable, treat as INTERMEDIATE with a note.
 - **ESCALATED investigation** (four agents): check Agent tool availability before dispatch; if unavailable, surface findings and return a `COMPLEX_ESCALATION` report to the calling orchestrator (see Escalation Report Format below).
