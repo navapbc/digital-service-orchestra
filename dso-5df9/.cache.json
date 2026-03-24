@@ -1,1 +1,0 @@
-{"dir_hash": "205c5b1370234b8b51a16724d8988e85f0b94421df0bfba590947ce1b851e9eb", "state": {"ticket_id": "dso-5df9", "ticket_type": "task", "title": "test-task2", "status": "closed", "author": null, "created_at": 1774225286, "env_id": null, "parent_id": "w21-2a9w", "priority": 2, "assignee": "Joe Oakhart", "comments": [], "deps": [], "bridge_alerts": [], "reverts": []}}

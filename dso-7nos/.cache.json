@@ -1,1 +1,0 @@
-{"dir_hash": "2203e41cb4e43ffcf629704460fcd5d9ce0e6e643865a9725cc214db6ae4ad5f", "state": {"ticket_id": "dso-7nos", "ticket_type": "epic", "title": "Automate ACLI configuration", "status": "open", "author": null, "created_at": 1774229580, "env_id": null, "parent_id": null, "priority": 2, "assignee": "Joe Oakhart", "comments": [], "deps": [], "bridge_alerts": [], "reverts": []}}
