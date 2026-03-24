@@ -1,0 +1,1 @@
+{"timestamp": 1774390008, "uuid": "494a6345-1e83-400b-b23b-98fffa20005e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Update project docs to reflect merge-time version bumping", "parent_id": "f8b7-4e3f", "priority": 2, "assignee": "Joe Oakhart"}}
