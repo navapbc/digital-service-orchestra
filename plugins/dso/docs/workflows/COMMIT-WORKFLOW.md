@@ -106,7 +106,13 @@ TEST_CMD="$(".claude/scripts/dso read-config.sh" commands.test_unit 2>/dev/null 
 cd app && $TEST_CMD 2>&1 | tail -5
 ```
 
-**If the test command is expected to exceed 60s** (e.g., `bash tests/run-all.sh`), wrap with `test-batched.sh`:
+**If the test command is expected to exceed 60s** (e.g., `bash tests/run-all.sh`), use `test-batched.sh` with a runner driver for per-test resume. **Prefer `--runner=bash --test-dir=<dir>` for bash test suites** — this discovers `test-*.sh` and `run-*-tests.sh` files and runs each as a separate item, so completed tests are skipped on resume:
+
+```bash
+bash "$REPO_ROOT/plugins/dso/scripts/test-batched.sh" --timeout=50 --runner=bash --test-dir="$REPO_ROOT/tests/scripts"
+```
+
+If no runner driver applies (the test command is not a directory of scripts), fall back to the generic runner which wraps the entire command as a single item (no sub-test resume):
 
 ```bash
 bash "$REPO_ROOT/plugins/dso/scripts/test-batched.sh" --timeout=50 "$TEST_CMD"
