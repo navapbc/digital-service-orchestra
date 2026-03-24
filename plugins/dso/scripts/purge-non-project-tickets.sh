@@ -112,7 +112,7 @@ echo "Deleted $deleted ticket directories."
 if git -C "$TRACKER_DIR" rev-parse --git-dir >/dev/null 2>&1; then
     echo "Committing deletion on tickets branch..."
     git -C "$TRACKER_DIR" add -A
-    git -C "$TRACKER_DIR" commit -m "purge: remove $deleted non-$KEEP_PROJECT inbound bridge tickets" || echo "Nothing to commit"
+    git -C "$TRACKER_DIR" commit --no-verify -m "purge: remove $deleted non-$KEEP_PROJECT inbound bridge tickets" || echo "Nothing to commit"
 fi
 
 echo "Done."
