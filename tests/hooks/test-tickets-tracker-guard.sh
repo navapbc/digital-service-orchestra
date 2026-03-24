@@ -108,10 +108,47 @@ EXIT_CODE=$(run_bash_guard "$INPUT")
 assert_eq_verbose "test_bash_tickets_tracker_reference_blocks" "2" "$EXIT_CODE"
 
 # --- test_bash_ticket_cli_allowlisted ---
-# Bash command that is a ticket CLI invocation (tk show) must be allowed (exit 0).
-INPUT='{"tool_name":"Bash","tool_input":{"command":"tk show dso-1234"}}'
+# Bash command that is a bare ticket CLI invocation must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"ticket show dso-1234"}}'
 EXIT_CODE=$(run_bash_guard "$INPUT")
 assert_eq_verbose "test_bash_ticket_cli_allowlisted" "0" "$EXIT_CODE"
+
+# --- test_bash_dso_shim_ticket_comment_allowlisted ---
+# Bash command via DSO shim (.claude/scripts/dso ticket comment) must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket comment 4506-e5da \"## Description\""}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_dso_shim_ticket_comment_allowlisted" "0" "$EXIT_CODE"
+
+# --- test_bash_dso_shim_ticket_create_allowlisted ---
+# Bash command via DSO shim (.claude/scripts/dso ticket create) must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket create bug \"some title\""}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_dso_shim_ticket_create_allowlisted" "0" "$EXIT_CODE"
+
+# --- test_bash_dso_shim_ticket_transition_allowlisted ---
+# Bash command via DSO shim (.claude/scripts/dso ticket transition) must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket transition w21-u3op open in_progress"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_dso_shim_ticket_transition_allowlisted" "0" "$EXIT_CODE"
+
+# --- test_bash_dso_shim_ticket_list_allowlisted ---
+# Bash command via DSO shim (.claude/scripts/dso ticket list) must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":".claude/scripts/dso ticket list 2>/dev/null | python3 -c \"...\""}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_dso_shim_ticket_list_allowlisted" "0" "$EXIT_CODE"
+
+# --- test_bash_dso_shim_via_bash_allowlisted ---
+# Bash command via "bash .claude/scripts/dso ticket ..." must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"bash .claude/scripts/dso ticket show w21-1234"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_dso_shim_via_bash_allowlisted" "0" "$EXIT_CODE"
+
+# --- test_bash_embedded_dso_ticket_in_echo_blocks ---
+# A command that embeds "/dso ticket" as a string argument (not a real invocation)
+# while also referencing .tickets-tracker/ must still be blocked (exit 2).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo \"/dso ticket\" > /repo/.tickets-tracker/event.json"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_embedded_dso_ticket_in_echo_blocks" "2" "$EXIT_CODE"
 
 # --- test_bash_no_tickets_tracker_ref_allows ---
 # Bash command with no .tickets-tracker/ reference must be allowed (exit 0).
