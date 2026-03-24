@@ -170,7 +170,7 @@ def reduce_ticket(
     """
     if strategy is None:
         strategy = LastTimestampWinsStrategy()
-    ticket_dir = str(ticket_dir_path)
+    ticket_dir = os.path.normpath(str(ticket_dir_path))
     ticket_id = os.path.basename(ticket_dir)
 
     # Compute content hash for caching (filename + file size to detect in-place

@@ -124,13 +124,54 @@ def create_issue(
     return verified
 
 
+def transition_issue(
+    jira_key: str,
+    status: str,
+    *,
+    acli_cmd: list[str] | None = None,
+) -> dict[str, Any]:
+    """Transition a Jira issue to a new status via ACLI.
+
+    Status changes in Jira require transitions (not field edits).
+    ACLI uses ``workitem transition --key KEY --status STATUS``.
+    """
+    cmd = [
+        "jira",
+        "workitem",
+        "transition",
+        "--key",
+        jira_key,
+        "--status",
+        status.capitalize(),
+        "--json",
+    ]
+    result = _run_acli(cmd, acli_cmd=acli_cmd)
+    return json.loads(result.stdout)
+
+
 def update_issue(
     jira_key: str,
     *,
     acli_cmd: list[str] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Update a Jira issue via ACLI."""
+    """Update a Jira issue via ACLI.
+
+    If ``status`` is in kwargs, it is routed to ``transition_issue``
+    (Jira status changes require transitions, not field edits).
+    Remaining fields are sent via ``workitem edit``.
+    """
+    status = kwargs.pop("status", None)
+
+    if status is not None:
+        transition_issue(jira_key, status, acli_cmd=acli_cmd)
+
+    if not kwargs:
+        # Only a status change was requested — return the transition result
+        if status is not None:
+            return {"key": jira_key, "status": status}
+        return {"key": jira_key}
+
     cmd = [
         "jira",
         "workitem",
@@ -253,7 +294,7 @@ class AcliClient:
         title from ticket_data (matching the CREATE event data schema).
         """
         project = self.jira_project
-        issue_type = ticket_data.get("ticket_type", "Task")
+        issue_type = ticket_data.get("ticket_type", "Task").capitalize()
         summary = ticket_data.get("title", "")
         return create_issue(project, issue_type, summary, acli_cmd=self._acli_cmd)
 

@@ -447,8 +447,17 @@ def extract_files(text):
     if not text:
         return set()
 
-    # Strip acceptance-criteria lines: they contain shell commands, not file paths
-    AC_LINE_RE = re.compile(r'^\s*AC\s+\w[\w\s]*:', re.IGNORECASE)
+    # Strip acceptance-criteria content: shell commands, not files to be modified.
+    # Phase 1: remove entire ## ACCEPTANCE CRITERIA sections (through next ## or EOF)
+    text = re.sub(
+        r'(?m)^##\s+ACCEPTANCE\s+CRITERIA\b.*?(?=^##\s|\Z)',
+        '', text, flags=re.IGNORECASE | re.DOTALL,
+    )
+    # Phase 2: strip individual AC-prefixed lines (AC Verify:, AC Check:, etc.)
+    AC_LINE_RE = re.compile(
+        r'^\s*(?:AC\s+\w[\w\s]*:|Acceptance\s+criteria\s*:)',
+        re.IGNORECASE,
+    )
     text = "\n".join(
         line for line in text.splitlines() if not AC_LINE_RE.match(line)
     )
@@ -460,7 +469,7 @@ def extract_files(text):
         files.add(m.group(1).lstrip("./"))
 
     # Build directory-rooted path regex from config values + fixed dirs
-    dir_roots = {cfg_src_dir, cfg_test_dir, "app", ".claude", "scripts"}
+    dir_roots = {cfg_src_dir, cfg_test_dir, "app", ".claude"}
     # Also add bare test_dir variants (e.g. "test" if test_dir is "tests")
     if cfg_test_dir.endswith("s"):
         dir_roots.add(cfg_test_dir[:-1])
@@ -655,7 +664,11 @@ blocked_ids = set()
 try:
     with open(os.path.join(tmpdir, "blocked.txt")) as f:
         for line in f:
-            for m in re.finditer(r'((?:w\d+-[a-z0-9]+)|(?:lockpick-doc-to-logic-[a-z0-9.]+))', line):
+            # Match ticket ID formats: dso-xxxx, w21-xxxx, JIRA-123, etc.
+            # Suffix is either short (2-4 chars, covers hash-style IDs like dso-ptzz)
+            # or contains a digit (covers JIRA-123, w21-v0ad). This excludes most
+            # hyphenated English words (in-progress, pre-commit, non-blocking).
+            for m in re.finditer(r'\b([a-zA-Z][a-zA-Z0-9]+-(?:[a-z0-9]{2,4}|[a-z0-9]*\d[a-z0-9]*))\b', line):
                 blocked_ids.add(m.group(1))
 except FileNotFoundError:
     pass

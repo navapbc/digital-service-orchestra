@@ -7,8 +7,7 @@ on:
   push:
     branches:
       - tickets
-    paths:
-      - '.tickets-tracker/**'
+  workflow_dispatch: {}
 
 concurrency:
   group: jira-bridge
