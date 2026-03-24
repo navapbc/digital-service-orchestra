@@ -1,0 +1,1 @@
+{"timestamp": 1774366488132465000, "uuid": "275a3615-da91-4136-9494-4f55c7553f53", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fix verified: ticket worktree git commits now skip pre-commit hooks"}}
