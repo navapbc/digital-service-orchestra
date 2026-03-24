@@ -1,0 +1,1 @@
+{"timestamp": 1774391221, "uuid": "c8c0b888-f43b-4c4a-9e1b-73ece8bdb58b", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update merge and lifecycle script tests for v3-only code paths", "parent_id": "9180-1d78", "priority": 2, "assignee": "Joe Oakhart"}}
