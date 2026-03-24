@@ -476,6 +476,76 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 20 (RED): No v2 else branch comment in sprint-list-epics.sh ──────────
+# RED: v2 path with "# v2 path: read .tickets/" comment still present — must FAIL.
+echo "Test 20 (RED): test_sprint_list_epics_no_v2_else_branch — no v2 else branch in script"
+test_sprint_list_epics_no_v2_else_branch() {
+    { grep -q '# v2 path: read .tickets/' "$SCRIPT"; test $? -ne 0; }
+}
+if test_sprint_list_epics_no_v2_else_branch; then
+    echo "  PASS: no v2 else branch comment found"
+    (( PASS++ ))
+else
+    echo "  FAIL: v2 else branch comment '# v2 path: read .tickets/' still present in script" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 21 (RED): No TICKETS_DIR= variable assignment in sprint-list-epics.sh ─
+# RED: TICKETS_DIR= assignment still present — must FAIL.
+echo "Test 21 (RED): test_sprint_list_epics_no_TICKETS_DIR_variable — no TICKETS_DIR= in script"
+test_sprint_list_epics_no_TICKETS_DIR_variable() {
+    { grep -q '^TICKETS_DIR=' "$SCRIPT"; test $? -ne 0; }
+}
+if test_sprint_list_epics_no_TICKETS_DIR_variable; then
+    echo "  PASS: no TICKETS_DIR= assignment found"
+    (( PASS++ ))
+else
+    echo "  FAIL: TICKETS_DIR= assignment still present in script" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 22 (RED): No INDEX_FILE= variable assignment in sprint-list-epics.sh ──
+# RED: INDEX_FILE= assignment still present — must FAIL.
+echo "Test 22 (RED): test_sprint_list_epics_no_INDEX_FILE_variable — no INDEX_FILE= in script"
+test_sprint_list_epics_no_INDEX_FILE_variable() {
+    { grep -q '^INDEX_FILE=' "$SCRIPT"; test $? -ne 0; }
+}
+if test_sprint_list_epics_no_INDEX_FILE_variable; then
+    echo "  PASS: no INDEX_FILE= assignment found"
+    (( PASS++ ))
+else
+    echo "  FAIL: INDEX_FILE= assignment still present in script" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 23 (RED): No TK= variable assignment in sprint-list-epics.sh ──────────
+# RED: TK= assignment still present — must FAIL.
+echo "Test 23 (RED): test_sprint_list_epics_no_TK_variable — no TK= in script"
+test_sprint_list_epics_no_TK_variable() {
+    { grep -q '^TK=' "$SCRIPT"; test $? -ne 0; }
+}
+if test_sprint_list_epics_no_TK_variable; then
+    echo "  PASS: no TK= assignment found"
+    (( PASS++ ))
+else
+    echo "  FAIL: TK= assignment still present in script" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 24 (RED): No _rebuild_index function in sprint-list-epics.sh ──────────
+# RED: _rebuild_index function still present in v2 path — must FAIL.
+echo "Test 24 (RED): test_sprint_list_epics_no_rebuild_index_function — no _rebuild_index in script"
+test_sprint_list_epics_no_rebuild_index_function() {
+    { grep -q '_rebuild_index' "$SCRIPT"; test $? -ne 0; }
+}
+if test_sprint_list_epics_no_rebuild_index_function; then
+    echo "  PASS: no _rebuild_index function found"
+    (( PASS++ ))
+else
+    echo "  FAIL: _rebuild_index function still present in script" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

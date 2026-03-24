@@ -388,6 +388,64 @@ except Exception:
     fi
 }
 
+
+# ── TDD RED Phase: v2 dual-path removal tests ─────────────────────────────────
+# These tests assert that v2 dual-path code is ABSENT from classify-task.sh.
+# They FAIL on the current codebase (v2 code still present) and will PASS once
+# the v2 code is removed.
+
+# ── test_classify_task_no_use_v3_detection ────────────────────────────────────
+test_classify_task_no_use_v3_detection() {
+    echo "Test: no _use_v3 detection flag in classify-task.sh"
+    if { grep -q '_use_v3' "$SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: _use_v3 not found in classify-task.sh"
+        (( PASS++ ))
+    else
+        echo "  FAIL: _use_v3 still present in classify-task.sh (v2 dual-path code not removed)" >&2
+        (( FAIL++ ))
+    fi
+}
+test_classify_task_no_use_v3_detection
+
+# ── test_classify_task_no_TICKETS_DIR_branch ─────────────────────────────────
+test_classify_task_no_TICKETS_DIR_branch() {
+    echo "Test: no .tickets/\$id.md file-read branch in classify-task.sh"
+    if { grep -q '\.tickets/\$id\.md' "$SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: .tickets/\$id.md branch not found in classify-task.sh"
+        (( PASS++ ))
+    else
+        echo "  FAIL: .tickets/\$id.md still present in classify-task.sh (v2 TICKETS_DIR branch not removed)" >&2
+        (( FAIL++ ))
+    fi
+}
+test_classify_task_no_TICKETS_DIR_branch
+
+# ── test_classify_task_no_tk_ready ────────────────────────────────────────────
+test_classify_task_no_tk_ready() {
+    echo "Test: no 'tk ready' call in classify-task.sh"
+    if { grep -q 'tk ready' "$SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: 'tk ready' not found in classify-task.sh"
+        (( PASS++ ))
+    else
+        echo "  FAIL: 'tk ready' still present in classify-task.sh (v2 dual-path code not removed)" >&2
+        (( FAIL++ ))
+    fi
+}
+test_classify_task_no_tk_ready
+
+# ── test_classify_task_no_tk_show ─────────────────────────────────────────────
+test_classify_task_no_tk_show() {
+    echo "Test: no 'tk show' call in classify-task.sh"
+    if { grep -q 'tk show' "$SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: 'tk show' not found in classify-task.sh"
+        (( PASS++ ))
+    else
+        echo "  FAIL: 'tk show' still present in classify-task.sh (v2 dual-path code not removed)" >&2
+        (( FAIL++ ))
+    fi
+}
+test_classify_task_no_tk_show
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -655,6 +655,82 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 17: No v2 elif TICKETS_DIR branch ───────────────────────────────────
+# RED test: assert the v2 `elif [ -d "$TICKETS_DIR" ]` block is removed.
+# Currently FAILS because the v2 branch still exists in the script.
+echo "Test 17: No v2 elif TICKETS_DIR branch in plugin script"
+test_sprint_next_batch_no_v2_elif_branch() {
+    if { grep -q 'elif \[ -d "\$TICKETS_DIR' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: no v2 elif TICKETS_DIR branch found"
+        (( PASS++ ))
+    else
+        echo "  FAIL: v2 elif TICKETS_DIR branch still present in $PLUGIN_SCRIPT" >&2
+        (( FAIL++ ))
+    fi
+}
+test_sprint_next_batch_no_v2_elif_branch
+
+# ── Test 18: No standalone TICKETS_DIR= assignment ───────────────────────────
+# RED test: assert the v2 standalone `TICKETS_DIR=` assignment is removed.
+# Currently FAILS because line 196 still has TICKETS_DIR="${TICKETS_DIR:-...}".
+echo "Test 18: No standalone TICKETS_DIR= variable assignment in plugin script"
+test_sprint_next_batch_no_TICKETS_DIR_variable() {
+    if { grep -q '^TICKETS_DIR=' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: no standalone TICKETS_DIR= assignment found"
+        (( PASS++ ))
+    else
+        echo "  FAIL: standalone TICKETS_DIR= assignment still present in $PLUGIN_SCRIPT" >&2
+        (( FAIL++ ))
+    fi
+}
+test_sprint_next_batch_no_TICKETS_DIR_variable
+
+# ── Test 19: No v2 ticket body fallback (.tickets/$ticket_id) ────────────────
+# RED test: assert the v2 _load_ticket_body fallback reading .tickets/<id>.md
+# is removed. Pattern matches a literal bash-variable reference to .tickets/.
+echo "Test 19: No v2 ticket body fallback (.tickets/\$ticket_id) in plugin script"
+test_sprint_next_batch_no_v2_ticket_body_fallback() {
+    if { grep -q '\.tickets/\$ticket_id' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: no v2 .tickets/\$ticket_id fallback found"
+        (( PASS++ ))
+    else
+        echo "  FAIL: v2 .tickets/\$ticket_id fallback still present in $PLUGIN_SCRIPT" >&2
+        (( FAIL++ ))
+    fi
+}
+test_sprint_next_batch_no_v2_ticket_body_fallback
+
+# ── Test 20: No v2 tk-ready call ─────────────────────────────────────────────
+# RED test: assert the old-style `"tk" ready` invocation (with literal tk, not
+# the $TK variable) is removed.
+echo "Test 20: No v2 tk ready call (literal quoted tk binary) in plugin script"
+test_sprint_next_batch_no_tk_ready_call() {
+    if { grep -q '"\" ready' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: no v2 literal-tk ready call found"
+        (( PASS++ ))
+    else
+        echo "  FAIL: v2 literal-tk ready call still present in $PLUGIN_SCRIPT" >&2
+        (( FAIL++ ))
+    fi
+}
+test_sprint_next_batch_no_tk_ready_call
+
+# ── Test 21: No standalone TK= variable ──────────────────────────────────────
+# RED test: assert the `TK=` variable assignment is removed (v3 routing should
+# resolve tk via a different mechanism).
+# Currently FAILS because line 55 still has TK="${TK:-...}".
+echo "Test 21: No standalone TK= variable assignment in plugin script"
+test_sprint_next_batch_no_TK_variable() {
+    if { grep -q '^TK=' "$PLUGIN_SCRIPT"; test $? -ne 0; }; then
+        echo "  PASS: no standalone TK= assignment found"
+        (( PASS++ ))
+    else
+        echo "  FAIL: standalone TK= assignment still present in $PLUGIN_SCRIPT" >&2
+        (( FAIL++ ))
+    fi
+}
+test_sprint_next_batch_no_TK_variable
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
