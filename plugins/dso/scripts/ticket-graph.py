@@ -461,7 +461,7 @@ def _is_active_link(
         data = ev.get("data", {})
         if event_type == "LINK" and ev_uuid:
             active_links[ev_uuid] = (
-                data.get("target_id", ""),
+                data.get("target_id", data.get("target", "")),
                 data.get("relation", ""),
             )
         elif event_type == "UNLINK":
