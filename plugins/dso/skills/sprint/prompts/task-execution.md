@@ -13,7 +13,7 @@ Ticket ID: {id}
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 4/6: Implementation complete ✓"`
 6. Run `make format-check && make lint && make test-unit-only` from app/
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation passed ✓"` (or `"CHECKPOINT 5/6: Validation failed — <error summary>"` on failure)
-7. **Self-check**: If your task has an `ACCEPTANCE CRITERIA` section, re-read it from the `.claude/scripts/dso ticket show` output.
+7. **Self-check**: If your task has an `Acceptance Criteria` section, re-read it from the `.claude/scripts/dso ticket show` output.
    For each criterion with a `Verify:` command, run it. If any fails, fix your implementation
    before reporting. Skip universal criteria (test/lint/format) — already verified in step 6.
    **Shell compatibility**: `!` (bang negation) is not portable across shells. If a `Verify:` command uses `! cmd`, rewrite it as `{ cmd; test $? -ne 0; }` before running. Example: `! grep -q PAT file` → `{ grep -q PAT file; test $? -ne 0; }`
@@ -50,7 +50,7 @@ Ticket ID: {id}
    FILES_MODIFIED: path1, path2
    FILES_CREATED: path3 or none
    TESTS: N passed, N failed
-   AC_RESULTS: (if ACCEPTANCE CRITERIA section present) criterion1: pass, criterion2: pass/fail
+   AC_RESULTS: (if Acceptance Criteria section present) criterion1: pass, criterion2: pass/fail
    TASKS_CREATED: ticket-042, ticket-043 (or "none", or "error: <reason>")
    DISCOVERIES_WRITTEN: yes|no|error
 

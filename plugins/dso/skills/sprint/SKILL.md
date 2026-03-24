@@ -718,7 +718,7 @@ $REPO_ROOT/plugins/dso/scripts/check-acceptance-criteria.sh <task-id>
 
 - **Exit 0**: Proceed with dispatch — task has structured AC block
 - **Exit 1**: Do NOT dispatch. Read `${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`, compose an
-  appropriate acceptance criteria block for the task, and add it by editing `.tickets/<id>.md` directly to insert an `## ACCEPTANCE CRITERIA` section.
+  appropriate acceptance criteria block for the task, and add it by editing `.tickets/<id>.md` directly to insert an `## Acceptance Criteria` section.
   Re-run the check. If criteria cannot be determined (ambiguous task type), halt and ask the user.
 
 ### Subagent Type and Model Selection
@@ -855,7 +855,7 @@ Universal criteria (test, lint, format) are already verified by Step 4
 (validate-phase.sh post-batch). Do not re-run per task.
 
 **Per-task structural criteria**:
-For each task in the batch, extract the `ACCEPTANCE CRITERIA` block from `.claude/scripts/dso ticket show <id>` output
+For each task in the batch, extract the `Acceptance Criteria` block from `.claude/scripts/dso ticket show <id>` output
 and run each task-specific (non-universal) `Verify:` command:
 
 1. File existence: `test -f {file}` — exit 0 = pass
