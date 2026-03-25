@@ -28,6 +28,16 @@ _DEFAULT_ACLI_CMD: list[str] = ["acli"]
 _MAX_ATTEMPTS: int = 3  # initial + 2 retries
 _AUTH_FAILURE_CODE: int = 401
 
+# Local priority integer (0-4) → Jira priority name.
+# Mirrors the mapping in bridge-outbound.py.
+_LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
+    0: "Highest",
+    1: "High",
+    2: "Medium",
+    3: "Low",
+    4: "Lowest",
+}
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -160,12 +170,19 @@ def _create_issue_from_json(
     directly to Jira REST API fields.  Priority requires
     ``{"name": "<Jira priority name>"}``.
     """
+    # Convert integer priority (0-4) to Jira priority name.
+    # If already a string name, use as-is.
+    if isinstance(priority, int):
+        jira_priority_name = _LOCAL_PRIORITY_TO_JIRA.get(priority, "Medium")
+    else:
+        jira_priority_name = str(priority)
+
     payload: dict[str, Any] = {
         "projectKey": project,
         "type": issue_type,
         "summary": summary,
         "additionalAttributes": {
-            "priority": {"name": str(priority)},
+            "priority": {"name": jira_priority_name},
         },
     }
     if kwargs.get("description"):
