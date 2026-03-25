@@ -1,0 +1,1 @@
+{"timestamp": 1774410218, "uuid": "bc3e48c0-40ef-4af1-a301-5139a83ffc7e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Remove TICKETS_DIR fallback in issue-quality-check.sh (pre-existing v2 remnant)", "parent_id": "", "priority": 3, "assignee": "Joe Oakhart"}}
