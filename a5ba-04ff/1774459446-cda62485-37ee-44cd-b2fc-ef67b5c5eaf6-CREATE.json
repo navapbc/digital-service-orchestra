@@ -1,0 +1,1 @@
+{"timestamp": 1774459446, "uuid": "cda62485-37ee-44cd-b2fc-ef67b5c5eaf6", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "epic", "title": "Skip RED-marked tests in CI via suite-engine exclusion filter", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
