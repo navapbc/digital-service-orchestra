@@ -629,7 +629,7 @@ The script removes any leftover `$ARTIFACTS_DIR/agent-discoveries/*.json` files 
 and ensures the directory exists so agents can write to it immediately. Output:
 `DISCOVERIES_CLEANED: <N>`. Exit 0 always (cleanup is best-effort).
 
-**Batch size limit**: Launch at most 5 Task calls in a single message. All foreground Tasks block until they return — you cannot exceed the limit mid-flight. Before each batch, verify: how many tasks am I about to launch? If > 5, split into multiple batches.
+**Batch size limit**: Launch at most 5 Task calls in a single message, each with `run_in_background: true`. Before each batch, verify: how many tasks am I about to launch? If > 5, split into multiple batches.
 
 When `max_agents=1`, re-run `sprint-next-batch.sh <epic-id> --limit=1` to get a
 single-task batch. Log: `"Session usage >90%, limiting to 1 sub-agent."`
@@ -747,7 +747,7 @@ invoke the appropriate skill based on the task content.
 
 **Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
 
-**Important**: Launch ALL sub-agents in the batch within a single message (parallel tool calls). Do not launch them sequentially. Maximum 5 Task calls per message — all foreground Tasks return before the next batch, so you cannot exceed the limit mid-flight.
+**Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. Without `run_in_background`, foreground Agent calls block until they return — launching 4 agents in one message still executes them serially. Do not launch them sequentially. Maximum 5 Task calls per message.
 
 **Worktree boundary**: If running in a worktree session, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` The PreToolUse edit guard only blocks Edit/Write tools — Bash commands bypass it.
 
