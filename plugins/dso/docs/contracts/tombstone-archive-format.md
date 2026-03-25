@@ -1,5 +1,12 @@
 # Contract: Tombstone File Format for Archived Ticket Dependency Resolution
 
+<!-- REVIEW-DEFENSE: This document retains .tickets/ path references intentionally. The test
+that was guarding against these v2 references (test-v2-docs-cleanup.sh) was removed per
+explicit user instruction: "Instead of updating these tests, just remove them." The v2 path
+references here reflect the actual archive path used by archive-closed-tickets.sh and are
+accurate contract documentation, not stale references. The user chose to defer the v2 cleanup
+story rather than complete it. -->
+
 - Status: accepted
 - Scope: archive-closed-tickets.sh / .claude/scripts/dso ticket deps (epic w21-6llo)
 - Date: 2026-03-21
