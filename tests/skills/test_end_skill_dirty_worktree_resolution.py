@@ -5,8 +5,6 @@ uncommitted changes (debug artifacts) remained. Step 4.75 must include explicit
 guidance for discarding uncommitted changes after a successful merge, giving the
 user a choice before proceeding.
 
-TDD RED: This test fails because Step 4.75 does not mention discarding changes
-or git checkout/restore as a resolution for dirty worktrees post-merge.
 """
 
 import pathlib

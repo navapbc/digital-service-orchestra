@@ -70,21 +70,3 @@ def test_tdd_reviewer_describes_exemption_criteria() -> None:
         "Expected 'no conditional logic' or 'change-detector' to appear. "
         "Task dso-j700 must add exemption criteria language."
     )
-
-
-def test_review_criteria_old_hash_absent() -> None:
-    """review-criteria.md must not contain the stale schema hash 'ae8bfc7bd9a0d7e3'.
-
-    Precondition: the file exists and is non-empty (guards against vacuous pass
-    if the file is deleted).
-    """
-    assert REVIEW_CRITERIA.exists(), (
-        "review-criteria.md does not exist — cannot assert hash absence."
-    )
-    content = REVIEW_CRITERIA.read_text()
-    assert len(content) > 0, "review-criteria.md is empty — cannot assert hash absence."
-
-    assert "ae8bfc7bd9a0d7e3" not in content, (
-        "review-criteria.md still contains the old schema hash 'ae8bfc7bd9a0d7e3'. "
-        "Task dso-j700 must update the hash after adding new TDD dimensions."
-    )

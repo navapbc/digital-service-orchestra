@@ -25,7 +25,7 @@ echo "=== test-ticket-fsck-e2e.sh ==="
 
 # ── Suite-runner guard ─────────────────────────────────────────────────────
 if [ "${_RUN_ALL_ACTIVE:-0}" = "1" ] && [ ! -f "$FSCK_SCRIPT" ]; then
-    echo "SKIP: ticket-fsck.sh not yet implemented — tests deferred"
+    echo "SKIP: ticket-fsck.sh not found — tests deferred"
     echo ""
     printf "PASSED: 0  FAILED: 0\n"
     exit 0

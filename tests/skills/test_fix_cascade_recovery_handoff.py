@@ -1,16 +1,7 @@
-"""Tests for the updated structure of fix-cascade-recovery SKILL.md.
+"""Tests for the structure of fix-cascade-recovery SKILL.md.
 
-TDD spec for task w21-c60u (RED task):
-- plugins/dso/skills/fix-cascade-recovery/SKILL.md must be updated to:
-  1. Remove Step 3 (RESEARCH)
-  2. Remove Step 4 (DIAGNOSE)
-  3. Remove Step 5 (PLAN)
-  4. Remove Step 6 (EXECUTE)
-  5. Retain Step 1 (STOP) with Assess the Damage content
-  6. Retain Step 2 (REVERT) with Return to Known Good State content
-  7. Retain circuit breaker reset bash command
-  8. Add /dso:fix-bug hand-off reference
-  9. Include cascading failure context for dso:fix-bug scoring rubric
+Validates that the skill retains STOP + REVERT steps, circuit breaker reset,
+and /dso:fix-bug hand-off — without the removed RESEARCH/DIAGNOSE/PLAN/EXECUTE steps.
 """
 
 import pathlib
