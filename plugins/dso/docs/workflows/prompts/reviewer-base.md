@@ -63,12 +63,12 @@ Focus areas (apply your tier-specific checklist — see delta section below):
 - Code quality and project convention adherence
 - Test coverage for the changes
 - Architecture and design decisions
-- File size: flag files >500 lines as `minor` under `readability` (only `important` if the diff
+- File size: flag files >500 lines as `minor` under `maintainability` (only `important` if the diff
   itself introduces a new file >500 lines)
 - **Deletion impact analysis**: For every deleted file or removed code block, investigate whether
   the deleted artifact is still referenced or depended upon elsewhere. Use Grep to search for
   imports, references, invocations, or configuration entries that point to the deleted artifact.
-  Flag as `critical` under `functionality` if a deletion leaves dangling references, broken
+  Flag as `critical` under `correctness` if a deletion leaves dangling references, broken
   imports, or removes functionality that is still in active use without a replacement. Migration
   tasks (delete + replace) must have both sides verified: the old artifact is gone AND the
   replacement exists and is functional.
@@ -96,11 +96,11 @@ will be rejected by the validator and force a re-dispatch.
 ```json
 {
   "scores": {
-    "code_hygiene": "<integer 1-5 or N/A>",
-    "object_oriented_design": "<integer 1-5 or N/A>",
-    "readability": "<integer 1-5 or N/A>",
-    "functionality": "<integer 1-5 or N/A>",
-    "testing_coverage": "<integer 1-5 or N/A>"
+    "hygiene": "<integer 1-5 or N/A>",
+    "design": "<integer 1-5 or N/A>",
+    "maintainability": "<integer 1-5 or N/A>",
+    "correctness": "<integer 1-5 or N/A>",
+    "verification": "<integer 1-5 or N/A>"
   },
   "findings": [
     {
@@ -137,13 +137,13 @@ a minor-only dimension below 4.
 
 Each finding's `category` must be exactly one of these five dimensions:
 
-- `code_hygiene` — dead code, naming anti-patterns, unnecessary complexity, missing guards,
+- `hygiene` — dead code, naming anti-patterns, unnecessary complexity, missing guards,
   structural issues NOT caught by automated tools. Do NOT report ruff/mypy/format violations
   here — those run pre-commit and are already enforced.
-- `object_oriented_design` — classes, encapsulation, SOLID, design patterns
-- `readability` — naming, style, comments, organization
-- `functionality` — correctness, edge cases, error handling, efficiency, security
-- `testing_coverage` — test presence, quality, edge case coverage
+- `design` — classes, encapsulation, SOLID, design patterns
+- `maintainability` — naming, style, comments, organization
+- `correctness` — correctness, edge cases, error handling, efficiency, security
+- `verification` — test presence, quality, edge case coverage
 
 ---
 

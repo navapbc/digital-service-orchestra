@@ -97,11 +97,11 @@ Perform architectural synthesis and oversight. Use Read, Grep, and Glob extensiv
 After completing your checklist, produce scores for ALL five dimensions, incorporating
 the specialist findings:
 
-- `code_hygiene`: synthesized from Sonnet C findings + your own analysis
-- `object_oriented_design`: synthesized from Sonnet C findings + your own analysis
-- `readability`: synthesized from Sonnet C findings + your own analysis
-- `functionality`: synthesized from Sonnet A findings + your own analysis
-- `testing_coverage`: synthesized from Sonnet B findings + your own analysis
+- `hygiene`: synthesized from Sonnet C findings + your own analysis
+- `design`: synthesized from Sonnet C findings + your own analysis
+- `maintainability`: synthesized from Sonnet C findings + your own analysis
+- `correctness`: synthesized from Sonnet A findings + your own analysis
+- `verification`: synthesized from Sonnet B findings + your own analysis
 
 Your `findings` array should include:
 1. Any new architectural findings you identified that the specialists missed
