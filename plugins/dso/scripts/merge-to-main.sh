@@ -447,12 +447,12 @@ _auto_resolve_archive_conflicts() {
     fi
 
     # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
-    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/.index.json.
+    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/*.json (includes .index.json).
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
         case "$_file" in
-            .tickets-tracker/*/*.json | .tickets-tracker/*.json | .tickets-tracker/.index.json)
+            .tickets-tracker/*/*.json | .tickets-tracker/*.json)
                 # v3 ticket event JSON — safe to auto-resolve
                 ;;
             *)
@@ -559,7 +559,7 @@ _auto_resolve_archive_conflicts() {
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 case "$_nf" in
-                    .tickets-tracker/*/*.json | .tickets-tracker/*.json | .tickets-tracker/.index.json) ;;
+                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;;
                     *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
                 esac
             done <<< "$_new_all"
@@ -809,11 +809,13 @@ if [ -z "$BRANCH" ]; then
 fi
 
 # --- Check for uncommitted or untracked changes on worktree ---
-# Exclude .tickets-tracker/ from the dirty check — the auto-commit block below
+# Exclude ticket directory from the dirty check — the auto-commit block below
 # handles ticket-tracker files separately before the merge starts.
-DIRTY=$(git diff --name-only -- ':!.tickets-tracker/' 2>/dev/null || true)
-DIRTY_CACHED=$(git diff --cached --name-only -- ':!.tickets-tracker/' 2>/dev/null || true)
-DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!.tickets-tracker/' 2>/dev/null || true)
+_CFG_TKDIR=$(bash "$_SCRIPT_DIR"/read-config.sh tickets.directory 2>/dev/null || true)
+_CFG_TKDIR="${_CFG_TKDIR:-.tickets-tracker}"
+DIRTY=$(git diff --name-only -- ":!${_CFG_TKDIR}/" 2>/dev/null || true)
+DIRTY_CACHED=$(git diff --cached --name-only -- ":!${_CFG_TKDIR}/" 2>/dev/null || true)
+DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ":!${_CFG_TKDIR}/" 2>/dev/null || true)
 if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     echo "ERROR: Uncommitted changes on worktree. Commit or stash first."
     [ -n "$DIRTY" ] && echo "Unstaged: $DIRTY"
