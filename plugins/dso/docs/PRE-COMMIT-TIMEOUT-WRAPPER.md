@@ -16,28 +16,24 @@ pre-commit-wrapper.sh <hook_name> <timeout_secs> <command_string>
 
 ## Config Keys
 
-The wrapper reads two keys from `dso-config.conf` via `read-config.sh`:
+The wrapper reads one key from `dso-config.conf` via `read-config.sh`:
 
 | Key | Purpose | Default |
 |-----|---------|---------|
 | `session.artifact_prefix` | Prefix for `/tmp` artifact directories | `<repo-basename>-test-artifacts` |
-| `issue_tracker.create_cmd` | Command to create a tracking ticket (e.g., `.claude/scripts/dso ticket create`) | absent = skip ticket creation with warning |
 
 Example config:
 
 ```conf
 session.artifact_prefix=myproject-test-artifacts
-issue_tracker.create_cmd=.claude/scripts/dso ticket create
 ```
 
 ## Timeout Detection
 
 The wrapper detects timeouts in two ways:
 
-1. **Slow completion** -- command finishes but takes longer than `timeout_secs`. Logs a `SLOW` entry and creates a ticket.
-2. **Signal kill** -- command is killed (exit codes 124, 137, 143). Logs a `KILLED` entry, creates a ticket, and exits with code 124.
-
-When `issue_tracker.create_cmd` is configured, the wrapper creates a bug ticket with the title `Investigate pre-commit timeout: <hook_name> exceeded <timeout_secs>s`. When the key is absent, ticket creation is skipped with a warning.
+1. **Slow completion** -- command finishes but takes longer than `timeout_secs`. Logs a `SLOW` entry.
+2. **Signal kill** -- command is killed (exit codes 124, 137, 143). Logs a `KILLED` entry and exits with code 124.
 
 ## Exit Codes
 

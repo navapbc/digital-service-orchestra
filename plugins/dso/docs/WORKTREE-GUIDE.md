@@ -96,7 +96,7 @@ When you run `git worktree add`, git:
 This means:
 
 - **All worktrees share the same git object store** — commits made in one worktree are immediately visible in all others via `git fetch`/`git log`
-- **Ticket commands (`ticket ...` and the tk wrapper) work normally from any worktree** — the ticket CLI reads from `.tickets/` which is git-tracked and shared
+- **Ticket commands (`ticket ...` and the tk wrapper) work normally from any worktree** — the ticket CLI reads from `.tickets-tracker/` (the v3 orphan branch mounted as a worktree), which is shared across all worktrees
 - **Each worktree has its own branch** — changes staged or committed in one worktree do not affect others
 - Only the main repo contains the actual `.git/` database; worktrees contain a pointer file
 
@@ -260,7 +260,7 @@ This is rarely needed, as the automatic port assignment prevents conflicts in mo
 
 | Resource | Shared or Isolated | Notes |
 |----------|-------------------|-------|
-| `.tickets/` database | Shared (git-tracked) | ticket/tk commands read from the same `.tickets/` directory in the git object store |
+| `.tickets-tracker/` (v3 orphan branch) | Shared | ticket/tk commands read from the event-sourced orphan branch mounted as `.tickets-tracker/`; shared across all worktrees |
 | `CLAUDE.md`, `.claude/` | Git-tracked | Same content on the same branch |
 | `app/.venv/` | Isolated | Each worktree needs `poetry install --no-root` |
 | Docker full-stack (`docker compose up`) | Isolated | Use different ports per worktree |
@@ -309,7 +309,7 @@ Migration head conflicts are automatically detected by:
    ```bash
    "$(git rev-parse --show-toplevel)/.claude/scripts/dso" worktree-sync-from-main.sh
    ```
-   Never run bare `git merge origin/main` — the sync script handles skip-worktree flag clearing required for `.tickets/` files.
+   Never run bare `git merge origin/main` — the sync script handles any index and worktree state management correctly.
 
 ### Resolution
 
@@ -465,7 +465,7 @@ fi
 | `poetry install` fails with "requires Python <3.14" | Same as above: Pin Python 3.13 explicitly before running `poetry install` |
 | Port conflict on Docker startup (full-stack) | **Should not happen** - automatic port assignment prevents this. If it occurs, check that you're running `make test` (not raw `docker compose up`), which ensures ports are set. Manual override: `DB_PORT=<port> APP_PORT=<port> docker compose up` |
 | Port conflict with persistent DB (`make db-start`) | The persistent DB is shared (one instance for all worktrees). If another worktree already started it, just use the existing instance. Or stop it first: `make db-stop` |
-| `ticket`/the tk wrapper commands fail in worktree | Verify `.tickets/` is accessible: `ls $(git rev-parse --show-toplevel)/.tickets/` — it should be present as a git-tracked directory |
+| `ticket`/the tk wrapper commands fail in worktree | Verify `.tickets-tracker/` is accessible: `ls $(git rev-parse --show-toplevel)/.tickets-tracker/` — it should be present as the v3 orphan branch worktree |
 | Pre-commit hooks not working | Re-run `.venv/bin/pre-commit install --config ../.pre-commit-config.yaml` from `app/` |
 | Disk space running low | Each worktree with venv takes ~500MB+; remove unused worktrees with `git worktree remove <name>` |
 | "Not a git repository" error | Ensure you are inside the worktree directory, not a parent |
@@ -545,7 +545,7 @@ git pull
 
 ## Cross-Worktree Ticket Sync
 
-Ticket files (`.tickets/`) flow through normal git commits. There is no automatic sync infrastructure — ticket changes are committed, pushed, and merged like any other file.
+The v3 ticket system stores ticket events on a dedicated orphan git branch (`tickets`) mounted as `.tickets-tracker/`. All mutations are appended as JSON event files and the compiled state is produced on-demand by the Python reducer. Ticket state is shared across worktrees through normal git push/fetch on the `tickets` branch — there is no separate sync infrastructure.
 
 ### Syncing Tickets in Worktrees
 

@@ -33,7 +33,7 @@
 #  24. test_gate_index_prune_partial — RED: one valid + one stale test path: stale removed, valid retained
 #  25. test_gate_prune_git_add_failure_exits_nonzero — git add failure during prune exits non-zero (disk/staged mismatch prevented)
 #  26. test_gate_prune_skipped_during_merge_commit — prune_test_index is skipped when MERGE_HEAD is present
-#  27. test_gate_allowlist_files_skipped — exits 0 for commits with only allowlisted files (e.g., .tickets/**)
+#  27. test_gate_allowlist_files_skipped — exits 0 for commits with only allowlisted files (e.g., .tickets-tracker/**)
 #  28. test_gate_allowlist_mixed_with_source — exits 0 for mixed commit (allowlisted + exempt source files)
 #  29. test_gate_fails_open_on_sigterm — exits 0 with warning when receiving SIGTERM (pre-commit timeout)
 #  30. test_gate_red_marker_index_passes — exits 0 when [marker] in .test-index and status is 'passed'
@@ -1397,7 +1397,7 @@ test_gate_prune_skipped_during_merge_commit() {
 # ============================================================
 # TEST 27: test_gate_allowlist_files_skipped
 # Staged files matching review-gate-allowlist.conf patterns
-# (e.g., .tickets/**) should be filtered out BEFORE fuzzy matching.
+# (e.g., .tickets-tracker/**) should be filtered out BEFORE fuzzy matching.
 # This test creates a ticket file whose name WOULD fuzzy-match a
 # test file. Without the allowlist filter, the gate would block
 # (no test-gate-status). With the filter, the ticket file is
@@ -1430,7 +1430,7 @@ test_gate_allowlist_files_skipped() {
 
     # Without allowlist filtering: fuzzy match finds tests/test-example.sh,
     # gate blocks because no test-gate-status exists.
-    # With allowlist filtering: .tickets/** is skipped, gate exits 0.
+    # With allowlist filtering: .tickets-tracker/** is skipped, gate exits 0.
     local _exit_code
     _exit_code=$(run_gate_hook "$_repo" "$_artifacts")
 

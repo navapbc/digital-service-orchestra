@@ -44,8 +44,7 @@ _CLEANUP_DIRS+=("$_t3_mock_dir")
 _t3_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t3_fake_repo")
 git init -q -b main "$_t3_fake_repo"
-mkdir -p "$_t3_fake_repo/.tickets" "$_t3_fake_repo/scripts" "$_t3_fake_repo/scripts"
-printf -- "---\nid: t3-child\nstatus: open\ntype: task\npriority: 2\nparent: t3-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t3_fake_repo/.tickets/t3-child.md"
+mkdir -p "$_t3_fake_repo/scripts"
 
 # Mock ticket CLI (v3 JSON output)
 cat > "$_t3_fake_repo/scripts/ticket" << 'T3_TICKET'
@@ -109,8 +108,7 @@ _CLEANUP_DIRS+=("$_t4_mock_dir")
 _t4_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t4_fake_repo")
 git init -q -b main "$_t4_fake_repo"
-mkdir -p "$_t4_fake_repo/.tickets" "$_t4_fake_repo/scripts"
-printf -- "---\nid: t4-child\nstatus: open\ntype: task\npriority: 2\nparent: t4-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t4_fake_repo/.tickets/t4-child.md"
+mkdir -p "$_t4_fake_repo/scripts"
 cat > "$_t4_fake_repo/scripts/ticket" << 'T4_TICKET'
 #!/usr/bin/env bash
 SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
@@ -167,8 +165,7 @@ _CLEANUP_DIRS+=("$_t5_mock_dir")
 _t5_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t5_fake_repo")
 git init -q -b main "$_t5_fake_repo"
-mkdir -p "$_t5_fake_repo/.tickets" "$_t5_fake_repo/scripts"
-printf -- "---\nid: t5-child\nstatus: open\ntype: task\npriority: 2\nparent: t5-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t5_fake_repo/.tickets/t5-child.md"
+mkdir -p "$_t5_fake_repo/scripts"
 cat > "$_t5_fake_repo/scripts/ticket" << 'T5_TICKET'
 #!/usr/bin/env bash
 SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
@@ -288,15 +285,12 @@ _CLEANUP_DIRS+=("$_t13_mock_dir")
 _t13_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t13_fake_repo")
 git init -q -b main "$_t13_fake_repo"
-mkdir -p "$_t13_fake_repo/.tickets" "$_t13_fake_repo/scripts"
+mkdir -p "$_t13_fake_repo/scripts"
 
-# Create two tasks with AC Verify lines referencing the same script
+# Two tasks with AC Verify lines referencing the same script.
 # They should NOT be flagged as conflicting because AC Verify lines are
 # shell commands (acceptance criteria), not files the tasks will modify.
-printf -- "---\nid: t13-task-a\nstatus: open\ntype: task\npriority: 2\nparent: t13-epic\n---\n# Task A\n\nEdit src/foo.py\n\nAC Verify: bash scripts/validate.sh --ci\n" \
-    > "$_t13_fake_repo/.tickets/t13-task-a.md"
-printf -- "---\nid: t13-task-b\nstatus: open\ntype: task\npriority: 2\nparent: t13-epic\n---\n# Task B\n\nEdit src/bar.py\n\nAC Verify: bash scripts/validate.sh --ci\n" \
-    > "$_t13_fake_repo/.tickets/t13-task-b.md"
+# The TICKET_CMD mock returns both tasks via ticket list; no .md fixtures needed.
 
 cat > "$_t13_fake_repo/scripts/ticket" << 'T13_TICKET'
 #!/usr/bin/env bash
@@ -494,15 +488,12 @@ _CLEANUP_DIRS+=("$_t15_mock_dir")
 _t15_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t15_fake_repo")
 git init -q -b main "$_t15_fake_repo"
-mkdir -p "$_t15_fake_repo/.tickets" "$_t15_fake_repo/scripts"
+mkdir -p "$_t15_fake_repo/scripts"
 
 # Two tasks: different source files but BOTH have acceptance criteria in
 # "## ACCEPTANCE CRITERIA" section format referencing the same validation script.
 # The current AC_LINE_RE only strips "AC <word>:" lines — not section headers.
-printf -- "---\nid: t15-task-a\nstatus: open\ntype: task\npriority: 2\nparent: t15-epic\n---\n# Task A\n\nEdit \`src/foo.py\`\n\n## ACCEPTANCE CRITERIA\n\n- Run \`bash scripts/validate.sh --ci\`\n" \
-    > "$_t15_fake_repo/.tickets/t15-task-a.md"
-printf -- "---\nid: t15-task-b\nstatus: open\ntype: task\npriority: 2\nparent: t15-epic\n---\n# Task B\n\nEdit \`src/bar.py\`\n\n## ACCEPTANCE CRITERIA\n\n- Run \`bash scripts/validate.sh --ci\`\n" \
-    > "$_t15_fake_repo/.tickets/t15-task-b.md"
+# The TICKET_CMD mock returns both tasks via ticket list; no .md fixtures needed.
 
 cat > "$_t15_fake_repo/scripts/ticket" << 'T15_TICKET'
 #!/usr/bin/env bash
@@ -568,11 +559,10 @@ _CLEANUP_DIRS+=("$_t16_mock_dir")
 _t16_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t16_fake_repo")
 git init -q -b main "$_t16_fake_repo"
-mkdir -p "$_t16_fake_repo/.tickets" "$_t16_fake_repo/scripts"
+mkdir -p "$_t16_fake_repo/scripts"
 
-# One task whose parent story (dso-story1) is blocked
-printf -- "---\nid: t16-task\nstatus: open\ntype: task\npriority: 2\nparent: dso-story1\n---\n# Task under blocked story\n\nEdit \`src/agents/base.py\`\n" \
-    > "$_t16_fake_repo/.tickets/t16-task.md"
+# One task whose parent story (dso-story1) is blocked.
+# The TICKET_CMD mock provides task data via ticket list; no .md fixtures needed.
 
 cat > "$_t16_fake_repo/scripts/ticket" << 'T16_TICKET'
 #!/usr/bin/env bash
@@ -640,7 +630,7 @@ echo "Test 16b: Ticket with a closed-dep target is NOT blocked"
 _t16b_fake_repo=$(mktemp -d)
 _CLEANUP_DIRS+=("$_t16b_fake_repo")
 git init -q -b main "$_t16b_fake_repo"
-mkdir -p "$_t16b_fake_repo/.tickets" "$_t16b_fake_repo/scripts"
+mkdir -p "$_t16b_fake_repo/scripts"
 
 # t16b-task is ready, its parent story depends_on dso-dep-closed (closed) — not blocked
 cat > "$_t16b_fake_repo/scripts/ticket" << 'T16B_TICKET'

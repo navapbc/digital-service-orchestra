@@ -149,6 +149,72 @@ else
 fi
 echo ""
 
+# test_issue_batch_scopes_to_epic_children
+# issue-batch.sh must scope tasks to the given epic's children, not return ALL tickets.
+# Functional test: creates a mock ticket CLI that returns tasks from two different epics
+# and verifies that only tasks from the specified epic's children appear in output.
+echo "Test: test_issue_batch_scopes_to_epic_children"
+_run_issue_batch_scope_test() {
+    local tmpdir; tmpdir=$(mktemp -d)
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+
+    # Mock ticket CLI:
+    # - deps epic-001 returns story s-001
+    # - deps s-001 returns task t-001
+    # - list returns t-001 (from epic-001) and t-999 (from another epic, not a child)
+    cat > "$mock_bin/ticket" <<'MOCK'
+#!/usr/bin/env bash
+subcmd="${1:-}"
+arg2="${2:-}"
+case "$subcmd" in
+    deps)
+        case "$arg2" in
+            epic-001) echo '{"children":["s-001"],"deps":[],"blockers":[],"ready_to_work":true}' ;;
+            s-001)    echo '{"children":["t-001"],"deps":[],"blockers":[],"ready_to_work":true}' ;;
+            *)        echo '{"children":[],"deps":[],"blockers":[],"ready_to_work":true}' ;;
+        esac ;;
+    show)
+        case "$arg2" in
+            epic-001) echo '{"ticket_id":"epic-001","ticket_type":"epic","title":"Test Epic","status":"open","priority":2}' ;;
+            *)        echo '{"ticket_id":"unknown","ticket_type":"task","title":"unknown","status":"open","priority":4}' ;;
+        esac ;;
+    list) echo '[{"ticket_id":"t-001","ticket_type":"task","title":"Task In Epic","status":"open","priority":2},{"ticket_id":"t-999","ticket_type":"task","title":"Task Not In Epic","status":"open","priority":2}]' ;;
+    *)    echo '{"ticket_id":"unknown","ticket_type":"task","title":"unknown","status":"open","priority":4}' ;;
+esac
+MOCK
+    chmod +x "$mock_bin/ticket"
+
+    local output
+    output=$(TICKET_CMD="$mock_bin/ticket" bash "$ISSUE_BATCH" epic-001 2>/dev/null || true)
+
+    # t-001 should appear (it's a child of epic-001 via s-001)
+    local has_task="no"
+    echo "$output" | grep -q "t-001" && has_task="yes"
+
+    # t-999 should NOT appear (not a child of epic-001)
+    local has_other="no"
+    echo "$output" | grep -q "t-999" && has_other="yes"
+
+    rm -rf "$tmpdir"
+
+    if [ "$has_task" = "yes" ] && [ "$has_other" = "no" ]; then
+        return 0
+    else
+        echo "  has_task=$has_task (expected yes), has_other=$has_other (expected no)" >&2
+        echo "  output: $output" >&2
+        return 1
+    fi
+}
+if _run_issue_batch_scope_test; then
+    echo "  PASS: issue-batch.sh scopes tasks to epic children (t-001 included, t-999 excluded)"
+    (( PASS++ ))
+else
+    echo "  FAIL: issue-batch.sh did not correctly scope tasks to epic children" >&2
+    (( FAIL++ ))
+fi
+echo ""
+
 # ── release-debug-lock.sh ─────────────────────────────────────────────────────
 
 # test_release_debug_lock_no_TK_variable

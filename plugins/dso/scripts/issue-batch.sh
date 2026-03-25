@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# scripts/issue-batch.sh — Next-batch selector using tk commands.
+# scripts/issue-batch.sh — Next-batch selector using ticket commands.
 #
-# Selects tasks for a parallel agent batch under a given epic. Uses tk
-# for all issue lookups. Provides equivalent functionality to
-# sprint-next-batch.sh built on the tk ticket system.
+# Selects tasks for a parallel agent batch under a given epic. Uses the
+# v3 ticket CLI for all issue lookups. Provides equivalent functionality to
+# sprint-next-batch.sh built on the v3 event-sourced ticket system.
 #
 # Handles the 3-tier hierarchy (epic -> story -> task):
-#   - Tasks with no unresolved deps are candidates (tk ready output).
-#   - If a story has open blockers, all its child tasks are deferred.
+#   - Non-closed task tickets are candidates (ticket list filtered by type+status).
 #   - Tasks with file-level overlap are serialized.
 #   - Opus cap: at most 2 opus-classified tasks per batch.
 #   - Classification is included so the orchestrator can launch sub-agents.
@@ -29,14 +28,14 @@ set -euo pipefail
 #
 # Exit codes:
 #   0 — Batch generated (BATCH_SIZE may be 0 if no ready tasks)
-#   1 — Epic not found or tk error
+#   1 — Epic not found or ticket error
 #   2 — Usage error
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
-TK="${TK:-$SCRIPT_DIR/tk}"
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [ -z "$REPO_ROOT" ]; then
@@ -100,20 +99,20 @@ if [ -z "$epic_id" ]; then
     exit 2
 fi
 
-# --- Data collection using tk ---
+# --- Data collection using ticket CLI ---
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# Fetch epic details via tk show
-"$TK" show "$epic_id" >"$tmpdir/epic.txt" 2>/dev/null || true
+# Fetch epic details via ticket show
+"$TICKET_CMD" show "$epic_id" >"$tmpdir/epic.txt" 2>/dev/null || true
 if [ ! -s "$tmpdir/epic.txt" ]; then
     echo "Error: Could not load epic $epic_id" >&2
     exit 1
 fi
 
-# Extract epic title from tk show output.
-# tk show outputs YAML frontmatter followed by markdown body.
+# Extract epic title from ticket show output.
+# ticket show outputs YAML frontmatter followed by markdown body.
 # The title is the first H1 heading (# Title) in the body, or the frontmatter title field.
 # If the mock returns JSON, extract from JSON.
 epic_title=""
@@ -125,13 +124,43 @@ data = json.load(open('$tmpdir/epic.txt'))
 print(data.get('title', ''))
 " 2>/dev/null || echo "")
 else
-    # Real tk show: markdown with YAML frontmatter; title is the H1 heading
+    # Real ticket show: markdown with YAML frontmatter; title is the H1 heading
     epic_title=$(grep '^# ' "$tmpdir/epic.txt" 2>/dev/null | head -1 | sed 's/^# //' || echo "")
 fi
 
-# Fetch ready tasks (no unresolved deps) via tk ready
-# tk ready outputs lines like: id [Pprio][status] - title
-"$TK" ready >"$tmpdir/ready.txt" 2>/dev/null || true
+# Fetch all tasks via ticket list (JSON array output)
+"$TICKET_CMD" list >"$tmpdir/ready.txt" 2>/dev/null || true
+
+# Fetch task IDs belonging to this epic (2-level: epic→story→task)
+SPRINT_CHILD_IDS=$(python3 - "$epic_id" "$TICKET_CMD" <<'PYEOF' 2>/dev/null
+import json, subprocess, sys
+
+epic_id = sys.argv[1]
+ticket_cmd = sys.argv[2]
+
+def get_children(ticket_id):
+    try:
+        result = subprocess.run([ticket_cmd, "deps", ticket_id],
+                                capture_output=True, text=True, timeout=10)
+        d = json.loads(result.stdout)
+        return d.get("children", [])
+    except Exception:
+        return []
+
+# Level 1: epic -> stories
+stories = get_children(epic_id)
+all_task_ids = []
+# Level 2: stories -> tasks
+for story_id in stories:
+    tasks = get_children(story_id)
+    all_task_ids.extend(tasks)
+if not all_task_ids:
+    # Flat epic: direct children are tasks (no story layer)
+    all_task_ids = list(stories)
+
+print(",".join(all_task_ids))
+PYEOF
+)
 
 # --- Core logic ---
 
@@ -142,6 +171,7 @@ SPRINT_LIMIT="$limit" \
 SPRINT_JSON="$json_output" \
 SPRINT_SCORER="$SCORER" \
 SPRINT_PYTHON="$PYTHON" \
+SPRINT_CHILD_IDS="$SPRINT_CHILD_IDS" \
 python3 - <<'PYEOF'
 import json
 import os
@@ -156,37 +186,65 @@ limit      = int(os.environ.get("SPRINT_LIMIT", "0"))
 json_mode  = os.environ.get("SPRINT_JSON", "false").lower() == "true"
 scorer     = os.environ.get("SPRINT_SCORER", "")
 python     = os.environ.get("SPRINT_PYTHON", "python3")
-tk_bin     = os.environ.get("TK", "tk")
+ticket_bin = os.environ.get("TICKET_CMD", "ticket")
+child_ids_raw = os.environ.get("SPRINT_CHILD_IDS", "")
+epic_child_ids = set(cid.strip() for cid in child_ids_raw.split(",") if cid.strip())
 
 OPUS_CAP = 2
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def parse_ready_line(line):
+def parse_ready_tickets(json_text, child_ids=None):
     """
-    Parse a tk ready output line.
-    Format: id [Pprio][status] - title
-    Example: w21-0zy5 [P1][open] - Fix tests failure
-    Returns dict or None on parse failure.
+    Parse ticket list JSON output.
+    Format: JSON array of ticket objects with ticket_id, ticket_type, title, status, priority.
+    Returns only non-closed task tickets (restores ready-candidate semantics: tasks that can be acted on).
+    Closed tickets and non-task ticket types (epics, stories) are filtered out.
+    When child_ids is a non-empty set, only tickets whose ID is in child_ids are returned
+    (scopes the result to the given epic's children). If child_ids is empty (deps call failed),
+    returns an empty list — no graceful fallback to all tasks to avoid unscoped results.
     """
-    line = line.strip()
-    if not line:
-        return None
-    m = re.match(r'^(\S+)\s+\[P(\d)\]\[(\w+)\]\s+-\s+(.+)$', line)
-    if not m:
-        return None
-    return {
-        "id": m.group(1),
-        "priority": int(m.group(2)),
-        "status": m.group(3),
-        "title": m.group(4),
-        "issue_type": "task",
-    }
+    # Statuses that represent actionable work items
+    ACTIVE_STATUSES = {"open", "in_progress", "pending"}
+    try:
+        items = json.loads(json_text)
+        if not isinstance(items, list):
+            return []
+        result = []
+        for item in items:
+            tid = item.get("ticket_id") or item.get("id", "")
+            if not tid:
+                continue
+            ticket_type = item.get("ticket_type", "task")
+            status = item.get("status", "open")
+            # Only include task-type tickets in an active (non-closed) state.
+            # This restores the semantics of the former ready-candidate filter which
+            # returned only dependency-unblocked tasks. Since `ticket list` returns
+            # all tickets of all types and statuses, we filter here to prevent
+            # closed, epic, and story tickets from entering the candidate pool.
+            if ticket_type != "task":
+                continue
+            if status not in ACTIVE_STATUSES:
+                continue
+            # Scope to the epic's children. When child_ids is empty (deps call failed),
+            # return nothing — an empty scope must not fall back to all tasks.
+            if not child_ids or tid not in child_ids:
+                continue
+            result.append({
+                "id": tid,
+                "priority": int(item.get("priority", 4)),
+                "status": status,
+                "title": item.get("title", "untitled"),
+                "issue_type": ticket_type,
+            })
+        return result
+    except Exception:
+        return []
 
 def tk_show(ticket_id):
-    """Run tk show <id> and return a simple dict with id, title, status."""
+    """Run ticket show <id> and return a simple dict with id, title, status."""
     result = subprocess.run(
-        [tk_bin, "show", ticket_id],
+        [ticket_bin, "show", ticket_id],
         capture_output=True, text=True
     )
     if result.returncode != 0:
@@ -301,18 +359,12 @@ def classify_tasks(task_list):
 
 # ── Load pre-fetched data ─────────────────────────────────────────────────────
 
-ready_lines = []
+ready_tasks = []
 try:
     with open(os.path.join(tmpdir, "ready.txt")) as f:
-        ready_lines = f.readlines()
+        ready_tasks = parse_ready_tickets(f.read(), child_ids=epic_child_ids)
 except FileNotFoundError:
     pass
-
-ready_tasks = []
-for line in ready_lines:
-    parsed = parse_ready_line(line)
-    if parsed:
-        ready_tasks.append(parsed)
 
 # ── Build candidate list ───────────────────────────────────────────────────────
 

@@ -175,7 +175,7 @@ PLUGIN_SCRIPTS_DIR=<absolute path to plugin scripts directory>
 INTEGRATION_WORKFLOW=<value from ci.integration_workflow, or ABSENT>
 ```
 
-#### Sub-Agent 3: Issue Health (model: haiku)  # Tier 1: runs validate-issues.sh and tk commands that emit structured counts; no judgment or synthesis needed
+#### Sub-Agent 3: Issue Health (model: haiku)  # Tier 1: runs validate-issues.sh and ticket CLI commands that emit structured counts; no judgment or synthesis needed
 
 **Subagent**: `subagent_type="general-purpose"`, `model="haiku"`
 

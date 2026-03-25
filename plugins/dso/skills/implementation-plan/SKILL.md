@@ -546,6 +546,12 @@ If validation fails, fix dependency issues before presenting the summary.
 
 Run `.claude/scripts/dso ticket list` (filtered by story) to confirm which tasks are immediately workable.
 
+Output the parent epic/story ID prominently at the top of the summary so it can be referenced in follow-up commands:
+
+```
+Implementation plan for [epic/story ID]: [Title]
+```
+
 Output a summary table:
 
 | ID | Title | Priority | Depends On | TDD Test |

@@ -87,7 +87,6 @@ KNOWN_KEYS=(
 
     # Issue tracker
     issue_tracker.search_cmd
-    issue_tracker.create_cmd
 
     # Design
     design.system_name

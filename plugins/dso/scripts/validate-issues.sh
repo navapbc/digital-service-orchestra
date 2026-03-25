@@ -24,6 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TK="${TK:-$SCRIPT_DIR/tk}"
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -137,76 +138,85 @@ log_suggestion() {
 # Value is the raw JSON string; empty string means not yet fetched.
 _SHARED_ISSUES_JSON=""
 
-# Fetch (or return cached) all open issues as JSON by scanning .tickets/ files.
-# Uses a single awk pass + single python3 call (not per-file) for performance.
-# Extracts: id, title, status, type, parent, deps, created, has_description, has_notes.
+# Fetch (or return cached) all tickets as normalized JSON via TICKET_CMD list.
+# Normalizes v3 field names (ticket_id, ticket_type, parent_id, deps) to the
+# internal schema expected by all check functions:
+#   id, title, status, type, parent, dependencies, created, description, notes.
+# The description and notes fields are derived from the ticket body and comments
+# when available; tests may inject them directly via mock TICKET_CMD output.
 get_shared_issues_json() {
     if [[ -z "$_SHARED_ISSUES_JSON" ]]; then
-        log_verbose "Fetching open issues JSON (shared cache) via .tickets/ scan..."
-        local tickets_dir="${TICKETS_DIR:-.tickets}"
-        if [[ -d "$tickets_dir" ]] && compgen -G "$tickets_dir"/*.md >/dev/null 2>&1; then
-            _SHARED_ISSUES_JSON=$(awk '
-            BEGIN { FS=": "; in_front=0; ORS="" }
-            FNR==1 {
-                if (prev_file) store()
-                id=""; status=""; title=""; itype=""; parent=""
-                deps=""; created=""; has_desc=0; has_notes=0; in_front=0
-                prev_file=FILENAME
-            }
-            /^---$/ { in_front = !in_front; next }
-            in_front && /^id:/ { id = substr($0, index($0, ": ") + 2) }
-            in_front && /^status:/ { status = substr($0, index($0, ": ") + 2) }
-            in_front && /^type:/ { itype = substr($0, index($0, ": ") + 2) }
-            in_front && /^parent:/ { parent = substr($0, index($0, ": ") + 2) }
-            in_front && /^deps:/ {
-                deps = substr($0, index($0, ": ") + 2)
-                gsub(/[\[\] ]/, "", deps)
-            }
-            in_front && /^created:/ { created = substr($0, index($0, ": ") + 2) }
-            !in_front && /^# / && title == "" { title = substr($0, 3) }
-            !in_front && /^[^ #\-]/ && !in_front { has_desc = 1 }
-            !in_front && /^## Notes/ { has_notes = 1 }
-            function store() {
-                if (id == "" || status == "closed") return
-                # Output tab-separated record for python3 to JSON-encode
-                print id "\t" status "\t" itype "\t" parent "\t" deps "\t" created "\t" title "\t" has_desc "\t" has_notes "\n"
-            }
-            END { if (prev_file) store() }
-            ' "$tickets_dir"/*.md 2>/dev/null | python3 -c "
+        log_verbose "Fetching issues JSON (shared cache) via TICKET_CMD list..."
+        local raw_json
+        raw_json=$("$TICKET_CMD" list 2>/dev/null) || raw_json="[]"
+        [[ -z "$raw_json" ]] && raw_json="[]"
+        _SHARED_ISSUES_JSON=$(python3 -c "
 import json, sys
 
+try:
+    tickets = json.loads(sys.stdin.read())
+except (json.JSONDecodeError, ValueError):
+    tickets = []
+
 issues = []
-for line in sys.stdin:
-    line = line.rstrip('\n')
-    if not line:
+for t in tickets:
+    # Skip error/fsck state tickets
+    status = t.get('status', 'open')
+    if status in ('error', 'fsck_needed'):
         continue
-    parts = line.split('\t', 8)
-    if len(parts) < 9:
+    # Skip closed tickets
+    if status == 'closed':
         continue
-    tid, status, itype, parent, deps_str, created, title, has_desc, has_notes = parts
+
+    tid = t.get('ticket_id') or t.get('id', '')
+    if not tid:
+        continue
+
+    title = t.get('title', '')
     # Skip lock issues (agent-batch-lifecycle markers)
     if title.startswith('[LOCK]'):
         continue
-    dep_list = [d.strip() for d in deps_str.split(',') if d.strip()] if deps_str else []
+
+    itype = t.get('ticket_type') or t.get('type', 'task')
+    parent = t.get('parent_id') or t.get('parent') or None
+    created = t.get('created_at') or t.get('created') or None
+
+    # Normalize deps: v3 uses [{target_id, relation}]; legacy uses [{depends_on_id, type}]
+    raw_deps = t.get('deps', t.get('dependencies', []))
+    deps = []
+    for d in raw_deps:
+        dep_id = d.get('target_id') or d.get('depends_on_id', '')
+        dep_type = d.get('relation') or d.get('type', 'blocks')
+        if dep_id:
+            deps.append({'depends_on_id': dep_id, 'type': dep_type})
+
+    # description: prefer explicit field, else derive from body
+    description = t.get('description', '')
+    if not description:
+        body = t.get('body', '') or ''
+        description = 'yes' if body.strip() else ''
+
+    # notes: prefer explicit field, else derive from comments
+    notes = t.get('notes', '')
+    if not notes:
+        comments = t.get('comments', [])
+        notes = 'yes' if comments else ''
+
     issues.append({
         'id': tid,
         'title': title,
         'status': status,
         'type': itype or 'task',
-        'parent': parent or None,
-        'dependencies': [{'depends_on_id': d, 'type': 'blocks'} for d in dep_list],
-        'created': created or None,
-        'description': 'yes' if has_desc == '1' else '',
-        'notes': 'yes' if has_notes == '1' else '',
+        'parent': parent,
+        'dependencies': deps,
+        'created': created,
+        'description': description,
+        'notes': notes,
     })
 
 print(json.dumps(issues))
-" 2>/dev/null) || _SHARED_ISSUES_JSON="[]"
-            # Guard against empty output from pipe failure
-            [[ -z "$_SHARED_ISSUES_JSON" ]] && _SHARED_ISSUES_JSON="[]"
-        else
-            _SHARED_ISSUES_JSON="[]"
-        fi
+" <<< "$raw_json") || _SHARED_ISSUES_JSON="[]"
+        [[ -z "$_SHARED_ISSUES_JSON" ]] && _SHARED_ISSUES_JSON="[]"
     fi
     echo "$_SHARED_ISSUES_JSON"
 }
