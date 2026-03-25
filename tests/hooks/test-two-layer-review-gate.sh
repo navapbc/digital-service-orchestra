@@ -405,7 +405,7 @@ test_hook_review_gate_removed_from_pre_bash_functions() {
 #
 # When MERGE_HEAD exists in the target worktree's git dir (in-progress merge)
 # and only allowlisted files are staged, Layer 1 must allow the commit.
-# This is the normal merge-resolution path (e.g., resolving .tickets/.index.json).
+# This is the normal merge-resolution path (e.g., resolving .tickets/ticket-data.json).
 test_merge_head_present_allowlisted_commit_passes() {
     local _repo _artifacts
     _repo=$(make_test_repo)
@@ -418,8 +418,8 @@ test_merge_head_present_allowlisted_commit_passes() {
 
     # Stage only allowlisted files (ticket index merge resolution)
     mkdir -p "$_repo/.tickets-tracker"
-    echo '{"version":2}' > "$_repo/.tickets-tracker/.index.json"
-    git -C "$_repo" add ".tickets-tracker/.index.json"
+    echo '{"version":2}' > "$_repo/.tickets-tracker/ticket-data.json"
+    git -C "$_repo" add ".tickets-tracker/ticket-data.json"
 
     local exit_code
     exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
