@@ -165,4 +165,29 @@ fi
 assert_pass_if_clean "test_no_issue_tracker_create_cmd_in_config_fixtures"
 echo ""
 
+# ── test_no_v2_allowlist_in_hook_tests ───────────────────────────────────────
+# No hook test file under tests/hooks/ may contain assertions that check for the
+# old v2 '.tickets/**' allowlist pattern.  After the v3 migration, the allowlist
+# entry was replaced with '.tickets-tracker/**', so any test asserting the old
+# path is stale and must be updated.
+# RED: FAIL because tests/hooks/test-deps.sh still contains assertions such as
+#      assert_eq "load_allowlist: contains .tickets/**" and
+#      assert_eq "pathspecs: .tickets/** becomes :!.tickets/**".
+echo "Test: test_no_v2_allowlist_in_hook_tests"
+_snapshot_fail
+matches=$(grep -rn '\.tickets/\*\*' \
+    "$REPO_ROOT/tests/hooks/" --include='*.sh' 2>/dev/null \
+    | grep -v ':[0-9]*:#' || true)
+if [[ -z "$matches" ]]; then
+    assert_eq "test_no_v2_allowlist_in_hook_tests: no .tickets/** assertions in hook tests" "" ""
+else
+    (( ++FAIL ))
+    printf "FAIL: test_no_v2_allowlist_in_hook_tests\n" >&2
+    printf "  expected: no hook test files asserting the v2 .tickets/** allowlist pattern\n" >&2
+    printf "  found:\n" >&2
+    printf "%s\n" "$matches" | sed 's/^/    /' >&2
+fi
+assert_pass_if_clean "test_no_v2_allowlist_in_hook_tests"
+echo ""
+
 print_summary
