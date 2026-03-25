@@ -93,7 +93,7 @@ CONF
 #   $REALENV/main-clone/    — main repo cloned from bare (main checked out)
 #   $REALENV/worktree/      — worktree linked from main-clone on a feature branch
 setup_env() {
-    local tickets_dir="${1:-.tickets}"
+    local tickets_dir="${1:-.tickets-tracker}"
     local tmpdir
     tmpdir=$(mktemp -d)
     _CLEANUP_DIRS+=("$tmpdir")

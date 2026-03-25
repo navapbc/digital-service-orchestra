@@ -83,8 +83,8 @@ make_status_file() {
 #
 # When .index.json exists and contains a matching title entry,
 # the tracker should find it via the index and NOT warn.
-# We verify the index path is used by providing an EMPTY .tickets/ dir
-# (no .md files) — grep -rl over the dir would find nothing, but
+# We verify the index path is used by providing an EMPTY .tickets-tracker/ dir
+# (no event files) — grep -rl over the dir would find nothing, but
 # the index has the matching entry, so no warning should be emitted.
 # ---------------------------------------------------------------------------
 echo "Test 1: test_tracker_uses_index — index used when .index.json present with match"
@@ -133,7 +133,7 @@ trap - EXIT
 # ---------------------------------------------------------------------------
 # Test 2: test_tracker_falls_back_to_grep
 #
-# When .index.json is absent, the tracker falls back to grep -rl over .tickets/.
+# When .index.json is absent, the tracker falls back to grep -rl over .tickets-tracker/.
 # We verify fallback by:
 #   - No .index.json present
 #   - A .md file exists with matching content
@@ -270,7 +270,7 @@ trap - EXIT
 # Test 4: test_tracker_index_no_match_but_md_exists
 #
 # When .index.json exists but does NOT contain a matching entry for the
-# failure category, the tracker falls back to grep over .tickets/ and
+# failure category, the tracker falls back to grep over .tickets-tracker/ and
 # finds a matching .md file — should NOT warn.
 # ---------------------------------------------------------------------------
 echo "Test 4: test_tracker_index_no_match_but_md_exists — grep fallback used when index has no match"

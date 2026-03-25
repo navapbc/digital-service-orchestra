@@ -90,4 +90,56 @@ fi
 assert_pass_if_clean "test_no_v2_md_fixture_writes"
 echo ""
 
+# ── test_no_tickets_dir_md_writes_in_validate_tests ──────────────────────────
+# test-validate-issues.sh must not write .tickets/*.md fixture files directly.
+# Fixture helpers should be migrated to v3 event-sourced format.
+# RED: FAIL because tests/scripts/test-validate-issues.sh still writes
+#      .tickets/*.md files via redirect (> .tickets/foo.md) and the write_ticket
+#      helper that redirects output to "$base/.tickets/$tid.md".
+echo "Test: test_no_tickets_dir_md_writes_in_validate_tests"
+_snapshot_fail
+validate_file="$REPO_ROOT/tests/scripts/test-validate-issues.sh"
+matches=""
+if [[ -f "$validate_file" ]]; then
+    matches=$(grep -E '>\s*.*\.tickets/.*\.md|\.tickets/[^"]*\.md' \
+        "$validate_file" 2>/dev/null || true)
+fi
+if [[ -z "$matches" ]]; then
+    assert_eq "test_no_tickets_dir_md_writes_in_validate_tests: no .tickets/*.md writes" "" ""
+else
+    (( ++FAIL ))
+    printf "FAIL: test_no_tickets_dir_md_writes_in_validate_tests\n" >&2
+    printf "  expected: test-validate-issues.sh has no .tickets/*.md fixture writes\n" >&2
+    printf "  found matching lines:\n" >&2
+    printf "%s\n" "$matches" | sed 's/^/    /' >&2
+fi
+assert_pass_if_clean "test_no_tickets_dir_md_writes_in_validate_tests"
+echo ""
+
+# ── test_no_tickets_dir_md_writes_in_orphaned_tests ──────────────────────────
+# test-orphaned-tasks.sh (if it exists) must not write .tickets/*.md fixture
+# files directly. Any fixture helpers should use v3 event-sourced format.
+# GREEN: test-orphaned-tasks.sh currently has no .tickets/*.md writes, so this
+#        test passes immediately. It acts as a regression guard to prevent
+#        reintroduction of v2-style fixture writes.
+echo "Test: test_no_tickets_dir_md_writes_in_orphaned_tests"
+_snapshot_fail
+orphaned_file="$REPO_ROOT/tests/scripts/test-orphaned-tasks.sh"
+matches=""
+if [[ -f "$orphaned_file" ]]; then
+    matches=$(grep -E '>\s*.*\.tickets/.*\.md|\.tickets/[^"]*\.md' \
+        "$orphaned_file" 2>/dev/null || true)
+fi
+if [[ -z "$matches" ]]; then
+    assert_eq "test_no_tickets_dir_md_writes_in_orphaned_tests: no .tickets/*.md writes" "" ""
+else
+    (( ++FAIL ))
+    printf "FAIL: test_no_tickets_dir_md_writes_in_orphaned_tests\n" >&2
+    printf "  expected: test-orphaned-tasks.sh has no .tickets/*.md fixture writes\n" >&2
+    printf "  found matching lines:\n" >&2
+    printf "%s\n" "$matches" | sed 's/^/    /' >&2
+fi
+assert_pass_if_clean "test_no_tickets_dir_md_writes_in_orphaned_tests"
+echo ""
+
 print_summary

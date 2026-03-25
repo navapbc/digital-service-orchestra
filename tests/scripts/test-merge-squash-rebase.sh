@@ -301,7 +301,7 @@ rm -rf "$_TEST_BASE"
 
 # =============================================================================
 # Test 6: test_auto_resolves_tickets_index_via_merge_driver
-# Set up a conflict in .tickets/.index.json. The merge driver should
+# Set up a conflict in .tickets-tracker/.index.json. The merge driver should
 # auto-resolve it using merge-ticket-index.py.
 # =============================================================================
 echo ""
@@ -392,7 +392,7 @@ fi
 
 # =============================================================================
 # Test 7: test_prints_file_list_on_unresolvable_conflict
-# Create a conflict in a non-.tickets/.index.json file. The function should
+# Create a conflict in a non-.tickets-tracker/.index.json file. The function should
 # print "ACTION REQUIRED" with the conflicted file list and return 1.
 # =============================================================================
 echo ""

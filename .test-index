@@ -128,3 +128,4 @@ plugins/dso/skills/implementation-plan/SKILL.md: tests/scripts/test-v2-docs-clea
 tests/scripts/test-lock-acquire-ticket-format.sh: tests/scripts/test-v2-clean-guard.sh [test_no_fake_tk_stubs_in_test_files]
 tests/hooks/test-check-validation-failures.sh: tests/scripts/test-v2-clean-guard.sh [test_no_cvf_tk_log_in_hook_tests]
 tests/hooks/test-session-safety.sh: tests/scripts/test-v2-clean-guard.sh [test_no_cvf_tk_log_in_hook_tests]
+tests/scripts/test-validate-issues.sh: tests/scripts/test-v2-clean-guard.sh [test_no_tickets_dir_md_writes_in_validate_tests]
