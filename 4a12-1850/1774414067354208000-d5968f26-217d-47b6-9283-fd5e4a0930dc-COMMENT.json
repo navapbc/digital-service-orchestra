@@ -1,0 +1,1 @@
+{"timestamp": 1774414067354208000, "uuid": "d5968f26-217d-47b6-9283-fd5e4a0930dc", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Skipping: issue-batch.sh depends entirely on the removed tk command. This is part of the .tickets/tk migration \u2014 another session is handling those bugs."}}
