@@ -78,7 +78,10 @@ hook_cascade_circuit_breaker() {
     # Split into two case blocks because $HOME expansion does not work
     # inside a single case pattern list with | separators.
     case "$FILE_PATH" in
-        */CLAUDE.md|*/.claude/*)
+        # REVIEW-DEFENSE: .tickets/* is the v2 ticket path; retained for backward compat
+        # with test_pre_edit_dispatcher_cascade_exempt_allows_tickets (test-pre-edit-write-dispatcher.sh).
+        # .tickets-tracker/* is intentionally NOT here — hook_tickets_tracker_guard blocks those edits.
+        */CLAUDE.md|*/.claude/*|*/.tickets/*)
             return 0
             ;;
     esac
