@@ -67,7 +67,17 @@ If and only if investigation reveals multiple independent root causes, split fin
 
 Only split when the evidence is clear that two or more separate defects exist. When in doubt, prefer a unified root cause hypothesis.
 
-### Step 4: Self-Reflection Checkpoint
+### Step 4: Empirical Validation
+
+Before proposing any fix, empirically validate your assumptions about tool, API, or system behavior:
+
+1. **Run actual commands** — if the bug involves a CLI tool, API, or external system, run `--help`, discovery commands, or a test invocation to confirm what actually works. Do not rely on documentation alone.
+2. **Label your evidence** — for each key assumption, explicitly note whether it is "stated in docs" or "tested and confirmed". Only "tested and confirmed" evidence supports a high-confidence fix proposal.
+3. **Test the fix approach in isolation** — before proposing a fix, test the core assumption (e.g., run the command with the proposed flag, make a throwaway API call) to confirm it works as expected.
+
+Record each empirical test in the `tests_run` section of your RESULT.
+
+### Step 5: Self-Reflection Checkpoint
 
 Before reporting:
 

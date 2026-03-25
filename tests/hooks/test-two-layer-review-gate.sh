@@ -416,10 +416,10 @@ test_merge_head_present_allowlisted_commit_passes() {
     head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
     echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
 
-    # Stage only allowlisted files (ticket index merge resolution)
-    mkdir -p "$_repo/.tickets-tracker"
-    echo '{"version":2}' > "$_repo/.tickets-tracker/ticket-data.json"
-    git -C "$_repo" add ".tickets-tracker/ticket-data.json"
+    # Stage only allowlisted files (ticket event merge resolution)
+    mkdir -p "$_repo/.tickets-tracker/test-abc1"
+    echo '{"version":2}' > "$_repo/.tickets-tracker/test-abc1/001-create.json"
+    git -C "$_repo" add ".tickets-tracker/test-abc1/001-create.json"
 
     local exit_code
     exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
