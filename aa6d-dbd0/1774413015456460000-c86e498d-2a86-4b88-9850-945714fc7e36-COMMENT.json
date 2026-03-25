@@ -1,0 +1,1 @@
+{"timestamp": 1774413015456460000, "uuid": "c86e498d-2a86-4b88-9850-945714fc7e36", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: migrated issue-batch.sh, issue-quality-check.sh, issue-summary.sh, check-acceptance-criteria.sh, release-debug-lock.sh from v2 tk to v3 ticket CLI"}}
