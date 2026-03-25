@@ -85,10 +85,23 @@ else
   assert "Stage 3 contains severity terms (file missing)" 1
 fi
 
-# Test 10: Contains Parameters section
+# Test 10: Quick Reference escalation line mentions both critical and major
+if [ -f "$WORKFLOW_FILE" ]; then
+  qr_section=$(sed -n '/^## Quick Reference/,/^## /p' "$WORKFLOW_FILE")
+  escalate_line=$(echo "$qr_section" | grep -i "escalat")
+  if echo "$escalate_line" | grep -q "critical" && echo "$escalate_line" | grep -q "major"; then
+    assert "Quick Reference escalation mentions both critical and major" 0
+  else
+    assert "Quick Reference escalation mentions both critical and major" 1
+  fi
+else
+  assert "Quick Reference escalation mentions both critical and major (file missing)" 1
+fi
+
+# Test 11: Contains Parameters section
 run_check "Contains Parameters section" grep -q "## Parameters" "$WORKFLOW_FILE"
 
-# Test 11: Contains Revision Protocol section
+# Test 12: Contains Revision Protocol section
 run_check "Contains Revision Protocol section" grep -q "## Revision Protocol" "$WORKFLOW_FILE"
 
 echo ""
