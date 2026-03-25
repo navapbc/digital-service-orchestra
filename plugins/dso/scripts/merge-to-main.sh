@@ -47,6 +47,10 @@ WORKTREE_DIR="$REPO_ROOT"
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 
+# Pre-flight: ensure pre-commit is on PATH before any git commands that trigger hooks.
+# git merge (in _phase_merge) triggers pre-commit hooks; if venv is not in PATH,
+# the hooks fail with "pre-commit: command not found".
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
 
 # --- State file helpers (resumable merge support) ---
 
