@@ -47,6 +47,10 @@ WORKTREE_DIR="$REPO_ROOT"
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 
+# Pre-flight: ensure pre-commit is on PATH before any git commands that trigger hooks.
+# git merge (in _phase_merge) triggers pre-commit hooks; if venv is not in PATH,
+# the hooks fail with "pre-commit: command not found".
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
 
 # --- State file helpers (resumable merge support) ---
 
@@ -1131,8 +1135,15 @@ _phase_version_bump() {
         _state_mark_complete "version_bump"; return 0; fi
     local _bf="--${BUMP_TYPE:-patch}" _bs
     _bs=$(command -v bump-version.sh 2>/dev/null || echo "${_SCRIPT_DIR:-${CLAUDE_PLUGIN_ROOT:-}/scripts}/bump-version.sh")
-    echo "Bumping version ($_bf)..."
-    if ! bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
+    # Idempotency guard: if the version file is already bumped (modified on disk)
+    # from a prior interrupted attempt, skip bump-version.sh to avoid double-bump.
+    local _vf="${VERSION_FILE_PATH:-}"
+    if [[ -n "$_vf" && -f "$_vf" ]] && ! git diff --quiet -- "$_vf" 2>/dev/null; then
+        echo "INFO: version file already bumped (prior attempt) — skipping bump-version.sh."
+    else
+        echo "Bumping version ($_bf)..."
+        if ! bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
+    fi
     echo "OK: Version bumped."
     git add -u 2>/dev/null || true
     if ! git diff --cached --quiet 2>/dev/null; then git commit --amend --no-edit --quiet

@@ -168,9 +168,16 @@ This script validates the schema first and only writes the file if validation pa
 cannot obtain a valid hash without passing schema validation. If it exits non-zero, fix the
 JSON and retry.
 
+**Deep tier slot output**: If `FINDINGS_OUTPUT` was provided in your dispatch prompt, pass
+`--output "$FINDINGS_OUTPUT"` so your findings are written to the slot-specific path instead
+of the canonical reviewer-findings.json. This prevents parallel agents from clobbering each
+other's output.
+
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | "$REPO_ROOT/.claude/scripts/dso" write-reviewer-findings.sh
+_OUTPUT_FLAG=""
+[[ -n "${FINDINGS_OUTPUT:-}" ]] && _OUTPUT_FLAG="--output $FINDINGS_OUTPUT"
+REVIEWER_HASH=$(cat <<'FINDINGS_EOF' | "$REPO_ROOT/.claude/scripts/dso" write-reviewer-findings.sh $_OUTPUT_FLAG
 <your complete JSON here>
 FINDINGS_EOF
 )
