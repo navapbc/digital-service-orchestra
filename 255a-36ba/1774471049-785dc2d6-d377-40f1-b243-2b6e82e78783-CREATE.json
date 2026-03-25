@@ -1,0 +1,1 @@
+{"timestamp": 1774471049, "uuid": "785dc2d6-d377-40f1-b243-2b6e82e78783", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "test-compute-diff-hash-tickets: record-review.sh missing .tickets/ exclusion patterns", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
