@@ -66,4 +66,28 @@ fi
 assert_pass_if_clean "test_no_cvf_tk_log_in_hook_tests"
 echo ""
 
+# ── test_no_v2_md_fixture_writes ─────────────────────────────────────────────
+# No test file under tests/scripts/ may write v2-style .tickets/*.md frontmatter
+# fixtures (e.g., printf/echo with status/id fields redirected to a .tickets/
+# path). These are v2 ticket format patterns that must be replaced with v3
+# ticket event-sourced fixtures.
+# RED: FAIL because tests/scripts/test-sprint-next-batch.sh,
+#      tests/scripts/test-validate-issues.sh, and others still create .tickets/*.md
+#      files via redirect (> .tickets/foo.md) with YAML frontmatter.
+echo "Test: test_no_v2_md_fixture_writes"
+_snapshot_fail
+matches=$(grep -rl '>\s*.*\.tickets/.*\.md' \
+    "$REPO_ROOT/tests/scripts/" --include='*.sh' 2>/dev/null \
+    | grep -v 'test-v2-clean-guard\.sh' || true)
+if [[ -z "$matches" ]]; then
+    assert_eq "test_no_v2_md_fixture_writes: no matching files" "" ""
+else
+    (( ++FAIL ))
+    printf "FAIL: test_no_v2_md_fixture_writes\n" >&2
+    printf "  expected: no files writing .tickets/*.md frontmatter fixtures\n" >&2
+    printf "  found:\n%s\n" "$matches" | sed 's/^/    /' >&2
+fi
+assert_pass_if_clean "test_no_v2_md_fixture_writes"
+echo ""
+
 print_summary

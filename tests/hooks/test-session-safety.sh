@@ -67,46 +67,31 @@ assert_eq "test_session_safety_output_empty_below_threshold" "" "$OUTPUT"
 rm -f "$HOOK_ERROR_LOG"
 
 # test_session_safety_no_auto_ticket_creation
-# Stub tk in PATH. Create a hook-error-log.jsonl with 11 entries for one hook.
-# Assert tk create is NOT called — auto-ticket-creation was removed (july).
-_SS_FAKE_BIN=$(mktemp -d)
-_SS_TK_LOG="$_SS_FAKE_BIN/tk.log"
-
-cat > "$_SS_FAKE_BIN/tk" << 'MOCK_EOF'
-#!/usr/bin/env bash
-echo "$@" >> "$TK_LOG"
-echo "Created issue: tk-003"
-MOCK_EOF
-chmod +x "$_SS_FAKE_BIN/tk"
+# Point TICKET_CMD at fake-ticket.sh. Create a hook-error-log.jsonl with 11 entries.
+# Assert ticket create is NOT called — auto-ticket-creation was removed (july).
+_SS_TMPDIR=$(mktemp -d)
+_SS_TICKET_LOG="$_SS_TMPDIR/ticket.log"
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 for _i in $(seq 1 11); do
     printf '{"ts":"%s","hook":"auto-format.sh","line":42}\n' "$NOW" >> "$HOOK_ERROR_LOG"
 done
 
-TK_LOG="$_SS_TK_LOG" PATH="$_SS_FAKE_BIN:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+TICKET_CMD="$PLUGIN_ROOT/tests/lib/fake-ticket.sh" TICKET_LOG_FILE="$_SS_TICKET_LOG" bash "$HOOK" >/dev/null 2>/dev/null || true
 
-# Check that tk create was NOT called
-_SS_TK_CALLED="no"
-if [[ -f "$_SS_TK_LOG" ]] && grep -q "create" "$_SS_TK_LOG" 2>/dev/null; then
-    _SS_TK_CALLED="yes"
+# Check that ticket create was NOT called
+_SS_TICKET_CALLED="no"
+if [[ -f "$_SS_TICKET_LOG" ]] && grep -q "^create " "$_SS_TICKET_LOG" 2>/dev/null; then
+    _SS_TICKET_CALLED="yes"
 fi
-assert_eq "test_session_safety_no_auto_ticket_creation" "no" "$_SS_TK_CALLED"
+assert_eq "test_session_safety_no_auto_ticket_creation" "no" "$_SS_TICKET_CALLED"
 
 # Clean up
 rm -f "$HOOK_ERROR_LOG"
-rm -rf "$_SS_FAKE_BIN"
+rm -rf "$_SS_TMPDIR"
 
 # test_session_safety_no_marker_files
 # With auto-ticket-creation removed, no marker files should be written.
-_SS_FAKE_BIN2=$(mktemp -d)
-
-cat > "$_SS_FAKE_BIN2/tk" << 'MOCK_EOF'
-#!/usr/bin/env bash
-exit 0
-MOCK_EOF
-chmod +x "$_SS_FAKE_BIN2/tk"
-
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 for _i in $(seq 1 11); do
     printf '{"ts":"%s","hook":"auto-format.sh","line":42}\n' "$NOW" >> "$HOOK_ERROR_LOG"
@@ -115,7 +100,7 @@ done
 _SS_BUGS_DIR_MK="$TEST_HOME/.claude/hook-error-bugs"
 rm -rf "$_SS_BUGS_DIR_MK"
 
-PATH="$_SS_FAKE_BIN2:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+TICKET_CMD="$PLUGIN_ROOT/tests/lib/fake-ticket.sh" bash "$HOOK" >/dev/null 2>/dev/null || true
 
 # No marker directory or files should be created
 _SS_NO_MARKERS="yes"
@@ -126,7 +111,6 @@ assert_eq "test_session_safety_no_marker_files" "yes" "$_SS_NO_MARKERS"
 
 # Clean up
 rm -f "$HOOK_ERROR_LOG"
-rm -rf "$_SS_FAKE_BIN2"
 
 # ============================================================
 # Group: jq removal — python3/bash replacement
