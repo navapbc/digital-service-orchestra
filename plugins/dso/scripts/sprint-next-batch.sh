@@ -716,6 +716,13 @@ candidates.sort(key=lambda c: (c.classify_priority, c.tk_priority, c.id))
 
 # ── Greedy selection with file-overlap and opus cap ───────────────────────────
 
+# Files that are shared-by-design and support concurrent additive edits.
+# These are excluded from the file-overlap conflict check to avoid false
+# positive serialization between unrelated tasks.
+OVERLAP_SAFE_FILES = {
+    ".test-index",
+}
+
 claimed_files   = {}   # file -> task_id that claimed it
 batch           = []   # Candidate objects in batch
 opus_in_batch   = 0
@@ -728,10 +735,12 @@ for c in candidates:
     if limit > 0 and len(batch) >= limit:
         break
 
-    # File conflict check
+    # File conflict check (skip overlap-safe shared files)
     conflict_file = None
     conflict_task = None
     for f in c.files:
+        if f in OVERLAP_SAFE_FILES:
+            continue
         if f in claimed_files:
             conflict_file = f
             conflict_task = claimed_files[f]
