@@ -194,6 +194,25 @@ format_kb() {
     fi
 }
 
+# Check if a branch is merged to a target branch, with fallback for post-merge
+# amends. When merge-to-main.sh times out and the orchestrator amends the
+# worktree branch's HEAD during recovery, the branch tip SHA changes so
+# merge-base --is-ancestor fails. The fallback checks if the target branch has
+# a merge commit whose message references this branch name (the standard
+# merge-to-main.sh message format: "... (merge $branch)").
+# Args: $1=git_dir (main worktree), $2=branch_name, $3=target_branch
+# Returns: 0 if merged, 1 if not
+is_branch_merged() {
+    local git_dir="$1" branch_name="$2" target_branch="$3"
+    if git -C "$git_dir" merge-base --is-ancestor "$branch_name" "$target_branch" 2>/dev/null; then
+        return 0
+    fi
+    if git -C "$git_dir" log "$target_branch" --oneline --grep="(merge $branch_name)" -1 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    return 1
+}
+
 # Log an action to the cleanup log file
 log_action() {
     local message="$1"
@@ -379,7 +398,7 @@ while IFS= read -r line; do
 
         # Merge status: is the branch merged to main?
         if [[ -n "$current_branch" && "$current_branch" != "detached" ]]; then
-            if git -C "$MAIN_WORKTREE" merge-base --is-ancestor "$current_branch" "$MAIN_BRANCH" 2>/dev/null; then
+            if is_branch_merged "$MAIN_WORKTREE" "$current_branch" "$MAIN_BRANCH"; then
                 WT_MERGED+=("yes")
             else
                 WT_MERGED+=("no")
@@ -706,7 +725,7 @@ if [[ "$INCLUDE_BRANCHES" == "true" && ${#removed_branches[@]} -gt 0 ]]; then
 
         # Check if branch is merged
         merged_label=""
-        if git -C "$MAIN_WORKTREE" merge-base --is-ancestor "$branch" "$MAIN_BRANCH" 2>/dev/null; then
+        if is_branch_merged "$MAIN_WORKTREE" "$branch" "$MAIN_BRANCH"; then
             merged_label=" (merged to main)"
         else
             merged_label=" (NOT merged to main)"
@@ -807,7 +826,7 @@ if [[ "$INCLUDE_BRANCHES" == "true" ]]; then
         orphan_deleted=0
         for branch in "${orphan_branches[@]}"; do
             merged_label=""
-            if git -C "$MAIN_WORKTREE" merge-base --is-ancestor "$branch" "$MAIN_BRANCH" 2>/dev/null; then
+            if is_branch_merged "$MAIN_WORKTREE" "$branch" "$MAIN_BRANCH"; then
                 merged_label=" (merged to main)"
             else
                 merged_label=" (NOT merged to main)"
