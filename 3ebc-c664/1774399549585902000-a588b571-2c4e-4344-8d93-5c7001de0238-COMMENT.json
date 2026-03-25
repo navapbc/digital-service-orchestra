@@ -1,0 +1,1 @@
+{"timestamp": 1774399549585902000, "uuid": "a588b571-2c4e-4344-8d93-5c7001de0238", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: sprint-next-batch.sh v2 removal complete (8b63bc05). All 21 tests pass. Blocked-ticket detection properly filters depends_on by target status."}}
