@@ -47,25 +47,22 @@ git init -q -b main "$_t3_fake_repo"
 mkdir -p "$_t3_fake_repo/.tickets" "$_t3_fake_repo/scripts" "$_t3_fake_repo/scripts"
 printf -- "---\nid: t3-child\nstatus: open\ntype: task\npriority: 2\nparent: t3-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t3_fake_repo/.tickets/t3-child.md"
 
-# Mock tk
-cat > "$_t3_mock_dir/tk" << 'T3_TK'
+# Mock ticket CLI (v3 JSON output)
+cat > "$_t3_fake_repo/scripts/ticket" << 'T3_TICKET'
 #!/usr/bin/env bash
-echo "$*" >> /dev/null
-SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
 case "$SUBCMD" in
     show)
         if [[ "$TICKET_ID" == "t3-epic" ]]; then
-            printf -- "---\nid: t3-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+            echo '{"ticket_id":"t3-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
         else
-            echo ""; exit 1
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
-    ready) echo "t3-child [P2][open] - Test task"; exit 0 ;;
-    blocked) exit 0 ;;
-    children) echo "t3-child"; exit 0 ;;
+    list) echo '[{"ticket_id":"t3-child","status":"open","ticket_type":"task","priority":2,"title":"Test task","parent_id":"t3-epic","deps":[]}]'; exit 0 ;;
     *) exit 0 ;;
 esac
-T3_TK
-chmod +x "$_t3_mock_dir/tk"
+T3_TICKET
+chmod +x "$_t3_fake_repo/scripts/ticket"
 
 # Minimal classify-task.py stub
 cat > "$_t3_fake_repo/scripts/classify-task.py" << 'T3_SCORER'
@@ -95,7 +92,7 @@ cp "$PLUGIN_SCRIPT" "$_t3_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t3_fake_repo/scripts/sprint-next-batch.sh"
 
 exit_code=0
-output=$(cd "$_t3_fake_repo" && TK="$_t3_mock_dir/tk" bash "$_t3_fake_repo/scripts/sprint-next-batch.sh" "t3-epic" 2>&1) || exit_code=$?
+output=$(cd "$_t3_fake_repo" && TICKET_CMD="$_t3_fake_repo/scripts/ticket" bash "$_t3_fake_repo/scripts/sprint-next-batch.sh" "t3-epic" 2>&1) || exit_code=$?
 rm -rf "$_t3_mock_dir" "$_t3_fake_repo"
 if [ "$exit_code" -eq 0 ] && echo "$output" | grep -qE "EPIC:|BATCH_SIZE:"; then
     echo "  PASS: plugin exits 0 with EPIC and BATCH_SIZE lines"
@@ -114,23 +111,21 @@ _CLEANUP_DIRS+=("$_t4_fake_repo")
 git init -q -b main "$_t4_fake_repo"
 mkdir -p "$_t4_fake_repo/.tickets" "$_t4_fake_repo/scripts"
 printf -- "---\nid: t4-child\nstatus: open\ntype: task\npriority: 2\nparent: t4-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t4_fake_repo/.tickets/t4-child.md"
-cat > "$_t4_mock_dir/tk" << 'T4_TK'
+cat > "$_t4_fake_repo/scripts/ticket" << 'T4_TICKET'
 #!/usr/bin/env bash
-SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
 case "$SUBCMD" in
     show)
         if [[ "$TICKET_ID" == "t4-epic" ]]; then
-            printf -- "---\nid: t4-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+            echo '{"ticket_id":"t4-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
         else
-            echo ""; exit 1
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
-    ready) echo "t4-child [P2][open] - Test task"; exit 0 ;;
-    blocked) exit 0 ;;
-    children) echo "t4-child"; exit 0 ;;
+    list) echo '[{"ticket_id":"t4-child","status":"open","ticket_type":"task","priority":2,"title":"Test task","parent_id":"t4-epic","deps":[]}]'; exit 0 ;;
     *) exit 0 ;;
 esac
-T4_TK
-chmod +x "$_t4_mock_dir/tk"
+T4_TICKET
+chmod +x "$_t4_fake_repo/scripts/ticket"
 cat > "$_t4_fake_repo/scripts/classify-task.py" << 'T4_SCORER'
 import json, sys
 tasks = json.loads(sys.stdin.read())
@@ -155,7 +150,7 @@ cp "$PLUGIN_SCRIPT" "$_t4_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t4_fake_repo/scripts/sprint-next-batch.sh"
 
 json_exit=0
-json_output=$(cd "$_t4_fake_repo" && TK="$_t4_mock_dir/tk" bash "$_t4_fake_repo/scripts/sprint-next-batch.sh" "t4-epic" --json 2>&1) || json_exit=$?
+json_output=$(cd "$_t4_fake_repo" && TICKET_CMD="$_t4_fake_repo/scripts/ticket" bash "$_t4_fake_repo/scripts/sprint-next-batch.sh" "t4-epic" --json 2>&1) || json_exit=$?
 rm -rf "$_t4_mock_dir" "$_t4_fake_repo"
 if echo "$json_output" | python3 -c "import sys,json; data=json.load(sys.stdin)" 2>/dev/null; then
     echo "  PASS: --json produces valid JSON"
@@ -174,23 +169,21 @@ _CLEANUP_DIRS+=("$_t5_fake_repo")
 git init -q -b main "$_t5_fake_repo"
 mkdir -p "$_t5_fake_repo/.tickets" "$_t5_fake_repo/scripts"
 printf -- "---\nid: t5-child\nstatus: open\ntype: task\npriority: 2\nparent: t5-epic\n---\n# Test task\n\nEdit \`src/agents/base.py\`\n" > "$_t5_fake_repo/.tickets/t5-child.md"
-cat > "$_t5_mock_dir/tk" << 'T5_TK'
+cat > "$_t5_fake_repo/scripts/ticket" << 'T5_TICKET'
 #!/usr/bin/env bash
-SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
 case "$SUBCMD" in
     show)
         if [[ "$TICKET_ID" == "t5-epic" ]]; then
-            printf -- "---\nid: t5-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+            echo '{"ticket_id":"t5-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
         else
-            echo ""; exit 1
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
-    ready) echo "t5-child [P2][open] - Test task"; exit 0 ;;
-    blocked) exit 0 ;;
-    children) echo "t5-child"; exit 0 ;;
+    list) echo '[{"ticket_id":"t5-child","status":"open","ticket_type":"task","priority":2,"title":"Test task","parent_id":"t5-epic","deps":[]}]'; exit 0 ;;
     *) exit 0 ;;
 esac
-T5_TK
-chmod +x "$_t5_mock_dir/tk"
+T5_TICKET
+chmod +x "$_t5_fake_repo/scripts/ticket"
 cat > "$_t5_fake_repo/scripts/classify-task.py" << 'T5_SCORER'
 import json, sys
 tasks = json.loads(sys.stdin.read())
@@ -215,7 +208,7 @@ cp "$PLUGIN_SCRIPT" "$_t5_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t5_fake_repo/scripts/sprint-next-batch.sh"
 
 limit_exit=0
-cd "$_t5_fake_repo" && TK="$_t5_mock_dir/tk" bash "$_t5_fake_repo/scripts/sprint-next-batch.sh" "t5-epic" --limit=3 >/dev/null 2>&1 || limit_exit=$?
+cd "$_t5_fake_repo" && TICKET_CMD="$_t5_fake_repo/scripts/ticket" bash "$_t5_fake_repo/scripts/sprint-next-batch.sh" "t5-epic" --limit=3 >/dev/null 2>&1 || limit_exit=$?
 cd "$REPO_ROOT"
 rm -rf "$_t5_mock_dir" "$_t5_fake_repo"
 if [ "$limit_exit" -eq 0 ]; then
@@ -278,13 +271,13 @@ else
     (( FAIL++ ))
 fi
 
-# ── Test 12: Plugin copy resolves TK via REPO_ROOT (not SCRIPT_DIR/tk) ───────
-echo "Test 12: Plugin TK path resolves via REPO_ROOT"
-if grep -qE 'REPO_ROOT.*scripts/tk|TK=' "$PLUGIN_SCRIPT" 2>/dev/null; then
-    echo "  PASS: TK resolves via REPO_ROOT"
+# ── Test 12: Plugin copy resolves TICKET_CMD via SCRIPT_DIR ───────────────────
+echo "Test 12: Plugin TICKET_CMD path resolves via SCRIPT_DIR"
+if grep -qE 'TICKET_CMD=' "$PLUGIN_SCRIPT" 2>/dev/null; then
+    echo "  PASS: TICKET_CMD resolves via SCRIPT_DIR"
     (( PASS++ ))
 else
-    echo "  FAIL: TK does not resolve via REPO_ROOT in plugin copy" >&2
+    echo "  FAIL: TICKET_CMD not found in plugin copy" >&2
     (( FAIL++ ))
 fi
 
@@ -305,26 +298,23 @@ printf -- "---\nid: t13-task-a\nstatus: open\ntype: task\npriority: 2\nparent: t
 printf -- "---\nid: t13-task-b\nstatus: open\ntype: task\npriority: 2\nparent: t13-epic\n---\n# Task B\n\nEdit src/bar.py\n\nAC Verify: bash scripts/validate.sh --ci\n" \
     > "$_t13_fake_repo/.tickets/t13-task-b.md"
 
-cat > "$_t13_mock_dir/tk" << 'T13_TK'
+cat > "$_t13_fake_repo/scripts/ticket" << 'T13_TICKET'
 #!/usr/bin/env bash
-SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
 case "$SUBCMD" in
     show)
         if [[ "$TICKET_ID" == "t13-epic" ]]; then
-            printf -- "---\nid: t13-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+            echo '{"ticket_id":"t13-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
         else
-            echo ""; exit 1
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
-    ready)
-        echo "t13-task-a [P2][open] - Task A"
-        echo "t13-task-b [P2][open] - Task B"
+    list)
+        echo '[{"ticket_id":"t13-task-a","status":"open","ticket_type":"task","priority":2,"title":"Task A","parent_id":"t13-epic","deps":[]},{"ticket_id":"t13-task-b","status":"open","ticket_type":"task","priority":2,"title":"Task B","parent_id":"t13-epic","deps":[]}]'
         exit 0 ;;
-    blocked) exit 0 ;;
-    children) echo "t13-task-a"; echo "t13-task-b"; exit 0 ;;
     *) exit 0 ;;
 esac
-T13_TK
-chmod +x "$_t13_mock_dir/tk"
+T13_TICKET
+chmod +x "$_t13_fake_repo/scripts/ticket"
 
 cat > "$_t13_fake_repo/scripts/classify-task.py" << 'T13_SCORER'
 import json, sys
@@ -352,7 +342,7 @@ cp "$PLUGIN_SCRIPT" "$_t13_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t13_fake_repo/scripts/sprint-next-batch.sh"
 
 t13_exit=0
-t13_output=$(cd "$_t13_fake_repo" && TK="$_t13_mock_dir/tk" bash "$_t13_fake_repo/scripts/sprint-next-batch.sh" "t13-epic" --json 2>/dev/null) || t13_exit=$?
+t13_output=$(cd "$_t13_fake_repo" && TICKET_CMD="$_t13_fake_repo/scripts/ticket" bash "$_t13_fake_repo/scripts/sprint-next-batch.sh" "t13-epic" --json 2>/dev/null) || t13_exit=$?
 rm -rf "$_t13_mock_dir" "$_t13_fake_repo"
 
 # Both tasks should be in the batch (BATCH_SIZE: 2), not conflicting
@@ -427,27 +417,24 @@ with open('$_t14_fake_repo/.tickets-tracker/t14-task-b/0002-COMMENT.json', 'w') 
                'data': {'body': 'Edit \`src/agents/base.py\` to add feature B'}}, f)
 "
 
-# Mock tk: both tasks are ready, epic returns YAML frontmatter
-cat > "$_t14_mock_dir/tk" << 'T14_TK'
+# Mock ticket CLI (v3 JSON output): both tasks are ready, epic returns JSON
+cat > "$_t14_fake_repo/scripts/ticket" << 'T14_TICKET'
 #!/usr/bin/env bash
-SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
 case "$SUBCMD" in
     show)
         if [[ "$TICKET_ID" == "t14-epic" ]]; then
-            printf -- "---\nid: t14-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic v3\n"
+            echo '{"ticket_id":"t14-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic v3","parent_id":null,"comments":[],"deps":[]}'
         else
-            echo ""; exit 1
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
-    ready)
-        echo "t14-task-a [P2][open] - Task A"
-        echo "t14-task-b [P2][open] - Task B"
+    list)
+        echo '[{"ticket_id":"t14-task-a","status":"open","ticket_type":"task","priority":2,"title":"Task A","parent_id":"t14-epic","deps":[]},{"ticket_id":"t14-task-b","status":"open","ticket_type":"task","priority":2,"title":"Task B","parent_id":"t14-epic","deps":[]}]'
         exit 0 ;;
-    blocked) exit 0 ;;
-    children) echo "t14-task-a"; echo "t14-task-b"; exit 0 ;;
     *) exit 0 ;;
 esac
-T14_TK
-chmod +x "$_t14_mock_dir/tk"
+T14_TICKET
+chmod +x "$_t14_fake_repo/scripts/ticket"
 
 cat > "$_t14_fake_repo/scripts/classify-task.py" << 'T14_SCORER'
 import json, sys
@@ -481,7 +468,7 @@ t14_output=$(
     cd "$_t14_fake_repo" && \
     TICKETS_TRACKER_DIR="$_t14_fake_repo/.tickets-tracker" \
     CLAUDE_PLUGIN_ROOT="$_t14_fake_repo" \
-    TK="$_t14_mock_dir/tk" \
+    TICKET_CMD="$_t14_fake_repo/scripts/ticket" \
     bash "$_t14_fake_repo/scripts/sprint-next-batch.sh" "t14-epic" --json 2>/dev/null
 ) || t14_exit=$?
 rm -rf "$_t14_mock_dir" "$_t14_fake_repo"
@@ -517,26 +504,23 @@ printf -- "---\nid: t15-task-a\nstatus: open\ntype: task\npriority: 2\nparent: t
 printf -- "---\nid: t15-task-b\nstatus: open\ntype: task\npriority: 2\nparent: t15-epic\n---\n# Task B\n\nEdit \`src/bar.py\`\n\n## ACCEPTANCE CRITERIA\n\n- Run \`bash scripts/validate.sh --ci\`\n" \
     > "$_t15_fake_repo/.tickets/t15-task-b.md"
 
-cat > "$_t15_mock_dir/tk" << 'T15_TK'
+cat > "$_t15_fake_repo/scripts/ticket" << 'T15_TICKET'
 #!/usr/bin/env bash
-SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
 case "$SUBCMD" in
     show)
         if [[ "$TICKET_ID" == "t15-epic" ]]; then
-            printf -- "---\nid: t15-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+            echo '{"ticket_id":"t15-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
         else
-            echo ""; exit 1
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
-    ready)
-        echo "t15-task-a [P2][open] - Task A"
-        echo "t15-task-b [P2][open] - Task B"
+    list)
+        echo '[{"ticket_id":"t15-task-a","status":"open","ticket_type":"task","priority":2,"title":"Task A","parent_id":"t15-epic","deps":[]},{"ticket_id":"t15-task-b","status":"open","ticket_type":"task","priority":2,"title":"Task B","parent_id":"t15-epic","deps":[]}]'
         exit 0 ;;
-    blocked) exit 0 ;;
-    children) echo "t15-task-a"; echo "t15-task-b"; exit 0 ;;
     *) exit 0 ;;
 esac
-T15_TK
-chmod +x "$_t15_mock_dir/tk"
+T15_TICKET
+chmod +x "$_t15_fake_repo/scripts/ticket"
 
 cat > "$_t15_fake_repo/scripts/classify-task.py" << 'T15_SCORER'
 import json, sys
@@ -564,7 +548,7 @@ cp "$PLUGIN_SCRIPT" "$_t15_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t15_fake_repo/scripts/sprint-next-batch.sh"
 
 t15_exit=0
-t15_output=$(cd "$_t15_fake_repo" && TK="$_t15_mock_dir/tk" bash "$_t15_fake_repo/scripts/sprint-next-batch.sh" "t15-epic" --json 2>/dev/null) || t15_exit=$?
+t15_output=$(cd "$_t15_fake_repo" && TICKET_CMD="$_t15_fake_repo/scripts/ticket" bash "$_t15_fake_repo/scripts/sprint-next-batch.sh" "t15-epic" --json 2>/dev/null) || t15_exit=$?
 rm -rf "$_t15_mock_dir" "$_t15_fake_repo"
 
 t15_batch_size=$(echo "$t15_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('batch_size',0))" 2>/dev/null || echo "0")
@@ -590,30 +574,26 @@ mkdir -p "$_t16_fake_repo/.tickets" "$_t16_fake_repo/scripts"
 printf -- "---\nid: t16-task\nstatus: open\ntype: task\npriority: 2\nparent: dso-story1\n---\n# Task under blocked story\n\nEdit \`src/agents/base.py\`\n" \
     > "$_t16_fake_repo/.tickets/t16-task.md"
 
-cat > "$_t16_mock_dir/tk" << 'T16_TK'
+cat > "$_t16_fake_repo/scripts/ticket" << 'T16_TICKET'
 #!/usr/bin/env bash
-SUBCMD="${1:-}"; TICKET_ID="${2:-}"
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
 case "$SUBCMD" in
     show)
         if [[ "$TICKET_ID" == "t16-epic" ]]; then
-            printf -- "---\nid: t16-epic\nstatus: open\ntype: epic\npriority: 1\n---\n# Test Epic\n"
+            echo '{"ticket_id":"t16-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
         elif [[ "$TICKET_ID" == "t16-task" ]]; then
-            printf '{"id":"t16-task","parent":"dso-story1","status":"open"}'
+            echo '{"ticket_id":"t16-task","status":"open","ticket_type":"task","priority":2,"title":"Task under blocked story","parent_id":"dso-story1","comments":[],"deps":[]}'
         else
-            echo ""; exit 1
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
         fi; exit 0 ;;
-    ready)
-        echo "t16-task [P2][open] - Task under blocked story"
+    list)
+        # t16-task is ready (no deps), but dso-story1 is blocked (has deps on dso-blocker1)
+        echo '[{"ticket_id":"t16-task","status":"open","ticket_type":"task","priority":2,"title":"Task under blocked story","parent_id":"dso-story1","deps":[]},{"ticket_id":"dso-story1","status":"open","ticket_type":"story","priority":2,"title":"Blocked story","parent_id":"t16-epic","deps":[{"target_id":"dso-blocker1","relation":"depends_on"}]}]'
         exit 0 ;;
-    blocked)
-        # dso-story1 is blocked by dso-blocker1 (which is open)
-        echo "dso-story1 blocked by dso-blocker1"
-        exit 0 ;;
-    children) echo "t16-task"; exit 0 ;;
     *) exit 0 ;;
 esac
-T16_TK
-chmod +x "$_t16_mock_dir/tk"
+T16_TICKET
+chmod +x "$_t16_fake_repo/scripts/ticket"
 
 cat > "$_t16_fake_repo/scripts/classify-task.py" << 'T16_SCORER'
 import json, sys
@@ -641,7 +621,7 @@ cp "$PLUGIN_SCRIPT" "$_t16_fake_repo/scripts/sprint-next-batch.sh"
 chmod +x "$_t16_fake_repo/scripts/sprint-next-batch.sh"
 
 t16_exit=0
-t16_output=$(cd "$_t16_fake_repo" && TK="$_t16_mock_dir/tk" bash "$_t16_fake_repo/scripts/sprint-next-batch.sh" "t16-epic" --json 2>/dev/null) || t16_exit=$?
+t16_output=$(cd "$_t16_fake_repo" && TICKET_CMD="$_t16_fake_repo/scripts/ticket" bash "$_t16_fake_repo/scripts/sprint-next-batch.sh" "t16-epic" --json 2>/dev/null) || t16_exit=$?
 rm -rf "$_t16_mock_dir" "$_t16_fake_repo"
 
 # Task should be SKIPPED_BLOCKED_STORY (batch_size=0) because its parent dso-story1 is blocked
@@ -652,6 +632,81 @@ if [ "$t16_exit" -eq 0 ] && [ "$t16_batch_size" -eq 0 ] && [ "$t16_blocked" -eq 
     (( PASS++ ))
 else
     echo "  FAIL: dso-prefix blocked story not recognized (exit=$t16_exit batch_size=$t16_batch_size skipped_blocked_story=$t16_blocked)" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 16b: Closed-dep target does NOT block ticket (dso-ptzz edge case) ────
+echo "Test 16b: Ticket with a closed-dep target is NOT blocked"
+_t16b_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t16b_fake_repo")
+git init -q -b main "$_t16b_fake_repo"
+mkdir -p "$_t16b_fake_repo/.tickets" "$_t16b_fake_repo/scripts"
+
+# t16b-task is ready, its parent story depends_on dso-dep-closed (closed) — not blocked
+cat > "$_t16b_fake_repo/scripts/ticket" << 'T16B_TICKET'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "t16b-epic" ]]; then
+            echo '{"ticket_id":"t16b-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
+        elif [[ "$TICKET_ID" == "t16b-task" ]]; then
+            echo '{"ticket_id":"t16b-task","status":"open","ticket_type":"task","priority":2,"title":"Task under story with closed dep","parent_id":"dso-story2","comments":[],"deps":[]}'
+        elif [[ "$TICKET_ID" == "dso-story2" ]]; then
+            echo '{"ticket_id":"dso-story2","status":"open","ticket_type":"story","priority":2,"title":"Story with closed dep","parent_id":"t16b-epic","comments":[],"deps":[{"target_id":"dso-dep-closed","relation":"depends_on"}]}'
+        else
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
+        fi; exit 0 ;;
+    list)
+        # dso-story2 has a depends_on dep, but its target (dso-dep-closed) is closed.
+        # dso-story2 should NOT be in blocked_ids; t16b-task should be in the batch.
+        echo '[{"ticket_id":"t16b-task","status":"open","ticket_type":"task","priority":2,"title":"Task under story with closed dep","parent_id":"dso-story2","deps":[]},{"ticket_id":"dso-story2","status":"open","ticket_type":"story","priority":2,"title":"Story with closed dep","parent_id":"t16b-epic","deps":[{"target_id":"dso-dep-closed","relation":"depends_on"}]},{"ticket_id":"dso-dep-closed","status":"closed","ticket_type":"task","priority":2,"title":"Closed dependency","parent_id":null,"deps":[]}]'
+        exit 0 ;;
+    *) exit 0 ;;
+esac
+T16B_TICKET
+chmod +x "$_t16b_fake_repo/scripts/ticket"
+
+cat > "$_t16b_fake_repo/scripts/classify-task.py" << 'T16B_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T16B_SCORER
+
+cat > "$_t16b_fake_repo/scripts/read-config.sh" << 'T16B_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T16B_CFG
+chmod +x "$_t16b_fake_repo/scripts/read-config.sh"
+printf '' > "$_t16b_fake_repo/dso-config.conf"
+cp "$PLUGIN_SCRIPT" "$_t16b_fake_repo/scripts/sprint-next-batch.sh"
+chmod +x "$_t16b_fake_repo/scripts/sprint-next-batch.sh"
+
+t16b_exit=0
+t16b_output=$(cd "$_t16b_fake_repo" && TICKET_CMD="$_t16b_fake_repo/scripts/ticket" bash "$_t16b_fake_repo/scripts/sprint-next-batch.sh" "t16b-epic" --json 2>/dev/null) || t16b_exit=$?
+rm -rf "$_t16b_fake_repo"
+
+# t16b-task should appear in the batch because its parent story's only
+# dependency (dso-dep-closed) is already closed — it is NOT a blocker.
+# skipped_blocked_story must be 0 (story is not blocked) and t16b-task must
+# be present in the batch.
+t16b_batch_ids=$(echo "$t16b_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(t['id'] for t in d.get('batch',[])))" 2>/dev/null || echo "")
+t16b_blocked=$(echo "$t16b_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_blocked_story',[])))" 2>/dev/null || echo "1")
+if [ "$t16b_exit" -eq 0 ] && echo "$t16b_batch_ids" | grep -q "t16b-task" && [ "$t16b_blocked" -eq 0 ]; then
+    echo "  PASS: closed-dep target does not block ticket (t16b-task in batch, skipped_blocked_story=0)"
+    (( PASS++ ))
+else
+    echo "  FAIL: ticket incorrectly blocked by closed dep (exit=$t16b_exit batch_ids='$t16b_batch_ids' skipped_blocked_story=$t16b_blocked)" >&2
     (( FAIL++ ))
 fi
 
