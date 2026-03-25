@@ -167,7 +167,7 @@ test_tickets_only_commit_passes() {
 
     mkdir -p "$_repo/.tickets-tracker"
     echo "# Task: My task" > "$_repo/.tickets-tracker/lockpick-test-abc1.md"
-    echo '{"version":1}' > "$_repo/.tickets-tracker/ticket-data.json"
+    echo '{"version":1}' > "$_repo/.tickets-tracker/test-abc1/001-create.json"
     git -C "$_repo" add ".tickets-tracker/"
 
     local exit_code
@@ -473,10 +473,10 @@ test_cross_worktree_merge_commit_passes() {
     head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
     echo "$head_sha" > "$_repo/.git/MERGE_HEAD"
 
-    # Stage only allowlisted files (merge resolution of ticket index)
-    mkdir -p "$_repo/.tickets-tracker"
-    echo '{"version":2}' > "$_repo/.tickets-tracker/ticket-data.json"
-    git -C "$_repo" add ".tickets-tracker/ticket-data.json"
+    # Stage only allowlisted files (merge resolution of ticket event)
+    mkdir -p "$_repo/.tickets-tracker/test-abc1"
+    echo '{"version":2}' > "$_repo/.tickets-tracker/test-abc1/001-create.json"
+    git -C "$_repo" add ".tickets-tracker/test-abc1/001-create.json"
 
     # Hook runs in worktree B's context — MERGE_HEAD is natively visible
     local exit_code
