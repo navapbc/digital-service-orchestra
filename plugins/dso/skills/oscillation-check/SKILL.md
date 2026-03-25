@@ -80,8 +80,8 @@ Recommendation: Stop loop. Present both positions to user.
 
 | Context | Max Iterations | On Limit |
 |---------|---------------|----------|
-| `/dso:review` autonomous loop | 2 attempts | Escalate to user (findings + actions taken) |
-| `/dso:review` total (with user) | 5 | Stop, report to user |
+| `/dso:review` autonomous loop | `review.max_resolution_attempts` (default: 5) | Escalate to user (findings + actions taken) |
+| `/dso:review` total (with user) | `review.max_resolution_attempts` + 3 (user-driven buffer) | Stop, report to user |
 | `/dso:debug-everything` critic | 2 revert cycles per issue | Escalate to user |
 | `/dso:sprint` remediation | 2 loops | Flag to user |
 

@@ -29,8 +29,8 @@ Do not spend orchestrator context on debugging -- that is what the sub-agent is 
 | Attempt | Model | Rationale |
 |---------|-------|-----------|
 | 1 | `sonnet` | Fast turnaround. Most failures are 1-2 tests broken by the current changeset. |
-| 2 | `opus` | If sonnet could not fix it, the failure likely involves cross-module reasoning or subtle state bugs. |
-| >= 3 | **Escalate to user** | Two failed attempts indicate a problem requiring human judgment (design question, external dependency, ambiguous requirement). |
+| 2+ | `opus` | If sonnet could not fix it, the failure likely involves cross-module reasoning or subtle state bugs. |
+| > `review.max_resolution_attempts` (default: 5) | **Escalate to user** | Failed attempts indicate a problem requiring human judgment (design question, external dependency, ambiguous requirement). |
 
 ### By Scenario (Sprint-Time Overrides)
 
@@ -86,7 +86,7 @@ $(get_artifacts_dir)/agent-result-${task_id}.md
 
 The orchestrator extracts the `RESULT` line to decide the next action:
 - `PASS` -- continue workflow normally
-- `FAIL` -- increment attempt counter, retry with escalated model (or escalate to user if attempt >= 3)
+- `FAIL` -- increment attempt counter, retry with escalated model (or escalate to user if attempt exceeds `review.max_resolution_attempts` (default: 5))
 - `PARTIAL` -- log concerns, continue workflow with caveats
 
 ---
@@ -125,7 +125,7 @@ When `make test-unit-only` or `make lint` fails during commit validation:
 4. Dispatch sub-agent per this protocol
 5. If `RESULT: PASS` -- re-run validation and continue to Step 2
 6. If `RESULT: FAIL` -- increment attempt, retry with opus (attempt=2)
-7. If attempt >= 3 -- escalate to user
+7. If attempt exceeds `review.max_resolution_attempts` (default: 5) -- escalate to user
 
 **Step 1.5 (Post-fix re-validation)**:
 After a successful sub-agent fix, re-run the full validation suite before proceeding
@@ -139,7 +139,7 @@ When `validate-phase.sh post-batch` reports test failures:
 2. For each failing task, build the input payload with `context=sprint-post-batch`
 3. Dispatch up to 5 fix sub-agents in parallel (one per failing task)
 4. Collect RESULT reports; re-validate after all agents complete
-5. If any remain FAIL after attempt=2, escalate to user
+5. If any remain FAIL after attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user
 
 **Phase 7 Step 0.5b (Post-E2E failure)**:
 When E2E tests fail after all batches complete:
@@ -191,7 +191,7 @@ Select prompt template:
 Select model:
   - attempt == 1 --> sonnet
   - attempt == 2 --> opus
-  - attempt >= 3 --> escalate to user
+  - attempt exceeds `review.max_resolution_attempts` (default: 5) --> escalate to user
   |
   v
 Select subagent_type:
@@ -220,7 +220,7 @@ strategy document (`docs/designs/test-failure-subagent-strategy.md`, Section 5):
 ### 1. Hook Integration Tests
 - **State file test**: Verify dispatch writes correct validation state to `$(get_artifacts_dir)/status`
 - **RESULT parsing test**: Unit test that parses the structured RESULT format and extracts all fields
-- **Model escalation test**: Verify attempt=1 selects sonnet, attempt=2 selects opus, attempt>=3 produces escalation signal
+- **Model escalation test**: Verify attempt=1 selects sonnet, attempt=2 selects opus, attempt > `review.max_resolution_attempts` (default: 5) produces escalation signal
 
 ### 2. Mock Sub-Agent Tests
 - **Dispatch contract test**: Verify input payload contains all required fields

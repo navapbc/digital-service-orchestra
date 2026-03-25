@@ -622,4 +622,60 @@ fi
 assert_eq "test_error_sweep_header_references_step_2_9" "found" "$has_step_29_ref"
 assert_pass_if_clean "test_error_sweep_header_references_step_2_9"
 
+# ---------------------------------------------------------------------------
+# test_ticket_deduplicates_error_details
+# Counter with 50 errors, mostly duplicates. Assert ticket description contains
+# deduplicated entries (unique by tool_name + error_message), not raw duplicates.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+# Build counter with 50 permission_denied errors: 45 identical + 3 different + 2 more identical
+_DEDUP_ERRORS='[]'
+_DEDUP_ERRORS=$(python3 -c "
+import json
+errors = []
+# 45 identical errors
+for i in range(45):
+    errors.append({'category':'permission_denied','timestamp':f'2026-03-15T10:{i:02d}:00Z','tool_name':'Bash','input_summary':'Bash: rm /protected/file.txt','error_message':'permission denied: /protected/file.txt','session_id':f's{i}'})
+# 3 different errors
+errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:00:00Z','tool_name':'Read','input_summary':'Read: /etc/shadow','error_message':'permission denied: /etc/shadow','session_id':'s45'})
+errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:01:00Z','tool_name':'Bash','input_summary':'Bash: chmod 777 /root','error_message':'permission denied: /root','session_id':'s46'})
+errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:02:00Z','tool_name':'Write','input_summary':'Write: /usr/bin/test','error_message':'permission denied: /usr/bin/test','session_id':'s47'})
+# 2 more duplicates of the first pattern
+for i in range(2):
+    errors.append({'category':'permission_denied','timestamp':f'2026-03-15T12:{i:02d}:00Z','tool_name':'Bash','input_summary':'Bash: rm /protected/file.txt','error_message':'permission denied: /protected/file.txt','session_id':f's{48+i}'})
+print(json.dumps({'index':{'permission_denied':50},'errors':errors}))
+")
+_write_counter_with_errors "$_DEDUP_ERRORS"
+_mock_tk_list_empty
+_run_sweep
+# Ticket should be created
+create_calls=$(_count_tk_create_calls)
+assert_eq "test_ticket_deduplicates_created" "1" "$create_calls"
+# Get the full tk log to check description content
+tk_log_content=$(cat "$TK_LOG" 2>/dev/null || true)
+# Should contain all 4 unique error signatures (not 20 raw duplicates)
+assert_contains "test_ticket_dedup_has_protected_file" "/protected/file.txt" "$tk_log_content"
+assert_contains "test_ticket_dedup_has_etc_shadow" "/etc/shadow" "$tk_log_content"
+assert_contains "test_ticket_dedup_has_root" "/root" "$tk_log_content"
+assert_contains "test_ticket_dedup_has_usr_bin" "/usr/bin/test" "$tk_log_content"
+# Should show occurrence counts — the 47 identical errors should show count
+assert_contains "test_ticket_dedup_has_occurrence_count" "47" "$tk_log_content"
+# Should NOT have 20 rows of the same error — check that "Bash" tool appears
+# a reasonable number of times (deduplicated, not raw). In raw mode, "Bash" would
+# appear 20 times in the table. Deduplicated, it should appear much fewer times.
+_bash_row_count=$(echo "$tk_log_content" | grep -c "| Bash |" 2>/dev/null || echo "0")
+# With dedup: 2 unique Bash signatures. Without dedup: 20 rows showing Bash.
+# Assert <= 5 to allow some formatting flexibility but catch raw dump.
+if [[ "$_bash_row_count" -le 5 ]]; then
+    _dedup_ok="yes"
+else
+    _dedup_ok="no"
+fi
+assert_eq "test_ticket_dedup_not_raw_dump" "yes" "$_dedup_ok"
+assert_pass_if_clean "test_ticket_deduplicates_error_details"
+trap - EXIT
+_teardown_test
+
 print_summary

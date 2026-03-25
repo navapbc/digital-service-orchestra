@@ -97,7 +97,7 @@ REMAINING_CRITICAL: <list all findings>
 ESCALATION_REASON: All findings were Deferred — defer alone cannot pass the review. User must override or provide a different fix approach.
 ```
 
-**Step 3 — Apply fixes and defenses (up to 2 attempts)**
+**Step 3 — Apply fixes and defenses (budget controlled by `review.max_resolution_attempts`, default: 5)**
 
 For each Fix finding: edit the relevant file(s). Use Edit/Write tools.
 For each Defend finding: add `# REVIEW-DEFENSE: <explanation>` inline in the relevant file.
