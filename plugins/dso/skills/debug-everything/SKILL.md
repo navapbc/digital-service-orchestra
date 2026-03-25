@@ -467,7 +467,7 @@ The script outputs structured key-value pairs:
 
 Exit 0 means all checks pass. Exit 1 means at least one check requires action (details in output).
 
-**Batch size limit**: Launch at most 5 Task calls in a single message. All foreground Tasks block until they return — you cannot exceed the limit mid-flight. Before each batch, verify: how many tasks am I about to launch? If > 5, split into multiple batches.
+**Batch size limit**: Launch at most 5 Task calls in a single message, each with `run_in_background: true`. Before each batch, verify: how many tasks am I about to launch? If > 5, split into multiple batches.
 
 ### Claim Tasks
 
@@ -511,7 +511,7 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 
 ### Sub-Agent Prompt Template
 
-For each fix task, launch via the Task tool. **Launch all sub-agents in the batch within a single message** (parallel tool calls).
+For each fix task, launch via the Task tool. **Launch all sub-agents in the batch within a single message**, each with `run_in_background: true` (without it, foreground calls execute serially).
 
 **Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
 
