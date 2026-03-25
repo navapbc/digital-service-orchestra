@@ -1,0 +1,1 @@
+{"timestamp": 1774410214, "uuid": "b01fbdf9-d719-48d2-b234-3e78be55d269", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix stale tk/tk-ready references in issue-batch.sh header comment", "parent_id": "", "priority": 3, "assignee": "Joe Oakhart"}}
