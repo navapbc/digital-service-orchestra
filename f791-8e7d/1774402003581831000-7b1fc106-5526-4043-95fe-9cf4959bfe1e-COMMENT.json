@@ -1,0 +1,1 @@
+{"timestamp": 1774402003581831000, "uuid": "7b1fc106-5526-4043-95fe-9cf4959bfe1e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: removed v2 TICKETS_DIR/TK variables and else branches from sprint-list-epics.sh. Committed as feat: remove v2 from sprint-list-epics.sh (d775-4a36)"}}
