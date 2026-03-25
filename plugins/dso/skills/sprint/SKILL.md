@@ -993,7 +993,7 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this 
   revert it to open, add the issue details to the task notes, and re-run it with the
   reviewer's feedback appended to the prompt.
 - **Minor issues only** → proceed (note them in ticket but don't block)
-- **Review uses autonomous resolution per batch.** The review workflow handles up to 3 fix/defend attempts automatically before escalating. The resolution loop is split: a resolution sub-agent applies fixes (returns `FIXES_APPLIED`), then the orchestrator dispatches a separate re-review sub-agent. This avoids two-level nesting (orchestrator → resolution → re-review) which causes `[Tool result missing due to internal error]`. See REVIEW-WORKFLOW.md Autonomous Resolution Loop. If issues persist after escalation, report to user and proceed to commit (CI and Phase 7 validation provide additional gates).
+- **Review uses autonomous resolution per batch.** The review workflow handles up to `review.max_resolution_attempts` (default: 5) fix/defend attempts automatically before escalating. The resolution loop is split: a resolution sub-agent applies fixes (returns `FIXES_APPLIED`), then the orchestrator dispatches a separate re-review sub-agent. This avoids two-level nesting (orchestrator → resolution → re-review) which causes `[Tool result missing due to internal error]`. See REVIEW-WORKFLOW.md Autonomous Resolution Loop. If issues persist after escalation, report to user and proceed to commit (CI and Phase 7 validation provide additional gates).
 
 ### Step 8: Update Ticket Notes (/dso:sprint)
 

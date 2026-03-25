@@ -10,6 +10,7 @@ Replace commands below with values from your `.claude/dso-config.conf`:
 - `commands.lint` (default: `make lint-ruff`)
 - `commands.type_check` (default: `make lint-mypy`)
 - `commands.test_unit` (default: `make test-unit-only`)
+- `review.max_resolution_attempts` (default: `5`) — max autonomous fix/defend attempts before escalating to user
 
 The artifacts directory is computed by `get_artifacts_dir()` in `plugins/dso/hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
 
@@ -499,9 +500,14 @@ Task tool:
    - If OSCILLATION detected: escalate immediately. Do NOT dispatch another resolution sub-agent.
    - If CLEAR: dispatch the next resolution sub-agent.
 
-   Up to 3 fix/defend attempts total before escalating.
+   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). Escalate to user when attempts exceed this value.
 
-6. **If re-review fails** (third attempt, or oscillation detected): escalate to user.
+   ```bash
+   MAX_ATTEMPTS=$("$REPO_ROOT/.claude/scripts/dso" read-config.sh review.max_resolution_attempts)
+   MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
+   ```
+
+6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): escalate to user.
 
 **Escalation message format** (when sub-agent returns FAIL or ESCALATE, or re-review fails twice):
 

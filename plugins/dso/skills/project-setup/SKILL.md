@@ -263,6 +263,18 @@ Record as `ci.integration_workflow` (omit if blank).
 
 > **Authoritative key descriptions**: See `docs/CONFIGURATION-REFERENCE.md` for full descriptions of `ci.workflow_name`, `ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`, and `ci.integration_workflow`.
 
+### Review configuration (`review.*`)
+
+**17. Max resolution attempts** — Use `AskUserQuestion`:
+```
+How many autonomous fix/defend attempts should the review loop make before escalating to you?
+Default: 5
+Press Enter to accept the default, or type a number:
+```
+Record as `review.max_resolution_attempts` (omit if default accepted — the workflow applies 5 when the key is absent).
+
+> **Authoritative key descriptions**: See `docs/CONFIGURATION-REFERENCE.md` for full descriptions of `review.max_resolution_attempts` and `review.behavioral_patterns`.
+
 ### dso.* section
 
 The `dso.plugin_root` key is written automatically by `dso-setup.sh` — do NOT prompt for it or duplicate it.
