@@ -24,6 +24,20 @@ from typing import Any
 
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Jira priority name → local 0-4 integer scale (used by both CREATE and EDIT paths)
+_JIRA_PRIORITY_TO_LOCAL: dict[str, int] = {
+    "Highest": 0,
+    "High": 1,
+    "Medium": 2,
+    "Low": 3,
+    "Lowest": 4,
+}
+
+
+# ---------------------------------------------------------------------------
 # Module loading helpers
 # ---------------------------------------------------------------------------
 
@@ -265,6 +279,38 @@ def write_create_events(
 
         normalized_fields = normalized_issue.get("fields", {})
 
+        # Map Jira fields to local ticket schema so the reducer can
+        # read ticket_type, title, priority, and assignee from data.*
+        # (the reducer requires data.ticket_type and data.title).
+        jira_issuetype = normalized_fields.get("issuetype", {})
+        jira_type_name = (
+            jira_issuetype.get("name", "Task")
+            if isinstance(jira_issuetype, dict)
+            else "Task"
+        )
+        jira_summary = normalized_fields.get("summary", "")
+        # Empty description safeguard: store None instead of empty string
+        # to prevent overwriting a non-empty local description later.
+        _raw_desc = normalized_fields.get("description", "")
+        jira_description = (
+            _raw_desc if isinstance(_raw_desc, str) and _raw_desc.strip() else None
+        )
+
+        # Map Jira priority to local 0-4 integer scale
+        jira_priority_obj = normalized_fields.get("priority", {})
+        local_priority: int | None = None
+        if isinstance(jira_priority_obj, dict):
+            pname = jira_priority_obj.get("name", "")
+            local_priority = _JIRA_PRIORITY_TO_LOCAL.get(pname)
+
+        # Map Jira assignee to local string
+        jira_assignee_obj = normalized_fields.get("assignee", {})
+        local_assignee: str | None = None
+        if isinstance(jira_assignee_obj, dict):
+            local_assignee = jira_assignee_obj.get(
+                "displayName", jira_assignee_obj.get("emailAddress")
+            )
+
         payload: dict[str, Any] = {
             "event_type": "CREATE",
             "env_id": bridge_env_id,
@@ -274,6 +320,11 @@ def write_create_events(
             "run_id": run_id,
             "data": {
                 "jira_key": jira_key,
+                "ticket_type": jira_type_name.lower(),
+                "title": jira_summary,
+                "description": jira_description,
+                "priority": local_priority,
+                "assignee": local_assignee,
                 "fields": normalized_fields,
             },
         }
@@ -420,6 +471,47 @@ def persist_relationship_rejection(
     return status_path
 
 
+def write_edit_event(
+    *,
+    ticket_id: str,
+    fields: dict[str, Any],
+    ticket_dir: Path,
+    bridge_env_id: str,
+    run_id: str = "",
+) -> Path:
+    """Write a bridge-authored EDIT event file for Jira field changes.
+
+    Args:
+        ticket_id: Local ticket ID.
+        fields: Dict of field_name → new_value to update.
+        ticket_dir: Path to the ticket directory.
+        bridge_env_id: UUID of this bridge environment.
+        run_id: Run ID for traceability.
+
+    Returns:
+        Path to the written EDIT event file.
+    """
+    ticket_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = int(time.time())
+    event_uuid = str(uuid.uuid4())
+    filename = f"{ts}-{event_uuid}-EDIT.json"
+
+    payload: dict[str, Any] = {
+        "event_type": "EDIT",
+        "env_id": bridge_env_id,
+        "timestamp": ts,
+        "uuid": event_uuid,
+        "data": {"fields": fields},
+    }
+    if run_id:
+        payload["run_id"] = run_id
+
+    event_path = ticket_dir / filename
+    event_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return event_path
+
+
 def write_bridge_alert(
     *,
     ticket_id: str,
@@ -552,6 +644,13 @@ def process_inbound(
             logging.error("Authentication failure (401) — checkpoint NOT updated")
         raise
 
+    # Pre-load the ticket reducer module once (used by EDIT path inside the loop)
+    reducer_path = Path(__file__).resolve().parent / "ticket-reducer.py"
+    try:
+        ticket_reducer = _load_module_from_path("ticket_reducer", reducer_path)
+    except Exception:
+        ticket_reducer = None  # type: ignore[assignment]
+
     # Process each issue: normalize, check mappings, write alerts/events
     for issue in issues:
         issue = normalize_timestamps(issue)
@@ -669,6 +768,67 @@ def process_inbound(
                                 bridge_env_id=bridge_env_id,
                                 run_id=run_id,
                             )
+
+        # Write EDIT events for field changes (priority, assignee, description,
+        # title) on existing tickets. Compare Jira field values against local
+        # compiled state and write EDIT events only when values differ.
+        jira_key_for_edit = issue.get("key", "")
+        if jira_key_for_edit:
+            local_id_for_edit = f"jira-{jira_key_for_edit.lower()}"
+            ticket_dir_for_edit = tickets_root / local_id_for_edit
+            if ticket_dir_for_edit.is_dir() and ticket_reducer is not None:
+                # Use pre-loaded reducer to get compiled local state
+                try:
+                    local_state = ticket_reducer.reduce_ticket(str(ticket_dir_for_edit))
+                except Exception:
+                    local_state = None
+
+                if local_state and isinstance(local_state, dict):
+                    edit_fields: dict[str, Any] = {}
+
+                    # Priority: map Jira name → local 0-4 integer
+                    jira_pri_obj = fields.get("priority", {})
+                    if isinstance(jira_pri_obj, dict):
+                        pri_name = jira_pri_obj.get("name", "")
+                        mapped_pri = _JIRA_PRIORITY_TO_LOCAL.get(pri_name)
+                        if mapped_pri is not None and mapped_pri != local_state.get(
+                            "priority"
+                        ):
+                            edit_fields["priority"] = mapped_pri
+
+                    # Assignee: map Jira object → local string
+                    jira_asn_obj = fields.get("assignee", {})
+                    if isinstance(jira_asn_obj, dict):
+                        jira_asn_name = jira_asn_obj.get(
+                            "displayName", jira_asn_obj.get("emailAddress", "")
+                        )
+                        if jira_asn_name and jira_asn_name != local_state.get(
+                            "assignee"
+                        ):
+                            edit_fields["assignee"] = jira_asn_name
+
+                    # Title: compare Jira summary → local title
+                    jira_title = fields.get("summary", "")
+                    if jira_title and jira_title != local_state.get("title"):
+                        edit_fields["title"] = jira_title
+
+                    # Description: compare Jira description → local description.
+                    # Empty description safeguard: never overwrite a non-empty
+                    # local description with an empty Jira description.
+                    jira_desc = fields.get("description", "")
+                    if isinstance(jira_desc, str) and jira_desc.strip():
+                        local_desc = local_state.get("description") or ""
+                        if jira_desc != local_desc:
+                            edit_fields["description"] = jira_desc
+
+                    if edit_fields:
+                        write_edit_event(
+                            ticket_id=local_id_for_edit,
+                            fields=edit_fields,
+                            ticket_dir=ticket_dir_for_edit,
+                            bridge_env_id=bridge_env_id,
+                            run_id=run_id,
+                        )
 
         # Check type mapping
         jira_type = (
