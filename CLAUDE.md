@@ -162,6 +162,7 @@ After ExitPlanMode approval, do NOT begin implementation. Create a ticket epic (
 ## Multi-Agent Orchestration
 
 **Sub-agent boundaries**: See `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` for all sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format, model selection, recovery).
+**Sub-agent guard pattern**: Skills that require the Agent tool or direct user interaction contain a `<SUB-AGENT-GUARD>` block at the top of their `SKILL.md`. When invoked in sub-agent context (via Task tool), the guard instructs the agent to stop immediately and return an error. Two guard variants exist: (1) **Agent tool check** — for skills that dispatch sub-agents (sprint, debug-everything, brainstorm, preplanning, implementation-plan, design-wireframe, design-review, roadmap, plan-review, review-protocol, resolve-conflicts, dev-onboarding, validate-work, retro, ui-discover); (2) **Orchestrator signal check** — for skills that require user interaction (end-session, project-setup, design-onboarding). Tests: `tests/hooks/test-sub-agent-guard.sh` (36 tests, 2 per skill).
 
 Orchestrator-level rules (apply to `/dso:sprint` and `/dso:debug-everything`, not sub-agents):
 - Max 5 concurrent sub-agents; commit+push between batches

@@ -263,13 +263,12 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 The epic's requirements are clear and the scope is small. Skip preplanning entirely and run `/dso:implementation-plan` directly on the epic.
 
 1. Log: `"Epic <id> classified as SIMPLE — running /dso:implementation-plan directly on epic."`
-2. Dispatch `/dso:implementation-plan` sub-agent via Task tool:
-   - Read the prompt template from `$PLUGIN_ROOT/skills/sprint/prompts/impl-plan-dispatch.md`
-   - Fill `{story-id}` with the **epic ID** (not a story ID — /dso:implementation-plan handles epic type detection)
-   - Fill `{evaluator-context}` with the epic complexity evaluator JSON output
-   - Launch with `subagent_type="general-purpose"` and `model="sonnet"`
-   - **Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
-3. Parse sub-agent return value using the same STATUS protocol as Phase 2's Implementation Planning Gate
+2. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
+   ```
+   Skill("dso:implementation-plan", args="<epic-id>")
+   ```
+   The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
+3. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
 4. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
 5. Continue to Phase 2
 
@@ -283,7 +282,7 @@ The epic needs scope clarification but is a single concern — enrich the epic w
 
 **On `ENRICHED`:**
 - Log: `"Lightweight preplanning complete — epic enriched with done definitions. Running /dso:implementation-plan on epic."`
-- Dispatch `/dso:implementation-plan` sub-agent (same as Step 3a, step 2)
+- Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
 - Set `epic_routing = "MODERATE"`
 - Continue to Phase 2
 
@@ -339,7 +338,7 @@ For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
 |---------------|------------|--------|
 | TRIVIAL | high | Skip `/dso:implementation-plan` — log: `"Story <id> classified as TRIVIAL — skipping /dso:implementation-plan"` |
 | TRIVIAL | medium | Treat as COMPLEX (medium confidence = plan) |
-| COMPLEX | any | Run `/dso:implementation-plan` — pass evaluator output as context (see Step 2) |
+| COMPLEX | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 
 **Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase 5 can upgrade implementation task models:
 ```bash
@@ -350,7 +349,7 @@ For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
 
 #### Dependency Layer Stratification (/dso:sprint)
 
-Before dispatching any `/dso:implementation-plan` sub-agents, group the stories that need decomposition into topological layers based on their intra-sprint dependencies. This ensures that stories with blockers are planned after the stories they depend on.
+Before invoking `/dso:implementation-plan` for any stories, group the stories that need decomposition into topological layers based on their intra-sprint dependencies. This ensures that stories with blockers are planned after the stories they depend on.
 
 **Step A: Collect intra-sprint dependency edges**
 
@@ -378,20 +377,20 @@ Log the layer assignment: `"Dependency layers: Layer 0: <ids>, Layer 1: <ids>, .
 
 #### Step 2: Run Implementation Planning (/dso:sprint)
 
-Process stories in layer order — Layer 0 first, then Layer 1, etc. Within each layer, dispatch up to 3 concurrent `/dso:implementation-plan` sub-agents in a single message (same parallel-dispatch pattern as Phase 5 sub-agent launch). Wait for all sub-agents in the layer to return before processing the next layer.
+Process stories in layer order — Layer 0 first, then Layer 1, etc. Within each layer, invoke `/dso:implementation-plan` sequentially via Skill tool for each story that needs decomposition. Wait for all stories in the layer to complete before processing the next layer.
+
+> **Note**: Skill tool invocations run sequentially (one story at a time) rather than in parallel. This ensures implementation plans are properly reviewed via the inline review protocol workflow. The tradeoff is longer planning time for multi-story epics.
 
 **For each layer (in order Layer 0, Layer 1, ...):**
 
 a. Filter to stories in this layer that need decomposition
-b. Dispatch up to 3 concurrent Task tool calls in a single message — fill the `impl-plan-dispatch.md` prompt template for each story:
-   - `{story-id}` → the story's ticket ID
-   - `{evaluator-context}` → complexity-evaluator JSON if available; otherwise `""`
-   - `{answers-context}` → empty string `""` (no prior questions on first dispatch)
-   - Launch using the Task tool with `subagent_type="general-purpose"` and `model="sonnet"`
-   - **Agent description**: Derive from the ticket title — a 3-5 word human-readable summary (e.g., Fix review gate hash, not dso-abc1).
+b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool:
+   ```
+   Skill("dso:implementation-plan", args="<story-id>")
+   ```
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
-c. Wait for all sub-agents in the layer to return before proceeding to the next layer
-d. For each sub-agent result, **parse STATUS:**
+c. Wait for the skill invocation to return before processing the next story in the layer
+d. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
      - Extract the comma-separated task IDs from the `TASKS` field
      - Extract the story ID from the `STORY` field
@@ -399,11 +398,11 @@ d. For each sub-agent result, **parse STATUS:**
      - Proceed to post-dispatch validation (step e)
    - On `STATUS:blocked QUESTIONS:<json-array>`:
      - **Add to blocked-stories list** — do not ask the user inline; collect all `STATUS:blocked` results from this layer batch and present them together after the full layer batch completes (see step d-collect below)
-   - **Fallback — if no STATUS line in sub-agent output:**
+   - **Fallback — if no STATUS line in skill output:**
      - Run `.claude/scripts/dso ticket deps <story-id>` to check whether tasks were created
-     - If children exist → treat as success; log a warning: `"WARNING: sub-agent returned no STATUS line for story <id>, but .claude/scripts/dso ticket deps shows tasks — continuing"`; proceed to post-dispatch validation
-     - If no children → retry the sub-agent dispatch once (same prompt, same parameters)
-     - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan sub-agent failed for story <id> after retry — story reverted to open"`; skip to next story
+     - If children exist → treat as success; log a warning: `"WARNING: skill returned no STATUS line for story <id>, but .claude/scripts/dso ticket deps shows tasks — continuing"`; proceed to post-dispatch validation
+     - If no children → retry the skill invocation once (same parameters)
+     - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
    - **Parse the QUESTIONS field**: Extract the JSON array from the `STATUS:blocked` line. If parsing fails (malformed JSON) or the array is empty (`[]`), treat as a sub-agent failure:
      - Revert the story to open: `.claude/scripts/dso ticket transition <story-id> open`
@@ -442,18 +441,8 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
      ...
 CLARIFICATIONS
      ```
-   - **Re-dispatch the sub-agent**: Call the Task tool again with the same `impl-plan-dispatch.md` prompt template, filling:
-     - `{story-id}` → same story ID
-     - `{evaluator-context}` → same evaluator context as the first dispatch (or `""` if none)
-     - `{answers-context}` → inline Q&A formatted as:
-       ```
-       Q: <question 1 text>
-       A: <user answer 1>
-
-       Q: <question 2 text>
-       A: <user answer 2>
-       ```
-   - **If the re-dispatched sub-agent returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`.claude/scripts/dso ticket transition <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
+   - **Re-invoke the skill**: Call the Skill tool again with the same story ID. The clarifications are now persisted in the ticket description, so the skill will read them via `.claude/scripts/dso ticket show`.
+   - **If the re-invoked skill returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`.claude/scripts/dso ticket transition <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
 e. **Post-layer-batch ticket validation** — after all stories in the layer are resolved (complete, blocked-and-resolved, or failed), run:
    ```bash
    $(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
