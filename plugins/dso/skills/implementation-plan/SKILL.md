@@ -4,6 +4,14 @@ description: Use when a user story or simple epic needs to be broken into atomic
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:implementation-plan cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
+
+Do NOT proceed with any skill logic if the Agent tool is unavailable.
+</SUB-AGENT-GUARD>
+
 # Implementation Plan: Atomic Task Generation
 
 Generate a production-safe implementation plan for a User Story by decomposing it into atomic, TDD-driven tasks with correct dependencies. Prioritize understanding over assumptions — resolve ambiguity before planning.
@@ -225,9 +233,9 @@ This annotation tells the Step 2 reviewer why a full review was triggered even i
 
 Determine if the implementation requires a new architectural pattern or a modification to an existing one. If not, skip to Step 3.
 
-### Architectural Review via `/dso:review-protocol`
+### Architectural Review via Review Protocol Workflow
 
-If a pattern change is proposed, invoke `/dso:review-protocol` with:
+If a pattern change is proposed, read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md` inline with:
 
 - **subject**: "Architectural Pattern: {pattern name}"
 - **artifact**: The proposed pattern description plus relevant architecture docs and existing patterns found in Step 1
@@ -442,7 +450,7 @@ The contract task must be declared as a dependency of all implementation tasks t
 Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer
 table, launch instructions, score aggregation rules, and conflict detection guidance.
 
-Invoke `/dso:review-protocol` to evaluate the plan:
+Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md` inline to evaluate the plan:
 
 - **subject**: "Implementation Plan for: {story title}"
 - **artifact**: The user story (title + full description) plus the numbered task list with titles, descriptions, TDD requirements, and dependencies
@@ -457,7 +465,7 @@ Invoke `/dso:review-protocol` to evaluate the plan:
 
 ### Optimization
 
-The plan **must** achieve all dimension scores of **5**. `/dso:review-protocol`'s revision protocol handles the iteration loop (max 3 cycles). After 3 attempts, present the plan at its current score with remaining issues to the user for judgment.
+The plan **must** achieve all dimension scores of **5**. The review protocol workflow's revision protocol handles the iteration loop (max 3 cycles). After 3 attempts, present the plan at its current score with remaining issues to the user for judgment.
 
 ---
 
@@ -563,7 +571,9 @@ Report:
 - Ready tasks (`.claude/scripts/dso ticket list` filtered by story)
 - Whether documentation/E2E tasks were included and why
 
-**Stop and wait for user instructions** — do not begin implementing any tasks.
+**When invoked interactively (user-initiated)**: Stop and wait for user instructions — do not begin implementing any tasks.
+
+**When invoked from `/dso:sprint` (via Skill tool)**: Do NOT stop. Continue immediately to Step 6 (Gap Analysis) and then output the STATUS protocol (see Output Protocol below).
 
 ---
 
@@ -573,10 +583,10 @@ Review the complete task list for design gaps that would compound during sub-age
 
 ### TRIVIAL Skip Gate
 
-Check the evaluator context passed via `{evaluator-context}` from `/dso:sprint`:
+Check the story's complexity classification. When invoked from `/dso:sprint`, the parent story may have a `COMPLEXITY_CLASSIFICATION: COMPLEX` comment (written by sprint's evaluator). Check via `.claude/scripts/dso ticket show <story-id>` and grep for `COMPLEXITY_CLASSIFICATION`:
 
-- **If `classification: "TRIVIAL"`**: Skip gap analysis entirely. Log: `"Skipping gap analysis — story classified as TRIVIAL"`. Proceed directly to the final summary presentation.
-- **If `classification: "COMPLEX"`** or **no evaluator context** (standalone invocation): Run gap analysis. The cost of an unnecessary gap analysis is low; the cost of a missed gap is high.
+- **If `COMPLEXITY_CLASSIFICATION: TRIVIAL`** (or the story is clearly simple from context): Skip gap analysis entirely. Log: `"Skipping gap analysis — story classified as TRIVIAL"`. Proceed directly to the final summary presentation.
+- **If `COMPLEXITY_CLASSIFICATION: COMPLEX`** or **no classification found** (standalone invocation): Run gap analysis. The cost of an unnecessary gap analysis is low; the cost of a missed gap is high.
 
 ### Dispatch Opus Sub-Agent
 
@@ -625,9 +635,9 @@ After processing findings (or skipping/failing), update the summary output to in
 | Step | Purpose | Key Commands |
 |------|---------|--------------|
 | 1 | Contextual Discovery | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, Glob/Grep, clarify ambiguities, cross-cutting detection |
-| 2 | Architectural Review | `/dso:review-protocol` (>= 4, max 3 iterations); forced if cross-cutting detected |
+| 2 | Architectural Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (>= 4, max 3 iterations); forced if cross-cutting detected |
 | 3 | Atomic Task Drafting | TDD-first, sequential order, E2E + docs coverage |
-| 4 | Plan Review | `/dso:review-protocol` (all dims = 5, max 3 iterations) |
+| 4 | Plan Review | `REVIEW-PROTOCOL-WORKFLOW.md` inline (all dims = 5, max 3 iterations) |
 | 5 | Task Creation | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `validate-issues.sh`, `.claude/scripts/dso ticket list` |
 | 6 | Gap Analysis | TRIVIAL skip gate, opus sub-agent via `prompts/gap-analysis.md`, parse findings |
 
@@ -649,3 +659,28 @@ After processing findings (or skipping/failing), update the summary output to in
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
 | Tasks requiring co-commit | Every task must be independently committable and green. If Task B is broken without Task A in the same commit, merge them or reorder so each stands alone. Inert (does nothing yet) is fine; broken is not. |
 | Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in acceptance criteria — the test gate will produce a false negative without it. |
+
+## Output Protocol (when invoked from /dso:sprint)
+
+When invoked via Skill tool from `/dso:sprint`, output one of these STATUS lines as the final output so the sprint orchestrator can parse the result:
+
+### On success (all tasks created, dependencies added, plan approved, gap analysis complete):
+
+```
+STATUS:complete TASKS:<comma-separated-task-ids> STORY:<story-or-epic-id>
+```
+
+### On ambiguity or blocker (cannot proceed without user input):
+
+```
+STATUS:blocked QUESTIONS:<json-array-of-question-objects>
+```
+
+Each question object must have two fields:
+- `"text"`: the question string
+- `"kind"`: either `"blocking"` (cannot plan without this) or `"defaultable"` (safe assumption exists — include the assumption in the text)
+
+**Rules for question classification:**
+- `"blocking"`: genuinely cannot draft tasks without this answer
+- `"defaultable"`: safe assumption exists; include the assumption explicitly
+- Never include questions clearly answerable from the codebase or parent epic

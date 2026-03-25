@@ -4,6 +4,14 @@ description: End Session - Worktree Cleanup and Task Summary
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires direct user interaction (prompts, confirmations, interactive choices). If you are running as a sub-agent dispatched via the Task tool, STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:end-session cannot run in sub-agent context — it requires direct user interaction. Invoke this skill directly from the main session instead."
+
+Do NOT proceed with any skill logic if you are running as a sub-agent.
+</SUB-AGENT-GUARD>
+
 # End Session: Worktree Cleanup and Task Summary
 
 Close out an ephemeral worktree session: close issues, commit, merge to main, push, and report a task summary.
