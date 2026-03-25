@@ -1,0 +1,1 @@
+{"timestamp": 1774471531, "uuid": "e26bd8d3-7c34-4940-bc9e-1550811d43e4", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "CI failures: ShellCheck, 4 hook tests, 2 script tests on main", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
