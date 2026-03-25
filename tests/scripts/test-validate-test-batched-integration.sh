@@ -310,4 +310,24 @@ assert_eq "test_validate_emits_action_required_block_on_exit_2: output contains 
 
 assert_pass_if_clean "test_validate_emits_action_required_block_on_exit_2"
 
+# ============================================================================
+# test_validate_rejects_state_file_missing_command_hash
+# Bug dso-gjww: _test_state_already_passed must reject state files that lack
+# a command_hash field, since they could belong to a different test command.
+# ============================================================================
+_snapshot_fail
+
+# The _test_state_already_passed function in validate.sh must reject state files
+# with missing command_hash. Verify that the Python code block inside the function
+# uses "not stored_hash" (reject empty) rather than "stored_hash and ..." (skip empty).
+# This is a structural test — it verifies the fix pattern is present in the source.
+if sed -n '/_test_state_already_passed/,/^}/p' "$VALIDATE_SCRIPT" | grep -q 'not stored_hash'; then
+    _nohash_actual="rejects_missing"
+else
+    _nohash_actual="accepts_missing"
+fi
+assert_eq "test_validate_rejects_state_file_missing_command_hash: rejects missing hash" "rejects_missing" "$_nohash_actual"
+
+assert_pass_if_clean "test_validate_rejects_state_file_missing_command_hash"
+
 print_summary
