@@ -1,0 +1,1 @@
+{"timestamp": 1774411283, "uuid": "8e848a8f-772d-4168-8f30-41b50694b566", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "epic", "title": "Jira bridge integration tests: free Cloud sandbox + WireMock contract tests", "parent_id": "", "priority": 4, "assignee": "Joe Oakhart"}}
