@@ -62,17 +62,7 @@ CODE_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^\.tickets/' || true)
 
 Handle `.tickets/` conflicts as follows:
 
-- **`.tickets/.index.json`**: Auto-resolve using the custom merge driver (union merge). This file is handled by `merge-to-main.sh`'s `_squash_rebase_recovery` function and the `tickets-index-merge` git attribute driver. If it appears here, extract the three staging-area versions and run `merge-ticket-index.py`:
-  ```bash
-  git show :2:.tickets/.index.json > /tmp/ours.json
-  git show :3:.tickets/.index.json > /tmp/theirs.json
-  git show :1:.tickets/.index.json > /tmp/base.json
-  ".claude/scripts/dso" merge-ticket-index.py /tmp/base.json /tmp/ours.json /tmp/theirs.json
-  cp /tmp/ours.json .tickets/.index.json
-  git add .tickets/.index.json
-  ```
-
-- **All other `.tickets/` files** (individual ticket `.md` files, archive files): **Must show a diff to the user and ask which version to keep.** For each conflicted ticket file:
+- **`.tickets/` files** (individual ticket `.md` files, archive files): **Must show a diff to the user and ask which version to keep.** For each conflicted ticket file:
   1. Show the diff between both versions:
      ```bash
      echo "=== Ticket conflict: <file> ==="
@@ -178,7 +168,7 @@ If resolution was abandoned (user chose to resolve manually):
 
 ## Constraints
 
-- `.tickets/.index.json` uses union auto-resolve via `merge-ticket-index.py` (no sub-agent needed). All other `.tickets/` files (individual ticket `.md` and archive files) require user confirmation — never use "ours" strategy on them.
+- All `.tickets/` files (individual ticket `.md` and archive files) require user confirmation — never use "ours" strategy on them.
 - Sub-agent model: **sonnet** — conflict resolution needs code understanding but not architectural reasoning
 - This skill does NOT commit or push — it only completes the merge. The calling skill handles commit/push.
 - Maximum 10 conflicted files. Above that, report to user: "Too many conflicts for agent-assisted resolution. Consider rebasing incrementally."

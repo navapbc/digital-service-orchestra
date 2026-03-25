@@ -791,13 +791,7 @@ Always include (if applicable):
    Then reload your shell: source ~/.zshrc (or ~/.bashrc)
    ```
 
-2. **Register the ticket index merge driver** (always required after fresh clone):
-   ```
-   Run: git config merge.tickets-index-merge.driver \
-     "python3 plugins/dso/scripts/merge-ticket-index.py %O %A %B"
-   ```
-
-3. **Optional dependency installs** (if any optional tools were not found during setup):
+2. **Optional dependency installs** (if any optional tools were not found during setup):
    List each missing optional tool with its install command (e.g., `brew install acli`, `pip3 install pyyaml`). Omit this item if all optional tools are already installed.
 
 If none of the above apply (Jira not configured, merge driver already registered, all optional tools present), print:

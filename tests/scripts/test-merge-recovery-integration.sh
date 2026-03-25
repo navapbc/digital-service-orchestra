@@ -75,7 +75,6 @@ _setup_integration_repos() {
         cd "$_MAIN_REPO"
         git config user.email "main@test.com"
         git config user.name "Main"
-        git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
         echo "init" > README.md
         git add README.md
         git commit -m "initial commit" --quiet
@@ -89,7 +88,6 @@ _setup_integration_repos() {
         cd "$_WORKTREE"
         git config user.email "worktree@test.com"
         git config user.name "Worktree"
-        git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
         # Switch to feature branch
         git checkout -b "$branch_name" --quiet
 

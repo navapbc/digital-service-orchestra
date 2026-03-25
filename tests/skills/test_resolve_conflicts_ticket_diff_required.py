@@ -1,11 +1,9 @@
-"""Test that resolve-conflicts/SKILL.md requires user confirmation for individual ticket files.
+"""Test that resolve-conflicts/SKILL.md requires user confirmation for ticket files.
 
 TDD spec (RED before fix, GREEN after):
 - The skill must NOT instruct agents to blindly accept the worktree version of ticket files
   using 'git checkout --ours -- .tickets/' or 'git merge -X ours'.
-- The skill MUST require showing a diff and asking the user before resolving non-index
-  ticket conflicts.
-- The skill MAY auto-resolve .tickets/.index.json via the union merge driver.
+- The skill MUST require showing a diff and asking the user before resolving ticket conflicts.
 """
 
 import pathlib
@@ -61,9 +59,9 @@ def test_no_blind_ours_strategy_for_tickets() -> None:
 def test_user_confirmation_required_for_ticket_md_conflicts() -> None:
     """resolve-conflicts/SKILL.md must require user confirmation for ticket .md conflicts.
 
-    Individual ticket files (not .index.json) can contain important state from either
-    the worktree or main. The skill must instruct the agent to show a diff and ask the
-    user before choosing a version.
+    Ticket files can contain important state from either the worktree or main.
+    The skill must instruct the agent to show a diff and ask the user before
+    choosing a version.
     """
     content = SKILL_MD.read_text()
 
@@ -84,18 +82,5 @@ def test_user_confirmation_required_for_ticket_md_conflicts() -> None:
         or "ticket `.md`" in content
     ), (
         "resolve-conflicts/SKILL.md must explicitly require user confirmation for "
-        "individual ticket .md files (not just .index.json)"
-    )
-
-
-def test_index_json_auto_resolve_still_present() -> None:
-    """resolve-conflicts/SKILL.md must still auto-resolve .tickets/.index.json via union driver.
-
-    The union merge driver for .index.json is safe (additive union). This auto-resolve
-    must be preserved — only individual ticket files require user confirmation.
-    """
-    content = SKILL_MD.read_text()
-    assert "merge-ticket-index.py" in content or ".index.json" in content, (
-        "resolve-conflicts/SKILL.md must retain auto-resolve logic for "
-        ".tickets/.index.json via merge-ticket-index.py"
+        "individual ticket .md files"
     )
