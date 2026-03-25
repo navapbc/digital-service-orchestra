@@ -20,29 +20,7 @@ MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # =============================================================================
-# Test 1: Post-merge validation runs format-check as a background job
-# The script should have '&' after the format-check command invocation.
-# =============================================================================
-HAS_BACKGROUND_JOB=$(grep -cE ' &$|^&$' "$MERGE_SCRIPT" || true)
-assert_ne "test_parallel_validation_uses_background_jobs" "0" "$HAS_BACKGROUND_JOB"
-
-# =============================================================================
-# Test 2: Post-merge validation waits for background jobs
-# The script should use 'wait' to collect results from background jobs.
-# =============================================================================
-HAS_WAIT=$(grep -c '\bwait\b' "$MERGE_SCRIPT" || true)
-assert_ne "test_parallel_validation_waits_for_jobs" "0" "$HAS_WAIT"
-
-# =============================================================================
-# Test 3: Both exit codes are captured after wait
-# The script should capture exit codes for both format-check and lint.
-# Pattern: wait $PID; result=$? (or equivalent)
-# =============================================================================
-HAS_EXIT_CAPTURE=$(grep -c 'wait.*\$\|exit_\|_exit\|_rc\|_status\|FMT_RC\|LINT_RC\|FMT_EXIT\|LINT_EXIT' "$MERGE_SCRIPT" || true)
-assert_ne "test_parallel_validation_captures_both_exit_codes" "0" "$HAS_EXIT_CAPTURE"
-
-# =============================================================================
-# Test 4: bash -n syntax check passes on merge-to-main.sh
+# Test: bash -n syntax check passes on merge-to-main.sh
 # =============================================================================
 SYNTAX_OK=0
 bash -n "$MERGE_SCRIPT" 2>/dev/null && SYNTAX_OK=1
@@ -620,64 +598,21 @@ fi
 # =============================================================================
 # Test: --help flag is handled in merge-to-main.sh (structural check)
 # =============================================================================
-HAS_HELP_FLAG=$(grep -c '\-\-help' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_help_flag_handled" "0" "$HAS_HELP_FLAG"
-
-# =============================================================================
-# Test: --help output contains "phase" (structural: grep in script body)
-# =============================================================================
-HAS_HELP_PHASE=$(grep -c 'phase' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_help_output_contains_phase" "0" "$HAS_HELP_PHASE"
-
-# =============================================================================
-# Test: --phase argument has been removed from the script
-# =============================================================================
-HAS_PHASE_ARG=$(grep -c '\-\-phase' "$MERGE_SCRIPT" || true)
-assert_eq "test_cli_phase_arg_removed" "0" "$HAS_PHASE_ARG"
-
-# =============================================================================
-# Test: --resume argument is parsed in the script
-# =============================================================================
-HAS_RESUME_ARG=$(grep -c '\-\-resume' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_resume_arg_handled" "0" "$HAS_RESUME_ARG"
-
-# =============================================================================
-# Test: No-args mode has a usage warning referencing --phase
-# Pattern: WARNING.*phase or usage.*phase (case-insensitive match in grep)
-# =============================================================================
-HAS_NOARGS_WARNING=$(grep -iE 'WARNING.*phase|usage.*phase|no.*args.*phase|phase.*--resume' "$MERGE_SCRIPT" | grep -c . || true)
-assert_ne "test_cli_noargs_prints_warning_with_phase" "0" "$HAS_NOARGS_WARNING"
-
-# =============================================================================
-# Test: --help flag prints usage and exits 0 (integration: invoke script with --help)
-# This runs outside a git worktree so we expect exit 0 (--help exits before context checks)
+# Test: --help prints usage and exits 0 (behavioral: invoke the script)
 # =============================================================================
 _HELP_OUTPUT=$(bash "$MERGE_SCRIPT" --help 2>&1) || true
 _HELP_RC=$?
-# --help must mention "phase" somewhere
-if echo "$_HELP_OUTPUT" | grep -q "phase"; then
-    _HELP_HAS_PHASE="true"
-else
-    _HELP_HAS_PHASE="false"
-fi
-assert_eq "test_cli_help_output_mentions_phase" "true" "$_HELP_HAS_PHASE"
 assert_eq "test_cli_help_exits_0" "0" "$_HELP_RC"
+# --help output must mention --resume
+if echo "$_HELP_OUTPUT" | grep -q "\-\-resume"; then
+    _HELP_HAS_RESUME="true"
+else
+    _HELP_HAS_RESUME="false"
+fi
+assert_eq "test_cli_help_mentions_resume" "true" "$_HELP_HAS_RESUME"
 
 # =============================================================================
-# Test: --phase flag has been removed (agents should use --resume instead)
-# =============================================================================
-HAS_PHASE_FLAG=$(grep -c '\-\-phase=' "$MERGE_SCRIPT" || true)
-assert_eq "test_cli_phase_flag_removed" "0" "$HAS_PHASE_FLAG"
-
-# =============================================================================
-# Test: --resume reads state file (structural: script uses completed_phases or _state_is_fresh)
-# =============================================================================
-HAS_RESUME_STATE=$(grep -c 'completed_phases\|_state_is_fresh\|resume' "$MERGE_SCRIPT" || true)
-assert_ne "test_cli_resume_reads_state_file" "0" "$HAS_RESUME_STATE"
-
-# =============================================================================
-# Test: bash -n syntax check still passes after arg parsing additions
-# (Re-check after tests above, ensuring implementation doesn't break syntax)
+# Test: bash -n syntax check passes
 # =============================================================================
 SYNTAX_FINAL=0
 bash -n "$MERGE_SCRIPT" 2>/dev/null && SYNTAX_FINAL=1

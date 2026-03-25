@@ -119,6 +119,8 @@ Use when a task removes, moves, or replaces a command, skill, script, or other w
   Verify: grep -q 'def {test_name}' {test_path}
 - [ ] Running the test returns non-zero exit pre-implementation
   Verify: python -m pytest {test_path}::{test_name} 2>&1; test $? -ne 0
+- [ ] Test is behavioral: executes the code under test (calls a function, runs a script, or exercises a code path with inputs and asserts on outputs/side effects) — not a grep/sed scan of the source file for implementation strings. Structural tests (negative constraints, metadata validation, syntax checks) are exempt.
+  Verify: manual review — test approach in task description describes what is executed and what output is asserted
 
 ## Category: Test-Exempt Task
 

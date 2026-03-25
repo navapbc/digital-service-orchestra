@@ -70,65 +70,14 @@ fi
 assert_eq "test_no_hardcoded_prefix" "0" "$hardcoded_count"
 
 # ---------------------------------------------------------------------------
-# Test 4: Script references read-config.sh for session.artifact_prefix
+# (Tests for read-config.sh reference, basename fallback, tr transform, and
+# ARTIFACT_PREFIX variable usage are covered behaviorally by tests 9-13 below:
+# derive_prefix edge cases prove the transformation, and the integration tests
+# prove config reading and fallback resolution work end-to-end.)
 # ---------------------------------------------------------------------------
-echo "Test 4: script reads session.artifact_prefix via read-config.sh"
-reads_config=0
-if [ -f "$PLUGIN_SCRIPT" ]; then
-    if grep -qE 'read-config\.sh.*session\.artifact_prefix|session\.artifact_prefix.*read-config' "$PLUGIN_SCRIPT" 2>/dev/null; then
-        reads_config=1
-    fi
-fi
-assert_eq "test_reads_config_session_artifact_prefix" "1" "$reads_config"
 
 # ---------------------------------------------------------------------------
-# Test 5: Script falls back to basename of REPO_ROOT
-# ---------------------------------------------------------------------------
-echo "Test 5: script has fallback derivation from basename of REPO_ROOT"
-has_basename_fallback=0
-if [ -f "$PLUGIN_SCRIPT" ]; then
-    if grep -qE 'basename.*REPO_ROOT|REPO_ROOT.*basename' "$PLUGIN_SCRIPT" 2>/dev/null; then
-        has_basename_fallback=1
-    fi
-fi
-assert_eq "test_fallback_uses_basename" "1" "$has_basename_fallback"
-
-# ---------------------------------------------------------------------------
-# Test 6: Fallback derivation handles special chars (tr for lowercase/a-z0-9-)
-# ---------------------------------------------------------------------------
-echo "Test 6: fallback derivation handles dots, underscores, uppercase"
-has_transform=0
-if [ -f "$PLUGIN_SCRIPT" ]; then
-    if grep -qE "tr.*\[\[:upper:\]\].*\[\[:lower:\]\]|tr.*'a-z0-9-'" "$PLUGIN_SCRIPT" 2>/dev/null; then
-        has_transform=1
-    fi
-fi
-assert_eq "test_fallback_handles_special_chars" "1" "$has_transform"
-
-# ---------------------------------------------------------------------------
-# Test 7: Script contains GATHER_COMPLETE section (smoke test of completeness)
-# ---------------------------------------------------------------------------
-echo "Test 7: script contains GATHER_COMPLETE section"
-has_gather_complete=0
-if [ -f "$PLUGIN_SCRIPT" ]; then
-    grep -q 'GATHER_COMPLETE' "$PLUGIN_SCRIPT" && has_gather_complete=1
-fi
-assert_eq "test_gather_complete_section_present" "1" "$has_gather_complete"
-
-# ---------------------------------------------------------------------------
-# Test 8: ARTIFACT_PREFIX variable is used in the timeout log glob pattern
-# ---------------------------------------------------------------------------
-echo "Test 8: ARTIFACT_PREFIX variable used in glob pattern"
-uses_prefix_var=0
-if [ -f "$PLUGIN_SCRIPT" ]; then
-    if grep -qE '\$\{?ARTIFACT_PREFIX\}?' "$PLUGIN_SCRIPT" 2>/dev/null; then
-        uses_prefix_var=1
-    fi
-fi
-assert_eq "test_config_prefix_used_in_glob" "1" "$uses_prefix_var"
-
-# ---------------------------------------------------------------------------
-# Tests 9-11: Functional tests of the fallback derivation logic.
+# Tests 4-6: Functional tests of the fallback derivation logic.
 # We inline the derivation from the script spec and verify edge cases.
 # ---------------------------------------------------------------------------
 

@@ -25,6 +25,13 @@ fi
 HOOK="$1"
 shift
 
+# Resolve relative paths against the hooks/ directory (e.g., "dispatchers/pre-bash.sh").
+# This allows plugin.json to use relative dispatcher paths, reducing
+# ${CLAUDE_PLUGIN_ROOT} occurrences in error messages (bug e724-31a3).
+if [[ -n "$HOOK" && "${HOOK:0:1}" != "/" && ! -f "$HOOK" ]]; then
+    HOOK="$CLAUDE_PLUGIN_ROOT/hooks/$HOOK"
+fi
+
 if [[ -z "$HOOK" || ! -f "$HOOK" ]]; then
     # No hook specified or file doesn't exist — fail-open
     exit 0

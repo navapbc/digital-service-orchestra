@@ -4,6 +4,14 @@ description: Use when starting a new project or feature that needs a design syst
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires direct user interaction (prompts, confirmations, interactive choices). If you are running as a sub-agent dispatched via the Task tool, STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:design-onboarding cannot run in sub-agent context — it requires direct user interaction. Invoke this skill directly from the main session instead."
+
+Do NOT proceed with any skill logic if you are running as a sub-agent.
+</SUB-AGENT-GUARD>
+
 # Design Onboarding: North Star Definition
 
 Role: **Senior Design Systems Lead** with deep expertise in Human-Centered Design (HCD), WCAG 2.1+ Accessibility, and Component-Driven Architecture.

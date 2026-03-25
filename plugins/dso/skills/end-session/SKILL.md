@@ -4,6 +4,14 @@ description: End Session - Worktree Cleanup and Task Summary
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires direct user interaction (prompts, confirmations, interactive choices). If you are running as a sub-agent dispatched via the Task tool, STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:end-session cannot run in sub-agent context — it requires direct user interaction. Invoke this skill directly from the main session instead."
+
+Do NOT proceed with any skill logic if you are running as a sub-agent.
+</SUB-AGENT-GUARD>
+
 # End Session: Worktree Cleanup and Task Summary
 
 Close out an ephemeral worktree session: close issues, commit, merge to main, push, and report a task summary.
@@ -221,8 +229,16 @@ Verify the worktree satisfies both conditions that `claude-safe`'s `_offer_workt
 ```bash
 BRANCH=$(git branch --show-current)
 
-# is_merged: exit 0 means the branch is a full ancestor of main
-git merge-base --is-ancestor "$BRANCH" main && echo "MERGED" || echo "NOT MERGED"
+# is_merged: exit 0 means the branch is a full ancestor of main.
+# Fallback: if merge-base fails (e.g., branch tip was amended after merge),
+# check if main has a merge commit referencing this branch name.
+if git merge-base --is-ancestor "$BRANCH" main 2>/dev/null; then
+    echo "MERGED"
+elif git log main --oneline --grep="(merge $BRANCH)" -1 2>/dev/null | grep -q .; then
+    echo "MERGED (via merge commit message fallback)"
+else
+    echo "NOT MERGED"
+fi
 
 # is_clean: empty output means no uncommitted changes
 git status --porcelain

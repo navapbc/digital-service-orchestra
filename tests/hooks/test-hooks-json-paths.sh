@@ -76,6 +76,47 @@ fi
 assert_eq "test_hooks_json_plugin_root_refs" "all_have_plugin_root" "$actual"
 
 # ─────────────────────────────────────────────────────────────
+# test_hooks_json_max_one_plugin_root_per_command
+# Bug e724-31a3: Claude Code displays raw ${CLAUDE_PLUGIN_ROOT} in hook error
+# messages. Each command should use ${CLAUDE_PLUGIN_ROOT} at most once (for the
+# entry point). Dispatcher arguments should be relative paths resolved by
+# run-hook.sh to keep error messages clean.
+# ─────────────────────────────────────────────────────────────
+if [[ -f "$HOOKS_JSON" ]]; then
+    multi_ref_cmds=$(HOOKS_JSON_PATH="$HOOKS_JSON" python3 -c "
+import json, os, sys
+
+hooks_json_path = os.environ['HOOKS_JSON_PATH']
+with open(hooks_json_path) as f:
+    d = json.load(f)
+
+bad = []
+hooks_section = d.get('hooks', {})
+for event, groups in hooks_section.items():
+    for group in groups:
+        for h in group.get('hooks', []):
+            cmd = h.get('command', '')
+            count = cmd.count('\${CLAUDE_PLUGIN_ROOT}')
+            if count > 1:
+                bad.append(f'{event}: {cmd} (count={count})')
+
+if bad:
+    for b in bad:
+        print(b)
+    sys.exit(1)
+sys.exit(0)
+" 2>&1)
+    if [[ $? -eq 0 ]]; then
+        actual="max_one_ref"
+    else
+        actual="multiple_refs: $multi_ref_cmds"
+    fi
+else
+    actual="missing_file"
+fi
+assert_eq "test_hooks_json_max_one_plugin_root_per_command" "max_one_ref" "$actual"
+
+# ─────────────────────────────────────────────────────────────
 # test_hooks_json_no_absolute_paths
 # No 'command' values in plugin.json hooks may contain '/Users/' or '/home/'.
 # ─────────────────────────────────────────────────────────────

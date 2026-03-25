@@ -113,6 +113,12 @@ _offer_worktree_cleanup() {
     local is_merged=0
     if git -C "$main_root" merge-base --is-ancestor "$branch" main 2>/dev/null; then
         is_merged=1
+    elif git -C "$main_root" log main --oneline --grep="(merge $branch)" -1 2>/dev/null | grep -q .; then
+        # Fallback: the branch tip may have been amended after the merge
+        # (e.g., orchestrator recovery after merge-to-main.sh timeout).
+        # The amend changes the SHA so is-ancestor fails, but main's merge
+        # commit message still references this branch name.
+        is_merged=1
     fi
 
     # Check for uncommitted changes — any dirty file blocks auto-removal.
