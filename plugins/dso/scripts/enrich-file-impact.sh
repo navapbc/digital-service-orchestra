@@ -15,7 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
-TK="${TK:-$SCRIPT_DIR/tk}"
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 PLUGIN_SCRIPTS="${SCRIPT_DIR}"
 
@@ -46,16 +46,8 @@ fi
 
 ID="${args[0]}"
 
-# Load ticket content. Prefer ticket show (v3-aware), fall back to tk show,
-# then fall back to reading .tickets/<id>.md directly (test environments with TICKETS_DIR).
-TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
-if [ -n "${TICKETS_TRACKER_DIR:-}" ] && [ -x "$TICKET_CMD" ]; then
-    output=$("$TICKET_CMD" show "$ID" 2>/dev/null) || output=""
-elif [ -n "${TICKETS_DIR:-}" ] && [ -f "${TICKETS_DIR}/${ID}.md" ]; then
-    output=$(cat "${TICKETS_DIR}/${ID}.md" 2>/dev/null) || output=""
-else
-    output=$("$TK" show "$ID" 2>/dev/null) || output=""
-fi
+# Load ticket content using the v3 ticket CLI.
+output=$("$TICKET_CMD" show "$ID" 2>/dev/null) || output=""
 if [ -z "$output" ]; then
     echo "ERROR: Could not load ticket $ID" >&2
     exit 1
@@ -183,36 +175,13 @@ if [ -z "$file_impact" ]; then
     exit 0
 fi
 
-# Append file impact to ticket.
-# v3 (event-sourced): auto-detected when .tickets-tracker/ exists or TICKETS_TRACKER_DIR is set.
-# v2 (flat-file): falls back to direct .tickets/<id>.md append when TICKETS_DIR is set or
-#                 .tickets-tracker/ does not exist.
-_use_v3=false
-if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
-    _use_v3=true
-elif [ -z "${TICKETS_DIR:-}" ] && [ -d "$REPO_ROOT/.tickets-tracker" ]; then
-    _use_v3=true
+# Append file impact to ticket as a COMMENT event via the ticket CLI.
+if [ ! -x "$TICKET_CMD" ]; then
+    echo "ERROR: ticket CLI not found at $TICKET_CMD" >&2
+    exit 1
 fi
-
-if [ "$_use_v3" = true ]; then
-    # v3: write file impact as a COMMENT event via the ticket CLI
-    TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
-    if [ ! -x "$TICKET_CMD" ]; then
-        echo "ERROR: ticket CLI not found at $TICKET_CMD" >&2
-        exit 1
-    fi
-    "$TICKET_CMD" comment "$ID" "$file_impact" || {
-        echo "ERROR: Failed to record file impact comment on ticket $ID" >&2
-        exit 1
-    }
-    echo "File impact section added to $ID (v3 comment event)"
-else
-    # v2: append directly to the markdown file
-    ticket_file="${TICKETS_DIR:-$REPO_ROOT/.tickets}/${ID}.md"
-    if [ ! -f "$ticket_file" ]; then
-        echo "ERROR: Ticket file not found: $ticket_file" >&2
-        exit 1
-    fi
-    printf '\n%s\n' "$file_impact" >> "$ticket_file"
-    echo "File impact section added to $ID"
-fi
+"$TICKET_CMD" comment "$ID" "$file_impact" || {
+    echo "ERROR: Failed to record file impact comment on ticket $ID" >&2
+    exit 1
+}
+echo "File impact section added to $ID (v3 comment event)"

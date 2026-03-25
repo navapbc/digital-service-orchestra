@@ -30,6 +30,7 @@ plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoverie
 plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-config-paths.sh
 plugins/dso/scripts/check-acceptance-criteria.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check_file_impact.py,tests/scripts/test-enrich-file-impact-v2-removal.sh [test_enrich_file_impact_no_TK_variable]
+plugins/dso/scripts/issue-batch.sh:tests/scripts/test-utility-scripts-v2-removal.sh
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/merge-ticket-index.py:tests/scripts/test-merge-ticket-index.sh
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
@@ -107,8 +108,8 @@ plugins/dso/skills/using-lockpick/SKILL.md:plugins/dso/tests/test-sprint-skill-s
 plugins/dso/skills/validate-work/SKILL.md:plugins/dso/tests/test-sprint-skill-step10-no-merge-to-main.sh,tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test_end_skill_final_verification_step.py,tests/skills/test_implementation_plan_skill_tdd_enforcement.py,tests/skills/test-quick-ref-skill.sh,tests/skills/test_project_setup_skill_conditional_prompts.py,tests/skills/test_fix_bug_skill.py,tests/skills/test_end_skill_summary_displays_stored_learnings.py,tests/skills/test_end_skill_learnings_step_before_commit.py,tests/skills/test-design-skills-cross-stack.sh,tests/skills/test_end_skill_dirty_worktree_resolution.py,tests/skills/test_fix_bug_skill_escalated_section.py,tests/skills/test_end_skill_bug_tickets_before_commit.py,tests/hooks/test-sub-agent-guard.sh
 plugins/dso/skills/validate-work/prompts/ci-status.md:tests/hooks/test-ci-status-no-jq.sh,tests/scripts/test-ci-status-auth-ratelimit.sh,tests/scripts/test-ci-status-timeout.sh,tests/scripts/test-ci-status.sh
 plugins/dso/skills/verification-before-completion/SKILL.md:plugins/dso/tests/test-sprint-skill-step10-no-merge-to-main.sh,tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test_end_skill_final_verification_step.py,tests/skills/test_implementation_plan_skill_tdd_enforcement.py,tests/skills/test-quick-ref-skill.sh,tests/skills/test_project_setup_skill_conditional_prompts.py,tests/skills/test_fix_bug_skill.py,tests/skills/test_end_skill_summary_displays_stored_learnings.py,tests/skills/test_end_skill_learnings_step_before_commit.py,tests/skills/test-design-skills-cross-stack.sh,tests/skills/test_end_skill_dirty_worktree_resolution.py,tests/skills/test_fix_bug_skill_escalated_section.py,tests/skills/test_end_skill_bug_tickets_before_commit.py
-.github/workflows/ci.yml: tests/scripts/test-ci-no-v2-paths.sh [test_ci_yml_no_tickets_paths]
-examples/ci.example.yml: tests/scripts/test-ci-no-v2-paths.sh [test_ci_example_yml_no_tickets_paths]
-examples/pre-commit-config.example.yaml: tests/scripts/test-ci-no-v2-paths.sh [test_precommit_example_no_tickets_exclude]
+.github/workflows/ci.yml: tests/scripts/test-ci-no-v2-paths.sh
+examples/ci.example.yml: tests/scripts/test-ci-no-v2-paths.sh
+examples/pre-commit-config.example.yaml: tests/scripts/test-ci-no-v2-paths.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh: tests/hooks/test-pre-commit-ticket-gate.sh [test_blocks_missing_ticket_id]
 plugins/dso/scripts/merge-to-main.sh: tests/scripts/test-merge-to-main.sh [test_merge_to_main_no_v2_tickets_md_pattern]

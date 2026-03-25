@@ -10,7 +10,6 @@ on:
   pull_request:
     branches: [main]
     paths-ignore:
-      - '.tickets/**'
       - '**/*.md'
   push:
     branches:
@@ -24,7 +23,6 @@ on:
       - 'exp-*'
       - 'exp/**'
     paths-ignore:
-      - '.tickets/**'
       - '**/*.md'
 
 concurrency:

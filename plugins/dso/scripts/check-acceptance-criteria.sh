@@ -8,13 +8,13 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TK="${TK:-$SCRIPT_DIR/tk}"
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
 ID="${1:?Usage: check-acceptance-criteria.sh <id>}"
 
-# tk show exits non-zero when a ticket is not found.
+# ticket show exits non-zero when a ticket is not found.
 # Capture output and check exit code to detect failure.
-output=$("$TK" show "$ID" 2>/dev/null) || {
+output=$("$TICKET_CMD" show "$ID" 2>/dev/null) || {
     echo "AC_CHECK: fail - could not load $ID"
     exit 1
 }
@@ -41,6 +41,6 @@ if [ "$ac_count" -ge 1 ]; then
     echo "AC_CHECK: pass ($ac_count criteria lines)"
     exit 0
 else
-    echo "AC_CHECK: fail - no ACCEPTANCE CRITERIA section in $ID (use: tk create with --acceptance flag or add an '## Acceptance Criteria' section with checklist items)"
+    echo "AC_CHECK: fail - no ACCEPTANCE CRITERIA section in $ID (use: .claude/scripts/dso ticket create with an '## Acceptance Criteria' section with checklist items)"
     exit 1
 fi

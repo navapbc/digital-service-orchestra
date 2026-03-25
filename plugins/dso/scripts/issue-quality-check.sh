@@ -19,7 +19,6 @@ set -euo pipefail
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TK="${TK:-$SCRIPT_DIR/tk}"
 
 if [ $# -ne 1 ]; then
     echo "Usage: issue-quality-check.sh <id>" >&2
@@ -29,16 +28,9 @@ fi
 ID="$1"
 
 # Get the full issue output (stays in script, not in orchestrator context).
-# Prefer ticket show (v3-aware), fall back to tk show, then fall back to
-# reading .tickets/<id>.md directly (test environments with TICKETS_DIR).
+# TICKET_CMD is the sole interface post-v3 migration.
 TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
-if [ -n "${TICKETS_TRACKER_DIR:-}" ] && [ -x "$TICKET_CMD" ]; then
-    output=$("$TICKET_CMD" show "$ID" 2>/dev/null) || output=""
-elif [ -n "${TICKETS_DIR:-}" ] && [ -f "${TICKETS_DIR}/${ID}.md" ]; then
-    output=$(cat "${TICKETS_DIR}/${ID}.md" 2>/dev/null) || output=""
-else
-    output=$("$TK" show "$ID" 2>/dev/null) || output=""
-fi
+output=$("$TICKET_CMD" show "$ID" 2>/dev/null) || output=""
 if [ -z "$output" ]; then
     echo "QUALITY: fail - could not load issue $ID, using inline prompt"
     exit 1
@@ -113,7 +105,7 @@ elif [ "$file_impact_items" -ge 1 ]; then
     exit 0
 elif [ "$line_count" -ge 5 ] && [ "$keyword_count" -ge 1 ]; then
     echo "QUALITY: pass (legacy - no AC/file impact) ($line_count lines, $keyword_count criteria)"
-    echo "WARNING: Task lacks Acceptance block and File Impact section. Add via 'tk add-note <id>'." >&2
+    echo "WARNING: Task lacks Acceptance block and File Impact section. Add via '.claude/scripts/dso ticket comment <id> <note>'." >&2
     exit 0
 else
     echo "QUALITY: fail - description too sparse ($line_count lines), using inline prompt"

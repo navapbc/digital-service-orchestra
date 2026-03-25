@@ -53,7 +53,6 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh isolation-check 60 "STAGED_ONLY=true scripts/check-test-isolation.sh"
         language: system
         pass_filenames: false
-        exclude: '^\\.tickets/'
         types: [python]
         stages: [pre-commit]
 
@@ -64,7 +63,6 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh poetry-lock-check 10 "cd app && PY_RUN_APPROACH=local make poetry-lock-check"
         language: system
         pass_filenames: false
-        exclude: '^\\.tickets/'
         stages: [pre-commit]
 
       # Format check + lint: ruff on staged .py files only (timeout: 15s)
@@ -78,7 +76,6 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh format-and-lint 15 "cd app && PY_RUN_APPROACH=local poetry run ruff check --select I src tests && poetry run ruff format --check src tests && poetry run ruff check src tests"
         language: system
         pass_filenames: false
-        exclude: '^\\.tickets/'
         types: [python]
         stages: [pre-commit]
 
@@ -89,7 +86,6 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh security-scan 15 "cd app && PY_RUN_APPROACH=local make lint-security"
         language: system
         pass_filenames: false
-        exclude: '^\\.tickets/'
         types: [python]
         stages: [pre-commit]
 
@@ -100,7 +96,6 @@ repos:
         entry: ./scripts/check-pytest-markers.sh
         language: system
         pass_filenames: false
-        exclude: '^\\.tickets/'
         types: [python]
         stages: [pre-commit]
 
@@ -144,7 +139,6 @@ repos:
         entry: ./scripts/pre-commit-wrapper.sh import-check 10 "cd app && PY_RUN_APPROACH=local make import-check"
         language: system
         pass_filenames: false
-        exclude: '^\\.tickets/'
         types: [python]
         stages: [pre-commit]
 
@@ -166,7 +160,6 @@ repos:
         language: system
         entry: ./scripts/pre-commit-wrapper.sh check-assertion-density 15 "cd app && PY_RUN_APPROACH=local make check-assertion-density"
         pass_filenames: false
-        exclude: '^\\.tickets/'
         stages: [pre-commit]
         types: [python]
 
