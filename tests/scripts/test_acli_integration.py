@@ -405,3 +405,54 @@ def test_acli_client_add_comment_delegates(acli: ModuleType) -> None:
     cmd = mock_run.call_args[0][0]
     assert any("DSO-42" in str(arg) for arg in cmd)
     assert any("Hello" in str(arg) for arg in cmd)
+
+
+# ---------------------------------------------------------------------------
+# Test 12: create_issue with priority routes through _create_issue_from_json
+#          and includes summary in the JSON payload
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_issue_from_json_forwards_summary(acli: ModuleType) -> None:
+    """create_issue with priority must route through _create_issue_from_json
+    and include the summary field in the JSON payload written to disk."""
+    created_response = json.dumps({"key": "PROJ-99", "summary": "My summary"})
+    verified_response = json.dumps(
+        {"key": "PROJ-99", "summary": "My summary", "status": "To Do"}
+    )
+
+    captured_payloads: list[dict] = []
+
+    def capturing_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        """Intercept subprocess.run to read the temp JSON file before it's deleted."""
+        # The create call uses --from-json <path>; read the payload while it exists
+        if "--from-json" in cmd:
+            idx = cmd.index("--from-json") + 1
+            json_path = cmd[idx]
+            with open(json_path) as f:
+                captured_payloads.append(json.load(f))
+            return MagicMock(returncode=0, stdout=created_response, stderr="")
+        # The verify-after-create call (get_issue)
+        return MagicMock(returncode=0, stdout=verified_response, stderr="")
+
+    with patch("subprocess.run", side_effect=capturing_run):
+        result = acli.create_issue(
+            project="PROJ",
+            issue_type="Task",
+            summary="My summary",
+            priority=2,
+        )
+
+    assert result is not None
+    assert result.get("key") == "PROJ-99"
+
+    # Verify the --from-json path was taken and the payload contains summary
+    assert len(captured_payloads) == 1, (
+        "Expected exactly one --from-json call when priority is set"
+    )
+    payload = captured_payloads[0]
+    assert payload.get("summary") == "My summary", (
+        f"Expected summary 'My summary' in JSON payload, got: {payload}"
+    )
