@@ -50,7 +50,14 @@ Check for conflicted files:
 CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null)
 ```
 
-If `$CONFLICTED` is empty: report "No conflicts detected — merge is clean." and exit.
+If `$CONFLICTED` is empty, check whether a merge is still in progress with all conflicts pre-resolved:
+
+```bash
+MERGE_IN_PROGRESS=$(test -f "$(git rev-parse --git-dir)/MERGE_HEAD" && echo "yes" || echo "no")
+```
+
+- If `$MERGE_IN_PROGRESS` is `yes` and no unresolved conflicts remain: report "Merge in progress with all conflicts pre-resolved — run `git commit` to finalize the merge." and exit. Do NOT report "no conflicts detected" — the merge needs committing, not aborting.
+- If `$MERGE_IN_PROGRESS` is `no`: report "No conflicts detected — merge is clean." and exit.
 
 Separate `.tickets/` conflicts from code conflicts:
 ```bash

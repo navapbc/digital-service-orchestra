@@ -149,7 +149,7 @@ _make_tool_path() {
     real_bash=$(command -v bash)
 
     # Tools the script needs beyond shell builtins (excluding bash — handled below)
-    local needed_tools=(uname grep sed head cut git python3 pre-commit claude timeout gtimeout mkdir cp chmod printf rm)
+    local needed_tools=(uname grep sed head cut cat git python3 pre-commit claude timeout gtimeout mkdir cp chmod printf rm)
     for cmd in "${needed_tools[@]}"; do
         local should_exclude=0
         for ex in "${exclude[@]}"; do
