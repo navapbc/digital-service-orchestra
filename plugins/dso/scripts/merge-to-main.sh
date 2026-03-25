@@ -402,9 +402,9 @@ _abort_stale_rebase() {
 # accepting the archive move: git rm the old path (if still present) and git add the
 # archived path (if present). Non-archive conflicts cause an immediate abort.
 #
-# v3 ticket system (.tickets-tracker/): ticket event JSON files and the index
-# (.tickets-tracker/<id>/*.json, .tickets-tracker/.index.json) are managed on a
-# separate orphan branch and are excluded from the main repo's tracked files.
+# v3 ticket system (.tickets-tracker/): ticket event JSON files
+# (.tickets-tracker/<id>/*.json) are managed on a separate orphan branch
+# and are excluded from the main repo's tracked files.
 # However, if they appear as conflicts during rebase (e.g., during worktree sync),
 # they are always safe ticket-data files and can be auto-resolved by accepting ours.
 #
@@ -449,7 +449,7 @@ _auto_resolve_archive_conflicts() {
 
     # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
     # Ticket data: v2 .tickets/*.md (including .tickets/archive/*.md),
-    #              v3 .tickets-tracker/<id>/*.json or .tickets-tracker/.index.json.
+    #              v3 .tickets-tracker/<id>/*.json.
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
@@ -663,10 +663,7 @@ _check_push_needed() {
 #   3. If branch exists on origin: git push --force-with-lease.
 #      On force-push failure: restore HEAD via git reset --soft, return 1.
 #   4. GIT_EDITOR=: git rebase origin/main.
-#      On conflict:
-#        - If ONLY .tickets/.index.json conflicts: auto-resolve via merge-ticket-index.py
-#          (extracts clean :1:/:2:/:3: staging versions before running the driver).
-#        - Otherwise: print ACTION REQUIRED with conflicted file list, rebase --abort, return 1.
+#      On conflict: print ACTION REQUIRED with conflicted file list, rebase --abort, return 1.
 #   5. Print RECOVERY: Squash-rebase succeeded. Return 0.
 _squash_rebase_recovery() {
     # Validate BRANCH is set
@@ -725,10 +722,6 @@ _squash_rebase_recovery() {
     local _CONFLICTED_FILES
     _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
 
-    # Filter out .tickets-tracker/.index.json to see if there are other conflicts
-    local _OTHER_CONFLICTS
-    _OTHER_CONFLICTS=$(echo "$_CONFLICTED_FILES" | grep -v '^\.tickets-tracker/\.index\.json$' || true)
-
     if [[ -z "$_CONFLICTED_FILES" ]]; then
         # No conflicts detected — unknown rebase failure
         git rebase --abort 2>/dev/null || true
@@ -736,80 +729,10 @@ _squash_rebase_recovery() {
         return 1
     fi
 
-    if [[ -n "$_OTHER_CONFLICTS" ]]; then
-        # Unresolvable conflicts in non-index files
-        echo "ACTION REQUIRED: Rebase conflict in the following files:"
-        echo "$_OTHER_CONFLICTS"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Only .tickets-tracker/.index.json is conflicted — auto-resolve via merge-ticket-index.py
-    # Prefer CLAUDE_PLUGIN_ROOT (set at top-level in merge-to-main.sh and exported) so
-    # the driver path is stable even when this function is eval'd in test contexts.
-    local _MERGE_DRIVER
-    if [[ -n "${CLAUDE_PLUGIN_ROOT}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py" ]]; then
-        _MERGE_DRIVER="${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py"
-    else
-        local _SCRIPT_DIR_LOCAL
-        _SCRIPT_DIR_LOCAL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        _MERGE_DRIVER="${_SCRIPT_DIR_LOCAL}/merge-ticket-index.py"
-    fi
-
-    if [[ ! -f "$_MERGE_DRIVER" ]]; then
-        echo "ERROR: merge-ticket-index.py not found at $_MERGE_DRIVER — cannot auto-resolve." >&2
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Extract clean versions from the git staging area (no conflict markers)
-    local _TMP_RESOLVE
-    _TMP_RESOLVE=$(mktemp -d)
-    local _BASE_FILE="$_TMP_RESOLVE/base.json"
-    local _OURS_FILE="$_TMP_RESOLVE/ours.json"
-    local _THEIRS_FILE="$_TMP_RESOLVE/theirs.json"
-
-    # :1: = common ancestor (base), :2: = ours (current branch), :3: = theirs (incoming)
-    if ! git show :1:.tickets-tracker/.index.json > "$_BASE_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract base version of .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-    if ! git show :2:.tickets-tracker/.index.json > "$_OURS_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract ours version of .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-    if ! git show :3:.tickets-tracker/.index.json > "$_THEIRS_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract theirs version of .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Run the merge driver (writes result back to _OURS_FILE)
-    if ! python3 "$_MERGE_DRIVER" "$_BASE_FILE" "$_OURS_FILE" "$_THEIRS_FILE" 2>/dev/null; then
-        echo "ERROR: merge-ticket-index.py failed to auto-resolve .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Copy resolved result back into the working tree
-    cp "$_OURS_FILE" ".tickets-tracker/.index.json"
-    rm -rf "$_TMP_RESOLVE"
-
-    git add ".tickets-tracker/.index.json"
-    if ! GIT_EDITOR=: git rebase --continue 2>/dev/null; then
-        echo "ERROR: rebase --continue failed after auto-resolving .tickets-tracker/.index.json." >&2
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    echo "RECOVERY: Squash-rebase succeeded."
-    return 0
+    echo "ACTION REQUIRED: Rebase conflict in the following files:"
+    echo "$_CONFLICTED_FILES"
+    git rebase --abort 2>/dev/null || true
+    return 1
 }
 
 # --- Load hooks/lib/deps.sh for get_artifacts_dir and retry_with_backoff ---

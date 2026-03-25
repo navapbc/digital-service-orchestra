@@ -22,7 +22,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
-MERGE_TICKET_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-ticket-index.py"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -59,7 +58,6 @@ _setup_git_pair() {
         git config user.email "test@test.com"
         git config user.name "Test"
         # Unset custom merge driver so tests are not affected by local git config
-        git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
         echo "init" > README.md
         git add README.md
         git commit -m "initial commit" --quiet
@@ -71,7 +69,7 @@ _setup_git_pair() {
 }
 
 # Load the recovery function under test from the script.
-# Exports CLAUDE_PLUGIN_ROOT so the function can locate merge-ticket-index.py
+# Exports CLAUDE_PLUGIN_ROOT so the function resolves paths correctly
 # when eval'd outside the normal merge-to-main.sh execution context.
 _load_recovery_fn() {
     export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
@@ -103,7 +101,6 @@ _T1_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-single"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T1_RC=$?
@@ -137,7 +134,6 @@ _T2_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-squash"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T2_RC=$?
@@ -192,7 +188,6 @@ _T3_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-rebase"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T3_RC=$?
@@ -232,7 +227,6 @@ _T4_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-fpush"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T4_RC=$?
@@ -281,7 +275,6 @@ _T5_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-restore"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T5_RC=$?
@@ -300,99 +293,8 @@ assert_pass_if_clean "test_force_push_failure_restores_pre_squash_head"
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
-# Test 6: test_auto_resolves_tickets_index_via_merge_driver
-# Set up a conflict in .tickets/.index.json. The merge driver should
-# auto-resolve it using merge-ticket-index.py.
-# =============================================================================
-echo ""
-echo "--- test_auto_resolves_tickets_index_via_merge_driver ---"
-_snapshot_fail
-
-# Skip if merge-ticket-index.py is not present
-if [[ ! -f "$MERGE_TICKET_SCRIPT" ]]; then
-    echo "  SKIP: merge-ticket-index.py not found at $MERGE_TICKET_SCRIPT"
-    assert_eq "test_auto_resolves_tickets_index_skip" "skip" "skip"
-else
-    # Set up origin/work pair manually so we can commit on main before branching
-    _TEST_BASE=$(mktemp -d)
-    _ORIGIN_DIR="$_TEST_BASE/origin.git"
-    _WORK_DIR="$_TEST_BASE/work"
-    export GIT_ATTR_NOSYSTEM=1
-
-    git init --bare "$_ORIGIN_DIR" -b main --quiet 2>/dev/null
-    git clone "$_ORIGIN_DIR" "$_WORK_DIR" --quiet 2>/dev/null
-    (
-        cd "$_WORK_DIR"
-        git config user.email "test@test.com"
-        git config user.name "Test"
-        git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
-
-        # Commit initial state + .tickets/.index.json base on main
-        echo "init" > README.md
-        git add README.md
-        git commit -m "initial commit" --quiet
-
-        mkdir -p .tickets-tracker
-        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}}))" > .tickets-tracker/.index.json
-        git add .tickets-tracker/.index.json
-        git commit -m "add initial tickets index" --quiet
-        git push origin main --quiet 2>/dev/null
-
-        # Now create the feature branch from current main
-        git checkout -b test-autoresolve --quiet
-
-        # Commit ticket-bbb on the feature branch
-        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}, 'ticket-bbb': {'status': 'open', 'title': 'Ticket B'}}))" > .tickets-tracker/.index.json
-        git add .tickets-tracker/.index.json
-        git commit -m "add ticket-bbb on branch" --quiet
-    )
-
-    # Push a diverging commit to origin/main that adds ticket-ccc
-    _WORK2="$_TEST_BASE/work2"
-    git clone "$_ORIGIN_DIR" "$_WORK2" --quiet 2>/dev/null
-    (
-        cd "$_WORK2"
-        git config user.email "test2@test.com"
-        git config user.name "Test2"
-        python3 -c "import json; print(json.dumps({'ticket-aaa': {'status': 'open', 'title': 'Ticket A'}, 'ticket-ccc': {'status': 'closed', 'title': 'Ticket C'}}))" > .tickets-tracker/.index.json
-        git add .tickets-tracker/.index.json
-        git commit -m "add ticket-ccc on main" --quiet
-        git push origin main --quiet 2>/dev/null
-    )
-
-    _T6_RC=0
-    _T6_OUTPUT=$(
-        cd "$_WORK_DIR"
-        export BRANCH="test-autoresolve"
-        export GIT_ATTR_NOSYSTEM=1
-        git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
-        _load_recovery_fn
-        _squash_rebase_recovery 2>&1
-    ) || _T6_RC=$?
-
-    # Recovery should succeed (auto-resolved the tickets index conflict)
-    assert_eq "test_auto_resolves_tickets_exits_0" "0" "$_T6_RC"
-
-    # Verify the merged index contains both new tickets
-    _T6_INDEX=$(cd "$_WORK_DIR" && cat .tickets-tracker/.index.json 2>/dev/null || echo "{}")
-    _T6_HAS_BBB=0
-    _T6_HAS_CCC=0
-    if echo "$_T6_INDEX" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'ticket-bbb' in d else 1)" 2>/dev/null; then
-        _T6_HAS_BBB=1
-    fi
-    if echo "$_T6_INDEX" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if 'ticket-ccc' in d else 1)" 2>/dev/null; then
-        _T6_HAS_CCC=1
-    fi
-    assert_eq "test_auto_resolves_tickets_bbb_present" "1" "$_T6_HAS_BBB"
-    assert_eq "test_auto_resolves_tickets_ccc_present" "1" "$_T6_HAS_CCC"
-
-    assert_pass_if_clean "test_auto_resolves_tickets_index_via_merge_driver"
-    rm -rf "$_TEST_BASE"
-fi
-
-# =============================================================================
-# Test 7: test_prints_file_list_on_unresolvable_conflict
-# Create a conflict in a non-.tickets/.index.json file. The function should
+# Test 6: test_prints_file_list_on_unresolvable_conflict
+# Create a conflict in a file. The function should
 # print "ACTION REQUIRED" with the conflicted file list and return 1.
 # =============================================================================
 echo ""
@@ -427,7 +329,6 @@ _T7_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-conflict"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T7_RC=$?

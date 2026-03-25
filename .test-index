@@ -31,7 +31,6 @@ plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-con
 plugins/dso/scripts/check-acceptance-criteria.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check_file_impact.py,tests/scripts/test-enrich-file-impact-v2-removal.sh [test_enrich_file_impact_no_TK_variable]
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_check_file_impact.py
-plugins/dso/scripts/merge-ticket-index.py:tests/scripts/test-merge-ticket-index.sh
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
