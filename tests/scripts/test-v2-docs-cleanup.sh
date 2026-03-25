@@ -12,11 +12,10 @@
 # Excluded from scanning:
 #   - plugins/dso/docs/designs/           (historical ADR records)
 #   - plugins/dso/docs/ticket-migraiton-v3/ (migration research notes, typo intentional)
-#   - plugins/dso/docs/ROLLBACK-PROCEDURE.md (rollback instructions necessarily
-#                                              reference v2 paths and commands)
 #   - workflow-config-schema.json          (schema documents existing config keys)
 #   - end-session/SKILL.md gitpathspec uses (':!.tickets/') — legitimate v3 exclusion pattern
 #   - resolve-conflicts/SKILL.md — legitimately describes how to handle .tickets/ conflicts
+# Note: ROLLBACK-PROCEDURE.md has been deleted as part of v2 cleanup.
 #
 # Usage: bash tests/scripts/test-v2-docs-cleanup.sh
 # Returns: exit 1 in RED state (v2 refs present), exit 0 in GREEN state (v2 removed)
@@ -83,21 +82,20 @@ echo ""
 # v3 uses the orphan branch mounted at '.tickets-tracker/'.
 # RED: FAIL because several docs files still reference .tickets/ paths.
 #
-# Excluded paths (intentional historical/rollback content):
+# Excluded paths (intentional historical content):
 #   - plugins/dso/docs/designs/                 — ADR historical records
 #   - plugins/dso/docs/ticket-migraiton-v3/     — migration research notes
-#   - plugins/dso/docs/ROLLBACK-PROCEDURE.md    — rollback instructions
 #   - plugins/dso/docs/workflow-config-schema.json — schema (documents existing keys)
+# Note: ROLLBACK-PROCEDURE.md has been deleted; exclusion removed.
 
 echo "Test: test_no_tickets_dir_in_docs"
 tickets_dir_refs=""
 while IFS= read -r line; do
     file="${line%%:*}"
 
-    # Skip excluded historical/rollback/schema paths
+    # Skip excluded historical/schema paths
     [[ "$file" == *"/docs/designs/"* ]] && continue
     [[ "$file" == *"/docs/ticket-migraiton-v3/"* ]] && continue
-    [[ "$file" == *"ROLLBACK-PROCEDURE.md"* ]] && continue
     [[ "$file" == *"workflow-config-schema.json"* ]] && continue
 
     tickets_dir_refs="$tickets_dir_refs

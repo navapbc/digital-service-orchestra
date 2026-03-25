@@ -293,17 +293,6 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
-### `issue_tracker.create_cmd`
-
-| | |
-|---|---|
-| **Description** | Command to create a new tracking issue. Used when a validation failure has no existing ticket. |
-| **Accepted values** | Any shell command string (e.g., `.claude/scripts/dso ticket create`, `gh issue create`) |
-| **Default** | `.claude/scripts/dso ticket create` |
-| **Used by** | `.claude/scripts/dso check-validation-failures.sh`, `plugins/dso/hooks/lib/pre-bash-functions.sh` |
-
----
-
 ### `design.system_name`
 
 | | |
@@ -1026,12 +1015,3 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Required** | Optional — testing override only |
 | **Usage context** | `plugins/dso/hooks/lib/pre-bash-functions.sh` |
 
----
-
-### `CREATE_CMD`
-
-| | |
-|---|---|
-| **Description** | Override for the .claude/scripts/dso ticket create command used by `plugins/dso/hooks/lib/pre-bash-functions.sh` (commit-failure-tracker). When set, takes precedence over `issue_tracker.create_cmd` from config. Used in tests. |
-| **Required** | Optional — testing override only |
-| **Usage context** | `plugins/dso/hooks/lib/pre-bash-functions.sh` |
