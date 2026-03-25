@@ -176,9 +176,13 @@ fi
 
 Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OVERRIDE` is set (size upgrade case), Step 4 dispatch uses `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT`. Do not override the classifier's tier selection.
 
+**Deep tier + upgrade — no rationalization exemptions**: When `REVIEW_TIER=deep` and `SIZE_ACTION=upgrade`, you MUST dispatch the full deep tier (3 parallel sonnet agents + opus arch synthesis) with the opus model override. Do not substitute a lighter tier, a standard-tier agent, or a general-purpose agent due to perceived overhead, time constraints, or commit urgency. The deep tier exists precisely for high-blast-radius changes — "overhead" objections do not override the classifier.
+
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
 **You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
+
+**Do not substitute a lighter or general-purpose agent** for the classifier-selected named review agent. The named agent must match the `REVIEW_TIER` and `REVIEW_AGENT` values from Step 3. Substituting `general-purpose`, `sonnet`, or any non-named agent bypasses the review system and produces non-comparable scores.
 
 Dispatch the named review agent selected by the classifier in Step 3. The named agent's system prompt contains the stable review procedure — do NOT load `code-review-dispatch.md` as a template. Pass only per-review context to the sub-agent prompt.
 
