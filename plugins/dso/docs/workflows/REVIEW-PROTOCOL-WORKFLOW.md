@@ -184,7 +184,7 @@ Stage 1 (Mental)  → Caller self-reviews, fixes obvious issues
 Stage 2 (Single)  → One sub-agent, multi-perspective rubric
                      Returns REVIEW-SCHEMA.md JSON
 Stage 3 (Conflict) → Triggered by non-empty conflicts[]
-                     Escalate critical+critical to user
+                     Escalate critical+major or higher to user
                      Minor yields to other finding
 Revision           → Triage by severity, resolve conflicts first
                      Max 3 cycles, then escalate to user
