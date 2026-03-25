@@ -4,6 +4,14 @@ description: Execute Epic - Multi-Agent Orchestration
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:sprint cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
+
+Do NOT proceed with any skill logic if the Agent tool is unavailable.
+</SUB-AGENT-GUARD>
+
 # Execute Epic: Multi-Agent Orchestration
 
 Automate the full lifecycle of a ticket epic: task analysis, batched sub-agent execution, post-epic validation, and remediation loop.

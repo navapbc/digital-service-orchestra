@@ -109,3 +109,49 @@ check_guard_orchestrator_signal "project-setup"
 check_guard_orchestrator_signal "design-onboarding"
 
 print_summary
+
+# ---------------------------------------------------------------------------
+# Test-gate anchor block: lists all test names produced by this file so that
+# record-test-status.sh can locate RED marker boundaries via get_red_zone_line_number.
+# The dynamic labels (test_${skill//-/_}_...) cannot be found by grep; this block
+# provides the literal strings in execution order (GREEN skills first, then RED).
+# Do NOT remove or reorder — the test gate relies on line-number ordering.
+# ---------------------------------------------------------------------------
+_TEST_GATE_ANCHORS=(
+    test_sprint_has_sub_agent_guard_marker
+    test_sprint_guard_references_agent_tool
+    test_debug_everything_has_sub_agent_guard_marker
+    test_debug_everything_guard_references_agent_tool
+    test_brainstorm_has_sub_agent_guard_marker
+    test_brainstorm_guard_references_agent_tool
+    test_preplanning_has_sub_agent_guard_marker
+    test_preplanning_guard_references_agent_tool
+    test_implementation_plan_has_sub_agent_guard_marker
+    test_implementation_plan_guard_references_agent_tool
+    test_design_wireframe_has_sub_agent_guard_marker
+    test_design_wireframe_guard_references_agent_tool
+    test_design_review_has_sub_agent_guard_marker
+    test_design_review_guard_references_agent_tool
+    test_roadmap_has_sub_agent_guard_marker
+    test_roadmap_guard_references_agent_tool
+    test_plan_review_has_sub_agent_guard_marker
+    test_plan_review_guard_references_agent_tool
+    test_review_protocol_has_sub_agent_guard_marker
+    test_review_protocol_guard_references_agent_tool
+    test_resolve_conflicts_has_sub_agent_guard_marker
+    test_resolve_conflicts_guard_references_agent_tool
+    test_dev_onboarding_has_sub_agent_guard_marker
+    test_dev_onboarding_guard_references_agent_tool
+    test_validate_work_has_sub_agent_guard_marker
+    test_validate_work_guard_references_agent_tool
+    test_retro_has_sub_agent_guard_marker
+    test_retro_guard_references_agent_tool
+    test_ui_discover_has_sub_agent_guard_marker
+    test_ui_discover_guard_references_agent_tool
+    test_end_session_has_sub_agent_guard_marker
+    test_end_session_guard_references_orchestrator_signal
+    test_project_setup_has_sub_agent_guard_marker
+    test_project_setup_guard_references_orchestrator_signal
+    test_design_onboarding_has_sub_agent_guard_marker
+    test_design_onboarding_guard_references_orchestrator_signal
+)

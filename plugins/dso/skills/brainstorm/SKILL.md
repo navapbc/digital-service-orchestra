@@ -4,6 +4,14 @@ description: Use when starting a new feature or epic — turns an idea into a de
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:brainstorm cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
+
+Do NOT proceed with any skill logic if the Agent tool is unavailable.
+</SUB-AGENT-GUARD>
+
 # Brainstorm: Feature to Epic
 
 Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation.

@@ -4,6 +4,14 @@ description: Use when the user wants to transform a high-level product vision, P
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:roadmap cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
+
+Do NOT proceed with any skill logic if the Agent tool is unavailable.
+</SUB-AGENT-GUARD>
+
 # Roadmap Architect
 
 Act as a Senior Product Manager (Google-style). Transform high-level vision into a prioritized, high-fidelity roadmap of Epics within the ticket system.

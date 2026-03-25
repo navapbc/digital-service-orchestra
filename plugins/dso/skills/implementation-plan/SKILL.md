@@ -4,6 +4,14 @@ description: Use when a user story or simple epic needs to be broken into atomic
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:implementation-plan cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
+
+Do NOT proceed with any skill logic if the Agent tool is unavailable.
+</SUB-AGENT-GUARD>
+
 # Implementation Plan: Atomic Task Generation
 
 Generate a production-safe implementation plan for a User Story by decomposing it into atomic, TDD-driven tasks with correct dependencies. Prioritize understanding over assumptions — resolve ambiguity before planning.
