@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # hooks/title-length-validator.sh
 # PreToolUse hook: blocks Write or Edit tool calls that would set a ticket
-# title longer than 255 characters in a .tickets/ file.
+# title longer than 255 characters in a ticket event file (v3 ticket system).
 #
 # Jira's summary field has a 255-character limit. Enforcing this at write time
 # prevents sync-time failures.
 #
 # Logic:
 #   1. Only fires on Write or Edit tool calls
-#   2. Only inspects file paths that contain /.tickets/
+#   2. Inspects any file path (v3: no directory restriction)
 #   3. For Write: scans the full 'content' field for a markdown title line (# ...)
 #   4. For Edit: scans the 'new_string' field for a markdown title line
 #   5. If a title line is found and its text exceeds 255 chars: BLOCKED (exit 2)
@@ -38,11 +38,6 @@ fi
 # Get the file path
 FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')
 if [[ -z "$FILE_PATH" ]]; then
-    exit 0
-fi
-
-# Only act on files inside a .tickets/ directory
-if [[ "$FILE_PATH" != *"/.tickets/"* ]]; then
     exit 0
 fi
 

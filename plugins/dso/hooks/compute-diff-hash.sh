@@ -111,7 +111,6 @@ fi
 # Fallback defaults when allowlist or helpers are unavailable
 _FALLBACK_PATHSPECS=(
     ':!.checkpoint-needs-review'
-    ':!.tickets/**'
     ':!.tickets-tracker/**'
     ':!.sync-state.json'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'

@@ -5,9 +5,8 @@
 # Fires after every Bash tool call. When the command was validate.sh and
 # produced FAIL lines, this hook:
 #   1. Parses failed check names from the output
-#   2. Searches .tickets/ for existing open issues matching each failure
-#   3. Logs untracked failures to the artifacts dir
-#   4. Reports what it found back to the agent
+#   2. Logs untracked failures to the artifacts dir
+#   3. Reports what it found back to the agent
 
 # DEFENSE-IN-DEPTH: Guarantee exit 0, suppress stderr, and always produce output.
 # Claude Code bugs:
@@ -71,28 +70,7 @@ ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
 
-# Check .tickets/ for existing open issues and auto-create missing ones.
-# TICKETS_DIR env var overrides ticket storage location (consistent with ticket CLI).
-TICKETS_DIR="${TICKETS_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)/.tickets}"
-
-declare -a ALREADY_TRACKED=()
 declare -a UNTRACKED=()
-
-# Build search terms per category
-search_terms_for() {
-    local category="$1"
-    case "$category" in
-        format)    echo "format-check;format failure;formatting failure" ;;
-        ruff)      echo "lint failure;ruff failure;lint-ruff" ;;
-        mypy)      echo "mypy failure;mypy error;type check failure;lint-mypy" ;;
-        tests)     echo "test failure;test-unit;unit test failure" ;;
-        e2e)       echo "e2e failure;e2e test;test-e2e" ;;
-        migrate)   echo "migration failure;migrate failure;db-migrate" ;;
-        ci|ci*)    echo "ci failure;CI failure;github actions" ;;
-        docker)    echo "docker failure;docker start;Docker Desktop" ;;
-        *)         echo "$category failure" ;;
-    esac
-}
 
 # Extract error context from the combined validation log
 # shellcheck disable=SC2329
@@ -141,31 +119,6 @@ extract_error_context() {
 }
 
 for category in "${FAILED_CATEGORIES[@]}"; do
-    # Search for existing open issues
-    IFS=';' read -ra TERMS <<< "$(search_terms_for "$category")"
-    FOUND=""
-    for term in "${TERMS[@]}"; do
-        RESULT=$(grep -rl "$term" "$TICKETS_DIR" 2>/dev/null | \
-            xargs grep -El 'status: open|status: in_progress' 2>/dev/null | head -1 || echo "")
-        if [[ -n "$RESULT" ]]; then
-            FOUND="$RESULT"
-            break
-        fi
-    done
-
-    if [[ -n "$FOUND" ]]; then
-        ALREADY_TRACKED+=("$category")
-        continue
-    fi
-
-    # Exact title match: prevents duplicates when search terms miss
-    TITLE_MATCH=$(grep -rlF "# Fix $category failure" "$TICKETS_DIR"/*.md 2>/dev/null | \
-        xargs grep -El 'status: open|status: in_progress' 2>/dev/null | head -1 || echo "")
-    if [[ -n "$TITLE_MATCH" ]]; then
-        ALREADY_TRACKED+=("$category (title match: $(basename "$TITLE_MATCH" .md))")
-        continue
-    fi
-
     # Log untracked failure to artifacts dir
     UNTRACKED_LOG="$ARTIFACTS_DIR/untracked-validation-failures.log"
     {
@@ -180,11 +133,6 @@ done
 # Only categories with results are included; output nothing when all arrays empty.
 
 PARTS=()
-
-if [[ ${#ALREADY_TRACKED[@]} -gt 0 ]]; then
-    TRACKED_CSV=$(IFS=', '; echo "${ALREADY_TRACKED[*]}")
-    PARTS+=("Tracked: $TRACKED_CSV")
-fi
 
 if [[ ${#UNTRACKED[@]} -gt 0 ]]; then
     UNTRACKED_CSV=$(IFS=', '; echo "${UNTRACKED[*]}")

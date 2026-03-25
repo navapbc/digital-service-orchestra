@@ -23,7 +23,7 @@ plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workfl
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
-plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh [test_no_issue_tracker_create_cmd_read]
+plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh [test_allowlist_uses_tickets_tracker_path]
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh [test_allowlist_uses_tickets_tracker_path]
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-docker-skip.sh,tests/scripts/test-check-local-env-generic.sh

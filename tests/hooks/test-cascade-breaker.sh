@@ -85,12 +85,12 @@ INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$FAKE_ROOT"'/app/src/tes
 EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_cascade_breaker_blocks_above_threshold" "2" "$EXIT_CODE"
 
-# --- test_cascade_breaker_allows_tickets_edit_at_threshold ---
-# .tickets/ files are exempt even at threshold
+# --- test_cascade_breaker_blocks_tickets_edit_at_threshold ---
+# .tickets/ files are no longer exempt — removed v2 passthrough
 echo "10" > "$COUNTER_FILE"
 INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$FAKE_ROOT"'/.tickets/test.md"}}'
 EXIT_CODE=$(run_hook "$INPUT")
-assert_eq "test_cascade_breaker_allows_tickets_edit_at_threshold" "0" "$EXIT_CODE"
+assert_eq "test_cascade_breaker_blocks_tickets_edit_at_threshold" "2" "$EXIT_CODE"
 
 # --- test_cascade_breaker_allows_claude_config_at_threshold ---
 # .claude/ files are exempt even at threshold
