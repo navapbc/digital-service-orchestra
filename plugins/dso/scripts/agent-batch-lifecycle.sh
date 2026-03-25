@@ -9,7 +9,7 @@ set -euo pipefail
 #   pre-check [--db]          Pre-batch safety checks (session usage, git, optional DB)
 #   preflight [--start-db]    Pre-flight Docker & DB check (before diagnostic sub-agents)
 #   file-overlap <file>...    Detect file conflicts from multiple agent result files
-#   lock-acquire <label>      Session lock via tk (debug-everything only)
+#   lock-acquire <label>      Session lock via ticket CLI (debug-everything only)
 #   lock-release <issue-id>   Release session lock (debug-everything only)
 #   lock-status <label>       Check if a session lock exists
 #   cleanup-stale-containers  Remove Docker containers for worktrees that no longer exist
@@ -25,7 +25,7 @@ set -euo pipefail
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_SCRIPTS="$SCRIPT_DIR"
-TK="${TK:-$SCRIPT_DIR/tk}"
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [ -z "$REPO_ROOT" ]; then
@@ -236,7 +236,7 @@ cmd_file_overlap() {
 
 # ─── lock-acquire ────────────────────────────────────────────────────────────
 #
-# Acquires a tk-based session lock. Used by debug-everything Phase 1 ONLY.
+# Acquires a ticket-CLI-based session lock. Used by debug-everything Phase 1 ONLY.
 #
 # Usage:
 #   agent-batch-lifecycle.sh lock-acquire "debug-everything"
@@ -251,44 +251,56 @@ cmd_file_overlap() {
 cmd_lock_acquire() {
     local label="${1:?Missing lock label}"
 
-    # Check for existing lock by scanning TICKETS_DIR for in_progress lock tickets
+    # Check for existing lock using ticket CLI (v3): list all tickets, find in_progress
+    # lock tasks matching the label.
     local lock_id=""
-    if [ -d "$TICKETS_DIR" ]; then
-        while IFS= read -r ticket_file; do
-            [ -z "$ticket_file" ] && continue
-            # Check if this ticket has the right title and is in_progress.
-            # Tickets store their title as a markdown H1 heading after the YAML
-            # frontmatter (e.g., "# [LOCK] debug-everything"), NOT as a YAML
-            # `title:` field. Match the H1 form to correctly find synced tickets.
-            if grep -qE "^# \\[LOCK\\] $label$" "$ticket_file" 2>/dev/null; then
-                if grep -q "^status: in_progress" "$ticket_file" 2>/dev/null; then
-                    lock_id=$(grep -m1 "^id:" "$ticket_file" | sed 's/^id: *//' | tr -d '"'"'" || echo "")
-                    break
-                fi
-            fi
-        done < <(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" 2>/dev/null)
-    fi
+    lock_id=$(export LOCK_LABEL="$label"; "$TICKET_CMD" list 2>/dev/null | python3 -c "
+import json, sys, os
+label = os.environ.get('LOCK_LABEL', '')
+tickets = json.load(sys.stdin)
+for t in tickets:
+    if (t.get('ticket_type') == 'task'
+            and t.get('status') == 'in_progress'
+            and t.get('title', '') == '[LOCK] ' + label):
+        print(t['ticket_id'])
+        break
+" 2>/dev/null || echo "")
 
     if [ -n "$lock_id" ]; then
-        # Check if the lock's worktree still exists
+        # Check if the lock's worktree still exists by reading ticket notes via ticket CLI
         local notes
-        notes=$("$TK" show "$lock_id" 2>/dev/null | grep -oE 'Worktree: [^ ]+' | sed 's/Worktree: //' || echo "")
+        notes=$("$TICKET_CMD" show "$lock_id" 2>/dev/null | python3 -c "
+import json, sys
+t = json.load(sys.stdin)
+for c in t.get('comments', []):
+    body = c.get('body', '')
+    if 'Worktree: ' in body:
+        for part in body.split('|'):
+            part = part.strip()
+            if part.startswith('Worktree: '):
+                print(part[len('Worktree: '):].strip())
+                break
+        break
+" 2>/dev/null || echo "")
         if [ -n "$notes" ] && [ -d "$notes" ]; then
             # Live lock — blocked
             echo "LOCK_BLOCKED: $lock_id"
             echo "LOCK_WORKTREE: $notes"
             return 1
         else
-            # Stale lock — reclaim (add-note before close: tk rejects notes on closed tickets)
-            "$TK" add-note "$lock_id" "Stale lock — worktree no longer exists" 2>/dev/null || true
-            "$TK" close "$lock_id" 2>/dev/null || true
+            # Stale lock — reclaim (comment before close)
+            "$TICKET_CMD" comment "$lock_id" "Stale lock — worktree no longer exists" 2>/dev/null || true
+            # Read current status (ticket show) before: ticket transition <id> <current> closed
+            local current_status
+            current_status=$("$TICKET_CMD" show "$lock_id" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','in_progress'))" 2>/dev/null || echo "in_progress")
+            "$TICKET_CMD" transition "$lock_id" "$current_status" closed 2>/dev/null || true
             echo "LOCK_STALE: $lock_id"
         fi
     fi
 
-    # Create new lock — tk create outputs just the ticket ID (single line, no decoration)
+    # Create new lock using v3 ticket CLI (ticket create task "<title>")
     local new_id
-    new_id=$("$TK" create "[LOCK] $label" -t task -p 0 2>&1 | tr -d '[:space:]')
+    new_id=$("$TICKET_CMD" create task "[LOCK] $label" 2>&1 | tr -d '[:space:]')
 
     if [ -z "$new_id" ] || echo "$new_id" | grep -qiE 'error|fail'; then
         echo "ERROR: Failed to create lock ticket"
@@ -296,8 +308,11 @@ cmd_lock_acquire() {
         return 1
     fi
 
-    "$TK" status "$new_id" in_progress 2>/dev/null || true
-    "$TK" add-note "$new_id" "Session: $(date -Iseconds) | Worktree: $REPO_ROOT" 2>/dev/null || true
+    # Read current status before transitioning to in_progress
+    local new_status
+    new_status=$("$TICKET_CMD" show "$new_id" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','open'))" 2>/dev/null || echo "open")
+    "$TICKET_CMD" transition "$new_id" "$new_status" in_progress 2>/dev/null || true
+    "$TICKET_CMD" comment "$new_id" "Session: $(date -Iseconds) | Worktree: $REPO_ROOT" 2>/dev/null || true
 
     echo "LOCK_ID: $new_id"
     return 0
@@ -314,9 +329,12 @@ cmd_lock_release() {
     local lock_id="${1:?Missing lock ticket ID}"
     local reason="${2:-Session complete}"
 
-    # add-note before close: tk rejects notes on closed tickets
-    "$TK" add-note "$lock_id" "Closed: $reason" 2>/dev/null || true
-    "$TK" close "$lock_id" 2>/dev/null || true
+    # Comment before close (ticket CLI rejects comments on closed tickets)
+    "$TICKET_CMD" comment "$lock_id" "Closed: $reason" 2>/dev/null || true
+    # Read current status before transitioning to closed
+    local current_status
+    current_status=$("$TICKET_CMD" show "$lock_id" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','in_progress'))" 2>/dev/null || echo "in_progress")
+    "$TICKET_CMD" transition "$lock_id" "$current_status" closed 2>/dev/null || true
     echo "LOCK_RELEASED: $lock_id"
     return 0
 }
@@ -335,22 +353,19 @@ cmd_lock_release() {
 cmd_lock_status() {
     local label="${1:?Missing lock label}"
 
-    # Scan TICKETS_DIR for in_progress lock tickets matching the label
+    # Query ticket CLI (v3) for in_progress lock tasks matching the label
     local lock_id=""
-    if [ -d "$TICKETS_DIR" ]; then
-        while IFS= read -r ticket_file; do
-            [ -z "$ticket_file" ] && continue
-            # Tickets store their title as a markdown H1 heading after the YAML
-            # frontmatter (e.g., "# [LOCK] debug-everything"), NOT as a YAML
-            # `title:` field. Match the H1 form to correctly find synced tickets.
-            if grep -qE "^# \\[LOCK\\] $label$" "$ticket_file" 2>/dev/null; then
-                if grep -q "^status: in_progress" "$ticket_file" 2>/dev/null; then
-                    lock_id=$(grep -m1 "^id:" "$ticket_file" | sed 's/^id: *//' | tr -d '"'"'" || echo "")
-                    break
-                fi
-            fi
-        done < <(find "$TICKETS_DIR" -maxdepth 1 -name "*.md" 2>/dev/null)
-    fi
+    lock_id=$(export LOCK_LABEL="$label"; "$TICKET_CMD" list 2>/dev/null | python3 -c "
+import json, sys, os
+label = os.environ.get('LOCK_LABEL', '')
+tickets = json.load(sys.stdin)
+for t in tickets:
+    if (t.get('ticket_type') == 'task'
+            and t.get('status') == 'in_progress'
+            and t.get('title', '') == '[LOCK] ' + label):
+        print(t['ticket_id'])
+        break
+" 2>/dev/null || echo "")
 
     if [ -n "$lock_id" ]; then
         echo "LOCKED: $lock_id"

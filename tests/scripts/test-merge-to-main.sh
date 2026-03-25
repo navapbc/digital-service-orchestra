@@ -619,4 +619,32 @@ bash -n "$MERGE_SCRIPT" 2>/dev/null && SYNTAX_FINAL=1
 assert_eq "test_cli_bash_syntax_still_passes" "1" "$SYNTAX_FINAL"
 
 # =============================================================================
+# v2 ticket path pattern removal tests (a3b6-b820)
+# Per user decision: both v2 and v3 ticket path patterns should be removed from
+# merge filters since v3 tickets are on the orphan branch and never appear in
+# the worktree merge diff.
+# =============================================================================
+
+# =============================================================================
+# Test: .tickets/*.md pattern (v2 glob) is absent from merge-to-main.sh
+# =============================================================================
+HAS_V2_TICKETS_MD=$(grep -c '\.tickets/\*\.md' "$MERGE_SCRIPT" || true)
+assert_eq "test_merge_to_main_no_v2_tickets_md_pattern" "0" "$HAS_V2_TICKETS_MD"
+
+# =============================================================================
+# Test: .tickets/archive/ path (v2 archive dir) is absent from merge-to-main.sh
+# =============================================================================
+HAS_V2_TICKETS_ARCHIVE=$(grep -c '\.tickets/archive/' "$MERGE_SCRIPT" || true)
+assert_eq "test_merge_to_main_no_v2_tickets_dir_case" "0" "$HAS_V2_TICKETS_ARCHIVE"
+
+# =============================================================================
+# Test: TICKETS_DIR assigned to .tickets (v2 path binding) is absent
+# Matches "TICKETS_DIR=...\.tickets" or "TICKETS_DIR.*=.*\.tickets" patterns.
+# Note: the variable TICKETS_DIR itself may exist; only the binding to .tickets
+# (the v2 path) should be removed.
+# =============================================================================
+HAS_TICKETS_DIR_V2=$(grep -cE 'TICKETS_DIR.*=.*"?\.tickets"?' "$MERGE_SCRIPT" || true)
+assert_eq "test_merge_to_main_no_TICKETS_DIR_tickets_path" "0" "$HAS_TICKETS_DIR_V2"
+
+# =============================================================================
 print_summary
