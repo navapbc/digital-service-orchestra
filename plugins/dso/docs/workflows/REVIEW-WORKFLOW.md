@@ -27,7 +27,18 @@ The artifacts directory is computed by `get_artifacts_dir()` in `plugins/dso/hoo
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh
+# Resolve CLAUDE_PLUGIN_ROOT if not set by the caller (e.g., manual run outside Claude Code)
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    _cfg="$REPO_ROOT/.claude/dso-config.conf"
+    if [[ -f "$_cfg" ]]; then
+        CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
+    fi
+    # Final fallback: assume plugin lives at plugins/dso relative to repo root
+    if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
+    fi
+fi
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 rm -f "$ARTIFACTS_DIR/review-status"
