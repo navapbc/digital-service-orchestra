@@ -659,15 +659,7 @@ test_classifier_is_merge_commit_size_action_none() {
     setup_temp_dir
     local diff_file
     diff_file=$(create_n_line_diff 600 "src/foo.py")
-    export MOCK_MERGE_HEAD=1
-    CLASSIFIER_OUTPUT=""
-    CLASSIFIER_EXIT=0
-    if [[ -x "$CLASSIFIER" ]]; then
-        CLASSIFIER_OUTPUT=$(MOCK_MERGE_HEAD=1 bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
-    else
-        CLASSIFIER_EXIT=127
-    fi
-    unset MOCK_MERGE_HEAD
+    MOCK_MERGE_HEAD=1 run_classifier "$diff_file"
 
     local size_action=""
     if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then

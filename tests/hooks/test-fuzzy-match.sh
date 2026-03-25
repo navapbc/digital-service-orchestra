@@ -228,18 +228,19 @@ test_benchmark_20_files() {
     git -C "$repo" add -A && git -C "$repo" commit -m "add 20 pairs" --quiet 2>/dev/null
 
     local start_time end_time elapsed
-    start_time=$(date +%s)
+    start_time=$(python3 -c "import time; print(time.time())")
     for i in $(seq 1 20); do
         fuzzy_find_associated_tests "$repo/src/module_${i}.py" "$repo" >/dev/null 2>&1
     done
-    end_time=$(date +%s)
-    elapsed=$(( end_time - start_time ))
+    end_time=$(python3 -c "import time; print(time.time())")
+    elapsed=$(python3 -c "print(int(($end_time - $start_time) * 1000))")
 
-    if (( elapsed < 10 )); then
+    # elapsed is now in milliseconds; 10s = 10000ms
+    if (( elapsed < 10000 )); then
         (( ++PASS ))
     else
         (( ++FAIL ))
-        echo "FAIL: benchmark_20_files — took ${elapsed}s (limit: 10s)" >&2
+        echo "FAIL: benchmark_20_files — took ${elapsed}ms (limit: 10000ms)" >&2
     fi
 }
 
