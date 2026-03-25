@@ -152,8 +152,8 @@ class TestAcliClientCreateFieldExtraction:
         assert "name" in priority_field, (
             f"additionalAttributes.priority should have a 'name' key. Got: {priority_field}"
         )
-        assert priority_field["name"] == "1", (
-            f"additionalAttributes.priority.name should be '1' (str(priority)). "
+        assert priority_field["name"] == "High", (
+            f"additionalAttributes.priority.name should be 'High' (mapped from int 1). "
             f"Got: {priority_field['name']!r}"
         )
 
