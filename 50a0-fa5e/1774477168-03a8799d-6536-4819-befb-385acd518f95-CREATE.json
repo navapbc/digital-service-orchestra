@@ -1,0 +1,1 @@
+{"timestamp": 1774477168, "uuid": "03a8799d-6536-4819-befb-385acd518f95", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write failing tests for v2 removal from hooks and scripts", "parent_id": "5d90-b43c", "priority": 2, "assignee": "Joe Oakhart"}}
