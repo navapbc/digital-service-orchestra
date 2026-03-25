@@ -214,6 +214,40 @@ Mark these stories as **split candidates**. Phase 3 evaluates whether a Foundati
 
 ---
 
+## Phase 2.25: Integration Research (/dso:preplanning)
+
+After story decomposition and risk scanning, research integration capabilities for stories that involve external tools or services. This step surfaces verified constraints while the user is engaged and can redirect.
+
+### Qualification
+
+A story qualifies for integration research if it references any of:
+- Third-party CLI tools
+- External APIs/services
+- CI/CD workflow changes
+- Infrastructure provisioning
+- Data format migrations
+- Authentication/credential flows
+
+### Research Process
+
+For each qualifying story:
+
+1. Use WebSearch to find known-working code that uses the specific integration. Search GitHub for repositories that import or call the tool/API.
+2. Verify specific capabilities claimed or implied by the story scope. Check official documentation against what the story requires.
+3. Add findings to the story's Considerations as **Verified Integration Constraints**:
+   ```
+   - [Integration] Verified: <tool> supports <capability> (source: <URL>)
+   - [Integration] NOT verified: <tool> does not appear to support <capability>
+   ```
+4. If no sandbox or test environment is available for integration testing, flag this to the user during preplanning: "No sandbox available for <tool> — integration testing will require a live environment."
+5. If research finds no verified code or capabilities for a story's integration, flag the story as **high-risk** and recommend spike-task creation before implementation: "Story <id> references <tool> but no verified working code was found — recommend creating a spike task to validate capabilities before implementation."
+
+### Skip Condition
+
+If no stories in the plan qualify for integration research, log: "No stories with external integration signals — skipping integration research." and proceed to Phase 2.5.
+
+---
+
 ## Phase 2.5: Adversarial Review (/dso:preplanning)
 
 ### Threshold Gate
