@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (35):
+# Test cases (36):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -42,6 +42,7 @@
 #  33. test_gate_merge_keeps_worktree_branch_files — RED: exits non-zero for files also modified on worktree branch
 #  34. test_gate_merge_failsafe_on_bad_merge_head — RED: exits non-zero (normal enforcement) when MERGE_HEAD is corrupt
 #  35. test_gate_non_merge_commit_unchanged — RED: exits non-zero for normal commit without MERGE_HEAD (regression guard)
+#  36. test_gate_merge_10_file_incoming_only_single_commit — acceptance: exits 0 for 12 incoming-only files in single merge pass
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -2005,6 +2006,91 @@ test_gate_non_merge_commit_unchanged() {
         "0" "$exit_code"
 }
 
+# ============================================================
+# TEST 36: test_gate_merge_10_file_incoming_only_single_commit
+# Acceptance-level validation: when main adds 12 files (6 source
+# + 6 test files) and the worktree branch never touches them,
+# a merge commit (MERGE_HEAD present) should allow the hook to
+# exit 0 in a single pass — no record-test-status.sh required.
+#
+# Setup:
+#   1. Create repo with initial commit on 'main'
+#   2. Create worktree-branch and add a commit (divergent history)
+#   3. Switch back to main, add 6 source + 6 test files, commit
+#   4. Switch to worktree-branch and merge main (--no-commit)
+#   5. Verify MERGE_HEAD is present (12 staged files, all incoming-only)
+#   6. Assert hook exits 0
+#
+# GREEN: This is an acceptance test verifying the full merge-filtering
+# flow end-to-end. No RED-phase guard is needed — the feature is
+# implemented in the same epic, and this test validates the complete
+# pipeline works correctly with a realistic 12-file payload.
+# ============================================================
+test_gate_merge_10_file_incoming_only_single_commit() {
+    local _repo _artifacts
+    _repo=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_repo")
+    _artifacts=$(make_artifacts_dir)
+
+    # Initialize repo and create initial commit on 'main' branch
+    git -C "$_repo" init -q -b main 2>/dev/null || git -C "$_repo" init -q
+    git -C "$_repo" config user.email "test@test.com"
+    git -C "$_repo" config user.name "Test"
+    git -C "$_repo" config commit.gpgsign false
+
+    echo "initial" > "$_repo/README.md"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "initial commit"
+
+    # Capture the default branch name
+    local _main_branch
+    _main_branch=$(git -C "$_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+    # Create worktree branch and add a commit so branches diverge (required for real merge)
+    git -C "$_repo" checkout -q -b worktree-branch
+    echo "worktree-only change" >> "$_repo/README.md"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "worktree commit"
+
+    # Switch back to main and add 12 new files (6 source + 6 test pairs)
+    git -C "$_repo" checkout -q "$_main_branch"
+    mkdir -p "$_repo/src" "$_repo/tests"
+    local i
+    for i in alpha beta gamma delta epsilon zeta; do
+        echo "def ${i}(): pass" > "$_repo/src/${i}.py"
+        echo "def test_${i}(): assert True" > "$_repo/tests/test_${i}.py"
+    done
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add 12 files on main"
+
+    local _main_sha
+    _main_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+
+    # Switch back to worktree branch and start a merge (no-commit)
+    # Divergent history ensures this is a real merge (not fast-forward), writing MERGE_HEAD
+    git -C "$_repo" checkout -q worktree-branch
+    git -C "$_repo" merge --no-commit -q "$_main_sha" 2>/dev/null || true
+
+    # Verify MERGE_HEAD is present (mid-merge state required for test validity)
+    if [[ ! -f "$_repo/.git/MERGE_HEAD" ]]; then
+        assert_eq "test_gate_merge_10_file_incoming_only_single_commit: MERGE_HEAD created by merge" \
+            "present" "absent"
+        return
+    fi
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_merge_10_file_incoming_only_single_commit: hook not found" "present" "absent"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+
+    # Gate should EXIT 0: all 12 files are incoming-only; no record-test-status.sh required
+    assert_eq "test_gate_merge_10_file_incoming_only_single_commit: gate exits 0 for 12 incoming-only files" \
+        "0" "$exit_code"
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -2054,5 +2140,6 @@ run_test test_gate_merge_filters_incoming_only_files
 run_test test_gate_merge_keeps_worktree_branch_files
 run_test test_gate_merge_failsafe_on_bad_merge_head
 run_test test_gate_non_merge_commit_unchanged
+run_test test_gate_merge_10_file_incoming_only_single_commit
 
 print_summary
