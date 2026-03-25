@@ -1,0 +1,1 @@
+{"timestamp": 1774481603, "uuid": "f13462fa-5ab4-4af2-9ca1-0011dda8a149", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update CLAUDE.md and docs to reflect planning resilience agents and workflow changes", "parent_id": "d880-82f2", "priority": 3, "assignee": "Joe Oakhart"}}
