@@ -125,7 +125,7 @@ plugins/dso/skills/brainstorm/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [t
 plugins/dso/skills/sprint/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
 plugins/dso/skills/preplanning/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
 plugins/dso/skills/implementation-plan/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
-tests/hooks/test-deps.sh: tests/scripts/test-v2-clean-guard.sh [test_no_v2_allowlist_in_hook_tests]
+tests/hooks/test-deps.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-lock-acquire-ticket-format.sh: tests/scripts/test-v2-clean-guard.sh
 tests/hooks/test-check-validation-failures.sh: tests/scripts/test-v2-clean-guard.sh
 tests/hooks/test-session-safety.sh: tests/scripts/test-v2-clean-guard.sh

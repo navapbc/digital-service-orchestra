@@ -165,15 +165,15 @@ rm -rf "$_main_repo"
 
 # ============================================================
 # test_exclude_patterns_contains_tickets_dir
-# EXCLUDE_PATTERNS must include a pattern that matches .tickets/ paths.
+# EXCLUDE_PATTERNS must include a pattern that matches .tickets-tracker/ paths.
 # ============================================================
 echo "--- test_exclude_patterns_contains_tickets_dir ---"
 _matched=0
 for _pat in "${EXCLUDE_PATTERNS[@]}"; do
-    if [[ ".tickets/somefile.md" == *"$_pat"* ]] || \
-       [[ "path/.tickets/file.md" == *"$_pat"* ]] || \
-       echo ".tickets/somefile.md" | grep -qE "$_pat" 2>/dev/null || \
-       [[ "$_pat" == *".tickets"* ]]; then
+    if [[ ".tickets-tracker/somefile.md" == *"$_pat"* ]] || \
+       [[ "path/.tickets-tracker/file.md" == *"$_pat"* ]] || \
+       echo ".tickets-tracker/somefile.md" | grep -qE "$_pat" 2>/dev/null || \
+       [[ "$_pat" == *".tickets-tracker"* ]]; then
         _matched=1
         break
     fi

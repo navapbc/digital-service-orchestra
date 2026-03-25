@@ -622,7 +622,7 @@ _allowlist_to_grep_regex() {
 #     if [[ "$file_path" == *"$pat"* ]]; then skip; fi
 #   done
 EXCLUDE_PATTERNS=(
-    ".tickets/"
+    ".tickets-tracker/"
     ".git/"
 )
 

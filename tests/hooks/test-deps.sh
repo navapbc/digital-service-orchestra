@@ -154,7 +154,7 @@ cat > "$ALLOWLIST_TMPDIR/allowlist.conf" <<'ALLOWLIST_EOF'
 *.jpg
 
 # Another comment
-.tickets/**
+.tickets-tracker/**
 
 docs/**
 ALLOWLIST_EOF
@@ -169,8 +169,8 @@ echo "$PATTERNS" | grep -q '^\*\.png$'
 assert_eq "load_allowlist: contains *.png" "0" "$?"
 echo "$PATTERNS" | grep -q '^\*\.jpg$'
 assert_eq "load_allowlist: contains *.jpg" "0" "$?"
-echo "$PATTERNS" | grep -q '^\.tickets/\*\*$'
-assert_eq "load_allowlist: contains .tickets/**" "0" "$?"
+echo "$PATTERNS" | grep -q '^\.tickets-tracker/\*\*$'
+assert_eq "load_allowlist: contains .tickets-tracker/**" "0" "$?"
 echo "$PATTERNS" | grep -q '^docs/\*\*$'
 assert_eq "load_allowlist: contains docs/**" "0" "$?"
 
@@ -196,13 +196,13 @@ echo "=== _allowlist_to_pathspecs ==="
 # test_allowlist_to_pathspecs_prepends_exclude
 PATHSPECS=$(_allowlist_to_pathspecs "*.png
 *.jpg
-.tickets/**")
+.tickets-tracker/**")
 echo "$PATHSPECS" | grep -q '^:!\*\.png$'
 assert_eq "pathspecs: *.png becomes :!*.png" "0" "$?"
 echo "$PATHSPECS" | grep -q '^:!\*\.jpg$'
 assert_eq "pathspecs: *.jpg becomes :!*.jpg" "0" "$?"
-echo "$PATHSPECS" | grep -q '^:!\.tickets/\*\*$'
-assert_eq "pathspecs: .tickets/** becomes :!.tickets/**" "0" "$?"
+echo "$PATHSPECS" | grep -q '^:!\.tickets-tracker/\*\*$'
+assert_eq "pathspecs: .tickets-tracker/** becomes :!.tickets-tracker/**" "0" "$?"
 
 PATHSPEC_COUNT=$(echo "$PATHSPECS" | wc -l | tr -d ' ')
 assert_eq "pathspecs: returns 3 pathspecs" "3" "$PATHSPEC_COUNT"
@@ -211,14 +211,14 @@ assert_eq "pathspecs: returns 3 pathspecs" "3" "$PATHSPEC_COUNT"
 echo "=== _allowlist_to_grep_regex ==="
 
 # test_allowlist_to_grep_regex_escapes_dots
-REGEX=$(_allowlist_to_grep_regex ".tickets/**
+REGEX=$(_allowlist_to_grep_regex ".tickets-tracker/**
 .sync-state.json
 *.png
 docs/**")
 
-# Verify dot escaping: .tickets/ becomes \.tickets/
-echo "$REGEX" | grep -q '\\\.tickets/'
-assert_eq "grep_regex: escapes dot in .tickets/" "0" "$?"
+# Verify dot escaping: .tickets-tracker/ becomes \.tickets-tracker/
+echo "$REGEX" | grep -q '\\\.tickets-tracker/'
+assert_eq "grep_regex: escapes dot in .tickets-tracker/" "0" "$?"
 
 # Verify .sync-state.json dot escaping
 echo "$REGEX" | grep -q '\\\.sync-state\\\.json'

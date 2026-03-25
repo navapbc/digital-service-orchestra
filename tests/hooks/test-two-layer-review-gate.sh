@@ -405,7 +405,7 @@ test_hook_review_gate_removed_from_pre_bash_functions() {
 #
 # When MERGE_HEAD exists in the target worktree's git dir (in-progress merge)
 # and only allowlisted files are staged, Layer 1 must allow the commit.
-# This is the normal merge-resolution path (e.g., resolving .tickets/.index.json).
+# This is the normal merge-resolution path (e.g., resolving .tickets-tracker/.index.json).
 test_merge_head_present_allowlisted_commit_passes() {
     local _repo _artifacts
     _repo=$(make_test_repo)

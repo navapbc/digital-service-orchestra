@@ -84,7 +84,7 @@ echo "--- test_no_duplicate_exclusion_patterns_in_hooks ---"
 if [ "$func_count" -eq 0 ] || [ "$disp_count" -eq 0 ]; then
     fail "no_duplicate_exclusion_patterns_in_hooks (no files to scan)"
 else
-    dup_patterns=$(grep -rn "EXCLUDE_PATHSPECS\|':!\\.tickets/'" \
+    dup_patterns=$(grep -rn "EXCLUDE_PATHSPECS\|':!\\.tickets-tracker/'" \
         "$DSO_PLUGIN_DIR/hooks/lib/"*-functions.sh \
         "$DSO_PLUGIN_DIR/hooks/dispatchers/"*.sh 2>/dev/null || true)
     if [ -z "$dup_patterns" ]; then
