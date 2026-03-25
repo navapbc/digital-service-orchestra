@@ -146,6 +146,18 @@ assert_eq "test_cascade_breaker_blocks_source_file_in_tmp_worktree_at_threshold"
 rm -rf "$TMP_STATE_DIR" 2>/dev/null || true
 rm -rf "$TMP_FAKE_ROOT_CLEANUP" 2>/dev/null || true
 
+# --- test_cascade_breaker_no_tickets_v2_passthrough ---
+# RED: .tickets/ paths should NOT be exempt from the cascade block.
+# After removing the v2 .tickets/ passthrough, a .tickets/ file edit at
+# threshold should be BLOCKED (exit 2), not silently allowed.
+# Currently exits 0 due to the `*/.tickets/*` case passthrough — this test
+# documents the desired post-removal behavior and fails until the passthrough
+# is removed from cascade-circuit-breaker.sh.
+echo "5" > "$COUNTER_FILE"
+INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$FAKE_ROOT"'/.tickets/test.md"}}'
+EXIT_CODE=$(run_hook "$INPUT")
+assert_eq "test_cascade_breaker_no_tickets_v2_passthrough" "2" "$EXIT_CODE"
+
 # --- Cleanup ---
 rm -rf "$STATE_DIR" 2>/dev/null || true
 # FAKE_ROOT is removed by the EXIT trap above

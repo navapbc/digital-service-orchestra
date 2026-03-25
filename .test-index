@@ -3,6 +3,9 @@
 # Format: source/path: test/path1[, test/path2...]
 
 plugins/dso/.claude-plugin/plugin.json:tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/hooks/test-plugin-docs.sh,tests/hooks/test-hooks-json-paths.sh,tests/hooks/test-run-hook-relative-paths.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-check-plugin-test-needed.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh
+plugins/dso/hooks/cascade-circuit-breaker.sh:tests/hooks/test-cascade-breaker.sh [test_cascade_breaker_no_tickets_v2_passthrough]
+plugins/dso/hooks/review-stop-check.sh:tests/hooks/test-review-stop.sh,tests/hooks/test-review-stop-check.sh [test_review_stop_no_tickets_v2_skip]
+plugins/dso/hooks/title-length-validator.sh:tests/hooks/test-title-length-validator.sh [test_title_validator_no_tickets_v2_skip]
 plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hooks-json-paths.sh
 plugins/dso/commands/commit.md:tests/plugin/test-commit-step1-5-skip.sh,tests/workflows/test-commit-breadcrumbs.sh,tests/hooks/test-pre-commit-review-gate.sh,tests/hooks/test-commit-tracker.sh,tests/hooks/test-pre-commit-test-gate.sh,tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-commit-failure-tracker.sh,tests/scripts/test-pre-commit-wrapper.sh,tests/scripts/test-ensure-precommit-config-paths.sh,tests/skills/test_end_skill_learnings_step_before_commit.py,tests/skills/test_end_skill_bug_tickets_before_commit.py
 plugins/dso/commands/end.md:tests/scripts/test-end-session-error-sweep.sh,tests/skills/test_end_skill_final_verification_step.py,tests/skills/test-project-setup-dependencies.sh,tests/skills/test_end_session_ticket_conflict_guard.py,tests/skills/test_end_session_no_auto_sync.py,tests/skills/test-end-session-error-sweep.sh,tests/skills/test_end_skill_summary_displays_stored_learnings.py,tests/skills/test_end_skill_learnings_step_before_commit.py,tests/skills/test_end_skill_dirty_worktree_resolution.py,tests/skills/test_end_skill_bug_tickets_before_commit.py
@@ -20,6 +23,7 @@ plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workfl
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
+plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh [test_no_issue_tracker_create_cmd_read]
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh [test_allowlist_uses_tickets_tracker_path]
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh [test_allowlist_uses_tickets_tracker_path]
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-docker-skip.sh,tests/scripts/test-check-local-env-generic.sh
@@ -113,3 +117,12 @@ examples/ci.example.yml: tests/scripts/test-ci-no-v2-paths.sh
 examples/pre-commit-config.example.yaml: tests/scripts/test-ci-no-v2-paths.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh: tests/hooks/test-pre-commit-ticket-gate.sh [test_blocks_missing_ticket_id]
 plugins/dso/scripts/merge-to-main.sh: tests/scripts/test-merge-to-main.sh [test_merge_to_main_no_v2_tickets_md_pattern]
+plugins/dso/docs/WORKTREE-GUIDE.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_v2_references_in_worktree_guide]
+plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_env_var_in_docs]
+plugins/dso/docs/ROLLBACK-PROCEDURE.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_v2_references_in_rollback_procedure]
+plugins/dso/docs/contracts/tombstone-archive-format.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_docs]
+plugins/dso/docs/adr/0001-outbound-jira-bridge.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_docs]
+plugins/dso/skills/brainstorm/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
+plugins/dso/skills/sprint/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
+plugins/dso/skills/preplanning/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
+plugins/dso/skills/implementation-plan/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
