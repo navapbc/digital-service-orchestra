@@ -1,0 +1,1 @@
+{"timestamp": 1774401953, "uuid": "f378d5a8-8274-4664-959c-e9b7193bc567", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Jira bridge does not sync all fields bidirectionally (priority, description, assignee missing)", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
