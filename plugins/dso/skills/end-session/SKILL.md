@@ -229,8 +229,16 @@ Verify the worktree satisfies both conditions that `claude-safe`'s `_offer_workt
 ```bash
 BRANCH=$(git branch --show-current)
 
-# is_merged: exit 0 means the branch is a full ancestor of main
-git merge-base --is-ancestor "$BRANCH" main && echo "MERGED" || echo "NOT MERGED"
+# is_merged: exit 0 means the branch is a full ancestor of main.
+# Fallback: if merge-base fails (e.g., branch tip was amended after merge),
+# check if main has a merge commit referencing this branch name.
+if git merge-base --is-ancestor "$BRANCH" main 2>/dev/null; then
+    echo "MERGED"
+elif git log main --oneline --grep="(merge $BRANCH)" -1 2>/dev/null | grep -q .; then
+    echo "MERGED (via merge commit message fallback)"
+else
+    echo "NOT MERGED"
+fi
 
 # is_clean: empty output means no uncommitted changes
 git status --porcelain

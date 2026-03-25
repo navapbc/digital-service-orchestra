@@ -359,29 +359,6 @@ echo "passed" > "$ARTIFACTS_DIR/validation-status"
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3a-validation-state" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-## Step 3b: Version Bump
-
-> **Skip this step when executing COMMIT-WORKFLOW.md inline from within the `/dso:sprint` skill.** The sprint skill manages version bumping separately — it calls `bump-version.sh --minor` at epic completion and coordinates increments across all stories. Running Step 3b during a sprint-orchestrated commit would produce duplicate or conflicting version increments. When this workflow is being executed as part of `/dso:sprint` batch execution or epic completion, proceed directly to Step 4.
-
-Bump the patch version and stage the modified version file so it is included in the commit. This step runs after format/lint/type-check (Steps 2-3) so the version file write happens after all other file edits are complete.
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-bash "$REPO_ROOT/plugins/dso/scripts/bump-version.sh" --patch
-```
-
-`bump-version.sh` exits 0 with no changes when `version.file_path` is not configured in `dso-config.conf`. In that case, the `git add -u` below is a no-op for the version file (safe to run regardless).
-
-Stage the bumped version file (if any) along with any other tracked modifications touched by format/lint:
-
-```bash
-git add -u
-```
-
-```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3b-version-bump" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
-```
-
 ## Step 4: Stage
 
 If you intend to include new (untracked) files in this commit, add them explicitly by name first.
