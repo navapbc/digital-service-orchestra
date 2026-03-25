@@ -671,4 +671,19 @@ assert_eq "test_version_bump_idempotent_guard: _phase_version_bump must check if
 assert_pass_if_clean "test_version_bump_idempotent_guard"
 
 # =============================================================================
+# Test: merge-to-main.sh sources ensure-pre-commit.sh before merge
+# Bug a45c-400e: git merge triggers pre-commit hooks, but pre-commit may not
+# be in PATH. ensure-pre-commit.sh activates the venv.
+# =============================================================================
+echo "--- test_ensure_precommit_before_merge ---"
+_snapshot_fail
+_has_ensure_precommit=0
+if grep -qE 'ensure-pre-commit' "$MERGE_SCRIPT"; then
+    _has_ensure_precommit=1
+fi
+assert_eq "test_ensure_precommit_before_merge: merge-to-main.sh must call ensure-pre-commit.sh" \
+    "1" "$_has_ensure_precommit"
+assert_pass_if_clean "test_ensure_precommit_before_merge"
+
+# =============================================================================
 print_summary
