@@ -125,7 +125,9 @@ plugins/dso/skills/brainstorm/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [t
 plugins/dso/skills/sprint/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
 plugins/dso/skills/preplanning/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
 plugins/dso/skills/implementation-plan/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
-tests/scripts/test-lock-acquire-ticket-format.sh: tests/scripts/test-v2-clean-guard.sh [test_no_fake_tk_stubs_in_test_files]
-tests/hooks/test-check-validation-failures.sh: tests/scripts/test-v2-clean-guard.sh [test_no_cvf_tk_log_in_hook_tests]
-tests/hooks/test-session-safety.sh: tests/scripts/test-v2-clean-guard.sh [test_no_cvf_tk_log_in_hook_tests]
-tests/scripts/test-validate-issues.sh: tests/scripts/test-v2-clean-guard.sh [test_no_tickets_dir_md_writes_in_validate_tests]
+tests/scripts/test-lock-acquire-ticket-format.sh: tests/scripts/test-v2-clean-guard.sh
+tests/hooks/test-check-validation-failures.sh: tests/scripts/test-v2-clean-guard.sh
+tests/hooks/test-session-safety.sh: tests/scripts/test-v2-clean-guard.sh
+tests/scripts/test-validate-issues.sh: tests/scripts/test-v2-clean-guard.sh
+tests/scripts/test-read-config.sh: tests/scripts/test-v2-clean-guard.sh [test_no_issue_tracker_create_cmd_in_config_fixtures]
+tests/scripts/test-flat-config-e2e.sh: tests/scripts/test-v2-clean-guard.sh [test_no_issue_tracker_create_cmd_in_config_fixtures]

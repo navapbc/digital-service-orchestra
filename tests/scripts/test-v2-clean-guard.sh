@@ -142,4 +142,27 @@ fi
 assert_pass_if_clean "test_no_tickets_dir_md_writes_in_orphaned_tests"
 echo ""
 
+# ── test_no_issue_tracker_create_cmd_in_config_fixtures ──────────────────────
+# No config test fixture file may contain the deprecated 'issue_tracker.create_cmd'
+# key. This key was removed from the config schema in the v3 ticket system
+# migration. Its presence in test fixtures perpetuates stale config assumptions.
+# RED: FAIL because tests/scripts/test-read-config.sh and
+#      tests/scripts/test-flat-config-e2e.sh still contain test fixtures with
+#      'issue_tracker.create_cmd'.
+echo "Test: test_no_issue_tracker_create_cmd_in_config_fixtures"
+_snapshot_fail
+matches=$(grep -rl 'issue_tracker\.create_cmd' \
+    "$REPO_ROOT/tests/scripts/test-read-config.sh" \
+    "$REPO_ROOT/tests/scripts/test-flat-config-e2e.sh" 2>/dev/null || true)
+if [[ -z "$matches" ]]; then
+    assert_eq "test_no_issue_tracker_create_cmd_in_config_fixtures: no matching files" "" ""
+else
+    (( ++FAIL ))
+    printf "FAIL: test_no_issue_tracker_create_cmd_in_config_fixtures\n" >&2
+    printf "  expected: no files containing issue_tracker.create_cmd\n" >&2
+    printf "  found:\n%s\n" "$matches" | sed 's/^/    /' >&2
+fi
+assert_pass_if_clean "test_no_issue_tracker_create_cmd_in_config_fixtures"
+echo ""
+
 print_summary
