@@ -288,6 +288,27 @@ test_red_phase_counter_additive() {
     fi
 }
 
+# ── Test 12: source-file-is-test-file edge case ──────────────────────────────
+# Bug dso-ovj9: when the source file IS a test file (e.g., tests/test_foo.py),
+# fuzzy_find_associated_tests should return itself (it's its own test).
+test_source_file_is_test_file() {
+    if (( ! _FUZZY_MATCH_LOADED )); then
+        (( ++FAIL ))
+        echo "FAIL: test_source_file_is_test_file — fuzzy-match.sh not loaded" >&2
+        return
+    fi
+    local repo
+    repo=$(create_test_repo)
+    mkdir -p "$repo/tests"
+    echo "pass" > "$repo/tests/test_foo.py"
+    git -C "$repo" add -A && git -C "$repo" commit -m "add test" --quiet 2>/dev/null
+
+    local result
+    result=$(fuzzy_find_associated_tests "$repo/tests/test_foo.py" "$repo")
+    # A test file queried as source should return itself (it's its own associated test)
+    assert_ne "source-is-test: result should be non-empty" "" "$result"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_bash_convention_matches
 test_python_convention_matches
@@ -300,6 +321,7 @@ test_custom_test_dirs
 test_benchmark_20_files
 test_dogfood_bump_version
 test_red_phase_counter_additive
+test_source_file_is_test_file
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 # In RED phase (library missing), all tests correctly FAIL. Print summary with
