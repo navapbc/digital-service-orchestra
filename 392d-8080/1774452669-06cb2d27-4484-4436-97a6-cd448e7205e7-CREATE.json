@@ -1,0 +1,1 @@
+{"timestamp": 1774452669, "uuid": "06cb2d27-4484-4436-97a6-cd448e7205e7", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "epic", "title": "Improve fix-bug web search effectiveness and resolve ACLI priority gap", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
