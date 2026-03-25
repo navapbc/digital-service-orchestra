@@ -116,7 +116,7 @@ plugins/dso/skills/verification-before-completion/SKILL.md:plugins/dso/tests/tes
 examples/ci.example.yml: tests/scripts/test-ci-no-v2-paths.sh
 examples/pre-commit-config.example.yaml: tests/scripts/test-ci-no-v2-paths.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh: tests/hooks/test-pre-commit-ticket-gate.sh [test_blocks_missing_ticket_id]
-plugins/dso/scripts/merge-to-main.sh: tests/scripts/test-merge-to-main.sh [test_merge_to_main_no_v2_tickets_md_pattern]
+plugins/dso/scripts/merge-to-main.sh: tests/scripts/test-merge-to-main.sh, tests/scripts/test-merge-to-main-auto-resolve.sh, tests/scripts/test-merge-to-main-cleanliness.sh
 plugins/dso/docs/WORKTREE-GUIDE.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_v2_references_in_worktree_guide]
 plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_env_var_in_docs]
 plugins/dso/docs/contracts/tombstone-archive-format.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_docs]
