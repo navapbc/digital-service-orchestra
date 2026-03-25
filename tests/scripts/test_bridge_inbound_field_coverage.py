@@ -483,3 +483,173 @@ class TestInboundEditEventPath:
         assert len(edit_files) == 0, (
             f"Expected 0 EDIT events when fields are unchanged. Found: {len(edit_files)}"
         )
+
+
+# ===========================================================================
+# EMPTY DESCRIPTION SAFEGUARD TESTS
+# ===========================================================================
+
+
+class TestInboundEmptyDescriptionSafeguard:
+    """Verify that empty Jira descriptions never overwrite non-empty local ones."""
+
+    def test_create_with_empty_description_stores_none(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """Inbound CREATE with empty Jira description should store None, not ''."""
+        tracker = tmp_path / ".tickets-tracker"
+        tracker.mkdir(parents=True)
+
+        issues = [
+            {
+                "key": "DSO-EMPTYDESC",
+                "fields": {
+                    "summary": "No description issue",
+                    "description": "",
+                    "issuetype": {"name": "Bug"},
+                    "status": {"name": "Open"},
+                    "created": "2026-03-20T10:00:00.000+0000",
+                    "updated": "2026-03-20T10:00:00.000+0000",
+                },
+            }
+        ]
+
+        paths = inbound.write_create_events(
+            issues,
+            tickets_tracker=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert len(paths) == 1
+        event_data = json.loads(paths[0].read_text(encoding="utf-8"))
+        data = event_data.get("data", {})
+        assert data.get("description") is None, (
+            f"Empty Jira description should be stored as None, not {data.get('description')!r}"
+        )
+
+    def test_create_with_whitespace_description_stores_none(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """Inbound CREATE with whitespace-only Jira description should store None."""
+        tracker = tmp_path / ".tickets-tracker"
+        tracker.mkdir(parents=True)
+
+        issues = [
+            {
+                "key": "DSO-WSDESC",
+                "fields": {
+                    "summary": "Whitespace description",
+                    "description": "   \n  ",
+                    "issuetype": {"name": "Bug"},
+                    "status": {"name": "Open"},
+                    "created": "2026-03-20T10:00:00.000+0000",
+                    "updated": "2026-03-20T10:00:00.000+0000",
+                },
+            }
+        ]
+
+        paths = inbound.write_create_events(
+            issues,
+            tickets_tracker=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert len(paths) == 1
+        event_data = json.loads(paths[0].read_text(encoding="utf-8"))
+        data = event_data.get("data", {})
+        assert data.get("description") is None, (
+            f"Whitespace Jira description should be stored as None, not {data.get('description')!r}"
+        )
+
+    def test_create_with_nonempty_description_is_stored(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """Inbound CREATE with non-empty description should store it normally."""
+        tracker = tmp_path / ".tickets-tracker"
+        tracker.mkdir(parents=True)
+
+        issues = [
+            {
+                "key": "DSO-GOODDESC",
+                "fields": {
+                    "summary": "Has description",
+                    "description": "This is a real description",
+                    "issuetype": {"name": "Bug"},
+                    "status": {"name": "Open"},
+                    "created": "2026-03-20T10:00:00.000+0000",
+                    "updated": "2026-03-20T10:00:00.000+0000",
+                },
+            }
+        ]
+
+        paths = inbound.write_create_events(
+            issues,
+            tickets_tracker=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert len(paths) == 1
+        event_data = json.loads(paths[0].read_text(encoding="utf-8"))
+        data = event_data.get("data", {})
+        assert data.get("description") == "This is a real description"
+
+    def test_edit_empty_description_not_propagated(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """Inbound EDIT should not overwrite local description with empty Jira value."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-noblank"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # Create a ticket with a non-empty description
+        make_create_event(
+            ticket_dir, title="Has Desc", description="Original description"
+        )
+        write_sync(ticket_dir, "DSO-NOBLANK")
+
+        mock_acli = MagicMock()
+        mock_acli.search_issues.return_value = []
+        mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+
+        # Jira issue has empty description
+        jira_issue = {
+            "key": "DSO-NOBLANK",
+            "fields": {
+                "summary": "Has Desc",
+                "description": "",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "priority": {"name": "Medium"},
+                "assignee": None,
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-21T10:00:00.000+0000",
+            },
+        }
+
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "checkpoint_file": "",
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # Check that no EDIT event was written for description
+        edit_files = list(ticket_dir.glob("*-EDIT.json"))
+        for ef in edit_files:
+            edata = json.loads(ef.read_text(encoding="utf-8"))
+            edited_fields = edata.get("data", {}).get("fields", {})
+            assert "description" not in edited_fields, (
+                f"Empty Jira description should NOT be synced inbound. "
+                f"EDIT event has: {edited_fields}"
+            )

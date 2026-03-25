@@ -289,7 +289,12 @@ def write_create_events(
             else "Task"
         )
         jira_summary = normalized_fields.get("summary", "")
-        jira_description = normalized_fields.get("description", "")
+        # Empty description safeguard: store None instead of empty string
+        # to prevent overwriting a non-empty local description later.
+        _raw_desc = normalized_fields.get("description", "")
+        jira_description = (
+            _raw_desc if isinstance(_raw_desc, str) and _raw_desc.strip() else None
+        )
 
         # Map Jira priority to local 0-4 integer scale
         jira_priority_obj = normalized_fields.get("priority", {})
@@ -807,12 +812,14 @@ def process_inbound(
                     if jira_title and jira_title != local_state.get("title"):
                         edit_fields["title"] = jira_title
 
-                    # Description: compare Jira description → local description
+                    # Description: compare Jira description → local description.
+                    # Empty description safeguard: never overwrite a non-empty
+                    # local description with an empty Jira description.
                     jira_desc = fields.get("description", "")
-                    if isinstance(jira_desc, str) and jira_desc != (
-                        local_state.get("description") or ""
-                    ):
-                        edit_fields["description"] = jira_desc
+                    if isinstance(jira_desc, str) and jira_desc.strip():
+                        local_desc = local_state.get("description") or ""
+                        if jira_desc != local_desc:
+                            edit_fields["description"] = jira_desc
 
                     if edit_fields:
                         write_edit_event(

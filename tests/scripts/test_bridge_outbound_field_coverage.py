@@ -374,6 +374,8 @@ class TestOutboundEditFields:
             ("title", "Updated Title", "summary", "Updated Title"),
             ("priority", 0, "priority", "Highest"),
             ("assignee", "bob", "assignee", "bob"),
+            # ticket_type maps to "type" in Jira (capitalized)
+            ("ticket_type", "story", "type", "Story"),
         ],
     )
     def test_edit_event_pushes_field_to_jira(
@@ -509,3 +511,132 @@ class TestFieldCoverageSummary:
             f"  Fields MISSING from Jira call: {sorted(missing)}\n"
             f"  Full data passed to create_issue: {received}"
         )
+
+
+# ===========================================================================
+# EMPTY DESCRIPTION SAFEGUARD TESTS
+# ===========================================================================
+
+
+class TestOutboundEmptyDescriptionSafeguard:
+    """Verify that empty descriptions never overwrite non-empty ones in Jira."""
+
+    def test_edit_empty_description_is_not_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with empty description should NOT call update_issue."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-empty-desc"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Desc Guard Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"description": ""}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        # update_issue should NOT be called — empty description is the only field
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with empty description should not push to Jira"
+        )
+
+    def test_edit_whitespace_description_is_not_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with whitespace-only description should NOT call update_issue."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-ws-desc"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="WS Desc Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"description": "   \n  "}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert not mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with whitespace-only description should not push to Jira"
+        )
+
+    def test_edit_nonempty_description_is_pushed(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """EDIT event with non-empty description SHOULD call update_issue."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-good-desc"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Good Desc Test")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"description": "Updated description"}},
+        )
+
+        mock_acli = MagicMock()
+
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert mock_acli.update_issue.called, (
+            "OUTBOUND EDIT with non-empty description should push to Jira"
+        )
+        call_kwargs = mock_acli.update_issue.call_args[1]
+        assert call_kwargs.get("description") == "Updated description"

@@ -632,7 +632,16 @@ def process_outbound(
                                 update_kwargs["priority"] = jira_pri_name
                         else:
                             update_kwargs["priority"] = str(field_value)
-                    elif field_name in ("assignee", "description"):
+                    elif field_name == "description":
+                        # Empty description safeguard: never overwrite
+                        # a Jira description with an empty string.
+                        desc_str = str(field_value).strip()
+                        if desc_str:
+                            update_kwargs["description"] = desc_str
+                    elif field_name == "ticket_type":
+                        # Map local type to Jira type (capitalized)
+                        update_kwargs["type"] = str(field_value).capitalize()
+                    elif field_name == "assignee":
                         update_kwargs[field_name] = str(field_value)
                 if update_kwargs:
                     acli_client.update_issue(jira_key, **update_kwargs)
