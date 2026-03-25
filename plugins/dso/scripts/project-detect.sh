@@ -210,6 +210,12 @@ PYEOF
         fi
     fi
 
+    # Short-circuit: if no entries were discovered, emit empty JSON array without python3.
+    if [[ -z "$entries" ]]; then
+        echo "[]"
+        return 0
+    fi
+
     # Generate JSON output via python3.
     # Entries are passed via DSO_SUITE_ENTRIES env var, comma-delimited.
     # Python handles dedup by name with precedence: config > make > pytest > npm > bash.
