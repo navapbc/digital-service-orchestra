@@ -2,8 +2,7 @@
 set -euo pipefail
 # sprint-list-epics.sh — List unblocked epics for /dso:sprint Phase 1.
 #
-# Reads .tickets/.index.json in a single Python pass instead of per-file scanning.
-# Blocked/ready classification uses the deps field from the extended index schema.
+# Reads ticket state from the v3 event-sourced tracker via ticket-reducer.py.
 #
 # Usage:
 #   sprint-list-epics.sh           # List unblocked open epics, sorted by priority
@@ -27,46 +26,20 @@ show_all=false
 [[ "${1:-}" == "--all" ]] && show_all=true
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-# Capture whether TICKETS_DIR was explicitly set by caller before applying defaults
-_TICKETS_DIR_EXPLICIT="${TICKETS_DIR+yes}"
-TICKETS_DIR="${TICKETS_DIR:-$REPO_ROOT/.tickets}"
-INDEX_FILE="$TICKETS_DIR/.index.json"
-TK="${TK:-$SCRIPT_DIR/tk}"
 REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 
 # ---------------------------------------------------------------------------
-# Detect v3 event-sourced ticket system.
-# v3 stores events in .tickets-tracker/ (or TICKETS_TRACKER_DIR env override).
-# When v3 is detected, build the index from the reducer instead of .md files.
+# v3 event-sourced ticket system.
+# Reads from .tickets-tracker/ (or TICKETS_TRACKER_DIR env override).
 # ---------------------------------------------------------------------------
-# Detection logic:
-# - TICKETS_TRACKER_DIR explicitly set → v3 (test override for v3)
-# - TICKETS_DIR explicitly set without TICKETS_TRACKER_DIR → v2 (test override for v2)
-# - Neither explicitly set → auto-detect: use v3 if .tickets-tracker/ exists
-USE_V3=false
-if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
-    TRACKER_DIR="$TICKETS_TRACKER_DIR"
-    USE_V3=true
-elif [ "$_TICKETS_DIR_EXPLICIT" != "yes" ]; then
-    # TICKETS_DIR not explicitly set — auto-detect
-    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
-    if [ -d "$TRACKER_DIR" ]; then
-        USE_V3=true
-    fi
-else
-    # TICKETS_DIR explicitly set, TICKETS_TRACKER_DIR not — use v2
-    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
-fi
+TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # ---------------------------------------------------------------------------
-# Build index from data source (v3 reducer or v2 .md files).
-# Both paths produce the same index format in SPRINT_INDEX_JSON env var.
+# Build index from v3 reducer.
 # ---------------------------------------------------------------------------
-if [ "$USE_V3" = true ]; then
-    # v3 path: compile ticket state from event-sourced tracker via reducer
-    export _SPRINT_TRACKER_DIR="$TRACKER_DIR"
-    export _SPRINT_REDUCER="$REDUCER"
-    index_and_counts=$(python3 -c "
+export _SPRINT_TRACKER_DIR="$TRACKER_DIR"
+export _SPRINT_REDUCER="$REDUCER"
+index_and_counts=$(python3 -c "
 import json, os, sys, importlib.util, collections
 
 tracker_dir = os.environ['_SPRINT_TRACKER_DIR']
@@ -119,169 +92,8 @@ for entry_name in os.listdir(tracker_dir):
 print(json.dumps({'index': idx, 'child_counts': dict(child_counts)}))
 " 2>/dev/null || echo '{"index":{},"child_counts":{}}')
 
-    SPRINT_INDEX_JSON=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['index']))")
-    child_counts_json=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['child_counts']))")
-else
-    # v2 path: read .tickets/*.md files and build index
-
-    # Staleness guard: compare .md file count vs index entry count.
-    _rebuild_index() {
-        if [ -x "$TK" ] || command -v "$TK" >/dev/null 2>&1; then
-            TICKETS_DIR="$TICKETS_DIR" "$TK" index-rebuild >/dev/null 2>&1 || true
-        else
-            python3 -c "
-import json, os, re, sys
-
-tickets_dir = os.environ.get('TICKETS_DIR', '.tickets')
-idx = {}
-
-try:
-    files = [f for f in os.listdir(tickets_dir) if f.endswith('.md')]
-except OSError:
-    files = []
-
-for fname in files:
-    fpath = os.path.join(tickets_dir, fname)
-    try:
-        content = open(fpath).read()
-    except OSError:
-        continue
-
-    lines = content.splitlines()
-    in_front = False
-    front_lines = []
-    count = 0
-    for line in lines:
-        if line.strip() == '---':
-            count += 1
-            if count == 1:
-                in_front = True
-                continue
-            elif count == 2:
-                in_front = False
-                break
-        if in_front:
-            front_lines.append(line)
-
-    def get_field(name):
-        for l in front_lines:
-            m = re.match(r'^' + re.escape(name) + r':\s*(.*)', l)
-            if m:
-                return m.group(1).strip()
-        return ''
-
-    ticket_id = get_field('id')
-    if not ticket_id:
-        ticket_id = fname[:-3]
-
-    status = get_field('status') or 'open'
-    type_ = get_field('type') or 'task'
-
-    raw_priority = get_field('priority')
-    try:
-        priority = int(raw_priority) if raw_priority != '' else None
-    except (ValueError, TypeError):
-        priority = None
-
-    raw_deps = get_field('deps')
-    if raw_deps in ('', '[]'):
-        deps = []
-    else:
-        inner = raw_deps.strip().lstrip('[').rstrip(']')
-        deps = [s.strip().strip('\"').strip(chr(39)) for s in inner.split(',') if s.strip()]
-
-    title = ''
-    for line in lines:
-        if line.startswith('# '):
-            title = line[2:].strip()
-            break
-
-    parent = get_field('parent')
-
-    entry = {'title': title, 'status': status, 'type': type_}
-    if priority is not None:
-        entry['priority'] = priority
-    if deps:
-        entry['deps'] = deps
-    if parent:
-        entry['parent'] = parent
-    idx[ticket_id] = entry
-
-# Write atomically
-import tempfile
-tmp = os.path.join(tickets_dir, '.index.json.tmp')
-with open(tmp, 'w') as f:
-    json.dump(idx, f, indent=2, sort_keys=True)
-os.replace(tmp, os.path.join(tickets_dir, '.index.json'))
-" 2>/dev/null || true
-        fi
-    }
-
-    _check_staleness() {
-        local index_count md_count
-        md_count=$(python3 -c "
-import os
-d = '$TICKETS_DIR'
-try:
-    print(sum(1 for f in os.listdir(d) if f.endswith('.md')))
-except OSError:
-    print(0)
-" 2>/dev/null || echo 0)
-        index_count=$(python3 -c "
-import json
-try:
-    with open('$INDEX_FILE') as f:
-        data = json.load(f)
-    print(len(data))
-except Exception:
-    print(-1)
-" 2>/dev/null || echo -1)
-        if [ "$index_count" -ne "$md_count" ]; then
-            _rebuild_index
-        fi
-    }
-
-    _check_staleness
-
-    # Read index file for v2 path
-    SPRINT_INDEX_JSON=$(cat "$INDEX_FILE" 2>/dev/null || echo '{}')
-
-    # Compute child counts from .md files
-    child_counts_json=$(python3 -c "
-import os, re, collections, json
-
-tickets_dir = '$TICKETS_DIR'
-counts = collections.defaultdict(int)
-
-try:
-    files = [f for f in os.listdir(tickets_dir) if f.endswith('.md')]
-except OSError:
-    files = []
-
-for fname in files:
-    fpath = os.path.join(tickets_dir, fname)
-    try:
-        content = open(fpath).read()
-    except OSError:
-        continue
-    in_front = False
-    front_count = 0
-    for line in content.splitlines():
-        if line.strip() == '---':
-            front_count += 1
-            in_front = (front_count == 1)
-            if front_count == 2:
-                break
-            continue
-        if in_front:
-            m = re.match(r'^parent:\s*(\S+)', line)
-            if m:
-                parent_id = m.group(1).rstrip('#').strip()
-                counts[parent_id] += 1
-
-print(json.dumps(dict(counts)))
-" 2>/dev/null || echo '{}')
-fi
+SPRINT_INDEX_JSON=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['index']))")
+child_counts_json=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['child_counts']))")
 
 # ---------------------------------------------------------------------------
 # Single Python pass: read index once, classify epics, emit output.
@@ -291,7 +103,7 @@ import json, os, sys
 
 show_all = os.environ.get('SPRINT_SHOW_ALL') == 'true'
 
-# Load index from env var (built by v2 or v3 path above)
+# Load index from env var (built by v3 path above)
 try:
     index = json.loads(os.environ.get('SPRINT_INDEX_JSON', '{}'))
 except Exception:

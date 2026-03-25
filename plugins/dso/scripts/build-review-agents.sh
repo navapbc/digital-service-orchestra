@@ -116,9 +116,9 @@ _description_for_tier() {
     case "$1" in
         light)              echo "Light-tier code reviewer: single-pass, highest-signal checklist for fast feedback on low-to-medium-risk changes." ;;
         standard)           echo "Standard-tier code reviewer: comprehensive review across all five scoring dimensions for moderate-to-high-risk changes." ;;
-        deep-correctness)   echo "Deep-tier correctness specialist (Sonnet A): focused exclusively on functionality — correctness, edge cases, error handling, security, efficiency." ;;
-        deep-verification)  echo "Deep-tier verification specialist (Sonnet B): focused exclusively on testing_coverage — test presence, quality, edge case coverage, mock correctness." ;;
-        deep-hygiene)       echo "Deep-tier hygiene/design specialist (Sonnet C): focused on code_hygiene, object_oriented_design, and readability." ;;
+        deep-correctness)   echo "Deep-tier correctness specialist (Sonnet A): focused exclusively on correctness — edge cases, error handling, security, efficiency." ;;
+        deep-verification)  echo "Deep-tier verification specialist (Sonnet B): focused exclusively on verification — test presence, quality, edge case coverage, mock correctness." ;;
+        deep-hygiene)       echo "Deep-tier hygiene/design specialist (Sonnet C): focused on hygiene, design, and maintainability." ;;
         deep-arch)          echo "Deep-tier architectural reviewer (Opus): synthesizes specialist findings, assesses systemic risk, produces unified verdict across all dimensions." ;;
         *)
             echo "ERROR: unknown tier: $1" >&2

@@ -27,7 +27,18 @@ The artifacts directory is computed by `get_artifacts_dir()` in `plugins/dso/hoo
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"  # or: ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh
+# Resolve CLAUDE_PLUGIN_ROOT if not set by the caller (e.g., manual run outside Claude Code)
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    _cfg="$REPO_ROOT/.claude/dso-config.conf"
+    if [[ -f "$_cfg" ]]; then
+        CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" 2>/dev/null | cut -d= -f2-)"
+    fi
+    # Final fallback: assume plugin lives at plugins/dso relative to repo root
+    if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
+    fi
+fi
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 rm -f "$ARTIFACTS_DIR/review-status"
@@ -165,9 +176,13 @@ fi
 
 Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OVERRIDE` is set (size upgrade case), Step 4 dispatch uses `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT`. Do not override the classifier's tier selection.
 
+**Deep tier + upgrade — no rationalization exemptions**: When `REVIEW_TIER=deep` and `SIZE_ACTION=upgrade`, you MUST dispatch the full deep tier (3 parallel sonnet agents + opus arch synthesis) with the opus model override. Do not substitute a lighter tier, a standard-tier agent, or a general-purpose agent due to perceived overhead, time constraints, or commit urgency. The deep tier exists precisely for high-blast-radius changes — "overhead" objections do not override the classifier.
+
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
 **You MUST launch a sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication.
+
+**Do not substitute a lighter or general-purpose agent** for the classifier-selected named review agent. The named agent must match the `REVIEW_TIER` and `REVIEW_AGENT` values from Step 3. Substituting `general-purpose`, `sonnet`, or any non-named agent bypasses the review system and produces non-comparable scores.
 
 Dispatch the named review agent selected by the classifier in Step 3. The named agent's system prompt contains the stable review procedure — do NOT load `code-review-dispatch.md` as a template. Pass only per-review context to the sub-agent prompt.
 

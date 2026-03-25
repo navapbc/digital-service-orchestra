@@ -52,33 +52,14 @@ if [ -z "$REPO_ROOT" ]; then
     exit 2
 fi
 
-TK="${TK:-${CLAUDE_PLUGIN_ROOT}/scripts/tk}"
+TICKET_CMD="${TICKET_CMD:-${SCRIPT_DIR}/ticket}"
 
 ISSUE_BATCH="${CLAUDE_PLUGIN_ROOT}/scripts/issue-batch.sh"
 ANALYZE_IMPACT="${CLAUDE_PLUGIN_ROOT}/scripts/analyze-file-impact.py"
 REDUCER="${CLAUDE_PLUGIN_ROOT}/scripts/ticket-reducer.py"
 
-# ---------------------------------------------------------------------------
-# Detect v3 event-sourced ticket system (mirrors sprint-list-epics.sh logic).
-# v3 stores events in .tickets-tracker/ (or TICKETS_TRACKER_DIR env override).
-# Detection:
-#   - TICKETS_TRACKER_DIR explicitly set → v3 (test override for v3)
-#   - TICKETS_DIR explicitly set without TICKETS_TRACKER_DIR → v2
-#   - Neither set → auto-detect: use v3 if .tickets-tracker/ exists
-# ---------------------------------------------------------------------------
-_TICKETS_DIR_EXPLICIT="${TICKETS_DIR+yes}"
-USE_V3=false
-if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
-    TRACKER_DIR="$TICKETS_TRACKER_DIR"
-    USE_V3=true
-elif [ "$_TICKETS_DIR_EXPLICIT" != "yes" ]; then
-    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
-    if [ -d "$TRACKER_DIR" ]; then
-        USE_V3=true
-    fi
-else
-    TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
-fi
+# v3 event-sourced ticket system — the only supported backend.
+TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # Resolve Python — prefer config-driven venv path; fallback to python3
 READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" # reads dso-config.conf
@@ -151,38 +132,28 @@ if [ -z "$epic_id" ]; then
     exit 2
 fi
 
-# --- Data collection using tk ---
+# --- Data collection using ticket CLI ---
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# Epic details via tk show
-"$TK" show "$epic_id" >"$tmpdir/epic.txt" 2>/dev/null || true
+# Epic details via ticket show (v3 JSON output)
+"$TICKET_CMD" show "$epic_id" >"$tmpdir/epic.txt" 2>/dev/null || true
 if [ ! -s "$tmpdir/epic.txt" ]; then
     echo "Error: Could not load epic $epic_id" >&2
     exit 1
 fi
 
-# Resolve the canonical full ID from the tk show response.
+# Resolve the canonical full ID from the ticket show JSON response.
 epic_id_canonical=$(python3 -c "
-import json, sys, re
+import json, sys
 
 txt = open('$tmpdir/epic.txt').read().strip()
-
-# If JSON output (mock), extract id field
-if txt.startswith('{'):
-    try:
-        data = json.loads(txt)
-        print(data.get('id', ''))
-        sys.exit(0)
-    except json.JSONDecodeError:
-        pass
-
-# YAML frontmatter: look for 'id: <value>'
-m = re.search(r'^id:\s*(\S+)', txt, re.MULTILINE)
-if m:
-    print(m.group(1))
-else:
+try:
+    data = json.loads(txt)
+    # v3 ticket show returns ticket_id; also accept id for test compat
+    print(data.get('ticket_id', data.get('id', '')))
+except (json.JSONDecodeError, Exception):
     print('')
 " 2>/dev/null)
 if [ -n "$epic_id_canonical" ]; then
@@ -193,10 +164,9 @@ fi
 # Handles 3-tier hierarchy: epic -> story -> task (grandchildren).
 # v3: scan .tickets-tracker/ dirs via the reducer (reads parent_id from CREATE events)
 # v2: scan .tickets/*.md frontmatter for parent: field (legacy)
-TICKETS_DIR="${TICKETS_DIR:-$REPO_ROOT/.tickets}"
 touch "$tmpdir/epic_children.txt"
 touch "$tmpdir/parent_ids_with_children.txt"
-if [ "$USE_V3" = true ] && [ -d "$TRACKER_DIR" ]; then
+if [ -d "$TRACKER_DIR" ]; then
     SPRINT_TRACKER_DIR="$TRACKER_DIR" \
     SPRINT_EPIC_ID_BFS="$epic_id" \
     SPRINT_REDUCER="$REDUCER" \
@@ -275,53 +245,14 @@ with open(parents_outfile, "w") as f:
     for p in sorted(parents_with_children):
         f.write(p + "\n")
 DESCEOF_V3
-elif [ -d "$TICKETS_DIR" ]; then
-    python3 - "$TICKETS_DIR" "$epic_id" "$tmpdir/epic_children.txt" "$tmpdir/parent_ids_with_children.txt" <<'DESCEOF'
-import os, sys, re
-tickets_dir, root_id, outfile, parents_outfile = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-# Build parent -> children map by scanning ticket frontmatter
-parent_map = {}  # parent_id -> [child_id, ...]
-for fname in os.listdir(tickets_dir):
-    if not fname.endswith(".md"):
-        continue
-    tid = fname[:-3]
-    try:
-        with open(os.path.join(tickets_dir, fname)) as f:
-            for line in f:
-                m = re.match(r'^parent:\s*(\S+)', line)
-                if m:
-                    parent_map.setdefault(m.group(1), []).append(tid)
-                    break
-    except Exception:
-        pass
-# BFS from root to find all descendants
-descendants = set()
-queue = [root_id]
-while queue:
-    pid = queue.pop(0)
-    for child in parent_map.get(pid, []):
-        if child not in descendants:
-            descendants.add(child)
-            queue.append(child)
-# Identify descendants that have children (stories with impl tasks)
-parents_with_children = {pid for pid in parent_map if pid in descendants and parent_map[pid]}
-with open(outfile, "w") as f:
-    for d in sorted(descendants):
-        f.write(d + "\n")
-with open(parents_outfile, "w") as f:
-    for p in sorted(parents_with_children):
-        f.write(p + "\n")
-DESCEOF
 fi
 
-# Ready tasks (no unresolved deps) via tk ready
-"$TK" ready >"$tmpdir/ready.txt" 2>/dev/null || true
-
-# Blocked tasks (for story-level blocking check)
-"$TK" blocked >"$tmpdir/blocked.txt" 2>/dev/null || true
+# All tickets as JSON (used by Python inline for ready/blocked filtering)
+"$TICKET_CMD" list > "$tmpdir/all_tickets.json" 2>/dev/null || echo "[]" > "$tmpdir/all_tickets.json"
 
 # --- Core logic ---
 
+TICKET_CMD="$TICKET_CMD" \
 SPRINT_TMPDIR="$tmpdir" \
 SPRINT_EPIC_ID="$epic_id" \
 SPRINT_LIMIT="$limit" \
@@ -333,7 +264,6 @@ SPRINT_REPO_ROOT="$REPO_ROOT" \
 SPRINT_CFG_SRC_DIR="$CFG_SRC_DIR" \
 SPRINT_CFG_TEST_DIR="$CFG_TEST_DIR" \
 SPRINT_CFG_TEST_UNIT_DIR="$CFG_TEST_UNIT_DIR" \
-SPRINT_USE_V3="$USE_V3" \
 SPRINT_TRACKER_DIR="$TRACKER_DIR" \
 SPRINT_REDUCER="$REDUCER" \
 python3 - <<'PYEOF'
@@ -349,19 +279,17 @@ limit           = int(os.environ.get("SPRINT_LIMIT", "0"))
 json_mode       = os.environ.get("SPRINT_JSON", "false").lower() == "true"
 scorer          = os.environ.get("SPRINT_SCORER", "")
 python          = os.environ.get("SPRINT_PYTHON", "python3")
-tk_bin          = os.environ.get("TK", "tk")
 analyze_impact  = os.environ.get("SPRINT_ANALYZE_IMPACT", "")
 repo_root       = os.environ.get("SPRINT_REPO_ROOT", "")
 cfg_src_dir     = os.environ.get("SPRINT_CFG_SRC_DIR", "src")
 cfg_test_dir    = os.environ.get("SPRINT_CFG_TEST_DIR", "tests")
 cfg_test_unit_dir = os.environ.get("SPRINT_CFG_TEST_UNIT_DIR", "tests/unit")
-use_v3          = os.environ.get("SPRINT_USE_V3", "false").lower() == "true"
 tracker_dir     = os.environ.get("SPRINT_TRACKER_DIR", "")
 reducer_path    = os.environ.get("SPRINT_REDUCER", "")
 
 # Load v3 reducer module once if available
 _reduce_ticket = None
-if use_v3 and reducer_path and os.path.exists(reducer_path):
+if reducer_path and os.path.exists(reducer_path):
     try:
         import importlib.util as _ilu
         _spec = _ilu.spec_from_file_location("ticket_reducer", reducer_path)
@@ -376,62 +304,30 @@ OPUS_CAP = 2
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def tk_show(ticket_id):
-    """Run tk show <id> and return a simple dict with id, title, status."""
+    """Run ticket show <id> and return a simple dict with id, title, status.
+
+    The v3 ticket CLI returns JSON directly.
+    """
+    ticket_cmd = os.environ.get("TICKET_CMD", "ticket")
     result = subprocess.run(
-        [tk_bin, "show", ticket_id],
+        [ticket_cmd, "show", ticket_id],
         capture_output=True, text=True
     )
     if result.returncode != 0:
         return {}
     output = result.stdout.strip()
-    # Handle JSON output (mock)
-    if output.startswith('{'):
-        try:
-            return json.loads(output)
-        except json.JSONDecodeError:
-            pass
-    # Parse YAML frontmatter + markdown body
-    data = {"id": ticket_id, "status": "open"}
-    in_frontmatter = False
-    frontmatter_done = False
-    lines = output.splitlines()
-    for i, line in enumerate(lines):
-        if i == 0 and line == "---":
-            in_frontmatter = True
-            continue
-        if in_frontmatter and line == "---":
-            in_frontmatter = False
-            frontmatter_done = True
-            continue
-        if in_frontmatter:
-            if ": " in line:
-                k, v = line.split(": ", 1)
-                data[k.strip()] = v.strip()
-        elif frontmatter_done and line.startswith("# "):
-            data["title"] = line[2:].strip()
-    return data
-
-def parse_ready_line(line):
-    """
-    Parse a tk ready output line.
-    Format: id [Pprio][status] - title
-    Example: w21-0zy5 [P1][open] - Fix tests failure
-    Returns dict or None on parse failure.
-    """
-    line = line.strip()
-    if not line:
-        return None
-    m = re.match(r'^(\S+)\s+\[P(\d)\]\[(\w+)\]\s+-\s+(.+)$', line)
-    if not m:
-        return None
-    return {
-        "id": m.group(1),
-        "priority": int(m.group(2)),
-        "status": m.group(3),
-        "title": m.group(4),
-        "issue_type": "task",
-        "dependencies": [],
-    }
+    if not output:
+        return {}
+    try:
+        data = json.loads(output)
+        # Normalize: map ticket_id -> id, parent_id -> parent for compat
+        if "ticket_id" in data and "id" not in data:
+            data["id"] = data["ticket_id"]
+        if "parent_id" in data and "parent" not in data:
+            data["parent"] = data["parent_id"]
+        return data
+    except json.JSONDecodeError:
+        return {"id": ticket_id, "status": "open"}
 
 def extract_files(text):
     """
@@ -510,11 +406,9 @@ def _load_ticket_body(ticket_id):
     from title + comment bodies (the markdown body fields in CREATE events
     are not stored separately — file references appear in comments).
 
-    v2 (legacy): read the full text from .tickets/<id>.md (frontmatter + body).
-
     Falls back to empty string on any error.
     """
-    if use_v3 and tracker_dir:
+    if tracker_dir:
         ticket_dir = os.path.join(tracker_dir, ticket_id)
         if os.path.isdir(ticket_dir):
             parts = []
@@ -554,14 +448,7 @@ def _load_ticket_body(ticket_id):
             return "\n".join(parts)
         return ""
 
-    # v2 path: read .tickets/<id>.md
-    tickets_dir = os.path.join(repo_root, ".tickets")
-    ticket_path = os.path.join(tickets_dir, f"{ticket_id}.md")
-    try:
-        with open(ticket_path, encoding="utf-8") as f:
-            return f.read()
-    except (OSError, FileNotFoundError):
-        return ""
+    return ""
 
 def analyze_file_impact(seed_files):
     """
@@ -658,38 +545,53 @@ try:
 except FileNotFoundError:
     pass
 
-# ── Load blocked task IDs (for story-level blocking) ─────────────────────────
+# ── Load all tickets from JSON and derive ready/blocked sets ──────────────────
+
+all_tickets = []
+try:
+    with open(os.path.join(tmpdir, "all_tickets.json")) as f:
+        all_tickets = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+
+# Build a map of ticket_id -> status for dependency target lookup
+ticket_status_map = {
+    t.get("ticket_id", ""): t.get("status", "").lower()
+    for t in all_tickets
+    if t.get("ticket_id")
+}
+
+CLOSED_STATUSES = {"closed", "done", "completed"}
 
 blocked_ids = set()
-try:
-    with open(os.path.join(tmpdir, "blocked.txt")) as f:
-        for line in f:
-            # Match ticket ID formats: dso-xxxx, w21-xxxx, JIRA-123, etc.
-            # Suffix is either short (2-4 chars, covers hash-style IDs like dso-ptzz)
-            # or contains a digit (covers JIRA-123, w21-v0ad). This excludes most
-            # hyphenated English words (in-progress, pre-commit, non-blocking).
-            for m in re.finditer(r'\b([a-zA-Z][a-zA-Z0-9]+-(?:[a-z0-9]{2,4}|[a-z0-9]*\d[a-z0-9]*))\b', line):
-                blocked_ids.add(m.group(1))
-except FileNotFoundError:
-    pass
-
-# ── Load ready tasks ──────────────────────────────────────────────────────────
-
-ready_lines = []
-try:
-    with open(os.path.join(tmpdir, "ready.txt")) as f:
-        ready_lines = f.readlines()
-except FileNotFoundError:
-    pass
-
 ready_tasks = []
-for line in ready_lines:
-    parsed = parse_ready_line(line)
-    if parsed:
+for t in all_tickets:
+    tid = t.get("ticket_id", "")
+    status = t.get("status", "").lower()
+    if status not in ("open", "in_progress"):
+        continue
+    # Only blocked if there is at least one 'depends_on' dep whose target is
+    # not closed. Deps with other relations (e.g. 'relates_to', 'blocks') and
+    # deps whose target is already closed do NOT block this ticket.
+    open_depends_on = [
+        d for d in (t.get("deps") or [])
+        if d.get("relation") == "depends_on"
+        and ticket_status_map.get(d.get("target_id", ""), "open") not in CLOSED_STATUSES
+    ]
+    if open_depends_on:
+        blocked_ids.add(tid)
+    else:
         # Only include tasks that are descendants of the epic
-        if epic_children_ids and parsed["id"] not in epic_children_ids:
+        if epic_children_ids and tid not in epic_children_ids:
             continue
-        ready_tasks.append(parsed)
+        ready_tasks.append({
+            "id": tid,
+            "priority": t.get("priority", 4),
+            "status": status,
+            "title": t.get("title", "untitled"),
+            "issue_type": t.get("ticket_type", "task"),
+            "dependencies": t.get("deps", []),
+        })
 
 # ── Identify stories and check which are blocked ──────────────────────────────
 
@@ -710,23 +612,6 @@ except FileNotFoundError:
 
 # Parse dep tree output — each line is a ticket id (possibly indented for depth)
 story_children_cache = {}  # story_id -> set of task IDs
-
-def get_blocker_ids(issue):
-    """Return IDs of issues that directly block this issue."""
-    return [
-        d["depends_on_id"]
-        for d in (issue.get("dependencies") or [])
-        if d.get("type") == "blocks" and d.get("depends_on_id")
-    ]
-
-def is_story_blocked(story):
-    for blocker_id in get_blocker_ids(story):
-        if blocker_id not in status_cache:
-            data = tk_show(blocker_id)
-            status_cache[blocker_id] = data.get("status", "open").lower()
-        if status_cache[blocker_id] not in CLOSED:
-            return True
-    return False
 
 def find_parent_story(task_id):
     """Find the parent of a task via tk show. Returns parent ID or None."""

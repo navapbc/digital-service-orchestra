@@ -13,6 +13,10 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 
 # Review Protocol
 
+## Output Schema
+
+See `${CLAUDE_PLUGIN_ROOT}/docs/REVIEW-SCHEMA.md` for the standardized JSON output schema used by all review protocols.
+
 ## Your task
 
 1. Read the file at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md`

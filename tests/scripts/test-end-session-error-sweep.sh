@@ -150,9 +150,48 @@ MOCK
     assert_eq "test_sweep_enabled_when_flag_true: exits 0" "0" "$exit_code"
 }
 
+# ── test_error_sweep_no_tk_list_call ─────────────────────────────────────────
+# After v2 removal, error-sweep.sh should NOT call `tk list` directly.
+# The script should use the ticket CLI (ticket list) instead.
+# RED: currently the script calls `tk list --type bug --status open` → grep exits 0 → assert fails.
+test_error_sweep_no_tk_list_call() {
+    local exit_code
+    grep -q 'tk list' "$SWEEP_SCRIPT" 2>/dev/null
+    exit_code=$?
+    # We expect grep to find NO match (exit non-zero) after v2 removal.
+    assert_eq "test_error_sweep_no_tk_list_call: no 'tk list' call in error-sweep.sh" "1" "$exit_code"
+}
+
+# ── test_error_sweep_no_tk_create_call ───────────────────────────────────────
+# After v2 removal, error-sweep.sh should NOT call `tk create` directly.
+# The script should use the ticket CLI (ticket create) instead.
+# RED: currently the script calls `tk create "$ticket_title" ...` → grep exits 0 → assert fails.
+test_error_sweep_no_tk_create_call() {
+    local exit_code
+    grep -q 'tk create' "$SWEEP_SCRIPT" 2>/dev/null
+    exit_code=$?
+    # We expect grep to find NO match (exit non-zero) after v2 removal.
+    assert_eq "test_error_sweep_no_tk_create_call: no 'tk create' call in error-sweep.sh" "1" "$exit_code"
+}
+
+# ── test_error_sweep_uses_ticket_cli ─────────────────────────────────────────
+# After v2 removal, error-sweep.sh should use the ticket CLI commands
+# (ticket list or ticket create) rather than the tk binary.
+# RED: currently uses `tk list`/`tk create` → grep for ticket list|ticket create exits non-zero → assert fails.
+test_error_sweep_uses_ticket_cli() {
+    local exit_code
+    grep -qE 'ticket list|ticket create' "$SWEEP_SCRIPT" 2>/dev/null
+    exit_code=$?
+    # We expect grep to find a match (exit 0) after implementation.
+    assert_eq "test_error_sweep_uses_ticket_cli: error-sweep.sh uses ticket list or ticket create" "0" "$exit_code"
+}
+
 # Run all tests
 test_sweep_disabled_when_flag_absent
 test_sweep_disabled_when_flag_false
 test_sweep_enabled_when_flag_true
+test_error_sweep_no_tk_list_call
+test_error_sweep_no_tk_create_call
+test_error_sweep_uses_ticket_cli
 
 print_summary

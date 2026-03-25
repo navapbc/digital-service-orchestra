@@ -339,5 +339,75 @@ assert_eq "test_valid_hash_allows_resume: skips already-completed test" \
 rm -rf "$TMPDIR_VALID"
 assert_pass_if_clean "test_valid_hash_allows_resume"
 
+# ── test_interrupted_test_reruns_on_resume ────────────────────────────────────
+# When a state file contains a test with result "interrupted" (killed due to
+# timeout), resuming should RE-RUN that test — not skip it. Interrupted tests
+# never completed, so treating them as "completed" blocks re-runs and leaves
+# validate.sh stuck with stale interrupted state across sessions.
+#
+# The bash runner uses the filename (relative to TEST_DIR) as the test_id.
+# This test writes a state file with that key set to "interrupted" and verifies
+# the test is re-run (not skipped) on the next test-batched.sh invocation.
+echo ""
+echo "--- test_interrupted_test_reruns_on_resume ---"
+_snapshot_fail
+TMPDIR_INTERRUPTED="$(mktemp -d)"
+
+# Create a fast-passing stub test with the exact name bash-runner will use
+STUB_NAME="test-stub.sh"
+STUB_TEST="$TMPDIR_INTERRUPTED/$STUB_NAME"
+cat > "$STUB_TEST" <<'STUB'
+#!/usr/bin/env bash
+echo "stub test ran"
+exit 0
+STUB
+chmod +x "$STUB_TEST"
+
+INTERRUPTED_STATE="$TMPDIR_INTERRUPTED/state.json"
+# bash-runner uses test_id = relative path = basename when TEST_DIR prefix matches
+# No CMD_HASH stored for bash-runner (it uses "" for command_hash field)
+CURRENT_TS_INT=$(date +%s)
+
+# Write a state file where test-stub.sh is recorded as "interrupted"
+# The runner field must match "bash:<TEST_DIR>" pattern used by bash-runner
+python3 -c "
+import json, sys
+test_id = sys.argv[1]
+runner = sys.argv[2]
+state = {
+    'runner': runner,
+    'completed': [test_id],
+    'results': {test_id: 'interrupted'},
+    'command_hash': '',
+    'created_at': int(sys.argv[3])
+}
+with open(sys.argv[4], 'w') as f:
+    json.dump(state, f, indent=2)
+" "$STUB_NAME" "bash:${TMPDIR_INTERRUPTED}" "$CURRENT_TS_INT" "$INTERRUPTED_STATE"
+
+interrupted_out=""
+interrupted_exit=0
+interrupted_out=$(TEST_BATCHED_STATE_FILE="$INTERRUPTED_STATE" bash "$SCRIPT" \
+    --runner=bash --test-dir="$TMPDIR_INTERRUPTED" --timeout=30 2>&1) || interrupted_exit=$?
+
+# The stub test must have been re-run (output contains "stub test ran")
+reran=0
+echo "$interrupted_out" | grep -q "stub test ran" && reran=1
+assert_eq "test_interrupted_test_reruns_on_resume: interrupted test is re-run" \
+    "1" "$reran"
+
+# The final exit code must be 0 (stub passes after re-run)
+assert_eq "test_interrupted_test_reruns_on_resume: exit 0 after re-run passes" \
+    "0" "$interrupted_exit"
+
+# Must NOT say "Skipping (already completed)" for the interrupted test
+not_skipped=0
+echo "$interrupted_out" | grep -q "Skipping (already completed)" || not_skipped=1
+assert_eq "test_interrupted_test_reruns_on_resume: interrupted test not skipped" \
+    "1" "$not_skipped"
+
+rm -rf "$TMPDIR_INTERRUPTED"
+assert_pass_if_clean "test_interrupted_test_reruns_on_resume"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
