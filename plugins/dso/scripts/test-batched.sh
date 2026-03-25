@@ -317,13 +317,21 @@ if [ -f "$STATE_FILE" ]; then
         if [ "$_hash_ok" -eq 1 ] && [ "$_ttl_ok" -eq 1 ]; then
             # Resume: read completed tests
             RESUME_MODE=1
+            RESULTS_JSON=$(_state_read_field "$STATE_FILE" "results") || RESULTS_JSON="{}"
             _completed_raw=$(_state_read_field "$STATE_FILE" "completed") || true
             if [ -n "$_completed_raw" ]; then
                 while IFS= read -r line; do
-                    [ -n "$line" ] && COMPLETED_LIST+=("$line")
+                    # Skip interrupted tests so they are re-run on resume
+                    if [ -n "$line" ]; then
+                        _result=$(python3 -c "
+import json, sys
+results = json.loads(sys.argv[1])
+print(results.get(sys.argv[2], ''))
+" "$RESULTS_JSON" "$line" 2>/dev/null) || _result=""
+                        [ "$_result" != "interrupted" ] && COMPLETED_LIST+=("$line")
+                    fi
                 done <<< "$_completed_raw"
             fi
-            RESULTS_JSON=$(_state_read_field "$STATE_FILE" "results") || RESULTS_JSON="{}"
             echo "Resuming from state file: $STATE_FILE"
             echo "Already completed: ${#COMPLETED_LIST[@]} tests"
         else

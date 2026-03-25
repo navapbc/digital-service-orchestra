@@ -4,11 +4,8 @@
 # Tests for hook_commit_failure_tracker() in pre-bash-functions.sh.
 #
 # Verifies that:
-#   1. Index path: when .index.json exists and contains a matching entry,
-#      the tracker finds the issue via the index (not grep -rl).
-#   2. Fallback: when .index.json is absent, grep -rl is used as fallback.
-#   3. Stale entry: when .index.json has an entry but the .md file is absent,
-#      the entry is treated as found (index is authoritative; stale = tracked).
+#   1. Grep search: when a .md file exists with matching content, no warning.
+#   2. No match: when no matching ticket exists, warning is emitted.
 #
 # Usage: bash tests/scripts/test-commit-failure-tracker.sh
 
@@ -33,21 +30,6 @@ make_input() {
     python3 -c "
 import json, sys
 print(json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'git commit -m \"test\"'}}))
-"
-}
-
-# Write a minimal .index.json with the given ticket
-make_index() {
-    local dir="$1"
-    local ticket_id="$2"
-    local title="$3"
-    local status="${4:-open}"
-    local type="${5:-task}"
-    python3 -c "
-import json
-idx = {'$ticket_id': {'title': '$title', 'status': '$status', 'type': '$type'}}
-with open('$dir/.index.json', 'w') as f:
-    json.dump(idx, f)
 "
 }
 
@@ -76,6 +58,21 @@ make_status_file() {
     local status_file="$1"
     local category="$2"
     printf 'failed\nfailed_checks=%s\n' "$category" > "$status_file"
+}
+
+# Write a minimal .index.json with the given ticket
+make_index() {
+    local dir="$1"
+    local ticket_id="$2"
+    local title="$3"
+    local status="${4:-open}"
+    local type="${5:-task}"
+    python3 -c "
+import json
+idx = {'$ticket_id': {'title': '$title', 'status': '$status', 'type': '$type'}}
+with open('$dir/.index.json', 'w') as f:
+    json.dump(idx, f)
+"
 }
 
 # ---------------------------------------------------------------------------
@@ -153,7 +150,6 @@ mkdir -p "$ARTIFACTS_DIR_T2"
 # Validation state: failed with category "lint"
 make_status_file "$ARTIFACTS_DIR_T2/status" "lint"
 
-# No .index.json — only a .md file with matching content
 make_ticket_md "$TICKETS_DIR_T2" "proj-lint1" "Fix lint failure" "open"
 
 INPUT=$(make_input)
@@ -168,19 +164,19 @@ STDERR_OUT=$(
 
 # Should NOT warn because grep found the .md file
 if echo "$STDERR_OUT" | grep -q "UNTRACKED VALIDATION"; then
-    echo "  FAIL: test_tracker_falls_back_to_grep — unexpected warning; grep fallback not working" >&2
+    echo "  FAIL: test_tracker_finds_matching_md — unexpected warning" >&2
     echo "  STDERR: $STDERR_OUT" >&2
     (( FAIL++ ))
 else
-    echo "  PASS: test_tracker_falls_back_to_grep — no warning when .md file found via grep"
+    echo "  PASS: test_tracker_finds_matching_md — no warning when .md file found"
     (( PASS++ ))
 fi
 
 rm -rf "$TMPDIR_T2"
 trap - EXIT
 
-# Also verify: no index + no matching .md => warning IS emitted
-echo "Test 2b: test_tracker_falls_back_to_grep (no match) — warning emitted when grep finds nothing"
+# Also verify: no matching .md => warning IS emitted
+echo "Test 2: test_tracker_warns_when_no_match — warning emitted when no match found"
 
 TMPDIR_T2B=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_T2B"' EXIT
@@ -192,7 +188,7 @@ ARTIFACTS_DIR_T2B="$TMPDIR_T2B/artifacts"
 mkdir -p "$ARTIFACTS_DIR_T2B"
 
 make_status_file "$ARTIFACTS_DIR_T2B/status" "mypy"
-# No index, no matching .md file
+# No matching .md file
 
 INPUT=$(make_input)
 STDERR_OUT=$(
@@ -205,10 +201,10 @@ STDERR_OUT=$(
 )
 
 if echo "$STDERR_OUT" | grep -q "UNTRACKED VALIDATION"; then
-    echo "  PASS: test_tracker_falls_back_to_grep (no match) — warning emitted when nothing found"
+    echo "  PASS: test_tracker_warns_when_no_match — warning emitted when nothing found"
     (( PASS++ ))
 else
-    echo "  FAIL: test_tracker_falls_back_to_grep (no match) — warning missing when nothing found" >&2
+    echo "  FAIL: test_tracker_warns_when_no_match — warning missing when nothing found" >&2
     echo "  STDERR: $STDERR_OUT" >&2
     (( FAIL++ ))
 fi

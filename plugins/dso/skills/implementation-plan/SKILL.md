@@ -248,7 +248,7 @@ If a pattern change is proposed, read and execute `${CLAUDE_PLUGIN_ROOT}/docs/wo
 
 ### Fallback
 
-If the review fails after autonomous resolution (2 fix/defend attempts) and user escalation, revert to existing patterns and note the unresolved concern for the user. If no existing pattern solves the story, halt and consult the user.
+If the review fails after autonomous resolution (`review.max_resolution_attempts` fix/defend attempts, default: 5) and user escalation, revert to existing patterns and note the unresolved concern for the user. If no existing pattern solves the story, halt and consult the user.
 
 ---
 
@@ -545,6 +545,12 @@ If validation fails, fix dependency issues before presenting the summary.
 ### Present Summary
 
 Run `.claude/scripts/dso ticket list` (filtered by story) to confirm which tasks are immediately workable.
+
+Output the parent epic/story ID prominently at the top of the summary so it can be referenced in follow-up commands:
+
+```
+Implementation plan for [epic/story ID]: [Title]
+```
 
 Output a summary table:
 

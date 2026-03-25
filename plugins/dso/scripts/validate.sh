@@ -552,9 +552,9 @@ run_test_check() {
     if [ -x "$batched_script" ]; then
         local rc=0
         # Run test-batched.sh with the session state file; capture both stdout+stderr.
-        # We do NOT use run_with_timeout here — test-batched.sh manages its own
-        # internal timeout budget (--timeout=45). The outer timeout is the full
-        # TIMEOUT_TESTS as a safety backstop for truly hung processes.
+        # test-batched.sh manages its own internal timeout budget (--timeout=45).
+        # The outer run_with_timeout uses the full TIMEOUT_TESTS as a safety
+        # backstop for truly hung processes that exceed the internal budget.
         TEST_BATCHED_STATE_FILE="$VALIDATE_TEST_STATE_FILE" \
             run_with_timeout "$timeout" "$name" \
             bash "$batched_script" --timeout="$batched_timeout" "$test_cmd" \
@@ -1178,7 +1178,7 @@ elif [ $TESTS_PENDING -eq 1 ] && [ $FAILED -eq 0 ]; then
     echo "════════════════════════════════════════════════════════════"
     echo "  ⚠  ACTION REQUIRED — TESTS NOT COMPLETE  ⚠"
     echo "════════════════════════════════════════════════════════════"
-    echo "RUN: bash $0 $*"
+    printf 'RUN: bash %s' "$0"; printf ' %q' "$@"; printf '\n'
     echo "DO NOT PROCEED until the command above prints a final summary."
     echo "════════════════════════════════════════════════════════════"
     _state_content="pending

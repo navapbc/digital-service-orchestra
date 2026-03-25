@@ -10,11 +10,17 @@ set -euo pipefail
 #
 # Usage:
 #   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
+#   cat findings.json | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh" --output /path/to/slot.json
 #
 #   Or with a heredoc:
 #   cat <<'EOF' | "${CLAUDE_PLUGIN_ROOT}/scripts/write-reviewer-findings.sh"
 #   { "scores": {...}, "findings": [...], "summary": "..." }
 #   EOF
+#
+# Options:
+#   --output <path>  Write findings to <path> instead of the canonical reviewer-findings.json.
+#                    Used by deep tier parallel sonnet agents to write to slot-specific paths.
+#   FINDINGS_OUTPUT env var is also accepted as a fallback (--output takes precedence).
 #
 # Exit codes:
 #   0 = valid; findings written; SHA-256 hash printed to stdout
@@ -33,7 +39,17 @@ source "$PLUGIN_ROOT/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
 
-FINDINGS_FILE="$ARTIFACTS_DIR/reviewer-findings.json"
+# Parse --output flag (or FINDINGS_OUTPUT env var) for slot-specific output path
+_OUTPUT_PATH=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --output) _OUTPUT_PATH="${2:?--output requires a path argument}"; shift 2 ;;
+        *) echo "ERROR: unknown argument: $1" >&2; exit 2 ;;
+    esac
+done
+_OUTPUT_PATH="${_OUTPUT_PATH:-${FINDINGS_OUTPUT:-}}"
+
+FINDINGS_FILE="${_OUTPUT_PATH:-$ARTIFACTS_DIR/reviewer-findings.json}"
 PENDING_FILE="$ARTIFACTS_DIR/reviewer-findings-pending.json"
 
 # Require piped input (no interactive use)

@@ -25,14 +25,16 @@ TICKET_CMD="${TICKET_CMD:-$_ERROR_SWEEP_SCRIPT_DIR/../../scripts/ticket}"
 # Source of truth: hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
 NOISE_CATEGORIES="file_not_found command_exit_nonzero"
 
-# _extract_category_details: extract error details for a category as markdown
+# _extract_category_details: extract deduplicated error details for a category as markdown
 # Args: $1=counter_file $2=category
-# Outputs markdown-formatted error details to stdout
+# Outputs markdown-formatted error details to stdout, grouped by unique
+# (tool_name, error_message) signature with occurrence counts.
 _extract_category_details() {
     local counter_file="$1"
     local category="$2"
     python3 - "$counter_file" "$category" <<'PYEOF' 2>/dev/null
 import json, sys
+from collections import OrderedDict
 
 counter_path = sys.argv[1]
 category = sys.argv[2]
@@ -48,20 +50,38 @@ if not errors:
     print("No detailed error entries recorded.")
     sys.exit(0)
 
-# Show up to 20 most recent entries; note if truncated
-total = len(errors)
-shown = errors[-20:]
-if total > 20:
-    print(f"Showing most recent 20 of {total} occurrences.\n")
+# Deduplicate by (tool_name, error_message) — keep first/last timestamps and count
+groups = OrderedDict()
+for e in errors:
+    key = (e.get('tool_name', 'N/A'), e.get('error_message', 'N/A'))
+    if key not in groups:
+        groups[key] = {
+            'tool_name': key[0],
+            'error_message': key[1],
+            'input_summary': e.get('input_summary', 'N/A'),
+            'first_seen': e.get('timestamp', 'N/A'),
+            'last_seen': e.get('timestamp', 'N/A'),
+            'count': 0,
+        }
+    groups[key]['last_seen'] = e.get('timestamp', 'N/A')
+    groups[key]['count'] += 1
 
-print("| # | Timestamp | Tool | Input Summary | Error Message |")
-print("|---|-----------|------|---------------|---------------|")
-for i, e in enumerate(shown, 1):
-    ts = e.get('timestamp', 'N/A')
-    tool = e.get('tool_name', 'N/A')
-    summary = e.get('input_summary', 'N/A').replace('|', '\\|')[:80]
-    msg = e.get('error_message', 'N/A').replace('|', '\\|')[:120]
-    print(f"| {i} | {ts} | {tool} | {summary} | {msg} |")
+total = len(errors)
+unique = len(groups)
+print(f"{total} occurrences, {unique} unique error signature(s).\n")
+
+# Show up to 10 unique signatures, sorted by count descending
+signatures = sorted(groups.values(), key=lambda g: g['count'], reverse=True)[:10]
+
+print("| # | Tool | Error Message | Count | First Seen | Last Seen |")
+print("|---|------|---------------|-------|------------|-----------|")
+for i, g in enumerate(signatures, 1):
+    tool = g['tool_name']
+    msg = g['error_message'].replace('|', '\\|')[:120]
+    count = g['count']
+    first = g['first_seen']
+    last = g['last_seen']
+    print(f"| {i} | {tool} | {msg} | {count} | {first} | {last} |")
 PYEOF
 }
 

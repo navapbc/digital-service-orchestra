@@ -776,6 +776,22 @@ test_sprint_next_batch_no_TK_variable() {
 }
 test_sprint_next_batch_no_TK_variable
 
+# ── Test: .test-index excluded from file-overlap conflict detection ────────────
+# Bug 4298-db75: .test-index is a shared registry that many agents modify
+# concurrently (adding test entries). Flagging it as a file-overlap conflict
+# creates false positive serialization between unrelated tasks.
+test_test_index_overlap_safe() {
+    echo "Test: .test-index is in overlap-safe exclusion list"
+    if grep -q 'test-index' "$PLUGIN_SCRIPT" && grep -qE 'OVERLAP_SAFE|overlap_safe' "$PLUGIN_SCRIPT"; then
+        echo "  PASS: .test-index appears in an overlap-safe exclusion list"
+        (( PASS++ ))
+    else
+        echo "  FAIL: sprint-next-batch.sh must exclude .test-index from file-overlap conflicts" >&2
+        (( FAIL++ ))
+    fi
+}
+test_test_index_overlap_safe
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -482,12 +482,13 @@ assert_eq "test_node_not_installed_falls_back: falls back when node not on PATH"
 rm -rf "$TMPDIR_NODE_NOBIN"
 assert_pass_if_clean "test_node_not_installed_falls_back"
 
-# ── test_interrupted_node_test_exits_nonzero ─────────────────────────────────
+# ── test_interrupted_node_test_reruns_on_resume ───────────────────────────────
 # When a node test is killed due to timeout, the run records "interrupted" and
-# emits NEXT:. On a subsequent resume, the interrupted result must cause a
-# non-zero exit so callers know the run did not fully succeed.
+# emits NEXT:. On a subsequent resume, the interrupted test must be RE-RUN
+# (not skipped). Since the node test runs forever it will be interrupted again,
+# which is still non-passing — but the key behavior is re-run, not skip.
 echo ""
-echo "--- test_interrupted_node_test_exits_nonzero ---"
+echo "--- test_interrupted_node_test_reruns_on_resume ---"
 _snapshot_fail
 TMPDIR_INT_NODE="$(mktemp -d)"
 INT_NODE_STATE="$TMPDIR_INT_NODE/state.json"
@@ -504,7 +505,7 @@ JSEOF
         bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=1 2>&1) || true
 
     # Verify the first run emitted the Structured Action-Required Block
-    assert_contains "test_interrupted_node_test_exits_nonzero: first run emits NEXT:" \
+    assert_contains "test_interrupted_node_test_reruns_on_resume: first run emits NEXT:" \
         "ACTION REQUIRED" "$int_node_first_out"
 
     # Verify state file contains "interrupted" result
@@ -517,33 +518,37 @@ vals = list(d.get('results', {}).values())
 sys.exit(0 if 'interrupted' in vals else 1)
 " "$INT_NODE_STATE" && int_has_interrupted=1 || true
     fi
-    assert_eq "test_interrupted_node_test_exits_nonzero: state records interrupted result" \
+    assert_eq "test_interrupted_node_test_reruns_on_resume: state records interrupted result" \
         "1" "$int_has_interrupted"
 
-    # Second run: resume from state file — all tests already "completed" (as interrupted)
-    # This resume should exit non-zero because interrupted tests are non-passing
-    int_node_resume_exit=0
+    # Second run: resume from state file — interrupted test must be RE-RUN (not skipped).
+    # The node test runs forever so it will be interrupted again.
+    # When interrupted, the runner emits ACTION REQUIRED and exits 0 (more work needed).
     int_node_resume_out=""
     int_node_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_NODE_STATE" \
-        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=30 2>&1) \
-        || int_node_resume_exit=$?
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=2 2>&1) || true
 
-    assert_contains "test_interrupted_node_test_exits_nonzero: resume output contains 'interrupted'" \
-        "interrupted" "$int_node_resume_out"
-    assert_ne "test_interrupted_node_test_exits_nonzero: resume exits non-zero on all-interrupted run" \
-        "0" "$int_node_resume_exit"
+    # The resume must NOT say "Skipping (already completed)" — the test is re-run
+    _int_node_skipped=0
+    echo "$int_node_resume_out" | grep -q "Skipping" && _int_node_skipped=1 || true
+    assert_eq "test_interrupted_node_test_reruns_on_resume: resume does not skip interrupted test" \
+        "0" "$_int_node_skipped"
+    # Test is re-run: output must mention it running
+    assert_contains "test_interrupted_node_test_reruns_on_resume: resume re-runs the node test" \
+        "Running: node" "$int_node_resume_out"
 else
-    assert_eq "test_interrupted_node_test_exits_nonzero: node not installed (skip)" "ok" "ok"
+    assert_eq "test_interrupted_node_test_reruns_on_resume: node not installed (skip)" "ok" "ok"
 fi
 rm -rf "$TMPDIR_INT_NODE"
-assert_pass_if_clean "test_interrupted_node_test_exits_nonzero"
+assert_pass_if_clean "test_interrupted_node_test_reruns_on_resume"
 
-# ── test_interrupted_generic_test_resume_exits_nonzero ───────────────────────
+# ── test_interrupted_generic_test_reruns_on_resume ───────────────────────────
 # When a generic runner test is killed due to timeout, "interrupted" is recorded
-# in the state file. On resume, the script detects the interrupted result and
-# must exit non-zero.
+# in the state file. On resume, the interrupted test must be RE-RUN (not skipped)
+# so it gets another chance to pass. Previously interrupted tests that pass on
+# retry must result in exit 0 (not the old exit-non-zero-always behavior).
 echo ""
-echo "--- test_interrupted_generic_test_resume_exits_nonzero ---"
+echo "--- test_interrupted_generic_test_reruns_on_resume ---"
 _snapshot_fail
 TMPDIR_INT_GEN="$(mktemp -d)"
 INT_GEN_STATE="$TMPDIR_INT_GEN/state.json"
@@ -554,7 +559,7 @@ int_gen_first_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
     bash "$SCRIPT" --timeout=1 "sleep 30" 2>&1) || true
 
 # Verify first run emits Structured Action-Required Block
-assert_contains "test_interrupted_generic_test_resume_exits_nonzero: first run emits NEXT:" \
+assert_contains "test_interrupted_generic_test_reruns_on_resume: first run emits NEXT:" \
     "ACTION REQUIRED" "$int_gen_first_out"
 
 # Verify state file contains "interrupted"
@@ -567,24 +572,24 @@ vals = list(d.get('results', {}).values())
 sys.exit(0 if 'interrupted' in vals else 1)
 " "$INT_GEN_STATE" && int_gen_has_interrupted=1 || true
 fi
-assert_eq "test_interrupted_generic_test_resume_exits_nonzero: state records interrupted result" \
+assert_eq "test_interrupted_generic_test_reruns_on_resume: state records interrupted result" \
     "1" "$int_gen_has_interrupted"
 
 # Second run: resume from the state file.
-# The test ID is already in "completed" list with result "interrupted".
-# The resume run skips the test (already done) and must exit non-zero.
+# The interrupted test must be RE-RUN (not skipped) — it should appear in output.
+# With ample timeout (60s > sleep 30), the test passes and exit must be 0.
 int_gen_resume_exit=0
 int_gen_resume_out=""
 int_gen_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
-    bash "$SCRIPT" --timeout=30 "sleep 30" 2>&1) \
+    bash "$SCRIPT" --timeout=60 "sleep 30" 2>&1) \
     || int_gen_resume_exit=$?
 
-assert_contains "test_interrupted_generic_test_resume_exits_nonzero: resume mentions interrupted" \
-    "interrupted" "$int_gen_resume_out"
-assert_ne "test_interrupted_generic_test_resume_exits_nonzero: resume exits non-zero" \
+assert_contains "test_interrupted_generic_test_reruns_on_resume: resume re-runs the test" \
+    "Running: sleep 30" "$int_gen_resume_out"
+assert_eq "test_interrupted_generic_test_reruns_on_resume: resume exits 0 when retry passes" \
     "0" "$int_gen_resume_exit"
 rm -rf "$TMPDIR_INT_GEN"
-assert_pass_if_clean "test_interrupted_generic_test_resume_exits_nonzero"
+assert_pass_if_clean "test_interrupted_generic_test_reruns_on_resume"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest runner tests

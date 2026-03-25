@@ -172,8 +172,8 @@ CHANGED_FILES=$(git diff --name-only)
 
 2. **Select model** (by attempt number):
    - Attempt 1: `sonnet`
-   - Attempt 2: `opus`
-   - Attempt >= 3: **Escalate to user** — do not retry further.
+   - Attempt 2+: `opus`
+   - Attempt exceeds `review.max_resolution_attempts` (default: 5): **Escalate to user** — do not retry further.
 
 3. **Select sub-agent type** (from TEST-FAILURE-DISPATCH.md):
    - Unit test failure (assertion, runtime error): Resolve via `discover-agents.sh` routing category `test_fix_unit` (see `agent-routing.conf`)
@@ -206,7 +206,7 @@ Task(
 
 6. **Parse the result**:
    - `RESULT: PASS` — continue to Step 1.5 (re-run validation first to confirm the fix is clean).
-   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
+   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user.
    - `RESULT: PARTIAL` — log concerns via `.claude/scripts/dso ticket comment`, continue to Step 1.5 with caveats.
 
 7. **Fallback**: If the sub-agent times out (>5 min) or returns malformed output (missing RESULT line), fall back to an inline fix attempt by the orchestrator and restart from Step 1.
@@ -266,7 +266,7 @@ CHANGED_FILES=$(git diff --name-only)
 
 4. **Parse the result**:
    - `RESULT: PASS` — re-run the config-driven test command (`$REPO_ROOT/$TEST_CHANGED_CMD`) to confirm the fix, then continue to Step 2.
-   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt >= 3, escalate to user.
+   - `RESULT: FAIL` — increment attempt counter and retry with escalated model. If attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user.
    - `RESULT: PARTIAL` — log concerns via `.claude/scripts/dso ticket comment`, continue to Step 2 with caveats.
 
 5. **Fallback**: Sub-agent timeout (>5 min) or malformed output — fall back to inline fix attempt and restart from Step 1.
@@ -381,7 +381,7 @@ Decide whether a review is needed:
 - **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1-3a above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
 - **The commit in Step 6 is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry Step 6. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.
 
-If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to 2 attempts). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1** (not Step 5).
+If review fails, the review workflow's Autonomous Resolution Loop handles fix/defend attempts automatically (up to `review.max_resolution_attempts`, default: 5). If it escalates to you (the orchestrator), fix the issues and **restart from Step 1** (not Step 5).
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-review-gate" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"

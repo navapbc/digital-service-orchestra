@@ -47,6 +47,10 @@ WORKTREE_DIR="$REPO_ROOT"
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 
+# Pre-flight: ensure pre-commit is on PATH before any git commands that trigger hooks.
+# git merge (in _phase_merge) triggers pre-commit hooks; if venv is not in PATH,
+# the hooks fail with "pre-commit: command not found".
+source "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pre-commit.sh" || true
 
 # --- State file helpers (resumable merge support) ---
 
@@ -397,9 +401,9 @@ _abort_stale_rebase() {
 # accepting our version (git add if present, git rm if absent).
 # Non-ticket conflicts cause an immediate abort.
 #
-# v3 ticket system (.tickets-tracker/): ticket event JSON files and the index
-# (.tickets-tracker/<id>/*.json, .tickets-tracker/.index.json) are managed on a
-# separate orphan branch and are excluded from the main repo's tracked files.
+# v3 ticket system (.tickets-tracker/): ticket event JSON files
+# (.tickets-tracker/<id>/*.json) are managed on a separate orphan branch
+# and are excluded from the main repo's tracked files.
 # However, if they appear as conflicts during rebase (e.g., during worktree sync),
 # they are always safe ticket-data files and can be auto-resolved by accepting ours.
 #
@@ -719,10 +723,6 @@ _squash_rebase_recovery() {
     local _CONFLICTED_FILES
     _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
 
-    # Filter out .tickets-tracker/.index.json to see if there are other conflicts
-    local _OTHER_CONFLICTS
-    _OTHER_CONFLICTS=$(echo "$_CONFLICTED_FILES" | grep -v '^\.tickets-tracker/\.index\.json$' || true)
-
     if [[ -z "$_CONFLICTED_FILES" ]]; then
         # No conflicts detected — unknown rebase failure
         git rebase --abort 2>/dev/null || true
@@ -730,80 +730,10 @@ _squash_rebase_recovery() {
         return 1
     fi
 
-    if [[ -n "$_OTHER_CONFLICTS" ]]; then
-        # Unresolvable conflicts in non-index files
-        echo "ACTION REQUIRED: Rebase conflict in the following files:"
-        echo "$_OTHER_CONFLICTS"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Only .tickets-tracker/.index.json is conflicted — auto-resolve via merge-ticket-index.py
-    # Prefer CLAUDE_PLUGIN_ROOT (set at top-level in merge-to-main.sh and exported) so
-    # the driver path is stable even when this function is eval'd in test contexts.
-    local _MERGE_DRIVER
-    if [[ -n "${CLAUDE_PLUGIN_ROOT}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py" ]]; then
-        _MERGE_DRIVER="${CLAUDE_PLUGIN_ROOT}/scripts/merge-ticket-index.py"
-    else
-        local _SCRIPT_DIR_LOCAL
-        _SCRIPT_DIR_LOCAL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        _MERGE_DRIVER="${_SCRIPT_DIR_LOCAL}/merge-ticket-index.py"
-    fi
-
-    if [[ ! -f "$_MERGE_DRIVER" ]]; then
-        echo "ERROR: merge-ticket-index.py not found at $_MERGE_DRIVER — cannot auto-resolve." >&2
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Extract clean versions from the git staging area (no conflict markers)
-    local _TMP_RESOLVE
-    _TMP_RESOLVE=$(mktemp -d)
-    local _BASE_FILE="$_TMP_RESOLVE/base.json"
-    local _OURS_FILE="$_TMP_RESOLVE/ours.json"
-    local _THEIRS_FILE="$_TMP_RESOLVE/theirs.json"
-
-    # :1: = common ancestor (base), :2: = ours (current branch), :3: = theirs (incoming)
-    if ! git show :1:.tickets-tracker/.index.json > "$_BASE_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract base version of .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-    if ! git show :2:.tickets-tracker/.index.json > "$_OURS_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract ours version of .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-    if ! git show :3:.tickets-tracker/.index.json > "$_THEIRS_FILE" 2>/dev/null; then
-        echo "ERROR: Could not extract theirs version of .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Run the merge driver (writes result back to _OURS_FILE)
-    if ! python3 "$_MERGE_DRIVER" "$_BASE_FILE" "$_OURS_FILE" "$_THEIRS_FILE" 2>/dev/null; then
-        echo "ERROR: merge-ticket-index.py failed to auto-resolve .tickets-tracker/.index.json." >&2
-        rm -rf "$_TMP_RESOLVE"
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    # Copy resolved result back into the working tree
-    cp "$_OURS_FILE" ".tickets-tracker/.index.json"
-    rm -rf "$_TMP_RESOLVE"
-
-    git add ".tickets-tracker/.index.json"
-    if ! GIT_EDITOR=: git rebase --continue 2>/dev/null; then
-        echo "ERROR: rebase --continue failed after auto-resolving .tickets-tracker/.index.json." >&2
-        git rebase --abort 2>/dev/null || true
-        return 1
-    fi
-
-    echo "RECOVERY: Squash-rebase succeeded."
-    return 0
+    echo "ACTION REQUIRED: Rebase conflict in the following files:"
+    echo "$_CONFLICTED_FILES"
+    git rebase --abort 2>/dev/null || true
+    return 1
 }
 
 # --- Load hooks/lib/deps.sh for get_artifacts_dir and retry_with_backoff ---
@@ -1125,8 +1055,15 @@ _phase_version_bump() {
         _state_mark_complete "version_bump"; return 0; fi
     local _bf="--${BUMP_TYPE:-patch}" _bs
     _bs=$(command -v bump-version.sh 2>/dev/null || echo "${_SCRIPT_DIR:-${CLAUDE_PLUGIN_ROOT:-}/scripts}/bump-version.sh")
-    echo "Bumping version ($_bf)..."
-    if ! bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
+    # Idempotency guard: if the version file is already bumped (modified on disk)
+    # from a prior interrupted attempt, skip bump-version.sh to avoid double-bump.
+    local _vf="${VERSION_FILE_PATH:-}"
+    if [[ -n "$_vf" && -f "$_vf" ]] && ! git diff --quiet -- "$_vf" 2>/dev/null; then
+        echo "INFO: version file already bumped (prior attempt) — skipping bump-version.sh."
+    else
+        echo "Bumping version ($_bf)..."
+        if ! bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
+    fi
     echo "OK: Version bumped."
     git add -u 2>/dev/null || true
     if ! git diff --cached --quiet 2>/dev/null; then git commit --amend --no-edit --quiet

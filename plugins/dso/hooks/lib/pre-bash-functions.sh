@@ -219,30 +219,14 @@ hook_commit_failure_tracker() {
     # Resolve tickets directory (TICKETS_DIR_OVERRIDE allows test injection)
     local TICKETS_DIR
     TICKETS_DIR="${TICKETS_DIR_OVERRIDE:-$(git rev-parse --show-toplevel 2>/dev/null)/.tickets}"
-    local INDEX_FILE="$TICKETS_DIR/.index.json"
 
     # Quick check: do open issues exist for each category?
     local -a UNTRACKED=()
     local category
     for category in "${FAILED_CATEGORIES[@]}"; do
         local RESULT=""
-        # Fast path: search .index.json title field if available
-        if [[ -f "$INDEX_FILE" ]]; then
-            RESULT=$(python3 -c "
-import json, sys
-try:
-    idx = json.load(open(sys.argv[1]))
-    needle = sys.argv[2].lower()
-    matches = [k for k, v in idx.items() if needle in v.get('title', '').lower()]
-    print(matches[0] if matches else '', end='')
-except Exception:
-    pass
-" "$INDEX_FILE" "$category failure" 2>/dev/null || echo "")
-        fi
-        # Fallback: grep -rl over .tickets/ if index missing or no match found
-        if [[ -z "$RESULT" ]]; then
-            RESULT=$($_SEARCH_CMD "$category failure" "$TICKETS_DIR" 2>/dev/null | head -1 || echo "")
-        fi
+        # Search .tickets/ for matching ticket files
+        RESULT=$($_SEARCH_CMD "$category failure" "$TICKETS_DIR" 2>/dev/null | head -1 || echo "")
         if [[ -z "$RESULT" ]]; then
             UNTRACKED+=("$category")
         fi

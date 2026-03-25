@@ -22,7 +22,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
-MERGE_TICKET_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-ticket-index.py"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -59,7 +58,6 @@ _setup_git_pair() {
         git config user.email "test@test.com"
         git config user.name "Test"
         # Unset custom merge driver so tests are not affected by local git config
-        git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
         echo "init" > README.md
         git add README.md
         git commit -m "initial commit" --quiet
@@ -71,7 +69,7 @@ _setup_git_pair() {
 }
 
 # Load the recovery function under test from the script.
-# Exports CLAUDE_PLUGIN_ROOT so the function can locate merge-ticket-index.py
+# Exports CLAUDE_PLUGIN_ROOT so the function resolves paths correctly
 # when eval'd outside the normal merge-to-main.sh execution context.
 _load_recovery_fn() {
     export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
@@ -103,7 +101,6 @@ _T1_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-single"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T1_RC=$?
@@ -137,7 +134,6 @@ _T2_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-squash"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T2_RC=$?
@@ -192,7 +188,6 @@ _T3_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-rebase"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T3_RC=$?
@@ -232,7 +227,6 @@ _T4_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-fpush"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T4_RC=$?
@@ -281,7 +275,6 @@ _T5_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-restore"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T5_RC=$?
@@ -427,7 +420,6 @@ _T7_OUTPUT=$(
     cd "$_WORK_DIR"
     export BRANCH="test-conflict"
     export GIT_ATTR_NOSYSTEM=1
-    git config --unset merge.tickets-index-merge.driver 2>/dev/null || true
     _load_recovery_fn
     _squash_rebase_recovery 2>&1
 ) || _T7_RC=$?

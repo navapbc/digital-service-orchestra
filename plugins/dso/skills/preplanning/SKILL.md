@@ -554,6 +554,12 @@ This RED acceptance criteria ensures the TDD test story's tests are observed to 
 
 ### Step 3: Present Story Dashboard (/dso:preplanning)
 
+Display the epic ID prominently at the top so it can be referenced in follow-up commands:
+
+```
+Story dashboard for Epic [epic-id]: [Title]
+```
+
 Display a summary table:
 
 | ID | Title | Priority | Status | Blocks | Split | Satisfies Criterion |

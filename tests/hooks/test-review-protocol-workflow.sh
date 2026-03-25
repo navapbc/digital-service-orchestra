@@ -65,10 +65,43 @@ run_check "Contains conflict detection" grep -q "conflict" "$WORKFLOW_FILE"
 # Test 8: Contains revision cycle logic
 run_check "Contains revision cycle logic" grep -q "revision" "$WORKFLOW_FILE"
 
-# Test 9: Contains Parameters section
+# Test 9: Stage 3 contains severity terms (critical, major, minor)
+if [ -f "$WORKFLOW_FILE" ]; then
+  # Extract Stage 3 section (from "## Stage 3" to next "---" delimiter)
+  stage3=$(sed -n '/^## Stage 3/,/^---$/p' "$WORKFLOW_FILE")
+  has_all=true
+  for term in critical major minor; do
+    if ! echo "$stage3" | grep -q "$term"; then
+      has_all=false
+      break
+    fi
+  done
+  if $has_all; then
+    assert "Stage 3 contains severity terms (critical, major, minor)" 0
+  else
+    assert "Stage 3 contains severity terms (critical, major, minor)" 1
+  fi
+else
+  assert "Stage 3 contains severity terms (file missing)" 1
+fi
+
+# Test 10: Quick Reference escalation line mentions both critical and major
+if [ -f "$WORKFLOW_FILE" ]; then
+  qr_section=$(sed -n '/^## Quick Reference/,/^## /p' "$WORKFLOW_FILE")
+  escalate_line=$(echo "$qr_section" | grep -i "escalat")
+  if echo "$escalate_line" | grep -q "critical" && echo "$escalate_line" | grep -q "major"; then
+    assert "Quick Reference escalation mentions both critical and major" 0
+  else
+    assert "Quick Reference escalation mentions both critical and major" 1
+  fi
+else
+  assert "Quick Reference escalation mentions both critical and major (file missing)" 1
+fi
+
+# Test 11: Contains Parameters section
 run_check "Contains Parameters section" grep -q "## Parameters" "$WORKFLOW_FILE"
 
-# Test 10: Contains Revision Protocol section
+# Test 12: Contains Revision Protocol section
 run_check "Contains Revision Protocol section" grep -q "## Revision Protocol" "$WORKFLOW_FILE"
 
 echo ""
