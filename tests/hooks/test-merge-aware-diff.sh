@@ -24,7 +24,9 @@ _setup_merge_repo() {
     tmpdir=$(mktemp -d)
 
     # Create a bare origin to avoid push-to-checkout issues
-    git init --bare "$tmpdir/origin.git" --quiet
+    # Use -b main to ensure consistent branch naming across environments
+    # (git init defaults to 'master' in CI without init.defaultBranch set)
+    git init --bare -b main "$tmpdir/origin.git" --quiet
 
     # Clone to worktree
     git clone "$tmpdir/origin.git" "$tmpdir/repo" --quiet 2>/dev/null
