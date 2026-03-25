@@ -410,9 +410,9 @@ hook_review_stop_check() {
     fi
 
     local CHANGED_FILES STAGED_FILES UNTRACKED_FILES
-    CHANGED_FILES=$(git -C "$REPO_ROOT" diff --name-only HEAD 2>/dev/null | grep -v '^\.tickets/' || true)
-    STAGED_FILES=$(git -C "$REPO_ROOT" diff --cached --name-only 2>/dev/null | grep -v '^\.tickets/' || true)
-    UNTRACKED_FILES=$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null | grep -v '^\.tickets/' || true)
+    CHANGED_FILES=$(git -C "$REPO_ROOT" diff --name-only HEAD 2>/dev/null || true)
+    STAGED_FILES=$(git -C "$REPO_ROOT" diff --cached --name-only 2>/dev/null || true)
+    UNTRACKED_FILES=$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null || true)
 
     if [[ -z "$CHANGED_FILES" ]] && [[ -z "$STAGED_FILES" ]] && [[ -z "$UNTRACKED_FILES" ]]; then
         return 0

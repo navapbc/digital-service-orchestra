@@ -136,7 +136,7 @@ compute_hash_in_repo() {
 # ============================================================
 # test_allowlisted_only_commit_passes
 #
-# Staging only files that match the allowlist (e.g., .tickets/) should
+# Staging only files that match the allowlist (e.g., .tickets-tracker/) should
 # result in exit 0 — no review needed.
 # ============================================================
 test_allowlisted_only_commit_passes() {
@@ -157,7 +157,7 @@ test_allowlisted_only_commit_passes() {
 # ============================================================
 # test_tickets_only_commit_passes
 #
-# A commit with only .tickets/ changes passes without a review, per the
+# A commit with only .tickets-tracker/ changes passes without a review, per the
 # Done Definition. This is the canonical "ticket metadata" exemption.
 # ============================================================
 test_tickets_only_commit_passes() {

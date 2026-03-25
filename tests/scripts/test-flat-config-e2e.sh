@@ -46,7 +46,6 @@ infrastructure.compose_project=myapp-db-
 session.usage_check_cmd=$HOME/.claude/check-session-usage.sh
 jira.project=DTL
 issue_tracker.search_cmd=grep -rl
-issue_tracker.create_cmd=tk create
 design.system_name=USWDS 3.x
 design.component_library=uswds
 design.template_engine=jinja2

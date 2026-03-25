@@ -9,7 +9,7 @@ The ticket system has two CLI entry points:
 | Entry point | Purpose |
 |---|---|
 | `ticket <subcommand>` | Low-level event-sourced ticket system (dispatcher at `plugins/dso/scripts/ticket`) |
-| the tk wrapper: `tk <subcommand>` | High-level ticket workflow tool (`plugins/dso/scripts/tk`) — wraps `ticket` and adds Jira sync, dependency trees, and human-friendly output |
+| `tk <subcommand>` | High-level ticket CLI tool (`plugins/dso/scripts/tk`) — wraps `ticket` and adds Jira sync, dependency trees, and human-friendly output |
 
 Source of truth for each subcommand is in `plugins/dso/scripts/ticket-*.sh` and `plugins/dso/scripts/ticket-*.py`. The dispatcher at `plugins/dso/scripts/ticket` routes all subcommands to those implementation scripts.
 
@@ -489,13 +489,13 @@ $ .claude/scripts/dso ticket deps w21-a3f7
 
 ### `sync`
 
-Synchronize tickets with Jira (via the tk wrapper).
+Synchronize tickets with Jira (via the ticket CLI).
 
 ```
 .claude/scripts/dso ticket sync [--check] [--include-closed] [--force-local] [--no-lock] [--break-lock] [--lock-timeout=N] [--full]
 ```
 
-`sync` is a tk wrapper command (not a `ticket` dispatcher subcommand). It requires `acli` (Atlassian CLI) in `PATH` and Jira credentials configured (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`).
+`sync` is a ticket CLI command (not a `ticket` dispatcher subcommand). It requires `acli` (Atlassian CLI) in `PATH` and Jira credentials configured (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`).
 
 **Arguments:**
 

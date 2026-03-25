@@ -173,7 +173,7 @@ if [[ "$FAIL" -eq "$_fail_before_jira" ]]; then
 fi
 
 # ── test_schema_validates_issue_tracker_section ──────────────────────────────
-# The schema must define an `issue_tracker` property with `search_cmd` and `create_cmd`.
+# The schema must define an `issue_tracker` property with `search_cmd`.
 _fail_before_it=$FAIL
 it_has_keys=$(python3 -c "
 import json, sys
@@ -181,7 +181,7 @@ s = json.load(open(sys.argv[1]))
 props = s.get('properties', {})
 it = props.get('issue_tracker', {})
 it_props = it.get('properties', {})
-if 'search_cmd' in it_props and 'create_cmd' in it_props:
+if 'search_cmd' in it_props:
     print('has_keys')
 else:
     print('missing_keys')
@@ -213,7 +213,6 @@ cat > "$NESTED_FIXTURE" <<'CONF'
 version=1.0.0
 jira.project=DTL
 issue_tracker.search_cmd=grep -rl
-issue_tracker.create_cmd=tk create
 tickets.prefix=myproject
 CONF
 

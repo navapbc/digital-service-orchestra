@@ -238,7 +238,7 @@ FILES_FROM_FINDINGS="${REMAINDER#*:}"
 
 # --- Validate files overlap with actual changed files ---
 # Build pathspec exclusions from config
-_RR_EXCLUDE=(':!.checkpoint-needs-review' ':!.tickets/' ':!.sync-state.json')
+_RR_EXCLUDE=(':!.checkpoint-needs-review' ':!.sync-state.json')
 if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
     _RR_EXCLUDE+=(":!${CFG_VISUAL_BASELINE_PATH}*.png")
 fi
@@ -247,7 +247,7 @@ if [[ -n "$CFG_UNIT_SNAPSHOT_PATH" ]]; then
 fi
 
 # Build grep exclusion pattern for untracked files
-_RR_GREP_PATTERN='^\.checkpoint-needs-review$|^\.tickets/|^\.sync-state\.json$'
+_RR_GREP_PATTERN='^\.checkpoint-needs-review$|^\.sync-state\.json$'
 if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
     _VBP_ESC="${CFG_VISUAL_BASELINE_PATH//./\\.}"
     _RR_GREP_PATTERN="${_RR_GREP_PATTERN}|^${_VBP_ESC}.*\\.png$"
@@ -304,7 +304,7 @@ if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
     # when the diff includes images, snapshots, PDFs, or other non-reviewable file types.
     # Also hash untracked files that were part of the commit (shown as empty diff vs HEAD).
     # Build exclusion pathspecs from config
-    _LC_EXCLUDE=(':!.tickets/' ':!.sync-state.json'
+    _LC_EXCLUDE=(':!.sync-state.json'
         ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
         ':!*.pdf' ':!*.docx')
     if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then

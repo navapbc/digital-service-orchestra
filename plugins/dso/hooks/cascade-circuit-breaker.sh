@@ -10,7 +10,6 @@
 # the agent to enter the fix-cascade-recovery protocol.
 #
 # Passthrough (never blocked):
-#   - .tickets/ files (issue tracking)
 #   - CLAUDE.md and .claude/ files (configuration)
 #   - /tmp/ files (temporary state)
 #   - ~/.claude/ files (user config)
@@ -44,11 +43,11 @@ FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path') || exit 0
 # --- Resolve worktree-scoped state directory (needed before /tmp/* check) ---
 WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 
-# Allow non-code edits (issue tracking, config, docs).
+# Allow non-code edits (config, docs).
 # Split into two case blocks because $HOME expansion does not work
 # inside a single case pattern list with | separators.
 case "$FILE_PATH" in
-    */.tickets/*|*/CLAUDE.md|*/.claude/*)
+    */CLAUDE.md|*/.claude/*)
         exit 0
         ;;
 esac

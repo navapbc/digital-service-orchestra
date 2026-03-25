@@ -22,7 +22,8 @@ if echo "$LOCK_STATUS" | grep -q "^LOCKED:"; then
     LOCK_ID="${LOCK_STATUS#LOCKED: }"
 
     # Verify the lock belongs to this worktree session
-    LOCK_WORKTREE=$(tk show "$LOCK_ID" 2>/dev/null | grep -oE 'Worktree: [^ ]+' | sed 's/Worktree: //' || true)
+    TICKET_CMD="${TICKET_CMD:-${CLAUDE_PLUGIN_ROOT}/scripts/ticket}"
+    LOCK_WORKTREE=$("$TICKET_CMD" show "$LOCK_ID" 2>/dev/null | grep -oE 'Worktree: [^ ]+' | sed 's/Worktree: //' || true)
 
     if [ "$LOCK_WORKTREE" = "$REPO_ROOT" ]; then
         "${CLAUDE_PLUGIN_ROOT}/scripts/agent-batch-lifecycle.sh" lock-release "$LOCK_ID" "$REASON"

@@ -40,8 +40,8 @@ cat > "$TMPDIR_SKELETON/dso-config.conf" <<'CONF'
 stack=python-poetry
 CONF
 
-# Create .tickets dir (lock subcommands scan it)
-mkdir -p "$TMPDIR_SKELETON/.tickets"
+# Create .tickets-tracker dir (v3 event-sourced ticket store; lock subcommands scan it)
+mkdir -p "$TMPDIR_SKELETON/.tickets-tracker"
 
 # Point WORKFLOW_CONFIG at the minimal config; run lifecycle from the temp repo
 export WORKFLOW_CONFIG="$TMPDIR_SKELETON/dso-config.conf"
@@ -99,7 +99,7 @@ assert_pass_if_clean "test_file_overlap_exit_0"
 # ── test_lock_acquire_release_exit_0 ────────────────────────────────────────
 # lock-acquire and lock-release should work with the minimal skeleton's .tickets
 # Note: lock-acquire uses tk which may not be available in the minimal skeleton,
-# so we test lock-status instead (it only scans .tickets/ files, no tk needed)
+# so we test lock-status instead (it only scans .tickets-tracker/ files, no tk needed)
 _snapshot_fail
 lock_status_exit=0
 lock_status_output=""

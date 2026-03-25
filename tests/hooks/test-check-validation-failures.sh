@@ -78,39 +78,29 @@ EXIT_CODE=$(run_hook "$INPUT")
 assert_eq "test_check_validation_exits_zero_on_edit_tool" "0" "$EXIT_CODE"
 
 # test_check_validation_failures_does_not_create_ticket
-# Stub tk in PATH and feed the hook a validate.sh FAIL output.
-# Assert tk create was NOT called — ticket creation is handled by sweep at Step 2.9.
-_CVF_FAKE_BIN=$(mktemp -d)
-_CLEANUP_DIRS+=("$_CVF_FAKE_BIN")
-_CVF_TK_LOG="$_CVF_FAKE_BIN/tk.log"
-
-# Create mock tk that records its arguments
-cat > "$_CVF_FAKE_BIN/tk" << 'MOCK_EOF'
-#!/usr/bin/env bash
-echo "$@" >> "$TK_LOG"
-echo "Created issue: tk-001"
-MOCK_EOF
-chmod +x "$_CVF_FAKE_BIN/tk"
+# Point TICKET_CMD at fake-ticket.sh and feed the hook a validate.sh FAIL output.
+# Assert ticket create was NOT called — ticket creation is handled by sweep at Step 2.9.
+_CVF_TMPDIR=$(mktemp -d)
+_CLEANUP_DIRS+=("$_CVF_TMPDIR")
+_CVF_TICKET_LOG="$_CVF_TMPDIR/ticket.log"
 
 _CVF_INPUT='{"tool_name":"Bash","tool_input":{"command":"validate.sh --ci"},"tool_response":{"stdout":"  format:  FAIL\n  lint:    PASS","exit_code":1}}'
 # Create an empty TICKETS_DIR so no pre-existing tickets are found.
 _CVF_EMPTY_TICKETS=$(mktemp -d)
 _CLEANUP_DIRS+=("$_CVF_EMPTY_TICKETS")
-# REVIEW-DEFENSE: TK_LOG, TICKETS_DIR, and PATH are prefixed to `bash "$HOOK"` (right side of pipe),
-# not to `echo` (left side). Bash applies inline env assignments to the immediately
-# following command, so the hook process inherits TK_LOG, the mock PATH, and the empty TICKETS_DIR.
-echo "$_CVF_INPUT" | TK_LOG="$_CVF_TK_LOG" TICKETS_DIR="$_CVF_EMPTY_TICKETS" PATH="$_CVF_FAKE_BIN:$PATH" bash "$HOOK" >/dev/null 2>/dev/null || true
+# REVIEW-DEFENSE: TICKET_CMD, TICKET_LOG_FILE, and TICKETS_DIR are prefixed to `bash "$HOOK"`
+# (right side of pipe). Bash applies inline env assignments to the immediately following
+# command, so the hook process inherits the mock TICKET_CMD, log path, and empty TICKETS_DIR.
+echo "$_CVF_INPUT" | TICKET_CMD="$PLUGIN_ROOT/tests/lib/fake-ticket.sh" TICKET_LOG_FILE="$_CVF_TICKET_LOG" TICKETS_DIR="$_CVF_EMPTY_TICKETS" bash "$HOOK" >/dev/null 2>/dev/null || true
 rm -rf "$_CVF_EMPTY_TICKETS"
 
-# Check that tk create was NOT called
-_CVF_TK_CALLED="no"
-if [[ -f "$_CVF_TK_LOG" ]] && grep -q "create" "$_CVF_TK_LOG" 2>/dev/null; then
-    _CVF_TK_CALLED="yes"
+# Check that ticket create was NOT called
+_CVF_TICKET_CALLED="no"
+if [[ -f "$_CVF_TICKET_LOG" ]] && grep -q "^create " "$_CVF_TICKET_LOG" 2>/dev/null; then
+    _CVF_TICKET_CALLED="yes"
 fi
 _CVF_FAIL_BEFORE2=$FAIL
-assert_eq "test_check_validation_failures_does_not_create_ticket" "no" "$_CVF_TK_CALLED"
+assert_eq "test_check_validation_failures_does_not_create_ticket" "no" "$_CVF_TICKET_CALLED"
 [[ $FAIL -eq $_CVF_FAIL_BEFORE2 ]] && echo "PASS: test_check_validation_failures_does_not_create_ticket"
-
-rm -rf "$_CVF_FAKE_BIN"
 
 print_summary

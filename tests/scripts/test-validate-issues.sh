@@ -2,8 +2,8 @@
 # tests/scripts/test-validate-issues.sh
 # Unit tests for validate-issues.sh core validation check functions.
 #
-# Tests use TICKETS_DIR env var to point at fixture .tickets/ directories,
-# avoiding any dependency on live ticket data.
+# Tests use TICKET_CMD mock scripts to inject fixture data without any
+# dependency on live ticket data or v2 markdown file fixtures.
 #
 # Checks covered:
 #   - check_empty_epics         (verbose-only, no MINOR/WARNING for childless epics)
@@ -37,54 +37,52 @@ echo "=== test-validate-issues.sh ==="
 
 # ── Fixture helpers ───────────────────────────────────────────────────────────
 
-# make_tickets_dir: creates a temp base dir and returns its path.
-# Callers write .tickets/*.md files into $BASE/.tickets/
-make_tickets_dir() {
-    local base
-    base=$(mktemp -d)
-    _CLEANUP_DIRS+=("$base")
-    mkdir -p "$base/.tickets"
-    echo "$base"
+# make_ticket_cmd TICKETS_JSON
+# Creates a temp directory with a mock `ticket` script that returns the given
+# JSON array from `ticket list`. Returns the path to the mock script.
+# Usage: TICKET_CMD=$(make_ticket_cmd '[...]')  TICKET_CMD="$mock" bash ...
+make_ticket_cmd() {
+    local tickets_json="${1:-[]}"
+    local mock_dir
+    mock_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$mock_dir")
+    local mock_script="$mock_dir/ticket"
+    # Write mock ticket script
+    cat > "$mock_script" << MOCK_TICKET
+#!/usr/bin/env bash
+SUBCMD="\${1:-}"
+case "\$SUBCMD" in
+    list) echo '${tickets_json//\'/\'\\\'\'}' ; exit 0 ;;
+    *) exit 0 ;;
+esac
+MOCK_TICKET
+    chmod +x "$mock_script"
+    echo "$mock_script"
 }
 
-# write_ticket BASE_DIR ID STATUS TYPE [PARENT] [TITLE] [HAS_BODY] [HAS_NOTES] [DEPS_YAML]
-write_ticket() {
-    local base="$1" tid="$2" status="$3" itype="$4"
-    local parent="${5:-}" title="${6:-Test Ticket $tid}"
-    local has_body="${7:-0}" has_notes="${8:-0}" deps_yaml="${9:-}"
+# make_ticket_json ID STATUS TYPE [PARENT] [TITLE] [HAS_BODY] [HAS_NOTES] [DEPS_JSON]
+# Returns a single ticket JSON object (without outer brackets).
+make_ticket_json() {
+    local tid="$1" status="$2" itype="$3"
+    local parent="${4:-}" title="${5:-Test Ticket $1}"
+    local has_body="${6:-0}" has_notes="${7:-0}" deps_json="${8:-[]}"
 
-    local parent_line=""
+    local parent_val="null"
     if [[ -n "$parent" ]]; then
-        parent_line="parent: $parent"
+        parent_val="\"$parent\""
     fi
 
-    local deps_block="deps: []"
-    if [[ -n "$deps_yaml" ]]; then
-        deps_block="$deps_yaml"
+    local description_val='""'
+    if [[ "$has_body" == "1" ]]; then
+        description_val='"yes"'
     fi
 
-    {
-        echo "---"
-        echo "id: $tid"
-        echo "status: $status"
-        echo "type: $itype"
-        echo "priority: 2"
-        [[ -n "$parent_line" ]] && echo "$parent_line"
-        echo "$deps_block"
-        echo "links: []"
-        echo "created: 2026-01-01T00:00:00Z"
-        echo "---"
-        echo "# $title"
-        echo ""
-        if [[ "$has_body" == "1" ]]; then
-            echo "This ticket has a body description."
-        fi
-        if [[ "$has_notes" == "1" ]]; then
-            echo ""
-            echo "## Notes"
-            echo "Progress: started work."
-        fi
-    } > "$base/.tickets/$tid.md"
+    local notes_val='""'
+    if [[ "$has_notes" == "1" ]]; then
+        notes_val='"yes"'
+    fi
+
+    echo "{\"ticket_id\":\"$tid\",\"status\":\"$status\",\"ticket_type\":\"$itype\",\"title\":\"$title\",\"parent_id\":$parent_val,\"description\":$description_val,\"notes\":$notes_val,\"deps\":$deps_json,\"created_at\":\"2026-01-01T00:00:00Z\"}"
 }
 
 # ── Test 1: Script exists and is executable ───────────────────────────────────
@@ -112,11 +110,11 @@ fi
 # The acceptance criteria specify that empty epics only emit verbose output,
 # not MINOR or WARNING issues.
 echo "Test 3: check_empty_epics — childless epic not flagged as MINOR or WARNING"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-epic-alone" "open" "epic" "" "Childless Epic"
+TICKETS_JSON=$(make_ticket_json "test-epic-alone" "open" "epic" "" "Childless Epic")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$TICKETS_JSON]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[MINOR\].*test-epic-alone|\[WARNING\].*test-epic-alone"; then
     echo "  FAIL: childless epic emitted MINOR or WARNING (should be verbose-only)" >&2
@@ -129,14 +127,17 @@ fi
 
 # ── Tests 4-5: test_ticket_count (thresholds: warn>=300, error>=600) ─────────
 echo "Test 4: check_ticket_count — small ticket count produces no ticket-count warning"
-BASE=$(make_tickets_dir)
+PARENT_JSON=$(make_ticket_json "test-epic-parent" "open" "epic" "" "Parent Epic" "1")
+TICKETS_ARRAY="[$PARENT_JSON"
 for i in $(seq 1 5); do
-    write_ticket "$BASE" "test-task-$i" "open" "task" "test-epic-parent" "Task $i" "1"
+    T=$(make_ticket_json "test-task-$i" "open" "task" "test-epic-parent" "Task $i" "1")
+    TICKETS_ARRAY="$TICKETS_ARRAY,$T"
 done
-write_ticket "$BASE" "test-epic-parent" "open" "epic" "" "Parent Epic" "1"
+TICKETS_ARRAY="$TICKETS_ARRAY]"
+MOCK_TICKET_CMD=$(make_ticket_cmd "$TICKETS_ARRAY")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[MAJOR\].*ticket count|\[WARNING\].*ticket count"; then
     echo "  FAIL: small ticket count triggered unexpected ticket-count warning" >&2
@@ -149,15 +150,17 @@ fi
 
 # ── Test 5: check_ticket_count — >= 300 tickets produces WARNING ─────────────
 echo "Test 5: check_ticket_count — 300+ tickets triggers WARNING"
-BASE=$(make_tickets_dir)
-# Write an epic to parent the tasks (avoids orphan noise)
-write_ticket "$BASE" "test-bulk-epic" "open" "epic" "" "Bulk Epic" "1"
+BULK_EPIC=$(make_ticket_json "test-bulk-epic" "open" "epic" "" "Bulk Epic" "1")
+TICKETS_ARRAY="[$BULK_EPIC"
 for i in $(seq 1 302); do
-    write_ticket "$BASE" "bulk-task-$i" "open" "task" "test-bulk-epic" "Bulk Task $i" "1"
+    T=$(make_ticket_json "bulk-task-$i" "open" "task" "test-bulk-epic" "Bulk Task $i" "1")
+    TICKETS_ARRAY="$TICKETS_ARRAY,$T"
 done
+TICKETS_ARRAY="$TICKETS_ARRAY]"
+MOCK_TICKET_CMD=$(make_ticket_cmd "$TICKETS_ARRAY")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[WARNING\].*ticket count|\[MAJOR\].*ticket count"; then
     echo "  PASS: 300+ tickets produced ticket-count WARNING"
@@ -170,11 +173,11 @@ fi
 
 # ── Test 6: check_orphaned_tasks — open task with no parent produces WARNING ──
 echo "Test 6: check_orphaned_tasks — orphan task produces WARNING"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-orphan" "open" "task" "" "Orphaned Task" "1"
+ORPHAN_JSON=$(make_ticket_json "test-orphan" "open" "task" "" "Orphaned Task" "1")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$ORPHAN_JSON]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[WARNING\].*test-orphan|\[WARNING\].*[Oo]rphan"; then
     echo "  PASS: orphaned task produced WARNING"
@@ -187,12 +190,12 @@ fi
 
 # ── Test 7: check_orphaned_tasks — task with parent is NOT orphaned ───────────
 echo "Test 7: check_orphaned_tasks — task with parent is not flagged as orphan"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-parent-epic" "open" "epic" "" "Parent Epic" "1"
-write_ticket "$BASE" "test-child-task" "open" "task" "test-parent-epic" "Child Task" "1"
+PARENT_EPIC=$(make_ticket_json "test-parent-epic" "open" "epic" "" "Parent Epic" "1")
+CHILD_TASK=$(make_ticket_json "test-child-task" "open" "task" "test-parent-epic" "Child Task" "1")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$PARENT_EPIC,$CHILD_TASK]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[WARNING\].*test-child-task.*[Oo]rphan|\[WARNING\].*[Oo]rphan.*test-child-task"; then
     echo "  FAIL: child task with parent was incorrectly flagged as orphan" >&2
@@ -205,13 +208,13 @@ fi
 
 # ── Test 8: check_duplicate_titles — duplicate titles produce MINOR ───────────
 echo "Test 8: check_duplicate_titles — duplicate title produces MINOR"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-dup-epic" "open" "epic" "" "Parent Epic" "1"
-write_ticket "$BASE" "test-dup-1" "open" "task" "test-dup-epic" "Duplicate Title Task" "1"
-write_ticket "$BASE" "test-dup-2" "open" "task" "test-dup-epic" "Duplicate Title Task" "1"
+DUP_EPIC=$(make_ticket_json "test-dup-epic" "open" "epic" "" "Parent Epic" "1")
+DUP_1=$(make_ticket_json "test-dup-1" "open" "task" "test-dup-epic" "Duplicate Title Task" "1")
+DUP_2=$(make_ticket_json "test-dup-2" "open" "task" "test-dup-epic" "Duplicate Title Task" "1")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$DUP_EPIC,$DUP_1,$DUP_2]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[MINOR\].*[Dd]uplicate"; then
     echo "  PASS: duplicate titles produced MINOR"
@@ -224,29 +227,27 @@ fi
 
 # ── Test 9: check_child_parent_deps — child->parent dep produces CRITICAL ─────
 echo "Test 9: check_child_parent_deps — child depends on parent produces CRITICAL"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-cp-epic" "open" "epic" "" "Parent Epic" "1"
-# Child with parent field set AND a regular dep pointing at the parent (anti-pattern).
-# The awk parser reads deps as an inline list: deps: [id1, id2]
-# check_child_parent_deps detects when a child issue has its parent in deps[].
-{
-    echo "---"
-    echo "id: test-cp-child"
-    echo "status: open"
-    echo "type: task"
-    echo "priority: 2"
-    echo "parent: test-cp-epic"
-    echo "deps: [test-cp-epic]"
-    echo "links: []"
-    echo "created: 2026-01-01T00:00:00Z"
-    echo "---"
-    echo "# Child Task With Bad Dep"
-    echo ""
-    echo "This child has a dependency on its parent (anti-pattern)."
-} > "$BASE/.tickets/test-cp-child.md"
+CP_EPIC=$(make_ticket_json "test-cp-epic" "open" "epic" "" "Parent Epic" "1")
+# Child with parent_id set AND a dep (blocks type) pointing at the parent — anti-pattern.
+CP_CHILD=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-cp-child',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Child Task With Bad Dep',
+    'parent_id': 'test-cp-epic',
+    'description': 'yes',
+    'notes': '',
+    'deps': [{'target_id': 'test-cp-epic', 'relation': 'blocks'}],
+    'created_at': '2026-01-01T00:00:00Z',
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$CP_EPIC,$CP_CHILD]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[CRITICAL\].*test-cp-child|\[CRITICAL\].*[Cc]hild.*parent"; then
     echo "  PASS: child->parent dep produced CRITICAL"
@@ -259,13 +260,13 @@ fi
 
 # ── Test 10: check_missing_descriptions — task without body produces WARNING ──
 echo "Test 10: check_missing_descriptions — task without description produces WARNING"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-nodesc-epic" "open" "epic" "" "Parent Epic" "1"
+NODESC_EPIC=$(make_ticket_json "test-nodesc-epic" "open" "epic" "" "Parent Epic" "1")
 # Task with no body (has_body=0)
-write_ticket "$BASE" "test-nodesc-task" "open" "task" "test-nodesc-epic" "Task Without Description" "0"
+NODESC_TASK=$(make_ticket_json "test-nodesc-task" "open" "task" "test-nodesc-epic" "Task Without Description" "0")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$NODESC_EPIC,$NODESC_TASK]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[WARNING\].*test-nodesc-task|\[WARNING\].*[Mm]issing description"; then
     echo "  PASS: task without description produced WARNING"
@@ -278,13 +279,13 @@ fi
 
 # ── Test 11: check_in_progress_without_notes — in_progress task without notes ─
 echo "Test 11: check_in_progress_without_notes — in_progress task without notes produces WARNING"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-inp-epic" "open" "epic" "" "Parent Epic" "1"
+INP_EPIC=$(make_ticket_json "test-inp-epic" "open" "epic" "" "Parent Epic" "1")
 # in_progress, has body but no notes section (has_body=1, has_notes=0)
-write_ticket "$BASE" "test-inp-task" "in_progress" "task" "test-inp-epic" "In-Progress Task Without Notes" "1" "0"
+INP_TASK=$(make_ticket_json "test-inp-task" "in_progress" "task" "test-inp-epic" "In-Progress Task Without Notes" "1" "0")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$INP_EPIC,$INP_TASK]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[WARNING\].*test-inp-task|\[WARNING\].*[Ii]n.progress.*notes|\[WARNING\].*notes.*in.progress"; then
     echo "  PASS: in_progress task without notes produced WARNING"
@@ -297,12 +298,12 @@ fi
 
 # ── Test 12: --quick mode runs without error ──────────────────────────────────
 echo "Test 12: --quick mode runs without error on healthy fixture"
-BASE=$(make_tickets_dir)
-write_ticket "$BASE" "test-quick-epic" "open" "epic" "" "Quick Test Epic" "1"
-write_ticket "$BASE" "test-quick-task" "open" "task" "test-quick-epic" "Quick Test Task" "1"
+QUICK_EPIC=$(make_ticket_json "test-quick-epic" "open" "epic" "" "Quick Test Epic" "1")
+QUICK_TASK=$(make_ticket_json "test-quick-task" "open" "task" "test-quick-epic" "Quick Test Task" "1")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$QUICK_EPIC,$QUICK_TASK]")
 
 exit_code=0
-TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --quick --terse 2>/dev/null || exit_code=$?
+TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --quick --terse 2>/dev/null || exit_code=$?
 
 # validate-issues.sh exits with 5-score; score 5 = exit 0, score 4 = exit 1
 # For a healthy fixture we expect exit 0 or 1 (not a crash/error code >= 2
@@ -317,12 +318,13 @@ fi
 
 # ── Test 13: closed tickets are excluded from all checks ─────────────────────
 echo "Test 13: closed tickets are excluded from orphan check"
-BASE=$(make_tickets_dir)
-# Closed task with no parent — should NOT be flagged as orphan
-write_ticket "$BASE" "test-closed-task" "closed" "task" "" "Closed Orphan-Looking Task" "1"
+# Closed task with no parent — should NOT be flagged as orphan.
+# Note: get_shared_issues_json skips closed tickets, so this returns an empty list.
+CLOSED_TASK=$(make_ticket_json "test-closed-task" "closed" "task" "" "Closed Orphan-Looking Task" "1")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$CLOSED_TASK]")
 
 output=""
-output=$(TICKETS_DIR="$BASE/.tickets" bash "$SCRIPT" --terse 2>&1) || true
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
 
 if echo "$output" | grep -qiE "\[WARNING\].*test-closed-task"; then
     echo "  FAIL: closed ticket was incorrectly flagged" >&2

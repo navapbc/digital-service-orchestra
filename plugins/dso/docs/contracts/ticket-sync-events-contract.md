@@ -17,7 +17,7 @@ conform to this contract.
 
 **Command**: `.claude/scripts/dso ticket sync`
 
-**Shell function**: `_sync_events` (defined in the tk wrapper at `plugins/dso/scripts/tk`)
+**Shell function**: `_sync_events` (defined in `plugins/dso/scripts/tk-sync-lib.sh`)
 
 **Prerequisites** (validated by `cmd_sync_events` before calling `_sync_events`):
 

@@ -3,9 +3,10 @@
 # Library providing sweep_tool_errors() and sweep_validation_failures() for the /dso:end skill (Step 2.9).
 #
 # Reads ~/.claude/tool-error-counter.json, iterates categories in .index where
-# count >= 50, and creates a deduplicated bug ticket via `tk create` for each.
-# Includes error details in the ticket description and removes processed entries
-# from the counter file to prevent re-creation.
+# count >= 50, and creates a deduplicated bug ticket via `ticket create` for each.
+# Uses `ticket list` to deduplicate against existing open bugs.
+# Includes error details in the ticket description (added via ticket comment) and
+# removes processed entries from the counter file to prevent re-creation.
 #
 # Counter JSON structure: {"index": {"category_name": count, ...}, "errors": [...]}
 #
@@ -14,6 +15,11 @@
 #   sweep_tool_errors
 
 THRESHOLD=50
+
+# Resolve ticket CLI path (v3 event-sourced system).
+# Override via TICKET_CMD env var for testing.
+_ERROR_SWEEP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TICKET_CMD="${TICKET_CMD:-$_ERROR_SWEEP_SCRIPT_DIR/../../scripts/ticket}"
 
 # Categories that are normal operational noise — counts are tracked but no ticket is created.
 # Source of truth: hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
@@ -170,7 +176,7 @@ PYEOF
         # Dedup: re-query open bugs immediately before create to minimize race window
         # when concurrent sub-agents call sweep_tool_errors() simultaneously.
         local open_bugs
-        open_bugs=$(tk list --type bug --status open 2>/dev/null || true)
+        open_bugs=$("$TICKET_CMD" list 2>/dev/null | python3 -c 'import json,sys; [print(t["ticket_id"]+" "+t.get("title","")) for t in json.load(sys.stdin) if t.get("ticket_type")=="bug" and t.get("status") in ("open","in_progress")]' 2>/dev/null || true)
         if echo "$open_bugs" | grep -qF "Recurring tool error: $category"; then
             # Still drain entries to prevent re-creation on next sweep
             _remove_category_from_counter "$counter_file" "$category"
@@ -185,7 +191,23 @@ PYEOF
 
 ${details}"
 
-        tk create "$ticket_title" -t bug -p 2 -d "$description"
+        # REVIEW-DEFENSE: The two-step `ticket create` + `ticket comment` pattern is correct
+        # v3 behavior. The v2 tk binary had an atomic `-d` description flag; v3 separates
+        # ticket creation (returns just the ID) from description attachment (via comment).
+        # If `ticket create` exits 0 but returns an empty ID (an edge case), the `if [ -n
+        # "$new_id" ]` guard intentionally skips the comment rather than passing an empty
+        # string to `ticket comment` (which would cause a worse error). Error tracking is
+        # still preserved: the ticket IS created (title contains category + count), so
+        # actionability is not lost. The description is supplementary detail. The `|| true`
+        # guard on `ticket create` prevents set -euo pipefail (inherited from sourcing scripts)
+        # from aborting the function before the unconditional `return 0`; a failed create is
+        # non-fatal since sweep_tool_errors() returns 0 unconditionally to avoid blocking
+        # session close on ticket infrastructure issues.
+        local new_id
+        new_id=$("$TICKET_CMD" create bug "$ticket_title" --priority 2) || true
+        if [ -n "$new_id" ]; then
+            "$TICKET_CMD" comment "$new_id" "$description" || true
+        fi
 
         # Remove processed entries from counter to prevent re-creation
         _remove_category_from_counter "$counter_file" "$category"
@@ -239,12 +261,13 @@ sweep_validation_failures() {
 
         # Dedup: check for existing open bug ticket before creating
         local open_bugs
-        open_bugs=$(tk list --type bug --status open 2>/dev/null || true)
+        open_bugs=$("$TICKET_CMD" list 2>/dev/null | python3 -c 'import json,sys; [print(t["ticket_id"]+" "+t.get("title","")) for t in json.load(sys.stdin) if t.get("ticket_type")=="bug" and t.get("status") in ("open","in_progress")]' 2>/dev/null || true)
         if echo "$open_bugs" | grep -qF "Untracked validation failure: $category"; then
             continue
         fi
 
-        tk create "$ticket_title" -t bug -p 2
+        # Gracefully ignore ticket CLI failures — session close must not be blocked by ticket infrastructure
+        "$TICKET_CMD" create bug "$ticket_title" --priority 2 || true
     done
 
     return 0

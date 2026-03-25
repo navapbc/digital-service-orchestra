@@ -240,4 +240,27 @@ else
 fi
 rm -rf "$_CT2_FAKE_BIN"
 
+# ============================================================
+# Group: _CREATE_CMD dead-code removal (TDD RED phase)
+# ============================================================
+# These tests assert that dead code reading issue_tracker.create_cmd config
+# and setting _CREATE_CMD/_CREATE_CMD_FROM_ENV has been removed from
+# hook_commit_failure_tracker() in pre-bash-functions.sh.
+# Both tests MUST FAIL in the RED phase (the dead code is still present).
+# After the implementation step removes the dead code, both tests will pass.
+
+PRE_BASH_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
+
+# test_no_issue_tracker_create_cmd_read
+# Asserts that pre-bash-functions.sh does NOT read issue_tracker.create_cmd from config.
+# MUST FAIL in RED phase: the config read is still present (lines 173-180).
+_CREATE_CMD_CONFIG_REF=$(grep 'issue_tracker\.create_cmd' "$PRE_BASH_FUNCTIONS" || true)
+assert_eq "test_no_issue_tracker_create_cmd_read" "" "$_CREATE_CMD_CONFIG_REF"
+
+# test_no_create_cmd_variable
+# Asserts that pre-bash-functions.sh does NOT reference _CREATE_CMD variable.
+# MUST FAIL in RED phase: _CREATE_CMD and _CREATE_CMD_FROM_ENV are still defined (lines 149-151, 173-180).
+_CREATE_CMD_VAR_REF=$(grep '_CREATE_CMD' "$PRE_BASH_FUNCTIONS" || true)
+assert_eq "test_no_create_cmd_variable" "" "$_CREATE_CMD_VAR_REF"
+
 print_summary

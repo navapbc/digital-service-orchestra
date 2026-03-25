@@ -102,7 +102,7 @@ test_sweep_disabled_when_flag_false() {
 
 # ── test_sweep_enabled_when_flag_true ────────────────────────────────────────
 # When monitoring.tool_errors=true and counter file has TOOL_USE_BLOCKED >= 50,
-# sweep_tool_errors should trigger ticket creation (call `tk create`).
+# sweep_tool_errors should trigger ticket creation via the ticket CLI.
 test_sweep_enabled_when_flag_true() {
     local tmpdir; tmpdir=$(mktemp -d)
     local tmpconf="$tmpdir/dso-config.conf"
@@ -115,37 +115,36 @@ test_sweep_enabled_when_flag_true() {
     # Counter file with TOOL_USE_BLOCKED at threshold (50), no errors array entries
     echo '{"index":{"TOOL_USE_BLOCKED":50},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
 
-    # Mock tk to track calls — also mock tk list to return empty (no existing open bugs)
+    # Mock ticket CLI to track calls — list returns empty JSON array (no existing open bugs);
+    # create logs its args and returns a fake ticket ID.
     local mock_bin="$tmpdir/bin"
     mkdir -p "$mock_bin"
-    local tk_log="$tmpdir/tk.log"
-    # tk list returns empty; tk create logs its args
-    cat > "$mock_bin/tk" <<'MOCK'
+    local ticket_log="$tmpdir/ticket.log"
+    cat > "$mock_bin/ticket-mock" <<'MOCK'
 #!/usr/bin/env bash
-echo "$@" >> "${TK_LOG_FILE}"
+echo "$@" >> "${TICKET_LOG_FILE}"
 if [[ "${1:-}" == "list" ]]; then
-    echo ""
+    echo "[]"
+elif [[ "${1:-}" == "create" ]]; then
+    echo "mock-1234"
 fi
 MOCK
-    chmod +x "$mock_bin/tk"
+    chmod +x "$mock_bin/ticket-mock"
 
-    # Run sweep_tool_errors in a subshell with controlled env
-    TK_LOG_FILE="$tk_log" WORKFLOW_CONFIG_FILE="$tmpconf" HOME="$tmp_home" PATH="$mock_bin:$PATH" bash -c '
+    # Run sweep_tool_errors in a subshell with controlled env; TICKET_CMD points to mock
+    TICKET_LOG_FILE="$ticket_log" TICKET_CMD="$mock_bin/ticket-mock" WORKFLOW_CONFIG_FILE="$tmpconf" HOME="$tmp_home" bash -c '
         source "'"$SWEEP_SCRIPT"'"
         sweep_tool_errors
     ' 2>/dev/null
     local exit_code=$?
 
     local ticket_created="no"
-    [[ -f "$tk_log" ]] && grep -q "create" "$tk_log" && ticket_created="yes"
+    [[ -f "$ticket_log" ]] && grep -q "create" "$ticket_log" && ticket_created="yes"
 
     rm -rf "$tmpdir"
 
-    # After guard: ticket IS created when flag is true and threshold is reached
-    # Before guard (RED state for the other two tests): this test also fails because
-    # the guard doesn't exist yet — sweep always runs regardless of config flag,
-    # so in the current (no-guard) state this test PASSES (ticket is always created).
-    # This assertion verifies the enabled path still works after the guard is added.
+    # After guard: ticket IS created when flag is true and threshold is reached.
+    # This assertion verifies the enabled path still works after migration to ticket CLI.
     assert_eq "test_sweep_enabled_when_flag_true: ticket created" "yes" "$ticket_created"
     assert_eq "test_sweep_enabled_when_flag_true: exits 0" "0" "$exit_code"
 }

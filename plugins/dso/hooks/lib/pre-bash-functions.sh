@@ -146,9 +146,7 @@ hook_commit_failure_tracker() {
 
     # Read config-driven issue tracker commands (with fallback defaults)
     local _SEARCH_CMD_FROM_ENV="${SEARCH_CMD:-}"
-    local _CREATE_CMD_FROM_ENV="${CREATE_CMD:-}"
     local _SEARCH_CMD="${SEARCH_CMD:-grep -rl}"
-    local _CREATE_CMD="${CREATE_CMD:-ticket create}"
     local _READ_CONFIG=""
     if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
         _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
@@ -169,15 +167,6 @@ hook_commit_failure_tracker() {
             _SEARCH=$("$_READ_CONFIG" issue_tracker.search_cmd 2>/dev/null || echo '')
         fi
         [[ -n "$_SEARCH" ]] && _SEARCH_CMD="$_SEARCH"
-    fi
-    if [[ -n "$_READ_CONFIG" ]] && [[ -z "$_CREATE_CMD_FROM_ENV" ]]; then
-        local _CREATE
-        if [[ -n "$_CT_CONFIG_FILE" ]]; then
-            _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd "$_CT_CONFIG_FILE" 2>/dev/null || echo '')
-        else
-            _CREATE=$("$_READ_CONFIG" issue_tracker.create_cmd 2>/dev/null || echo '')
-        fi
-        [[ -n "$_CREATE" ]] && _CREATE_CMD="$_CREATE"
     fi
 
     # Check validation state

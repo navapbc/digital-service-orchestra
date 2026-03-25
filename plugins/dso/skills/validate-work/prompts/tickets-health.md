@@ -5,7 +5,7 @@ Do NOT fix any issues — only report findings.
 
 ## Config Keys Used
 
-This prompt uses plugin scripts (`validate-issues.sh`, `ticket`, the tk wrapper) which are inherently portable.
+This prompt uses plugin scripts (`validate-issues.sh`, `ticket`, the ticket CLI) which are inherently portable.
 The orchestrator injects a `### Config Values` block with the plugin scripts directory.
 
 | Config Key / Variable    | Purpose                                         | Required? |
@@ -18,7 +18,7 @@ The orchestrator provides this as:
 PLUGIN_SCRIPTS_DIR=<absolute path to plugin scripts directory>
 ```
 
-Note: `ticket` and the tk wrapper are CLI commands available in PATH — no config key needed.
+Note: `ticket` and the ticket CLI are CLI commands available in PATH — no config key needed.
 
 ## Commands to Run
 

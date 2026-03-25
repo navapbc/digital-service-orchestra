@@ -46,7 +46,6 @@ source "$_PRE_EDIT_WRITE_FUNC_DIR/pre-bash-functions.sh"
 #   "Never continue fixing after 5 cascading failures — run /dso:fix-cascade-recovery"
 #
 # Passthrough (never blocked):
-#   - .tickets/ files (issue tracking)
 #   - CLAUDE.md and .claude/ files (configuration)
 #   - /tmp/ files (temporary state)
 #   - ~/.claude/ files (user config)
@@ -79,7 +78,7 @@ hook_cascade_circuit_breaker() {
     # Split into two case blocks because $HOME expansion does not work
     # inside a single case pattern list with | separators.
     case "$FILE_PATH" in
-        */.tickets/*|*/CLAUDE.md|*/.claude/*)
+        */CLAUDE.md|*/.claude/*)
             return 0
             ;;
     esac
@@ -142,14 +141,14 @@ hook_cascade_circuit_breaker() {
 # hook_title_length_validator
 # ---------------------------------------------------------------------------
 # PreToolUse hook: block Write or Edit calls that would set a ticket title
-# longer than 255 characters in a .tickets/ file.
+# longer than 255 characters in a ticket event file.
 #
 # Jira's summary field has a 255-character limit. Enforcing this at write time
 # prevents sync-time failures.
 #
 # Logic:
 #   1. Only fires on Write or Edit tool calls
-#   2. Only inspects file paths that contain /.tickets/
+#   2. Inspects any file path (v3: no directory restriction)
 #   3. For Write: scans the full 'content' field for a markdown title line (# ...)
 #   4. For Edit: scans the 'new_string' field for a markdown title line
 #   5. If a title line is found and its text exceeds 255 chars: BLOCKED (return 2)
@@ -172,11 +171,6 @@ hook_title_length_validator() {
     local FILE_PATH
     FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')
     if [[ -z "$FILE_PATH" ]]; then
-        return 0
-    fi
-
-    # Only act on files inside a .tickets/ directory
-    if [[ "$FILE_PATH" != *"/.tickets/"* ]]; then
         return 0
     fi
 

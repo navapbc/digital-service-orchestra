@@ -5,7 +5,7 @@
 # Each test:
 #   - Creates an isolated TEST_HOME=$(mktemp -d)
 #   - Sets HOME=$TEST_HOME so counter file path resolves to TEST_HOME/.claude/tool-error-counter.json
-#   - Mocks tk via a TEST_BIN directory prepended to PATH
+#   - Mocks ticket CLI via TICKET_CMD pointing to a mock script in TEST_BIN
 #   - Cleans up via trap EXIT
 #
 # Usage: bash tests/skills/test-end-session-error-sweep.sh
@@ -27,7 +27,7 @@ echo "=== test-end-session-error-sweep.sh ==="
 # Helpers
 # ---------------------------------------------------------------------------
 
-# _setup_test: creates isolated home + bin dir, sets HOME and PATH
+# _setup_test: creates isolated home + bin dir, sets HOME
 # Sets globals: TEST_HOME TEST_BIN TK_LOG COUNTER_FILE
 _setup_test() {
     TEST_HOME=$(mktemp -d)
@@ -37,7 +37,6 @@ _setup_test() {
     mkdir -p "$TEST_HOME/.claude"
     COUNTER_FILE="$TEST_HOME/.claude/tool-error-counter.json"
     export HOME="$TEST_HOME"
-    export PATH="$TEST_BIN:$PATH"
 }
 
 # _teardown_test: removes isolated home dir
@@ -70,58 +69,70 @@ _write_counter_with_errors() {
     echo "$1" > "$COUNTER_FILE"
 }
 
-# _mock_tk_list_empty: tk list returns empty (no matching open bugs)
+# _mock_tk_list_empty: ticket list returns empty JSON array (no matching open bugs)
 _mock_tk_list_empty() {
-    cat > "$TEST_BIN/tk" <<MOCK
+    cat > "$TEST_BIN/ticket" <<MOCK
 #!/usr/bin/env bash
 if [[ "\$1" == "list" ]]; then
-    echo ""
+    echo "[]"
     exit 0
 fi
 echo "\$@" >> "$TK_LOG"
+if [[ "\$1" == "create" ]]; then
+    echo "mock-1234"
+fi
 exit 0
 MOCK
-    chmod +x "$TEST_BIN/tk"
+    chmod +x "$TEST_BIN/ticket"
+    export TICKET_CMD="$TEST_BIN/ticket"
 }
 
-# _mock_tk_list_with_match: tk list returns a line matching "Recurring tool error: $1"
+# _mock_tk_list_with_match: ticket list returns JSON with a matching bug ticket for category $1
 _mock_tk_list_with_match() {
     local category="$1"
-    cat > "$TEST_BIN/tk" <<MOCK
+    cat > "$TEST_BIN/ticket" <<MOCK
 #!/usr/bin/env bash
 if [[ "\$1" == "list" ]]; then
-    echo "lockpick-doc-to-logic-xxxx  Recurring tool error: ${category} (50 occurrences)"
+    echo '[{"ticket_id":"lockpick-doc-to-logic-xxxx","ticket_type":"bug","status":"open","title":"Recurring tool error: ${category} (50 occurrences)"}]'
     exit 0
 fi
 echo "\$@" >> "$TK_LOG"
+if [[ "\$1" == "create" ]]; then
+    echo "mock-1234"
+fi
 exit 0
 MOCK
-    chmod +x "$TEST_BIN/tk"
+    chmod +x "$TEST_BIN/ticket"
+    export TICKET_CMD="$TEST_BIN/ticket"
 }
 
-# _mock_tk_list_smart: first call returns empty, subsequent calls return match for $1
+# _mock_tk_list_smart: first call returns empty JSON, subsequent calls return match for $1
 # Used to simulate idempotency — first sweep creates ticket, second sees existing
 _mock_tk_list_smart() {
     local category="$1"
     local call_count_file="$TEST_HOME/list_calls"
     echo "0" > "$call_count_file"
-    cat > "$TEST_BIN/tk" <<MOCK
+    cat > "$TEST_BIN/ticket" <<MOCK
 #!/usr/bin/env bash
 if [[ "\$1" == "list" ]]; then
     count=\$(cat "$call_count_file" 2>/dev/null || echo 0)
     echo \$((count + 1)) > "$call_count_file"
     if [[ "\$count" -eq 0 ]]; then
-        echo ""
+        echo "[]"
         exit 0
     else
-        echo "lockpick-doc-to-logic-xxxx  Recurring tool error: ${category} (50 occurrences)"
+        echo '[{"ticket_id":"lockpick-doc-to-logic-xxxx","ticket_type":"bug","status":"open","title":"Recurring tool error: ${category} (50 occurrences)"}]'
         exit 0
     fi
 fi
 echo "\$@" >> "$TK_LOG"
+if [[ "\$1" == "create" ]]; then
+    echo "mock-1234"
+fi
 exit 0
 MOCK
-    chmod +x "$TEST_BIN/tk"
+    chmod +x "$TEST_BIN/ticket"
+    export TICKET_CMD="$TEST_BIN/ticket"
 }
 
 # _count_tk_create_calls: count lines in TK_LOG that start with "create"
@@ -135,9 +146,10 @@ _get_tk_create_args() {
 }
 
 # _run_sweep: source error-sweep.sh and call sweep_tool_errors in subshell
-# Captures exit code in SWEEP_EXIT
+# Passes TICKET_CMD pointing to mock in TEST_BIN. Captures exit code in SWEEP_EXIT
 _run_sweep() {
     (
+        TICKET_CMD="$TEST_BIN/ticket"
         source "$ERROR_SWEEP"
         sweep_tool_errors
     )
@@ -341,7 +353,7 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_ticket_includes_description
-# Counter with error details. Assert tk create includes -d flag with details.
+# Counter with error details. Assert ticket create called and comment includes details.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
@@ -351,11 +363,10 @@ _mock_tk_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_ticket_includes_description_created" "1" "$create_calls"
-# Check that -d flag was passed (tk mock logs all args)
-create_args=$(_get_tk_create_args)
-assert_contains "test_ticket_includes_description_has_d_flag" "-d" "$create_args"
-# Description is multi-line — check full tk.log for table content
+# v3: description is passed via 'ticket comment' (not -d on create); check log for comment call
 tk_log_content=$(cat "$TK_LOG" 2>/dev/null || true)
+assert_contains "test_ticket_includes_description_has_d_flag" "comment" "$tk_log_content"
+# Description is multi-line — check full tk.log for table content
 assert_contains "test_ticket_includes_description_has_table" "permission denied" "$tk_log_content"
 assert_pass_if_clean "test_ticket_includes_description"
 trap - EXIT
@@ -427,26 +438,31 @@ _teardown_test
 # Helpers for sweep_validation_failures tests
 # ---------------------------------------------------------------------------
 
-# _mock_tk_list_with_validation_match: tk list returns a line matching "Untracked validation failure: $1"
+# _mock_tk_list_with_validation_match: ticket list returns JSON matching "Untracked validation failure: $1"
 _mock_tk_list_with_validation_match() {
     local category="$1"
-    cat > "$TEST_BIN/tk" <<MOCK
+    cat > "$TEST_BIN/ticket" <<MOCK
 #!/usr/bin/env bash
 if [[ "\$1" == "list" ]]; then
-    echo "lockpick-doc-to-logic-xxxx  Untracked validation failure: ${category}"
+    echo '[{"ticket_id":"lockpick-doc-to-logic-xxxx","ticket_type":"bug","status":"open","title":"Untracked validation failure: ${category}"}]'
     exit 0
 fi
 echo "\$@" >> "$TK_LOG"
+if [[ "\$1" == "create" ]]; then
+    echo "mock-1234"
+fi
 exit 0
 MOCK
-    chmod +x "$TEST_BIN/tk"
+    chmod +x "$TEST_BIN/ticket"
+    export TICKET_CMD="$TEST_BIN/ticket"
 }
 
 # _run_sweep_validation: source error-sweep.sh and call sweep_validation_failures in subshell
 # Requires ARTIFACTS_DIR to be set in the test environment.
-# Captures exit code in SWEEP_EXIT
+# Passes TICKET_CMD pointing to mock in TEST_BIN. Captures exit code in SWEEP_EXIT
 _run_sweep_validation() {
     (
+        TICKET_CMD="$TEST_BIN/ticket"
         source "$ERROR_SWEEP"
         sweep_validation_failures
     )
@@ -621,6 +637,37 @@ else
 fi
 assert_eq "test_error_sweep_header_references_step_2_9" "found" "$has_step_29_ref"
 assert_pass_if_clean "test_error_sweep_header_references_step_2_9"
+
+# ---------------------------------------------------------------------------
+# test_validation_sweep_ticket_create_failure_graceful
+# ticket create exits non-zero. Assert sweep_validation_failures still exits 0.
+# ---------------------------------------------------------------------------
+_snapshot_fail
+_setup_test
+trap '_teardown_test' EXIT
+export ARTIFACTS_DIR="$TEST_HOME/artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+echo "some-validation-failure" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
+# Mock ticket CLI: list returns empty, create exits non-zero
+cat > "$TEST_BIN/ticket" <<'MOCK'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "list" ]]; then echo "[]"; exit 0; fi
+exit 1
+MOCK
+chmod +x "$TEST_BIN/ticket"
+export TICKET_CMD="$TEST_BIN/ticket"
+(
+    TICKET_CMD="$TEST_BIN/ticket"
+    source "$ERROR_SWEEP"
+    sweep_validation_failures
+)
+SWEEP_EXIT=$?
+exit_ok="no"
+if [[ "$SWEEP_EXIT" -eq 0 ]]; then exit_ok="yes"; fi
+assert_eq "test_validation_sweep_ticket_create_failure_graceful" "yes" "$exit_ok"
+assert_pass_if_clean "test_validation_sweep_ticket_create_failure_graceful"
+trap - EXIT
+_teardown_test
 
 # ---------------------------------------------------------------------------
 # test_ticket_deduplicates_error_details

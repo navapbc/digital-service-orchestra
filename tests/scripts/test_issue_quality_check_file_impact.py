@@ -11,6 +11,31 @@ WORKTREE_ROOT = os.environ.get(
 )
 
 
+def make_ticket_cmd(tmp_path: object, ticket_id: str, content: str) -> str:
+    """Create a mock ticket CLI script that returns `content` for `show <ticket_id>`.
+
+    Uses TICKET_CMD env var (v3 interface).
+    Returns the path to the mock script.
+    """
+    mock_dir = os.path.join(str(tmp_path), "mock-bin")
+    os.makedirs(mock_dir, exist_ok=True)
+    content_file = os.path.join(mock_dir, f"{ticket_id}.content")
+    with open(content_file, "w") as f:
+        f.write(content)
+    script_path = os.path.join(mock_dir, "ticket")
+    with open(script_path, "w") as f:
+        f.write(
+            f"#!/usr/bin/env bash\n"
+            f'if [[ "${{1:-}}" == "show" && "${{2:-}}" == "{ticket_id}" ]]; then\n'
+            f'    cat "{content_file}"\n'
+            f"    exit 0\n"
+            f"fi\n"
+            f"exit 1\n"
+        )
+    os.chmod(script_path, 0o755)
+    return script_path
+
+
 class TestFileImpactAwkPattern:
     """Test the awk pattern that counts file impact items from ticket content."""
 
@@ -82,14 +107,8 @@ class TestIssueQualityCheckFileImpact:
         WORKTREE_ROOT, "plugins", "dso", "scripts", "issue-quality-check.sh"
     )
 
-    def _create_ticket(self, tmpdir: str, ticket_id: str, content: str) -> str:
-        """Create a mock ticket file and return path."""
-        tickets_dir = os.path.join(tmpdir, ".tickets")
-        os.makedirs(tickets_dir, exist_ok=True)
-        path = os.path.join(tickets_dir, f"{ticket_id}.md")
-        with open(path, "w") as f:
-            f.write(content)
-        return path
+    def _make_ticket_cmd(self, tmp_path: object, ticket_id: str, content: str) -> str:
+        return make_ticket_cmd(tmp_path, ticket_id, content)
 
     def test_file_impact_section_contributes_to_quality_pass(
         self, tmp_path: object
@@ -108,7 +127,7 @@ class TestIssueQualityCheckFileImpact:
             "- `src/agents/foo.py` — update logic\n"
             "- `tests/unit/test_foo.py` — add tests\n"
         )
-        self._create_ticket(str(tmp_path), "w21-mai8", content)
+        ticket_cmd = self._make_ticket_cmd(tmp_path, "w21-mai8", content)
         # We test the awk pattern extraction indirectly by checking the script output
         # includes file_impact count. This requires the script to actually be updated.
         result = subprocess.run(
@@ -116,7 +135,7 @@ class TestIssueQualityCheckFileImpact:
             capture_output=True,
             text=True,
             cwd=WORKTREE_ROOT,
-            env={**os.environ, "TICKETS_DIR": str(tmp_path / ".tickets")},
+            env={**os.environ, "TICKET_CMD": ticket_cmd},
         )
         # w21-mai8 has a "### Files to modify" section, so it should be detected
         assert result.returncode == 0
@@ -130,13 +149,8 @@ class TestIssueQualityCheckStoryType:
         WORKTREE_ROOT, "plugins", "dso", "scripts", "issue-quality-check.sh"
     )
 
-    def _create_ticket(self, tmp_path: object, ticket_id: str, content: str) -> None:
-        """Create a mock ticket file in tmp_path/.tickets/."""
-        tickets_dir = os.path.join(str(tmp_path), ".tickets")
-        os.makedirs(tickets_dir, exist_ok=True)
-        path = os.path.join(tickets_dir, f"{ticket_id}.md")
-        with open(path, "w") as f:
-            f.write(content)
+    def _make_ticket_cmd(self, tmp_path: object, ticket_id: str, content: str) -> str:
+        return make_ticket_cmd(tmp_path, ticket_id, content)
 
     def test_story_with_prose_done_definition_passes_without_warning(
         self, tmp_path: object
@@ -159,13 +173,13 @@ class TestIssueQualityCheckStoryType:
             "- Code review must be completed before merge\n"
             "- CI must pass on the final commit\n"
         )
-        self._create_ticket(tmp_path, "dso-story1", content)
+        ticket_cmd = self._make_ticket_cmd(tmp_path, "dso-story1", content)
         result = subprocess.run(
             [self.SCRIPT_PATH, "dso-story1"],
             capture_output=True,
             text=True,
             cwd=WORKTREE_ROOT,
-            env={**os.environ, "TICKETS_DIR": str(tmp_path) + "/.tickets"},
+            env={**os.environ, "TICKET_CMD": ticket_cmd},
         )
         # Story with prose done-definitions must pass (exit 0)
         assert result.returncode == 0, (
@@ -202,13 +216,13 @@ class TestIssueQualityCheckStoryType:
             "Ensure backward compatibility is maintained.\n"
             "Code must follow project conventions.\n"
         )
-        self._create_ticket(tmp_path, "dso-task1", content)
+        ticket_cmd = self._make_ticket_cmd(tmp_path, "dso-task1", content)
         result = subprocess.run(
             [self.SCRIPT_PATH, "dso-task1"],
             capture_output=True,
             text=True,
             cwd=WORKTREE_ROOT,
-            env={**os.environ, "TICKETS_DIR": str(tmp_path) + "/.tickets"},
+            env={**os.environ, "TICKET_CMD": ticket_cmd},
         )
         # Task should still pass (exit 0) via legacy path
         assert result.returncode == 0, (
@@ -235,6 +249,9 @@ class TestEnrichFileImpactScript:
         WORKTREE_ROOT, "plugins", "dso", "scripts", "enrich-file-impact.sh"
     )
 
+    def _make_ticket_cmd(self, tmp_path: object, ticket_id: str, content: str) -> str:
+        return make_ticket_cmd(tmp_path, ticket_id, content)
+
     def test_script_exists_and_is_executable(self) -> None:
         assert os.path.isfile(self.SCRIPT_PATH), "enrich-file-impact.sh must exist"
         assert os.access(self.SCRIPT_PATH, os.X_OK), (
@@ -243,24 +260,17 @@ class TestEnrichFileImpactScript:
 
     def test_exits_gracefully_without_api_key(self, tmp_path: object) -> None:
         """Without ANTHROPIC_API_KEY, script should exit 0 with warning."""
-        # Use a temporary directory to avoid writing into the real .tickets/ dir,
-        # which could trigger the PostToolUse ticket-sync-push hook.
-        tmpdir = str(tmp_path)
-        tickets_dir = os.path.join(tmpdir, ".tickets")
-        os.makedirs(tickets_dir, exist_ok=True)
         test_id = "test-no-fi-001"
-        ticket_path = os.path.join(tickets_dir, f"{test_id}.md")
-        with open(ticket_path, "w") as f:
-            f.write(
-                "---\nid: test-no-fi-001\nstatus: open\n---\n"
-                "# Test ticket without file impact\n\n"
-                "## Description\nSome description here.\n"
-            )
+        ticket_content = (
+            "---\nid: test-no-fi-001\nstatus: open\n---\n"
+            "# Test ticket without file impact\n\n"
+            "## Description\nSome description here.\n"
+        )
+        ticket_cmd = self._make_ticket_cmd(tmp_path, test_id, ticket_content)
         env = os.environ.copy()
         env.pop("ANTHROPIC_API_KEY", None)
-        # Point tk at the temp tickets dir so the script finds the ticket
-        # without writing into the real .tickets/ directory.
-        env["TICKETS_DIR"] = tickets_dir
+        # Point TICKET_CMD at mock so script finds the ticket without hitting the real system.
+        env["TICKET_CMD"] = ticket_cmd
         result = subprocess.run(
             [self.SCRIPT_PATH, "--dry-run", test_id],
             capture_output=True,
@@ -286,10 +296,8 @@ class TestEnrichFileImpactScript:
 
     def test_already_has_file_impact_exits_zero(self, tmp_path: object) -> None:
         """If ticket already has file impact, script should exit 0."""
-        tickets_dir = tmp_path / ".tickets"
-        tickets_dir.mkdir(parents=True)
-        ticket_file = tickets_dir / "w21-mai8.md"
-        ticket_file.write_text(
+        test_id = "w21-mai8"
+        ticket_content = (
             "---\n"
             "id: w21-mai8\n"
             "status: open\n"
@@ -302,12 +310,13 @@ class TestEnrichFileImpactScript:
             "- `src/agents/foo.py` — update logic\n"
             "- `tests/unit/test_foo.py` — add tests\n"
         )
+        ticket_cmd = self._make_ticket_cmd(tmp_path, test_id, ticket_content)
         result = subprocess.run(
-            [self.SCRIPT_PATH, "--dry-run", "w21-mai8"],
+            [self.SCRIPT_PATH, "--dry-run", test_id],
             capture_output=True,
             text=True,
             cwd=WORKTREE_ROOT,
-            env={**os.environ, "TICKETS_DIR": str(tmp_path / ".tickets")},
+            env={**os.environ, "TICKET_CMD": ticket_cmd},
         )
         assert result.returncode == 0
         combined = result.stdout + result.stderr
@@ -346,20 +355,16 @@ class TestEnrichFileImpactScript:
         This confirms config-driven directory discovery works end-to-end
         through the wrapper delegation.
         """
-        tmpdir = str(tmp_path)
-        tickets_dir = os.path.join(tmpdir, ".tickets")
-        os.makedirs(tickets_dir, exist_ok=True)
         test_id = "test-dry-run-cfg"
-        ticket_path = os.path.join(tickets_dir, f"{test_id}.md")
-        with open(ticket_path, "w") as f:
-            f.write(
-                "---\nid: test-dry-run-cfg\nstatus: open\ntype: task\n---\n"
-                "# Test ticket for dry-run config paths\n\n"
-                "## Description\nA task that needs file impact enrichment.\n"
-            )
+        ticket_content = (
+            "---\nid: test-dry-run-cfg\nstatus: open\ntype: task\n---\n"
+            "# Test ticket for dry-run config paths\n\n"
+            "## Description\nA task that needs file impact enrichment.\n"
+        )
+        ticket_cmd = self._make_ticket_cmd(tmp_path, test_id, ticket_content)
         env = os.environ.copy()
         env["ANTHROPIC_API_KEY"] = "fake"
-        env["TICKETS_DIR"] = tickets_dir
+        env["TICKET_CMD"] = ticket_cmd
         result = subprocess.run(
             [self.SCRIPT_PATH, "--dry-run", test_id],
             capture_output=True,

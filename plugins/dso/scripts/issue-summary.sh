@@ -17,7 +17,7 @@ set -euo pipefail
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TK="${TK:-$SCRIPT_DIR/tk}"
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
 if [ $# -eq 0 ]; then
     echo "Usage: issue-summary.sh <id> [<id> ...]" >&2
@@ -25,7 +25,7 @@ if [ $# -eq 0 ]; then
 fi
 
 for id in "$@"; do
-    output=$("$TK" show "$id" 2>/dev/null) || { echo "$id [unknown]"; continue; }
+    output=$("$TICKET_CMD" show "$id" 2>/dev/null) || { echo "$id [unknown]"; continue; }
 
     if [ -z "$output" ]; then
         echo "$id [unknown]"
