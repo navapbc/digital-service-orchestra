@@ -149,4 +149,22 @@ EXIT_CODE=0
 bash "$HOOK" "--reviewer-hash=${HASH}" 2>/dev/null || EXIT_CODE=$?
 assert_eq "test_record_review_equals_style_reviewer_hash: --reviewer-hash=VALUE accepted" "0" "$EXIT_CODE"
 
+# ---------------------------------------------------------------------------
+# test_record_review_changed_files_excludes_untracked
+# Bug dso-lm92: CHANGED_FILES overlap check must not include untracked files.
+# The review diff (compute-diff-hash.sh) excludes untracked files, so the
+# overlap check in record-review.sh must match that scope. Including untracked
+# files can cause false-positive overlap matches against files not in the
+# reviewed diff.
+# ---------------------------------------------------------------------------
+# Check the CHANGED_FILES computation block (not the diagnostic dump which
+# legitimately uses ls-files --others for mismatch forensics).
+# The CHANGED_FILES block is between "CHANGED_FILES=$(" and the closing ")".
+if sed -n '/CHANGED_FILES=$(/,/^[[:space:]]*)/p' "$HOOK" | grep -q 'ls-files.*--others'; then
+    actual="includes_untracked"
+else
+    actual="excludes_untracked"
+fi
+assert_eq "test_record_review_changed_files_excludes_untracked" "excludes_untracked" "$actual"
+
 print_summary
