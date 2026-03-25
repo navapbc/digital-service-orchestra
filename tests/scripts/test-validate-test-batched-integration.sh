@@ -146,6 +146,19 @@ output=$(
 # validate.sh must exit 2 when tests are pending
 assert_eq "test_validate_exits_2_on_partial_tests exits 2 (pending)" "2" "$rc"
 
+# Bug dso-w7bs: verify the state file was written with expected partial content
+if [[ -f "$_partial_state_file" ]]; then
+    _state_has_interrupted=$(python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+print('yes' if d.get('signal_interrupted') else 'no')
+" "$_partial_state_file" 2>/dev/null || echo "error")
+    assert_eq "test_validate_exits_2_on_partial_tests state file has signal_interrupted" "yes" "$_state_has_interrupted"
+else
+    (( ++FAIL ))
+    echo "FAIL: test_validate_exits_2_on_partial_tests — state file not created at $_partial_state_file" >&2
+fi
+
 assert_pass_if_clean "test_validate_exits_2_on_partial_tests"
 
 # ============================================================================
