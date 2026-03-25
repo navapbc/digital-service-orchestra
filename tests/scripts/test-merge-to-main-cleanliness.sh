@@ -9,12 +9,12 @@
 #      files on main (not just modified tracked files)
 #   3. test_main_clean_after_successful_merge — after a successful full merge,
 #      main has no dirty or untracked files (excluding tickets dir)
-#   4. test_worktree_dirty_tickets_committed_before_merge — uncommitted .tickets
-#      files on the worktree are auto-committed before merge starts
+#   4. test_worktree_dirty_tickets_committed_before_merge — uncommitted .tickets-tracker
+#      event files on the worktree are auto-committed before merge starts
 #   5. test_worktree_untracked_tickets_committed_before_merge — new (untracked)
-#      .tickets files on the worktree are auto-committed before merge starts
+#      .tickets-tracker event files on the worktree are auto-committed before merge starts
 #   6. test_worktree_clean_after_merge — after a successful merge, the worktree
-#      has no dirty or untracked files (including .tickets/)
+#      has no dirty or untracked files (including .tickets-tracker/)
 #
 # Usage: bash tests/scripts/test-merge-to-main-cleanliness.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -49,30 +49,38 @@ if [[ -z "${CLAUDE_PLUGIN_PYTHON:-}" ]]; then
     done
 fi
 
-# ── Helper: create a minimal ticket file ─────────────────────────────────────
+# ── Helper: create a minimal v3 ticket event file ────────────────────────────
+# v3 ticket system stores events as JSON files in .tickets-tracker/<id>/*.json
+# and maintains an index at .tickets-tracker/.index.json
 make_ticket_file() {
     local dir="$1"
     local ticket_id="$2"
-    local tickets_subdir="${3:-.tickets}"
-    mkdir -p "$dir/$tickets_subdir"
-    cat > "$dir/$tickets_subdir/${ticket_id}.md" <<EOF
----
-id: $ticket_id
-status: open
-deps: []
-links: []
-created: 2026-01-01T00:00:00Z
-type: task
-priority: 2
----
-# Ticket $ticket_id
+    local tickets_subdir="${3:-.tickets-tracker}"
+    mkdir -p "$dir/$tickets_subdir/$ticket_id"
+    cat > "$dir/$tickets_subdir/$ticket_id/00-create.json" <<EOF
+{"type":"create","id":"$ticket_id","ticket_type":"task","title":"Ticket $ticket_id","priority":2,"status":"open","created":"2026-01-01T00:00:00Z"}
 EOF
+    # Also update the index file
+    local index_file="$dir/$tickets_subdir/.index.json"
+    if [ -f "$index_file" ]; then
+        # Append to existing index (simple JSON merge for test purposes)
+        python3 -c "
+import json, sys
+with open('$index_file') as f:
+    idx = json.load(f)
+idx['$ticket_id'] = {'id': '$ticket_id', 'status': 'open', 'type': 'task'}
+with open('$index_file', 'w') as f:
+    json.dump(idx, f)
+" 2>/dev/null || true
+    else
+        echo "{\"$ticket_id\":{\"id\":\"$ticket_id\",\"status\":\"open\",\"type\":\"task\"}}" > "$index_file"
+    fi
 }
 
 # ── Helper: create a minimal dso-config.conf ─────────────────────────────────
 make_minimal_config() {
     local dir="$1"
-    local tickets_dir="${2:-.tickets}"
+    local tickets_dir="${2:-.tickets-tracker}"
     mkdir -p "$dir/.claude"
     cat > "$dir/.claude/dso-config.conf" <<CONF
 tickets.directory=$tickets_dir
@@ -134,7 +142,7 @@ echo "=== test-merge-to-main-cleanliness.sh ==="
 # exit non-zero (ERROR), not just print a WARNING.
 # =============================================================================
 echo "--- Test 1: validate fails on remaining dirty ---"
-TMPENV1=$(setup_env ".tickets")
+TMPENV1=$(setup_env ".tickets-tracker")
 WT1=$(cd "$TMPENV1/worktree" && pwd -P)
 MAIN1="$TMPENV1/main-clone"
 
@@ -170,7 +178,7 @@ cleanup_env "$TMPENV1"
 # should detect and report them.
 # =============================================================================
 echo "--- Test 2: validate detects untracked files ---"
-TMPENV2=$(setup_env ".tickets")
+TMPENV2=$(setup_env ".tickets-tracker")
 WT2=$(cd "$TMPENV2/worktree" && pwd -P)
 MAIN2="$TMPENV2/main-clone"
 
@@ -201,7 +209,7 @@ cleanup_env "$TMPENV2"
 # (excluding the tickets directory).
 # =============================================================================
 echo "--- Test 3: main clean after successful merge ---"
-TMPENV3=$(setup_env ".tickets")
+TMPENV3=$(setup_env ".tickets-tracker")
 WT3=$(cd "$TMPENV3/worktree" && pwd -P)
 MAIN3="$TMPENV3/main-clone"
 
@@ -216,10 +224,10 @@ MERGE_OUTPUT3=$(cd "$WT3" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
 # Merge should succeed
 assert_contains "test_clean_merge_succeeds" "DONE" "$MERGE_OUTPUT3"
 
-# Check main is clean (no dirty files excluding .tickets/)
-MAIN3_DIRTY=$(cd "$MAIN3" && git diff --name-only -- ':!.tickets/' 2>/dev/null || true)
-MAIN3_UNTRACKED=$(cd "$MAIN3" && git ls-files --others --exclude-standard -- ':!.tickets/' 2>/dev/null || true)
-MAIN3_STAGED=$(cd "$MAIN3" && git diff --cached --name-only -- ':!.tickets/' 2>/dev/null || true)
+# Check main is clean (no dirty files excluding .tickets-tracker/)
+MAIN3_DIRTY=$(cd "$MAIN3" && git diff --name-only -- ':!.tickets-tracker/' 2>/dev/null || true)
+MAIN3_UNTRACKED=$(cd "$MAIN3" && git ls-files --others --exclude-standard -- ':!.tickets-tracker/' 2>/dev/null || true)
+MAIN3_STAGED=$(cd "$MAIN3" && git diff --cached --name-only -- ':!.tickets-tracker/' 2>/dev/null || true)
 
 MAIN3_IS_CLEAN="true"
 if [ -n "$MAIN3_DIRTY" ] || [ -n "$MAIN3_UNTRACKED" ] || [ -n "$MAIN3_STAGED" ]; then
@@ -237,7 +245,7 @@ cleanup_env "$TMPENV3"
 # before the merge starts, so they appear in the merge on main.
 # =============================================================================
 echo "--- Test 4: worktree dirty tickets auto-committed ---"
-TMPENV4=$(setup_env ".tickets")
+TMPENV4=$(setup_env ".tickets-tracker")
 WT4=$(cd "$TMPENV4/worktree" && pwd -P)
 MAIN4="$TMPENV4/main-clone"
 
@@ -245,35 +253,28 @@ MAIN4="$TMPENV4/main-clone"
 echo "feature content 4" > "$WT4/feature4.txt"
 (cd "$WT4" && git add feature4.txt && git commit -q -m "feat: add feature4")
 
-# Now modify an existing .tickets file WITHOUT committing it.
-# This simulates tk close/status updating a ticket during end-session.
-echo "---
-id: seed-init
-status: closed
-deps: []
-links: []
-created: 2026-01-01T00:00:00Z
-type: task
-priority: 2
----
-# Ticket seed-init (closed)" > "$WT4/.tickets/seed-init.md"
+# Now modify an existing .tickets-tracker event file WITHOUT committing it.
+# This simulates a ticket command updating a ticket status during end-session.
+# The seed-init ticket was created by make_ticket_file in setup_env.
+echo '{"type":"transition","id":"seed-init","from":"open","to":"closed","ts":"2026-01-01T00:01:00Z"}' \
+    > "$WT4/.tickets-tracker/seed-init/01-transition.json"
 
-# Verify the worktree IS dirty with .tickets changes
-WT4_DIRTY_BEFORE=$(cd "$WT4" && git diff --name-only 2>/dev/null || true)
-assert_contains "test_worktree_has_dirty_tickets_before_merge" ".tickets/seed-init.md" "$WT4_DIRTY_BEFORE"
+# Verify the worktree IS dirty with .tickets-tracker changes
+WT4_UNTRACKED_BEFORE=$(cd "$WT4" && git ls-files --others --exclude-standard -- .tickets-tracker/ 2>/dev/null || true)
+assert_contains "test_worktree_has_dirty_tickets_before_merge" ".tickets-tracker/seed-init/01-transition.json" "$WT4_UNTRACKED_BEFORE"
 
-# Run merge — it should auto-commit the .tickets changes, then merge successfully
+# Run merge — it should auto-commit the .tickets-tracker changes, then merge successfully
 MERGE_OUTPUT4=$(cd "$WT4" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
     bash "$MERGE_SCRIPT" 2>&1 || true)
 
 # Merge should succeed
 assert_contains "test_dirty_tickets_merge_succeeds" "DONE" "$MERGE_OUTPUT4"
 
-# The ticket change should have made it to main (via auto-commit + merge)
-TICKET_ON_MAIN4=$(cd "$MAIN4" && git show HEAD:.tickets/seed-init.md 2>/dev/null | grep "status:" || echo "NOT_FOUND")
+# The ticket event file should have made it to main (via auto-commit + merge)
+TICKET_ON_MAIN4=$(cd "$MAIN4" && git show HEAD:.tickets-tracker/seed-init/01-transition.json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('to','NOT_FOUND'))" 2>/dev/null || echo "NOT_FOUND")
 assert_contains "test_dirty_ticket_reached_main" "closed" "$TICKET_ON_MAIN4"
 
-# Worktree should be clean after merge (no dirty .tickets files left behind)
+# Worktree should be clean after merge (no dirty .tickets-tracker files left behind)
 WT4_PORCELAIN=$(cd "$WT4" && git status --porcelain 2>/dev/null || true)
 WT4_IS_CLEAN="true"
 if [ -n "$WT4_PORCELAIN" ]; then
@@ -289,7 +290,7 @@ cleanup_env "$TMPENV4"
 # before the merge starts.
 # =============================================================================
 echo "--- Test 5: worktree untracked tickets auto-committed ---"
-TMPENV5=$(setup_env ".tickets")
+TMPENV5=$(setup_env ".tickets-tracker")
 WT5=$(cd "$TMPENV5/worktree" && pwd -P)
 MAIN5="$TMPENV5/main-clone"
 
@@ -297,23 +298,23 @@ MAIN5="$TMPENV5/main-clone"
 echo "feature content 5" > "$WT5/feature5.txt"
 (cd "$WT5" && git add feature5.txt && git commit -q -m "feat: add feature5")
 
-# Create a NEW .tickets file (untracked) — simulates tk create during end-session
-make_ticket_file "$WT5" "new-bug-from-session" ".tickets"
+# Create a NEW .tickets-tracker event directory (untracked) — simulates tk create during end-session
+make_ticket_file "$WT5" "new-bug-from-session" ".tickets-tracker"
 
-# Verify the worktree has an untracked .tickets file
-WT5_UNTRACKED_BEFORE=$(cd "$WT5" && git ls-files --others --exclude-standard 2>/dev/null || true)
-assert_contains "test_worktree_has_untracked_tickets_before_merge" ".tickets/new-bug-from-session.md" "$WT5_UNTRACKED_BEFORE"
+# Verify the worktree has untracked .tickets-tracker files
+WT5_UNTRACKED_BEFORE=$(cd "$WT5" && git ls-files --others --exclude-standard -- .tickets-tracker/ 2>/dev/null || true)
+assert_contains "test_worktree_has_untracked_tickets_before_merge" ".tickets-tracker/new-bug-from-session/00-create.json" "$WT5_UNTRACKED_BEFORE"
 
-# Run merge — it should auto-commit the new .tickets file, then merge successfully
+# Run merge — it should auto-commit the new .tickets-tracker files, then merge successfully
 MERGE_OUTPUT5=$(cd "$WT5" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
     bash "$MERGE_SCRIPT" 2>&1 || true)
 
 # Merge should succeed
 assert_contains "test_untracked_tickets_merge_succeeds" "DONE" "$MERGE_OUTPUT5"
 
-# The new ticket should have made it to main
-TICKET_ON_MAIN5=$(cd "$MAIN5" && git show HEAD:.tickets/new-bug-from-session.md 2>/dev/null | head -1 || echo "NOT_FOUND")
-assert_eq "test_untracked_ticket_reached_main" "---" "$TICKET_ON_MAIN5"
+# The new ticket event file should have made it to main
+TICKET_ON_MAIN5=$(cd "$MAIN5" && git show HEAD:.tickets-tracker/new-bug-from-session/00-create.json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('type','NOT_FOUND'))" 2>/dev/null || echo "NOT_FOUND")
+assert_eq "test_untracked_ticket_reached_main" "create" "$TICKET_ON_MAIN5"
 
 # Worktree should be clean
 WT5_PORCELAIN=$(cd "$WT5" && git status --porcelain 2>/dev/null || true)
@@ -331,7 +332,7 @@ cleanup_env "$TMPENV5"
 # (no dirty or untracked files, including .tickets/)
 # =============================================================================
 echo "--- Test 6: worktree fully clean after merge ---"
-TMPENV6=$(setup_env ".tickets")
+TMPENV6=$(setup_env ".tickets-tracker")
 WT6=$(cd "$TMPENV6/worktree" && pwd -P)
 
 # Make a committed change on the feature branch

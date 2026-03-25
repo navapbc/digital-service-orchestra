@@ -391,12 +391,11 @@ _abort_stale_rebase() {
     fi
 }
 
-# --- Auto-resolve archive rename/delete conflicts during git pull --rebase ---
-# When tickets are archived (moved from .tickets/xxx.md to .tickets/archive/xxx.md)
-# by a previous merge, and the remote has a different archive commit, git pull --rebase
-# can produce CONFLICT (rename/delete) errors. These are always safe to resolve by
-# accepting the archive move: git rm the old path (if still present) and git add the
-# archived path (if present). Non-archive conflicts cause an immediate abort.
+# --- Auto-resolve ticket-data conflicts during git pull --rebase ---
+# Ticket event JSON files (.tickets-tracker/<id>/*.json) may appear as conflicts
+# during rebase (e.g., during worktree sync). These are always safe to resolve by
+# accepting our version (git add if present, git rm if absent).
+# Non-ticket conflicts cause an immediate abort.
 #
 # v3 ticket system (.tickets-tracker/): ticket event JSON files and the index
 # (.tickets-tracker/<id>/*.json, .tickets-tracker/.index.json) are managed on a
@@ -444,14 +443,13 @@ _auto_resolve_archive_conflicts() {
     fi
 
     # Safety check: ALL conflicts must be ticket-data files (safe to auto-resolve).
-    # Ticket data: v2 .tickets/*.md (including .tickets/archive/*.md),
-    #              v3 .tickets-tracker/<id>/*.json or .tickets-tracker/.index.json.
+    # Ticket data: v3 .tickets-tracker/<id>/*.json or .tickets-tracker/.index.json.
     local _non_archive_conflicts=0
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
         case "$_file" in
-            .tickets-tracker/*.json | .tickets/*.md)
-                # v2 ticket .md files or v3 ticket event JSON — safe to auto-resolve
+            .tickets-tracker/*/*.json | .tickets-tracker/*.json | .tickets-tracker/.index.json)
+                # v3 ticket event JSON — safe to auto-resolve
                 ;;
             *)
                 _non_archive_conflicts=$(( _non_archive_conflicts + 1 ))
@@ -474,8 +472,8 @@ _auto_resolve_archive_conflicts() {
     while IFS= read -r _file; do
         [[ -z "$_file" ]] && continue
 
-        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json || "$_file" == .tickets/*.md || "$_file" == .tickets/archive/*.md ]]; then
-            # v2 ticket .md or v3 ticket event JSON — accept ours (git add if present, git rm if absent)
+        if [[ "$_file" == .tickets-tracker/*.json || "$_file" == .tickets-tracker/*/*.json ]]; then
+            # v3 ticket event JSON — accept ours (git add if present, git rm if absent)
             if [[ -f "$_file" ]]; then
                 git add "$_file" 2>/dev/null && _resolved=$(( _resolved + 1 )) || _failed=$(( _failed + 1 ))
             else
@@ -557,7 +555,7 @@ _auto_resolve_archive_conflicts() {
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
                 case "$_nf" in
-                    .tickets-tracker/*.json | .tickets/*.md) ;;
+                    .tickets-tracker/*/*.json | .tickets-tracker/*.json | .tickets-tracker/.index.json) ;;
                     *) _new_non_archive=$(( _new_non_archive + 1 )) ;;
                 esac
             done <<< "$_new_all"
@@ -572,8 +570,8 @@ _auto_resolve_archive_conflicts() {
             local _new_resolved=0 _new_failed=0
             while IFS= read -r _nf; do
                 [[ -z "$_nf" ]] && continue
-                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json || "$_nf" == .tickets/*.md || "$_nf" == .tickets/archive/*.md ]]; then
-                    # v2 ticket .md or v3 ticket event JSON — accept ours
+                if [[ "$_nf" == .tickets-tracker/*.json || "$_nf" == .tickets-tracker/*/*.json ]]; then
+                    # v3 ticket event JSON — accept ours
                     if [[ -f "$_nf" ]]; then
                         git add "$_nf" 2>/dev/null && _new_resolved=$(( _new_resolved + 1 )) || _new_failed=$(( _new_failed + 1 ))
                     else
@@ -660,7 +658,7 @@ _check_push_needed() {
 #      On force-push failure: restore HEAD via git reset --soft, return 1.
 #   4. GIT_EDITOR=: git rebase origin/main.
 #      On conflict:
-#        - If ONLY .tickets/.index.json conflicts: auto-resolve via merge-ticket-index.py
+#        - If ONLY .tickets-tracker/.index.json conflicts: auto-resolve via merge-ticket-index.py
 #          (extracts clean :1:/:2:/:3: staging versions before running the driver).
 #        - Otherwise: print ACTION REQUIRED with conflicted file list, rebase --abort, return 1.
 #   5. Print RECOVERY: Squash-rebase succeeded. Return 0.
@@ -847,9 +845,6 @@ fi
 
 # --- Load project config (single batch call to read-config) ---
 eval "$(bash "$_SCRIPT_DIR"/read-config.sh --batch 2>/dev/null || true)"
-TICKETS_DIR="${TICKETS_DIRECTORY:-.tickets}"
-export LOCKPICK_TICKETS_DIR="$TICKETS_DIR"
-
 VISUAL_BASELINE_PATH="${MERGE_VISUAL_BASELINE_PATH:-}"
 # ci.workflow_name (preferred) → merge.ci_workflow_name (deprecated fallback)
 # --batch eval populates CI_WORKFLOW_NAME from ci.workflow_name; only fall back
@@ -884,11 +879,11 @@ if [ -z "$BRANCH" ]; then
 fi
 
 # --- Check for uncommitted or untracked changes on worktree ---
-# Exclude the configured tickets directory — ticket files are created by ticket CLI
-# and should never block a merge regardless of sync infrastructure.
-DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
-DIRTY_CACHED=$(git diff --cached --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
-DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+# Exclude .tickets-tracker/ from the dirty check — the auto-commit block below
+# handles ticket-tracker files separately before the merge starts.
+DIRTY=$(git diff --name-only -- ':!.tickets-tracker/' 2>/dev/null || true)
+DIRTY_CACHED=$(git diff --cached --name-only -- ':!.tickets-tracker/' 2>/dev/null || true)
+DIRTY_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!.tickets-tracker/' 2>/dev/null || true)
 if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     echo "ERROR: Uncommitted changes on worktree. Commit or stash first."
     [ -n "$DIRTY" ] && echo "Unstaged: $DIRTY"
@@ -897,18 +892,17 @@ if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     exit 1
 fi
 
-# --- Auto-commit dirty ticket files on the worktree ---
+# --- Auto-commit dirty ticket-tracker files on the worktree ---
 # ticket commands write .tickets-tracker/ files without staging them.
-# The pre-flight check above excludes .tickets-tracker/ so the merge isn't blocked, but
-# these files must be committed before merging so they (a) appear in the merge on
-# main and (b) don't leave the worktree dirty for post-merge cleanup checks.
-TICKETS_DIRTY=$(git diff --name-only -- "$TICKETS_DIR"/ 2>/dev/null || true)
-TICKETS_UNTRACKED=$(git ls-files --others --exclude-standard -- "$TICKETS_DIR"/ 2>/dev/null || true)
-if [ -n "$TICKETS_DIRTY" ] || [ -n "$TICKETS_UNTRACKED" ]; then
-    echo "Auto-committing uncommitted $TICKETS_DIR/ changes on worktree..."
-    git add "$TICKETS_DIR"/ 2>/dev/null || true
+# These files must be committed before merging so they appear in the merge on
+# main and don't leave the worktree dirty for post-merge cleanup checks.
+TRACKER_DIRTY=$(git diff --name-only -- .tickets-tracker/ 2>/dev/null || true)
+TRACKER_UNTRACKED=$(git ls-files --others --exclude-standard -- .tickets-tracker/ 2>/dev/null || true)
+if [ -n "$TRACKER_DIRTY" ] || [ -n "$TRACKER_UNTRACKED" ]; then
+    echo "Auto-committing uncommitted .tickets-tracker/ changes on worktree..."
+    git add .tickets-tracker/ 2>/dev/null || true
     git commit -q -m "chore: auto-commit ticket changes before merge"
-    echo "OK: Committed $TICKETS_DIR/ changes."
+    echo "OK: Committed .tickets-tracker/ changes."
 fi
 
 # --- Initialize state file and register SIGURG trap ---
@@ -1031,7 +1025,7 @@ _phase_sync() {
         echo "Restoring stashed changes..."
         if ! git stash pop --quiet 2>/dev/null; then
             # Stash pop conflicted — discard the stash. The pre-stash files were
-            # ticket data files (.tickets/ or .tickets-tracker/), which the merge
+            # ticket data files (.tickets-tracker/), which the merge
             # step will overwrite anyway. Keeping an unmerged stash pop would block all subsequent ops.
             echo "WARNING: Stash pop had conflicts — resetting. Merge step will reconcile."
             git reset --merge 2>/dev/null || true
@@ -1189,16 +1183,15 @@ _phase_validate() {
     # Stage any post-merge artifacts (.gitignore entries for worktree dirs)
     git add .gitignore 2>/dev/null || true
 
-    # Auto-stage ticket-data changes ($TICKETS_DIR/) — CI failure tracking pushes ticket
-    # commits directly to main, and the merge can leave ticket data files dirty.
+    # Auto-stage ticket-tracker changes — CI failure tracking pushes ticket
+    # commits directly to main, and the merge can leave ticket-tracker data files dirty.
     # These are data files, not code, so auto-staging into the merge commit is safe.
-    # (v2: .tickets/*.md files; v3: $TICKETS_DIR/ may be absent if fully on .tickets-tracker/ branch)
-    git add "$TICKETS_DIR"/ 2>/dev/null || true
+    git add .tickets-tracker/ 2>/dev/null || true
 
-    # Check for dirty tracked files (modified but not staged) excluding tickets dir
-    REMAINING_DIRTY=$(git diff --name-only -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
-    # Check for untracked files (not in .gitignore) excluding tickets dir
-    REMAINING_UNTRACKED=$(git ls-files --others --exclude-standard -- ':!'"$TICKETS_DIR"'/' 2>/dev/null || true)
+    # Check for dirty tracked files (modified but not staged)
+    REMAINING_DIRTY=$(git diff --name-only 2>/dev/null || true)
+    # Check for untracked files (not in .gitignore)
+    REMAINING_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null || true)
 
     if [ -n "$REMAINING_DIRTY" ] || [ -n "$REMAINING_UNTRACKED" ]; then
         echo "ERROR: Main repo has unexpected dirty files after merge. Fix before pushing."

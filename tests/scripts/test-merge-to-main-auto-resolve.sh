@@ -153,7 +153,33 @@ assert_eq "test_non_ticket_conflict_mentions_resume" "true" "$HAS_RESUME2"
 git -C "$ENV2/main" worktree remove --force "$ENV2/worktree" 2>/dev/null || true
 
 # =============================================================================
-# Test 3: bash -n syntax check
+# Test 3: v3 two-level ticket event path is auto-resolved (not treated as
+# non-archive conflict). Validates the case pattern matches <id>/<event>.json.
+# =============================================================================
+ENV3=$(setup_pull_conflict_env ".tickets-tracker/abc123/02-transition.json")
+WT3=$(cd "$ENV3/worktree" && pwd -P)
+
+MERGE_OUT3=$(cd "$WT3" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+# Should succeed — two-level ticket path must be auto-resolved, not block merge
+HAS_DONE3="false"
+if echo "$MERGE_OUT3" | grep -q "^DONE:"; then
+    HAS_DONE3="true"
+fi
+assert_eq "test_v3_two_level_ticket_path_auto_resolved" "true" "$HAS_DONE3"
+
+# Auto-resolve message must appear
+HAS_AUTO_MSG3="false"
+if echo "$MERGE_OUT3" | grep -qi "auto-resolved\|Ticket-data conflicts auto-resolved"; then
+    HAS_AUTO_MSG3="true"
+fi
+assert_eq "test_v3_two_level_ticket_path_reports_auto_resolve" "true" "$HAS_AUTO_MSG3"
+
+git -C "$ENV3/main" worktree remove --force "$ENV3/worktree" 2>/dev/null || true
+
+# =============================================================================
+# Test 4: bash -n syntax check
 # =============================================================================
 SYNTAX_OK=0
 bash -n "$MERGE_SCRIPT" 2>/dev/null && SYNTAX_OK=1
