@@ -126,7 +126,7 @@ _discover_suites() {
         for subdir in "$project_dir/$test_root"/*/; do
             [[ -d "$subdir" ]] || continue
             local has_test_files
-            has_test_files="$(find "$subdir" -maxdepth 1 -name 'test_*.py' -print -quit 2>/dev/null)"
+            has_test_files="$(find "$subdir" -maxdepth 1 -name 'test_*.py' 2>/dev/null | head -1)"
             if [[ -n "$has_test_files" ]]; then
                 local dirname
                 dirname="$(basename "$subdir")"

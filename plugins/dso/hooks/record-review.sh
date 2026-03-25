@@ -238,7 +238,7 @@ FILES_FROM_FINDINGS="${REMAINDER#*:}"
 
 # --- Validate files overlap with actual changed files ---
 # Build pathspec exclusions from config
-_RR_EXCLUDE=(':!.checkpoint-needs-review' ':!.sync-state.json')
+_RR_EXCLUDE=(':!.checkpoint-needs-review' ':!.sync-state.json' ':!.tickets-tracker/')
 if [[ -n "$CFG_VISUAL_BASELINE_PATH" ]]; then
     _RR_EXCLUDE+=(":!${CFG_VISUAL_BASELINE_PATH}*.png")
 fi

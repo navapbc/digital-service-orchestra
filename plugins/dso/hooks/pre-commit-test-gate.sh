@@ -121,6 +121,51 @@ if [[ -f "$_ALLOWLIST_FILE" ]] && declare -f _load_allowlist_patterns &>/dev/nul
     fi
 fi
 
+# ── Merge commit: filter out incoming-only files ───────────────────────────────
+# When MERGE_HEAD exists (e.g., `git merge --no-commit origin/main`), staged
+# files include changes from the incoming branch that were already reviewed
+# and merged on main. These incoming-only files should not require re-verification.
+#
+# Algorithm:
+#   1. Compute merge base between HEAD and MERGE_HEAD
+#   2. Get files changed on the worktree branch: merge-base..HEAD
+#   3. Filter STAGED_FILES to only include files that the worktree branch touched
+#   4. Files in staged but NOT in worktree-branch changes are incoming-only → exempt
+#
+# Fail-safe: if merge-base computation fails (e.g., fake MERGE_HEAD), fall
+# through to normal enforcement with the full staged file list.
+if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]]; then
+    _merge_head_sha=$(cat "$(git rev-parse --git-dir)/MERGE_HEAD" 2>/dev/null | head -1)
+    if [[ -n "$_merge_head_sha" ]]; then
+        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
+        _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+        _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
+        # Guard: MERGE_HEAD must resolve to a real commit different from HEAD.
+        # If MERGE_HEAD == HEAD (fake/self-referencing), skip filtering to prevent bypass.
+        # In a real merge, MERGE_HEAD points to the incoming branch tip (different from HEAD).
+        if [[ -n "$_merge_base" && -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
+            # Get files changed on the worktree branch (merge-base..HEAD)
+            _worktree_changed=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
+
+            # Filter staged files: keep only those that the worktree branch changed
+            _filtered_staged=()
+            for _sf in "${STAGED_FILES[@]}"; do
+                if echo "$_worktree_changed" | grep -qxF "$_sf" 2>/dev/null; then
+                    _filtered_staged+=("$_sf")
+                fi
+            done
+
+            # Replace STAGED_FILES with filtered list
+            STAGED_FILES=("${_filtered_staged[@]+"${_filtered_staged[@]}"}")
+
+            # If all staged files were incoming-only, nothing to check
+            if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
+                exit 0
+            fi
+        fi
+    fi
+fi
+
 # ── Read test directories from config ─────────────────────────────────────────
 # Supports TEST_GATE_TEST_DIRS_OVERRIDE for testing, falls back to dso-config.conf,
 # then defaults to "tests/"

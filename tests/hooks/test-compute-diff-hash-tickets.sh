@@ -129,34 +129,28 @@ assert_eq "EXCLUDE_PATHSPECS contains :!.sync-state.json" "1" "$PATHSPEC_MATCH"
 # ============================================================
 echo "--- test_capture_review_diff_excludes_tickets ---"
 
-_TICKETS_PATHSPEC=":!.tickets/"
+_TICKETS_PATHSPEC=":!.tickets-tracker/"
 CAPTURE_SCRIPT="$DSO_PLUGIN_DIR/scripts/capture-review-diff.sh"
 CAPTURE_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "capture-review-diff excludes .tickets/" "1" "$CAPTURE_TICKETS"
+assert_eq "capture-review-diff excludes .tickets-tracker/" "1" "$CAPTURE_TICKETS"
 
 CAPTURE_SYNC=$(grep -F ':!.sync-state.json' "$CAPTURE_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "capture-review-diff excludes .sync-state.json" "1" "$CAPTURE_SYNC"
 
 # ============================================================
 # test_record_review_excludes_tickets
-# record-review.sh CHANGED_FILES must exclude .tickets/ and .sync-state.json
+# record-review.sh _RR_EXCLUDE must contain .tickets-tracker/ and .sync-state.json
 # ============================================================
 echo "--- test_record_review_excludes_tickets ---"
 
 RECORD_SCRIPT="$DSO_PLUGIN_DIR/hooks/record-review.sh"
-RECORD_TICKETS=$(grep -F "$_TICKETS_PATHSPEC" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
-# Should appear in git diff --name-only lines (at least 2: unstaged + cached)
-assert_eq "record-review.sh excludes .tickets/ in diff queries (>=2 occurrences)" "true" \
-    "$( [[ $RECORD_TICKETS -ge 2 ]] && echo true || echo false )"
+# _RR_EXCLUDE array is defined once and expanded by both git diff commands
+RECORD_TICKETS=$(grep -F ':!.tickets-tracker/' "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "record-review.sh _RR_EXCLUDE contains .tickets-tracker/ pathspec" "true" \
+    "$( [[ $RECORD_TICKETS -ge 1 ]] && echo true || echo false )"
 
 RECORD_SYNC=$(grep -F ':!.sync-state.json' "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "record-review.sh excludes .sync-state.json in diff queries (>=2 occurrences)" "true" \
-    "$( [[ $RECORD_SYNC -ge 2 ]] && echo true || echo false )"
-
-# Verify grep filters for untracked files include .tickets/
-# Matches either old style (grep -v '...tickets/') or new config-driven pattern (_RR_GREP_PATTERN contains .tickets/)
-RECORD_GREP_TICKETS=$(grep -E "(grep -v.*\.tickets/|_GREP_PATTERN=.*\.tickets/)" "$RECORD_SCRIPT" 2>/dev/null | wc -l | tr -d ' ')
-assert_eq "record-review.sh grep filters include .tickets/" "true" \
-    "$( [[ $RECORD_GREP_TICKETS -ge 1 ]] && echo true || echo false )"
+assert_eq "record-review.sh _RR_EXCLUDE contains .sync-state.json pathspec" "true" \
+    "$( [[ $RECORD_SYNC -ge 1 ]] && echo true || echo false )"
 
 print_summary

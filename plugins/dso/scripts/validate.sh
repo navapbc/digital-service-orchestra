@@ -501,8 +501,7 @@ _test_state_already_passed() {
     # Compute the expected command hash so we can verify the state file
     # belongs to this command (not a different test command).
     local expected_hash
-    expected_hash=$(echo -n "${test_cmd}:$(pwd)" | sha256sum 2>/dev/null | awk '{print $1}' || \
-        echo -n "${test_cmd}:$(pwd)" | python3 -c "import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())")
+    expected_hash=$(python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())" "${test_cmd}:$(pwd)")
     python3 - "$expected_hash" "$state_file" <<PYEOF 2>/dev/null
 import json, sys
 expected_hash = sys.argv[1]
@@ -511,7 +510,7 @@ try:
     state = json.load(open(state_file))
     # Verify command hash matches — reject state from a different command.
     stored_hash = state.get("command_hash", "")
-    if stored_hash and stored_hash != expected_hash:
+    if not stored_hash or stored_hash != expected_hash:
         sys.exit(1)
     results = state.get("results", {})
     completed = state.get("completed", [])
