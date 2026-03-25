@@ -51,7 +51,7 @@ The size fields are emitted as part of the existing classifier JSON object along
 |---|---|---|
 | `none` | < 300 | Proceed normally — no size-based routing change |
 | `upgrade` | 300–599 | Upgrade the review model to opus at the current tier's scope (light → light-opus, standard → standard-opus, deep → deep-opus) |
-| `reject` | ≥ 600 | Emit rejection message to the user referencing `large-diff-splitting-guide.md`; do not dispatch any review agent |
+| `reject` | ≥ 600 | Emit rejection message to the user referencing `plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md`; do not dispatch any review agent |
 
 ---
 
