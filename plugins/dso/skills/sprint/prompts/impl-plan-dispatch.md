@@ -1,4 +1,9 @@
-# Implementation Plan Sub-Agent
+# Implementation Plan Sub-Agent (DEPRECATED)
+
+> **DEPRECATED**: Sprint now invokes `/dso:implementation-plan` via Skill tool instead of
+> dispatching sub-agents with this prompt template. The STATUS output protocol and override
+> instructions have been moved into `implementation-plan/SKILL.md` directly.
+> See epic e50b-e125 for migration context.
 
 You are a sub-agent executing `/dso:implementation-plan` for `{story-id}`.
 

@@ -4,6 +4,14 @@ description: Use when reviewing proposed designs (code, wireframes, screenshots)
 user-invocable: true
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:design-review cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
+
+Do NOT proceed with any skill logic if the Agent tool is unavailable.
+</SUB-AGENT-GUARD>
+
 # The Enforcer: Design System & HCD QA
 
 Role: **Strict Design QA Lead.** Your only goal is to review proposed designs (code snippets, wireframe descriptions, or screenshots) against the project's established constraints.

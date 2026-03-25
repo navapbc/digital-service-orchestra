@@ -20,13 +20,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
-TK="${TK:-$SCRIPT_DIR/tk}"
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository"
     exit 2
 fi
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
 # Source config-paths.sh for portable path resolution
 _CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
@@ -340,9 +340,15 @@ phase_full() {
         done
     fi
 
-    # Check for remaining open bugs (tk has no query command; grep ready+blocked for bug type)
+    # Check for remaining open bugs using v3 ticket CLI (list + JSON parse)
     local bugs
-    bugs=$( { "$TK" ready 2>/dev/null; "$TK" blocked 2>/dev/null; } | grep -i '\[.*bug.*\]' || echo "")
+    bugs=$("$TICKET_CMD" list 2>/dev/null | python3 -c "
+import json, sys
+tickets = json.load(sys.stdin)
+for t in tickets:
+    if t.get('ticket_type') == 'bug' and t.get('status') in ('open', 'in_progress'):
+        print(t['ticket_id'] + ' ' + t.get('title', ''))
+" || echo "")
     if [ -n "$bugs" ]; then
         echo "OPEN_BUGS:"
         echo "$bugs" | while IFS= read -r line; do

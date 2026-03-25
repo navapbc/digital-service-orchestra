@@ -3,6 +3,14 @@ name: validate-work
 description: Use when verifying project health after completing work, before closing tasks, or when you need confidence that code, CI, staging deployment, and live environment are all passing. Does not fix issues — only detects and reports them.
 ---
 
+<SUB-AGENT-GUARD>
+This skill requires the Agent tool to dispatch sub-agents. Before proceeding, check whether the Agent tool is available in your current context. If you cannot use the Agent tool (e.g., because you are running as a sub-agent dispatched via the Task tool), STOP IMMEDIATELY and return this error to your caller:
+
+"ERROR: /dso:validate-work cannot run in sub-agent context — it requires the Agent tool to dispatch its own sub-agents. Invoke this skill directly from the orchestrator instead."
+
+Do NOT proceed with any skill logic if the Agent tool is unavailable.
+</SUB-AGENT-GUARD>
+
 # Validate Work
 
 Comprehensive project health verification using parallel sub-agents. Detects issues across local checks, CI, staging deployment, and live environment — but does NOT fix them. Reports a pass/fail summary with actionable details for each failure.

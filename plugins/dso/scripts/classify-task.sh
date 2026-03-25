@@ -48,39 +48,23 @@ fi
 
 task_ids=()
 
+# Resolve ticket CLI once, before both the --from-epic and direct-task-ID paths.
+TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
+
 if [ "$1" = "--from-epic" ]; then
     epic_id="${2:?Missing epic ID}"
 
-    # Determine whether to use v3 (event-sourced) or v2 (.md files) for parent filtering.
-    # Priority: explicit TICKETS_DIR env (v2) > explicit TICKETS_TRACKER_DIR env (v3) >
-    #           auto-detect based on .tickets-tracker/ existence.
-    _use_v3=false
-    if [ -n "${TICKETS_DIR:-}" ]; then
-        _use_v3=false
-    elif [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
-        _use_v3=true
-    elif [ -d "$REPO_ROOT/.tickets-tracker" ]; then
-        _use_v3=true
-    fi
-
-    # Use tk ready to list open/in-progress tickets, then filter by parent field.
-    # v3: use `ticket show <id>` JSON and check parent_id field.
-    # v2: use .tickets/$id.md file grep (backward compat).
+    # Use v3 ticket list + filter by parent_id and open/in_progress status.
     while IFS= read -r tid; do
         [ -n "$tid" ] && task_ids+=("$tid")
-    done < <(tk ready 2>/dev/null | awk '{print $1}' \
-        | while read -r id; do
-            if $_use_v3; then
-                parent=$(ticket show "$id" 2>/dev/null \
-                    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('parent_id',''))" 2>/dev/null || echo "")
-                [ "$parent" = "$epic_id" ] && echo "$id"
-            else
-                ticket_file="$REPO_ROOT/.tickets/$id.md"
-                if [ -f "$ticket_file" ] && grep -q "parent: $epic_id" "$ticket_file" 2>/dev/null; then
-                    echo "$id"
-                fi
-            fi
-          done || true)
+    done < <("$TICKET_CMD" list 2>/dev/null | python3 -c "
+import json, sys
+tickets = json.load(sys.stdin)
+epic_id = sys.argv[1]
+for t in tickets:
+    if t.get('parent_id') == epic_id and t.get('status') in ('open', 'in_progress', 'ready'):
+        print(t['ticket_id'])
+" "$epic_id" || true)
 
     if [ ${#task_ids[@]} -eq 0 ]; then
         echo "[]"
@@ -90,29 +74,31 @@ else
     task_ids=("$@")
 fi
 
-# --- Collect task JSON via tk show ---
-# tk show returns markdown output which we parse into a JSON object.
+# --- Collect task JSON via ticket show ---
+# ticket show returns JSON which we parse into the expected classification object.
 tasks_json="["
 first=true
 for task_id in "${task_ids[@]}"; do
-    raw=$(tk show "$task_id" 2>/dev/null || echo "")
+    raw=$("$TICKET_CMD" show "$task_id" 2>/dev/null || echo "")
     if [ -z "$raw" ]; then
         entry="{\"id\":\"$task_id\",\"error\":\"Task not found\"}"
     else
         entry=$( echo "$raw" | "$PYTHON" -c "
-import sys, re, json
+import sys, json
 content = sys.stdin.read()
-# Extract title from first # heading
-title_match = re.search(r'^# (.+)', content, re.MULTILINE)
-# Extract type from YAML front-matter (e.g. 'type: bug')
-type_match = re.search(r'^type:\s*(\S+)', content, re.MULTILINE)
-obj = {
-    'id': sys.argv[1],
-    'title': title_match.group(1) if title_match else '',
-    'task_type': type_match.group(1) if type_match else '',
-    'raw': content,
-}
-print(json.dumps(obj))
+try:
+    d = json.loads(content)
+    title = d.get('title', '')
+    task_type = d.get('ticket_type', '')
+    obj = {
+        'id': sys.argv[1],
+        'title': title,
+        'task_type': task_type,
+        'raw': json.dumps(d),
+    }
+    print(json.dumps(obj))
+except Exception:
+    print(json.dumps({'id': sys.argv[1], 'error': 'Parse error'}))
 " "$task_id" 2>/dev/null || echo "{\"id\":\"$task_id\",\"error\":\"Parse error\"}" )
     fi
 
