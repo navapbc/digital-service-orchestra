@@ -647,4 +647,28 @@ HAS_TICKETS_DIR_V2=$(grep -cE 'TICKETS_DIR.*=.*"?\.tickets"?' "$MERGE_SCRIPT" ||
 assert_eq "test_merge_to_main_no_TICKETS_DIR_tickets_path" "0" "$HAS_TICKETS_DIR_V2"
 
 # =============================================================================
+# Test: _phase_version_bump checks for already-modified version file before bumping
+# Bug 6ea9-a2af: if bump-version.sh ran but git commit --amend failed, resume
+# would call bump-version.sh again (double-bump). The fix is to check whether the
+# version file is already modified before bumping.
+# =============================================================================
+echo "--- test_version_bump_idempotent_guard ---"
+_snapshot_fail
+# Look for a guard in _phase_version_bump that checks if version file is already modified
+# before calling bump-version.sh. The pattern: git diff or similar check before bump-version.sh
+_has_already_bumped_guard=0
+# Extract _phase_version_bump function body and check for a pre-bump guard
+# that detects an already-modified version file before calling bump-version.sh.
+# Must reference "already bumped" or check git diff on the version file.
+_vb_body=$(sed -n '/_phase_version_bump()/,/^}/p' "$MERGE_SCRIPT")
+# The pattern must appear AFTER the resume-skip block and BEFORE bump-version.sh call.
+# Filter out the "already completed (resume skip)" line — that's the state-file check, not the file-level guard.
+if echo "$_vb_body" | grep -v "resume skip" | grep -qE 'already.*bump|git diff.*version|version.*file.*modif'; then
+    _has_already_bumped_guard=1
+fi
+assert_eq "test_version_bump_idempotent_guard: _phase_version_bump must check if version already bumped before calling bump-version.sh" \
+    "1" "$_has_already_bumped_guard"
+assert_pass_if_clean "test_version_bump_idempotent_guard"
+
+# =============================================================================
 print_summary
