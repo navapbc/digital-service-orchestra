@@ -511,7 +511,7 @@ try:
     state = json.load(open(state_file))
     # Verify command hash matches — reject state from a different command.
     stored_hash = state.get("command_hash", "")
-    if stored_hash and stored_hash != expected_hash:
+    if not stored_hash or stored_hash != expected_hash:
         sys.exit(1)
     results = state.get("results", {})
     completed = state.get("completed", [])
