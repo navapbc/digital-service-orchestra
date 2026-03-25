@@ -37,17 +37,17 @@ for placeholder in epic-title epic-description story-map red-team-findings; do
 done
 
 echo ""
-echo "=== SKILL.md references correct prompt file paths ==="
-if grep -q "prompts/red-team-review.md" "$SKILL_MD"; then
-  pass "SKILL.md references prompts/red-team-review.md"
+echo "=== SKILL.md references dedicated agent dispatch ==="
+if grep -q "dso:red-team-reviewer" "$SKILL_MD"; then
+  pass "SKILL.md dispatches dso:red-team-reviewer dedicated agent"
 else
-  fail "SKILL.md missing reference to prompts/red-team-review.md"
+  fail "SKILL.md missing dso:red-team-reviewer dispatch"
 fi
 
-if grep -q "prompts/blue-team-review.md" "$SKILL_MD"; then
-  pass "SKILL.md references prompts/blue-team-review.md"
+if grep -q "dso:blue-team-filter" "$SKILL_MD"; then
+  pass "SKILL.md dispatches dso:blue-team-filter dedicated agent"
 else
-  fail "SKILL.md missing reference to prompts/blue-team-review.md"
+  fail "SKILL.md missing dso:blue-team-filter dispatch"
 fi
 
 echo ""

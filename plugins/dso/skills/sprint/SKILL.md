@@ -1046,6 +1046,13 @@ Do NOT merge to main here — merging to main happens only at epic completion in
 
 After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
 
+Before closing each task, dispatch the completion verifier to check done definitions:
+- Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID
+- The agent reads done definitions via `.claude/scripts/dso ticket show`
+- If the agent returns `overall_verdict: PASS`: proceed with closure
+- If the agent returns `overall_verdict: FAIL`: do NOT close the story. For each entry in `remediation_tasks_created`, create a bug task via `.claude/scripts/dso ticket create`. Return to Phase 3.
+- **Fallback**: If the agent times out, returns unparseable JSON, or fails to include `overall_verdict`, log a warning and proceed with closure — the completion verifier is a defense-in-depth gate, not a hard blocker. Phase 7's validate-work provides the next verification layer.
+
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
 .claude/scripts/dso ticket transition <id> open closed
@@ -1208,6 +1215,16 @@ When E2E tests fail, follow `prompts/test-failure-dispatch-protocol.md` with the
 - `context`: `sprint-e2e`
 
 On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as child of epic, return to Phase 3.
+
+### Step 0.75: Completion Verification (/dso:sprint)
+
+Before running `/dso:validate-work`, verify all success criteria are met:
+
+1. Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID
+2. The agent reads success criteria from the epic description
+3. If `overall_verdict: PASS`: proceed to Step 1
+4. If `overall_verdict: FAIL`: For each entry in `remediation_tasks_created`, create a bug task. Return to Phase 3 for remediation.
+5. **Fallback**: If the agent times out, returns unparseable JSON, or fails to include `overall_verdict`, log a warning and proceed to Step 1 — validate-work provides the next verification layer.
 
 ### Step 1: Run /dso:validate-work (/dso:sprint)
 
