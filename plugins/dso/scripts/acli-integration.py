@@ -274,7 +274,7 @@ def update_issue(
         transition_issue(jira_key, status, acli_cmd=acli_cmd)
 
     if not kwargs:
-        # Only a status change was requested — return the transition result
+        # No editable fields remain (status/priority were already handled above)
         if status is not None:
             return {"key": jira_key, "status": status}
         return {"key": jira_key}
