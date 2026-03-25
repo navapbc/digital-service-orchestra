@@ -108,6 +108,10 @@ def create_issue(
         summary,
         "--json",
     ]
+    # Forward optional fields to the ACLI create command
+    for field in ("description", "priority", "assignee"):
+        if field in kwargs and kwargs[field] is not None:
+            cmd.extend([f"--{field}", str(kwargs[field])])
     result = _run_acli(cmd, acli_cmd=acli_cmd)
     created = json.loads(result.stdout)
 
@@ -290,13 +294,23 @@ class AcliClient:
     def create_issue(self, ticket_data: dict[str, Any]) -> dict[str, Any]:
         """Create a Jira issue from a ticket data dict.
 
-        Uses self.jira_project as the project key. Extracts ticket_type and
-        title from ticket_data (matching the CREATE event data schema).
+        Uses self.jira_project as the project key. Extracts ticket_type,
+        title, description, priority, and assignee from ticket_data
+        (matching the CREATE event data schema).
         """
         project = self.jira_project
         issue_type = ticket_data.get("ticket_type", "Task").capitalize()
         summary = ticket_data.get("title", "")
-        return create_issue(project, issue_type, summary, acli_cmd=self._acli_cmd)
+        optional_fields: dict[str, Any] = {}
+        if ticket_data.get("description"):
+            optional_fields["description"] = ticket_data["description"]
+        if ticket_data.get("priority") is not None:
+            optional_fields["priority"] = ticket_data["priority"]
+        if ticket_data.get("assignee"):
+            optional_fields["assignee"] = ticket_data["assignee"]
+        return create_issue(
+            project, issue_type, summary, acli_cmd=self._acli_cmd, **optional_fields
+        )
 
     def update_issue(self, jira_key: str, **kwargs: Any) -> dict[str, Any]:
         """Update a Jira issue via ACLI."""

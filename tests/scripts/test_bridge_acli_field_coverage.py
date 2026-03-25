@@ -72,11 +72,6 @@ class TestAcliClientCreateFieldExtraction:
         type_idx = create_cmd.index("--type")
         assert create_cmd[type_idx + 1] == "Bug"  # capitalized
 
-    @pytest.mark.xfail(
-        reason="AcliClient.create_issue() only extracts ticket_type and title; "
-        "description is silently dropped (acli-integration.py:290-299)",
-        strict=True,
-    )
     def test_acli_create_sends_description(
         self, acli_mod: Any, acli_capture: Any
     ) -> None:
@@ -103,11 +98,6 @@ class TestAcliClientCreateFieldExtraction:
             f"ACLI create command should include --description flag. Got: {create_cmd}"
         )
 
-    @pytest.mark.xfail(
-        reason="AcliClient.create_issue() only extracts ticket_type and title; "
-        "priority is silently dropped (acli-integration.py:290-299)",
-        strict=True,
-    )
     def test_acli_create_sends_priority(self, acli_mod: Any, acli_capture: Any) -> None:
         """AcliClient.create_issue() should send the priority to ACLI."""
         client, captured_cmds, fake_run_acli = acli_capture
@@ -132,11 +122,6 @@ class TestAcliClientCreateFieldExtraction:
             f"ACLI create command should include --priority flag. Got: {create_cmd}"
         )
 
-    @pytest.mark.xfail(
-        reason="AcliClient.create_issue() only extracts ticket_type and title; "
-        "assignee is silently dropped (acli-integration.py:290-299)",
-        strict=True,
-    )
     def test_acli_create_sends_assignee(self, acli_mod: Any, acli_capture: Any) -> None:
         """AcliClient.create_issue() should send the assignee to ACLI."""
         client, captured_cmds, fake_run_acli = acli_capture

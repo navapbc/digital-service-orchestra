@@ -20,11 +20,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bridge_test_helpers import BRIDGE_ENV_ID, write_sync
+from bridge_test_helpers import BRIDGE_ENV_ID, make_create_event, write_sync
 
 
 class TestInboundTitle:
@@ -323,3 +323,163 @@ class TestInboundStatusUnmappedAlert:
         alert_data = json.loads(alert_path.read_text(encoding="utf-8"))
         assert alert_data["event_type"] == "BRIDGE_ALERT"
         assert "Weird Status" in alert_data["reason"]
+
+
+class TestInboundEditEventPath:
+    """Test that process_inbound writes EDIT events when Jira fields differ from local state."""
+
+    def test_edit_events_for_changed_priority_assignee_title(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """process_inbound should write EDIT events when priority, assignee, and title change."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-1"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # Create initial ticket state: priority=2, assignee="Alice", title="Original"
+        make_create_event(
+            ticket_dir,
+            title="Original Title",
+            ticket_type="bug",
+            priority=2,
+            assignee="Alice",
+            description="Some description",
+        )
+        write_sync(ticket_dir, "DSO-EDIT-1")
+
+        # Jira issue with changed fields:
+        # priority: Medium(2) -> High(1), assignee: Alice -> Bob, title: changed
+        jira_issue = {
+            "key": "DSO-EDIT-1",
+            "fields": {
+                "summary": "Updated Title",
+                "description": "Some description",
+                "priority": {"name": "High"},
+                "assignee": {"displayName": "Bob", "emailAddress": "bob@example.com"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {
+                "Open": "open",
+                "In Progress": "in_progress",
+                "Done": "closed",
+            },
+            "type_mapping": {
+                "Bug": "bug",
+                "Story": "story",
+                "Task": "task",
+                "Epic": "epic",
+            },
+            "run_id": "test-run",
+        }
+
+        # Patch fetch_jira_changes to return our crafted issue
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # Verify EDIT event was written
+        edit_files = list(ticket_dir.glob("*-EDIT.json"))
+        assert len(edit_files) >= 1, (
+            f"Expected at least 1 EDIT event file. Found: {[f.name for f in edit_files]}"
+        )
+
+        # Read EDIT event and check fields
+        edit_data = json.loads(edit_files[0].read_text(encoding="utf-8"))
+        assert edit_data["event_type"] == "EDIT"
+        edited_fields = edit_data.get("data", {}).get("fields", {})
+
+        # Priority should change from 2 (Medium) to 1 (High)
+        assert "priority" in edited_fields, (
+            f"EDIT event should include priority change. Got fields: {list(edited_fields.keys())}"
+        )
+        assert edited_fields["priority"] == 1
+
+        # Assignee should change from Alice to Bob
+        assert "assignee" in edited_fields, (
+            f"EDIT event should include assignee change. Got fields: {list(edited_fields.keys())}"
+        )
+        assert edited_fields["assignee"] == "Bob"
+
+        # Title should change from Original Title to Updated Title
+        assert "title" in edited_fields, (
+            f"EDIT event should include title change. Got fields: {list(edited_fields.keys())}"
+        )
+        assert edited_fields["title"] == "Updated Title"
+
+    def test_no_edit_event_when_fields_unchanged(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """process_inbound should NOT write EDIT events when fields match local state."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-2"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # Create initial ticket with priority=1 (High), assignee="Bob", title="Same"
+        make_create_event(
+            ticket_dir,
+            title="Same Title",
+            ticket_type="bug",
+            priority=1,
+            assignee="Bob",
+            description="Unchanged desc",
+        )
+        write_sync(ticket_dir, "DSO-EDIT-2")
+
+        # Jira issue with same values
+        jira_issue = {
+            "key": "DSO-EDIT-2",
+            "fields": {
+                "summary": "Same Title",
+                "description": "Unchanged desc",
+                "priority": {"name": "High"},
+                "assignee": {"displayName": "Bob"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_server_info.return_value = {"timeZone": "UTC"}
+
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # No EDIT events should be written
+        edit_files = list(ticket_dir.glob("*-EDIT.json"))
+        assert len(edit_files) == 0, (
+            f"Expected 0 EDIT events when fields are unchanged. Found: {len(edit_files)}"
+        )

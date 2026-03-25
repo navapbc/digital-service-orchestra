@@ -367,23 +367,23 @@ class TestOutboundEditFields:
     #      the new reality.
     #   2. Without strict=True, silently passing cases would hide real
     #      implementation changes from the test suite.
-    # This is a CI invariant: when EDIT support is added, update or remove
-    # the xfail markers for the newly supported fields.
-    @pytest.mark.xfail(
-        reason="bridge-outbound.py does not handle EDIT events — only CREATE, "
-        "STATUS, and COMMENT are processed by process_outbound()",
-        strict=True,
-    )
     @pytest.mark.parametrize(
-        "field,value",
+        "field,value,expected_jira_field,expected_jira_value",
         [
-            ("title", "Updated Title"),
-            ("priority", 0),
-            ("assignee", "bob"),
+            # title maps to "summary" in Jira
+            ("title", "Updated Title", "summary", "Updated Title"),
+            ("priority", 0, "priority", "Highest"),
+            ("assignee", "bob", "assignee", "bob"),
         ],
     )
     def test_edit_event_pushes_field_to_jira(
-        self, outbound: ModuleType, tmp_path: Path, field: str, value: Any
+        self,
+        outbound: ModuleType,
+        tmp_path: Path,
+        field: str,
+        value: Any,
+        expected_jira_field: str,
+        expected_jira_value: str,
     ) -> None:
         """EDIT event should push field updates to Jira."""
         tracker = tmp_path / ".tickets-tracker"
@@ -417,20 +417,19 @@ class TestOutboundEditFields:
             bridge_env_id=BRIDGE_ENV_ID,
         )
 
-        assert mock_acli.update_issue.called or mock_acli.create_issue.called, (
-            f"OUTBOUND EDIT should trigger an update call to Jira for field '{field}'. "
-            f"Neither update_issue nor create_issue was called."
+        assert mock_acli.update_issue.called, (
+            f"OUTBOUND EDIT should trigger update_issue for field '{field}'."
         )
-        # Verify the specific field was forwarded when update_issue was called
-        if mock_acli.update_issue.called:
-            call_args = mock_acli.update_issue.call_args
-            call_kwargs = call_args[1] if call_args[1] else {}
-            # Strict check: the field must appear as an exact keyword argument
-            # with the exact expected value.
-            assert field in call_kwargs and call_kwargs[field] == value, (
-                f"OUTBOUND EDIT called update_issue but field '{field}' with value "
-                f"{value!r} was not in kwargs (or had wrong value). Got: {call_kwargs}"
-            )
+        call_args = mock_acli.update_issue.call_args
+        call_kwargs = call_args[1] if call_args[1] else {}
+        assert expected_jira_field in call_kwargs, (
+            f"OUTBOUND EDIT should send '{expected_jira_field}' to Jira. "
+            f"Got kwargs: {call_kwargs}"
+        )
+        assert call_kwargs[expected_jira_field] == expected_jira_value, (
+            f"OUTBOUND EDIT should send {expected_jira_field}='{expected_jira_value}'. "
+            f"Got: {call_kwargs[expected_jira_field]!r}"
+        )
 
 
 # ===========================================================================

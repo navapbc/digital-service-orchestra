@@ -35,6 +35,15 @@ _EVENT_FILE_RE = re.compile(
     r"^\.tickets-tracker/([^/]+)/(\d+)-([0-9a-f-]+)-([A-Z]+)\.json$"
 )
 
+# Local priority integer (0-4) → Jira priority name
+_LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
+    0: "Highest",
+    1: "High",
+    2: "Medium",
+    3: "Low",
+    4: "Lowest",
+}
+
 
 # ---------------------------------------------------------------------------
 # Module loading helpers
@@ -583,6 +592,50 @@ def process_outbound(
                 dedup_map["uuid_to_jira_id"] = uuid_to_jira
                 dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
                 _write_dedup_map(ticket_dir, dedup_map)
+
+        elif event_type == "EDIT":
+            # Read event file to get edited fields and env_id
+            event_data = _read_event_file(event.get("file_path", ""))
+            if not event_data:
+                continue
+
+            # Echo prevention: skip bridge-originated edits
+            event_env_id = event_data.get("env_id", "")
+            if event_env_id == bridge_env_id:
+                continue
+
+            # Must have an existing SYNC event to know the Jira key
+            sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
+            if not sync_files:
+                continue
+
+            sync_data = _read_event_file(sync_files[-1])
+            if not sync_data:
+                continue
+            jira_key = sync_data.get("jira_key", "")
+            if not jira_key:
+                continue
+
+            # Extract edited fields and push to Jira
+            edited_fields = event_data.get("data", {}).get("fields", {})
+            if edited_fields:
+                # Map local field names to ACLI update kwargs
+                update_kwargs: dict[str, Any] = {}
+                for field_name, field_value in edited_fields.items():
+                    if field_name == "title":
+                        update_kwargs["summary"] = str(field_value)
+                    elif field_name == "priority":
+                        # Convert local integer (0-4) to Jira priority name
+                        if isinstance(field_value, int):
+                            jira_pri_name = _LOCAL_PRIORITY_TO_JIRA.get(field_value)
+                            if jira_pri_name:
+                                update_kwargs["priority"] = jira_pri_name
+                        else:
+                            update_kwargs["priority"] = str(field_value)
+                    elif field_name in ("assignee", "description"):
+                        update_kwargs[field_name] = str(field_value)
+                if update_kwargs:
+                    acli_client.update_issue(jira_key, **update_kwargs)
 
     return syncs_written
 
