@@ -50,6 +50,61 @@ Schema: `docs/workflow-config-schema.json`
 
 ---
 
+### `paths.app_dir`
+
+| | |
+|---|---|
+| **Description** | Application directory, relative to the repo root. Controls where hooks, scripts, and skills look for source code, tests, and virtual environments. |
+| **Accepted values** | Relative directory path (e.g., `app`, `.`, `backend`) |
+| **Default** | `app` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/validate.sh`, `plugins/dso/scripts/agent-batch-lifecycle.sh`, `plugins/dso/scripts/retro-gather.sh` |
+
+---
+
+### `paths.src_dir`
+
+| | |
+|---|---|
+| **Description** | Source code directory, relative to `paths.app_dir`. Used for file impact analysis and auto-format scope. |
+| **Accepted values** | Relative directory path (e.g., `src`, `lib`) |
+| **Default** | `src` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` |
+
+---
+
+### `paths.test_dir`
+
+| | |
+|---|---|
+| **Description** | Test directory, relative to `paths.app_dir`. Used for test file discovery, snapshot paths, and file impact analysis. |
+| **Accepted values** | Relative directory path (e.g., `tests`, `test`) |
+| **Default** | `tests` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` |
+
+---
+
+### `paths.test_unit_dir`
+
+| | |
+|---|---|
+| **Description** | Unit test directory, relative to `paths.app_dir`. Used for targeted test discovery when distinguishing unit from integration tests. |
+| **Accepted values** | Relative directory path (e.g., `tests/unit`) |
+| **Default** | Absent — falls back to `paths.test_dir` |
+| **Used by** | `plugins/dso/scripts/sprint-next-batch.sh` |
+
+---
+
+### `interpreter.python_venv`
+
+| | |
+|---|---|
+| **Description** | Path to the Python virtual environment interpreter, relative to the repo root. Used to locate the correct Python binary for running scripts and tests. |
+| **Accepted values** | Relative file path (e.g., `app/.venv/bin/python3`, `.venv/bin/python3`) |
+| **Default** | `app/.venv/bin/python3` |
+| **Used by** | `plugins/dso/hooks/lib/config-paths.sh`, `plugins/dso/scripts/sprint-next-batch.sh` |
+
+---
+
 ### `format.extensions`
 
 | | |
@@ -447,6 +502,28 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `worktree.branch_pattern`
+
+| | |
+|---|---|
+| **Description** | Git branch naming pattern for worktree validation and cleanup. Used to identify branches created by worktree workflows during automated cleanup. |
+| **Accepted values** | Branch name pattern (e.g., `worktree-*`) |
+| **Default** | Absent — cleanup uses default heuristics |
+| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` |
+
+---
+
+### `worktree.max_age_days`
+
+| | |
+|---|---|
+| **Description** | Maximum age in days for automatic worktree cleanup. Worktrees older than this threshold are candidates for removal. Overridden by `AGE_DAYS` env var. |
+| **Accepted values** | Positive integer |
+| **Default** | `2` |
+| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` |
+
+---
+
 ### `infrastructure.container_prefix`
 
 | | |
@@ -568,6 +645,17 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `infrastructure.compose_db_file`
+
+| | |
+|---|---|
+| **Description** | Docker Compose file specifically for database services. Used by worktree cleanup to tear down database containers. When absent but `infrastructure.compose_project` or `infrastructure.container_prefix` is set, a partial-config warning is emitted and Docker cleanup is skipped. |
+| **Accepted values** | Relative path to a Compose file (e.g., `docker-compose.db.yml`) |
+| **Default** | Absent — Docker DB cleanup skipped |
+| **Used by** | `plugins/dso/scripts/worktree-cleanup.sh` |
+
+---
+
 ### `session.usage_check_cmd`
 
 | | |
@@ -609,6 +697,28 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Accepted values** | Any shell command string (e.g., `python3 scripts/check_assertion_density.py`) |
 | **Default** | Absent — scored null |
 | **Used by** | `/dso:sprint` retro review |
+
+---
+
+### `review.max_resolution_attempts`
+
+| | |
+|---|---|
+| **Description** | Maximum number of autonomous fix/defend attempts the review resolution loop makes before escalating to the user. Controls the Autonomous Resolution Loop in REVIEW-WORKFLOW.md, test-failure delegation in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md, and the oscillation-check safety bounds. |
+| **Accepted values** | Positive integer |
+| **Default** | `5` |
+| **Used by** | `REVIEW-WORKFLOW.md` (Autonomous Resolution Loop), `COMMIT-WORKFLOW.md` (Steps 1, 1.5), `TEST-FAILURE-DISPATCH.md`, `/dso:oscillation-check` |
+
+---
+
+### `review.behavioral_patterns`
+
+| | |
+|---|---|
+| **Description** | Semicolon-delimited glob list of file patterns the review complexity classifier treats as behavioral (full scoring weight). Files matching these patterns receive higher blast_radius and critical_path scores, making them more likely to route to standard or deep review tiers. |
+| **Accepted values** | Semicolon-delimited glob patterns (e.g., `plugins/dso/skills/**;plugins/dso/hooks/**`) |
+| **Default** | Absent — classifier uses built-in heuristics only |
+| **Used by** | `plugins/dso/scripts/review-complexity-classifier.sh` |
 
 ---
 
@@ -705,6 +815,28 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Accepted values** | URL path string (e.g., `/health`, `/api/health`) |
 | **Default** | `/health` |
 | **Used by** | Validate-work skill, `.claude/scripts/dso staging-smoke-test.sh` |
+
+---
+
+### `persistence.source_patterns`
+
+| | |
+|---|---|
+| **Description** | Literal substring patterns (grep -F) for identifying persistence/data-layer source files. Used by the persistence coverage check to verify that data-layer code has corresponding integration tests. Repeatable key. |
+| **Accepted values** | File path substrings (e.g., `src/core/data_store.py`, `src/adapters/db/`) |
+| **Default** | Absent — persistence coverage check skipped |
+| **Used by** | `plugins/dso/scripts/check-persistence-coverage.sh` |
+
+---
+
+### `persistence.test_patterns`
+
+| | |
+|---|---|
+| **Description** | Extended regex patterns (grep -E) for identifying persistence integration test files. Paired with `persistence.source_patterns` to validate coverage. Repeatable key. |
+| **Accepted values** | Extended regex patterns (e.g., `tests/integration/.*test_.*_db_roundtrip`) |
+| **Default** | Absent — persistence coverage check skipped |
+| **Used by** | `plugins/dso/scripts/check-persistence-coverage.sh` |
 
 ---
 

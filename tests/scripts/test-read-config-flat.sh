@@ -41,6 +41,7 @@ staging.url=http://example.com/stage?mode=full&env=prod
 merge.message_exclusion_pattern=^chore: post-merge cleanup
 database.base_port=5432
 inline.equals.value=a=b=c
+review.max_resolution_attempts=3
 CONF
 
 
@@ -127,6 +128,26 @@ _snapshot_fail
 actual=$(bash "$SCRIPT" inline.equals.value "$FIXTURE_CONF")
 assert_eq "test_inline_values_with_equals" "a=b=c" "$actual"
 assert_pass_if_clean "test_inline_values_with_equals"
+
+# ── test_review_max_resolution_attempts ────────────────────────────────────────
+# Reads the review.max_resolution_attempts numeric config key.
+_snapshot_fail
+actual=$(bash "$SCRIPT" review.max_resolution_attempts "$FIXTURE_CONF")
+assert_eq "test_review_max_resolution_attempts" "3" "$actual"
+assert_pass_if_clean "test_review_max_resolution_attempts"
+
+# ── test_review_max_resolution_attempts_default ───────────────────────────────
+# When review.max_resolution_attempts is absent, scalar mode returns empty (caller applies default).
+_snapshot_fail
+NO_REVIEW_CONF="$TMPDIR_FIXTURE/no-review.conf"
+cat > "$NO_REVIEW_CONF" <<'CONF2'
+commands.test=make test
+CONF2
+actual=$(bash "$SCRIPT" review.max_resolution_attempts "$NO_REVIEW_CONF")
+rc=$?
+assert_eq "test_review_max_resolution_attempts_default value" "" "$actual"
+assert_eq "test_review_max_resolution_attempts_default exit" "0" "$rc"
+assert_pass_if_clean "test_review_max_resolution_attempts_default"
 
 # ── test_no_yaml_fallback ─────────────────────────────────────────────────────
 # When the specified config file does not exist, script exits 0 with empty output.
