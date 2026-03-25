@@ -2,7 +2,7 @@
 # Maps source files to test files that fuzzy match misses.
 # Format: source/path: test/path1[, test/path2...]
 
-CLAUDE.md: tests/scripts/test-no-v2-refs-in-claude-md.sh [test_no_tk_cmd_in_claude_md]
+CLAUDE.md: tests/scripts/test-no-v2-refs-in-claude-md.sh
 plugins/dso/.claude-plugin/plugin.json:tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/hooks/test-plugin-docs.sh,tests/hooks/test-hooks-json-paths.sh,tests/hooks/test-run-hook-relative-paths.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-check-plugin-test-needed.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh
 plugins/dso/hooks/cascade-circuit-breaker.sh:tests/hooks/test-cascade-breaker.sh [test_cascade_breaker_no_tickets_v2_passthrough]
 plugins/dso/hooks/review-stop-check.sh:tests/hooks/test-review-stop.sh,tests/hooks/test-review-stop-check.sh [test_review_stop_no_tickets_v2_skip]
