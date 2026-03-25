@@ -36,33 +36,33 @@ _skip_no_pyyaml() {
     (( PASS++ ))  # count as pass so the suite doesn't fail
 }
 
-# ── Set up mock ticket environment for tests that call classify-task.sh ─────
+# ── Set up v3 ticket CLI stub environment for tests that call classify-task.sh ─
 _MOCK_ENV="$(mktemp -d)"
 _CLEANUP_DIRS+=("$_MOCK_ENV")
 
-_MOCK_TICKETS_DIR="$_MOCK_ENV/.tickets"
-mkdir -p "$_MOCK_TICKETS_DIR"
-
-# Create a mock ticket file that tk show can read
-cat > "$_MOCK_TICKETS_DIR/mock-test-ticket-abc12.md" <<'TICKET'
----
-id: mock-test-ticket-abc12
-status: ready
-type: story
----
-# Implement widget configuration parser
-
-Parse the YAML configuration files and generate typed settings objects.
-TICKET
-
-# Export TICKETS_DIR so the plugin's tk script finds our mock .tickets/
-export TICKETS_DIR="$_MOCK_TICKETS_DIR"
-
-# Put the plugin's scripts dir on PATH so classify-task.sh finds tk
-export PATH="$DSO_PLUGIN_DIR/scripts:$PATH"
-
-# Use the mock ticket ID for tests that need a valid task
 _MOCK_TASK_ID="mock-test-ticket-abc12"
+
+# Create a v3 ticket CLI stub that responds to `ticket show <id>` and `ticket list`.
+# This exercises the v3 JSON path that classify-task.sh actually uses.
+cat > "$_MOCK_ENV/ticket" <<STUB
+#!/usr/bin/env bash
+SUBCOMMAND="\$1"; shift
+case "\$SUBCOMMAND" in
+    show)
+        echo '{"ticket_id":"$_MOCK_TASK_ID","title":"Implement widget configuration parser","ticket_type":"story","status":"ready","priority":2}'
+        ;;
+    list)
+        echo '[{"ticket_id":"$_MOCK_TASK_ID","title":"Implement widget configuration parser","ticket_type":"story","status":"ready"}]'
+        ;;
+    *)
+        echo "[]"
+        ;;
+esac
+STUB
+chmod +x "$_MOCK_ENV/ticket"
+
+# Point classify-task.sh to the stub so it uses the v3 JSON path.
+export TICKET_CMD="$_MOCK_ENV/ticket"
 
 echo "=== test-classify-task.sh ==="
 
@@ -173,9 +173,8 @@ else
 fi
 
 
-# ── TDD RED Phase: bd→tk migration tests ──────────────────────────────────────
-# These tests assert tk-based behavior. They FAIL against the current bd-based
-# implementation and will PASS once classify-task.sh is migrated to use tk.
+# ── Routing correctness tests ─────────────────────────────────────────────────
+# These tests assert v3 ticket-CLI-based routing behavior.
 # ── Test: Bug-type tasks never route to read-only agents ─────────────────────
 echo "Test: Bug-type tasks never route to code-explorer (read-only)"
 if ! $_HAS_PYYAML; then
@@ -230,27 +229,27 @@ else
 fi
 
 echo ""
-echo "=== TDD RED Phase: bd→tk migration tests ==="
+echo "=== v3 ticket CLI integration tests ==="
 
-# Helper: create a controlled TICKETS_DIR with a fake tk stub that records calls
+# Helper: create a temp dir with a fake ticket stub that records calls
 _setup_migration_test_env() {
     local tmpdir
     tmpdir="$(mktemp -d)"
     _CLEANUP_DIRS+=("$tmpdir")
 
-    # Fake tk: records invocation to a log file, returns empty JSON array
-    cat > "$tmpdir/tk" <<'STUB'
+    # Fake ticket: records invocation to a log file, returns empty JSON array
+    cat > "$tmpdir/ticket" <<'STUB'
 #!/usr/bin/env bash
-echo "tk $*" >> "$STUB_LOG"
+echo "ticket $*" >> "$STUB_LOG"
 echo "[]"
 STUB
-    chmod +x "$tmpdir/tk"
+    chmod +x "$tmpdir/ticket"
 
     echo "$tmpdir"
 }
 
-# ── Test 8: classify-task.sh --from-epic calls tk ready ──────────────────────
-echo "Test 8: --from-epic uses tk ready"
+# ── Test 8: classify-task.sh --from-epic calls ticket list ───────────────────
+echo "Test 8: --from-epic uses ticket list"
 {
     _tmpdir="$(_setup_migration_test_env)"
     _CLEANUP_DIRS+=("$_tmpdir")
@@ -258,23 +257,23 @@ echo "Test 8: --from-epic uses tk ready"
     touch "$_log"
     export STUB_LOG="$_log"
 
-    # Run with fake tk on PATH ahead of real tools; suppress scorer errors
-    output=$(PATH="$_tmpdir:$PATH" bash "$SCRIPT" --from-epic "fake-epic-id" 2>/dev/null) || true
+    # Run with fake ticket on PATH ahead of real tools; suppress scorer errors
+    output=$(TICKET_CMD="$_tmpdir/ticket" bash "$SCRIPT" --from-epic "fake-epic-id" 2>/dev/null) || true
 
-    # Assert: tk must have been invoked
-    if grep -q "^tk " "$_log" 2>/dev/null; then
-        echo "  PASS: classify_task_from_epic_calls_tk_ready — --from-epic invoked tk"
+    # Assert: ticket must have been invoked
+    if grep -q "^ticket " "$_log" 2>/dev/null; then
+        echo "  PASS: classify_task_from_epic_calls_ticket_list — --from-epic invoked ticket"
         (( PASS++ ))
     else
-        echo "  FAIL: classify_task_from_epic_calls_tk_ready — tk was not called" >&2
+        echo "  FAIL: classify_task_from_epic_calls_ticket_list — ticket was not called" >&2
         (( FAIL++ ))
     fi
 
     rm -rf "$_tmpdir"
 }
 
-# ── Test 9: single task ID uses tk show ──────────────────────────────────────
-echo "Test 9: single task ID uses tk show"
+# ── Test 9: single task ID uses ticket show ───────────────────────────────────
+echo "Test 9: single task ID uses ticket show"
 {
     _tmpdir="$(_setup_migration_test_env)"
     _CLEANUP_DIRS+=("$_tmpdir")
@@ -282,15 +281,15 @@ echo "Test 9: single task ID uses tk show"
     touch "$_log"
     export STUB_LOG="$_log"
 
-    # Run with fake tk on PATH; the stub returns [] so scorer gets empty input
-    output=$(PATH="$_tmpdir:$PATH" bash "$SCRIPT" "fake-task-id" 2>/dev/null) || true
+    # Run with fake ticket; the stub returns [] so scorer gets empty input
+    output=$(TICKET_CMD="$_tmpdir/ticket" bash "$SCRIPT" "fake-task-id" 2>/dev/null) || true
 
-    # Assert: tk must have been invoked with show
-    if grep -q "^tk show" "$_log" 2>/dev/null; then
-        echo "  PASS: single task ID invoked tk show"
+    # Assert: ticket must have been invoked with show
+    if grep -q "^ticket show" "$_log" 2>/dev/null; then
+        echo "  PASS: single task ID invoked ticket show"
         (( PASS++ ))
     else
-        echo "  FAIL: classify_task_single_id_uses_tk_show — tk show was not called" >&2
+        echo "  FAIL: classify_task_single_id_uses_ticket_show — ticket show was not called" >&2
         (( FAIL++ ))
     fi
 
@@ -328,8 +327,9 @@ JSON
 {"event_type":"STATUS","ticket_id":"$_story_id","data":{"status":"ready"},"created_at":"2026-01-01T00:00:02Z","env_id":"test"}
 JSON
 
-    # Create a fake `ticket` stub that serves `ticket show <id>` from the tracker dir
-    # and `ticket list` returning both ticket IDs.
+    # Create a fake `ticket` stub that serves both `ticket list` and `ticket show <id>`.
+    # list: returns JSON array with parent_id included so the Python filter matches.
+    # show: reads from the tracker dir via ticket-reducer.py.
     cat > "$_v3_tmpdir/ticket" <<STUB
 #!/usr/bin/env bash
 SUBCOMMAND="\$1"; shift
@@ -338,7 +338,7 @@ case "\$SUBCOMMAND" in
         python3 "${SCRIPT_DIR}/../../plugins/dso/scripts/ticket-reducer.py" "$_tracker_dir/\$1" 2>/dev/null || echo '{}'
         ;;
     list)
-        echo '[{"ticket_id":"$_story_id","status":"ready"},{"ticket_id":"$_epic_id","status":"open"}]'
+        echo '[{"ticket_id":"$_story_id","status":"ready","parent_id":"$_epic_id"},{"ticket_id":"$_epic_id","status":"open"}]'
         ;;
     *)
         echo "[]"
@@ -347,27 +347,13 @@ esac
 STUB
     chmod +x "$_v3_tmpdir/ticket"
 
-    # Create a fake `tk` stub that uses `ticket show` for parent filtering and
-    # returns the story ID from `tk ready`.
-    cat > "$_v3_tmpdir/tk" <<STUB
-#!/usr/bin/env bash
-SUBCOMMAND="\$1"; shift
-if [ "\$SUBCOMMAND" = "ready" ]; then
-    echo "$_story_id"
-fi
-STUB
-    chmod +x "$_v3_tmpdir/tk"
-
-    # Run --from-epic with TICKETS_TRACKER_DIR pointing to our v3 tracker
-    # and NO TICKETS_DIR set — script must NOT look for .md files.
+    # Run --from-epic with TICKET_CMD pointing to the stub so the new v3 path is exercised.
     # The story has parent_id set to the epic and status=ready, so it must be returned.
-    unset TICKETS_DIR 2>/dev/null || true
-    output=$(TICKETS_TRACKER_DIR="$_tracker_dir" PATH="$_v3_tmpdir:$PATH" bash "$SCRIPT" --from-epic "$_epic_id" 2>&1) || true
+    output=$(TICKET_CMD="$_v3_tmpdir/ticket" bash "$SCRIPT" --from-epic "$_epic_id" 2>&1) || true
 
     # The key assertion: the story must appear in the classification result.
-    # The v2 code reads .tickets/$id.md (which does not exist) and silently drops
-    # the story — so the result is [], failing this test.
-    # After the fix, the script must use `ticket show` (JSON) for parent filtering.
+    # The v3 path uses `ticket list` (JSON) for parent filtering and `ticket show`
+    # for per-task detail — no .md files are read.
     found_story=$(echo "$output" | python3 -c "
 import sys, json
 try:
@@ -389,10 +375,9 @@ except Exception:
 }
 
 
-# ── TDD RED Phase: v2 dual-path removal tests ─────────────────────────────────
-# These tests assert that v2 dual-path code is ABSENT from classify-task.sh.
-# They FAIL on the current codebase (v2 code still present) and will PASS once
-# the v2 code is removed.
+# ── v2 dual-path removal regression tests ─────────────────────────────────────
+# These tests assert that v2 dual-path code is absent from classify-task.sh.
+# They guard against accidental reintroduction of removed v2 logic.
 
 # ── test_classify_task_no_use_v3_detection ────────────────────────────────────
 test_classify_task_no_use_v3_detection() {
