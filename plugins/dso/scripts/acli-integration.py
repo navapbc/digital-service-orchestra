@@ -11,10 +11,14 @@ No external dependencies — stdlib only (subprocess, json, time, os).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
+import tempfile
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -95,7 +99,20 @@ def create_issue(
     acli_cmd: list[str] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Create a Jira issue via ACLI and verify it exists."""
+    """Create a Jira issue via ACLI and verify it exists.
+
+    Priority is set via ``--from-json`` with ``additionalAttributes``
+    because ACLI does not expose a ``--priority`` CLI flag.
+    """
+    priority = kwargs.pop("priority", None)
+
+    # When priority is requested, use --from-json so we can pass
+    # additionalAttributes.priority (the only ACLI-supported path).
+    if priority is not None:
+        return _create_issue_from_json(
+            project, issue_type, summary, priority, acli_cmd=acli_cmd, **kwargs
+        )
+
     cmd = [
         "jira",
         "workitem",
@@ -108,13 +125,69 @@ def create_issue(
         summary,
         "--json",
     ]
-    # Forward optional fields to the ACLI create command
-    for field in ("description", "priority", "assignee"):
+    for field in ("description", "assignee"):
         if field in kwargs and kwargs[field] is not None:
             cmd.extend([f"--{field}", str(kwargs[field])])
     result = _run_acli(cmd, acli_cmd=acli_cmd)
     created = json.loads(result.stdout)
 
+    jira_key = created.get("key", "")
+    if not jira_key:
+        msg = f"ACLI create returned no key: {created}"
+        raise RuntimeError(msg)
+
+    verified = get_issue(jira_key=jira_key, acli_cmd=acli_cmd)
+    if not verified:
+        msg = f"Verify-after-create failed: issue {jira_key} not found"
+        raise RuntimeError(msg)
+
+    return verified
+
+
+def _create_issue_from_json(
+    project: str,
+    issue_type: str,
+    summary: str,
+    priority: str | int,
+    *,
+    acli_cmd: list[str] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Create a Jira issue using ``--from-json`` to set priority.
+
+    ACLI's ``workitem create`` does not have a ``--priority`` flag, but
+    the ``--from-json`` path accepts ``additionalAttributes`` which maps
+    directly to Jira REST API fields.  Priority requires
+    ``{"name": "<Jira priority name>"}``.
+    """
+    payload: dict[str, Any] = {
+        "projectKey": project,
+        "type": issue_type,
+        "summary": summary,
+        "additionalAttributes": {
+            "priority": {"name": str(priority)},
+        },
+    }
+    if kwargs.get("description"):
+        payload["description"] = str(kwargs["description"])
+    if kwargs.get("assignee"):
+        payload["assignee"] = str(kwargs["assignee"])
+
+    fd, json_path = tempfile.mkstemp(suffix=".json", prefix="acli-create-")
+    try:
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(payload, f)
+        except Exception:
+            # os.fdopen may raise before it takes ownership of fd; close it explicitly.
+            os.close(fd)
+            raise
+        cmd = ["jira", "workitem", "create", "--from-json", json_path, "--json"]
+        result = _run_acli(cmd, acli_cmd=acli_cmd)
+    finally:
+        os.unlink(json_path)
+
+    created = json.loads(result.stdout)
     jira_key = created.get("key", "")
     if not jira_key:
         msg = f"ACLI create returned no key: {created}"
@@ -164,8 +237,21 @@ def update_issue(
     If ``status`` is in kwargs, it is routed to ``transition_issue``
     (Jira status changes require transitions, not field edits).
     Remaining fields are sent via ``workitem edit``.
+
+    **Priority**: ACLI does not support editing priority (neither via
+    ``--priority`` flag nor ``--from-json additionalAttributes``).
+    Priority in kwargs is logged as a warning and skipped.
+    See epic 392d-8080 for the full solution.
     """
     status = kwargs.pop("status", None)
+    priority = kwargs.pop("priority", None)
+    if priority is not None:
+        logger.warning(
+            "Cannot update priority on %s via ACLI (not supported). "
+            "Priority '%s' will be skipped. See epic 392d-8080.",
+            jira_key,
+            priority,
+        )
 
     if status is not None:
         transition_issue(jira_key, status, acli_cmd=acli_cmd)

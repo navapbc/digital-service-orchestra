@@ -56,7 +56,8 @@ _setup_merged_worktree() {
     local wt_path="$wt_dir/$wt_name"
 
     # Create origin + main repo
-    git init --bare -q "$origin"
+    # Use -b main for consistent branch naming (CI defaults to 'master')
+    git init --bare -b main -q "$origin"
     git clone -q "$origin" "$main_repo" 2>/dev/null
     (
         cd "$main_repo"
@@ -195,7 +196,7 @@ _unmerged_main="$TMPDIR_BASE/unmerged-main"
 _unmerged_wt="$TMPDIR_BASE/unmerged-wt"
 _unmerged_origin="$TMPDIR_BASE/unmerged-origin.git"
 
-git init --bare -q "$_unmerged_origin"
+git init --bare -b main -q "$_unmerged_origin"
 git clone -q "$_unmerged_origin" "$_unmerged_main" 2>/dev/null
 (
     cd "$_unmerged_main"

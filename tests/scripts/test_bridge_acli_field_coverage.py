@@ -9,6 +9,7 @@ Test: python3 -m pytest tests/scripts/test_bridge_acli_field_coverage.py -v
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import patch
 
@@ -24,22 +25,27 @@ class TestAcliClientCreateFieldExtraction:
     """
 
     def test_acli_create_sends_summary(self, acli_mod: Any, acli_capture: Any) -> None:
-        """AcliClient.create_issue() should send the title/summary to ACLI."""
+        """AcliClient.create_issue() should send the title/summary to ACLI.
+
+        When priority is present, create uses --from-json (so --summary is in
+        the JSON payload, not the CLI args). When priority is absent, --summary
+        appears as a CLI flag.
+        """
         client, captured_cmds, fake_run_acli = acli_capture
 
-        ticket_data = {
+        # Without priority: --summary appears as CLI flag
+        ticket_data_no_pri = {
             "ticket_type": "bug",
             "title": "Test Summary",
-            "priority": 1,
             "assignee": "alice",
             "description": "Test description",
         }
 
         with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
             try:
-                client.create_issue(ticket_data)
+                client.create_issue(ticket_data_no_pri)
             except (KeyError, AttributeError):
-                pass  # May fail on verify-after-create; we only care about the first call
+                pass
 
         assert len(captured_cmds) >= 1, "At least one ACLI command should be issued"
         create_cmd = captured_cmds[0]
@@ -98,8 +104,14 @@ class TestAcliClientCreateFieldExtraction:
             f"ACLI create command should include --description flag. Got: {create_cmd}"
         )
 
-    def test_acli_create_sends_priority(self, acli_mod: Any, acli_capture: Any) -> None:
-        """AcliClient.create_issue() should send the priority to ACLI."""
+    def test_acli_create_sends_priority_via_from_json(
+        self, acli_mod: Any, acli_capture: Any
+    ) -> None:
+        """AcliClient.create_issue() should send priority via --from-json.
+
+        ACLI does not support --priority on create. Priority is set via
+        --from-json with additionalAttributes.priority.name in the JSON payload.
+        """
         client, captured_cmds, fake_run_acli = acli_capture
 
         ticket_data = {
@@ -108,18 +120,41 @@ class TestAcliClientCreateFieldExtraction:
             "priority": 1,
         }
 
+        dumped_payloads: list[Any] = []
+
+        original_dump = json.dump
+
+        def capturing_dump(obj: Any, fp: Any, **kw: Any) -> None:
+            dumped_payloads.append(obj)
+            original_dump(obj, fp, **kw)
+
         with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
-            try:
-                client.create_issue(ticket_data)
-            except TypeError:
-                pytest.fail(
-                    "create_issue() raised TypeError — patch may not be intercepting correctly"
-                )
+            with patch.object(acli_mod.json, "dump", side_effect=capturing_dump):
+                try:
+                    client.create_issue(ticket_data)
+                except TypeError:
+                    pytest.fail(
+                        "create_issue() raised TypeError — patch may not be intercepting correctly"
+                    )
 
         assert len(captured_cmds) >= 1, "At least one ACLI command should be issued"
         create_cmd = captured_cmds[0]
-        assert "--priority" in create_cmd, (
-            f"ACLI create command should include --priority flag. Got: {create_cmd}"
+        assert "--from-json" in create_cmd, (
+            f"When priority is set, ACLI create should use --from-json. Got: {create_cmd}"
+        )
+
+        assert dumped_payloads, "json.dump should have been called to write the payload"
+        payload = dumped_payloads[0]
+        assert "additionalAttributes" in payload, (
+            f"Payload should contain 'additionalAttributes'. Got keys: {list(payload.keys())}"
+        )
+        priority_field = payload["additionalAttributes"].get("priority", {})
+        assert "name" in priority_field, (
+            f"additionalAttributes.priority should have a 'name' key. Got: {priority_field}"
+        )
+        assert priority_field["name"] == "1", (
+            f"additionalAttributes.priority.name should be '1' (str(priority)). "
+            f"Got: {priority_field['name']!r}"
         )
 
     def test_acli_create_sends_assignee(self, acli_mod: Any, acli_capture: Any) -> None:
@@ -150,17 +185,39 @@ class TestAcliClientCreateFieldExtraction:
 class TestAcliClientUpdateFieldExtraction:
     """Test which fields AcliClient.update_issue() sends for non-status field updates."""
 
-    def test_acli_update_sends_priority(self, acli_mod: Any, acli_capture: Any) -> None:
-        """AcliClient.update_issue() should support sending priority updates."""
+    def test_acli_update_skips_priority_with_warning(
+        self, acli_mod: Any, acli_capture: Any, caplog: Any
+    ) -> None:
+        """AcliClient.update_issue() should skip priority (ACLI doesn't support it).
+
+        ACLI workitem edit does not support --priority or additionalAttributes.
+        Priority in kwargs is logged as a warning and skipped.
+        See bug 4232-ffd0 / epic 392d-8080.
+        """
+        import logging
+
         client, captured_cmds, fake_run_acli = acli_capture
 
         with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
-            client.update_issue("TEST-1", priority="High")
+            with caplog.at_level(logging.WARNING, logger="acli_integration"):
+                result = client.update_issue("TEST-1", priority="High")
 
-        assert len(captured_cmds) >= 1
-        edit_cmd = captured_cmds[0]
-        assert "--priority" in edit_cmd, (
-            f"ACLI edit command should include --priority. Got: {edit_cmd}"
+        # No ACLI edit command should be issued for priority-only updates
+        # (the function returns early after popping status and priority)
+        assert len(captured_cmds) == 0, (
+            f"No ACLI command should be issued for priority-only update. Got: {captured_cmds}"
+        )
+        assert result == {"key": "TEST-1"}
+
+        # The warning must be emitted with the jira key and priority value
+        warning_messages = [
+            r.message for r in caplog.records if r.levelno == logging.WARNING
+        ]
+        assert any("TEST-1" in str(m) for m in warning_messages), (
+            f"Expected warning mentioning 'TEST-1' but got: {warning_messages}"
+        )
+        assert any("High" in str(m) for m in warning_messages), (
+            f"Expected warning mentioning 'High' but got: {warning_messages}"
         )
 
     def test_acli_update_sends_description(
