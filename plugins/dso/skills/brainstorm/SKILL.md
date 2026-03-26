@@ -137,14 +137,43 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 
 ### Step 2.5: Gap Analysis (Self-Review)
 
-Before running the fidelity review, pause and think carefully about the proposed approach:
+Before running the fidelity review, run two gap checks in sequence.
+
+#### Part A: Artifact Contradiction Detection
+
+Cross-reference the user's original request against the drafted success criteria. Identify any artifacts, files, components, or named concepts that the user explicitly named in their request but that are absent from or not covered by the success criteria.
+
+**How to detect omissions:**
+1. Extract all artifact names the user explicitly mentioned (file paths, CLI tool names, data structures, API endpoints, config keys, etc.)
+2. For each user-named artifact, check whether it appears — directly or by fuzzy/partial match — in any success criterion
+3. Fuzzy matching rules (count as "covered", not "missing"):
+   - Abbreviations and aliases (e.g., user says "tk" → SC says "bare tk CLI references" → **covered**)
+   - Containment (e.g., user says ".index.json" → SC says ".tickets-tracker/.index.json" → **covered**)
+   - Synonyms and role descriptions (e.g., user says "ticket store" → SC says ".tickets/ directory" → **covered**)
+   - Only flag an artifact as missing when no reasonable interpretation of the SC text would encompass it
+
+**When user-named artifacts are missing from SCs:**
+Present the gaps to the user before proceeding:
+
+```
+Gap analysis found [N] artifact(s) you named that are not covered by the current success criteria:
+- "[artifact-name]" — mentioned in your request, not found in any SC
+
+Are the SCs exhaustive relative to what you asked for? Should we add criteria that explicitly address these artifacts, or are they intentionally out of scope?
+```
+
+Wait for the user to respond before continuing. Update the success criteria based on their answer.
+
+#### Part B: Technical Approach Self-Review
+
+After resolving any artifact gaps, think carefully about the proposed approach:
 
 - **Are there any sync loops?** If the feature involves bidirectional data flow (sync, replication, event propagation), trace the full cycle: A pushes to B, B pulls back — will it create duplicates, false conflicts, or infinite loops?
 - **Are there race conditions?** If multiple actors (worktrees, users, agents, CI) can modify the same state concurrently, what happens when they collide?
 - **Does the approach invalidate existing assumptions?** Will adding new data to an existing format break hashing, parsing, caching, or diffing that depends on the current shape?
 - **Are there parsing ambiguities?** If the format uses delimiters or markers, can user-provided content contain those same markers?
 
-If gaps are found, present them to the user and resolve before proceeding to the fidelity review.
+If gaps are found in either part, present them to the user and resolve before proceeding to the fidelity review.
 
 ### Step 3: Run Fidelity Review
 

@@ -19,7 +19,7 @@ JSON schema, field reference, and pass/fail derivation rules.
 | Reviewer | Prompt File | Perspective Label | Focus |
 |----------|-------------|-------------------|-------|
 | Task Design Specialist | [reviewers/plan/task-design.md](reviewers/plan/task-design.md) | Task Design | Atomicity, acceptance criteria |
-| TDD Strategy Reviewer | [reviewers/plan/tdd.md](reviewers/plan/tdd.md) | TDD | TDD discipline, test isolation, red-green sequence, test boundary coverage |
+| TDD Strategy Reviewer | [reviewers/plan/tdd.md](reviewers/plan/tdd.md) | TDD | TDD discipline, test isolation, red-green sequence, test boundary coverage, bidirectional_test_coverage |
 | Deployment Safety Engineer | [reviewers/plan/safety.md](reviewers/plan/safety.md) | Safety | Incremental deploy, backward compatibility |
 | Dependency Graph Analyst | [reviewers/plan/dependencies.md](reviewers/plan/dependencies.md) | Dependencies | DAG validity, no coupling |
 | Completeness Auditor | [reviewers/plan/completeness.md](reviewers/plan/completeness.md) | Completeness | Criteria coverage, E2E coverage |
@@ -102,7 +102,7 @@ EOF
 ".claude/scripts/dso validate-review-output.sh" review-protocol "$REVIEW_OUT" --caller implementation-plan
 ```
 
-**Caller schema hash**: `ef19e23acbcfc5b4` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
+**Caller schema hash**: `0271e511c0161eec` — identifies the exact set of perspectives, dimensions, and reviewer-specific fields expected from this caller.
 
 If `SCHEMA_VALID: no` is printed:
 1. Read the listed errors — they identify exactly which perspective, dimension, or finding field is missing or wrong.

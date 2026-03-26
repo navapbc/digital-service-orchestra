@@ -1,7 +1,4 @@
-"""RED tests for BRIDGE_ALERT detection in ticket-reducer.py and ticket-show.sh/ticket-list.sh.
-
-These tests are RED — they test functionality that does not yet exist.
-All test functions must FAIL before the BRIDGE_ALERT implementation task runs.
+"""Tests for BRIDGE_ALERT detection in ticket-reducer.py and ticket-show.sh/ticket-list.sh.
 
 BRIDGE_ALERT event format (from ticket dso-7n6c contract):
     {
