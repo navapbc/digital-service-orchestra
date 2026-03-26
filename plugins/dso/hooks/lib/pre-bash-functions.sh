@@ -337,7 +337,7 @@ hook_worktree_bash_guard() {
     if [[ -n "$CMD_AFTER_CD" ]]; then
         if echo "$CMD_AFTER_CD" | grep -qE "^[[:space:]]*(cat|head|tail|less|more|ls|find|stat|wc|file) " || \
            echo "$CMD_AFTER_CD" | grep -qE "git[[:space:]]+(log|diff|show|status|rev-parse|branch|tag|ls-files|describe|remote|fetch|symbolic-ref|for-each-ref)" || \
-           echo "$CMD_AFTER_CD" | grep -qE "scripts/(validate|ci-status|orphaned-tasks)"; then
+           echo "$CMD_AFTER_CD" | grep -qE "scripts/(validate|ci-status)"; then
             return 0
         fi
     fi

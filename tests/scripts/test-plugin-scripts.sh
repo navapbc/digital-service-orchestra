@@ -24,7 +24,6 @@ PLUGIN_SCRIPTS=(
     analyze-tool-use.py
     classify-task.py
     classify-task.sh
-    orphaned-tasks.sh
     toggle-tool-logging.sh
     log-dispatch.sh
 )
@@ -34,7 +33,6 @@ BASH_SCRIPTS=(
     validate.sh
     ci-status.sh
     classify-task.sh
-    orphaned-tasks.sh
     toggle-tool-logging.sh
     log-dispatch.sh
 )

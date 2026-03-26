@@ -3,8 +3,8 @@
 # Tests that the review gate skips review for non-reviewable file commits.
 #
 # Regression test for lockpick-doc-to-logic-vupb:
-#   Ticket-only commits (.tickets/* files) were blocked by "Review is stale"
-#   even though .tickets/ is listed as non-reviewable.
+#   Ticket-only commits (.tickets-tracker/* files) were blocked by "Review is stale"
+#   even though .tickets-tracker/ is listed as non-reviewable.
 #
 # Tests:
 #   test_review_gate_allows_ticket_only_commit_via_staged_files
@@ -39,7 +39,7 @@ fi
 
 # Run hook_review_gate in a fresh temporary git repo with specified staged files.
 # Args: JSON input, then file paths to create and stage (relative to repo root).
-# Files in .tickets/, docs/, .claude/docs/ are created with placeholder content.
+# Files in .tickets-tracker/, docs/, .claude/docs/ are created with placeholder content.
 # Returns the exit code of hook_review_gate.
 _run_in_temp_repo() {
     local input="$1"
@@ -80,13 +80,13 @@ _run_in_temp_repo() {
 
 # ============================================================
 # test_review_gate_allows_ticket_only_commit_via_staged_files
-# When only .tickets/ files are staged, the review gate should allow.
+# When only .tickets-tracker/ files are staged, the review gate should allow.
 # ============================================================
 echo "--- test_review_gate_allows_ticket_only_commit_via_staged_files ---"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"chore: update ticket\""}}'
 EXIT_CODE=0
-_run_in_temp_repo "$INPUT" ".tickets/test-ticket.md" || EXIT_CODE=$?
+_run_in_temp_repo "$INPUT" ".tickets-tracker/test-ticket.md" || EXIT_CODE=$?
 
 assert_eq "test_review_gate_allows_ticket_only_commit_via_staged_files" "0" "$EXIT_CODE"
 
@@ -116,14 +116,14 @@ assert_eq "test_review_gate_allows_claude_docs_only_commit_via_staged_files" "0"
 
 # ============================================================
 # test_review_gate_allows_mixed_non_reviewable_commit
-# When staged files are a mix of non-reviewable types (.tickets/ + docs/),
+# When staged files are a mix of non-reviewable types (.tickets-tracker/ + docs/),
 # the review gate should allow.
 # ============================================================
 echo "--- test_review_gate_allows_mixed_non_reviewable_commit ---"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"chore: update tickets and docs\""}}'
 EXIT_CODE=0
-_run_in_temp_repo "$INPUT" ".tickets/test-ticket.md" "docs/guide.md" ".claude/docs/NOTES.md" || EXIT_CODE=$?
+_run_in_temp_repo "$INPUT" ".tickets-tracker/test-ticket.md" "docs/guide.md" ".claude/docs/NOTES.md" || EXIT_CODE=$?
 
 assert_eq "test_review_gate_allows_mixed_non_reviewable_commit" "0" "$EXIT_CODE"
 
@@ -136,13 +136,13 @@ echo "--- test_review_gate_blocks_commit_with_code_files ---"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"feat: add feature\""}}'
 EXIT_CODE=0
-_run_in_temp_repo "$INPUT" ".tickets/test-ticket.md" "src/main.py" || EXIT_CODE=$?
+_run_in_temp_repo "$INPUT" ".tickets-tracker/test-ticket.md" "src/main.py" || EXIT_CODE=$?
 
 assert_eq "test_review_gate_blocks_commit_with_code_files" "2" "$EXIT_CODE"
 
 # ============================================================
 # test_review_gate_allows_ticket_only_via_git_add_targets
-# When the command is 'git add .tickets/... && git commit', the hook
+# When the command is 'git add .tickets-tracker/... && git commit', the hook
 # should parse targets and allow without needing prior staging.
 # ============================================================
 echo "--- test_review_gate_allows_ticket_only_via_git_add_targets ---"
@@ -157,13 +157,13 @@ TMPDIR_TEST=$(mktemp -d)
     echo "init" > README.md
     git add README.md
     git commit -q -m "init"
-    mkdir -p .tickets
-    echo "status: open" > .tickets/test-ticket.md
+    mkdir -p .tickets-tracker
+    echo "status: open" > .tickets-tracker/test-ticket.md
 
     source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
     source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
-    INPUT='{"tool_name":"Bash","tool_input":{"command":"git add .tickets/test-ticket.md && git commit -m \"chore: update ticket\""}}'
+    INPUT='{"tool_name":"Bash","tool_input":{"command":"git add .tickets-tracker/test-ticket.md && git commit -m \"chore: update ticket\""}}'
     exit_code=0
     hook_review_gate "$INPUT" 2>/dev/null || exit_code=$?
     exit "$exit_code"
@@ -174,7 +174,7 @@ assert_eq "test_review_gate_allows_ticket_only_via_git_add_targets" "0" "$EXIT_C
 
 # ============================================================
 # test_review_gate_allows_non_reviewable_via_git_add_targets
-# When git add targets are all non-reviewable paths (.tickets/ + docs/),
+# When git add targets are all non-reviewable paths (.tickets-tracker/ + docs/),
 # the hook should allow without needing review.
 # ============================================================
 echo "--- test_review_gate_allows_non_reviewable_via_git_add_targets ---"
@@ -188,15 +188,15 @@ TMPDIR_TEST=$(mktemp -d)
     echo "init" > README.md
     git add README.md
     git commit -q -m "init"
-    mkdir -p .tickets docs .claude/docs
-    echo "status: open" > .tickets/test-ticket.md
+    mkdir -p .tickets-tracker docs .claude/docs
+    echo "status: open" > .tickets-tracker/test-ticket.md
     echo "# Doc" > docs/guide.md
     echo "# Notes" > .claude/docs/NOTES.md
 
     source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
     source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
-    INPUT='{"tool_name":"Bash","tool_input":{"command":"git add .tickets/test-ticket.md docs/guide.md .claude/docs/NOTES.md && git commit -m \"chore: update non-reviewable files\""}}'
+    INPUT='{"tool_name":"Bash","tool_input":{"command":"git add .tickets-tracker/test-ticket.md docs/guide.md .claude/docs/NOTES.md && git commit -m \"chore: update non-reviewable files\""}}'
     exit_code=0
     hook_review_gate "$INPUT" 2>/dev/null || exit_code=$?
     exit "$exit_code"

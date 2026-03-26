@@ -120,11 +120,8 @@ section "TICKETS_BLOCKED"
 "$TK" blocked 2>/dev/null || echo "none"
 
 section "TICKETS_ORPHANED"
-if [ -x "${CLAUDE_PLUGIN_ROOT}/scripts/orphaned-tasks.sh" ]; then
-    "${CLAUDE_PLUGIN_ROOT}/scripts/orphaned-tasks.sh" 2>&1 || true
-else
-    echo "orphaned-tasks.sh not found"
-fi
+# TODO(5d90-b43c): v2 orphan detection removed — stub returns none
+echo "none"
 
 # --- Step 3: Worktree Status ---
 section "WORKTREES"

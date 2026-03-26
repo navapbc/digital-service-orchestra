@@ -77,14 +77,14 @@ rm -f "$_CASCADE_COUNTER_FILE" 2>/dev/null || true
 
 # ============================================================
 # test_pre_edit_dispatcher_title_length_blocks_over_255_chars
-# When editing a .tickets/ file with a title > 255 chars, the dispatcher
+# When editing a .tickets-tracker/ file with a title > 255 chars, the dispatcher
 # must exit 2 (blocked by title-length-validator).
 # ============================================================
 echo "--- test_pre_edit_dispatcher_title_length_blocks_over_255_chars ---"
 
 # Generate a title exactly 256 characters long (1 over the 255 limit)
 _long_title=$(printf '%-256s' 'A' | tr ' ' 'A')
-_tickets_path="$_FAKE_ROOT/.tickets/test-ticket-123.md"
+_tickets_path="$_FAKE_ROOT/.tickets-tracker/test-ticket-123.md"
 _INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_tickets_path"'","old_string":"# Short title","new_string":"# '"$_long_title"'"}}'
 _exit_code=0
 _output=""
@@ -100,9 +100,9 @@ assert_contains "test_pre_edit_dispatcher_title_length_blocks_over_255_chars: BL
 # ============================================================
 echo "--- test_pre_write_dispatcher_sources_same_functions_as_edit ---"
 
-# Test that pre-write also blocks title > 255 chars on .tickets/ write
+# Test that pre-write also blocks title > 255 chars on .tickets-tracker/ write
 _long_title2=$(printf '%-256s' 'B' | tr ' ' 'B')
-_tickets_path2="$_FAKE_ROOT/.tickets/test-write-ticket.md"
+_tickets_path2="$_FAKE_ROOT/.tickets-tracker/test-write-ticket.md"
 _write_content="# ${_long_title2}
 
 Some content."
