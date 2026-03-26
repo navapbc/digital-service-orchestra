@@ -267,8 +267,9 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
   A task that deploys an inert feature (e.g., a guard that reads files no one writes yet)
   is acceptable — inert is not broken. The key test: after committing only this task,
   do all tests pass and is the system deployable?
-* **Acceptance Criteria:** Every task must include acceptance criteria set via the
-  `--acceptance` flag, composed from the template library (`${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
+* **Acceptance Criteria:** Every task must include acceptance criteria added via `ticket comment`
+  after creation (the CLI does not support `--acceptance` at creation time), composed from the
+  template library (`${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
   Read the library once at the start of Step 3. For each task:
   1. Start with Universal Criteria (always included)
   2. Select applicable category blocks based on task type
@@ -495,7 +496,7 @@ Before creating a contract task, check for an existing contract task in the epic
 Scan the output for any existing task whose title contains `Contract:` and the same interface name. If an existing contract task is found, wire the implementation tasks as dependents of that existing contract task — do not create a duplicate. If no existing contract task is found, create one:
 
 ```bash
-.claude/scripts/dso ticket create "Contract: <interface-name> signal emit/parse interface" -t task -p 2 --parent=<parent-epic-id>
+.claude/scripts/dso ticket create task "Contract: <interface-name> signal emit/parse interface" --parent=<parent-epic-id> --priority=2
 ```
 
 #### Contract Task as First Dependency
@@ -537,14 +538,9 @@ Once the plan is approved (Score: 5 or user-approved), create tasks in the ticke
 For each task in the plan:
 
 ```bash
-# Full creation with description and parent in one command:
-.claude/scripts/dso ticket create "{task title}" -t task -p {priority} --parent=<story-id> -d "{description with TDD requirement and acceptance criteria}"
-
-# Full creation with parent and description in one command:
-TASK_ID=$(.claude/scripts/dso ticket create "{task title}" -t task -p {priority} --parent=<story-id> -d "{detailed description}")
+# Create a task with parent and priority:
+TASK_ID=$(.claude/scripts/dso ticket create task "{task title}" --parent=<story-id> --priority={priority})
 ```
-
-**Prefer `.claude/scripts/dso ticket create`** with all flags in one command. For multi-line descriptions, use heredoc syntax with `-d`.
 
 If `.claude/scripts/dso ticket create` fails, retry once. If still failing, report the error.
 
@@ -557,13 +553,17 @@ Each task must include:
 | **Title** | Concise and atomic |
 | **Description** | Implementation steps, file paths, constraints |
 | **TDD Requirement** | Specific failing test to write first |
-| **Acceptance Criteria** | Set via `--acceptance` flag (see format below) |
+| **Acceptance Criteria** | Added via `ticket comment` after creation (see format below) |
 
-**Acceptance criteria format** (set via `.claude/scripts/dso ticket create --acceptance="..."` at creation time, or edit `.tickets/<id>.md` directly to add/update):
+**Acceptance criteria format** (add via `ticket comment` after creation — the CLI does not support `--acceptance` at creation time):
 
 ```bash
-# At creation time:
-.claude/scripts/dso ticket create "{title}" -t task --acceptance="- [ ] \`make test-unit-only\` passes (exit 0)
+# Step 1: create the task
+TASK_ID=$(.claude/scripts/dso ticket create task "{title}" --parent=<story-id> --priority=2)
+
+# Step 2: add acceptance criteria as a comment
+.claude/scripts/dso ticket comment "$TASK_ID" "## Acceptance Criteria
+- [ ] \`make test-unit-only\` passes (exit 0)
   Verify: cd \$(git rev-parse --show-toplevel)/app && make test-unit-only
 - [ ] \`make lint\` passes (exit 0)
   Verify: cd \$(git rev-parse --show-toplevel)/app && make lint
@@ -577,7 +577,6 @@ Each task must include:
 
 Universal criteria (test, lint, format) are always the first three lines.
 Task-specific criteria follow, drawn from the template library and customized.
-The `Acceptance Criteria` section appears as a separate section in `.claude/scripts/dso ticket show` output.
 
 ### Add Dependencies
 
