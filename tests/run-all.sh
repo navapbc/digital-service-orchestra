@@ -81,11 +81,11 @@ trap '
 # skip process cleanup and don't kill us.
 export _RUN_ALL_ACTIVE=1
 
-# --- Isolate tests from real .tickets/ (290+ files slow git operations) ---
-# Create a minimal temp .tickets/ directory and set RUN_ALL_TEST_TICKETS_DIR
+# --- Isolate tests from real ticket data (many files slow git operations) ---
+# Create a minimal temp tickets directory and set RUN_ALL_TEST_TICKETS_DIR
 # for sub-runners to use. We do NOT export TICKETS_DIR here because some tests
-# (e.g., test-tickets-config.sh) specifically test tk's config-based directory
-# resolution and would break if TICKETS_DIR is pre-set in the environment.
+# specifically test config-based directory resolution and would break if
+# TICKETS_DIR is pre-set in the environment.
 if [[ -z "${RUN_ALL_TEST_TICKETS_DIR:-}" ]]; then
     _TEST_TICKETS_DIR=$(mktemp -d)
     export RUN_ALL_TEST_TICKETS_DIR="$_TEST_TICKETS_DIR"

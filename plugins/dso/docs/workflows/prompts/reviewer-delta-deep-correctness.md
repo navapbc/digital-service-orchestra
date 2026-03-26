@@ -66,6 +66,63 @@ Perform deep correctness analysis. Use Read, Grep, and Glob extensively.
 
 ---
 
+## Bash-Specific Correctness Patterns
+
+For `.sh` files and bash scripts, apply these additional correctness checks:
+
+### Shell Safety
+- [ ] `set -euo pipefail` (or equivalent) declared at the top of every script — absence allows silent failures and unset-variable bugs to go undetected
+- [ ] `pipefail` specifically: without it, `cmd1 | cmd2` masks `cmd1`'s failure exit code
+- [ ] Unquoted variable expansions: `$var` in conditionals, `[[ ... ]]`, or command arguments risks word-splitting and glob expansion — flag any `$var` that should be `"$var"`
+- [ ] `$@` and `$*` must be quoted as `"$@"` when passing to functions or commands
+
+### Trap and Signal Handling
+- [ ] `trap` cleanup handlers: verify the trap fires on all exit paths (`EXIT`, `ERR`, `SIGTERM`, `SIGURG`)
+- [ ] SIGURG is used by Claude Code's tool timeout — scripts relying on cleanup must register `trap ... SIGURG` or they will leave stale state (lock files, temp dirs, partial writes)
+- [ ] `trap` with `ERR`: does not propagate into subshells — code in `$( )` will not trigger a parent `ERR` trap; callers must check `$?` or use `|| exit`
+
+### Exit Code Propagation
+- [ ] Every non-trivial function must propagate its exit code: callers must check `$?` or use `|| exit` / `|| return`
+- [ ] `local var=$(cmd)` silently discards `cmd`'s exit code — use `local var; var=$(cmd)` to preserve it
+- [ ] Exit codes in conditional pipelines: `if cmd1 | cmd2; then` tests only `cmd2`'s exit — use `PIPESTATUS[0]` when the first stage matters
+- [ ] Functions that return boolean-style (0/1) must document their contract; callers that mix `$?` checks with `|| exit` must be consistent
+
+---
+
+## Python-Specific Correctness Patterns
+
+For `.py` files, apply these additional correctness checks in addition to the base checklist:
+
+### Exception Handling and Chaining
+- [ ] Bare `except:` or `except Exception:` without re-raise or logging swallows errors silently — must log, re-raise, or raise a more specific exception
+- [ ] `raise SomeError(...)` inside an `except` block without `from e` loses the original traceback — prefer `raise SomeError(...) from e` for exception chaining
+- [ ] Bare `raise` (re-raise) inside a nested function or helper that catches and re-throws must preserve the original exception context
+- [ ] `except` clauses that convert to a return value (e.g., `return None` on exception) must be intentional — flag if the caller has no way to distinguish success from failure
+
+### Resource Cleanup
+- [ ] File handles, network connections, and subprocess pipes must be closed via `with` blocks (context manager) — raw `open()`/`close()` without `with` is fragile
+- [ ] When using `finally` for cleanup, verify the cleanup code does not itself raise, which would mask the original exception
+- [ ] Locks held during I/O or network calls must be released on all paths — use `with lock:` not `lock.acquire()` / `lock.release()` pairs
+
+### fcntl.flock Usage
+- [ ] `fcntl.flock` is used for serializing writes to the ticket event log and other shared files — verify `LOCK_EX` is used for writes and `LOCK_UN` released in a `finally` block or context manager
+- [ ] `fcntl.flock` is **advisory** on Linux/macOS; it does NOT prevent concurrent writes from processes that skip locking — if a new code path writes to a shared file without acquiring the lock, flag as `critical`
+- [ ] Lock acquisition must have a timeout strategy or a documented assumption about lock contention — unbounded blocking on `LOCK_EX` can deadlock in hook pipelines
+
+---
+
+## Acceptance Criteria Validation
+
+When ticket or issue context is provided in the dispatch prompt (e.g., `ISSUE_CONTEXT`, `TICKET_AC`, or a referenced ticket ID), perform these additional correctness checks:
+
+### AC Alignment
+- [ ] For each Done Definition or acceptance criterion in the ticket, verify the diff contains code that satisfies it — flag as `important` under `correctness` if an AC is unaddressed by the diff
+- [ ] If the ticket specifies a behavioral constraint (e.g., "must not block on X", "must propagate Y"), check that the implementation enforces it — a missing guard or missing error propagation counts as a correctness failure
+- [ ] If the diff introduces behavior that contradicts the ticket's stated scope (e.g., modifies OUT-of-scope functionality), flag as `important` — scope drift can introduce unintended side effects
+- [ ] When the ticket mentions a specific file, script, or function as the target of the change, verify that file is actually modified in the diff
+
+---
+
 ## Output Constraint for Deep Correctness
 
 Set all non-`correctness` scores to "N/A". Only `correctness` receives an integer score.

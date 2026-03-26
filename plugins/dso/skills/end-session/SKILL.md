@@ -205,9 +205,7 @@ git log main..$BRANCH --oneline
 .claude/scripts/dso merge-to-main.sh
 ```
 
-If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
-
-**CRITICAL — ticket conflict handling**: If a merge conflict occurs in `.tickets/` files (individual ticket `.md` files or archive files), do NOT use `git merge -X ours`, `git checkout --ours -- .tickets/`, or any other "accept worktree blindly" strategy. Main may have received ticket updates from another worktree. Instead, invoke `/dso:resolve-conflicts`, which will show the diff between both versions and ask the user which to keep.
+If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
 
 ### 4.5. Sync Tickets to Jira
 
@@ -271,11 +269,11 @@ cd "$REPO_ROOT"
 git status --porcelain
 ```
 
-**All four conditions must be true** before proceeding (exclude `.tickets/` — ticket files sync independently and may appear dirty in worktrees):
-- No unstaged changes (`git diff --quiet -- ':!.tickets/'`)
-- No uncommitted staged changes (`git diff --cached --quiet -- ':!.tickets/'`)
-- No unmerged paths (`git diff --name-only --diff-filter=U -- ':!.tickets/'` is empty)
-- No untracked files (`git ls-files --others --exclude-standard -- ':!.tickets/'` is empty)
+**All four conditions must be true** before proceeding:
+- No unstaged changes (`git diff --quiet`)
+- No uncommitted staged changes (`git diff --cached --quiet`)
+- No unmerged paths (`git diff --name-only --diff-filter=U` is empty)
+- No untracked files (`git ls-files --others --exclude-standard` is empty)
 
 If any condition fails:
 1. Report the dirty files and which condition(s) failed.
