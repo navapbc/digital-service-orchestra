@@ -155,6 +155,60 @@ test_fix_bug_bare_substring_no_false_positive() {
     assert_eq "test_fix_bug_bare_substring_no_false_positive: stdout is empty (no false positive)" "" "$_output"
 }
 
+# ============================================================
+# test_directive_names_skill_fix_bug
+# The directive must name "fix-bug" so the agent knows which
+# skill to invoke — not just say "the Skill tool" generically.
+# ============================================================
+test_directive_names_skill_fix_bug() {
+    local _output=""
+    local _payload
+    _payload=$(_make_payload "/fix-bug login crash")
+    _output=$(printf '%s' "$_payload" | bash "$HOOK_SCRIPT" 2>/dev/null)
+    assert_contains "test_directive_names_skill_fix_bug: directive names 'fix-bug'" "fix-bug" "$_output"
+}
+
+# ============================================================
+# test_directive_says_first_action
+# The directive must instruct the agent to invoke the Skill tool
+# as its FIRST action — "first" must appear in the output.
+# ============================================================
+test_directive_says_first_action() {
+    local _output=""
+    local _payload
+    _payload=$(_make_payload "/fix-bug login crash")
+    _output=$(printf '%s' "$_payload" | bash "$HOOK_SCRIPT" 2>/dev/null)
+    assert_contains "test_directive_says_first_action: directive says 'FIRST'" "FIRST" "$_output"
+}
+
+# ============================================================
+# test_directive_prohibits_prior_investigation
+# The directive must explicitly prohibit starting investigation,
+# reading files, or other activity before invoking the skill.
+# This prevents agents from rationalising "just a quick look first".
+# ============================================================
+test_directive_prohibits_prior_investigation() {
+    local _output=""
+    local _payload
+    _payload=$(_make_payload "/fix-bug login crash")
+    _output=$(printf '%s' "$_payload" | bash "$HOOK_SCRIPT" 2>/dev/null)
+    # Directive should mention not reading/investigating before the skill call
+    assert_contains "test_directive_prohibits_prior_investigation: directive mentions investigation prohibition" "investigation" "$_output"
+}
+
+# ============================================================
+# test_directive_qualified_command_names_fix_bug
+# Same content checks apply when user typed /dso:fix-bug.
+# ============================================================
+test_directive_qualified_command_names_fix_bug() {
+    local _output=""
+    local _payload
+    _payload=$(_make_payload "/dso:fix-bug null pointer in AuthService")
+    _output=$(printf '%s' "$_payload" | bash "$HOOK_SCRIPT" 2>/dev/null)
+    assert_contains "test_directive_qualified_command_names_fix_bug: directive names 'fix-bug'" "fix-bug" "$_output"
+    assert_contains "test_directive_qualified_command_names_fix_bug: directive says 'FIRST'" "FIRST" "$_output"
+}
+
 # --- Run all tests ---
 echo "--- test_fix_bug_slash_command_triggers_directive ---"
 test_fix_bug_slash_command_triggers_directive
@@ -173,5 +227,17 @@ test_fix_bug_pattern_match
 
 echo "--- test_fix_bug_bare_substring_no_false_positive ---"
 test_fix_bug_bare_substring_no_false_positive
+
+echo "--- test_directive_names_skill_fix_bug ---"
+test_directive_names_skill_fix_bug
+
+echo "--- test_directive_says_first_action ---"
+test_directive_says_first_action
+
+echo "--- test_directive_prohibits_prior_investigation ---"
+test_directive_prohibits_prior_investigation
+
+echo "--- test_directive_qualified_command_names_fix_bug ---"
+test_directive_qualified_command_names_fix_bug
 
 print_summary

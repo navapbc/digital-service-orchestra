@@ -97,7 +97,7 @@ Before proposing any fix, empirically validate your assumptions about tool, API,
 3. **Search for real-world usage** — when facing an unfamiliar tool or API, search GitHub or other code repositories for how other projects solve the same problem.
 4. **Test the fix approach in isolation** — before proposing a fix, test the core assumption (e.g., run the command with the proposed flag, make a throwaway API call) to confirm it works as expected.
 
-Record each empirical test in the `tests_run` section of your RESULT.
+Record each empirical test in the `hypothesis_tests` section of your RESULT.
 
 ### Step 7: Self-Reflection Checkpoint
 
@@ -132,10 +132,11 @@ alternative_fixes:
   - <brief description of any additional approaches considered but not recommended>
 tradeoffs_considered: <summary of key tradeoffs between proposed fixes>
 recommendation: <which fix you recommend and why>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested>
-    command: <the test command run>
-    result: confirmed | disproved | inconclusive
+    test: <the test command run>
+    observed: <what actually happened>
+    verdict: confirmed | disproved | inconclusive
 prior_attempts:
   - <description of any prior fix attempts from context and why they did not resolve the issue>
 ```
@@ -150,7 +151,7 @@ prior_attempts:
 | `alternative_fixes` | Other approaches considered but not recommended. Empty array if none. |
 | `tradeoffs_considered` | A concise summary of the tradeoffs between the proposed fixes (e.g., correctness vs. performance, targeted vs. broad). |
 | `recommendation` | Which fix you recommend and the key reason. |
-| `tests_run` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
+| `hypothesis_tests` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
 | `prior_attempts` | Summary of prior fix attempts from the provided context and why they did not resolve the issue. Empty array if none. |
 
 ## Rules
