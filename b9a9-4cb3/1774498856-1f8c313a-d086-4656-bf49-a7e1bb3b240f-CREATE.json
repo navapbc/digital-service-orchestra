@@ -1,0 +1,1 @@
+{"timestamp": 1774498856, "uuid": "1f8c313a-d086-4656-bf49-a7e1bb3b240f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "RED marker not applied when test file is triggered by non-marked source association", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
