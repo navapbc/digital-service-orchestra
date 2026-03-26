@@ -188,8 +188,24 @@ Run the spec through three reviewers **in parallel** using the Task tool. For ea
 | Senior Technical Program Manager | [docs/reviewers/agent-clarity.md](docs/reviewers/agent-clarity.md) | `"Agent Clarity"` | `self_contained`, `success_measurable` |
 | Senior Product Strategist | [docs/reviewers/scope.md](docs/reviewers/scope.md) | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware` |
 | Senior Product Manager | [docs/reviewers/value.md](docs/reviewers/value.md) | `"Value"` | `user_impact`, `validation_signal` |
+| Senior Integration Engineer | `dso:feasibility-reviewer` (dedicated agent) | `"Technical Feasibility"` | `technical_feasibility`, `integration_risk` |
 
-**Pass threshold**: All dimensions must score 4 or above.
+### Feasibility Review Trigger
+
+The feasibility reviewer is dispatched only when the epic involves external integrations. Scan the epic spec for integration signal keywords:
+
+- Third-party CLI tools, external APIs/services, CI/CD workflow changes, infrastructure provisioning, data format migrations, authentication/credential flows
+
+1. **Keyword scan**: Scan the epic spec (Context + Success Criteria + Approach) for integration signal keywords using case-insensitive matching. Match on semantic intent, not exact substrings — "calls an external REST API" matches "external APIs/services" even without the exact phrase. If any integration signal is present, dispatch the feasibility reviewer.
+2. **Skip**: If no integration signals found, skip the feasibility reviewer. Log: "No external integration signals — skipping feasibility review."
+
+**Note**: The complexity evaluator's `feasibility_review_recommended` field provides the same signal during preplanning (Phase 2.25 Integration Research) where it is available from the sprint classification. In brainstorm, the keyword scan is the primary trigger since the complexity evaluator has not yet run.
+
+The three core reviewers (Agent Clarity, Scope, Value) **always run in parallel**. If feasibility review is triggered, dispatch `subagent_type: "dso:feasibility-reviewer"` (model: sonnet) as a **4th parallel reviewer** alongside the existing 3 — all four run concurrently in a single Task tool batch.
+
+**Pass threshold**: All dimensions must score 4 or above. When the feasibility reviewer runs, `technical_feasibility` and `integration_risk` are also included in the pass threshold check.
+
+**Feasibility critical findings**: If the feasibility reviewer reports any score below 3, add a note to the epic spec recommending a spike task to de-risk the integration before implementation begins.
 
 **Validate the review output:**
 ```bash
@@ -367,5 +383,5 @@ Skill tool:
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
-| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check |
+| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

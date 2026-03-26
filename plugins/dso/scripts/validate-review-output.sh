@@ -18,6 +18,7 @@ set -euo pipefail
 #
 # Caller IDs and their schema hashes (--caller for review-protocol):
 #   roadmap                f4e5f5a355e4c145
+#   brainstorm             f4e5f5a355e4c145
 #   design-wireframe       bd60a68f8060f939
 #   implementation-plan    0271e511c0161eec
 #   retro                  8a1a3dd74e54f101
@@ -52,6 +53,7 @@ HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
 # --- Per-caller schema hashes (for --caller with review-protocol) ---
 HASH_CALLER_ROADMAP="f4e5f5a355e4c145"
+HASH_CALLER_BRAINSTORM="f4e5f5a355e4c145"
 HASH_CALLER_DESIGN_WIREFRAME="bd60a68f8060f939"
 HASH_CALLER_IMPLEMENTATION_PLAN="0271e511c0161eec"
 HASH_CALLER_RETRO="8a1a3dd74e54f101"
@@ -84,6 +86,7 @@ Prompt IDs:
 
 Caller IDs (use with: review-protocol <file> --caller <id>):
   roadmap                ${HASH_CALLER_ROADMAP}
+  brainstorm             ${HASH_CALLER_BRAINSTORM}
   design-wireframe       ${HASH_CALLER_DESIGN_WIREFRAME}
   implementation-plan    ${HASH_CALLER_IMPLEMENTATION_PLAN}
   retro                  ${HASH_CALLER_RETRO}
@@ -107,6 +110,7 @@ fi
 
 if [[ "$1" == "--list-callers" ]]; then
     echo "roadmap                ${HASH_CALLER_ROADMAP}"
+    echo "brainstorm             ${HASH_CALLER_BRAINSTORM}"
     echo "design-wireframe       ${HASH_CALLER_DESIGN_WIREFRAME}"
     echo "implementation-plan    ${HASH_CALLER_IMPLEMENTATION_PLAN}"
     echo "retro                  ${HASH_CALLER_RETRO}"
@@ -164,7 +168,7 @@ fi
 # Validate known caller IDs
 if [[ -n "$CALLER_ID" ]]; then
     case "$CALLER_ID" in
-        roadmap|design-wireframe|implementation-plan|retro|design-review|dev-onboarding|preplanning) ;;
+        roadmap|brainstorm|design-wireframe|implementation-plan|retro|design-review|dev-onboarding|preplanning) ;;
         *)
             echo "ERROR: unknown caller-id: '$CALLER_ID'" >&2
             echo "Run '$SCRIPT_NAME --list-callers' to see valid caller IDs." >&2
@@ -425,6 +429,26 @@ caller_id = sys.argv[2]
 #     enum_values: valid values when type='enum'
 CALLER_SCHEMAS = {
     "roadmap": {
+        "schema_hash": "f4e5f5a355e4c145",
+        "perspectives": [
+            {
+                "perspective": "Agent Clarity",
+                "required_dimensions": ["self_contained", "success_measurable"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Scope",
+                "required_dimensions": ["right_sized", "no_overlap", "dependency_aware"],
+                "required_finding_fields": [],
+            },
+            {
+                "perspective": "Value",
+                "required_dimensions": ["user_impact", "validation_signal"],
+                "required_finding_fields": [],
+            },
+        ],
+    },
+    "brainstorm": {
         "schema_hash": "f4e5f5a355e4c145",
         "perspectives": [
             {
@@ -871,6 +895,7 @@ case "$PROMPT_ID" in
         if [[ "$FAILED" -eq 0 && -n "$CALLER_ID" ]]; then
             case "$CALLER_ID" in
                 roadmap)              CALLER_HASH="$HASH_CALLER_ROADMAP" ;;
+                brainstorm)           CALLER_HASH="$HASH_CALLER_BRAINSTORM" ;;
                 design-wireframe)     CALLER_HASH="$HASH_CALLER_DESIGN_WIREFRAME" ;;
                 implementation-plan)  CALLER_HASH="$HASH_CALLER_IMPLEMENTATION_PLAN" ;;
                 retro)                CALLER_HASH="$HASH_CALLER_RETRO" ;;

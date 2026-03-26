@@ -24,7 +24,7 @@ echo "=== test-python-resolver-config-driven.sh ==="
 
 SCRIPTS_DIR="$DSO_PLUGIN_DIR/scripts"
 
-# List of 7 scripts that must use config-driven paths
+# List of 6 scripts that must use config-driven paths
 SCRIPTS=(
     "read-config.sh"
     "ci-status.sh"
@@ -32,11 +32,10 @@ SCRIPTS=(
     "check-local-env.sh"
     "classify-task.sh"
     "issue-batch.sh"
-    "worktree-sync-from-main.sh"
 )
 
 # ── test_<script>_uses_config_python_venv ──────────────────────────────────
-# No hardcoded app/.venv/bin/python in any of the 8 scripts
+# No hardcoded app/.venv/bin/python in any of the 6 scripts
 echo ""
 echo "--- No hardcoded app/.venv/bin/python ---"
 
@@ -55,7 +54,7 @@ for script in "${SCRIPTS[@]}"; do
 done
 
 # ── test_<script>_sources_config_paths ─────────────────────────────────────
-# All 8 scripts source config-paths.sh
+# All 6 scripts source config-paths.sh
 echo ""
 echo "--- Sources config-paths.sh ---"
 

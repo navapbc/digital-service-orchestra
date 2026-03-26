@@ -26,7 +26,10 @@ shift 2
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Build exclusion list ---
-EXCLUDES=(':!.tickets/' ':!.sync-state.json')
+# REVIEW-DEFENSE: hardcoded default matches the v3 ticket system path; config-driven
+# ticket directory support (reading tickets.directory from dso-config.conf) is tracked
+# as a follow-up improvement — see bug ticket 3f9b-421d for stale path cleanup.
+EXCLUDES=(':!.tickets-tracker/' ':!.sync-state.json')
 
 # Read visual baseline directory from config (e.g., app/tests/e2e/snapshots/)
 BASELINE_DIR=$("$SCRIPT_DIR/read-config.sh" visual.baseline_directory 2>/dev/null || true)
@@ -91,8 +94,8 @@ fi
 # match (grep -v returns exit 1 when all lines are filtered out).
 if [[ ${#_MERGE_FILE_PATHSPECS[@]} -gt 0 ]]; then
     { git diff "$_merge_base" --stat -- "${_MERGE_FILE_PATHSPECS[@]}" "${EXCLUDES[@]}"; \
-      git ls-files --others --exclude-standard | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
+      git ls-files --others --exclude-standard | { grep -v '^\.tickets-tracker/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
 else
     { git diff HEAD --stat -- "${EXCLUDES[@]}"; \
-      git ls-files --others --exclude-standard | { grep -v '^\.tickets/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
+      git ls-files --others --exclude-standard | { grep -v '^\.tickets-tracker/' || true; } | { grep -v '^\.sync-state\.json$' || true; } | sed 's/$/ (untracked)/'; } | tee "$STAT_FILE" > /dev/null
 fi

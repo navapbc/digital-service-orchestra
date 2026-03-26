@@ -724,22 +724,27 @@ Create `designs/<uuid>/manifest.md` combining:
 
 ## Phase 5: Design Review (/dso:design-wireframe)
 
-This phase uses `/dso:review-protocol` at Stage 2 (skipping Stage 1 because Phase 4's
+This phase uses `REVIEW-PROTOCOL-WORKFLOW.md` at Stage 2 (skipping Stage 1 because Phase 4's
 artifact consistency checkpoint already serves as the mental pre-review).
+
+> **NESTING PROHIBITION**: Do NOT invoke `/dso:review-protocol` via the Skill tool here.
+> This skill may already be at nesting level 2+ (e.g., `sprint → preplanning → design-wireframe`).
+> A Skill tool call to `/dso:review-protocol` would create 3+ levels, which fails to return control.
+> Always read and execute the workflow inline.
 
 ### Step 16: Submit for committee review (/dso:design-wireframe)
 
 Read [docs/review-criteria.md](docs/review-criteria.md) for reviewer prompt
 files and domain-specific review context.
 
-Invoke `/dso:review-protocol` with:
+Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md` inline with:
 
 - **subject**: "Design Wireframe: {story title}"
 - **artifact**: The design artifacts (manifest, spatial layout JSON, SVG wireframe description, design tokens) plus story context and epic context (if applicable)
 - **pass_threshold**: 4
 - **start_stage**: 2 (Phase 4 artifact validation serves as Stage 1)
 - **max_revision_cycles**: 3
-- **perspectives**: Defined by the four reviewer prompt files. For each reviewer, read its prompt file and map to the `/dso:review-protocol` perspective format:
+- **perspectives**: Defined by the four reviewer prompt files. For each reviewer, read its prompt file and map to the `REVIEW-PROTOCOL-WORKFLOW.md` perspective format:
 
 **Reviewer 1 — Product Management** (from [docs/reviewers/product-manager.md](docs/reviewers/product-manager.md)):
 - Dimensions: `story_alignment`, `user_value`, `scope_appropriateness`, `consistency`, `epic_coherence`
@@ -761,7 +766,7 @@ Invoke `/dso:review-protocol` with:
 
 Because design reviews genuinely benefit from diverse perspectives, **always use
 multi-agent dispatch** (one sub-agent per reviewer, launched in parallel via the
-Task tool). This bypasses `/dso:review-protocol`'s default single-agent approach.
+Task tool). This bypasses `REVIEW-PROTOCOL-WORKFLOW.md`'s default single-agent approach.
 
 Since subagents cannot view images, describe the SVG wireframe's structure and
 spatial relationships in text when constructing each prompt.
@@ -780,7 +785,7 @@ The design **passes** if ALL dimension scores across ALL reviewers are 4, 5, or 
 **Conflict detection**: Scan all findings for direct contradictions — pairs of
 suggestions that target the same component/artifact but pull in opposite directions
 (add vs remove, more vs less, strict vs flexible, expand vs reduce). Populate the
-`conflicts` array. Resolution follows `/dso:review-protocol`:
+`conflicts` array. Resolution follows `REVIEW-PROTOCOL-WORKFLOW.md`:
 - Critical vs minor: critical finding wins, no escalation
 - Both critical/major: escalate to user via AskUserQuestion
 - Both minor: caller chooses
@@ -795,7 +800,7 @@ record the aggregate pass/fail result.
 
 ### Step 18: Revise and re-submit (max 3 cycles) (/dso:design-wireframe)
 
-Follow `/dso:review-protocol`'s revision protocol:
+Follow `REVIEW-PROTOCOL-WORKFLOW.md`'s revision protocol:
 
 1. **Triage by severity**: Address critical findings first, then major, then minor.
 2. **Resolve conflicts first**: If `conflicts[]` is non-empty, resolve before revising.
