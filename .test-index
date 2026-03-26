@@ -145,3 +145,5 @@ tests/hooks/test-session-safety.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-validate-issues.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-read-config.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-flat-config-e2e.sh: tests/scripts/test-v2-clean-guard.sh
+plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-skill-nesting-depth.sh
+plugins/dso/skills/design-wireframe/SKILL.md: tests/skills/test-skill-nesting-depth.sh

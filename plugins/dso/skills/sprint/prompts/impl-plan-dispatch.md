@@ -38,9 +38,9 @@ Use the `Read` tool at that path to load the skill. Then execute Steps 1-6 as de
 ### Steps to Execute
 
 - **Step 1**: Contextual Discovery — load story context, resolve ambiguities, detect cross-cutting changes (or reuse evaluator context if provided above)
-- **Step 2**: Architectural Review — invoke `/dso:review-protocol` if a new pattern is needed or cross-cutting thresholds are met; otherwise skip
+- **Step 2**: Architectural Review — read and execute `REVIEW-PROTOCOL-WORKFLOW.md` inline if a new pattern is needed or cross-cutting thresholds are met; otherwise skip
 - **Step 3**: Atomic Task Drafting — draft tasks with TDD-first, E2E coverage, and docs coverage
-- **Step 4**: Plan Review — invoke `/dso:review-protocol` with pass_threshold 5; iterate up to 3 times
+- **Step 4**: Plan Review — read and execute `REVIEW-PROTOCOL-WORKFLOW.md` inline with pass_threshold 5; iterate up to 3 times
 - **Step 5**: Task Creation — create tasks in tickets, add dependencies, validate ticket health
 - **Step 6**: Gap Analysis — dispatch opus sub-agent for COMPLEX stories; skip for TRIVIAL (uses evaluator-context classification)
 
@@ -81,7 +81,7 @@ STATUS:blocked QUESTIONS:[{"text":"What is the expected response format for the 
 ### Rules
 - Do NOT: git commit, git push, .claude/scripts/dso ticket transition
 - You MAY use: .claude/scripts/dso ticket create (with --acceptance, -d flags), .claude/scripts/dso ticket link (required for Step 5 dependency wiring), direct `.tickets/<id>.md` editing for post-creation updates
-- Do NOT use the Task tool to dispatch nested sub-agents. Skill tool invocations (e.g., /dso:review-protocol) ARE permitted.
+- Do NOT use the Task tool to dispatch nested sub-agents. Do NOT invoke `/dso:review-protocol` via the Skill tool — use `REVIEW-PROTOCOL-WORKFLOW.md` inline instead (Skill nesting creates 3+ levels which fail to return control).
 - Do NOT invoke `/dso:commit`, `/dso:review`, or any slash-command other than Skill tool invocations required by the implementation-plan steps
 - Do NOT modify files outside the scope of task creation (no source code changes — this is planning only)
 - Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path.
