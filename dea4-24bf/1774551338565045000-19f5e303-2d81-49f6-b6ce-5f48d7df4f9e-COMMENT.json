@@ -1,0 +1,1 @@
+{"timestamp": 1774551338565045000, "uuid": "19f5e303-2d81-49f6-b6ce-5f48d7df4f9e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Story complete: ARCHIVED event type with list/show filtering + transitive archive eligibility traversal. All tests GREEN."}}
