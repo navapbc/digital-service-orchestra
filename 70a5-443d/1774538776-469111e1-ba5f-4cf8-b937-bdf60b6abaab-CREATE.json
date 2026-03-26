@@ -1,0 +1,1 @@
+{"timestamp": 1774538776, "uuid": "469111e1-ba5f-4cf8-b937-bdf60b6abaab", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a DSO user, I can run ticket list at scale without timeout", "parent_id": "7dee-3e33", "priority": 1, "assignee": "Joe Oakhart"}}
