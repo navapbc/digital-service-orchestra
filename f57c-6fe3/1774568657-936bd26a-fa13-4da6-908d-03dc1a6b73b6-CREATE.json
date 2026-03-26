@@ -1,0 +1,1 @@
+{"timestamp": 1774568657, "uuid": "936bd26a-fa13-4da6-908d-03dc1a6b73b6", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "test-ticket-concurrency-stress.sh fails: total events < 50 in CI", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
