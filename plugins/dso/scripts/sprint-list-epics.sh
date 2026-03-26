@@ -35,6 +35,18 @@ REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # ---------------------------------------------------------------------------
+# Ensure tracker is initialized (worktree startup race condition fix).
+# In fresh worktrees, .tickets-tracker is a symlink created by ticket-init.sh.
+# If the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set (i.e., we
+# are using the default path, not a test override), call ticket-init.sh to create
+# the symlink before reading. Without this, sprint-list-epics.sh silently reports
+# "No open epics found" when it's the first script to run in a new worktree session.
+# ---------------------------------------------------------------------------
+if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+    bash "$SCRIPT_DIR/ticket-init.sh" --silent 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
 # Retry configuration for worktree startup race conditions.
 # When the tracker dir has entries but the reducer returns an empty index,
 # retry after a short wait. This handles the case where the tracker symlink
