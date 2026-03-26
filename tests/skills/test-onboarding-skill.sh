@@ -154,7 +154,66 @@ test_architect_foundation_offer() {
     assert_pass_if_clean "test_architect_foundation_offer"
 }
 
-# Run all 8 assertion functions
+# test_project_understanding_output: SKILL.md must reference .claude/project-understanding.md as output artifact
+test_project_understanding_output() {
+    _snapshot_fail
+    local artifact_found
+    artifact_found="missing"
+    if grep -q "project-understanding.md" "$SKILL_MD" 2>/dev/null; then
+        artifact_found="found"
+    fi
+    assert_eq "test_project_understanding_output" "found" "$artifact_found"
+    assert_pass_if_clean "test_project_understanding_output"
+}
+
+# test_understanding_sections: SKILL.md must mention structured sections
+# (stack, architecture, commands, infrastructure, enforcement)
+test_understanding_sections() {
+    _snapshot_fail
+    local sections_found sections_missing section
+    sections_found=0
+    sections_missing=""
+    local required_sections=("stack" "architecture" "commands" "infrastructure" "enforcement")
+    for section in "${required_sections[@]}"; do
+        if grep -qw "$section" "$SKILL_MD" 2>/dev/null; then
+            (( sections_found++ ))
+        else
+            sections_missing="$sections_missing $section"
+        fi
+    done
+    if [[ "$sections_found" -eq 5 ]]; then
+        assert_eq "test_understanding_sections" "5" "$sections_found"
+    else
+        assert_eq "test_understanding_sections" "5 sections found" "$sections_found sections found (missing:$sections_missing)"
+    fi
+    assert_pass_if_clean "test_understanding_sections"
+}
+
+# test_attribution_tagging: SKILL.md must mention attribution (detected vs user-stated or confirmed vs inferred)
+test_attribution_tagging() {
+    _snapshot_fail
+    local attribution_found
+    attribution_found="missing"
+    if grep -qiE "detected|user-stated|confirmed|inferred" "$SKILL_MD" 2>/dev/null; then
+        attribution_found="found"
+    fi
+    assert_eq "test_attribution_tagging" "found" "$attribution_found"
+    assert_pass_if_clean "test_attribution_tagging"
+}
+
+# test_human_readable_format: SKILL.md must mention human-readable or editable format
+test_human_readable_format() {
+    _snapshot_fail
+    local format_found
+    format_found="missing"
+    if grep -qiE "human-readable|human readable|editable" "$SKILL_MD" 2>/dev/null; then
+        format_found="found"
+    fi
+    assert_eq "test_human_readable_format" "found" "$format_found"
+    assert_pass_if_clean "test_human_readable_format"
+}
+
+# Run all 12 assertion functions
 test_skill_file_exists
 test_frontmatter_valid
 test_sub_agent_guard_present
@@ -163,5 +222,9 @@ test_scratchpad_instructions
 test_detection_integration
 test_socratic_dialogue_pattern
 test_architect_foundation_offer
+test_project_understanding_output
+test_understanding_sections
+test_attribution_tagging
+test_human_readable_format
 
 print_summary
