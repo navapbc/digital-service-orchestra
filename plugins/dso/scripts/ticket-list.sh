@@ -65,7 +65,7 @@ fi
 # ── Batch-reduce all tickets ──────────────────────────────────────────────────
 batch_output=""
 batch_exit=0
-batch_output=$(python3 "$REDUCER" --batch "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
+batch_output=$(python3 "$REDUCER" --batch --exclude-archived "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
 
 if [ "$batch_exit" -ne 0 ] && [ -z "$batch_output" ]; then
     echo "Error: batch reducer failed (exit $batch_exit) with no output" >&2

@@ -424,6 +424,8 @@ def reduce_ticket(
             for field_name, new_value in fields.items():
                 if field_name in state:
                     state[field_name] = new_value
+        elif event_type == "ARCHIVED":
+            state["archived"] = True
         elif event_type == "SNAPSHOT":
             compiled_state = data.get("compiled_state", {})
             # Restore compiled state from snapshot
@@ -463,7 +465,10 @@ def reduce_ticket(
     return result
 
 
-def reduce_all_tickets(tracker_dir: str | os.PathLike[str]) -> list[dict]:
+def reduce_all_tickets(
+    tracker_dir: str | os.PathLike[str],
+    exclude_archived: bool = False,
+) -> list[dict]:
     """Batch-reduce all tickets in tracker_dir.
 
     Lists all non-hidden subdirectories in tracker_dir, calls reduce_ticket()
@@ -503,27 +508,39 @@ def reduce_all_tickets(tracker_dir: str | os.PathLike[str]) -> list[dict]:
         else:
             results.append(state)
 
+    if exclude_archived:
+        results = [r for r in results if not r.get("archived")]
+
     return results
 
 
 def main() -> int:
     """CLI entry point: print compiled ticket state as JSON."""
-    # Handle --batch mode
-    if len(sys.argv) == 3 and sys.argv[1] == "--batch":
-        batch_dir = sys.argv[2]
+    # Handle --batch mode (with optional --exclude-archived)
+    args = sys.argv[1:]
+    exclude_archived = False
+    if "--exclude-archived" in args:
+        exclude_archived = True
+        args = [a for a in args if a != "--exclude-archived"]
+
+    if len(args) == 2 and args[0] == "--batch":
+        batch_dir = args[1]
         if not os.path.isdir(batch_dir):
             print(f"Error: directory not found: {batch_dir}", file=sys.stderr)
             return 1
-        results = reduce_all_tickets(batch_dir)
+        results = reduce_all_tickets(batch_dir, exclude_archived=exclude_archived)
         print(json.dumps(results, ensure_ascii=False))
         return 0
 
-    if len(sys.argv) != 2:
+    if len(args) != 1:
         print("Usage: ticket-reducer.py <ticket_dir_path>", file=sys.stderr)
-        print("       ticket-reducer.py --batch <tracker_dir>", file=sys.stderr)
+        print(
+            "       ticket-reducer.py --batch [--exclude-archived] <tracker_dir>",
+            file=sys.stderr,
+        )
         return 1
 
-    ticket_dir = sys.argv[1]
+    ticket_dir = args[0]
 
     if not os.path.isdir(ticket_dir):
         print(f"Error: directory not found: {ticket_dir}", file=sys.stderr)
