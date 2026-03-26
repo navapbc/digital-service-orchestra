@@ -1,1 +1,0 @@
-{"timestamp": 1774560523864250000, "uuid": "72d84a53-b280-49d4-bcf1-e86af2664b87", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Added 4 Docker/code-based DB detection tests to test-project-detect.sh (Dockerfile, app code imports, .env file, docker-compose regression)"}}
