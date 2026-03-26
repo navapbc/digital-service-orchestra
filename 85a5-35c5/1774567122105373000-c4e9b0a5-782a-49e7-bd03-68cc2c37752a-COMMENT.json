@@ -1,1 +1,0 @@
-{"timestamp": 1774567122105373000, "uuid": "c4e9b0a5-782a-49e7-bd03-68cc2c37752a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "CHECKPOINT 1/6: Ticket reviewed. Task: add 4 design test functions to test-onboarding-skill.sh and update .test-index RED marker. Working in worktree-20260326-135316."}}
