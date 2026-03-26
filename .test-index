@@ -19,6 +19,7 @@
 
 CLAUDE.md: tests/scripts/test-no-v2-refs-in-claude-md.sh, tests/scripts/test-claude-md-fix-bug-gates.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
+plugins/dso/scripts/detect-stack.sh: tests/scripts/test-detect-stack.sh [test_detect_stack_python_empty_pyproject]
 plugins/dso/.claude-plugin/plugin.json:tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/hooks/test-plugin-docs.sh,tests/hooks/test-hooks-json-paths.sh,tests/hooks/test-run-hook-relative-paths.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-check-plugin-test-needed.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh
 plugins/dso/hooks/cascade-circuit-breaker.sh:tests/hooks/test-cascade-breaker.sh
 plugins/dso/hooks/review-stop-check.sh:tests/hooks/test-review-stop.sh,tests/hooks/test-review-stop-check.sh
@@ -55,7 +56,7 @@ plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check
 plugins/dso/scripts/issue-batch.sh:tests/scripts/test-utility-scripts-v2-removal.sh
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
-plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh
+plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh, tests/scripts/test-project-detect.sh [test_db_detection_dockerfile]
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test_bridge_alert_display.py

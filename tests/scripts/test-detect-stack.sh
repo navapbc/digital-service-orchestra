@@ -136,4 +136,46 @@ empty_output=$(bash "$SCRIPT" "$EMPTY_DIR" 2>&1) || empty_exit=$?
 assert_eq "test_detect_stack_empty_dir: exit 0" "0" "$empty_exit"
 assert_eq "test_detect_stack_empty_dir: outputs unknown" "unknown" "$empty_output"
 
+# ── test_detect_stack_python_empty_pyproject ─────────────────────────────────
+# An empty pyproject.toml (0 bytes) is not a valid Python project marker.
+# detect-stack.sh must verify file content, not just existence.
+# RED: current detect-stack.sh only checks file existence with test -f.
+EMPTY_PYPROJECT_DIR="$TMPDIR_FIXTURE/empty_pyproject_project"
+mkdir -p "$EMPTY_PYPROJECT_DIR"
+: > "$EMPTY_PYPROJECT_DIR/pyproject.toml"   # create 0-byte file
+
+empty_pyproject_output=""
+empty_pyproject_exit=0
+empty_pyproject_output=$(bash "$SCRIPT" "$EMPTY_PYPROJECT_DIR" 2>&1) || empty_pyproject_exit=$?
+assert_eq "test_detect_stack_python_empty_pyproject: exit 0" "0" "$empty_pyproject_exit"
+assert_eq "test_detect_stack_python_empty_pyproject: empty pyproject.toml → unknown" "unknown" "$empty_pyproject_output"
+
+# ── test_detect_stack_node_invalid_json ──────────────────────────────────────
+# A package.json containing invalid JSON is not a valid Node project marker.
+# detect-stack.sh must verify file content is parseable JSON, not just existence.
+# RED: current detect-stack.sh only checks file existence with test -f.
+INVALID_JSON_DIR="$TMPDIR_FIXTURE/invalid_json_project"
+mkdir -p "$INVALID_JSON_DIR"
+printf 'not json' > "$INVALID_JSON_DIR/package.json"
+
+invalid_json_output=""
+invalid_json_exit=0
+invalid_json_output=$(bash "$SCRIPT" "$INVALID_JSON_DIR" 2>&1) || invalid_json_exit=$?
+assert_eq "test_detect_stack_node_invalid_json: exit 0" "0" "$invalid_json_exit"
+assert_eq "test_detect_stack_node_invalid_json: invalid JSON package.json → unknown" "unknown" "$invalid_json_output"
+
+# ── test_detect_stack_empty_cargo_toml ───────────────────────────────────────
+# An empty Cargo.toml (0 bytes) is not a valid Rust project marker.
+# detect-stack.sh must verify file content, not just existence.
+# RED: current detect-stack.sh only checks file existence with test -f.
+EMPTY_CARGO_DIR="$TMPDIR_FIXTURE/empty_cargo_project"
+mkdir -p "$EMPTY_CARGO_DIR"
+: > "$EMPTY_CARGO_DIR/Cargo.toml"   # create 0-byte file
+
+empty_cargo_output=""
+empty_cargo_exit=0
+empty_cargo_output=$(bash "$SCRIPT" "$EMPTY_CARGO_DIR" 2>&1) || empty_cargo_exit=$?
+assert_eq "test_detect_stack_empty_cargo_toml: exit 0" "0" "$empty_cargo_exit"
+assert_eq "test_detect_stack_empty_cargo_toml: empty Cargo.toml → unknown" "unknown" "$empty_cargo_output"
+
 print_summary

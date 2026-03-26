@@ -1239,4 +1239,76 @@ assert_contains "test_project_detect_header_documents_suites: header describes -
     "discover test suites" "$_header_content"
 assert_pass_if_clean "test_project_detect_header_documents_suites"
 
+# ── Named tests: Docker/code-based DB detection (RED phase) ──────────────────
+# These tests cover DB detection beyond docker-compose.yml image line parsing.
+# test_db_detection_docker_compose_regression: guard against regression in
+# existing docker-compose.yml detection (should PASS now — tests existing behavior).
+# Uses a service named 'postgres' so db_services reports the service name.
+_snapshot_fail
+_db_dc_regress_dir="$TMPDIR_FIXTURE/db_dc_regression_project"
+mkdir -p "$_db_dc_regress_dir"
+cat > "$_db_dc_regress_dir/docker-compose.yml" <<'YAML'
+services:
+  postgres:
+    image: postgres:14
+  redis:
+    image: redis:7
+  app:
+    image: myapp:latest
+YAML
+_db_dc_regress_out=$(bash "$SCRIPT" "$_db_dc_regress_dir" 2>&1)
+assert_eq "test_db_detection_docker_compose_regression: db_present=true" \
+    "true" "$(get_key "$_db_dc_regress_out" db_present)"
+assert_contains "test_db_detection_docker_compose_regression: db_services contains postgres" \
+    "postgres" "$(get_key "$_db_dc_regress_out" db_services)"
+assert_pass_if_clean "test_db_detection_docker_compose_regression"
+
+# test_db_detection_dockerfile: db_present=true when Dockerfile contains FROM postgres:14
+# RED test — project-detect.sh does not yet scan Dockerfile for DB base images.
+_snapshot_fail
+_db_dockerfile_dir="$TMPDIR_FIXTURE/db_dockerfile_project"
+mkdir -p "$_db_dockerfile_dir"
+cat > "$_db_dockerfile_dir/Dockerfile" <<'DOCKERFILE'
+FROM postgres:14
+ENV POSTGRES_DB=mydb
+ENV POSTGRES_USER=user
+ENV POSTGRES_PASSWORD=secret
+DOCKERFILE
+_db_dockerfile_out=$(bash "$SCRIPT" "$_db_dockerfile_dir" 2>&1)
+assert_eq "test_db_detection_dockerfile: db_present=true" \
+    "true" "$(get_key "$_db_dockerfile_out" db_present)"
+assert_contains "test_db_detection_dockerfile: db_services contains postgres" \
+    "postgres" "$(get_key "$_db_dockerfile_out" db_services)"
+assert_pass_if_clean "test_db_detection_dockerfile"
+
+# test_db_detection_app_code_import: db_present=true when app.py contains 'import psycopg2'
+# RED test — project-detect.sh does not yet scan app code for DB library imports.
+_snapshot_fail
+_db_code_dir="$TMPDIR_FIXTURE/db_app_code_project"
+mkdir -p "$_db_code_dir"
+cat > "$_db_code_dir/app.py" <<'PYTHON'
+import psycopg2
+import os
+
+conn = psycopg2.connect(os.environ["DATABASE_URL"])
+PYTHON
+_db_code_out=$(bash "$SCRIPT" "$_db_code_dir" 2>&1)
+assert_eq "test_db_detection_app_code_import: db_present=true" \
+    "true" "$(get_key "$_db_code_out" db_present)"
+assert_pass_if_clean "test_db_detection_app_code_import"
+
+# test_db_detection_env_file: db_present=true when .env contains DATABASE_URL=postgresql://...
+# RED test — project-detect.sh does not yet scan .env files for DATABASE_URL.
+_snapshot_fail
+_db_env_dir="$TMPDIR_FIXTURE/db_env_file_project"
+mkdir -p "$_db_env_dir"
+cat > "$_db_env_dir/.env" <<'ENV'
+DATABASE_URL=postgresql://user:secret@localhost:5432/mydb
+SECRET_KEY=abc123
+ENV
+_db_env_out=$(bash "$SCRIPT" "$_db_env_dir" 2>&1)
+assert_eq "test_db_detection_env_file: db_present=true" \
+    "true" "$(get_key "$_db_env_out" db_present)"
+assert_pass_if_clean "test_db_detection_env_file"
+
 print_summary
