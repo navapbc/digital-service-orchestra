@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # tests/hooks/test-sub-agent-guard.sh
-# Verifies that all 18 target skills contain the appropriate SUB-AGENT-GUARD block.
+# Verifies that all 19 target skills contain the appropriate SUB-AGENT-GUARD block.
 #
 # Two groups:
 #   Sub-agent dependent (15): guard block must reference "Agent tool"
-#   User-interaction dependent (3): guard block must reference "running as a sub-agent"
+#   User-interaction dependent (4): guard block must reference "running as a sub-agent"
 #     (the orchestrator signal phrase used to detect sub-agent context)
 #
 # TDD RED phase: only the 9 skills from Task 3611-298a will pass initially.
@@ -100,13 +100,14 @@ check_guard_agent_tool "retro"
 check_guard_agent_tool "ui-discover"
 
 # ===========================================================================
-# Group 2: User-interaction dependent skills (3)
+# Group 2: User-interaction dependent skills (4)
 # Guard type: SUB-AGENT-GUARD block with orchestrator signal phrase check
 # RED until Story 3459-7246 adds their guards
 # ===========================================================================
 check_guard_orchestrator_signal "end-session"
 check_guard_orchestrator_signal "project-setup"
 check_guard_orchestrator_signal "design-onboarding"
+check_guard_orchestrator_signal "onboarding"
 
 print_summary
 
@@ -154,4 +155,6 @@ _TEST_GATE_ANCHORS=(
     test_project_setup_guard_references_orchestrator_signal
     test_design_onboarding_has_sub_agent_guard_marker
     test_design_onboarding_guard_references_orchestrator_signal
+    test_onboarding_has_sub_agent_guard_marker
+    test_onboarding_guard_references_orchestrator_signal
 )
