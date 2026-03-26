@@ -929,39 +929,69 @@ _phase_sync() {
     trap '_release_lock "$LOCK_FILE"' EXIT
 
     # --- 2.6) Pull remote changes before merging ---
+    # The worktree branch already has origin/main merged (line 876), so after
+    # _phase_merge, main will contain origin/main's content via the worktree.
+    # The pull here is an optimization to reduce merge conflicts in _phase_merge,
+    # but must not become a blocker when main and origin have diverged.
     echo "Pulling remote changes..."
-    # Stash any local changes so rebase pull can proceed
-    STASHED=false
-    if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-        echo "Stashing local changes before pull..."
-        git stash push --quiet -m "merge-to-main: pre-pull stash"
-        STASHED=true
-    fi
-    _abort_stale_rebase
-    if ! git pull --rebase 2>&1; then
-        # Attempt auto-resolution of ticket-data conflicts before giving up.
-        # Ticket-data conflicts (v2 archive rename/delete or v3 JSON event files)
-        # are always safe to resolve automatically.
-        if _auto_resolve_archive_conflicts 2>&1; then
-            echo "OK: Ticket-data conflicts auto-resolved during pull --rebase."
-        else
-            if $STASHED; then git stash pop --quiet 2>/dev/null || true; fi
-            _set_phase_status "pull_rebase" "conflict"
-            # Lock held via EXIT trap through conflict resolution
-            echo "CONFLICT_DATA: phase=pull_rebase branch=$BRANCH"
-            echo "ERROR: git pull --rebase failed. Resolve conflicts manually, then run: merge-to-main.sh --resume"
-            exit 1
+    git fetch origin main 2>&1 || {
+        echo "WARNING: git fetch origin main failed in main repo — continuing with local state."
+    }
+    if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+        # origin/main is already in main's history — pull is a no-op, skip it.
+        echo "OK: origin/main is already an ancestor of main — skipping pull."
+    else
+        # main and origin have diverged — try merge (more tolerant than rebase).
+        # Stash any local changes so the merge can proceed cleanly.
+        STASHED=false
+        if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+            echo "Stashing local changes before pull..."
+            git stash push --quiet -m "merge-to-main: pre-pull stash"
+            STASHED=true
         fi
-    fi
-    if $STASHED; then
-        echo "Restoring stashed changes..."
-        if ! git stash pop --quiet 2>/dev/null; then
-            # Stash pop conflicted — discard the stash. The pre-stash files were
-            # ticket data files (.tickets-tracker/), which the merge
-            # step will overwrite anyway. Keeping an unmerged stash pop would block all subsequent ops.
-            echo "WARNING: Stash pop had conflicts — resetting. Merge step will reconcile."
-            git reset --merge 2>/dev/null || true
-            git stash drop --quiet 2>/dev/null || true
+        _abort_stale_rebase
+        if git merge origin/main --no-edit -q 2>&1; then
+            echo "OK: Merged origin/main into main."
+        else
+            # Merge failed — check if all conflicts are ticket-data files.
+            local _merge_conflicts
+            _merge_conflicts=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+            local _non_ticket=0
+            while IFS= read -r _f; do
+                [[ -z "$_f" ]] && continue
+                case "$_f" in
+                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;;
+                    *) _non_ticket=$(( _non_ticket + 1 )) ;;
+                esac
+            done <<< "$_merge_conflicts"
+
+            if [[ "$_non_ticket" -eq 0 && -n "$_merge_conflicts" ]]; then
+                # All conflicts are ticket-data — accept ours and complete merge.
+                while IFS= read -r _f; do
+                    [[ -z "$_f" ]] && continue
+                    git checkout --ours "$_f" 2>/dev/null || true
+                    git add "$_f" 2>/dev/null || true
+                done <<< "$_merge_conflicts"
+                git commit --no-edit -q 2>/dev/null || true
+                echo "OK: Ticket-data conflicts auto-resolved during origin/main merge."
+            else
+                # Non-ticket conflicts present. Abort the merge and rely on the
+                # worktree branch (which already has origin/main merged) to bring
+                # origin/main content into main during _phase_merge.
+                git merge --abort 2>/dev/null || true
+                echo "WARNING: Could not merge origin/main into main (non-ticket conflicts). Continuing — worktree branch carries origin/main content."
+            fi
+        fi
+        if $STASHED; then
+            echo "Restoring stashed changes..."
+            if ! git stash pop --quiet 2>/dev/null; then
+                # Stash pop conflicted — discard the stash. The pre-stash files were
+                # ticket data files (.tickets-tracker/), which the merge
+                # step will overwrite anyway. Keeping an unmerged stash pop would block all subsequent ops.
+                echo "WARNING: Stash pop had conflicts — resetting. Merge step will reconcile."
+                git reset --merge 2>/dev/null || true
+                git stash drop --quiet 2>/dev/null || true
+            fi
         fi
     fi
     echo "OK: Pulled remote changes."
