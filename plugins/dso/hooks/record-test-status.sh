@@ -116,6 +116,58 @@ read_test_index_for_source() {
     done < "$index_file"
 }
 
+# find_global_red_marker_for_test: scan ALL .test-index entries (regardless of
+# source file) to find a RED marker for a given test file path.
+# Bug B fix (b9a9-4cb3): when a test is triggered by a staged source whose
+# .test-index entry has no marker, a different source's entry may have one.
+# This function performs a proper parse (not substring grep) to avoid false
+# positives from overlapping filenames (e.g., "test_alpha.sh" must not match
+# a marker on "test_alpha_extended.sh").
+#
+# Usage: find_global_red_marker_for_test <test_file_path>
+# Returns: marker name on stdout (empty string if none found)
+find_global_red_marker_for_test() {
+    local target_test="$1"
+    local repo_root="${REPO_ROOT:-.}"
+    local index_file="${repo_root}/.test-index"
+
+    [[ -f "$index_file" ]] || return 0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # Split on first colon: left = source, right = comma-separated tests
+        local right="${line#*:}"
+
+        IFS=',' read -ra parts <<< "$right"
+        for part in "${parts[@]}"; do
+            # Trim whitespace
+            part="${part#"${part%%[![:space:]]*}"}"
+            part="${part%"${part##*[![:space:]]}"}"
+            [[ -z "$part" ]] && continue
+
+            # Parse "test/path.ext [marker_name]" or just "test/path.ext"
+            local parsed_path parsed_marker
+            if [[ "$part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                parsed_path="${BASH_REMATCH[1]}"
+                parsed_marker="${BASH_REMATCH[2]}"
+                # Trim trailing whitespace from path
+                parsed_path="${parsed_path%"${parsed_path##*[![:space:]]}"}"
+            else
+                parsed_path="$part"
+                parsed_marker=""
+            fi
+
+            # Exact path match (not substring) — hardened for overlapping names
+            if [[ "$parsed_path" == "$target_test" ]] && [[ -n "$parsed_marker" ]]; then
+                echo "$parsed_marker"
+                return 0
+            fi
+        done
+    done < "$index_file"
+}
+
 # ── RED zone helpers ──────────────────────────────────────────────────────────
 
 # get_red_zone_line_number: find line number of marker in a test file.
@@ -361,8 +413,13 @@ while IFS= read -r src_file; do
         fi
 
         ASSOCIATED_TESTS+=("$local_test_file")
-        # .test-index marker wins over fuzzy (no marker)
-        _TEST_MARKER_MAP["$local_test_file"]="$local_marker"
+        # .test-index marker wins over fuzzy (no marker).
+        # Bug A fix (b9a9-4cb3): non-empty marker must not be overwritten by
+        # a later empty marker from a different source→test association.
+        # Only overwrite if new marker is non-empty OR no entry exists yet.
+        if [[ -n "$local_marker" ]] || [[ -z "${_TEST_MARKER_MAP[$local_test_file]:-}" ]]; then
+            _TEST_MARKER_MAP["$local_test_file"]="$local_marker"
+        fi
     done < <(read_test_index_for_source "$src_file")
 
 done <<< "$STAGED_FILES"
@@ -371,6 +428,19 @@ done <<< "$STAGED_FILES"
 if [[ ${#ASSOCIATED_TESTS[@]} -gt 0 ]]; then
     readarray -t ASSOCIATED_TESTS < <(printf '%s\n' "${ASSOCIATED_TESTS[@]}" | sort -u)
 fi
+# Bug B fix (b9a9-4cb3): global marker scan for test files that have no marker
+# from the staged-source association path. A RED marker on ANY .test-index entry
+# (even for a non-staged source) should apply — the marker is semantically a
+# property of the test file's state, not the source→test association.
+for _tf in "${ASSOCIATED_TESTS[@]}"; do
+    if [[ -z "${_TEST_MARKER_MAP[$_tf]:-}" ]]; then
+        _global_marker=$(find_global_red_marker_for_test "$_tf")
+        if [[ -n "$_global_marker" ]]; then
+            _TEST_MARKER_MAP["$_tf"]="$_global_marker"
+        fi
+    fi
+done
+
 # Rebuild marker array in the same order as deduplicated ASSOCIATED_TESTS
 ASSOCIATED_TEST_MARKERS=()
 for _tf in "${ASSOCIATED_TESTS[@]}"; do
