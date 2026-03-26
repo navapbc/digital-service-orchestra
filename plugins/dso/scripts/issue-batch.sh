@@ -241,7 +241,7 @@ def parse_ready_tickets(json_text, child_ids=None):
     except Exception:
         return []
 
-def tk_show(ticket_id):
+def ticket_show(ticket_id):
     """Run ticket show <id> and return a simple dict with id, title, status."""
     result = subprocess.run(
         [ticket_bin, "show", ticket_id],
