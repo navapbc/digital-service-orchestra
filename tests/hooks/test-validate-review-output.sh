@@ -724,4 +724,61 @@ assert_ne \
     "0" \
     "$OLD_DIM_EXIT"
 
+# ============================================================
+# 14. brainstorm caller: accepted with same schema as roadmap
+# ============================================================
+
+# brainstorm uses the same perspectives as roadmap (Agent Clarity, Scope, Value)
+VALID_RP_BRAINSTORM=$(write_fixture "rp-brainstorm-valid.json" '{
+  "subject": "Brainstorm epic review",
+  "reviews": [
+    {
+      "perspective": "Agent Clarity",
+      "status": "reviewed",
+      "dimensions": {
+        "self_contained": 4,
+        "success_measurable": 4
+      },
+      "findings": []
+    },
+    {
+      "perspective": "Scope",
+      "status": "reviewed",
+      "dimensions": {
+        "right_sized": 4,
+        "no_overlap": 4,
+        "dependency_aware": 4
+      },
+      "findings": []
+    },
+    {
+      "perspective": "Value",
+      "status": "reviewed",
+      "dimensions": {
+        "user_impact": 4,
+        "validation_signal": 4
+      },
+      "findings": []
+    }
+  ],
+  "conflicts": []
+}')
+
+VALID_RP_BRAINSTORM_EXIT=$(run_script review-protocol "$VALID_RP_BRAINSTORM" --caller brainstorm)
+assert_eq \
+    "test_review_protocol_caller_brainstorm_valid_passes: valid brainstorm caller schema exits 0" \
+    "0" \
+    "$VALID_RP_BRAINSTORM_EXIT"
+
+VALID_RP_BRAINSTORM_OUTPUT=$(run_script_output review-protocol "$VALID_RP_BRAINSTORM" --caller brainstorm)
+assert_contains \
+    "test_review_protocol_caller_brainstorm_schema_valid_yes: brainstorm caller output contains SCHEMA_VALID: yes" \
+    "SCHEMA_VALID: yes" \
+    "$VALID_RP_BRAINSTORM_OUTPUT"
+
+assert_contains \
+    "test_review_protocol_caller_brainstorm_output_includes_caller: output includes caller=brainstorm" \
+    "caller=brainstorm" \
+    "$VALID_RP_BRAINSTORM_OUTPUT"
+
 print_summary
