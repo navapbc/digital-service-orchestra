@@ -1,0 +1,1 @@
+{"timestamp": 1774550442, "uuid": "0d674ac4-2afb-42f9-930e-be743a32696a", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Outbound Bridge suffers excessive dispatch storms and push conflicts during merge sessions", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
