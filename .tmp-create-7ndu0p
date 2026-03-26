@@ -1,0 +1,1 @@
+{"timestamp": 1774510066, "uuid": "80b346d8-0e3d-4c56-8e4f-8bcd57394daa", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Stress-s2-t1", "parent_id": "", "priority": 2, "assignee": "Test"}}
