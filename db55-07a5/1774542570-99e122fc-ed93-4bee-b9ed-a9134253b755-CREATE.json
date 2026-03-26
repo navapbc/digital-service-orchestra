@@ -1,0 +1,1 @@
+{"timestamp": 1774542570, "uuid": "99e122fc-ed93-4bee-b9ed-a9134253b755", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Create ticket-benchmark.sh with threshold-based exit codes", "parent_id": "70a5-443d", "priority": 2, "assignee": "Joe Oakhart"}}
