@@ -1,1 +1,0 @@
-{"timestamp": 1774565435, "uuid": "4f349bff-4659-4fd3-a4e9-a815c189e991", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write failing tests for anti-cover-up patterns in deprecated fix-task templates", "parent_id": "dso-6026", "priority": 1, "assignee": "Joe Oakhart"}}
