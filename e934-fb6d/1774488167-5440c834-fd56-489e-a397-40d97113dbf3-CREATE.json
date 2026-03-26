@@ -1,0 +1,1 @@
+{"timestamp": 1774488167, "uuid": "5440c834-fd56-489e-a397-40d97113dbf3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED test: blast-radius scoring with cross-stack fixtures", "parent_id": "5050-15fd", "priority": 2, "assignee": "Joe Oakhart"}}
