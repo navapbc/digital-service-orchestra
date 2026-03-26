@@ -1,0 +1,1 @@
+{"timestamp": 1774488212, "uuid": "3c410f8a-443d-452b-9dcb-47e53bad2674", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Contract: blast-radius score output schema", "parent_id": "5050-15fd", "priority": 2, "assignee": "Joe Oakhart"}}
