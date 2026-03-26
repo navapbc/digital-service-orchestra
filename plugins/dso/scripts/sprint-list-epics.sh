@@ -108,11 +108,11 @@ print(json.dumps({'index': idx, 'child_counts': dict(child_counts)}))
 " 2>/dev/null || echo '{"index":{},"child_counts":{}}'
 }
 
-# Count non-hidden subdirectories in tracker to detect "has entries but reducer failed"
+# Check for non-hidden subdirectories in tracker to detect "has entries but reducer failed"
 _tracker_has_entries() {
-    local count
-    count=$(find "$TRACKER_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | head -1)
-    [ -n "$count" ]
+    local first_entry
+    first_entry=$(find "$TRACKER_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | head -1)
+    [ -n "$first_entry" ]
 }
 
 # Build index with retry on transient failure
