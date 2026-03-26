@@ -33,7 +33,7 @@ elif [ -n "${GIT_DIR:-}" ]; then
     REPO_ROOT="$(dirname "$GIT_DIR")"
     TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 else
-    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
     TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 fi
 

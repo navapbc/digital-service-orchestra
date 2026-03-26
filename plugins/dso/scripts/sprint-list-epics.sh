@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 show_all=false
 [[ "${1:-}" == "--all" ]] && show_all=true
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 
 # ---------------------------------------------------------------------------

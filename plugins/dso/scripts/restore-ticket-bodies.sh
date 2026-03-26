@@ -13,7 +13,7 @@ set -euo pipefail
 
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 cd "$REPO_ROOT"
 TICKETS_DIR="$REPO_ROOT/.tickets"
 # Repo-relative path for git show/log (which need repo-relative paths)

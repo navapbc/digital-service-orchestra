@@ -30,7 +30,7 @@ if [ -z "$KEEP_PROJECT" ]; then
     exit 1
 fi
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 if [ ! -d "$TRACKER_DIR" ]; then

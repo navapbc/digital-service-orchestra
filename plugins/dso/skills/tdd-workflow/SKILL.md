@@ -174,7 +174,7 @@ make format-check && make lint && make test
 | Skipping the failing test | No proof you understand the bug | The failing test is essential; always start with RED |
 | Large refactor during GREEN | Mixing concerns; harder to debug | Keep GREEN minimal; refactor separately in REFACTOR step |
 | Not running full validation | May introduce regressions elsewhere | Always run `make lint && make test` before commit |
-| Committing without CI check | CI may catch issues local tests miss | Wait for `$(git rev-parse --show-toplevel)/scripts/ci-status.sh --wait` to return success |
+| Committing without CI check | CI may catch issues local tests miss | Wait for `.claude/scripts/dso ci-status.sh --wait` to return success |
 
 ## Test Location Guidelines
 

@@ -64,7 +64,7 @@ log_action() {
 }
 
 # Resolve repo root (works from worktrees too)
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 WORKTREE_NAME=$(basename "$REPO_ROOT")
 
 # Source config-driven paths (CFG_APP_DIR defaults to "app")
