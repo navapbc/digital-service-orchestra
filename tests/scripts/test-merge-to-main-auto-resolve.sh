@@ -179,7 +179,171 @@ assert_eq "test_v3_two_level_ticket_path_reports_auto_resolve" "true" "$HAS_AUTO
 git -C "$ENV3/main" worktree remove --force "$ENV3/worktree" 2>/dev/null || true
 
 # =============================================================================
-# Test 4: bash -n syntax check
+# Test 4: Skip pull --rebase when origin/main is already an ancestor of main
+# Bug a8a1-6e9b: merge-to-main.sh fails when main is ahead of origin/main and
+# git pull --rebase hits conflicts from prior worktree merges. The fix: detect
+# that origin/main is an ancestor of HEAD and skip the pull entirely.
+# =============================================================================
+
+# Helper: create an env where main is AHEAD of origin/main (ancestor case).
+# origin/main is an ancestor of local main. git pull --rebase is a no-op.
+setup_ancestor_skip_env() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
+    local ENV
+    ENV=$(cd "$tmpdir" && pwd -P)
+
+    # Seed repo
+    git init -q -b main "$ENV/seed"
+    git -C "$ENV/seed" config user.email "test@test.com"
+    git -C "$ENV/seed" config user.name "Test"
+    echo "init" > "$ENV/seed/README.md"
+    mkdir -p "$ENV/seed/.claude"
+    echo "tickets.directory=.tickets" > "$ENV/seed/.claude/dso-config.conf"
+    git -C "$ENV/seed" add -A
+    git -C "$ENV/seed" commit -q -m "init"
+
+    # Bare origin
+    git clone --bare -q "$ENV/seed" "$ENV/bare.git"
+
+    # Main clone
+    git clone -q "$ENV/bare.git" "$ENV/main"
+    git -C "$ENV/main" config user.email "test@test.com"
+    git -C "$ENV/main" config user.name "Test"
+
+    # Create worktree on feature branch
+    git -C "$ENV/main" branch feature-branch 2>/dev/null || true
+    git -C "$ENV/main" worktree add -q "$ENV/worktree" feature-branch
+    git -C "$ENV/worktree" config user.email "test@test.com"
+    git -C "$ENV/worktree" config user.name "Test"
+
+    # Feature commit on worktree
+    echo "feature work" > "$ENV/worktree/feature.txt"
+    git -C "$ENV/worktree" add feature.txt
+    git -C "$ENV/worktree" commit -q -m "feat: feature work"
+
+    # Simulate prior worktree merge: main is AHEAD of origin (local commit not pushed)
+    echo "prior-merge content" > "$ENV/main/extra.txt"
+    git -C "$ENV/main" add extra.txt
+    git -C "$ENV/main" commit -q -m "merge prior-worktree (local only)"
+
+    # Fetch to update origin/main ref — origin stays at "init"
+    git -C "$ENV/main" fetch origin 2>/dev/null || true
+
+    echo "$ENV"
+}
+
+ENV4=$(setup_ancestor_skip_env)
+WT4=$(cd "$ENV4/worktree" && pwd -P)
+
+MERGE_OUT4=$(cd "$WT4" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+# Should succeed — origin/main is ancestor of main, pull is skipped
+HAS_DONE4="false"
+if echo "$MERGE_OUT4" | grep -q "^DONE:"; then
+    HAS_DONE4="true"
+fi
+assert_eq "test_ancestor_skip_pull_completes" "true" "$HAS_DONE4"
+
+# Should log the ancestor skip message
+HAS_SKIP_MSG4="false"
+if echo "$MERGE_OUT4" | grep -qi "origin/main.*ancestor.*skip"; then
+    HAS_SKIP_MSG4="true"
+fi
+assert_eq "test_ancestor_skip_pull_logs_message" "true" "$HAS_SKIP_MSG4"
+
+git -C "$ENV4/main" worktree remove --force "$ENV4/worktree" 2>/dev/null || true
+
+# =============================================================================
+# Test 5: Diverged pull with non-ticket code conflicts does NOT emit
+# CONFLICT_DATA at pull_rebase phase — the conflict is deferred to _phase_merge
+# Bug a8a1-6e9b: previously, the script aborted with CONFLICT_DATA at
+# pull_rebase with no recovery path. Now it logs a warning and continues.
+# =============================================================================
+
+setup_diverged_pull_env() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
+    local ENV
+    ENV=$(cd "$tmpdir" && pwd -P)
+
+    # Seed repo with a shared file
+    git init -q -b main "$ENV/seed"
+    git -C "$ENV/seed" config user.email "test@test.com"
+    git -C "$ENV/seed" config user.name "Test"
+    echo "init" > "$ENV/seed/README.md"
+    echo "base content" > "$ENV/seed/shared.txt"
+    mkdir -p "$ENV/seed/.claude"
+    echo "tickets.directory=.tickets" > "$ENV/seed/.claude/dso-config.conf"
+    git -C "$ENV/seed" add -A
+    git -C "$ENV/seed" commit -q -m "init"
+
+    # Bare origin
+    git clone --bare -q "$ENV/seed" "$ENV/bare.git"
+
+    # Main clone
+    git clone -q "$ENV/bare.git" "$ENV/main"
+    git -C "$ENV/main" config user.email "test@test.com"
+    git -C "$ENV/main" config user.name "Test"
+
+    # Create worktree on feature branch
+    git -C "$ENV/main" branch feature-branch 2>/dev/null || true
+    git -C "$ENV/main" worktree add -q "$ENV/worktree" feature-branch
+    git -C "$ENV/worktree" config user.email "test@test.com"
+    git -C "$ENV/worktree" config user.name "Test"
+
+    # Feature commit on worktree
+    echo "feature work" > "$ENV/worktree/feature.txt"
+    git -C "$ENV/worktree" add feature.txt
+    git -C "$ENV/worktree" commit -q -m "feat: feature work"
+
+    # Simulate prior worktree A merging to main: modify shared.txt locally
+    echo "modified by worktree-A merge" > "$ENV/main/shared.txt"
+    git -C "$ENV/main" add shared.txt
+    git -C "$ENV/main" commit -q -m "merge worktree-A (local, not pushed)"
+
+    # Push a conflicting change to origin from another clone
+    local tmp_clone
+    tmp_clone=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp_clone")
+    git clone -q "$ENV/bare.git" "$tmp_clone/push"
+    git -C "$tmp_clone/push" config user.email "other@test.com"
+    git -C "$tmp_clone/push" config user.name "Other"
+    echo "modified by other-worktree push" > "$tmp_clone/push/shared.txt"
+    git -C "$tmp_clone/push" add shared.txt
+    git -C "$tmp_clone/push" commit -q -m "other: different change to shared.txt"
+    git -C "$tmp_clone/push" push -q origin main
+
+    echo "$ENV"
+}
+
+ENV5=$(setup_diverged_pull_env)
+WT5=$(cd "$ENV5/worktree" && pwd -P)
+
+MERGE_OUT5=$(cd "$WT5" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE && \
+    bash "$MERGE_SCRIPT" 2>&1 || true)
+
+# Should NOT contain the old CONFLICT_DATA at pull_rebase — that phase is gone
+NO_CONFLICT5="true"
+if echo "$MERGE_OUT5" | grep -q "CONFLICT_DATA.*pull_rebase"; then
+    NO_CONFLICT5="false"
+fi
+assert_eq "test_diverged_pull_no_pull_rebase_abort" "true" "$NO_CONFLICT5"
+
+# Should contain the warning about skipping the pull
+HAS_WARNING5="false"
+if echo "$MERGE_OUT5" | grep -qi "WARNING.*Could not merge origin/main.*Continuing"; then
+    HAS_WARNING5="true"
+fi
+assert_eq "test_diverged_pull_logs_skip_warning" "true" "$HAS_WARNING5"
+
+git -C "$ENV5/main" worktree remove --force "$ENV5/worktree" 2>/dev/null || true
+
+# =============================================================================
+# Test 6: bash -n syntax check
 # =============================================================================
 SYNTAX_OK=0
 bash -n "$MERGE_SCRIPT" 2>/dev/null && SYNTAX_OK=1

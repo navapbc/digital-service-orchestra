@@ -3,8 +3,6 @@
 # Structural validation tests for the rationalized-failures accountability step
 # in plugins/dso/skills/end-session/SKILL.md.
 #
-# TDD RED: All 12 tests FAIL because the step does not exist in SKILL.md yet.
-# After the GREEN task (dso-h2gj) adds the step, all tests will pass.
 #
 # Tests:
 #   1. test_skill_has_rationalized_failures_step   — heading "Rationalized Failures" exists between steps 2.75 and 2.8

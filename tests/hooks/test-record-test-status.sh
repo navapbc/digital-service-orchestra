@@ -2276,4 +2276,256 @@ trap - EXIT
 
 assert_pass_if_clean "test_resume_skips_completed_tests"
 
+# test_red_marker_survives_overwrite_by_unmarked_entry (Bug A — b9a9-4cb3)
+# When TWO staged source files both map to the SAME test file via
+# .test-index, and one entry has a RED marker while the other does not,
+# the marker must be preserved regardless of processing order.
+# ============================================================
+echo ""
+echo "=== test_red_marker_survives_overwrite_by_unmarked_entry ==="
+_snapshot_fail
+
+TEST_REPO_BUGA=$(create_test_repo)
+ARTIFACTS_BUGA=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_BUGA" "$ARTIFACTS_BUGA"' EXIT
+
+# Two source files: aaa_marked.py (sorts first) and zzz_unmarked.py (sorts last).
+# git diff --cached outputs alphabetically, so aaa_marked is processed first
+# (setting the marker), then zzz_unmarked is processed second (which must NOT
+# overwrite the marker with empty string).
+mkdir -p "$TEST_REPO_BUGA/src" "$TEST_REPO_BUGA/tests"
+cat > "$TEST_REPO_BUGA/src/aaa_marked.py" << 'PYEOF'
+def aaa_marked():
+    return "marked"
+PYEOF
+cat > "$TEST_REPO_BUGA/src/zzz_unmarked.py" << 'PYEOF'
+def zzz_unmarked():
+    return "unmarked"
+PYEOF
+
+# One shared test file with a passing test and a RED zone test
+cat > "$TEST_REPO_BUGA/tests/test_shared.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_passing: PASS"
+echo "test_red_feature: FAIL (intentional RED zone failure)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_BUGA/tests/test_shared.sh"
+
+# .test-index: aaa_marked maps WITH marker, zzz_unmarked WITHOUT marker.
+# git processes staged files alphabetically: aaa_marked first (sets marker),
+# then zzz_unmarked second. Bug A: the unmarked entry must NOT overwrite.
+cat > "$TEST_REPO_BUGA/.test-index" << 'IDXEOF'
+src/aaa_marked.py:tests/test_shared.sh [test_red_feature]
+src/zzz_unmarked.py:tests/test_shared.sh
+IDXEOF
+
+git -C "$TEST_REPO_BUGA" add -A
+git -C "$TEST_REPO_BUGA" commit -m "setup" --quiet 2>/dev/null
+
+# Stage BOTH source files
+echo "# change" >> "$TEST_REPO_BUGA/src/aaa_marked.py"
+echo "# change" >> "$TEST_REPO_BUGA/src/zzz_unmarked.py"
+git -C "$TEST_REPO_BUGA" add -A
+
+# Mock runner: simulates RED zone failure
+MOCK_BUGA=$(mktemp "${TMPDIR:-/tmp}/mock-buga-runner-XXXXXX")
+chmod +x "$MOCK_BUGA"
+cat > "$MOCK_BUGA" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_passing: PASS"
+echo "test_red_feature: FAIL (intentional RED zone)"
+exit 1
+MOCKEOF
+
+EXIT_BUGA=$(
+    cd "$TEST_REPO_BUGA"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BUGA" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_BUGA" \
+    run_hook_exit
+)
+
+assert_eq "bug_a_marker_survives_overwrite: exits 0 (RED zone tolerated)" "0" "$EXIT_BUGA"
+if [[ -f "$ARTIFACTS_BUGA/test-gate-status" ]]; then
+    FIRST_LINE_BUGA=$(head -1 "$ARTIFACTS_BUGA/test-gate-status")
+    assert_eq "bug_a_marker_survives_overwrite: writes passed" "passed" "$FIRST_LINE_BUGA"
+else
+    assert_eq "bug_a_marker_survives_overwrite: status file exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_BUGA"
+rm -rf "$TEST_REPO_BUGA" "$ARTIFACTS_BUGA"
+trap - EXIT
+assert_pass_if_clean "test_red_marker_survives_overwrite_by_unmarked_entry"
+
+# ============================================================
+# test_red_marker_found_via_global_scan (Bug B — b9a9-4cb3)
+# When a test file is triggered by a staged source file whose
+# .test-index entry has NO marker, but a DIFFERENT (non-staged)
+# source file's .test-index entry maps to the same test WITH a
+# marker, the global scan should find and apply the marker.
+# ============================================================
+echo ""
+echo "=== test_red_marker_found_via_global_scan ==="
+_snapshot_fail
+
+TEST_REPO_BUGB=$(create_test_repo)
+ARTIFACTS_BUGB=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_BUGB" "$ARTIFACTS_BUGB"' EXIT
+
+# Two source files: staged.py and unstaged.py
+mkdir -p "$TEST_REPO_BUGB/src" "$TEST_REPO_BUGB/tests"
+cat > "$TEST_REPO_BUGB/src/staged.py" << 'PYEOF'
+def staged():
+    return "staged"
+PYEOF
+cat > "$TEST_REPO_BUGB/src/unstaged.py" << 'PYEOF'
+def unstaged():
+    return "unstaged"
+PYEOF
+
+# Shared test file with RED zone failure
+cat > "$TEST_REPO_BUGB/tests/test_shared.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_existing: PASS"
+echo "test_new_red: FAIL (intentional RED zone failure)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_BUGB/tests/test_shared.sh"
+
+# .test-index:
+#   staged.py   → test_shared.sh (NO marker)
+#   unstaged.py → test_shared.sh [test_new_red] (HAS marker)
+cat > "$TEST_REPO_BUGB/.test-index" << 'IDXEOF'
+src/staged.py:tests/test_shared.sh
+src/unstaged.py:tests/test_shared.sh [test_new_red]
+IDXEOF
+
+git -C "$TEST_REPO_BUGB" add -A
+git -C "$TEST_REPO_BUGB" commit -m "setup" --quiet 2>/dev/null
+
+# Stage ONLY staged.py — unstaged.py is NOT modified
+echo "# change" >> "$TEST_REPO_BUGB/src/staged.py"
+git -C "$TEST_REPO_BUGB" add src/staged.py
+
+# Mock runner: simulates RED zone failure
+MOCK_BUGB=$(mktemp "${TMPDIR:-/tmp}/mock-bugb-runner-XXXXXX")
+chmod +x "$MOCK_BUGB"
+cat > "$MOCK_BUGB" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_existing: PASS"
+echo "test_new_red: FAIL (intentional RED zone)"
+exit 1
+MOCKEOF
+
+EXIT_BUGB=$(
+    cd "$TEST_REPO_BUGB"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BUGB" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_BUGB" \
+    run_hook_exit
+)
+
+# The test was triggered by staged.py (no marker), but unstaged.py's
+# .test-index entry has [test_new_red]. The global scan should find it.
+assert_eq "bug_b_global_scan_finds_marker: exits 0 (RED zone tolerated)" "0" "$EXIT_BUGB"
+if [[ -f "$ARTIFACTS_BUGB/test-gate-status" ]]; then
+    FIRST_LINE_BUGB=$(head -1 "$ARTIFACTS_BUGB/test-gate-status")
+    assert_eq "bug_b_global_scan_finds_marker: writes passed" "passed" "$FIRST_LINE_BUGB"
+else
+    assert_eq "bug_b_global_scan_finds_marker: status file exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_BUGB"
+rm -rf "$TEST_REPO_BUGB" "$ARTIFACTS_BUGB"
+trap - EXIT
+assert_pass_if_clean "test_red_marker_found_via_global_scan"
+
+# ============================================================
+# test_global_scan_no_false_positive_from_substring_match (Bug B hardening)
+# When test file "tests/test_alpha.sh" has no marker, and a DIFFERENT
+# test file "tests/test_alpha_extended.sh" has a marker, the global
+# scan must NOT apply the marker from the longer-named file.
+# Validates exact path matching, not substring matching.
+# ============================================================
+echo ""
+echo "=== test_global_scan_no_false_positive_from_substring_match ==="
+_snapshot_fail
+
+TEST_REPO_BUGB2=$(create_test_repo)
+ARTIFACTS_BUGB2=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_BUGB2" "$ARTIFACTS_BUGB2"' EXIT
+
+mkdir -p "$TEST_REPO_BUGB2/src" "$TEST_REPO_BUGB2/tests"
+cat > "$TEST_REPO_BUGB2/src/alpha.py" << 'PYEOF'
+def alpha():
+    return "alpha"
+PYEOF
+cat > "$TEST_REPO_BUGB2/src/alpha_extended.py" << 'PYEOF'
+def alpha_extended():
+    return "extended"
+PYEOF
+
+# test_alpha.sh — FAILS (no marker should protect it)
+cat > "$TEST_REPO_BUGB2/tests/test_alpha.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_alpha_basic: FAIL (genuine failure, no marker)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_BUGB2/tests/test_alpha.sh"
+
+# test_alpha_extended.sh — has marker (but for a DIFFERENT test file)
+cat > "$TEST_REPO_BUGB2/tests/test_alpha_extended.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_extended_red: FAIL (RED zone)"
+exit 1
+SHEOF
+chmod +x "$TEST_REPO_BUGB2/tests/test_alpha_extended.sh"
+
+# .test-index:
+#   alpha.py → test_alpha.sh (NO marker)
+#   alpha_extended.py → test_alpha_extended.sh [test_extended_red] (HAS marker)
+# A substring grep for "test_alpha.sh" would match "test_alpha_extended.sh" — must NOT happen.
+cat > "$TEST_REPO_BUGB2/.test-index" << 'IDXEOF'
+src/alpha.py:tests/test_alpha.sh
+src/alpha_extended.py:tests/test_alpha_extended.sh [test_extended_red]
+IDXEOF
+
+git -C "$TEST_REPO_BUGB2" add -A
+git -C "$TEST_REPO_BUGB2" commit -m "setup" --quiet 2>/dev/null
+
+# Stage alpha.py only
+echo "# change" >> "$TEST_REPO_BUGB2/src/alpha.py"
+git -C "$TEST_REPO_BUGB2" add src/alpha.py
+
+MOCK_BUGB2=$(mktemp "${TMPDIR:-/tmp}/mock-bugb2-runner-XXXXXX")
+chmod +x "$MOCK_BUGB2"
+cat > "$MOCK_BUGB2" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_alpha_basic: FAIL (genuine failure)"
+exit 1
+MOCKEOF
+
+EXIT_BUGB2=$(
+    cd "$TEST_REPO_BUGB2"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BUGB2" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_BUGB2" \
+    run_hook_exit
+)
+
+# test_alpha.sh has NO marker. test_alpha_extended.sh has a marker but for a
+# different file. The global scan must NOT apply that marker to test_alpha.sh.
+assert_eq "bug_b_no_substring_false_positive: exits 1 (genuine failure blocks)" "1" "$EXIT_BUGB2"
+if [[ -f "$ARTIFACTS_BUGB2/test-gate-status" ]]; then
+    FIRST_LINE_BUGB2=$(head -1 "$ARTIFACTS_BUGB2/test-gate-status")
+    assert_eq "bug_b_no_substring_false_positive: writes failed" "failed" "$FIRST_LINE_BUGB2"
+fi
+
+rm -f "$MOCK_BUGB2"
+rm -rf "$TEST_REPO_BUGB2" "$ARTIFACTS_BUGB2"
+trap - EXIT
+assert_pass_if_clean "test_global_scan_no_false_positive_from_substring_match"
+
 print_summary

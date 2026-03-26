@@ -181,6 +181,101 @@ def test_complexity_evaluator_agent_body_epic_only_marker() -> None:
     )
 
 
+# RED tests for task 8f5e-6c63: blast-radius integration
+# These tests verify that complexity-evaluator.md will contain blast-radius as Dimension 6.
+# The evaluator currently lacks blast-radius content; these tests are expected to FAIL (RED phase).
+
+
+def test_blast_radius_heading() -> None:
+    """Markdown body must contain 'Blast Radius' as a dimension heading."""
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    assert re.search(r"Blast Radius", body), (
+        "Expected complexity-evaluator.md body to contain 'Blast Radius' as a dimension "
+        "heading. Blast radius measures how many files/modules are affected by a change "
+        "and is a key factor in determining complexity. "
+        "RED: blast-radius content has not yet been added to the evaluator."
+    )
+
+
+def test_blast_radius_references_script() -> None:
+    """Markdown body must reference 'blast-radius-score.py' in the blast-radius dimension."""
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    assert "blast-radius-score.py" in body, (
+        "Expected complexity-evaluator.md body to reference 'blast-radius-score.py' as the "
+        "script that computes the blast radius score. The evaluator should instruct the agent "
+        "to invoke this script to obtain a numeric blast radius score for the changed files. "
+        "RED: blast-radius-score.py reference has not yet been added to the evaluator."
+    )
+
+
+def test_blast_radius_complex_forcing() -> None:
+    """Markdown body must link complex_override=true to COMPLEX classification."""
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    assert re.search(r"complex_override\s*=\s*true", body, re.IGNORECASE) or re.search(
+        r"complex_override.*COMPLEX|COMPLEX.*complex_override", body, re.IGNORECASE
+    ), (
+        "Expected complexity-evaluator.md body to contain a rule linking complex_override=true "
+        "to a COMPLEX classification outcome. When blast-radius-score.py signals "
+        "complex_override=true (e.g., because a critical-path file is touched), the evaluator "
+        "must force the classification to COMPLEX regardless of other dimension scores. "
+        "RED: complex_override rule has not yet been added to the evaluator."
+    )
+
+
+def test_blast_radius_is_sixth_dimension() -> None:
+    """Markdown body must identify Blast Radius as Dimension 6 (or equivalent sixth position)."""
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    assert re.search(
+        r"Dimension\s*6|6\.\s*Blast Radius|sixth dimension", body, re.IGNORECASE
+    ), (
+        "Expected complexity-evaluator.md body to identify Blast Radius as 'Dimension 6' "
+        "or reference it in the sixth position of the rubric (e.g., '6. Blast Radius'). "
+        "The existing 5-dimension rubric (Files, Layers, Interfaces, scope_certainty, "
+        "Confidence) must be extended to include Blast Radius as the sixth dimension. "
+        "RED: Dimension 6 / sixth position for Blast Radius not yet present in the evaluator."
+    )
+
+
+def test_blast_radius_procedure_step() -> None:
+    """Procedure section between 'Find Files' and 'Apply Rubric' must invoke blast-radius-score.py with stdin pipe notation."""
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    # Locate the procedure section — it should appear between "Find Files" and "Apply Rubric"
+    find_files_pos = body.lower().find("find files")
+    apply_rubric_pos = body.lower().find("apply rubric")
+    assert find_files_pos != -1, (
+        "Expected complexity-evaluator.md body to contain a 'Find Files' step in the procedure "
+        "section. This step is the entry point for the blast-radius computation. "
+        "RED: procedure section with 'Find Files' not yet present."
+    )
+    assert apply_rubric_pos != -1, (
+        "Expected complexity-evaluator.md body to contain an 'Apply Rubric' step in the "
+        "procedure section, following the 'Find Files' and blast-radius steps. "
+        "RED: 'Apply Rubric' step not yet present."
+    )
+    # Check that the procedure between those two anchors references blast-radius-score.py
+    # with a stdin pipe (e.g., `... | python3 blast-radius-score.py`)
+    procedure_section = (
+        body[find_files_pos:apply_rubric_pos]
+        if apply_rubric_pos > find_files_pos
+        else body
+    )
+    assert re.search(
+        r"\|\s*python3.*blast-radius-score\.py|blast-radius-score\.py.*stdin",
+        procedure_section,
+    ), (
+        "Expected the procedure section between 'Find Files' and 'Apply Rubric' in "
+        "complexity-evaluator.md to contain a step that invokes blast-radius-score.py "
+        "with stdin pipe notation (e.g., `git diff --name-only | python3 blast-radius-score.py`). "
+        "The pipe notation indicates the script reads file paths from stdin. "
+        "RED: blast-radius-score.py stdin pipe invocation not yet present in the procedure."
+    )
+
+
 def _extract_output_schema_json(body: str) -> str:
     """Extract the JSON block from the Output Schema section of the agent body."""
     schema_match = re.search(r"## Output Schema.*?```json\s*(.*?)```", body, re.DOTALL)

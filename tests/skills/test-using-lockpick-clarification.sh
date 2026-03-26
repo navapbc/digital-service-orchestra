@@ -3,8 +3,6 @@
 # Structural validation tests for the clarification loop content in
 # plugins/dso/skills/using-lockpick/SKILL.md and HOOK-INJECTION.md.
 #
-# TDD RED phase: all tests fail until the clarification loop is implemented
-# in the GREEN phase tasks (dso-0kz0 and dso-jfcc).
 #
 # Validates (SKILL.md — 10 tests):
 #   1. Has "## When No Skill Matches" heading (clarification section)
