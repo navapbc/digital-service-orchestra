@@ -1,1 +1,0 @@
-{"timestamp": 1774566158, "uuid": "f8ac1537-5528-4cd5-a57f-dff6f7b4249d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Add design questions and .claude/design-notes.md generation to onboarding SKILL.md", "parent_id": "e19b-b649", "priority": 2, "assignee": "Joe Oakhart"}}
