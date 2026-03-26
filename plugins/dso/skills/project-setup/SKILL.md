@@ -893,18 +893,31 @@ Enter value (or press Enter to accept detected value):
 ```
 If the user presses Enter and `$JIRA_USER` is set in the environment, use that value. If not detected, use the value the user enters.
 
-**B3. ACLI_VERSION** — Use `AskUserQuestion`:
+**B3. ACLI_VERSION and B4. ACLI_SHA256** — Auto-resolved via `acli-version-resolver.sh`:
+
+```bash
+ACLI_RESOLVER_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/acli-version-resolver.sh" --platform linux --arch amd64 2>/dev/null)
+ACLI_VERSION=$(echo "$ACLI_RESOLVER_OUT" | grep '^ACLI_VERSION=' | cut -d= -f2-)
+ACLI_SHA256=$(echo "$ACLI_RESOLVER_OUT" | grep '^ACLI_SHA256=' | cut -d= -f2-)
 ```
-ACLI_VERSION — The version of the Atlassian CLI (acli) to install in CI (e.g., 1.3.0).
+
+The script resolves the installed acli version and computes the SHA-256 checksum of the linux/amd64 tarball (the platform used by GitHub Actions runners). No user prompt is needed when the script succeeds.
+
+If `ACLI_VERSION` is empty after the above (script failed — e.g., acli not installed and network unavailable), prompt the user
+via `AskUserQuestion`:
+```
+ACLI_VERSION — Could not be resolved automatically.
+The Atlassian CLI (acli) version to install in CI (e.g., 1.3.0).
 ACLI v1.3+ is required for auth via 'acli jira auth login --site --email --token'.
 Check available versions at: https://github.com/ankitpokhrel/jira-cli/releases
 Enter value:
 ```
 
-**B4. ACLI_SHA256** — Use `AskUserQuestion`:
+If `ACLI_SHA256` is empty after auto-resolution (or after manual version entry), prompt the user
+via `AskUserQuestion`:
 ```
-ACLI_SHA256 — The SHA-256 checksum of the acli linux/amd64 tar.gz release asset.
-This is used to verify the download integrity in CI.
+ACLI_SHA256 — Could not be resolved automatically.
+The SHA-256 checksum of the acli linux/amd64 tar.gz release asset (used to verify CI download integrity).
 
 Options:
   a) Enter the SHA-256 now (find it in the release's checksum file or brew formula)
@@ -998,7 +1011,8 @@ ENV_ID_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-ident
 BRIDGE_ENV_ID=$(echo "$ENV_ID_OUT" | grep '^BRIDGE_ENV_ID=' | cut -d= -f2-)
 ```
 
-The script derives the environment ID from the repository's GitHub org and name (e.g., `github-myorg-myrepo`). No user prompt is needed unless the script fails — if `BRIDGE_ENV_ID` is empty after the above, fall back to `AskUserQuestion`:
+The script derives the environment ID from the repository's GitHub org and name (e.g., `github-myorg-myrepo`). No user prompt is needed unless the script fails — if `BRIDGE_ENV_ID` is empty after the above, prompt the user
+via `AskUserQuestion`:
 ```
 BRIDGE_ENV_ID — Could not be resolved automatically from the repository context.
 Enter an identifier for the bridge environment (e.g., "github-myorg-myrepo"):
