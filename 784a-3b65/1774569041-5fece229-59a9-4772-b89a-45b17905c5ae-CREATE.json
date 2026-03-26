@@ -1,0 +1,1 @@
+{"timestamp": 1774569041, "uuid": "5fece229-59a9-4772-b89a-45b17905c5ae", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Create redirect SKILL.md stubs for project-setup, dev-onboarding, design-onboarding", "parent_id": "45c0-b56a", "priority": 2, "assignee": "Joe Oakhart"}}
