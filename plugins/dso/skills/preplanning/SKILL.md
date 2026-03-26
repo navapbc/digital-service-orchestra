@@ -289,7 +289,7 @@ Parse the blue team's accepted findings and apply each one based on its `type`:
 
 | Finding Type | Action |
 |-------------|--------|
-| `new_story` | Create a new story with the full body at creation time: `.claude/scripts/dso ticket create "<title>" -t story --parent=<epic-id> --description "<finding description and rationale, done definitions, and considerations>"`. Do not create a bare-title ticket and backfill later — pass `--description` with the assembled content at creation time. |
+| `new_story` | Create a new story: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id>`. Then immediately use the Write or Edit tool to add the full body (description, done definitions, considerations) below the YAML frontmatter in `.tickets/<id>.md`. |
 | `modify_done_definition` | Edit the target story's ticket file (`.tickets/<target_story_id>.md`) to add or modify done definitions per the finding's description. |
 | `add_dependency` | Add the dependency: `.claude/scripts/dso ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
 | `add_consideration` | Edit the target story's ticket file to append the consideration to its Considerations section. |
@@ -398,7 +398,7 @@ For each split:
 
 ### Step 1: Create/Modify Stories in Tickets (/dso:preplanning)
 
-For new stories, pass the full story body at creation time via `--description` and `--acceptance`, then verify the ticket file contains the expected content:
+For new stories, create the ticket then immediately write the full story body into the ticket file:
 
 ```bash
 # Step 1: assemble the story body from earlier phases
@@ -407,9 +407,13 @@ For new stories, pass the full story body at creation time via `--description` a
 # - Considerations: flags from Phase 2 Risk & Scope Scan
 # - Escalation Policy: selected in Phase 1 Step 1b (omit if Autonomous)
 
-# Step 2: create the ticket with full body — capture the generated ID
-STORY_ID=$(.claude/scripts/dso ticket create "As a [persona], [goal]" -t story -p <priority> --parent=<epic-id> \
-  --description "$(cat <<'BODY'
+# Step 2: create the ticket — capture the generated ID
+STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --parent=<epic-id> --priority=<priority>)
+```
+
+Then use the Write or Edit tool to write the full body into `.tickets/<story-id>.md`, preserving the YAML frontmatter (lines 1–N ending with `---`) and replacing everything after it with the structured markdown body:
+
+```markdown
 ## Description
 
 **What**: <what the feature or change is>
@@ -432,13 +436,9 @@ STORY_ID=$(.claude/scripts/dso ticket create "As a [persona], [goal]" -t story -
 ## Escalation Policy
 
 **Escalation policy**: <verbatim escalation policy text from Phase 1 Step 1b>
-BODY
-)")
 ```
 
-The `--description` flag writes the full story body into the ticket file at creation time, ensuring the ticket is never a bare title. Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b.
-
-If the story body is too long to pass inline, use the Write or Edit tool immediately after `.claude/scripts/dso ticket create` to set the content below the frontmatter. The ticket file is `.tickets/<story-id>.md`. Preserve the YAML frontmatter (lines 1–N ending with `---`) and replace everything after it with the structured markdown body.
+Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b. The ticket file must never be left as a bare title — always write the structured body immediately after creation.
 
 For modified stories, edit `.tickets/<existing-id>.md` directly to update the title heading and body sections.
 

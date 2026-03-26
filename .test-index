@@ -47,6 +47,7 @@ plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-write
 plugins/dso/scripts/ci-generator.sh:tests/scripts/test-ci-generator.sh,tests/scripts/test-ci-generator-integration.sh
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
+plugins/dso/scripts/gh-identity-resolver.sh: tests/scripts/test-gh-identity-resolver.sh [test_own_identity_derives_login]
 plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-config-paths.sh
 plugins/dso/scripts/check-acceptance-criteria.sh:tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check_file_impact.py,tests/scripts/test-enrich-file-impact-v2-removal.sh
@@ -147,3 +148,6 @@ tests/scripts/test-read-config.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-flat-config-e2e.sh: tests/scripts/test-v2-clean-guard.sh
 plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-skill-nesting-depth.sh
 plugins/dso/skills/design-wireframe/SKILL.md: tests/skills/test-skill-nesting-depth.sh
+plugins/dso/scripts/jira-credential-helper.sh: tests/scripts/test-jira-credential-helper.sh [test_detect_all_vars_set]
+plugins/dso/scripts/acli-version-resolver.sh: tests/scripts/test-acli-version-resolver.sh [test_parse_version_string]
+plugins/dso/scripts/gh-availability-check.sh: tests/scripts/test-gh-availability-check.sh [test_gh_authenticated]
