@@ -748,3 +748,188 @@ class TestHypothesisValidationGate:
             "to the next investigation tier when validation fails. "
             "The gate should escalate (not terminate) when no confirmed hypotheses exist."
         )
+
+
+class TestRedBeforeFixGate:
+    """Tests asserting the fix-bug SKILL.md contains a RED-before-fix gate
+    between Step 5 (RED test) and Step 6 (fix implementation).
+
+    TDD spec for story b094-3cf4:
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Contain a RED-before-fix gate between Step 5 and Step 6
+      2. The gate must block code modification / fix dispatch when no RED test is confirmed failing
+      3. The gate must exempt mechanical bugs via the Mechanical Fix Path
+      4. Gate language must reference Step 5 and Step 6 relationship
+    """
+
+    def test_red_before_fix_gate_present(self) -> None:
+        """SKILL.md must contain a RED-before-fix gate section between Step 5 and Step 6."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "RED-before-fix",
+                "RED Before Fix",
+                "red-before-fix",
+                "RED test gate",
+                "RED Test Gate",
+            )
+        ), (
+            "Expected fix-bug SKILL.md to contain a 'RED-before-fix' gate section "
+            "between Step 5 (RED test) and Step 6 (fix implementation) to enforce TDD discipline. "
+            "This is a RED test — the gate does not yet exist in SKILL.md."
+        )
+
+    def test_red_before_fix_gate_blocks_fix_without_red_test(self) -> None:
+        """The gate must block fix implementation when no RED test has been written and confirmed failing."""
+        content = _read_skill()
+        # Find the gate section
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate section in SKILL.md. "
+            "This test requires the gate to be present first."
+        )
+
+        # Extract context around the gate (up to 800 chars)
+        gate_context = content[gate_pos : gate_pos + 800].lower()
+        has_blocking_language = any(
+            phrase in gate_context
+            for phrase in (
+                "block",
+                "do not proceed",
+                "must not proceed",
+                "cannot proceed",
+                "blocked",
+                "stop",
+                "halt",
+                "forbidden",
+                "not allowed",
+            )
+        )
+        assert has_blocking_language, (
+            "Expected the RED-before-fix gate in SKILL.md to contain blocking language "
+            "(e.g., 'block', 'do not proceed', 'must not proceed', 'cannot proceed') "
+            "to prevent fix implementation when no RED test has been confirmed failing. "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_red_before_fix_gate_requires_confirmed_failing_test(self) -> None:
+        """The gate must require that a RED test exists and has been confirmed failing."""
+        content = _read_skill()
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate section in SKILL.md."
+        )
+
+        gate_context = content[gate_pos : gate_pos + 800].lower()
+        has_failing_requirement = any(
+            phrase in gate_context
+            for phrase in (
+                "confirmed failing",
+                "confirmed fail",
+                "must fail",
+                "confirmed red",
+                "failing test",
+                "fail",
+            )
+        )
+        assert has_failing_requirement, (
+            "Expected the RED-before-fix gate to require that the RED test has been "
+            "confirmed failing (e.g., 'confirmed failing', 'confirmed RED', 'must fail'). "
+            "This is a RED test — the gate does not yet contain this requirement."
+        )
+
+    def test_red_before_fix_gate_exempts_mechanical_bugs(self) -> None:
+        """The gate must exempt mechanical bugs via the Mechanical Fix Path."""
+        content = _read_skill()
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate section in SKILL.md."
+        )
+
+        # Extract a wider context — mechanical exemption may be stated after the gate header
+        gate_context = content[gate_pos : gate_pos + 1200].lower()
+        has_mechanical_exemption = any(
+            phrase in gate_context
+            for phrase in (
+                "mechanical",
+                "mechanical fix path",
+                "exempt",
+                "bypass",
+            )
+        )
+        assert has_mechanical_exemption, (
+            "Expected the RED-before-fix gate in SKILL.md to exempt mechanical bugs "
+            "via the Mechanical Fix Path (e.g., 'mechanical', 'exempt', 'bypass'). "
+            "This is a RED test — the gate does not yet contain the mechanical exemption."
+        )
+
+    def test_red_before_fix_gate_positioned_between_step5_and_step6(self) -> None:
+        """The RED-before-fix gate must appear between Step 5 and Step 6 in SKILL.md."""
+        content = _read_skill()
+
+        # Find Step 5 position
+        step5_pos = content.find("### Step 5:")
+        assert step5_pos != -1, "Could not find '### Step 5:' in SKILL.md"
+
+        # Find Step 6 position
+        step6_pos = content.find("### Step 6:")
+        assert step6_pos != -1, "Could not find '### Step 6:' in SKILL.md"
+
+        # Find the gate position
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate in SKILL.md. "
+            "Expected it to be present between Step 5 and Step 6."
+        )
+
+        assert step5_pos < gate_pos < step6_pos, (
+            f"Expected the RED-before-fix gate (pos={gate_pos}) to appear "
+            f"after Step 5 (pos={step5_pos}) and before Step 6 (pos={step6_pos}). "
+            "The gate must be positioned between those two steps to enforce TDD discipline. "
+            "This is a RED test — the gate is not yet positioned correctly."
+        )

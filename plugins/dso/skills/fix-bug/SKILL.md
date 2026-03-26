@@ -398,6 +398,26 @@ If a previous investigation loop created a RED test for this bug, the existing t
 
 **If no RED test can be written**: return to Step 2 and escalate to the next investigation tier. Include the failed test attempt and reasoning with the investigation prompt.
 
+### Step 5.5: RED-before-fix Gate (/dso:fix-bug)
+
+**Mechanical bug exemption**: This gate does NOT apply to mechanical bugs (import errors, lint violations, config syntax errors, type annotations) routed through the Mechanical Fix Path. Those bugs bypass Steps 2–5 entirely and proceed directly from Step 1 to a direct fix. The Mechanical Fix Path has no RED test requirement because the fix is deterministic and verified by running `$TEST_CMD` and `$LINT_CMD` after applying it.
+
+Before dispatching any fix implementation (Step 6), verify that a RED test exists and has been confirmed failing. This gate blocks any code modification — Edit, Write, or fix sub-agent dispatch — until it is satisfied.
+
+**Gate logic** (applied after Step 5 completes):
+
+1. **Check that a RED test exists**: If Step 5 was skipped because an existing test was already failing, that test counts as the RED test. If Step 5 was executed, the new test written there is the RED test.
+
+2. **Check that the RED test has been confirmed failing**: The RED test must have been run and confirmed to fail before fix implementation proceeds. If the test was not run or the run result is not available, run it now:
+   ```bash
+   $TEST_CMD  # Must show the RED test FAILING
+   ```
+   If the test does not fail, do NOT proceed to Step 6. Return to Step 5 to diagnose why the test passes unexpectedly — this indicates either the test is wrong or the bug is already fixed.
+
+3. **Do not proceed to Step 6 if the RED test has not been confirmed failing.** Any code modification (Edit, Write, sub-agent fix dispatch) is blocked until the RED test is confirmed failing in a test run output you have observed in this session.
+
+**Gate failure action**: If no RED test can be confirmed failing, do NOT skip to fix implementation. Return to Step 5 and address why the RED test cannot be confirmed.
+
 ### Step 6: Fix Implementation (/dso:fix-bug)
 
 Launch a sub-agent to implement the approved fix:
