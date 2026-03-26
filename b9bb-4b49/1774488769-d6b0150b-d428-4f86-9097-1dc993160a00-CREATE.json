@@ -1,0 +1,1 @@
+{"timestamp": 1774488769, "uuid": "d6b0150b-d428-4f86-9097-1dc993160a00", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED test: TDD reviewer bidirectional test coverage dimension", "parent_id": "c193-a875", "priority": 2, "assignee": "Joe Oakhart"}}
