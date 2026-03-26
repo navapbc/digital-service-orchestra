@@ -308,6 +308,30 @@ echo '{"a.b": 1}' | python3 -c "import json,sys; d=json.load(sys.stdin); print('
 
 Tests that confirm a root cause increase confidence. Tests that disprove a root cause eliminate it from consideration.
 
+### Step 3.5: Hypothesis Validation Gate (/dso:fix-bug)
+
+Before proceeding to fix approval or fix implementation, validate the `hypothesis_tests` section of the investigation RESULT report.
+
+**Gate logic** (applied after Step 3 completes):
+
+1. **Check for hypothesis_tests entries**: If the investigation RESULT has no `hypothesis_tests` section, or the section is missing or empty (zero entries), escalate to the next investigation tier. A missing or empty `hypothesis_tests` section means the investigation produced no testable root cause — fix implementation must not proceed without confirmed evidence.
+
+2. **Check for at least one confirmed verdict**: If all `hypothesis_tests` entries have `verdict: disproved` or `verdict: inconclusive` (no `verdict: confirmed` entry exists), escalate to the next investigation tier. All hypotheses being disproved means the true root cause has not been identified — proceeding to fix implementation would be speculative.
+
+3. **Proceed only with confirmed evidence**: If at least one `hypothesis_tests` entry has `verdict: confirmed`, the root cause is sufficiently validated. Proceed to Step 4 (Fix Approval).
+
+**Escalation on gate failure**: When the gate rejects the investigation result (missing/empty `hypothesis_tests`, or all disproved), escalate following the standard escalation path (BASIC → INTERMEDIATE → ADVANCED → ESCALATED → User). Include the gate failure reason and all investigation findings in the escalation context so the next tier can build on prior work.
+
+```
+GATE_FAILURE_REASON: no_confirmed_hypothesis
+current_tier: <BASIC|INTERMEDIATE|ADVANCED|ESCALATED>
+hypothesis_tests_count: <number of entries, 0 if missing>
+confirmed_count: 0
+finding_summary: <brief summary of what the investigation found before gate rejection>
+```
+
+Record the gate failure in the discovery file and as a ticket comment before escalating.
+
 ### Step 4: Fix Approval (/dso:fix-bug)
 
 Determine whether the fix can be auto-approved or requires user input:

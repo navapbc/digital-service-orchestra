@@ -618,3 +618,133 @@ def test_fallback_and_cluster_prompts_hypothesis_tests() -> None:
         "Expected cluster-investigation.md to NOT contain 'tests_run' — "
         "all three occurrences must be replaced with 'hypothesis_tests'."
     )
+
+
+class TestHypothesisValidationGate:
+    """Tests asserting the fix-bug SKILL.md contains a hypothesis_tests validation gate
+    between Step 2 (investigation) and Step 6 (fix implementation).
+
+    TDD spec for task 91bf-a66b:
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Contain language requiring hypothesis_tests validation before fix implementation
+      2. Reject (escalate) investigation results with no hypothesis_tests entries
+      3. Reject (escalate) investigation results where all verdicts are disproved
+      4. Proceed to fix implementation only when at least one verdict=confirmed exists
+    """
+
+    def test_hypothesis_validation_gate_present(self) -> None:
+        """SKILL.md must contain a hypothesis_tests validation gate before fix implementation."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "hypothesis_tests validation",
+                "Hypothesis Validation Gate",
+                "hypothesis validation gate",
+                "validate hypothesis_tests",
+                "hypothesis_tests gate",
+            )
+        ), (
+            "Expected SKILL.md to contain a hypothesis_tests validation gate section "
+            "(e.g., 'Hypothesis Validation Gate' or 'hypothesis_tests validation') "
+            "between Step 2 and Step 6. "
+            "This is a RED test — the gate does not yet exist in SKILL.md."
+        )
+
+    def test_hypothesis_gate_escalates_on_missing_hypothesis_tests(self) -> None:
+        """SKILL.md must escalate when hypothesis_tests is missing or empty."""
+        content = _read_skill()
+        # The gate must contain language about missing/empty hypothesis_tests → escalate
+        assert any(
+            phrase in content
+            for phrase in (
+                "missing or empty",
+                "no hypothesis_tests",
+                "hypothesis_tests is missing",
+                "hypothesis_tests section is absent",
+                "no entries",
+                "empty hypothesis_tests",
+            )
+        ), (
+            "Expected SKILL.md to contain language about escalating when hypothesis_tests "
+            "is missing or empty (e.g., 'missing or empty', 'no hypothesis_tests', "
+            "'no entries'). "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_hypothesis_gate_escalates_on_all_disproved(self) -> None:
+        """SKILL.md must escalate when all hypothesis_tests verdicts are disproved."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "all verdicts are disproved",
+                "all hypotheses are disproved",
+                "every verdict is disproved",
+                "no confirmed verdict",
+                "no confirmed hypothesis",
+                "all disproved",
+            )
+        ), (
+            "Expected SKILL.md to contain language about escalating when all "
+            "hypothesis_tests verdicts are disproved (e.g., 'all verdicts are disproved', "
+            "'all hypotheses are disproved', 'no confirmed verdict'). "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_hypothesis_gate_proceeds_on_confirmed_verdict(self) -> None:
+        """SKILL.md must specify proceeding to fix implementation when at least one verdict=confirmed."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "verdict=confirmed",
+                "verdict: confirmed",
+                "at least one confirmed",
+                "one confirmed hypothesis",
+                "confirmed verdict",
+            )
+        ), (
+            "Expected SKILL.md to contain language specifying that the orchestrator proceeds "
+            "to fix implementation when at least one hypothesis has verdict=confirmed "
+            "(e.g., 'at least one confirmed', 'verdict=confirmed', 'confirmed verdict'). "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_hypothesis_gate_escalates_to_next_tier(self) -> None:
+        """SKILL.md hypothesis gate must escalate to the next investigation tier (not terminate)."""
+        content = _read_skill()
+        # Check that the gate section references escalation or next tier
+        # We look for "escalate" near the gate context
+        gate_phrases = [
+            "Hypothesis Validation Gate",
+            "hypothesis validation gate",
+            "hypothesis_tests validation",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the hypothesis validation gate section in SKILL.md. "
+            "This test requires the gate to be present first."
+        )
+
+        # Extract context around the gate (up to 600 chars)
+        gate_context = content[gate_pos : gate_pos + 600].lower()
+        assert any(
+            phrase in gate_context
+            for phrase in (
+                "escalate",
+                "next tier",
+                "next investigation tier",
+                "escalation",
+            )
+        ), (
+            "Expected the hypothesis validation gate in SKILL.md to reference escalation "
+            "to the next investigation tier when validation fails. "
+            "The gate should escalate (not terminate) when no confirmed hypotheses exist."
+        )
