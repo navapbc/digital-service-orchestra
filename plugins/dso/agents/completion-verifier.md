@@ -98,8 +98,8 @@ For each affected consumer, run a targeted verification command. Examples:
 |---------------|---------------------|
 | Ticket CLI | `.claude/scripts/dso ticket list 2>&1 | head -5` — should not error |
 | Hook script | `bash plugins/dso/hooks/dispatchers/pre-bash.sh '{"tool_name":"Bash","tool_input":{"command":"echo test"}}' 2>&1` |
-| Sprint tooling | `bash plugins/dso/scripts/sprint-list-epics.sh --help 2>&1` |
-| Merge workflow | `bash plugins/dso/scripts/merge-to-main.sh --help 2>&1` |
+| Sprint tooling | `.claude/scripts/dso sprint-list-epics.sh --help 2>&1` |
+| Merge workflow | `.claude/scripts/dso merge-to-main.sh --help 2>&1` |
 
 Define verification commands based on what the consumer actually does — prefer lightweight invocations (help flags, dry runs, or smoke inputs) that confirm the consumer can initialize and invoke the changed code path without running a full end-to-end flow.
 

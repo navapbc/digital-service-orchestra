@@ -20,7 +20,7 @@ set -euo pipefail
 
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 TIMING_FLAG="$HOME/.claude/hook-timing-enabled"
 TIMING_LOG="/tmp/hook-timing.log"

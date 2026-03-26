@@ -18,7 +18,7 @@ set -euo pipefail
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 
 # --- Read config-driven paths ---
 BASELINE_DIR=$(bash "$SCRIPT_DIR/read-config.sh" visual.baseline_directory 2>/dev/null || true)

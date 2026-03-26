@@ -86,4 +86,4 @@ STATUS:blocked QUESTIONS:[{"text":"What is the expected response format for the 
 - Do NOT modify files outside the scope of task creation (no source code changes — this is planning only)
 - Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path.
 - Follow existing code patterns and naming conventions
-- Use absolute paths for scripts: $(git rev-parse --show-toplevel)/scripts/
+- Use the DSO shim for scripts: `.claude/scripts/dso <script-name>`

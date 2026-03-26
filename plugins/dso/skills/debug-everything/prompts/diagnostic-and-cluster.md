@@ -69,7 +69,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 .claude/scripts/dso ticket list
 
 # Issue health
-$REPO_ROOT/plugins/dso/scripts/validate-issues.sh
+.claude/scripts/dso validate-issues.sh
 
 # Git state
 git status --short

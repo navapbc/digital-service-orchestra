@@ -401,14 +401,51 @@ if [[ -f "$_EXISTING_STATUS_FILE" ]]; then
         echo "  Previously passed hash: ${_EXISTING_HASH:0:12}..." >&2
         echo "  Current diff hash:      ${DIFF_HASH:0:12}..." >&2
         rm -f "$_EXISTING_STATUS_FILE"
+        # Also clear any stale progress files from previous hashes
+        rm -f "$ARTIFACTS_DIR"/test-gate-progress-*
     fi
 fi
 
 
+# --- Resumable test progress ---
+# Track which tests have passed in a progress file keyed by diff hash.
+# On re-invocation (after SIGURG kills us at 73s), skip already-passed tests.
+_PROGRESS_FILE="$ARTIFACTS_DIR/test-gate-progress-${DIFF_HASH:0:16}"
+declare -A _COMPLETED_TESTS=()
+if [[ -f "$_PROGRESS_FILE" ]]; then
+    while IFS= read -r _done_test; do
+        [[ -n "$_done_test" ]] && _COMPLETED_TESTS["$_done_test"]=1
+    done < "$_PROGRESS_FILE"
+    if [[ ${#_COMPLETED_TESTS[@]} -gt 0 ]]; then
+        echo "Resuming: ${#_COMPLETED_TESTS[@]} tests already passed — skipping." >&2
+    fi
+fi
+
 # --- Run associated tests ---
+# Initialize before the SIGURG trap so ${STATUS} is never unbound when the
+# trap fires.  Without this ordering, a SIGURG in the 3-line window between
+# `trap` registration and the assignments below triggers an unbound-variable
+# error under set -u and aborts the trap handler silently.
 STATUS="passed"
 HAD_TIMEOUT=false
 TESTED_FILES_LIST=""
+
+# SIGURG trap: write partial status before the tool kills us, so the next
+# invocation can resume rather than restart.
+# Write "partial" (not STATUS) to test-gate-status so the pre-commit test
+# gate never accepts a mid-run snapshot as a valid pass — STATUS may still
+# be "passed" while untested files remain in the queue.
+_write_partial_status() {
+    local _ts
+    _ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    cat > "$ARTIFACTS_DIR/test-gate-status" <<PARTIAL
+partial
+diff_hash=${DIFF_HASH}
+timestamp=${_ts}
+tested_files=${TESTED_FILES_LIST}
+PARTIAL
+}
+trap '_write_partial_status' URG
 
 _test_idx=0
 for test_file in "${ASSOCIATED_TESTS[@]}"; do
@@ -416,6 +453,17 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     (( _test_idx++ )) || true
 
     [[ -z "$test_file" ]] && continue
+
+    # Skip tests that already passed in a previous invocation (resume support)
+    if [[ -n "${_COMPLETED_TESTS[$test_file]:-}" ]]; then
+        # Still include in the tested list for the final status record
+        if [[ -n "$TESTED_FILES_LIST" ]]; then
+            TESTED_FILES_LIST="${TESTED_FILES_LIST},${test_file}"
+        else
+            TESTED_FILES_LIST="$test_file"
+        fi
+        continue
+    fi
 
     full_test_path="$REPO_ROOT/$test_file"
 
@@ -570,6 +618,12 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     if [[ $exit_code -ne 0 ]] && [[ "$STATUS" != "timeout" ]]; then
         STATUS="failed"
     fi
+
+    # Record progress: append passed test to progress file for resume support.
+    # Only record on success (exit 0) — failed/timeout tests must be re-run.
+    if [[ $exit_code -eq 0 ]]; then
+        echo "$test_file" >> "$_PROGRESS_FILE"
+    fi
 done
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -584,6 +638,12 @@ tested_files=${TESTED_FILES_LIST}
 EOF
 
 echo "Test status recorded: ${STATUS} (diff_hash=${DIFF_HASH:0:12}..., tested=${TESTED_FILES_LIST})" >&2
+
+# Clean up progress file — all tests ran to completion (no SIGURG kill)
+rm -f "$_PROGRESS_FILE"
+
+# Clear SIGURG trap — no longer needed
+trap - URG
 
 # --- Handle exit 144 (SIGURG/timeout) ---
 if [[ "$HAD_TIMEOUT" == true ]]; then

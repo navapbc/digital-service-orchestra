@@ -46,7 +46,7 @@ if [ -z "$file_hash" ]; then
 fi
 
 # Compute current working tree hash
-REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 current_hash=$("${CLAUDE_PLUGIN_ROOT}/hooks/compute-diff-hash.sh")
 current_hash_short="${current_hash:0:8}"
 

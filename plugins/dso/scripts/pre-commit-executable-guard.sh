@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 
 # Determine the reference to compare against.
 # Use main if it exists, otherwise HEAD (covers initial commits).

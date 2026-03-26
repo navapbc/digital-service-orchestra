@@ -13,7 +13,7 @@ if [[ "${1:-}" == "--json" ]]; then
 fi
 
 # Resolve tickets directory: env var override or repo-root default
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 TICKETS_DIR="${TICKETS_DIR:-${REPO_ROOT}/.tickets}"
 
 python3 - "$TICKETS_DIR" ${JSON_FLAG:+--json} << 'PYEOF'

@@ -265,7 +265,7 @@ If the epic depends on others identified in Phase 1:
 ### Step 3: Validate Ticket Health
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
+.claude/scripts/dso validate-issues.sh --quick --terse
 ```
 
 Fix any issues before finalizing.
