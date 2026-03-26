@@ -99,7 +99,7 @@ plugins/dso/skills/fix-bug/prompts/escalated-investigation-agent-3.md:tests/skil
 plugins/dso/skills/fix-bug/prompts/escalated-investigation-agent-4.md:tests/skills/test_escalated_investigation_agent_4_prompt.py
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation.md:tests/skills/test_intermediate_investigation_prompt.py
 # RED markers for hypothesis_tests schema migration (task 5f26-013c)
-plugins/dso/skills/fix-bug/SKILL.md: tests/skills/test_fix_bug_skill.py [test_hypothesis_tests_schema_in_skill]
+plugins/dso/skills/fix-bug/SKILL.md: tests/skills/test_fix_bug_skill.py
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation-fallback.md: tests/skills/test_fix_bug_skill.py [test_fallback_and_cluster_prompts_hypothesis_tests]
 plugins/dso/skills/fix-bug/prompts/basic-investigation.md: tests/skills/test_basic_investigation_prompt.py [test_basic_prompt_hypothesis_tests_fields]
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation.md: tests/skills/test_intermediate_investigation_prompt.py [test_intermediate_prompt_hypothesis_tests_fields]
@@ -175,4 +175,4 @@ plugins/dso/skills/sprint/prompts/epic-validation-review.md: tests/scripts/test-
 plugins/dso/scripts/purge-non-project-tickets.sh: tests/scripts/test-purge-non-project-tickets.sh
 plugins/dso/scripts/runners/bash-runner.sh: tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/test-batched.sh: tests/scripts/test-batched-state-integrity.sh, tests/scripts/test-bash-runner-discovery.sh
-plugins/dso/hooks/fix-bug-skill-directive.sh: tests/hooks/test-fix-bug-skill-directive.sh [test_fix_bug_slash_command_triggers_directive]
+plugins/dso/hooks/fix-bug-skill-directive.sh: tests/hooks/test-fix-bug-skill-directive.sh

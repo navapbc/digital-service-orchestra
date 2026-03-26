@@ -466,10 +466,11 @@ proposed_fixes:
     risk: high | medium | low
     degrades_functionality: true | false
     rationale: <why this fix addresses the root cause>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested>
-    command: <the test command>
-    result: confirmed | disproved | inconclusive
+    test: <the test command>
+    observed: <what actually happened>
+    verdict: confirmed | disproved | inconclusive
 prior_attempts:
   - commit: <sha>
     description: <what was tried>
@@ -504,7 +505,7 @@ Investigation findings are persisted to a discovery file for passing context bet
   - `root_cause` — one-sentence root cause description
   - `confidence` — high, medium, or low
   - `proposed_fixes` — array of fix proposals (each with description, risk, degrades_functionality)
-  - `tests_run` — array of hypothesis test results
+  - `hypothesis_tests` — array of hypothesis test results
   - `prior_fix_attempts` — array of previous fix attempts (empty if none)
 - **Written by**: investigation sub-agents (Step 2) and hypothesis testing (Step 3)
 - **Read by**: fix approval (Step 4), fix implementation (Step 6), and escalation re-entry (Step 2 on retry)
