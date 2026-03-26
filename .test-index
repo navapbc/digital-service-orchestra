@@ -155,3 +155,5 @@ plugins/dso/skills/design-wireframe/SKILL.md: tests/skills/test-skill-nesting-de
 plugins/dso/scripts/jira-credential-helper.sh: tests/scripts/test-jira-credential-helper.sh
 plugins/dso/scripts/acli-version-resolver.sh: tests/scripts/test-acli-version-resolver.sh
 plugins/dso/scripts/gh-availability-check.sh: tests/scripts/test-gh-availability-check.sh
+plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh [test_benchmark_exits_zero_under_threshold]
+plugins/dso/scripts/ticket-reducer.py: tests/scripts/test-ticket-reducer-batch.sh [test_batch_reduce_returns_all_tickets]
