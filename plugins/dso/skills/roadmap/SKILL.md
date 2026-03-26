@@ -36,7 +36,7 @@ This command is always interactive. It guides you through 6 phases with explicit
 Before anything else, run the onboarding artifact check:
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/check-onboarding.sh --json
+.claude/scripts/dso check-onboarding.sh --json
 ```
 
 **If `DESIGN_NOTES.md` is missing** (design_onboarding.pass == false):
@@ -240,7 +240,7 @@ AVOID/LATER (Low Impact, High Effort):
 5. **Validate Ticket Health**: After creating all epics and dependencies:
 
    ```bash
-   $(git rev-parse --show-toplevel)/scripts/validate-issues.sh
+   .claude/scripts/dso validate-issues.sh
    ```
 
    If score < 5, fix issues before finalizing.

@@ -17,7 +17,7 @@ for _arg in "$@"; do
     fi
 done
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Ensure .env-id exists ────────────────────────────────────────────────────

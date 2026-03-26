@@ -595,7 +595,7 @@ Follow the sequential order from Step 3:
 ### Validate Ticket Health
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-issues.sh
+.claude/scripts/dso validate-issues.sh
 ```
 
 If validation fails, fix dependency issues before presenting the summary.

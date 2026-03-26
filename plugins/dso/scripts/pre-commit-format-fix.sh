@@ -25,7 +25,7 @@ set -uo pipefail
 set -uo pipefail
 
 # ── Resolve paths ─────────────────────────────────────────────────────────────
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 # Source config-driven paths (CFG_APP_DIR defaults to "app")
 _CONFIG_PATHS="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"

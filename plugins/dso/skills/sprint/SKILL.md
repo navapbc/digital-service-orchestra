@@ -96,7 +96,7 @@ Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` w
 
 1. Run the epic discovery script:
    ```bash
-   $(git rev-parse --show-toplevel)/scripts/sprint-list-epics.sh --all
+   .claude/scripts/dso sprint-list-epics.sh --all
    ```
    This outputs tab-separated lines in three categories (4 fields each):
    - `<id>\tP*\t<title>\t<child_count>` for in-progress epics (listed first, `P*` replaces priority)
@@ -138,11 +138,11 @@ Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` w
 
 ### Context Efficiency Rules
 
-**Status checks**: Use `$REPO_ROOT/plugins/dso/scripts/issue-summary.sh <id>` or `.claude/scripts/dso ticket list` for orchestrator status checks (is it done? what's blocking?). Reserve full `.claude/scripts/dso ticket show <id>` only when sub-agents need to read their complete task context.
+**Status checks**: Use `.claude/scripts/dso issue-summary.sh <id>` or `.claude/scripts/dso ticket list` for orchestrator status checks (is it done? what's blocking?). Reserve full `.claude/scripts/dso ticket show <id>` only when sub-agents need to read their complete task context.
 
 **Ticket-as-prompt**: Sub-agents read their own task context via `.claude/scripts/dso ticket show` instead of receiving it inline. Before dispatch, run the quality gate:
 ```bash
-$REPO_ROOT/plugins/dso/scripts/issue-quality-check.sh <id>
+.claude/scripts/dso issue-quality-check.sh <id>
 ```
 - **Exit 0** (quality pass): Use the ticket-as-prompt template (`task-execution.md`) — sub-agent reads its own context
 - **Exit 1** (too sparse): Fall back to inline prompt — orchestrator runs `.claude/scripts/dso ticket show <id>` and includes output in the Task prompt
@@ -154,7 +154,7 @@ $REPO_ROOT/plugins/dso/scripts/issue-quality-check.sh <id>
 - At least 5 lines of description
 This ensures `issue-quality-check.sh` passes and sub-agents can self-serve their ticket context.
 
-**File impact enrichment**: The quality gate now also checks for a file impact section. If a ticket is missing one, run `$REPO_ROOT/plugins/dso/scripts/enrich-file-impact.sh <id>` to auto-generate it using a haiku model call. Use `--dry-run` to preview without modifying. Gracefully degrades if `ANTHROPIC_API_KEY` is unset.
+**File impact enrichment**: The quality gate now also checks for a file impact section. If a ticket is missing one, run `.claude/scripts/dso enrich-file-impact.sh <id>` to auto-generate it using a haiku model call. Use `--dry-run` to preview without modifying. Gracefully degrades if `ANTHROPIC_API_KEY` is unset.
 
 ### If `--resume` Flag
 
@@ -437,7 +437,7 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
    - **If the re-invoked skill returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`.claude/scripts/dso ticket transition <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
 e. **Post-layer-batch ticket validation** — after all stories in the layer are resolved (complete, blocked-and-resolved, or failed), run:
    ```bash
-   $(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
+   .claude/scripts/dso validate-issues.sh --quick --terse
    ```
    Log any warnings but do not block on non-critical results
 f. Re-run `.claude/scripts/dso ticket list` (filtered by parent) to pick up newly created implementation tasks before processing the next layer
@@ -510,8 +510,7 @@ prepare them for injection into sub-agent prompts via the `{prior_batch_discover
 placeholder in `task-execution.md`:
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-PRIOR_BATCH_DISCOVERIES=$("$REPO_ROOT/plugins/dso/scripts/collect-discoveries.sh" --format=prompt 2>/dev/null) || PRIOR_BATCH_DISCOVERIES="None."
+PRIOR_BATCH_DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh --format=prompt 2>/dev/null) || PRIOR_BATCH_DISCOVERIES="None."
 ```
 
 - For **Batch 1** (no prior discoveries), set `PRIOR_BATCH_DISCOVERIES="None."`
@@ -529,8 +528,7 @@ dependencies, file-overlap detection, classification, and the opus cap in one ca
 the orchestrator receives everything needed to launch sub-agents directly:
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/plugins/dso/scripts/sprint-next-batch.sh <epic-id> --limit=<max_agents>
+.claude/scripts/dso sprint-next-batch.sh <epic-id> --limit=<max_agents>
 ```
 
 - **`max_agents`**: Use 5 initially. Phase 4's pre-check may truncate to 1 if session
@@ -638,8 +636,7 @@ For each task in the batch:
 Pull the latest ticket state from main before launching sub-agents. This ensures the batch sees any ticket changes pushed by other worktrees since the last sync:
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-"$REPO_ROOT/plugins/dso/scripts/worktree-sync-from-main.sh"
+.claude/scripts/dso worktree-sync-from-main.sh
 ```
 
 **Never run bare `git merge origin/main` in a worktree** — use the sync script which handles ticket branch syncing and merge automatically.
@@ -671,7 +668,7 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 1. **Write the blackboard**: Pipe the batch JSON (from `sprint-next-batch.sh --json` in Phase 3) to `write-blackboard.sh`:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   echo "$BATCH_JSON" | "$REPO_ROOT/plugins/dso/scripts/write-blackboard.sh"
+   echo "$BATCH_JSON" | .claude/scripts/dso write-blackboard.sh
    ```
    If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
 
@@ -693,16 +690,15 @@ For each task, launch a Task with the appropriate `subagent_type` (use `general-
 
 **Quality gate (ticket-as-prompt)**: Before dispatch, run the quality check:
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/plugins/dso/scripts/issue-quality-check.sh <task-id>
+.claude/scripts/dso issue-quality-check.sh <task-id>
 ```
 
 - **Exit 0 (quality pass)**: Use the ticket-as-prompt template — read `$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md` and fill in `{id}` only. The sub-agent reads its own full context via `.claude/scripts/dso ticket show`.
-- **Exit 1 (too sparse)**: Try enriching the ticket first with `$REPO_ROOT/plugins/dso/scripts/enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `.claude/scripts/dso ticket show <id>`, then include the full description inline in the prompt alongside the template instructions.
+- **Exit 1 (too sparse)**: Try enriching the ticket first with `.claude/scripts/dso enrich-file-impact.sh <task-id>`, then re-run the quality check. If still failing, fall back — run `.claude/scripts/dso ticket show <id>`, then include the full description inline in the prompt alongside the template instructions.
 
 **Acceptance criteria gate**: After the quality gate, run:
 ```bash
-$REPO_ROOT/plugins/dso/scripts/check-acceptance-criteria.sh <task-id>
+.claude/scripts/dso check-acceptance-criteria.sh <task-id>
 ```
 
 - **Exit 0**: Proceed with dispatch — task has structured AC block
@@ -813,7 +809,7 @@ For each sub-agent result, check the `TASKS_CREATED` line:
 
 After processing all sub-agents in the batch, if any tasks were created:
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-issues.sh --quick --terse
+.claude/scripts/dso validate-issues.sh --quick --terse
 ```
 
 Newly created tasks require no special handling beyond this step — they naturally
@@ -827,8 +823,7 @@ wrote during execution. These discoveries are propagated to the next batch via t
 `{prior_batch_discoveries}` placeholder in `task-execution.md` (see Phase 3).
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-DISCOVERIES=$("$REPO_ROOT/plugins/dso/scripts/collect-discoveries.sh" 2>/dev/null) || DISCOVERIES="[]"
+DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh 2>/dev/null) || DISCOVERIES="[]"
 ```
 
 - If `collect-discoveries.sh` succeeds, `DISCOVERIES` contains a JSON array of discovery objects
@@ -903,8 +898,7 @@ batch's combined diff to catch cross-file logical incompatibilities (type signat
 mismatches, renamed symbols still referenced elsewhere, inconsistent state assumptions):
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-SEMANTIC_RESULT=$(git diff | python3 "$REPO_ROOT/plugins/dso/scripts/semantic-conflict-check.py" 2>/dev/null) || SEMANTIC_RESULT='{"conflicts":[],"clean":true,"error":"script failed"}'
+SEMANTIC_RESULT=$(git diff | python3 "$PLUGIN_SCRIPTS/semantic-conflict-check.py" 2>/dev/null) || SEMANTIC_RESULT='{"conflicts":[],"clean":true,"error":"script failed"}'
 ```
 
 Parse the JSON output:
@@ -941,7 +935,7 @@ If any task in the batch touched persistence-critical files (job_store, document
 DB models, DB clients), run the persistence coverage check:
 
 ```bash
-$REPO_ROOT/plugins/dso/scripts/check-persistence-coverage.sh
+.claude/scripts/dso check-persistence-coverage.sh
 ```
 
 > **Canonical location**: `.claude/scripts/dso check-persistence-coverage.sh` — `scripts/check-persistence-coverage.sh` is a backward-compatible exec wrapper that delegates to the canonical copy.
@@ -1021,7 +1015,7 @@ Do NOT merge to main here — merging to main happens only at epic completion in
 
 **Blackboard cleanup**: After the commit, run `write-blackboard.sh --clean` to remove the blackboard file:
 ```bash
-"$REPO_ROOT/plugins/dso/scripts/write-blackboard.sh" --clean
+.claude/scripts/dso write-blackboard.sh --clean
 ```
 
 **After completion, continue with Step 11 below.** Do not stop here.
@@ -1309,7 +1303,7 @@ For each item in the validation agent's FAIL/REMEDIATION output:
 ### Step 2: Validate Ticket Health (/dso:sprint)
 
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-issues.sh
+.claude/scripts/dso validate-issues.sh
 ```
 
 ### Step 3: Return to Phase 3 (/dso:sprint)

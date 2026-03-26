@@ -614,7 +614,7 @@ Display a summary table:
 
 After creating all stories and dependencies:
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-issues.sh
+.claude/scripts/dso validate-issues.sh
 ```
 
 If score < 5, fix issues before presenting to user.

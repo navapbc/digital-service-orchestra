@@ -39,7 +39,7 @@ set -euo pipefail
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 
 # Store blackboard in /tmp to avoid polluting the working tree.
 # Pattern: /tmp/dso-blackboard-<worktree-name>/ (same convention as other tmp dirs)

@@ -26,7 +26,7 @@ set -euo pipefail
 # for the current task (lockpick-doc-to-logic-y46g).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 
 # --- Load patterns from config ---
 # source_patterns: literal substrings (grep -F)

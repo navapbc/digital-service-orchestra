@@ -15,7 +15,7 @@ set -euo pipefail
 
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 JSON_OUTPUT=false
 
 for arg in "$@"; do

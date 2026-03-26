@@ -21,7 +21,7 @@ set -uo pipefail
 
 # ── Resolve REPO_ROOT ─────────────────────────────────────────────────────────
 if [[ -z "${REPO_ROOT:-}" ]]; then
-    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 fi
 
 READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"

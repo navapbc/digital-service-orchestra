@@ -18,7 +18,7 @@ set -uo pipefail
 
 set -uo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 
 # Collect staged .py files (relative to repo root)
 STAGED_PY=$(cd "$REPO_ROOT" && git diff --cached --name-only --diff-filter=ACM -- '*.py' 2>/dev/null || true)

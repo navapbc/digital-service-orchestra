@@ -15,7 +15,7 @@ You are a merge-and-verify sub-agent for `/dso:debug-everything`. Your job is to
 
 **If in a worktree** (`PATH_TYPE=worktree`):
 ```bash
-"$REPO_ROOT/plugins/dso/scripts/merge-to-main.sh"
+.claude/scripts/dso merge-to-main.sh
 ```
 - ERROR with `CONFLICT_DATA:` prefix → invoke `/dso:resolve-conflicts`. If unavailable or declined, output `MERGE_STATUS: conflict` and stop.
 - Non-conflict ERROR → output `MERGE_STATUS: error <message>` and stop. Do NOT proceed.
@@ -35,7 +35,7 @@ git push
 Run with a 5-minute timeout to prevent indefinite polling:
 
 ```bash
-timeout 300 "$REPO_ROOT/plugins/dso/scripts/ci-status.sh" --wait --skip-regression-check
+timeout 300 .claude/scripts/dso ci-status.sh --wait --skip-regression-check
 CI_EXIT=$?
 ```
 

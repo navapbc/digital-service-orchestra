@@ -109,13 +109,13 @@ cd app && $TEST_CMD 2>&1 | tail -5
 **If the test command is expected to exceed 60s** (e.g., `bash tests/run-all.sh`), use `test-batched.sh` with a runner driver for per-test resume. **Prefer `--runner=bash --test-dir=<dir>` for bash test suites** — this discovers `test-*.sh` and `run-*-tests.sh` files and runs each as a separate item, so completed tests are skipped on resume:
 
 ```bash
-bash "$REPO_ROOT/plugins/dso/scripts/test-batched.sh" --timeout=50 --runner=bash --test-dir="$REPO_ROOT/tests/scripts"
+.claude/scripts/dso test-batched.sh --timeout=50 --runner=bash --test-dir="$REPO_ROOT/tests/scripts"
 ```
 
 If no runner driver applies (the test command is not a directory of scripts), fall back to the generic runner which wraps the entire command as a single item (no sub-test resume):
 
 ```bash
-bash "$REPO_ROOT/plugins/dso/scripts/test-batched.sh" --timeout=50 "$TEST_CMD"
+.claude/scripts/dso test-batched.sh --timeout=50 "$TEST_CMD"
 ```
 
 When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
@@ -314,7 +314,7 @@ bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
 - **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 3a.
 - **exit 144**: test runner was terminated; follow the actionable guidance printed by `record-test-status.sh`. Use `test-batched.sh` to run the tests in time-bounded chunks:
   ```bash
-  bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/test-batched.sh" --timeout=50 "bash tests/hooks/test-<name>.sh"
+  .claude/scripts/dso test-batched.sh --timeout=50 "bash tests/hooks/test-<name>.sh"
   ```
   When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
   ```

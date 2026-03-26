@@ -20,7 +20,7 @@ set -uo pipefail
 
 set -uo pipefail
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 
 if [ "$(uname)" = "Darwin" ]; then
     # macOS: visual tests skip by design (font rendering differs ~11%)

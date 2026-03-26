@@ -37,7 +37,8 @@ done
 
 # --- Resolve repo root and cd into it ---
 # This ensures relative path checks work regardless of where the script is called from
-if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not a git repository."
     exit 1
 fi

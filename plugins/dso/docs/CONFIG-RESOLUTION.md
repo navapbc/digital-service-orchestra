@@ -20,8 +20,8 @@ Skills load project commands via `read-config.sh` before executing any steps.
 Each skill declares which commands it needs:
 
 ```bash
-TEST_CMD=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/read-config.sh" commands.test)
-LINT_CMD=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/read-config.sh" commands.lint)
+TEST_CMD=$(.claude/scripts/dso read-config.sh commands.test)
+LINT_CMD=$(.claude/scripts/dso read-config.sh commands.lint)
 # ... additional commands as needed per skill
 ```
 
