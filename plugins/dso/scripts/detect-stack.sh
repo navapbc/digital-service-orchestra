@@ -7,10 +7,10 @@ set -uo pipefail
 #   [project-dir]: optional path to scan; defaults to $(pwd)
 #
 # Output (stdout): one of:
-#   python-poetry    — pyproject.toml (with [tool.poetry] or [build-system]) found
-#   rust-cargo       — Cargo.toml found
-#   golang           — go.mod found
-#   node-npm         — package.json found
+#   python-poetry    — pyproject.toml (non-empty, with [tool.poetry], [build-system], or [project]) found
+#   rust-cargo       — Cargo.toml (non-empty) found
+#   golang           — go.mod (non-empty) found
+#   node-npm         — package.json (valid JSON) found
 #   convention-based — Makefile with at least 2 of: test:, lint:, format: targets
 #   unknown          — none of the above markers found
 #
@@ -46,30 +46,43 @@ fi
 
 # ── Detection logic (priority order — first match wins) ────────────────────────
 
-# 1. python-poetry: pyproject.toml present
+# 1. python-poetry: pyproject.toml present AND non-empty AND contains a recognized section
 #    Takes priority over node-npm (package.json) — many Python projects include
 #    package.json for frontend tooling. pyproject.toml is the definitive Python marker.
+#    CoVe: file must be non-empty and contain [tool.poetry], [build-system], or [project].
 if [[ -f "$PROJECT_DIR/pyproject.toml" ]]; then
-    echo "python-poetry"
-    exit 0
+    if test -s "$PROJECT_DIR/pyproject.toml" && \
+       grep -qE '^\[(tool\.poetry|build-system|project)\]' "$PROJECT_DIR/pyproject.toml"; then
+        echo "python-poetry"
+        exit 0
+    fi
 fi
 
-# 2. rust-cargo: Cargo.toml present
+# 2. rust-cargo: Cargo.toml present AND non-empty
+#    CoVe: file must be non-empty.
 if [[ -f "$PROJECT_DIR/Cargo.toml" ]]; then
-    echo "rust-cargo"
-    exit 0
+    if test -s "$PROJECT_DIR/Cargo.toml"; then
+        echo "rust-cargo"
+        exit 0
+    fi
 fi
 
-# 3. golang: go.mod present
+# 3. golang: go.mod present AND non-empty
+#    CoVe: file must be non-empty.
 if [[ -f "$PROJECT_DIR/go.mod" ]]; then
-    echo "golang"
-    exit 0
+    if test -s "$PROJECT_DIR/go.mod"; then
+        echo "golang"
+        exit 0
+    fi
 fi
 
-# 4. node-npm: package.json present
+# 4. node-npm: package.json present AND valid JSON
+#    CoVe: file must be parseable as JSON.
 if [[ -f "$PROJECT_DIR/package.json" ]]; then
-    echo "node-npm"
-    exit 0
+    if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$PROJECT_DIR/package.json" 2>/dev/null; then
+        echo "node-npm"
+        exit 0
+    fi
 fi
 
 # 5. convention-based: Makefile with at least 2 of: test:, lint:, format: targets

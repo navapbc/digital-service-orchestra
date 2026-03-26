@@ -40,10 +40,10 @@ fi
 assert_eq "test_detect_stack_script_exists: file is executable" "executable" "$actual_exec"
 
 # ── test_detect_stack_python_project ─────────────────────────────────────────
-# A directory containing pyproject.toml must output 'python-poetry'.
+# A directory containing a valid pyproject.toml must output 'python-poetry'.
 PYTHON_DIR="$TMPDIR_FIXTURE/python_project"
 mkdir -p "$PYTHON_DIR"
-touch "$PYTHON_DIR/pyproject.toml"
+printf '[build-system]\nrequires = ["poetry-core"]\n' > "$PYTHON_DIR/pyproject.toml"
 
 python_output=""
 python_exit=0
@@ -52,10 +52,10 @@ assert_eq "test_detect_stack_python_project: exit 0" "0" "$python_exit"
 assert_eq "test_detect_stack_python_project: outputs python-poetry" "python-poetry" "$python_output"
 
 # ── test_detect_stack_node_project ───────────────────────────────────────────
-# A directory containing package.json must output 'node-npm'.
+# A directory containing a valid package.json must output 'node-npm'.
 NODE_DIR="$TMPDIR_FIXTURE/node_project"
 mkdir -p "$NODE_DIR"
-touch "$NODE_DIR/package.json"
+printf '{"name": "my-package", "version": "1.0.0"}\n' > "$NODE_DIR/package.json"
 
 node_output=""
 node_exit=0
@@ -64,10 +64,10 @@ assert_eq "test_detect_stack_node_project: exit 0" "0" "$node_exit"
 assert_eq "test_detect_stack_node_project: outputs node-npm" "node-npm" "$node_output"
 
 # ── test_detect_stack_rust_project ───────────────────────────────────────────
-# A directory containing Cargo.toml must output 'rust-cargo'.
+# A directory containing a non-empty Cargo.toml must output 'rust-cargo'.
 RUST_DIR="$TMPDIR_FIXTURE/rust_project"
 mkdir -p "$RUST_DIR"
-touch "$RUST_DIR/Cargo.toml"
+printf '[package]\nname = "my-crate"\n' > "$RUST_DIR/Cargo.toml"
 
 rust_output=""
 rust_exit=0
@@ -76,10 +76,10 @@ assert_eq "test_detect_stack_rust_project: exit 0" "0" "$rust_exit"
 assert_eq "test_detect_stack_rust_project: outputs rust-cargo" "rust-cargo" "$rust_output"
 
 # ── test_detect_stack_go_project ─────────────────────────────────────────────
-# A directory containing go.mod must output 'golang'.
+# A directory containing a non-empty go.mod must output 'golang'.
 GO_DIR="$TMPDIR_FIXTURE/go_project"
 mkdir -p "$GO_DIR"
-touch "$GO_DIR/go.mod"
+printf 'module example.com/mymod\n\ngo 1.21\n' > "$GO_DIR/go.mod"
 
 go_output=""
 go_exit=0
@@ -113,11 +113,11 @@ assert_eq "test_detect_stack_makefile_project: outputs convention-based" "conven
 
 # ── test_detect_stack_multi_marker ───────────────────────────────────────────
 # A directory with both pyproject.toml and package.json must output 'python-poetry'
-# because Python takes priority.
+# because Python takes priority. Both files contain valid content to pass CoVe.
 MULTI_DIR="$TMPDIR_FIXTURE/multi_project"
 mkdir -p "$MULTI_DIR"
-touch "$MULTI_DIR/pyproject.toml"
-touch "$MULTI_DIR/package.json"
+printf '[build-system]\nrequires = ["poetry-core"]\n' > "$MULTI_DIR/pyproject.toml"
+printf '{"name": "my-package"}\n' > "$MULTI_DIR/package.json"
 
 multi_output=""
 multi_exit=0

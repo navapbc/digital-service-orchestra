@@ -67,7 +67,7 @@ assert_eq "cat1: script is executable" "executable" "$actual_exec"
 # Happy path: python-poetry
 PYTHON_DIR="$TMPDIR_FIXTURE/python_project"
 mkdir -p "$PYTHON_DIR"
-touch "$PYTHON_DIR/pyproject.toml"
+printf '[build-system]\nrequires = ["poetry-core"]\n' > "$PYTHON_DIR/pyproject.toml"
 
 python_exit=0
 python_output=$(bash "$SCRIPT" "$PYTHON_DIR" 2>&1) || python_exit=$?
@@ -77,7 +77,7 @@ assert_eq "cat2: stack=python-poetry for pyproject.toml" "python-poetry" "$(get_
 # Happy path: node-npm
 NODE_DIR="$TMPDIR_FIXTURE/node_project"
 mkdir -p "$NODE_DIR"
-touch "$NODE_DIR/package.json"
+printf '{"name": "my-package", "version": "1.0.0"}\n' > "$NODE_DIR/package.json"
 
 node_exit=0
 node_output=$(bash "$SCRIPT" "$NODE_DIR" 2>&1) || node_exit=$?
@@ -87,7 +87,7 @@ assert_eq "cat2: stack=node-npm for package.json" "node-npm" "$(get_key "$node_o
 # Happy path: golang
 GO_DIR="$TMPDIR_FIXTURE/go_project"
 mkdir -p "$GO_DIR"
-touch "$GO_DIR/go.mod"
+printf 'module example.com/mymod\n\ngo 1.21\n' > "$GO_DIR/go.mod"
 
 go_exit=0
 go_output=$(bash "$SCRIPT" "$GO_DIR" 2>&1) || go_exit=$?
@@ -97,7 +97,7 @@ assert_eq "cat2: stack=golang for go.mod" "golang" "$(get_key "$go_output" stack
 # Happy path: rust-cargo
 RUST_DIR="$TMPDIR_FIXTURE/rust_project"
 mkdir -p "$RUST_DIR"
-touch "$RUST_DIR/Cargo.toml"
+printf '[package]\nname = "my-crate"\n' > "$RUST_DIR/Cargo.toml"
 
 rust_exit=0
 rust_output=$(bash "$SCRIPT" "$RUST_DIR" 2>&1) || rust_exit=$?
@@ -1239,7 +1239,51 @@ assert_contains "test_project_detect_header_documents_suites: header describes -
     "discover test suites" "$_header_content"
 assert_pass_if_clean "test_project_detect_header_documents_suites"
 
-# ── Named tests: Docker/code-based DB detection (RED phase) ──────────────────
+# ── Named tests: Confidence tagging — GREEN (db_confidence implemented) ──────
+# db_confidence is implemented in this batch. These tests pass GREEN.
+
+# test_confidence_tagging_db_inferred: code importing sqlalchemy, no docker-compose → db_confidence=inferred
+_snapshot_fail
+_conf_db_inferred_dir="$TMPDIR_FIXTURE/conf_db_inferred_project"
+mkdir -p "$_conf_db_inferred_dir"
+cat > "$_conf_db_inferred_dir/app.py" <<'PYTHON'
+import sqlalchemy
+from sqlalchemy import create_engine
+
+engine = create_engine("postgresql://user:pass@localhost/db")
+PYTHON
+_conf_db_inferred_out=$(bash "$SCRIPT" "$_conf_db_inferred_dir" 2>&1)
+assert_eq "test_confidence_tagging_db_inferred: db_confidence=inferred" \
+    "inferred" "$(get_key "$_conf_db_inferred_out" db_confidence)"
+assert_pass_if_clean "test_confidence_tagging_db_inferred"
+
+# test_confidence_tagging_db_confirmed: docker-compose.yml with postgres image → db_confidence=confirmed
+_snapshot_fail
+_conf_db_confirmed_dir="$TMPDIR_FIXTURE/conf_db_confirmed_project"
+mkdir -p "$_conf_db_confirmed_dir"
+cat > "$_conf_db_confirmed_dir/docker-compose.yml" <<'YAML'
+services:
+  postgres:
+    image: postgres:15
+  app:
+    image: myapp:latest
+YAML
+_conf_db_confirmed_out=$(bash "$SCRIPT" "$_conf_db_confirmed_dir" 2>&1)
+assert_eq "test_confidence_tagging_db_confirmed: db_confidence=confirmed" \
+    "confirmed" "$(get_key "$_conf_db_confirmed_out" db_confidence)"
+assert_pass_if_clean "test_confidence_tagging_db_confirmed"
+
+# test_confidence_tagging_db_none: empty project (no docker-compose, no Dockerfile, no
+# Python imports, no .env) → db_confidence=none (the default; no DB signal present)
+_snapshot_fail
+_conf_db_none_dir="$TMPDIR_FIXTURE/conf_db_none_project"
+mkdir -p "$_conf_db_none_dir"
+_conf_db_none_out=$(bash "$SCRIPT" "$_conf_db_none_dir" 2>&1)
+assert_eq "test_confidence_tagging_db_none: db_confidence=none" \
+    "none" "$(get_key "$_conf_db_none_out" db_confidence)"
+assert_pass_if_clean "test_confidence_tagging_db_none"
+
+# ── Named tests: Docker/code-based DB detection (GREEN — implemented) ────────
 # These tests cover DB detection beyond docker-compose.yml image line parsing.
 # test_db_detection_docker_compose_regression: guard against regression in
 # existing docker-compose.yml detection (should PASS now — tests existing behavior).
@@ -1310,5 +1354,59 @@ _db_env_out=$(bash "$SCRIPT" "$_db_env_dir" 2>&1)
 assert_eq "test_db_detection_env_file: db_present=true" \
     "true" "$(get_key "$_db_env_out" db_present)"
 assert_pass_if_clean "test_db_detection_env_file"
+
+# ── Named tests: Confidence tagging — RED (not yet implemented) ──────────────
+# These tests assert confidence fields that are NOT yet emitted by project-detect.sh.
+# They will fail (RED) until task fc8b-2c87 implements the remaining confidence fields.
+
+# test_confidence_tagging_stack_confirmed: pyproject.toml → stack_confidence=confirmed
+_snapshot_fail
+_conf_stack_dir="$TMPDIR_FIXTURE/conf_stack_project"
+mkdir -p "$_conf_stack_dir"
+printf '[build-system]\nrequires = ["setuptools"]\n' > "$_conf_stack_dir/pyproject.toml"
+_conf_stack_out=$(bash "$SCRIPT" "$_conf_stack_dir" 2>&1)
+assert_eq "test_confidence_tagging_stack_confirmed: stack_confidence=confirmed" \
+    "confirmed" "$(get_key "$_conf_stack_out" stack_confidence)"
+assert_pass_if_clean "test_confidence_tagging_stack_confirmed"
+
+# test_confidence_tagging_targets_confirmed: Makefile with real targets → targets_confidence=confirmed
+_snapshot_fail
+_conf_targets_dir="$TMPDIR_FIXTURE/conf_targets_project"
+mkdir -p "$_conf_targets_dir"
+cat > "$_conf_targets_dir/Makefile" <<'MAKEFILE'
+.PHONY: test lint format
+
+test:
+	pytest
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+MAKEFILE
+_conf_targets_out=$(bash "$SCRIPT" "$_conf_targets_dir" 2>&1)
+assert_eq "test_confidence_tagging_targets_confirmed: targets_confidence=confirmed" \
+    "confirmed" "$(get_key "$_conf_targets_out" targets_confidence)"
+assert_pass_if_clean "test_confidence_tagging_targets_confirmed"
+
+# test_confidence_tagging_files_present_confirmed: CLAUDE.md present → files_present_confidence=confirmed
+_snapshot_fail
+_conf_files_dir="$TMPDIR_FIXTURE/conf_files_present_project"
+mkdir -p "$_conf_files_dir"
+touch "$_conf_files_dir/CLAUDE.md"
+_conf_files_out=$(bash "$SCRIPT" "$_conf_files_dir" 2>&1)
+assert_eq "test_confidence_tagging_files_present_confirmed: files_present_confidence=confirmed" \
+    "confirmed" "$(get_key "$_conf_files_out" files_present_confidence)"
+assert_pass_if_clean "test_confidence_tagging_files_present_confirmed"
+
+# test_confidence_tagging_installed_deps_confirmed: command -v detection → installed_deps_confidence=confirmed
+_snapshot_fail
+_conf_deps_dir="$TMPDIR_FIXTURE/conf_installed_deps_project"
+mkdir -p "$_conf_deps_dir"
+_conf_deps_out=$(bash "$SCRIPT" "$_conf_deps_dir" 2>&1)
+assert_eq "test_confidence_tagging_installed_deps_confirmed: installed_deps_confidence=confirmed" \
+    "confirmed" "$(get_key "$_conf_deps_out" installed_deps_confidence)"
+assert_pass_if_clean "test_confidence_tagging_installed_deps_confirmed"
 
 print_summary
