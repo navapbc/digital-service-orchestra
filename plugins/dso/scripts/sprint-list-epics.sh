@@ -35,11 +35,26 @@ REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # ---------------------------------------------------------------------------
-# Build index from v3 reducer.
+# Retry configuration for worktree startup race conditions.
+# When the tracker dir has entries but the reducer returns an empty index,
+# retry after a short wait. This handles the case where the tracker symlink
+# or filesystem isn't fully ready yet (common during worktree creation).
+# ---------------------------------------------------------------------------
+# REVIEW-DEFENSE: MAX_RETRIES is the number of additional attempts after the initial build,
+# not the total number of attempts. Total attempts = MAX_RETRIES + 1 (initial attempt + retries).
+# The retry loop condition `attempt < MAX_RETRIES` is intentional: attempt starts at 0 and
+# increments after each retry, so the loop runs at most MAX_RETRIES times (additional attempts).
+MAX_RETRIES="${SPRINT_MAX_RETRIES:-3}"
+RETRY_WAIT="${SPRINT_RETRY_WAIT:-1}"
+
+# ---------------------------------------------------------------------------
+# Build index from v3 reducer (with retry on transient failure).
 # ---------------------------------------------------------------------------
 export _SPRINT_TRACKER_DIR="$TRACKER_DIR"
 export _SPRINT_REDUCER="$REDUCER"
-index_and_counts=$(python3 -c "
+
+_build_index() {
+python3 -c "
 import json, os, sys, importlib.util, collections
 
 tracker_dir = os.environ['_SPRINT_TRACKER_DIR']
@@ -90,7 +105,38 @@ for entry_name in os.listdir(tracker_dir):
         child_counts[parent_id] += 1
 
 print(json.dumps({'index': idx, 'child_counts': dict(child_counts)}))
-" 2>/dev/null || echo '{"index":{},"child_counts":{}}')
+" 2>/dev/null || echo '{"index":{},"child_counts":{}}'
+}
+
+# Count non-hidden subdirectories in tracker to detect "has entries but reducer failed"
+_tracker_has_entries() {
+    local count
+    count=$(find "$TRACKER_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | head -1)
+    [ -n "$count" ]
+}
+
+# Build index with retry on transient failure
+index_and_counts=$(_build_index)
+
+attempt=0
+while [ "$attempt" -lt "$MAX_RETRIES" ]; do
+    # Check if the index is empty (no tickets resolved)
+    index_key_count=$(echo "$index_and_counts" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('index',{})))" 2>/dev/null || echo "0")
+
+    if [ "$index_key_count" -gt 0 ]; then
+        break  # Index has entries — proceed normally
+    fi
+
+    # Index is empty — check if tracker dir has entries (indicating transient failure)
+    if ! _tracker_has_entries; then
+        break  # Tracker genuinely has no tickets — no point retrying
+    fi
+
+    # Tracker has entries but reducer returned empty — transient failure, retry
+    attempt=$(( attempt + 1 ))
+    sleep "$RETRY_WAIT"
+    index_and_counts=$(_build_index)
+done
 
 SPRINT_INDEX_JSON=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['index']))")
 child_counts_json=$(echo "$index_and_counts" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['child_counts']))")

@@ -41,7 +41,7 @@ The shared rubric's Confidence dimension (Dimension 5) requires specific files f
 
 ### Step 3: Apply Rubric
 
-Apply all five dimensions below, then apply the classification rules.
+Apply all seven dimensions below (Dimensions 1-5 for classification, Dimensions 6-7 for feasibility signaling), then apply the classification rules. After classification, compute `feasibility_review_recommended` from the Feasibility Review Recommendation section.
 
 ### Step 4: Output
 
@@ -138,6 +138,20 @@ The evaluating agent's confidence in its own estimates.
 | High | Specific files found via Grep/Glob; layer boundaries verified |
 | Medium | Estimates based on description alone; could not locate specific files |
 
+### Dimension 6: Pattern Familiarity
+
+How familiar the pattern being implemented is within this repo or the broader ecosystem. Agent must search repo history and existing skills before scoring.
+
+| Level | Meaning |
+|-------|---------|
+| High | Pattern appears in 2+ existing implementations in this repo |
+| Medium | Pattern is common in the ecosystem but novel to this repo |
+| Low | Novel pattern with no precedent in this repo or ecosystem |
+
+### Dimension 7: External Boundary Count
+
+Count of external systems, tools, APIs, or services the ticket interacts with. Zero external boundaries is a strong signal against COMPLEX.
+
 ---
 
 ## Classification Rules
@@ -189,6 +203,15 @@ If the epic fails the single-concern test, classify as COMPLEX.
 
 ---
 
+## Feasibility Review Recommendation
+
+After scoring all dimensions, set `feasibility_review_recommended` to `true` when either of the following conditions is met:
+
+- `external_boundary_count` > 0 (the ticket interacts with at least one external system)
+- `pattern_familiarity` is `"low"` (the pattern has no precedent in this repo or ecosystem)
+
+This signals to callers (e.g., `/dso:brainstorm`) that a feasibility reviewer should be triggered before implementation begins.
+
 ## Output Schema
 
 Return a single JSON block. Fields `qualitative_overrides`, `missing_done_definitions`, and `single_concern` are required only when evaluating epics; omit them for stories and bugs.
@@ -204,7 +227,10 @@ Return a single JSON block. Fields `qualitative_overrides`, `missing_done_defini
   "reasoning": "One sentence explaining the classification.",
   "qualitative_overrides": [],
   "missing_done_definitions": false,
-  "single_concern": true
+  "single_concern": true,
+  "pattern_familiarity": "high|medium|low",
+  "external_boundary_count": 0,
+  "feasibility_review_recommended": false
 }
 ```
 
@@ -219,6 +245,9 @@ Return a single JSON block. Fields `qualitative_overrides`, `missing_done_defini
 - When any qualitative override is triggered (epics only), classification MUST be "COMPLEX"
 - List qualitative overrides by name (e.g., `["multiple_personas", "ui_plus_backend"]`)
 - `reasoning` should be one sentence
+- `pattern_familiarity` MUST be one of: `"high"`, `"medium"`, `"low"` (search repo history and existing skills before scoring)
+- `external_boundary_count` MUST be a non-negative integer counting external systems, tools, APIs, or services the ticket interacts with
+- `feasibility_review_recommended` MUST be `true` when `external_boundary_count` > 0 OR `pattern_familiarity` is `"low"`; otherwise `false`
 - Do NOT modify any files — this is analysis only
 
 ## Constraints

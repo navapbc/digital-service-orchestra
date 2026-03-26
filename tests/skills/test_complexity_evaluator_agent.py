@@ -179,3 +179,79 @@ def test_complexity_evaluator_agent_body_epic_only_marker() -> None:
         "dimensions that apply exclusively to epic-level evaluation. This prevents "
         "the story-level evaluator from incorrectly applying epic-only dimensions."
     )
+
+
+def _extract_output_schema_json(body: str) -> str:
+    """Extract the JSON block from the Output Schema section of the agent body."""
+    schema_match = re.search(r"## Output Schema.*?```json\s*(.*?)```", body, re.DOTALL)
+    if schema_match is None:
+        return ""
+    return schema_match.group(1)
+
+
+def test_complexity_evaluator_output_schema_has_pattern_familiarity() -> None:
+    """Output Schema JSON block must contain the 'pattern_familiarity' field.
+
+    RED test — task b0fe-5d5d: pattern_familiarity is a new output field indicating
+    whether the evaluated code follows patterns already familiar to the team. It helps
+    callers adjust complexity estimates based on codebase familiarity.
+    """
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    schema_json = _extract_output_schema_json(body)
+    assert schema_json, (
+        "Expected complexity-evaluator.md Output Schema section to contain a JSON block. "
+        "Could not locate '## Output Schema' followed by a ```json block."
+    )
+    assert "pattern_familiarity" in schema_json, (
+        "Expected Output Schema JSON block to contain 'pattern_familiarity' field. "
+        "This field was added in story b0fe-5d5d to capture whether the evaluated code "
+        "follows patterns already familiar to the team (true|false). "
+        "The field does not yet exist — this is a RED test."
+    )
+
+
+def test_complexity_evaluator_output_schema_has_external_boundary_count() -> None:
+    """Output Schema JSON block must contain the 'external_boundary_count' field.
+
+    RED test — task b0fe-5d5d: external_boundary_count is a new output field that
+    counts the number of external system boundaries crossed (e.g., third-party APIs,
+    external databases). Higher counts signal increased integration complexity.
+    """
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    schema_json = _extract_output_schema_json(body)
+    assert schema_json, (
+        "Expected complexity-evaluator.md Output Schema section to contain a JSON block. "
+        "Could not locate '## Output Schema' followed by a ```json block."
+    )
+    assert "external_boundary_count" in schema_json, (
+        "Expected Output Schema JSON block to contain 'external_boundary_count' field. "
+        "This field was added in story b0fe-5d5d to capture the count of external system "
+        "boundaries crossed (integer >= 0). "
+        "The field does not yet exist — this is a RED test."
+    )
+
+
+def test_complexity_evaluator_output_schema_has_feasibility_review_recommended() -> (
+    None
+):
+    """Output Schema JSON block must contain the 'feasibility_review_recommended' field.
+
+    RED test — task b0fe-5d5d: feasibility_review_recommended is a new output field
+    (boolean) indicating whether the complexity evaluator recommends a human feasibility
+    review before implementation begins. Triggered when uncertainty is high.
+    """
+    content = _read_agent()
+    _, body = _parse_frontmatter(content)
+    schema_json = _extract_output_schema_json(body)
+    assert schema_json, (
+        "Expected complexity-evaluator.md Output Schema section to contain a JSON block. "
+        "Could not locate '## Output Schema' followed by a ```json block."
+    )
+    assert "feasibility_review_recommended" in schema_json, (
+        "Expected Output Schema JSON block to contain 'feasibility_review_recommended' field. "
+        "This field was added in story b0fe-5d5d to flag when a human feasibility review "
+        "is recommended before implementation (true|false). "
+        "The field does not yet exist — this is a RED test."
+    )

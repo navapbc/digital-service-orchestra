@@ -214,6 +214,40 @@ Mark these stories as **split candidates**. Phase 3 evaluates whether a Foundati
 
 ---
 
+## Phase 2.25: Integration Research (/dso:preplanning)
+
+After story decomposition and risk scanning, research integration capabilities for stories that involve external tools or services. This step surfaces verified constraints while the user is engaged and can redirect.
+
+### Qualification
+
+A story qualifies for integration research if it references any of:
+- Third-party CLI tools
+- External APIs/services
+- CI/CD workflow changes
+- Infrastructure provisioning
+- Data format migrations
+- Authentication/credential flows
+
+### Research Process
+
+For each qualifying story:
+
+1. Use WebSearch to find known-working code that uses the specific integration. Search GitHub for repositories that import or call the tool/API.
+2. Verify specific capabilities claimed or implied by the story scope. Check official documentation against what the story requires.
+3. Add findings to the story's Considerations as **Verified Integration Constraints**:
+   ```
+   - [Integration] Verified: <tool> supports <capability> (source: <URL>)
+   - [Integration] NOT verified: <tool> does not appear to support <capability>
+   ```
+4. If no sandbox or test environment is available for integration testing, flag this to the user during preplanning: "No sandbox available for <tool> — integration testing will require a live environment."
+5. If research finds no verified code or capabilities for a story's integration, flag the story as **high-risk** and recommend spike-task creation before implementation: "Story <id> references <tool> but no verified working code was found — recommend creating a spike task to validate capabilities before implementation."
+
+### Skip Condition
+
+If no stories in the plan qualify for integration research, log: "No stories with external integration signals — skipping integration research." and proceed to Phase 2.5.
+
+---
+
 ## Phase 2.5: Adversarial Review (/dso:preplanning)
 
 ### Threshold Gate
@@ -222,15 +256,13 @@ Mark these stories as **split candidates**. Phase 3 evaluates whether a Foundati
 
 ### Step 1: Red Team Dispatch (/dso:preplanning)
 
-Dispatch an **opus** sub-agent using the red team prompt template. Fill all placeholders from Phase 2 output:
+Dispatch via `subagent_type: "dso:red-team-reviewer"` with `model: opus`. The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
 
-- **Prompt template**: `prompts/red-team-review.md` (relative to this skill directory)
-- **Placeholders**:
-  - `{epic-title}`: Epic title from Phase 1
-  - `{epic-description}`: Epic description from Phase 1
-  - `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase 2 output)
-  - `{risk-register}`: Risk Register table from Phase 2
-  - `{dependency-graph}`: Dependency graph from `.claude/scripts/dso ticket deps <epic-id>`
+- `{epic-title}`: Epic title from Phase 1
+- `{epic-description}`: Epic description from Phase 1
+- `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase 2 output)
+- `{risk-register}`: Risk Register table from Phase 2
+- `{dependency-graph}`: Dependency graph from `.claude/scripts/dso ticket deps <epic-id>`
 
 The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
 
@@ -238,14 +270,12 @@ The red team sub-agent returns a JSON `findings` array. Parse the response and v
 
 ### Step 2: Blue Team Dispatch (/dso:preplanning)
 
-If the red team returns a non-empty findings array, dispatch a **sonnet** sub-agent using the blue team prompt template:
+If the red team returns a non-empty findings array, dispatch via `subagent_type: "dso:blue-team-filter"` with `model: sonnet`. Pass the following as task arguments:
 
-- **Prompt template**: `prompts/blue-team-review.md` (relative to this skill directory)
-- **Placeholders**:
-  - `{epic-title}`: Same as red team
-  - `{epic-description}`: Same as red team
-  - `{story-map}`: Same as red team
-  - `{red-team-findings}`: The raw JSON findings array from the red team sub-agent
+- `{epic-title}`: Same as red team
+- `{epic-description}`: Same as red team
+- `{story-map}`: Same as red team
+- `{red-team-findings}`: The raw JSON findings array from the red team sub-agent
 
 The blue team sub-agent returns a filtered JSON object with `findings` (accepted) and `rejected` arrays.
 
@@ -271,6 +301,18 @@ Adversarial review complete:
 - Blue team filtered: <M> rejected, <K> accepted
 - Applied: <A> new stories, <B> modified done definitions, <C> new dependencies, <D> new considerations
 ```
+
+### Step 3.5: Persist Adversarial Review Exchange (/dso:preplanning)
+
+After processing blue team findings, persist the full exchange for post-mortem analysis:
+
+1. Parse the blue team agent's output for the `artifact_path` field. If present, it points to the persisted JSON file at `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`
+2. If `artifact_path` is present, add a one-line ticket comment referencing the artifact:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "Adversarial review: <N> findings, <M> accepted. Full exchange: <artifact_path>"
+   ```
+3. **If `artifact_path` is absent** (agent failed to persist, or returned malformed output): log a warning `"Adversarial review artifact not persisted — blue team agent did not return artifact_path"` and continue. Artifact persistence failure is non-blocking.
+4. This artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output
 
 ### Step 4: Continue to Phase 3
 
