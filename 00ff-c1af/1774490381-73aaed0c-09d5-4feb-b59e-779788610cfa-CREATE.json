@@ -1,0 +1,1 @@
+{"timestamp": 1774490381, "uuid": "73aaed0c-09d5-4feb-b59e-779788610cfa", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a DSO adopter, I am guided through Jira credential configuration with auto-detected defaults", "parent_id": "fbd9-ba78", "priority": 2, "assignee": "Joe Oakhart"}}
