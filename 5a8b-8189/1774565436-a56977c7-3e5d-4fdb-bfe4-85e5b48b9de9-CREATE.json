@@ -1,1 +1,0 @@
-{"timestamp": 1774565436, "uuid": "a56977c7-3e5d-4fdb-bfe4-85e5b48b9de9", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Update fix-task-mechanical.md Anti-Patterns table with all 5 cover-up patterns", "parent_id": "dso-6026", "priority": 2, "assignee": "Joe Oakhart"}}
