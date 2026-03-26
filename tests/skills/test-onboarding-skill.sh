@@ -213,7 +213,109 @@ test_human_readable_format() {
     assert_pass_if_clean "test_human_readable_format"
 }
 
-# Run all 12 assertion functions
+# ── GREEN config tests (pass now — config section already in SKILL.md) ────────
+
+# test_config_generation_section: SKILL.md must contain a config generation phase/section
+test_config_generation_section() {
+    _snapshot_fail
+    local has_config has_dso_config config_valid
+    has_config="no"
+    has_dso_config="no"
+    if grep -qi "config" "$SKILL_MD" 2>/dev/null; then
+        has_config="yes"
+    fi
+    if grep -qE "dso-config(\.conf)?" "$SKILL_MD" 2>/dev/null; then
+        has_dso_config="yes"
+    fi
+    if [[ "$has_config" == "yes" && "$has_dso_config" == "yes" ]]; then
+        config_valid="found"
+    else
+        config_valid="missing"
+    fi
+    assert_eq "test_config_generation_section" "found" "$config_valid"
+    assert_pass_if_clean "test_config_generation_section"
+}
+
+# test_config_key_categories: SKILL.md must reference dso-config.conf key categories
+# Must match at least 5 of: format, ci, commands, jira, design, tickets, merge, version, test
+test_config_key_categories() {
+    _snapshot_fail
+    local categories_found categories_missing category
+    categories_found=0
+    categories_missing=""
+    local required_categories=("format" "ci" "commands" "jira" "design" "tickets" "merge" "version" "test")
+    for category in "${required_categories[@]}"; do
+        if grep -qw "$category" "$SKILL_MD" 2>/dev/null; then
+            (( categories_found++ ))
+        else
+            categories_missing="$categories_missing $category"
+        fi
+    done
+    if [[ "$categories_found" -ge 5 ]]; then
+        assert_eq "test_config_key_categories" "found" "found"
+    else
+        assert_eq "test_config_key_categories" "at least 5 categories" "$categories_found categories found (missing:$categories_missing)"
+    fi
+    assert_pass_if_clean "test_config_key_categories"
+}
+
+# ── RED config tests (not yet implemented in SKILL.md) ───────────────────────
+
+# test_ticket_prefix_derivation: SKILL.md must mention ticket prefix derivation from project name
+test_ticket_prefix_derivation() {
+    _snapshot_fail
+    local has_ticket has_prefix ticket_prefix_valid
+    has_ticket="no"
+    has_prefix="no"
+    if grep -qi "ticket" "$SKILL_MD" 2>/dev/null; then
+        has_ticket="yes"
+    fi
+    if grep -qi "prefix" "$SKILL_MD" 2>/dev/null; then
+        has_prefix="yes"
+    fi
+    if [[ "$has_ticket" == "yes" && "$has_prefix" == "yes" ]]; then
+        ticket_prefix_valid="found"
+    else
+        ticket_prefix_valid="missing"
+    fi
+    assert_eq "test_ticket_prefix_derivation" "found" "$ticket_prefix_valid"
+    assert_pass_if_clean "test_ticket_prefix_derivation"
+}
+
+# test_ci_workflow_examples: SKILL.md must mention offering example workflows when none exist
+test_ci_workflow_examples() {
+    _snapshot_fail
+    local has_example has_workflow ci_workflow_valid
+    has_example="no"
+    has_workflow="no"
+    if grep -qi "example" "$SKILL_MD" 2>/dev/null; then
+        has_example="yes"
+    fi
+    if grep -qi "workflow" "$SKILL_MD" 2>/dev/null; then
+        has_workflow="yes"
+    fi
+    if [[ "$has_example" == "yes" && "$has_workflow" == "yes" ]]; then
+        ci_workflow_valid="found"
+    else
+        ci_workflow_valid="missing"
+    fi
+    assert_eq "test_ci_workflow_examples" "found" "$ci_workflow_valid"
+    assert_pass_if_clean "test_ci_workflow_examples"
+}
+
+# test_acli_auto_suggestion: SKILL.md must mention ACLI_VERSION or acli-version-resolver
+test_acli_auto_suggestion() {
+    _snapshot_fail
+    local acli_found
+    acli_found="missing"
+    if grep -qE "ACLI_VERSION|acli-version-resolver" "$SKILL_MD" 2>/dev/null; then
+        acli_found="found"
+    fi
+    assert_eq "test_acli_auto_suggestion" "found" "$acli_found"
+    assert_pass_if_clean "test_acli_auto_suggestion"
+}
+
+# Run all 17 assertion functions — GREEN tests first, RED tests last
 test_skill_file_exists
 test_frontmatter_valid
 test_sub_agent_guard_present
@@ -226,5 +328,11 @@ test_project_understanding_output
 test_understanding_sections
 test_attribution_tagging
 test_human_readable_format
+test_config_generation_section
+test_config_key_categories
+# RED tests below — these fail until config details are added to SKILL.md
+test_ticket_prefix_derivation
+test_ci_workflow_examples
+test_acli_auto_suggestion
 
 print_summary
