@@ -1,0 +1,1 @@
+{"timestamp": 1774485658929660000, "uuid": "9b99ba5a-7c3b-4383-b69a-49efd7e69790", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 2 (BASIC). Root cause likely in sprint SKILL.md Skill tool invocation pattern \u2014 no continuation directive after skill output."}}
