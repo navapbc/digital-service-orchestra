@@ -1,1 +1,0 @@
-{"timestamp": 1774559353, "uuid": "2c61d17c-7bb2-4b2b-9516-6abceb7ef40f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Add confidence tagging tests to test-project-detect.sh", "parent_id": "07a9-ef15", "priority": 1, "assignee": "Joe Oakhart"}}
