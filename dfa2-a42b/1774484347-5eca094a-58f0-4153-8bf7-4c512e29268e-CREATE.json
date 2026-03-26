@@ -1,0 +1,1 @@
+{"timestamp": 1774484347, "uuid": "5eca094a-58f0-4153-8bf7-4c512e29268e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Regression test: March 2026 stale marker scenarios", "parent_id": "4d88-671b", "priority": 2, "assignee": "Joe Oakhart"}}
