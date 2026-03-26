@@ -1,0 +1,1 @@
+{"timestamp": 1774544119, "uuid": "4af6eda4-ada4-4cc4-85ed-16f4a9cf27c5", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Update project docs to reflect hypothesis enforcement changes", "parent_id": "b7ac-1d7f", "priority": 3, "assignee": "Joe Oakhart"}}
