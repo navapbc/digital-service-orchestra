@@ -58,9 +58,9 @@ Copy and track as you work (standalone only):
 ```
 Progress:
 - [ ] Step 1: Contextual Discovery (story loaded, context gathered, ambiguities resolved, cross-cutting detection done — layers: _, interfaces: _)
-- [ ] Step 2: Architectural Review via /dso:review-protocol (passed / skipped — no new pattern)
+- [ ] Step 2: Architectural Review via REVIEW-PROTOCOL-WORKFLOW.md inline (passed / skipped — no new pattern)
 - [ ] Step 3: Task Drafting (tasks drafted with E2E + docs coverage)
-- [ ] Step 4: Plan Review via /dso:review-protocol (all dimensions: 5, iteration: _/3)
+- [ ] Step 4: Plan Review via REVIEW-PROTOCOL-WORKFLOW.md inline (all dimensions: 5, iteration: _/3)
 - [ ] Step 5: Task Creation (tasks created, deps added, health validated)
 - [ ] Step 6: Gap Analysis (COMPLEX: opus sub-agent dispatched, findings processed; TRIVIAL: skipped)
 ```
