@@ -714,11 +714,14 @@ test_transition_bug_close_with_reason_succeeds() {
     # Assert: exits 0
     assert_eq "bug-close-with-reason: exits 0" "0" "$exit_code"
 
-    # Assert: a STATUS event for 'closed' was written (confirms the transition happened)
+    # Assert: transition evidence exists — either a STATUS event or a SNAPSHOT (compact-on-close)
     local tracker_dir="$repo/.tickets-tracker"
     local status_count
     status_count=$(_count_status_events "$tracker_dir" "$ticket_id")
-    assert_eq "bug-close-with-reason: STATUS event written" "1" "$status_count"
+    local snapshot_count
+    snapshot_count=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | wc -l | tr -d ' ')
+    local evidence_count=$(( status_count + snapshot_count ))
+    assert_eq "bug-close-with-reason: transition evidence exists" "1" "$([ "$evidence_count" -ge 1 ] && echo 1 || echo 0)"
 
     # Assert: compiled status is now closed
     local compiled_status
