@@ -915,33 +915,96 @@ Enter SHA-256 (or leave blank to bootstrap):
 ```
 If blank, record as empty — the bridge workflow will perform hash-bootstrap logging on first run.
 
-**B5. BRIDGE_BOT_LOGIN** — Use `AskUserQuestion`:
+**B5–B7. Identity resolution (BRIDGE_BOT_LOGIN, BRIDGE_BOT_NAME, BRIDGE_BOT_EMAIL)**
+
+Run `gh-identity-resolver.sh --own-identity` to get the authenticated user's login for display, then ask the user which identity to use:
+
+```bash
+IDENTITY_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --own-identity 2>/dev/null)
+OWN_LOGIN=$(echo "$IDENTITY_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
 ```
-BRIDGE_BOT_LOGIN — The GitHub username of the bot account that commits .claude/scripts/dso ticket sync changes.
+
+Use `AskUserQuestion`:
+```
+BRIDGE_BOT_LOGIN/NAME/EMAIL — The GitHub identity used for commit authorship in bridge sync commits.
 This account needs write access to the repository.
-Enter GitHub username:
+
+Detected authenticated GitHub user: {OWN_LOGIN}
+
+Options:
+  a) Use your GitHub identity ({OWN_LOGIN})
+  b) Configure a bot account (e.g., github-actions[bot] or a dedicated service account)
+
+Enter choice (a/b):
 ```
 
-**B6. BRIDGE_BOT_NAME** — Use `AskUserQuestion`:
-```
-BRIDGE_BOT_NAME — The display name for commit authorship in bridge sync commits.
-Example: "DSO Bridge Bot"
-Enter display name:
+**If the user chooses (a) — own identity:**
+
+Parse the key=value output from `gh-identity-resolver.sh --own-identity` (already captured above):
+
+```bash
+# Parse key=value lines
+BRIDGE_BOT_LOGIN=$(echo "$IDENTITY_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
+BRIDGE_BOT_NAME=$(echo "$IDENTITY_OUT"  | grep '^BRIDGE_BOT_NAME='  | cut -d= -f2-)
+BRIDGE_BOT_EMAIL=$(echo "$IDENTITY_OUT" | grep '^BRIDGE_BOT_EMAIL=' | cut -d= -f2-)
 ```
 
-**B7. BRIDGE_BOT_EMAIL** — Use `AskUserQuestion`:
+If any of `BRIDGE_BOT_LOGIN` or `BRIDGE_BOT_NAME` is empty (script failed to resolve), fall back to `AskUserQuestion` for the missing field(s). Do NOT proceed with empty values. Fallback prompts:
+- `BRIDGE_BOT_LOGIN`: "BRIDGE_BOT_LOGIN — The GitHub username for bridge commit authorship. Enter value:"
+- `BRIDGE_BOT_NAME`: "BRIDGE_BOT_NAME — The display name for bridge commit authorship (e.g., 'DSO Bridge Bot'). Enter value:"
+
+If `BRIDGE_BOT_EMAIL` equals `PROMPT_NEEDED` (the script could not resolve an email automatically), prompt via `AskUserQuestion`:
 ```
-BRIDGE_BOT_EMAIL — The email address for commit authorship in bridge sync commits.
-For GitHub bots, use the noreply format: <id>+<username>@users.noreply.github.com
+BRIDGE_BOT_EMAIL — Your GitHub profile email could not be resolved automatically.
+For personal accounts, use your GitHub-provided noreply address: <username>@users.noreply.github.com
+Or enter any email you use for git commits.
+
 Enter email address:
 ```
+Record the entered value as `BRIDGE_BOT_EMAIL`.
 
-**B8. BRIDGE_ENV_ID** — Use `AskUserQuestion`:
+**If the user chooses (b) — bot account:**
+
+Run `gh-identity-resolver.sh --bot` to get placeholder values, then let the user override each one. Parse key=value output:
+
+```bash
+BOT_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --bot 2>/dev/null)
+DEFAULT_LOGIN=$(echo "$BOT_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
+DEFAULT_NAME=$(echo "$BOT_OUT"  | grep '^BRIDGE_BOT_NAME='  | cut -d= -f2-)
+DEFAULT_EMAIL=$(echo "$BOT_OUT" | grep '^BRIDGE_BOT_EMAIL=' | cut -d= -f2-)
 ```
-BRIDGE_ENV_ID — An identifier for the bridge environment (e.g., "prod" or "staging").
-Used to namespace bridge state and prevent conflicts when multiple environments are syncing.
-Enter environment ID:
+
+Use `AskUserQuestion` for each field, showing the default:
 ```
+BRIDGE_BOT_LOGIN — GitHub username of the bot account (default: {DEFAULT_LOGIN}).
+Enter username (or press Enter to use default):
+```
+```
+BRIDGE_BOT_NAME — Display name for commit authorship (default: {DEFAULT_NAME}).
+Enter display name (or press Enter to use default):
+```
+```
+BRIDGE_BOT_EMAIL — Email for commit authorship (default: {DEFAULT_EMAIL}).
+Enter email (or press Enter to use default):
+```
+If the user leaves a field blank, use the corresponding default value.
+
+**B8. BRIDGE_ENV_ID** — Auto-resolved (no prompt needed)
+
+Run `gh-identity-resolver.sh --env-id` and parse the output:
+
+```bash
+ENV_ID_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --env-id 2>/dev/null)
+BRIDGE_ENV_ID=$(echo "$ENV_ID_OUT" | grep '^BRIDGE_ENV_ID=' | cut -d= -f2-)
+```
+
+The script derives the environment ID from the repository's GitHub org and name (e.g., `github-myorg-myrepo`). No user prompt is needed unless the script fails — if `BRIDGE_ENV_ID` is empty after the above, fall back to `AskUserQuestion`:
+```
+BRIDGE_ENV_ID — Could not be resolved automatically from the repository context.
+Enter an identifier for the bridge environment (e.g., "github-myorg-myrepo"):
+```
+
+> **Note on gh variable set failures**: If any `gh variable set` call for an auto-resolved value fails in Sub-step D, print the resolved value to the terminal so the user can set it manually (e.g., `[bridge] BRIDGE_ENV_ID resolved as: github-myorg-myrepo — set manually via GitHub web UI`).
 
 ---
 
