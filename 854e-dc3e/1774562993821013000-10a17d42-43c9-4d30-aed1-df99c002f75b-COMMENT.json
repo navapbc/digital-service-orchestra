@@ -1,0 +1,1 @@
+{"timestamp": 1774562993821013000, "uuid": "10a17d42-43c9-4d30-aed1-df99c002f75b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Enhanced DB detection with Dockerfile, Python import, and .env scanning; added db_confidence output field"}}
