@@ -922,7 +922,7 @@
         {
           "type": "file_contains",
           "path": "plugins/dso/skills/resolve-conflicts/SKILL.md",
-          "pattern": ".tickets-tracker/ JSON event files are auto-resolved (accept ours)"
+          "pattern": "`.tickets-tracker/` JSON event files are auto-resolved (accept ours)"
         },
         {
           "type": "file_contains",

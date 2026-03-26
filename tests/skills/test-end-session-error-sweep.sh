@@ -69,8 +69,8 @@ _write_counter_with_errors() {
     echo "$1" > "$COUNTER_FILE"
 }
 
-# _mock_tk_list_empty: ticket list returns empty JSON array (no matching open bugs)
-_mock_tk_list_empty() {
+# _mock_ticket_list_empty: ticket list returns empty JSON array (no matching open bugs)
+_mock_ticket_list_empty() {
     cat > "$TEST_BIN/ticket" <<MOCK
 #!/usr/bin/env bash
 if [[ "\$1" == "list" ]]; then
@@ -87,8 +87,8 @@ MOCK
     export TICKET_CMD="$TEST_BIN/ticket"
 }
 
-# _mock_tk_list_with_match: ticket list returns JSON with a matching bug ticket for category $1
-_mock_tk_list_with_match() {
+# _mock_ticket_list_with_match: ticket list returns JSON with a matching bug ticket for category $1
+_mock_ticket_list_with_match() {
     local category="$1"
     cat > "$TEST_BIN/ticket" <<MOCK
 #!/usr/bin/env bash
@@ -106,9 +106,9 @@ MOCK
     export TICKET_CMD="$TEST_BIN/ticket"
 }
 
-# _mock_tk_list_smart: first call returns empty JSON, subsequent calls return match for $1
+# _mock_ticket_list_smart: first call returns empty JSON, subsequent calls return match for $1
 # Used to simulate idempotency — first sweep creates ticket, second sees existing
-_mock_tk_list_smart() {
+_mock_ticket_list_smart() {
     local category="$1"
     local call_count_file="$TEST_HOME/list_calls"
     echo "0" > "$call_count_file"
@@ -181,13 +181,13 @@ print(len([e for e in data.get('errors', []) if e.get('category') == '$category'
 
 # ---------------------------------------------------------------------------
 # test_threshold_49_no_ticket
-# Counter permission_denied=49. Assert tk create not called.
+# Counter permission_denied=49. Assert ticket create not called.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "permission_denied" 49
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_threshold_49_no_ticket" "0" "$create_calls"
@@ -197,13 +197,13 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_threshold_50_creates_ticket
-# Counter permission_denied=50, mock tk list returns empty. Assert tk create called.
+# Counter permission_denied=50, mock ticket list returns empty. Assert ticket create called.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "permission_denied" 50
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_threshold_50_creates_ticket" "1" "$create_calls"
@@ -213,13 +213,13 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_dedup_existing_ticket_skips
-# Counter=50, mock tk list returns matching ticket line. Assert tk create NOT called.
+# Counter=50, mock ticket list returns matching ticket line. Assert ticket create NOT called.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "permission_denied" 50
-_mock_tk_list_with_match "permission_denied"
+_mock_ticket_list_with_match "permission_denied"
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_dedup_existing_ticket_skips" "0" "$create_calls"
@@ -229,14 +229,14 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_idempotent_double_sweep
-# Counter=50, mock tk list empty first, returns ticket second. Sweep twice.
-# Assert tk create called exactly once.
+# Counter=50, mock ticket list empty first, returns ticket second. Sweep twice.
+# Assert ticket create called exactly once.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "permission_denied" 50
-_mock_tk_list_smart "permission_denied"
+_mock_ticket_list_smart "permission_denied"
 # First sweep: list is empty → creates ticket
 (
     source "$ERROR_SWEEP"
@@ -261,7 +261,7 @@ _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "permission_denied" 50 "timeout" 30
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 # Only permission_denied >= 50; timeout < 50 → only 1 create call
@@ -279,13 +279,13 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_missing_counter_graceful
-# No counter file. Assert sweep exits 0, no tk calls.
+# No counter file. Assert sweep exits 0, no ticket calls.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 # Do NOT create counter file
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 exit_ok="no"
 if [[ "$SWEEP_EXIT" -eq 0 ]]; then exit_ok="yes"; fi
@@ -298,13 +298,13 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_noise_category_file_not_found_skipped
-# Counter file_not_found=100 (noise). Assert tk create NOT called.
+# Counter file_not_found=100 (noise). Assert ticket create NOT called.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "file_not_found" 100
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_noise_category_file_not_found_skipped" "0" "$create_calls"
@@ -314,13 +314,13 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_noise_category_command_exit_nonzero_skipped
-# Counter command_exit_nonzero=200 (noise). Assert tk create NOT called.
+# Counter command_exit_nonzero=200 (noise). Assert ticket create NOT called.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "command_exit_nonzero" 200
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_noise_category_command_exit_nonzero_skipped" "0" "$create_calls"
@@ -337,7 +337,7 @@ _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter "file_not_found" 100 "command_exit_nonzero" 75 "permission_denied" 50
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_noise_mixed_with_real_category_count" "1" "$create_calls"
@@ -359,7 +359,7 @@ _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter_with_errors '{"index":{"permission_denied":50},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: rm /protected","error_message":"permission denied","session_id":"s1"}]}'
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_ticket_includes_description_created" "1" "$create_calls"
@@ -380,7 +380,7 @@ _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter_with_errors '{"index":{"permission_denied":50,"timeout":10},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"},{"category":"timeout","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: slow","error_message":"timed out","session_id":"s2"}]}'
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 # permission_denied (>=50) should be removed from counter
 pd_count=$(_get_counter_index_count "permission_denied")
@@ -404,7 +404,7 @@ _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter_with_errors '{"index":{"file_not_found":100,"command_exit_nonzero":200},"errors":[{"category":"file_not_found","timestamp":"2026-03-15T10:00:00Z","tool_name":"Read","input_summary":"Read: missing.py","error_message":"file not found","session_id":"s1"},{"category":"command_exit_nonzero","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: false","error_message":"exit code 1","session_id":"s2"}]}'
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_noise_drained_no_ticket" "0" "$create_calls"
@@ -424,7 +424,7 @@ _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
 _write_counter_with_errors '{"index":{"permission_denied":60},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"}]}'
-_mock_tk_list_with_match "permission_denied"
+_mock_ticket_list_with_match "permission_denied"
 _run_sweep
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_dedup_drains_no_ticket" "0" "$create_calls"
@@ -438,8 +438,8 @@ _teardown_test
 # Helpers for sweep_validation_failures tests
 # ---------------------------------------------------------------------------
 
-# _mock_tk_list_with_validation_match: ticket list returns JSON matching "Untracked validation failure: $1"
-_mock_tk_list_with_validation_match() {
+# _mock_ticket_list_with_validation_match: ticket list returns JSON matching "Untracked validation failure: $1"
+_mock_ticket_list_with_validation_match() {
     local category="$1"
     cat > "$TEST_BIN/ticket" <<MOCK
 #!/usr/bin/env bash
@@ -471,7 +471,7 @@ _run_sweep_validation() {
 
 # ---------------------------------------------------------------------------
 # test_validation_sweep_creates_ticket_from_log
-# ARTIFACTS_DIR set, log contains one category. Assert tk create called once.
+# ARTIFACTS_DIR set, log contains one category. Assert ticket create called once.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
@@ -479,7 +479,7 @@ trap '_teardown_test' EXIT
 export ARTIFACTS_DIR="$TEST_HOME/artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 echo "lint_failure" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep_validation
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_validation_sweep_creates_ticket_from_log_count" "1" "$create_calls"
@@ -500,7 +500,7 @@ trap '_teardown_test' EXIT
 export ARTIFACTS_DIR="$TEST_HOME/artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 echo "lint_failure" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
-_mock_tk_list_with_validation_match "lint_failure"
+_mock_ticket_list_with_validation_match "lint_failure"
 _run_sweep_validation
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_validation_sweep_dedup_skips_existing" "0" "$create_calls"
@@ -510,7 +510,7 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_validation_sweep_missing_log_graceful
-# ARTIFACTS_DIR set but log file absent. Assert exits 0, no tk calls.
+# ARTIFACTS_DIR set but log file absent. Assert exits 0, no ticket calls.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
@@ -518,7 +518,7 @@ trap '_teardown_test' EXIT
 export ARTIFACTS_DIR="$TEST_HOME/artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 # Do NOT create untracked-validation-failures.log
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep_validation
 exit_ok="no"
 if [[ "$SWEEP_EXIT" -eq 0 ]]; then exit_ok="yes"; fi
@@ -531,7 +531,7 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_validation_sweep_empty_log_graceful
-# Log exists but is empty. Assert exits 0, no tk calls.
+# Log exists but is empty. Assert exits 0, no ticket calls.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
@@ -539,7 +539,7 @@ trap '_teardown_test' EXIT
 export ARTIFACTS_DIR="$TEST_HOME/artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 : > "$ARTIFACTS_DIR/untracked-validation-failures.log"
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep_validation
 exit_ok="no"
 if [[ "$SWEEP_EXIT" -eq 0 ]]; then exit_ok="yes"; fi
@@ -560,7 +560,7 @@ trap '_teardown_test' EXIT
 export ARTIFACTS_DIR="$TEST_HOME/artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 printf "lint_failure\nlint_failure\nlint_failure\n" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep_validation
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_validation_sweep_duplicate_log_entries_creates_one_ticket" "1" "$create_calls"
@@ -578,7 +578,7 @@ trap '_teardown_test' EXIT
 export ARTIFACTS_DIR="$TEST_HOME/artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 echo "some_unknown_failure_xyz" > "$ARTIFACTS_DIR/untracked-validation-failures.log"
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep_validation
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_validation_sweep_unrecognized_category" "1" "$create_calls"
@@ -695,12 +695,12 @@ for i in range(2):
 print(json.dumps({'index':{'permission_denied':50},'errors':errors}))
 ")
 _write_counter_with_errors "$_DEDUP_ERRORS"
-_mock_tk_list_empty
+_mock_ticket_list_empty
 _run_sweep
 # Ticket should be created
 create_calls=$(_count_tk_create_calls)
 assert_eq "test_ticket_deduplicates_created" "1" "$create_calls"
-# Get the full tk log to check description content
+# Get the full ticket log to check description content
 tk_log_content=$(cat "$TK_LOG" 2>/dev/null || true)
 # Should contain all 4 unique error signatures (not 20 raw duplicates)
 assert_contains "test_ticket_dedup_has_protected_file" "/protected/file.txt" "$tk_log_content"

@@ -188,7 +188,7 @@ Record as `tickets.prefix` (omit if blank / uses default).
 If yes:
 - Run `jira-credential-helper.sh` to auto-detect any Jira environment variables already set:
   ```bash
-  JIRA_HELPER_OUTPUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/jira-credential-helper.sh")
+  JIRA_HELPER_OUTPUT=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/jira-credential-helper.sh")
   ```
   Parse the output:
   - `DETECTED=<vars>` — these env vars are already present; use them as defaults when prompting.
@@ -896,7 +896,7 @@ If the user presses Enter and `$JIRA_USER` is set in the environment, use that v
 **B3. ACLI_VERSION and B4. ACLI_SHA256** — Auto-resolved via `acli-version-resolver.sh`:
 
 ```bash
-ACLI_RESOLVER_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/acli-version-resolver.sh" --platform linux --arch amd64 2>/dev/null)
+ACLI_RESOLVER_OUT=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/acli-version-resolver.sh" --platform linux --arch amd64 2>/dev/null)
 ACLI_VERSION=$(echo "$ACLI_RESOLVER_OUT" | grep '^ACLI_VERSION=' | cut -d= -f2-)
 ACLI_SHA256=$(echo "$ACLI_RESOLVER_OUT" | grep '^ACLI_SHA256=' | cut -d= -f2-)
 ```
@@ -933,7 +933,7 @@ If blank, record as empty — the bridge workflow will perform hash-bootstrap lo
 Run `gh-identity-resolver.sh --own-identity` to get the authenticated user's login for display, then ask the user which identity to use:
 
 ```bash
-IDENTITY_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --own-identity 2>/dev/null)
+IDENTITY_OUT=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/gh-identity-resolver.sh" --own-identity 2>/dev/null)
 OWN_LOGIN=$(echo "$IDENTITY_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
 ```
 
@@ -981,7 +981,7 @@ Record the entered value as `BRIDGE_BOT_EMAIL`.
 Run `gh-identity-resolver.sh --bot` to get placeholder values, then let the user override each one. Parse key=value output:
 
 ```bash
-BOT_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --bot 2>/dev/null)
+BOT_OUT=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/gh-identity-resolver.sh" --bot 2>/dev/null)
 DEFAULT_LOGIN=$(echo "$BOT_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
 DEFAULT_NAME=$(echo "$BOT_OUT"  | grep '^BRIDGE_BOT_NAME='  | cut -d= -f2-)
 DEFAULT_EMAIL=$(echo "$BOT_OUT" | grep '^BRIDGE_BOT_EMAIL=' | cut -d= -f2-)
@@ -1007,7 +1007,7 @@ If the user leaves a field blank, use the corresponding default value.
 Run `gh-identity-resolver.sh --env-id` and parse the output:
 
 ```bash
-ENV_ID_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --env-id 2>/dev/null)
+ENV_ID_OUT=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/gh-identity-resolver.sh" --env-id 2>/dev/null)
 BRIDGE_ENV_ID=$(echo "$ENV_ID_OUT" | grep '^BRIDGE_ENV_ID=' | cut -d= -f2-)
 ```
 
@@ -1049,7 +1049,7 @@ Enter the API token (it will NOT be shown back or stored locally):
 Before setting variables and secrets, check whether the `gh` CLI is available and authenticated by running:
 
 ```bash
-GH_CHECK=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-availability-check.sh" \
+GH_CHECK=$(bash "$CLAUDE_PLUGIN_ROOT/scripts/gh-availability-check.sh" \
   --vars=JIRA_URL,JIRA_USER,ACLI_VERSION,ACLI_SHA256,BRIDGE_BOT_LOGIN,BRIDGE_BOT_NAME,BRIDGE_BOT_EMAIL,BRIDGE_ENV_ID \
   --secrets=JIRA_API_TOKEN)
 GH_STATUS=$(echo "$GH_CHECK" | grep -E '^GH_STATUS=' | cut -d= -f2 | tr -d '[:space:]')

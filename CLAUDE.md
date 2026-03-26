@@ -159,7 +159,7 @@ After ExitPlanMode approval, do NOT begin implementation. Create a ticket epic (
 # 4. .claude/scripts/dso ticket transition <id> <current> closed  # then: .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
 ```
 
-**Session close**: Use `/dso:end` — not the tk Session Close Protocol checklist.
+**Session close**: Use `/dso:end`.
 
 ## Multi-Agent Orchestration
 
