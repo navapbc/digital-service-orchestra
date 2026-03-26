@@ -225,7 +225,7 @@ hook_commit_failure_tracker() {
     local category
     for category in "${FAILED_CATEGORIES[@]}"; do
         local RESULT=""
-        # Search .tickets/ for matching ticket files
+        # Search tickets directory for matching ticket files
         RESULT=$($_SEARCH_CMD "$category failure" "$TICKETS_DIR" 2>/dev/null | head -1 || echo "")
         if [[ -z "$RESULT" ]]; then
             UNTRACKED+=("$category")
