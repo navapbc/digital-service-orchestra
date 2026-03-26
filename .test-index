@@ -159,3 +159,4 @@ plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh
 plugins/dso/scripts/ticket-reducer.py: tests/scripts/test-ticket-reducer-batch.sh
 plugins/dso/scripts/ticket-reducer.py: tests/scripts/test-ticket-archived.sh
 plugins/dso/scripts/ticket-graph.py: tests/scripts/test-ticket-archive-eligibility.sh
+plugins/dso/scripts/ticket-lifecycle.sh: tests/scripts/test-ticket-lifecycle.sh [test_lifecycle_bulk_compact]
