@@ -187,6 +187,35 @@ parse_failing_tests_from_output() {
         || true
 }
 
+# parse_passing_tests_from_output: extract passing test names from test runner output.
+# Mirrors parse_failing_tests_from_output for the pass case.
+# Supports:
+#   - Bash-style: "test_name ... PASS" or "test_name: PASS"
+#   - Pytest PASSED lines: "PASSED path/to/test.py::test_name"
+# Returns one test name per line on stdout.
+parse_passing_tests_from_output() {
+    local output_file="$1"
+
+    if [[ ! -f "$output_file" ]]; then
+        return 0
+    fi
+
+    # Bash-style: "test_name ... PASS" (with optional whitespace/dots between)
+    grep -oE '^[a-zA-Z_][a-zA-Z0-9_-]*[[:space:]]*\.\.\..*PASS' "$output_file" \
+        | sed 's/[[:space:]]*\.\.\..*PASS//' \
+        || true
+
+    # Bash-style: "test_name: PASS"
+    grep -oE '^[a-zA-Z_][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*PASS' "$output_file" \
+        | sed 's/[[:space:]]*:[[:space:]]*PASS//' \
+        || true
+
+    # Pytest-style: "PASSED path/to/test.py::test_name"
+    grep -oE '^PASSED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*' "$output_file" \
+        | sed 's/^PASSED [^:]*:://' \
+        || true
+}
+
 # get_test_line_number: find the line number of a test function in a test file.
 # For Python: 'def test_name('
 # For Bash: 'test_name()' or any line containing test_name as a word
@@ -478,7 +507,28 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
         done
 
         if [[ "$all_in_red_zone" == true ]]; then
-            # All failures are in the RED zone — tolerate
+            # All failures are in the RED zone — check for passing RED-zone tests
+            # before tolerating. A passing RED-zone test means the marker is stale.
+            mapfile -t passing_tests < <(parse_passing_tests_from_output "$test_output_file")
+            _has_stale_pass=false
+            for passing_test in "${passing_tests[@]}"; do
+                [[ -z "$passing_test" ]] && continue
+                _pass_line=$(get_test_line_number "$test_file" "$passing_test")
+                if [[ "$_pass_line" -ne -1 ]] && [[ "$_pass_line" -ge "$red_zone_line" ]]; then
+                    echo "STALE RED MARKER: ${test_file} — RED-zone test '${passing_test}' passed (line ${_pass_line}, RED zone starts line ${red_zone_line}); remove or update the [${red_marker}] marker" >&2
+                    _has_stale_pass=true
+                fi
+            done
+
+            if [[ "$_has_stale_pass" == true ]]; then
+                rm -f "$test_output_file"
+                if [[ "$STATUS" != "timeout" ]]; then
+                    STATUS="failed"
+                fi
+                continue
+            fi
+
+            # No stale passing tests — tolerate RED zone failures as normal
             echo "INFO: RED zone failures tolerated for ${test_file} (marker: ${red_marker}, zone starts line ${red_zone_line})" >&2
             rm -f "$test_output_file"
             # Do NOT downgrade STATUS — this test is non-blocking
@@ -496,7 +546,19 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
         fi
     fi
 
-    # No RED marker (or test passed) — standard behavior
+    # ── Stale RED marker detection: exit 0 + RED marker ───────────────────
+    # If the test file passed (exit 0) but has a RED marker, the marker is
+    # stale — all RED-zone tests are now passing. Block and report.
+    if [[ $exit_code -eq 0 ]] && [[ -n "$red_marker" ]]; then
+        echo "STALE RED MARKER: ${test_file} (marker: ${red_marker}) — all RED-zone tests passed; remove the [${red_marker}] marker from .test-index" >&2
+        rm -f "$test_output_file"
+        if [[ "$STATUS" != "timeout" ]]; then
+            STATUS="failed"
+        fi
+        continue
+    fi
+
+    # No RED marker (or test passed without marker) — standard behavior
     if [[ $exit_code -ne 0 ]]; then
         echo "--- Test output for $test_file (exit $exit_code) ---" >&2
         cat "$test_output_file" >&2
