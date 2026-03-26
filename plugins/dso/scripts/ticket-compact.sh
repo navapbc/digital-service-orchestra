@@ -2,7 +2,7 @@
 # plugins/dso/scripts/ticket-compact.sh
 # Compact a ticket's event history into a single SNAPSHOT event.
 #
-# Usage: ticket-compact.sh <ticket_id> [--threshold=N] [--skip-sync]
+# Usage: ticket-compact.sh <ticket_id> [--threshold=N] [--skip-sync] [--no-commit]
 # Default threshold: COMPACT_THRESHOLD env var or 10
 #
 # The compaction operation:
@@ -22,7 +22,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+TRACKER_DIR="${TICKET_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # ── Usage ────────────────────────────────────────────────────────────────────
 _usage() {
@@ -41,6 +41,7 @@ shift
 
 threshold="${COMPACT_THRESHOLD:-10}"
 skip_sync=false
+no_commit=false
 while [ $# -gt 0 ]; do
     case "$1" in
         --threshold=*)
@@ -48,6 +49,9 @@ while [ $# -gt 0 ]; do
             ;;
         --skip-sync)
             skip_sync=true
+            ;;
+        --no-commit)
+            no_commit=true
             ;;
         *)
             echo "Error: unknown argument '$1'" >&2
@@ -58,7 +62,7 @@ while [ $# -gt 0 ]; do
 done
 
 # ── Validate ticket system ───────────────────────────────────────────────────
-if [ ! -d "$TRACKER_DIR" ] || [ ! -f "$TRACKER_DIR/.git" ]; then
+if [ ! -d "$TRACKER_DIR" ] || { [ ! -f "$TRACKER_DIR/.git" ] && [ ! -d "$TRACKER_DIR/.git" ]; }; then
     echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
     exit 1
 fi
@@ -125,7 +129,7 @@ while [ "$attempt" -lt "$max_retries" ]; do
     attempt=$((attempt + 1))
 
     flock_exit=0
-    python3 - "$lock_file" "$flock_timeout" "$TRACKER_DIR" "$ticket_id" "$ticket_dir" "$threshold" "$SCRIPT_DIR/ticket-reducer.py" << 'PYEOF' || flock_exit=$?
+    python3 - "$lock_file" "$flock_timeout" "$TRACKER_DIR" "$ticket_id" "$ticket_dir" "$threshold" "$SCRIPT_DIR/ticket-reducer.py" "$no_commit" << 'PYEOF' || flock_exit=$?
 import fcntl, glob, json, os, subprocess, sys, time, uuid
 
 lock_path = sys.argv[1]
@@ -135,6 +139,7 @@ ticket_id = sys.argv[4]
 ticket_dir = sys.argv[5]
 threshold = int(sys.argv[6])
 reducer_script = sys.argv[7]
+no_commit = sys.argv[8] == 'true'
 
 # ── Acquire flock ────────────────────────────────────────────────────────
 fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
@@ -255,28 +260,29 @@ try:
 except OSError:
     pass
 
-# Stage all changes in the ticket dir and commit atomically
+# Stage all changes in the ticket dir and commit atomically (unless --no-commit)
 # Using git add -A on the ticket subdir handles both additions and deletions
-try:
-    subprocess.run(
-        ['git', '-C', tracker_dir, 'add', '-A', f'{ticket_id}/'],
-        check=True, capture_output=True, text=True,
-    )
-    # Only commit if there are staged changes
-    status_result = subprocess.run(
-        ['git', '-C', tracker_dir, 'diff', '--cached', '--quiet'],
-        capture_output=True, text=True,
-    )
-    if status_result.returncode != 0:
+if not no_commit:
+    try:
         subprocess.run(
-            ['git', '-C', tracker_dir, 'commit', '-q', '--no-verify', '-m',
-             f'ticket: COMPACT {ticket_id}'],
+            ['git', '-C', tracker_dir, 'add', '-A', f'{ticket_id}/'],
             check=True, capture_output=True, text=True,
         )
-except subprocess.CalledProcessError as e:
-    print(f'Error: git compact commit failed: {e.stderr}', file=sys.stderr)
-    os.close(fd)
-    sys.exit(2)
+        # Only commit if there are staged changes
+        status_result = subprocess.run(
+            ['git', '-C', tracker_dir, 'diff', '--cached', '--quiet'],
+            capture_output=True, text=True,
+        )
+        if status_result.returncode != 0:
+            subprocess.run(
+                ['git', '-C', tracker_dir, 'commit', '-q', '--no-verify', '-m',
+                 f'ticket: COMPACT {ticket_id}'],
+                check=True, capture_output=True, text=True,
+            )
+    except subprocess.CalledProcessError as e:
+        print(f'Error: git compact commit failed: {e.stderr}', file=sys.stderr)
+        os.close(fd)
+        sys.exit(2)
 
 # Emit event count for the shell wrapper's summary message
 print(f'EVENT_COUNT={event_count}')
