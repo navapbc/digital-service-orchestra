@@ -157,3 +157,5 @@ plugins/dso/scripts/acli-version-resolver.sh: tests/scripts/test-acli-version-re
 plugins/dso/scripts/gh-availability-check.sh: tests/scripts/test-gh-availability-check.sh
 plugins/dso/scripts/purge-non-project-tickets.sh: tests/scripts/test-purge-non-project-tickets.sh
 plugins/dso/scripts/sprint-next-batch.sh: tests/scripts/test-sprint-next-batch.sh
+plugins/dso/scripts/runners/bash-runner.sh: tests/scripts/test-bash-runner-discovery.sh
+plugins/dso/scripts/test-batched.sh: tests/scripts/test-batched-state-integrity.sh, tests/scripts/test-bash-runner-discovery.sh
