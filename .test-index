@@ -180,3 +180,4 @@ plugins/dso/scripts/purge-non-project-tickets.sh: tests/scripts/test-purge-non-p
 plugins/dso/scripts/runners/bash-runner.sh: tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/test-batched.sh: tests/scripts/test-batched-state-integrity.sh, tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/hooks/fix-bug-skill-directive.sh: tests/hooks/test-fix-bug-skill-directive.sh
+tests/lib/suite-engine.sh: tests/hooks/test-suite-engine-red-tolerance.sh [tolerated_summary_present]
