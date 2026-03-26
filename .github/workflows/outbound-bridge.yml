@@ -4,9 +4,9 @@
 name: Outbound Bridge
 
 on:
-  push:
-    branches:
-      - tickets
+  # Push trigger removed (71fa-c068): GitHub Actions does not detect workflow
+  # files on orphan branches, so push-to-tickets never fired (all 100 recent
+  # runs were workflow_dispatch). merge-to-main.sh dispatches explicitly.
   workflow_dispatch: {}
 
 concurrency:
