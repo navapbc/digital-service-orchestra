@@ -1,0 +1,1 @@
+{"timestamp": 1774544119, "uuid": "8a81ef55-e43b-41b5-a3f3-e7eb42fb4a3f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I have unit tests verifying the orchestrator hypothesis and RED gates", "parent_id": "b7ac-1d7f", "priority": 1, "assignee": "Joe Oakhart"}}
