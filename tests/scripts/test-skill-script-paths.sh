@@ -34,7 +34,6 @@ SCAN_DIRS=(
     "$DSO_PLUGIN_DIR/docs"
     "$DSO_PLUGIN_DIR/agents"
 )
-SCAN_FILES=()
 # Exclude known installation/migration docs where hardcoded paths are intentional
 EXCLUDE_PATTERNS="MIGRATION-TO-PLUGIN.md|INSTALL.md"
 

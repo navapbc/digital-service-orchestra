@@ -2,7 +2,7 @@
 # plugins/dso/scripts/ticket-edit.sh
 # Append an EDIT event to a ticket and auto-commit it.
 #
-# Usage: ticket-edit.sh <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE]
+# Usage: ticket-edit.sh <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE]
 #   ticket_id: the ticket directory name (e.g., w21-ablv)
 #   At least one --field=value pair is required.
 #
@@ -19,14 +19,14 @@ TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE]" >&2
+    echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE]" >&2
     echo "  ticket_id: ticket directory name" >&2
     echo "  At least one --field=value pair is required." >&2
     exit 1
 }
 
 # ── Allowed fields ────────────────────────────────────────────────────────────
-ALLOWED_FIELDS="title priority assignee ticket_type"
+ALLOWED_FIELDS="title priority assignee ticket_type description"
 
 _is_allowed_field() {
     local field="$1"
