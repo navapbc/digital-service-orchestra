@@ -186,15 +186,23 @@ Record as `tickets.prefix` (omit if blank / uses default).
 **11. Jira tracking** — Use `AskUserQuestion`: "Do you use Jira for issue tracking? (yes/no)"
 
 If yes:
+- Run `jira-credential-helper.sh` to auto-detect any Jira environment variables already set:
+  ```bash
+  JIRA_HELPER_OUTPUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/jira-credential-helper.sh")
+  ```
+  Parse the output:
+  - `DETECTED=<vars>` — these env vars are already present; use them as defaults when prompting.
+  - `MISSING=<vars>` — these are not set; show `GUIDANCE_DESC:` and `GUIDANCE_URL:` lines for each.
+  - `CONFIRM_BEFORE_COPY` — if present, JIRA_API_TOKEN is set; prompt the user for confirmation before using it (see Step 6.5 C1).
 - Explain that `JIRA_URL`, `JIRA_USER`, and `JIRA_API_TOKEN` are **environment variables** that belong in the user's shell profile (e.g., `~/.zshrc` or `~/.bashrc`) — they are **not** written to `dso-config.conf`.
-- Use `AskUserQuestion` to ask for the `jira.project` key value (Jira project key, e.g., `DIG`). Record this for `dso-config.conf`.
-- Show the user the env vars they need to add to their shell profile:
+- If any vars are MISSING, show the user the env vars they need to add to their shell profile:
   ```
   export JIRA_URL=https://your-org.atlassian.net
   export JIRA_USER=you@example.com
   export JIRA_API_TOKEN=<your-api-token>
   ```
   Direct them to https://id.atlassian.com/manage-profile/security/api-tokens to generate a token.
+- Use `AskUserQuestion` to ask for the `jira.project` key value (Jira project key, e.g., `DIG`). Record this as `jira.project` in `dso-config.conf`.
 
 If no: skip the Jira sub-section.
 
@@ -867,34 +875,49 @@ Report the outcome to the user:
 
 The bridge workflow reads configuration from GitHub Actions repository **variables** (not secrets). Collect each one using `AskUserQuestion`, one at a time. For each variable, explain what it is and how to find or derive the value.
 
-**B1. JIRA_URL** — Use `AskUserQuestion`:
+**B1. JIRA_URL** — Use `AskUserQuestion`. If `jira-credential-helper.sh` output includes `JIRA_URL` in `DETECTED=`, pre-fill the prompt with the detected env var value as the default:
 ```
 JIRA_URL — The base URL of your Jira instance (e.g., https://your-org.atlassian.net).
 This is the same value as your JIRA_URL environment variable.
-Enter value (or press Enter to use your JIRA_URL env var value):
+Auto-detected: <value from $JIRA_URL env var, or "not detected">
+Enter value (or press Enter to accept detected value):
 ```
-If the user presses Enter and `$JIRA_URL` is set in the environment, use that value.
+If the user presses Enter and `$JIRA_URL` is set in the environment, use that value. If not detected, use the value the user enters.
 
-**B2. JIRA_USER** — Use `AskUserQuestion`:
+**B2. JIRA_USER** — Use `AskUserQuestion`. If `jira-credential-helper.sh` output includes `JIRA_USER` in `DETECTED=`, pre-fill the prompt with the detected env var value as the default:
 ```
 JIRA_USER — The email address of the Jira account used by the bridge bot.
 This is the same value as your JIRA_USER environment variable.
-Enter value (or press Enter to use your JIRA_USER env var value):
+Auto-detected: <value from $JIRA_USER env var, or "not detected">
+Enter value (or press Enter to accept detected value):
 ```
-If the user presses Enter and `$JIRA_USER` is set in the environment, use that value.
+If the user presses Enter and `$JIRA_USER` is set in the environment, use that value. If not detected, use the value the user enters.
 
-**B3. ACLI_VERSION** — Use `AskUserQuestion`:
+**B3. ACLI_VERSION and B4. ACLI_SHA256** — Auto-resolved via `acli-version-resolver.sh`:
+
+```bash
+ACLI_RESOLVER_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/acli-version-resolver.sh" --platform linux --arch amd64 2>/dev/null)
+ACLI_VERSION=$(echo "$ACLI_RESOLVER_OUT" | grep '^ACLI_VERSION=' | cut -d= -f2-)
+ACLI_SHA256=$(echo "$ACLI_RESOLVER_OUT" | grep '^ACLI_SHA256=' | cut -d= -f2-)
 ```
-ACLI_VERSION — The version of the Atlassian CLI (acli) to install in CI (e.g., 1.3.0).
+
+The script resolves the installed acli version and computes the SHA-256 checksum of the linux/amd64 tarball (the platform used by GitHub Actions runners). No user prompt is needed when the script succeeds.
+
+If `ACLI_VERSION` is empty after the above (script failed — e.g., acli not installed and network unavailable), prompt the user
+via `AskUserQuestion`:
+```
+ACLI_VERSION — Could not be resolved automatically.
+The Atlassian CLI (acli) version to install in CI (e.g., 1.3.0).
 ACLI v1.3+ is required for auth via 'acli jira auth login --site --email --token'.
 Check available versions at: https://github.com/ankitpokhrel/jira-cli/releases
 Enter value:
 ```
 
-**B4. ACLI_SHA256** — Use `AskUserQuestion`:
+If `ACLI_SHA256` is empty after auto-resolution (or after manual version entry), prompt the user
+via `AskUserQuestion`:
 ```
-ACLI_SHA256 — The SHA-256 checksum of the acli linux/amd64 tar.gz release asset.
-This is used to verify the download integrity in CI.
+ACLI_SHA256 — Could not be resolved automatically.
+The SHA-256 checksum of the acli linux/amd64 tar.gz release asset (used to verify CI download integrity).
 
 Options:
   a) Enter the SHA-256 now (find it in the release's checksum file or brew formula)
@@ -905,39 +928,110 @@ Enter SHA-256 (or leave blank to bootstrap):
 ```
 If blank, record as empty — the bridge workflow will perform hash-bootstrap logging on first run.
 
-**B5. BRIDGE_BOT_LOGIN** — Use `AskUserQuestion`:
+**B5–B7. Identity resolution (BRIDGE_BOT_LOGIN, BRIDGE_BOT_NAME, BRIDGE_BOT_EMAIL)**
+
+Run `gh-identity-resolver.sh --own-identity` to get the authenticated user's login for display, then ask the user which identity to use:
+
+```bash
+IDENTITY_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --own-identity 2>/dev/null)
+OWN_LOGIN=$(echo "$IDENTITY_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
 ```
-BRIDGE_BOT_LOGIN — The GitHub username of the bot account that commits .claude/scripts/dso ticket sync changes.
+
+Use `AskUserQuestion`:
+```
+BRIDGE_BOT_LOGIN/NAME/EMAIL — The GitHub identity used for commit authorship in bridge sync commits.
 This account needs write access to the repository.
-Enter GitHub username:
+
+Detected authenticated GitHub user: {OWN_LOGIN}
+
+Options:
+  a) Use your GitHub identity ({OWN_LOGIN})
+  b) Configure a bot account (e.g., github-actions[bot] or a dedicated service account)
+
+Enter choice (a/b):
 ```
 
-**B6. BRIDGE_BOT_NAME** — Use `AskUserQuestion`:
-```
-BRIDGE_BOT_NAME — The display name for commit authorship in bridge sync commits.
-Example: "DSO Bridge Bot"
-Enter display name:
+**If the user chooses (a) — own identity:**
+
+Parse the key=value output from `gh-identity-resolver.sh --own-identity` (already captured above):
+
+```bash
+# Parse key=value lines
+BRIDGE_BOT_LOGIN=$(echo "$IDENTITY_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
+BRIDGE_BOT_NAME=$(echo "$IDENTITY_OUT"  | grep '^BRIDGE_BOT_NAME='  | cut -d= -f2-)
+BRIDGE_BOT_EMAIL=$(echo "$IDENTITY_OUT" | grep '^BRIDGE_BOT_EMAIL=' | cut -d= -f2-)
 ```
 
-**B7. BRIDGE_BOT_EMAIL** — Use `AskUserQuestion`:
+If any of `BRIDGE_BOT_LOGIN` or `BRIDGE_BOT_NAME` is empty (script failed to resolve), fall back to `AskUserQuestion` for the missing field(s). Do NOT proceed with empty values. Fallback prompts:
+- `BRIDGE_BOT_LOGIN`: "BRIDGE_BOT_LOGIN — The GitHub username for bridge commit authorship. Enter value:"
+- `BRIDGE_BOT_NAME`: "BRIDGE_BOT_NAME — The display name for bridge commit authorship (e.g., 'DSO Bridge Bot'). Enter value:"
+
+If `BRIDGE_BOT_EMAIL` equals `PROMPT_NEEDED` (the script could not resolve an email automatically), prompt via `AskUserQuestion`:
 ```
-BRIDGE_BOT_EMAIL — The email address for commit authorship in bridge sync commits.
-For GitHub bots, use the noreply format: <id>+<username>@users.noreply.github.com
+BRIDGE_BOT_EMAIL — Your GitHub profile email could not be resolved automatically.
+For personal accounts, use your GitHub-provided noreply address: <username>@users.noreply.github.com
+Or enter any email you use for git commits.
+
 Enter email address:
 ```
+Record the entered value as `BRIDGE_BOT_EMAIL`.
 
-**B8. BRIDGE_ENV_ID** — Use `AskUserQuestion`:
+**If the user chooses (b) — bot account:**
+
+Run `gh-identity-resolver.sh --bot` to get placeholder values, then let the user override each one. Parse key=value output:
+
+```bash
+BOT_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --bot 2>/dev/null)
+DEFAULT_LOGIN=$(echo "$BOT_OUT" | grep '^BRIDGE_BOT_LOGIN=' | cut -d= -f2-)
+DEFAULT_NAME=$(echo "$BOT_OUT"  | grep '^BRIDGE_BOT_NAME='  | cut -d= -f2-)
+DEFAULT_EMAIL=$(echo "$BOT_OUT" | grep '^BRIDGE_BOT_EMAIL=' | cut -d= -f2-)
 ```
-BRIDGE_ENV_ID — An identifier for the bridge environment (e.g., "prod" or "staging").
-Used to namespace bridge state and prevent conflicts when multiple environments are syncing.
-Enter environment ID:
+
+Use `AskUserQuestion` for each field, showing the default:
 ```
+BRIDGE_BOT_LOGIN — GitHub username of the bot account (default: {DEFAULT_LOGIN}).
+Enter username (or press Enter to use default):
+```
+```
+BRIDGE_BOT_NAME — Display name for commit authorship (default: {DEFAULT_NAME}).
+Enter display name (or press Enter to use default):
+```
+```
+BRIDGE_BOT_EMAIL — Email for commit authorship (default: {DEFAULT_EMAIL}).
+Enter email (or press Enter to use default):
+```
+If the user leaves a field blank, use the corresponding default value.
+
+**B8. BRIDGE_ENV_ID** — Auto-resolved (no prompt needed)
+
+Run `gh-identity-resolver.sh --env-id` and parse the output:
+
+```bash
+ENV_ID_OUT=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-identity-resolver.sh" --env-id 2>/dev/null)
+BRIDGE_ENV_ID=$(echo "$ENV_ID_OUT" | grep '^BRIDGE_ENV_ID=' | cut -d= -f2-)
+```
+
+The script derives the environment ID from the repository's GitHub org and name (e.g., `github-myorg-myrepo`). No user prompt is needed unless the script fails — if `BRIDGE_ENV_ID` is empty after the above, prompt the user
+via `AskUserQuestion`:
+```
+BRIDGE_ENV_ID — Could not be resolved automatically from the repository context.
+Enter an identifier for the bridge environment (e.g., "github-myorg-myrepo"):
+```
+
+> **Note on gh variable set failures**: If any `gh variable set` call for an auto-resolved value fails in Sub-step D, print the resolved value to the terminal so the user can set it manually (e.g., `[bridge] BRIDGE_ENV_ID resolved as: github-myorg-myrepo — set manually via GitHub web UI`).
 
 ---
 
 ### Sub-step C: Collect required GitHub Secret
 
-**C1. JIRA_API_TOKEN** — Use `AskUserQuestion`:
+**C1. JIRA_API_TOKEN** — Before prompting, check whether `jira-credential-helper.sh` output includes `CONFIRM_BEFORE_COPY`. If it does, JIRA_API_TOKEN is already set in the environment. Use `AskUserQuestion` to present the confirmation gate:
+```
+JIRA_API_TOKEN is already set in your environment (CONFIRM_BEFORE_COPY signal detected).
+Would you like to use the current $JIRA_API_TOKEN value for the GitHub Actions secret? (yes/no)
+Note: The token value will NOT be echoed — it will be passed directly to 'gh secret set'.
+```
+- If the user says **yes**: use `$JIRA_API_TOKEN` directly in Sub-step D (do not prompt for the token value).
+- If the user says **no** (or JIRA_API_TOKEN is not in the environment): Use `AskUserQuestion`:
 ```
 JIRA_API_TOKEN — The Jira API token used by the bridge to authenticate with Jira.
 This will be stored as a GitHub Actions repository SECRET (encrypted, not visible after entry).
@@ -952,12 +1046,47 @@ Enter the API token (it will NOT be shown back or stored locally):
 
 ### Sub-step D: Apply GitHub Variables and Secrets
 
-Using the `gh` CLI, set all collected variables and the secret on the GitHub repository.
+Before setting variables and secrets, check whether the `gh` CLI is available and authenticated by running:
+
+```bash
+GH_CHECK=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-availability-check.sh" \
+  --vars=JIRA_URL,JIRA_USER,ACLI_VERSION,ACLI_SHA256,BRIDGE_BOT_LOGIN,BRIDGE_BOT_NAME,BRIDGE_BOT_EMAIL,BRIDGE_ENV_ID \
+  --secrets=JIRA_API_TOKEN)
+GH_STATUS=$(echo "$GH_CHECK" | grep -E '^GH_STATUS=' | cut -d= -f2 | tr -d '[:space:]')
+FALLBACK_LINES=$(echo "$GH_CHECK" | grep -v '^GH_STATUS=\|^FALLBACK=')
+```
+
+Route based on `GH_STATUS`:
+
+**If `GH_STATUS=authenticated`**: proceed with the `gh` CLI commands below.
+
+**If `GH_STATUS=not_authenticated`**: print the fallback commands from the script output and skip all `gh` operations. Inform the user:
+```
+[bridge] gh CLI is installed but not authenticated.
+[bridge] After running 'gh auth login', set variables and secrets with the following commands:
+
+$FALLBACK_LINES
+```
+Then continue to Sub-step E without setting any variables or secrets.
+
+**If `GH_STATUS=not_installed`**: print the UI navigation steps from the script output and skip all `gh` operations. Inform the user:
+```
+[bridge] gh CLI is not installed.
+[bridge] Set variables and secrets manually via the GitHub web UI:
+
+$FALLBACK_LINES
+```
+Then continue to Sub-step E without setting any variables or secrets.
+
+---
+
+**Authenticated path**: Using the `gh` CLI, set all collected variables and the secret on the GitHub repository.
 
 ```bash
 # Set repository variables (visible in workflow logs, not encrypted)
 gh variable set JIRA_URL       --body "<JIRA_URL_VALUE>"
 gh variable set JIRA_USER      --body "<JIRA_USER_VALUE>"
+gh variable set JIRA_PROJECT   --body "<JIRA_PROJECT_VALUE>"   # from jira.project in dso-config.conf (set in Step 3 Q11)
 gh variable set ACLI_VERSION   --body "<ACLI_VERSION_VALUE>"
 gh variable set BRIDGE_BOT_LOGIN   --body "<BRIDGE_BOT_LOGIN_VALUE>"
 gh variable set BRIDGE_BOT_NAME    --body "<BRIDGE_BOT_NAME_VALUE>"
@@ -973,10 +1102,13 @@ fi
 gh secret set JIRA_API_TOKEN --body "<JIRA_API_TOKEN_VALUE>"
 ```
 
+The `JIRA_PROJECT` value is the `jira.project` key written to `dso-config.conf` during Step 3 Q11 (e.g., `DIG`). Read it from the config file rather than re-prompting the user.
+
 Report each variable/secret as it is set:
 ```
 [bridge] Set variable: JIRA_URL
 [bridge] Set variable: JIRA_USER
+[bridge] Set variable: JIRA_PROJECT
 [bridge] Set variable: ACLI_VERSION
 [bridge] Set variable: ACLI_SHA256  (or: [bridge] ACLI_SHA256 skipped — will bootstrap on first CI run)
 [bridge] Set variable: BRIDGE_BOT_LOGIN
@@ -1063,7 +1195,7 @@ Report the final bridge setup outcome:
 === Jira Bridge Setup Complete ===
 
 tickets branch: <created | already existed>
-GitHub variables set: JIRA_URL, JIRA_USER, ACLI_VERSION, ACLI_SHA256 (or: bootstrap), BRIDGE_BOT_LOGIN, BRIDGE_BOT_NAME, BRIDGE_BOT_EMAIL, BRIDGE_ENV_ID
+GitHub variables set: JIRA_URL, JIRA_USER, JIRA_PROJECT, ACLI_VERSION, ACLI_SHA256 (or: bootstrap), BRIDGE_BOT_LOGIN, BRIDGE_BOT_NAME, BRIDGE_BOT_EMAIL, BRIDGE_ENV_ID
 GitHub secret set:    JIRA_API_TOKEN
 ACLI connectivity:    <validated | skipped — not installed | skipped — user choice>
 Bridge cron:          Manual activation required (see GitHub Actions UI)
