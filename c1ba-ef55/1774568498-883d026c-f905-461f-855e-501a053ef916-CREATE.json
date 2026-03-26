@@ -1,0 +1,1 @@
+{"timestamp": 1774568498, "uuid": "883d026c-f905-461f-855e-501a053ef916", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "test-record-test-status.sh merge-commit test fails in CI: git init creates master not main", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
