@@ -459,6 +459,77 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 25: Retry when tracker dir has entries but reducer returns empty ──────
+echo "Test 25: test_retry_on_transient_reducer_failure — retries when tracker not ready"
+test_retry_on_transient_reducer_failure() {
+    local TDIR25 TRACKER25
+    TDIR25=$(mktemp -d)
+    TRACKER25="$TDIR25/tracker"
+    mkdir -p "$TRACKER25"
+
+    # Create a valid v3 epic
+    make_v3_ticket "$TRACKER25" "epic-retry" "epic" "open" "1" "" "Retry Epic"
+
+    # Simulate transient reducer failure by making the epic dir temporarily unreadable.
+    # The retry mechanism should detect that the tracker has entries but the index is empty,
+    # wait, then retry — at which point the dir is readable and the epic is found.
+
+    # Make the epic dir unreadable (reducer will fail to read events, returns empty index)
+    chmod 000 "$TRACKER25/epic-retry"
+
+    # Restore permissions quickly — well before the first retry fires.
+    # SPRINT_RETRY_WAIT=0.8 gives an 8x margin over the 0.1s background delay.
+    (sleep 0.1 && chmod 755 "$TRACKER25/epic-retry") &
+    local restore_pid=$!
+
+    local out25 exit25=0
+    out25=$(TICKETS_TRACKER_DIR="$TRACKER25" SPRINT_MAX_RETRIES=3 SPRINT_RETRY_WAIT=0.8 \
+        bash "$SCRIPT" 2>/dev/null) || exit25=$?
+
+    wait "$restore_pid" 2>/dev/null || true
+    chmod -R 755 "$TRACKER25" 2>/dev/null || true
+    rm -rf "$TDIR25"
+
+    # The script should have retried and found the epic
+    [ "$exit25" -eq 0 ] || return 1
+    echo "$out25" | grep -q "epic-retry" || return 1
+}
+if test_retry_on_transient_reducer_failure; then
+    echo "  PASS: script retries on transient reducer failure"
+    (( PASS++ ))
+else
+    echo "  FAIL: script did not retry — epic-retry not found after transient failure" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 26: Retry env vars are respected (SPRINT_MAX_RETRIES=0 means no retry) ─
+echo "Test 26: test_no_retry_when_disabled — SPRINT_MAX_RETRIES=0 skips retry"
+test_no_retry_when_disabled() {
+    local TDIR26
+    TDIR26=$(mktemp -d)
+
+    # Empty tracker — no epics at all. With retry disabled, should exit 1 immediately.
+    local exit26=0 start_time end_time elapsed
+    start_time=$(python3 -c "import time; print(time.time())")
+    TICKETS_TRACKER_DIR="$TDIR26" SPRINT_MAX_RETRIES=0 SPRINT_RETRY_WAIT=2 \
+        bash "$SCRIPT" >/dev/null 2>&1 || exit26=$?
+    end_time=$(python3 -c "import time; print(time.time())")
+    elapsed=$(python3 -c "print(float('$end_time') - float('$start_time'))")
+
+    rm -rf "$TDIR26"
+
+    # Should exit 1 (no epics) and not wait 2 seconds for a retry
+    [ "$exit26" -eq 1 ] || return 1
+    python3 -c "exit(0 if float('$elapsed') < 1.5 else 1)" || return 1
+}
+if test_no_retry_when_disabled; then
+    echo "  PASS: no retry when SPRINT_MAX_RETRIES=0"
+    (( PASS++ ))
+else
+    echo "  FAIL: retry occurred even with SPRINT_MAX_RETRIES=0" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
