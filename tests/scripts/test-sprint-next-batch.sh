@@ -792,6 +792,119 @@ test_test_index_overlap_safe() {
 }
 test_test_index_overlap_safe
 
+# ── Test: Script has explicit tracker init guard (not relying on TICKET_CMD) ────
+echo "Test: test_init_on_missing_tracker — calls ticket-init.sh when tracker missing"
+test_init_on_missing_tracker() {
+    # Behavioral test: verifies that sprint-next-batch.sh invokes ticket-init.sh
+    # directly (its own init guard) when the tracker dir doesn't exist and
+    # TICKETS_TRACKER_DIR is not set. The ticket dispatcher also does init, but
+    # the script must have its own guard for defensive correctness (same pattern
+    # as sprint-list-epics.sh fix 3b71-e877).
+    #
+    # Strategy: provide a TICKET_CMD that does NOT touch the marker file, so
+    # the marker is only set if the script calls ticket-init.sh directly.
+    local TDIR_INIT STUB_CALLED
+    TDIR_INIT=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TDIR_INIT")
+    STUB_CALLED="$TDIR_INIT/init-was-called"
+
+    # Copy the real script into the temp dir
+    cp "$PLUGIN_SCRIPT" "$TDIR_INIT/sprint-next-batch.sh"
+    chmod +x "$TDIR_INIT/sprint-next-batch.sh"
+
+    # Create a stub ticket-init.sh that records invocation
+    cat > "$TDIR_INIT/ticket-init.sh" << 'STUBEOF'
+#!/usr/bin/env bash
+touch "$STUB_CALLED_FILE"
+exit 0
+STUBEOF
+    chmod +x "$TDIR_INIT/ticket-init.sh"
+
+    # Create a separate TICKET_CMD stub that does NOT touch the marker
+    # (so we only detect the direct ticket-init.sh call from the init guard)
+    cat > "$TDIR_INIT/ticket-stub" << 'TICKETSTUB'
+#!/usr/bin/env bash
+echo '{"ticket_id":"fake-epic","status":"open","ticket_type":"epic","priority":1,"title":"Fake","parent_id":null,"comments":[],"deps":[]}'
+exit 0
+TICKETSTUB
+    chmod +x "$TDIR_INIT/ticket-stub"
+
+    # Minimal read-config.sh stub
+    cat > "$TDIR_INIT/read-config.sh" << 'CFGSTUB'
+#!/usr/bin/env bash
+echo ""
+exit 0
+CFGSTUB
+    chmod +x "$TDIR_INIT/read-config.sh"
+
+    # PROJECT_ROOT has no .tickets-tracker; TICKETS_TRACKER_DIR is unset (default path)
+    local fake_root="$TDIR_INIT/fake-repo"
+    mkdir -p "$fake_root"
+    git init -q -b main "$fake_root"
+
+    STUB_CALLED_FILE="$STUB_CALLED" PROJECT_ROOT="$fake_root" \
+        TICKET_CMD="$TDIR_INIT/ticket-stub" \
+        bash "$TDIR_INIT/sprint-next-batch.sh" "fake-epic" >/dev/null 2>&1 || true
+
+    [ -f "$STUB_CALLED" ]
+}
+if test_init_on_missing_tracker; then
+    echo "  PASS: script calls ticket-init.sh when tracker dir missing"
+    (( PASS++ ))
+else
+    echo "  FAIL: script did not call ticket-init.sh — fresh worktrees will fail" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test: Tracker init only runs for default path, not TICKETS_TRACKER_DIR ──
+echo "Test: test_init_skipped_for_override — no init when TICKETS_TRACKER_DIR is set"
+test_init_skipped_for_override() {
+    local TDIR_SKIP STUB_CALLED
+    TDIR_SKIP=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TDIR_SKIP")
+    STUB_CALLED="$TDIR_SKIP/init-was-called"
+
+    cp "$PLUGIN_SCRIPT" "$TDIR_SKIP/sprint-next-batch.sh"
+    chmod +x "$TDIR_SKIP/sprint-next-batch.sh"
+
+    cat > "$TDIR_SKIP/ticket-init.sh" << 'STUBEOF'
+#!/usr/bin/env bash
+touch "$STUB_CALLED_FILE"
+exit 0
+STUBEOF
+    chmod +x "$TDIR_SKIP/ticket-init.sh"
+
+    # Separate ticket stub that doesn't touch marker
+    cat > "$TDIR_SKIP/ticket-stub" << 'TICKETSTUB'
+#!/usr/bin/env bash
+echo '{"ticket_id":"fake-epic","status":"open","ticket_type":"epic","priority":1,"title":"Fake","parent_id":null,"comments":[],"deps":[]}'
+exit 0
+TICKETSTUB
+    chmod +x "$TDIR_SKIP/ticket-stub"
+
+    cat > "$TDIR_SKIP/read-config.sh" << 'CFGSTUB'
+#!/usr/bin/env bash
+echo ""
+exit 0
+CFGSTUB
+    chmod +x "$TDIR_SKIP/read-config.sh"
+
+    local nonexistent_tracker="$TDIR_SKIP/no-such-tracker"
+
+    STUB_CALLED_FILE="$STUB_CALLED" TICKETS_TRACKER_DIR="$nonexistent_tracker" \
+        TICKET_CMD="$TDIR_SKIP/ticket-stub" \
+        bash "$TDIR_SKIP/sprint-next-batch.sh" "fake-epic" >/dev/null 2>&1 || true
+
+    [ ! -f "$STUB_CALLED" ]
+}
+if test_init_skipped_for_override; then
+    echo "  PASS: init is skipped when TICKETS_TRACKER_DIR is set"
+    (( PASS++ ))
+else
+    echo "  FAIL: init was called even though TICKETS_TRACKER_DIR is set" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
