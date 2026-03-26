@@ -1,1 +1,0 @@
-{"timestamp": 1774476981, "uuid": "b30c2f84-de14-4fb5-8cb2-912f0d037eb5", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Create dso:completion-verifier dedicated agent with consumer smoke test", "parent_id": "914c-797e", "priority": 1, "assignee": "Joe Oakhart"}}

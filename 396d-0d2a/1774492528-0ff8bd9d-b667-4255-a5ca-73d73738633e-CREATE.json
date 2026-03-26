@@ -1,1 +1,0 @@
-{"timestamp": 1774492528, "uuid": "0ff8bd9d-b667-4255-a5ca-73d73738633e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update SKILL.md, CLAUDE.md, and ADR for automated Jira bridge flow", "parent_id": "2e2a-f4b9", "priority": 2, "assignee": "Joe Oakhart"}}

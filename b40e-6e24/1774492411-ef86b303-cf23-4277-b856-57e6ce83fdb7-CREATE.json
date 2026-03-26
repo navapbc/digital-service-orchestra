@@ -1,1 +1,0 @@
-{"timestamp": 1774492411, "uuid": "ef86b303-cf23-4277-b856-57e6ce83fdb7", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update project-setup SKILL.md Jira credential sections for auto-detection", "parent_id": "00ff-c1af", "priority": 2, "assignee": "Joe Oakhart"}}

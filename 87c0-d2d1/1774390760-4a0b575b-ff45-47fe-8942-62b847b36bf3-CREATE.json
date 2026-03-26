@@ -1,1 +1,0 @@
-{"timestamp": 1774390760, "uuid": "4a0b575b-ff45-47fe-8942-62b847b36bf3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Remove Step 3b (patch version bump) from COMMIT-WORKFLOW.md", "parent_id": "a0a3-29f8", "priority": 1, "assignee": "Joe Oakhart"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774394170, "uuid": "6d6de275-92c8-40b3-882f-ddf67c5e80f9", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Convert review-protocol skill to thin wrapper", "parent_id": "04ad-42f3", "priority": 2, "assignee": "Joe Oakhart"}}

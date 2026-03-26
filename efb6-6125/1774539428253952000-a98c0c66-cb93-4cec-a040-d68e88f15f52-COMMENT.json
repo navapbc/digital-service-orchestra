@@ -1,1 +1,0 @@
-{"timestamp": 1774539428253952000, "uuid": "a98c0c66-cb93-4cec-a040-d68e88f15f52", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Created tests/scripts/test-v2-skills-cleanup.sh with 9 RED tests for v2 skills/prompts cleanup"}}

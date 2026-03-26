@@ -1,1 +1,0 @@
-{"timestamp": 1774389444, "uuid": "b817b272-3093-40bb-a4d9-3ff8064709b3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Remove .tickets/ path patterns from CI workflows and example config files", "parent_id": "98d9-8f9a", "priority": 2, "assignee": "Joe Oakhart"}}

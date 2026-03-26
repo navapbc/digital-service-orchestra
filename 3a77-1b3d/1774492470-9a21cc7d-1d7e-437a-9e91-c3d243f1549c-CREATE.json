@@ -1,1 +1,0 @@
-{"timestamp": 1774492470, "uuid": "9a21cc7d-1d7e-437a-9e91-c3d243f1549c", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write behavioral tests for gh-availability-check.sh", "parent_id": "d76e-33dd", "priority": 2, "assignee": "Joe Oakhart"}}

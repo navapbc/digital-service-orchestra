@@ -1,1 +1,0 @@
-{"timestamp": 1774388764, "uuid": "d2a56ecc-dced-4d67-973d-7f538d73d1cc", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED tests: assert no v2 code in validate-phase.sh and agent-batch-lifecycle.sh", "parent_id": "12b9-45d8", "priority": 1, "assignee": "Joe Oakhart"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774476890, "uuid": "435067c2-d1f1-4fd3-bd2b-b29c021994e6", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Update preplanning to dispatch dedicated agents and persist artifact", "parent_id": "5805-11d3", "priority": 2, "assignee": "Joe Oakhart"}}

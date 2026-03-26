@@ -1,1 +1,0 @@
-{"timestamp": 1774492767864139000, "uuid": "ff1c7fd4-0de5-4403-940c-0f52ad30d365", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Review amendment: Define GUIDANCE line format with prefix (e.g., GUIDANCE_DESC: and GUIDANCE_URL:) so tests can assert on structure, not literal third-party URLs."}}

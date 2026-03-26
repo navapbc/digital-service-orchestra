@@ -1,1 +1,0 @@
-{"timestamp": 1774488768, "uuid": "357b2a97-f360-49f0-8c0c-8651891d41f7", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED test: file impact enumeration and bidirectional TDD in SKILL.md", "parent_id": "c193-a875", "priority": 2, "assignee": "Joe Oakhart"}}

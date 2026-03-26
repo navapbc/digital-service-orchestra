@@ -1,1 +1,0 @@
-{"timestamp": 1774387085, "uuid": "4c218583-f97f-4271-ba8d-9be7ee8d63ed", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Update project docs to reflect v2 ticket system removal", "parent_id": "d775-4a36", "priority": 3, "assignee": "Joe Oakhart"}}

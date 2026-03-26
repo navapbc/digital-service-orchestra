@@ -1,1 +1,0 @@
-{"timestamp": 1774477169, "uuid": "727bc47e-27ae-4d78-9816-696fac386ee7", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write failing tests for v2 removal from skills and prompts", "parent_id": "5d90-b43c", "priority": 2, "assignee": "Joe Oakhart"}}

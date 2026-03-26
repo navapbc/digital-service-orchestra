@@ -1,1 +1,0 @@
-{"timestamp": 1774492246, "uuid": "83d64ea6-2a87-4e52-91ae-55d0e2dd4027", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write behavioral tests for gh-identity-resolver.sh", "parent_id": "776c-1ed3", "priority": 2, "assignee": "Joe Oakhart"}}

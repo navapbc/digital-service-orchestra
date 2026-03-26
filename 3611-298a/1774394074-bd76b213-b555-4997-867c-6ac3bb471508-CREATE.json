@@ -1,1 +1,0 @@
-{"timestamp": 1774394074, "uuid": "bd76b213-b555-4997-867c-6ac3bb471508", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Add sub-agent guard to 9 sub-agent dependent skills", "parent_id": "7e8f-b085", "priority": 2, "assignee": "Joe Oakhart"}}

@@ -1,1 +1,0 @@
-{"timestamp": 1774488211, "uuid": "b95ae476-1243-47f9-972d-073c73e2649e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Implement blast-radius scoring script", "parent_id": "5050-15fd", "priority": 2, "assignee": "Joe Oakhart"}}

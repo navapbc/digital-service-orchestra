@@ -1,1 +1,0 @@
-{"timestamp": 1774542725773018000, "uuid": "1b841b0f-1a5f-455c-b5b1-2dfa88195752", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Removed v2 refs from skills/prompts, updated guards to v3 paths"}}

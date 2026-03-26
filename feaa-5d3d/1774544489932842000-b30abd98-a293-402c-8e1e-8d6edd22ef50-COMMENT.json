@@ -1,1 +1,0 @@
-{"timestamp": 1774544489932842000, "uuid": "b30abd98-a293-402c-8e1e-8d6edd22ef50", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: reduce_all_tickets() implemented with --batch CLI. All tests GREEN."}}

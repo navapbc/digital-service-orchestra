@@ -1,1 +1,0 @@
-{"timestamp": 1774543113530389000, "uuid": "dd686a6d-d1b2-49c1-967e-4af762821fd6", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "## Acceptance Criteria\n- [ ] No v2 references in CLAUDE.md\n  Verify: bash tests/hooks/test-no-v2-refs-in-claude-md.sh 2>&1 | grep -q 'FAILED: 0'"}}

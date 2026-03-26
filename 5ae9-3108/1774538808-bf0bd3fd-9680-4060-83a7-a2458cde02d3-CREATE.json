@@ -1,1 +1,0 @@
-{"timestamp": 1774538808, "uuid": "bf0bd3fd-9680-4060-83a7-a2458cde02d3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Update project docs to reflect ticket lifecycle management", "parent_id": "7dee-3e33", "priority": 3, "assignee": "Joe Oakhart"}}
