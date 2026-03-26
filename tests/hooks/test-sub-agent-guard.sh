@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # tests/hooks/test-sub-agent-guard.sh
-# Verifies that all 19 target skills contain the appropriate SUB-AGENT-GUARD block.
+# Verifies that all 20 target skills contain the appropriate SUB-AGENT-GUARD block.
 #
 # Two groups:
-#   Sub-agent dependent (15): guard block must reference "Agent tool"
+#   Sub-agent dependent (16): guard block must reference "Agent tool"
 #   User-interaction dependent (4): guard block must reference "running as a sub-agent"
 #     (the orchestrator signal phrase used to detect sub-agent context)
 #
@@ -92,6 +92,7 @@ check_guard_agent_tool "roadmap"
 check_guard_agent_tool "plan-review"
 
 # --- Story 3459-7246 (6 remaining sub-agent dependent — RED until that story) ---
+check_guard_agent_tool "architect-foundation"
 check_guard_agent_tool "review-protocol"
 check_guard_agent_tool "resolve-conflicts"
 check_guard_agent_tool "dev-onboarding"
@@ -149,6 +150,8 @@ _TEST_GATE_ANCHORS=(
     test_retro_guard_references_agent_tool
     test_ui_discover_has_sub_agent_guard_marker
     test_ui_discover_guard_references_agent_tool
+    test_architect_foundation_has_sub_agent_guard_marker
+    test_architect_foundation_guard_references_agent_tool
     test_end_session_has_sub_agent_guard_marker
     test_end_session_guard_references_orchestrator_signal
     test_project_setup_has_sub_agent_guard_marker
