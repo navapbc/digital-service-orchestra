@@ -96,3 +96,150 @@ class TestTaskExecutionDiscoveredBugType:
                     "which causes discovered bug tickets to be misclassified as tasks. "
                     f"Context:\n{context}"
                 )
+
+
+def _extract_section_from_template(content: str, section_heading: str) -> str:
+    """Extract content from a section heading until the next same-level heading."""
+    lines = content.splitlines()
+    in_section = False
+    section_lines = []
+    heading_prefix = section_heading.split(" ")[0]  # e.g., "##" or "###"
+
+    for line in lines:
+        if line.strip() == section_heading or line.startswith(section_heading + " "):
+            in_section = True
+            section_lines.append(line)
+            continue
+        if in_section:
+            # Stop at a heading of the same or higher level
+            if line.startswith(heading_prefix + " ") and line != section_heading:
+                break
+            section_lines.append(line)
+
+    return "\n".join(section_lines)
+
+
+class TestTaskExecutionProhibitedFixPatterns:
+    """task-execution.md must contain a Prohibited Fix Patterns section.
+
+    TDD spec for task 2eae-abec (RED task):
+    The template dispatched to sub-agents must include a section documenting
+    5 anti-patterns that sub-agents must never use to make tests pass by hiding
+    failures rather than fixing root causes:
+      1. Skipping or removing failing tests
+      2. Loosening assertions to make tests pass
+      3. Adding broad exception handlers to swallow errors
+      4. Downgrading error severity (e.g., assert → warning)
+      5. Commenting out failing code
+    """
+
+    def _get_section(self) -> str:
+        """Return the Prohibited Fix Patterns section content from the template."""
+        content = _read_template()
+        for prefix in ("## Prohibited Fix Patterns", "### Prohibited Fix Patterns"):
+            section = _extract_section_from_template(content, prefix)
+            if section:
+                return section
+        return ""
+
+    def test_prohibited_fix_patterns_section_exists(self) -> None:
+        """The template must contain a 'Prohibited Fix Patterns' section heading."""
+        content = _read_template()
+        assert (
+            "## Prohibited Fix Patterns" in content
+            or "### Prohibited Fix Patterns" in content
+        ), (
+            "Expected task-execution.md to contain a 'Prohibited Fix Patterns' section "
+            "heading (## or ###). This section documents anti-patterns that sub-agents "
+            "must never use to make tests pass by hiding failures rather than fixing "
+            "root causes."
+        )
+
+    def test_anti_pattern_1_skip_tests_present(self) -> None:
+        """The section must document the 'skipping/removing tests' anti-pattern."""
+        section = self._get_section()
+        assert section, "Prohibited Fix Patterns section not found in task-execution.md"
+        assert (
+            "pytest.mark.skip" in section
+            or "@skip" in section
+            or "skip" in section.lower()
+        ), (
+            "Expected 'Prohibited Fix Patterns' section in task-execution.md to document "
+            "the 'skipping or removing tests' anti-pattern."
+        )
+        assert "```" in section, (
+            "Expected 'Prohibited Fix Patterns' section to use fenced code blocks (```) "
+            "for anti-pattern code examples."
+        )
+
+    def test_anti_pattern_2_loosen_assertions_present(self) -> None:
+        """The section must document the 'loosening assertions' anti-pattern."""
+        section = self._get_section()
+        assert section, "Prohibited Fix Patterns section not found in task-execution.md"
+        assert "loosen" in section.lower() or "assertion" in section.lower(), (
+            "Expected 'Prohibited Fix Patterns' section in task-execution.md to document "
+            "the 'loosening assertions' anti-pattern."
+        )
+
+    def test_anti_pattern_3_broad_exception_present(self) -> None:
+        """The section must document the 'broad exception handlers' anti-pattern."""
+        section = self._get_section()
+        assert section, "Prohibited Fix Patterns section not found in task-execution.md"
+        assert "except" in section or "exception" in section.lower(), (
+            "Expected 'Prohibited Fix Patterns' section in task-execution.md to document "
+            "the 'broad exception handlers' anti-pattern."
+        )
+
+    def test_anti_pattern_4_downgrade_severity_present(self) -> None:
+        """The section must document the 'downgrading error severity' anti-pattern."""
+        section = self._get_section()
+        assert section, "Prohibited Fix Patterns section not found in task-execution.md"
+        assert (
+            "warning" in section.lower()
+            or "severity" in section.lower()
+            or "downgrade" in section.lower()
+        ), (
+            "Expected 'Prohibited Fix Patterns' section in task-execution.md to document "
+            "the 'downgrading error severity' anti-pattern."
+        )
+
+    def test_anti_pattern_5_comment_out_present(self) -> None:
+        """The section must document the 'commenting out failing code' anti-pattern."""
+        section = self._get_section()
+        assert section, "Prohibited Fix Patterns section not found in task-execution.md"
+        assert (
+            "comment" in section.lower()
+            or "# assert" in section
+            or "# check" in section
+        ), (
+            "Expected 'Prohibited Fix Patterns' section in task-execution.md to document "
+            "the 'commenting out failing code' anti-pattern."
+        )
+
+    def test_do_this_instead_alternatives_present(self) -> None:
+        """The section must include 'Do this instead' alternatives for anti-patterns."""
+        section = self._get_section()
+        assert section, "Prohibited Fix Patterns section not found in task-execution.md"
+        assert "Do this instead" in section or "Instead" in section, (
+            "Expected 'Prohibited Fix Patterns' section in task-execution.md to provide "
+            "'Do this instead' alternatives so sub-agents know the correct approach."
+        )
+
+    def test_rationale_present(self) -> None:
+        """The section must include rationale explaining why these patterns are prohibited."""
+        section = self._get_section()
+        assert section, "Prohibited Fix Patterns section not found in task-execution.md"
+        assert any(
+            phrase in section.lower()
+            for phrase in [
+                "root cause",
+                "hides",
+                "masks",
+                "cover",
+                "real failure",
+                "genuine",
+            ]
+        ), (
+            "Expected 'Prohibited Fix Patterns' section in task-execution.md to include "
+            "rationale for why each anti-pattern is prohibited (e.g., 'hides the root cause')."
+        )

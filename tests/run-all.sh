@@ -103,6 +103,7 @@ fi
 HOOKS_RUNNER="$SCRIPT_DIR/hooks/run-hook-tests.sh"
 SCRIPTS_RUNNER="$SCRIPT_DIR/scripts/run-script-tests.sh"
 EVALS_RUNNER="$SCRIPT_DIR/evals/run-evals.sh"
+PYTHON_RUNNER="$SCRIPT_DIR/skills/run-python-tests.sh"
 
 # --- Per-suite timeout (seconds). Override with --suite-timeout <N>. ---
 SUITE_TIMEOUT="${SUITE_TIMEOUT:-600}"
@@ -137,6 +138,8 @@ while [[ $# -gt 0 ]]; do
             SCRIPTS_RUNNER="$2"; shift 2 ;;
         --evals-runner)
             EVALS_RUNNER="$2"; shift 2 ;;
+        --python-runner)
+            PYTHON_RUNNER="$2"; shift 2 ;;
         --suite-timeout)
             SUITE_TIMEOUT="$2"; shift 2 ;;
         *)
@@ -167,6 +170,7 @@ run_suite_to_file() {
 EVALS_EXIT=0
 HOOKS_EXIT=0
 SCRIPTS_EXIT=0
+PYTHON_EXIT=0
 
 # --- Run hooks and scripts suites ---
 # SERIAL_SUITES=1 runs hooks then scripts sequentially (lower peak memory for CI).
@@ -222,6 +226,13 @@ echo "Suite: Evals"
 echo "========================================"
 _run_with_timeout "$SUITE_TIMEOUT" bash "$EVALS_RUNNER" </dev/null || EVALS_EXIT=$?
 
+# --- Run Python skill/doc tests (pytest) ---
+echo ""
+echo "========================================"
+echo "Suite: Python Skill/Doc Tests"
+echo "========================================"
+_run_with_timeout "$SUITE_TIMEOUT" bash "$PYTHON_RUNNER" </dev/null || PYTHON_EXIT=$?
+
 # --- Combined summary ---
 echo ""
 echo "========================================"
@@ -230,13 +241,14 @@ echo "========================================"
 
 suite_pass() { [ "${1:-1}" -eq 0 ] && echo "PASS" || echo "FAIL"; }
 
-printf "  Evals:        %s\n" "$(suite_pass $EVALS_EXIT)"
-printf "  Hook Tests:   %s\n" "$(suite_pass $HOOKS_EXIT)"
-printf "  Script Tests: %s\n" "$(suite_pass $SCRIPTS_EXIT)"
+printf "  Evals:             %s\n" "$(suite_pass $EVALS_EXIT)"
+printf "  Hook Tests:        %s\n" "$(suite_pass $HOOKS_EXIT)"
+printf "  Script Tests:      %s\n" "$(suite_pass $SCRIPTS_EXIT)"
+printf "  Python Skill/Docs: %s\n" "$(suite_pass $PYTHON_EXIT)"
 echo ""
 
 OVERALL_EXIT=0
-if [ "$EVALS_EXIT" -ne 0 ] || [ "$HOOKS_EXIT" -ne 0 ] || [ "$SCRIPTS_EXIT" -ne 0 ]; then
+if [ "$EVALS_EXIT" -ne 0 ] || [ "$HOOKS_EXIT" -ne 0 ] || [ "$SCRIPTS_EXIT" -ne 0 ] || [ "$PYTHON_EXIT" -ne 0 ]; then
     OVERALL_EXIT=1
 fi
 
