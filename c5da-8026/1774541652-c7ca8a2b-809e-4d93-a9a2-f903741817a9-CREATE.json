@@ -1,0 +1,1 @@
+{"timestamp": 1774541652, "uuid": "c7ca8a2b-809e-4d93-a9a2-f903741817a9", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix pre-existing CI failure on main", "parent_id": "5d90-b43c", "priority": 2, "assignee": "Joe Oakhart"}}
