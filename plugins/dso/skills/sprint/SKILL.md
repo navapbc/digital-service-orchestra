@@ -426,20 +426,12 @@ d-collect. **Collect and present blocked-layer stories** — after the full laye
    - **Collect user responses**: Wait for the user to reply. Accept free-text response.
    - **Persist answers to story description**: Append a `## Clarifications` section to the story description in the tickets system so the answers survive compaction:
      ```bash
-     # Append clarifications to the ticket file directly
-     TICKET_FILE=$(find .tickets/ -name "*<story-id>*" -print -quit)
-     cat >> "$TICKET_FILE" << 'CLARIFICATIONS'
-
-     ---
-     ## Clarifications (from sprint orchestrator)
-
+     # Append clarifications to the ticket via comment
+     .claude/scripts/dso ticket comment <story-id> "## Clarifications (from sprint orchestrator)
      Q1: <question 1 text>
      A1: <user answer 1>
-
      Q2: <question 2 text>
-     A2: <user answer 2>
-     ...
-CLARIFICATIONS
+     A2: <user answer 2>"
      ```
    - **Re-invoke the skill**: Call the Skill tool again with the same story ID. The clarifications are now persisted in the ticket description, so the skill will read them via `.claude/scripts/dso ticket show`.
    - **If the re-invoked skill returns `STATUS:blocked` again**: Do not ask the user a second time. Treat as failure: revert story to open (`.claude/scripts/dso ticket transition <story-id> open`), log `"ERROR: /dso:implementation-plan returned STATUS:blocked twice for story <story-id> — story reverted to open"`, and skip to the next story.
@@ -643,14 +635,14 @@ For each task in the batch:
 
 ### Update from Main
 
-Pull the latest `.tickets/` state from main before launching sub-agents. This ensures the batch sees any ticket changes pushed by other worktrees since the last sync:
+Pull the latest ticket state from main before launching sub-agents. This ensures the batch sees any ticket changes pushed by other worktrees since the last sync:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 "$REPO_ROOT/plugins/dso/scripts/worktree-sync-from-main.sh"
 ```
 
-**Never run bare `git merge origin/main` in a worktree** — it fails when `.tickets/` files have skip-worktree flags. The sync script handles flag clearing, ticket stashing, merge, and restore automatically.
+**Never run bare `git merge origin/main` in a worktree** — use the sync script which handles ticket branch syncing and merge automatically.
 
 If the script reports a non-ticket merge conflict, resolve it (prefer local for code files), commit, and re-run the script. If it fails entirely, log a warning and continue — stale ticket state is preferable to a blocked batch.
 
@@ -715,7 +707,8 @@ $REPO_ROOT/plugins/dso/scripts/check-acceptance-criteria.sh <task-id>
 
 - **Exit 0**: Proceed with dispatch — task has structured AC block
 - **Exit 1**: Do NOT dispatch. Read `${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`, compose an
-  appropriate acceptance criteria block for the task, and add it by editing `.tickets/<id>.md` directly to insert an `## Acceptance Criteria` section.
+  appropriate acceptance criteria block for the task, and add it via `.claude/scripts/dso ticket comment <id> "## Acceptance Criteria\n<criteria>"`.
+
   Re-run the check. If criteria cannot be determined (ambiguous task type), halt and ask the user.
 
 ### Subagent Type and Model Selection
@@ -1170,7 +1163,7 @@ Before running `/dso:validate-work`, verify CI has passed on the final batch's c
 **Docs-only detection (run first)**:
 
 ```bash
-CODE_FILES=$(git diff --name-only main...HEAD | grep -vE '\.(md|txt|json)$|^\.tickets/|^\.claude/|^docs/' | head -1)
+CODE_FILES=$(git diff --name-only main...HEAD | grep -vE '\.(md|txt|json)$|^\.tickets-tracker/|^\.claude/|^docs/' | head -1)
 ```
 
 If `CODE_FILES` is empty (all changes are documentation, tickets, or config):

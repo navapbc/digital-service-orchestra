@@ -661,10 +661,7 @@ _check_push_needed() {
 #   3. If branch exists on origin: git push --force-with-lease.
 #      On force-push failure: restore HEAD via git reset --soft, return 1.
 #   4. GIT_EDITOR=: git rebase origin/main.
-#      On conflict:
-#        - If ONLY .tickets-tracker/.index.json conflicts: auto-resolve via merge-ticket-index.py
-#          (extracts clean :1:/:2:/:3: staging versions before running the driver).
-#        - Otherwise: print ACTION REQUIRED with conflicted file list, rebase --abort, return 1.
+#      On conflict: print ACTION REQUIRED with conflicted file list, rebase --abort, return 1.
 #   5. Print RECOVERY: Squash-rebase succeeded. Return 0.
 _squash_rebase_recovery() {
     # Validate BRANCH is set
