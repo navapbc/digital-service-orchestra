@@ -1,0 +1,1 @@
+{"timestamp": 1774551508, "uuid": "b3ff8126-485a-4597-8d98-b62f580bd0ca", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Create ticket-lifecycle.yml GitHub Actions workflow", "parent_id": "62eb-dca4", "priority": 2, "assignee": "Joe Oakhart"}}
