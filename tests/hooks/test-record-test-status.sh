@@ -1647,4 +1647,396 @@ rm -f "$MOCK_TIMEOUT_RUNNER"
 rm -rf "$TEST_REPO_TIMEOUT" "$ARTIFACTS_TIMEOUT"
 trap - EXIT
 
+# ============================================================
+# test_stale_red_marker_exit_zero
+# When a test file has a RED marker but exits 0 (all tests pass),
+# the marker is stale — record-test-status.sh must record "failed"
+# with a STALE RED MARKER message.
+# ============================================================
+echo ""
+echo "=== test_stale_red_marker_exit_zero ==="
+_snapshot_fail
+
+TEST_REPO_STALE0=$(create_test_repo)
+ARTIFACTS_STALE0=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_STALE0" "$ARTIFACTS_STALE0"' EXIT
+
+mkdir -p "$TEST_REPO_STALE0/src" "$TEST_REPO_STALE0/tests"
+cat > "$TEST_REPO_STALE0/src/feature.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "feature"
+SHEOF
+chmod +x "$TEST_REPO_STALE0/src/feature.sh"
+
+cat > "$TEST_REPO_STALE0/tests/test-feature.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_green() { echo "test_green: PASS"; }
+test_was_red() { echo "test_was_red: PASS"; }
+test_green
+test_was_red
+SHEOF
+chmod +x "$TEST_REPO_STALE0/tests/test-feature.sh"
+
+# .test-index with RED marker — but the test now passes (stale marker)
+cat > "$TEST_REPO_STALE0/.test-index" << 'IDXEOF'
+src/feature.sh: tests/test-feature.sh [test_was_red]
+IDXEOF
+
+git -C "$TEST_REPO_STALE0" add -A
+git -C "$TEST_REPO_STALE0" commit -m "add feature with stale red marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_STALE0/src/feature.sh"
+git -C "$TEST_REPO_STALE0" add -A
+
+# Mock runner that exits 0 (all tests pass — including the "RED" test)
+MOCK_STALE0_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-stale0-runner-XXXXXX")
+chmod +x "$MOCK_STALE0_RUNNER"
+cat > "$MOCK_STALE0_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_green: PASS"
+echo "test_was_red: PASS"
+exit 0
+MOCKEOF
+
+HOOK_OUTPUT_STALE0=$(mktemp "${TMPDIR:-/tmp}/test-rts-stale0-output-XXXXXX")
+EXIT_CODE_STALE0=$(
+    cd "$TEST_REPO_STALE0"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_STALE0" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_STALE0_RUNNER" \
+    bash "$HOOK" 2>"$HOOK_OUTPUT_STALE0" || echo $?
+)
+EXIT_CODE_STALE0="${EXIT_CODE_STALE0:-0}"
+
+STATUS_FILE_STALE0="$ARTIFACTS_STALE0/test-gate-status"
+
+# EXPECTED: exit non-zero, status=failed, stderr contains STALE RED MARKER
+assert_eq "test_stale_red_marker_exit_zero: exits non-zero" "1" "$EXIT_CODE_STALE0"
+
+if [[ -f "$STATUS_FILE_STALE0" ]]; then
+    FIRST_LINE_STALE0=$(head -1 "$STATUS_FILE_STALE0")
+    assert_eq "test_stale_red_marker_exit_zero: status is failed" "failed" "$FIRST_LINE_STALE0"
+else
+    assert_eq "test_stale_red_marker_exit_zero: status file exists" "exists" "missing"
+fi
+
+assert_contains "test_stale_red_marker_exit_zero: stderr has STALE RED MARKER" "STALE RED MARKER" "$(cat "$HOOK_OUTPUT_STALE0")"
+
+rm -f "$MOCK_STALE0_RUNNER" "$HOOK_OUTPUT_STALE0"
+rm -rf "$TEST_REPO_STALE0" "$ARTIFACTS_STALE0"
+trap - EXIT
+assert_pass_if_clean "test_stale_red_marker_exit_zero"
+
+# ============================================================
+# test_stale_red_marker_partial_pass
+# When a test file exits non-zero (some tests fail) but a RED-zone
+# test passes, that RED test is stale. record-test-status.sh must
+# detect the passing RED-zone test and record "failed".
+# ============================================================
+echo ""
+echo "=== test_stale_red_marker_partial_pass ==="
+_snapshot_fail
+
+TEST_REPO_STALEP=$(create_test_repo)
+ARTIFACTS_STALEP=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_STALEP" "$ARTIFACTS_STALEP"' EXIT
+
+mkdir -p "$TEST_REPO_STALEP/src" "$TEST_REPO_STALEP/tests"
+cat > "$TEST_REPO_STALEP/src/widget.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "widget"
+SHEOF
+chmod +x "$TEST_REPO_STALEP/src/widget.sh"
+
+# Test file: test_green passes, test_red_a passes (stale!), test_red_b fails (still RED)
+cat > "$TEST_REPO_STALEP/tests/test-widget.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_green() { echo "test_green: PASS"; }
+test_red_a() { echo "test_red_a: PASS"; }
+test_red_b() { echo "test_red_b: FAIL"; exit 1; }
+test_green
+test_red_a
+test_red_b
+SHEOF
+chmod +x "$TEST_REPO_STALEP/tests/test-widget.sh"
+
+# RED marker at test_red_a — both test_red_a and test_red_b are in RED zone
+cat > "$TEST_REPO_STALEP/.test-index" << 'IDXEOF'
+src/widget.sh: tests/test-widget.sh [test_red_a]
+IDXEOF
+
+git -C "$TEST_REPO_STALEP" add -A
+git -C "$TEST_REPO_STALEP" commit -m "add widget with partial stale red" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_STALEP/src/widget.sh"
+git -C "$TEST_REPO_STALEP" add -A
+
+# Mock runner: exits non-zero, test_red_b fails (RED zone), but test_red_a passes (stale!)
+MOCK_STALEP_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-stalep-runner-XXXXXX")
+chmod +x "$MOCK_STALEP_RUNNER"
+cat > "$MOCK_STALEP_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_green: PASS"
+echo "test_red_a: PASS"
+echo "test_red_b: FAIL"
+exit 1
+MOCKEOF
+
+HOOK_OUTPUT_STALEP=$(mktemp "${TMPDIR:-/tmp}/test-rts-stalep-output-XXXXXX")
+EXIT_CODE_STALEP=$(
+    cd "$TEST_REPO_STALEP"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_STALEP" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_STALEP_RUNNER" \
+    bash "$HOOK" 2>"$HOOK_OUTPUT_STALEP" || echo $?
+)
+EXIT_CODE_STALEP="${EXIT_CODE_STALEP:-0}"
+
+STATUS_FILE_STALEP="$ARTIFACTS_STALEP/test-gate-status"
+
+# EXPECTED: exit non-zero, status=failed, stderr mentions stale RED marker for test_red_a
+assert_eq "test_stale_red_marker_partial_pass: exits non-zero" "1" "$EXIT_CODE_STALEP"
+
+if [[ -f "$STATUS_FILE_STALEP" ]]; then
+    FIRST_LINE_STALEP=$(head -1 "$STATUS_FILE_STALEP")
+    assert_eq "test_stale_red_marker_partial_pass: status is failed" "failed" "$FIRST_LINE_STALEP"
+else
+    assert_eq "test_stale_red_marker_partial_pass: status file exists" "exists" "missing"
+fi
+
+assert_contains "test_stale_red_marker_partial_pass: stderr has STALE RED MARKER" "STALE RED MARKER" "$(cat "$HOOK_OUTPUT_STALEP")"
+assert_contains "test_stale_red_marker_partial_pass: stderr names test_red_a" "test_red_a" "$(cat "$HOOK_OUTPUT_STALEP")"
+
+rm -f "$MOCK_STALEP_RUNNER" "$HOOK_OUTPUT_STALEP"
+rm -rf "$TEST_REPO_STALEP" "$ARTIFACTS_STALEP"
+trap - EXIT
+assert_pass_if_clean "test_stale_red_marker_partial_pass"
+
+# ============================================================
+# test_red_tolerance_preserved_when_all_red_fail
+# When a test file exits non-zero and ALL RED-zone tests fail
+# (none pass), existing tolerance must be preserved — status
+# should be "passed" (failures tolerated).
+# ============================================================
+echo ""
+echo "=== test_red_tolerance_preserved_when_all_red_fail ==="
+_snapshot_fail
+
+TEST_REPO_TOLERATE=$(create_test_repo)
+ARTIFACTS_TOLERATE=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_TOLERATE" "$ARTIFACTS_TOLERATE"' EXIT
+
+mkdir -p "$TEST_REPO_TOLERATE/src" "$TEST_REPO_TOLERATE/tests"
+cat > "$TEST_REPO_TOLERATE/src/gadget.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "gadget"
+SHEOF
+chmod +x "$TEST_REPO_TOLERATE/src/gadget.sh"
+
+cat > "$TEST_REPO_TOLERATE/tests/test-gadget.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_green() { echo "test_green: PASS"; }
+test_red_x() { echo "test_red_x: FAIL"; exit 1; }
+test_green
+test_red_x
+SHEOF
+chmod +x "$TEST_REPO_TOLERATE/tests/test-gadget.sh"
+
+cat > "$TEST_REPO_TOLERATE/.test-index" << 'IDXEOF'
+src/gadget.sh: tests/test-gadget.sh [test_red_x]
+IDXEOF
+
+git -C "$TEST_REPO_TOLERATE" add -A
+git -C "$TEST_REPO_TOLERATE" commit -m "add gadget with valid red marker" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_TOLERATE/src/gadget.sh"
+git -C "$TEST_REPO_TOLERATE" add -A
+
+# Mock runner: exits non-zero, only RED-zone test fails (expected behavior)
+MOCK_TOLERATE_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-tolerate-runner-XXXXXX")
+chmod +x "$MOCK_TOLERATE_RUNNER"
+cat > "$MOCK_TOLERATE_RUNNER" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_green: PASS"
+echo "test_red_x: FAIL"
+exit 1
+MOCKEOF
+
+EXIT_CODE_TOLERATE=$(
+    cd "$TEST_REPO_TOLERATE"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_TOLERATE" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_TOLERATE_RUNNER" \
+    run_hook_exit
+)
+
+STATUS_FILE_TOLERATE="$ARTIFACTS_TOLERATE/test-gate-status"
+
+# EXPECTED: exit 0, status=passed (RED zone failure tolerated, no stale passing tests)
+assert_eq "test_red_tolerance_preserved_when_all_red_fail: exits 0" "0" "$EXIT_CODE_TOLERATE"
+
+if [[ -f "$STATUS_FILE_TOLERATE" ]]; then
+    FIRST_LINE_TOLERATE=$(head -1 "$STATUS_FILE_TOLERATE")
+    assert_eq "test_red_tolerance_preserved_when_all_red_fail: status is passed" "passed" "$FIRST_LINE_TOLERATE"
+else
+    assert_eq "test_red_tolerance_preserved_when_all_red_fail: status file exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_TOLERATE_RUNNER"
+rm -rf "$TEST_REPO_TOLERATE" "$ARTIFACTS_TOLERATE"
+trap - EXIT
+assert_pass_if_clean "test_red_tolerance_preserved_when_all_red_fail"
+
+# ============================================================
+# test_stale_red_marker_regression
+# Regression test replaying the March 2026 stale marker scenarios:
+# 1. Exit 0 + RED marker → stale detection fires
+# 2. Exit non-zero + passing RED-zone test → stale detection fires
+# 3. Exit non-zero + all RED-zone tests fail → tolerance preserved
+# ============================================================
+echo ""
+echo "=== test_stale_red_marker_regression ==="
+_snapshot_fail
+
+# --- Scenario 1: exit 0 + RED marker = stale ---
+TEST_REPO_REG1=$(create_test_repo)
+ARTIFACTS_REG1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_REG1" "$ARTIFACTS_REG1"' EXIT
+
+mkdir -p "$TEST_REPO_REG1/plugins" "$TEST_REPO_REG1/tests"
+cat > "$TEST_REPO_REG1/plugins/hook.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "hook"
+SHEOF
+chmod +x "$TEST_REPO_REG1/plugins/hook.sh"
+cat > "$TEST_REPO_REG1/tests/test-hook.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_blocks_missing() { echo "test_blocks_missing: PASS"; }
+test_blocks_missing
+SHEOF
+chmod +x "$TEST_REPO_REG1/tests/test-hook.sh"
+cat > "$TEST_REPO_REG1/.test-index" << 'IDXEOF'
+plugins/hook.sh: tests/test-hook.sh [test_blocks_missing]
+IDXEOF
+git -C "$TEST_REPO_REG1" add -A
+git -C "$TEST_REPO_REG1" commit -m "scenario 1" --quiet 2>/dev/null
+echo "# changed" >> "$TEST_REPO_REG1/plugins/hook.sh"
+git -C "$TEST_REPO_REG1" add -A
+
+MOCK_REG1=$(mktemp "${TMPDIR:-/tmp}/mock-reg1-XXXXXX")
+chmod +x "$MOCK_REG1"
+cat > "$MOCK_REG1" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_blocks_missing: PASS"
+exit 0
+MOCKEOF
+
+EXIT_REG1=$(
+    cd "$TEST_REPO_REG1"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_REG1" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_REG1" \
+    run_hook_exit
+)
+assert_eq "regression_scenario_1_exit0_stale: exits 1" "1" "$EXIT_REG1"
+rm -f "$MOCK_REG1"
+rm -rf "$TEST_REPO_REG1" "$ARTIFACTS_REG1"
+
+# --- Scenario 2: exit non-zero + passing RED-zone test = stale ---
+TEST_REPO_REG2=$(create_test_repo)
+ARTIFACTS_REG2=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_REG2" "$ARTIFACTS_REG2"' EXIT
+
+mkdir -p "$TEST_REPO_REG2/scripts" "$TEST_REPO_REG2/tests"
+cat > "$TEST_REPO_REG2/scripts/lib.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "lib"
+SHEOF
+chmod +x "$TEST_REPO_REG2/scripts/lib.sh"
+cat > "$TEST_REPO_REG2/tests/test-lib.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_read_status() { echo "test_read_status: PASS"; }
+test_still_red() { echo "test_still_red: FAIL"; exit 1; }
+test_read_status
+test_still_red
+SHEOF
+chmod +x "$TEST_REPO_REG2/tests/test-lib.sh"
+cat > "$TEST_REPO_REG2/.test-index" << 'IDXEOF'
+scripts/lib.sh: tests/test-lib.sh [test_read_status]
+IDXEOF
+git -C "$TEST_REPO_REG2" add -A
+git -C "$TEST_REPO_REG2" commit -m "scenario 2" --quiet 2>/dev/null
+echo "# changed" >> "$TEST_REPO_REG2/scripts/lib.sh"
+git -C "$TEST_REPO_REG2" add -A
+
+MOCK_REG2=$(mktemp "${TMPDIR:-/tmp}/mock-reg2-XXXXXX")
+chmod +x "$MOCK_REG2"
+cat > "$MOCK_REG2" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_read_status: PASS"
+echo "test_still_red: FAIL"
+exit 1
+MOCKEOF
+
+EXIT_REG2=$(
+    cd "$TEST_REPO_REG2"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_REG2" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_REG2" \
+    run_hook_exit
+)
+assert_eq "regression_scenario_2_partial_pass_stale: exits 1" "1" "$EXIT_REG2"
+rm -f "$MOCK_REG2"
+rm -rf "$TEST_REPO_REG2" "$ARTIFACTS_REG2"
+
+# --- Scenario 3: exit non-zero + all RED fail = tolerance preserved ---
+TEST_REPO_REG3=$(create_test_repo)
+ARTIFACTS_REG3=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_REG3" "$ARTIFACTS_REG3"' EXIT
+
+mkdir -p "$TEST_REPO_REG3/scripts" "$TEST_REPO_REG3/tests"
+cat > "$TEST_REPO_REG3/scripts/create.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "create"
+SHEOF
+chmod +x "$TEST_REPO_REG3/scripts/create.sh"
+cat > "$TEST_REPO_REG3/tests/test-create.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_create_works() { echo "test_create_works: PASS"; }
+test_closed_parent() { echo "test_closed_parent: FAIL"; exit 1; }
+test_create_works
+test_closed_parent
+SHEOF
+chmod +x "$TEST_REPO_REG3/tests/test-create.sh"
+cat > "$TEST_REPO_REG3/.test-index" << 'IDXEOF'
+scripts/create.sh: tests/test-create.sh [test_closed_parent]
+IDXEOF
+git -C "$TEST_REPO_REG3" add -A
+git -C "$TEST_REPO_REG3" commit -m "scenario 3" --quiet 2>/dev/null
+echo "# changed" >> "$TEST_REPO_REG3/scripts/create.sh"
+git -C "$TEST_REPO_REG3" add -A
+
+MOCK_REG3=$(mktemp "${TMPDIR:-/tmp}/mock-reg3-XXXXXX")
+chmod +x "$MOCK_REG3"
+cat > "$MOCK_REG3" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_create_works: PASS"
+echo "test_closed_parent: FAIL"
+exit 1
+MOCKEOF
+
+EXIT_REG3=$(
+    cd "$TEST_REPO_REG3"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_REG3" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_REG3" \
+    run_hook_exit
+)
+assert_eq "regression_scenario_3_tolerance_preserved: exits 0" "0" "$EXIT_REG3"
+rm -f "$MOCK_REG3"
+rm -rf "$TEST_REPO_REG3" "$ARTIFACTS_REG3"
+trap - EXIT
+
+assert_pass_if_clean "test_stale_red_marker_regression"
+
 print_summary
