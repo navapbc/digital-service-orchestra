@@ -158,3 +158,4 @@ plugins/dso/scripts/gh-availability-check.sh: tests/scripts/test-gh-availability
 plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh
 plugins/dso/scripts/ticket-reducer.py: tests/scripts/test-ticket-reducer-batch.sh
 plugins/dso/scripts/ticket-reducer.py: tests/scripts/test-ticket-archived.sh
+plugins/dso/scripts/ticket-graph.py: tests/scripts/test-ticket-archive-eligibility.sh [test_unreachable_closed_ticket_is_eligible]
