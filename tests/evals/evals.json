@@ -922,12 +922,12 @@
         {
           "type": "file_contains",
           "path": "plugins/dso/skills/resolve-conflicts/SKILL.md",
-          "pattern": "NEVER use `git checkout --ours -- .tickets/`"
+          "pattern": "`.tickets-tracker/` JSON event files are auto-resolved (accept ours)"
         },
         {
           "type": "file_contains",
           "path": "plugins/dso/skills/resolve-conflicts/SKILL.md",
-          "pattern": "Must show a diff to the user and ask which version to keep"
+          "pattern": "they are append-only and safe to resolve without user input"
         }
       ]
     },

@@ -391,7 +391,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 `record-review.sh` reads scores, summary, and findings from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, validates findings against scores, checks file overlap with the actual diff, verifies `--expected-hash` against the current diff hash, and writes the review state file that the commit gate checks. If it rejects, fix and retry.
 
-**IMPORTANT — always use `compute-diff-hash.sh`**: Never compute the diff hash via raw `git diff | shasum` — the canonical script applies pathspec exclusions (`.tickets/`, snapshots, images) and checkpoint-aware diff base detection. Untracked files are excluded (new files must be staged before review). A raw pipeline produces a completely different hash and will cause `--expected-hash` mismatch errors.
+**IMPORTANT — always use `compute-diff-hash.sh`**: Never compute the diff hash via raw `git diff | shasum` — the canonical script applies pathspec exclusions (`.tickets-tracker/`, snapshots, images) and checkpoint-aware diff base detection. Untracked files are excluded (new files must be staged before review). A raw pipeline produces a completely different hash and will cause `--expected-hash` mismatch errors.
 
 ## After Review
 

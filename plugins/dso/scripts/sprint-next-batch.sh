@@ -312,7 +312,7 @@ OPUS_CAP = 2
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def tk_show(ticket_id):
+def ticket_show(ticket_id):
     """Run ticket show <id> and return a simple dict with id, title, status.
 
     The v3 ticket CLI returns JSON directly.
@@ -623,8 +623,8 @@ except FileNotFoundError:
 story_children_cache = {}  # story_id -> set of task IDs
 
 def find_parent_story(task_id):
-    """Find the parent of a task via tk show. Returns parent ID or None."""
-    data = tk_show(task_id)
+    """Find the parent of a task via ticket show. Returns parent ID or None."""
+    data = ticket_show(task_id)
     parent_id = data.get("parent", "")
     if parent_id:
         return parent_id
@@ -683,7 +683,7 @@ classifications = classify_tasks(candidates_raw)
 
 class Candidate:
     __slots__ = (
-        "id", "title", "tk_priority", "itype", "status", "files",
+        "id", "title", "priority", "itype", "status", "files",
         "files_read",
         "model", "subagent", "cls", "complexity",
         "classify_priority",
@@ -692,7 +692,7 @@ class Candidate:
     def __init__(self, raw, cls_info):
         self.id               = raw.get("id", "")
         self.title            = raw.get("title", "untitled")
-        self.tk_priority   = raw.get("priority", 4)
+        self.priority      = raw.get("priority", 4)
         self.itype            = raw.get("issue_type", "task")
         self.status           = raw.get("status", "open").lower()
         # Fetch full ticket content for seed file extraction
@@ -720,8 +720,8 @@ candidates = [
 ]
 
 # Sort: classify_priority first (1=interface-contract → highest urgency),
-# then tk_priority (0=critical), then id for stable tie-breaking.
-candidates.sort(key=lambda c: (c.classify_priority, c.tk_priority, c.id))
+# then priority (0=critical), then id for stable tie-breaking.
+candidates.sort(key=lambda c: (c.classify_priority, c.priority, c.id))
 
 # ── Greedy selection with file-overlap and opus cap ───────────────────────────
 
@@ -840,7 +840,7 @@ if json_mode:
             {
                 "id":             c.id,
                 "title":          c.title,
-                "tk_priority": c.tk_priority,
+                "priority": c.priority,
                 "type":           c.itype,
                 "model":          c.model,
                 "subagent":       c.subagent,
@@ -874,7 +874,7 @@ else:
     print(f"BATCH_SIZE: {len(batch)}")
     for c in batch:
         print(
-            f"TASK: {c.id}\tP{c.tk_priority}\t{c.itype}"
+            f"TASK: {c.id}\tP{c.priority}\t{c.itype}"
             f"\t{c.model}\t{c.subagent}\t{c.cls}\t{c.title}"
         )
     for tid, title, cf, ct in skipped_overlap:

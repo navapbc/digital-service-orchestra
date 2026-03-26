@@ -11,7 +11,7 @@
 #   4. test_step_has_accountability_question_bug_exists   — step references bug ticket existence check
 #   5. test_accountability_questions_interrogative  — accountability questions contain "?" (interrogative form)
 #   6. test_step_references_git_stash_baseline      — step references git stash baseline check pattern
-#   7. test_step_references_tk_list_bug             — step references tk list --type=bug for deduplication
+#   7. test_step_references_ticket_list_bug         — step references ticket list --type=bug for deduplication
 #   8. test_step_references_ticket_create               — step references ticket create for bug ticket creation
 #   9. test_step_has_summary_display                — Step 6 references rationalized failures display
 #  10. test_step6_references_stored_failures        — Step 6 references RATIONALIZED_FAILURES_FROM_2_77
@@ -121,19 +121,19 @@ assert_eq "test_step_references_git_stash_baseline" "found" "$has_stash"
 assert_pass_if_clean "test_step_references_git_stash_baseline"
 
 # ---------------------------------------------------------------------------
-# test_step_references_tk_list_bug
-# The step must reference "tk list --type=bug" (or equivalent) for
+# test_step_references_ticket_list_bug
+# The step must reference "ticket list --type=bug" (or equivalent) for
 # deduplication against existing open bug tickets.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 step_content=$(awk '/Rationalized Failures/,/^### 2\.8\./' "$SKILL_MD" 2>/dev/null || true)
-if echo "$step_content" | grep -qE "tk list.*--type.*bug|tk list.*bug|--type=bug"; then
-    has_tk_list_bug="found"
+if echo "$step_content" | grep -qE "ticket list.*--type.*bug|ticket list.*bug|--type=bug|--type bug"; then
+    has_ticket_list_bug="found"
 else
-    has_tk_list_bug="missing"
+    has_ticket_list_bug="missing"
 fi
-assert_eq "test_step_references_tk_list_bug" "found" "$has_tk_list_bug"
-assert_pass_if_clean "test_step_references_tk_list_bug"
+assert_eq "test_step_references_ticket_list_bug" "found" "$has_ticket_list_bug"
+assert_pass_if_clean "test_step_references_ticket_list_bug"
 
 # ---------------------------------------------------------------------------
 # test_step_references_ticket_create

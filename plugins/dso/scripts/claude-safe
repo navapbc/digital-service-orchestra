@@ -122,7 +122,7 @@ _offer_worktree_cleanup() {
     fi
 
     # Check for uncommitted changes — any dirty file blocks auto-removal.
-    # .tickets/ files are treated like any other uncommitted change.
+    # .tickets-tracker/ files are treated like any other uncommitted change.
     local is_clean=1
     if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
         is_clean=0
