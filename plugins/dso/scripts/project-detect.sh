@@ -12,20 +12,27 @@ set -uo pipefail
 #
 # Default mode schema:
 #   stack=<value>                        — from detect-stack.sh
+#   stack_confidence=confirmed           — detect-stack.sh verifies marker file existence
 #   targets=<comma-separated>            — Makefile targets or package.json scripts
+#   targets_confidence=confirmed         — targets read directly from Makefile/package.json
 #   python_version=<value>|unknown       — detected Python version requirement
 #   python_version_confidence=high|low   — confidence level for python_version
 #   db_present=true|false                — whether a DB service was found
 #   db_services=<comma-separated>        — names of DB services found
 #   db_confidence=confirmed|inferred|none — confidence level for db_present/db_services
 #   files_present=<comma-separated>      — which marker files exist
+#   files_present_confidence=confirmed   — files checked with test -f
 #   ci_workflow_names=<comma-separated>  — names of CI workflows found
 #   ci_workflow_test_guarded=true|false  — any workflow runs test
 #   ci_workflow_lint_guarded=true|false  — any workflow runs lint
 #   ci_workflow_format_guarded=true|false — any workflow runs format
+#   ci_workflow_confidence=high|low      — confidence level for ci_workflow detection
 #   installed_deps=<comma-separated>     — CLI tools detected as installed
+#   installed_deps_confidence=confirmed  — checked with command -v
 #   ports=<comma-separated>              — port numbers from .claude/dso-config.conf
+#   ports_confidence=confirmed           — read directly from config file
 #   version_files=<comma-separated>      — files that carry a version field
+#   version_files_confidence=confirmed   — checked with test -f and content parsing
 #
 # --suites mode: Output (stdout) is a JSON array of test suite objects. The script
 # exits immediately after emitting the array; key=value output is not produced.
@@ -337,6 +344,7 @@ else
     stack="unknown"
 fi
 echo "stack=${stack}"
+echo "stack_confidence=confirmed"
 
 # ── Category 3: Target enumeration ────────────────────────────────────────────
 targets=""
@@ -374,6 +382,7 @@ PYEOF
 fi
 
 echo "targets=${targets}"
+echo "targets_confidence=confirmed"
 
 # ── Category 6: Python version detection ──────────────────────────────────────
 python_version="unknown"
@@ -609,6 +618,7 @@ for marker in "${MARKER_FILES[@]}"; do
 done
 
 echo "files_present=${files_present}"
+echo "files_present_confidence=confirmed"
 
 # ── Category 4: CI workflow analysis ──────────────────────────────────────────
 ci_workflow_names=""
@@ -713,6 +723,7 @@ else
 fi
 
 echo "installed_deps=${installed_deps}"
+echo "installed_deps_confidence=confirmed"
 
 # ── Category 9: Port numbers from .claude/dso-config.conf ────────────────────
 ports=""
@@ -730,6 +741,7 @@ if [[ -f "$PROJECT_DIR/.claude/dso-config.conf" ]]; then
 fi
 
 echo "ports=${ports}"
+echo "ports_confidence=confirmed"
 
 # ── Category 10: Version file candidates ──────────────────────────────────────
 version_files=""
@@ -764,3 +776,4 @@ if [[ -f "$PROJECT_DIR/pyproject.toml" ]]; then
 fi
 
 echo "version_files=${version_files}"
+echo "version_files_confidence=confirmed"
