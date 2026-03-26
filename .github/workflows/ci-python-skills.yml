@@ -1,0 +1,59 @@
+# Digital Service Orchestra (DSO) — Python Skill/Doc Tests
+# Runs pytest against tests/skills/ and tests/docs/.
+#
+# This workflow is intentionally separate from ci.yml so that commits that
+# touch ONLY .md files (e.g., the GREEN pass adding a Prohibited Fix Patterns
+# section) still trigger these tests.  ci.yml's top-level paths-ignore for
+# '**/*.md' would suppress the job if it lived there.
+
+name: CI Python Skills
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'epic/**'
+      - 'exp/**'
+    paths:
+      - 'plugins/dso/**/*.md'
+      - 'plugins/dso/**/*.py'
+      - 'tests/skills/**'
+      - 'tests/docs/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'plugins/dso/**/*.md'
+      - 'plugins/dso/**/*.py'
+      - 'tests/skills/**'
+      - 'tests/docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-python-skills:
+    name: Python Skill/Doc Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        run: pip install pytest
+
+      - name: Run Python skill/doc tests
+        run: bash tests/skills/run-python-tests.sh
+
+      - name: Job timing report
+        if: always()
+        run: echo "test-python-skills completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

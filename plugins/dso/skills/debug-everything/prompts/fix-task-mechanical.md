@@ -81,3 +81,27 @@ If the above section is populated, respect these boundaries:
 | Guessing at fixes | Introduces new bugs | Read code, trace data flow |
 | Fixing multiple things at once | Can't isolate what worked | One logical fix, then verify |
 | Scope creep ("while I'm here...") | Unrelated changes risk regressions | Note it for a separate issue |
+
+### Anti-Cover-Up Patterns (Never Do These)
+
+These are cover-up anti-patterns — ways to make a test pass or silence an error without fixing the root cause. Never use them.
+
+**1. Skipping or removing tests** — Deleting test functions, applying `@pytest.mark.skip`, or removing test cases because they fail.
+Why it's wrong: Hides the root cause; gives a false green signal; future regressions go undetected.
+Do this instead: Fix the implementation so the test passes, or update the assertion to reflect correct expected behavior.
+
+**2. Loosening assertions** — Broadening tolerance, replacing strict equality with `assertIn`/`assertTrue`, or removing boundary checks so a failing test passes.
+Why it's wrong: Masks the real failure; the test no longer verifies the behavior it was designed to protect.
+Do this instead: Fix the implementation so the original strict assertion passes.
+
+**3. Broad exception handlers** — Adding bare `except:`, `except Exception:`, or overly broad `try/except` blocks that swallow errors silently.
+Why it's wrong: Hides failures from callers, logs, and monitoring; system appears healthy when it is not.
+Do this instead: Catch only specific exception types you intend to handle; always log or re-raise unexpected errors.
+
+**4. Downgrading error severity** — Changing `ERROR` to `WARNING`, removing error logging, or converting raised exceptions into soft warnings.
+Why it's wrong: Reduces signal-to-noise in logs and alerts; operators miss real failures.
+Do this instead: Keep or restore the original severity; fix the root cause so the error condition no longer occurs.
+
+**5. Commenting out failing code** — Commenting out lines that produce an error or test failure instead of fixing the root cause.
+Why it's wrong: Silences the symptom while leaving the root cause in place; validation that was commented out was there for a reason.
+Do this instead: Fix the root cause so validation passes, then keep the validation active.
