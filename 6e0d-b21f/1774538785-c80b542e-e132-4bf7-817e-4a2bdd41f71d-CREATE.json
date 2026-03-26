@@ -1,0 +1,1 @@
+{"timestamp": 1774538785, "uuid": "c80b542e-e132-4bf7-817e-4a2bdd41f71d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a DSO user, closing a ticket automatically compacts its event log", "parent_id": "7dee-3e33", "priority": 1, "assignee": "Joe Oakhart"}}
