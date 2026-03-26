@@ -7,10 +7,12 @@ folds them into a single state dict.
 
 Usage:
     python3 ticket-reducer.py <ticket_dir_path>
+    python3 ticket-reducer.py --batch <tracker_dir>
 
 Module interface:
     from ticket_reducer import reduce_ticket  # via importlib for hyphenated filename
     state = reduce_ticket("/path/to/.tickets-tracker/tkt-001")
+    all_states = reduce_all_tickets("/path/to/.tickets-tracker")
 """
 
 from __future__ import annotations
@@ -461,10 +463,64 @@ def reduce_ticket(
     return result
 
 
+def reduce_all_tickets(tracker_dir: str | os.PathLike[str]) -> list[dict]:
+    """Batch-reduce all tickets in tracker_dir.
+
+    Lists all non-hidden subdirectories in tracker_dir, calls reduce_ticket()
+    for each, and collects results into a list.  For directories where
+    reduce_ticket() returns None (no CREATE event), emits a fallback error
+    dict matching the pattern in ticket-list.sh lines 96-103.
+
+    Returns a list of compiled ticket state dicts (or error-state dicts).
+    """
+    tracker_path = os.path.normpath(str(tracker_dir))
+    results: list[dict] = []
+
+    try:
+        entries = sorted(os.listdir(tracker_path))
+    except OSError:
+        return results
+
+    for entry in entries:
+        # Skip hidden directories
+        if entry.startswith("."):
+            continue
+        entry_path = os.path.join(tracker_path, entry)
+        if not os.path.isdir(entry_path):
+            continue
+
+        state = reduce_ticket(entry_path)
+
+        if state is None:
+            # Fallback: no CREATE event — mirror ticket-list.sh ghost handling
+            results.append(
+                {
+                    "ticket_id": entry,
+                    "status": "error",
+                    "error": "reducer_failed",
+                }
+            )
+        else:
+            results.append(state)
+
+    return results
+
+
 def main() -> int:
     """CLI entry point: print compiled ticket state as JSON."""
+    # Handle --batch mode
+    if len(sys.argv) == 3 and sys.argv[1] == "--batch":
+        batch_dir = sys.argv[2]
+        if not os.path.isdir(batch_dir):
+            print(f"Error: directory not found: {batch_dir}", file=sys.stderr)
+            return 1
+        results = reduce_all_tickets(batch_dir)
+        print(json.dumps(results, ensure_ascii=False))
+        return 0
+
     if len(sys.argv) != 2:
         print("Usage: ticket-reducer.py <ticket_dir_path>", file=sys.stderr)
+        print("       ticket-reducer.py --batch <tracker_dir>", file=sys.stderr)
         return 1
 
     ticket_dir = sys.argv[1]
