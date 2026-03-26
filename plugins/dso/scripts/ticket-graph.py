@@ -579,6 +579,76 @@ def add_dependency(
 
 
 # ---------------------------------------------------------------------------
+# Archive eligibility
+# ---------------------------------------------------------------------------
+
+
+def compute_archive_eligible(tracker_dir: str) -> list[str]:
+    """Return closed ticket IDs eligible for archival.
+
+    A closed ticket is eligible if it is NOT reachable from any open ticket
+    via depends_on or blocks edges (traversed bidirectionally), and is not
+    already archived.
+
+    Algorithm:
+    1. Load all tickets (including archived) via reduce_all_tickets.
+    2. Build an adjacency list from depends_on and blocks edges (undirected).
+    3. BFS from every non-closed, non-archived ticket.
+    4. Closed, non-archived tickets NOT reached are eligible.
+    """
+    all_tickets = _reducer.reduce_all_tickets(tracker_dir, exclude_archived=False)
+
+    # Index tickets by ID
+    ticket_map: dict[str, dict[str, Any]] = {}
+    for t in all_tickets:
+        tid = t.get("ticket_id", "")
+        if tid:
+            ticket_map[tid] = t
+
+    # Build undirected adjacency list for depends_on and blocks edges
+    adj: dict[str, set[str]] = {tid: set() for tid in ticket_map}
+    for tid, t in ticket_map.items():
+        for dep in t.get("deps", []):
+            relation = dep.get("relation", "")
+            target = dep.get("target_id", "")
+            if relation in ("depends_on", "blocks") and target:
+                adj.setdefault(tid, set()).add(target)
+                adj.setdefault(target, set()).add(tid)
+
+    # Identify open (non-closed, non-archived) tickets as BFS seeds
+    seeds: list[str] = []
+    for tid, t in ticket_map.items():
+        status = t.get("status", "open")
+        archived = t.get("archived", False)
+        if status != "closed" and not archived:
+            seeds.append(tid)
+
+    # BFS from all seeds
+    reachable: set[str] = set()
+    queue = list(seeds)
+    visited: set[str] = set()
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        reachable.add(current)
+        for neighbor in adj.get(current, set()):
+            if neighbor not in visited:
+                queue.append(neighbor)
+
+    # Eligible: closed, not archived, not reachable
+    eligible: list[str] = []
+    for tid, t in ticket_map.items():
+        status = t.get("status", "open")
+        archived = t.get("archived", False)
+        if status == "closed" and not archived and tid not in reachable:
+            eligible.append(tid)
+
+    return sorted(eligible)
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -619,6 +689,12 @@ def main() -> int:
             except Exception:
                 tracker_dir = os.path.join(os.getcwd(), ".tickets-tracker")
         return tracker_dir, remaining
+
+    if args[0] == "--archive-eligible":
+        tracker_dir, _ = _find_tracker_dir(args[1:])
+        eligible = compute_archive_eligible(tracker_dir)
+        print(json.dumps(eligible))
+        return 0
 
     if args[0] == "--link":
         if len(args) < 4:
