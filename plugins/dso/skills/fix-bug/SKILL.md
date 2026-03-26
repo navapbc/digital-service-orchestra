@@ -10,6 +10,10 @@ Enforce a hard separation between investigation and implementation. Bugs are cla
 
 This skill replaces `/dso:tdd-workflow` for bug fixes. For new feature development using TDD, continue to use `/dso:tdd-workflow`.
 
+<HARD-GATE>
+Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
+</HARD-GATE>
+
 ## Config Resolution (reads project workflow-config.yaml)
 
 At activation, load project commands via read-config.sh before executing any steps:

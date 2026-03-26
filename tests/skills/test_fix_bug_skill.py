@@ -28,6 +28,15 @@ CLUSTER_PROMPT_FILE = (
     / "prompts"
     / "cluster-investigation.md"
 )
+FALLBACK_PROMPT_FILE = (
+    REPO_ROOT
+    / "plugins"
+    / "dso"
+    / "skills"
+    / "fix-bug"
+    / "prompts"
+    / "intermediate-investigation-fallback.md"
+)
 
 
 def _read_skill() -> str:
@@ -345,6 +354,49 @@ class TestAdvancedInvestigationSkillIntegration:
         )
 
 
+class TestHardGatePreamble:
+    """Tests asserting the fix-bug SKILL.md contains a HARD-GATE block in the preamble
+    that explicitly prohibits code modification before completing Steps 1-5.
+
+    TDD spec for task 018a-0b5b:
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Contain a HARD-GATE XML block
+      2. The HARD-GATE block must explicitly prohibit code modification before Steps 1-5
+    """
+
+    def test_hard_gate_block_present(self) -> None:
+        """SKILL.md must contain a HARD-GATE block in the preamble."""
+        content = _read_skill()
+        assert "HARD-GATE" in content, (
+            "Expected fix-bug SKILL.md to contain a '<HARD-GATE>' block in the preamble "
+            "to explicitly prohibit code modification before completing Steps 1-5. "
+            "This is a RED test — the HARD-GATE block does not yet exist."
+        )
+
+    def test_hard_gate_prohibits_code_modification_before_steps(self) -> None:
+        """The HARD-GATE block must explicitly prohibit code modification before Steps 1-5."""
+        content = _read_skill()
+        hard_gate_start = content.find("HARD-GATE")
+        assert hard_gate_start != -1, "HARD-GATE block not found"
+        # Extract context around the HARD-GATE block (up to 500 chars after)
+        gate_context = content[hard_gate_start : hard_gate_start + 500].lower()
+        has_step_ref = any(
+            phrase in gate_context
+            for phrase in (
+                "step",
+                "steps 1",
+                "1 through 5",
+                "1-5",
+                "before",
+            )
+        )
+        assert has_step_ref, (
+            "Expected the HARD-GATE block in fix-bug SKILL.md to reference steps 1-5 "
+            "and explicitly prohibit code modification before those steps complete. "
+            "This is a RED test — the HARD-GATE block does not yet contain this language."
+        )
+
+
 class TestClusterInvestigation:
     """Tests asserting SKILL.md contains cluster investigation content.
 
@@ -478,3 +530,91 @@ class TestClusterInvestigationPrompt:
             "schema marker, conforming to the shared Investigation RESULT Report Schema. "
             "This is a RED test — the file does not exist yet and must be created."
         )
+
+
+def test_hypothesis_tests_schema_in_skill() -> None:
+    """SKILL.md must use hypothesis_tests (not tests_run) with sub-fields hypothesis, test, observed, verdict."""
+    content = _read_skill()
+    # Assert hypothesis_tests field is present with correct sub-fields
+    assert "hypothesis_tests" in content, (
+        "Expected SKILL.md to contain 'hypothesis_tests' as the field name for "
+        "hypothesis test results in the RESULT schema. This replaces the old 'tests_run' field."
+    )
+    for sub_field in ("hypothesis", "test", "observed", "verdict"):
+        assert sub_field in content, (
+            f"Expected SKILL.md to contain '{sub_field}' as a sub-field of hypothesis_tests "
+            "in the RESULT schema."
+        )
+    # Assert old field name tests_run is entirely absent
+    assert "tests_run" not in content, (
+        "Expected SKILL.md to NOT contain 'tests_run' — this field has been renamed to "
+        "'hypothesis_tests'. All references to the old field name must be removed."
+    )
+
+
+def test_fallback_and_cluster_prompts_hypothesis_tests() -> None:
+    """intermediate-investigation-fallback.md and cluster-investigation.md must use hypothesis_tests."""
+    # --- intermediate-investigation-fallback.md ---
+    fallback_content = FALLBACK_PROMPT_FILE.read_text()
+    assert "hypothesis_tests" in fallback_content, (
+        "Expected intermediate-investigation-fallback.md to contain 'hypothesis_tests' "
+        "in its RESULT section."
+    )
+    # Instructional prose must reference hypothesis_tests (not just in schema block)
+    # Look for hypothesis_tests appearing in instructional text, not just a YAML key
+    fallback_lines_with_ht = [
+        line
+        for line in fallback_content.splitlines()
+        if "hypothesis_tests" in line
+        and not line.strip().startswith("hypothesis_tests:")
+    ]
+    assert len(fallback_lines_with_ht) > 0, (
+        "Expected intermediate-investigation-fallback.md to contain instructional prose "
+        "referencing 'hypothesis_tests' outside of the schema block."
+    )
+    assert "tests_run" not in fallback_content, (
+        "Expected intermediate-investigation-fallback.md to NOT contain 'tests_run' — "
+        "this field has been renamed to 'hypothesis_tests'."
+    )
+
+    # --- cluster-investigation.md ---
+    cluster_content = CLUSTER_PROMPT_FILE.read_text()
+    # Must contain hypothesis_tests (replaces 3 tests_run blocks)
+    assert "hypothesis_tests" in cluster_content, (
+        "Expected cluster-investigation.md to contain 'hypothesis_tests' "
+        "in its RESULT section(s)."
+    )
+    # All 3 hypothesis_tests blocks must have correct sub-fields
+    for sub_field in ("hypothesis", "test", "observed", "verdict"):
+        assert sub_field in cluster_content, (
+            f"Expected cluster-investigation.md to contain '{sub_field}' as a sub-field "
+            "of hypothesis_tests in all RESULT schema blocks."
+        )
+    # Old sub-field names must be entirely absent
+    for old_field in ("command", "result"):
+        # 'result' as a standalone sub-field key (under tests_run) should not exist
+        # but 'result' may appear in prose — we check for the YAML key pattern
+        if old_field == "command":
+            assert not any(
+                line.strip().startswith("command:")
+                for line in cluster_content.splitlines()
+            ), (
+                "Expected cluster-investigation.md to NOT contain 'command:' as a sub-field "
+                "key — this old sub-field has been renamed to 'test'."
+            )
+    # Instructional prose must reference hypothesis_tests
+    cluster_prose_lines = [
+        line
+        for line in cluster_content.splitlines()
+        if "hypothesis_tests" in line
+        and not line.strip().startswith("hypothesis_tests:")
+    ]
+    assert len(cluster_prose_lines) > 0, (
+        "Expected cluster-investigation.md to contain instructional prose "
+        "referencing 'hypothesis_tests' outside of the schema blocks."
+    )
+    # tests_run must be entirely absent
+    assert "tests_run" not in cluster_content, (
+        "Expected cluster-investigation.md to NOT contain 'tests_run' — "
+        "all three occurrences must be replaced with 'hypothesis_tests'."
+    )

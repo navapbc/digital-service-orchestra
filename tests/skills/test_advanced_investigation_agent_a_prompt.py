@@ -180,3 +180,34 @@ def test_advanced_investigation_agent_a_prompt_fishbone_categories_field() -> No
         "required field in the RESULT output schema to support structured root cause "
         "categorization using the fishbone (Ishikawa) diagram methodology."
     )
+
+
+def test_advanced_a_prompt_hypothesis_tests_fields() -> None:
+    """Prompt must use hypothesis_tests (not tests_run) with sub-fields hypothesis, test, observed, verdict."""
+    content = _read_prompt()
+    # (a) hypothesis_tests present with correct sub-fields in RESULT schema block
+    assert "hypothesis_tests" in content, (
+        "Expected advanced-investigation-agent-a.md to contain 'hypothesis_tests' as the field "
+        "name for hypothesis test results in the RESULT schema. This replaces the old 'tests_run' field."
+    )
+    for sub_field in ("hypothesis", "test", "observed", "verdict"):
+        assert sub_field in content, (
+            f"Expected advanced-investigation-agent-a.md to contain '{sub_field}' as a sub-field of "
+            "hypothesis_tests in the RESULT schema."
+        )
+    # (b) Instructional prose references hypothesis_tests (not just in schema block)
+    prose_lines = [
+        line
+        for line in content.splitlines()
+        if "hypothesis_tests" in line
+        and not line.strip().startswith("hypothesis_tests:")
+    ]
+    assert len(prose_lines) > 0, (
+        "Expected advanced-investigation-agent-a.md to contain instructional prose referencing "
+        "'hypothesis_tests' outside of the schema block."
+    )
+    # (c) Old tests_run field name is absent
+    assert "tests_run" not in content, (
+        "Expected advanced-investigation-agent-a.md to NOT contain 'tests_run' — this field has been "
+        "renamed to 'hypothesis_tests'. All references to the old field name must be removed."
+    )
