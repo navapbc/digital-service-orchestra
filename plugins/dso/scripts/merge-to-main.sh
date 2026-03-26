@@ -1209,19 +1209,24 @@ _phase_push() {
         fi
         # Pull inbound bridge changes (SYNC events, Jira-originated tickets)
         if git -C "$_TRACKER_DIR" pull --rebase origin tickets 2>&1; then
+            # Capture remote SHA before push to detect no-op pushes (71fa-c068).
+            _REMOTE_SHA_BEFORE=$(git -C "$_TRACKER_DIR" rev-parse origin/tickets 2>/dev/null || echo "")
+            _LOCAL_SHA=$(git -C "$_TRACKER_DIR" rev-parse tickets 2>/dev/null || echo "")
             # Push local ticket events to trigger outbound bridge.
             # Skip hooks: the tickets orphan branch has no .pre-commit-config.yaml
             # and pre-push hooks are designed for the main branch, not ticket data.
             # (ticket-lib.sh already uses --no-verify for ticket commits.)
             if PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$_TRACKER_DIR" push origin tickets 2>&1; then
                 echo "OK: Tickets branch synced with remote."
-                # Trigger outbound bridge explicitly — the push trigger on the
-                # tickets orphan branch is unreliable (GitHub Actions may not
-                # detect workflow files on orphan branches).
-                if command -v gh &>/dev/null; then
+                # Only dispatch outbound bridge when the push actually sent new
+                # commits. Prevents dispatch storms when multiple merge-to-main
+                # runs push an already-up-to-date tickets branch (71fa-c068).
+                if [ "$_LOCAL_SHA" != "$_REMOTE_SHA_BEFORE" ] && command -v gh &>/dev/null; then
                     gh workflow run "Outbound Bridge" --ref main 2>/dev/null && \
                         echo "OK: Outbound Bridge triggered." || \
                         echo "WARNING: Could not trigger Outbound Bridge workflow."
+                elif [ "$_LOCAL_SHA" = "$_REMOTE_SHA_BEFORE" ]; then
+                    echo "INFO: Tickets branch already up-to-date — skipping Outbound Bridge dispatch."
                 fi
             else
                 echo "WARNING: Tickets branch push failed — ticket changes will sync on next merge."
