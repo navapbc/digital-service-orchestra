@@ -33,6 +33,15 @@ fi
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
+# Ensure tracker is initialized (worktree startup race condition fix).
+# In fresh worktrees, .tickets-tracker is a symlink created by ticket-init.sh.
+# If the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set (i.e., we
+# are using the default path, not a test override), call ticket-init.sh to create
+# the symlink before reading.
+if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+    bash "$SCRIPT_DIR/ticket-init.sh" --silent 2>/dev/null || true
+fi
+
 if [ ! -d "$TRACKER_DIR" ]; then
     echo "Error: tracker directory not found at $TRACKER_DIR" >&2
     exit 1
