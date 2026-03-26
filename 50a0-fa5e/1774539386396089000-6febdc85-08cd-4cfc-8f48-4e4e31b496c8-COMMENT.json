@@ -1,0 +1,1 @@
+{"timestamp": 1774539386396089000, "uuid": "6febdc85-08cd-4cfc-8f48-4e4e31b496c8", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Created tests/hooks/test-v2-hooks-cleanup.sh with 12 RED tests for v2 hooks/scripts cleanup"}}
