@@ -181,5 +181,6 @@ plugins/dso/scripts/purge-non-project-tickets.sh: tests/scripts/test-purge-non-p
 plugins/dso/scripts/runners/bash-runner.sh: tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/test-batched.sh: tests/scripts/test-batched-state-integrity.sh, tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/hooks/fix-bug-skill-directive.sh: tests/hooks/test-fix-bug-skill-directive.sh
+.github/workflows/outbound-bridge.yml: tests/scripts/test-outbound-bridge-push-retry.sh
 plugins/dso/skills/debug-everything/prompts/fix-task-tdd.md: tests/skills/test_deprecated_fix_task_anti_coverup.py
 plugins/dso/skills/debug-everything/prompts/fix-task-mechanical.md: tests/skills/test_deprecated_fix_task_anti_coverup.py
