@@ -234,4 +234,39 @@ test_ticket_edit_writes_edit_event_file() {
 }
 test_ticket_edit_writes_edit_event_file
 
+# ── Test 7: ticket edit --description updates description field ──────────────
+echo ""
+echo "Test 7: ticket edit --description updates description field"
+test_ticket_edit_description() {
+    _snapshot_fail
+    local repo ticket_id
+
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_EDIT_SCRIPT" ]; then
+        assert_eq "ticket-edit.sh exists for description test" "exists" "missing"
+        return
+    fi
+
+    ticket_id=$(_create_ticket "$repo" "Desc Test Ticket")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for description test" "non-empty" "empty"
+        return
+    fi
+
+    # Edit description
+    local edit_exit=0
+    (cd "$repo" && bash "$TICKET_EDIT_SCRIPT" "$ticket_id" --description="Updated description text") 2>/dev/null || edit_exit=$?
+    assert_eq "ticket edit --description exits 0" "0" "$edit_exit"
+
+    # Verify via ticket show
+    local desc
+    desc=$(_get_ticket_field "$repo" "$ticket_id" "description")
+    assert_eq "description field updated" "Updated description text" "$desc"
+
+    assert_pass_if_clean "ticket edit --description updates description"
+}
+test_ticket_edit_description
+
 print_summary

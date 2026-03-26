@@ -667,13 +667,13 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
 
 1. **Write the blackboard**: Pipe the batch JSON (from `sprint-next-batch.sh --json` in Phase 3) to `write-blackboard.sh`:
    ```bash
-   REPO_ROOT=$(git rev-parse --show-toplevel)
    echo "$BATCH_JSON" | .claude/scripts/dso write-blackboard.sh
    ```
    If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
 
 2. **Read the blackboard and build file ownership context**: Read the blackboard and construct a per-agent ownership string for each sub-agent:
    ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
    BLACKBOARD="${TMPDIR:-/tmp}/dso-blackboard-$(basename "$REPO_ROOT")/blackboard.json"
    ```
    For each agent (task), build a `file_ownership_context` string with the format:
