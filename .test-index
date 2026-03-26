@@ -176,4 +176,4 @@ plugins/dso/scripts/purge-non-project-tickets.sh: tests/scripts/test-purge-non-p
 plugins/dso/scripts/runners/bash-runner.sh: tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/test-batched.sh: tests/scripts/test-batched-state-integrity.sh, tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/hooks/fix-bug-skill-directive.sh: tests/hooks/test-fix-bug-skill-directive.sh
-plugins/dso/skills/onboarding/SKILL.md: tests/hooks/test-sub-agent-guard.sh, tests/skills/test-onboarding-skill.sh [test_ticket_prefix_derivation]
+plugins/dso/skills/onboarding/SKILL.md: tests/hooks/test-sub-agent-guard.sh, tests/skills/test-onboarding-skill.sh [test_design_areas_complete]

@@ -315,7 +315,81 @@ test_acli_auto_suggestion() {
     assert_pass_if_clean "test_acli_auto_suggestion"
 }
 
-# Run all 17 assertion functions — GREEN tests first, RED tests last
+# ── GREEN design tests (pass now — terms already in SKILL.md) ────────────────
+
+# test_design_questions_conditional: SKILL.md must mention conditional activation
+# for UI projects (references "UI" and "component" or "frontend")
+test_design_questions_conditional() {
+    _snapshot_fail
+    local has_ui has_component_or_frontend design_conditional_valid
+    has_ui="no"
+    has_component_or_frontend="no"
+    if grep -qiE "\bUI\b" "$SKILL_MD" 2>/dev/null; then
+        has_ui="yes"
+    fi
+    if grep -qiE "component|frontend" "$SKILL_MD" 2>/dev/null; then
+        has_component_or_frontend="yes"
+    fi
+    if [[ "$has_ui" == "yes" && "$has_component_or_frontend" == "yes" ]]; then
+        design_conditional_valid="found"
+    else
+        design_conditional_valid="missing"
+    fi
+    assert_eq "test_design_questions_conditional" "found" "$design_conditional_valid"
+    assert_pass_if_clean "test_design_questions_conditional"
+}
+
+# test_design_skip_non_ui: SKILL.md must mention skipping design questions for non-UI projects
+# (references "CLI" or "library" or "skip")
+test_design_skip_non_ui() {
+    _snapshot_fail
+    local skip_found
+    skip_found="missing"
+    if grep -qiE "\bCLI\b|library|skip" "$SKILL_MD" 2>/dev/null; then
+        skip_found="found"
+    fi
+    assert_eq "test_design_skip_non_ui" "found" "$skip_found"
+    assert_pass_if_clean "test_design_skip_non_ui"
+}
+
+# ── RED design tests (not yet implemented in SKILL.md) ───────────────────────
+
+# test_design_areas_complete: SKILL.md must reference design areas
+# Must match at least 3 of: vision, archetypes, golden paths, visual language, accessibility
+test_design_areas_complete() {
+    _snapshot_fail
+    local areas_found areas_missing area
+    areas_found=0
+    areas_missing=""
+    local required_areas=("vision" "archetypes" "golden paths" "visual language" "accessibility")
+    for area in "${required_areas[@]}"; do
+        if grep -qiE "$area" "$SKILL_MD" 2>/dev/null; then
+            (( areas_found++ ))
+        else
+            areas_missing="$areas_missing $area"
+        fi
+    done
+    if [[ "$areas_found" -ge 3 ]]; then
+        assert_eq "test_design_areas_complete" "found" "found"
+    else
+        assert_eq "test_design_areas_complete" "at least 3 design areas" "$areas_found design areas found (missing:$areas_missing)"
+    fi
+    assert_pass_if_clean "test_design_areas_complete"
+}
+
+# test_design_notes_output: SKILL.md must reference .claude/design-notes.md as output artifact
+test_design_notes_output() {
+    _snapshot_fail
+    local artifact_found
+    artifact_found="missing"
+    if grep -q "design-notes.md" "$SKILL_MD" 2>/dev/null; then
+        artifact_found="found"
+    fi
+    assert_eq "test_design_notes_output" "found" "$artifact_found"
+    assert_pass_if_clean "test_design_notes_output"
+}
+
+# Run all 21 assertion functions — GREEN tests first, RED tests last
 test_skill_file_exists
 test_frontmatter_valid
 test_sub_agent_guard_present
@@ -330,9 +404,13 @@ test_attribution_tagging
 test_human_readable_format
 test_config_generation_section
 test_config_key_categories
-# RED tests below — these fail until config details are added to SKILL.md
 test_ticket_prefix_derivation
 test_ci_workflow_examples
 test_acli_auto_suggestion
+test_design_questions_conditional
+test_design_skip_non_ui
+# RED design tests below — these fail until design areas/notes are added to SKILL.md
+test_design_areas_complete
+test_design_notes_output
 
 print_summary

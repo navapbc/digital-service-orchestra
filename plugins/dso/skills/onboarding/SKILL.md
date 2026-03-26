@@ -312,6 +312,76 @@ Write `.claude/project-understanding.md` using this template:
 
 Populate each field from the scratchpad. Use the appropriate `(detected)` or `(user-stated)` tag for each entry. Leave fields as "not specified" or "N/A" where the conversation produced no answer — do not fabricate.
 
+### Step 2b: Generate dso-config.conf
+
+After writing `.claude/project-understanding.md`, generate a starter `.claude/dso-config.conf` from the conversation findings. This file configures DSO for the host project.
+
+**Key categories to populate** (flat `KEY=VALUE` format):
+
+| Category | Keys to set | Source |
+|----------|-------------|--------|
+| `format` | `format.line_length`, `format.indent` | Enforcement answers |
+| `ci` | `ci.workflow_name` | CI area answers |
+| `commands` | `commands.test`, `commands.lint`, `commands.format` | Commands area answers |
+| `jira` | `jira.project_key` (if Jira integration desired) | User-stated |
+| `design` | `design.system`, `design.tokens_path` | Design area answers |
+| `tickets` | `tickets.prefix` | Derived from project name (see below) |
+| `merge` | `merge.ci_workflow_name` | CI area answers |
+| `version` | `version.file_path` | Detected or user-stated |
+| `test` | `test.suite.<name>.command`, `test.suite.<name>.speed_class` | Commands + detection |
+
+#### Ticket prefix derivation
+
+Derive the `tickets.prefix` from the project name by taking the first letter of each hyphen- or underscore-separated word and uppercasing them. For example:
+
+- `my-app` → `MA`
+- `digital-service-orchestra` → `DSO`
+- `myapp` (single word) → first 2–3 characters uppercased → `MYA`
+
+Confirm the derived prefix with the user before writing it to config:
+
+```
+I'll use ticket prefix "MA" for this project (derived from "my-app").
+Does that work, or would you prefer a different prefix?
+```
+
+#### CI workflow examples
+
+When the conversation reveals **no `.github/workflows/` files exist**, offer example workflow templates before prompting for workflow names:
+
+```
+I don't see any CI workflows yet. Would you like me to create starter workflows?
+I can generate:
+  a) ci.yml — fast-gate tests on pull requests
+  b) ci-slow.yml — slow/integration tests on push to main
+  c) Both
+  d) Skip — I'll set up CI manually
+
+Accepted examples will be auto-populated into dso-config.conf and generated
+via ci-generator.sh using the test suites discovered during onboarding.
+```
+
+If the user accepts, invoke `ci-generator.sh` via the detected test suite list from `project-detect.sh` — do not prompt for workflow names separately.
+
+#### ACLI_VERSION auto-suggestion
+
+When the project uses Claude Code (Claude CLI / `acli`), suggest the current version and checksum automatically by running:
+
+```bash
+bash "$REPO_ROOT/plugins/dso/scripts/acli-version-resolver.sh" 2>/dev/null
+```
+
+If the script is unavailable or returns non-zero, fall back to a WebFetch of the latest release from the acli releases endpoint. Present the suggestion as a pre-filled config value:
+
+```
+Suggested ACLI_VERSION: 1.x.y  (resolved via acli-version-resolver.sh)
+Suggested ACLI_SHA256: <checksum>
+
+Accept these values? [Y/n]
+```
+
+Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.conf` on acceptance.
+
 ### Step 3: Offer /dso:architect-foundation
 
 After writing `.claude/project-understanding.md`, offer the next step:
@@ -356,4 +426,4 @@ If the user says no or wants to continue manually, summarize what was learned an
 |-------|------|---------------|
 | 1: Auto-Detection | Pre-fill answers | Run project-detect.sh, initialize scratchpad temp file, summarize findings |
 | 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, multiple-choice preferred, skip confirmed areas |
-| 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), offer /dso:architect-foundation |
+| 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), offer /dso:architect-foundation |
