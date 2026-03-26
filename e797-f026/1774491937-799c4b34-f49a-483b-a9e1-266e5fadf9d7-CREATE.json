@@ -1,0 +1,1 @@
+{"timestamp": 1774491937, "uuid": "799c4b34-f49a-483b-a9e1-266e5fadf9d7", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Implement acli-version-resolver.sh spike PoC", "parent_id": "e422-5ce2", "priority": 2, "assignee": "Joe Oakhart"}}
