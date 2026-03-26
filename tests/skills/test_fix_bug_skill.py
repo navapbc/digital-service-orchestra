@@ -28,6 +28,15 @@ CLUSTER_PROMPT_FILE = (
     / "prompts"
     / "cluster-investigation.md"
 )
+FALLBACK_PROMPT_FILE = (
+    REPO_ROOT
+    / "plugins"
+    / "dso"
+    / "skills"
+    / "fix-bug"
+    / "prompts"
+    / "intermediate-investigation-fallback.md"
+)
 
 
 def _read_skill() -> str:
@@ -345,6 +354,49 @@ class TestAdvancedInvestigationSkillIntegration:
         )
 
 
+class TestHardGatePreamble:
+    """Tests asserting the fix-bug SKILL.md contains a HARD-GATE block in the preamble
+    that explicitly prohibits code modification before completing Steps 1-5.
+
+    TDD spec for task 018a-0b5b:
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Contain a HARD-GATE XML block
+      2. The HARD-GATE block must explicitly prohibit code modification before Steps 1-5
+    """
+
+    def test_hard_gate_block_present(self) -> None:
+        """SKILL.md must contain a HARD-GATE block in the preamble."""
+        content = _read_skill()
+        assert "HARD-GATE" in content, (
+            "Expected fix-bug SKILL.md to contain a '<HARD-GATE>' block in the preamble "
+            "to explicitly prohibit code modification before completing Steps 1-5. "
+            "This is a RED test — the HARD-GATE block does not yet exist."
+        )
+
+    def test_hard_gate_prohibits_code_modification_before_steps(self) -> None:
+        """The HARD-GATE block must explicitly prohibit code modification before Steps 1-5."""
+        content = _read_skill()
+        hard_gate_start = content.find("HARD-GATE")
+        assert hard_gate_start != -1, "HARD-GATE block not found"
+        # Extract context around the HARD-GATE block (up to 500 chars after)
+        gate_context = content[hard_gate_start : hard_gate_start + 500].lower()
+        has_step_ref = any(
+            phrase in gate_context
+            for phrase in (
+                "step",
+                "steps 1",
+                "1 through 5",
+                "1-5",
+                "before",
+            )
+        )
+        assert has_step_ref, (
+            "Expected the HARD-GATE block in fix-bug SKILL.md to reference steps 1-5 "
+            "and explicitly prohibit code modification before those steps complete. "
+            "This is a RED test — the HARD-GATE block does not yet contain this language."
+        )
+
+
 class TestClusterInvestigation:
     """Tests asserting SKILL.md contains cluster investigation content.
 
@@ -477,4 +529,407 @@ class TestClusterInvestigationPrompt:
             "Expected cluster-investigation.md to contain 'RESULT' as the output "
             "schema marker, conforming to the shared Investigation RESULT Report Schema. "
             "This is a RED test — the file does not exist yet and must be created."
+        )
+
+
+def test_hypothesis_tests_schema_in_skill() -> None:
+    """SKILL.md must use hypothesis_tests (not tests_run) with sub-fields hypothesis, test, observed, verdict."""
+    content = _read_skill()
+    # Assert hypothesis_tests field is present with correct sub-fields
+    assert "hypothesis_tests" in content, (
+        "Expected SKILL.md to contain 'hypothesis_tests' as the field name for "
+        "hypothesis test results in the RESULT schema. This replaces the old 'tests_run' field."
+    )
+    for sub_field in ("hypothesis", "test", "observed", "verdict"):
+        assert sub_field in content, (
+            f"Expected SKILL.md to contain '{sub_field}' as a sub-field of hypothesis_tests "
+            "in the RESULT schema."
+        )
+    # Assert old field name tests_run is entirely absent
+    assert "tests_run" not in content, (
+        "Expected SKILL.md to NOT contain 'tests_run' — this field has been renamed to "
+        "'hypothesis_tests'. All references to the old field name must be removed."
+    )
+
+
+def test_fallback_and_cluster_prompts_hypothesis_tests() -> None:
+    """intermediate-investigation-fallback.md and cluster-investigation.md must use hypothesis_tests."""
+    # --- intermediate-investigation-fallback.md ---
+    fallback_content = FALLBACK_PROMPT_FILE.read_text()
+    assert "hypothesis_tests" in fallback_content, (
+        "Expected intermediate-investigation-fallback.md to contain 'hypothesis_tests' "
+        "in its RESULT section."
+    )
+    # Instructional prose must reference hypothesis_tests (not just in schema block)
+    # Look for hypothesis_tests appearing in instructional text, not just a YAML key
+    fallback_lines_with_ht = [
+        line
+        for line in fallback_content.splitlines()
+        if "hypothesis_tests" in line
+        and not line.strip().startswith("hypothesis_tests:")
+    ]
+    assert len(fallback_lines_with_ht) > 0, (
+        "Expected intermediate-investigation-fallback.md to contain instructional prose "
+        "referencing 'hypothesis_tests' outside of the schema block."
+    )
+    assert "tests_run" not in fallback_content, (
+        "Expected intermediate-investigation-fallback.md to NOT contain 'tests_run' — "
+        "this field has been renamed to 'hypothesis_tests'."
+    )
+
+    # --- cluster-investigation.md ---
+    cluster_content = CLUSTER_PROMPT_FILE.read_text()
+    # Must contain hypothesis_tests (replaces 3 tests_run blocks)
+    assert "hypothesis_tests" in cluster_content, (
+        "Expected cluster-investigation.md to contain 'hypothesis_tests' "
+        "in its RESULT section(s)."
+    )
+    # All 3 hypothesis_tests blocks must have correct sub-fields
+    for sub_field in ("hypothesis", "test", "observed", "verdict"):
+        assert sub_field in cluster_content, (
+            f"Expected cluster-investigation.md to contain '{sub_field}' as a sub-field "
+            "of hypothesis_tests in all RESULT schema blocks."
+        )
+    # Old sub-field names must be entirely absent
+    for old_field in ("command", "result"):
+        # 'result' as a standalone sub-field key (under tests_run) should not exist
+        # but 'result' may appear in prose — we check for the YAML key pattern
+        if old_field == "command":
+            assert not any(
+                line.strip().startswith("command:")
+                for line in cluster_content.splitlines()
+            ), (
+                "Expected cluster-investigation.md to NOT contain 'command:' as a sub-field "
+                "key — this old sub-field has been renamed to 'test'."
+            )
+    # Instructional prose must reference hypothesis_tests
+    cluster_prose_lines = [
+        line
+        for line in cluster_content.splitlines()
+        if "hypothesis_tests" in line
+        and not line.strip().startswith("hypothesis_tests:")
+    ]
+    assert len(cluster_prose_lines) > 0, (
+        "Expected cluster-investigation.md to contain instructional prose "
+        "referencing 'hypothesis_tests' outside of the schema blocks."
+    )
+    # tests_run must be entirely absent
+    assert "tests_run" not in cluster_content, (
+        "Expected cluster-investigation.md to NOT contain 'tests_run' — "
+        "all three occurrences must be replaced with 'hypothesis_tests'."
+    )
+
+
+class TestHypothesisValidationGate:
+    """Tests asserting the fix-bug SKILL.md contains a hypothesis_tests validation gate
+    between Step 2 (investigation) and Step 6 (fix implementation).
+
+    TDD spec for task 91bf-a66b:
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Contain language requiring hypothesis_tests validation before fix implementation
+      2. Reject (escalate) investigation results with no hypothesis_tests entries
+      3. Reject (escalate) investigation results where all verdicts are disproved
+      4. Proceed to fix implementation only when at least one verdict=confirmed exists
+    """
+
+    def test_hypothesis_validation_gate_present(self) -> None:
+        """SKILL.md must contain a hypothesis_tests validation gate before fix implementation."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "hypothesis_tests validation",
+                "Hypothesis Validation Gate",
+                "hypothesis validation gate",
+                "validate hypothesis_tests",
+                "hypothesis_tests gate",
+            )
+        ), (
+            "Expected SKILL.md to contain a hypothesis_tests validation gate section "
+            "(e.g., 'Hypothesis Validation Gate' or 'hypothesis_tests validation') "
+            "between Step 2 and Step 6. "
+            "This is a RED test — the gate does not yet exist in SKILL.md."
+        )
+
+    def test_hypothesis_gate_escalates_on_missing_hypothesis_tests(self) -> None:
+        """SKILL.md must escalate when hypothesis_tests is missing or empty."""
+        content = _read_skill()
+        # The gate must contain language about missing/empty hypothesis_tests → escalate
+        assert any(
+            phrase in content
+            for phrase in (
+                "missing or empty",
+                "no hypothesis_tests",
+                "hypothesis_tests is missing",
+                "hypothesis_tests section is absent",
+                "no entries",
+                "empty hypothesis_tests",
+            )
+        ), (
+            "Expected SKILL.md to contain language about escalating when hypothesis_tests "
+            "is missing or empty (e.g., 'missing or empty', 'no hypothesis_tests', "
+            "'no entries'). "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_hypothesis_gate_escalates_on_all_disproved(self) -> None:
+        """SKILL.md must escalate when all hypothesis_tests verdicts are disproved."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "all verdicts are disproved",
+                "all hypotheses are disproved",
+                "every verdict is disproved",
+                "no confirmed verdict",
+                "no confirmed hypothesis",
+                "all disproved",
+            )
+        ), (
+            "Expected SKILL.md to contain language about escalating when all "
+            "hypothesis_tests verdicts are disproved (e.g., 'all verdicts are disproved', "
+            "'all hypotheses are disproved', 'no confirmed verdict'). "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_hypothesis_gate_proceeds_on_confirmed_verdict(self) -> None:
+        """SKILL.md must specify proceeding to fix implementation when at least one verdict=confirmed."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "verdict=confirmed",
+                "verdict: confirmed",
+                "at least one confirmed",
+                "one confirmed hypothesis",
+                "confirmed verdict",
+            )
+        ), (
+            "Expected SKILL.md to contain language specifying that the orchestrator proceeds "
+            "to fix implementation when at least one hypothesis has verdict=confirmed "
+            "(e.g., 'at least one confirmed', 'verdict=confirmed', 'confirmed verdict'). "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_hypothesis_gate_escalates_to_next_tier(self) -> None:
+        """SKILL.md hypothesis gate must escalate to the next investigation tier (not terminate)."""
+        content = _read_skill()
+        # Check that the gate section references escalation or next tier
+        # We look for "escalate" near the gate context
+        gate_phrases = [
+            "Hypothesis Validation Gate",
+            "hypothesis validation gate",
+            "hypothesis_tests validation",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the hypothesis validation gate section in SKILL.md. "
+            "This test requires the gate to be present first."
+        )
+
+        # Extract context around the gate (up to 600 chars)
+        gate_context = content[gate_pos : gate_pos + 600].lower()
+        assert any(
+            phrase in gate_context
+            for phrase in (
+                "escalate",
+                "next tier",
+                "next investigation tier",
+                "escalation",
+            )
+        ), (
+            "Expected the hypothesis validation gate in SKILL.md to reference escalation "
+            "to the next investigation tier when validation fails. "
+            "The gate should escalate (not terminate) when no confirmed hypotheses exist."
+        )
+
+
+class TestRedBeforeFixGate:
+    """Tests asserting the fix-bug SKILL.md contains a RED-before-fix gate
+    between Step 5 (RED test) and Step 6 (fix implementation).
+
+    TDD spec for story b094-3cf4:
+    - plugins/dso/skills/fix-bug/SKILL.md must:
+      1. Contain a RED-before-fix gate between Step 5 and Step 6
+      2. The gate must block code modification / fix dispatch when no RED test is confirmed failing
+      3. The gate must exempt mechanical bugs via the Mechanical Fix Path
+      4. Gate language must reference Step 5 and Step 6 relationship
+    """
+
+    def test_red_before_fix_gate_present(self) -> None:
+        """SKILL.md must contain a RED-before-fix gate section between Step 5 and Step 6."""
+        content = _read_skill()
+        assert any(
+            phrase in content
+            for phrase in (
+                "RED-before-fix",
+                "RED Before Fix",
+                "red-before-fix",
+                "RED test gate",
+                "RED Test Gate",
+            )
+        ), (
+            "Expected fix-bug SKILL.md to contain a 'RED-before-fix' gate section "
+            "between Step 5 (RED test) and Step 6 (fix implementation) to enforce TDD discipline. "
+            "This is a RED test — the gate does not yet exist in SKILL.md."
+        )
+
+    def test_red_before_fix_gate_blocks_fix_without_red_test(self) -> None:
+        """The gate must block fix implementation when no RED test has been written and confirmed failing."""
+        content = _read_skill()
+        # Find the gate section
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate section in SKILL.md. "
+            "This test requires the gate to be present first."
+        )
+
+        # Extract context around the gate (up to 800 chars)
+        gate_context = content[gate_pos : gate_pos + 800].lower()
+        has_blocking_language = any(
+            phrase in gate_context
+            for phrase in (
+                "block",
+                "do not proceed",
+                "must not proceed",
+                "cannot proceed",
+                "blocked",
+                "stop",
+                "halt",
+                "forbidden",
+                "not allowed",
+            )
+        )
+        assert has_blocking_language, (
+            "Expected the RED-before-fix gate in SKILL.md to contain blocking language "
+            "(e.g., 'block', 'do not proceed', 'must not proceed', 'cannot proceed') "
+            "to prevent fix implementation when no RED test has been confirmed failing. "
+            "This is a RED test — the gate does not yet contain this language."
+        )
+
+    def test_red_before_fix_gate_requires_confirmed_failing_test(self) -> None:
+        """The gate must require that a RED test exists and has been confirmed failing."""
+        content = _read_skill()
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate section in SKILL.md."
+        )
+
+        gate_context = content[gate_pos : gate_pos + 800].lower()
+        has_failing_requirement = any(
+            phrase in gate_context
+            for phrase in (
+                "confirmed failing",
+                "confirmed fail",
+                "must fail",
+                "confirmed red",
+                "failing test",
+                "fail",
+            )
+        )
+        assert has_failing_requirement, (
+            "Expected the RED-before-fix gate to require that the RED test has been "
+            "confirmed failing (e.g., 'confirmed failing', 'confirmed RED', 'must fail'). "
+            "This is a RED test — the gate does not yet contain this requirement."
+        )
+
+    def test_red_before_fix_gate_exempts_mechanical_bugs(self) -> None:
+        """The gate must exempt mechanical bugs via the Mechanical Fix Path."""
+        content = _read_skill()
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate section in SKILL.md."
+        )
+
+        # Extract a wider context — mechanical exemption may be stated after the gate header
+        gate_context = content[gate_pos : gate_pos + 1200].lower()
+        has_mechanical_exemption = any(
+            phrase in gate_context
+            for phrase in (
+                "mechanical",
+                "mechanical fix path",
+                "exempt",
+                "bypass",
+            )
+        )
+        assert has_mechanical_exemption, (
+            "Expected the RED-before-fix gate in SKILL.md to exempt mechanical bugs "
+            "via the Mechanical Fix Path (e.g., 'mechanical', 'exempt', 'bypass'). "
+            "This is a RED test — the gate does not yet contain the mechanical exemption."
+        )
+
+    def test_red_before_fix_gate_positioned_between_step5_and_step6(self) -> None:
+        """The RED-before-fix gate must appear between Step 5 and Step 6 in SKILL.md."""
+        content = _read_skill()
+
+        # Find Step 5 position
+        step5_pos = content.find("### Step 5:")
+        assert step5_pos != -1, "Could not find '### Step 5:' in SKILL.md"
+
+        # Find Step 6 position
+        step6_pos = content.find("### Step 6:")
+        assert step6_pos != -1, "Could not find '### Step 6:' in SKILL.md"
+
+        # Find the gate position
+        gate_phrases = [
+            "RED-before-fix",
+            "RED Before Fix",
+            "RED Test Gate",
+        ]
+        gate_pos = -1
+        for phrase in gate_phrases:
+            pos = content.find(phrase)
+            if pos != -1:
+                gate_pos = pos
+                break
+
+        assert gate_pos != -1, (
+            "Could not find the RED-before-fix gate in SKILL.md. "
+            "Expected it to be present between Step 5 and Step 6."
+        )
+
+        assert step5_pos < gate_pos < step6_pos, (
+            f"Expected the RED-before-fix gate (pos={gate_pos}) to appear "
+            f"after Step 5 (pos={step5_pos}) and before Step 6 (pos={step6_pos}). "
+            "The gate must be positioned between those two steps to enforce TDD discipline. "
+            "This is a RED test — the gate is not yet positioned correctly."
         )

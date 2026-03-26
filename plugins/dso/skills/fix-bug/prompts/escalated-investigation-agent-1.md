@@ -110,10 +110,11 @@ proposed_fixes:
     rationale: <why this third fix addresses the root cause>
 tradeoffs_considered: <summary of key tradeoffs between the proposed fixes>
 recommendation: <which fix you recommend and the key reason>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested or researched>
-    command: <the WebSearch query or WebFetch URL used>
-    result: confirmed | disproved | inconclusive
+    test: <the WebSearch query or WebFetch URL used>
+    observed: <what the search/fetch returned>
+    verdict: confirmed | disproved | inconclusive
 external_sources:
   - url: <URL or reference consulted>
     summary: <what this source contributed to the investigation>
@@ -130,7 +131,7 @@ prior_attempts:
 | `proposed_fixes` | At least 3 proposed fixes not already attempted and not already present in `{escalation_history}`. Include only fixes that directly address the ROOT_CAUSE. Fixes must be grounded in external evidence where possible. List the recommended fix first. |
 | `tradeoffs_considered` | A concise summary of the tradeoffs between the proposed fixes (e.g., version pinning vs. code workaround, upstream fix vs. local patch). |
 | `recommendation` | Which fix you recommend and the key reason. |
-| `tests_run` | Any research steps performed — include the WebSearch query or WebFetch URL used and what was found. Empty array if none. |
+| `hypothesis_tests` | Any research steps performed — include the WebSearch query or WebFetch URL used and what was found. Empty array if none. |
 | `external_sources` | List of all URLs or references consulted during the investigation. Required field — do not omit. |
 | `prior_attempts` | Summary of prior fix attempts from the provided context and why they did not resolve the issue. Empty array if none. |
 

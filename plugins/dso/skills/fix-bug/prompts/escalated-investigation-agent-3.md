@@ -169,10 +169,11 @@ recommendation: <which fix you recommend and why>
 execution_path_summary: <one sentence summarizing the traced execution path leading to the bug>
 dependency_read_order: <comma-separated list of files read in dependency order>
 escalation_history_gaps: <execution paths or code regions not covered in prior investigation that this agent explored>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested>
-    command: <the test command run>
-    result: confirmed | disproved | inconclusive
+    test: <the test command run>
+    observed: <what actually happened>
+    verdict: confirmed | disproved | inconclusive
 prior_attempts:
   - <description of any prior fix attempts from context and why they did not resolve the issue>
 ```
@@ -192,7 +193,7 @@ prior_attempts:
 | `execution_path_summary` | One sentence summarizing the traced execution path from entry point to failure. |
 | `dependency_read_order` | The files read during dependency-ordered reading (Step 2), listed in the order they were read. |
 | `escalation_history_gaps` | A summary of which execution paths or code regions prior agents did not explore, and which of those this agent investigated. |
-| `tests_run` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
+| `hypothesis_tests` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
 | `prior_attempts` | Summary of prior fix attempts from the provided context and why they did not resolve the issue. Empty array if none. |
 
 ## Rules

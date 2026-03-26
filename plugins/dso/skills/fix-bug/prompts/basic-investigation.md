@@ -64,7 +64,7 @@ Before proposing any fix, empirically validate your assumptions about tool, API,
 2. **Label your evidence** — for each key assumption, explicitly note whether it is "stated in docs" or "tested and confirmed". Only "tested and confirmed" evidence supports a high-confidence fix proposal.
 3. **Test the fix approach in isolation** — before proposing a fix, test the core assumption (e.g., run the command with the proposed flag, make a throwaway API call) to confirm it works as expected.
 
-Record each empirical test in the `tests_run` section of your RESULT.
+Record each empirical test in the `hypothesis_tests` section of your RESULT.
 
 ### Step 4: Self-Reflection Checkpoint
 
@@ -89,10 +89,11 @@ proposed_fixes:
     risk: high | medium | low
     degrades_functionality: true | false
     rationale: <why this fix addresses the root cause>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested>
-    command: <the test command run>
-    result: confirmed | disproved | inconclusive
+    test: <the test command run>
+    observed: <what actually happened>
+    verdict: confirmed | disproved | inconclusive
 ```
 
 ### Field Definitions
@@ -102,7 +103,7 @@ tests_run:
 | `ROOT_CAUSE` | One sentence. Identify the specific code defect — not the symptom. |
 | `confidence` | `high` if the five whys chain is complete and evidence is unambiguous; `medium` if one step is inferred; `low` if significant uncertainty remains. |
 | `proposed_fixes` | A single proposed fix for BASIC tier. Include only fixes that directly address the ROOT_CAUSE. |
-| `tests_run` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
+| `hypothesis_tests` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
 
 ## Rules
 

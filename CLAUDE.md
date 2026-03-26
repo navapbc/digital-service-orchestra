@@ -134,7 +134,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 **Worktree session setup**: See `plugins/dso/docs/WORKTREE-GUIDE.md` (Session Setup section).
 
 **Epics**: Use `/dso:sprint` — it runs `plugins/dso/scripts/validate.sh --ci` automatically and blocks until the codebase is healthy.
-**Bug fixes**: Use `/dso:fix-bug` — classifies the bug, selects the investigation path, and applies the TDD-based fix. Do NOT use `/dso:tdd-workflow` for bug fixes; tdd-workflow is for new feature TDD only.
+**Bug fixes**: Use `/dso:fix-bug` — classifies the bug, selects the investigation path, and applies the TDD-based fix. Do NOT use `/dso:tdd-workflow` for bug fixes; tdd-workflow is for new feature TDD only. Investigation RESULT reports must include a `hypothesis_tests` field (sub-fields: `hypothesis`, `test`, `observed`, `verdict`); results with no confirmed hypothesis are rejected by Step 3.5 (Hypothesis Validation Gate) and escalated. Code modification is blocked by Step 5.5 (RED-before-fix Gate) until a RED test is confirmed failing — mechanical bugs (import errors, lint violations, config syntax) are exempt.
 **Docs, research**: Start directly. Validation runs at commit time for code changes (skipped for docs-only commits).
 **Before `/dso:debug-everything`**: Run `plugins/dso/scripts/estimate-context-load.sh debug-everything`. If static load >10,000 tokens, trim `MEMORY.md` before starting to avoid premature compaction.
 **`/dso:debug-everything` is a thin triage/dispatch layer**: It routes all bugs to `/dso:fix-bug` and handles escalation reports. Complexity evaluation happens post-investigation in `/dso:fix-bug` (Step 4.5), after the bug is fully understood — not pre-investigation in `/dso:debug-everything`.

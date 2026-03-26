@@ -10,6 +10,10 @@ Enforce a hard separation between investigation and implementation. Bugs are cla
 
 This skill replaces `/dso:tdd-workflow` for bug fixes. For new feature development using TDD, continue to use `/dso:tdd-workflow`.
 
+<HARD-GATE>
+Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
+</HARD-GATE>
+
 ## Config Resolution (reads project workflow-config.yaml)
 
 At activation, load project commands via read-config.sh before executing any steps:
@@ -304,6 +308,30 @@ echo '{"a.b": 1}' | python3 -c "import json,sys; d=json.load(sys.stdin); print('
 
 Tests that confirm a root cause increase confidence. Tests that disprove a root cause eliminate it from consideration.
 
+### Step 3.5: Hypothesis Validation Gate (/dso:fix-bug)
+
+Before proceeding to fix approval or fix implementation, validate the `hypothesis_tests` section of the investigation RESULT report.
+
+**Gate logic** (applied after Step 3 completes):
+
+1. **Check for hypothesis_tests entries**: If the investigation RESULT has no `hypothesis_tests` section, or the section is missing or empty (zero entries), escalate to the next investigation tier. A missing or empty `hypothesis_tests` section means the investigation produced no testable root cause — fix implementation must not proceed without confirmed evidence.
+
+2. **Check for at least one confirmed verdict**: If all `hypothesis_tests` entries have `verdict: disproved` or `verdict: inconclusive` (no `verdict: confirmed` entry exists), escalate to the next investigation tier. All hypotheses being disproved means the true root cause has not been identified — proceeding to fix implementation would be speculative.
+
+3. **Proceed only with confirmed evidence**: If at least one `hypothesis_tests` entry has `verdict: confirmed`, the root cause is sufficiently validated. Proceed to Step 4 (Fix Approval).
+
+**Escalation on gate failure**: When the gate rejects the investigation result (missing/empty `hypothesis_tests`, or all disproved), escalate following the standard escalation path (BASIC → INTERMEDIATE → ADVANCED → ESCALATED → User). Include the gate failure reason and all investigation findings in the escalation context so the next tier can build on prior work.
+
+```
+GATE_FAILURE_REASON: no_confirmed_hypothesis
+current_tier: <BASIC|INTERMEDIATE|ADVANCED|ESCALATED>
+hypothesis_tests_count: <number of entries, 0 if missing>
+confirmed_count: 0
+finding_summary: <brief summary of what the investigation found before gate rejection>
+```
+
+Record the gate failure in the discovery file and as a ticket comment before escalating.
+
 ### Step 4: Fix Approval (/dso:fix-bug)
 
 Determine whether the fix can be auto-approved or requires user input:
@@ -369,6 +397,26 @@ The test failure should confirm the root cause identified during investigation w
 If a previous investigation loop created a RED test for this bug, the existing test may be edited rather than creating a new one.
 
 **If no RED test can be written**: return to Step 2 and escalate to the next investigation tier. Include the failed test attempt and reasoning with the investigation prompt.
+
+### Step 5.5: RED-before-fix Gate (/dso:fix-bug)
+
+**Mechanical bug exemption**: This gate does NOT apply to mechanical bugs (import errors, lint violations, config syntax errors, type annotations) routed through the Mechanical Fix Path. Those bugs bypass Steps 2–5 entirely and proceed directly from Step 1 to a direct fix. The Mechanical Fix Path has no RED test requirement because the fix is deterministic and verified by running `$TEST_CMD` and `$LINT_CMD` after applying it.
+
+Before dispatching any fix implementation (Step 6), verify that a RED test exists and has been confirmed failing. This gate blocks any code modification — Edit, Write, or fix sub-agent dispatch — until it is satisfied.
+
+**Gate logic** (applied after Step 5 completes):
+
+1. **Check that a RED test exists**: If Step 5 was skipped because an existing test was already failing, that test counts as the RED test. If Step 5 was executed, the new test written there is the RED test.
+
+2. **Check that the RED test has been confirmed failing**: The RED test must have been run and confirmed to fail before fix implementation proceeds. If the test was not run or the run result is not available, run it now:
+   ```bash
+   $TEST_CMD  # Must show the RED test FAILING
+   ```
+   If the test does not fail, do NOT proceed to Step 6. Return to Step 5 to diagnose why the test passes unexpectedly — this indicates either the test is wrong or the bug is already fixed.
+
+3. **Do not proceed to Step 6 if the RED test has not been confirmed failing.** Any code modification (Edit, Write, sub-agent fix dispatch) is blocked until the RED test is confirmed failing in a test run output you have observed in this session.
+
+**Gate failure action**: If no RED test can be confirmed failing, do NOT skip to fix implementation. Return to Step 5 and address why the RED test cannot be confirmed.
 
 ### Step 6: Fix Implementation (/dso:fix-bug)
 
@@ -462,10 +510,11 @@ proposed_fixes:
     risk: high | medium | low
     degrades_functionality: true | false
     rationale: <why this fix addresses the root cause>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested>
-    command: <the test command>
-    result: confirmed | disproved | inconclusive
+    test: <the test command>
+    observed: <what actually happened>
+    verdict: confirmed | disproved | inconclusive
 prior_attempts:
   - commit: <sha>
     description: <what was tried>
@@ -500,7 +549,7 @@ Investigation findings are persisted to a discovery file for passing context bet
   - `root_cause` — one-sentence root cause description
   - `confidence` — high, medium, or low
   - `proposed_fixes` — array of fix proposals (each with description, risk, degrades_functionality)
-  - `tests_run` — array of hypothesis test results
+  - `hypothesis_tests` — array of hypothesis test results
   - `prior_fix_attempts` — array of previous fix attempts (empty if none)
 - **Written by**: investigation sub-agents (Step 2) and hypothesis testing (Step 3)
 - **Read by**: fix approval (Step 4), fix implementation (Step 6), and escalation re-entry (Step 2 on retry)

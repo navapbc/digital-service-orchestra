@@ -146,11 +146,11 @@ proposed_fixes:
     rationale: <why this alternative fix addresses the root cause>
 tradeoffs_considered: <summary of key tradeoffs between the proposed fixes>
 recommendation: <which fix you recommend and the key reason>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested empirically>
-    command: <the test command run with logging instrumentation>
-    result: confirmed | disproved | inconclusive
-    empirical_observations: <what the logs/debug output showed>
+    test: <the test command run with logging instrumentation>
+    observed: <what the logs/debug output showed>
+    verdict: confirmed | disproved | inconclusive
 artifact_revert_confirmed: true | false
 prior_attempts:
   - <description of any prior fix attempts from context and why they did not resolve the issue>
@@ -168,7 +168,7 @@ prior_attempts:
 | `proposed_fixes` | At least 3 proposed fixes not already attempted. Include only fixes that directly address the ROOT_CAUSE. List the recommended fix first. |
 | `tradeoffs_considered` | A concise summary of the tradeoffs between the proposed fixes (e.g., correctness vs. performance, targeted vs. broad). |
 | `recommendation` | Which fix you recommend and the key reason. |
-| `tests_run` | The empirical tests run with logging instrumentation. Include the test command and what the empirical observations showed. |
+| `hypothesis_tests` | The empirical tests run with logging instrumentation. Include the test command and what the empirical observations showed. |
 | `artifact_revert_confirmed` | `true` if `git diff` confirmed a clean working tree after reverting all logging additions; `false` if revert failed or is incomplete. |
 | `prior_attempts` | Summary of prior fix attempts from the provided context and why they did not resolve the issue. Empty array if none. |
 

@@ -128,4 +128,26 @@ if [[ -f "$SKILL_FILE" ]]; then
     assert_eq "test_fix_bug_skill_subagent_detection" "present" "$actual"
 fi
 
+# test_fix_bug_skill_hard_gate_present
+# Skill must contain a HARD-GATE block in the preamble.
+if [[ -f "$SKILL_FILE" ]]; then
+    if grep -q "HARD-GATE" "$SKILL_FILE"; then
+        actual="present"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_fix_bug_skill_hard_gate_present" "present" "$actual"
+fi
+
+# test_fix_bug_skill_hard_gate_prohibits_code_before_steps
+# The HARD-GATE block must prohibit code modification before completing Steps 1-5.
+if [[ -f "$SKILL_FILE" ]]; then
+    if grep -A10 "HARD-GATE" "$SKILL_FILE" | grep -qiE "step.*1.*5|steps 1|before.*step|1 through 5"; then
+        actual="present"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_fix_bug_skill_hard_gate_prohibits_code_before_steps" "present" "$actual"
+fi
+
 print_summary
