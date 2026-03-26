@@ -530,6 +530,49 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 27: Retry works when tracker dir is a symlink (worktree scenario) ─────
+echo "Test 27: test_retry_through_symlink — retry detects entries through symlink"
+test_retry_through_symlink() {
+    local TDIR27 ACTUAL27 SYMLINK27
+    TDIR27=$(mktemp -d)
+    ACTUAL27="$TDIR27/actual-tracker"
+    SYMLINK27="$TDIR27/symlinked-tracker"
+    mkdir -p "$ACTUAL27"
+
+    # Create a valid v3 epic in the actual directory
+    make_v3_ticket "$ACTUAL27" "epic-symlink" "epic" "open" "1" "" "Symlink Epic"
+
+    # Create a symlink pointing to the actual directory (mimics worktree .tickets-tracker)
+    ln -s "$ACTUAL27" "$SYMLINK27"
+
+    # Make the epic dir temporarily unreadable (simulates transient failure).
+    # The retry mechanism must detect entries THROUGH the symlink.
+    chmod 000 "$ACTUAL27/epic-symlink"
+
+    # Restore permissions before first retry fires
+    (sleep 0.1 && chmod 755 "$ACTUAL27/epic-symlink") &
+    local restore_pid=$!
+
+    local out27 exit27=0
+    out27=$(TICKETS_TRACKER_DIR="$SYMLINK27" SPRINT_MAX_RETRIES=3 SPRINT_RETRY_WAIT=0.8 \
+        bash "$SCRIPT" 2>/dev/null) || exit27=$?
+
+    wait "$restore_pid" 2>/dev/null || true
+    chmod -R 755 "$ACTUAL27" 2>/dev/null || true
+    rm -rf "$TDIR27"
+
+    # The script should have retried (via symlink) and found the epic
+    [ "$exit27" -eq 0 ] || return 1
+    echo "$out27" | grep -q "epic-symlink" || return 1
+}
+if test_retry_through_symlink; then
+    echo "  PASS: retry works through symlinked tracker dir"
+    (( PASS++ ))
+else
+    echo "  FAIL: retry did not work through symlinked tracker dir" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

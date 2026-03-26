@@ -108,10 +108,12 @@ print(json.dumps({'index': idx, 'child_counts': dict(child_counts)}))
 " 2>/dev/null || echo '{"index":{},"child_counts":{}}'
 }
 
-# Check for non-hidden subdirectories in tracker to detect "has entries but reducer failed"
+# Check for non-hidden subdirectories in tracker to detect "has entries but reducer failed".
+# Uses find -L to follow symlinks — in worktrees, .tickets-tracker is a symlink to the
+# main repo's tracker dir, and find without -L returns 0 entries through symlinks on macOS.
 _tracker_has_entries() {
     local first_entry
-    first_entry=$(find "$TRACKER_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | head -1)
+    first_entry=$(find -L "$TRACKER_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' 2>/dev/null | head -1)
     [ -n "$first_entry" ]
 }
 
