@@ -41,6 +41,7 @@ plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.s
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh
+plugins/dso/hooks/lib/red-zone.sh:tests/hooks/test-red-zone.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
