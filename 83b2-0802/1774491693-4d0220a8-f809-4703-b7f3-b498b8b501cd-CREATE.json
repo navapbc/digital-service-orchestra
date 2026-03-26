@@ -1,0 +1,1 @@
+{"timestamp": 1774491693, "uuid": "4d0220a8-f809-4703-b7f3-b498b8b501cd", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "epic", "title": "Enforce DSO shim usage in skill files via commit hook", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
