@@ -1,0 +1,1 @@
+{"timestamp": 1774539782712862000, "uuid": "69c7b286-77ff-4d2f-b85f-8d7551d57f33", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"fields": {"description": "ticket edit does not support --description or other fields beyond title/priority/assignee/ticket_type"}}}
