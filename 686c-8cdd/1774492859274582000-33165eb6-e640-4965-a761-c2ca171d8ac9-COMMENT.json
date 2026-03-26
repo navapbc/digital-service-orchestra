@@ -1,0 +1,1 @@
+{"timestamp": 1774492859274582000, "uuid": "33165eb6-e640-4965-a761-c2ca171d8ac9", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "CHECKPOINT 4/6: No implementation (RED test) \u2713 \u2014 tests call plugins/dso/scripts/gh-identity-resolver.sh which does not exist yet"}}
