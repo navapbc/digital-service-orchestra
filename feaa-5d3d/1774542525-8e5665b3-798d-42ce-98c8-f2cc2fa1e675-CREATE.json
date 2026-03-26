@@ -1,0 +1,1 @@
+{"timestamp": 1774542525, "uuid": "8e5665b3-798d-42ce-98c8-f2cc2fa1e675", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Implement reduce_all_tickets() batch mode in ticket-reducer.py", "parent_id": "70a5-443d", "priority": 1, "assignee": "Joe Oakhart"}}
