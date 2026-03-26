@@ -1,0 +1,1 @@
+{"timestamp": 1774566844, "uuid": "91d4c873-d626-4f7b-be51-238a48cde917", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Outbound Bridge push rejected when tickets branch updated during bridge run", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
