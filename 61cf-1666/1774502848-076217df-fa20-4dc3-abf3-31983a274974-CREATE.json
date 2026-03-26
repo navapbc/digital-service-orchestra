@@ -1,0 +1,1 @@
+{"timestamp": 1774502848, "uuid": "076217df-fa20-4dc3-abf3-31983a274974", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix: orphaned REPO_ROOT assignment in sprint/SKILL.md line 678", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
