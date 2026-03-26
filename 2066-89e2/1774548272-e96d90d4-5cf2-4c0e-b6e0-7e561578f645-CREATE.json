@@ -1,0 +1,1 @@
+{"timestamp": 1774548272, "uuid": "e96d90d4-5cf2-4c0e-b6e0-7e561578f645", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Remaining v2 ticket system references: tk_show, tk CLI in README, tk-sync-lib.sh stale refs", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
