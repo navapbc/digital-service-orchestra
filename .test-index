@@ -3,6 +3,7 @@
 # Format: source/path:test/path1[,test/path2...]
 
 CLAUDE.md: tests/scripts/test-no-v2-refs-in-claude-md.sh
+plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh [test_script_exists]
 plugins/dso/.claude-plugin/plugin.json:tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/hooks/test-plugin-docs.sh,tests/hooks/test-hooks-json-paths.sh,tests/hooks/test-run-hook-relative-paths.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-check-plugin-test-needed.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh
 plugins/dso/hooks/cascade-circuit-breaker.sh:tests/hooks/test-cascade-breaker.sh
 plugins/dso/hooks/review-stop-check.sh:tests/hooks/test-review-stop.sh,tests/hooks/test-review-stop-check.sh
@@ -47,7 +48,7 @@ plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scrip
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_create_with_closed_parent_blocked]
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh [test_link_depends_on_closed_target_blocked]
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh [test_transition_bug_close_requires_reason]
-plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md: tests/scripts/test-explore-dispatch-template.sh [test_template_file_exists]
+plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/scripts/test-explore-dispatch-template.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
 plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
 plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh [test_validate_phase_no_TK_variable]
@@ -87,7 +88,6 @@ plugins/dso/skills/implementation-plan/SKILL.md:plugins/dso/tests/test-sprint-sk
 plugins/dso/skills/implementation-plan/docs/reviewers/plan/dependencies.md:tests/skills/test-project-setup-dependencies.sh
 plugins/dso/skills/implementation-plan/docs/reviewers/plan/safety.md:tests/hooks/test-session-safety.sh,tests/hooks/test-shell-safety-directives.sh
 plugins/dso/skills/implementation-plan/docs/reviewers/plan/tdd.md:tests/skills/test_implementation_plan_skill_tdd_enforcement.py,tests/skills/test_implementation_plan_tdd_reviewer.py,tests/skills/test_preplanning_tdd_story_requirements.py
-plugins/dso/skills/implementation-plan/docs/reviewers/plan/tdd.md: tests/skills/test_implementation_plan_tdd_reviewer.py [test_tdd_reviewer_bidirectional_dimension]
 plugins/dso/skills/init/SKILL.md:plugins/dso/tests/test-sprint-skill-step10-no-merge-to-main.sh,tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test_end_skill_final_verification_step.py,tests/skills/test_implementation_plan_skill_tdd_enforcement.py,tests/skills/test-quick-ref-skill.sh,tests/skills/test_project_setup_skill_conditional_prompts.py,tests/skills/test_fix_bug_skill.py,tests/skills/test_end_skill_summary_displays_stored_learnings.py,tests/skills/test_end_skill_learnings_step_before_commit.py,tests/skills/test-design-skills-cross-stack.sh,tests/skills/test_end_skill_dirty_worktree_resolution.py,tests/skills/test_fix_bug_skill_escalated_section.py,tests/skills/test_end_skill_bug_tickets_before_commit.py
 plugins/dso/skills/interface-contracts/SKILL.md:plugins/dso/tests/test-sprint-skill-step10-no-merge-to-main.sh,tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test_end_skill_final_verification_step.py,tests/skills/test_implementation_plan_skill_tdd_enforcement.py,tests/skills/test-quick-ref-skill.sh,tests/skills/test_project_setup_skill_conditional_prompts.py,tests/skills/test_fix_bug_skill.py,tests/skills/test_end_skill_summary_displays_stored_learnings.py,tests/skills/test_end_skill_learnings_step_before_commit.py,tests/skills/test-design-skills-cross-stack.sh,tests/skills/test_end_skill_dirty_worktree_resolution.py,tests/skills/test_fix_bug_skill_escalated_section.py,tests/skills/test_end_skill_bug_tickets_before_commit.py
 plugins/dso/skills/oscillation-check/SKILL.md:plugins/dso/tests/test-sprint-skill-step10-no-merge-to-main.sh,tests/plugin/test-audit-skill-resolution.sh,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test_end_skill_final_verification_step.py,tests/skills/test_implementation_plan_skill_tdd_enforcement.py,tests/skills/test-quick-ref-skill.sh,tests/skills/test_project_setup_skill_conditional_prompts.py,tests/skills/test_fix_bug_skill.py,tests/skills/test_end_skill_summary_displays_stored_learnings.py,tests/skills/test_end_skill_learnings_step_before_commit.py,tests/skills/test-design-skills-cross-stack.sh,tests/skills/test_end_skill_dirty_worktree_resolution.py,tests/skills/test_fix_bug_skill_escalated_section.py,tests/skills/test_end_skill_bug_tickets_before_commit.py
@@ -133,7 +133,7 @@ plugins/dso/skills/brainstorm/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [t
 plugins/dso/skills/sprint/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
 plugins/dso/skills/preplanning/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
 plugins/dso/skills/implementation-plan/SKILL.md: tests/scripts/test-v2-docs-cleanup.sh [test_no_tickets_dir_in_skills]
-plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test_implementation_plan_bidirectional_tdd.py [test_skill_contains_file_impact_enumeration]
+plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test_implementation_plan_bidirectional_tdd.py
 tests/hooks/test-deps.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-lock-acquire-ticket-format.sh: tests/scripts/test-v2-clean-guard.sh
 tests/hooks/test-check-validation-failures.sh: tests/scripts/test-v2-clean-guard.sh
@@ -141,4 +141,4 @@ tests/hooks/test-session-safety.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-validate-issues.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-read-config.sh: tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-flat-config-e2e.sh: tests/scripts/test-v2-clean-guard.sh
-plugins/dso/agents/complexity-evaluator.md: tests/skills/test_complexity_evaluator_agent.py [test_blast_radius_heading]
+plugins/dso/agents/complexity-evaluator.md: tests/skills/test_complexity_evaluator_agent.py

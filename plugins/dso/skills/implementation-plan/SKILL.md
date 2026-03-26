@@ -281,9 +281,68 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
     3. **UI/Frontend Updates:** Consume the new API/version.
     4. **Cleanup:** Remove legacy fields, deprecated API versions, or bridge code.
 
+### File Impact Enumeration
+
+Before drafting tasks, enumerate all files affected by the story. This produces an auditable **file impact table** that maps each source file to its change action, associated tests, and test classification. The table drives task type selection in TDD Task Structure below.
+
+#### Step-by-step
+
+1. **List affected source files** — Use Glob and Grep to identify every file the story touches. Start from the story's entry points and trace through all layers.
+
+2. **Find associated tests for each source file** — For each source file, locate its test counterpart using one of two methods:
+   - **Fuzzy match** (preferred): source the fuzzy-match library and call `fuzzy_find_associated_tests`:
+     ```bash
+     source plugins/dso/hooks/lib/fuzzy-match.sh
+     fuzzy_find_associated_tests <src_file> <repo_root>
+     ```
+   - **`.test-index` lookup**: check whether the source file has an explicit entry in `.test-index` at the repo root (format: `source/path.ext: test/path1.ext, test/path2.ext`).
+   - Combine both — results from `fuzzy_find_associated_tests` and `.test-index` are unioned.
+
+3. **Classify each test** based on what the story does to the source file:
+
+   | Source change action | Test classification |
+   |---------------------|---------------------|
+   | `create` (new source file) | `needs-creation` — write a new test file |
+   | `modify` (behavior change) | `needs-modification` — update existing test(s) to assert new behavior |
+   | `remove` (source deleted) | `needs-removal` — remove or prune tests that verify the deleted behavior |
+   | `modify` (no behavior change, e.g., refactor) | `still-valid` — existing tests remain correct without changes |
+
+4. **Build the file impact table**:
+
+   | Source file | Action | Associated tests | Test classification |
+   |-------------|--------|-----------------|---------------------|
+   | `src/foo.py` | modify | `tests/test_foo.py` | needs-modification |
+   | `src/bar.py` | create | *(none yet)* | needs-creation |
+   | `src/legacy.py` | remove | `tests/test_legacy.py` | needs-removal |
+   | `src/util.py` | modify | `tests/test_util.py` | still-valid |
+
+Use this table to determine which TDD task types to create (see TDD Task Structure below). Files classified `still-valid` require no test task. Files classified `needs-modification` require a **modify-existing-test** RED task. Files classified `needs-removal` require a **remove-test** task. Files classified `needs-creation` require a **create-test** RED task (the existing flow).
+
 ### TDD Task Structure
 
 **Behavioral content** is defined as code that contains conditional logic, data transformation, or decision points — any code where the output varies based on inputs or state. Every task whose implementation adds or modifies behavioral content must have a preceding **RED test task** as a declared dependency before any implementation task.
+
+**A RED test may be modifying existing tests, not only creating new test files.** When a story changes existing behavior, the RED test edits an existing test file to assert the new expected behavior — it does not necessarily create a new test file. Tests are behavioral specifications — when behavior changes, the specification must be updated. Modifying existing tests is a first-class RED-phase activity, not a special case.
+
+#### TDD task types
+
+Use the file impact table from File Impact Enumeration to select the correct task type for each source file:
+
+**1. Create-test task** (source action: `create`, classification: `needs-creation`)
+- Write a new test file asserting the expected behavior of the new source file
+- Standard RED-first flow; implementation task depends on this create-test task
+
+**2. Modify-existing-test task** (source action: `modify`, classification: `needs-modification`)
+- Update an existing test to assert the new expected behavior after the source change
+- This is a RED test task: the modified test must fail (RED) before the implementation runs
+- The task must name the specific existing test file to modify and describe which assertions change
+- Implementation task depends on this modify-existing-test task
+
+**3. Remove-test task** (source action: `remove`, classification: `needs-removal`)
+- Remove test cases or entire test files that verify behavior being deleted from the source
+- Removing tests for deleted behavior keeps the test suite honest and prevents dead-code assertions
+- This task may run before or in parallel with the source removal task (no behavioral assertion to run RED)
+- If only some cases within a test file need removal, describe the specific cases to delete
 
 A RED test task:
 - Writes a failing test that asserts the expected behavior
