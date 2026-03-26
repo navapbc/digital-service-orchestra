@@ -952,7 +952,41 @@ Enter the API token (it will NOT be shown back or stored locally):
 
 ### Sub-step D: Apply GitHub Variables and Secrets
 
-Using the `gh` CLI, set all collected variables and the secret on the GitHub repository.
+Before setting variables and secrets, check whether the `gh` CLI is available and authenticated by running:
+
+```bash
+GH_CHECK=$(bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/gh-availability-check.sh" \
+  --vars=JIRA_URL,JIRA_USER,ACLI_VERSION,ACLI_SHA256,BRIDGE_BOT_LOGIN,BRIDGE_BOT_NAME,BRIDGE_BOT_EMAIL,BRIDGE_ENV_ID \
+  --secrets=JIRA_API_TOKEN)
+GH_STATUS=$(echo "$GH_CHECK" | grep -E '^GH_STATUS=' | cut -d= -f2 | tr -d '[:space:]')
+FALLBACK_LINES=$(echo "$GH_CHECK" | grep -v '^GH_STATUS=\|^FALLBACK=')
+```
+
+Route based on `GH_STATUS`:
+
+**If `GH_STATUS=authenticated`**: proceed with the `gh` CLI commands below.
+
+**If `GH_STATUS=not_authenticated`**: print the fallback commands from the script output and skip all `gh` operations. Inform the user:
+```
+[bridge] gh CLI is installed but not authenticated.
+[bridge] After running 'gh auth login', set variables and secrets with the following commands:
+
+$FALLBACK_LINES
+```
+Then continue to Sub-step E without setting any variables or secrets.
+
+**If `GH_STATUS=not_installed`**: print the UI navigation steps from the script output and skip all `gh` operations. Inform the user:
+```
+[bridge] gh CLI is not installed.
+[bridge] Set variables and secrets manually via the GitHub web UI:
+
+$FALLBACK_LINES
+```
+Then continue to Sub-step E without setting any variables or secrets.
+
+---
+
+**Authenticated path**: Using the `gh` CLI, set all collected variables and the secret on the GitHub repository.
 
 ```bash
 # Set repository variables (visible in workflow logs, not encrypted)
