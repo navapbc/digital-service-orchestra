@@ -1,0 +1,1 @@
+{"timestamp": 1774563977, "uuid": "6ba05bc9-8ed3-476d-9ca2-af7cd2ed840a", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Create onboarding skill tests and update sub-agent-guard test", "parent_id": "6a9d-7250", "priority": 1, "assignee": "Joe Oakhart"}}
