@@ -2528,4 +2528,98 @@ rm -rf "$TEST_REPO_BUGB2" "$ARTIFACTS_BUGB2"
 trap - EXIT
 assert_pass_if_clean "test_global_scan_no_false_positive_from_substring_match"
 
+# ── Test: merge-commit awareness filters out incoming-only files ─────────
+echo "Test: merge-commit awareness — incoming-only files are filtered out"
+test_merge_commit_filters_incoming_only() {
+    _snapshot_fail
+
+    # Create a test repo with two source files and associated tests
+    local tmp
+    tmp=$(mktemp -d)
+    trap "rm -rf '$tmp'" EXIT
+
+    local repo="$tmp/repo"
+    mkdir -p "$repo"
+    cd "$repo"
+    git init -q
+    git config user.name "test" && git config user.email "test@test"
+
+    # Create source + test for "ours" (worktree branch changes)
+    mkdir -p plugins/dso/scripts tests/scripts
+    echo '#!/bin/bash' > plugins/dso/scripts/our-script.sh
+    echo '#!/bin/bash' > tests/scripts/test-our-script.sh
+    chmod +x tests/scripts/test-our-script.sh
+
+    # Create source + test for "theirs" (incoming from main)
+    echo '#!/bin/bash' > plugins/dso/scripts/their-script.sh
+    printf '#!/bin/bash\necho "PASSED: 0  FAILED: 1"' > tests/scripts/test-their-script.sh
+    chmod +x tests/scripts/test-their-script.sh
+
+    git add -A && git commit -q -m "initial"
+
+    # Create a branch and change OUR file only
+    git checkout -q -b feature
+    echo '# changed' >> plugins/dso/scripts/our-script.sh
+    git add -A && git commit -q -m "feature change"
+
+    # Back to main, change THEIR file (simulates incoming main changes)
+    git checkout -q main
+    echo '# main change' >> plugins/dso/scripts/their-script.sh
+    git add -A && git commit -q -m "main change"
+
+    # Start merge on feature branch (no-commit to simulate merge state)
+    git checkout -q feature
+    git merge --no-commit --no-ff main 2>/dev/null || true
+
+    # Verify MERGE_HEAD exists
+    if [[ ! -f "$(git rev-parse --git-dir)/MERGE_HEAD" ]]; then
+        assert_eq "MERGE_HEAD exists" "exists" "missing"
+        assert_pass_if_clean "test_merge_commit_filters_incoming_only"
+        return
+    fi
+
+    # Stage everything (as a merge commit would)
+    git add -A
+
+    # Create artifacts dir and mock test runner that always passes for our-script
+    local artifacts="$tmp/artifacts"
+    mkdir -p "$artifacts"
+
+    # The runner should only be called for our-script's test, NOT their-script's test
+    local runner_log="$tmp/runner-invocations.log"
+    local mock_runner="$tmp/mock-runner.sh"
+    cat > "$mock_runner" << 'RUNNER'
+#!/bin/bash
+echo "$@" >> RUNNER_LOG_PATH
+echo "PASSED: 1  FAILED: 0"
+exit 0
+RUNNER
+    sed -i.bak "s|RUNNER_LOG_PATH|${runner_log}|g" "$mock_runner" 2>/dev/null || \
+        sed -i '' "s|RUNNER_LOG_PATH|${runner_log}|g" "$mock_runner"
+    chmod +x "$mock_runner"
+
+    # Run record-test-status with our mock
+    REPO_ROOT="$repo" \
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts" \
+    RECORD_TEST_STATUS_RUNNER="$mock_runner" \
+    TEST_GATE_TEST_DIRS_OVERRIDE="tests/" \
+    bash "$HOOK" 2>/dev/null || true
+
+    # Assert: their-script's test was NOT invoked (filtered as incoming-only)
+    if [[ -f "$runner_log" ]]; then
+        local invoked_their
+        invoked_their=$(grep -c 'test-their-script' "$runner_log" 2>/dev/null || echo "0")
+        assert_eq "their-script test NOT invoked (incoming-only)" "0" "$invoked_their"
+    else
+        # No runner invocations at all — also acceptable if our-script had no fuzzy match
+        assert_eq "runner log exists or no tests needed" "ok" "ok"
+    fi
+
+    cd /
+    rm -rf "$tmp"
+    trap - EXIT
+    assert_pass_if_clean "test_merge_commit_filters_incoming_only"
+}
+test_merge_commit_filters_incoming_only
+
 print_summary

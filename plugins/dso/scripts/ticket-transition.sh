@@ -285,6 +285,10 @@ if [ "$target_status" = "closed" ]; then
             echo "UNBLOCKED: none"
         fi
     fi
+
+    # Compact-on-close: squash event log into SNAPSHOT (non-blocking)
+    compact_script="${DSO_COMPACT_SCRIPT:-$SCRIPT_DIR/ticket-compact.sh}"
+    bash "$compact_script" "$ticket_id" --threshold=0 --skip-sync 2>/dev/null || true
 fi
 
 exit 0

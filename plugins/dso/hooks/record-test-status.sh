@@ -352,6 +352,38 @@ if [[ -z "$STAGED_FILES" ]]; then
     exit 0
 fi
 
+# --- Merge commit: filter to worktree-only files ---
+# Mirrors the logic in pre-commit-test-gate.sh lines 124-167.
+# During a merge, staged files include incoming changes from the merge target
+# that were already tested on that branch. Only test files that the worktree
+# branch actually changed to avoid blocking on pre-existing failures from main.
+_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
+if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/MERGE_HEAD" ]]; then
+    _merge_head_sha=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null || echo "")
+    if [[ -n "$_merge_head_sha" ]]; then
+        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
+        _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+        _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
+        if [[ -n "$_merge_base" && -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
+            _worktree_changed=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
+            _filtered=""
+            if [[ -n "$_worktree_changed" ]]; then
+                while IFS= read -r _sf; do
+                    [[ -z "$_sf" ]] && continue
+                    if echo "$_worktree_changed" | grep -qxF "$_sf" 2>/dev/null; then
+                        _filtered="${_filtered}${_sf}"$'\n'
+                    fi
+                done <<< "$STAGED_FILES"
+            fi
+            # Empty _worktree_changed or no matches → all files are incoming-only
+            STAGED_FILES="${_filtered%$'\n'}"
+            if [[ -z "$STAGED_FILES" ]]; then
+                exit 0
+            fi
+        fi
+    fi
+fi
+
 # --- Discover associated test files ---
 ASSOCIATED_TESTS=()
 # Parallel array: RED marker for each entry in ASSOCIATED_TESTS (empty string = no marker)
