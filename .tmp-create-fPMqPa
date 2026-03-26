@@ -1,1 +1,0 @@
-{"timestamp": 1774509395, "uuid": "9207a6b4-e2f1-458e-9a04-9795ede199fc", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Priority test", "parent_id": "", "priority": 1, "assignee": "Test"}}
