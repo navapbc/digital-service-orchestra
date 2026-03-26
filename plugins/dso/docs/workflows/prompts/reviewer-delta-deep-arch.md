@@ -137,7 +137,7 @@ generic architectural integrity checks below.
   `check-skill-refs.sh` and will fail CI — flag as `important` under `hygiene`.
 - [ ] **Ticket system encapsulation**: Does the diff access the ticket event log
   (`.tickets-tracker/` worktree) directly from hook code or scripts, bypassing the
-  authorized CLI (`ticket` dispatcher or `tk-sync-lib.sh`)? Direct reads/writes to
+  authorized CLI (`ticket` dispatcher)? Direct reads/writes to
   ticket event files outside the ticket system boundary violate encapsulation and risk
   concurrent corruption (the event log uses `fcntl.flock` serialization). Flag as
   `important` under `design`.
