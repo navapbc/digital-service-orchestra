@@ -24,13 +24,17 @@
 
 # _bash_discover_files <dir>
 # Prints one file path per line for test-*.sh files; returns non-zero if none found.
+# Excludes run-*-tests.sh aggregator scripts — these are suite orchestrators that
+# run all test-*.sh files internally. Including them causes the batched runner to
+# treat the entire suite as a single test item, which gets killed by the time budget
+# and prevents per-file resume from working.
 _bash_discover_files() {
     local dir="$1"
     local found=0
     # Use a while loop with sorted glob expansion for portability (no find -print0)
     while IFS= read -r f; do
         [ -f "$f" ] && [ -x "$f" ] && { echo "$f"; found=1; }
-    done < <(find "$dir" -maxdepth 1 \( -name 'test-*.sh' -o -name 'run-*-tests.sh' \) -print 2>/dev/null | sort)
+    done < <(find "$dir" -maxdepth 1 -name 'test-*.sh' -print 2>/dev/null | sort)
     [ "$found" -eq 1 ]
 }
 
@@ -48,7 +52,7 @@ if [ "$RUNNER" = "bash" ]; then
         done < <(_bash_discover_files "$TEST_DIR" 2>/dev/null || true)
 
         if [ "${#BASH_FILES[@]}" -eq 0 ]; then
-            echo "WARNING: --runner=bash: no test-*.sh or run-*-tests.sh files found under $TEST_DIR; falling back to generic runner." >&2
+            echo "WARNING: --runner=bash: no test-*.sh files found under $TEST_DIR; falling back to generic runner." >&2
         else
             USE_BASH_RUNNER=1
         fi

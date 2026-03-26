@@ -28,9 +28,9 @@ set -uo pipefail
 #             files exist under --test-dir.
 #             Falls back to generic when: pytest not installed, no test files found,
 #             collection fails, or collection yields no test IDs.
-#   bash      Discovers test-*.sh and run-*-tests.sh files under --test-dir
+#   bash      Discovers test-*.sh files under --test-dir
 #             and runs each via: bash <file>
-#             Auto-detected when: test-*.sh or run-*-tests.sh files exist
+#             Auto-detected when: test-*.sh files exist
 #             under --test-dir (after node and pytest auto-detect).
 #             Falls back to generic when: no matching files found.
 #   generic   (default) Runs <command> as a single test item.
