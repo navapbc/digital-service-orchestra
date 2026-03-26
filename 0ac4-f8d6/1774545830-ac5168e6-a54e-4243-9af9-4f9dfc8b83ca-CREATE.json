@@ -1,0 +1,1 @@
+{"timestamp": 1774545830, "uuid": "ac5168e6-a54e-4243-9af9-4f9dfc8b83ca", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Move file listing inside flock + add --skip-sync in ticket-compact.sh", "parent_id": "6e0d-b21f", "priority": 1, "assignee": "Joe Oakhart"}}
