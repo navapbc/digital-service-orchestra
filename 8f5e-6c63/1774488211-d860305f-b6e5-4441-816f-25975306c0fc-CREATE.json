@@ -1,0 +1,1 @@
+{"timestamp": 1774488211, "uuid": "d860305f-b6e5-4441-816f-25975306c0fc", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED test: evaluator agent blast-radius integration", "parent_id": "5050-15fd", "priority": 2, "assignee": "Joe Oakhart"}}
