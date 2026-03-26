@@ -1,1 +1,0 @@
-{"timestamp": 1774567529543804000, "uuid": "34e71cb1-1446-4788-95c7-745390a0cfe4", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Added config generation with ticket prefix, CI examples, ACLI auto-suggestion"}}
