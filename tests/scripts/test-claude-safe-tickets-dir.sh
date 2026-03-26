@@ -4,8 +4,8 @@
 #
 # Verifies:
 # - _read_cfg correctly reads tickets.directory from dso-config.conf
-# - _offer_worktree_cleanup blocks auto-removal when .tickets/ files are dirty
-#   (any uncommitted changes, including .tickets/, prevent auto-removal)
+# - _offer_worktree_cleanup blocks auto-removal when .tickets-tracker/ files are dirty
+#   (any uncommitted changes, including .tickets-tracker/, prevent auto-removal)
 #
 # Usage: bash tests/scripts/test-claude-safe-tickets-dir.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -168,7 +168,7 @@ assert_eq "test_tickets_directory_custom_value_passed_through: custom value surv
 assert_pass_if_clean "test_tickets_directory_custom_value_passed_through"
 
 # ── test_tickets_dir_dirty_blocks_auto_removal ───────────────────────────────
-# When a worktree has only .tickets/ files dirty (untracked), and the branch IS
+# When a worktree has only .tickets-tracker/ files dirty (untracked), and the branch IS
 # merged to main, _offer_worktree_cleanup must still output 'cannot be auto-removed'
 # because git status --porcelain is non-empty.
 #
@@ -210,9 +210,9 @@ mkdir -p "$_main_repo"
 # Make the test branch an ancestor of main (already is since it branched from init)
 # merge-base --is-ancestor should return 0 since test-branch has no new commits yet
 
-# Create an untracked .tickets/ file in the worktree (makes porcelain non-empty)
-mkdir -p "$_wt_path/.tickets"
-touch "$_wt_path/.tickets/new-ticket.md"
+# Create an untracked .tickets-tracker/ file in the worktree (makes porcelain non-empty)
+mkdir -p "$_wt_path/.tickets-tracker"
+touch "$_wt_path/.tickets-tracker/new-ticket.md"
 
 # Capture output of _offer_worktree_cleanup. The function guards with [ ! -t 0 ]
 # (stdin must be a terminal). We set _CLAUDE_SAFE_TEST_INTERACTIVE=1 to bypass

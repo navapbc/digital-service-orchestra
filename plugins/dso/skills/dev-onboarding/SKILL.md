@@ -183,7 +183,7 @@ The test gate enforces that every staged source file has a corresponding test. I
 2. **If `.test-index` does not exist (or `--force-scan` is given):** run the scanner:
 
    ```bash
-   bash plugins/dso/scripts/generate-test-index.sh
+   .claude/scripts/dso generate-test-index.sh
    ```
 
    The scanner:
@@ -212,7 +212,7 @@ The test gate enforces that every staged source file has a corresponding test. I
 5. **Ongoing maintenance note:** `.test-index` is a living document. Future test renames or new non-conventional test files may require re-running the scanner:
 
    ```bash
-   bash plugins/dso/scripts/generate-test-index.sh  # regenerate
+   .claude/scripts/dso generate-test-index.sh  # regenerate
    ```
 
    Add a note in the project's `CLAUDE.md` or `KNOWN-ISSUES.md` that this file exists and when to refresh it.

@@ -858,7 +858,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Description** | Directory where ticket markdown files are stored, relative to repo root. |
 | **Accepted values** | Relative directory path |
 | **Default** | `.tickets` |
-| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `plugins/dso/scripts/ticket-reducer.py`, `.claude/scripts/dso orphaned-tasks.sh`, `plugins/dso/hooks/check-validation-failures.sh` |
+| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `plugins/dso/scripts/ticket-reducer.py`, `plugins/dso/hooks/check-validation-failures.sh` |
 
 ---
 
@@ -1095,7 +1095,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Path to the ticket files directory. Overrides the `tickets.directory` config value when set. |
 | **Required** | Optional — overrides config or default (`.tickets`) |
-| **Usage context** | `plugins/dso/hooks/check-validation-failures.sh`, `.claude/scripts/dso orphaned-tasks.sh` |
+| **Usage context** | `plugins/dso/hooks/check-validation-failures.sh` |
 
 ---
 

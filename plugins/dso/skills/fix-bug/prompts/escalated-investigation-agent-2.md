@@ -159,10 +159,11 @@ recommendation: <which fix you recommend and why>
 introducing_commit: <commit hash or 'unknown' if history unavailable>
 timeline_summary: <one sentence summarizing the change history context relevant to the bug>
 escalation_history_gaps: <historical periods, commit ranges, or file histories not covered by prior investigation that this agent explored>
-tests_run:
+hypothesis_tests:
   - hypothesis: <what was tested>
-    command: <the test command run>
-    result: confirmed | disproved | inconclusive
+    test: <the test command run>
+    observed: <what actually happened>
+    verdict: confirmed | disproved | inconclusive
 prior_attempts:
   - <description of any prior fix attempts from context and why they did not resolve the issue>
 ```
@@ -182,7 +183,7 @@ prior_attempts:
 | `introducing_commit` | The commit hash most likely to have introduced the bug, based on timeline reconstruction. Use `unknown` if commit history was unavailable or insufficient. |
 | `timeline_summary` | One sentence summarizing the change history context relevant to the bug. |
 | `escalation_history_gaps` | A summary of which historical periods, commit ranges, or file histories prior agents did not explore, and which of those this agent investigated. |
-| `tests_run` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
+| `hypothesis_tests` | Any hypothesis tests you ran during investigation. Empty array if none were run. |
 | `prior_attempts` | Summary of prior fix attempts from the provided context and why they did not resolve the issue. Empty array if none. |
 
 ## Rules

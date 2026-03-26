@@ -75,7 +75,7 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
 ### 2.75. Release debug-everything Session Lock (if held by this worktree)
 
 ```bash
-"$(git rev-parse --show-toplevel)/scripts/release-debug-lock.sh" "Session complete"
+.claude/scripts/dso release-debug-lock.sh "Session complete"
 ```
 
 **If released**: note it in the session summary.
@@ -183,7 +183,7 @@ sweep_validation_failures
 ### 3.5. Visual Baseline Comparison
 
 1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
-2. Run `$REPO_ROOT/plugins/dso/scripts/verify-baseline-intent.sh`
+2. Run `.claude/scripts/dso verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
 4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `.claude/scripts/dso ticket create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
 
@@ -202,12 +202,12 @@ git log main..$BRANCH --oneline
 **If unmerged commits exist**: run the merge script. It handles .claude/scripts/dso ticket sync, merge, and push internally. Do NOT prompt for confirmation — proceed directly.
 
 ```bash
-"$REPO_ROOT/plugins/dso/scripts/merge-to-main.sh"
+.claude/scripts/dso merge-to-main.sh
 ```
 
-If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-`.tickets/` files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
+If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
 
-**CRITICAL — ticket conflict handling**: If a merge conflict occurs in `.tickets/` files (individual ticket `.md` files or archive files), do NOT use `git merge -X ours`, `git checkout --ours -- .tickets/`, or any other "accept worktree blindly" strategy. Main may have received ticket updates from another worktree. Instead, invoke `/dso:resolve-conflicts`, which will show the diff between both versions and ask the user which to keep.
+> **CRITICAL**: When resolving merge conflicts that involve `.tickets-tracker/` event files, do NOT use `git merge -X ours` — this would silently discard incoming ticket events from main and corrupt the event log. Instead, resolve `.tickets-tracker/` conflicts per-file using `git checkout --ours` on each conflicted JSON event file individually (they are append-only and safe to accept ours per-file). `/dso:resolve-conflicts` handles this automatically.
 
 ### 4.5. Sync Tickets to Jira
 
@@ -271,11 +271,11 @@ cd "$REPO_ROOT"
 git status --porcelain
 ```
 
-**All four conditions must be true** before proceeding (exclude `.tickets/` — ticket files sync independently and may appear dirty in worktrees):
-- No unstaged changes (`git diff --quiet -- ':!.tickets/'`)
-- No uncommitted staged changes (`git diff --cached --quiet -- ':!.tickets/'`)
-- No unmerged paths (`git diff --name-only --diff-filter=U -- ':!.tickets/'` is empty)
-- No untracked files (`git ls-files --others --exclude-standard -- ':!.tickets/'` is empty)
+**All four conditions must be true** before proceeding:
+- No unstaged changes (`git diff --quiet`)
+- No uncommitted staged changes (`git diff --cached --quiet`)
+- No unmerged paths (`git diff --name-only --diff-filter=U` is empty)
+- No untracked files (`git ls-files --others --exclude-standard` is empty)
 
 If any condition fails:
 1. Report the dirty files and which condition(s) failed.

@@ -23,6 +23,12 @@ echo "=== test-gh-availability-check.sh ==="
 _TMP=$(mktemp -d)
 trap 'rm -rf "$_TMP"' EXIT
 
+# Create a PATH directory containing bash but NOT gh, for not-installed tests.
+# Using /usr/bin:/bin doesn't work in CI where gh is at /usr/bin/gh.
+_NO_GH_PATH="$_TMP/no-gh-path"
+mkdir -p "$_NO_GH_PATH"
+ln -s "$(command -v bash)" "$_NO_GH_PATH/bash"
+
 # =============================================================================
 # test_gh_authenticated: Mock gh in PATH, mock gh auth status exit 0
 # assert output GH_STATUS=authenticated
@@ -82,7 +88,7 @@ echo ""
 echo "--- test_gh_not_installed ---"
 _snapshot_fail
 
-not_installed_output=$(PATH="/usr/bin:/bin" bash "$GH_AVAIL" 2>&1)
+not_installed_output=$(PATH="$_NO_GH_PATH" bash "$GH_AVAIL" 2>&1)
 assert_contains "test_gh_not_installed: GH_STATUS=not_installed in output" "GH_STATUS=not_installed" "$not_installed_output"
 assert_contains "test_gh_not_installed: FALLBACK=ui_steps in output" "FALLBACK=ui_steps" "$not_installed_output"
 
@@ -110,7 +116,7 @@ echo ""
 echo "--- test_fallback_ui_steps_format ---"
 _snapshot_fail
 
-ui_steps_output=$(PATH="/usr/bin:/bin" bash "$GH_AVAIL" 2>&1)
+ui_steps_output=$(PATH="$_NO_GH_PATH" bash "$GH_AVAIL" 2>&1)
 assert_contains "test_fallback_ui_steps_format: github.com reference in output" "github.com" "$ui_steps_output"
 
 assert_pass_if_clean "test_fallback_ui_steps_format"

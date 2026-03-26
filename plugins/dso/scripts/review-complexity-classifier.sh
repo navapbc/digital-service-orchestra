@@ -328,7 +328,7 @@ _diff_lines() {
         if [[ "$line" =~ ^diff\ --git\ a/.*\ b/(.*) ]]; then
             cur_file="${BASH_REMATCH[1]}"
         elif [[ "${line:0:1}" == "+" && "${line:1:1}" != "+" && -n "$cur_file" ]]; then
-            if ! is_test_file "$cur_file" && [[ "$cur_file" != .tickets/* ]]; then
+            if ! is_test_file "$cur_file" && [[ "$cur_file" != .tickets-tracker/* ]]; then
                 total_lines=$(( total_lines + 1 ))
             fi
         fi

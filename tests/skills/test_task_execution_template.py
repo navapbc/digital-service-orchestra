@@ -56,7 +56,7 @@ class TestTaskExecutionDiscoveredBugType:
     """
 
     def test_discovered_work_uses_bug_type_not_task(self) -> None:
-        """The tk create example in the Discovered work section must use '-t bug'.
+        """The ticket create example in the Discovered work section must use '-t bug'.
 
         The old template used '-t task' for all discovered work, causing orphan
         bug tickets to be misclassified. Sub-agents must use '-t bug' when
@@ -71,7 +71,7 @@ class TestTaskExecutionDiscoveredBugType:
         )
 
     def test_discovered_work_does_not_use_task_type_for_bugs(self) -> None:
-        """The tk create example for discovered bugs must not use '-t task'.
+        """The ticket create example for discovered bugs must not use '-t task'.
 
         Using '-t task' as the type for bug ticket creation causes orphan bug
         tickets to appear as tasks, making triage harder.
@@ -79,20 +79,20 @@ class TestTaskExecutionDiscoveredBugType:
         import re
 
         content = _read_template()
-        # The tk create line in the Discovered work section (step 8) must not
+        # The ticket create line in the Discovered work section (step 8) must not
         # instruct sub-agents to use '-t task' when creating tracking tickets
         # for discovered defects.
-        # Match lines that actually invoke tk create with -t task as the type
+        # Match lines that actually invoke ticket create with -t task as the type
         # argument (not lines that merely mention '-t task' in a comment).
-        # The pattern looks for: tk create followed (possibly with other args)
+        # The pattern looks for: ticket create followed (possibly with other args)
         # by -t task where 'task' is a positional value (not part of a longer word).
-        bad_pattern = re.compile(r"tk create\b.*?\B-t task\b")
+        bad_pattern = re.compile(r"ticket create\b.*?\B-t task\b")
         lines = content.splitlines()
         for i, line in enumerate(lines):
             if bad_pattern.search(line):
                 context = "\n".join(lines[max(0, i - 3) : i + 3])
                 assert False, (
-                    f"task-execution.md line {i + 1} uses 'tk create ... -t task' "
+                    f"task-execution.md line {i + 1} uses 'ticket create ... -t task' "
                     "which causes discovered bug tickets to be misclassified as tasks. "
                     f"Context:\n{context}"
                 )

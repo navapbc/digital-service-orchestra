@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=plugins/dso/scripts/ticket-lib.sh
 source "$SCRIPT_DIR/ticket-lib.sh"
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 TRACKER_DIR=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$TRACKER_DIR")
 

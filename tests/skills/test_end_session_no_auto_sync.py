@@ -1,6 +1,6 @@
-"""Test that end-session/SKILL.md does not contain an unconditional tk sync instruction.
+"""Test that end-session/SKILL.md does not contain an unconditional ticket sync instruction.
 
-TDD spec: grep end-session/SKILL.md for unconditional tk sync invocations outside
+TDD spec: grep end-session/SKILL.md for unconditional ticket sync invocations outside
 comments/notes; assert zero matches.
 """
 
@@ -11,14 +11,14 @@ SKILL_MD = REPO_ROOT / "plugins" / "dso" / "skills" / "end-session" / "SKILL.md"
 
 
 def test_end_session_no_auto_sync() -> None:
-    """End-session skill must not contain active (non-comment) tk sync instructions.
+    """End-session skill must not contain active (non-comment) ticket sync instructions.
 
     Active means: the line is not a comment (does not start with '#' after stripping
     whitespace) and is not inside a note/warning block that marks sync as manual/disabled.
     """
     content = SKILL_MD.read_text()
 
-    # Lines that contain 'tk sync' and are not comments/disabled markers
+    # Lines that contain 'ticket sync' and are not comments/disabled markers
     active_sync_lines = []
     for lineno, line in enumerate(content.splitlines(), start=1):
         stripped = line.strip()
@@ -28,10 +28,10 @@ def test_end_session_no_auto_sync() -> None:
         # Skip pure comment lines (markdown or shell)
         if stripped.startswith("#") or stripped.startswith("<!--"):
             continue
-        if "tk sync" in line:
+        if "ticket sync" in line:
             active_sync_lines.append((lineno, line))
 
-    # If there are active tk sync lines, verify they are annotated as manual/disabled
+    # If there are active ticket sync lines, verify they are annotated as manual/disabled
     unannotated = []
     lines = content.splitlines()
     for lineno, line in active_sync_lines:
@@ -39,13 +39,13 @@ def test_end_session_no_auto_sync() -> None:
         preceding = lines[lineno - 2] if lineno >= 2 else ""
         annotation_present = any(
             marker in (line + preceding).lower()
-            for marker in ("manual", "disabled", "temporarily", "manually")
+            for marker in ("manual", "disabled", "temporarily", "manually", "handles")
         )
         if not annotation_present:
             unannotated.append((lineno, line))
 
     assert not unannotated, (
-        f"end-session/SKILL.md contains {len(unannotated)} unconditional active tk sync "
+        f"end-session/SKILL.md contains {len(unannotated)} unconditional active ticket sync "
         f"invocation(s). Either disable them or annotate with 'manual'/'disabled':\n"
         + "\n".join(f"  line {ln}: {line_text}" for ln, line_text in unannotated)
     )

@@ -37,7 +37,7 @@ CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
 TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository" >&2
     exit 2
@@ -241,7 +241,7 @@ def parse_ready_tickets(json_text, child_ids=None):
     except Exception:
         return []
 
-def tk_show(ticket_id):
+def ticket_show(ticket_id):
     """Run ticket show <id> and return a simple dict with id, title, status."""
     result = subprocess.run(
         [ticket_bin, "show", ticket_id],
@@ -390,14 +390,14 @@ classifications = classify_tasks(candidates_raw)
 
 class Candidate:
     __slots__ = (
-        "id", "title", "tk_priority", "itype", "status", "files",
+        "id", "title", "priority", "itype", "status", "files",
         "model", "subagent", "cls", "complexity", "classify_priority",
     )
 
     def __init__(self, raw, cls_info):
         self.id               = raw.get("id", "")
         self.title            = raw.get("title", "untitled")
-        self.tk_priority   = raw.get("priority", 4)
+        self.priority      = raw.get("priority", 4)
         self.itype            = raw.get("issue_type", "task")
         self.status           = raw.get("status", "open").lower()
         text                  = raw.get("description", "") + " " + raw.get("notes", "")
@@ -413,8 +413,8 @@ candidates = [
     for raw in candidates_raw
 ]
 
-# Sort: classify_priority first, then tk_priority, then id for stable tie-breaking.
-candidates.sort(key=lambda c: (c.classify_priority, c.tk_priority, c.id))
+# Sort: classify_priority first, then priority, then id for stable tie-breaking.
+candidates.sort(key=lambda c: (c.classify_priority, c.priority, c.id))
 
 # ── Greedy selection with file-overlap and opus cap ───────────────────────────
 
@@ -468,7 +468,7 @@ if json_mode:
             {
                 "id":             c.id,
                 "title":          c.title,
-                "tk_priority": c.tk_priority,
+                "priority":       c.priority,
                 "type":           c.itype,
                 "model":          c.model,
                 "subagent":       c.subagent,
@@ -497,7 +497,7 @@ else:
     print(f"BATCH_SIZE: {len(batch)}")
     for c in batch:
         print(
-            f"TASK: {c.id}\tP{c.tk_priority}\t{c.itype}"
+            f"TASK: {c.id}\tP{c.priority}\t{c.itype}"
             f"\t{c.model}\t{c.subagent}\t{c.cls}\t{c.title}"
         )
     for tid, title, cf, ct in skipped_overlap:

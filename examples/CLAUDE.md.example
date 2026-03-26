@@ -37,8 +37,8 @@
 | Estimate context load | `.claude/scripts/dso estimate-context-load.sh debug-everything` | Before /dso:debug-everything |
 | Run batched tests | `.claude/scripts/dso test-batched.sh --timeout=50 "make test"` | Long-running test suites |
 | Validate ticket health | `.claude/scripts/dso validate-issues.sh --quick --terse` | After creating/updating tickets |
-| List ready tickets | `tk ready` | Check what to work on |
-| Show ticket details | `tk show <id>` | Inspect a specific ticket |
+| List ready tickets | `.claude/scripts/dso ticket list` | Check what to work on |
+| Show ticket details | `.claude/scripts/dso ticket show <id>` | Inspect a specific ticket |
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
@@ -65,7 +65,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 # 1. /dso:commit — auto-runs /dso:review if needed, then commits.
 # 2. git push (or .claude/scripts/dso merge-to-main.sh in worktree sessions)
 # 3. .claude/scripts/dso ci-status.sh --wait — must return "success"
-# 4. tk close <id> --reason="Fixed: <summary>" (--reason is REQUIRED)
+# 4. .claude/scripts/dso ticket transition <id> in_progress closed --reason="Fixed: <summary>"
 ```
 
 **Session close**: Use `/dso:end`.

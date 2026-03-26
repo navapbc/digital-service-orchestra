@@ -46,7 +46,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
 
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository" >&2
     exit 2
@@ -60,6 +60,15 @@ REDUCER="${CLAUDE_PLUGIN_ROOT}/scripts/ticket-reducer.py"
 
 # v3 event-sourced ticket system — the only supported backend.
 TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
+
+# Ensure tracker is initialized (worktree startup race condition fix).
+# In fresh worktrees, .tickets-tracker is a symlink created by ticket-init.sh.
+# If the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set (i.e., we
+# are using the default path, not a test override), call ticket-init.sh to create
+# the symlink before reading.
+if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+    bash "$SCRIPT_DIR/ticket-init.sh" --silent 2>/dev/null || true
+fi
 
 # Resolve Python — prefer config-driven venv path; fallback to python3
 READ_CONFIG="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" # reads dso-config.conf
@@ -303,7 +312,7 @@ OPUS_CAP = 2
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def tk_show(ticket_id):
+def ticket_show(ticket_id):
     """Run ticket show <id> and return a simple dict with id, title, status.
 
     The v3 ticket CLI returns JSON directly.
@@ -614,8 +623,8 @@ except FileNotFoundError:
 story_children_cache = {}  # story_id -> set of task IDs
 
 def find_parent_story(task_id):
-    """Find the parent of a task via tk show. Returns parent ID or None."""
-    data = tk_show(task_id)
+    """Find the parent of a task via ticket show. Returns parent ID or None."""
+    data = ticket_show(task_id)
     parent_id = data.get("parent", "")
     if parent_id:
         return parent_id
@@ -674,7 +683,7 @@ classifications = classify_tasks(candidates_raw)
 
 class Candidate:
     __slots__ = (
-        "id", "title", "tk_priority", "itype", "status", "files",
+        "id", "title", "priority", "itype", "status", "files",
         "files_read",
         "model", "subagent", "cls", "complexity",
         "classify_priority",
@@ -683,7 +692,7 @@ class Candidate:
     def __init__(self, raw, cls_info):
         self.id               = raw.get("id", "")
         self.title            = raw.get("title", "untitled")
-        self.tk_priority   = raw.get("priority", 4)
+        self.priority      = raw.get("priority", 4)
         self.itype            = raw.get("issue_type", "task")
         self.status           = raw.get("status", "open").lower()
         # Fetch full ticket content for seed file extraction
@@ -711,8 +720,8 @@ candidates = [
 ]
 
 # Sort: classify_priority first (1=interface-contract → highest urgency),
-# then tk_priority (0=critical), then id for stable tie-breaking.
-candidates.sort(key=lambda c: (c.classify_priority, c.tk_priority, c.id))
+# then priority (0=critical), then id for stable tie-breaking.
+candidates.sort(key=lambda c: (c.classify_priority, c.priority, c.id))
 
 # ── Greedy selection with file-overlap and opus cap ───────────────────────────
 
@@ -831,7 +840,7 @@ if json_mode:
             {
                 "id":             c.id,
                 "title":          c.title,
-                "tk_priority": c.tk_priority,
+                "priority": c.priority,
                 "type":           c.itype,
                 "model":          c.model,
                 "subagent":       c.subagent,
@@ -865,7 +874,7 @@ else:
     print(f"BATCH_SIZE: {len(batch)}")
     for c in batch:
         print(
-            f"TASK: {c.id}\tP{c.tk_priority}\t{c.itype}"
+            f"TASK: {c.id}\tP{c.priority}\t{c.itype}"
             f"\t{c.model}\t{c.subagent}\t{c.cls}\t{c.title}"
         )
     for tid, title, cf, ct in skipped_overlap:

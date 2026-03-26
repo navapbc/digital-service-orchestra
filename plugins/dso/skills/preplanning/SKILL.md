@@ -53,7 +53,7 @@ This skill implements a five-phase process to transform epics into implementable
 ### Step 1: Select and Load Epic (/dso:preplanning)
 
 If `<epic-id>` was not provided:
-1. Run `.claude/scripts/dso ticket list` then filter results to epics only (cross-reference with `grep -l '^type: epic' .tickets/*.md`)
+1. Run `.claude/scripts/dso ticket list` then filter results to epics only (filter JSON output where `ticket_type == 'epic'`)
 2. If no open epics exist, report and exit
 3. Present epics to the user (if more than 5, show first 5 with option to see more)
 4. Get user selection
@@ -289,10 +289,10 @@ Parse the blue team's accepted findings and apply each one based on its `type`:
 
 | Finding Type | Action |
 |-------------|--------|
-| `new_story` | Create a new story: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id>`. Then immediately use the Write or Edit tool to add the full body (description, done definitions, considerations) below the YAML frontmatter in `.tickets/<id>.md`. |
-| `modify_done_definition` | Edit the target story's ticket file (`.tickets/<target_story_id>.md`) to add or modify done definitions per the finding's description. |
+| `new_story` | Create a new story: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id>`. Then use `.claude/scripts/dso ticket comment <id> "<body>"` to add description, done definitions, and considerations. |
+| `modify_done_definition` | Use `.claude/scripts/dso ticket comment <target_story_id> "Done definition update: <description>"` to record the modified done definition. |
 | `add_dependency` | Add the dependency: `.claude/scripts/dso ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
-| `add_consideration` | Edit the target story's ticket file to append the consideration to its Considerations section. |
+| `add_consideration` | Use `.claude/scripts/dso ticket comment <target_story_id> "Consideration: <text>"` to append the consideration. |
 
 Log a summary after applying findings:
 ```
@@ -411,7 +411,7 @@ For new stories, create the ticket then immediately write the full story body in
 STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --parent=<epic-id> --priority=<priority>)
 ```
 
-Then use the Write or Edit tool to write the full body into `.tickets/<story-id>.md`, preserving the YAML frontmatter (lines 1–N ending with `---`) and replacing everything after it with the structured markdown body:
+Then use `.claude/scripts/dso ticket comment <story-id> "<body>"` to add the structured body content:
 
 ```markdown
 ## Description
@@ -440,7 +440,7 @@ Then use the Write or Edit tool to write the full body into `.tickets/<story-id>
 
 Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b. The ticket file must never be left as a bare title — always write the structured body immediately after creation.
 
-For modified stories, edit `.tickets/<existing-id>.md` directly to update the title heading and body sections.
+For modified stories, use `.claude/scripts/dso ticket comment <existing-id> "<updated content>"` to record changes.
 
 For stories to delete:
 ```bash
@@ -614,7 +614,7 @@ Display a summary table:
 
 After creating all stories and dependencies:
 ```bash
-$(git rev-parse --show-toplevel)/scripts/validate-issues.sh
+.claude/scripts/dso validate-issues.sh
 ```
 
 If score < 5, fix issues before presenting to user.
@@ -818,7 +818,7 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 | 2: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | 2.5: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | 3: Walking Skeleton | Prioritize critical path, apply INVEST, Foundation/Enhancement splits | Priority analysis, `.claude/scripts/dso ticket link` |
-| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.tickets/<id>.md` editing, `validate-issues.sh`, `/dso:design-wireframe` |
+| 4: Verification | Create stories, link criteria, validate, wireframe UI stories | `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket link`, `.claude/scripts/dso ticket comment`, `validate-issues.sh`, `/dso:design-wireframe` |
 
 ## Example: Reconciliation + Story Creation
 

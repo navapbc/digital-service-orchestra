@@ -84,7 +84,7 @@ Link each discovered issue to the epic:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/plugins/dso/scripts/validate-issues.sh
+.claude/scripts/dso validate-issues.sh
 ```
 
 ### Report

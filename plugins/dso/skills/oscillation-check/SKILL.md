@@ -87,6 +87,6 @@ Recommendation: Stop loop. Present both positions to user.
 
 ### Rules
 - Do NOT modify any code files
-- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`, edit `.tickets/` files
+- Do NOT `git commit`, `git push`, `.claude/scripts/dso ticket transition`, edit `.tickets-tracker/` files
 - You CAN run `git diff`, `git log`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`
 - This is a read-only analysis -- report findings only

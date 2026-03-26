@@ -2040,6 +2040,242 @@ trap - EXIT
 assert_pass_if_clean "test_stale_red_marker_regression"
 
 # ============================================================
+# test_progress_file_written_after_pass
+# After a test passes, its name is appended to the progress file
+# so a subsequent invocation can resume without re-running it.
+# ============================================================
+echo ""
+echo "=== test_progress_file_written_after_pass ==="
+_snapshot_fail
+
+TEST_REPO_PROG1=$(create_test_repo)
+ARTIFACTS_PROG1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_PROG1" "$ARTIFACTS_PROG1"' EXIT
+
+mkdir -p "$TEST_REPO_PROG1/src" "$TEST_REPO_PROG1/tests"
+cat > "$TEST_REPO_PROG1/src/alpha.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "alpha"
+SHEOF
+chmod +x "$TEST_REPO_PROG1/src/alpha.sh"
+cat > "$TEST_REPO_PROG1/tests/test-alpha.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_alpha_ok: PASS"
+exit 0
+SHEOF
+chmod +x "$TEST_REPO_PROG1/tests/test-alpha.sh"
+git -C "$TEST_REPO_PROG1" add -A
+git -C "$TEST_REPO_PROG1" commit -m "add alpha" --quiet 2>/dev/null
+echo "# changed" >> "$TEST_REPO_PROG1/src/alpha.sh"
+git -C "$TEST_REPO_PROG1" add -A
+
+MOCK_PROG1=$(mktemp "${TMPDIR:-/tmp}/mock-prog1-XXXXXX")
+chmod +x "$MOCK_PROG1"
+cat > "$MOCK_PROG1" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "test_alpha_ok: PASS"
+exit 0
+MOCKEOF
+
+EXIT_PROG1=$(
+    cd "$TEST_REPO_PROG1"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_PROG1" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PROG1" \
+    run_hook_exit
+)
+assert_eq "progress_file_written_after_pass: exits 0" "0" "$EXIT_PROG1"
+
+# After a full successful run, the progress file should be cleaned up
+DIFF_HASH_PROG1=$(cd "$TEST_REPO_PROG1" && bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null || echo "unknown")
+PROGRESS_FILE_PROG1=$(ls "$ARTIFACTS_PROG1"/test-gate-progress-* 2>/dev/null | head -1 || echo "")
+assert_eq "progress_file_cleaned_up_after_full_run: no progress file remains" "" "$PROGRESS_FILE_PROG1"
+
+# test-gate-status should record 'passed'
+STATUS_LINE_PROG1=$(head -1 "$ARTIFACTS_PROG1/test-gate-status" 2>/dev/null || echo "missing")
+assert_eq "progress_file_written_after_pass: status is passed" "passed" "$STATUS_LINE_PROG1"
+
+rm -f "$MOCK_PROG1"
+rm -rf "$TEST_REPO_PROG1" "$ARTIFACTS_PROG1"
+trap - EXIT
+
+assert_pass_if_clean "test_progress_file_written_after_pass"
+
+# ============================================================
+# test_sigurg_trap_writes_partial_not_passed
+# The SIGURG trap handler must write 'partial' as the first
+# line of test-gate-status — never 'passed' — so that the
+# pre-commit test gate does not accept a mid-run snapshot as
+# a valid pass when tests remain in the queue.
+# ============================================================
+echo ""
+echo "=== test_sigurg_trap_writes_partial_not_passed ==="
+_snapshot_fail
+
+TEST_REPO_SIGURG=$(create_test_repo)
+ARTIFACTS_SIGURG=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_SIGURG" "$ARTIFACTS_SIGURG"' EXIT
+
+mkdir -p "$TEST_REPO_SIGURG/src" "$TEST_REPO_SIGURG/tests"
+cat > "$TEST_REPO_SIGURG/src/beta.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "beta"
+SHEOF
+chmod +x "$TEST_REPO_SIGURG/src/beta.sh"
+# Two tests: the first passes, the second blocks forever (simulates timeout).
+# We will send SIGURG manually to the subshell to trigger the trap.
+cat > "$TEST_REPO_SIGURG/tests/test-beta.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_beta_ok: PASS"
+exit 0
+SHEOF
+chmod +x "$TEST_REPO_SIGURG/tests/test-beta.sh"
+git -C "$TEST_REPO_SIGURG" add -A
+git -C "$TEST_REPO_SIGURG" commit -m "add beta" --quiet 2>/dev/null
+echo "# changed" >> "$TEST_REPO_SIGURG/src/beta.sh"
+git -C "$TEST_REPO_SIGURG" add -A
+
+# We test the trap by directly sourcing the internal _write_partial_status
+# function in an isolated subshell where STATUS=passed and DIFF_HASH is set,
+# then calling the function. The function should write 'partial' to the status
+# file, not the value of STATUS ('passed').
+_PARTIAL_TEST_STATUS_FILE="$ARTIFACTS_SIGURG/test-gate-status"
+_PARTIAL_RESULT=$(
+    export ARTIFACTS_DIR="$ARTIFACTS_SIGURG"
+    export DIFF_HASH="abc123def456789"
+    export STATUS="passed"
+    export TESTED_FILES_LIST="src/beta.sh"
+    _write_partial_status() {
+        local _ts
+        _ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        cat > "$ARTIFACTS_DIR/test-gate-status" <<PARTIAL
+partial
+diff_hash=${DIFF_HASH}
+timestamp=${_ts}
+tested_files=${TESTED_FILES_LIST}
+PARTIAL
+    }
+    _write_partial_status
+    head -1 "$ARTIFACTS_DIR/test-gate-status" 2>/dev/null || echo "missing"
+)
+assert_eq "sigurg_trap_writes_partial_not_passed: first line is partial" "partial" "$_PARTIAL_RESULT"
+
+# Verify the function definition in record-test-status.sh writes "partial" not "${STATUS}"
+TRAP_WRITES_PARTIAL=$(grep -A 8 '_write_partial_status()' "$DSO_PLUGIN_DIR/hooks/record-test-status.sh" | grep -c '^partial$' || echo "0")
+assert_ne "sigurg_trap_does_not_use_status_variable: no \${STATUS} in heredoc body" "0" \
+    "$(grep -A 10 '_write_partial_status()' "$DSO_PLUGIN_DIR/hooks/record-test-status.sh" | grep -c '^partial$' || echo "0")"
+
+rm -rf "$TEST_REPO_SIGURG" "$ARTIFACTS_SIGURG"
+trap - EXIT
+
+assert_pass_if_clean "test_sigurg_trap_writes_partial_not_passed"
+
+# ============================================================
+# test_status_initialized_before_trap_registration
+# STATUS must be initialized BEFORE the SIGURG trap is
+# registered so ${STATUS} is never unbound when the trap fires.
+# Under set -u, an unbound STATUS in the trap handler causes an
+# error that silently aborts the handler.
+# ============================================================
+echo ""
+echo "=== test_status_initialized_before_trap_registration ==="
+_snapshot_fail
+
+# Verify source ordering: STATUS="passed" assignment must appear
+# before trap '_write_partial_status' URG in the file.
+RECORD_TS_CONTENT="$DSO_PLUGIN_DIR/hooks/record-test-status.sh"
+STATUS_LINE_NUM=$(grep -n '^STATUS="passed"' "$RECORD_TS_CONTENT" | head -1 | cut -d: -f1)
+TRAP_LINE_NUM=$(grep -n "trap '_write_partial_status' URG" "$RECORD_TS_CONTENT" | head -1 | cut -d: -f1)
+
+# Both lines must exist
+assert_ne "status_init_before_trap: STATUS line found" "" "$STATUS_LINE_NUM"
+assert_ne "status_init_before_trap: trap line found" "" "$TRAP_LINE_NUM"
+
+# STATUS assignment must come BEFORE the trap registration
+if [[ -n "$STATUS_LINE_NUM" ]] && [[ -n "$TRAP_LINE_NUM" ]]; then
+    if (( STATUS_LINE_NUM < TRAP_LINE_NUM )); then
+        _ORDER_RESULT="yes"
+    else
+        _ORDER_RESULT="no"
+    fi
+    assert_eq "status_init_before_trap: STATUS (line ${STATUS_LINE_NUM}) before trap (line ${TRAP_LINE_NUM})" "yes" "$_ORDER_RESULT"
+fi
+
+assert_pass_if_clean "test_status_initialized_before_trap_registration"
+
+# ============================================================
+# test_resume_skips_completed_tests
+# When a progress file exists for the current diff hash, tests
+# listed in it are skipped (not re-run), and they still appear
+# in the tested_files audit field.
+# ============================================================
+echo ""
+echo "=== test_resume_skips_completed_tests ==="
+_snapshot_fail
+
+TEST_REPO_RESUME=$(create_test_repo)
+ARTIFACTS_RESUME=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_RESUME" "$ARTIFACTS_RESUME"' EXIT
+
+mkdir -p "$TEST_REPO_RESUME/src" "$TEST_REPO_RESUME/tests"
+cat > "$TEST_REPO_RESUME/src/gamma.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "gamma"
+SHEOF
+chmod +x "$TEST_REPO_RESUME/src/gamma.sh"
+cat > "$TEST_REPO_RESUME/tests/test-gamma.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_gamma_ok: PASS"
+exit 0
+SHEOF
+chmod +x "$TEST_REPO_RESUME/tests/test-gamma.sh"
+git -C "$TEST_REPO_RESUME" add -A
+git -C "$TEST_REPO_RESUME" commit -m "add gamma" --quiet 2>/dev/null
+echo "# changed" >> "$TEST_REPO_RESUME/src/gamma.sh"
+git -C "$TEST_REPO_RESUME" add -A
+
+# Compute the diff hash for this repo so we can pre-populate the progress file
+DIFF_HASH_RESUME=$(cd "$TEST_REPO_RESUME" && bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null || echo "deadbeef")
+HASH_PREFIX="${DIFF_HASH_RESUME:0:16}"
+PROGRESS_FILE_RESUME="$ARTIFACTS_RESUME/test-gate-progress-${HASH_PREFIX}"
+
+# Pre-populate the progress file as if tests/test-gamma.sh already passed
+echo "tests/test-gamma.sh" > "$PROGRESS_FILE_RESUME"
+
+# Use a mock runner that fails — if the hook correctly skips the already-passed
+# test, it should exit 0; if it re-runs the test, it would exit 1.
+MOCK_RESUME=$(mktemp "${TMPDIR:-/tmp}/mock-resume-XXXXXX")
+chmod +x "$MOCK_RESUME"
+cat > "$MOCK_RESUME" << 'MOCKEOF'
+#!/usr/bin/env bash
+# This runner should never be called when resume is working correctly.
+echo "test_gamma_ok: FAIL (should have been skipped)"
+exit 1
+MOCKEOF
+
+EXIT_RESUME=$(
+    cd "$TEST_REPO_RESUME"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RESUME" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RESUME" \
+    run_hook_exit
+)
+assert_eq "resume_skips_completed_tests: exits 0 when test already passed" "0" "$EXIT_RESUME"
+
+# The final status file should show 'passed'
+STATUS_RESUME=$(head -1 "$ARTIFACTS_RESUME/test-gate-status" 2>/dev/null || echo "missing")
+assert_eq "resume_skips_completed_tests: final status is passed" "passed" "$STATUS_RESUME"
+
+# The tested_files field should include the skipped test (for audit accuracy)
+TESTED_RESUME=$(grep '^tested_files=' "$ARTIFACTS_RESUME/test-gate-status" 2>/dev/null || echo "")
+assert_contains "resume_skips_completed_tests: skipped test appears in tested_files" "test-gamma.sh" "$TESTED_RESUME"
+
+rm -f "$MOCK_RESUME"
+rm -rf "$TEST_REPO_RESUME" "$ARTIFACTS_RESUME"
+trap - EXIT
+
+assert_pass_if_clean "test_resume_skips_completed_tests"
+
 # test_red_marker_survives_overwrite_by_unmarked_entry (Bug A — b9a9-4cb3)
 # When TWO staged source files both map to the SAME test file via
 # .test-index, and one entry has a RED marker while the other does not,

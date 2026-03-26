@@ -49,6 +49,29 @@ files alongside the production code changes.
 - [ ] Fixtures are scoped appropriately: function-scope for tests that mutate state,
   session/module-scope only for truly read-only shared setup
 
+#### Project Test Pattern Recognition
+
+**Bash test files** (tests/agents/, tests/hooks/, tests/scripts/):
+- [ ] Bash tests use `assert_eq`, `assert_ne`, `assert_contains` from `tests/lib/assert.sh`
+  rather than raw `if`/exit-code checks — direct `[[ ]]` tests without assert helpers are
+  weaker and harder to diagnose on failure
+- [ ] Each bash test group wraps its assertions with `_snapshot_fail` before and
+  `assert_pass_if_clean` after — missing this pattern causes spurious PASS results when
+  counters are not properly scoped
+- [ ] Bash test files include a `cleanup trap` (e.g., `trap "..." EXIT`) when they create
+  temporary files or directories — missing EXIT traps leave test debris that can pollute
+  subsequent runs
+
+**Python test files** (app/tests/):
+- [ ] Python tests use `pytest.mark.parametrize` for data-driven cases rather than copying
+  the same test body with different inputs — repeated test bodies are a maintainability smell
+  and miss pytest's built-in parameterization
+- [ ] Python tests use `tmp_path` or `monkeypatch` fixtures for filesystem and environment
+  isolation — tests that write to real paths or mutate `os.environ` directly risk cross-test
+  contamination (fixture isolation)
+- [ ] Python tests use `pytest.raises` with `match=` to assert the exception message, not
+  just the exception type
+
 ### Edge Case Coverage
 - [ ] Empty inputs (empty string, empty list, empty dict) tested
 - [ ] None/null inputs tested where the function accepts optional values
@@ -61,8 +84,29 @@ files alongside the production code changes.
   logic under test
 - [ ] Mocks return realistic values; mocks returning None or `{}` for complex objects
   may hide integration bugs
-- [ ] Over-mocking: if a test mocks more than 3 internal collaborators, it may not be
-  testing anything meaningful
+- [ ] **Over-mocking** (mocking the unit under test): if a test mocks the very function
+  or class it claims to be testing, it is testing the mock framework — not the code; flag
+  any test that patches the module-under-test's own symbols rather than its dependencies
+- [ ] **Under-mocking** (calling real external resources in unit tests): flag tests that
+  make real network calls, real filesystem writes outside tmp_path/mktemp, or real DB
+  queries in a unit test context — these are integration tests misclassified as unit tests
+  and will cause flaky CI when the external resource is unavailable
+
+### Project TDD Workflow Awareness
+
+When the diff modifies `.test-index`:
+- [ ] Added `.test-index` entries must point to test files that actually exist on disk
+  (stale entries cause the pre-commit test gate to fail for unrelated changes)
+- [ ] RED marker syntax `[test_name]` must appear after the test file path, not before —
+  incorrect placement disables the RED marker guard silently
+- [ ] If a `[marker]` is removed from `.test-index`, verify the corresponding test now
+  passes (the marker should only be removed once the implementation is complete — GREEN)
+
+When the diff adds new tests for not-yet-implemented features:
+- [ ] Confirm new tests are placed at the END of the test file (RED tests must come last,
+  as the RED marker identifies the boundary between GREEN and RED tests)
+- [ ] Confirm a corresponding `.test-index` entry with `[test_name]` marker exists so
+  the pre-commit test gate does not block on the expected failure
 
 ### Integration Gap
 - [ ] If the diff introduces a new integration point (new API call, new DB query, new

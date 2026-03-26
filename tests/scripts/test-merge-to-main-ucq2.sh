@@ -69,20 +69,21 @@ HAS_REBASE_HEAD=$(echo "$ABORT_FUNC_BODY" | grep -c 'REBASE_HEAD' || true)
 assert_ne "test_abort_stale_rebase_checks_rebase_head" "0" "$HAS_REBASE_HEAD"
 
 # =============================================================================
-# Test 8: Pull conflict path emits CONFLICT_DATA with phase=pull_rebase
-# When git pull --rebase fails, structured conflict data should be emitted.
+# Test 8: Pull section uses ancestor check before attempting merge
+# Bug a8a1-6e9b: replaced unconditional git pull --rebase with ancestor guard.
+# When origin/main is ancestor of HEAD, pull is skipped entirely.
 # =============================================================================
-HAS_PULL_CONFLICT_DATA=$(grep -c 'CONFLICT_DATA.*phase=pull_rebase' "$MERGE_SCRIPT" || true)
-assert_ne "test_pull_conflict_emits_conflict_data" "0" "$HAS_PULL_CONFLICT_DATA"
+HAS_ANCESTOR_CHECK=$(grep -c 'merge-base --is-ancestor origin/main HEAD' "$MERGE_SCRIPT" || true)
+assert_ne "test_pull_section_has_ancestor_guard" "0" "$HAS_ANCESTOR_CHECK"
 
 # =============================================================================
-# Test 9: Pull conflict path records conflict state via _set_phase_status
-# The pull failure path should record conflict status in the state file.
+# Test 9: Pull section uses git merge (not rebase) for diverged case
+# Bug a8a1-6e9b: when origin/main is NOT an ancestor, merge is more tolerant
+# than rebase for bringing origin/main into main.
 # =============================================================================
-# Extract the pull --rebase failure block (from 'git pull --rebase' to the next phase)
-PULL_SECTION=$(sed -n '/git pull --rebase/,/OK: Pulled remote/p' "$MERGE_SCRIPT")
-HAS_CONFLICT_STATE=$(echo "$PULL_SECTION" | grep -cE '_set_phase_status.*conflict|_set_phase_status.*pull_rebase' || true)
-assert_ne "test_pull_conflict_records_conflict_state" "0" "$HAS_CONFLICT_STATE"
+PHASE_SYNC_BODY_PULL=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT")
+HAS_MERGE_ORIGIN=$(echo "$PHASE_SYNC_BODY_PULL" | grep -c 'git merge origin/main' || true)
+assert_ne "test_pull_section_uses_merge_not_rebase" "0" "$HAS_MERGE_ORIGIN"
 
 # =============================================================================
 # Test 10: Push section calls _check_push_needed before retry_with_backoff git push
@@ -99,16 +100,15 @@ fi
 assert_eq "test_push_section_calls_check_push_needed" "yes" "$PUSH_ORDER_OK"
 
 # =============================================================================
-# Test 11: Pull section calls _abort_stale_rebase before git pull --rebase
-# The sync phase should clean up stale rebase state BEFORE attempting git pull --rebase.
+# Test 11: Pull section calls _abort_stale_rebase before merge in diverged path
+# The sync phase should clean up stale rebase state BEFORE attempting merge
+# with origin/main in the diverged (non-ancestor) code path.
 # =============================================================================
-# Extract line numbers within _phase_sync: _abort_stale_rebase must appear BEFORE git pull --rebase
-# We need a call to _abort_stale_rebase that is BEFORE the git pull --rebase line (not just in the error handler)
-PHASE_SYNC_BODY=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT")
-# Get line numbers within the phase body
-ABORT_BEFORE_PULL_LINE=$(echo "$PHASE_SYNC_BODY" | grep -n '_abort_stale_rebase' | head -1 | cut -d: -f1)
-PULL_REBASE_LINE=$(echo "$PHASE_SYNC_BODY" | grep -n 'git pull --rebase' | head -1 | cut -d: -f1)
-if [[ -n "$ABORT_BEFORE_PULL_LINE" && -n "$PULL_REBASE_LINE" && "$ABORT_BEFORE_PULL_LINE" -lt "$PULL_REBASE_LINE" ]]; then
+# Extract the pull section specifically (after "Pulling remote changes")
+PULL_SECTION_BODY=$(sed -n '/Pulling remote changes/,/OK: Pulled remote/p' "$MERGE_SCRIPT")
+ABORT_LINE=$(echo "$PULL_SECTION_BODY" | grep -n '_abort_stale_rebase' | head -1 | cut -d: -f1)
+MERGE_LINE=$(echo "$PULL_SECTION_BODY" | grep -n 'git merge origin/main' | head -1 | cut -d: -f1)
+if [[ -n "$ABORT_LINE" && -n "$MERGE_LINE" && "$ABORT_LINE" -lt "$MERGE_LINE" ]]; then
     ABORT_ORDER_OK="yes"
 else
     ABORT_ORDER_OK="no"

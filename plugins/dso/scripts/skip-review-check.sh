@@ -9,7 +9,7 @@ set -uo pipefail
 #
 # Usage:
 #   git diff HEAD --name-only | bash scripts/skip-review-check.sh
-#   echo '.tickets/abc.md' | bash scripts/skip-review-check.sh
+#   echo '.tickets-tracker/abc.md' | bash scripts/skip-review-check.sh
 #
 # Classification logic extracted from COMMIT-WORKFLOW.md Step 0.5 (lines 48-74).
 
@@ -44,14 +44,13 @@ if [[ -f "$_ALLOWLIST_FILE" ]]; then
         # Skip empty lines and comments
         [[ -z "$_line" || "$_line" == \#* ]] && continue
         # Convert glob patterns: ** → * for bash pattern matching
-        # e.g., .tickets/** → .tickets/*
+        # e.g., .tickets-tracker/** → .tickets-tracker/*
         _pat="${_line/\*\*/*}"
         _ALLOWLIST_PATTERNS+=("$_pat")
     done < "$_ALLOWLIST_FILE"
 else
     # Graceful degradation: fall back to hardcoded patterns when allowlist is missing
     _ALLOWLIST_PATTERNS=(
-        ".tickets/*"
         ".tickets-tracker/*"
         ".sync-state.json"
         ".checkpoint-needs-review"

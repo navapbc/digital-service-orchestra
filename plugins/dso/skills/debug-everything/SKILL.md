@@ -114,8 +114,7 @@ This ensures a fresh start — no stale discoveries from a previous session. Cle
 Before launching diagnostics, estimate context load:
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-$REPO_ROOT/plugins/dso/scripts/estimate-context-load.sh debug-everything 2>/dev/null | tail -5
+.claude/scripts/dso estimate-context-load.sh debug-everything 2>/dev/null | tail -5
 ```
 
 If the static context load is >10,000 tokens, trim `MEMORY.md` before continuing to avoid premature compaction (per CLAUDE.md). Removing stale/redundant entries from `MEMORY.md` is sufficient — aim to bring the static load under 10,000 tokens before proceeding.
@@ -401,7 +400,7 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
 
    For each candidate issue in the batch:
    a. Extract seed file paths from the issue description/triage report
-   b. Run `$REPO_ROOT/plugins/dso/scripts/analyze-file-impact.py --root $REPO_ROOT/app <seed-files>` to get
+   b. Run `python3 "$PLUGIN_SCRIPTS/analyze-file-impact.py" --root $REPO_ROOT/app <seed-files>` to get
       `files_likely_modified` and `files_likely_read` for each candidate (timeout: 30s)
    c. **Graceful degradation**: If `analyze-file-impact.py` is missing, errors, or times out,
       fall back to text-based file extraction from issue descriptions (existing behavior).
@@ -415,13 +414,13 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
    - **Read-read overlap** (`files_likely_read` intersections) is allowed — only write-write
      conflicts trigger deferral
    - Log the conflict matrix to stderr for observability, using the same format as
-     `$REPO_ROOT/plugins/dso/scripts/sprint-next-batch.sh`:
+     `$PLUGIN_SCRIPTS/sprint-next-batch.sh`:
      ```
      CONFLICT_MATRIX: <issue-A> x <issue-B> -> overlap on <file> (deferred: <issue-B>)
      ```
 
    This deterministic, zero-LLM-cost approach replaces the previous sub-agent dispatch for
-   overlap checking. See `$REPO_ROOT/plugins/dso/scripts/sprint-next-batch.sh` lines 545-583 for the
+   overlap checking. See `$PLUGIN_SCRIPTS/sprint-next-batch.sh` lines 545-583 for the
    reference greedy selection algorithm with file-overlap detection.
 
 ---
@@ -492,7 +491,7 @@ Before dispatching sub-agents, create the blackboard file and build per-agent fi
    ```
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
-   echo "$BATCH_JSON" | "$REPO_ROOT/plugins/dso/scripts/write-blackboard.sh"
+   echo "$BATCH_JSON" | .claude/scripts/dso write-blackboard.sh
    ```
    The top-level key must be `batch`. Each entry must use `id` (the ticket ID) and `files` (list of files_likely_modified). Do not use `tasks`, `agents`, `task_id`, or `files_owned` — those are internal blackboard schema keys, not input keys.
    If `write-blackboard.sh` fails, log a warning and continue without blackboard — sub-agents will receive empty `{file_ownership_context}`. Blackboard failure must not block sub-agent dispatch.
@@ -750,7 +749,7 @@ Remaining in tier: {count}"
 Before committing, run the semantic conflict check on the combined diff:
 
 ```bash
-git diff | python3 $REPO_ROOT/plugins/dso/scripts/semantic-conflict-check.py
+git diff | python3 "$PLUGIN_SCRIPTS/semantic-conflict-check.py"
 ```
 
 Parse the JSON output:
@@ -766,7 +765,7 @@ Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inlin
 
 **Blackboard cleanup**: After the commit, run `write-blackboard.sh --clean` to remove the blackboard file:
 ```bash
-"$REPO_ROOT/plugins/dso/scripts/write-blackboard.sh" --clean
+.claude/scripts/dso write-blackboard.sh --clean
 ```
 If blackboard cleanup fails, log a warning and continue — cleanup failure is non-fatal and must not block the next batch or graceful shutdown.
 
@@ -775,7 +774,7 @@ If blackboard cleanup fails, log a warning and continue — cleanup failure is n
 After the commit completes and before launching the next batch, collect discoveries from sub-agents:
 
 ```bash
-DISCOVERIES=$($REPO_ROOT/plugins/dso/scripts/collect-discoveries.sh --format=prompt)
+DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh --format=prompt)
 ```
 
 If discoveries exist (non-empty and not just `"None."`), inject the `## PRIOR_BATCH_DISCOVERIES` section into the next batch's sub-agent prompts by appending it to the fix-task prompt context.

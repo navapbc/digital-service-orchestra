@@ -59,29 +59,13 @@ MERGE_IN_PROGRESS=$(test -f "$(git rev-parse --git-dir)/MERGE_HEAD" && echo "yes
 - If `$MERGE_IN_PROGRESS` is `yes` and no unresolved conflicts remain: report "Merge in progress with all conflicts pre-resolved — run `git commit` to finalize the merge." and exit. Do NOT report "no conflicts detected" — the merge needs committing, not aborting.
 - If `$MERGE_IN_PROGRESS` is `no`: report "No conflicts detected — merge is clean." and exit.
 
-Separate `.tickets/` conflicts from code conflicts:
+Separate `.tickets-tracker/` conflicts from code conflicts:
 ```bash
-TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep '^\.tickets/' || true)
-CODE_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^\.tickets/' || true)
+TICKET_CONFLICTS=$(echo "$CONFLICTED" | grep '^\.tickets-tracker/' || true)
+CODE_CONFLICTS=$(echo "$CONFLICTED" | grep -v '^\.tickets-tracker/' || true)
 ```
 
-**NEVER use `git checkout --ours -- .tickets/` or `git merge -X ours` for ticket conflicts.** Main may have received updates from another worktree; blindly accepting the worktree version can destroy those updates.
-
-Handle `.tickets/` conflicts as follows:
-
-- **`.tickets/` files** (individual ticket `.md` files, archive files): **Must show a diff to the user and ask which version to keep.** For each conflicted ticket file:
-  1. Show the diff between both versions:
-     ```bash
-     echo "=== Ticket conflict: <file> ==="
-     git show :2:<file>  # ours (worktree version)
-     echo "--- vs main version ---"
-     git show :3:<file>  # theirs (main version)
-     ```
-  2. Briefly summarize the differences (e.g., status changes, note additions, field changes)
-  3. Ask the user: "Keep worktree version, main version, or merge manually?"
-  4. Apply only after receiving explicit user confirmation
-
-If only `.tickets/` conflicts existed and all are resolved (with user approval where required): complete the merge and exit.
+If only `.tickets-tracker/` conflicts exist (JSON event files): auto-resolve by accepting ours (`git checkout --ours` + `git add` for each), complete the merge, and exit. Ticket event files are append-only and safe to auto-resolve.
 
 If code conflicts exist: proceed to Step 2.
 
@@ -175,7 +159,7 @@ If resolution was abandoned (user chose to resolve manually):
 
 ## Constraints
 
-- All `.tickets/` files (individual ticket `.md` and archive files) require user confirmation — never use "ours" strategy on them.
+- `.tickets-tracker/` JSON event files are auto-resolved (accept ours) — they are append-only and safe to resolve without user input.
 - Sub-agent model: **sonnet** — conflict resolution needs code understanding but not architectural reasoning
 - This skill does NOT commit or push — it only completes the merge. The calling skill handles commit/push.
 - Maximum 10 conflicted files. Above that, report to user: "Too many conflicts for agent-assisted resolution. Consider rebasing incrementally."

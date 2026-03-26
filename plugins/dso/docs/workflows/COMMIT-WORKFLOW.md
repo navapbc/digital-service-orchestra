@@ -91,31 +91,19 @@ Run unit tests to catch breakage before investing in review.
 
 > **Timeout rule**: Always set `timeout: 600000` on ALL Bash tool calls in this workflow — including fast commands like `ruff check`. Claude Code's hard ceiling is ~73s without the explicit timeout parameter (drops to ~48s), and even short commands can receive SIGURG (exit 144) during internal event processing. See CLAUDE.md rule 11 (Always Do These).
 
-> **Long-running test suites (>60s)**: If the project's test command is expected to exceed 60 seconds (e.g., `bash tests/run-all.sh`), wrap it with `test-batched.sh` instead of invoking it bare. A bare invocation will be killed by the ~73s tool timeout ceiling (exit 144), producing spurious failures. See CLAUDE.md rule 12 (Always Do These).
+Resolve the test command from config, then run it using `test-batched.sh` for per-test resume on timeout. **Prefer `--runner=bash --test-dir=<dir>` for bash test suites** — this discovers `test-*.sh` files and runs each as a separate item, so completed tests are skipped on resume:
 
-Resolve the test command from config, then run it:
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+.claude/scripts/dso test-batched.sh --timeout=50 --runner=bash --test-dir="$REPO_ROOT/tests/scripts"
+```
+
+If no runner driver applies (the test command is not a directory of scripts), resolve the test command from config and fall back to the generic runner which wraps the entire command as a single item (no sub-test resume):
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 TEST_CMD="$(".claude/scripts/dso read-config.sh" commands.test_unit 2>/dev/null || echo "make test-unit-only")"
-```
-
-**If the test command is expected to complete in under 60s**, run it directly (with `timeout: 600000` on the Bash tool call):
-
-```bash
-cd app && $TEST_CMD 2>&1 | tail -5
-```
-
-**If the test command is expected to exceed 60s** (e.g., `bash tests/run-all.sh`), use `test-batched.sh` with a runner driver for per-test resume. **Prefer `--runner=bash --test-dir=<dir>` for bash test suites** — this discovers `test-*.sh` and `run-*-tests.sh` files and runs each as a separate item, so completed tests are skipped on resume:
-
-```bash
-bash "$REPO_ROOT/plugins/dso/scripts/test-batched.sh" --timeout=50 --runner=bash --test-dir="$REPO_ROOT/tests/scripts"
-```
-
-If no runner driver applies (the test command is not a directory of scripts), fall back to the generic runner which wraps the entire command as a single item (no sub-test resume):
-
-```bash
-bash "$REPO_ROOT/plugins/dso/scripts/test-batched.sh" --timeout=50 "$TEST_CMD"
+.claude/scripts/dso test-batched.sh --timeout=50 "$TEST_CMD"
 ```
 
 When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
@@ -314,7 +302,7 @@ bash "$(git rev-parse --show-toplevel)/plugins/dso/hooks/record-test-status.sh"
 - **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 3a.
 - **exit 144**: test runner was terminated; follow the actionable guidance printed by `record-test-status.sh`. Use `test-batched.sh` to run the tests in time-bounded chunks:
   ```bash
-  bash "$(git rev-parse --show-toplevel)/plugins/dso/scripts/test-batched.sh" --timeout=50 "bash tests/hooks/test-<name>.sh"
+  .claude/scripts/dso test-batched.sh --timeout=50 "bash tests/hooks/test-<name>.sh"
   ```
   When `test-batched.sh` runs out of time, it emits a **Structured Action-Required Block**:
   ```

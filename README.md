@@ -21,7 +21,7 @@ pre-commit install       # installs hooks from .pre-commit-config.yaml
 
 ### External Dependencies
 
-- **`tk`** (required) — Ticket management CLI for issue tracking workflows. See [https://github.com/lockpick/tk](https://github.com/lockpick/tk) for installation.
+- **`ticket`** (built-in) — Event-sourced ticket management CLI for issue tracking workflows. Installed via `.claude/scripts/dso ticket <subcommand>`. No external dependency required.
 
 ## Configuration
 
@@ -40,7 +40,7 @@ See [`docs/CONFIG-RESOLUTION.md`](docs/CONFIG-RESOLUTION.md) for resolution orde
 
 - **Skills** — Sprint management (`/dso:sprint`), bug fixes (`/dso:fix-bug`), TDD for new features (`/dso:tdd-workflow`), review gates (`/review`, `/commit`), plan review (`/dso:plan-review`), and more.
 - **Hooks** — Pre-commit review gate (two-layer defense), post-tool formatting, validation gate.
-- **Scripts** — `tk` wrappers, CI status polling, worktree utilities, merge-to-main orchestration.
+- **Scripts** — Ticket CLI, CI status polling, worktree utilities, merge-to-main orchestration.
 - **Docs** — Workflow guides, architecture decisions, incident templates, and onboarding materials.
 
 ## Parent Project

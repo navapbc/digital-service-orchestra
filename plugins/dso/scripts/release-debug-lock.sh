@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 REASON="${1:-Session complete}"
 
 # Check for an active lock using the canonical lock-status subcommand

@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 show_all=false
 [[ "${1:-}" == "--all" ]] && show_all=true
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 
 # ---------------------------------------------------------------------------
@@ -33,6 +33,18 @@ REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 # Reads from .tickets-tracker/ (or TICKETS_TRACKER_DIR env override).
 # ---------------------------------------------------------------------------
 TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
+
+# ---------------------------------------------------------------------------
+# Ensure tracker is initialized (worktree startup race condition fix).
+# In fresh worktrees, .tickets-tracker is a symlink created by ticket-init.sh.
+# If the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set (i.e., we
+# are using the default path, not a test override), call ticket-init.sh to create
+# the symlink before reading. Without this, sprint-list-epics.sh silently reports
+# "No open epics found" when it's the first script to run in a new worktree session.
+# ---------------------------------------------------------------------------
+if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+    bash "$SCRIPT_DIR/ticket-init.sh" --silent 2>/dev/null || true
+fi
 
 # ---------------------------------------------------------------------------
 # Retry configuration for worktree startup race conditions.

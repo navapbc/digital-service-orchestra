@@ -48,6 +48,18 @@ if [ -z "$DSO_ROOT" ]; then
     exit 1
 fi
 
+# ── Resolve PROJECT_ROOT ──────────────────────────────────────────────────────
+# Export the host project's git root so dispatched scripts can locate project
+# resources (.tickets-tracker, app/, tests/) without relying on CWD or
+# git rev-parse (which returns the wrong root when CWD is the plugin cache).
+# Resolution: reuse REPO_ROOT if already computed above; otherwise compute now.
+if [ -z "${REPO_ROOT:-}" ]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT=""
+fi
+if [ -n "$REPO_ROOT" ]; then
+    export PROJECT_ROOT="$REPO_ROOT"
+fi
+
 # ── Library mode ──────────────────────────────────────────────────────────────
 
 # Library mode: export DSO_ROOT and return without dispatching

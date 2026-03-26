@@ -77,14 +77,14 @@ rm -f "$_CASCADE_COUNTER_FILE" 2>/dev/null || true
 
 # ============================================================
 # test_pre_edit_dispatcher_title_length_blocks_over_255_chars
-# When editing a .tickets/ file with a title > 255 chars, the dispatcher
+# When editing a .tickets-tracker/ file with a title > 255 chars, the dispatcher
 # must exit 2 (blocked by title-length-validator).
 # ============================================================
 echo "--- test_pre_edit_dispatcher_title_length_blocks_over_255_chars ---"
 
 # Generate a title exactly 256 characters long (1 over the 255 limit)
 _long_title=$(printf '%-256s' 'A' | tr ' ' 'A')
-_tickets_path="$_FAKE_ROOT/.tickets/test-ticket-123.md"
+_tickets_path="$_FAKE_ROOT/.tickets-tracker/test-ticket-123.md"
 _INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_tickets_path"'","old_string":"# Short title","new_string":"# '"$_long_title"'"}}'
 _exit_code=0
 _output=""
@@ -100,9 +100,9 @@ assert_contains "test_pre_edit_dispatcher_title_length_blocks_over_255_chars: BL
 # ============================================================
 echo "--- test_pre_write_dispatcher_sources_same_functions_as_edit ---"
 
-# Test that pre-write also blocks title > 255 chars on .tickets/ write
+# Test that pre-write also blocks title > 255 chars on .tickets-tracker/ write
 _long_title2=$(printf '%-256s' 'B' | tr ' ' 'B')
-_tickets_path2="$_FAKE_ROOT/.tickets/test-write-ticket.md"
+_tickets_path2="$_FAKE_ROOT/.tickets-tracker/test-write-ticket.md"
 _write_content="# ${_long_title2}
 
 Some content."
@@ -160,23 +160,7 @@ _fns_loaded=0
 ) 2>/dev/null && _fns_loaded=1
 assert_eq "test_pre_edit_write_functions_loaded_via_lib_file: all 4 functions defined" "1" "$_fns_loaded"
 
-# ============================================================
-# test_pre_edit_dispatcher_cascade_exempt_allows_tickets
-# Even at cascade threshold, editing .tickets/ files is allowed.
-# ============================================================
-echo "--- test_pre_edit_dispatcher_cascade_exempt_allows_tickets ---"
-
-# Set cascade counter to 10 (well above threshold)
-mkdir -p "$_CASCADE_STATE_DIR"
-echo "10" > "$_CASCADE_COUNTER_FILE"
-
-_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_FAKE_ROOT"'/.tickets/some-ticket.md","old_string":"old","new_string":"new"}}'
-_exit_code=0
-printf '%s' "$_INPUT" | (cd "$_FAKE_ROOT" && bash "$PRE_EDIT_DISPATCHER" 2>/dev/null) || _exit_code=$?
-assert_eq "test_pre_edit_dispatcher_cascade_exempt_allows_tickets" "0" "$_exit_code"
-
-# Cleanup cascade counter
-rm -f "$_CASCADE_COUNTER_FILE" 2>/dev/null || true
+# (v2 .tickets/ cascade exemption test removed — v2 backward compat removed)
 
 # ============================================================
 # test_pre_write_dispatcher_cascade_blocks_non_exempt_at_threshold

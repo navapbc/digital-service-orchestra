@@ -55,7 +55,7 @@ Report your findings exactly as:
 - REMEDIATION: {for each issue, a concrete one-line task description}
 
 ### Rules
-- Do NOT: git commit, git push, .claude/scripts/dso ticket transition, edit .tickets/ files
+- Do NOT: git commit, git push, .claude/scripts/dso ticket transition, edit .tickets-tracker/ files
 - Do NOT modify any code — this is a read-only review
 - Do NOT re-run format, lint, or unit tests (already verified by /dso:validate-work)
 - Be specific: include file paths, test names, exact error messages

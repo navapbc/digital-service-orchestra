@@ -4,17 +4,7 @@
 - Scope: ticket-system-v3 (epic w21-ablv and follow-on epics)
 - Date: 2026-03-22
 
-This document is a high-level operational guide for the event-sourced ticket system. It consolidates topics deferred from Epics 1–3 that are not covered by the ADR or per-story contracts. For design rationale and decision trade-offs, see the cross-referenced ADR below.
-
----
-
-## Cross-Reference to ADR
-
-All architectural decisions — why event sourcing was chosen, why orphan branch over SQLite or a separate repository, and the full consequences analysis — are documented in:
-
-- `plugins/dso/docs/designs/adr-ticket-v3-event-sourced-storage.md`
-
-This guide focuses on **how to operate and call** the system; the ADR explains **why** it is designed this way.
+This document is a high-level operational guide for the event-sourced ticket system. It consolidates topics deferred from Epics 1–3 and covers per-story contracts for the system. This guide focuses on **how to operate and call** the system.
 
 ---
 

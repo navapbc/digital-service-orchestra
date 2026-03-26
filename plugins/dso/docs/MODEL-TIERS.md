@@ -107,7 +107,7 @@ These are real examples found during audit. Each shows a model assignment that i
 | `/dso:debug-everything` | Critic review of complex multi-file fixes | Haiku misses subtle architectural issues in fix correctness | **Sonnet** |
 | `/dso:debug-everything` | Post-batch validation parsing complex type errors | Initially flagged, but audit determined these agents relay structured PASS/FAIL output from scripts — no judgment needed | **Haiku** (confirmed) |
 | `/dso:validate-work` | Local validation parsing structured script output | Runs validate.sh and parses structured PASS/FAIL lines — mechanical output relay | **Haiku** (confirmed) |
-| `/dso:validate-work` | Ticket health running validate-issues.sh | Runs validate-issues.sh and tk commands that emit structured counts — no relationship reasoning needed | **Haiku** (confirmed) |
+| `/dso:validate-work` | Ticket health running validate-issues.sh | Runs validate-issues.sh and ticket commands that emit structured counts — no relationship reasoning needed | **Haiku** (confirmed) |
 | `/dso:validate-work` | Staging deployment check with nested JSON | Nested JSON correlation requires structured reasoning | **Sonnet** |
 
 ### The Pattern

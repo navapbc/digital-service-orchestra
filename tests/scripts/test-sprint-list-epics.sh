@@ -573,6 +573,104 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 28: Script initializes tracker when dir doesn't exist (worktree startup) ─
+echo "Test 28: test_init_on_missing_tracker — calls ticket-init.sh when tracker missing"
+test_init_on_missing_tracker() {
+    # Behavioral test: verifies that sprint-list-epics.sh actually invokes ticket-init.sh
+    # at runtime when the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set.
+    # This is the root cause of the "No open epics found" bug in fresh worktrees.
+    #
+    # Strategy: create a temp script dir containing a copy of sprint-list-epics.sh plus
+    # a stub ticket-init.sh that records its invocation. Set PROJECT_ROOT to a temp dir
+    # that has no .tickets-tracker, so the init guard fires. Verify the stub was called.
+    local TDIR28 STUB_CALLED
+    TDIR28=$(mktemp -d)
+    STUB_CALLED="$TDIR28/init-was-called"
+
+    # Copy the real script into the temp dir
+    cp "$SCRIPT" "$TDIR28/sprint-list-epics.sh"
+    chmod +x "$TDIR28/sprint-list-epics.sh"
+
+    # Create a stub ticket-init.sh that records invocation
+    cat > "$TDIR28/ticket-init.sh" << 'STUBEOF'
+#!/usr/bin/env bash
+touch "$STUB_CALLED_FILE"
+exit 0
+STUBEOF
+    chmod +x "$TDIR28/ticket-init.sh"
+
+    # PROJECT_ROOT has no .tickets-tracker; TICKETS_TRACKER_DIR is unset (default path)
+    # The script will compute TRACKER_DIR=$PROJECT_ROOT/.tickets-tracker, which doesn't exist,
+    # and TICKETS_TRACKER_DIR is empty — so the init guard should fire.
+    local fake_root="$TDIR28/fake-repo"
+    mkdir -p "$fake_root"
+
+    STUB_CALLED_FILE="$STUB_CALLED" PROJECT_ROOT="$fake_root" \
+        bash "$TDIR28/sprint-list-epics.sh" >/dev/null 2>&1 || true
+
+    # Check before cleanup — stub creates the file only if it was called
+    local was_called=false
+    [ -f "$STUB_CALLED" ] && was_called=true
+
+    rm -rf "$TDIR28"
+
+    [ "$was_called" = "true" ]
+}
+if test_init_on_missing_tracker; then
+    echo "  PASS: script calls ticket-init.sh when tracker dir missing"
+    (( PASS++ ))
+else
+    echo "  FAIL: script did not call ticket-init.sh — fresh worktrees will fail" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 29: Tracker init only runs for default path, not TICKETS_TRACKER_DIR ──
+echo "Test 29: test_init_skipped_for_override — no init when TICKETS_TRACKER_DIR is set"
+test_init_skipped_for_override() {
+    # Behavioral test: verifies that ticket-init.sh is NOT called when TICKETS_TRACKER_DIR
+    # is explicitly set (test/CI environments where the caller provides the tracker dir).
+    # The init guard condition is: [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ]
+    # When TICKETS_TRACKER_DIR is set, the second clause is false, so init must NOT run.
+    local TDIR29 STUB_CALLED
+    TDIR29=$(mktemp -d)
+    STUB_CALLED="$TDIR29/init-was-called"
+
+    # Copy the real script into the temp dir
+    cp "$SCRIPT" "$TDIR29/sprint-list-epics.sh"
+    chmod +x "$TDIR29/sprint-list-epics.sh"
+
+    # Stub ticket-init.sh records if called
+    cat > "$TDIR29/ticket-init.sh" << 'STUBEOF'
+#!/usr/bin/env bash
+touch "$STUB_CALLED_FILE"
+exit 0
+STUBEOF
+    chmod +x "$TDIR29/ticket-init.sh"
+
+    # TICKETS_TRACKER_DIR is explicitly set to a non-existent path —
+    # the tracker dir doesn't exist, but init must NOT be called because the override is set.
+    local nonexistent_tracker="$TDIR29/no-such-tracker"
+
+    STUB_CALLED_FILE="$STUB_CALLED" TICKETS_TRACKER_DIR="$nonexistent_tracker" \
+        bash "$TDIR29/sprint-list-epics.sh" >/dev/null 2>&1 || true
+
+    # Check before cleanup — if init was incorrectly called, the file exists
+    local was_called=false
+    [ -f "$STUB_CALLED" ] && was_called=true
+
+    rm -rf "$TDIR29"
+
+    # The stub file must NOT have been created (init was skipped)
+    [ "$was_called" = "false" ]
+}
+if test_init_skipped_for_override; then
+    echo "  PASS: init is skipped when TICKETS_TRACKER_DIR is set"
+    (( PASS++ ))
+else
+    echo "  FAIL: init was called even though TICKETS_TRACKER_DIR is set" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

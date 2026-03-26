@@ -4,7 +4,7 @@
 # Includes changes in the git index (staged) and modifications to tracked files.
 # Excludes untracked files — new files must be staged before review (per COMMIT-WORKFLOW.md).
 # This prevents temp test fixtures from causing hash mismatches between review and pre-commit.
-# Excludes .tickets/ and .tickets-tracker/ files from hash — ticket metadata changes must not invalidate code reviews.
+# Excludes .tickets-tracker/ files from hash — ticket metadata changes must not invalidate code reviews.
 #
 # Usage:
 #   HASH=$(.claude/hooks/compute-diff-hash.sh)

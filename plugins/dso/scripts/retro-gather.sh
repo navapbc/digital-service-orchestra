@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
 TK="${TK:-$SCRIPT_DIR/tk}"
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository"
     exit 2
@@ -120,11 +120,8 @@ section "TICKETS_BLOCKED"
 "$TK" blocked 2>/dev/null || echo "none"
 
 section "TICKETS_ORPHANED"
-if [ -x "${CLAUDE_PLUGIN_ROOT}/scripts/orphaned-tasks.sh" ]; then
-    "${CLAUDE_PLUGIN_ROOT}/scripts/orphaned-tasks.sh" 2>&1 || true
-else
-    echo "orphaned-tasks.sh not found"
-fi
+# TODO(5d90-b43c): v2 orphan detection removed — stub returns none
+echo "none"
 
 # --- Step 3: Worktree Status ---
 section "WORKTREES"

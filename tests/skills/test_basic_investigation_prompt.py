@@ -137,3 +137,34 @@ def test_basic_investigation_prompt_result_section_marker() -> None:
         "Expected basic-investigation.md to contain 'RESULT' as an output "
         "section marker delineating the structured result block from narrative text."
     )
+
+
+def test_basic_prompt_hypothesis_tests_fields() -> None:
+    """Prompt must use hypothesis_tests (not tests_run) with sub-fields hypothesis, test, observed, verdict."""
+    content = _read_prompt()
+    # (a) hypothesis_tests present with correct sub-fields in RESULT schema block
+    assert "hypothesis_tests" in content, (
+        "Expected basic-investigation.md to contain 'hypothesis_tests' as the field name "
+        "for hypothesis test results in the RESULT schema. This replaces the old 'tests_run' field."
+    )
+    for sub_field in ("hypothesis", "test", "observed", "verdict"):
+        assert sub_field in content, (
+            f"Expected basic-investigation.md to contain '{sub_field}' as a sub-field of "
+            "hypothesis_tests in the RESULT schema."
+        )
+    # (b) Instructional prose references hypothesis_tests (not just in schema block)
+    prose_lines = [
+        line
+        for line in content.splitlines()
+        if "hypothesis_tests" in line
+        and not line.strip().startswith("hypothesis_tests:")
+    ]
+    assert len(prose_lines) > 0, (
+        "Expected basic-investigation.md to contain instructional prose referencing "
+        "'hypothesis_tests' outside of the schema block."
+    )
+    # (c) Old tests_run field name is absent
+    assert "tests_run" not in content, (
+        "Expected basic-investigation.md to NOT contain 'tests_run' — this field has been "
+        "renamed to 'hypothesis_tests'. All references to the old field name must be removed."
+    )

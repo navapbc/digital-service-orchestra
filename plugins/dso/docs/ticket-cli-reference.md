@@ -4,12 +4,11 @@ Authoritative reference for all commands in the event-sourced ticket system.
 
 ## Overview
 
-The ticket system has two CLI entry points:
+The ticket system CLI entry point:
 
 | Entry point | Purpose |
 |---|---|
-| `ticket <subcommand>` | Low-level event-sourced ticket system (dispatcher at `plugins/dso/scripts/ticket`) |
-| `tk <subcommand>` | High-level ticket CLI tool (`plugins/dso/scripts/tk`) — wraps `ticket` and adds Jira sync, dependency trees, and human-friendly output |
+| `ticket <subcommand>` | Event-sourced ticket system (dispatcher at `plugins/dso/scripts/ticket`) — adds Jira sync, dependency trees, and human-friendly output |
 
 Source of truth for each subcommand is in `plugins/dso/scripts/ticket-*.sh` and `plugins/dso/scripts/ticket-*.py`. The dispatcher at `plugins/dso/scripts/ticket` routes all subcommands to those implementation scripts.
 
@@ -541,7 +540,7 @@ Archive a ticket's event history using snapshot compaction (`.claude/scripts/dso
 .claude/scripts/dso ticket compact <ticket_id> [--threshold=N]
 ```
 
-The compaction operation archives a ticket's raw event history into a single `SNAPSHOT` event, reducing the number of files on the tickets branch. The term "archive" in the event-sourced system refers to this compaction process; it is distinct from the tk move-to-archive-directory operation used by the legacy markdown ticket system.
+The compaction operation archives a ticket's raw event history into a single `SNAPSHOT` event, reducing the number of files on the tickets branch. The term "archive" in the event-sourced system refers to this compaction process; it is distinct from the move-to-archive-directory operation used by the legacy markdown ticket system.
 
 **Arguments:**
 
