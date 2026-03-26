@@ -57,13 +57,13 @@ plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_chec
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
-plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh
+plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh,tests/scripts/test-ticket-archived.sh
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-revert.sh:tests/scripts/test_revert_event.py
 plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
-plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh
+plugins/dso/scripts/ticket-transition.sh: tests/scripts/test-ticket-transition.sh
 plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/scripts/test-explore-dispatch-template.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
 plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
@@ -165,6 +165,11 @@ plugins/dso/skills/design-wireframe/SKILL.md: tests/skills/test-skill-nesting-de
 plugins/dso/scripts/jira-credential-helper.sh: tests/scripts/test-jira-credential-helper.sh
 plugins/dso/scripts/acli-version-resolver.sh: tests/scripts/test-acli-version-resolver.sh
 plugins/dso/scripts/gh-availability-check.sh: tests/scripts/test-gh-availability-check.sh
+plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh
+plugins/dso/scripts/ticket-reducer.py: tests/scripts/test-ticket-reducer-batch.sh
+plugins/dso/scripts/ticket-reducer.py: tests/scripts/test-ticket-archived.sh
+plugins/dso/scripts/ticket-graph.py: tests/scripts/test-ticket-archive-eligibility.sh
+plugins/dso/scripts/ticket-lifecycle.sh: tests/scripts/test-ticket-lifecycle.sh
 plugins/dso/scripts/review-complexity-classifier.sh: tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/skip-review-check.sh: tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe: tests/hooks/test-v2-hooks-cleanup.sh
