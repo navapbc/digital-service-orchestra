@@ -2541,7 +2541,7 @@ test_merge_commit_filters_incoming_only() {
     local repo="$tmp/repo"
     mkdir -p "$repo"
     cd "$repo"
-    git init -q
+    git init -q -b main
     git config user.name "test" && git config user.email "test@test"
 
     # Create source + test for "ours" (worktree branch changes)
