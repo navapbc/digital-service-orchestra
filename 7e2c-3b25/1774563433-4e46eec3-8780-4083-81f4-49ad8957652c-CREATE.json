@@ -1,1 +1,0 @@
-{"timestamp": 1774563433, "uuid": "4e46eec3-8780-4083-81f4-49ad8957652c", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix imprecise assertion in test_anti_pattern_2_loosen_assertions_code_example_present", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
