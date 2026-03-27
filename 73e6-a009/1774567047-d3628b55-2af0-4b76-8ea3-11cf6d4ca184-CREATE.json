@@ -1,1 +1,0 @@
-{"timestamp": 1774567047, "uuid": "d3628b55-2af0-4b76-8ea3-11cf6d4ca184", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Implementation planning gate does not catch newly-unblocked stories in sprint-next-batch.sh output", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
