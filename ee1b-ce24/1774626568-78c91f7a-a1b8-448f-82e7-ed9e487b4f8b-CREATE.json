@@ -1,1 +1,0 @@
-{"timestamp": 1774626568, "uuid": "78c91f7a-a1b8-448f-82e7-ed9e487b4f8b", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "test-close-reason", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
