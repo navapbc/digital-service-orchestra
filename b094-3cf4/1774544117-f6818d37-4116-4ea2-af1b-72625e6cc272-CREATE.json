@@ -1,1 +1,0 @@
-{"timestamp": 1774544117, "uuid": "f6818d37-4116-4ea2-af1b-72625e6cc272", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As the fix-bug orchestrator, I enforce RED-before-fix as a hard gate", "parent_id": "b7ac-1d7f", "priority": 1, "assignee": "Joe Oakhart"}}

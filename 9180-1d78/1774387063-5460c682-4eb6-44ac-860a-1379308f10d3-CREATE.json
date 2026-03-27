@@ -1,1 +1,0 @@
-{"timestamp": 1774387063, "uuid": "5460c682-4eb6-44ac-860a-1379308f10d3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can run the test suite without encountering v2 test paths or stubs", "parent_id": "d775-4a36", "priority": 2, "assignee": "Joe Oakhart"}}
