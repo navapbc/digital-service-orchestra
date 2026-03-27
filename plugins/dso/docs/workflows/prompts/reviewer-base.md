@@ -131,6 +131,12 @@ dimension's score MUST be 4 or 5. Score 3 is reserved for `important` findings.
 `write-reviewer-findings.sh` will reject your JSON with a validation error if you score
 a minor-only dimension below 4.
 
+**No-findings enforcement**: If a dimension has NO findings at all, its score MUST be 4
+or 5. A low score without a supporting finding is a scoring error — every score below 4
+must be backed by at least one `important` or `critical` finding in that dimension.
+`write-reviewer-findings.sh` will reject your JSON if any no-findings dimension scores
+below 4.
+
 ---
 
 ## Category Mapping
