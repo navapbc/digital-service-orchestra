@@ -28,7 +28,7 @@ composition.
 ## Input Sections
 
 You will receive:
-- **Design Notes**: The project's DESIGN_NOTES.md — pay close attention to the
+- **Design Notes**: The project's .claude/design-notes.md — pay close attention to the
   Visual Tokens section for spacing, color, and typography standards
 - **Proposed Design**: The code snippet, wireframe description, or diff being
   reviewed — evaluate the visual composition and hierarchy choices

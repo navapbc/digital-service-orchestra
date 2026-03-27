@@ -47,11 +47,11 @@ Before asking any questions, silently scan for context:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cat "$REPO_ROOT/PRD.md" 2>/dev/null || cat "$REPO_ROOT/docs/PRD.md" 2>/dev/null
-cat "$REPO_ROOT/DESIGN_NOTES.md" 2>/dev/null
+cat "$REPO_ROOT/.claude/design-notes.md" 2>/dev/null
 .claude/scripts/dso ticket list  # filter to epics via: .claude/scripts/dso ticket list --type=epic
 ```
 
-If a PRD or DESIGN_NOTES.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
+If a PRD or .claude/design-notes.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
 
 ### Step 2: The "Tell Me More" Loop
 

@@ -12,19 +12,27 @@ set -uo pipefail
 #
 # Default mode schema:
 #   stack=<value>                        — from detect-stack.sh
+#   stack_confidence=confirmed           — detect-stack.sh verifies marker file existence
 #   targets=<comma-separated>            — Makefile targets or package.json scripts
+#   targets_confidence=confirmed         — targets read directly from Makefile/package.json
 #   python_version=<value>|unknown       — detected Python version requirement
 #   python_version_confidence=high|low   — confidence level for python_version
 #   db_present=true|false                — whether a DB service was found
 #   db_services=<comma-separated>        — names of DB services found
+#   db_confidence=confirmed|inferred|none — confidence level for db_present/db_services
 #   files_present=<comma-separated>      — which marker files exist
+#   files_present_confidence=confirmed   — files checked with test -f
 #   ci_workflow_names=<comma-separated>  — names of CI workflows found
 #   ci_workflow_test_guarded=true|false  — any workflow runs test
 #   ci_workflow_lint_guarded=true|false  — any workflow runs lint
 #   ci_workflow_format_guarded=true|false — any workflow runs format
+#   ci_workflow_confidence=high|low      — confidence level for ci_workflow detection
 #   installed_deps=<comma-separated>     — CLI tools detected as installed
+#   installed_deps_confidence=confirmed  — checked with command -v
 #   ports=<comma-separated>              — port numbers from .claude/dso-config.conf
+#   ports_confidence=confirmed           — read directly from config file
 #   version_files=<comma-separated>      — files that carry a version field
+#   version_files_confidence=confirmed   — checked with test -f and content parsing
 #
 # --suites mode: Output (stdout) is a JSON array of test suite objects. The script
 # exits immediately after emitting the array; key=value output is not produced.
@@ -336,6 +344,7 @@ else
     stack="unknown"
 fi
 echo "stack=${stack}"
+echo "stack_confidence=confirmed"
 
 # ── Category 3: Target enumeration ────────────────────────────────────────────
 targets=""
@@ -373,6 +382,7 @@ PYEOF
 fi
 
 echo "targets=${targets}"
+echo "targets_confidence=confirmed"
 
 # ── Category 6: Python version detection ──────────────────────────────────────
 python_version="unknown"
@@ -415,6 +425,7 @@ echo "python_version_confidence=${python_version_confidence}"
 # ── Category 5: Database presence ─────────────────────────────────────────────
 db_present="false"
 db_services=""
+db_confidence="none"
 
 DB_IMAGES="postgres|mysql|mariadb|mongodb|mongo|redis|elasticsearch|cassandra|cockroachdb|mssql|sqlite"
 
@@ -473,8 +484,119 @@ PYEOF
     fi
 done
 
+# ── Category 5b: Dockerfile DB detection ──────────────────────────────────────
+# docker-compose match → confirmed
+if [[ "$db_present" == "true" ]]; then
+    db_confidence="confirmed"
+fi
+
+# Scan Dockerfile and Dockerfile.* for FROM lines matching DB images
+if [[ "$db_present" == "false" ]]; then
+    for dockerfile in "$PROJECT_DIR"/Dockerfile "$PROJECT_DIR"/Dockerfile.*; do
+        if [[ -f "$dockerfile" ]]; then
+            dockerfile_services="$(python3 - "$dockerfile" "$DB_IMAGES" <<'PYEOF'
+import sys, re
+
+dockerfile_path = sys.argv[1]
+db_pattern = re.compile(sys.argv[2], re.IGNORECASE)
+
+with open(dockerfile_path) as f:
+    lines = f.readlines()
+
+found = []
+for line in lines:
+    stripped = line.strip()
+    # Match: FROM <image>[:<tag>] [AS <name>]
+    m = re.match(r'^FROM\s+(\S+)', stripped, re.IGNORECASE)
+    if m:
+        image = m.group(1)
+        match = db_pattern.search(image)
+        if match:
+            # Extract the DB type from the image name
+            db_type = match.group(0).lower()
+            # Normalise mongo variants
+            if db_type == "mongodb":
+                db_type = "mongo"
+            if db_type not in found:
+                found.append(db_type)
+
+print(",".join(found))
+PYEOF
+)"
+            if [[ -n "$dockerfile_services" ]]; then
+                db_present="true"
+                db_services="$dockerfile_services"
+                db_confidence="confirmed"
+                break
+            fi
+        fi
+    done
+fi
+
+# ── Category 5c: Python code import scanning ───────────────────────────────────
+# Scan Python files in project root and common src dirs for DB library imports
+if [[ "$db_present" == "false" ]]; then
+    DB_PY_LIBS="psycopg2|sqlalchemy|pymongo|redis|mysql\.connector|pymysql|asyncpg|motor|aiomysql|aiopg"
+    # Directories to scan (project root + common source dirs)
+    py_scan_dirs=("$PROJECT_DIR")
+    for srcdir in src app lib; do
+        if [[ -d "$PROJECT_DIR/$srcdir" ]]; then
+            py_scan_dirs+=("$PROJECT_DIR/$srcdir")
+        fi
+    done
+
+    py_import_match=""
+    for scan_dir in "${py_scan_dirs[@]}"; do
+        # Only scan *.py files directly in this directory (not recursive to avoid deep scanning)
+        while IFS= read -r -d '' pyfile; do
+            py_import_match="$(grep -oE "^\s*(import|from)\s+(${DB_PY_LIBS})" "$pyfile" 2>/dev/null | grep -oE "(${DB_PY_LIBS})" | head -1)"
+            if [[ -n "$py_import_match" ]]; then
+                break 2
+            fi
+        done < <(find "$scan_dir" -maxdepth 1 -name "*.py" -print0 2>/dev/null)
+    done
+
+    if [[ -n "$py_import_match" ]]; then
+        db_present="true"
+        # Map library name to DB service name
+        case "$py_import_match" in
+            psycopg2|asyncpg|aiopg) db_services="postgres" ;;
+            sqlalchemy)              db_services="database" ;;
+            pymongo|motor)           db_services="mongo" ;;
+            redis)                   db_services="redis" ;;
+            mysql\.connector|pymysql|aiomysql) db_services="mysql" ;;
+            *)                       db_services="$py_import_match" ;;
+        esac
+        db_confidence="inferred"
+    fi
+fi
+
+# ── Category 5d: .env file scanning ───────────────────────────────────────────
+# Scan .env and .env.* files for DATABASE_URL, DB_HOST, REDIS_URL patterns
+if [[ "$db_present" == "false" ]]; then
+    ENV_DB_PATTERNS="DATABASE_URL|DB_HOST|DB_URL|REDIS_URL|MONGO_URI|MONGODB_URI"
+    for envfile in "$PROJECT_DIR"/.env "$PROJECT_DIR"/.env.*; do
+        if [[ -f "$envfile" ]]; then
+            env_match="$(grep -oE "^(${ENV_DB_PATTERNS})=" "$envfile" 2>/dev/null | head -1 | cut -d= -f1)"
+            if [[ -n "$env_match" ]]; then
+                db_present="true"
+                # Map env var to DB service name
+                case "$env_match" in
+                    DATABASE_URL|DB_HOST|DB_URL) db_services="database" ;;
+                    REDIS_URL)                   db_services="redis" ;;
+                    MONGO_URI|MONGODB_URI)        db_services="mongo" ;;
+                    *)                           db_services="database" ;;
+                esac
+                db_confidence="inferred"
+                break
+            fi
+        fi
+    done
+fi
+
 echo "db_present=${db_present}"
 echo "db_services=${db_services}"
+echo "db_confidence=${db_confidence}"
 
 # ── Category 8: File presence checks ──────────────────────────────────────────
 MARKER_FILES=(
@@ -496,6 +618,7 @@ for marker in "${MARKER_FILES[@]}"; do
 done
 
 echo "files_present=${files_present}"
+echo "files_present_confidence=confirmed"
 
 # ── Category 4: CI workflow analysis ──────────────────────────────────────────
 ci_workflow_names=""
@@ -600,6 +723,7 @@ else
 fi
 
 echo "installed_deps=${installed_deps}"
+echo "installed_deps_confidence=confirmed"
 
 # ── Category 9: Port numbers from .claude/dso-config.conf ────────────────────
 ports=""
@@ -617,6 +741,7 @@ if [[ -f "$PROJECT_DIR/.claude/dso-config.conf" ]]; then
 fi
 
 echo "ports=${ports}"
+echo "ports_confidence=confirmed"
 
 # ── Category 10: Version file candidates ──────────────────────────────────────
 version_files=""
@@ -651,3 +776,4 @@ if [[ -f "$PROJECT_DIR/pyproject.toml" ]]; then
 fi
 
 echo "version_files=${version_files}"
+echo "version_files_confidence=confirmed"

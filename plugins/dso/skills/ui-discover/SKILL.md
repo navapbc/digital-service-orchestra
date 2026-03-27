@@ -138,7 +138,7 @@ If Phase 0 was skipped with "Continue without live app", skip this probe
 entirely.
 
 **Project context:**
-- Read `DESIGN_NOTES.md` if it exists — look for app URL hints, framework info,
+- Read `.claude/design-notes.md` if it exists — look for app URL hints, framework info,
   and design system references.
 - Detect the framework using the adapter's `framework_detection` config:
   - Read each file listed in `framework_detection.marker_files`

@@ -28,7 +28,7 @@ friction and prevents errors.
 ## Input Sections
 
 You will receive:
-- **Design Notes**: The project's DESIGN_NOTES.md — pay close attention to any
+- **Design Notes**: The project's .claude/design-notes.md — pay close attention to any
   form-related patterns or standards defined in the System Architecture section
 - **Proposed Design**: The code snippet, wireframe description, or diff being
   reviewed — evaluate form structure, validation approach, and user flow

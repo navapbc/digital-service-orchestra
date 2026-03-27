@@ -112,6 +112,11 @@ assert_contains \
     "$CALLERS_OUTPUT"
 
 assert_contains \
+    "test_list_callers_shows_architect_foundation: --list-callers includes architect-foundation" \
+    "architect-foundation" \
+    "$CALLERS_OUTPUT"
+
+assert_contains \
     "test_list_callers_shows_preplanning: --list-callers includes preplanning" \
     "preplanning" \
     "$CALLERS_OUTPUT"
@@ -780,5 +785,167 @@ assert_contains \
     "test_review_protocol_caller_brainstorm_output_includes_caller: output includes caller=brainstorm" \
     "caller=brainstorm" \
     "$VALID_RP_BRAINSTORM_OUTPUT"
+
+# ============================================================
+# 15. architect-foundation caller: accepted with its schema
+# ============================================================
+
+# architect-foundation uses perspectives: Failure Modes, Hardening, Scalability
+VALID_RP_ARCHITECT_FOUNDATION=$(write_fixture "rp-architect-foundation-valid.json" '{
+  "subject": "Architect foundation review",
+  "reviews": [
+    {
+      "perspective": "Failure Modes",
+      "status": "reviewed",
+      "dimensions": {
+        "resource_boundaries": 4,
+        "failure_isolation": 4,
+        "recovery_by_design": 3,
+        "degradation_paths": 4
+      },
+      "findings": [
+        {
+          "dimension": "recovery_by_design",
+          "severity": "minor",
+          "description": "No explicit retry policy defined for upstream calls.",
+          "suggestion": "Add exponential backoff with jitter to HTTP client config.",
+          "failure_scenario": "Upstream service returns 503 under load"
+        }
+      ]
+    },
+    {
+      "perspective": "Hardening",
+      "status": "reviewed",
+      "dimensions": {
+        "secure_by_default": 4,
+        "observable_by_default": 4
+      },
+      "findings": [
+        {
+          "dimension": "secure_by_default",
+          "severity": "minor",
+          "description": "Default token expiry not documented.",
+          "suggestion": "Document token TTL in ARCH_ENFORCEMENT.md.",
+          "risk_category": "auth_default"
+        }
+      ]
+    },
+    {
+      "perspective": "Scalability",
+      "status": "reviewed",
+      "dimensions": {
+        "stateless_by_default": 4,
+        "data_patterns": 4
+      },
+      "findings": [
+        {
+          "dimension": "data_patterns",
+          "severity": "minor",
+          "description": "No caching strategy specified for read-heavy endpoints.",
+          "suggestion": "Add cache-aside pattern guidance.",
+          "growth_constraint": "Unbounded DB reads under fan-out"
+        }
+      ]
+    }
+  ],
+  "conflicts": []
+}')
+
+VALID_RP_ARCHITECT_FOUNDATION_EXIT=$(run_script review-protocol "$VALID_RP_ARCHITECT_FOUNDATION" --caller architect-foundation)
+assert_eq \
+    "test_review_protocol_caller_architect_foundation_valid_passes: valid architect-foundation caller schema exits 0" \
+    "0" \
+    "$VALID_RP_ARCHITECT_FOUNDATION_EXIT"
+
+VALID_RP_ARCHITECT_FOUNDATION_OUTPUT=$(run_script_output review-protocol "$VALID_RP_ARCHITECT_FOUNDATION" --caller architect-foundation)
+assert_contains \
+    "test_review_protocol_caller_architect_foundation_schema_valid_yes: architect-foundation caller output contains SCHEMA_VALID: yes" \
+    "SCHEMA_VALID: yes" \
+    "$VALID_RP_ARCHITECT_FOUNDATION_OUTPUT"
+
+assert_contains \
+    "test_review_protocol_caller_architect_foundation_output_includes_caller: output includes caller=architect-foundation" \
+    "caller=architect-foundation" \
+    "$VALID_RP_ARCHITECT_FOUNDATION_OUTPUT"
+
+# Missing required perspective for architect-foundation → exits non-zero
+MISSING_AF_PERSPECTIVE_FILE=$(write_fixture "rp-architect-foundation-missing-perspective.json" '{
+  "subject": "Architect foundation review",
+  "reviews": [
+    {
+      "perspective": "Failure Modes",
+      "status": "reviewed",
+      "dimensions": {
+        "resource_boundaries": 4,
+        "failure_isolation": 4,
+        "recovery_by_design": 4,
+        "degradation_paths": 4
+      },
+      "findings": []
+    }
+  ],
+  "conflicts": []
+}')
+MISSING_AF_PERSPECTIVE_EXIT=$(run_script review-protocol "$MISSING_AF_PERSPECTIVE_FILE" --caller architect-foundation)
+assert_ne \
+    "test_review_protocol_caller_architect_foundation_missing_perspective_fails: missing required perspective exits non-zero" \
+    "0" \
+    "$MISSING_AF_PERSPECTIVE_EXIT"
+
+# Hardening finding with invalid risk_category enum value → exits non-zero
+INVALID_RISK_CATEGORY_FILE=$(write_fixture "rp-architect-foundation-invalid-risk-category.json" '{
+  "subject": "Architect foundation review",
+  "reviews": [
+    {
+      "perspective": "Failure Modes",
+      "status": "reviewed",
+      "dimensions": {
+        "resource_boundaries": 4,
+        "failure_isolation": 4,
+        "recovery_by_design": 4,
+        "degradation_paths": 4
+      },
+      "findings": []
+    },
+    {
+      "perspective": "Hardening",
+      "status": "reviewed",
+      "dimensions": {
+        "secure_by_default": 4,
+        "observable_by_default": 4
+      },
+      "findings": [
+        {
+          "dimension": "secure_by_default",
+          "severity": "minor",
+          "description": "Placeholder hardening finding.",
+          "suggestion": "Fix it.",
+          "risk_category": "invalid_value"
+        }
+      ]
+    },
+    {
+      "perspective": "Scalability",
+      "status": "reviewed",
+      "dimensions": {
+        "stateless_by_default": 4,
+        "data_patterns": 4
+      },
+      "findings": []
+    }
+  ],
+  "conflicts": []
+}')
+INVALID_RISK_CATEGORY_EXIT=$(run_script review-protocol "$INVALID_RISK_CATEGORY_FILE" --caller architect-foundation)
+assert_ne \
+    "test_review_protocol_caller_architect_foundation_invalid_risk_category_fails: Hardening finding with invalid risk_category enum value exits non-zero" \
+    "0" \
+    "$INVALID_RISK_CATEGORY_EXIT"
+
+INVALID_RISK_CATEGORY_OUTPUT=$(bash "$SCRIPT" review-protocol "$INVALID_RISK_CATEGORY_FILE" --caller architect-foundation 2>&1 || true)
+assert_contains \
+    "test_review_protocol_caller_architect_foundation_invalid_risk_category_schema_invalid: Hardening finding with invalid risk_category reports SCHEMA_VALID: no" \
+    "SCHEMA_VALID: no" \
+    "$INVALID_RISK_CATEGORY_OUTPUT"
 
 print_summary
