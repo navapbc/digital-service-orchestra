@@ -536,7 +536,7 @@ test_jira_bridge_project_key() {
 test_no_rigid_multiple_choice() {
     _snapshot_fail
     local rigid_count
-    rigid_count=$(grep -cE "^\s*(a\)|b\)|c\)|d\)|e\))" "$SKILL_MD" 2>/dev/null || echo "0")
+    rigid_count=$(grep -cE "^\s*(a\)|b\)|c\)|d\)|e\))" "$SKILL_MD" 2>/dev/null || true)
     if [[ "$rigid_count" -eq 0 ]]; then
         assert_eq "test_no_rigid_multiple_choice" "found" "found"
     else

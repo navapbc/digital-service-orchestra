@@ -48,16 +48,42 @@ The onboarding session probes seven areas. Track your progress through each:
 
 ## Phase 1: Auto-Detection (/dso:onboarding)
 
-**Goal:** Pre-fill as many answers as possible before asking the user anything.
+**Goal:** Pre-fill as many answers as possible by reading project files BEFORE asking the user anything.
 
-### Step 1: Run Project Detection
+### Step 1: Read Project Files for Auto-Detection
+
+Before asking any questions, scan the project filesystem to gather facts:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
-# Detect stack and test suites
+# 1. Detect stack and test suites via DSO scripts
 DETECT_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
 STACK_OUT=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
+
+# 2. Read specific project files to fill understanding areas
+# Node / JavaScript ecosystem
+[ -f "$REPO_ROOT/package.json" ] && PACKAGE_JSON=$(cat "$REPO_ROOT/package.json" 2>/dev/null)
+# Python ecosystem
+[ -f "$REPO_ROOT/pyproject.toml" ] && PYPROJECT=$(cat "$REPO_ROOT/pyproject.toml" 2>/dev/null)
+
+# 3. Detect pre-commit hooks
+HUSKY_HOOK=""
+[ -f "$REPO_ROOT/.husky/pre-commit" ] && HUSKY_HOOK=$(cat "$REPO_ROOT/.husky/pre-commit" 2>/dev/null)
+[ -f "$REPO_ROOT/.pre-commit-config.yaml" ] && PRECOMMIT_CONFIG=$(cat "$REPO_ROOT/.pre-commit-config.yaml" 2>/dev/null)
+
+# 4. Discover CI workflows — list actual filenames before asking about workflow names
+CI_WORKFLOWS=""
+if [ -d "$REPO_ROOT/.github/workflows" ]; then
+    CI_WORKFLOWS=$(ls "$REPO_ROOT/.github/workflows"/*.yml "$REPO_ROOT/.github/workflows"/*.yaml 2>/dev/null | xargs -I{} basename {})
+fi
+
+# 5. Discover test directories
+TEST_DIRS=""
+for candidate in tests test spec __tests__ src/__tests__; do
+    [ -d "$REPO_ROOT/$candidate" ] && TEST_DIRS="$TEST_DIRS $candidate"
+done
+TEST_DIRS="${TEST_DIRS# }"  # trim leading space
 ```
 
 Run `project-detect.sh` to discover test suites, CI configuration, and project conventions. Note which understanding areas are already answered by the detection output so you can skip or confirm rather than ask from scratch.
@@ -73,6 +99,11 @@ cat > "$SCRATCHPAD" <<EOF
 ## Auto-detected
 Stack: $STACK_OUT
 Detection output: $DETECT_OUT
+package.json: ${PACKAGE_JSON:+present}
+pyproject.toml: ${PYPROJECT:+present}
+.husky/ pre-commit hook: ${HUSKY_HOOK:+present}
+CI workflow filenames: ${CI_WORKFLOWS:-none found}
+Test directories: ${TEST_DIRS:-none found}
 EOF
 ```
 
@@ -83,34 +114,42 @@ echo "## $AREA_NAME" >> "$SCRATCHPAD"
 echo "$USER_ANSWER" >> "$SCRATCHPAD"
 ```
 
-### Step 3: Summarize What You Know
+### Step 3: Present Detected Configuration for Confirmation
 
-Before asking any questions, present a brief summary of what auto-detection found:
+Before asking any questions, present what was found and ask the user to confirm or correct:
 
 ```
 I've scanned the project and found:
 - Stack: [detected stack or "unknown"]
 - Test suites: [detected suites or "none detected"]
-- CI: [detected CI config or "none detected"]
+- Test directories: [TEST_DIRS or "none found"]
+- CI workflow filenames: [CI_WORKFLOWS or "none found"]
+- Pre-commit hooks: [.husky/ present / .pre-commit-config.yaml present / "none"]
+- package.json: [present / not found]
+- pyproject.toml: [present / not found]
 
-I'll ask about the areas where I need more context. This should take 5–10 minutes.
+Does this look right, or is anything missing?
 ```
+
+Wait for the user to confirm or correct before continuing. Update the scratchpad with any corrections, then proceed to Phase 2 for areas still needing clarification.
 
 ---
 
 ## Phase 2: Socratic Dialogue Loop (/dso:onboarding)
 
-**Goal:** Fill gaps in the 7 understanding areas through focused, conversational questions.
+**Goal:** Fill gaps in the 7 understanding areas through focused, conversational questions. Present detected configuration for confirmation rather than asking open-ended discovery questions.
 
 ### Dialogue Rules
 
 **One question at a time** — never present multiple questions in a single message. Pick the most important unknown and ask about it.
 
-**Prefer multiple-choice questions** over open-ended when possible — they're faster to answer and produce more consistent results.
+**Confirmation over discovery** — when detection already answered an area, present the detected value and ask the user to confirm or correct it. Do not ask from scratch.
 
 **Skip confirmed areas** — if detection already answered an area with confidence, confirm briefly ("I see you're using pytest — is that the main test runner?") rather than asking from scratch.
 
 **Use "Tell me more about..."** to go deeper when an answer is vague or incomplete.
+
+**No rigid menus** — use open-ended questions with natural follow-ups rather than lettered option lists. Ask what the user does, not which letter they pick.
 
 ### Question Guide by Area
 
@@ -120,79 +159,68 @@ Work through each area in the checklist order, but adapt based on what detection
 
 Ask about: primary language and version, framework (if any), package manager, runtime target.
 
-Example question:
+If `package.json` was found, present the detected Node/JavaScript stack for confirmation:
 ```
-I detected this looks like a Python project. Which version are you targeting?
-a) Python 3.11
-b) Python 3.12
-c) Python 3.13
-d) Other (please specify)
+I see a package.json — it looks like this is a [framework] project using Node [version]. Is that right? What version are you targeting, and is there anything about the runtime or package manager I should know?
+```
+
+If `pyproject.toml` was found, present the detected Python stack for confirmation:
+```
+I see a pyproject.toml — it looks like a Python project. What version are you targeting, and are you using poetry, pip, or something else?
+```
+
+For unknown stacks, ask openly:
+```
+What language and runtime is this project built on? And what's the primary framework or library, if any?
 ```
 
 #### 2. commands
 
 Ask about: how to run tests, how to start the dev server, how to lint/format, any project-specific Makefile targets.
 
-Example question:
+Present detected test directories for confirmation:
 ```
-How do you run the test suite locally?
-a) make test
-b) pytest / poetry run pytest
-c) npm test / yarn test
-d) Other (please describe)
+I found these test directories: [TEST_DIRS]. How do you actually run the test suite — is there a make target, a script, or do you run the test runner directly?
 ```
 
 #### 3. architecture
 
 Ask about: top-level module layout, key service boundaries, any notable design patterns (event sourcing, CQRS, hexagonal, etc.), where the main entry point is.
 
-Example question:
+Ask openly:
 ```
-How would you describe the top-level structure?
-a) Monolith — single deployable unit
-b) Monorepo — multiple packages/services in one repo
-c) Microservices — separate repos per service
-d) Plugin architecture — core + extension plugins
+How would you describe the top-level structure of this project — is it a single deployable unit, a monorepo, or something else? What's the main entry point?
 ```
 
 #### 4. infrastructure
 
 Ask about: where it runs (cloud provider, on-prem, local-only), databases used, external services or APIs it calls, how secrets are managed.
 
-Example question:
+Ask openly:
 ```
-Where does this project run in production?
-a) AWS
-b) GCP / Google Cloud
-c) Azure
-d) Local / self-hosted
-e) No production deployment yet
+Where does this project run in production, and what external services or databases does it depend on? How are secrets managed?
 ```
 
 #### 5. CI
 
-Ask about: which CI provider, what gates must pass before merge, whether there are separate fast/slow test pipelines, deployment pipeline stages.
+List the actual `.github/workflows/*.yml` filenames discovered in Step 1. Use those filenames to confirm the CI workflow name rather than asking the user to type it from memory.
 
-Example question:
 ```
-Which CI system does this project use?
-a) GitHub Actions
-b) CircleCI
-c) GitLab CI
-d) Jenkins
-e) No CI configured yet
+I found these workflow filenames: [CI_WORKFLOWS]. Which one is your primary CI gate — the one that runs on pull requests?
+```
+
+If no workflows were found:
+```
+I don't see any CI workflows yet. What CI system are you planning to use, if any?
 ```
 
 #### 6. design
 
 Ask about: whether there is a UI layer, which framework/library is used, any established design system, accessibility targets.
 
-Example question:
+Ask openly:
 ```
-Does this project have a UI/frontend layer?
-a) Yes — web UI (ask follow-up about framework)
-b) Yes — native/mobile UI
-c) No — it's a backend service or CLI tool
+Does this project have a UI or frontend layer? If so, what framework are you using and is there an established design system?
 ```
 
 ##### Design Questions: Conditional Activation (UI Projects Only)
@@ -211,7 +239,7 @@ c) No — it's a backend service or CLI tool
 
 5. **Visual language**: "Describe the intended visual feel in 3 adjectives. (e.g., 'Trustworthy, Dense, Clinical' or 'Playful, Round, Airy')"
 
-6. **Accessibility**: "Is the target accessibility standard WCAG AA or AAA?"
+6. **Accessibility**: "What's your target accessibility standard — WCAG AA, WCAG AAA, or something else?"
 
 After completing these design questions, append findings to the scratchpad under a `## Design (Extended)` section.
 
@@ -219,15 +247,21 @@ After completing these design questions, append findings to the scratchpad under
 
 Ask about: linting tools, commit message conventions, pre-commit hooks in use, code review requirements, test coverage policies.
 
-Example question:
+Present detected hooks for confirmation:
 ```
-Which enforcement tools are active?
-a) Pre-commit hooks (e.g., ruff, eslint, husky)
-b) CI lint gate only
-c) Code review required before merge
-d) All of the above
-e) None / minimal enforcement
+I see [.husky/pre-commit present / .pre-commit-config.yaml present / no hooks detected]. What enforcement tools are active — any linters, commit message conventions, or code review requirements a new contributor would need to know?
 ```
+
+#### 8. Jira Bridge
+
+Ask whether the project uses Jira and, if so, confirm the project key:
+
+```
+Does this project use Jira for issue tracking? If so, what's the Jira project key (e.g., "MYAPP" or "DSO")?
+Note: credentials (JIRA_URL, JIRA_USER, JIRA_API_TOKEN) stay as environment variables — only the project key goes in config.
+```
+
+If the user provides a Jira project key, write `jira.project_key=<KEY>` to `.claude/dso-config.conf`. The Jira Bridge connects DSO to Jira via the `JIRA_URL` environment variable.
 
 ### Phase 2 Gate
 
@@ -374,12 +408,82 @@ This file is intentionally brief — it records what was learned during onboardi
 
 After writing `.claude/project-understanding.md`, generate a starter `.claude/dso-config.conf` from the conversation findings. This file configures DSO for the host project.
 
-**Key categories to populate** (flat `KEY=VALUE` format):
+#### Detect and Merge with Existing Config
+
+Before writing any values, check whether a `.claude/dso-config.conf` already exists:
+
+```bash
+EXISTING_CONFIG="$REPO_ROOT/.claude/dso-config.conf"
+if [ -f "$EXISTING_CONFIG" ]; then
+    # Detect existing config — merge new keys, do NOT overwrite existing values
+    EXISTING_CONTENT=$(cat "$EXISTING_CONFIG")
+fi
+```
+
+If an existing dso-config.conf is found, merge the new keys into it rather than overwriting. Only add keys that are not already present. Existing config values take precedence — do not overwrite them unless the user explicitly confirms the new value.
+
+#### Required Config Keys
+
+Generate all of the following config keys (flat `KEY=VALUE` format). For each key that cannot be auto-detected, apply the fallback behavior described below.
+
+**DSO plugin location** (required):
+```
+# Absolute path to the DSO plugin directory (resolved via realpath or git rev-parse)
+dso.plugin_root=<absolute path — e.g., /Users/name/project/plugins/dso>
+```
+
+Resolve to an absolute path using `realpath` or `git rev-parse --show-toplevel` — never a relative path.
+
+**Format settings** (detected from stack):
+```
+format.extensions=<e.g., .py or .ts,.js>
+format.source_dirs=<e.g., src or app,lib>
+```
+
+Detect from `package.json` (TypeScript/JavaScript) or `pyproject.toml` (Python) if present.
+
+**Test gate** (detected from test directory scan):
+```
+test_gate.test_dirs=<e.g., tests or test,spec>
+```
+
+Populate from the `$TEST_DIRS` variable discovered in Phase 1 auto-detection.
+
+**Validate command** (composed from detected test/lint/format commands):
+```
+commands.validate=<e.g., make test || poetry run pytest || npm test>
+```
+
+Compose from the test and lint commands confirmed in the commands area of Phase 2.
+
+**Tickets and checkpoints** (use documented defaults):
+```
+tickets.directory=.tickets-tracker
+checkpoint.marker_file=.checkpoint-pending-rollback
+```
+
+**Behavioral patterns** (semicolon-delimited globs based on project structure):
+```
+# Semicolon-delimited glob patterns for review behavioral analysis
+review.behavioral_patterns=<e.g., src/**/*.py;tests/**/*.py;*.sh>
+```
+
+Generate from the detected source and test directories. The value is semicolon-delimited — multiple glob patterns separated by `;` with no spaces around the semicolons.
+
+**CI workflow name** (confirmed from actual workflow filenames):
+
+Use the workflow filenames discovered in Phase 1 (`$CI_WORKFLOWS`) to confirm the `ci.workflow_name`. Present the actual filenames rather than asking the user to type a name from memory:
+```
+# CI workflow filename confirmation
+ci.workflow_name=<filename confirmed from .github/workflows/ scan>
+```
+
+**Additional categories to populate**:
 
 | Category | Keys to set | Source |
 |----------|-------------|--------|
 | `format` | `format.line_length`, `format.indent` | Enforcement answers |
-| `ci` | `ci.workflow_name` | CI area answers |
+| `ci` | `ci.workflow_name` | Confirmed from workflow filenames |
 | `commands` | `commands.test`, `commands.lint`, `commands.format` | Commands area answers |
 | `jira` | `jira.project_key` (if Jira integration desired) | User-stated |
 | `design` | `design.system`, `design.tokens_path` | Design area answers |
@@ -387,6 +491,21 @@ After writing `.claude/project-understanding.md`, generate a starter `.claude/ds
 | `merge` | `merge.ci_workflow_name` | CI area answers |
 | `version` | `version.file_path` | Detected or user-stated |
 | `test` | `test.suite.<name>.command`, `test.suite.<name>.speed_class` | Commands + detection |
+
+#### Fallback Behavior for Undetected Config
+
+When a config key cannot be auto-detected and the user does not provide a value, apply this fallback priority:
+
+1. **Prompt user** — ask one focused question to get the value
+2. **Documented default** — if a well-known default exists (e.g., `tickets.directory=.tickets-tracker`), use it and note it was defaulted
+3. **Omit with explanatory comment** — if no default is safe to assume, omit the key and add an explanatory comment in the config file:
+
+```
+# commands.validate — could not be auto-detected; set to your validation command
+# Example: commands.validate=make test
+```
+
+Never silently skip a required key — always leave a comment so the user knows what to fill in.
 
 #### Ticket prefix derivation
 
@@ -410,10 +529,9 @@ When the conversation reveals **no `.github/workflows/` files exist**, offer exa
 ```
 I don't see any CI workflows yet. Would you like me to create starter workflows?
 I can generate:
-  a) ci.yml — fast-gate tests on pull requests
-  b) ci-slow.yml — slow/integration tests on push to main
-  c) Both
-  d) Skip — I'll set up CI manually
+- ci.yml — fast-gate tests on pull requests
+- ci-slow.yml — slow/integration tests on push to main
+- both, or skip if you plan to set up CI manually
 
 Accepted examples will be auto-populated into dso-config.conf and generated
 via ci-generator.sh using the test suites discovered during onboarding.
@@ -483,5 +601,5 @@ If the user says no or wants to continue manually, summarize what was learned an
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Auto-Detection | Pre-fill answers | Run project-detect.sh, initialize scratchpad temp file, summarize findings |
-| 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, multiple-choice preferred, skip confirmed areas |
+| 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, confirmation-based (not rigid menus), skip confirmed areas |
 | 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write .claude/design-notes.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), offer /dso:architect-foundation |
