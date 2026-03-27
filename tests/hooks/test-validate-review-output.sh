@@ -207,11 +207,11 @@ assert_ne \
 
 VALID_CRD_FILE=$(write_fixture "valid-crd.json" '{
   "scores": {
-    "hygiene": 4,
-    "design": 4,
-    "maintainability": 4,
-    "correctness": 4,
-    "verification": 4
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
   },
   "findings": [],
   "summary": "Code is well-structured and tests are adequate."
@@ -233,9 +233,9 @@ assert_contains \
 VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
   "scores": {
     "hygiene": 1,
-    "design": 4,
-    "maintainability": 4,
-    "correctness": 4,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
     "verification": "N/A"
   },
   "findings": [
@@ -262,11 +262,11 @@ assert_eq \
 # Missing required top-level key 'summary'
 MISSING_SUMMARY_FILE=$(write_fixture "missing-summary.json" '{
   "scores": {
-    "hygiene": 4,
-    "design": 4,
-    "maintainability": 4,
-    "correctness": 4,
-    "verification": 4
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
   },
   "findings": []
 }')
@@ -279,10 +279,10 @@ assert_ne \
 # Missing required score dimension
 MISSING_DIM_FILE=$(write_fixture "missing-dim.json" '{
   "scores": {
-    "hygiene": 4,
-    "maintainability": 4,
-    "correctness": 4,
-    "verification": 4
+    "hygiene": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
   },
   "findings": [],
   "summary": "A sufficiently long summary string here."
@@ -297,10 +297,10 @@ assert_ne \
 OUT_OF_RANGE_FILE=$(write_fixture "out-of-range.json" '{
   "scores": {
     "hygiene": 6,
-    "design": 4,
-    "maintainability": 4,
-    "correctness": 4,
-    "verification": 4
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
   },
   "findings": [],
   "summary": "A sufficiently long summary string here."
@@ -314,11 +314,11 @@ assert_ne \
 # Unexpected extra top-level key
 EXTRA_KEY_FILE=$(write_fixture "extra-key.json" '{
   "scores": {
-    "hygiene": 4,
-    "design": 4,
-    "maintainability": 4,
-    "correctness": 4,
-    "verification": 4
+    "hygiene": 5,
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
   },
   "findings": [],
   "summary": "A sufficiently long summary string here.",
@@ -691,10 +691,10 @@ assert_ne \
 
 NEW_DIM_VALID_FILE=$(write_fixture "new-dim-valid.json" '{
   "scores": {
-    "correctness": 4,
-    "verification": 4,
-    "hygiene": 4,
-    "design": 4,
+    "correctness": 5,
+    "verification": 5,
+    "hygiene": 5,
+    "design": 5,
     "maintainability": 5
   },
   "findings": [],
@@ -950,8 +950,8 @@ assert_contains \
 
 # =============================================================================
 # Test: no-findings dimension with low score should be rejected (6d83-b949)
-# Scoring rules: "Minor only or no findings → score 4-5"
-# A dimension with zero findings and score < 4 is a scoring error.
+# Scoring rules: no findings → score must be 5; score 4 requires findings.
+# A dimension with zero findings and score < 5 is a scoring error.
 # =============================================================================
 echo ""
 echo "--- test_no_findings_dimension_low_score_rejected ---"
@@ -970,5 +970,84 @@ _NO_FINDINGS_LOW_SCORE_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_NO_FINDIN
 assert_contains "test_no_findings_dimension_low_score_error_message" "no findings" "$_NO_FINDINGS_LOW_SCORE_OUTPUT"
 
 assert_pass_if_clean "test_no_findings_dimension_low_score_rejected"
+
+# =============================================================================
+# Test: no-findings with score=4 should be rejected (score 4 was valid under
+# old "Minor only or no findings → score 4-5" rule; now invalid — no findings
+# requires score=5).
+# =============================================================================
+echo ""
+echo "--- test_no_findings_score_4_rejected ---"
+_snapshot_fail
+
+_NO_FINDINGS_SCORE_4_FILE=$(write_fixture "no_findings_score_4.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 4, "verification": 5},
+  "findings": [],
+  "summary": "No findings but correctness scored 4 instead of 5."
+}')
+_NO_FINDINGS_SCORE_4_EXIT=$(run_script code-review-dispatch "$_NO_FINDINGS_SCORE_4_FILE")
+assert_ne "test_no_findings_score_4_rejected" "0" "$_NO_FINDINGS_SCORE_4_EXIT"
+
+assert_pass_if_clean "test_no_findings_score_4_rejected"
+
+# =============================================================================
+# Test: important finding with score 3 is accepted (6d83-b949)
+# Scoring rule: "important (no critical) → score 3"
+# =============================================================================
+echo ""
+echo "--- test_important_finding_score_3_accepted ---"
+_snapshot_fail
+
+_IMPORTANT_SCORE_3_FILE=$(write_fixture "important_score_3.json" '{
+  "scores": {"correctness": 3, "verification": 5, "hygiene": 5, "design": 5, "maintainability": 5},
+  "findings": [
+    {"severity": "important", "category": "correctness", "description": "Logic error in edge case handling", "file": "app/src/handler.py"}
+  ],
+  "summary": "One important finding in correctness dimension, score correctly set to 3."
+}')
+_IMPORTANT_SCORE_3_EXIT=$(run_script code-review-dispatch "$_IMPORTANT_SCORE_3_FILE")
+assert_eq "test_important_finding_score_3_accepted" "0" "$_IMPORTANT_SCORE_3_EXIT"
+
+assert_pass_if_clean "test_important_finding_score_3_accepted"
+
+# =============================================================================
+# Test: important finding with wrong score is rejected (6d83-b949)
+# Score 4 with an important finding should fail (requires score 3)
+# =============================================================================
+echo ""
+echo "--- test_important_finding_wrong_score_rejected ---"
+_snapshot_fail
+
+_IMPORTANT_WRONG_SCORE_FILE=$(write_fixture "important_wrong_score.json" '{
+  "scores": {"correctness": 4, "verification": 5, "hygiene": 5, "design": 5, "maintainability": 5},
+  "findings": [
+    {"severity": "important", "category": "correctness", "description": "Logic error in edge case handling", "file": "app/src/handler.py"}
+  ],
+  "summary": "One important finding in correctness dimension but score is incorrectly 4 instead of 3."
+}')
+_IMPORTANT_WRONG_SCORE_EXIT=$(run_script code-review-dispatch "$_IMPORTANT_WRONG_SCORE_FILE")
+assert_ne "test_important_finding_wrong_score_rejected" "0" "$_IMPORTANT_WRONG_SCORE_EXIT"
+
+assert_pass_if_clean "test_important_finding_wrong_score_rejected"
+
+# =============================================================================
+# Test: minor-only dimension scored 5 should be rejected
+# Scoring rule: "minor only → score 4" (deterministic; score 5 requires no findings)
+# =============================================================================
+echo ""
+echo "--- test_minor_only_score_5_rejected ---"
+_snapshot_fail
+
+_MINOR_ONLY_SCORE_5_FILE=$(write_fixture "minor_only_score_5.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 5, "verification": 5},
+  "findings": [
+    {"severity": "minor", "category": "hygiene", "description": "Minor style inconsistency in variable naming.", "file": "app/src/util.py"}
+  ],
+  "summary": "One minor hygiene finding but hygiene scored 5 instead of required 4."
+}')
+_MINOR_ONLY_SCORE_5_EXIT=$(run_script code-review-dispatch "$_MINOR_ONLY_SCORE_5_FILE")
+assert_ne "test_minor_only_score_5_rejected" "0" "$_MINOR_ONLY_SCORE_5_EXIT"
+
+assert_pass_if_clean "test_minor_only_score_5_rejected"
 
 print_summary
