@@ -32,6 +32,7 @@ set -euo pipefail
 #   SKIPPED_BLOCKED_STORY: <id>  deferred (parent story <story-id> is blocked)
 #   SKIPPED_OPUS_CAP: <id>  deferred (opus cap reached; 2 opus tasks already in batch)
 #   SKIPPED_IN_PROGRESS: <id>  already in_progress
+#   SKIPPED_NEEDS_PLANNING: <id>  needs implementation planning (story has 0 children)
 #
 # TASK field order (tab-separated after "TASK: "):
 #   id  P<priority>  issue-type  model  subagent-type  class  title  [story:id]
@@ -639,9 +640,10 @@ def is_parent_story_blocked(task_id):
 
 # ── Build candidate list ───────────────────────────────────────────────────────
 
-skipped_blocked_story = []   # (task_id, title, story_id)
-skipped_in_progress   = []   # (task_id, title)
-candidates_raw        = []   # raw task dicts that are eligible
+skipped_blocked_story  = []   # (task_id, title, story_id)
+skipped_in_progress    = []   # (task_id, title)
+skipped_needs_planning = []   # (task_id, title) — stories with 0 impl children
+candidates_raw         = []   # raw task dicts that are eligible
 
 # Load parent IDs with children (pre-computed by BFS in bash section above)
 parent_ids_with_children = set()
@@ -665,6 +667,12 @@ for raw in ready_tasks:
 
     # Skip stories/features that have implementation task children
     if tid in parent_ids_with_children:
+        continue
+
+    # Skip stories with 0 children — they need implementation planning first
+    ttype = raw.get("issue_type", raw.get("ticket_type", "task")).lower()
+    if ttype == "story" and tid not in parent_ids_with_children:
+        skipped_needs_planning.append((tid, title))
         continue
 
     # Story-level blocking: skip if parent story is blocked
@@ -867,6 +875,10 @@ if json_mode:
             {"id": tid, "title": title}
             for tid, title in skipped_in_progress
         ],
+        "skipped_needs_planning": [
+            {"id": tid, "title": title}
+            for tid, title in skipped_needs_planning
+        ],
     }, indent=2))
 else:
     print(f"EPIC: {epic_id}\t{epic_title}")
@@ -885,5 +897,7 @@ else:
         print(f"SKIPPED_BLOCKED_STORY: {tid}\tdeferred (parent story {sid} is blocked)")
     for tid, title in skipped_in_progress:
         print(f"SKIPPED_IN_PROGRESS: {tid}\talready in_progress")
+    for tid, title in skipped_needs_planning:
+        print(f"SKIPPED_NEEDS_PLANNING: {tid}\tneeds implementation planning (story has 0 children)")
 
 PYEOF

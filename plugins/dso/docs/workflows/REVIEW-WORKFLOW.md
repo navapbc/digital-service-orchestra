@@ -465,10 +465,28 @@ Task tool:
    ".claude/scripts/dso capture-review-diff.sh" "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
-2. Dispatch the re-review sub-agent using the same named agent from Step 3:
+2. **Re-review model escalation**: Increment `REVIEW_PASS_NUM` by 1 before each re-review dispatch, then select the re-review agent based on the updated value. On repeated failures, upgrade the reviewer model to prevent infinite loops with a reviewer that cannot process the context (e.g., light-tier reviewers producing recurring false positives on REVIEW-DEFENSE comments):
+
+   | `REVIEW_PASS_NUM` (after increment) | Re-review Agent | Rationale |
+   |---|---|---|
+   | 2 | `REVIEW_AGENT` from Step 3 (unchanged for standard/deep); light → upgrade to `dso:code-reviewer-standard` | Light-tier haiku lacks context for REVIEW-DEFENSE; upgrade to sonnet |
+   | 3+ | Upgrade: light/standard → `dso:code-reviewer-deep-arch` (opus), deep → unchanged | Escalate to opus for maximum context processing |
+
+   ```bash
+   # Re-review model escalation logic
+   ((REVIEW_PASS_NUM++))
+   RE_REVIEW_AGENT="$REVIEW_AGENT"
+   if [[ "$REVIEW_PASS_NUM" -ge 3 ]] && [[ "$REVIEW_TIER" != "deep" ]]; then
+       RE_REVIEW_AGENT="dso:code-reviewer-deep-arch"
+   elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "light" ]]; then
+       RE_REVIEW_AGENT="dso:code-reviewer-standard"
+   fi
+   ```
+
+   Dispatch the re-review sub-agent using `RE_REVIEW_AGENT`:
    ```
    Task tool:
-     subagent_type: "{REVIEW_AGENT from Step 3}"
+     subagent_type: "{RE_REVIEW_AGENT}"
      description: "Re-review after fixes"
      prompt: |
        Review the code changes for this commit.

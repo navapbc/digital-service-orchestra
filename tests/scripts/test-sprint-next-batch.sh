@@ -905,6 +905,83 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test: Childless stories are skipped with SKIPPED_NEEDS_PLANNING ──────────
+echo "Test: test_childless_story_skipped_needs_planning — story with 0 children is not dispatched"
+
+_t_plan_fake_repo=$(mktemp -d)
+_CLEANUP_DIRS+=("$_t_plan_fake_repo")
+git init -q -b main "$_t_plan_fake_repo"
+mkdir -p "$_t_plan_fake_repo/scripts"
+
+# A story with 0 children (no implementation tasks)
+cat > "$_t_plan_fake_repo/scripts/ticket" << 'T_PLAN_TICKET'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "plan-epic" ]]; then
+            echo '{"ticket_id":"plan-epic","status":"open","ticket_type":"epic","priority":1,"title":"Test Epic","parent_id":null,"comments":[],"deps":[]}'
+        elif [[ "$TICKET_ID" == "plan-story" ]]; then
+            echo '{"ticket_id":"plan-story","status":"open","ticket_type":"story","priority":2,"title":"Story needing planning","parent_id":"plan-epic","comments":[],"deps":[]}'
+        else
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
+        fi; exit 0 ;;
+    list)
+        # plan-story is a story with NO children — it should be skipped
+        echo '[{"ticket_id":"plan-story","status":"open","ticket_type":"story","priority":2,"title":"Story needing planning","parent_id":"plan-epic","deps":[]}]'
+        exit 0 ;;
+    *) exit 0 ;;
+esac
+T_PLAN_TICKET
+chmod +x "$_t_plan_fake_repo/scripts/ticket"
+
+cat > "$_t_plan_fake_repo/scripts/classify-task.py" << 'T_PLAN_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+T_PLAN_SCORER
+
+cat > "$_t_plan_fake_repo/scripts/read-config.sh" << 'T_PLAN_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+T_PLAN_CFG
+chmod +x "$_t_plan_fake_repo/scripts/read-config.sh"
+printf '' > "$_t_plan_fake_repo/dso-config.conf"
+
+_t_plan_output=$(
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    PROJECT_ROOT="$_t_plan_fake_repo" \
+    SCRIPT_DIR="$_t_plan_fake_repo/scripts" \
+    TICKET_CMD="$_t_plan_fake_repo/scripts/ticket" \
+    CLASSIFY_CMD="python3 $_t_plan_fake_repo/scripts/classify-task.py" \
+    TICKETS_TRACKER_DIR="$_t_plan_fake_repo/.tickets-tracker" \
+    bash "$PLUGIN_SCRIPT" "plan-epic" 2>&1
+) || true
+
+# The story should NOT appear as a TASK: line — it should be SKIPPED_NEEDS_PLANNING
+_t_plan_task_lines=$(echo "$_t_plan_output" | grep "^TASK:" || true)
+_t_plan_skipped=$(echo "$_t_plan_output" | grep "SKIPPED_NEEDS_PLANNING" || true)
+
+if [ -z "$_t_plan_task_lines" ] && [ -n "$_t_plan_skipped" ]; then
+    echo "  PASS: childless story skipped with SKIPPED_NEEDS_PLANNING (batch_size=0)"
+    (( PASS++ ))
+else
+    echo "  FAIL: childless story should be SKIPPED_NEEDS_PLANNING, not dispatched as TASK" >&2
+    echo "    TASK lines: $_t_plan_task_lines" >&2
+    echo "    SKIPPED_NEEDS_PLANNING: $_t_plan_skipped" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
