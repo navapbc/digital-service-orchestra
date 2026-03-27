@@ -1,1 +1,0 @@
-{"timestamp": 1774573892, "uuid": "82b2e27e-29e8-421c-a54d-4e8fbd2e6363", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Sprint orchestrator does not escalate review model after repeated failed reviews", "parent_id": "", "priority": 1, "assignee": "Joe Oakhart"}}
