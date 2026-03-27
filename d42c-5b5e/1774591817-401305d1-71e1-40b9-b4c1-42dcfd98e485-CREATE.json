@@ -1,1 +1,0 @@
-{"timestamp": 1774591817, "uuid": "401305d1-71e1-40b9-b4c1-42dcfd98e485", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Create red-test-writer agent profile", "parent_id": "12ff-5043", "priority": 1, "assignee": "Joe Oakhart"}}
