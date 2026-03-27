@@ -1,1 +1,0 @@
-{"timestamp": 1774591253, "uuid": "19e1c275-a1f6-4d2c-89d2-2ba8be40978f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "test_skill_md_scenario_analysis tests fail until Scenario Analysis step added to brainstorm SKILL.md", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
