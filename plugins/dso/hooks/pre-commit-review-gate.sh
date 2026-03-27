@@ -177,6 +177,15 @@ if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# ── Mechanical amend bypass (merge-to-main.sh version_bump / validate) ────────
+# DSO_MECHANICAL_AMEND=1 is set by merge-to-main.sh before git commit --amend
+# for mechanical operations (version bump, post-merge validation fold-in).
+# These are single-field or auto-fix changes that don't require code review.
+# Layer 2 (review-gate-bypass-sentinel.sh) blocks misuse on non-amend commits.
+if [[ "${DSO_MECHANICAL_AMEND:-}" == "1" ]]; then
+    exit 0
+fi
+
 # ── Merge commit: filter out incoming-only files (w21-0oc6, dso-k7fe) ────────
 # When MERGE_HEAD exists (e.g., `git merge --no-commit origin/main`), staged
 # files include changes from the incoming branch that were already reviewed
