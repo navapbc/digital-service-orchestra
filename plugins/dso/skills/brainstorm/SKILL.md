@@ -175,6 +175,106 @@ After resolving any artifact gaps, think carefully about the proposed approach:
 
 If gaps are found in either part, present them to the user and resolve before proceeding to the fidelity review.
 
+### Step 2.6: Web Research Phase
+
+Before running the fidelity review, determine whether web research is warranted for this epic. When triggered, use WebSearch and WebFetch to find prior art, best practices, and expert insights that can strengthen the approach and surface unknown constraints.
+
+#### Bright-Line Trigger Conditions
+
+Research is **always triggered** when any of the following conditions apply:
+
+1. **External integration**: The epic references a third-party API, CLI tool, or service not currently used in the project — e.g., "We need to call the Stripe API for billing" triggers research into Stripe's SDK patterns and rate limits.
+2. **Unfamiliar dependency**: The epic proposes adding a new library or package the codebase does not currently import — e.g., "Use Redis for caching" triggers research into Redis client library best practices and connection management patterns.
+3. **Security / authentication / credentials**: The epic touches authentication, authorization, credential storage, or data handling with legal or compliance implications — e.g., "Add OAuth2 login with Google" triggers research into current OAuth2 security best practices and token handling pitfalls.
+4. **Novel architectural pattern**: The epic proposes an architectural approach not established in the codebase — e.g., "Switch from polling to event-driven updates" triggers research into event-driven architecture trade-offs for the project's language and scale.
+5. **Performance or scalability**: The epic explicitly targets throughput, latency, or concurrency improvements — e.g., "Support 10,000 concurrent users" triggers research into bottlenecks and optimization strategies for the stack in use.
+6. **Migration or compatibility**: The epic involves data migration, version upgrades, or backward-compatibility concerns — e.g., "Migrate tickets from v2 to v3 format" triggers research into migration strategies and failure-recovery patterns.
+
+#### Agent-Judgment Trigger Guidance
+
+Outside the explicit bright-line conditions above, use your judgment to trigger research when you are uncertain whether an approach is sound, when the problem domain is unfamiliar, or when a quick search could meaningfully change the recommendation. If you find yourself writing a success criterion that depends on a capability you have not personally verified — such as "the library supports X" or "the API allows Y" — that is a strong signal to research before drafting the spec. When in doubt, err toward a brief search: a focused 2-3 query search costs less context than implementing the wrong approach.
+
+#### User-Request Trigger
+
+Research always runs when the user explicitly asks for it (e.g., "look up how others have done this", "research best practices first").
+
+#### Research Process
+
+For each trigger condition that fires:
+
+1. Use **WebSearch** to find relevant prior art, official documentation, and community discussions. Prefer authoritative sources (official docs, well-maintained GitHub repos, recognized technical blogs).
+2. Use **WebFetch** to retrieve and read specific pages when a search result warrants deeper reading (e.g., official API docs, migration guides, security advisories).
+3. Limit to 3-5 focused queries per trigger condition. Stop when the key insight is clear — do not exhaust all search budget.
+
+#### Research Findings
+
+For each trigger condition that produced useful findings, record a **Research Findings** entry in the epic spec under a `## Research Findings` section. Each entry must include:
+
+- **Trigger condition name**: Which condition (from the list above) caused this research
+- **Query summary**: A one-sentence description of what was searched
+- **Source URLs**: The URL(s) consulted
+- **Key insight**: The most actionable finding — what this means for the approach
+
+Example entry:
+```
+### External Integration: Stripe Billing API
+- Trigger condition name: External integration
+- Query summary: Stripe SDK payment intent flow and webhook verification
+- Source URLs: https://stripe.com/docs/payments/payment-intents, https://stripe.com/docs/webhooks/best-practices
+- Key insight: Stripe strongly recommends idempotency keys on all payment API calls to prevent duplicate charges on retry — success criteria should include idempotency handling.
+```
+
+#### Graceful Degradation
+
+If WebSearch or WebFetch fails (tool unavailable, network error, or returns no useful results), log: "Web research skipped: [tool] unavailable or returned no results." and continue the brainstorm without research findings. Do not block progress — the research phase is advisory, not a gate.
+
+### Step 2.75: Scenario Analysis
+
+Run failure scenario analysis to surface edge cases, failure modes, and missing constraints not caught by the gap analysis pass. This step identifies risks that the implementation plan would not naturally surface.
+
+**Differentiation note**: Brainstorm scenario analysis targets epic-level spec gaps (edge cases, failure modes, missing constraints). Preplanning adversarial review (Phase 2.5) targets cross-story interaction gaps (shared state, conflicting assumptions, dependency gaps). These are complementary but distinct.
+
+#### Complexity Scaling Thresholds
+
+Determine which mode to use based on the spec's success criteria count and integration signals:
+
+| Condition | Mode |
+|-----------|------|
+| ≥5 success criteria OR any external integration signal | **Always runs** — full scenario analysis (no cap on scenarios) |
+| 3-4 success criteria AND no integration signals | **Reduced** — cap at 3 scenarios total |
+| ≤2 success criteria | **Skip** — scenario analysis not warranted at this scope |
+
+**Integration signals** are the same keywords used in Step 2.6: third-party APIs, CLI tools, external services, CI/CD workflow changes, infrastructure provisioning, data format migrations, authentication/credential flows.
+
+#### Agent Dispatch
+
+When scenario analysis runs (full or reduced mode):
+
+1. **Dispatch Red Team sub-agent** (sonnet): Read the contents of `prompts/scenario-red-team.md` (relative to this skill's directory) and dispatch a general-purpose sonnet sub-agent with that prompt as its instructions. Fill in `{epic-title}`, `{epic-description}`, and `{approach}` with the current epic's data before dispatching. The sub-agent returns a JSON array of failure scenarios.
+
+2. **Dispatch Blue Team sub-agent** (sonnet): Read the contents of `prompts/scenario-blue-team.md` and dispatch a general-purpose sonnet sub-agent with that prompt. Fill in `{epic-title}`, `{epic-description}`, and `{red-team-scenarios}` (the JSON array from Step 1). The sub-agent returns a JSON object with `surviving_scenarios` and `filtered_scenarios`.
+
+For reduced mode (cap 3 scenarios): after the blue team returns, keep only the top 3 surviving scenarios ranked by severity (`critical` > `high` > `medium` > `low`).
+
+#### Scenario Analysis Output in Epic Spec
+
+Append a **Scenario Analysis** section to the epic spec between Success Criteria and Dependencies:
+
+```
+## Scenario Analysis
+[List each surviving scenario:]
+- **[title]** (`[severity]`, `[category]`): [description]
+
+[If no scenarios survive:]
+No high-confidence failure scenarios identified.
+```
+
+If scenario analysis is skipped (≤2 success criteria), omit the section entirely.
+
+#### Graceful Degradation
+
+If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agent failed: [reason]." and continue without scenario output. Do not block progress.
+
 ### Step 3: Run Fidelity Review
 
 Run the spec through three reviewers **in parallel** using the Task tool. For each reviewer:
@@ -228,9 +328,14 @@ EOF
 
 **Conflict detection**: If two reviewers give contradictory guidance on the same spec element, escalate to the user immediately — do not resolve conflicts autonomously.
 
-### Step 4: Present Spec for Approval
+### Step 4: Approval Gate
 
-Present the validated spec to the user:
+Present the validated spec to the user using **AskUserQuestion** with 4 options. Label options (b) and (c) based on whether the corresponding phase already ran in this session:
+
+- **If web research (Step 2.6) has NOT yet run this session**: label (c) as "Perform additional web research"
+- **If web research already ran this session**: label (c) as "Re-run web research phase"
+- **If scenario analysis (Step 2.75) has NOT yet run this session**: label (b) as "Perform red/blue team review cycle"
+- **If scenario analysis already ran this session**: label (b) as "Re-run red/blue team review cycle"
 
 ```
 === Epic Spec Ready for Review ===
@@ -243,13 +348,44 @@ Present the validated spec to the user:
 ## Success Criteria
 - [...]
 
+## Scenario Analysis
+[if ran]
+
 ## Dependencies
 [...]
 
-Any changes before I create the epic?
+Please choose how to proceed:
+
+(a) Approve — advance to ticket creation (Phase 3)
+(b) [Perform / Re-run] red/blue team review cycle — re-runs scenario analysis (Step 2.75) and re-presents this gate
+(c) [Perform / Re-run] additional web research — re-runs web research phase (Step 2.6) and re-presents this gate
+(d) Let's discuss more — pause for conversational review before re-presenting this gate
 ```
 
-Wait for explicit approval. If changes are requested, revise and re-run affected reviewers.
+**Option behaviors:**
+
+- **(a) Approve**: Record the planning-intelligence log entry (see below), then advance to Phase 3 (Ticket Integration). The log captures which bright-line trigger conditions fired (or "none"), whether scenario analysis ran and how many scenarios survived the blue team filter, and whether the practitioner requested additional cycles via this gate. State vocabulary: "not triggered" / "triggered" / "re-triggered via gate".
+- **(b) Re-run scenario analysis**: Re-execute Step 2.75 (Scenario Analysis) with the current spec. Update the Scenario Analysis section in the spec with new results. Re-present this gate. On re-presentation, label (b) as "Re-run red/blue team review cycle" (scenario analysis already ran).
+- **(c) Re-run web research**: Re-execute Step 2.6 (Web Research Phase) with the current spec. Update the Research Findings section. Re-present this gate. On re-presentation, label (c) as "Re-run web research phase" (research already ran).
+- **(d) Discuss more**: Pause skill execution and engage in open conversational review with the user. When the user indicates they are ready to proceed, re-present this gate with updated labels reflecting what has already run.
+
+If changes are requested during discussion or after any re-run, revise the spec and re-run affected fidelity reviewers before re-presenting this gate.
+
+#### Planning-Intelligence Log Entry
+
+After the user approves (option a), append a planning-intelligence log to the epic spec comment that will be written in Phase 3. The log entry records the planning context for future reference and uses a fixed state vocabulary: **"not triggered"** (phase skipped entirely), **"triggered"** (ran once, automatically or via bright-line condition), or **"re-triggered via gate"** (user explicitly requested a re-run via this gate).
+
+Log format to append under the heading `### Planning Intelligence Log`:
+
+```
+### Planning Intelligence Log
+
+- **Web research (Step 2.6)**: [not triggered | triggered | re-triggered via gate]
+  - Bright-line conditions that fired: [list conditions, or "none"]
+- **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
+  - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
+- **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+```
 
 ---
 
@@ -383,5 +519,5 @@ Skill tool:
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
-| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics) |
+| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
