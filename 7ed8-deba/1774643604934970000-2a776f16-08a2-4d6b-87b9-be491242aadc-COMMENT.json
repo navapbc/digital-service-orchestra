@@ -1,1 +1,0 @@
-{"timestamp": 1774643604934970000, "uuid": "2a776f16-08a2-4d6b-87b9-be491242aadc", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Done definition update: check-onboarding.sh correctly detects the artifacts produced by the rewritten architect-foundation skill (currently expects ARCH_ENFORCEMENT.md)."}}
