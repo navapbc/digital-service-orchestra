@@ -426,7 +426,7 @@ If the user accepts, invoke `ci-generator.sh` via the detected test suite list f
 When the project uses Claude Code (Claude CLI / `acli`), suggest the current version and checksum automatically by running:
 
 ```bash
-bash "$REPO_ROOT/plugins/dso/scripts/acli-version-resolver.sh" 2>/dev/null
+bash "$REPO_ROOT/.claude/scripts/dso" acli-version-resolver.sh 2>/dev/null
 ```
 
 If the script is unavailable or returns non-zero, fall back to a WebFetch of the latest release from the acli releases endpoint. Present the suggestion as a pre-filled config value:

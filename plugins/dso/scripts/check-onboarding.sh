@@ -37,13 +37,10 @@ design_notes=""
 arch_enforcement=""
 
 # Search for .claude/design-notes.md (canonical location)
-for candidate in \
-  "$REPO_ROOT/.claude/design-notes.md"; do
-  if [[ -f "$candidate" ]]; then
-    design_notes="$candidate"
-    break
-  fi
-done
+candidate="$REPO_ROOT/.claude/design-notes.md"
+if [[ -f "$candidate" ]]; then
+  design_notes="$candidate"
+fi
 
 # Search for ARCH_ENFORCEMENT.md (project root or docs/)
 for candidate in \
