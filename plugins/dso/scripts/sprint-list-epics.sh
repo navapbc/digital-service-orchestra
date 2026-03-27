@@ -42,7 +42,7 @@ TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 # the symlink before reading. Without this, sprint-list-epics.sh silently reports
 # "No open epics found" when it's the first script to run in a new worktree session.
 # ---------------------------------------------------------------------------
-if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
+if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ] && [ -f "$SCRIPT_DIR/ticket-init.sh" ]; then
     _init_stderr=$(bash "$SCRIPT_DIR/ticket-init.sh" --silent 2>&1 >/dev/null) || {
         if [ -n "$_init_stderr" ]; then
             echo "Warning: ticket-init.sh failed — $_init_stderr" >&2

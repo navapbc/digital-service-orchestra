@@ -982,6 +982,59 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test: Init failure stderr is surfaced, not swallowed ──────────────────
+echo "Test: test_init_failure_emits_stderr — diagnostic output reaches stderr when init fails"
+test_init_failure_emits_stderr() {
+    local TDIR_STDERR
+    TDIR_STDERR=$(mktemp -d)
+    _CLEANUP_DIRS+=("$TDIR_STDERR")
+
+    cp "$PLUGIN_SCRIPT" "$TDIR_STDERR/sprint-next-batch.sh"
+    chmod +x "$TDIR_STDERR/sprint-next-batch.sh"
+
+    # Stub ticket-init.sh: emits a diagnostic on stderr and exits non-zero
+    cat > "$TDIR_STDERR/ticket-init.sh" << 'STUBEOF'
+#!/usr/bin/env bash
+echo "ERROR: tracker mount failed" >&2
+exit 1
+STUBEOF
+    chmod +x "$TDIR_STDERR/ticket-init.sh"
+
+    # Separate ticket stub
+    cat > "$TDIR_STDERR/ticket-stub" << 'TICKETSTUB'
+#!/usr/bin/env bash
+echo '{"ticket_id":"fake-epic","status":"open","ticket_type":"epic","priority":1,"title":"Fake","parent_id":null,"comments":[],"deps":[]}'
+exit 0
+TICKETSTUB
+    chmod +x "$TDIR_STDERR/ticket-stub"
+
+    cat > "$TDIR_STDERR/read-config.sh" << 'CFGSTUB'
+#!/usr/bin/env bash
+echo ""
+exit 0
+CFGSTUB
+    chmod +x "$TDIR_STDERR/read-config.sh"
+
+    local fake_root="$TDIR_STDERR/fake-repo"
+    mkdir -p "$fake_root"
+    git init -q -b main "$fake_root"
+
+    local captured_stderr
+    captured_stderr=$(PROJECT_ROOT="$fake_root" \
+        TICKET_CMD="$TDIR_STDERR/ticket-stub" \
+        bash "$TDIR_STDERR/sprint-next-batch.sh" "fake-epic" 2>&1 >/dev/null) || true
+
+    # The stub's error message must appear in stderr — not be silently swallowed
+    [[ "$captured_stderr" == *"tracker mount failed"* ]]
+}
+if test_init_failure_emits_stderr; then
+    echo "  PASS: init failure diagnostic is emitted on stderr"
+    (( PASS++ ))
+else
+    echo "  FAIL: init failure stderr was silently swallowed — diagnostic output lost" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
