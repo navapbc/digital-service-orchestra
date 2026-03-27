@@ -1,1 +1,0 @@
-{"timestamp": 1774573858, "uuid": "10d93c4f-7cf7-41b2-9280-6866639a7cd0", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Sprint orchestrator uses light-tier reviewer instead of standard when classifier fails", "parent_id": "", "priority": 1, "assignee": "Joe Oakhart"}}
