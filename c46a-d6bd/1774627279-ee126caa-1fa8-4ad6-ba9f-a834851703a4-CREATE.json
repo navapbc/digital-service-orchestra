@@ -1,0 +1,1 @@
+{"timestamp": 1774627279, "uuid": "ee126caa-1fa8-4ad6-ba9f-a834851703a4", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can see that E2E tests catch known regression patterns", "parent_id": "e677-34da", "priority": 2, "assignee": "Joe Oakhart"}}
