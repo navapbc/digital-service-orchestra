@@ -1,1 +1,0 @@
-{"timestamp": 1774590324, "uuid": "7015d796-f9fe-4999-b71d-8b4a0df90cd8", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Contract: red-test-evaluator verdict interface schema", "parent_id": "eedc-c886", "priority": 1, "assignee": "Joe Oakhart"}}
