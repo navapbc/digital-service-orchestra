@@ -545,6 +545,163 @@ test_no_rigid_multiple_choice() {
     assert_pass_if_clean "test_no_rigid_multiple_choice"
 }
 
+# ── RED infrastructure initialization tests (new — fail until SKILL.md updated) ─
+
+# test_hook_installation_instructions: SKILL.md must instruct installing git pre-commit hooks
+# grep for 'pre-commit-test-gate' or 'pre-commit-review-gate' or 'hook.*install'
+test_hook_installation_instructions() {
+    _snapshot_fail
+    local hooks_found
+    hooks_found="missing"
+    if grep -qiE "pre-commit-test-gate|pre-commit-review-gate|hook.*install" "$SKILL_MD" 2>/dev/null; then
+        hooks_found="found"
+    fi
+    assert_eq "test_hook_installation_instructions" "found" "$hooks_found"
+    assert_pass_if_clean "test_hook_installation_instructions"
+}
+
+# test_hook_manager_detection: SKILL.md must mention detecting hook managers
+# (Husky, pre-commit framework, bare .git/hooks) — grep for 'Husky' AND ('pre-commit' or '.git/hooks')
+test_hook_manager_detection() {
+    _snapshot_fail
+    local has_husky has_hook_manager result
+    has_husky="no"
+    has_hook_manager="no"
+    if grep -q "Husky" "$SKILL_MD" 2>/dev/null; then
+        has_husky="yes"
+    fi
+    if grep -qiE "pre-commit framework|\.git/hooks" "$SKILL_MD" 2>/dev/null; then
+        has_hook_manager="yes"
+    fi
+    if [[ "$has_husky" == "yes" && "$has_hook_manager" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_hook_manager_detection" "found" "$result"
+    assert_pass_if_clean "test_hook_manager_detection"
+}
+
+# test_git_common_dir: SKILL.md must mention git rev-parse --git-common-dir
+# for worktree/submodule support
+test_git_common_dir() {
+    _snapshot_fail
+    local git_common_dir_found
+    git_common_dir_found="missing"
+    if grep -q "git-common-dir" "$SKILL_MD" 2>/dev/null; then
+        git_common_dir_found="found"
+    fi
+    assert_eq "test_git_common_dir" "found" "$git_common_dir_found"
+    assert_pass_if_clean "test_git_common_dir"
+}
+
+# test_ticket_system_init: SKILL.md must instruct initializing ticket system
+# (orphan branch, .tickets-tracker/) — grep for 'orphan' AND 'tickets-tracker'
+test_ticket_system_init() {
+    _snapshot_fail
+    local has_orphan has_tickets_tracker result
+    has_orphan="no"
+    has_tickets_tracker="no"
+    if grep -q "orphan" "$SKILL_MD" 2>/dev/null; then
+        has_orphan="yes"
+    fi
+    if grep -q "tickets-tracker" "$SKILL_MD" 2>/dev/null; then
+        has_tickets_tracker="yes"
+    fi
+    if [[ "$has_orphan" == "yes" && "$has_tickets_tracker" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_ticket_system_init" "found" "$result"
+    assert_pass_if_clean "test_ticket_system_init"
+}
+
+# test_ticket_smoke_test: SKILL.md must instruct performing a ticket smoke test after init
+# grep for 'smoke.*test' or 'create.*read.*ticket'
+test_ticket_smoke_test() {
+    _snapshot_fail
+    local smoke_test_found
+    smoke_test_found="missing"
+    if grep -qiE "smoke.*test|create.*read.*ticket" "$SKILL_MD" 2>/dev/null; then
+        smoke_test_found="found"
+    fi
+    assert_eq "test_ticket_smoke_test" "found" "$smoke_test_found"
+    assert_pass_if_clean "test_ticket_smoke_test"
+}
+
+# test_generate_test_index: SKILL.md must reference generate-test-index.sh
+test_generate_test_index() {
+    _snapshot_fail
+    local test_index_found
+    test_index_found="missing"
+    if grep -q "generate-test-index" "$SKILL_MD" 2>/dev/null; then
+        test_index_found="found"
+    fi
+    assert_eq "test_generate_test_index" "found" "$test_index_found"
+    assert_pass_if_clean "test_generate_test_index"
+}
+
+# test_claude_md_generation: SKILL.md must instruct generating CLAUDE.md with ticket command references
+# grep for 'CLAUDE.md' AND 'ticket.*command'
+test_claude_md_generation() {
+    _snapshot_fail
+    local has_claude_md has_ticket_command result
+    has_claude_md="no"
+    has_ticket_command="no"
+    if grep -q "CLAUDE.md" "$SKILL_MD" 2>/dev/null; then
+        has_claude_md="yes"
+    fi
+    if grep -qiE "ticket.*command" "$SKILL_MD" 2>/dev/null; then
+        has_ticket_command="yes"
+    fi
+    if [[ "$has_claude_md" == "yes" && "$has_ticket_command" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_claude_md_generation" "found" "$result"
+    assert_pass_if_clean "test_claude_md_generation"
+}
+
+# test_known_issues_template: SKILL.md must reference KNOWN-ISSUES template
+test_known_issues_template() {
+    _snapshot_fail
+    local known_issues_found
+    known_issues_found="missing"
+    if grep -q "KNOWN-ISSUES" "$SKILL_MD" 2>/dev/null; then
+        known_issues_found="found"
+    fi
+    assert_eq "test_known_issues_template" "found" "$known_issues_found"
+    assert_pass_if_clean "test_known_issues_template"
+}
+
+# test_ci_trigger_strategy: SKILL.md must ask about CI trigger strategy (not assume PR-based)
+# grep for 'trigger.*strategy' or 'CI.*trigger' or 'not.*assume.*PR'
+test_ci_trigger_strategy() {
+    _snapshot_fail
+    local ci_trigger_found
+    ci_trigger_found="missing"
+    if grep -qiE "trigger.*strategy|CI.*trigger|not.*assume.*PR" "$SKILL_MD" 2>/dev/null; then
+        ci_trigger_found="found"
+    fi
+    assert_eq "test_ci_trigger_strategy" "found" "$ci_trigger_found"
+    assert_pass_if_clean "test_ci_trigger_strategy"
+}
+
+# test_push_verification: SKILL.md must verify push success after ticket system init
+# grep for 'push.*verif' or 'push.*fail' or 'push.*warn'
+test_push_verification() {
+    _snapshot_fail
+    local push_verif_found
+    push_verif_found="missing"
+    if grep -qiE "push.*verif|push.*fail|push.*warn" "$SKILL_MD" 2>/dev/null; then
+        push_verif_found="found"
+    fi
+    assert_eq "test_push_verification" "found" "$push_verif_found"
+    assert_pass_if_clean "test_push_verification"
+}
+
 # Run all 21 assertion functions — GREEN tests first, RED tests last
 test_skill_file_exists
 test_frontmatter_valid
@@ -578,5 +735,16 @@ test_ci_workflow_filename_confirmation
 test_config_merge_existing
 test_jira_bridge_project_key
 test_no_rigid_multiple_choice
+# RED infrastructure initialization tests — these fail until SKILL.md is updated
+test_hook_installation_instructions
+test_hook_manager_detection
+test_git_common_dir
+test_ticket_system_init
+test_ticket_smoke_test
+test_generate_test_index
+test_claude_md_generation
+test_known_issues_template
+test_ci_trigger_strategy
+test_push_verification
 
 print_summary
