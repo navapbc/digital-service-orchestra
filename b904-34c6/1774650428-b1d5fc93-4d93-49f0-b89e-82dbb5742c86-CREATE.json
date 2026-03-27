@@ -1,1 +1,0 @@
-{"timestamp": 1774650428, "uuid": "b1d5fc93-4d93-49f0-b89e-82dbb5742c86", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Add test assertions for artifact review before writing", "parent_id": "a84a-c539", "priority": 2, "assignee": "Joe Oakhart"}}
