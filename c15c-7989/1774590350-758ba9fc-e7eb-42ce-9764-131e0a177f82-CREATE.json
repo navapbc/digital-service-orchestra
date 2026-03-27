@@ -1,1 +1,0 @@
-{"timestamp": 1774590350, "uuid": "758ba9fc-e7eb-42ce-9764-131e0a177f82", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Test red-test-evaluator agent definition structure", "parent_id": "eedc-c886", "priority": 1, "assignee": "Joe Oakhart"}}
