@@ -160,6 +160,15 @@ The accepted recommendations from this phase will be materialized into `ARCH_ENF
 
 ---
 
+## Phase 2.75: Artifact Review Before Writing
+
+Before generating or writing any enforcement artifact to disk, present the full content for user review and approval.
+
+- **Present each artifact** in a fenced code block so the user can review the complete content before it is written.
+- **For files that already exist** (such as `CLAUDE.md` or `ARCH_ENFORCEMENT.md`), show a diff against the existing content rather than presenting full replacement. The existing diff makes it clear which lines are being added, modified, or removed without silently overwriting prior decisions.
+- Ask: "Does this look right? Should I write this file?"
+- Wait for explicit approval before using the Write tool.
+
 ## Phase 3: The Enforcer (Deterministic Guardrails)
 
 Treat "Architecture" as something that can be tested. Generate **Fitness Functions** and **enforcement infrastructure** using tools appropriate for the chosen stack. Architecture enforcement operates at multiple layers — each layer catches violations at a different point in the development cycle.

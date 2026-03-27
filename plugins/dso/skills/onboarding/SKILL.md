@@ -299,6 +299,15 @@ Any corrections before I finalize this?
 
 Wait for the user to confirm or correct. Update the scratchpad with any corrections.
 
+### Step 1.5: Artifact Review Before Writing
+
+Before writing any artifact to disk, present the full content for user review and approval. Do NOT write files without explicit approval.
+
+- **Present each artifact** in a fenced code block so the user can review the complete content before it is written.
+- **For files that already exist** (such as `.claude/dso-config.conf` or `CLAUDE.md`), show a diff against the existing content rather than presenting full replacement. Highlight only the lines being added, changed, or removed so the user can see exactly what will change. Showing the existing diff lets the user verify that no existing configuration is being silently overwritten.
+- Ask: "Does this look right? Should I write this file?"
+- Wait for explicit approval before using the Write tool.
+
 ### Step 2: Write .claude/project-understanding.md
 
 After the user confirms the summary (or provides corrections), write the findings to a structured, human-readable artifact using the Write tool. This file is the lasting record of everything the onboarding conversation learned.
