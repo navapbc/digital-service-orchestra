@@ -161,7 +161,7 @@ This ensures `issue-quality-check.sh` passes and sub-agents can self-serve their
 1. Run `.claude/scripts/dso ticket list` and filter for in-progress tasks under `<epic-id>` for interrupted tasks
 2. For each in-progress task, run `.claude/scripts/dso ticket show <id>` and parse its notes for CHECKPOINT lines
 3. Apply checkpoint resume rules:
-   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `.claude/scripts/dso ticket comment <id> "Fixed: <summary>"` + `.claude/scripts/dso ticket transition <id> open closed`
+   - **CHECKPOINT 6/6 ✓** — task is fully done; fast-close: verify files exist, then `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"`
    - **CHECKPOINT 5/6 ✓** — near-complete; fast-close: spot-check files and close without re-execution
    - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial progress; re-dispatch with resume context: include the highest checkpoint note in the sub-agent prompt so it can continue from that substep
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early progress only; revert to open with `.claude/scripts/dso ticket transition <id> open` for full re-execution

@@ -436,7 +436,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 ### Orchestrator Actions After Sub-Agent Returns
 
 1. Verify the sub-agent's report
-2. Close any issues resolved by auto-fix: `.claude/scripts/dso ticket comment <id> "Resolved by auto-fix (format/lint)"` then `.claude/scripts/dso ticket transition <id> open closed`
+2. Close any issues resolved by auto-fix: `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: resolved by auto-fix (format/lint)"`
 3. Update the failure inventory with remaining errors
 4. **CONTEXT ANCHOR**: After the commit workflow completes, continue immediately at Step 5 below (Phase 4). Do NOT stop or wait for user input after committing.
 
@@ -676,7 +676,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 
 | Sub-agent outcome | Action |
 |------------------|--------|
-| Success + tests pass | `.claude/scripts/dso ticket comment <id> "Fixed: <summary>"` then `.claude/scripts/dso ticket transition <id> open closed` |
+| Success + tests pass | `.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"` |
 | Partial success | `.claude/scripts/dso ticket comment <id> "Partial: <details>."` |
 | Failure | `.claude/scripts/dso ticket transition <id> open` then `.claude/scripts/dso ticket comment <id> "Failed: <error>."` |
 | Regression | Revert changes (`git checkout -- <files>`), reopen, note regression |
