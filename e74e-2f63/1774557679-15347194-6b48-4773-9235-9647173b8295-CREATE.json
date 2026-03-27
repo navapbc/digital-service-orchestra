@@ -1,1 +1,0 @@
-{"timestamp": 1774557679, "uuid": "15347194-6b48-4773-9235-9647173b8295", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, all references to DESIGN_NOTES.md point to .claude/design-notes.md", "parent_id": "8fdd-a993", "priority": 2, "assignee": "Joe Oakhart"}}

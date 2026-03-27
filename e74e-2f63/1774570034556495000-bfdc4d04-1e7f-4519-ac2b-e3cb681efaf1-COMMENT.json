@@ -1,1 +1,0 @@
-{"timestamp": 1774570034556495000, "uuid": "bfdc4d04-1e7f-4519-ac2b-e3cb681efaf1", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "All implementation tasks closed. Story complete: all DESIGN_NOTES.md references migrated to .claude/design-notes.md across 21 files."}}
