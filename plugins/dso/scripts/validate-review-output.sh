@@ -270,9 +270,8 @@ else:
             if isinstance(score, (int, float)) and score > 2:
                 errors.append(f"{prefix}: severity='critical' but scores[{cat}]={score} (critical requires score 1-2)")
 
-# Validate score-severity consistency: if all findings in a dimension are
-# severity=minor, that dimension's score must be 4 or 5 (scoring rules state
-# 'Minor only or no findings -> score 4-5'; score 3 is reserved for important).
+# Score-severity consistency: scores are driven by the worst finding severity.
+# No findings → 5, minor only → 4, important → 3, critical → 1-2.
 if isinstance(findings, list) and isinstance(scores, dict):
     from collections import defaultdict
     dim_severities: dict = defaultdict(set)
@@ -281,22 +280,16 @@ if isinstance(findings, list) and isinstance(scores, dict):
         sev = finding.get("severity")
         if cat and sev:
             dim_severities[cat].add(sev)
-    for dim, sevs in dim_severities.items():
-        score = scores.get(dim)
-        if isinstance(score, (int, float)) and score < 4 and sevs == {"minor"}:
-            errors.append(
-                f"score '{dim}'={score} violates scoring rules: all findings in "
-                f"this dimension are severity='minor', which requires score 4-5 "
-                f"(score 3 is reserved for important findings)"
-            )
-    # No-findings low-score check (6d83-b949): if a dimension has no findings
-    # at all, its score must be 4 or 5 per scoring rules ("no findings → score 4-5").
     for dim, score in scores.items():
-        if dim not in dim_severities and isinstance(score, (int, float)) and score < 4:
-            errors.append(
-                f"score '{dim}'={score} violates scoring rules: this dimension has "
-                f"no findings, which requires score 4-5"
-            )
+        if not isinstance(score, (int, float)):
+            continue
+        sevs = dim_severities.get(dim, set())
+        if not sevs and score != 5:
+            errors.append(f"score '{dim}'={score}: no findings requires score 5")
+        elif sevs == {"minor"} and score != 4:
+            errors.append(f"score '{dim}'={score}: minor-only findings requires score 4")
+        elif "important" in sevs and "critical" not in sevs and score != 3:
+            errors.append(f"score '{dim}'={score}: important (no critical) findings requires score 3")
 
 # Validate summary
 summary = data.get("summary")

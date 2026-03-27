@@ -37,7 +37,7 @@ VALID_JSON='{
     "hygiene": 5,
     "design": "N/A",
     "maintainability": 4,
-    "correctness": 4,
+    "correctness": 5,
     "verification": 5
   },
   "findings": [
@@ -66,7 +66,7 @@ OUT_OF_RANGE_JSON='{
     "hygiene": 5,
     "design": "N/A",
     "maintainability": 10,
-    "correctness": 4,
+    "correctness": 5,
     "verification": 5
   },
   "findings": [],
@@ -150,10 +150,10 @@ assert_eq "test_no_pending_file_on_failure" "no_pending" "$actual"
 # RED: fails until Task w22-4391 renames the dimension keys in the validator.
 NEW_DIM_JSON='{
   "scores": {
-    "correctness": 4,
+    "correctness": 5,
     "verification": 5,
-    "hygiene": 4,
-    "design": 4,
+    "hygiene": 5,
+    "design": 5,
     "maintainability": 5
   },
   "findings": [],

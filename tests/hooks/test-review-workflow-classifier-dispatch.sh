@@ -705,11 +705,11 @@ RECORD_REVIEW_HOOK="$REPO_ROOT/plugins/dso/hooks/record-review.sh"
 
 FINDINGS_A_JSON='{
   "scores": {
-    "hygiene": 4,
+    "hygiene": 5,
     "design": "N/A",
-    "maintainability": 4,
+    "maintainability": 5,
     "correctness": 3,
-    "verification": 4
+    "verification": 5
   },
   "findings": [
     {
@@ -724,10 +724,10 @@ FINDINGS_A_JSON='{
 
 FINDINGS_B_JSON='{
   "scores": {
-    "hygiene": 4,
+    "hygiene": 5,
     "design": "N/A",
     "maintainability": 5,
-    "correctness": 4,
+    "correctness": 5,
     "verification": 3
   },
   "findings": [
@@ -744,10 +744,10 @@ FINDINGS_B_JSON='{
 FINDINGS_C_JSON='{
   "scores": {
     "hygiene": 3,
-    "design": 4,
-    "maintainability": 4,
-    "correctness": 4,
-    "verification": 4
+    "design": 5,
+    "maintainability": 5,
+    "correctness": 5,
+    "verification": 5
   },
   "findings": [
     {
@@ -852,8 +852,8 @@ assert_eq "inline_block_header_matches_arch_agent_input_format: headers match ==
 OPUS_FINDINGS_JSON='{
   "scores": {
     "hygiene": 3,
-    "design": 4,
-    "maintainability": 4,
+    "design": 5,
+    "maintainability": 5,
     "correctness": 3,
     "verification": 3
   },
