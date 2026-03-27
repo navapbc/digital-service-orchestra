@@ -1,0 +1,1 @@
+{"timestamp": 1774644966, "uuid": "b6ba0388-32e5-4fd8-ac6d-955343a51ce3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Rewrite onboarding SKILL.md Phase 1 and Phase 2 for auto-detection and Socratic dialogue", "parent_id": "2f87-5437", "priority": 1, "assignee": "Joe Oakhart"}}
