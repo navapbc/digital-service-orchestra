@@ -1,0 +1,1 @@
+{"timestamp": 1774627277, "uuid": "4d5c38cf-0f9b-401e-8b72-cc984a2b7dbc", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can validate the complete worktree lifecycle through E2E tests", "parent_id": "e677-34da", "priority": 1, "assignee": "Joe Oakhart"}}
