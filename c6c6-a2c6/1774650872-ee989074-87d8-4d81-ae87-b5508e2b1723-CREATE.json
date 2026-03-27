@@ -1,0 +1,1 @@
+{"timestamp": 1774650872, "uuid": "ee989074-87d8-4d81-ae87-b5508e2b1723", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "sprint-next-batch.sh: ticket-init.sh failures silently swallowed via 2>/dev/null || true", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
