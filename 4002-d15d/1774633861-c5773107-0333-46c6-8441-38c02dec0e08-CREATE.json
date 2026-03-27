@@ -1,0 +1,1 @@
+{"timestamp": 1774633861, "uuid": "c5773107-0333-46c6-8441-38c02dec0e08", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Update project docs to reflect promptfoo-based skills eval framework", "parent_id": "7944-dcc5", "priority": 3, "assignee": "Joe Oakhart"}}
