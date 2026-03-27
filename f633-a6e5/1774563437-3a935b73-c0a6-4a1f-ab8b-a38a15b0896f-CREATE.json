@@ -1,1 +1,0 @@
-{"timestamp": 1774563437, "uuid": "3a935b73-c0a6-4a1f-ab8b-a38a15b0896f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Deduplicate _extract_section helper between tests/docs and tests/skills test files", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
