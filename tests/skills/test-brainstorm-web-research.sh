@@ -51,11 +51,11 @@ echo "=== Bright-line trigger conditions (at least 3 named conditions) ==="
 # Count distinct named trigger conditions — lines/items that introduce a specific named condition.
 TRIGGER_COUNT=0
 for trigger in \
-  "unfamiliar dependency\|new dependency\|new library\|new package\|unfamiliar.*library" \
-  "external API\|third-party API\|external integration\|external service" \
-  "security\|auth\|authentication\|credential" \
-  "performance\|scalability\|throughput\|latency" \
-  "migration\|upgrade\|version\|compatibility"; do
+  "unfamiliar dependency|new dependency|new library|new package|unfamiliar.*library" \
+  "external API|third-party API|external integration|external service" \
+  "security|auth|authentication|credential" \
+  "performance|scalability|throughput|latency" \
+  "migration|upgrade|version|compatibility"; do
   if echo "$RESEARCH_SECTION" | grep -qiE "$trigger"; then
     TRIGGER_COUNT=$((TRIGGER_COUNT + 1))
   fi
@@ -101,35 +101,35 @@ fi
 
 echo ""
 echo "=== Research Findings section structure ==="
-if echo "$RESEARCH_SECTION" | grep -qiE "[Rr]esearch [Ff]indings\|findings section"; then
+if echo "$RESEARCH_SECTION" | grep -qiE "[Rr]esearch [Ff]indings|findings section"; then
   pass "Research phase section contains a Research Findings structure"
 else
   fail "Research phase section missing Research Findings section structure"
 fi
 
 # Item-level format: trigger condition name
-if echo "$RESEARCH_SECTION" | grep -qiE "trigger.*condition\|condition.*name\|trigger name"; then
+if echo "$RESEARCH_SECTION" | grep -qiE "trigger.*condition|condition.*name|trigger name"; then
   pass "Research Findings format includes trigger condition name"
 else
   fail "Research Findings format missing trigger condition name field"
 fi
 
 # Item-level format: query summary
-if echo "$RESEARCH_SECTION" | grep -qiE "query summary\|search query\|query used\|what.*searched"; then
+if echo "$RESEARCH_SECTION" | grep -qiE "query summary|search query|query used|what.*searched"; then
   pass "Research Findings format includes query summary"
 else
   fail "Research Findings format missing query summary field"
 fi
 
 # Item-level format: source URLs
-if echo "$RESEARCH_SECTION" | grep -qiE "source URL\|source url\|URLs?\b.*found\|link.*found\|references?\b.*URL"; then
+if echo "$RESEARCH_SECTION" | grep -qiE "source URL|source url|URLs?.*found|link.*found|references?.*URL"; then
   pass "Research Findings format includes source URLs"
 else
   fail "Research Findings format missing source URLs field"
 fi
 
 # Item-level format: key insight
-if echo "$RESEARCH_SECTION" | grep -qiE "key insight\|insight\|finding\|takeaway\|summary.*result"; then
+if echo "$RESEARCH_SECTION" | grep -qiE "key insight|insight|finding|takeaway|summary.*result"; then
   pass "Research Findings format includes key insight"
 else
   fail "Research Findings format missing key insight field"

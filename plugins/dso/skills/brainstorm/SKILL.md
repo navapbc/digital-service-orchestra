@@ -175,6 +175,59 @@ After resolving any artifact gaps, think carefully about the proposed approach:
 
 If gaps are found in either part, present them to the user and resolve before proceeding to the fidelity review.
 
+### Step 2.6: Web Research Phase
+
+Before running the fidelity review, determine whether web research is warranted for this epic. When triggered, use WebSearch and WebFetch to find prior art, best practices, and expert insights that can strengthen the approach and surface unknown constraints.
+
+#### Bright-Line Trigger Conditions
+
+Research is **always triggered** when any of the following conditions apply:
+
+1. **External integration**: The epic references a third-party API, CLI tool, or service not currently used in the project — e.g., "We need to call the Stripe API for billing" triggers research into Stripe's SDK patterns and rate limits.
+2. **Unfamiliar dependency**: The epic proposes adding a new library or package the codebase does not currently import — e.g., "Use Redis for caching" triggers research into Redis client library best practices and connection management patterns.
+3. **Security / authentication / credentials**: The epic touches authentication, authorization, credential storage, or data handling with legal or compliance implications — e.g., "Add OAuth2 login with Google" triggers research into current OAuth2 security best practices and token handling pitfalls.
+4. **Novel architectural pattern**: The epic proposes an architectural approach not established in the codebase — e.g., "Switch from polling to event-driven updates" triggers research into event-driven architecture trade-offs for the project's language and scale.
+5. **Performance or scalability**: The epic explicitly targets throughput, latency, or concurrency improvements — e.g., "Support 10,000 concurrent users" triggers research into bottlenecks and optimization strategies for the stack in use.
+6. **Migration or compatibility**: The epic involves data migration, version upgrades, or backward-compatibility concerns — e.g., "Migrate tickets from v2 to v3 format" triggers research into migration strategies and failure-recovery patterns.
+
+#### Agent-Judgment Trigger Guidance
+
+Outside the explicit bright-line conditions above, use your judgment to trigger research when you are uncertain whether an approach is sound, when the problem domain is unfamiliar, or when a quick search could meaningfully change the recommendation. If you find yourself writing a success criterion that depends on a capability you have not personally verified — such as "the library supports X" or "the API allows Y" — that is a strong signal to research before drafting the spec. When in doubt, err toward a brief search: a focused 2-3 query search costs less context than implementing the wrong approach.
+
+#### User-Request Trigger
+
+Research always runs when the user explicitly asks for it (e.g., "look up how others have done this", "research best practices first").
+
+#### Research Process
+
+For each trigger condition that fires:
+
+1. Use **WebSearch** to find relevant prior art, official documentation, and community discussions. Prefer authoritative sources (official docs, well-maintained GitHub repos, recognized technical blogs).
+2. Use **WebFetch** to retrieve and read specific pages when a search result warrants deeper reading (e.g., official API docs, migration guides, security advisories).
+3. Limit to 3-5 focused queries per trigger condition. Stop when the key insight is clear — do not exhaust all search budget.
+
+#### Research Findings
+
+For each trigger condition that produced useful findings, record a **Research Findings** entry in the epic spec under a `## Research Findings` section. Each entry must include:
+
+- **Trigger condition name**: Which condition (from the list above) caused this research
+- **Query summary**: A one-sentence description of what was searched
+- **Source URLs**: The URL(s) consulted
+- **Key insight**: The most actionable finding — what this means for the approach
+
+Example entry:
+```
+### External Integration: Stripe Billing API
+- Trigger condition name: External integration
+- Query summary: Stripe SDK payment intent flow and webhook verification
+- Source URLs: https://stripe.com/docs/payments/payment-intents, https://stripe.com/docs/webhooks/best-practices
+- Key insight: Stripe strongly recommends idempotency keys on all payment API calls to prevent duplicate charges on retry — success criteria should include idempotency handling.
+```
+
+#### Graceful Degradation
+
+If WebSearch or WebFetch fails (tool unavailable, network error, or returns no useful results), log: "Web research skipped: [tool] unavailable or returned no results." and continue the brainstorm without research findings. Do not block progress — the research phase is advisory, not a gate.
+
 ### Step 3: Run Fidelity Review
 
 Run the spec through three reviewers **in parallel** using the Task tool. For each reviewer:
@@ -383,5 +436,5 @@ Skill tool:
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
-| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec, run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics) |
+| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
