@@ -385,7 +385,26 @@ escalation_reason: <why the fix is COMPLEX — e.g., cross-system refactor, mult
 
 If the bug already causes an existing test to fail, skip this step — the existing test serves as the RED test.
 
-Otherwise, create a unit test that fails because of the bug:
+Otherwise, write a RED test by dispatching `dso:red-test-writer`. If the writer rejects the task, follow the three-tier escalation protocol.
+
+### RED Test Dispatch via dso:red-test-writer
+
+Dispatch a task to `dso:red-test-writer` (sonnet) with the bug context (bug description, root cause from investigation, files affected, and the approved fix description from Step 4).
+
+Parse the leading `TEST_RESULT:` line from the output:
+
+| Result | Action |
+|--------|--------|
+| `TEST_RESULT:written` | Success. Proceed to Step 5.5 using `TEST_FILE` and `RED_ASSERTION` fields. |
+| `TEST_RESULT:rejected` | This inline dispatch was the sonnet attempt. On rejection, proceed to **Tier 2** of the escalation protocol in `plugins/dso/skills/sprint/prompts/red-task-escalation.md` (skip Tier 1 — already attempted here). `TEST_RESULT:rejected` is **not** an infrastructure failure. See fix-bug verdict mapping below. |
+| Timeout / malformed / non-zero exit | Treat as `TEST_RESULT:rejected`. Proceed to Tier 2 of the escalation protocol. |
+
+**Fix-bug verdict mapping** (how escalation verdicts map to fix-bug workflow):
+- `VERDICT:CONFIRM` (TDD infeasible) → return to Step 2 and escalate to the next investigation tier. The bug may require a different fix approach that is testable.
+- `VERDICT:REVISE` (task spec insufficient) → re-run investigation (Step 2) with the evaluator's revision guidance appended to the investigation context.
+- `VERDICT:REJECT` (retry at opus) → proceed to Tier 3 per the escalation template.
+
+When `TEST_RESULT:written`, run the new test to confirm it fails (RED):
 
 ```bash
 # Run the new test to confirm it fails (RED)
@@ -394,9 +413,9 @@ $TEST_CMD  # Should see the new test FAIL
 
 The test failure should confirm the root cause identified during investigation when possible.
 
-If a previous investigation loop created a RED test for this bug, the existing test may be edited rather than creating a new one.
+If a previous investigation loop created a RED test for this bug, the existing test may be edited rather than creating a new one — dispatch `dso:red-test-writer` with the existing test file path so it can update rather than create.
 
-**If no RED test can be written**: return to Step 2 and escalate to the next investigation tier. Include the failed test attempt and reasoning with the investigation prompt.
+**If no RED test can be written** (all three tiers in `red-task-escalation.md` are exhausted): return to Step 2 and escalate to the next investigation tier. Include the rejection payloads and reasoning with the investigation prompt.
 
 ### Step 5.5: RED-before-fix Gate (/dso:fix-bug)
 

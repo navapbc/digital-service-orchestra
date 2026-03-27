@@ -431,6 +431,115 @@ test_classify_task_no_tk_show() {
 }
 test_classify_task_no_tk_show
 
+
+# ── RED test-writer routing tests ─────────────────────────────────────────────
+# These tests verify RED phase routing. The non-RED backward-compatibility test
+# is placed BEFORE the RED tests so it sits outside the .test-index RED marker
+# boundary ([test_red_create_test_routes_to_red_test_writer]).
+
+# Helper: parse a field from classify-task.py JSON output
+_parse_classify_field() {
+    local field="$1"
+    python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['$field'])" 2>/dev/null
+}
+
+# ── test_non_red_test_still_routes_to_test_automator ─────────────────────────
+# This test PASSES now (backward compat) and must stay outside the RED marker.
+# NOTE: The red-test-writer.yaml profile (created in GREEN task d42c-5b5e) must
+# NOT outscore test-automator.yaml for generic test-writing keywords like
+# "unit tests" or "test coverage". The profile uses RED-specific keywords
+# (RED:, create-test, modify-existing-test) to avoid false matches.
+echo "Test: non-RED test task still routes to test-automator (not dso:red-test-writer)"
+if ! $_HAS_PYYAML; then
+    _skip_no_pyyaml "non-RED test task routes to test-automator"
+else
+{
+    PYTHON="python3"
+    SCORER="$DSO_PLUGIN_DIR/scripts/classify-task.py"
+
+    regular_test_task='[{"id":"test-regular-test","title":"Write unit tests for parser","description":"Add unit tests covering the parser module logic and error handling"}]'
+    output=$(echo "$regular_test_task" | "$PYTHON" "$SCORER" 2>&1) || true
+
+    subagent=$(echo "$output" | _parse_classify_field subagent) || subagent=""
+
+    if [ "$subagent" = "dso:red-test-writer" ]; then
+        echo "  FAIL: test_non_red_test_still_routes_to_test_automator — regular test task incorrectly routed to dso:red-test-writer" >&2
+        (( FAIL++ ))
+    elif [ "$subagent" = "unit-testing:test-automator" ]; then
+        echo "  PASS: test_non_red_test_still_routes_to_test_automator — regular test task routed to unit-testing:test-automator"
+        (( PASS++ ))
+    elif [ -n "$subagent" ]; then
+        echo "  FAIL: test_non_red_test_still_routes_to_test_automator — expected unit-testing:test-automator, got $subagent" >&2
+        (( FAIL++ ))
+    else
+        echo "  FAIL: test_non_red_test_still_routes_to_test_automator — could not parse subagent from output" >&2
+        (( FAIL++ ))
+    fi
+}
+fi
+
+# ── RED tests below this line — covered by .test-index RED marker ────────────
+# These FAIL until red-test-writer.yaml profile is created (GREEN task d42c-5b5e).
+
+# ── test_red_create_test_routes_to_red_test_writer ────────────────────────────
+echo "Test: RED create-test task routes to dso:red-test-writer"
+if ! $_HAS_PYYAML; then
+    _skip_no_pyyaml "RED create-test task routes to dso:red-test-writer"
+else
+{
+    PYTHON="python3"
+    SCORER="$DSO_PLUGIN_DIR/scripts/classify-task.py"
+
+    red_create_task='[{"id":"test-red-create","title":"RED: Create test for auth module","description":"create-test behavioral test failing test assert on output"}]'
+    output=$(echo "$red_create_task" | "$PYTHON" "$SCORER" 2>&1) || true
+
+    subagent=$(echo "$output" | _parse_classify_field subagent) || subagent=""
+    model=$(echo "$output" | _parse_classify_field model) || model=""
+
+    # NOTE: PASS/FAIL lines must start at column 0 (no indent) for red-zone.sh
+    # parse_failing_tests_from_output() which matches ^FAIL: at line start.
+    if [ "$subagent" = "dso:red-test-writer" ] && [ "$model" = "sonnet" ]; then
+        echo "PASS: test_red_create_test_routes_to_red_test_writer — routed to dso:red-test-writer (model=$model)"
+        (( PASS++ ))
+    elif [ "$subagent" = "dso:red-test-writer" ]; then
+        echo "FAIL: test_red_create_test_routes_to_red_test_writer — correct agent but expected model=sonnet, got $model" >&2
+        (( FAIL++ ))
+    else
+        echo "FAIL: test_red_create_test_routes_to_red_test_writer — expected dso:red-test-writer, got $subagent" >&2
+        (( FAIL++ ))
+    fi
+}
+fi
+
+# ── test_red_modify_test_routes_to_red_test_writer ────────────────────────────
+echo "Test: RED modify-existing-test task routes to dso:red-test-writer"
+if ! $_HAS_PYYAML; then
+    _skip_no_pyyaml "RED modify-existing-test task routes to dso:red-test-writer"
+else
+{
+    PYTHON="python3"
+    SCORER="$DSO_PLUGIN_DIR/scripts/classify-task.py"
+
+    red_modify_task='[{"id":"test-red-modify","title":"RED: Modify existing test for payment flow","description":"modify-existing-test behavioral test assert on updated output"}]'
+    output=$(echo "$red_modify_task" | "$PYTHON" "$SCORER" 2>&1) || true
+
+    subagent=$(echo "$output" | _parse_classify_field subagent) || subagent=""
+    model=$(echo "$output" | _parse_classify_field model) || model=""
+
+    # NOTE: PASS/FAIL lines at column 0 for red-zone.sh compatibility.
+    if [ "$subagent" = "dso:red-test-writer" ] && [ "$model" = "sonnet" ]; then
+        echo "PASS: test_red_modify_test_routes_to_red_test_writer — routed to dso:red-test-writer (model=$model)"
+        (( PASS++ ))
+    elif [ "$subagent" = "dso:red-test-writer" ]; then
+        echo "FAIL: test_red_modify_test_routes_to_red_test_writer — correct agent but expected model=sonnet, got $model" >&2
+        (( FAIL++ ))
+    else
+        echo "FAIL: test_red_modify_test_routes_to_red_test_writer — expected dso:red-test-writer, got $subagent" >&2
+        (( FAIL++ ))
+    fi
+}
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
