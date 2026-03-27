@@ -228,6 +228,53 @@ Example entry:
 
 If WebSearch or WebFetch fails (tool unavailable, network error, or returns no useful results), log: "Web research skipped: [tool] unavailable or returned no results." and continue the brainstorm without research findings. Do not block progress — the research phase is advisory, not a gate.
 
+### Step 2.75: Scenario Analysis
+
+Run failure scenario analysis to surface edge cases, failure modes, and missing constraints not caught by the gap analysis pass. This step identifies risks that the implementation plan would not naturally surface.
+
+**Differentiation note**: Brainstorm scenario analysis targets epic-level spec gaps (edge cases, failure modes, missing constraints). Preplanning adversarial review (Phase 2.5) targets cross-story interaction gaps (shared state, conflicting assumptions, dependency gaps). These are complementary but distinct.
+
+#### Complexity Scaling Thresholds
+
+Determine which mode to use based on the spec's success criteria count and integration signals:
+
+| Condition | Mode |
+|-----------|------|
+| ≥5 success criteria OR any external integration signal | **Always runs** — full scenario analysis (no cap on scenarios) |
+| 3-4 success criteria AND no integration signals | **Reduced** — cap at 3 scenarios total |
+| ≤2 success criteria | **Skip** — scenario analysis not warranted at this scope |
+
+**Integration signals** are the same keywords used in Step 2.6: third-party APIs, CLI tools, external services, CI/CD workflow changes, infrastructure provisioning, data format migrations, authentication/credential flows.
+
+#### Agent Dispatch
+
+When scenario analysis runs (full or reduced mode):
+
+1. **Dispatch Red Team sub-agent** (sonnet): Read the contents of `prompts/scenario-red-team.md` (relative to this skill's directory) and dispatch a general-purpose sonnet sub-agent with that prompt as its instructions. Fill in `{epic-title}`, `{epic-description}`, and `{approach}` with the current epic's data before dispatching. The sub-agent returns a JSON array of failure scenarios.
+
+2. **Dispatch Blue Team sub-agent** (sonnet): Read the contents of `prompts/scenario-blue-team.md` and dispatch a general-purpose sonnet sub-agent with that prompt. Fill in `{epic-title}`, `{epic-description}`, and `{red-team-scenarios}` (the JSON array from Step 1). The sub-agent returns a JSON object with `surviving_scenarios` and `filtered_scenarios`.
+
+For reduced mode (cap 3 scenarios): after the blue team returns, keep only the top 3 surviving scenarios ranked by severity (`critical` > `high` > `medium` > `low`).
+
+#### Scenario Analysis Output in Epic Spec
+
+Append a **Scenario Analysis** section to the epic spec between Success Criteria and Dependencies:
+
+```
+## Scenario Analysis
+[List each surviving scenario:]
+- **[title]** (`[severity]`, `[category]`): [description]
+
+[If no scenarios survive:]
+No high-confidence failure scenarios identified.
+```
+
+If scenario analysis is skipped (≤2 success criteria), omit the section entirely.
+
+#### Graceful Degradation
+
+If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agent failed: [reason]." and continue without scenario output. Do not block progress.
+
 ### Step 3: Run Fidelity Review
 
 Run the spec through three reviewers **in parallel** using the Task tool. For each reviewer:
@@ -436,5 +483,5 @@ Skill tool:
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
-| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics) |
+| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
