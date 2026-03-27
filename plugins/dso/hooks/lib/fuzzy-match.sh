@@ -107,6 +107,15 @@ fuzzy_find_associated_tests() {
             if [[ "$norm_test" == *"$norm_src"* ]]; then
                 echo "${test_file#"$repo_root/"}"
             fi
-        done < <(find "$search_path" -type f 2>/dev/null)
+        done < <(find "$search_path" -type f \
+            -not -path '*/node_modules/*' \
+            -not -path '*/.venv/*' \
+            -not -path '*/vendor/*' \
+            -not -path '*/bower_components/*' \
+            -not -path '*/__pypackages__/*' \
+            -not -path '*/.gradle/*' \
+            -not -path '*/Pods/*' \
+            -not -path '*/.git/*' \
+            2>/dev/null)
     done
 }
