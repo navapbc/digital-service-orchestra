@@ -558,6 +558,143 @@ Accept these values? [Y/n]
 
 Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.conf` on acceptance.
 
+### Step 2c: Infrastructure Initialization
+
+After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.
+
+#### Hook Installation
+
+Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-review-gate.sh`) into the project's hooks directory. Hook installation must account for the detected hook manager:
+
+**Detect hook manager and install accordingly:**
+
+1. **Husky** — if `.husky/` exists, add DSO hook calls to `.husky/pre-commit` (create if absent). **Idempotency**: check whether the hook call already exists before appending to avoid duplicates on re-run:
+   ```bash
+   HOOKS_DIR="$REPO_ROOT/.husky"
+   grep -qF 'pre-commit-test-gate' "$HOOKS_DIR/pre-commit" 2>/dev/null || \
+     echo 'bash "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-test-gate.sh"' >> "$HOOKS_DIR/pre-commit"
+   grep -qF 'pre-commit-review-gate' "$HOOKS_DIR/pre-commit" 2>/dev/null || \
+     echo 'bash "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-review-gate.sh"' >> "$HOOKS_DIR/pre-commit"
+   ```
+
+2. **pre-commit framework** — if `.pre-commit-config.yaml` exists, add DSO hooks as local hooks in the config.
+
+3. **Bare `.git/hooks/`** — if neither Husky nor the pre-commit framework is detected, install directly into the git hooks directory. Use `git rev-parse --git-common-dir` to find the correct hooks path (supports worktrees and submodules where `.git` may be a file rather than a directory):
+   ```bash
+   GIT_COMMON_DIR=$(git rev-parse --git-common-dir)
+   HOOKS_DIR="$GIT_COMMON_DIR/hooks"
+   cp "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-test-gate.sh" "$HOOKS_DIR/pre-commit-test-gate"
+   cp "$REPO_ROOT/plugins/dso/hooks/dispatchers/pre-commit-review-gate.sh" "$HOOKS_DIR/pre-commit-review-gate"
+   # Ensure the pre-commit hook calls both
+   PRECOMMIT_HOOK="$HOOKS_DIR/pre-commit"
+   if [[ ! -f "$PRECOMMIT_HOOK" ]]; then
+       echo '#!/usr/bin/env bash' > "$PRECOMMIT_HOOK"
+       chmod +x "$PRECOMMIT_HOOK"
+   fi
+   echo 'bash "$(git rev-parse --git-common-dir)/hooks/pre-commit-test-gate"' >> "$PRECOMMIT_HOOK"
+   echo 'bash "$(git rev-parse --git-common-dir)/hooks/pre-commit-review-gate"' >> "$PRECOMMIT_HOOK"
+   ```
+
+After hook installation, confirm with the user which hook manager was used and where the hooks were installed.
+
+#### Ticket System Initialization
+
+Initialize the DSO ticket system by creating an orphan branch and setting up the `.tickets-tracker/` directory:
+
+```bash
+# Create orphan branch for ticket event storage
+cd "$REPO_ROOT"
+git checkout --orphan tickets
+git rm -rf . --quiet 2>/dev/null || true
+mkdir -p .tickets-tracker
+echo "# DSO Ticket System" > .tickets-tracker/README.md
+git add .tickets-tracker/README.md
+git commit -m "chore: initialize ticket system"
+git checkout -  # return to previous branch
+```
+
+**Push verification:** After creating the orphan branch, push it to the remote and verify push success. If the push fails, warn the user:
+
+```bash
+if git push origin tickets 2>&1; then
+    echo "Ticket system initialized and pushed successfully."
+else
+    echo "WARNING: push to origin tickets failed. The ticket system is initialized locally but not synced to remote. Run 'git push origin tickets' when remote access is available."
+fi
+```
+
+#### Ticket Smoke Test
+
+After initialization, perform a ticket smoke test to verify the system works end-to-end. Create a test ticket and read it back:
+
+```bash
+# Smoke test: create and read a ticket
+TEST_ID=$(.claude/scripts/dso ticket create task "DSO smoke test — delete me" 2>/dev/null | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}')
+if [[ -n "$TEST_ID" ]]; then
+    .claude/scripts/dso ticket show "$TEST_ID" > /dev/null 2>&1 && echo "Ticket smoke test PASSED (id: $TEST_ID)" || echo "WARNING: ticket smoke test failed — show returned non-zero"
+    .claude/scripts/dso ticket transition "$TEST_ID" open closed --reason="Fixed: smoke test cleanup" 2>/dev/null
+else
+    echo "WARNING: ticket smoke test failed — could not create test ticket"
+fi
+```
+
+#### Generate Test Index
+
+If test directories were detected during Phase 1 auto-detection, run `generate-test-index.sh` to build the initial `.test-index` file mapping source files to test files:
+
+```bash
+if [[ -n "$TEST_DIRS" ]]; then
+    bash "$REPO_ROOT/plugins/dso/scripts/generate-test-index.sh" "$REPO_ROOT" 2>/dev/null && \
+        echo "Test index generated." || \
+        echo "NOTE: generate-test-index.sh unavailable — create .test-index manually if needed."
+fi
+```
+
+#### Generate CLAUDE.md
+
+Generate a `CLAUDE.md` at the HOST PROJECT root (not the plugin's `CLAUDE.md`) using the `/dso:generate-claude-md` skill. This file should include:
+- Project-specific defaults drawn from `project-understanding.md` and `dso-config.conf`
+- Ticket command references (the ticket commands table: create, show, list, transition, etc.)
+- CI trigger strategy notes from the onboarding conversation (do NOT assume PR-based workflow)
+
+```
+Invoke: /dso:generate-claude-md
+```
+
+The generated `CLAUDE.md` must include a Quick Reference table of ticket commands so that future Claude sessions can manage work items without re-reading the full DSO documentation.
+
+#### Copy KNOWN-ISSUES Template
+
+Copy the DSO `KNOWN-ISSUES` template to `.claude/docs/` in the host project:
+
+```bash
+KNOWN_ISSUES_SRC="$REPO_ROOT/plugins/dso/docs/templates/KNOWN-ISSUES.md"
+KNOWN_ISSUES_DEST="$REPO_ROOT/.claude/docs/KNOWN-ISSUES.md"
+if [[ -f "$KNOWN_ISSUES_SRC" ]] && [[ ! -f "$KNOWN_ISSUES_DEST" ]]; then
+    mkdir -p "$REPO_ROOT/.claude/docs"
+    cp "$KNOWN_ISSUES_SRC" "$KNOWN_ISSUES_DEST"
+    echo "KNOWN-ISSUES template copied to .claude/docs/KNOWN-ISSUES.md"
+fi
+```
+
+#### CI Trigger Strategy
+
+Ask the user about the CI trigger strategy — do NOT assume a PR-based workflow:
+
+```
+What events should trigger CI? Common options:
+- Pull request (on open, sync, reopen)
+- Push to specific branches (e.g., main, develop)
+- Manual dispatch only
+- Scheduled (cron)
+
+This affects the ci.workflow_name setting and any generated workflow templates.
+```
+
+Record the CI trigger strategy in `dso-config.conf` under `ci.workflow_name` and in `.claude/project-understanding.md` under the CI section.
+
+---
+
 ### Step 3: Offer /dso:architect-foundation
 
 After writing `.claude/project-understanding.md`, offer the next step:
@@ -602,4 +739,4 @@ If the user says no or wants to continue manually, summarize what was learned an
 |-------|------|---------------|
 | 1: Auto-Detection | Pre-fill answers | Run project-detect.sh, initialize scratchpad temp file, summarize findings |
 | 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, confirmation-based (not rigid menus), skip confirmed areas |
-| 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write .claude/design-notes.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), offer /dso:architect-foundation |
+| 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write .claude/design-notes.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), infrastructure init (hook install with Husky/pre-commit framework/.git/hooks manager detection, git-common-dir for worktree support, ticket system orphan branch + .tickets-tracker/ + push verification + smoke test, generate-test-index.sh, CLAUDE.md with ticket commands, KNOWN-ISSUES template, CI trigger strategy), offer /dso:architect-foundation |
