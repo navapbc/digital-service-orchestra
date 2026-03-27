@@ -1,0 +1,51 @@
+# Digital Service Orchestra — Ticket Lifecycle
+# Runs ticket-lifecycle.sh daily to advance ticket states (e.g., auto-close stale tickets).
+
+name: Ticket Lifecycle
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: ticket-lifecycle
+  cancel-in-progress: false
+
+jobs:
+  lifecycle:
+    name: Run ticket lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main (scripts and plugin code)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: main
+
+      - name: Mount tickets branch as worktree
+        run: |
+          git fetch origin tickets --depth=1
+          # Remove the placeholder .tickets-tracker/ from main (if it exists)
+          rm -rf .tickets-tracker
+          git worktree add .tickets-tracker tickets
+
+      - name: Configure git user (main + worktree)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C .tickets-tracker config user.name "github-actions[bot]"
+          git -C .tickets-tracker config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run ticket lifecycle
+        run: bash plugins/dso/scripts/ticket-lifecycle.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Job timing report
+        if: always()
+        run: echo "ticket-lifecycle completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

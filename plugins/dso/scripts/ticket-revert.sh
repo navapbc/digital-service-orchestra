@@ -77,8 +77,8 @@ if [ ! -d "$ticket_dir" ]; then
     exit 1
 fi
 
-if ! find "$ticket_dir" -maxdepth 1 -name '*-CREATE.json' ! -name '.*' 2>/dev/null | grep -q .; then
-    echo "Error: ticket $ticket_id has no CREATE event" >&2
+if ! find "$ticket_dir" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
+    echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
     exit 1
 fi
 

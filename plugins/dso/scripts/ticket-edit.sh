@@ -6,7 +6,7 @@
 #   ticket_id: the ticket directory name (e.g., w21-ablv)
 #   At least one --field=value pair is required.
 #
-# Ghost prevention: verifies CREATE event exists before writing EDIT.
+# Ghost prevention: verifies CREATE or SNAPSHOT event exists before writing EDIT.
 # Exits 0 on success, 1 on validation failure.
 set -euo pipefail
 
@@ -101,8 +101,8 @@ if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
     exit 1
 fi
 
-if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 -name '*-CREATE.json' ! -name '.*' 2>/dev/null | grep -q .; then
-    echo "Error: ticket $ticket_id has no CREATE event" >&2
+if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
+    echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
     exit 1
 fi
 

@@ -62,53 +62,24 @@ if [ ! -d "$TRACKER_DIR" ]; then
     exit 1
 fi
 
-# ── Collect all ticket states ─────────────────────────────────────────────────
-# Build a newline-delimited list of JSON strings, then assemble via python3.
-collected_json=""
+# ── Batch-reduce all tickets ──────────────────────────────────────────────────
+batch_output=""
+batch_exit=0
+batch_output=$(python3 "$REDUCER" --batch --exclude-archived "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
 
-for ticket_dir_raw in "$TRACKER_DIR"/*/; do
-    # Skip if no subdirs exist (glob returns literal pattern)
-    [ -d "$ticket_dir_raw" ] || continue
-
-    # Strip trailing slash so basename and reducer work correctly
-    ticket_dir="${ticket_dir_raw%/}"
-    ticket_id=$(basename "$ticket_dir")
-
-    # Skip hidden directories
-    case "$ticket_id" in
-        .*) continue ;;
-    esac
-
-    # Run reducer
-    local_output=""
-    local_exit=0
-    local_output=$(python3 "$REDUCER" "$ticket_dir" 2>/dev/null) || local_exit=$?
-
-    if [ "$local_exit" -eq 0 ] && [ -n "$local_output" ]; then
-        # Exit 0 with output: include reducer's JSON (could be normal or fsck_needed/error status)
-        collected_json="${collected_json}${local_output}"$'\n'
-    elif [ "$local_exit" -ne 0 ] && [ -n "$local_output" ]; then
-        # Exit non-zero with output: reducer printed error-state JSON (status=error/fsck_needed)
-        collected_json="${collected_json}${local_output}"$'\n'
-    else
-        # Exit non-zero with no output (e.g., no CREATE event, reducer returned None)
-        # Construct fallback error-state dict
-        fallback=$(python3 -c "
-import json, sys
-print(json.dumps({'ticket_id': sys.argv[1], 'status': 'error', 'error': 'reducer_failed'}))
-" "$ticket_id") || {
-            echo "WARNING: failed to build fallback for $ticket_id" >&2
-            continue
-        }
-        collected_json="${collected_json}${fallback}"$'\n'
-    fi
-done
+if [ "$batch_exit" -ne 0 ] && [ -z "$batch_output" ]; then
+    echo "Error: batch reducer failed (exit $batch_exit) with no output" >&2
+    exit 1
+fi
 
 # ── Assemble and output ────────────────────────────────────────────────────────
 if [ "$format" = "llm" ]; then
     # LLM format: JSONL — one minified ticket per line, shortened keys, stripped nulls/empty lists,
     # and no verbose timestamps (created_at, env_id, and comment timestamps omitted).
-    _TICKET_LLM_FMT="$SCRIPT_DIR/ticket-llm-format.py" python3 -c "
+    # Convert JSON array to newline-delimited JSON objects, then pipe through LLM formatter.
+    echo "$batch_output" \
+        | python3 -c "import json,sys; [print(json.dumps(t)) for t in json.loads(sys.stdin.read())]" \
+        | _TICKET_LLM_FMT="$SCRIPT_DIR/ticket-llm-format.py" python3 -c "
 import json, sys, importlib.util, pathlib, os
 
 _mod_path = pathlib.Path(os.environ['_TICKET_LLM_FMT'])
@@ -123,8 +94,7 @@ except (ImportError, FileNotFoundError, OSError) as _e:
     print(f'ERROR: failed to load ticket-llm-format.py: {_e}', file=sys.stderr)
     sys.exit(1)
 
-lines = sys.stdin.read().strip().split('\n')
-for line in lines:
+for line in sys.stdin:
     line = line.strip()
     if not line:
         continue
@@ -133,24 +103,14 @@ for line in lines:
         print(json.dumps(to_llm(obj), ensure_ascii=False, separators=(',', ':')))
     except json.JSONDecodeError as e:
         print(f'WARNING: skipping malformed JSON line: {e}', file=sys.stderr)
-" <<< "$collected_json"
+"
 else
-    # Default: JSON array
+    # Default: JSON array — batch output is already a JSON array; emit directly.
     # Also emit a passive aggregate health warning to stderr when unresolved bridge alerts exist.
     python3 -c "
 import json, sys
 
-lines = sys.stdin.read().strip().split('\n')
-results = []
-for line in lines:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        results.append(json.loads(line))
-    except json.JSONDecodeError as e:
-        print(f'WARNING: skipping malformed JSON line: {e}', file=sys.stderr)
-
+results = json.loads(sys.stdin.read())
 print(json.dumps(results, ensure_ascii=False))
 
 alerted_count = sum(
@@ -162,5 +122,5 @@ if alerted_count > 0:
         f'WARNING: {alerted_count} ticket(s) have unresolved bridge alerts. Run: ticket bridge-status for details.',
         file=sys.stderr,
     )
-" <<< "$collected_json"
+" <<< "$batch_output"
 fi

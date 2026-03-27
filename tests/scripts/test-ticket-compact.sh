@@ -379,4 +379,92 @@ test_compact_subcommand_routes_correctly() {
 }
 test_compact_subcommand_routes_correctly
 
+# ── Suite-runner guard for RED tests: skip when --skip-sync is not implemented ─
+# ticket-compact.sh exists but does NOT yet support --skip-sync. When running
+# under run-all.sh, skip these RED tests so the suite stays green.
+_skip_sync_implemented() {
+    grep -q '\-\-skip-sync' "$COMPACT_SCRIPT" 2>/dev/null
+}
+
+if [ "${_RUN_ALL_ACTIVE:-0}" = "1" ] && ! _skip_sync_implemented; then
+    echo "SKIP: --skip-sync not yet implemented (RED) — tests 8-9 deferred"
+    echo ""
+    print_summary
+    exit 0
+fi
+
+# ── Test 8: --skip-sync flag suppresses sync-before-compact ───────────────
+echo "Test 8: --skip-sync flag suppresses sync-before-compact"
+test_compact_skip_sync_flag() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for skip-sync test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-skipsync"
+    _create_ticket_with_events "$repo" "$ticket_id" 12
+
+    # Set TICKET_SYNC_CMD to write a marker file — if sync runs, marker appears
+    local sync_marker="$repo/.sync-ran-marker"
+    export TICKET_SYNC_CMD="touch '$sync_marker'"
+
+    # Run compact WITH --skip-sync — sync should NOT run
+    local exit_code=0
+    (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id" --skip-sync) 2>/dev/null || exit_code=$?
+
+    # Clean up exported var regardless of outcome
+    unset TICKET_SYNC_CMD
+
+    assert_eq "compact --skip-sync exits 0" "0" "$exit_code"
+
+    # Assert: marker file was NOT created (sync was skipped)
+    if [ -f "$sync_marker" ]; then
+        assert_eq "sync marker absent (sync skipped)" "absent" "present"
+    else
+        assert_eq "sync marker absent (sync skipped)" "absent" "absent"
+    fi
+    assert_pass_if_clean "test_compact_skip_sync_flag"
+}
+test_compact_skip_sync_flag
+
+# ── Test 9: --threshold=0 --skip-sync creates SNAPSHOT ────────────────────
+echo "Test 9: --threshold=0 --skip-sync creates SNAPSHOT for minimal ticket"
+test_compact_threshold_zero_with_skip_sync() {
+    _snapshot_fail
+
+    if [ ! -f "$COMPACT_SCRIPT" ]; then
+        assert_eq "ticket-compact.sh exists for threshold-zero-skip-sync test" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local ticket_id="tkt-t0skip"
+    local ticket_dir
+    # Create ticket with 2 events (CREATE + 1 STATUS) — below default threshold
+    ticket_dir=$(_create_ticket_with_events "$repo" "$ticket_id" 2)
+
+    # Run compact with --threshold=0 --skip-sync
+    local exit_code=0
+    (cd "$repo" && bash "$COMPACT_SCRIPT" "$ticket_id" --threshold=0 --skip-sync) 2>/dev/null || exit_code=$?
+    assert_eq "compact --threshold=0 --skip-sync exits 0" "0" "$exit_code"
+
+    # Assert: SNAPSHOT event file exists
+    local snapshot_count
+    snapshot_count=$(find "$ticket_dir" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "SNAPSHOT created with threshold=0 skip-sync" "1" "$snapshot_count"
+
+    # Assert: original source event files were removed (only SNAPSHOT + .cache remain)
+    local remaining_events
+    remaining_events=$(find "$ticket_dir" -maxdepth 1 -name '*.json' ! -name '.*' ! -name '*-SNAPSHOT.json' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "source events removed after compact" "0" "$remaining_events"
+
+    assert_pass_if_clean "test_compact_threshold_zero_with_skip_sync"
+}
+test_compact_threshold_zero_with_skip_sync
+
 print_summary

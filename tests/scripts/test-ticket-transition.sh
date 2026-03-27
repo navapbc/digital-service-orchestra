@@ -714,11 +714,14 @@ test_transition_bug_close_with_reason_succeeds() {
     # Assert: exits 0
     assert_eq "bug-close-with-reason: exits 0" "0" "$exit_code"
 
-    # Assert: a STATUS event for 'closed' was written (confirms the transition happened)
+    # Assert: transition evidence exists — either a STATUS event or a SNAPSHOT (compact-on-close)
     local tracker_dir="$repo/.tickets-tracker"
     local status_count
     status_count=$(_count_status_events "$tracker_dir" "$ticket_id")
-    assert_eq "bug-close-with-reason: STATUS event written" "1" "$status_count"
+    local snapshot_count
+    snapshot_count=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-SNAPSHOT.json' 2>/dev/null | wc -l | tr -d ' ')
+    local evidence_count=$(( status_count + snapshot_count ))
+    assert_eq "bug-close-with-reason: transition evidence exists" "1" "$([ "$evidence_count" -ge 1 ] && echo 1 || echo 0)"
 
     # Assert: compiled status is now closed
     local compiled_status
@@ -785,5 +788,120 @@ test_transition_close_blocked_with_open_children() {
     assert_pass_if_clean "test_transition_close_blocked_with_open_children"
 }
 test_transition_close_blocked_with_open_children
+
+# ── Suite-runner guard for RED compact-on-close tests ──────────────────────────
+# ticket-transition.sh does not call compact yet and does not read DSO_COMPACT_SCRIPT.
+# When running under run-all.sh, skip these RED tests so the suite stays green.
+_compact_on_close_implemented() {
+    grep -q 'DSO_COMPACT_SCRIPT' "$TICKET_TRANSITION_SCRIPT" 2>/dev/null
+}
+
+if [ "${_RUN_ALL_ACTIVE:-0}" = "1" ] && ! _compact_on_close_implemented; then
+    echo "SKIP: compact-on-close not yet implemented (RED) — tests 15-16 deferred"
+    echo ""
+    print_summary
+    exit 0
+fi
+
+# ── Test 15 (RED): close triggers compaction ────────────────────────────────────
+echo "Test 15 (RED): closing a ticket with 12+ events triggers compaction (SNAPSHOT file created)"
+test_close_triggers_compaction() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" task "Ticket for compaction test")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "compact: ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_triggers_compaction"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Add 12+ comment events to exceed the compaction threshold
+    local i
+    for i in $(seq 1 13); do
+        (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" "Comment number $i" 2>/dev/null) || true
+    done
+
+    # Close the ticket via transition
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" open closed 2>/dev/null) || exit_code=$?
+
+    # Assert: transition exits 0
+    assert_eq "compact: transition exits 0" "0" "$exit_code"
+
+    # Assert: a *-SNAPSHOT.json file exists in the ticket dir
+    # RED: ticket-transition.sh does not call compact on close yet → no SNAPSHOT file
+    local snapshot_count
+    snapshot_count=$(find "$tracker_dir/$ticket_id" -maxdepth 1 -name '*-SNAPSHOT.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "$snapshot_count" -ge 1 ]; then
+        assert_eq "compact: SNAPSHOT file exists after close" "has-snapshot" "has-snapshot"
+    else
+        assert_eq "compact: SNAPSHOT file exists after close" "has-snapshot" "no-snapshot (count=$snapshot_count)"
+    fi
+
+    assert_pass_if_clean "test_close_triggers_compaction"
+}
+test_close_triggers_compaction
+
+# ── Test 16 (RED): close succeeds even if compact fails ────────────────────────
+echo "Test 16 (RED): close succeeds (exit 0) even if DSO_COMPACT_SCRIPT points to a failing script"
+test_close_succeeds_if_compact_fails() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(_create_ticket "$repo" task "Ticket for compact-fail test")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "compact-fail: ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_succeeds_if_compact_fails"
+        return
+    fi
+
+    # Create a temp script that writes a breadcrumb then exits 1 (simulates compact failure)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmpdir")
+    cat > "$tmpdir/fail-compact.sh" <<COMPEOF
+#!/bin/bash
+touch "$tmpdir/compact-was-called"
+exit 1
+COMPEOF
+    chmod +x "$tmpdir/fail-compact.sh"
+
+    # Close the ticket with DSO_COMPACT_SCRIPT pointing to the failing script
+    # RED: ticket-transition.sh does not read DSO_COMPACT_SCRIPT yet
+    local exit_code=0
+    (cd "$repo" && DSO_COMPACT_SCRIPT="$tmpdir/fail-compact.sh" \
+        bash "$TICKET_SCRIPT" transition "$ticket_id" open closed 2>/dev/null) || exit_code=$?
+
+    # Assert: transition exits 0 (compact failure is non-blocking)
+    assert_eq "compact-fail: transition exits 0 despite compact failure" "0" "$exit_code"
+
+    # Assert: ticket was actually closed (STATUS event written)
+    local compiled_status
+    compiled_status=$(_get_ticket_status "$repo" "$ticket_id")
+    assert_eq "compact-fail: ticket status is closed" "closed" "$compiled_status"
+
+    # Assert: DSO_COMPACT_SCRIPT was actually invoked (breadcrumb file exists)
+    # RED: ticket-transition.sh does not read DSO_COMPACT_SCRIPT yet → compact not called
+    if [ -f "$tmpdir/compact-was-called" ]; then
+        assert_eq "compact-fail: DSO_COMPACT_SCRIPT was invoked" "called" "called"
+    else
+        assert_eq "compact-fail: DSO_COMPACT_SCRIPT was invoked" "called" "not-called"
+    fi
+
+    assert_pass_if_clean "test_close_succeeds_if_compact_fails"
+}
+test_close_succeeds_if_compact_fails
 
 print_summary

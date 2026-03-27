@@ -61,6 +61,72 @@ Read and follow `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full su
 - You MAY run: .claude/scripts/dso ticket create -t bug --parent=<parent-id> (for discovered bugs/defects only)
 - Your task ends at step 9 (Report output) — the orchestrator handles commits and issue lifecycle
 
+### Prohibited Fix Patterns
+
+These 5 anti-patterns are **never** acceptable ways to make tests pass. They hide the root cause rather than fixing it. Treat any impulse to use them as a signal that you need to investigate deeper.
+
+**1. Skipping or removing tests**
+
+Removing or skipping a failing test hides the real failure instead of fixing it.
+
+```python
+# PROHIBITED
+@pytest.mark.skip(reason="flaky")
+def test_important_behavior():
+    ...
+```
+
+Do this instead: Fix the underlying code so the test passes. If the test is genuinely wrong, update the assertion to reflect the correct expected behavior and document why.
+
+**2. Loosening assertions**
+
+Weakening assertions so a test passes without fixing the underlying logic masks the bug.
+
+```python
+# PROHIBITED — changed from assertEqual to assertIn just to pass
+assert result in [expected, None]  # was: assert result == expected
+```
+
+Do this instead: Fix the implementation so the original assertion holds. If the spec changed, update the assertion to the new correct value with a comment explaining the change.
+
+**3. Broad exception handlers**
+
+Catching broad exceptions swallows errors and hides the root cause, making tests appear to pass when they should fail.
+
+```python
+# PROHIBITED
+try:
+    result = do_something()
+except Exception:
+    pass  # silently ignore all failures
+```
+
+Do this instead: Catch only the specific exception you expect and handle it correctly. Let unexpected exceptions propagate so failures are visible.
+
+**4. Downgrading error severity**
+
+Changing an assertion or error to a warning so execution continues covers up a genuine failure.
+
+```python
+# PROHIBITED
+# was: assert result == expected
+import warnings
+warnings.warn(f"result {result!r} does not match {expected!r}")
+```
+
+Do this instead: Fix the root cause so the assertion passes. If severity genuinely changed, document the reasoning explicitly.
+
+**5. Commenting out failing code**
+
+Commenting out the code that causes a failure hides the defect without resolving it.
+
+```python
+# PROHIBITED
+# assert check_integrity(data), "data integrity check failed"
+```
+
+Do this instead: Understand why the check fails and fix the underlying data or logic so the check passes.
+
 ### Prior Batch Discoveries
 
 {prior_batch_discoveries}

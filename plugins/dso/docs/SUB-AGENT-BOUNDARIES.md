@@ -15,8 +15,8 @@ Sub-agents must NOT:
   are not present, causing the review to fail.
 - Modify files outside the scope of their assigned task
 - Modify files outside `$(git rev-parse --show-toplevel)` (worktree boundary)
-- Skip, disable, or delete any tests
 - Add `# type: ignore`, `# noqa`, `@pytest.mark.skip`, or any suppression comments
+- Use any prohibited fix pattern — see [Prohibited Fix Patterns](#prohibited-fix-patterns) below
 - Follow the "Task Completion Workflow" in CLAUDE.md — that applies to orchestrators only
 
 **Resolution sub-agents** (launched via `review-fix-dispatch.md`) have an additional prohibition:
@@ -25,6 +25,146 @@ Sub-agents must NOT:
   Resolution sub-agents apply fixes only and return `RESOLUTION_RESULT: FIXES_APPLIED`.
   The orchestrator dispatches re-review sub-agents after the resolution agent returns.
   See CLAUDE.md Never Do These rule 23.
+
+## Prohibited Fix Patterns
+
+These are cover-up anti-patterns — ways to make a test pass or silence an error without fixing the root cause. Sub-agents must never use them. Each pattern below is documented with a code example showing what NOT to do, a rationale for why it is harmful, and a concrete alternative.
+
+---
+
+### 1. Skipping or removing tests
+
+**Description**: Deleting test files or test functions, applying `@pytest.mark.skip`, or removing test cases because they fail.
+
+**What NOT to do:**
+```python
+# BAD: @pytest.mark.skip hides the failure — the bug still exists
+@pytest.mark.skip(reason="flaky, fix later")
+def test_data_pipeline_returns_correct_count():
+    result = run_pipeline(sample_data)
+    assert result.count == 42
+```
+
+**Rationale**: Skipping a test hides the root cause. The underlying bug remains in production code; the test suite now gives a false green signal. Future developers lose the safety net and may introduce regressions that go undetected.
+
+**Do this instead**: Fix the implementation so the test passes, or if the test itself is wrong, update the assertion to reflect the correct expected behavior.
+```python
+# GOOD: Fix the implementation, not the test
+def run_pipeline(data):
+    # ... actual fix here ...
+    return PipelineResult(count=len(data))
+```
+
+---
+
+### 2. Loosening assertions
+
+**Description**: Weakening assert conditions — broadening tolerance, replacing strict equality with `assertIn` or `assertTrue`, or removing boundary checks — so a failing test passes without fixing the underlying issue.
+
+**What NOT to do:**
+```python
+# BAD: Original strict assertion
+assert result == expected_value  # fails because result is wrong
+
+# BAD: Loosened to pass despite wrong value
+assert result is not None        # now passes but proves nothing
+assert expected_value in str(result)  # hides a type or precision bug
+```
+
+**Rationale**: A loosened assertion masks the real failure. The test no longer verifies the behavior it was designed to protect. Bugs that the original assertion would have caught are now invisible.
+
+**Do this instead**: Fix the implementation so the original strict assertion passes.
+```python
+# GOOD: Keep the strict assertion, fix the code
+assert result == expected_value  # passes after the underlying bug is resolved
+```
+
+---
+
+### 3. Broad exception handlers
+
+**Description**: Adding bare `except:`, `except Exception:`, or overly broad `try/except` blocks that silently swallow errors rather than handling them specifically.
+
+**What NOT to do:**
+```python
+# BAD: Swallows all errors — the caller never knows something went wrong
+try:
+    result = process_record(record)
+except Exception:
+    pass  # silently ignore every possible failure
+
+# BAD: Bare except catches even KeyboardInterrupt and SystemExit
+try:
+    validate_schema(data)
+except:
+    pass
+```
+
+**Rationale**: Broad exception handlers hide failures from callers, from logs, and from monitoring. Errors that should propagate and be fixed are silently discarded. The system appears healthy when it is not.
+
+**Do this instead**: Catch only the specific exception types you intend to handle, and always log or re-raise unexpected errors.
+```python
+# GOOD: Specific exception, intentional handling, unexpected errors propagate
+try:
+    result = process_record(record)
+except RecordValidationError as exc:
+    logger.warning("Skipping invalid record %s: %s", record.id, exc)
+    return None
+# All other exceptions propagate normally
+```
+
+---
+
+### 4. Downgrading error severity
+
+**Description**: Changing `ERROR` log calls to `WARNING`, removing error logging entirely, or converting hard failures (raised exceptions, assert statements) into soft warnings that allow execution to continue.
+
+**What NOT to do:**
+```python
+# BAD: Was an assertion; changed to a warning so the test passes
+# Original: assert len(results) > 0, "Expected at least one result"
+logging.warning("No results found — continuing anyway")  # WARNING hides the problem
+
+# BAD: Changed log level from ERROR to WARNING to silence an alert
+log.warning("Database connection failed")  # was log.error(...)
+```
+
+**Rationale**: Downgrading severity reduces the signal-to-noise ratio of logs and alerts. Operators miss real failures. Tests that asserted an error was raised now pass because no error propagates — but the underlying condition is still wrong.
+
+**Do this instead**: Keep or restore the original severity. Fix the root cause so the error condition no longer occurs.
+```python
+# GOOD: Preserve the error signal; fix the condition that causes it
+assert len(results) > 0, "Expected at least one result"
+# — or fix the code so results is never empty
+```
+
+---
+
+### 5. Commenting out failing code
+
+**Description**: Commenting out the lines of code that produce an error or a test failure instead of fixing the root cause.
+
+**What NOT to do:**
+```python
+# BAD: Comment out the validation that reveals the bug
+def process(data):
+    # assert data is not None, "data must not be None"   # commented out to suppress failure
+    # check_schema(data)                                  # commented out — was raising
+    return transform(data)
+```
+
+**Rationale**: Commented-out code silences the symptom while leaving the root cause in place. The validation that was commented out was there for a reason; disabling it means the bug is now undetected at runtime, not just in tests.
+
+**Do this instead**: Fix the root cause so validation passes, then keep the validation active.
+```python
+# GOOD: Fix the calling code so data is never None, then restore the check
+def process(data):
+    assert data is not None, "data must not be None"  # stays active
+    check_schema(data)                                  # stays active
+    return transform(data)
+```
+
+---
 
 ## Required Actions
 

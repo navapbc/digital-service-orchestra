@@ -45,6 +45,10 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 source "$HOOK_DIR/lib/fuzzy-match.sh"
 
+# Source RED zone helpers (get_red_zone_line_number, parse_failing_tests_from_output,
+# get_test_line_number, read_red_markers_by_test_file) from shared lib.
+source "$HOOK_DIR/lib/red-zone.sh"
+
 # ── .test-index parsing ──────────────────────────────────────────────────────
 # Reads $REPO_ROOT/.test-index and returns test paths mapped to a given source file.
 # Format per line: 'source/path.ext: test/path1.ext [marker], test/path2.ext'
@@ -168,139 +172,6 @@ find_global_red_marker_for_test() {
     done < "$index_file"
 }
 
-# ── RED zone helpers ──────────────────────────────────────────────────────────
-
-# get_red_zone_line_number: find line number of marker in a test file.
-# For Python: matches 'def marker_name' or 'def marker_name('
-# For Bash: matches 'marker_name()' or 'marker_name (' or '# marker_name' pattern
-# For plain text / other: matches any line containing the marker name
-# Returns the line number on stdout, or -1 if not found.
-# Emits WARNING to stderr if marker provided but not found.
-get_red_zone_line_number() {
-    local test_file="$1"
-    local marker_name="$2"
-    local repo_root="${REPO_ROOT:-.}"
-    local full_path="${repo_root}/${test_file}"
-
-    if [[ ! -f "$full_path" ]]; then
-        echo "-1"
-        return 0
-    fi
-
-    local line_num=0
-    local found_line=-1
-    # Word-boundary pattern: marker_name not adjacent to other identifier chars [a-zA-Z0-9_-]
-    # Hyphens are included so that searching for 'test-foo' does not match 'test-foo-bar',
-    # and searching for 'test' does not accidentally match 'test-foo'.
-    local pat_word_boundary="(^|[^a-zA-Z0-9_-])${marker_name}([^a-zA-Z0-9_-]|\$)"
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        (( line_num++ )) || true
-        # Skip pure comment lines (lines starting with optional whitespace then #)
-        # to avoid false positives from comment-only mentions
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        # Match marker_name as a word (not adjacent to other identifier chars)
-        if [[ "$line" =~ $pat_word_boundary ]]; then
-            found_line=$line_num
-            break
-        fi
-    done < "$full_path"
-
-    if [[ $found_line -eq -1 ]]; then
-        echo "WARNING: RED marker '${marker_name}' not found in test file: ${test_file}" >&2
-    fi
-    echo "$found_line"
-}
-
-# parse_failing_tests_from_output: extract failing test names from test runner output.
-# Supports:
-#   - Bash-style: "test_name: FAIL..." lines
-#   - Pytest FAILED lines: "FAILED path/to/test.py::test_name"
-# Returns one test name per line on stdout.
-parse_failing_tests_from_output() {
-    local output_file="$1"
-
-    if [[ ! -f "$output_file" ]]; then
-        return 0
-    fi
-
-    # Bash-style: "test_name: FAIL" (test_name is word chars + underscores/hyphens)
-    grep -oE '^[a-zA-Z_][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*FAIL' "$output_file" \
-        | sed 's/[[:space:]]*:[[:space:]]*FAIL//' \
-        || true
-
-    # Bash-style (assert_pass_if_clean): "FAIL: test_name" on stderr merged into output
-    grep -oE '^FAIL: [a-zA-Z_][a-zA-Z0-9_-]*' "$output_file" \
-        | sed 's/^FAIL: //' \
-        || true
-
-    # Pytest-style: "FAILED path/to/test.py::test_name"
-    grep -oE '^FAILED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*' "$output_file" \
-        | sed 's/^FAILED [^:]*:://' \
-        || true
-}
-
-# parse_passing_tests_from_output: extract passing test names from test runner output.
-# Mirrors parse_failing_tests_from_output for the pass case.
-# Supports:
-#   - Bash-style: "test_name ... PASS" or "test_name: PASS"
-#   - Pytest PASSED lines: "PASSED path/to/test.py::test_name"
-# Returns one test name per line on stdout.
-parse_passing_tests_from_output() {
-    local output_file="$1"
-
-    if [[ ! -f "$output_file" ]]; then
-        return 0
-    fi
-
-    # Bash-style: "test_name ... PASS" (with optional whitespace/dots between)
-    grep -oE '^[a-zA-Z_][a-zA-Z0-9_-]*[[:space:]]*\.\.\..*PASS' "$output_file" \
-        | sed 's/[[:space:]]*\.\.\..*PASS//' \
-        || true
-
-    # Bash-style: "test_name: PASS"
-    grep -oE '^[a-zA-Z_][a-zA-Z0-9_-]*[[:space:]]*:[[:space:]]*PASS' "$output_file" \
-        | sed 's/[[:space:]]*:[[:space:]]*PASS//' \
-        || true
-
-    # Pytest-style: "PASSED path/to/test.py::test_name"
-    grep -oE '^PASSED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*' "$output_file" \
-        | sed 's/^PASSED [^:]*:://' \
-        || true
-}
-
-# get_test_line_number: find the line number of a test function in a test file.
-# For Python: 'def test_name('
-# For Bash: 'test_name()' or any line containing test_name as a word
-# Returns -1 if not found.
-get_test_line_number() {
-    local test_file="$1"
-    local test_name="$2"
-    local repo_root="${REPO_ROOT:-.}"
-    local full_path="${repo_root}/${test_file}"
-
-    if [[ ! -f "$full_path" ]]; then
-        echo "-1"
-        return 0
-    fi
-
-    local line_num=0
-    # Word-boundary pattern: test_name not adjacent to other identifier chars [a-zA-Z0-9_-]
-    # Hyphens are included so that searching for 'test-foo' does not match 'test-foo-bar',
-    # and searching for 'test' does not accidentally match 'test-foo'.
-    local pat_word_boundary="(^|[^a-zA-Z0-9_-])${test_name}([^a-zA-Z0-9_-]|\$)"
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        (( line_num++ )) || true
-        # Skip pure comment lines to avoid false positives
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        if [[ "$line" =~ $pat_word_boundary ]]; then
-            echo "$line_num"
-            return 0
-        fi
-    done < "$full_path"
-
-    echo "-1"
-}
-
 # Parse arguments
 SOURCE_FILE=""
 while [[ $# -gt 0 ]]; do
@@ -350,6 +221,38 @@ fi
 if [[ -z "$STAGED_FILES" ]]; then
     # No staged files — nothing to test, exit cleanly
     exit 0
+fi
+
+# --- Merge commit: filter to worktree-only files ---
+# Mirrors the logic in pre-commit-test-gate.sh lines 124-167.
+# During a merge, staged files include incoming changes from the merge target
+# that were already tested on that branch. Only test files that the worktree
+# branch actually changed to avoid blocking on pre-existing failures from main.
+_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
+if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/MERGE_HEAD" ]]; then
+    _merge_head_sha=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null || echo "")
+    if [[ -n "$_merge_head_sha" ]]; then
+        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
+        _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+        _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
+        if [[ -n "$_merge_base" && -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
+            _worktree_changed=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
+            _filtered=""
+            if [[ -n "$_worktree_changed" ]]; then
+                while IFS= read -r _sf; do
+                    [[ -z "$_sf" ]] && continue
+                    if echo "$_worktree_changed" | grep -qxF "$_sf" 2>/dev/null; then
+                        _filtered="${_filtered}${_sf}"$'\n'
+                    fi
+                done <<< "$STAGED_FILES"
+            fi
+            # Empty _worktree_changed or no matches → all files are incoming-only
+            STAGED_FILES="${_filtered%$'\n'}"
+            if [[ -z "$STAGED_FILES" ]]; then
+                exit 0
+            fi
+        fi
+    fi
 fi
 
 # --- Discover associated test files ---

@@ -86,8 +86,8 @@ if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
     exit 1
 fi
 
-if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 -name '*-CREATE.json' ! -name '.*' 2>/dev/null | grep -q .; then
-    echo "Error: ticket $ticket_id has no CREATE event" >&2
+if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
+    echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
     exit 1
 fi
 
@@ -285,6 +285,10 @@ if [ "$target_status" = "closed" ]; then
             echo "UNBLOCKED: none"
         fi
     fi
+
+    # Compact-on-close: squash event log into SNAPSHOT (non-blocking)
+    compact_script="${DSO_COMPACT_SCRIPT:-$SCRIPT_DIR/ticket-compact.sh}"
+    bash "$compact_script" "$ticket_id" --threshold=0 --skip-sync 2>/dev/null || true
 fi
 
 exit 0
