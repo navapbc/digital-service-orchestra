@@ -1,1 +1,0 @@
-{"timestamp": 1774573927, "uuid": "d3203b16-603f-4866-a7bf-09d562ce883d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "record-review.sh rejects review when reviewer-findings.json FILES field lists non-diff files", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
