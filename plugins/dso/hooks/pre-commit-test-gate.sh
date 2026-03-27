@@ -90,6 +90,15 @@ if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# ── Mechanical amend bypass (merge-to-main.sh version_bump / validate) ────────
+# DSO_MECHANICAL_AMEND=1 is set by merge-to-main.sh before git commit --amend
+# for mechanical operations (version bump, post-merge validation fold-in).
+# These are single-field or auto-fix changes that don't require test verification.
+# Layer 2 (review-gate-bypass-sentinel.sh) blocks misuse on non-amend commits.
+if [[ "${DSO_MECHANICAL_AMEND:-}" == "1" ]]; then
+    exit 0
+fi
+
 # ── Determine repo root ────────────────────────────────────────────────────────
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 

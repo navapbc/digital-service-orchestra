@@ -151,7 +151,10 @@ plugins/dso/agents/code-reviewer-deep-arch.md:tests/agents/test-reviewer-dimensi
 plugins/dso/agents/code-reviewer-deep-correctness.md:tests/agents/test-reviewer-dimension-names.sh
 plugins/dso/agents/code-reviewer-deep-hygiene.md:tests/agents/test-reviewer-dimension-names.sh
 plugins/dso/agents/code-reviewer-deep-verification.md:tests/agents/test-reviewer-dimension-names.sh
-plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-cleanliness.sh
+plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/hooks/test-mechanical-amend-bypass.sh
+plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh
+plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh
+plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_bidirectional_tdd.py
 tests/hooks/test-deps.sh:tests/scripts/test-v2-clean-guard.sh
 tests/scripts/test-lock-acquire-ticket-format.sh:tests/scripts/test-v2-clean-guard.sh

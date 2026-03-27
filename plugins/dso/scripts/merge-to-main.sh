@@ -1096,7 +1096,8 @@ _phase_version_bump() {
     fi
     echo "OK: Version bumped."
     git add -u 2>/dev/null || true
-    if ! git diff --cached --quiet 2>/dev/null; then git commit --amend --no-edit --quiet
+    if ! git diff --cached --quiet 2>/dev/null; then
+        DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet
         echo 'OK: Folded version bump into merge commit.'; fi
     _state_mark_complete "version_bump"
 }
@@ -1168,7 +1169,7 @@ _phase_validate() {
     fi
 
     if ! git diff --cached --quiet 2>/dev/null; then
-        git commit --amend --no-edit --quiet
+        DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet
         echo "OK: Folded post-merge changes into merge commit."
     fi
 

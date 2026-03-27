@@ -52,6 +52,30 @@ hook_review_bypass_sentinel() {
         return 0
     fi
 
+    # --- Pattern j: DSO_MECHANICAL_AMEND on non-amend commits ---
+    # DSO_MECHANICAL_AMEND=1 is an internal bypass for merge-to-main.sh's mechanical
+    # git commit --amend --no-edit calls. Block it on raw (non-amend) git commits to
+    # prevent misuse as a general gate bypass.
+    #
+    # NOTE: This sentinel runs as a PreToolUse hook in Claude Code's process, NOT as
+    # a child of the git subprocess. The inline env-var prefix (DSO_MECHANICAL_AMEND=1
+    # git commit ...) is scoped to the git child process (Layer 1), so the sentinel's
+    # process environment never contains this var. We must parse the COMMAND string
+    # directly to detect the pattern.
+    if [[ "$COMMAND" =~ DSO_MECHANICAL_AMEND=1 ]]; then
+        # REVIEW-DEFENSE: Use `git[[:space:]].*commit` (word-boundary via [[:space:]].*) instead of
+        # `git[[:space:]]+(commit|[^[:space:]]*[[:space:]]+commit)` so that `git -C /path commit`
+        # is also matched. The existing Pattern b has the same regex limitation for -n detection,
+        # but fixing it there risks false positives (git log -n). Here, since we already know
+        # DSO_MECHANICAL_AMEND=1 is present, the broader match is safe and more correct.
+        if [[ "$COMMAND" =~ git[[:space:]].*commit ]]; then
+            if [[ "$COMMAND" != *"--amend"* ]]; then
+                echo "BLOCKED [bypass-sentinel]: DSO_MECHANICAL_AMEND=1 on non-amend commit. This env var is only valid with git commit --amend --no-edit." >&2
+                trap - ERR; return 2
+            fi
+        fi
+    fi
+
     # --- Pattern a: --no-verify ---
     if [[ "$COMMAND" == *"--no-verify"* ]]; then
         echo "BLOCKED [bypass-sentinel]: --no-verify flag detected. Use /dso:commit instead." >&2
