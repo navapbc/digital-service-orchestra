@@ -303,9 +303,9 @@
         "design_notes_path": {
           "type": "string",
           "description": "Path to the project's North Star design document, relative to the repo root. Referenced by design-review and design-onboarding skills.",
-          "default": "DESIGN_NOTES.md",
+          "default": ".claude/design-notes.md",
           "minLength": 1,
-          "examples": ["DESIGN_NOTES.md", "docs/DESIGN_NOTES.md"]
+          "examples": [".claude/design-notes.md", "docs/design-notes.md"]
         },
         "manifest_patterns": {
           "type": "array",

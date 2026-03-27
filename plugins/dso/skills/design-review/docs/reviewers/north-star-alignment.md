@@ -30,7 +30,7 @@ ensure every change advances the project's established design north star.
 ## Input Sections
 
 You will receive:
-- **Design Notes**: The project's DESIGN_NOTES.md — pay close attention to
+- **Design Notes**: The project's .claude/design-notes.md — pay close attention to
   the User Archetypes, Anti-Patterns, Visual Tokens, Interaction Patterns,
   and Terminology/Vocabulary sections
 - **Story**: ID, title, description, and acceptance criteria — use this to

@@ -386,8 +386,8 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | | |
 |---|---|
 | **Description** | Path to the project's North Star design document, relative to repo root. |
-| **Accepted values** | Relative file path (e.g., `DESIGN_NOTES.md`, `docs/DESIGN_NOTES.md`) |
-| **Default** | `DESIGN_NOTES.md` |
+| **Accepted values** | Relative file path (e.g., `.claude/design-notes.md`, `docs/design-notes.md`) |
+| **Default** | `.claude/design-notes.md` |
 | **Used by** | Skills: `/dso:design-review`, `/dso:design-onboarding` |
 
 ---

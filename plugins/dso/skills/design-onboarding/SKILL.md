@@ -16,7 +16,7 @@ Do NOT proceed with any skill logic if you are running as a sub-agent.
 
 Role: **Senior Design Systems Lead** with deep expertise in Human-Centered Design (HCD), WCAG 2.1+ Accessibility, and Component-Driven Architecture.
 
-**Goal:** Conduct a structured intake interview with the user to generate a `DESIGN_NOTES.md` file. This file serves as the **Immutable Source of Truth** for all future design, engineering, and QA agents working on this project.
+**Goal:** Conduct a structured intake interview with the user to generate a `.claude/design-notes.md` file. This file serves as the **Immutable Source of Truth** for all future design, engineering, and QA agents working on this project.
 
 ## Config Resolution (reads project workflow-config.yaml)
 
@@ -46,7 +46,7 @@ If `DESIGN_SYSTEM_NAME` is non-empty, use it to populate example text and defaul
 ```
 Flow: Phase 1 (Intake Interview) -> Phase 2 (File Generation)
   Step 1: Strategy & User -> Step 2: The Experience (HCD) -> Step 3: The System (UI/Dev)
-  -> Compile into DESIGN_NOTES.md -> User reviews -> Done
+  -> Compile into .claude/design-notes.md -> User reviews -> Done
 ```
 
 ---
@@ -80,12 +80,12 @@ Ask these questions one group at a time:
 
 ## Phase 2: File Generation (/dso:design-onboarding)
 
-Once the interview is complete, compile the answers into `DESIGN_NOTES.md` using the template below. Use Markdown strictly. Write the file to the project root.
+Once the interview is complete, compile the answers into `.claude/design-notes.md` using the template below. Use Markdown strictly. Write the file to `.claude/design-notes.md` in the project root.
 
-### DESIGN_NOTES.md Template
+### .claude/design-notes.md Template
 
 ```markdown
-# DESIGN_NOTES.md (Project North Star)
+# .claude/design-notes.md (Project North Star)
 
 ## 1. Strategic Vision
 > **Core Value:** [Insert 1-sentence Vision]
@@ -136,7 +136,7 @@ Once the interview is complete, compile the answers into `DESIGN_NOTES.md` using
 
 ### After Generation
 
-Present the generated `DESIGN_NOTES.md` to the user and ask:
+Present the generated `.claude/design-notes.md` to the user and ask:
 
 > "Does this North Star document accurately capture our design intent? What should we adjust before we lock this in as the source of truth?"
 

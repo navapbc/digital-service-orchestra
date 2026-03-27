@@ -1218,7 +1218,7 @@ This ensures subsequent runs verify the download integrity.
 After completing project setup, offer to run the architecture and design onboarding skills. These skills produce foundational documents that guide future Claude sessions in the target project.
 
 - `/dso:dev-onboarding` — produces `ARCH_ENFORCEMENT.md`: an architecture blueprint and enforcement rules for the codebase
-- `/dso:design-onboarding` — produces `DESIGN_NOTES.md`: visual language conventions and component golden paths
+- `/dso:design-onboarding` — produces `.claude/design-notes.md`: visual language conventions and component golden paths
 
 ### Artifact detection
 
@@ -1226,7 +1226,7 @@ Check for the sentinel files that indicate whether each onboarding skill has alr
 
 ```bash
 ARCH_SENTINEL="$TARGET_REPO/ARCH_ENFORCEMENT.md"
-DESIGN_SENTINEL="$TARGET_REPO/DESIGN_NOTES.md"
+DESIGN_SENTINEL="$TARGET_REPO/.claude/design-notes.md"
 
 dev_done=false
 design_done=false
@@ -1236,16 +1236,16 @@ design_done=false
 ```
 
 - **`ARCH_ENFORCEMENT.md`** is the sentinel for `/dso:dev-onboarding`
-- **`DESIGN_NOTES.md`** is the sentinel for `/dso:design-onboarding`
+- **`.claude/design-notes.md`** is the sentinel for `/dso:design-onboarding`
 
 ### Conditional prompt
 
 **Case 1: Both artifacts present — skip this step entirely**
 
-If both `ARCH_ENFORCEMENT.md` and `DESIGN_NOTES.md` already exist in the target project, both onboarding skills have already run. Skip the prompt entirely and log:
+If both `ARCH_ENFORCEMENT.md` and `.claude/design-notes.md` already exist in the target project, both onboarding skills have already run. Skip the prompt entirely and log:
 
 ```
-(skipping onboarding prompt — both artifacts already present: ARCH_ENFORCEMENT.md, DESIGN_NOTES.md)
+(skipping onboarding prompt — both artifacts already present: ARCH_ENFORCEMENT.md, .claude/design-notes.md)
 ```
 
 No further action is needed. Setup is complete.
@@ -1254,14 +1254,14 @@ No further action is needed. Setup is complete.
 
 **Case 2: Both artifacts missing — 4-option AskUserQuestion**
 
-When both `ARCH_ENFORCEMENT.md` and `DESIGN_NOTES.md` are missing, use `AskUserQuestion` to offer all onboarding options:
+When both `ARCH_ENFORCEMENT.md` and `.claude/design-notes.md` are missing, use `AskUserQuestion` to offer all onboarding options:
 
 ```
 Would you like to set up architecture and design foundations for this project?
 
-1) Both (recommended) — runs dev-onboarding then design-onboarding: produces ARCH_ENFORCEMENT.md (architecture blueprint and enforcement rules) and DESIGN_NOTES.md (visual design language and golden paths)
+1) Both (recommended) — runs dev-onboarding then design-onboarding: produces ARCH_ENFORCEMENT.md (architecture blueprint and enforcement rules) and .claude/design-notes.md (visual design language and golden paths)
 2) Architecture only — runs /dso:dev-onboarding: produces ARCH_ENFORCEMENT.md with codebase architecture guide and enforcement rules for future Claude sessions
-3) Design system only — runs /dso:design-onboarding: produces DESIGN_NOTES.md with visual language conventions and component golden paths
+3) Design system only — runs /dso:design-onboarding: produces .claude/design-notes.md with visual language conventions and component golden paths
 4) Skip for now — setup is complete with no additional steps
 
 Enter 1, 2, 3, or 4:
@@ -1290,11 +1290,11 @@ that guide future Claude sessions through your codebase structure and convention
 
 If yes: invoke `/dso:dev-onboarding`. If no: skip — no additional steps.
 
-**If only `DESIGN_NOTES.md` is missing** (design-onboarding not yet run):
+**If only `.claude/design-notes.md` is missing** (design-onboarding not yet run):
 
 ```
 Would you like to run /dso:design-onboarding?
-design-onboarding produces DESIGN_NOTES.md — a visual design language guide and component
+design-onboarding produces .claude/design-notes.md — a visual design language guide and component
 golden paths that keep UI decisions consistent across Claude sessions. (yes/no)
 ```
 

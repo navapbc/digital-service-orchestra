@@ -24,7 +24,7 @@ at the right scope. You are pragmatic and user-focused.
 | scope_appropriateness | Right-sized: no gold-plating, no missing essentials | Over-engineered beyond the story scope, or under-delivers on stated goals |
 | consistency | Feels like part of the same product; no jarring pattern breaks | Introduces novel patterns without justification; breaks established conventions |
 | epic_coherence | Design integrates naturally with sibling story designs; advances the epic's unified vision; no UX gaps or contradictions between stories | Design conflicts with sibling designs; duplicates scope; ignores the epic's overall direction. Score null if story has no parent epic. |
-| anti_pattern_compliance | Does not violate any Anti-Patterns listed in DESIGN_NOTES.md | Violates one or more documented Anti-Patterns |
+| anti_pattern_compliance | Does not violate any Anti-Patterns listed in .claude/design-notes.md | Violates one or more documented Anti-Patterns |
 
 ## Input Sections
 
@@ -41,7 +41,7 @@ You will receive:
 Evaluate the design on all six dimensions. For each, assign an integer score of
 1-5 or `null` (N/A). For `epic_coherence`, score `null` if the story has no
 parent epic. For `anti_pattern_compliance`, reference specific Anti-Patterns from
-DESIGN_NOTES.md. For any score below 4, you MUST provide a finding with specific,
+.claude/design-notes.md. For any score below 4, you MUST provide a finding with specific,
 actionable feedback explaining what to change and why.
 
 Return your review as JSON conforming to `REVIEW-SCHEMA.md`, using perspective

@@ -41,7 +41,7 @@ source of truth for an implementation agent.
 
 ## Environment Context
 
-- DESIGN_NOTES exists: !`test -f DESIGN_NOTES.md && echo "YES — will load in Phase 1" || echo "NO — will need to proceed without design context or run onboarding first"`
+- DESIGN_NOTES exists: !`test -f .claude/design-notes.md && echo "YES — will load in Phase 1" || echo "NO — will need to proceed without design context or run onboarding first"`
 - Playwright available: !`npx playwright --version 2>/dev/null && echo "YES" || echo "NO — live app review will be skipped; source code analysis only"`
 - ticket CLI available: !`which ticket 2>/dev/null && echo "YES" || echo "NO — cannot proceed without ticket CLI"`
 - UI Discovery Cache: !`test -f .ui-discovery-cache/manifest.json && echo "YES" || echo "NO"`
@@ -130,7 +130,7 @@ pipeline. This replaces Phases 1-6 entirely.
 
 ### Lite Step 1: Context gathering
 
-1. If DESIGN_NOTES.md exists, read only the **UI Building Blocks** and
+1. If .claude/design-notes.md exists, read only the **UI Building Blocks** and
    **Interaction Rules** sections (skip Vision, Archetypes, Golden Paths).
 2. Identify affected component(s) by reading the relevant source files
    (use Glob/Grep to find them from the story description).
@@ -305,11 +305,11 @@ The story MUST have a clear **Success State** — the "After" for the user. If t
 description does not define what "done" looks like, use AskUserQuestion to ask
 the user to clarify the expected outcome before proceeding.
 
-### Step 3: Read DESIGN_NOTES.md (/dso:design-wireframe)
+### Step 3: Read .claude/design-notes.md (/dso:design-wireframe)
 
 #### Wireframe Session File Check
 
-Before reading DESIGN_NOTES.md from disk, check for a wireframe session file
+Before reading .claude/design-notes.md from disk, check for a wireframe session file
 that may already contain its content (written by `/dso:preplanning` Step 6 when
 processing multiple UI stories in sequence):
 
@@ -317,7 +317,7 @@ processing multiple UI stories in sequence):
    `/tmp/wireframe-session-<epic-id>.json`.
 2. **If the session file exists**:
    a. Read the `designNotes` field. If `exists` is true and `content` is
-      non-null, use that content instead of re-reading DESIGN_NOTES.md from
+      non-null, use that content instead of re-reading .claude/design-notes.md from
       disk. Log: `"Loaded DESIGN_NOTES from wireframe session file — skipping
       disk read."`
    b. Read the `siblingDesigns` array. For each entry, the design manifest path
@@ -328,19 +328,19 @@ processing multiple UI stories in sequence):
    c. Read the `processedStories` array to identify which sibling stories have
       already been designed in this session — use this to avoid re-scanning for
       sibling designs.
-3. **If no session file exists**: proceed with the normal DESIGN_NOTES.md read
+3. **If no session file exists**: proceed with the normal .claude/design-notes.md read
    below. This is the backward-compatible path.
 
-#### Standard DESIGN_NOTES.md Read
+#### Standard .claude/design-notes.md Read
 
-If DESIGN_NOTES.md exists (and was not loaded from the session file above), read
+If .claude/design-notes.md exists (and was not loaded from the session file above), read
 it and internalize:
 - Project Vision and User Archetypes
 - Golden Paths (critical workflows)
 - UI Building Blocks (design system, navigation, key components)
 - Interaction Rules (error handling, destructive actions, data density)
 
-If DESIGN_NOTES.md does NOT exist (and the session file doesn't have it either),
+If .claude/design-notes.md does NOT exist (and the session file doesn't have it either),
 inform the user that design context is missing and recommend running design
 onboarding first. Use AskUserQuestion to ask whether to proceed without it or
 stop.
@@ -856,7 +856,7 @@ Summarize for the user:
 |-----------|--------|
 | `ticket` CLI not installed | Stop. Tell user to install ticket CLI. |
 | Story ID not found | Stop. Report invalid story ID. |
-| DESIGN_NOTES.md missing | Warn. Ask user whether to proceed or run onboarding. |
+| .claude/design-notes.md missing | Warn. Ask user whether to proceed or run onboarding. |
 | Playwright unavailable | Warn. Skip live review; rely on source analysis. Note in manifest. |
 | App not running | Warn. Skip screenshots. Note in manifest. |
 | No components found | Warn. All elements will be tagged [NEW]. Note high new-component ratio. |

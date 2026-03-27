@@ -44,7 +44,7 @@ Flow: P0 (Audit) → P1 (Design Doc Interview) → P2 (Blueprint)
    - **`pyproject.toml`** / **`requirements.txt`**: Extract Python version, framework (Flask, FastAPI, Django), and dependencies.
    - **`go.mod`**: Extract Go version and module dependencies.
    - **`Dockerfile`** / **`docker-compose.yaml`**: Extract infrastructure hints (base images, services, databases).
-   - **`DESIGN_NOTES.md`**: If found, extract tech stack and UI library choices from the System Architecture section.
+   - **`.claude/design-notes.md`**: If found, extract tech stack and UI library choices from the System Architecture section.
 
 2. **Propose Defaults:** Based on files found above, pre-populate default answers for the Phase 1 interview questions. Present each default with its source (e.g., *"Stack: Python 3.13 + Flask (from pyproject.toml)"*). Do not guess; if no data exists for a question, leave it blank.
 

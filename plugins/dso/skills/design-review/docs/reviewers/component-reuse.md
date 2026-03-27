@@ -29,7 +29,7 @@ You advocate for sustainable UI development through reuse and modular design.
 ## Input Sections
 
 You will receive:
-- **Design Notes**: The project's DESIGN_NOTES.md — pay close attention to the
+- **Design Notes**: The project's .claude/design-notes.md — pay close attention to the
   Tech Stack/Library and System Architecture sections for available components
 - **Proposed Design**: The code snippet, wireframe description, or diff being
   reviewed — evaluate component choices and reuse opportunities

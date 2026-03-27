@@ -40,7 +40,7 @@ For every action that would modify state, show it as a preview block:
 
 ```
 [DRYRUN] Would run: .claude/scripts/dso ticket create "Phase 1: Authentication System" -t epic -p 1
-[DRYRUN] Would write: DESIGN_NOTES.md (47 lines)
+[DRYRUN] Would write: .claude/design-notes.md (47 lines)
 [DRYRUN] Would run: .claude/scripts/dso ticket link ticket-042 ticket-041
 ```
 

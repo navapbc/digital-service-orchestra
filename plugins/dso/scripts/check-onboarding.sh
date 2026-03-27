@@ -4,7 +4,7 @@ set -euo pipefail
 # check-onboarding.sh - Check if design and dev onboarding artifacts exist
 #
 # Checks for:
-# - DESIGN_NOTES.md (produced by /dso:design-onboarding)
+# - .claude/design-notes.md (produced by /dso:design-onboarding)
 # - ARCH_ENFORCEMENT.md (produced by /dso:dev-onboarding)
 #
 # Usage: ./scripts/check-onboarding.sh [--json]
@@ -29,10 +29,9 @@ done
 design_notes=""
 arch_enforcement=""
 
-# Search for DESIGN_NOTES.md (project root or docs/)
+# Search for .claude/design-notes.md (canonical location)
 for candidate in \
-  "$REPO_ROOT/DESIGN_NOTES.md" \
-  "$REPO_ROOT/docs/DESIGN_NOTES.md"; do
+  "$REPO_ROOT/.claude/design-notes.md"; do
   if [[ -f "$candidate" ]]; then
     design_notes="$candidate"
     break
@@ -59,7 +58,7 @@ if $JSON_OUTPUT; then
 {
   "design_onboarding": {
     "pass": $design_pass,
-    "artifact": "DESIGN_NOTES.md",
+    "artifact": ".claude/design-notes.md",
     "path": "${design_notes:-not found}",
     "skill": "/dso:design-onboarding"
   },
@@ -74,9 +73,9 @@ EOF
 else
   echo "=== Onboarding Artifact Check ==="
   if [[ -n "$design_notes" ]]; then
-    echo "PASS: DESIGN_NOTES.md found at $design_notes"
+    echo "PASS: .claude/design-notes.md found at $design_notes"
   else
-    echo "FAIL: DESIGN_NOTES.md not found (run /dso:design-onboarding)"
+    echo "FAIL: .claude/design-notes.md not found (run /dso:design-onboarding)"
   fi
 
   if [[ -n "$arch_enforcement" ]]; then

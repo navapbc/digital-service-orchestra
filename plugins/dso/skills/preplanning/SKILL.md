@@ -540,7 +540,7 @@ Add blocking relationships:
 After all implementation stories are drafted, create one final story to update project documentation. This story:
 
 - **Updates existing docs only** — do not create new documentation files or patterns
-- **Targets**: `CLAUDE.md` (architecture section, quick reference), `DESIGN_NOTES.md`, ADRs, `KNOWN-ISSUES.md`, or other docs that already exist and would become stale after the epic is complete
+- **Targets**: `CLAUDE.md` (architecture section, quick reference), `.claude/design-notes.md`, ADRs, `KNOWN-ISSUES.md`, or other docs that already exist and would become stale after the epic is complete
 - **Scope**: Concise updates that ensure future agents have accurate awareness of the project state (new routes, changed patterns, updated commands, removed features)
 - **Style guide**: Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting, structure, and conventions when writing documentation updates
 - **Depends on**: All implementation stories (runs last)
@@ -718,7 +718,7 @@ redundant reads across serial `/dso:design-wireframe` invocations.
 
 **Before the first wireframe invocation**:
 
-1. Read `DESIGN_NOTES.md` content (if it exists).
+1. Read `.claude/design-notes.md` content (if it exists).
 2. Create `/tmp/wireframe-session-<epic-id>.json`:
    ```json
    {
@@ -727,7 +727,7 @@ redundant reads across serial `/dso:design-wireframe` invocations.
      "createdAt": "<ISO-8601 timestamp>",
      "designNotes": {
        "exists": true,
-       "content": "<full DESIGN_NOTES.md content or null if missing>"
+       "content": "<full .claude/design-notes.md content or null if missing>"
      },
      "processedStories": [],
      "siblingDesigns": []
