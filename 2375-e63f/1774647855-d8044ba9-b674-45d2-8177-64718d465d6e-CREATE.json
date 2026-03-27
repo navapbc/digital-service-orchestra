@@ -1,0 +1,1 @@
+{"timestamp": 1774647855, "uuid": "d8044ba9-b674-45d2-8177-64718d465d6e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Dogfooding validation: confirm synchronized output on real epics", "parent_id": "e136-0ec7", "priority": 2, "assignee": "Joe Oakhart"}}
