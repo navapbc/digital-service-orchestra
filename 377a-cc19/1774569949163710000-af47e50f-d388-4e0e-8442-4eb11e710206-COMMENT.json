@@ -1,1 +1,0 @@
-{"timestamp": 1774569949163710000, "uuid": "af47e50f-d388-4e0e-8442-4eb11e710206", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Migrated 21 files from DESIGN_NOTES.md to .claude/design-notes.md, updated schema default"}}
