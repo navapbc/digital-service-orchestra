@@ -31,13 +31,15 @@ plugins/dso/commands/review.md:plugins/dso/skills/preplanning/tests/test_adversa
 plugins/dso/docs/CONFIG-RESOLUTION.md:tests/scripts/test-config-resolution-doc-accuracy.sh
 plugins/dso/docs/INSTALL.md:tests/scripts/test-reinstall-hooks-config-paths.sh,tests/scripts/test-reinstall-hooks.sh
 plugins/dso/docs/MIGRATION.md:tests/hooks/test-state-dir-migration.sh,tests/scripts/test-doc-migration.sh
+plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_anti_coverup.py
 plugins/dso/docs/adapters/flask-jinja2.json:tests/plugin/test_flask_jinja2_adapter_yaml.py
 plugins/dso/docs/component-discovery-schema.json:tests/plugin/test_component_discovery_schema.py
 plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-system.sh
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
-plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/skills/test_review_workflow_model_escalation.py
+plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh
+plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/skills/test_review_workflow_model_escalation.py,tests/docs/test-reviewer-base-file-constraint.sh
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
