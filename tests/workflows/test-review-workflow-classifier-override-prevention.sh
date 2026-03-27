@@ -71,5 +71,41 @@ assert_eq "test_no_substitute_agent_for_classifier_tier: REVIEW-WORKFLOW.md must
     "1" "$_has_no_substitute_rule"
 assert_pass_if_clean "test_no_substitute_agent_for_classifier_tier"
 
+# ── test_classifier_failure_standard_tier_invariant ──────────────────────────
+# When the classifier fails (exit non-zero or invalid JSON), REVIEW-WORKFLOW.md
+# must contain an explicit prose-level instruction (outside any code block)
+# mandating standard tier. Bug 22bc-6bab: agent logged "defaulting to standard"
+# but dispatched dso:code-reviewer-light for subsequent batches, rationalizing
+# that "small diffs don't need full sonnet review."
+echo ""
+echo "--- test_classifier_failure_standard_tier_invariant ---"
+_snapshot_fail
+
+_has_failure_invariant=0
+# Must have prose-level language that explicitly mandates standard tier on
+# classifier failure — not just inside a code block comment.
+# We strip fenced code blocks and then check for the invariant in the remaining prose.
+python3 - "$WORKFLOW_FILE" <<'PYEOF' && _has_failure_invariant=1 || true
+import re, sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+# Strip fenced code blocks (```...```) to check prose only
+prose = re.sub(r'```[^`]*```', '', content, flags=re.DOTALL)
+# Look for explicit classifier-failure → standard-tier mandate in prose.
+# REVIEW-DEFENSE: Three independent patterns are required (all must match), providing
+# defense-in-depth: a false positive on one pattern (e.g., unrelated prose containing
+# "fail") does not pass the test unless the other two also match. If the section title
+# were renamed, has_failure_mention would still match via the body sentence
+# "exits non-zero" and has_anti_rationalization via "Do not downgrade", keeping the
+# test meaningful even with cosmetic prose changes.
+has_failure_mention = bool(re.search(r'(?i)classifier\s+(fail|error|exit\s+non.zero|invalid)', prose))
+has_standard_mandate = bool(re.search(r'(?i)(MUST|mandatory|invariant|required).*standard', prose))
+has_anti_rationalization = bool(re.search(r'(?i)(do not downgrade|do not override|not.*rationali[sz]e|not.*lighter)', prose))
+sys.exit(0 if (has_failure_mention and has_standard_mandate and has_anti_rationalization) else 1)
+PYEOF
+assert_eq "test_classifier_failure_standard_tier_invariant: REVIEW-WORKFLOW.md must mandate standard tier on classifier failure with anti-rationalization language in prose (not just in code block)" \
+    "1" "$_has_failure_invariant"
+assert_pass_if_clean "test_classifier_failure_standard_tier_invariant"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
