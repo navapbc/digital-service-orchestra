@@ -211,7 +211,7 @@ VALID_CRD_FILE=$(write_fixture "valid-crd.json" '{
     "design": 4,
     "maintainability": 4,
     "correctness": 4,
-    "verification": 3
+    "verification": 4
   },
   "findings": [],
   "summary": "Code is well-structured and tests are adequate."
@@ -692,7 +692,7 @@ assert_ne \
 NEW_DIM_VALID_FILE=$(write_fixture "new-dim-valid.json" '{
   "scores": {
     "correctness": 4,
-    "verification": 3,
+    "verification": 4,
     "hygiene": 4,
     "design": 4,
     "maintainability": 5
@@ -947,5 +947,28 @@ assert_contains \
     "test_review_protocol_caller_architect_foundation_invalid_risk_category_schema_invalid: Hardening finding with invalid risk_category reports SCHEMA_VALID: no" \
     "SCHEMA_VALID: no" \
     "$INVALID_RISK_CATEGORY_OUTPUT"
+
+# =============================================================================
+# Test: no-findings dimension with low score should be rejected (6d83-b949)
+# Scoring rules: "Minor only or no findings → score 4-5"
+# A dimension with zero findings and score < 4 is a scoring error.
+# =============================================================================
+echo ""
+echo "--- test_no_findings_dimension_low_score_rejected ---"
+_snapshot_fail
+
+_NO_FINDINGS_LOW_SCORE_FILE=$(write_fixture "no_findings_low_score.json" '{
+  "scores": {"hygiene": 5, "design": 5, "maintainability": 5, "correctness": 2, "verification": 4},
+  "findings": [
+    {"severity": "minor", "category": "verification", "description": "Minor test coverage gap", "file": "a.sh"}
+  ],
+  "summary": "All findings are minor but correctness scored low with no correctness findings."
+}')
+_NO_FINDINGS_LOW_SCORE_EXIT=$(run_script code-review-dispatch "$_NO_FINDINGS_LOW_SCORE_FILE")
+assert_ne "test_no_findings_dimension_low_score_rejected" "0" "$_NO_FINDINGS_LOW_SCORE_EXIT"
+_NO_FINDINGS_LOW_SCORE_OUTPUT=$(bash "$SCRIPT" code-review-dispatch "$_NO_FINDINGS_LOW_SCORE_FILE" 2>&1 || true)
+assert_contains "test_no_findings_dimension_low_score_error_message" "no findings" "$_NO_FINDINGS_LOW_SCORE_OUTPUT"
+
+assert_pass_if_clean "test_no_findings_dimension_low_score_rejected"
 
 print_summary
