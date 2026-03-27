@@ -450,8 +450,7 @@ $FORMAT_CHECK_CMD   # No format regressions
 1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 2. Close the bug ticket:
    ```bash
-   ticket transition <BUG_TICKET_ID> in_progress closed
-   ticket comment <BUG_TICKET_ID> "Fixed: <one-line summary of the fix>"
+   ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: <one-line summary of the fix>"
    ```
 
 **When running as a sub-agent** (detected per Sub-Agent Context Detection below):

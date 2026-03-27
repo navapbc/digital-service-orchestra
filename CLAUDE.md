@@ -48,7 +48,7 @@ Task type → Action:
 | List ready tickets | `.claude/scripts/dso ticket list` | Check what to work on |
 | Show ticket details | `.claude/scripts/dso ticket show <id>` | Inspect a specific ticket |
 | Create a ticket | `.claude/scripts/dso ticket create <type> <title>` | Create bug/epic/story/task |
-| Close a ticket | `.claude/scripts/dso ticket transition <id> <current> closed` | Close a ticket |
+| Close a ticket | `.claude/scripts/dso ticket transition <id> <current> closed` | Close a ticket (bug tickets require `--reason="Fixed: <summary>"`) |
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` | Add dependency/blocks/relates_to link |
 | Sync with Jira | `.claude/scripts/dso ticket sync` (Jira bridge; see architecture) | Sync to Jira |
 
@@ -97,7 +97,7 @@ The pre-commit review gate (`pre-commit-review-gate.sh`) handles merge commits (
 18. **Never write/modify/delete `reviewer-findings.json`** — written by code-reviewer sub-agent only. Integrity verified via `--reviewer-hash`.
 19. **Never edit `.github/workflows/` files via the GitHub API** — always edit workflow files in the worktree source and commit normally. API calls bypass review, hooks, and leave the worktree out of sync.
 20. **Never edit safeguard files without user approval** — protected: `plugins/dso/skills/**`, `plugins/dso/hooks/**`, `plugins/dso/docs/workflows/**`, `plugins/dso/scripts/**`, `CLAUDE.md`, `plugins/dso/hooks/lib/review-gate-allowlist.conf`, `plugins/dso/scripts/review-complexity-classifier.sh`. Agents may rationalize removing safeguards — this is exactly the failure mode this rule prevents. Always confirm specific changes first.
-21. **Never autonomously close a bug without a code change** — escalate to the user if no code fix is possible. Use `.claude/scripts/dso ticket comment <id> "note"` to record findings. Only `.claude/scripts/dso ticket transition <id> <current> closed` (with a comment noting the reason) after (a) a code change fixes it, or (b) the user explicitly authorizes closure.
+21. **Never autonomously close a bug without a code change** — escalate to the user if no code fix is possible. Use `.claude/scripts/dso ticket comment <id> "note"` to record findings. Only `.claude/scripts/dso ticket transition <id> <current> closed --reason="Fixed: <summary>"` after (a) a code change fixes it, or (b) the user explicitly authorizes closure (use `--reason="Escalated to user: <summary>"`). Bug tickets **require** the `--reason` flag with prefix `Fixed:` or `Escalated to user:` — omitting it causes a silent failure.
 22. **Never make changes without a way to validate them** — this project strictly follows TDD. Every code change requires a corresponding test that fails before the change (RED) and passes after (GREEN). For non-code changes (skills, CLAUDE.md, agent guidance), define an eval or validation method before making the change.
 23. **Resolution sub-agents must NOT dispatch nested Task calls for re-review** — the Autonomous Resolution Loop in REVIEW-WORKFLOW.md dispatches a resolution sub-agent that performs fixes and then calls a re-review sub-agent internally (two levels of nesting: orchestrator → resolution → re-review). This two-level nesting causes `[Tool result missing due to internal error]` failures. The orchestrator handles all re-review dispatching after the resolution sub-agent returns `RESOLUTION_RESULT`. See `plugins/dso/docs/workflows/prompts/review-fix-dispatch.md` NESTING PROHIBITION section.
 24. **Never bypass the review gate without explicit user approval** — the review gate is now two-layer: Layer 1 is the git pre-commit hook (`pre-commit-review-gate.sh`) which enforces allowlist + review-status + diff hash; Layer 2 is the PreToolUse bypass sentinel (`review-gate.sh`) which blocks `--no-verify`, `core.hooksPath=` overrides, and git plumbing commands. **`--no-verify` cannot bypass Layer 2** — Layer 2 is a Claude Code tool-use hook (PreToolUse), not a git hook. It intercepts the Bash tool call before execution, so `--no-verify` (which only skips git hooks) has no effect on it. Do not suggest `--no-verify` as a workaround — it is technically incapable of bypassing the review gate. When the review gate blocks a commit, run the full commit workflow (`/dso:commit` or COMMIT-WORKFLOW.md) to satisfy it. Rationalizing around it (e.g., "these are just docs", "this is trivial") is exactly the failure mode this gate prevents.
@@ -158,7 +158,7 @@ After ExitPlanMode approval, do NOT begin implementation. Create a ticket epic (
 #    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>
 #    On interruption (SIGURG), current phase is saved to state file — re-run with --resume to continue.
 # 3. plugins/dso/scripts/ci-status.sh --wait — must return "success"
-# 4. .claude/scripts/dso ticket transition <id> <current> closed  # then: .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
+# 4. .claude/scripts/dso ticket transition <id> <current> closed --reason="Fixed: <summary>"  # bug tickets require --reason
 ```
 
 **Session close**: Use `/dso:end`.
