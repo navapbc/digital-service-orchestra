@@ -133,13 +133,14 @@ class TestSubAgentBoundariesAntiCoverup:
 
     def test_anti_pattern_2_loosen_assertions_code_example_present(self) -> None:
         """The loosening-assertions anti-pattern must include a code example."""
-        section = self._get_section()
-        assert section, "Prohibited Fix Patterns section not found"
-        # Must have assertions and code blocks within the section
-        assert "assert" in section and "```" in section, (
-            "Expected 'Prohibited Fix Patterns' section to include a code example "
-            "showing the loosening-assertions anti-pattern (e.g., changing assertEqual "
-            "to assertIn or assertTrue)."
+        ap2_section = _extract_section(_read_doc(), "### 2. Loosening assertions")
+        assert ap2_section, (
+            "Anti-pattern #2 'Loosening assertions' sub-section not found"
+        )
+        assert "assert" in ap2_section and "```" in ap2_section, (
+            "Expected anti-pattern #2 'Loosening assertions' sub-section to include a "
+            "code example showing the loosening-assertions anti-pattern (e.g., changing "
+            "assertEqual to assertIn or assertTrue)."
         )
 
     def test_anti_pattern_2_loosen_assertions_do_this_instead_present(self) -> None:
@@ -243,4 +244,23 @@ class TestSubAgentBoundariesAntiCoverup:
         assert "Do this instead" in section or "Instead" in section, (
             "Expected 'Prohibited Fix Patterns' section to provide a 'Do this instead' "
             "alternative for the comment-out anti-pattern."
+        )
+
+    def test_anti_pattern_2_code_example_scoped_to_subsection(self) -> None:
+        """Anti-pattern #2 code example check must target its own sub-section.
+
+        Regression test for bug 7e2c-3b25: the original assertion used _get_section()
+        (the full 'Prohibited Fix Patterns' section), so it would pass even if AP2 had
+        no code example — content from other anti-patterns satisfied the check.
+        This test verifies AP2's sub-section independently contains both elements.
+        """
+        ap2_section = _extract_section(_read_doc(), "### 2. Loosening assertions")
+        assert ap2_section, (
+            "Anti-pattern #2 'Loosening assertions' sub-section not found"
+        )
+        assert "assert" in ap2_section, (
+            "Anti-pattern #2 sub-section must reference 'assert' in its code example"
+        )
+        assert "```" in ap2_section, (
+            "Anti-pattern #2 sub-section must contain a code block"
         )

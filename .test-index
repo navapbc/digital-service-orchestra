@@ -31,6 +31,7 @@ plugins/dso/commands/review.md:plugins/dso/skills/preplanning/tests/test_adversa
 plugins/dso/docs/CONFIG-RESOLUTION.md:tests/scripts/test-config-resolution-doc-accuracy.sh
 plugins/dso/docs/INSTALL.md:tests/scripts/test-reinstall-hooks-config-paths.sh,tests/scripts/test-reinstall-hooks.sh
 plugins/dso/docs/MIGRATION.md:tests/hooks/test-state-dir-migration.sh,tests/scripts/test-doc-migration.sh
+plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_anti_coverup.py
 plugins/dso/docs/adapters/flask-jinja2.json:tests/plugin/test_flask_jinja2_adapter_yaml.py
 plugins/dso/docs/component-discovery-schema.json:tests/plugin/test_component_discovery_schema.py
 plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-system.sh
