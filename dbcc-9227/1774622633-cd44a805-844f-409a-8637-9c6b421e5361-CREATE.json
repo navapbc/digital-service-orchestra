@@ -1,1 +1,0 @@
-{"timestamp": 1774622633, "uuid": "cd44a805-844f-409a-8637-9c6b421e5361", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "merge-to-main.sh leaves dirty plugin.json in main repo when version_bump commit fails pre-commit gate", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
