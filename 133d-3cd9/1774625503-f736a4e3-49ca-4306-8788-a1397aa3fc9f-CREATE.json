@@ -1,1 +1,0 @@
-{"timestamp": 1774625503, "uuid": "f736a4e3-49ca-4306-8788-a1397aa3fc9f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Add fix-bug RED dispatch test assertion", "parent_id": "79a6-2094", "priority": 1, "assignee": "Joe Oakhart"}}
