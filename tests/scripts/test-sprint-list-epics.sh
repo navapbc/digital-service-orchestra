@@ -671,6 +671,50 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 30: Init failure stderr is surfaced, not swallowed ──────────────────
+echo "Test 30: test_init_failure_emits_stderr — diagnostic output reaches stderr when init fails"
+test_init_failure_emits_stderr() {
+    # Behavioral test: verifies that when ticket-init.sh exits non-zero, its stderr
+    # is not silently discarded. The current `2>/dev/null || true` pattern swallows
+    # both the exit code and the error message, so this test will FAIL (RED) until
+    # the warn-on-failure pattern is implemented.
+    local TDIR30
+    TDIR30=$(mktemp -d)
+
+    # Copy the real script into the temp dir so SCRIPT_DIR resolves to the stub's location
+    cp "$SCRIPT" "$TDIR30/sprint-list-epics.sh"
+    chmod +x "$TDIR30/sprint-list-epics.sh"
+
+    # Stub ticket-init.sh: emits a diagnostic on stderr and exits non-zero
+    cat > "$TDIR30/ticket-init.sh" << 'STUBEOF'
+#!/usr/bin/env bash
+echo "ERROR: tracker mount failed" >&2
+exit 1
+STUBEOF
+    chmod +x "$TDIR30/ticket-init.sh"
+
+    # PROJECT_ROOT has no .tickets-tracker; TICKETS_TRACKER_DIR is unset (default path)
+    # so the init guard fires, runs the stub, and the stub fails with a message.
+    local fake_root="$TDIR30/fake-repo"
+    mkdir -p "$fake_root"
+
+    local captured_stderr
+    captured_stderr=$(PROJECT_ROOT="$fake_root" \
+        bash "$TDIR30/sprint-list-epics.sh" 2>&1 >/dev/null) || true
+
+    rm -rf "$TDIR30"
+
+    # The stub's error message must appear in stderr — not be silently swallowed
+    [[ "$captured_stderr" == *"tracker mount failed"* ]]
+}
+if test_init_failure_emits_stderr; then
+    echo "  PASS: init failure diagnostic is emitted on stderr"
+    (( PASS++ ))
+else
+    echo "  FAIL: init failure stderr was silently swallowed — diagnostic output lost" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
