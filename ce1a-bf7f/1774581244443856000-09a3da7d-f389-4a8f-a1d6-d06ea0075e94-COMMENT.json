@@ -1,1 +1,0 @@
-{"timestamp": 1774581244443856000, "uuid": "09a3da7d-f389-4a8f-a1d6-d06ea0075e94", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Added CLAUDE.md rule #26 prohibiting inline completion verification, rewrote SKILL.md Steps 10a/0.75 with MUST language and scoped Fallback to technical failures only"}}
