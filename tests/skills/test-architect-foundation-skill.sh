@@ -260,4 +260,34 @@ test_socratic_dialogue_pattern
 test_no_rigid_multiple_choice
 test_check_onboarding_compatibility
 
+# test_artifact_review_before_writing: SKILL.md must instruct presenting artifacts for user approval
+# before writing — grep for 'review.*before.*writ' or 'approval.*before.*writ' or 'present.*artifact'
+test_artifact_review_before_writing() {
+    _snapshot_fail
+    local review_before_found
+    review_before_found="missing"
+    if grep -qiE "review.*before.*writ|approval.*before.*writ|present.*artifact" "$SKILL_MD" 2>/dev/null; then
+        review_before_found="found"
+    fi
+    assert_eq "test_artifact_review_before_writing" "found" "$review_before_found"
+    assert_pass_if_clean "test_artifact_review_before_writing"
+}
+
+# test_diff_existing_files: SKILL.md must instruct showing diffs against existing files
+# grep for 'diff.*existing' or 'existing.*diff'
+test_diff_existing_files() {
+    _snapshot_fail
+    local diff_existing_found
+    diff_existing_found="missing"
+    if grep -qiE "diff.*existing|existing.*diff" "$SKILL_MD" 2>/dev/null; then
+        diff_existing_found="found"
+    fi
+    assert_eq "test_diff_existing_files" "found" "$diff_existing_found"
+    assert_pass_if_clean "test_diff_existing_files"
+}
+
+# RED artifact review tests — these fail until SKILL.md is updated
+test_artifact_review_before_writing
+test_diff_existing_files
+
 print_summary
