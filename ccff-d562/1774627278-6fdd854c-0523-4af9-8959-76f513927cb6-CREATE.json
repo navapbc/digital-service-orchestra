@@ -1,0 +1,1 @@
+{"timestamp": 1774627278, "uuid": "6fdd854c-0523-4af9-8959-76f513927cb6", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can validate cross-cutting ticket scenarios through E2E tests", "parent_id": "e677-34da", "priority": 2, "assignee": "Joe Oakhart"}}
