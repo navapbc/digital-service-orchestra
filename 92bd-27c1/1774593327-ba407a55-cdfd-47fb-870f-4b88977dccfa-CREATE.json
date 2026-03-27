@@ -1,0 +1,1 @@
+{"timestamp": 1774593327, "uuid": "ba407a55-cdfd-47fb-870f-4b88977dccfa", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED \u2014 Write structural validation tests for brainstorm approval gate", "parent_id": "dso-daox", "priority": 1, "assignee": "Joe Oakhart"}}
