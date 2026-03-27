@@ -1,0 +1,1 @@
+{"timestamp": 1774650873, "uuid": "05ca394b-64e8-418a-ab65-38ca1e221b5d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "purge-non-project-tickets.sh: ticket-init.sh failures silently swallowed via 2>/dev/null || true", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
