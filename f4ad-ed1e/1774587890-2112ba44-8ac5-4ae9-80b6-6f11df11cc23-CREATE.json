@@ -1,1 +1,0 @@
-{"timestamp": 1774587890, "uuid": "2112ba44-8ac5-4ae9-80b6-6f11df11cc23", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Contract: red-test-writer output interface schema", "parent_id": "20f2-aeeb", "priority": 1, "assignee": "Joe Oakhart"}}
