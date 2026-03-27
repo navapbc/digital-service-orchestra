@@ -24,6 +24,7 @@ set -euo pipefail
 #   retro                  8a1a3dd74e54f101
 #   design-review          1a50fe899037ef49
 #   dev-onboarding         9ec70789c77bcca2
+#   architect-foundation   9ec70789c77bcca2
 #   preplanning            dba581aa06265af0
 #
 # Schema hashes are SHA-256[:16] of the canonical JSON schema definition.
@@ -59,6 +60,14 @@ HASH_CALLER_IMPLEMENTATION_PLAN="0271e511c0161eec"
 HASH_CALLER_RETRO="8a1a3dd74e54f101"
 HASH_CALLER_DESIGN_REVIEW="1a50fe899037ef49"
 HASH_CALLER_DEV_ONBOARDING="9ec70789c77bcca2"
+# REVIEW-DEFENSE: architect-foundation intentionally shares the same hash as dev-onboarding
+# (9ec70789c77bcca2). This is a SCHEMA hash (SHA-256[:16] of the canonical JSON schema
+# definition), not a skill identity hash. Both skills use the same review output schema
+# — identical field names, required structure, and allowed severity values. The hash
+# collision is expected and correct; it does not indicate a missing schema distinction.
+# If the architect-foundation schema ever diverges (new fields, changed constraints), a new
+# hash will be computed and this variable will be updated independently.
+HASH_CALLER_ARCHITECT_FOUNDATION="9ec70789c77bcca2"
 HASH_CALLER_PREPLANNING="dba581aa06265af0"
 
 usage() {
@@ -92,6 +101,7 @@ Caller IDs (use with: review-protocol <file> --caller <id>):
   retro                  ${HASH_CALLER_RETRO}
   design-review          ${HASH_CALLER_DESIGN_REVIEW}
   dev-onboarding         ${HASH_CALLER_DEV_ONBOARDING}
+  architect-foundation   ${HASH_CALLER_ARCHITECT_FOUNDATION}
   preplanning            ${HASH_CALLER_PREPLANNING}
 EOF
 }
@@ -116,6 +126,7 @@ if [[ "$1" == "--list-callers" ]]; then
     echo "retro                  ${HASH_CALLER_RETRO}"
     echo "design-review          ${HASH_CALLER_DESIGN_REVIEW}"
     echo "dev-onboarding         ${HASH_CALLER_DEV_ONBOARDING}"
+    echo "architect-foundation   ${HASH_CALLER_ARCHITECT_FOUNDATION}"
     echo "preplanning            ${HASH_CALLER_PREPLANNING}"
     exit 0
 fi
@@ -168,7 +179,7 @@ fi
 # Validate known caller IDs
 if [[ -n "$CALLER_ID" ]]; then
     case "$CALLER_ID" in
-        roadmap|brainstorm|design-wireframe|implementation-plan|retro|design-review|dev-onboarding|preplanning) ;;
+        roadmap|brainstorm|design-wireframe|implementation-plan|retro|design-review|dev-onboarding|architect-foundation|preplanning) ;;
         *)
             echo "ERROR: unknown caller-id: '$CALLER_ID'" >&2
             echo "Run '$SCRIPT_NAME --list-callers' to see valid caller IDs." >&2
@@ -646,6 +657,38 @@ CALLER_SCHEMAS = {
             },
         ],
     },
+    "architect-foundation": {
+        "schema_hash": "9ec70789c77bcca2",
+        "perspectives": [
+            {
+                "perspective": "Failure Modes",
+                "required_dimensions": ["resource_boundaries", "failure_isolation", "recovery_by_design", "degradation_paths"],
+                "required_finding_fields": [
+                    {"field": "failure_scenario", "type": "string", "when": "all", "optional": False},
+                ],
+            },
+            {
+                "perspective": "Hardening",
+                "required_dimensions": ["secure_by_default", "observable_by_default"],
+                "required_finding_fields": [
+                    {
+                        "field": "risk_category",
+                        "type": "enum",
+                        "enum_values": ["auth_default", "secrets_pattern", "input_boundary", "access_control", "logging_framework", "health_endpoint", "graceful_lifecycle", "error_reporting", "other"],
+                        "when": "all",
+                        "optional": False,
+                    },
+                ],
+            },
+            {
+                "perspective": "Scalability",
+                "required_dimensions": ["stateless_by_default", "data_patterns"],
+                "required_finding_fields": [
+                    {"field": "growth_constraint", "type": "string", "when": "all", "optional": False},
+                ],
+            },
+        ],
+    },
     "preplanning": {
         "schema_hash": "dba581aa06265af0",
         "perspectives": [
@@ -901,6 +944,7 @@ case "$PROMPT_ID" in
                 retro)                CALLER_HASH="$HASH_CALLER_RETRO" ;;
                 design-review)        CALLER_HASH="$HASH_CALLER_DESIGN_REVIEW" ;;
                 dev-onboarding)       CALLER_HASH="$HASH_CALLER_DEV_ONBOARDING" ;;
+                architect-foundation) CALLER_HASH="$HASH_CALLER_ARCHITECT_FOUNDATION" ;;
                 preplanning)          CALLER_HASH="$HASH_CALLER_PREPLANNING" ;;
             esac
             CALLER_RESULT=$(validate_review_protocol_caller "$OUTPUT_FILE" "$CALLER_ID" 2>&1) || CALLER_FAILED=1

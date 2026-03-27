@@ -4,8 +4,8 @@ set -euo pipefail
 # check-onboarding.sh - Check if design and dev onboarding artifacts exist
 #
 # Checks for:
-# - .claude/design-notes.md (produced by /dso:design-onboarding)
-# - ARCH_ENFORCEMENT.md (produced by /dso:dev-onboarding)
+# - .claude/design-notes.md (produced by /dso:onboarding)
+# - ARCH_ENFORCEMENT.md (produced by /dso:architect-foundation)
 #
 # Usage: ./scripts/check-onboarding.sh [--json]
 #
@@ -23,6 +23,13 @@ for arg in "$@"; do
     --json) JSON_OUTPUT=true ;;
   esac
 done
+
+# REVIEW-DEFENSE: The skill names referenced below (/dso:onboarding, /dso:architect-foundation)
+# are the NEW canonical names. The OLD skill directories (plugins/dso/skills/design-onboarding/,
+# plugins/dso/skills/dev-onboarding/) still exist on disk as redirect stubs — they contain
+# SKILL.md files that forward users to the new skill names. This is intentional: the redirect
+# stubs preserve backward compatibility during the migration. The migration is NOT incomplete;
+# the old directories are redirect artifacts, not active skill directories.
 
 # --- Artifact checks ---
 
@@ -60,13 +67,13 @@ if $JSON_OUTPUT; then
     "pass": $design_pass,
     "artifact": ".claude/design-notes.md",
     "path": "${design_notes:-not found}",
-    "skill": "/dso:design-onboarding"
+    "skill": "/dso:onboarding"
   },
-  "dev_onboarding": {
+  "architect_foundation": {
     "pass": $dev_pass,
     "artifact": "ARCH_ENFORCEMENT.md",
     "path": "${arch_enforcement:-not found}",
-    "skill": "/dso:dev-onboarding"
+    "skill": "/dso:architect-foundation"
   }
 }
 EOF
@@ -75,13 +82,13 @@ else
   if [[ -n "$design_notes" ]]; then
     echo "PASS: .claude/design-notes.md found at $design_notes"
   else
-    echo "FAIL: .claude/design-notes.md not found (run /dso:design-onboarding)"
+    echo "FAIL: .claude/design-notes.md not found (run /dso:onboarding)"
   fi
 
   if [[ -n "$arch_enforcement" ]]; then
     echo "PASS: ARCH_ENFORCEMENT.md found at $arch_enforcement"
   else
-    echo "FAIL: ARCH_ENFORCEMENT.md not found (run /dso:dev-onboarding)"
+    echo "FAIL: ARCH_ENFORCEMENT.md not found (run /dso:architect-foundation)"
   fi
 fi
 

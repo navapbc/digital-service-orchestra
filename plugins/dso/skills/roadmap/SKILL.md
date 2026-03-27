@@ -40,13 +40,13 @@ Before anything else, run the onboarding artifact check:
 ```
 
 **If `.claude/design-notes.md` is missing** (design_onboarding.pass == false):
-- Tell the user: *"Before we build a roadmap, we need a Design North Star. I'll run `/dso:design-onboarding` to establish one — this requires your input."*
-- Invoke `/dso:design-onboarding` and complete the full interview flow with the user.
+- Tell the user: *"Before we build a roadmap, we need a Design North Star. I'll run `/dso:onboarding` to establish one — this requires your input."*
+- Invoke `/dso:onboarding` and complete the full interview flow with the user.
 - After `.claude/design-notes.md` is generated and approved, continue.
 
-**If `ARCH_ENFORCEMENT.md` is missing** (dev_onboarding.pass == false):
-- Tell the user: *"Before we build a roadmap, we need an architecture foundation. I'll run `/dso:dev-onboarding` to establish one — this requires your input."*
-- Invoke `/dso:dev-onboarding` and complete the full interview flow with the user.
+**If `ARCH_ENFORCEMENT.md` is missing** (architect_foundation.pass == false):
+- Tell the user: *"Before we build a roadmap, we need an architecture foundation. I'll run `/dso:architect-foundation` to establish one — this requires your input."*
+- Invoke `/dso:architect-foundation` and complete the full interview flow with the user.
 - After the architecture artifacts are generated and approved, continue.
 
 **If both pass**: Proceed directly to Phase 1.
