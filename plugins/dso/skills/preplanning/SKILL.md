@@ -394,6 +394,44 @@ For each split:
 
 ---
 
+## Phase 3.5: Story-Level Research (/dso:preplanning)
+
+After Phase 3 completes story slicing and splitting, perform targeted research for stories where decomposition has revealed knowledge gaps. This phase fires per-story and is distinct from Phase 2.25 (Integration Research): Phase 2.25 fires for stories with external integration signals (third-party tools, APIs); Phase 3.5 fires for any decomposition gap regardless of whether an external integration is involved.
+
+### Trigger Conditions
+
+A story qualifies for story-level research if any of the following apply:
+
+- **Undocumented API behavior**: The story depends on an external API or internal interface whose behavior is undocumented, ambiguous, or not verified in the epic context.
+- **Assumed data format**: The story assumes a data format, schema, or protocol not described in the epic context (e.g., the exact shape of a webhook payload or file format encoding).
+- **Low agent confidence**: Agent confidence on a key implementation decision is low — the approach is unclear, multiple conflicting patterns exist, or the story references technology the agent is uncertain about.
+
+### Research Process
+
+For each qualifying story:
+
+1. Identify the specific gap (trigger condition name) and formulate a targeted search query.
+2. Use WebSearch or WebFetch to find prior art, working examples, or authoritative documentation.
+3. Record findings in the story spec under a **Research Notes** section using the following item-level format:
+   ```
+   - Trigger condition: <undocumented API behavior | assumed data format | low agent confidence>
+   - Query summary: <the search query used>
+   - Source URLs: <list of URLs consulted>
+   - Key insight: <the concrete finding that resolves or clarifies the gap>
+   ```
+4. If research resolves the gap, update the story's done definition or considerations to reflect the verified constraint.
+5. If research surfaces new risks, flag the story as high-risk and note it for the user during Phase 4 review.
+
+### Graceful Degradation
+
+If WebSearch or WebFetch fails or is unavailable, continue without research rather than blocking the workflow. Log: `"Story-level research skipped for <story-id>: WebSearch/WebFetch unavailable."` and proceed to Phase 4.
+
+### Skip Condition
+
+If no stories qualify under the trigger conditions above, log: `"No stories with decomposition gaps — skipping story-level research."` and proceed to Phase 4.
+
+---
+
 ## Phase 4: Verification & Traceability (/dso:preplanning)
 
 ### Step 1: Create/Modify Stories in Tickets (/dso:preplanning)
