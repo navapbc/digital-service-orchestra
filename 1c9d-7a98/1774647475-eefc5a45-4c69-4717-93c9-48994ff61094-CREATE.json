@@ -1,0 +1,1 @@
+{"timestamp": 1774647475, "uuid": "eefc5a45-4c69-4717-93c9-48994ff61094", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Add test assertions for onboarding infrastructure initialization", "parent_id": "b36f-cb7c", "priority": 1, "assignee": "Joe Oakhart"}}
