@@ -328,9 +328,14 @@ EOF
 
 **Conflict detection**: If two reviewers give contradictory guidance on the same spec element, escalate to the user immediately — do not resolve conflicts autonomously.
 
-### Step 4: Present Spec for Approval
+### Step 4: Approval Gate
 
-Present the validated spec to the user:
+Present the validated spec to the user using **AskUserQuestion** with 4 options. Label options (b) and (c) based on whether the corresponding phase already ran in this session:
+
+- **If web research (Step 2.6) has NOT yet run this session**: label (c) as "Perform additional web research"
+- **If web research already ran this session**: label (c) as "Re-run web research phase"
+- **If scenario analysis (Step 2.75) has NOT yet run this session**: label (b) as "Perform red/blue team review cycle"
+- **If scenario analysis already ran this session**: label (b) as "Re-run red/blue team review cycle"
 
 ```
 === Epic Spec Ready for Review ===
@@ -343,13 +348,44 @@ Present the validated spec to the user:
 ## Success Criteria
 - [...]
 
+## Scenario Analysis
+[if ran]
+
 ## Dependencies
 [...]
 
-Any changes before I create the epic?
+Please choose how to proceed:
+
+(a) Approve — advance to ticket creation (Phase 3)
+(b) [Perform / Re-run] red/blue team review cycle — re-runs scenario analysis (Step 2.75) and re-presents this gate
+(c) [Perform / Re-run] additional web research — re-runs web research phase (Step 2.6) and re-presents this gate
+(d) Let's discuss more — pause for conversational review before re-presenting this gate
 ```
 
-Wait for explicit approval. If changes are requested, revise and re-run affected reviewers.
+**Option behaviors:**
+
+- **(a) Approve**: Record the planning-intelligence log entry (see below), then advance to Phase 3 (Ticket Integration). The log captures which bright-line trigger conditions fired (or "none"), whether scenario analysis ran and how many scenarios survived the blue team filter, and whether the practitioner requested additional cycles via this gate. State vocabulary: "not triggered" / "triggered" / "re-triggered via gate".
+- **(b) Re-run scenario analysis**: Re-execute Step 2.75 (Scenario Analysis) with the current spec. Update the Scenario Analysis section in the spec with new results. Re-present this gate. On re-presentation, label (b) as "Re-run red/blue team review cycle" (scenario analysis already ran).
+- **(c) Re-run web research**: Re-execute Step 2.6 (Web Research Phase) with the current spec. Update the Research Findings section. Re-present this gate. On re-presentation, label (c) as "Re-run web research phase" (research already ran).
+- **(d) Discuss more**: Pause skill execution and engage in open conversational review with the user. When the user indicates they are ready to proceed, re-present this gate with updated labels reflecting what has already run.
+
+If changes are requested during discussion or after any re-run, revise the spec and re-run affected fidelity reviewers before re-presenting this gate.
+
+#### Planning-Intelligence Log Entry
+
+After the user approves (option a), append a planning-intelligence log to the epic spec comment that will be written in Phase 3. The log entry records the planning context for future reference and uses a fixed state vocabulary: **"not triggered"** (phase skipped entirely), **"triggered"** (ran once, automatically or via bright-line condition), or **"re-triggered via gate"** (user explicitly requested a re-run via this gate).
+
+Log format to append under the heading `### Planning Intelligence Log`:
+
+```
+### Planning Intelligence Log
+
+- **Web research (Step 2.6)**: [not triggered | triggered | re-triggered via gate]
+  - Bright-line conditions that fired: [list conditions, or "none"]
+- **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]
+  - Scenarios surviving blue team filter: [count, or "skipped — ≤2 success criteria"]
+- **Practitioner-requested additional cycles**: [none | web research re-run N time(s) | scenario analysis re-run N time(s) | both re-run]
+```
 
 ---
 
@@ -483,5 +519,5 @@ Skill tool:
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
-| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics) |
+| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
