@@ -1,0 +1,1 @@
+{"timestamp": 1774631104065646000, "uuid": "95e53221-6393-4b16-88bf-23a0377acc7e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 1 (BASIC). Test takes ~74s wall time, 33 tests each creating a git repo via create_test_repo. Batched timeout is 50s."}}
