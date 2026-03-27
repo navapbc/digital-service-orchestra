@@ -1,1 +1,0 @@
-{"timestamp": 1774580019, "uuid": "0ccff7ea-f18c-4304-86ae-d700522d95ff", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, RED test failures are triaged by an opus evaluator", "parent_id": "83fc-81fb", "priority": 1, "assignee": "Joe Oakhart"}}
