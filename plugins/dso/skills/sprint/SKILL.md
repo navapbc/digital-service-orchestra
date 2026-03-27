@@ -740,6 +740,45 @@ invoke the appropriate skill based on the task content.
 
 **Worktree boundary**: If running in a worktree session, append to every sub-agent prompt: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."` The PreToolUse edit guard only blocks Edit/Write tools — Bash commands bypass it.
 
+### RED Task Dispatch — Escalation Protocol
+
+**Detect RED tasks**: Before dispatching each task, check whether the `subagent` field from the `TASK:` line equals `dso:red-test-writer`. RED test tasks use a specialized three-tier escalation protocol instead of the normal dispatch flow.
+
+**When `subagent` = `dso:red-test-writer`**, do NOT dispatch via the normal Task tool flow. Instead, follow `prompts/red-task-escalation.md` (the shared three-tier escalation template):
+
+**Tier 1 — Dispatch `dso:red-test-writer` (sonnet)**:
+- Pass the full task context: task description, story context, and file impact table
+- Parse the leading `TEST_RESULT:` line from the output:
+  - `TEST_RESULT:written` → Success. Proceed to TDD setup using `TEST_FILE` and `RED_ASSERTION` fields. Do NOT escalate.
+  - `TEST_RESULT:rejected` → Escalate to Tier 2. This is **not** a dispatch failure — do not route to Phase 6 Step 0.
+  - Timeout / malformed / non-zero exit → Treat as `TEST_RESULT:rejected` with `REJECTION_REASON: ambiguous_spec`. Escalate to Tier 2.
+
+**Tier 2 — Dispatch `dso:red-test-evaluator` (opus)**:
+- Pass: (1) the full `TEST_RESULT:rejected` payload verbatim, and (2) the orchestrator context envelope:
+  ```
+  TASK_ID: <task_id>
+  STORY_ID: <story_id>
+  EPIC_ID: <epic_id>
+  TASK_DESCRIPTION: <task_description>
+  IN_PROGRESS_TASKS: <comma-separated task_ids or "none">
+  CLOSED_TASKS: <comma-separated task_ids or "none">
+  ```
+- Parse the leading `VERDICT:` line:
+  - `VERDICT:REVISE` → Requeue all tasks in `AFFECTED_TASKS` to the next batch. Apply `REVISION_GUIDANCE` on re-dispatch. Max one REVISE per task — if the same task reaches REVISE a second time, escalate to the user immediately with both REVISE payloads.
+  - `VERDICT:REJECT` → Escalate to Tier 3 (opus retry).
+  - `VERDICT:CONFIRM` → Close the task without implementation. Record the `INFEASIBILITY_CATEGORY` and `JUSTIFICATION` in a ticket comment via `.claude/scripts/dso ticket comment <id> "..."` before closing.
+  - Timeout / malformed / non-zero exit → Treat as `VERDICT:REJECT`. Escalate to Tier 3.
+
+**Tier 3 — Re-dispatch `dso:red-test-writer` (opus model override)**:
+- Re-dispatch the original task to `dso:red-test-writer` with model overridden to **opus**
+- Pass the same task context as Tier 1, augmented with the evaluator's `VERDICT:REJECT` payload (including its `REJECTION_REASON`) so the opus writer has full context on why the sonnet attempt failed
+- Parse the leading `TEST_RESULT:` line:
+  - `TEST_RESULT:written` → Success. Proceed to TDD setup normally.
+  - `TEST_RESULT:rejected` → Terminal failure. Escalate to the user with: the Tier 1 rejection payload, the Tier 2 `VERDICT:REJECT` reason, and the Tier 3 rejection payload. Do not retry further.
+  - Timeout / malformed / non-zero exit → Terminal failure. Escalate to the user.
+
+See `prompts/red-task-escalation.md` for the complete escalation summary and important notes (REVISE loop prevention, CONFIRM audit requirements, and shared-template usage with `/dso:fix-bug`).
+
 ---
 
 ## Phase 6: Post-Batch Processing (/dso:sprint)
@@ -749,6 +788,8 @@ After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Pro
 ### Step 0: Dispatch Failure Recovery (/dso:sprint)
 
 Before verifying results, check whether any sub-agent Task call returned an **infrastructure-level dispatch failure** — i.e., the Task tool itself errored rather than the sub-agent producing work that was incorrect. Dispatch failures are distinguishable from task-level failures by their error signature: no `STATUS:` line, no `FILES_MODIFIED:` line, and the error message references agent type, tool availability, or internal errors.
+
+**RED test task exception**: If the failed task's original `subagent` field was `dso:red-test-writer`, do NOT fall back to `general-purpose`. A `TEST_RESULT:rejected` response from `dso:red-test-writer` is **not** an infrastructure dispatch failure — it is an expected domain rejection that triggers the three-tier escalation protocol (see Phase 5 RED Task Dispatch section). Route the task through Tier 2 (dispatch `dso:red-test-evaluator`) instead of the general-purpose retry path. Only true dispatch failures (no `TEST_RESULT:` line, no `STATUS:` line, tool-level error indicators) qualify for the recovery flow below.
 
 **For each sub-agent that returned a dispatch failure:**
 
