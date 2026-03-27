@@ -47,7 +47,7 @@ plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-al
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
 plugins/dso/scripts/ci-generator.sh:tests/scripts/test-ci-generator.sh,tests/scripts/test-ci-generator-integration.sh
-plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh [test_red_create_test_routes_to_red_test_writer]
+plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/gh-identity-resolver.sh:tests/scripts/test-gh-identity-resolver.sh
 plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-config-paths.sh

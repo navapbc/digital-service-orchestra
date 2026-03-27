@@ -1,0 +1,29 @@
+agent_type: "dso:red-test-writer"
+routing_category: "test_write"
+model:
+  default: "sonnet"
+  complex: "sonnet"
+base_priority: 5
+category: null
+
+keywords:
+  strong:                # weight: 3 per match
+    - create-test
+    - modify-existing-test
+    - behavioral test
+    - failing test
+    - "RED test"
+    - red-test-writer
+  moderate:              # weight: 2 per match
+    - test_approach
+    - assert on output
+    - exit code
+    - side effects
+
+negative:                # weight: -3 per match
+  - "fix:"
+  - "bug:"
+  - refactor
+  - migration
+
+min_score: 3

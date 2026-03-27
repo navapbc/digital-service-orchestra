@@ -88,6 +88,21 @@
   routing_category: "test_write"
   expected_complexity: "low"
 
+# RED test-writer routing scenarios — must route to dso:red-test-writer.
+- title: "RED: Create test for auth module"
+  description: "create-test behavioral test failing test assert on output"
+  blocks: 0
+  expected_agent: "dso:red-test-writer"
+  routing_category: "test_write"
+  expected_complexity: "low"
+
+- title: "RED: Modify existing test for payment flow"
+  description: "modify-existing-test behavioral test assert on updated output"
+  blocks: 0
+  expected_agent: "dso:red-test-writer"
+  routing_category: "test_write"
+  expected_complexity: "low"
+
 # Bug-type tasks must never route to read-only agents (code-explorer).
 # Even when "investigate" keywords match, task_type=bug forces write-capable agent.
 - title: "Investigate timeout in ci-status.sh causing exit 144"

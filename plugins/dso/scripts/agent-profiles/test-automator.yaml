@@ -10,6 +10,8 @@ keywords:
   strong:                # weight: 3 per match
     - write tests
     - add tests
+    - unit tests
+    - add unit tests
     - test coverage
     - "test:"
     - split test_
