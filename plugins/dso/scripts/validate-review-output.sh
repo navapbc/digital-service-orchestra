@@ -289,6 +289,14 @@ if isinstance(findings, list) and isinstance(scores, dict):
                 f"this dimension are severity='minor', which requires score 4-5 "
                 f"(score 3 is reserved for important findings)"
             )
+    # No-findings low-score check (6d83-b949): if a dimension has no findings
+    # at all, its score must be 4 or 5 per scoring rules ("no findings → score 4-5").
+    for dim, score in scores.items():
+        if dim not in dim_severities and isinstance(score, (int, float)) and score < 4:
+            errors.append(
+                f"score '{dim}'={score} violates scoring rules: this dimension has "
+                f"no findings, which requires score 4-5"
+            )
 
 # Validate summary
 summary = data.get("summary")
