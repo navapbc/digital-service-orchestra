@@ -253,7 +253,7 @@ _state_write() {
     local file="$1" runner="$2" completed="$3" results="$4"
     local cmd_hash="${5:-}" created_at_ts="${6:-}"
     python3 -c "
-import json, sys, time
+import json, sys, os, tempfile, time
 state = {
     'runner': sys.argv[1],
     'completed': json.loads(sys.argv[2]),
@@ -261,8 +261,20 @@ state = {
     'command_hash': sys.argv[4] if sys.argv[4] else '',
     'created_at': int(sys.argv[5]) if sys.argv[5] else int(time.time())
 }
-with open(sys.argv[6], 'w') as f:
-    json.dump(state, f, indent=2)
+target = sys.argv[6]
+dir_ = os.path.dirname(os.path.abspath(target))
+os.makedirs(dir_, exist_ok=True)
+fd, tmp = tempfile.mkstemp(dir=dir_)
+try:
+    with os.fdopen(fd, 'w') as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, target)
+except Exception:
+    try:
+        os.unlink(tmp)
+    except Exception:
+        pass
+    raise
 " "$runner" "$completed" "$results" "$cmd_hash" "$created_at_ts" "$file" 2>/dev/null
 }
 
