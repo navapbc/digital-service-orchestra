@@ -1,0 +1,1 @@
+{"timestamp": 1774651749, "uuid": "0bdb9373-e5ea-4530-8b9d-22bc2db10067", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update CLAUDE.md to reflect refined onboarding and architect-foundation capabilities", "parent_id": "eff8-da8b", "priority": 3, "assignee": "Joe Oakhart"}}
