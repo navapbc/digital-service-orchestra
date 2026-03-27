@@ -3,7 +3,7 @@
 # Tests that plugins/dso/skills/onboarding/SKILL.md has the correct structure
 # for the /dso:onboarding Socratic dialogue skill.
 #
-# Validates (8 named assertions):
+# Validates (30 named assertions):
 #   test_skill_file_exists: SKILL.md exists at the expected path
 #   test_frontmatter_valid: frontmatter has name=onboarding and user-invocable=true
 #   test_sub_agent_guard_present: Orchestrator Signal SUB-AGENT-GUARD block present
@@ -12,6 +12,15 @@
 #   test_detection_integration: references project-detect.sh
 #   test_socratic_dialogue_pattern: contains Socratic dialogue indicators
 #   test_architect_foundation_offer: references /dso:architect-foundation
+#   test_auto_detection_before_asking: reads package.json/.husky before asking
+#   test_config_key_completeness: references 6+ of 8 required config keys
+#   test_absolute_path_requirement: mentions absolute path for dso.plugin_root
+#   test_semicolon_delimited_format: documents semicolon-delimited behavioral_patterns
+#   test_fallback_behavior: describes fallback/omit behavior for undetected config
+#   test_ci_workflow_filename_confirmation: instructs listing actual workflow filenames
+#   test_config_merge_existing: instructs detecting/merging existing dso-config.conf
+#   test_jira_bridge_project_key: mentions Jira Bridge connection (JIRA_URL/jira bridge)
+#   test_no_rigid_multiple_choice: must NOT contain rigid (a)/(b)/(c) menu patterns
 #
 # These are metadata/schema validation tests per the Behavioral Test Requirement exemption.
 # All tests will FAIL (RED) until plugins/dso/skills/onboarding/SKILL.md is created.
@@ -389,6 +398,153 @@ test_design_notes_output() {
     assert_pass_if_clean "test_design_notes_output"
 }
 
+# ── RED auto-detection / config / dialogue tests (new — fail until SKILL.md updated) ─────
+
+# test_auto_detection_before_asking: SKILL.md must instruct reading project files
+# (package.json, .husky/, .github/workflows/) BEFORE asking questions
+test_auto_detection_before_asking() {
+    _snapshot_fail
+    local package_json_found husky_found workflows_found result
+    package_json_found="no"
+    husky_found="no"
+    workflows_found="no"
+    if grep -qF "package.json" "$SKILL_MD" 2>/dev/null; then
+        package_json_found="yes"
+    fi
+    if grep -qF ".husky/" "$SKILL_MD" 2>/dev/null; then
+        husky_found="yes"
+    fi
+    if grep -qE "\.github/workflows|workflows/\*\.yml" "$SKILL_MD" 2>/dev/null; then
+        workflows_found="yes"
+    fi
+    if [[ "$package_json_found" == "yes" && "$husky_found" == "yes" && "$workflows_found" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_auto_detection_before_asking" "found" "$result"
+    assert_pass_if_clean "test_auto_detection_before_asking"
+}
+
+# test_config_key_completeness: SKILL.md must reference ALL required config keys:
+# dso.plugin_root, format.extensions, format.source_dirs, test_gate.test_dirs,
+# commands.validate, tickets.directory, checkpoint.marker_file, review.behavioral_patterns
+# Must find at least 6 of 8
+test_config_key_completeness() {
+    _snapshot_fail
+    local keys_found keys_missing key
+    keys_found=0
+    keys_missing=""
+    local required_keys=("dso.plugin_root" "format.extensions" "format.source_dirs" "test_gate.test_dirs" "commands.validate" "tickets.directory" "checkpoint.marker_file" "review.behavioral_patterns")
+    for key in "${required_keys[@]}"; do
+        if grep -qF "$key" "$SKILL_MD" 2>/dev/null; then
+            (( keys_found++ ))
+        else
+            keys_missing="$keys_missing $key"
+        fi
+    done
+    if [[ "$keys_found" -ge 6 ]]; then
+        assert_eq "test_config_key_completeness" "found" "found"
+    else
+        assert_eq "test_config_key_completeness" "at least 6 of 8 config keys" "$keys_found keys found (missing:$keys_missing)"
+    fi
+    assert_pass_if_clean "test_config_key_completeness"
+}
+
+# test_absolute_path_requirement: SKILL.md must mention absolute path for dso.plugin_root
+# grep for 'absolute.*path' or 'realpath' near 'plugin_root'
+test_absolute_path_requirement() {
+    _snapshot_fail
+    local absolute_found
+    absolute_found="missing"
+    if grep -qiE "absolute.*path|realpath" "$SKILL_MD" 2>/dev/null; then
+        absolute_found="found"
+    fi
+    assert_eq "test_absolute_path_requirement" "found" "$absolute_found"
+    assert_pass_if_clean "test_absolute_path_requirement"
+}
+
+# test_semicolon_delimited_format: SKILL.md must document semicolon-delimited format
+# for review.behavioral_patterns — grep for 'semicolon'
+test_semicolon_delimited_format() {
+    _snapshot_fail
+    local semicolon_found
+    semicolon_found="missing"
+    if grep -qi "semicolon" "$SKILL_MD" 2>/dev/null; then
+        semicolon_found="found"
+    fi
+    assert_eq "test_semicolon_delimited_format" "found" "$semicolon_found"
+    assert_pass_if_clean "test_semicolon_delimited_format"
+}
+
+# test_fallback_behavior: SKILL.md must describe fallback when config cannot be auto-detected
+# grep for 'fallback' or 'omit.*comment'
+test_fallback_behavior() {
+    _snapshot_fail
+    local fallback_found
+    fallback_found="missing"
+    if grep -qiE "fallback|omit.*comment" "$SKILL_MD" 2>/dev/null; then
+        fallback_found="found"
+    fi
+    assert_eq "test_fallback_behavior" "found" "$fallback_found"
+    assert_pass_if_clean "test_fallback_behavior"
+}
+
+# test_ci_workflow_filename_confirmation: SKILL.md must instruct listing actual workflow filenames
+# (e.g., scanning existing .github/workflows/ files by name, not just offering examples)
+# grep for 'workflow.*filename' (specific — not just any mention of .yml or list)
+test_ci_workflow_filename_confirmation() {
+    _snapshot_fail
+    local filename_found
+    filename_found="missing"
+    if grep -qiE "workflow.*filename" "$SKILL_MD" 2>/dev/null; then
+        filename_found="found"
+    fi
+    assert_eq "test_ci_workflow_filename_confirmation" "found" "$filename_found"
+    assert_pass_if_clean "test_ci_workflow_filename_confirmation"
+}
+
+# test_config_merge_existing: SKILL.md must instruct detecting and merging with
+# existing dso-config.conf — grep for 'existing.*config' or 'existing dso-config'
+test_config_merge_existing() {
+    _snapshot_fail
+    local merge_existing_found
+    merge_existing_found="missing"
+    if grep -qiE "existing.*config|existing dso-config" "$SKILL_MD" 2>/dev/null; then
+        merge_existing_found="found"
+    fi
+    assert_eq "test_config_merge_existing" "found" "$merge_existing_found"
+    assert_pass_if_clean "test_config_merge_existing"
+}
+
+# test_jira_bridge_project_key: SKILL.md must mention Jira Bridge connection with project key
+# grep for 'jira bridge' or 'JIRA_URL' (not merely jira.project_key config key)
+test_jira_bridge_project_key() {
+    _snapshot_fail
+    local jira_bridge_found
+    jira_bridge_found="missing"
+    if grep -qiE "jira bridge|JIRA_URL" "$SKILL_MD" 2>/dev/null; then
+        jira_bridge_found="found"
+    fi
+    assert_eq "test_jira_bridge_project_key" "found" "$jira_bridge_found"
+    assert_pass_if_clean "test_jira_bridge_project_key"
+}
+
+# test_no_rigid_multiple_choice: SKILL.md must NOT contain rigid quiz-style instruction patterns.
+# The skill must use confirmation-based dialogue, not letterd menus like "(a) X (b) Y (c) Z".
+# This is a negative assertion: presence of letter-option menus causes failure.
+test_no_rigid_multiple_choice() {
+    _snapshot_fail
+    local rigid_count
+    rigid_count=$(grep -cE "^\s*(a\)|b\)|c\)|d\)|e\))" "$SKILL_MD" 2>/dev/null || echo "0")
+    if [[ "$rigid_count" -eq 0 ]]; then
+        assert_eq "test_no_rigid_multiple_choice" "found" "found"
+    else
+        assert_eq "test_no_rigid_multiple_choice" "no rigid (a)/(b)/(c) menus" "$rigid_count rigid menu lines found"
+    fi
+    assert_pass_if_clean "test_no_rigid_multiple_choice"
+}
+
 # Run all 21 assertion functions — GREEN tests first, RED tests last
 test_skill_file_exists
 test_frontmatter_valid
@@ -412,5 +568,15 @@ test_design_skip_non_ui
 # RED design tests below — these fail until design areas/notes are added to SKILL.md
 test_design_areas_complete
 test_design_notes_output
+# RED auto-detection/config/dialogue tests — these fail until SKILL.md is updated
+test_auto_detection_before_asking
+test_config_key_completeness
+test_absolute_path_requirement
+test_semicolon_delimited_format
+test_fallback_behavior
+test_ci_workflow_filename_confirmation
+test_config_merge_existing
+test_jira_bridge_project_key
+test_no_rigid_multiple_choice
 
 print_summary
