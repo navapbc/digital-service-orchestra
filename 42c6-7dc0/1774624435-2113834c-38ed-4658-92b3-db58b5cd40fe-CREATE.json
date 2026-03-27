@@ -1,0 +1,1 @@
+{"timestamp": 1774624435, "uuid": "2113834c-38ed-4658-92b3-db58b5cd40fe", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Agents attempt to close bug tickets without --reason flag, causing silent failures", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
