@@ -1,1 +1,0 @@
-{"timestamp": 1774575624, "uuid": "df4f9149-86f9-4a90-ab37-937c0ac5dc67", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Ticket 207e-db42 has corrupt event log \u2014 missing CREATE event prevents transitions", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}

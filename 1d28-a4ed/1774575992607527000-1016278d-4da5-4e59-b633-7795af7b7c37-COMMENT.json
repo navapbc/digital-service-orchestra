@@ -1,1 +1,0 @@
-{"timestamp": 1774575992607527000, "uuid": "1016278d-4da5-4e59-b633-7795af7b7c37", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 2 (BASIC). Root cause hypothesis: reducer cache returns valid state but actual event files are missing from worktree."}}

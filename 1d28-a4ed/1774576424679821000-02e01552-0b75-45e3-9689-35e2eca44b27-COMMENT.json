@@ -1,1 +1,0 @@
-{"timestamp": 1774576424679821000, "uuid": "02e01552-0b75-45e3-9689-35e2eca44b27", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: mutation commands now accept SNAPSHOT files as valid ticket existence proof (fix was on main, merged in). Added regression test test_mutation_after_compact."}}
