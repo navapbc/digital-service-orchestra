@@ -109,9 +109,9 @@ if [ -n "$parent_id" ]; then
         echo "Error: parent ticket '$parent_id' does not exist" >&2
         exit 1
     fi
-    # Verify it has a CREATE event
-    if ! find "$TRACKER_DIR/$parent_id" -maxdepth 1 -name '*-CREATE.json' ! -name '.*' 2>/dev/null | grep -q .; then
-        echo "Error: parent ticket '$parent_id' has no CREATE event" >&2
+    # Verify it has a CREATE or SNAPSHOT event (SNAPSHOT replaces CREATE after compaction)
+    if ! find "$TRACKER_DIR/$parent_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
+        echo "Error: parent ticket '$parent_id' has no CREATE or SNAPSHOT event" >&2
         exit 1
     fi
     # Guard: cannot create a child under a closed parent

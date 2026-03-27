@@ -80,7 +80,7 @@ fi
 
 # ── Invoke reducer ────────────────────────────────────────────────────────────
 raw_output=$(python3 "$SCRIPT_DIR/ticket-reducer.py" "$TRACKER_DIR/$ticket_id") || {
-    echo "Error: ticket '$ticket_id' has no CREATE event" >&2
+    echo "Error: ticket '$ticket_id' has no CREATE or SNAPSHOT event" >&2
     exit 1
 }
 

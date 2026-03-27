@@ -336,7 +336,9 @@ test_lifecycle_configurable_base_path() {
     # Create a custom tracker directory (not the default .tickets-tracker)
     local custom_tracker="$repo/custom-tracker"
     mkdir -p "$custom_tracker"
-    git -C "$custom_tracker" init -q 2>/dev/null
+    git -C "$custom_tracker" init -q -b main 2>/dev/null
+    git -C "$custom_tracker" config user.name "Test"
+    git -C "$custom_tracker" config user.email "test@test.com"
     git -C "$custom_tracker" commit -q --allow-empty --no-verify -m "init custom tracker" 2>/dev/null
 
     # Create a ticket with >10 events in the custom tracker
