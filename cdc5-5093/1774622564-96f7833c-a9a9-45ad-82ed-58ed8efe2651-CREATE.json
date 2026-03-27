@@ -1,0 +1,1 @@
+{"timestamp": 1774622564, "uuid": "96f7833c-a9a9-45ad-82ed-58ed8efe2651", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Review autonomous resolution loop does not escalate to higher-tier reviewer after repeated failures", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
