@@ -1,1 +1,0 @@
-{"timestamp": 1774587913, "uuid": "6ef5df59-6239-49dd-824f-bdd2e16cfcb0", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Test red-test-writer agent definition structure", "parent_id": "20f2-aeeb", "priority": 1, "assignee": "Joe Oakhart"}}
