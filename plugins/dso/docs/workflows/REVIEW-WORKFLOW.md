@@ -393,6 +393,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 `record-review.sh` reads scores, summary, and findings from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, validates findings against scores, checks file overlap with the actual diff, verifies `--expected-hash` against the current diff hash, and writes the review state file that the commit gate checks. If it rejects, fix and retry.
 
+**File-overlap rejection recovery**: If `record-review.sh` exits with `ERROR: reviewer findings files do not overlap with any changed files in the diff`, the reviewer's `file` fields in its findings reference files not in the diff (e.g., test files from verification recommendations instead of the source files being reviewed). Do NOT escalate to the user immediately. Instead: (1) re-dispatch the review with a higher-tier reviewer (e.g., light → standard) which is more reliable at correctly reporting diff files in the `file` field; (2) if the re-dispatched reviewer also produces non-overlapping files, THEN escalate to the user.
+
 **IMPORTANT — always use `compute-diff-hash.sh`**: Never compute the diff hash via raw `git diff | shasum` — the canonical script applies pathspec exclusions (`.tickets-tracker/`, snapshots, images) and checkpoint-aware diff base detection. Untracked files are excluded (new files must be staged before review). A raw pipeline produces a completely different hash and will cause `--expected-hash` mismatch errors.
 
 ## After Review
