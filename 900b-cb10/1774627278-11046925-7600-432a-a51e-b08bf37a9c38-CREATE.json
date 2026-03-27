@@ -1,0 +1,1 @@
+{"timestamp": 1774627278, "uuid": "11046925-7600-432a-a51e-b08bf37a9c38", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can validate multi-worktree merges through E2E tests", "parent_id": "e677-34da", "priority": 2, "assignee": "Joe Oakhart"}}
