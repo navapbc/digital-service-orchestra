@@ -120,3 +120,36 @@ class TestEscalatedInvestigationSkillIntegration:
             "user and no further blind fixes are attempted. "
             "This is a RED test — SKILL.md does not yet contain terminal escalation language."
         )
+
+
+class TestStep5RedTestWriterDispatch:
+    """Tests asserting that fix-bug SKILL.md Step 5 references the dso:red-test-writer
+    dispatch agent and the shared red-task-escalation template.
+
+    TDD spec for task 133d-3cd9 (RED task):
+    - plugins/dso/skills/fix-bug/SKILL.md Step 5 must:
+      1. Reference 'dso:red-test-writer' as the agent dispatched to write the RED test
+      2. Reference 'red-task-escalation' as the shared escalation template used when
+         no RED test can be written
+    """
+
+    def test_step5_dispatches_red_test_writer(self) -> None:
+        """SKILL.md Step 5 must reference 'dso:red-test-writer' dispatch."""
+        content = _read_skill()
+        assert "dso:red-test-writer" in content, (
+            "Expected SKILL.md Step 5 (RED Test) to reference 'dso:red-test-writer' as the "
+            "named agent dispatched to write the failing RED test. This ensures the RED test "
+            "writing step uses a dedicated agent rather than inline orchestrator logic. "
+            "This is a RED test — SKILL.md Step 5 does not yet reference dso:red-test-writer."
+        )
+
+    def test_step5_references_red_task_escalation_template(self) -> None:
+        """SKILL.md Step 5 must reference 'red-task-escalation' shared escalation template."""
+        content = _read_skill()
+        assert "red-task-escalation" in content, (
+            "Expected SKILL.md Step 5 (RED Test) to reference 'red-task-escalation' as the "
+            "shared escalation template used when no RED test can be written and the workflow "
+            "must escalate back to investigation. This template standardizes the escalation "
+            "payload format across all callers of the RED test step. "
+            "This is a RED test — SKILL.md Step 5 does not yet reference red-task-escalation."
+        )
