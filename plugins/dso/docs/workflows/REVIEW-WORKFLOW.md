@@ -138,6 +138,8 @@ fi
 echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 ```
 
+**Classifier failure invariant**: When the classifier exits non-zero or produces invalid JSON, `REVIEW_TIER` MUST be `standard` and `REVIEW_AGENT` MUST be `dso:code-reviewer-standard`. Do not downgrade to light tier. Do not rationalize that a small diff warrants a lighter review — a classifier failure means the diff could not be scored, not that it is simple. This invariant is mandatory regardless of perceived diff size, file types, or change scope.
+
 ### Step 3b: Size-Based Branching (post-classifier)
 
 After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or is rejected. See `plugins/dso/docs/contracts/classifier-size-output.md` for the full contract.

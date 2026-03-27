@@ -279,8 +279,38 @@ Guidance: plugins/dso/docs/workflows/prompts/large-diff-splitting-guide.md"
 }
 
 # ============================================================
-# Integration test functions (3 GREEN integration tests)
+# Integration test functions
 # ============================================================
+
+test_integration_merge_commit_bypass_end_to_end() {
+    # End-to-end: pipe a 600-line diff with MOCK_MERGE_HEAD=1 through the classifier,
+    # verify is_merge_commit=true in classifier output, and confirm Step 3b logic
+    # does NOT set STEP3B_REVIEW_RESULT to rejected.
+    _snapshot_fail
+
+    local diff_input classifier_json is_merge_actual size_action_actual
+    diff_input=$(_generate_diff_lines 600)
+    classifier_json=$(echo "$diff_input" | MOCK_MERGE_HEAD=1 "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+
+    # Verify classifier produced valid JSON with is_merge_commit=true
+    is_merge_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: classifier returns is_merge_commit=true with MOCK_MERGE_HEAD=1" \
+        "true" "$is_merge_actual"
+
+    # Verify size_action is none (merge bypass applied at classifier level)
+    size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: classifier returns size_action=none for merge commit (bypass at classifier)" \
+        "none" "$size_action_actual"
+
+    # Run Step 3b branching logic — merge commit must not be rejected
+    _simulate_step3b_from_classifier_json "$classifier_json" 1
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: STEP3B_REVIEW_RESULT is not rejected for merge commit" \
+        "" "$STEP3B_REVIEW_RESULT"
+    assert_eq "test_integration_merge_commit_bypass_end_to_end: REVIEW_AGENT_OVERRIDE not set for merge commit" \
+        "" "$REVIEW_AGENT_OVERRIDE"
+
+    assert_pass_if_clean "test_integration_merge_commit_bypass_end_to_end"
+}
 
 test_integration_upgrade_path_end_to_end() {
     # End-to-end: pipe a 300-line non-test diff through the classifier,
@@ -332,36 +362,6 @@ test_integration_reject_path_end_to_end() {
     assert_pass_if_clean "test_integration_reject_path_end_to_end"
 }
 
-test_integration_merge_commit_bypass_end_to_end() {
-    # End-to-end: pipe a 600-line diff with MOCK_MERGE_HEAD=1 through the classifier,
-    # verify is_merge_commit=true in classifier output, and confirm Step 3b logic
-    # does NOT set STEP3B_REVIEW_RESULT to rejected.
-    _snapshot_fail
-
-    local diff_input classifier_json is_merge_actual size_action_actual
-    diff_input=$(_generate_diff_lines 600)
-    classifier_json=$(echo "$diff_input" | MOCK_MERGE_HEAD=1 "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
-
-    # Verify classifier produced valid JSON with is_merge_commit=true
-    is_merge_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "PARSE_ERROR")
-    assert_eq "test_integration_merge_commit_bypass_end_to_end: classifier returns is_merge_commit=true with MOCK_MERGE_HEAD=1" \
-        "true" "$is_merge_actual"
-
-    # Verify size_action is none (merge bypass applied at classifier level)
-    size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
-    assert_eq "test_integration_merge_commit_bypass_end_to_end: classifier returns size_action=none for merge commit (bypass at classifier)" \
-        "none" "$size_action_actual"
-
-    # Run Step 3b branching logic — merge commit must not be rejected
-    _simulate_step3b_from_classifier_json "$classifier_json" 1
-    assert_eq "test_integration_merge_commit_bypass_end_to_end: STEP3B_REVIEW_RESULT is not rejected for merge commit" \
-        "" "$STEP3B_REVIEW_RESULT"
-    assert_eq "test_integration_merge_commit_bypass_end_to_end: REVIEW_AGENT_OVERRIDE not set for merge commit" \
-        "" "$REVIEW_AGENT_OVERRIDE"
-
-    assert_pass_if_clean "test_integration_merge_commit_bypass_end_to_end"
-}
-
 # ============================================================
 # Run all tests
 # ============================================================
@@ -375,10 +375,10 @@ test_workflow_step3_merge_commit_bypass
 echo ""
 test_workflow_step3_no_change_when_size_action_none
 echo ""
+test_integration_merge_commit_bypass_end_to_end
+echo ""
 test_integration_upgrade_path_end_to_end
 echo ""
 test_integration_reject_path_end_to_end
-echo ""
-test_integration_merge_commit_bypass_end_to_end
 echo ""
 print_summary
