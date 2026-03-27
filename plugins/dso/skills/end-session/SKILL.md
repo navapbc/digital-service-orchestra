@@ -27,7 +27,7 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 ### 2. Close Completed Issues
 1. Run `.claude/scripts/dso ticket list` (lists open/in_progress tasks with resolved deps) and `git log main..HEAD --oneline`
 2. Cross-reference: which issues were completed based on commits?
-3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each
+3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each. **Bug tickets require** `--reason="Fixed: <summary>"` — omitting it causes a silent failure.
 4. **Skip if no in-progress issues** — this is common when called after `/dso:debug-everything` or `/dso:sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
 ### 2.5. Close Orphaned Epics (safety net)
