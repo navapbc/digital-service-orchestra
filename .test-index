@@ -185,3 +185,4 @@ plugins/dso/skills/onboarding/SKILL.md:tests/hooks/test-sub-agent-guard.sh,tests
 plugins/dso/skills/architect-foundation/SKILL.md:tests/hooks/test-sub-agent-guard.sh,tests/skills/test-architect-foundation-skill.sh
 plugins/dso/agents/red-test-writer.md: tests/agents/test-red-test-writer.sh
 plugins/dso/agents/red-test-evaluator.md: tests/agents/test-red-test-evaluator.sh
+tests/lib/markdown_helpers.py:tests/docs/test_extract_section_deduplication.py
