@@ -1,1 +1,0 @@
-{"timestamp": 1774626618, "uuid": "c41e0e04-f53f-4b73-ad87-3c8350da1e13", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Update CLAUDE.md with red-test-writer and red-test-evaluator agents", "parent_id": "16ba-6008", "priority": 2, "assignee": "Joe Oakhart"}}
