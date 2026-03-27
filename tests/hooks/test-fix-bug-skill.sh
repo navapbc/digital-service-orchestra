@@ -150,4 +150,31 @@ if [[ -f "$SKILL_FILE" ]]; then
     assert_eq "test_fix_bug_skill_hard_gate_prohibits_code_before_steps" "present" "$actual"
 fi
 
+# test_fix_bug_skill_hard_gate_prohibits_inline_investigation
+# The HARD-GATE block must explicitly prohibit inline investigation as a
+# substitute for sub-agent dispatch. This prevents agents from rationalizing
+# "I'll just investigate quickly before dispatching". The phrase "inline" must
+# appear within 20 lines of the HARD-GATE marker.
+if [[ -f "$SKILL_FILE" ]]; then
+    if grep -A20 "HARD-GATE" "$SKILL_FILE" | grep -qi "inline"; then
+        actual="present"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_fix_bug_skill_hard_gate_prohibits_inline_investigation" "present" "$actual"
+fi
+
+# test_fix_bug_skill_step2_mandatory_dispatch_directive
+# Step 2 must contain a mandatory dispatch directive ("MUST dispatch" or
+# "YOU MUST dispatch") that explicitly requires sub-agent dispatch rather
+# than leaving it as an option the orchestrator can rationalize around.
+if [[ -f "$SKILL_FILE" ]]; then
+    if grep -A30 "Step 2:" "$SKILL_FILE" | grep -qE "MUST dispatch|YOU MUST dispatch"; then
+        actual="present"
+    else
+        actual="missing"
+    fi
+    assert_eq "test_fix_bug_skill_step2_mandatory_dispatch_directive" "present" "$actual"
+fi
+
 print_summary

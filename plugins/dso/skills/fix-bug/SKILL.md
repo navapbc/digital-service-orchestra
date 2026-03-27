@@ -12,6 +12,8 @@ This skill replaces `/dso:tdd-workflow` for bug fixes. For new feature developme
 
 <HARD-GATE>
 Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
+
+Do NOT investigate inline as a substitute for sub-agent dispatch. Reading code, grepping, running commands, or analyzing stack traces yourself does NOT satisfy Step 2. You MUST dispatch the investigation sub-agent described in Step 2 — your own analysis is not equivalent, even when the root cause appears obvious.
 </HARD-GATE>
 
 ## Config Resolution (reads project workflow-config.yaml)
@@ -143,6 +145,8 @@ Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 5. Record the classification and score in a ticket note: `ticket comment <BUG_TICKET_ID> "Classification: behavioral, Score: <N> (<tier>)"`
 
 ### Step 2: Investigation Sub-Agent Dispatch (/dso:fix-bug)
+
+**You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Step 3.
 
 Dispatch investigation sub-agents based on the tier determined in Step 1. All sub-agents receive pre-loaded context before dispatch:
 - Existing failing tests and their output
