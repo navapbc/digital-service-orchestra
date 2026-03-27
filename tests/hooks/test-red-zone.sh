@@ -141,6 +141,16 @@ rm -f "$_out3"
 _failing4=$(parse_failing_tests_from_output "/tmp/nonexistent-red-zone-XXXXXX-abc")
 assert_eq "missing output file returns empty" "" "$_failing4"
 
+# Test: indented "FAIL: test_name" lines (2-space indent) are parsed correctly
+_out5=$(make_temp_file)
+cat > "$_out5" <<'EOF'
+  FAIL: test_indented_one
+  FAIL: test_indented_two
+EOF
+_failing5=$(parse_failing_tests_from_output "$_out5" | sort | tr '\n' ',' | sed 's/,$//')
+assert_eq "indented FAIL: prefix format parsed" "test_indented_one,test_indented_two" "$_failing5"
+rm -f "$_out5"
+
 # ============================================================
 # get_test_line_number tests
 # ============================================================

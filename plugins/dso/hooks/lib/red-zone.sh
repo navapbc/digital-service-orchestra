@@ -82,7 +82,8 @@ parse_failing_tests_from_output() {
         || true
 
     # Bash-style (assert_pass_if_clean): "FAIL: test_name" on stderr merged into output
-    grep -oE '^FAIL: [a-zA-Z_][a-zA-Z0-9_-]*' "$output_file" \
+    # No ^ anchor — many test scripts output indented "  FAIL: test_name" lines
+    grep -oE 'FAIL: [a-zA-Z_][a-zA-Z0-9_-]*' "$output_file" \
         | sed 's/^FAIL: //' \
         || true
 

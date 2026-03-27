@@ -84,7 +84,7 @@ Produce a JSON object with this EXACT schema (for writing to disk in Step 3).
 
 VIOLATIONS CAUSE RE-DISPATCH.
 
-REQUIRED: EXACTLY three top-level keys: "scores", "findings", "summary".
+REQUIRED: EXACTLY three top-level keys: "scores", "findings" (file field must reference diff files only), "summary".
 Do NOT add "schema_version", "review_result", "id", "review_date", or any other key —
 the validator will reject any extra keys and force a re-dispatch.
 The "scores" object MUST contain ALL five dimensions listed below with integer 1–5 or "N/A".
@@ -107,12 +107,14 @@ will be rejected by the validator and force a re-dispatch.
       "severity": "critical|important|minor",
       "category": "<one of the 5 score dimensions>",
       "description": "...",
-      "file": "path/to/file"
+      "file": "path/to/file (MUST be from the diff being reviewed)"
     }
   ],
   "summary": "2-3 sentence assessment"
 }
 ```
+
+**`file` field constraint**: The `file` field in each finding MUST reference a file present in the diff being reviewed (DIFF_FILE). Do not use files from your recommendations (e.g., test files that should be created) — only files that appear in the actual diff. `record-review.sh` validates that finding files overlap with changed files and rejects the review if they do not.
 
 ---
 
