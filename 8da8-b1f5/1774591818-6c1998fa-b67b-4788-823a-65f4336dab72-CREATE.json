@@ -1,1 +1,0 @@
-{"timestamp": 1774591818, "uuid": "6c1998fa-b67b-4788-823a-65f4336dab72", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Create shared RED task escalation prompt template", "parent_id": "12ff-5043", "priority": 2, "assignee": "Joe Oakhart"}}
