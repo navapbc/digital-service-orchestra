@@ -1,1 +1,0 @@
-{"timestamp": 1774659950, "uuid": "56e7ae06-d3c7-49cb-9c12-51e08b1be289", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Test ticket-list.sh --include-archived flag", "parent_id": "89e0-2772", "priority": 2, "assignee": "Joe Oakhart"}}
