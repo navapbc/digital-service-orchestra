@@ -719,6 +719,29 @@ When launching each Task tool call, set:
 - `subagent_type` = the `subagent` field from the TASK line
 - `model` = the `model` field from the TASK line
 
+### Documentation Story Dispatch
+
+Before dispatching via the normal classify-task flow, check whether the task's parent story is a documentation update story:
+
+1. Check if the task's title or parent story title matches the pattern: `Update project docs to reflect`
+2. If matched: override `subagent_type` to `dso:doc-writer` and `model` to `sonnet`
+3. The doc-writer agent receives two named context fields (required by the agent's decision engine):
+   ```
+   subagent_type: "dso:doc-writer"
+   model: "sonnet"
+   context:
+     epic_context: |
+       ## Epic ID
+       <epic-id>
+
+       ## Story Descriptions
+       <full output of `.claude/scripts/dso ticket show <epic-id>`>
+
+     git_diff: |
+       <full output of `git diff main...HEAD`>
+   ```
+4. Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."`
+
 **COMPLEX story model upgrade**: Before dispatching each task, check whether the parent
 story was tagged COMPLEX. Only upgrade if ALL three conditions hold:
 1. The task's `model` field from `classify-task.py` is `"sonnet"` (skip if already `"opus"`)
