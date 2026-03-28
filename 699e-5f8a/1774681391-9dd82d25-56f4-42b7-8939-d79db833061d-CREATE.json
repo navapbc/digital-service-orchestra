@@ -1,0 +1,1 @@
+{"timestamp": 1774681391, "uuid": "9dd82d25-56f4-42b7-8939-d79db833061d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "SC1-verify-long", "parent_id": "", "description": "description via --description", "priority": 2, "assignee": "Joe Oakhart"}}
