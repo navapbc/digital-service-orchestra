@@ -1,0 +1,1 @@
+{"timestamp": 1774658070, "uuid": "44213cfa-02b9-4e1f-8c67-16598227fcee", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "epic", "title": "Ticket System: Eliminate Full-Tracker Scan Bottlenecks", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
