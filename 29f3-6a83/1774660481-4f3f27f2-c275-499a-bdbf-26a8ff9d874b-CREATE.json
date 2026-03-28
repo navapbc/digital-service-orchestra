@@ -1,1 +1,0 @@
-{"timestamp": 1774660481, "uuid": "4f3f27f2-c275-499a-bdbf-26a8ff9d874b", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Implement close benchmark mode in ticket-benchmark.sh", "parent_id": "db66-0242", "priority": 2, "assignee": "Joe Oakhart"}}
