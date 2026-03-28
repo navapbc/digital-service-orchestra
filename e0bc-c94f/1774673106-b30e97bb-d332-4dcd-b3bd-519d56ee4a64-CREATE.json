@@ -1,0 +1,1 @@
+{"timestamp": 1774673106, "uuid": "b30e97bb-d332-4dcd-b3bd-519d56ee4a64", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, detect-stack.sh recognizes Rails and Jekyll project types", "parent_id": "d000-2598", "priority": 1, "assignee": "Joe Oakhart"}}
