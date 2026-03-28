@@ -39,7 +39,7 @@ overlay_dispatch_mode() {
     fi
 
     # Extract overlay flags from classifier JSON using python3 (jq-free per project convention)
-    local security_overlay privacy_overlay
+    local security_overlay performance_overlay
     security_overlay="$(python3 -c "
 import json, sys
 with open(sys.argv[1]) as f:
@@ -47,25 +47,25 @@ with open(sys.argv[1]) as f:
 print(str(data.get('security_overlay', False)).lower())
 " "$classifier_json")"
 
-    privacy_overlay="$(python3 -c "
+    performance_overlay="$(python3 -c "
 import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
-print(str(data.get('privacy_overlay', False)).lower())
+print(str(data.get('performance_overlay', False)).lower())
 " "$classifier_json")"
 
     # Branch 1: deterministic signal from classifier -> parallel dispatch
-    if [[ "$security_overlay" == "true" || "$privacy_overlay" == "true" ]]; then
+    if [[ "$security_overlay" == "true" || "$performance_overlay" == "true" ]]; then
         echo "parallel"
         return 0
     fi
 
     # Branch 2: check reviewer summary for warranted flags (no -P flag; macOS compat)
-    local sec_warranted priv_warranted
+    local sec_warranted perf_warranted
     sec_warranted="$(sed -n 's/^security_overlay_warranted:[[:space:]]*//p' "$reviewer_summary" 2>/dev/null | tr -d '[:space:]')"
-    priv_warranted="$(sed -n 's/^privacy_overlay_warranted:[[:space:]]*//p' "$reviewer_summary" 2>/dev/null | tr -d '[:space:]')"
+    perf_warranted="$(sed -n 's/^performance_overlay_warranted:[[:space:]]*//p' "$reviewer_summary" 2>/dev/null | tr -d '[:space:]')"
 
-    if [[ "$sec_warranted" == "yes" || "$priv_warranted" == "yes" ]]; then
+    if [[ "$sec_warranted" == "yes" || "$perf_warranted" == "yes" ]]; then
         echo "serial"
         return 0
     fi

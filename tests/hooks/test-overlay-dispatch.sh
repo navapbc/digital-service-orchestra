@@ -63,8 +63,8 @@ fi
 write_classifier_json() {
     local outfile="$1"
     local security_overlay="${2:-false}"
-    local privacy_overlay="${3:-false}"
-    python3 - "$outfile" "$security_overlay" "$privacy_overlay" <<'PYEOF'
+    local performance_overlay="${3:-false}"
+    python3 - "$outfile" "$security_overlay" "$performance_overlay" <<'PYEOF'
 import json, sys
 path, sec, priv = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path, "w") as f:
@@ -72,7 +72,7 @@ with open(path, "w") as f:
         "selected_tier": "standard",
         "score": 4,
         "security_overlay": sec == "true",
-        "privacy_overlay": priv == "true"
+        "performance_overlay": priv == "true"
     }, f)
 PYEOF
 }
@@ -83,10 +83,10 @@ PYEOF
 write_reviewer_summary() {
     local outfile="$1"
     local security_warranted="${2:-no}"
-    local privacy_warranted="${3:-no}"
+    local performance_warranted="${3:-no}"
     cat > "$outfile" <<SUMMARY
 security_overlay_warranted: $security_warranted
-privacy_overlay_warranted: $privacy_warranted
+performance_overlay_warranted: $performance_warranted
 SUMMARY
 }
 
