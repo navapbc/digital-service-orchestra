@@ -1,1 +1,0 @@
-{"timestamp": 1774681117373941000, "uuid": "5e7152c5-4451-4967-b186-0afd1362c25a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: CLAUDE.md, CLI reference, and event contract updated for --description/-d flag"}}
