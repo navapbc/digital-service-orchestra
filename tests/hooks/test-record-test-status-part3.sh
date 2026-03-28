@@ -629,9 +629,9 @@ assert_pass_if_clean "test_stale_red_marker_exit_zero"
 
 # ============================================================
 # test_stale_red_marker_partial_pass
-# When a test file exits non-zero (some tests fail) but a RED-zone
-# test passes, that RED test is stale. record-test-status.sh must
-# detect the passing RED-zone test and record "failed".
+# When a test file exits non-zero (some tests fail) and all failures
+# are in the RED zone, partial RED-zone passes are normal (feature
+# partially implemented). The marker is NOT stale — tolerate failures.
 # ============================================================
 echo ""
 echo "=== test_stale_red_marker_partial_pass ==="
@@ -694,18 +694,17 @@ EXIT_CODE_STALEP="${EXIT_CODE_STALEP:-0}"
 
 STATUS_FILE_STALEP="$ARTIFACTS_STALEP/test-gate-status"
 
-# EXPECTED: exit non-zero, status=failed, stderr mentions stale RED marker for test_red_a
-assert_eq "test_stale_red_marker_partial_pass: exits non-zero" "1" "$EXIT_CODE_STALEP"
+# EXPECTED: exit zero (tolerate), status=passed, stderr shows RED zone tolerance (not stale marker)
+assert_eq "test_stale_red_marker_partial_pass: exits zero (tolerant)" "0" "$EXIT_CODE_STALEP"
 
 if [[ -f "$STATUS_FILE_STALEP" ]]; then
     FIRST_LINE_STALEP=$(head -1 "$STATUS_FILE_STALEP")
-    assert_eq "test_stale_red_marker_partial_pass: status is failed" "failed" "$FIRST_LINE_STALEP"
+    assert_eq "test_stale_red_marker_partial_pass: status is passed" "passed" "$FIRST_LINE_STALEP"
 else
     assert_eq "test_stale_red_marker_partial_pass: status file exists" "exists" "missing"
 fi
 
-assert_contains "test_stale_red_marker_partial_pass: stderr has STALE RED MARKER" "STALE RED MARKER" "$(cat "$HOOK_OUTPUT_STALEP")"
-assert_contains "test_stale_red_marker_partial_pass: stderr names test_red_a" "test_red_a" "$(cat "$HOOK_OUTPUT_STALEP")"
+assert_contains "test_stale_red_marker_partial_pass: stderr has RED zone tolerance" "RED zone failures tolerated" "$(cat "$HOOK_OUTPUT_STALEP")"
 
 rm -f "$MOCK_STALEP_RUNNER" "$HOOK_OUTPUT_STALEP"
 rm -rf "$TEST_REPO_STALEP" "$ARTIFACTS_STALEP"

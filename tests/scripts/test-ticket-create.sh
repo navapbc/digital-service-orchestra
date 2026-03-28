@@ -23,6 +23,23 @@ source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
 echo "=== test-ticket-create.sh ==="
 
+# Helper: extract a JSON field from an event file with diagnostic error capture.
+# Usage: _extract_event_field <event_file> <field_name> [--repr]
+_extract_event_field() {
+    local file="$1" field="$2" use_repr="${3:-}"
+    local print_expr="print(e['data'].get('$field','MISSING'))"
+    [[ "$use_repr" == "--repr" ]] && print_expr="print(repr(e['data'].get('$field','MISSING')))"
+    python3 - "$file" <<PYEOF || true
+import json, sys
+try:
+    e = json.load(open(sys.argv[1]))
+    $print_expr
+except Exception as ex:
+    print(f"PARSE_ERROR:{ex}")
+    sys.exit(1)
+PYEOF
+}
+
 # ── Helper: create a fresh temp git repo with ticket system initialized ───────
 _make_test_repo() {
     local tmp
@@ -446,7 +463,7 @@ test_ticket_create_with_priority_writes_priority_to_create_event() {
     fi
 
     local priority_val
-    priority_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('priority','MISSING'))" "$event_file" 2>/dev/null) || true
+    priority_val=$(_extract_event_field "$event_file" "priority")
     assert_eq "priority in CREATE event data" "1" "$priority_val"
 }
 test_ticket_create_with_priority_writes_priority_to_create_event
@@ -481,7 +498,7 @@ test_ticket_create_with_assignee_writes_assignee_to_create_event() {
     fi
 
     local assignee_val
-    assignee_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('assignee','MISSING'))" "$event_file" 2>/dev/null) || true
+    assignee_val=$(_extract_event_field "$event_file" "assignee")
     assert_eq "assignee in CREATE event data" "Joe Oakhart" "$assignee_val"
 }
 test_ticket_create_with_assignee_writes_assignee_to_create_event
@@ -516,7 +533,7 @@ test_ticket_create_default_priority_is_2() {
     fi
 
     local priority_val
-    priority_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('priority','MISSING'))" "$event_file" 2>/dev/null) || true
+    priority_val=$(_extract_event_field "$event_file" "priority")
     assert_eq "default priority in CREATE event data" "2" "$priority_val"
 }
 test_ticket_create_default_priority_is_2
@@ -552,7 +569,7 @@ test_ticket_create_description_long_flag_populates_event() {
     fi
 
     local desc_val
-    desc_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('description','MISSING'))" "$event_file" 2>/dev/null) || true
+    desc_val=$(_extract_event_field "$event_file" "description")
     assert_eq "data.description matches provided value (--description flag)" "$desc_body" "$desc_val"
 }
 test_ticket_create_description_long_flag_populates_event
@@ -588,7 +605,7 @@ test_ticket_create_description_short_flag_populates_event() {
     fi
 
     local desc_val
-    desc_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('description','MISSING'))" "$event_file" 2>/dev/null) || true
+    desc_val=$(_extract_event_field "$event_file" "description")
     assert_eq "data.description matches provided value (-d flag)" "$desc_body" "$desc_val"
 }
 test_ticket_create_description_short_flag_populates_event
@@ -623,7 +640,7 @@ test_ticket_create_no_description_flag_leaves_empty_string() {
     fi
 
     local desc_val
-    desc_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(repr(e['data'].get('description','MISSING')))" "$event_file" 2>/dev/null) || true
+    desc_val=$(_extract_event_field "$event_file" "description" --repr)
     assert_eq "data.description is empty string when no -d flag" "''" "$desc_val"
 }
 test_ticket_create_no_description_flag_leaves_empty_string

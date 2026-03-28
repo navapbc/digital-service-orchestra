@@ -777,4 +777,17 @@ test_diff_existing_files() {
 test_artifact_review_before_writing
 test_diff_existing_files
 
+# test_dso_setup_invocation: SKILL.md must reference dso-setup.sh to install the shim
+test_dso_setup_invocation() {
+    _snapshot_fail
+    local dso_setup_found="missing"
+    if grep -q "dso-setup.sh" "$SKILL_MD" 2>/dev/null; then
+        dso_setup_found="found"
+    fi
+    assert_eq "test_dso_setup_invocation" "found" "$dso_setup_found"
+    assert_pass_if_clean "test_dso_setup_invocation"
+}
+
+test_dso_setup_invocation
+
 print_summary
