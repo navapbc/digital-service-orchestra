@@ -23,7 +23,7 @@ for the commit-time and sprint-time sub-agent protocols.
 | Two-file protocol (report on disk + compact summary) | `fix-task-tdd.md` lines 38-48, `diagnostic-and-cluster.md` lines 140-158 | **Adapt** | At commit-time, a single failure rarely produces enough output to justify disk I/O. Use the two-file protocol only when stderr exceeds 100 lines; otherwise inline the compact RESULT directly. Sprint-time should always use disk reports (batches produce verbose output). |
 | Model escalation (sonnet default, opus on retry) | `SKILL.md` Phase 5 "Escalation" (line 468) | **Reuse** | The pattern "try sonnet first, retry with opus on failure" applies everywhere. Commit-time starts with sonnet; sprint-time starts with sonnet; both escalate to opus if the first attempt returns FAIL. |
 | Subagent type selection table | `SKILL.md` Phase 5 lines 442-455 | **Adapt** | The 12-row table covers all `/dso:debug-everything` tiers. Commit-time and sprint-time need a subset: unit-test failures use `unit-testing:debugger`, type errors use `debugging-toolkit:debugger`, lint uses `code-simplifier:code-simplifier`. Complex multi-file bugs escalate to `error-debugging:error-detective` with opus. |
-| Checkpoint protocol | `SKILL.md` Phase 6 Steps 1-6 | **Adapt** | Full checkpoint (verify, file-overlap, critic, validate, commit) is designed for multi-agent batches. Commit-time uses a single sub-agent, so skip file-overlap and critic review. Sprint-time already has Phase 6 Steps 3-10 for post-batch validation; the test-failure sub-agent slots into the existing failure-handling path (Step 9). |
+| Checkpoint protocol | `SKILL.md` Phase 5 Steps 1-6 | **Adapt** | Full checkpoint (verify, file-overlap, critic, validate, commit) is designed for multi-agent batches. Commit-time uses a single sub-agent, so skip file-overlap and critic review. Sprint-time already has Phase 5 Steps 3-10 for post-batch validation; the test-failure sub-agent slots into the existing failure-handling path (Step 9). |
 | Validation gate skip map | `diagnostic-and-cluster.md` lines 35-41 | **New** | Commit-time needs a lightweight variant: the caller already knows which test command failed and has stderr. No skip map needed — pass the failure directly. Sprint-time can reuse the skip map when re-validating after a fix. |
 
 ---
@@ -38,7 +38,7 @@ for the commit-time and sprint-time sub-agent protocols.
 | 2nd+ attempt (after sonnet FAIL) | `opus` | If sonnet could not fix it, the failure likely involves cross-module reasoning, subtle state bugs, or architectural misunderstanding. Opus has stronger multi-file correlation. |
 | attempt > `review.max_resolution_attempts` (default: 5) | N/A — escalate to user | Failed attempts indicate a problem that requires human judgment (design question, external dependency, ambiguous requirement). |
 
-### Sprint-Time (Sprint Phase 6 Step 4 / Phase 7 failure path)
+### Sprint-Time (Sprint Phase 5 Step 4 / Phase 6 failure path)
 
 | Scenario | Model | Rationale |
 |----------|-------|-----------|
@@ -140,7 +140,7 @@ Parse RESULT line:
 
 | Dimension | Commit-Time | Sprint Post-Batch | Project-Health (/dso:debug-everything) |
 |-----------|------------|-------------------|-----------------------------------|
-| **Trigger** | `make test-unit-only` fails in COMMIT-WORKFLOW Step 1 | `validate-phase.sh post-batch` fails in Sprint Phase 6 Step 4 | Explicit `/dso:debug-everything` invocation |
+| **Trigger** | `make test-unit-only` fails in COMMIT-WORKFLOW Step 1 | `validate-phase.sh post-batch` fails in Sprint Phase 5 Step 4 | Explicit `/dso:debug-everything` invocation |
 | **Typical failure count** | 1-2 tests | 1-10 tests across batch | 0-50+ across all categories |
 | **Failure source** | Current uncommitted changes | One or more sub-agents in the batch | Accumulated project-wide issues |
 | **Triage step** | None (failure is self-evident) | Minimal — identify which sub-agent broke what | Full diagnostic scan + clustering + issue creation |
@@ -148,17 +148,17 @@ Parse RESULT line:
 | **Diagnostic depth** | None — stderr from the failed command is sufficient | Post-batch validation output is sufficient | Full 5-category diagnostic + verbose error collection |
 | **Model default** | sonnet | sonnet | Per-tier table (sonnet or opus) |
 | **Escalation path** | sonnet -> opus -> user | sonnet -> opus -> user | Per Phase 5 table + Phase 6 critic review |
-| **Checkpoint protocol** | None (single sub-agent, no batching) | Existing Sprint Phase 6 Steps 8-10 | Full Phase 6 (verify, overlap, critic, validate, commit) |
+| **Checkpoint protocol** | None (single sub-agent, no batching) | Existing Sprint Phase 5 Steps 8-10 | Full Phase 6 (verify, overlap, critic, validate, commit) |
 | **Two-file protocol** | Only if stderr > 100 lines | Always (batch output is verbose) | Always |
 | **Max retries** | 2 (sonnet, then opus) | 2 per failed task | 5 full diagnostic cycles |
-| **File overlap risk** | None (single agent) | Yes — batch overlap detection in Sprint Phase 6 Step 3 | Yes — Phase 6 Step 1a |
-| **Critic review** | No | Via Sprint Phase 6 Step 7 (formal code review) | Phase 6 Step 1b (complex fixes only) |
+| **File overlap risk** | None (single agent) | Yes — batch overlap detection in Sprint Phase 5 Step 3 | Yes — Phase 6 Step 1a |
+| **Critic review** | No | Via Sprint Phase 5 Step 7 (formal code review) | Phase 6 Step 1b (complex fixes only) |
 
 ### Key Gaps to Fill
 
 1. **Commit-time dispatch point**: COMMIT-WORKFLOW.md Step 1 currently says "fix the code and restart from Step 1" with no sub-agent dispatch. The new protocol adds an automated fix attempt before requiring human intervention.
 
-2. **Sprint failure attribution**: When post-batch validation fails, the orchestrator needs to attribute the failure to a specific sub-agent's changes. This requires `git diff --name-only` per sub-agent (already collected in Sprint Phase 6 Step 1a file-overlap check) cross-referenced with the failing test's imports/fixtures.
+2. **Sprint failure attribution**: When post-batch validation fails, the orchestrator needs to attribute the failure to a specific sub-agent's changes. This requires `git diff --name-only` per sub-agent (already collected in Sprint Phase 5 Step 1a file-overlap check) cross-referenced with the failing test's imports/fixtures.
 
 3. **Prompt template injection**: Both `fix-task-tdd.md` and `fix-task-mechanical.md` use `{placeholders}` for issue-specific details. The new dispatch contract adds `stderr_tail` and `changed_files` which are not in the current templates. Adaptation: inject these as a new `### Failure Context` section after `### Error Details`.
 

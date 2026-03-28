@@ -7,6 +7,39 @@ Versioning follows [Semantic Versioning](https://semver.org/) — see `docs/VERS
 
 ---
 
+## [Unreleased] — 2026-03-28
+
+### Changed: /dso:sprint — Phase Consolidation and Prose Reduction
+
+The `/dso:sprint` skill was refactored to reduce token load and clarify execution flow.
+
+- **Phase renumbering**: Phases are now numbered 1–8 (previously 1–9). Phase 3 (Batch
+  Planning) and Phase 4 (Pre-Batch Checks) were merged into a single **Phase 3: Batch
+  Preparation**. All subsequent phases shifted down by one: Sub-Agent Launch is now Phase 4,
+  Post-Batch Processing is Phase 5, Post-Epic Validation is Phase 6, Remediation Loop is
+  Phase 7, and Session Close is Phase 8.
+- **TaskCreate/TaskUpdate blocks removed**: Progress-checklist blocks in Phase 1 (pre-loop)
+  and Phase 3 (per-batch) were removed. The Phase 7 post-loop checklist is retained.
+- **Model selection restructured**: The model selection section in Phase 4 is now a
+  decision table with columns `parent_story_complex`, `task_model`, `task_class`, `action`.
+- **Reference & Recovery merged**: Quick Reference and Error Recovery were merged into a
+  single "Reference & Recovery" section with Phase Overview and Error Situations subsections.
+- **Prose reduction**: Explanatory motivation framing was removed (23% word reduction,
+  11,467 → 8,871 words).
+
+### Migration Note
+
+Cross-references to `/dso:sprint` phase numbers in other documents have been updated:
+
+| Old reference | New reference |
+|---|---|
+| Phase 6 Step 4 (post-batch validation) | Phase 5 Step 4 |
+| Phase 6 Step 0 (dispatch failure recovery) | Phase 5 Step 0 |
+| Phase 6 Step 10.5 (commit & push) | Phase 5 Step 10 |
+| Phase 7 Step 0.5b (post-E2E failure) | Phase 6 Step 0.5b |
+
+---
+
 ## [v0.3.0] — 2026-03-09
 
 ### Summary
