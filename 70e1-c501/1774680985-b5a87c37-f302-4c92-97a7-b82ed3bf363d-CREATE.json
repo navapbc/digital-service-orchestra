@@ -1,1 +1,0 @@
-{"timestamp": 1774680985, "uuid": "b5a87c37-f302-4c92-97a7-b82ed3bf363d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Add doc-writer dispatch logic to sprint SKILL.md for documentation update stories", "parent_id": "b1c8-5b5e", "priority": 1, "assignee": "Joe Oakhart"}}
