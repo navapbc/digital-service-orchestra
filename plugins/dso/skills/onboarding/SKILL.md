@@ -571,6 +571,16 @@ Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.
 
 After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.
 
+#### DSO Shim Installation
+
+Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on:
+
+```bash
+bash "$REPO_ROOT/plugins/dso/scripts/dso-setup.sh" "$REPO_ROOT" "$REPO_ROOT/plugins/dso"
+```
+
+This is idempotent — safe to re-run on projects that already have the shim installed.
+
 #### Hook Installation
 
 Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-review-gate.sh`) into the project's hooks directory. Hook installation must account for the detected hook manager:
