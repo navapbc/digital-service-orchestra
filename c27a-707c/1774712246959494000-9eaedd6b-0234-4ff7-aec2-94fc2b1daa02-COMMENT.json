@@ -1,0 +1,1 @@
+{"timestamp": 1774712246959494000, "uuid": "9eaedd6b-0234-4ff7-aec2-94fc2b1daa02", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 2 (BASIC). Onboarding skill missing dso-setup.sh invocation."}}
