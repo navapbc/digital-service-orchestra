@@ -1,0 +1,1 @@
+{"timestamp": 1774678813, "uuid": "b44a0065-7cc8-48ec-b0e5-f355dd8961a3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Write behavioral tests for dso:doc-writer agent", "parent_id": "9e22-2d3d", "priority": 1, "assignee": "Joe Oakhart"}}
