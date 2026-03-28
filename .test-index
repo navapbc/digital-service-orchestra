@@ -192,3 +192,4 @@ plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-
 plugins/dso/skills/roadmap/SKILL.md: tests/skills/test-roadmap-scrutiny-opt-in.sh
 plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh
 plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh
+CLAUDE.md: tests/skills/test-shared-subworkflow-docs.sh [test_claude_md_references_scrutiny_pipeline]
