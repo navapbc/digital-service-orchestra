@@ -1,0 +1,1 @@
+{"timestamp": 1774682655, "uuid": "8b6de320-950c-4ab1-9727-e5a1bd62d1cf", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Extract scrutiny pipeline from brainstorm into shared workflow", "parent_id": "f007-6e12", "priority": 1, "assignee": "Joe Oakhart"}}
