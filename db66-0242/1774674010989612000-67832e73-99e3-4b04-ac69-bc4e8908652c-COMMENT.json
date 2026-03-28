@@ -1,1 +1,0 @@
-{"timestamp": 1774674010989612000, "uuid": "67832e73-99e3-4b04-ac69-bc4e8908652c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Story complete: benchmark test confirms ticket close under 10s with 200 non-archived tickets. Actual close time: ~0.5s."}}
