@@ -43,7 +43,7 @@ Task type → Action:
 | Merge worktree to main | `plugins/dso/scripts/merge-to-main.sh` | Worktree session complete |
 | List ready tickets | `.claude/scripts/dso ticket list` | Check what to work on |
 | Show ticket details | `.claude/scripts/dso ticket show <id>` | Inspect a specific ticket |
-| Create a ticket | `.claude/scripts/dso ticket create <type> <title>` | Create bug/epic/story/task |
+| Create a ticket | `.claude/scripts/dso ticket create <type> <title> [-d/--description <text>]` | Create bug/epic/story/task |
 | Close a ticket | `.claude/scripts/dso ticket transition <id> <current> closed` | Close a ticket (bug tickets require `--reason="Fixed: <summary>"`) |
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` | Add dependency/blocks/relates_to link |
 | Sync with Jira | `.claude/scripts/dso ticket sync` (Jira bridge; see architecture) | Sync to Jira |

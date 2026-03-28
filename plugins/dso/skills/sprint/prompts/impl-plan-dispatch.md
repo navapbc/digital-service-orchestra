@@ -80,7 +80,7 @@ STATUS:blocked QUESTIONS:[{"text":"What is the expected response format for the 
 
 ### Rules
 - Do NOT: git commit, git push, .claude/scripts/dso ticket transition
-- You MAY use: .claude/scripts/dso ticket create (with --acceptance, -d flags), .claude/scripts/dso ticket link (required for Step 5 dependency wiring), .claude/scripts/dso ticket comment for post-creation updates
+- You MAY use: .claude/scripts/dso ticket create (with -d/--description flag for initial description and AC), .claude/scripts/dso ticket link (required for Step 5 dependency wiring), .claude/scripts/dso ticket comment for post-creation updates
 - Do NOT use the Task tool to dispatch nested sub-agents. Do NOT invoke `/dso:review-protocol` via the Skill tool — use `REVIEW-PROTOCOL-WORKFLOW.md` inline instead (Skill nesting creates 3+ levels which fail to return control).
 - Do NOT invoke `/dso:commit`, `/dso:review`, or any slash-command other than Skill tool invocations required by the implementation-plan steps
 - Do NOT modify files outside the scope of task creation (no source code changes — this is planning only)

@@ -73,9 +73,17 @@ All event files are valid JSON objects containing the following base fields:
 {
   "ticket_type": "<bug|epic|story|task>",
   "title": "<string>",
-  "parent_id": "<string|null>"
+  "parent_id": "<string|null>",
+  "description": "<string|null>"
 }
 ```
+
+| Field          | Type          | Description                                                                 |
+|----------------|---------------|-----------------------------------------------------------------------------|
+| `ticket_type`  | string (enum) | One of: `bug`, `epic`, `story`, `task`.                                    |
+| `title`        | string        | Non-empty ticket title. Must be ≤ 255 characters for Jira sync.            |
+| `parent_id`    | string\|null  | ID of an existing parent ticket, or `null` if top-level.                   |
+| `description`  | string\|null  | Optional long-form description text. `null` or absent when not provided.   |
 
 #### `STATUS`
 

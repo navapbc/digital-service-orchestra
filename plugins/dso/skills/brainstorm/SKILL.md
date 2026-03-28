@@ -396,9 +396,7 @@ Log format to append under the heading `### Planning Intelligence Log`:
 ### Step 1: Create the Epic
 
 ```bash
-.claude/scripts/dso ticket create "<title>" -t epic -p <priority>
-
-.claude/scripts/dso ticket comment <epic-id> "
+.claude/scripts/dso ticket create epic "<title>" -p <priority> -d "$(cat <<'DESCRIPTION'
 ## Context
 [context narrative]
 
@@ -411,7 +409,8 @@ Log format to append under the heading `### Planning Intelligence Log`:
 
 ## Approach
 [1-2 sentences on the chosen approach from Phase 2]
-"
+DESCRIPTION
+)"
 ```
 
 **Priority guidance:**
@@ -520,4 +519,4 @@ Skill tool:
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
 | 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
-| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create -t epic`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
+| 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create epic "<title>" -d "..."`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |

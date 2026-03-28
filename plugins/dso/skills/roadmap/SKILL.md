@@ -208,11 +208,8 @@ AVOID/LATER (Low Impact, High Effort):
 2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**.
 
    ```bash
-   # Create epic
-   .claude/scripts/dso ticket create "Phase 1: Authentication System" -t epic -p 1
-
-   # Update epic with full description
-   .claude/scripts/dso ticket comment <epic-id> "
+   # Create epic with full description
+   .claude/scripts/dso ticket create epic "Phase 1: Authentication System" -p 1 -d "$(cat <<'DESCRIPTION'
    ## Context
    [Why this matters, user need, business goal]
 
@@ -226,7 +223,8 @@ AVOID/LATER (Low Impact, High Effort):
 
    ## References
    [Links to PRDs, designs, or related docs]
-   "
+   DESCRIPTION
+   )"
    ```
 
 3. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.

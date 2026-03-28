@@ -267,9 +267,9 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
   A task that deploys an inert feature (e.g., a guard that reads files no one writes yet)
   is acceptable — inert is not broken. The key test: after committing only this task,
   do all tests pass and is the system deployable?
-* **Acceptance Criteria:** Every task must include acceptance criteria added via `ticket comment`
-  after creation (the CLI does not support `--acceptance` at creation time), composed from the
-  template library (`${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
+* **Acceptance Criteria:** Every task must include acceptance criteria passed via `-d/--description`
+  at creation time, composed from the template library
+  (`${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
   Read the library once at the start of Step 3. For each task:
   1. Start with Universal Criteria (always included)
   2. Select applicable category blocks based on task type
@@ -553,26 +553,26 @@ Each task must include:
 | **Title** | Concise and atomic |
 | **Description** | Implementation steps, file paths, constraints |
 | **TDD Requirement** | Specific failing test to write first |
-| **Acceptance Criteria** | Added via `ticket comment` after creation (see format below) |
+| **Acceptance Criteria** | Included via `-d/--description` at creation time (see format below) |
 
-**Acceptance criteria format** (add via `ticket comment` after creation — the CLI does not support `--acceptance` at creation time):
+**Acceptance criteria format** (pass via `-d` at creation time):
 
 ```bash
-# Step 1: create the task
-TASK_ID=$(.claude/scripts/dso ticket create task "{title}" --parent=<story-id> --priority=2)
-
-# Step 2: add acceptance criteria as a comment
-.claude/scripts/dso ticket comment "$TASK_ID" "## Acceptance Criteria
-- [ ] \`make test-unit-only\` passes (exit 0)
-  Verify: cd \$(git rev-parse --show-toplevel)/app && make test-unit-only
-- [ ] \`make lint\` passes (exit 0)
-  Verify: cd \$(git rev-parse --show-toplevel)/app && make lint
-- [ ] \`make format-check\` passes (exit 0)
-  Verify: cd \$(git rev-parse --show-toplevel)/app && make format-check
+# Create the task with acceptance criteria included in description
+TASK_ID=$(.claude/scripts/dso ticket create task "{title}" --parent=<story-id> --priority=2 -d "$(cat <<'DESCRIPTION'
+## Acceptance Criteria
+- [ ] `make test-unit-only` passes (exit 0)
+  Verify: cd $(git rev-parse --show-toplevel)/app && make test-unit-only
+- [ ] `make lint` passes (exit 0)
+  Verify: cd $(git rev-parse --show-toplevel)/app && make lint
+- [ ] `make format-check` passes (exit 0)
+  Verify: cd $(git rev-parse --show-toplevel)/app && make format-check
 - [ ] {task-specific criterion 1}
   Verify: {command that returns exit 0 on pass}
 - [ ] {task-specific criterion 2}
-  Verify: {command}"
+  Verify: {command}
+DESCRIPTION
+)")
 ```
 
 Universal criteria (test, lint, format) are always the first three lines.

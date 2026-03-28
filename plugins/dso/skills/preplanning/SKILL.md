@@ -289,7 +289,7 @@ Parse the blue team's accepted findings and apply each one based on its `type`:
 
 | Finding Type | Action |
 |-------------|--------|
-| `new_story` | Create a new story: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id>`. Then use `.claude/scripts/dso ticket comment <id> "<body>"` to add description, done definitions, and considerations. |
+| `new_story` | Create a new story with description: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id> -d "<body with description, done definitions, and considerations>"`. |
 | `modify_done_definition` | Use `.claude/scripts/dso ticket comment <target_story_id> "Done definition update: <description>"` to record the modified done definition. |
 | `add_dependency` | Add the dependency: `.claude/scripts/dso ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
 | `add_consideration` | Use `.claude/scripts/dso ticket comment <target_story_id> "Consideration: <text>"` to append the consideration. |
@@ -439,19 +439,13 @@ If no stories qualify under the trigger conditions above, log: `"No stories with
 For new stories, create the ticket then immediately write the full story body into the ticket file:
 
 ```bash
-# Step 1: assemble the story body from earlier phases
+# Assemble the story body from earlier phases and create the ticket in one command:
 # - Description: What/Why/Scope from Phase 2 analysis
 # - Done Definitions: assembled during Phase 3
 # - Considerations: flags from Phase 2 Risk & Scope Scan
 # - Escalation Policy: selected in Phase 1 Step 1b (omit if Autonomous)
 
-# Step 2: create the ticket — capture the generated ID
-STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --parent=<epic-id> --priority=<priority>)
-```
-
-Then use `.claude/scripts/dso ticket comment <story-id> "<body>"` to add the structured body content:
-
-```markdown
+STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --parent=<epic-id> --priority=<priority> -d "$(cat <<'DESCRIPTION'
 ## Description
 
 **What**: <what the feature or change is>
@@ -474,9 +468,11 @@ Then use `.claude/scripts/dso ticket comment <story-id> "<body>"` to add the str
 ## Escalation Policy
 
 **Escalation policy**: <verbatim escalation policy text from Phase 1 Step 1b>
+DESCRIPTION
+)")
 ```
 
-Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b. The ticket file must never be left as a bare title — always write the structured body immediately after creation.
+Omit the `## Escalation Policy` section if the user selected **Autonomous** in Phase 1 Step 1b. The ticket must never be left as a bare title — always include the structured body at creation time.
 
 For modified stories, use `.claude/scripts/dso ticket comment <existing-id> "<updated content>"` to record changes.
 

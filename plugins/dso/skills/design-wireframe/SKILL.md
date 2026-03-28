@@ -830,7 +830,7 @@ Link the approved design artifacts to the story:
 
 If the story was split in Step 10, also create the enhancement story:
 ```
-.claude/scripts/dso ticket create "Enhancement: <title>" -t story -p <same priority> -d "<description referencing foundation story $ARGUMENTS>"
+.claude/scripts/dso ticket create story "Enhancement: <title>" -p <same priority> -d "<description referencing foundation story $ARGUMENTS>"
 .claude/scripts/dso ticket link <new-story-id> $ARGUMENTS depends_on
 ```
 
