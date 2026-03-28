@@ -607,42 +607,40 @@ For each task, launch a Task with the appropriate `subagent_type`.
 Use the `model` and `subagent` fields from the `TASK:` lines produced by
 `sprint-next-batch.sh` in Phase 3 Step 4 — **no additional classify-task.sh call needed**.
 
-When launching each Task tool call, set:
-- `subagent_type` = the `subagent` field from the TASK line
-- `model` = the `model` field from the TASK line
+When launching each Task tool call, set `subagent_type` and `model` from the TASK line, then apply the decision table below in order (first matching row wins):
+
+| parent_story_complex | task_model | task_class | action |
+|---------------------|------------|------------|--------|
+| any | any | any (doc-story title match) | Override `subagent_type` to `dso:doc-writer`, `model` to `sonnet`. Pass `epic_context` and `git_diff` context fields (see Documentation Story Dispatch below). Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."` |
+| `COMPLEX` | `sonnet` | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
+| `COMPLEX` | `sonnet` | any other | Override `model` to `opus`. Log: `"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."` |
+| `COMPLEX` | `opus` | any | No change (already opus). |
+| not COMPLEX | any | `skill-guided` | No model upgrade. Append skill check guidance to prompt (see below). |
+| not COMPLEX | any | any other | No change — use `model` and `subagent` from TASK line as-is. |
+
+**Doc-story title match**: Task title or parent story title matches `Update project docs to reflect`.
+
+**COMPLEX detection**: Run `.claude/scripts/dso ticket show <task-id>` and read the `parent` field; if a parent story ID exists, run `.claude/scripts/dso ticket show <parent-story-id>` and grep its output with `grep -Fx "COMPLEXITY_CLASSIFICATION: COMPLEX"` (exact full-line match to avoid false positives).
+
+**Skill check guidance** (appended to prompt when `class` is `skill-guided`): `"Before implementing, check if a skill applies to this task type (e.g., /writing-skills for skill files, /claude-md-improver for CLAUDE.md updates, /writing-rules for hookify rules)."`
 
 ### Documentation Story Dispatch
 
-1. Check if the task's title or parent story title matches: `Update project docs to reflect`
-2. If matched: override `subagent_type` to `dso:doc-writer` and `model` to `sonnet`
-3. The doc-writer agent receives two named context fields:
-   ```
-   subagent_type: "dso:doc-writer"
-   model: "sonnet"
-   context:
-     epic_context: |
-       ## Epic ID
-       <epic-id>
+When the doc-story title match triggers, the doc-writer agent receives two named context fields:
+```
+subagent_type: "dso:doc-writer"
+model: "sonnet"
+context:
+  epic_context: |
+    ## Epic ID
+    <epic-id>
 
-       ## Story Descriptions
-       <full output of `.claude/scripts/dso ticket show <epic-id>`>
+    ## Story Descriptions
+    <full output of `.claude/scripts/dso ticket show <epic-id>`>
 
-     git_diff: |
-       <full output of `git diff main...HEAD`>
-   ```
-4. Log: `"Documentation story detected — dispatching to dso:doc-writer instead of generic agent."`
-
-**COMPLEX story model upgrade**: Before dispatching each task, check whether the parent
-story was tagged COMPLEX. Only upgrade if ALL three conditions hold:
-1. The task's `model` field from `classify-task.py` is `"sonnet"` (skip if already `"opus"`)
-2. The task's `class` field is not `"skill-guided"` (docs/config tasks do not benefit from opus)
-3. The parent story is COMPLEX: run `.claude/scripts/dso ticket show <task-id>` and read the `parent` field;
-   if a parent story ID exists, run `.claude/scripts/dso ticket show <parent-story-id>` and grep its output with
-   `grep -Fx "COMPLEXITY_CLASSIFICATION: COMPLEX"` (exact full-line match to avoid false positives).
-When all three conditions hold, override `model` to `"opus"` and log:
-`"Story <parent-id> classified COMPLEX — upgrading task <task-id> model to opus."`
-
-**Skill-guided tasks**: If `class` is `"skill-guided"`, append to the sub-agent prompt: `"Before implementing, check if a skill applies to this task type (e.g., /writing-skills for skill files, /claude-md-improver for CLAUDE.md updates, /writing-rules for hookify rules)."`
+  git_diff: |
+    <full output of `git diff main...HEAD`>
+```
 
 **Agent description**: 3-5 word summary from ticket title (e.g., Fix review gate hash).
 
@@ -1274,22 +1272,24 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 
 ---
 
-## Quick Reference
+## Reference & Recovery
+
+### Phase Overview
 
 | Phase | Purpose | Key Commands |
 |-------|---------|-------------|
 | 1 | Select epic | `sprint-list-epics.sh --all`, `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps` |
-| 1b | Preplanning gate | `.claude/scripts/dso ticket deps`, `/dso:preplanning` (if 0 children or ambiguous) |
+| 1b | Preplanning gate | `.claude/scripts/dso ticket deps`, `/dso:preplanning` |
 | 2 | Analyze tasks | `.claude/scripts/dso ticket deps`, `.claude/scripts/dso ticket list`, `.claude/scripts/dso ticket show` |
-| 2b | Implementation planning gate | `.claude/scripts/dso ticket deps <story>`, `/dso:implementation-plan` (if story has 0 impl tasks) |
-| 3 | Batch preparation | Pre-flight checks, claim tasks, sync from main, batch composition |
+| 2b | Implementation planning gate | `.claude/scripts/dso ticket deps <story>`, `/dso:implementation-plan` |
+| 3 | Batch preparation | `agent-batch-lifecycle.sh pre-check`, `sprint-next-batch.sh` |
 | 4 | Launch agents | Task tool with structured prompts |
-| 5 | Post-batch | persistence check, REVIEW-WORKFLOW.md, COMMIT-WORKFLOW.md, push, context check (→ `/compact` if >=70%), continuation decision |
-| 6 | Validate | CI verification (SHA-based), full E2E tests, `/dso:validate-work` (all domains), then epic-specific scoring |
+| 5 | Post-batch | `validate-phase.sh post-batch`, REVIEW-WORKFLOW.md, COMMIT-WORKFLOW.md, `agent-batch-lifecycle.sh context-check` |
+| 6 | Validate | `ci-status.sh --wait`, E2E tests, `/dso:validate-work`, epic-specific scoring |
 | 7 | Remediation | Create fix tasks, re-enter loop |
-| 8 | Session close | `/dso:end-session` (close issues, commit, merge, report) |
+| 8 | Session close | `/dso:end-session` |
 
-## Error Recovery
+### Error Situations
 
 | Situation | Action |
 |-----------|--------|
