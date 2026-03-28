@@ -1,1 +1,0 @@
-{"timestamp": 1774561223, "uuid": "2867809b-a8e1-491c-bb4d-255c8e11577c", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix: DB_HOST env var mapped to postgres instead of generic database fallback in project-detect.sh", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
