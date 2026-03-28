@@ -1,0 +1,1 @@
+{"timestamp": 1774727247, "uuid": "eac27d23-11ef-4775-aa2e-d7f7f705e8f3", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Target close benchmark task", "parent_id": "", "description": "", "priority": 2, "assignee": "Joe Oakhart"}}
