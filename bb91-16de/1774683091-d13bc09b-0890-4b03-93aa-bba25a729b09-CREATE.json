@@ -1,1 +1,0 @@
-{"timestamp": 1774683091, "uuid": "d13bc09b-0890-4b03-93aa-bba25a729b09", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Add tags array field to ticket system (edit, reducer, show)", "parent_id": "4a74-872a", "priority": 1, "assignee": "Joe Oakhart"}}

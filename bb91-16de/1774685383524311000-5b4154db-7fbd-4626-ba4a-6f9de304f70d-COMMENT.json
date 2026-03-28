@@ -1,1 +1,0 @@
-{"timestamp": 1774685383524311000, "uuid": "5b4154db-7fbd-4626-ba4a-6f9de304f70d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Tags array field added to ticket-edit.sh and ticket-reducer.py"}}
