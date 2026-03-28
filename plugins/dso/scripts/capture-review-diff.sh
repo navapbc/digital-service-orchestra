@@ -64,6 +64,25 @@ if [[ -f "$_GIT_DIR/MERGE_HEAD" ]]; then
     fi
 fi
 
+# --- Check for untracked files that would be invisible to diff ---
+# Untracked files are not seen by `git diff --staged` or `git diff`, so
+# they produce an empty diff and cause hash mismatches at the review gate.
+# Warn the user to stage them first.
+_untracked_files=$(git ls-files --others --exclude-standard 2>/dev/null \
+    | { grep -v '^\.tickets-tracker/' || true; } \
+    | { grep -v '^\.sync-state\.json$' || true; })
+if [[ -n "$_untracked_files" ]]; then
+    # Check if any staged or modified tracked files exist — if the diff would
+    # otherwise be empty (only untracked files), warn about the gap.
+    _has_staged=$(git diff --staged --name-only 2>/dev/null | head -1)
+    _has_unstaged=$(git diff --name-only 2>/dev/null | head -1)
+    if [[ -z "$_has_staged" && -z "$_has_unstaged" ]]; then
+        echo "WARNING: Only untracked files detected — git add them before review:" >&2
+        echo "$_untracked_files" | sed 's/^/  /' >&2
+        echo "Run: git add <files> then re-run /dso:review" >&2
+    fi
+fi
+
 # --- Capture diff with exclusions (tee for worktree fd compatibility) ---
 if [[ ${#_MERGE_FILE_PATHSPECS[@]} -gt 0 ]]; then
     # Merge mode: diff from merge-base to show only worktree-branch changes.

@@ -181,7 +181,7 @@ plugins/dso/scripts/purge-non-project-tickets.sh:tests/scripts/test-purge-non-pr
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/scripts/test-batched.sh:tests/scripts/test-batched-state-integrity.sh,tests/scripts/test-bash-runner-discovery.sh
 plugins/dso/hooks/fix-bug-skill-directive.sh:tests/hooks/test-fix-bug-skill-directive.sh
-plugins/dso/skills/onboarding/SKILL.md:tests/hooks/test-sub-agent-guard.sh,tests/skills/test-onboarding-skill.sh
+plugins/dso/skills/onboarding/SKILL.md:tests/hooks/test-sub-agent-guard.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-project-setup-onboarding-step.sh [test_step7_exists]
 plugins/dso/skills/architect-foundation/SKILL.md:tests/hooks/test-sub-agent-guard.sh,tests/skills/test-architect-foundation-skill.sh
 plugins/dso/agents/red-test-writer.md: tests/agents/test-red-test-writer.sh
 plugins/dso/agents/red-test-evaluator.md: tests/agents/test-red-test-evaluator.sh

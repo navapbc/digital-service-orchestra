@@ -22,7 +22,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SKILL_MD="$DSO_PLUGIN_DIR/skills/project-setup/SKILL.md"
+SKILL_MD="$DSO_PLUGIN_DIR/skills/onboarding/SKILL.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
