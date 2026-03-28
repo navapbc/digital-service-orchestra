@@ -122,18 +122,20 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
 
 **Goal**: Prioritize Milestones based on value and effort, accounting for dependencies.
 
-1. **Informed Guess Scoring**: The Agent (not the user) will estimate scores for each Milestone based on the context:
-   - **Value (1-10)**: How much user or business impact does this deliver?
-   - **Effort (1-10)**: How complex or time-consuming is this to build?
+1. **Informed Guess Scoring**: The Agent (not the user) will estimate scores for each Milestone by reading and applying the shared scorer at `plugins/dso/skills/shared/prompts/value-effort-scorer.md`. Use the **1-5 scale** defined there:
+   - **Value (1-5)**: How much user or business impact does this deliver? (1=minimal, 5=critical)
+   - **Effort (1-5)**: How complex or time-consuming is this to build? (1=trivial, 5=multi-sprint)
 
-   Present your scoring rationale for each Milestone.
+   Apply the scorer's priority matrix to derive a recommended P0–P4 priority for each Milestone. Present your scoring rationale and the resulting priority for each Milestone.
 
 2. **The "Enabler" Logic**: Identify hard technical dependencies. If a low-value Epic blocks a high-value Epic, it is marked as a **"Critical Enabler"** and inherits the priority of the feature it unlocks.
 
    Example:
-   - Epic A: "User Dashboard" (Value: 9, Effort: 5)
-   - Epic B: "Authentication System" (Value: 5, Effort: 7)
+   - Epic A: "User Dashboard" (Value: 5, Effort: 3)
+   - Epic B: "Authentication System" (Value: 3, Effort: 4)
    - If Dashboard requires Authentication → Authentication becomes a **Critical Enabler** with inherited priority
+
+   **Note**: Enabler Logic **overrides** the scorer recommendation — enablers inherit the priority of the epic they unblock, regardless of their own value/effort scores.
 
 3. **The Visual Matrix**: Present the roadmap as a visual quadrant:
 
@@ -154,19 +156,21 @@ Present each Milestone as a "Post-it Note" in the appropriate quadrant:
 Example output:
 ```
 QUICK WINS (High Impact, Low Effort):
-  - Epic: User Profile Page (Value: 8, Effort: 3)
-  - Epic: Export to CSV (Value: 7, Effort: 2)
+  - Epic: User Profile Page (Value: 4, Effort: 2) → P1
+  - Epic: Export to CSV (Value: 4, Effort: 1) → P0
 
 STRATEGIC BETS (High Impact, High Effort):
-  - Epic: Document Processing Pipeline (Value: 10, Effort: 9) [Critical Enabler]
-  - Epic: Admin Dashboard (Value: 9, Effort: 7)
+  - Epic: Document Processing Pipeline (Value: 5, Effort: 5) [Critical Enabler] → P1
+  - Epic: Admin Dashboard (Value: 5, Effort: 4) → P1
 
 FILL-INS (Low Impact, Low Effort):
-  - Epic: Dark Mode (Value: 4, Effort: 2)
+  - Epic: Dark Mode (Value: 2, Effort: 2) → P3
 
 AVOID/LATER (Low Impact, High Effort):
-  - Epic: Advanced Analytics (Value: 4, Effort: 8)
+  - Epic: Advanced Analytics (Value: 2, Effort: 4) → P4
 ```
+
+The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategic Bets → P1–P2, Fill-ins → P3, Avoid/Later → P4. Use the scorer's matrix for the exact P-level within each quadrant.
 
 4. **Alignment Check**: Ask the user: *"I've categorized these based on our talk. Do you agree with these placements, or should we shift any 'Post-its'?"*
 
@@ -205,11 +209,12 @@ AVOID/LATER (Low Impact, High Effort):
    - Are Success Criteria specific and testable?
    - Are dependencies clearly documented?
 
-2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**.
+2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**. Use the scorer-determined priority (from Phase 3 Step 1) as the `-p <priority>` argument. For Critical Enabler epics, use the priority inherited from the epic they unblock.
 
    ```bash
-   # Create epic with full description
-   .claude/scripts/dso ticket create epic "Phase 1: Authentication System" -p 1 -d "$(cat <<'DESCRIPTION'
+   # Create epic with scorer-determined priority
+   # $SCORER_PRIORITY is the P-level from value-effort-scorer.md (P0=0, P1=1, ... P4=4)
+   .claude/scripts/dso ticket create epic "Phase 1: Authentication System" -p $SCORER_PRIORITY -d "$(cat <<'DESCRIPTION'
    ## Context
    [Why this matters, user need, business goal]
 

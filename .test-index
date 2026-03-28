@@ -189,3 +189,4 @@ plugins/dso/scripts/ticket-unblock.py: tests/scripts/test_ticket_unblock.py
 plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh
 plugins/dso/skills/shared/prompts/value-effort-scorer.md:tests/skills/test-value-effort-scorer-integration.sh
 plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-epic-scrutiny-pipeline.sh
+plugins/dso/skills/roadmap/SKILL.md: tests/skills/test-roadmap-scrutiny-opt-in.sh [test_roadmap_contains_scrutiny_opt_in_question]
