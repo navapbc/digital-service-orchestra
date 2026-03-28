@@ -1,0 +1,7 @@
+{
+  "no_op": false,
+  "user_impact": false,
+  "architectural": false,
+  "constraint": true,
+  "reason": "sprint-list-epics.sh output format changed (new tab-separated fields: blocker_ids and BLOCKING marker) — Constraint gate fires for tool command output format changes that affect downstream consumers"
+}

@@ -9,11 +9,11 @@ set -euo pipefail
 #   sprint-list-epics.sh --all     # Include blocked epics (marked with BLOCKED)
 #
 # Output: One line per epic, tab-separated:
-#   <id>\tP*\t<title>                          (in-progress epics, listed first — P* replaces priority)
-#   <id>\tP<priority>\t<title>                 (unblocked open epics)
+#   <id>\tP*\t<title>\t<child_count>                              (in-progress epics, listed first — P* replaces priority)
+#   <id>\tP<priority>\t<title>\t<child_count>                     (unblocked open epics)
 #
 # Blocked epics (with --all) are appended after unblocked, prefixed:
-#   BLOCKED\t<id>\tP<priority>\t<title>
+#   BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>
 #
 # Exit codes:
 #   0 — At least one unblocked epic found
@@ -199,7 +199,8 @@ for tid, entry in index.items():
     # Preplanning may mistakenly add child story IDs to the epic's deps field (bug w21-3w8y).
     # Children are identified by having parent == this epic's ID.
     external_deps = [dep for dep in deps if dep_parent.get(dep, '') != tid]
-    is_blocked = any(dep_status.get(dep, 'open') != 'closed' for dep in external_deps)
+    open_blockers = [dep for dep in external_deps if dep_status.get(dep, 'open') != 'closed']
+    is_blocked = bool(open_blockers)
 
     priority = entry.get('priority', 4)
     if priority is None:
@@ -211,7 +212,7 @@ for tid, entry in index.items():
     if status == 'in_progress':
         in_progress.append({'id': tid, 'priority': priority, 'title': title, 'children': children})
     elif is_blocked:
-        open_blocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children})
+        open_blocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'blockers': open_blockers})
     else:
         open_unblocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children})
 
@@ -224,13 +225,24 @@ if not in_progress and not open_unblocked and not open_blocked:
     print('No open epics found.', file=sys.stderr)
     sys.exit(1)
 
+# Build set of IDs that are blocking other epics
+blocking_ids = set()
+for e in open_blocked:
+    for blocker_id in e.get('blockers', []):
+        # Only mark as BLOCKING if the blocker is itself an epic
+        blocker_entry = index.get(blocker_id, {})
+        if blocker_entry.get('type') == 'epic':
+            blocking_ids.add(blocker_id)
+
 # In-progress epics first (P* signals already claimed work)
 for e in in_progress:
-    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}\t{e[\"children\"]}')
+    marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
+    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Then unblocked open epics
 for e in open_unblocked:
-    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}')
+    marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
+    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Blocked epics appended last when --all
 if show_all:
@@ -239,7 +251,8 @@ if show_all:
     selectable_ids = in_progress_ids | open_unblocked_ids
     for e in open_blocked:
         if e['id'] not in selectable_ids:
-            print(f'BLOCKED\t{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}')
+            blocker_ids = ','.join(e['blockers'])
+            print(f'BLOCKED\t{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}\t{blocker_ids}')
 
 # Exit code logic:
 #   0 — at least one unblocked epic (in-progress or ready)
