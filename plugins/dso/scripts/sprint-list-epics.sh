@@ -225,13 +225,24 @@ if not in_progress and not open_unblocked and not open_blocked:
     print('No open epics found.', file=sys.stderr)
     sys.exit(1)
 
+# Build set of IDs that are blocking other epics
+blocking_ids = set()
+for e in open_blocked:
+    for blocker_id in e.get('blockers', []):
+        # Only mark as BLOCKING if the blocker is itself an epic
+        blocker_entry = index.get(blocker_id, {})
+        if blocker_entry.get('type') == 'epic':
+            blocking_ids.add(blocker_id)
+
 # In-progress epics first (P* signals already claimed work)
 for e in in_progress:
-    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}\t{e[\"children\"]}')
+    marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
+    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Then unblocked open epics
 for e in open_unblocked:
-    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}')
+    marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
+    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Blocked epics appended last when --all
 if show_all:
