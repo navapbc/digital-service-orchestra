@@ -100,6 +100,15 @@ Do NOT report findings that are already enforced by the project's automated tool
 - **mypy** (Python types): type annotation violations run pre-commit. Do not flag
   missing type annotations or type mismatches unless they indicate a logic bug.
 
+## Overlay Classification
+
+Always evaluate these two items and include the results in your summary field text:
+
+- [ ] **security_overlay_warranted**: Does this diff touch authentication, authorization, cryptography, session management, trust boundaries, or sensitive data handling? Answer yes or no in the summary.
+- [ ] **performance_overlay_warranted**: Does this diff touch database queries, caching, connection pools, async/concurrent patterns, or batch processing? Answer yes or no in the summary.
+
+These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 3 top-level keys (scores, findings, summary).
+
 ---
 
 ## Scope Limits for Light Tier

@@ -227,11 +227,670 @@ test_build_embeds_content_hash() {
     assert_pass_if_clean "test_build_embeds_content_hash"
 }
 
+# ── Test 5: built agents contain security overlay classification item ─────────
+#
+# RED: security_overlay_warranted is not yet present in any delta or base file.
+# GREEN: after classification checklist items are added to source files, each
+#        built agent will contain the item as part of its composed content.
+
+test_built_agents_contain_security_overlay_item() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_built_agents_contain_security_overlay_item\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_built_agents_contain_security_overlay_item"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null
+
+    # Every generated agent file must contain the security overlay classification item
+    local agent_file
+    for agent_file in \
+        "$out_dir/code-reviewer-light.md" \
+        "$out_dir/code-reviewer-standard.md" \
+        "$out_dir/code-reviewer-deep-arch.md" \
+        "$out_dir/code-reviewer-deep-correctness.md" \
+        "$out_dir/code-reviewer-deep-hygiene.md" \
+        "$out_dir/code-reviewer-deep-verification.md"
+    do
+        local agent_name
+        agent_name="$(basename "$agent_file")"
+        local content
+        content="$(cat "$agent_file" 2>/dev/null || echo "")"
+        assert_contains "${agent_name}_has_security_overlay_item" \
+            "security_overlay_warranted" \
+            "$content"
+    done
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_built_agents_contain_security_overlay_item"
+}
+
+# ── Test 6: built agents contain performance overlay classification item ───────
+#
+# RED: performance_overlay_warranted is not yet present in any delta or base file.
+# GREEN: after classification checklist items are added to source files, each
+#        built agent will contain the item as part of its composed content.
+
+test_built_agents_contain_performance_overlay_item() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_built_agents_contain_performance_overlay_item\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_built_agents_contain_performance_overlay_item"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null
+
+    # Every generated agent file must contain the performance overlay classification item
+    local agent_file
+    for agent_file in \
+        "$out_dir/code-reviewer-light.md" \
+        "$out_dir/code-reviewer-standard.md" \
+        "$out_dir/code-reviewer-deep-arch.md" \
+        "$out_dir/code-reviewer-deep-correctness.md" \
+        "$out_dir/code-reviewer-deep-hygiene.md" \
+        "$out_dir/code-reviewer-deep-verification.md"
+    do
+        local agent_name
+        agent_name="$(basename "$agent_file")"
+        local content
+        content="$(cat "$agent_file" 2>/dev/null || echo "")"
+        assert_contains "${agent_name}_has_performance_overlay_item" \
+            "performance_overlay_warranted" \
+            "$content"
+    done
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_built_agents_contain_performance_overlay_item"
+}
+
+# ── Test 7: security-red-team agent file is generated ────────────────────────
+#
+# RED: reviewer-delta-security-red-team.md does not exist and _model_for_tier()
+#      has no entry for security-red-team, so the build script will not produce
+#      code-reviewer-security-red-team.md.
+# GREEN: after adding the delta file and tier mappings, this file is generated.
+
+test_security_red_team_agent_file_is_generated() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_red_team_agent_file_is_generated\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_red_team_agent_file_is_generated"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local target_file="$out_dir/code-reviewer-security-red-team.md"
+    local file_exists="no"
+    [[ -f "$target_file" ]] && file_exists="yes"
+    assert_eq "security_red_team_agent_file_generated" "yes" "$file_exists"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_red_team_agent_file_is_generated"
+}
+
+# ── Test 8: security-red-team agent frontmatter declares model: opus ─────────
+#
+# RED: the tier has no _model_for_tier() entry, so no file is generated and no
+#      "model: opus" line can appear in its frontmatter.
+# GREEN: after _model_for_tier() maps security-red-team → opus, the generated
+#        file's YAML frontmatter contains "model: opus".
+
+test_security_red_team_agent_has_opus_model() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_red_team_agent_has_opus_model\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_red_team_agent_has_opus_model"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local target_file="$out_dir/code-reviewer-security-red-team.md"
+    local model_line=""
+    if [[ -f "$target_file" ]]; then
+        # Extract the model: line from the YAML frontmatter (between the two --- delimiters)
+        model_line=$(awk '/^---/{f++; next} f==1 && /^model:/{print; exit}' "$target_file")
+    fi
+    assert_eq "security_red_team_model_is_opus" "model: opus" "$model_line"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_red_team_agent_has_opus_model"
+}
+
+# ── Test 9: security-red-team agent body contains tier identity text ──────────
+#
+# RED: the delta file does not exist, so the generated agent body has no
+#      security-red-team tier identity section.
+# GREEN: after the delta file is created with a Tier Identity section referencing
+#        "security-red-team", this assertion passes.
+
+test_security_red_team_agent_contains_tier_identity() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_red_team_agent_contains_tier_identity\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_red_team_agent_contains_tier_identity"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local target_file="$out_dir/code-reviewer-security-red-team.md"
+    local agent_content=""
+    [[ -f "$target_file" ]] && agent_content="$(cat "$target_file")"
+    assert_contains "security_red_team_tier_identity_present" "security-red-team" "$agent_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_red_team_agent_contains_tier_identity"
+}
+
+# ── Test 10: security-red-team agent contains authorization keyword ───────────
+#
+# RED: delta file absent; no security criteria keywords appear in the output.
+# GREEN: delta file includes "authorization" in its security criteria section.
+
+test_security_red_team_agent_contains_authorization_keyword() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_red_team_agent_contains_authorization_keyword\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_red_team_agent_contains_authorization_keyword"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local target_file="$out_dir/code-reviewer-security-red-team.md"
+    local agent_content=""
+    [[ -f "$target_file" ]] && agent_content="$(cat "$target_file")"
+    assert_contains "security_red_team_has_authorization_keyword" "authorization" "$agent_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_red_team_agent_contains_authorization_keyword"
+}
+
+# ── Test 11: security-red-team agent contains data flow keyword ───────────────
+#
+# RED: delta file absent; "data flow" does not appear in the output.
+# GREEN: delta file includes "data flow" in its security criteria section.
+
+test_security_red_team_agent_contains_data_flow_keyword() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_red_team_agent_contains_data_flow_keyword\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_red_team_agent_contains_data_flow_keyword"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local target_file="$out_dir/code-reviewer-security-red-team.md"
+    local agent_content=""
+    [[ -f "$target_file" ]] && agent_content="$(cat "$target_file")"
+    assert_contains "security_red_team_has_data_flow_keyword" "data flow" "$agent_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_red_team_agent_contains_data_flow_keyword"
+}
+
+# ── Test 12: security-red-team agent contains TOCTOU keyword ─────────────────
+#
+# RED: delta file absent; "TOCTOU" does not appear in the output.
+# GREEN: delta file includes "TOCTOU" in its security criteria section.
+
+test_security_red_team_agent_contains_toctou_keyword() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_red_team_agent_contains_toctou_keyword\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_red_team_agent_contains_toctou_keyword"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local target_file="$out_dir/code-reviewer-security-red-team.md"
+    local agent_content=""
+    [[ -f "$target_file" ]] && agent_content="$(cat "$target_file")"
+    assert_contains "security_red_team_has_toctou_keyword" "TOCTOU" "$agent_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_red_team_agent_contains_toctou_keyword"
+}
+
+# ── Security blue team tier — fixture setup ───────────────────────────────────
+#
+# A separate fixture dir augments the standard 6 deltas with a
+# reviewer-delta-security-blue-team.md so the build script has something to
+# compose. The security-blue-team tier does not yet exist in build-review-agents.sh:
+#   - _model_for_tier("security-blue-team") falls through to the error branch
+#   - _description_for_tier("security-blue-team") falls through to the error branch
+#   - No reviewer-delta-security-blue-team.md exists in the prompts directory
+#
+# RED marker: test_security_blue_team_agent_file_is_generated
+
+BLUE_FIXTURE_DIR="$(mktemp -d)"
+trap 'rm -rf "$BLUE_FIXTURE_DIR"' EXIT
+
+cp "$FIXTURE_DIR/reviewer-base.md" "$BLUE_FIXTURE_DIR/"
+for _bn in "${DELTA_NAMES[@]}"; do
+    cp "$FIXTURE_DIR/reviewer-delta-${_bn}.md" "$BLUE_FIXTURE_DIR/"
+done
+
+cat > "$BLUE_FIXTURE_DIR/reviewer-delta-security-blue-team.md" <<'BLUE_DELTA'
+# Code Reviewer — Security Blue Team Tier Delta
+
+**Tier**: security-blue-team
+
+## Security Triage Focus
+
+This reviewer triages security findings raised by the red-team agent, applying
+calibrated judgment to distinguish genuine vulnerabilities from false positives.
+For each finding, the blue team must issue one of:
+
+- **sustain** — finding is valid and requires remediation before merge
+- **downgrade** — finding is real but lower severity than flagged; explain why
+- **dismiss** — finding is a false positive; provide specific rebuttal
+
+All triage decisions must cite code evidence. Triage severity follows the same
+bright-line criteria as the red team. Unreviewed findings default to sustained.
+BLUE_DELTA
+
+# ── Test 16: security-blue-team agent file is generated ──────────────────────
+#
+# RED: _model_for_tier("security-blue-team") errors → build exits non-zero →
+#      code-reviewer-security-blue-team.md is never written.
+# GREEN: after adding the security-blue-team case to _model_for_tier() and
+#        _description_for_tier(), the file is generated.
+
+test_security_blue_team_agent_file_is_generated() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_agent_file_is_generated\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_agent_file_is_generated"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    # Run build with the augmented fixture dir (6 standard deltas + security-blue-team).
+    local rc=0
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || rc=$?
+
+    assert_eq "security_blue_team_build_exits_zero" "0" "$rc"
+
+    local agent_file="$out_dir/code-reviewer-security-blue-team.md"
+    local file_exists="no"
+    [[ -f "$agent_file" ]] && file_exists="yes"
+    assert_eq "security_blue_team_agent_file_generated" "yes" "$file_exists"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_agent_file_is_generated"
+}
+
+# ── Test 17: security-blue-team agent frontmatter declares model: opus ────────
+#
+# RED: the tier has no _model_for_tier() entry, so no file is generated and no
+#      "model: opus" line can appear in its frontmatter.
+# GREEN: after _model_for_tier() maps security-blue-team → opus, the generated
+#        file's YAML frontmatter contains "model: opus".
+
+test_security_blue_team_agent_has_opus_model() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_agent_has_opus_model\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_agent_has_opus_model"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local agent_file="$out_dir/code-reviewer-security-blue-team.md"
+    local model_line=""
+    if [[ -f "$agent_file" ]]; then
+        model_line=$(awk '/^---/{f++; next} f==1 && /^model:/{print; exit}' "$agent_file")
+    fi
+    assert_eq "security_blue_team_model_is_opus" "model: opus" "$model_line"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_agent_has_opus_model"
+}
+
+# ── Test 18: security-blue-team agent contains triage keywords ────────────────
+#
+# RED: delta file not known to the build script (unknown tier) → file not
+#      generated → content is empty → all keyword assertions fail.
+# GREEN: after tier mappings and delta file are wired in, the composed file
+#        contains dismiss, downgrade, and sustain from the delta.
+
+test_security_blue_team_agent_contains_triage_keywords() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_agent_contains_triage_keywords\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_agent_contains_triage_keywords"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local agent_file="$out_dir/code-reviewer-security-blue-team.md"
+    local file_content=""
+    [[ -f "$agent_file" ]] && file_content="$(cat "$agent_file")"
+
+    assert_contains "security_blue_team_has_dismiss_keyword"   "dismiss"   "$file_content"
+    assert_contains "security_blue_team_has_downgrade_keyword" "downgrade" "$file_content"
+    assert_contains "security_blue_team_has_sustain_keyword"   "sustain"   "$file_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_agent_contains_triage_keywords"
+}
+
+# ── Test 19: security-blue-team tier is counted in total output ───────────────
+#
+# RED: build fails on unknown tier → 0 files produced (or 6 without the new
+#      tier) → count does not reach 9.
+# GREEN: 6 standard tiers + security-red-team + performance + security-blue-team
+#        = 9 agent files.
+#
+# Note: this fixture dir has 6 standard deltas + security-blue-team = 7,
+# which is what the build script sees. We assert the output count is 7 here
+# (matching the 8→9 progression described in the task: the production prompts
+# dir already has 8 deltas; we assert the fixture-level count rises from 6 to 7).
+
+test_security_blue_team_counted_in_total_agents() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_counted_in_total_agents\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_counted_in_total_agents"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    # Expect 7 files: 6 original tiers + security-blue-team
+    local count
+    count=$(find "$out_dir" -maxdepth 1 -name '*.md' -type f | wc -l | tr -d ' ')
+    assert_eq "security_blue_team_raises_agent_count_to_7" "7" "$count"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_counted_in_total_agents"
+}
+
+# ── Performance reviewer tier — fixture setup ─────────────────────────────────
+#
+# A separate fixture dir augments the standard 6 deltas with a
+# reviewer-delta-performance.md so the build script has something to compose.
+# The performance tier does not yet exist in build-review-agents.sh:
+#   - _model_for_tier("performance") falls through to the error branch
+#   - No code-reviewer-performance.md is written
+#
+# RED marker: test_performance_reviewer_builds_with_opus_model
+
+PERF_FIXTURE_DIR="$(mktemp -d)"
+trap 'rm -rf "$PERF_FIXTURE_DIR"' EXIT
+
+cp "$FIXTURE_DIR/reviewer-base.md" "$PERF_FIXTURE_DIR/"
+for _pn in "${DELTA_NAMES[@]}"; do
+    cp "$FIXTURE_DIR/reviewer-delta-${_pn}.md" "$PERF_FIXTURE_DIR/"
+done
+
+cat > "$PERF_FIXTURE_DIR/reviewer-delta-performance.md" <<'PERF_DELTA'
+# Code Reviewer — Performance Tier Delta
+
+**Tier**: performance
+
+## Performance Review Focus
+
+This reviewer evaluates performance-critical code paths, algorithmic complexity,
+and runtime efficiency. Severity ratings follow bright-line criteria:
+
+- **critical**: a change where it breaks existing latency SLOs or introduces
+  O(N^2)+ complexity — e.g., it breaks guaranteed throughput bounds or
+  it scales poorly under realistic production load.
+- **important**: unnecessary allocations in hot paths, missing indexes, N+1
+  queries, synchronous I/O where async is expected.
+- **minor**: micro-optimisations with marginal impact.
+
+All findings must use the standard REVIEW_RESULT output contract.
+PERF_DELTA
+
+# ── Test 13: performance reviewer agent file is generated ────────────────────
+#
+# RED: _model_for_tier("performance") errors → build exits non-zero →
+#      code-reviewer-performance.md is never written.
+# GREEN: after adding the performance case to _model_for_tier() and
+#        _description_for_tier(), the file is generated.
+
+test_performance_reviewer_builds_with_opus_model() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_performance_reviewer_builds_with_opus_model\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_performance_reviewer_builds_with_opus_model"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    # Run build with the augmented fixture dir (6 standard deltas + performance).
+    # The build must exit 0 and produce code-reviewer-performance.md.
+    local rc=0
+    bash "$BUILD_SCRIPT" \
+        --base "$PERF_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$PERF_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || rc=$?
+
+    assert_eq "performance_build_exits_zero" "0" "$rc"
+
+    local agent_file="$out_dir/code-reviewer-performance.md"
+    local file_exists="no"
+    [[ -f "$agent_file" ]] && file_exists="yes"
+    assert_eq "performance_agent_file_generated" "yes" "$file_exists"
+
+    # Frontmatter must declare model: opus
+    local file_content=""
+    [[ -f "$agent_file" ]] && file_content="$(cat "$agent_file")"
+    assert_contains "performance_agent_model_is_opus" "model: opus" "$file_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_performance_reviewer_builds_with_opus_model"
+}
+
+# ── Test 14: performance agent contains bright-line severity keywords ─────────
+#
+# RED: file not generated (tier unknown), so content is empty and all keyword
+#      assertions fail.
+# GREEN: after delta file and tier mappings exist, the composed file contains
+#        the five bright-line terms from the delta.
+
+test_performance_reviewer_contains_bright_line_severity_keywords() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_performance_reviewer_contains_bright_line_severity_keywords\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_performance_reviewer_contains_bright_line_severity_keywords"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$PERF_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$PERF_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local agent_file="$out_dir/code-reviewer-performance.md"
+    local file_content=""
+    [[ -f "$agent_file" ]] && file_content="$(cat "$agent_file")"
+
+    assert_contains "performance_agent_contains_critical"  "critical"  "$file_content"
+    assert_contains "performance_agent_contains_important" "important" "$file_content"
+    assert_contains "performance_agent_contains_minor"     "minor"     "$file_content"
+    assert_contains "performance_agent_contains_it_breaks" "it breaks" "$file_content"
+    assert_contains "performance_agent_contains_it_scales" "it scales" "$file_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_performance_reviewer_contains_bright_line_severity_keywords"
+}
+
+# ── Test 15: performance tier is counted in total output ─────────────────────
+#
+# RED: build fails on unknown tier → 0 files produced → count assertion fails.
+# GREEN: 6 standard tiers + 1 performance = 7 agent files.
+
+test_performance_reviewer_counted_in_total_agents() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_performance_reviewer_counted_in_total_agents\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_performance_reviewer_counted_in_total_agents"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$PERF_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$PERF_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    # Expect exactly 7 files: 6 original tiers + performance
+    local count
+    count=$(find "$out_dir" -maxdepth 1 -name '*.md' -type f | wc -l | tr -d ' ')
+    assert_eq "performance_tier_raises_agent_count_to_7" "7" "$count"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_performance_reviewer_counted_in_total_agents"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_build_produces_6_agent_files
 test_build_agent_list_matches_delta_files
 test_build_atomic_write_on_failure
 test_build_embeds_content_hash
+test_built_agents_contain_security_overlay_item
+test_built_agents_contain_performance_overlay_item
+test_security_red_team_agent_file_is_generated
+test_security_red_team_agent_has_opus_model
+test_security_red_team_agent_contains_tier_identity
+test_security_red_team_agent_contains_authorization_keyword
+test_security_red_team_agent_contains_data_flow_keyword
+test_security_red_team_agent_contains_toctou_keyword
+test_performance_reviewer_builds_with_opus_model
+test_performance_reviewer_contains_bright_line_severity_keywords
+test_performance_reviewer_counted_in_total_agents
+test_security_blue_team_agent_file_is_generated
+test_security_blue_team_agent_has_opus_model
+test_security_blue_team_agent_contains_triage_keywords
+test_security_blue_team_counted_in_total_agents
 
 print_summary
