@@ -1,0 +1,1 @@
+{"timestamp": 1774672681, "uuid": "b3533ffd-7364-424c-9912-0f1a3e7f3131", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can install the Jekyll USWDS template during onboarding via git clone", "parent_id": "d000-2598", "priority": 2, "assignee": "Joe Oakhart"}}
