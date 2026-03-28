@@ -1,0 +1,1 @@
+{"timestamp": 1774672532, "uuid": "2db606b9-6cd2-4cb3-8f00-ece0bffbb41f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Overlap detector cannot resolve function names to file paths in conflict matrix", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
