@@ -1,1 +1,0 @@
-{"timestamp": 1774198225, "uuid": "9760864c-43f4-4c40-b1e3-35b039917074", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "RED: Write failing tests for blocker ID output in sprint-list-epics.sh", "parent_id": "dso-fldu", "priority": 2, "assignee": "Joe Oakhart"}}
