@@ -1,1 +1,0 @@
-{"timestamp": 1774661690, "uuid": "3110c22b-45e3-49d5-a757-e8e0a31a3af1", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "validate-issues.sh crashes on int created_at timestamp", "parent_id": "8a5b-e07b", "priority": 3, "assignee": "Joe Oakhart"}}
