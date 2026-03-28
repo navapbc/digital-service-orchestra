@@ -1,1 +1,0 @@
-{"timestamp": 1774647856, "uuid": "0ede9bf8-0ee0-4fb9-ac78-b9067fe93307", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Update project docs to reflect shared sub-workflow architecture", "parent_id": "e136-0ec7", "priority": 3, "assignee": "Joe Oakhart"}}
