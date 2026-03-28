@@ -1,1 +1,0 @@
-{"timestamp": 1774535822, "uuid": "3016781e-3d25-44c6-b7e7-b76cd40fb822", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "No make test-e2e target \u2014 validate.sh --ci reports E2E failure for projects without E2E tests", "parent_id": "", "priority": 3, "assignee": "Joe Oakhart"}}
