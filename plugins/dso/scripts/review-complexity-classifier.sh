@@ -147,6 +147,15 @@ is_security_sensitive() {
     return 1
 }
 
+# --- Performance-sensitive path patterns ---
+is_performance_sensitive() {
+    local file="$1"
+    case "$file" in
+        */db/*|*/database/*|*/cache/*|*/query/*|*/pool/*|*/persistence/*) return 0 ;;
+    esac
+    return 1
+}
+
 # --- Test file detection ---
 is_test_file() {
     local file="$1"
@@ -477,6 +486,29 @@ _compute_security_overlay() {
 }
 
 # ============================================================
+# Performance overlay detection
+# ============================================================
+_compute_performance_overlay() {
+    # Check file paths against performance-sensitive patterns
+    local file
+    for file in "${SCORING_FILES[@]}"; do
+        if is_performance_sensitive "$file"; then
+            echo "true"
+            return
+        fi
+    done
+
+    # Scan added lines in diff for performance-sensitive keywords
+    # SQL keywords, connection pooling, async patterns, concurrency primitives
+    if printf '%s\n' "$DIFF_CONTENT" | grep -qiE '^\+.*(SELECT|INSERT|UPDATE|DELETE|cursor|pool|async def|await|threading|multiprocessing)([. ;]|$)' 2>/dev/null; then
+        echo "true"
+        return
+    fi
+
+    echo "false"
+}
+
+# ============================================================
 # Size action computation
 # ============================================================
 _compute_size_action() {
@@ -552,8 +584,7 @@ DIFF_SIZE_LINES=$(_diff_size_lines_raw)
 IS_MERGE=$(_is_merge_commit && echo "true" || echo "false")
 SIZE_ACTION=$(_compute_size_action "$DIFF_SIZE_LINES" "$IS_MERGE")
 SECURITY_OVERLAY=$(_compute_security_overlay)
-# performance_overlay detection implemented by task 3c31-41b5 (story w22-wwu2)
-PERFORMANCE_OVERLAY="false"
+PERFORMANCE_OVERLAY=$(_compute_performance_overlay)
 
 # ============================================================
 # Write telemetry

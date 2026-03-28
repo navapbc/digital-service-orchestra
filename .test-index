@@ -171,7 +171,7 @@ plugins/dso/skills/design-wireframe/SKILL.md:tests/skills/test-skill-nesting-dep
 plugins/dso/scripts/jira-credential-helper.sh:tests/scripts/test-jira-credential-helper.sh
 plugins/dso/scripts/acli-version-resolver.sh:tests/scripts/test-acli-version-resolver.sh
 plugins/dso/scripts/gh-availability-check.sh:tests/scripts/test-gh-availability-check.sh
-plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh [test_performance_overlay_true_for_db_path]
+plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh
 plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
