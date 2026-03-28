@@ -48,6 +48,20 @@ This skill implements a five-phase process to transform epics into implementable
 
 ---
 
+## Scrutiny Gate
+
+Before proceeding, check if the epic has a `scrutiny:pending` tag:
+
+1. Run `.claude/scripts/dso ticket show <epic-id>` and check the `tags` field
+2. If `scrutiny:pending` is present in the tags array: **HALT immediately**. Output:
+   "This epic has not been through scrutiny review. Run `/dso:brainstorm <epic-id>` first to complete the scrutiny pipeline, then retry `/dso:preplanning`."
+   Do NOT produce any planning output.
+3. If `scrutiny:pending` is NOT present (or tags field is empty/absent): proceed normally.
+
+This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked.
+
+---
+
 ## Phase 1: Context Reconciliation & Discovery (/dso:preplanning)
 
 ### Step 1: Select and Load Epic (/dso:preplanning)

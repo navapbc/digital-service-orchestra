@@ -87,6 +87,20 @@ Flow: S1 (Discovery) → [ambiguities?] → Yes: Clarify with user → S1 (loop)
 
 ---
 
+## Scrutiny Gate
+
+Before proceeding, check if the epic has a `scrutiny:pending` tag:
+
+1. Run `.claude/scripts/dso ticket show <epic-id>` and check the `tags` field
+2. If `scrutiny:pending` is present in the tags array: **HALT immediately**. Output:
+   "This epic has not been through scrutiny review. Run `/dso:brainstorm <epic-id>` first to complete the scrutiny pipeline, then retry `/dso:implementation-plan`."
+   Do NOT produce any planning output.
+3. If `scrutiny:pending` is NOT present (or tags field is empty/absent): proceed normally.
+
+This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked.
+
+---
+
 ## Step 1: Contextual Discovery (/dso:implementation-plan)
 
 ### Select Story

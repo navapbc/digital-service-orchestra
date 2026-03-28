@@ -118,16 +118,16 @@ test_both_skills_use_presence_based_check() {
   # Use awk to check if 'scrutiny:pending' and 'ticket show' appear within 20 lines of each other
   if awk '
     /scrutiny:pending/ { found_scrutiny = NR }
-    /ticket show/ && found_scrutiny && (NR - found_scrutiny) <= 20 { exit 0 }
-    END { exit 1 }
+    /ticket show/ && found_scrutiny && (NR - found_scrutiny) <= 20 { found = 1; exit }
+    END { exit (found ? 0 : 1) }
   ' "$PREPLANNING_MD" 2>/dev/null; then
     preplanning_gate_with_show=true
   fi
 
   if awk '
     /scrutiny:pending/ { found_scrutiny = NR }
-    /ticket show/ && found_scrutiny && (NR - found_scrutiny) <= 20 { exit 0 }
-    END { exit 1 }
+    /ticket show/ && found_scrutiny && (NR - found_scrutiny) <= 20 { found = 1; exit }
+    END { exit (found ? 0 : 1) }
   ' "$IMPL_PLAN_MD" 2>/dev/null; then
     impl_plan_gate_with_show=true
   fi

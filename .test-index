@@ -190,5 +190,5 @@ plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh
 plugins/dso/skills/shared/prompts/value-effort-scorer.md:tests/skills/test-value-effort-scorer-integration.sh
 plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-epic-scrutiny-pipeline.sh
 plugins/dso/skills/roadmap/SKILL.md: tests/skills/test-roadmap-scrutiny-opt-in.sh
-plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh [test_preplanning_has_scrutiny_pending_check]
-plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh [test_implementation_plan_has_scrutiny_pending_check]
+plugins/dso/skills/preplanning/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh
+plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-scrutiny-pending-gate.sh
