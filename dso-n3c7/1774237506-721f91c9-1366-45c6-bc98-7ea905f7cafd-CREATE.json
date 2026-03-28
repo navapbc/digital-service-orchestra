@@ -1,1 +1,0 @@
-{"timestamp": 1774237506, "uuid": "721f91c9-1366-45c6-bc98-7ea905f7cafd", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "test_cutover_exits_with_error_and_log_path_on_failure is RED: ERROR message missing from output on phase failure", "priority": 3, "assignee": "Joe Oakhart"}}
