@@ -38,6 +38,7 @@ plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-sy
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
+plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh [test_built_agents_contain_security_overlay_item]
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/skills/test_review_workflow_model_escalation.py,tests/docs/test-reviewer-base-file-constraint.sh
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
@@ -170,7 +171,7 @@ plugins/dso/skills/design-wireframe/SKILL.md:tests/skills/test-skill-nesting-dep
 plugins/dso/scripts/jira-credential-helper.sh:tests/scripts/test-jira-credential-helper.sh
 plugins/dso/scripts/acli-version-resolver.sh:tests/scripts/test-acli-version-resolver.sh
 plugins/dso/scripts/gh-availability-check.sh:tests/scripts/test-gh-availability-check.sh
-plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh
+plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh [test_security_overlay_true_for_auth_path]
 plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh

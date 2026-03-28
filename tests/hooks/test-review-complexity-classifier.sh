@@ -860,4 +860,191 @@ test_classifier_telemetry_factor_scores_match_stdout
 test_classifier_telemetry_files_array
 test_classifier_no_telemetry_without_artifacts_dir
 
+# ============================================================
+# Security Overlay Flag Tests (RED — w22-wwu2)
+# ============================================================
+# These tests verify the security_overlay boolean flag in classifier output.
+# The flag must be true when the diff touches security-sensitive paths
+# (auth/, security/, crypto/) or contains sensitive content keywords
+# (password, secret, token) or security import patterns.
+# The flag must be false for unrelated diffs.
+# All tests are RED — security_overlay is not yet emitted by the classifier.
+
+test_security_overlay_true_for_auth_path() {
+    # A diff touching auth/ directory must produce security_overlay:true
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/auth/login.py" "+def login(user, password): pass")
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "auth/ path sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_true_for_crypto_path() {
+    # A diff touching crypto/ directory must produce security_overlay:true
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/crypto/hash.py" "+import hashlib")
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "crypto/ path sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_true_for_security_path() {
+    # A diff touching security/ directory must produce security_overlay:true
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/security/policy.py" "+ALLOW_ANONYMOUS = False")
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "security/ path sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_true_for_security_import_in_diff() {
+    # A diff whose added lines contain 'from auth' must produce security_overlay:true
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_security_import.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/services/user_service.py b/src/services/user_service.py
+index 0000000..1111111 100644
+--- a/src/services/user_service.py
++++ b/src/services/user_service.py
+@@ -1,3 +1,5 @@
++from auth import get_token
++from crypto import encrypt
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "security import in diff sets security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_true_for_password_keyword_in_diff() {
+    # A diff whose added lines contain the word 'password' must produce security_overlay:true
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_password_keyword.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/utils/config.py b/src/utils/config.py
+index 0000000..1111111 100644
+--- a/src/utils/config.py
++++ b/src/utils/config.py
+@@ -1,3 +1,5 @@
++DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
++SECRET_KEY = "changeme"
++API_TOKEN = os.environ.get("API_TOKEN", "")
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "password/secret/token keywords in diff set security_overlay=true" "true" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_false_for_non_security_path() {
+    # A diff touching a plain source file with no security signals must produce security_overlay:false
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/utils/formatting.py" "+def format_name(name): return name.strip()")
+    run_classifier "$diff_file"
+
+    local security_overlay="absent"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        security_overlay=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'security_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['security_overlay']).lower())
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "absent")
+    fi
+    assert_eq "non-security diff sets security_overlay=false" "false" "$security_overlay"
+    teardown_temp_dir
+}
+
+test_security_overlay_field_present_in_output_schema() {
+    # The security_overlay key must exist in classifier JSON output for any diff
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+x = 1")
+    run_classifier "$diff_file"
+
+    local has_field="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        has_field=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+print('true' if 'security_overlay' in d and isinstance(d['security_overlay'], bool) else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+    fi
+    assert_eq "security_overlay field present as boolean in output schema" "true" "$has_field"
+    teardown_temp_dir
+}
+
+# Security overlay flag (RED — w22-wwu2)
+test_security_overlay_true_for_auth_path           # RED: security_overlay field not yet emitted
+test_security_overlay_true_for_crypto_path         # RED: security_overlay field not yet emitted
+test_security_overlay_true_for_security_path       # RED: security_overlay field not yet emitted
+test_security_overlay_true_for_security_import_in_diff  # RED: security_overlay field not yet emitted
+test_security_overlay_true_for_password_keyword_in_diff # RED: security_overlay field not yet emitted
+test_security_overlay_false_for_non_security_path  # RED: security_overlay field not yet emitted
+test_security_overlay_field_present_in_output_schema    # RED: security_overlay field not yet emitted
+
 print_summary
