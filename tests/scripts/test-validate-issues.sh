@@ -335,6 +335,46 @@ else
     (( PASS++ ))
 fi
 
+# ── Test 14: integer timestamp in created_at does not crash check_orphaned_tasks
+echo "Test 14: check_orphaned_tasks — integer created_at field does not cause TypeError crash"
+# Ticket event files may store timestamps as Unix epoch integers rather than ISO strings.
+# The check_orphaned_tasks cluster-grouping code does created[:19] on the created_at field,
+# which raises TypeError when the value is an int. This test verifies the script completes
+# without crashing and does not emit a Python traceback to stderr.
+INT_TS_TASK=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-int-ts-task',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Task With Integer Timestamp',
+    'parent_id': None,
+    'description': 'yes',
+    'notes': '',
+    'deps': [],
+    'created_at': 1748390400,
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$INT_TS_TASK]")
+
+int_ts_output=""
+int_ts_exit=0
+int_ts_output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || int_ts_exit=$?
+
+if echo "$int_ts_output" | grep -q "TypeError"; then
+    echo "  FAIL: script emitted a TypeError when created_at is an integer" >&2
+    echo "  Output: $int_ts_output" >&2
+    (( FAIL++ ))
+elif [[ $int_ts_exit -ge 5 ]]; then
+    echo "  FAIL: script exited with crash-level code $int_ts_exit" >&2
+    echo "  Output: $int_ts_output" >&2
+    (( FAIL++ ))
+else
+    echo "  PASS: integer created_at did not cause a TypeError crash (exit $int_ts_exit)"
+    (( PASS++ ))
+fi
+
 # ── Results ───────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
