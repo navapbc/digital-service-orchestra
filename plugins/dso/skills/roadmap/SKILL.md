@@ -114,7 +114,21 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
 
 4. **Confirmation**: Ask the user: *"Do these Milestones capture the right 'Success States' for your vision? Should we adjust, merge, or split any of them?"*
 
-**Phase Gate**: Do NOT proceed to Phase 3 until the user confirms the Milestones are correct.
+**Phase Gate**: Do NOT proceed to Phase 2.5 until the user confirms the Milestones are correct.
+
+---
+
+### Phase 2.5: Scrutiny Decision (/dso:roadmap)
+
+**Goal**: Decide once whether to apply the full scrutiny pipeline to each epic during Phase 5.
+
+Ask the user **exactly once**:
+
+> "Would you like to apply full scrutiny (gap analysis, web research, scenario analysis, fidelity review) to each epic? This produces higher-quality specs but takes longer. [y/n]"
+
+Store the answer as a session variable `SCRUTINY_OPT_IN` (true/false). Do **NOT** re-ask this question for each epic — the answer applies for the entire roadmap session.
+
+**Phase Gate**: Do NOT proceed to Phase 3 until the user answers the scrutiny question.
 
 ---
 
@@ -232,15 +246,26 @@ The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategi
    )"
    ```
 
-3. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.
+3. **Scrutiny Step** (per-epic, inline — not batched): After each epic ticket is created, apply the scrutiny decision from Phase 2.5:
+
+   <!-- REVIEW-DEFENSE: caller_prompts_dir uses brainstorm's prompts as the canonical source for scenario-red-team.md and scenario-blue-team.md. Roadmap does not need its own copies — these prompts are caller-agnostic. Session variable SCRUTINY_OPT_IN is set in Phase 2.5 and consumed in Phase 5 — the agent executing this SKILL.md holds the variable in its conversation context across phases (no sub-agent boundary between 2.5 and 5). -->
+   - **If `SCRUTINY_OPT_IN` is true**: Read and execute the shared scrutiny pipeline from `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass `caller_name=roadmap` and `caller_prompts_dir=$REPO_ROOT/plugins/dso/skills/brainstorm/prompts` as the pipeline parameters (scenario analysis prompts are shared from brainstorm's prompts directory). Run scrutiny inline for each epic before moving to the next. Append scrutiny output (gap analysis, scenario analysis, fidelity review verdict) to the epic spec via ticket edit before continuing.
+
+   - **If `SCRUTINY_OPT_IN` is false**: Write the `scrutiny:pending` tag to signal that the epic has not been scrutinized:
+     ```bash
+     .claude/scripts/dso ticket edit <epic-id> --tags="scrutiny:pending"
+     ```
+     This marks the epic for downstream skills (`/dso:preplanning`, `/dso:implementation-plan`) to gate on per the `plugins/dso/docs/contracts/scrutiny-pending-tag.md` contract.
+
+4. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.
 
    ```bash
    .claude/scripts/dso ticket link <blocked-epic-id> <blocking-epic-id>
    ```
 
-4. **Constraint**: Do NOT create child tasks. Maintain the high-level strategic structure. Child tasks will be created later during sprint planning.
+5. **Constraint**: Do NOT create child tasks. Maintain the high-level strategic structure. Child tasks will be created later during sprint planning.
 
-5. **Validate Ticket Health**: After creating all epics and dependencies:
+6. **Validate Ticket Health**: After creating all epics and dependencies:
 
    ```bash
    .claude/scripts/dso validate-issues.sh
@@ -248,7 +273,7 @@ The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategi
 
    If score < 5, fix issues before finalizing.
 
-6. **Report**: Present the final roadmap to the user:
+7. **Report**: Present the final roadmap to the user:
    - List of all created Epics (IDs and titles)
    - Dependency graph (which epics block which)
    - Priority order (Quick Wins first, then Strategic Bets)
@@ -305,9 +330,10 @@ Do NOT proceed until user responds.
 | 0 | Onboarding Check | Run `check-onboarding.sh`, invoke missing skills |
 | 1 | Vision Expansion | "Tell me more" loop, value extraction |
 | 2 | Milestone Architecture | Draft epics, define success criteria, agent alignment test |
+| 2.5 | Scrutiny Decision | One-time opt-in question for full scrutiny pipeline per epic |
 | 3 | Visual Prioritization | Score value/effort, identify enablers, quadrant matrix |
 | 4 | Lightweight Pre-Mortem | Identify risks for top 3-4 epics, build mitigations |
-| 5 | Execution & Ticket Integration | Create epics in ticket system, set dependencies, validate health |
+| 5 | Execution & Ticket Integration | Create epics in ticket system, apply scrutiny or write scrutiny:pending tag, set dependencies, validate health |
 
 ## Example Interaction Flow
 
