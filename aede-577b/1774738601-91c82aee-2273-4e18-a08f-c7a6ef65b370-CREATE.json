@@ -1,0 +1,1 @@
+{"timestamp": 1774738601, "uuid": "91c82aee-2273-4e18-a08f-c7a6ef65b370", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "CI: test-skill-script-paths.sh non-portable path references (pre-existing)", "parent_id": "", "description": "", "priority": 3, "assignee": "Joe Oakhart"}}
