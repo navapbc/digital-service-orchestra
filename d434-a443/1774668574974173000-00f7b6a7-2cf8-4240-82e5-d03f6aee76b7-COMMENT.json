@@ -1,1 +1,0 @@
-{"timestamp": 1774668574974173000, "uuid": "00f7b6a7-2cf8-4240-82e5-d03f6aee76b7", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: ticket_find_open_children removed from ticket-lib.sh and tests"}}
