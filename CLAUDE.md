@@ -36,6 +36,7 @@ Task type → Action:
 | Commit with review gates | `/dso:commit` | Ready to commit |
 | Code review via sub-agent | `/dso:review` | Pre-commit review |
 | Review plans/designs | `/dso:plan-review` | Before presenting a plan |
+| Update project docs | `/dso:update-docs` | After epic completion |
 | Clean session close | `/dso:end` | End of session |
 | Full validation suite | `plugins/dso/scripts/validate.sh --ci` | Before merge / after epic |
 | Check unqualified skill refs | `plugins/dso/scripts/check-skill-refs.sh` | After editing in-scope files |
@@ -63,6 +64,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 |-------|-------|---------------|
 | `dso:complexity-evaluator` | haiku | `/dso:sprint`, `/dso:brainstorm`; read inline by `/dso:fix-bug` |
 | `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
+| `dso:doc-writer` | sonnet | `/dso:sprint` (doc stories), `/dso:update-docs` |
 | `dso:feasibility-reviewer` | sonnet | `/dso:brainstorm` (conditional, on integration signals) |
 | `dso:red-team-reviewer` | opus | `/dso:preplanning` Phase 2.5 |
 | `dso:blue-team-filter` | sonnet | `/dso:preplanning` Phase 2.5 |

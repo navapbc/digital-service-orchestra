@@ -99,6 +99,7 @@ check_guard_agent_tool "dev-onboarding"
 check_guard_agent_tool "validate-work"
 check_guard_agent_tool "retro"
 check_guard_agent_tool "ui-discover"
+check_guard_agent_tool "update-docs"
 
 # ===========================================================================
 # Group 2: User-interaction dependent skills (4)
@@ -152,6 +153,8 @@ _TEST_GATE_ANCHORS=(
     test_ui_discover_guard_references_agent_tool
     test_architect_foundation_has_sub_agent_guard_marker
     test_architect_foundation_guard_references_agent_tool
+    test_update_docs_has_sub_agent_guard_marker
+    test_update_docs_guard_references_agent_tool
     test_end_session_has_sub_agent_guard_marker
     test_end_session_guard_references_orchestrator_signal
     test_project_setup_has_sub_agent_guard_marker
