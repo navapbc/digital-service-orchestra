@@ -1,1 +1,0 @@
-{"timestamp": 1774667200, "uuid": "40586135-3cdc-49a9-89f0-2341259131a4", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "TEST: verify description flag", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
