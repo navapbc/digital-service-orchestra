@@ -1,1 +1,0 @@
-{"timestamp": 1774680568744875000, "uuid": "42dee9ad-0e18-4a94-a8bb-c79e24f4b98e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: --description/-d flag implemented in ticket-create.sh, reducer, and LLM format. All RED tests now GREEN."}}
