@@ -1,1 +1,0 @@
-{"timestamp": 1774198226, "uuid": "351fb4e5-d71d-4de7-9cac-30bdb508ce9d", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "GREEN: Add BLOCKING marker to blocking epics + update existing tests", "parent_id": "dso-fldu", "priority": 2, "assignee": "Joe Oakhart"}}
