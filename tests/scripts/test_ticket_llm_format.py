@@ -81,9 +81,9 @@ class TestToLlmKeyMapping:
         assert result.get("cf") == ["file.py"]
 
     def test_unknown_keys_passed_through_unchanged(self, mod):
-        result = mod.to_llm({"priority": 2, "assignee": "charlie"})
-        assert result.get("priority") == 2
-        assert result.get("assignee") == "charlie"
+        result = mod.to_llm({"custom_field": "hello", "extra_data": 42})
+        assert result.get("custom_field") == "hello"
+        assert result.get("extra_data") == 42
 
 
 # ---------------------------------------------------------------------------
@@ -260,3 +260,8 @@ class TestPriorityAssigneeMapping:
     def test_assignee_mapped_to_asn(self, mod):
         result = mod.to_llm({"assignee": "Joe"})
         assert result.get("asn") == "Joe"
+
+    def test_description_mapped_to_desc(self, mod):
+        result = mod.to_llm({"description": "A short description"})
+        assert result.get("desc") == "A short description"
+        assert "description" not in result

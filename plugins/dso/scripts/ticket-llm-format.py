@@ -15,6 +15,7 @@ Key mapping:
   parent_id   → pid
   priority    → pr
   assignee    → asn
+  description → desc
   comments    → cm  (sub-keys: body→b, author→au; timestamp omitted)
   deps        → dp  (sub-keys: target_id→tid, relation→r; link_uuid omitted)
   conflicts   → cf
@@ -29,6 +30,7 @@ KEY_MAP = {
     "parent_id": "pid",
     "priority": "pr",
     "assignee": "asn",
+    "description": "desc",
     "comments": "cm",
     "deps": "dp",
     "conflicts": "cf",

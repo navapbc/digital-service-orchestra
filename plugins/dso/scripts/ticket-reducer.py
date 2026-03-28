@@ -244,6 +244,7 @@ def reduce_ticket(
         "parent_id": None,
         "priority": None,
         "assignee": None,
+        "description": "",
         "comments": [],
         "deps": [],
         "bridge_alerts": [],

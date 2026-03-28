@@ -65,7 +65,7 @@ plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scrip
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-revert.sh:tests/scripts/test_revert_event.py
 plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test_bridge_alert_display.py
-plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_ticket_create_description_long_flag_populates_event]
+plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh
 plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/scripts/test-explore-dispatch-template.sh
