@@ -1,1 +1,0 @@
-{"timestamp": 1774667577, "uuid": "078fd04b-c91b-455a-86a1-1660c0d10964", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Delete doc-writer-agent.md after epic completion", "parent_id": "3b5e-75a4", "priority": 4, "assignee": "Joe Oakhart"}}
