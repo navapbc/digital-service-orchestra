@@ -98,33 +98,36 @@ Mark each item `in_progress` via `TaskUpdate` when starting it and `completed` w
    ```bash
    .claude/scripts/dso sprint-list-epics.sh --all
    ```
-   This outputs tab-separated lines in three categories (4 fields each):
-   - `<id>\tP*\t<title>\t<child_count>` for in-progress epics (listed first, `P*` replaces priority)
-   - `<id>\tP<priority>\t<title>\t<child_count>` for unblocked open epics
-   - `BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>` for blocked ones (with `--all`)
+   This outputs tab-separated lines in three categories:
+   - `<id>\tP*\t<title>\t<child_count>[\tBLOCKING]` for in-progress epics (4 or 5 fields; `P*` replaces priority)
+   - `<id>\tP<priority>\t<title>\t<child_count>[\tBLOCKING]` for unblocked open epics (4 or 5 fields)
+   - `BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>` for blocked ones (6 fields; with `--all`)
 
-   The `<child_count>` field is the number of child tickets belonging to the epic.
+   The `<child_count>` field is the number of child tickets belonging to the epic. The optional 5th field `BLOCKING` appears on in-progress and unblocked epics that are dependencies of one or more blocked epics. The 6th field `<blocker_ids>` on blocked lines is a comma-separated list of open blocker epic IDs.
 
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
    - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit
 2. Parse the output and print a numbered list to the user. Lines with `P*` are
    in-progress epics — number them first. Then number unblocked lines. Display
-   blocked epics below as informational context, not as selectable options:
+   blocked epics below as informational context, not as selectable options.
+   Epics with a `BLOCKING` 5th field are blocking other epics — render them in
+   **bold**. Blocked epic lines include a `<blocker_ids>` 6th field — render the
+   blocker IDs after "blocked by:":
    ```
    In-progress epics:
 
      1. [P*] <title> (<epic-id>) — 5 children ← resumable
+     2. **[P*] <title> (<epic-id>) — 3 children ← resumable, BLOCKING**
 
    Unblocked epics (sorted by priority):
 
-     2. [P0] <title> (<epic-id>) — 3 children
-     3. [P1] <title> (<epic-id>) — 7 children
-     4. [P2] <title> (<epic-id>) — 0 children
+     3. **[P0] <title> (<epic-id>) — 3 children**
+     4. [P1] <title> (<epic-id>) — 7 children
      ...
 
    Blocked epics (not selectable):
-     - [P2] <title> (<epic-id>) — 2 children
+     - [P2] <title> (<epic-id>) — 2 children — blocked by: <blocker-id-1>, <blocker-id-2>
    ```
 3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
