@@ -117,7 +117,10 @@ def _get_ticket_status(ticket_id: str, tracker_dir: str) -> str:
 
 
 def _find_direct_blockers(
-    ticket_id: str, tracker_dir: str, exclude_archived: bool = True
+    ticket_id: str,
+    tracker_dir: str,
+    exclude_archived: bool = True,
+    ticket_states: dict[str, Any] | None = None,
 ) -> list[str]:
     """Return a list of ticket IDs that directly block ticket_id.
 
@@ -130,69 +133,56 @@ def _find_direct_blockers(
     Args:
         exclude_archived: When True (default), skip blockers whose compiled state
             has state.get('archived') == True.
+        ticket_states: Optional pre-loaded dict keyed by ticket_id with compiled
+            state dicts. When provided, avoids per-ticket _reduce_ticket calls.
+            When None, loads all ticket states via reduce_all_tickets.
     """
+    # Build ticket_states from reduce_all_tickets if not provided
+    if ticket_states is None:
+        all_states = _reducer.reduce_all_tickets(tracker_dir, exclude_archived=False)
+        ticket_states = {}
+        for t in all_states:
+            tid = t.get("ticket_id", "")
+            if tid and t.get("status") not in ("error", "fsck_needed"):
+                ticket_states[tid] = t
+
     blockers: list[str] = []
 
     # Source 1: ticket_id's own compiled deps for 'depends_on'
-    ticket_dir = os.path.join(tracker_dir, ticket_id)
-    if os.path.isdir(ticket_dir):
-        try:
-            state = _reduce_ticket(ticket_dir)
-        except Exception:
-            state = None
+    state = ticket_states.get(ticket_id)
+    if state is not None and isinstance(state, dict):
+        for dep in state.get("deps", []):
+            if dep.get("relation") in _BLOCKING_RELATIONS:
+                # For depends_on: target is what blocks this ticket
+                # We only want depends_on here (blocks stored in blocker's dir)
+                if dep.get("relation") == "depends_on":
+                    target = dep.get("target_id", "")
+                    if target and target not in blockers:
+                        # Check if target is archived when filtering
+                        if exclude_archived:
+                            target_state = ticket_states.get(target)
+                            if (
+                                target_state is not None
+                                and isinstance(target_state, dict)
+                                and target_state.get("archived") is True
+                            ):
+                                continue
+                        blockers.append(target)
 
-        if state is not None and isinstance(state, dict):
-            for dep in state.get("deps", []):
-                if dep.get("relation") in _BLOCKING_RELATIONS:
-                    # For depends_on: target is what blocks this ticket
-                    # We only want depends_on here (blocks stored in blocker's dir)
-                    if dep.get("relation") == "depends_on":
-                        target = dep.get("target_id", "")
-                        if target and target not in blockers:
-                            # Check if target is archived when filtering
-                            if exclude_archived:
-                                target_dir = os.path.join(tracker_dir, target)
-                                if os.path.isdir(target_dir):
-                                    try:
-                                        target_state = _reduce_ticket(target_dir)
-                                    except Exception:
-                                        target_state = None
-                                    if (
-                                        target_state is not None
-                                        and isinstance(target_state, dict)
-                                        and target_state.get("archived") is True
-                                    ):
-                                        continue
-                            blockers.append(target)
-
-    # Source 2: scan all ticket dirs for LINK events with relation=='blocks'
+    # Source 2: scan all ticket states for deps with relation=='blocks'
     # targeting ticket_id
-    try:
-        entries = os.listdir(tracker_dir)
-    except OSError:
-        entries = []
-
-    for entry in entries:
+    for entry, entry_state in ticket_states.items():
         if entry == ticket_id:
             continue
-        # Skip non-directory entries (like .graph-cache.json, .env-id)
-        entry_path = os.path.join(tracker_dir, entry)
-        if not os.path.isdir(entry_path):
-            continue
 
-        try:
-            state = _reduce_ticket(entry_path)
-        except Exception:
-            state = None
-
-        if state is None or not isinstance(state, dict):
+        if entry_state is None or not isinstance(entry_state, dict):
             continue
 
         # Skip archived entries when exclude_archived is True
-        if exclude_archived and state.get("archived") is True:
+        if exclude_archived and entry_state.get("archived") is True:
             continue
 
-        for dep in state.get("deps", []):
+        for dep in entry_state.get("deps", []):
             if dep.get("relation") == "blocks" and dep.get("target_id") == ticket_id:
                 if entry not in blockers:
                     blockers.append(entry)
@@ -328,40 +318,32 @@ def _compute_dep_graph(
         exclude_archived: When True (default), archived tickets are excluded from
             children and blockers lists.
     """
-    # Get the ticket's compiled deps list
-    ticket_dir = os.path.join(tracker_dir, ticket_id)
+    # Pre-load all ticket states once to avoid per-ticket _reduce_ticket calls
+    all_states_list = _reducer.reduce_all_tickets(tracker_dir, exclude_archived=False)
+    ticket_states: dict[str, Any] = {}
+    for t in all_states_list:
+        tid = t.get("ticket_id", "")
+        if tid and t.get("status") not in ("error", "fsck_needed"):
+            ticket_states[tid] = t
+
+    # Get the ticket's compiled deps list from pre-loaded state
     deps: list[dict[str, Any]] = []
+    state = ticket_states.get(ticket_id)
+    if state is not None and isinstance(state, dict):
+        deps = list(state.get("deps", []))
 
-    if os.path.isdir(ticket_dir):
-        try:
-            state = _reduce_ticket(ticket_dir)
-        except Exception:
-            state = None
-
-        if state is not None and isinstance(state, dict):
-            deps = list(state.get("deps", []))
-
-    # Find direct blockers
+    # Find direct blockers using pre-loaded ticket_states
     direct_blockers = _find_direct_blockers(
-        ticket_id, tracker_dir, exclude_archived=exclude_archived
+        ticket_id,
+        tracker_dir,
+        exclude_archived=exclude_archived,
+        ticket_states=ticket_states,
     )
 
     # Find children: tickets whose parent_id matches this ticket (8cbf-e13b)
     children: list[str] = []
-    try:
-        entries = os.listdir(tracker_dir)
-    except OSError:
-        entries = []
-
-    for entry in entries:
+    for entry, child_state in ticket_states.items():
         if entry == ticket_id:
-            continue
-        entry_path = os.path.join(tracker_dir, entry)
-        if not os.path.isdir(entry_path):
-            continue
-        try:
-            child_state = _reduce_ticket(entry_path)
-        except Exception:
             continue
         if child_state is not None and isinstance(child_state, dict):
             if child_state.get("parent_id") == ticket_id:
