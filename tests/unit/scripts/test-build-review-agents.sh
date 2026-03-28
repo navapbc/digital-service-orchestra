@@ -530,6 +530,194 @@ test_security_red_team_agent_contains_toctou_keyword() {
     assert_pass_if_clean "test_security_red_team_agent_contains_toctou_keyword"
 }
 
+# ── Security blue team tier — fixture setup ───────────────────────────────────
+#
+# A separate fixture dir augments the standard 6 deltas with a
+# reviewer-delta-security-blue-team.md so the build script has something to
+# compose. The security-blue-team tier does not yet exist in build-review-agents.sh:
+#   - _model_for_tier("security-blue-team") falls through to the error branch
+#   - _description_for_tier("security-blue-team") falls through to the error branch
+#   - No reviewer-delta-security-blue-team.md exists in the prompts directory
+#
+# RED marker: test_security_blue_team_agent_file_is_generated
+
+BLUE_FIXTURE_DIR="$(mktemp -d)"
+trap 'rm -rf "$BLUE_FIXTURE_DIR"' EXIT
+
+cp "$FIXTURE_DIR/reviewer-base.md" "$BLUE_FIXTURE_DIR/"
+for _bn in "${DELTA_NAMES[@]}"; do
+    cp "$FIXTURE_DIR/reviewer-delta-${_bn}.md" "$BLUE_FIXTURE_DIR/"
+done
+
+cat > "$BLUE_FIXTURE_DIR/reviewer-delta-security-blue-team.md" <<'BLUE_DELTA'
+# Code Reviewer — Security Blue Team Tier Delta
+
+**Tier**: security-blue-team
+
+## Security Triage Focus
+
+This reviewer triages security findings raised by the red-team agent, applying
+calibrated judgment to distinguish genuine vulnerabilities from false positives.
+For each finding, the blue team must issue one of:
+
+- **sustain** — finding is valid and requires remediation before merge
+- **downgrade** — finding is real but lower severity than flagged; explain why
+- **dismiss** — finding is a false positive; provide specific rebuttal
+
+All triage decisions must cite code evidence. Triage severity follows the same
+bright-line criteria as the red team. Unreviewed findings default to sustained.
+BLUE_DELTA
+
+# ── Test 16: security-blue-team agent file is generated ──────────────────────
+#
+# RED: _model_for_tier("security-blue-team") errors → build exits non-zero →
+#      code-reviewer-security-blue-team.md is never written.
+# GREEN: after adding the security-blue-team case to _model_for_tier() and
+#        _description_for_tier(), the file is generated.
+
+test_security_blue_team_agent_file_is_generated() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_agent_file_is_generated\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_agent_file_is_generated"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    # Run build with the augmented fixture dir (6 standard deltas + security-blue-team).
+    local rc=0
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || rc=$?
+
+    assert_eq "security_blue_team_build_exits_zero" "0" "$rc"
+
+    local agent_file="$out_dir/code-reviewer-security-blue-team.md"
+    local file_exists="no"
+    [[ -f "$agent_file" ]] && file_exists="yes"
+    assert_eq "security_blue_team_agent_file_generated" "yes" "$file_exists"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_agent_file_is_generated"
+}
+
+# ── Test 17: security-blue-team agent frontmatter declares model: opus ────────
+#
+# RED: the tier has no _model_for_tier() entry, so no file is generated and no
+#      "model: opus" line can appear in its frontmatter.
+# GREEN: after _model_for_tier() maps security-blue-team → opus, the generated
+#        file's YAML frontmatter contains "model: opus".
+
+test_security_blue_team_agent_has_opus_model() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_agent_has_opus_model\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_agent_has_opus_model"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local agent_file="$out_dir/code-reviewer-security-blue-team.md"
+    local model_line=""
+    if [[ -f "$agent_file" ]]; then
+        model_line=$(awk '/^---/{f++; next} f==1 && /^model:/{print; exit}' "$agent_file")
+    fi
+    assert_eq "security_blue_team_model_is_opus" "model: opus" "$model_line"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_agent_has_opus_model"
+}
+
+# ── Test 18: security-blue-team agent contains triage keywords ────────────────
+#
+# RED: delta file not known to the build script (unknown tier) → file not
+#      generated → content is empty → all keyword assertions fail.
+# GREEN: after tier mappings and delta file are wired in, the composed file
+#        contains dismiss, downgrade, and sustain from the delta.
+
+test_security_blue_team_agent_contains_triage_keywords() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_agent_contains_triage_keywords\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_agent_contains_triage_keywords"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    local agent_file="$out_dir/code-reviewer-security-blue-team.md"
+    local file_content=""
+    [[ -f "$agent_file" ]] && file_content="$(cat "$agent_file")"
+
+    assert_contains "security_blue_team_has_dismiss_keyword"   "dismiss"   "$file_content"
+    assert_contains "security_blue_team_has_downgrade_keyword" "downgrade" "$file_content"
+    assert_contains "security_blue_team_has_sustain_keyword"   "sustain"   "$file_content"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_agent_contains_triage_keywords"
+}
+
+# ── Test 19: security-blue-team tier is counted in total output ───────────────
+#
+# RED: build fails on unknown tier → 0 files produced (or 6 without the new
+#      tier) → count does not reach 9.
+# GREEN: 6 standard tiers + security-red-team + performance + security-blue-team
+#        = 9 agent files.
+#
+# Note: this fixture dir has 6 standard deltas + security-blue-team = 7,
+# which is what the build script sees. We assert the output count is 7 here
+# (matching the 8→9 progression described in the task: the production prompts
+# dir already has 8 deltas; we assert the fixture-level count rises from 6 to 7).
+
+test_security_blue_team_counted_in_total_agents() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_security_blue_team_counted_in_total_agents\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_security_blue_team_counted_in_total_agents"
+        return
+    fi
+
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$BLUE_FIXTURE_DIR/reviewer-base.md" \
+        --deltas "$BLUE_FIXTURE_DIR" \
+        --output "$out_dir" 2>/dev/null || true
+
+    # Expect 7 files: 6 original tiers + security-blue-team
+    local count
+    count=$(find "$out_dir" -maxdepth 1 -name '*.md' -type f | wc -l | tr -d ' ')
+    assert_eq "security_blue_team_raises_agent_count_to_7" "7" "$count"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_security_blue_team_counted_in_total_agents"
+}
+
 # ── Performance reviewer tier — fixture setup ─────────────────────────────────
 #
 # A separate fixture dir augments the standard 6 deltas with a
@@ -700,5 +888,9 @@ test_security_red_team_agent_contains_toctou_keyword
 test_performance_reviewer_builds_with_opus_model
 test_performance_reviewer_contains_bright_line_severity_keywords
 test_performance_reviewer_counted_in_total_agents
+test_security_blue_team_agent_file_is_generated
+test_security_blue_team_agent_has_opus_model
+test_security_blue_team_agent_contains_triage_keywords
+test_security_blue_team_counted_in_total_agents
 
 print_summary
