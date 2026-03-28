@@ -819,6 +819,120 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 34: Unblocked epic that blocks another has BLOCKING marker ──────────
+echo "Test 34: test_blocking_epic_has_marker — unblocked epic blocking another epic shows BLOCKING in 5th field"
+test_blocking_epic_has_marker() {
+    local TDIR34
+    TDIR34=$(mktemp -d)
+    trap 'rm -rf "$TDIR34"' RETURN
+    # epic-blocker: open, unblocked (no deps of its own)
+    # epic-blocked: open, depends on epic-blocker (so epic-blocker IS blocking epic-blocked)
+    make_v3_ticket "$TDIR34" "epic-blocker" "epic" "open" "1" ""             "Epic Blocker"
+    make_v3_ticket "$TDIR34" "epic-blocked" "epic" "open" "2" "epic-blocker" "Epic Blocked"
+
+    local out34 blocker_line field5 field_count
+    out34=$(TICKETS_TRACKER_DIR="$TDIR34" bash "$SCRIPT" --all 2>/dev/null)
+    blocker_line=$(echo "$out34" | grep -E "^epic-blocker")
+    field_count=$(echo "$blocker_line" | awk -F'\t' '{print NF}')
+    field5=$(echo "$blocker_line" | awk -F'\t' '{print $5}')
+    # Must have 5 fields
+    [ "$field_count" -ge 5 ] || return 1
+    # The 5th field must be BLOCKING
+    [ "$field5" = "BLOCKING" ] || return 1
+}
+if test_blocking_epic_has_marker; then
+    echo "  PASS: epic-blocker line has 5th field 'BLOCKING'"
+    (( PASS++ ))
+else
+    echo "  FAIL: epic-blocker line missing 5th field 'BLOCKING'" >&2
+    TDIR34_DBG=$(mktemp -d)
+    make_v3_ticket "$TDIR34_DBG" "epic-blocker" "epic" "open" "1" ""             "Epic Blocker"
+    make_v3_ticket "$TDIR34_DBG" "epic-blocked" "epic" "open" "2" "epic-blocker" "Epic Blocked"
+    actual_line=$(TICKETS_TRACKER_DIR="$TDIR34_DBG" bash "$SCRIPT" --all 2>/dev/null | grep -E "^epic-blocker" || true)
+    echo "  Actual line: '$actual_line'" >&2
+    echo "  Field count: $(echo "$actual_line" | awk -F'\t' '{print NF}')" >&2
+    rm -rf "$TDIR34_DBG"
+    (( FAIL++ ))
+fi
+
+# ── Test 35: BLOCKING marker is selective — only blocking epics get it ────────
+echo "Test 35: test_blocking_marker_is_selective — blocker gets BLOCKING, non-blocker gets exactly 4 fields"
+test_blocking_marker_is_selective() {
+    local TDIR35
+    TDIR35=$(mktemp -d)
+    trap 'rm -rf "$TDIR35"' RETURN
+    # epic-blocker2: open, unblocked — IS blocking epic-blocked2 (should get BLOCKING marker)
+    # epic-blocked2: open, depends on epic-blocker2 — IS blocked (no BLOCKING marker)
+    # epic-plain: open, unblocked, no dependents — NOT blocking anyone (no BLOCKING marker)
+    make_v3_ticket "$TDIR35" "epic-blocker2" "epic" "open" "1" ""              "Epic Blocker2"
+    make_v3_ticket "$TDIR35" "epic-blocked2" "epic" "open" "2" "epic-blocker2" "Epic Blocked2"
+    make_v3_ticket "$TDIR35" "epic-plain"    "epic" "open" "3" ""              "Epic Plain"
+
+    local out35 blocker2_line plain_line blocker2_field5 plain_field5
+    out35=$(TICKETS_TRACKER_DIR="$TDIR35" bash "$SCRIPT" --all 2>/dev/null)
+
+    # epic-blocker2 IS a blocker — must have BLOCKING in 5th field
+    blocker2_line=$(echo "$out35" | grep -E "^epic-blocker2")
+    blocker2_field5=$(echo "$blocker2_line" | awk -F'\t' '{print $5}')
+    [ "$blocker2_field5" = "BLOCKING" ] || return 1
+
+    # epic-plain is NOT a blocker — must have exactly 4 fields (no 5th field)
+    plain_line=$(echo "$out35" | grep -E "^epic-plain")
+    plain_field5=$(echo "$plain_line" | awk -F'\t' '{print $5}')
+    [ -z "$plain_field5" ] || return 1
+}
+if test_blocking_marker_is_selective; then
+    echo "  PASS: epic-blocker2 has BLOCKING in 5th field; epic-plain has no 5th field"
+    (( PASS++ ))
+else
+    echo "  FAIL: BLOCKING marker selectivity incorrect (blocker missing marker OR non-blocker has it)" >&2
+    TDIR35_DBG=$(mktemp -d)
+    make_v3_ticket "$TDIR35_DBG" "epic-blocker2" "epic" "open" "1" ""              "Epic Blocker2"
+    make_v3_ticket "$TDIR35_DBG" "epic-blocked2" "epic" "open" "2" "epic-blocker2" "Epic Blocked2"
+    make_v3_ticket "$TDIR35_DBG" "epic-plain"    "epic" "open" "3" ""              "Epic Plain"
+    actual_out=$(TICKETS_TRACKER_DIR="$TDIR35_DBG" bash "$SCRIPT" --all 2>/dev/null || true)
+    echo "  Full output:" >&2
+    echo "$actual_out" >&2
+    rm -rf "$TDIR35_DBG"
+    (( FAIL++ ))
+fi
+
+# ── Test 36: In-progress epic that blocks another epic has BLOCKING marker ────
+echo "Test 36: test_in_progress_blocking_epic_has_marker — in-progress epic blocking another shows BLOCKING in 5th field"
+test_in_progress_blocking_epic_has_marker() {
+    local TDIR36
+    TDIR36=$(mktemp -d)
+    trap 'rm -rf "$TDIR36"' RETURN
+    # epic-ip: in_progress — is a dependency of epic-waiting
+    # epic-waiting: open, depends on epic-ip (so epic-ip IS blocking epic-waiting)
+    make_v3_ticket "$TDIR36" "epic-ip"      "epic" "in_progress" "1" ""        "Epic In Progress"
+    make_v3_ticket "$TDIR36" "epic-waiting" "epic" "open"        "2" "epic-ip" "Epic Waiting"
+
+    local out36 ip_line field5 field_count
+    out36=$(TICKETS_TRACKER_DIR="$TDIR36" bash "$SCRIPT" --all 2>/dev/null)
+    ip_line=$(echo "$out36" | grep -E "^epic-ip")
+    field_count=$(echo "$ip_line" | awk -F'\t' '{print NF}')
+    field5=$(echo "$ip_line" | awk -F'\t' '{print $5}')
+    # Must have 5 fields (P* marker + BLOCKING marker)
+    [ "$field_count" -ge 5 ] || return 1
+    # The 5th field must be BLOCKING
+    [ "$field5" = "BLOCKING" ] || return 1
+}
+if test_in_progress_blocking_epic_has_marker; then
+    echo "  PASS: in-progress epic-ip line has 5th field 'BLOCKING'"
+    (( PASS++ ))
+else
+    echo "  FAIL: in-progress epic-ip line missing 5th field 'BLOCKING'" >&2
+    TDIR36_DBG=$(mktemp -d)
+    make_v3_ticket "$TDIR36_DBG" "epic-ip"      "epic" "in_progress" "1" ""        "Epic In Progress"
+    make_v3_ticket "$TDIR36_DBG" "epic-waiting" "epic" "open"        "2" "epic-ip" "Epic Waiting"
+    actual_line=$(TICKETS_TRACKER_DIR="$TDIR36_DBG" bash "$SCRIPT" --all 2>/dev/null | grep -E "^epic-ip" || true)
+    echo "  Actual line: '$actual_line'" >&2
+    echo "  Field count: $(echo "$actual_line" | awk -F'\t' '{print NF}')" >&2
+    rm -rf "$TDIR36_DBG"
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

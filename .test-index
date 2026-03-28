@@ -178,7 +178,7 @@ plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/sprint-next-batch.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/scripts/test-sprint-next-batch.sh
-plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh
+plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh [test_blocking_epic_has_marker]
 plugins/dso/skills/sprint/prompts/epic-validation-review.md:tests/scripts/test-v2-skills-cleanup.sh
 plugins/dso/scripts/purge-non-project-tickets.sh:tests/scripts/test-purge-non-project-tickets.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-bash-runner-discovery.sh
