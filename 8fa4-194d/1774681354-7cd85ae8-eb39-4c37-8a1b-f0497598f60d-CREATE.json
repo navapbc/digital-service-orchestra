@@ -1,0 +1,1 @@
+{"timestamp": 1774681354, "uuid": "7cd85ae8-eb39-4c37-8a1b-f0497598f60d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "SC1-test-via-ticket", "parent_id": "", "description": "hello world", "priority": 2, "assignee": "Joe Oakhart"}}
