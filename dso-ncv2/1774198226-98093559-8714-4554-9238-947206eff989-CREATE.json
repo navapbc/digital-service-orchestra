@@ -1,1 +1,0 @@
-{"timestamp": 1774198226, "uuid": "98093559-8714-4554-9238-947206eff989", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "RED: Write failing tests for BLOCKING marker on blocking epics", "parent_id": "dso-fldu", "priority": 2, "assignee": "Joe Oakhart"}}
