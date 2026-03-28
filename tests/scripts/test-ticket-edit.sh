@@ -269,4 +269,180 @@ test_ticket_edit_description() {
 }
 test_ticket_edit_description
 
+# ── Test 8: ticket edit --tags sets tags field ────────────────────────────────
+echo ""
+echo "Test 8: ticket edit --tags sets tags field on the ticket"
+test_ticket_edit_tags_field() {
+    _snapshot_fail
+    local repo ticket_id
+
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_EDIT_SCRIPT" ]; then
+        assert_eq "ticket-edit.sh exists for tags test" "exists" "missing"
+        return
+    fi
+
+    ticket_id=$(_create_ticket "$repo" "Tags Test Ticket")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for tags test" "non-empty" "empty"
+        return
+    fi
+
+    # Edit tags field
+    local edit_exit=0
+    (cd "$repo" && bash "$TICKET_EDIT_SCRIPT" "$ticket_id" --tags="alpha,beta,gamma") 2>/dev/null || edit_exit=$?
+    assert_eq "ticket edit --tags exits 0" "0" "$edit_exit"
+
+    # Verify via ticket show — tags should be present in the JSON output
+    local show_output
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    # Assert tags key exists in output
+    local tags_check
+    tags_check=$(python3 - "$show_output" <<'PYEOF'
+import json, sys
+try:
+    state = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+if "tags" not in state:
+    print("MISSING_TAGS_KEY")
+    sys.exit(1)
+print("OK")
+PYEOF
+) || true
+    assert_eq "tags key present in ticket show output" "OK" "$tags_check"
+
+    assert_pass_if_clean "ticket edit --tags sets tags field"
+}
+test_ticket_edit_tags_field
+
+# ── Test 9: ticket reducer includes tags in initial state ─────────────────────
+echo ""
+echo "Test 9: ticket reducer includes empty tags array in initial state"
+test_ticket_reducer_tags_initial_state() {
+    _snapshot_fail
+    local repo ticket_id
+
+    repo=$(_make_test_repo)
+
+    ticket_id=$(_create_ticket "$repo" "Tags Initial State Test")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for tags initial state test" "non-empty" "empty"
+        return
+    fi
+
+    # Show fresh ticket — tags should be an empty array by default
+    local show_output
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    local tags_check
+    tags_check=$(python3 - "$show_output" <<'PYEOF'
+import json, sys
+try:
+    state = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+if "tags" not in state:
+    print("MISSING_TAGS_KEY")
+    sys.exit(1)
+if not isinstance(state["tags"], list):
+    print(f"NOT_A_LIST:{type(state['tags']).__name__}")
+    sys.exit(1)
+if len(state["tags"]) != 0:
+    print(f"EXPECTED_EMPTY_LIST:got {state['tags']!r}")
+    sys.exit(1)
+print("OK")
+PYEOF
+) || true
+    assert_eq "fresh ticket has empty tags array" "OK" "$tags_check"
+
+    assert_pass_if_clean "ticket reducer includes empty tags array in initial state"
+}
+test_ticket_reducer_tags_initial_state
+
+# ── Test 10: tags are stored as an array after edit ───────────────────────────
+echo ""
+echo "Test 10: tags are stored as an array of strings after ticket edit"
+test_ticket_edit_tags_stored_as_array() {
+    _snapshot_fail
+    local repo ticket_id
+
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_EDIT_SCRIPT" ]; then
+        assert_eq "ticket-edit.sh exists for tags array test" "exists" "missing"
+        return
+    fi
+
+    ticket_id=$(_create_ticket "$repo" "Tags Array Test Ticket")
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for tags array test" "non-empty" "empty"
+        return
+    fi
+
+    # Set tags as comma-separated string
+    (cd "$repo" && bash "$TICKET_EDIT_SCRIPT" "$ticket_id" --tags="foo,bar,baz") 2>/dev/null || true
+
+    local show_output
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    local tags_check
+    tags_check=$(python3 - "$show_output" <<'PYEOF'
+import json, sys
+try:
+    state = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+if "tags" not in state:
+    print("MISSING_TAGS_KEY")
+    sys.exit(1)
+tags = state["tags"]
+if not isinstance(tags, list):
+    print(f"NOT_A_LIST:{type(tags).__name__}")
+    sys.exit(1)
+if len(tags) != 3:
+    print(f"EXPECTED_3_TAGS:got {tags!r}")
+    sys.exit(1)
+expected = ["foo", "bar", "baz"]
+if tags != expected:
+    print(f"WRONG_TAGS:expected {expected!r}, got {tags!r}")
+    sys.exit(1)
+print("OK")
+PYEOF
+) || true
+    assert_eq "tags stored as array of 3 strings after comma-separated edit" "OK" "$tags_check"
+
+    assert_pass_if_clean "tags are stored as array of strings after ticket edit"
+}
+test_ticket_edit_tags_stored_as_array
+
+# ── Test 11: ticket edit 'tags' appears in allowed fields usage ───────────────
+echo ""
+echo "Test 11: ticket-edit.sh usage/help mentions tags field"
+test_ticket_edit_usage_mentions_tags() {
+    if [ ! -f "$TICKET_EDIT_SCRIPT" ]; then
+        assert_eq "ticket-edit.sh exists for usage test" "exists" "missing"
+        return
+    fi
+
+    # Run with too-few args to trigger usage
+    local usage_output
+    usage_output=$(bash "$TICKET_EDIT_SCRIPT" 2>&1) || true
+
+    if echo "$usage_output" | grep -qi "tags"; then
+        assert_eq "usage mentions 'tags'" "found" "found"
+    else
+        assert_eq "usage mentions 'tags'" "found" "not-found: $usage_output"
+    fi
+}
+test_ticket_edit_usage_mentions_tags
+
 print_summary

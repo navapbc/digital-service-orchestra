@@ -21,12 +21,13 @@ TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>]" >&2
+    echo "Usage: ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [--description <text>]" >&2
     echo "  ticket_type: bug | epic | story | task" >&2
     echo "  title: non-empty string" >&2
     echo "  --parent: optional parent ticket ID" >&2
     echo "  --priority: 0-4 (0=critical, 4=backlog; default: 2)" >&2
     echo "  --assignee: assignee name (default: git config user.name)" >&2
+    echo "  --description, -d: optional description text" >&2
     exit 1
 }
 
@@ -43,6 +44,7 @@ shift 2
 parent_id=""
 priority="2"  # REVIEW-DEFENSE: default P2 is intentional — user-requested behavior change so all tickets have a priority
 assignee=""
+description=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --parent)
@@ -68,6 +70,18 @@ while [ $# -gt 0 ]; do
         --assignee=*)
             assignee="${1#--assignee=}"
             shift
+            ;;
+        --description)
+            description="$2"
+            shift 2
+            ;;
+        --description=*)
+            description="${1#--description=}"
+            shift
+            ;;
+        -d)
+            description="$2"
+            shift 2
             ;;
         *)
             # Positional: treat as parent_id (backward-compatible)
@@ -154,7 +168,8 @@ import json, sys
 data = {
     'ticket_type': sys.argv[5],
     'title': sys.argv[6],
-    'parent_id': sys.argv[7] if sys.argv[7] else ''
+    'parent_id': sys.argv[7] if sys.argv[7] else '',
+    'description': sys.argv[10]
 }
 if sys.argv[8]:
     data['priority'] = int(sys.argv[8])
@@ -170,9 +185,9 @@ event = {
     'data': data
 }
 
-with open(sys.argv[10], 'w', encoding='utf-8') as f:
+with open(sys.argv[11], 'w', encoding='utf-8') as f:
     json.dump(event, f, ensure_ascii=False)
-" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$temp_event" || {
+" "$timestamp" "$event_uuid" "$env_id" "$author" "$ticket_type" "$title" "$parent_id" "$priority" "$assignee" "$description" "$temp_event" || {
     rm -f "$temp_event"
     echo "Error: failed to build CREATE event JSON" >&2
     exit 1

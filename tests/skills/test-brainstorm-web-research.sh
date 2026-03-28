@@ -7,7 +7,14 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SKILL_MD="${REPO_ROOT}/plugins/dso/skills/brainstorm/SKILL.md"
+# Web research was extracted from brainstorm SKILL.md to the shared scrutiny pipeline.
+# Check the shared pipeline file for web research content.
+PIPELINE_MD="${REPO_ROOT}/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md"
+if [[ -f "$PIPELINE_MD" ]]; then
+  SKILL_MD="$PIPELINE_MD"
+else
+  SKILL_MD="${REPO_ROOT}/plugins/dso/skills/brainstorm/SKILL.md"
+fi
 
 PASS=0
 FAIL=0

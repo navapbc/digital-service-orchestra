@@ -19,14 +19,14 @@ TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE]" >&2
+    echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE] [--tags=VALUE]" >&2
     echo "  ticket_id: ticket directory name" >&2
     echo "  At least one --field=value pair is required." >&2
     exit 1
 }
 
 # ── Allowed fields ────────────────────────────────────────────────────────────
-ALLOWED_FIELDS="title priority assignee ticket_type description"
+ALLOWED_FIELDS="title priority assignee ticket_type description tags"
 
 _is_allowed_field() {
     local field="$1"

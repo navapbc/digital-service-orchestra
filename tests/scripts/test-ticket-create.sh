@@ -521,4 +521,173 @@ test_ticket_create_default_priority_is_2() {
 }
 test_ticket_create_default_priority_is_2
 
+# ── Test 11 (RED): --description="body" populates data.description in CREATE event ──
+echo "Test 11 (RED): --description flag populates data.description in CREATE event JSON"
+test_ticket_create_description_long_flag_populates_event() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local desc_body="This is a test description body"
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Description test long flag" --description="$desc_body" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for --description test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for --description test" "found" "not-found"
+        return
+    fi
+
+    local desc_val
+    desc_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('description','MISSING'))" "$event_file" 2>/dev/null) || true
+    assert_eq "data.description matches provided value (--description flag)" "$desc_body" "$desc_val"
+}
+test_ticket_create_description_long_flag_populates_event
+
+# ── Test 12 (RED): -d "body" populates data.description in CREATE event ─────────
+echo "Test 12 (RED): -d short flag populates data.description in CREATE event JSON"
+test_ticket_create_description_short_flag_populates_event() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local desc_body="Short flag description body"
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Description test short flag" -d "$desc_body" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for -d test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for -d test" "found" "not-found"
+        return
+    fi
+
+    local desc_val
+    desc_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(e['data'].get('description','MISSING'))" "$event_file" 2>/dev/null) || true
+    assert_eq "data.description matches provided value (-d flag)" "$desc_body" "$desc_val"
+}
+test_ticket_create_description_short_flag_populates_event
+
+# ── Test 13 (RED): no -d flag leaves description as empty string in CREATE event ─
+echo "Test 13 (RED): no -d flag leaves description as empty string in CREATE event"
+test_ticket_create_no_description_flag_leaves_empty_string() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "No description test" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for no-description test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for no-description test" "found" "not-found"
+        return
+    fi
+
+    local desc_val
+    desc_val=$(python3 -c "import json,sys; e=json.load(open(sys.argv[1])); print(repr(e['data'].get('description','MISSING')))" "$event_file" 2>/dev/null) || true
+    assert_eq "data.description is empty string when no -d flag" "''" "$desc_val"
+}
+test_ticket_create_no_description_flag_leaves_empty_string
+
+# ── Test 14 (RED): ticket show after create -d includes description in compiled output ──
+echo "Test 14 (RED): ticket show after create -d includes description in compiled JSON output"
+test_ticket_create_show_includes_description_after_create_with_d() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local desc_body="Compiled description from show"
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Show description test" -d "$desc_body" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for show-description test" "non-empty" "empty"
+        return
+    fi
+
+    # Call ticket show via the reducer and verify description appears in compiled output
+    # REVIEW-DEFENSE: This is a RED test — it is intentionally written to fail before the
+    # --description/-d flag is implemented. `ticket show` currently does not emit a description
+    # field, so show_output may not be valid JSON or may lack the field. The empty-string guard
+    # below (`if [ -z "$show_output" ]`) catches blank output, and the || true fallback on the
+    # python3 call is acceptable because the test is expected to fail at the assert_eq level when
+    # the feature is not yet implemented. The non-JSON-validation tradeoff is intentional for RED
+    # tests: tight validation belongs in the GREEN phase once the feature ships. See TDD workflow.
+    local show_output
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    if [ -z "$show_output" ]; then
+        assert_eq "ticket show returns output" "non-empty" "empty"
+        return
+    fi
+
+    local desc_check
+    # REVIEW-DEFENSE: || true on the python3 call is intentional for this RED test. If show_output
+    # is not valid JSON (because the feature is unimplemented), the parse error is caught by the
+    # || true fallback and desc_check is left empty, causing the subsequent assert_eq to fail with
+    # a clear MISMATCH message. Silent-discard here is acceptable in the RED phase — the test will
+    # still fail at the assertion, which is the desired behavior. In the GREEN phase, once
+    # ticket show emits valid JSON with a description field, this path will produce 'OK'.
+    desc_check=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+desc = data.get('description', 'MISSING')
+if desc == sys.argv[2]:
+    print('OK')
+else:
+    print(f'MISMATCH: expected={sys.argv[2]!r} got={desc!r}')
+" "$show_output" "$desc_body" 2>/dev/null) || true
+
+    if [ "$desc_check" = "OK" ]; then
+        assert_eq "ticket show compiled JSON includes correct description" "OK" "OK"
+    else
+        assert_eq "ticket show compiled JSON includes correct description" "OK" "$desc_check"
+    fi
+}
+test_ticket_create_show_includes_description_after_create_with_d
+
 print_summary

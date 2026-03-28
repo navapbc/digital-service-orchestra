@@ -128,7 +128,7 @@ Ticket system initialized.
 Create a new ticket.
 
 ```
-.claude/scripts/dso ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>]
+.claude/scripts/dso ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>] [-d/--description <text>]
 ```
 
 **Arguments:**
@@ -140,6 +140,7 @@ Create a new ticket.
 | `--parent` | No | ID of an existing parent ticket |
 | `--priority` | No | Priority 0-4 (0=critical, 4=backlog; default: 2) |
 | `--assignee` | No | Assignee name (default: git config user.name) |
+| `-d`, `--description` | No | Optional long-form description text for the ticket |
 
 **Output:** Prints the generated ticket ID to stdout (e.g., `ab12-cd34`). No other output on success.
 
@@ -166,6 +167,9 @@ w21-a3f7
 
 $ .claude/scripts/dso ticket create story "As a user, I can reset my password" --parent w21-a3f7
 w21-b9c2
+
+$ .claude/scripts/dso ticket create bug "Login fails on mobile Safari" -d "Reproducible on iOS 17 with Safari 17. Steps: 1) Open login page, 2) Enter credentials, 3) Tap Sign In — redirects to blank page instead of dashboard."
+w21-c3d4
 ```
 
 ---

@@ -101,9 +101,9 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
    - **pass_threshold**: 4
    - **start_stage**: 1
    - **perspectives**: (defined in separate reviewer files — see `docs/review-criteria.md`)
-     - [docs/reviewers/agent-clarity.md](docs/reviewers/agent-clarity.md) — perspective: `"Agent Clarity"`
-     - [docs/reviewers/scope.md](docs/reviewers/scope.md) — perspective: `"Scope"`
-     - [docs/reviewers/value.md](docs/reviewers/value.md) — perspective: `"Value"`
+     - [../shared/docs/reviewers/agent-clarity.md](../shared/docs/reviewers/agent-clarity.md) — perspective: `"Agent Clarity"`
+     - [../shared/docs/reviewers/scope.md](../shared/docs/reviewers/scope.md) — perspective: `"Scope"`
+     - [../shared/docs/reviewers/value.md](../shared/docs/reviewers/value.md) — perspective: `"Value"`
 
    Incorporate findings into the Milestone spec before presenting to the user.
 
@@ -114,7 +114,21 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
 
 4. **Confirmation**: Ask the user: *"Do these Milestones capture the right 'Success States' for your vision? Should we adjust, merge, or split any of them?"*
 
-**Phase Gate**: Do NOT proceed to Phase 3 until the user confirms the Milestones are correct.
+**Phase Gate**: Do NOT proceed to Phase 2.5 until the user confirms the Milestones are correct.
+
+---
+
+### Phase 2.5: Scrutiny Decision (/dso:roadmap)
+
+**Goal**: Decide once whether to apply the full scrutiny pipeline to each epic during Phase 5.
+
+Ask the user **exactly once**:
+
+> "Would you like to apply full scrutiny (gap analysis, web research, scenario analysis, fidelity review) to each epic? This produces higher-quality specs but takes longer. [y/n]"
+
+Store the answer as a session variable `SCRUTINY_OPT_IN` (true/false). Do **NOT** re-ask this question for each epic — the answer applies for the entire roadmap session.
+
+**Phase Gate**: Do NOT proceed to Phase 3 until the user answers the scrutiny question.
 
 ---
 
@@ -122,18 +136,20 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
 
 **Goal**: Prioritize Milestones based on value and effort, accounting for dependencies.
 
-1. **Informed Guess Scoring**: The Agent (not the user) will estimate scores for each Milestone based on the context:
-   - **Value (1-10)**: How much user or business impact does this deliver?
-   - **Effort (1-10)**: How complex or time-consuming is this to build?
+1. **Informed Guess Scoring**: The Agent (not the user) will estimate scores for each Milestone by reading and applying the shared scorer at `plugins/dso/skills/shared/prompts/value-effort-scorer.md`. Use the **1-5 scale** defined there:
+   - **Value (1-5)**: How much user or business impact does this deliver? (1=minimal, 5=critical)
+   - **Effort (1-5)**: How complex or time-consuming is this to build? (1=trivial, 5=multi-sprint)
 
-   Present your scoring rationale for each Milestone.
+   Apply the scorer's priority matrix to derive a recommended P0–P4 priority for each Milestone. Present your scoring rationale and the resulting priority for each Milestone.
 
 2. **The "Enabler" Logic**: Identify hard technical dependencies. If a low-value Epic blocks a high-value Epic, it is marked as a **"Critical Enabler"** and inherits the priority of the feature it unlocks.
 
    Example:
-   - Epic A: "User Dashboard" (Value: 9, Effort: 5)
-   - Epic B: "Authentication System" (Value: 5, Effort: 7)
+   - Epic A: "User Dashboard" (Value: 5, Effort: 3)
+   - Epic B: "Authentication System" (Value: 3, Effort: 4)
    - If Dashboard requires Authentication → Authentication becomes a **Critical Enabler** with inherited priority
+
+   **Note**: Enabler Logic **overrides** the scorer recommendation — enablers inherit the priority of the epic they unblock, regardless of their own value/effort scores.
 
 3. **The Visual Matrix**: Present the roadmap as a visual quadrant:
 
@@ -154,19 +170,21 @@ Present each Milestone as a "Post-it Note" in the appropriate quadrant:
 Example output:
 ```
 QUICK WINS (High Impact, Low Effort):
-  - Epic: User Profile Page (Value: 8, Effort: 3)
-  - Epic: Export to CSV (Value: 7, Effort: 2)
+  - Epic: User Profile Page (Value: 4, Effort: 2) → P1
+  - Epic: Export to CSV (Value: 4, Effort: 1) → P0
 
 STRATEGIC BETS (High Impact, High Effort):
-  - Epic: Document Processing Pipeline (Value: 10, Effort: 9) [Critical Enabler]
-  - Epic: Admin Dashboard (Value: 9, Effort: 7)
+  - Epic: Document Processing Pipeline (Value: 5, Effort: 5) [Critical Enabler] → P1
+  - Epic: Admin Dashboard (Value: 5, Effort: 4) → P1
 
 FILL-INS (Low Impact, Low Effort):
-  - Epic: Dark Mode (Value: 4, Effort: 2)
+  - Epic: Dark Mode (Value: 2, Effort: 2) → P3
 
 AVOID/LATER (Low Impact, High Effort):
-  - Epic: Advanced Analytics (Value: 4, Effort: 8)
+  - Epic: Advanced Analytics (Value: 2, Effort: 4) → P4
 ```
+
+The quadrant placement maps to priority ranges: Quick Wins → P0–P1, Strategic Bets → P1–P2, Fill-ins → P3, Avoid/Later → P4. Use the scorer's matrix for the exact P-level within each quadrant.
 
 4. **Alignment Check**: Ask the user: *"I've categorized these based on our talk. Do you agree with these placements, or should we shift any 'Post-its'?"*
 
@@ -205,14 +223,12 @@ AVOID/LATER (Low Impact, High Effort):
    - Are Success Criteria specific and testable?
    - Are dependencies clearly documented?
 
-2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**.
+2. **Ticket Action**: Create Epics using the sequence: **"Phase [X]: [Name]"**. Use the scorer-determined priority (from Phase 3 Step 1) as the `-p <priority>` argument. For Critical Enabler epics, use the priority inherited from the epic they unblock.
 
    ```bash
-   # Create epic
-   .claude/scripts/dso ticket create "Phase 1: Authentication System" -t epic -p 1
-
-   # Update epic with full description
-   .claude/scripts/dso ticket comment <epic-id> "
+   # Create epic with scorer-determined priority
+   # $SCORER_PRIORITY is the P-level from value-effort-scorer.md (P0=0, P1=1, ... P4=4)
+   .claude/scripts/dso ticket create epic "Phase 1: Authentication System" -p $SCORER_PRIORITY -d "$(cat <<'DESCRIPTION'
    ## Context
    [Why this matters, user need, business goal]
 
@@ -226,18 +242,30 @@ AVOID/LATER (Low Impact, High Effort):
 
    ## References
    [Links to PRDs, designs, or related docs]
-   "
+   DESCRIPTION
+   )"
    ```
 
-3. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.
+3. **Scrutiny Step** (per-epic, inline — not batched): After each epic ticket is created, apply the scrutiny decision from Phase 2.5:
+
+   <!-- REVIEW-DEFENSE: caller_prompts_dir uses brainstorm's prompts as the canonical source for scenario-red-team.md and scenario-blue-team.md. Roadmap does not need its own copies — these prompts are caller-agnostic. Session variable SCRUTINY_OPT_IN is set in Phase 2.5 and consumed in Phase 5 — the agent executing this SKILL.md holds the variable in its conversation context across phases (no sub-agent boundary between 2.5 and 5). -->
+   - **If `SCRUTINY_OPT_IN` is true**: Read and execute the shared scrutiny pipeline from `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass `caller_name=roadmap` and `caller_prompts_dir=$REPO_ROOT/plugins/dso/skills/brainstorm/prompts` as the pipeline parameters (scenario analysis prompts are shared from brainstorm's prompts directory). Run scrutiny inline for each epic before moving to the next. Append scrutiny output (gap analysis, scenario analysis, fidelity review verdict) to the epic spec via ticket edit before continuing.
+
+   - **If `SCRUTINY_OPT_IN` is false**: Write the `scrutiny:pending` tag to signal that the epic has not been scrutinized:
+     ```bash
+     .claude/scripts/dso ticket edit <epic-id> --tags="scrutiny:pending"
+     ```
+     This marks the epic for downstream skills (`/dso:preplanning`, `/dso:implementation-plan`) to gate on per the `plugins/dso/docs/contracts/scrutiny-pending-tag.md` contract.
+
+4. **Set Dependencies**: Link epics formally within the ticket system for "Critical Enabler" relationships.
 
    ```bash
    .claude/scripts/dso ticket link <blocked-epic-id> <blocking-epic-id>
    ```
 
-4. **Constraint**: Do NOT create child tasks. Maintain the high-level strategic structure. Child tasks will be created later during sprint planning.
+5. **Constraint**: Do NOT create child tasks. Maintain the high-level strategic structure. Child tasks will be created later during sprint planning.
 
-5. **Validate Ticket Health**: After creating all epics and dependencies:
+6. **Validate Ticket Health**: After creating all epics and dependencies:
 
    ```bash
    .claude/scripts/dso validate-issues.sh
@@ -245,7 +273,7 @@ AVOID/LATER (Low Impact, High Effort):
 
    If score < 5, fix issues before finalizing.
 
-6. **Report**: Present the final roadmap to the user:
+7. **Report**: Present the final roadmap to the user:
    - List of all created Epics (IDs and titles)
    - Dependency graph (which epics block which)
    - Priority order (Quick Wins first, then Strategic Bets)
@@ -302,9 +330,10 @@ Do NOT proceed until user responds.
 | 0 | Onboarding Check | Run `check-onboarding.sh`, invoke missing skills |
 | 1 | Vision Expansion | "Tell me more" loop, value extraction |
 | 2 | Milestone Architecture | Draft epics, define success criteria, agent alignment test |
+| 2.5 | Scrutiny Decision | One-time opt-in question for full scrutiny pipeline per epic |
 | 3 | Visual Prioritization | Score value/effort, identify enablers, quadrant matrix |
 | 4 | Lightweight Pre-Mortem | Identify risks for top 3-4 epics, build mitigations |
-| 5 | Execution & Ticket Integration | Create epics in ticket system, set dependencies, validate health |
+| 5 | Execution & Ticket Integration | Create epics in ticket system, apply scrutiny or write scrutiny:pending tag, set dependencies, validate health |
 
 ## Example Interaction Flow
 
