@@ -1,1 +1,0 @@
-{"timestamp": 1774281322, "uuid": "0859415e-c2ef-4457-b910-fcbb7d7e6ffa", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Fix AC5 verify command case mismatch: grep -q 'passed' should match PASSED output", "priority": 3, "assignee": "Joe Oakhart"}}
