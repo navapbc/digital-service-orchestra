@@ -1047,4 +1047,171 @@ test_security_overlay_true_for_password_keyword_in_diff # RED: security_overlay 
 test_security_overlay_false_for_non_security_path  # RED: security_overlay field not yet emitted
 test_security_overlay_field_present_in_output_schema    # RED: security_overlay field not yet emitted
 
+# ============================================================
+# Performance Overlay Flag Tests (RED — w22-wwu2 / task a621-1689)
+# ============================================================
+# These tests verify the performance_overlay boolean flag in classifier output.
+# The flag must be true when the diff touches performance-sensitive paths
+# (db/, database/, cache/, query/, pool/) or contains performance-sensitive
+# content (SELECT, INSERT, async def, await, pool, cursor).
+# The flag must be false for unrelated diffs.
+# All tests are RED — performance_overlay is hardcoded false until task 3c31-41b5.
+
+# Helper: extract performance_overlay from classifier JSON output
+# Usage: extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT"
+# Prints: "true", "false", or "absent"
+_extract_performance_overlay() {
+    local output="$1"
+    local exit_code="$2"
+    local result="absent"
+    if [[ "$exit_code" -eq 0 ]] && is_valid_json "$output"; then
+        result=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+if 'performance_overlay' not in d:
+    print('absent')
+else:
+    print(str(d['performance_overlay']).lower())
+" "$output" 2>/dev/null || echo "absent")
+    fi
+    echo "$result"
+}
+
+test_performance_overlay_true_for_db_path() {
+    # A diff touching db/ directory must produce performance_overlay:true
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/db/connection.py" "+def get_connection(): pass")
+    run_classifier "$diff_file"
+
+    local performance_overlay
+    performance_overlay=$(_extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT")
+    assert_eq "db/ path sets performance_overlay=true" "true" "$performance_overlay"
+    teardown_temp_dir
+}
+
+test_performance_overlay_true_for_database_path() {
+    # A diff touching database/ directory must produce performance_overlay:true
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/database/models.py" "+class User(Base): pass")
+    run_classifier "$diff_file"
+
+    local performance_overlay
+    performance_overlay=$(_extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT")
+    assert_eq "database/ path sets performance_overlay=true" "true" "$performance_overlay"
+    teardown_temp_dir
+}
+
+test_performance_overlay_true_for_cache_path() {
+    # A diff touching cache/ directory must produce performance_overlay:true
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/cache/redis_client.py" "+import redis")
+    run_classifier "$diff_file"
+
+    local performance_overlay
+    performance_overlay=$(_extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT")
+    assert_eq "cache/ path sets performance_overlay=true" "true" "$performance_overlay"
+    teardown_temp_dir
+}
+
+test_performance_overlay_true_for_sql_in_diff() {
+    # A diff whose added lines contain SQL keywords must produce performance_overlay:true
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_sql_keywords.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/services/report.py b/src/services/report.py
+index 0000000..1111111 100644
+--- a/src/services/report.py
++++ b/src/services/report.py
+@@ -1,3 +1,5 @@
++    cursor.execute("SELECT id, name FROM users WHERE active = 1")
++    rows = cursor.fetchall()
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local performance_overlay
+    performance_overlay=$(_extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT")
+    assert_eq "SELECT/cursor keywords in diff set performance_overlay=true" "true" "$performance_overlay"
+    teardown_temp_dir
+}
+
+test_performance_overlay_true_for_async_await_in_diff() {
+    # A diff whose added lines contain async def / await must produce performance_overlay:true
+    setup_temp_dir
+    local diff_file="$TEST_TMPDIR/test_async.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/workers/task_runner.py b/src/workers/task_runner.py
+index 0000000..1111111 100644
+--- a/src/workers/task_runner.py
++++ b/src/workers/task_runner.py
+@@ -1,3 +1,5 @@
++async def run_task(task_id):
++    result = await fetch_data(task_id)
+DIFFEOF
+    run_classifier "$diff_file"
+
+    local performance_overlay
+    performance_overlay=$(_extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT")
+    assert_eq "async def/await keywords in diff set performance_overlay=true" "true" "$performance_overlay"
+    teardown_temp_dir
+}
+
+test_performance_overlay_true_for_pool_path() {
+    # A diff touching pool/ directory must produce performance_overlay:true
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/pool/worker_pool.py" "+MAX_WORKERS = 10")
+    run_classifier "$diff_file"
+
+    local performance_overlay
+    performance_overlay=$(_extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT")
+    assert_eq "pool/ path sets performance_overlay=true" "true" "$performance_overlay"
+    teardown_temp_dir
+}
+
+test_performance_overlay_false_for_non_performance_path() {
+    # A diff touching a plain source file with no performance signals must produce performance_overlay:false
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/utils/string_helpers.py" "+def truncate(s, n): return s[:n]")
+    run_classifier "$diff_file"
+
+    local performance_overlay
+    performance_overlay=$(_extract_performance_overlay "$CLASSIFIER_OUTPUT" "$CLASSIFIER_EXIT")
+    assert_eq "non-performance diff sets performance_overlay=false" "false" "$performance_overlay"
+    teardown_temp_dir
+}
+
+test_performance_overlay_field_present_in_output_schema() {
+    # The performance_overlay key must exist as a boolean in classifier JSON output for any diff
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/foo.py" "+x = 1")
+    run_classifier "$diff_file"
+
+    local has_field="false"
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        has_field=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+print('true' if 'performance_overlay' in d and isinstance(d['performance_overlay'], bool) else 'false')
+" "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "false")
+    fi
+    assert_eq "performance_overlay field present as boolean in output schema" "true" "$has_field"
+    teardown_temp_dir
+}
+
+# Performance overlay flag (RED — w22-wwu2 / task a621-1689)
+# All assertions expect performance_overlay=true but classifier hardcodes false — these are RED.
+test_performance_overlay_true_for_db_path             # RED: performance_overlay hardcoded false
+test_performance_overlay_true_for_database_path       # RED: performance_overlay hardcoded false
+test_performance_overlay_true_for_cache_path          # RED: performance_overlay hardcoded false
+test_performance_overlay_true_for_sql_in_diff         # RED: performance_overlay hardcoded false
+test_performance_overlay_true_for_async_await_in_diff # RED: performance_overlay hardcoded false
+test_performance_overlay_true_for_pool_path           # RED: performance_overlay hardcoded false
+test_performance_overlay_false_for_non_performance_path  # GREEN: hardcoded false matches expected false
+test_performance_overlay_field_present_in_output_schema  # GREEN: field already present in schema
+
 print_summary
