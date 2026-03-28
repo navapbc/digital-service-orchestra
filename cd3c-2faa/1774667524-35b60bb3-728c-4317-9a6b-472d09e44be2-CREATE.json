@@ -1,1 +1,0 @@
-{"timestamp": 1774667524, "uuid": "35b60bb3-728c-4317-9a6b-472d09e44be2", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "epic", "title": "Add --description/-d flag to ticket create", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
