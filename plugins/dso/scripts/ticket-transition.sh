@@ -105,8 +105,30 @@ fi
 # possible through direct event writes. The flock serializes STATUS event writes,
 # not reads. Tightening this would require a separate lock on child creation, which
 # adds complexity disproportionate to the risk.
+#
+# batch_close_json is captured here (read-only) and reused in Step 4 to avoid
+# a second Python process spawn for unblock detection.
+batch_close_json=""
 if [ "$target_status" = "closed" ]; then
-    open_children=$(ticket_find_open_children "$TRACKER_DIR" "$ticket_id")
+    unblock_script="${DSO_UNBLOCK_SCRIPT:-$SCRIPT_DIR/ticket-unblock.py}"
+    batch_close_json=$(python3 "$unblock_script" --batch-close "$TRACKER_DIR" "$ticket_id" 2>/dev/null) || true
+
+    # Parse open_children from batch_close JSON — fail loudly on parse error
+    # to prevent silently allowing close of a ticket with open children.
+    open_children=""
+    if [ -n "$batch_close_json" ]; then
+        open_children=$(echo "$batch_close_json" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+children = d.get('open_children', [])
+if children:
+    print('\n'.join(children))
+") || {
+            echo "Warning: failed to parse batch_close_operations output — falling back to allow close" >&2
+            open_children=""
+        }
+    fi
+
     if [ -n "$open_children" ]; then
         echo "Error: cannot close ticket '$ticket_id' while it has open children." >&2
         echo "Close the following children first:" >&2
@@ -266,24 +288,25 @@ fi
 
 # ── Step 4: Detect newly unblocked tickets (only on close) ───────────────────
 if [ "$target_status" = "closed" ]; then
-    # Allow test override via DSO_UNBLOCK_SCRIPT; fall back to script-dir location
-    unblock_script="${DSO_UNBLOCK_SCRIPT:-$SCRIPT_DIR/ticket-unblock.py}"
+    # Use the batch_close_json captured in Step 1b (already computed open_children
+    # and newly_unblocked in a single Python process — no second spawn needed).
+    if [ -n "$batch_close_json" ]; then
+        unblocked_ids=$(echo "$batch_close_json" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+ids = d.get('newly_unblocked', [])
+print(','.join(ids)) if ids else None
+" 2>/dev/null) || unblocked_ids=""
 
-    unblock_out=""
-    unblock_exit=0
-    unblock_out=$(python3 "$unblock_script" "$TRACKER_DIR" "$ticket_id" --event-source local-close 2>&1) || unblock_exit=$?
-
-    if [ "$unblock_exit" -ne 0 ]; then
-        # Non-blocking: warn to stderr but do NOT fail the transition
-        echo "Warning: ticket-unblock.py failed (exit $unblock_exit): $unblock_out" >&2
-    else
-        # Parse lines of the form "UNBLOCKED <id>" and emit structured output
-        unblocked_ids=$(echo "$unblock_out" | grep -oE '^UNBLOCKED [^ ]+' | awk '{print $2}' | paste -sd ',' - 2>/dev/null || true)
         if [ -n "$unblocked_ids" ]; then
             echo "UNBLOCKED: $unblocked_ids"
         else
             echo "UNBLOCKED: none"
         fi
+    else
+        # batch_close_json was empty (e.g., unblock script failed) — warn but don't fail
+        echo "Warning: batch-close JSON unavailable; unblock detection skipped" >&2
+        echo "UNBLOCKED: none"
     fi
 
     # Compact-on-close: squash event log into SNAPSHOT (non-blocking)
