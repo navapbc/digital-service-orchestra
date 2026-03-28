@@ -1,1 +1,0 @@
-{"timestamp": 1774710934854861000, "uuid": "17ced8bf-aeca-46b2-b8e3-154e24175950", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 0 (BASIC). SKILL.md was replaced with redirect stub when project-setup was renamed to onboarding. Test still references old file."}}
