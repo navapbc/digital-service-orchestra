@@ -1,0 +1,1 @@
+{"timestamp": 1774741326419552000, "uuid": "b4e2d902-d174-4b32-bae7-df85be71bc98", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Consideration: [Reliability] Missing gate signals should default to 0 (no concern) rather than runtime error, enabling partial deployment and independent story verification."}}
