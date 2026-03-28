@@ -1,1 +1,0 @@
-{"timestamp": 1774681224414590000, "uuid": "caecfe52-bd63-4c60-bcd9-df5c5725f812", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "CHECKPOINT 6/6: Tests GREEN \u2713 \u2014 bash tests/hooks/test-sub-agent-guard.sh: PASSED: 42 FAILED: 0 (2 new update-docs tests pass)"}}
