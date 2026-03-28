@@ -279,15 +279,15 @@ If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agen
 
 Run the spec through three reviewers **in parallel** using the Task tool. For each reviewer:
 
-1. Read the reviewer prompt from `docs/reviewers/` (relative to this skill's directory)
+1. Read the reviewer prompt from `../shared/docs/reviewers/` (relative to this skill's directory)
 2. Pass: the milestone title, Context section, Success Criteria, and (for Scope reviewer) titles of other open epics
 3. Instruct the reviewer to return JSON per the `REVIEW-SCHEMA.md` in the review-protocol skill
 
 | Reviewer | Prompt File | Perspective | Dimensions |
 |----------|-------------|------------|------------|
-| Senior Technical Program Manager | [docs/reviewers/agent-clarity.md](docs/reviewers/agent-clarity.md) | `"Agent Clarity"` | `self_contained`, `success_measurable` |
-| Senior Product Strategist | [docs/reviewers/scope.md](docs/reviewers/scope.md) | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware` |
-| Senior Product Manager | [docs/reviewers/value.md](docs/reviewers/value.md) | `"Value"` | `user_impact`, `validation_signal` |
+| Senior Technical Program Manager | [../shared/docs/reviewers/agent-clarity.md](../shared/docs/reviewers/agent-clarity.md) | `"Agent Clarity"` | `self_contained`, `success_measurable` |
+| Senior Product Strategist | [../shared/docs/reviewers/scope.md](../shared/docs/reviewers/scope.md) | `"Scope"` | `right_sized`, `no_overlap`, `dependency_aware` |
+| Senior Product Manager | [../shared/docs/reviewers/value.md](../shared/docs/reviewers/value.md) | `"Value"` | `user_impact`, `validation_signal` |
 | Senior Integration Engineer | `dso:feasibility-reviewer` (dedicated agent) | `"Technical Feasibility"` | `technical_feasibility`, `integration_risk` |
 
 ### Feasibility Review Trigger

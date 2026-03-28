@@ -101,9 +101,9 @@ Do NOT proceed to Phase 2 until the user confirms the vision is complete.
    - **pass_threshold**: 4
    - **start_stage**: 1
    - **perspectives**: (defined in separate reviewer files — see `docs/review-criteria.md`)
-     - [docs/reviewers/agent-clarity.md](docs/reviewers/agent-clarity.md) — perspective: `"Agent Clarity"`
-     - [docs/reviewers/scope.md](docs/reviewers/scope.md) — perspective: `"Scope"`
-     - [docs/reviewers/value.md](docs/reviewers/value.md) — perspective: `"Value"`
+     - [../shared/docs/reviewers/agent-clarity.md](../shared/docs/reviewers/agent-clarity.md) — perspective: `"Agent Clarity"`
+     - [../shared/docs/reviewers/scope.md](../shared/docs/reviewers/scope.md) — perspective: `"Scope"`
+     - [../shared/docs/reviewers/value.md](../shared/docs/reviewers/value.md) — perspective: `"Value"`
 
    Incorporate findings into the Milestone spec before presenting to the user.
 

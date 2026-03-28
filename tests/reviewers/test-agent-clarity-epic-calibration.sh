@@ -23,8 +23,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BRAINSTORM_MD="$PLUGIN_ROOT/plugins/dso/skills/brainstorm/docs/reviewers/agent-clarity.md"
-ROADMAP_MD="$PLUGIN_ROOT/plugins/dso/skills/roadmap/docs/reviewers/agent-clarity.md"
+SHARED_MD="$PLUGIN_ROOT/plugins/dso/skills/shared/docs/reviewers/agent-clarity.md"
+BRAINSTORM_MD="$SHARED_MD"
+ROADMAP_MD="$SHARED_MD"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 

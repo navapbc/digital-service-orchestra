@@ -4,8 +4,8 @@
 
 Each drafted milestone is reviewed by three specialist reviewers using `/dso:review-protocol`
 (Stage 1, pass_threshold 4). Each reviewer has a self-contained prompt file in
-`docs/reviewers/` that defines their persona, dimensions, and scoring rubric.
-The subject for every review is `"Milestone: {milestone title}"`.
+`shared/docs/reviewers/` (relative to the `skills/` directory) that defines their persona,
+dimensions, and scoring rubric. The subject for every review is `"Milestone: {milestone title}"`.
 
 All reviewer output conforms to `REVIEW-SCHEMA.md`. See that document for the
 JSON schema, field reference, and pass/fail derivation rules.
@@ -14,15 +14,15 @@ JSON schema, field reference, and pass/fail derivation rules.
 
 | Reviewer | Prompt File | Perspective Label | Focus |
 |----------|-------------|-------------------|-------|
-| Senior Technical Program Manager | [reviewers/agent-clarity.md](reviewers/agent-clarity.md) | Agent Clarity | Self-contained spec, measurable success criteria |
-| Senior Product Strategist | [reviewers/scope.md](reviewers/scope.md) | Scope | Right-sized deliverable, no overlap with other milestones, explicit dependency mapping |
-| Senior Product Manager | [reviewers/value.md](reviewers/value.md) | Value | User or business impact, user validation signal |
+| Senior Technical Program Manager | [../../shared/docs/reviewers/agent-clarity.md](../../shared/docs/reviewers/agent-clarity.md) | Agent Clarity | Self-contained spec, measurable success criteria |
+| Senior Product Strategist | [../../shared/docs/reviewers/scope.md](../../shared/docs/reviewers/scope.md) | Scope | Right-sized deliverable, no overlap with other milestones, explicit dependency mapping |
+| Senior Product Manager | [../../shared/docs/reviewers/value.md](../../shared/docs/reviewers/value.md) | Value | User or business impact, user validation signal |
 
 ## Launching Reviews
 
 Use the Task tool to launch all three reviewers **in parallel**. For each:
 
-1. Read the reviewer's prompt file from `docs/reviewers/`
+1. Read the reviewer's prompt file from `../../shared/docs/reviewers/` (relative to this file's location)
 2. Construct the Task prompt by combining:
    - The reviewer prompt (role, dimensions, scoring scale)
    - The milestone spec (title, Context narrative, Success Criteria)

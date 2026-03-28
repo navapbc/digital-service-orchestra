@@ -245,6 +245,7 @@ def reduce_ticket(
         "priority": None,
         "assignee": None,
         "description": "",
+        "tags": [],
         "comments": [],
         "deps": [],
         "bridge_alerts": [],
@@ -423,7 +424,20 @@ def reduce_ticket(
         elif event_type == "EDIT":
             fields = data.get("fields", {})
             for field_name, new_value in fields.items():
-                if field_name in state:
+                if field_name not in state:
+                    continue
+                if field_name == "tags":
+                    # Tags stored as comma-separated string in event; convert to list.
+                    # If the value is already a list (e.g. from a SNAPSHOT), keep it.
+                    if isinstance(new_value, list):
+                        state["tags"] = new_value
+                    elif isinstance(new_value, str):
+                        state["tags"] = [
+                            t.strip() for t in new_value.split(",") if t.strip()
+                        ]
+                    else:
+                        state["tags"] = []
+                else:
                     state[field_name] = new_value
         elif event_type == "ARCHIVED":
             state["archived"] = True
