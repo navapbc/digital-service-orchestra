@@ -800,6 +800,27 @@ if [ -d "$APP_DIR" ]; then
 else
     cd "$REPO_ROOT"
 fi
+
+# Pre-flight: check if E2E command is available (must run after cd so make finds the Makefile)
+E2E_AVAILABLE=1
+if [ -z "$CMD_TEST_E2E" ] || [ "$CMD_TEST_E2E" = "none" ]; then
+    E2E_AVAILABLE=0
+elif [[ "$CMD_TEST_E2E" == make\ * ]]; then
+    # REVIEW-DEFENSE: Availability check is scoped to make-based commands only. The default
+    # CMD_TEST_E2E is make-based (e.g., make test-e2e), and the FAIL-vs-SKIP bug this guard
+    # fixes is most common when the make target does not exist. Non-make commands (e.g.,
+    # 'pytest e2e/', 'npm run e2e', './scripts/run-e2e.sh') are left at E2E_AVAILABLE=1
+    # intentionally: they are only configured via explicit opt-in in dso-config.conf, so a
+    # configured non-make command is assumed to be valid. Extending the guard to arbitrary
+    # shell commands would require heuristics (command -v, dry-run flags) that vary per runner
+    # and are out of scope for this targeted fix.
+    _e2e_target="${CMD_TEST_E2E#make }"
+    _e2e_target="${_e2e_target%% *}"
+    if ! make -n "$_e2e_target" >/dev/null 2>&1; then
+        E2E_AVAILABLE=0
+    fi
+fi
+
 # Track launched checks for crash detection (missing .rc file = process crash)
 # REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
@@ -838,7 +859,7 @@ if [ $CHECK_CI -eq 1 ]; then
         local_e2e_result=$(cat "$CHECK_DIR/ci.result" 2>/dev/null || echo "")
         # Only trigger when CI definitively completed with failure and we are not
         # already inside a CI environment (where the E2E block above handles it).
-        if [ "$local_ci_rc" != "0" ] && [ "$local_ci_rc" != "skip" ] && \
+        if [ "$E2E_AVAILABLE" = "1" ] && [ "$local_ci_rc" != "0" ] && [ "$local_ci_rc" != "skip" ] && \
            [[ "$local_e2e_result" == completed:* ]] && [ -z "${CI:-}" ]; then
             [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running (parallel, CI failed)"
             # shellcheck disable=SC2086
@@ -1049,7 +1070,14 @@ if [ $CHECK_CI -eq 1 ]; then
 
     # E2E tests: skip if CI passed for main, always run in CI environment
     if [ -d "$APP_DIR" ]; then cd "$APP_DIR"; else cd "$REPO_ROOT"; fi
-    if [ -n "${CI:-}" ]; then
+    if [ "$E2E_AVAILABLE" = "0" ]; then
+        # E2E command not available (no make target or configured as "none")
+        if [ "$VERBOSE" = "0" ]; then
+            echo "  e2e:     SKIP (not configured)"
+        else
+            verbose_print "e2e" "SKIP (not configured)"
+        fi
+    elif [ -n "${CI:-}" ]; then
         # In CI environment: always run E2E tests
         E2E_RAN=1
         [ "$VERBOSE" = "1" ] && verbose_print "e2e" "running"

@@ -17,34 +17,21 @@ Anti-patterns required:
 """
 
 import pathlib
+import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DOC_FILE = REPO_ROOT / "plugins" / "dso" / "docs" / "SUB-AGENT-BOUNDARIES.md"
 
+# Add tests/lib to sys.path for shared helpers
+_TESTS_LIB = str(REPO_ROOT / "tests" / "lib")
+if _TESTS_LIB not in sys.path:
+    sys.path.insert(0, _TESTS_LIB)
+
+from markdown_helpers import extract_section as _extract_section  # noqa: E402
+
 
 def _read_doc() -> str:
     return DOC_FILE.read_text()
-
-
-def _extract_section(content: str, section_heading: str) -> str:
-    """Extract content from a section heading until the next same-level heading."""
-    lines = content.splitlines()
-    in_section = False
-    section_lines = []
-    heading_prefix = section_heading.split(" ")[0]  # e.g., "##" or "###"
-
-    for line in lines:
-        if line.strip() == section_heading or line.startswith(section_heading + " "):
-            in_section = True
-            section_lines.append(line)
-            continue
-        if in_section:
-            # Stop at a heading of the same or higher level
-            if line.startswith(heading_prefix + " ") and line != section_heading:
-                break
-            section_lines.append(line)
-
-    return "\n".join(section_lines)
 
 
 class TestSubAgentBoundariesAntiCoverup:

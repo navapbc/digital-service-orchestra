@@ -11,7 +11,7 @@
 # e.g. bump-version.sh -> bumpversionsh; test-bump-version.sh -> testbumpversionsh
 #      bumpversionsh IS a substring of testbumpversionsh -> match
 #
-# Test functions (11):
+# Test functions (13):
 #   1. test_bash_convention_matches — scripts/bump-version.sh matches tests/test-bump-version.sh
 #   2. test_python_convention_matches — src/foo.py matches tests/test_foo.py
 #   3. test_typescript_convention_matches — src/parser.ts matches tests/test_parser.ts
@@ -23,6 +23,8 @@
 #   9. test_benchmark_20_files — 20 source+test pairs complete in < 10 seconds
 #  10. test_dogfood_bump_version — real repo structure: plugins/dso/scripts/bump-version.sh
 #  11. test_red_phase_counter_additive — RED-phase block uses additive PASS+FAIL formula
+#  12. test_source_file_is_test_file — source file that IS a test returns itself
+#  13. test_dependency_dirs_excluded — node_modules/ etc. excluded from find results
 #
 # All tests use isolated temp repos. All tests FAIL in RED phase because
 # fuzzy-match.sh does not exist yet.
@@ -309,6 +311,49 @@ test_source_file_is_test_file() {
     assert_ne "source-is-test: result should be non-empty" "" "$result"
 }
 
+# ── Test 13: dependency directories excluded from fuzzy match ─────────────────
+# Bug dde2-2b82: find commands match files inside node_modules/, .venv/, vendor/,
+# etc. causing false positive test associations.
+test_dependency_dirs_excluded() {
+    if (( ! _FUZZY_MATCH_LOADED )); then
+        (( ++FAIL ))
+        echo "FAIL: test_dependency_dirs_excluded — fuzzy-match.sh not loaded" >&2
+        return
+    fi
+    local repo
+    repo=$(create_test_repo)
+
+    # Create a real test file in tests/
+    mkdir -p "$repo/tests"
+    echo "pass" > "$repo/tests/test_parser.sh"
+    chmod +x "$repo/tests/test_parser.sh"
+
+    # Create a DECOY test file inside node_modules/ (should be excluded)
+    mkdir -p "$repo/node_modules/some-pkg/tests"
+    echo "decoy" > "$repo/node_modules/some-pkg/tests/test_parser.sh"
+    chmod +x "$repo/node_modules/some-pkg/tests/test_parser.sh"
+
+    # Create source file
+    mkdir -p "$repo/src"
+    echo "source" > "$repo/src/parser.sh"
+
+    git -C "$repo" add -A && git -C "$repo" commit -m "add files" --quiet 2>/dev/null
+
+    # Search the entire repo (no test_dirs restriction)
+    local result
+    result=$(fuzzy_find_associated_tests "$repo/src/parser.sh" "$repo")
+
+    # Must find the real test
+    local has_real=0
+    echo "$result" | grep -q "tests/test_parser.sh" && has_real=1
+    assert_eq "dep-dirs-excluded: finds real test" "1" "$has_real"
+
+    # Must NOT find the decoy in node_modules
+    local has_decoy=0
+    echo "$result" | grep -q "node_modules" && has_decoy=1
+    assert_eq "dep-dirs-excluded: excludes node_modules" "0" "$has_decoy"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_bash_convention_matches
 test_python_convention_matches
@@ -322,6 +367,7 @@ test_benchmark_20_files
 test_dogfood_bump_version
 test_red_phase_counter_additive
 test_source_file_is_test_file
+test_dependency_dirs_excluded
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 # In RED phase (library missing), all tests correctly FAIL. Print summary with

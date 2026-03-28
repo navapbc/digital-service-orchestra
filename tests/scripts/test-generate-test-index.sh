@@ -300,6 +300,32 @@ fi
 assert_pass_if_clean "test_scanner_broader_scan_finds_tests_outside_configured_dirs"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Test: scanner excludes dependency directories from broader scan
+# Bug dde2-2b82: find commands should skip node_modules/, .venv/, vendor/, etc.
+# ─────────────────────────────────────────────────────────────────────────────
+_snapshot_fail
+if _red_guard "test_scanner_excludes_dependency_dirs"; then
+    setup_repo "dep_exclusion"
+    create_file "$REPO/src/parser.py" "pass"
+    # Real test file in an unusual location (found by broader scan)
+    create_file "$REPO/extra/test_parser.py" "pass"
+    # Decoy test file inside node_modules (should be excluded)
+    create_file "$REPO/node_modules/pkg/test_parser.py" "decoy"
+    mkdir -p "$REPO/tests"
+
+    bash "$SCANNER" --repo-root "$REPO" --test-dirs "tests" 2>/dev/null
+
+    index_content=$(cat "$REPO/.test-index" 2>/dev/null || true)
+    # Scanner should find the real test via broader scan
+    assert_contains "test_scanner_excludes_dep_dirs: has parser entry" "parser.py" "$index_content"
+    # Scanner must NOT include node_modules paths
+    has_node_modules=0
+    echo "$index_content" | grep -q "node_modules" && has_node_modules=1
+    assert_eq "test_scanner_excludes_dep_dirs: no node_modules in index" "0" "$has_node_modules"
+fi
+assert_pass_if_clean "test_scanner_excludes_dependency_dirs"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
 print_summary

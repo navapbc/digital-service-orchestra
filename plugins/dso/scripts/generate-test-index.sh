@@ -103,7 +103,16 @@ for sd in "${src_dir_arr[@]}"; do
     while IFS= read -r f; do
         [[ -z "$f" ]] && continue
         src_files+=("$f")
-    done < <(find "$REPO_ROOT/$sd" -type f 2>/dev/null)
+    done < <(find "$REPO_ROOT/$sd" -type f \
+        -not -path '*/node_modules/*' \
+        -not -path '*/.venv/*' \
+        -not -path '*/vendor/*' \
+        -not -path '*/bower_components/*' \
+        -not -path '*/__pypackages__/*' \
+        -not -path '*/.gradle/*' \
+        -not -path '*/Pods/*' \
+        -not -path '*/.git/*' \
+        2>/dev/null)
 done
 
 # --- Helper: broader token-based scan ---
@@ -170,7 +179,16 @@ _broader_scan_find_tests() {
         if [[ "$all_match" == "true" ]]; then
             echo "${test_file#"$repo_root/"}"
         fi
-    done < <(find "$repo_root" -type f 2>/dev/null)
+    done < <(find "$repo_root" -type f \
+        -not -path '*/node_modules/*' \
+        -not -path '*/.venv/*' \
+        -not -path '*/vendor/*' \
+        -not -path '*/bower_components/*' \
+        -not -path '*/__pypackages__/*' \
+        -not -path '*/.gradle/*' \
+        -not -path '*/Pods/*' \
+        -not -path '*/.git/*' \
+        2>/dev/null)
 }
 
 # --- Main scan ---

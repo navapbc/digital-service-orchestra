@@ -67,8 +67,12 @@ TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 # If the tracker dir doesn't exist and TICKETS_TRACKER_DIR is not set (i.e., we
 # are using the default path, not a test override), call ticket-init.sh to create
 # the symlink before reading.
-if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ]; then
-    bash "$SCRIPT_DIR/ticket-init.sh" --silent 2>/dev/null || true
+if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ] && [ -f "$SCRIPT_DIR/ticket-init.sh" ]; then
+    _init_stderr=$(bash "$SCRIPT_DIR/ticket-init.sh" --silent 2>&1 >/dev/null) || {
+        if [ -n "$_init_stderr" ]; then
+            echo "Warning: ticket-init.sh failed — $_init_stderr" >&2
+        fi
+    }
 fi
 
 # Resolve Python — prefer config-driven venv path; fallback to python3
