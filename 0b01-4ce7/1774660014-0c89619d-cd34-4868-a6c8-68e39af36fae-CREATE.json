@@ -1,1 +1,0 @@
-{"timestamp": 1774660014, "uuid": "0c89619d-cd34-4868-a6c8-68e39af36fae", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Implement archived exclusion in ticket-graph.py", "parent_id": "89e0-2772", "priority": 2, "assignee": "Joe Oakhart"}}
