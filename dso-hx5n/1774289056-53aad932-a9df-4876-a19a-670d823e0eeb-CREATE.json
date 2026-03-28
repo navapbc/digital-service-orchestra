@@ -1,1 +1,0 @@
-{"timestamp": 1774289056, "uuid": "53aad932-a9df-4876-a19a-670d823e0eeb", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "Update hooks and scripts to use ticket CLI commands instead of tk commands", "priority": 3, "assignee": "Joe Oakhart"}}
