@@ -188,4 +188,4 @@ plugins/dso/skills/architect-foundation/SKILL.md:tests/hooks/test-sub-agent-guar
 plugins/dso/agents/red-test-writer.md: tests/agents/test-red-test-writer.sh
 plugins/dso/agents/red-test-evaluator.md: tests/agents/test-red-test-evaluator.sh
 tests/lib/markdown_helpers.py:tests/docs/test_extract_section_deduplication.py
-plugins/dso/scripts/ticket-unblock.py: tests/scripts/test_ticket_unblock.py [test_batch_close_finds_open_children]
+plugins/dso/scripts/ticket-unblock.py: tests/scripts/test_ticket_unblock.py

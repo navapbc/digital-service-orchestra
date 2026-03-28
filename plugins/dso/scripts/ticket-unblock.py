@@ -3,13 +3,22 @@
 
 Usage (CLI):
     python3 ticket-unblock.py <tracker_dir> <ticket_id> [--event-source local-close|sync-resolution]
+    python3 ticket-unblock.py --batch-close <tracker_dir> <ticket_id>
 
 Module interface:
     detect_newly_unblocked(
         closed_ticket_ids: list[str],
         tracker_dir: str,
         event_source: str,
+        *,
+        ticket_states: dict | None = None,
     ) -> list[str]
+
+    batch_close_operations(
+        ticket_ids: list[str],
+        tracker_dir: str,
+        exclude_archived: bool = True,
+    ) -> dict
 """
 
 from __future__ import annotations
@@ -65,6 +74,8 @@ def detect_newly_unblocked(
     closed_ticket_ids: list[str],
     tracker_dir: str,
     event_source: str,
+    *,
+    ticket_states: dict | None = None,
 ) -> list[str]:
     """Return ticket IDs that become ready_to_work after closing closed_ticket_ids.
 
@@ -79,6 +90,9 @@ def detect_newly_unblocked(
         closed_ticket_ids: Ticket IDs that are being closed in this operation.
         tracker_dir: Path to the tickets tracker directory.
         event_source: Either 'local-close' or 'sync-resolution'.
+        ticket_states: Optional pre-loaded ticket states dict (keyed by ticket_id).
+            When provided, skips the internal os.scandir scan. When None (default),
+            performs its own scan for backward compatibility.
 
     Returns:
         List of ticket IDs (strings) that are newly unblocked. Empty list if none.
@@ -92,31 +106,36 @@ def detect_newly_unblocked(
             f"Must be one of: {sorted(_VALID_EVENT_SOURCES)}"
         )
 
-    reducer = _get_reducer()
-    reduce_ticket = reducer.reduce_ticket
-
     tracker_path = Path(tracker_dir)
-    if not tracker_path.is_dir():
-        return []
 
     # Treat closed_ticket_ids as a set for O(1) lookup.
     newly_closed_set = set(closed_ticket_ids)
 
     # --------------------------------------------------------------------------
     # Single-pass: load all ticket states at once (batch graph traversal).
+    # When ticket_states is provided, skip the internal scan.
     # --------------------------------------------------------------------------
-    ticket_states: dict[str, dict] = {}
-    for entry in os.scandir(tracker_path):
-        if not entry.is_dir():
-            continue
-        ticket_id = entry.name
-        state = reduce_ticket(entry.path)
-        if state is None:
-            continue
-        # Skip error/fsck states — treat as non-existent
-        if state.get("status") in ("error", "fsck_needed"):
-            continue
-        ticket_states[ticket_id] = state
+    if ticket_states is None:
+        reducer = _get_reducer()
+        reduce_ticket = reducer.reduce_ticket
+
+        if not tracker_path.is_dir():
+            return []
+
+        ticket_states = {}
+        for entry in os.scandir(tracker_path):
+            if not entry.is_dir():
+                continue
+            ticket_id = entry.name
+            state = reduce_ticket(entry.path)
+            if state is None:
+                continue
+            # Skip error/fsck states — treat as non-existent
+            if state.get("status") in ("error", "fsck_needed"):
+                continue
+            ticket_states[ticket_id] = state
+    # else: ticket_states was provided — use it directly (empty dict is valid:
+    # it means the caller scanned and found no tickets).
 
     def ticket_is_closed(ticket_id: str) -> bool:
         """Return True if ticket_id is closed, either actually or in the batch."""
@@ -202,13 +221,99 @@ def detect_newly_unblocked(
 
 
 # ---------------------------------------------------------------------------
+# Batch close operations
+# ---------------------------------------------------------------------------
+
+
+def batch_close_operations(
+    ticket_ids: list[str],
+    tracker_dir: str,
+    exclude_archived: bool = True,
+) -> dict:
+    """Compute open children and newly unblocked tickets for a batch close.
+
+    Calls reduce_all_tickets once, builds a ticket_states dict, then:
+    - Finds open children: tickets whose parent_id is in ticket_ids and whose
+      status is not closed.
+    - Finds newly unblocked: tickets that become unblocked after closing ticket_ids.
+
+    Args:
+        ticket_ids: Ticket IDs being closed in this operation.
+        tracker_dir: Path to the tickets tracker directory.
+        exclude_archived: Whether to exclude archived tickets (default: True).
+
+    Returns:
+        dict with keys:
+            "open_children": list of ticket IDs that are open children of ticket_ids
+            "newly_unblocked": list of ticket IDs newly unblocked by closing ticket_ids
+    """
+    tracker_path = Path(tracker_dir)
+    if not tracker_path.is_dir():
+        return {"open_children": [], "newly_unblocked": []}
+
+    reducer = _get_reducer()
+    all_states = reducer.reduce_all_tickets(
+        tracker_dir, exclude_archived=exclude_archived
+    )
+
+    # Build ticket_states dict keyed by ticket_id, filtering out error states.
+    ts: dict[str, dict] = {}
+    for state in all_states:
+        tid = state.get("ticket_id")
+        if not tid:
+            continue
+        if state.get("status") in ("error", "fsck_needed"):
+            continue
+        ts[tid] = state
+
+    # Open children check: tickets whose parent_id is in ticket_ids and not closed.
+    ticket_ids_set = set(ticket_ids)
+    open_children: list[str] = [
+        tid
+        for tid, state in ts.items()
+        if state.get("parent_id") in ticket_ids_set
+        and not _is_closed(state.get("status", "open"))
+    ]
+
+    # Unblock detection: reuse detect_newly_unblocked with pre-loaded state.
+    newly_unblocked = detect_newly_unblocked(
+        closed_ticket_ids=ticket_ids,
+        tracker_dir=tracker_dir,
+        event_source="local-close",
+        ticket_states=ts,
+    )
+
+    return {"open_children": open_children, "newly_unblocked": newly_unblocked}
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 
 
 def main() -> int:
-    """CLI: ticket-unblock.py <tracker_dir> <ticket_id> [--event-source ...]"""
+    """CLI: ticket-unblock.py <tracker_dir> <ticket_id> [--event-source ...]
+    ticket-unblock.py --batch-close <tracker_dir> <ticket_id>
+    """
     import argparse
+    import json as _json
+
+    # Handle --batch-close mode before argparse to keep positional args simple.
+    if len(sys.argv) >= 2 and sys.argv[1] == "--batch-close":
+        if len(sys.argv) < 4:
+            print(
+                "Usage: ticket-unblock.py --batch-close <tracker_dir> <ticket_id>",
+                file=sys.stderr,
+            )
+            return 1
+        tracker_dir = sys.argv[2]
+        ticket_id = sys.argv[3]
+        result = batch_close_operations(
+            ticket_ids=[ticket_id],
+            tracker_dir=tracker_dir,
+        )
+        print(_json.dumps(result))
+        return 0
 
     parser = argparse.ArgumentParser(
         description="Detect tickets newly unblocked when a ticket is closed.",
