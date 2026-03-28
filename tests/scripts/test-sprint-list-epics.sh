@@ -715,6 +715,110 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 31: BLOCKED line includes 6th field with single blocker ID ──────────
+echo "Test 31: test_blocked_line_includes_blocker_id — BLOCKED output 6th field contains blocker ID"
+test_blocked_line_includes_blocker_id() {
+    # epic-d (from shared fixture) is blocked by task-x (open).
+    # The BLOCKED output line must include a 6th tab-separated field containing "task-x".
+    local out31 blocked_line field6 field_count
+    out31=$(TICKETS_TRACKER_DIR="$TDIR" bash "$SCRIPT" --all 2>/dev/null)
+    blocked_line=$(echo "$out31" | grep -E "^BLOCKED	epic-d")
+    field_count=$(echo "$blocked_line" | awk -F'\t' '{print NF}')
+    field6=$(echo "$blocked_line" | awk -F'\t' '{print $6}')
+    # Must have at least 6 fields
+    [ "$field_count" -ge 6 ] || return 1
+    # The 6th field must contain the blocker ID
+    [[ "$field6" == *"task-x"* ]] || return 1
+}
+if test_blocked_line_includes_blocker_id; then
+    echo "  PASS: BLOCKED line for epic-d includes blocker ID 'task-x' in 6th field"
+    (( PASS++ ))
+else
+    echo "  FAIL: BLOCKED line for epic-d missing 6th field with blocker ID 'task-x'" >&2
+    actual_line=$(TICKETS_TRACKER_DIR="$TDIR" bash "$SCRIPT" --all 2>/dev/null | grep -E "^BLOCKED	epic-d" || true)
+    echo "  Actual line: '$actual_line'" >&2
+    echo "  Field count: $(echo "$actual_line" | awk -F'\t' '{print NF}')" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 32: BLOCKED line includes comma-separated IDs for multiple blockers ──
+echo "Test 32: test_blocked_line_includes_multiple_blocker_ids — comma-separated blocker IDs in 6th field"
+test_blocked_line_includes_multiple_blocker_ids() {
+    local TDIR32
+    TDIR32=$(mktemp -d)
+    trap 'rm -rf "$TDIR32"' RETURN
+    # epic-multi is blocked by two open tasks: task-m1 and task-m2
+    make_v3_ticket "$TDIR32" "epic-multi" "epic" "open" "2" "task-m1 task-m2" "Epic Multi Blocked"
+    make_v3_ticket "$TDIR32" "task-m1"   "task" "open" "2" ""                 "Task M1 open blocker"
+    make_v3_ticket "$TDIR32" "task-m2"   "task" "open" "2" ""                 "Task M2 open blocker"
+
+    local out32 blocked_line field6 field_count
+    out32=$(TICKETS_TRACKER_DIR="$TDIR32" bash "$SCRIPT" --all 2>/dev/null)
+    blocked_line=$(echo "$out32" | grep -E "^BLOCKED	epic-multi")
+    field_count=$(echo "$blocked_line" | awk -F'\t' '{print NF}')
+    field6=$(echo "$blocked_line" | awk -F'\t' '{print $6}')
+    # Must have at least 6 fields
+    [ "$field_count" -ge 6 ] || return 1
+    # Both blocker IDs must appear in the 6th field (order not guaranteed)
+    [[ "$field6" == *"task-m1"* ]] || return 1
+    [[ "$field6" == *"task-m2"* ]] || return 1
+}
+if test_blocked_line_includes_multiple_blocker_ids; then
+    echo "  PASS: BLOCKED line for epic-multi includes both 'task-m1' and 'task-m2' in 6th field"
+    (( PASS++ ))
+else
+    echo "  FAIL: BLOCKED line for epic-multi missing comma-separated blocker IDs in 6th field" >&2
+    TDIR32_DBG=$(mktemp -d)
+    make_v3_ticket "$TDIR32_DBG" "epic-multi" "epic" "open" "2" "task-m1 task-m2" "Epic Multi Blocked"
+    make_v3_ticket "$TDIR32_DBG" "task-m1"    "task" "open" "2" ""                "Task M1 open blocker"
+    make_v3_ticket "$TDIR32_DBG" "task-m2"    "task" "open" "2" ""                "Task M2 open blocker"
+    actual_line=$(TICKETS_TRACKER_DIR="$TDIR32_DBG" bash "$SCRIPT" --all 2>/dev/null | grep -E "^BLOCKED	epic-multi" || true)
+    echo "  Actual line: '$actual_line'" >&2
+    echo "  Field count: $(echo "$actual_line" | awk -F'\t' '{print NF}')" >&2
+    rm -rf "$TDIR32_DBG"
+    (( FAIL++ ))
+fi
+
+# ── Test 33: Only open deps appear in 6th field (closed deps excluded) ────────
+echo "Test 33: test_blocked_line_excludes_closed_blocker — 6th field contains only open blocker, not closed dep"
+test_blocked_line_excludes_closed_blocker() {
+    local TDIR33
+    TDIR33=$(mktemp -d)
+    trap 'rm -rf "$TDIR33"' RETURN
+    # epic-mixed depends on task-closed (closed) and task-open (open).
+    # Only task-open remains a blocker; task-closed must NOT appear in the 6th field.
+    make_v3_ticket "$TDIR33" "epic-mixed"  "epic" "open"   "2" "task-closed task-open" "Epic Mixed Deps"
+    make_v3_ticket "$TDIR33" "task-closed" "task" "closed" "2" ""                      "Task Closed (done)"
+    make_v3_ticket "$TDIR33" "task-open"   "task" "open"   "2" ""                      "Task Open (blocker)"
+
+    local out33 blocked_line field6 field_count
+    out33=$(TICKETS_TRACKER_DIR="$TDIR33" bash "$SCRIPT" --all 2>/dev/null)
+    blocked_line=$(echo "$out33" | grep -E "^BLOCKED	epic-mixed")
+    field_count=$(echo "$blocked_line" | awk -F'\t' '{print NF}')
+    field6=$(echo "$blocked_line" | awk -F'\t' '{print $6}')
+    # Must have at least 6 fields
+    [ "$field_count" -ge 6 ] || return 1
+    # Only open blocker must appear
+    [[ "$field6" == *"task-open"* ]] || return 1
+    # Closed dep must NOT appear in blocker list
+    [[ "$field6" != *"task-closed"* ]] || return 1
+}
+if test_blocked_line_excludes_closed_blocker; then
+    echo "  PASS: BLOCKED line for epic-mixed contains 'task-open' but not 'task-closed' in 6th field"
+    (( PASS++ ))
+else
+    echo "  FAIL: BLOCKED line for epic-mixed has wrong blockers in 6th field (expected only open blocker)" >&2
+    TDIR33_DBG=$(mktemp -d)
+    make_v3_ticket "$TDIR33_DBG" "epic-mixed"  "epic" "open"   "2" "task-closed task-open" "Epic Mixed Deps"
+    make_v3_ticket "$TDIR33_DBG" "task-closed" "task" "closed" "2" ""                      "Task Closed (done)"
+    make_v3_ticket "$TDIR33_DBG" "task-open"   "task" "open"   "2" ""                      "Task Open (blocker)"
+    actual_line=$(TICKETS_TRACKER_DIR="$TDIR33_DBG" bash "$SCRIPT" --all 2>/dev/null | grep -E "^BLOCKED	epic-mixed" || true)
+    echo "  Actual line: '$actual_line'" >&2
+    echo "  Field count: $(echo "$actual_line" | awk -F'\t' '{print NF}')" >&2
+    rm -rf "$TDIR33_DBG"
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
