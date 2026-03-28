@@ -1,0 +1,1 @@
+{"timestamp": 1774667559, "uuid": "851981d9-76f8-43c9-b4a1-d4218eaed303", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can dispatch the doc-writer agent and receive structured documentation output", "parent_id": "3b5e-75a4", "priority": 1, "assignee": "Joe Oakhart"}}
