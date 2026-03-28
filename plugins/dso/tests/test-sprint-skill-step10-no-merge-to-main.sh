@@ -5,7 +5,7 @@
 # Asserts:
 #   1. merge-to-main.sh is NOT referenced in Step 10 (### Step 10: Commit & Push)
 #   2. git push IS referenced in Step 10
-#   3. merge-to-main.sh IS still referenced in Phase 9 (## Phase 9)
+#   3. merge-to-main.sh IS still referenced in Phase 8 (## Phase 8: Session Close)
 #
 # This test must FAIL before Task 2 (skill edit) and PASS after it.
 #
@@ -58,16 +58,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Assertion 3: merge-to-main.sh MUST appear in Phase 9
+# Assertion 3: merge-to-main.sh MUST appear in Phase 8 (Session Close)
 # ---------------------------------------------------------------------------
-phase9_content=$(awk '/^## Phase 9:/,0' "$SKILL_MD")
-if echo "$phase9_content" | grep -q 'merge-to-main\.sh'; then
+phase8_content=$(awk '/^## Phase 8:/,0' "$SKILL_MD")
+if echo "$phase8_content" | grep -q 'merge-to-main\.sh'; then
     (( ++PASS ))
-    echo "phase9_has_merge_to_main ... PASS"
+    echo "phase8_has_merge_to_main ... PASS"
 else
     (( ++FAIL ))
-    echo "FAIL: phase9_has_merge_to_main" >&2
-    echo "  merge-to-main.sh was NOT found in Phase 9 but should be present" >&2
+    echo "FAIL: phase8_has_merge_to_main" >&2
+    echo "  merge-to-main.sh was NOT found in Phase 8 but should be present" >&2
 fi
 
 # ---------------------------------------------------------------------------
