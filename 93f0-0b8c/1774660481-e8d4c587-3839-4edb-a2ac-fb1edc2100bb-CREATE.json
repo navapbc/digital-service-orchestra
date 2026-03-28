@@ -1,1 +1,0 @@
-{"timestamp": 1774660481, "uuid": "e8d4c587-3839-4edb-a2ac-fb1edc2100bb", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Test close benchmark under 10s with 200 tickets", "parent_id": "db66-0242", "priority": 2, "assignee": "Joe Oakhart"}}
