@@ -60,8 +60,9 @@ plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_chec
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh,tests/scripts/test-project-detect.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
+plugins/dso/scripts/ticket-graph.py:tests/scripts/test_ticket_graph.py [test_build_dep_graph_excludes_archived_children]
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh
-plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test_bridge_alert_display.py
+plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test_bridge_alert_display.py [test_include_archived_flag_returns_all_tickets]
 plugins/dso/scripts/ticket-revert.sh:tests/scripts/test_revert_event.py
 plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh

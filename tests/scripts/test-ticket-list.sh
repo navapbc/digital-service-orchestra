@@ -606,4 +606,257 @@ test_ticket_list_llm_format_empty_tracker() {
 }
 test_ticket_list_llm_format_empty_tracker
 
+# ── Test 9: default ticket list excludes archived tickets ─────────────────────
+# GREEN: This test verifies EXISTING behavior — ticket-list.sh already passes
+# --exclude-archived to the reducer (line 68). This test passes today.
+# The RED marker below (Test 10) marks the first FAILING test.
+echo "Test 9: default ticket list excludes archived tickets"
+test_default_excludes_archived() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_default_excludes_archived"
+        return
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp_dir")
+    local repo
+    clone_test_repo "$tmp_dir/repo"
+    repo="$tmp_dir/repo"
+    (cd "$repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
+
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create 2 open tickets via the ticket CLI
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Open ticket one")
+    id2=$(_create_ticket "$repo" task "Open ticket two")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "both open tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_default_excludes_archived"
+        return
+    fi
+
+    # Create 1 archived ticket: write CREATE event then ARCHIVED event
+    local arch_id="arch-test01"
+    mkdir -p "$tracker_dir/$arch_id"
+    python3 - "$tracker_dir/$arch_id" <<'PYEOF'
+import json, time, sys
+base = sys.argv[1]
+ts = int(time.time())
+create_event = {
+    "timestamp": ts,
+    "uuid": "aaaa-arch-0001",
+    "event_type": "CREATE",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {
+        "ticket_type": "task",
+        "title": "Archived ticket",
+        "status": "open",
+        "priority": 2,
+        "assignee": "test-author"
+    }
+}
+archive_event = {
+    "timestamp": ts + 1,
+    "uuid": "aaaa-arch-0002",
+    "event_type": "ARCHIVED",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {}
+}
+with open(f"{base}/0000000001-aaaa-CREATE.json", "w") as f:
+    json.dump(create_event, f)
+with open(f"{base}/0000000002-aaaa-ARCHIVED.json", "w") as f:
+    json.dump(archive_event, f)
+PYEOF
+    git -C "$tracker_dir" add "$arch_id/" 2>/dev/null
+    git -C "$tracker_dir" commit -q -m "test: add archived ticket" 2>/dev/null || true
+
+    local list_output
+    local exit_code=0
+    list_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list 2>/dev/null) || exit_code=$?
+
+    assert_eq "default list exits 0" "0" "$exit_code"
+
+    # Assert: archived ticket NOT in default list output; open tickets ARE present
+    local check_result
+    check_result=$(python3 - "$list_output" "$id1" "$id2" "$arch_id" <<'PYEOF'
+import json, sys
+
+try:
+    tickets = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+id1, id2, arch_id = sys.argv[2], sys.argv[3], sys.argv[4]
+
+if not isinstance(tickets, list):
+    print(f"NOT_ARRAY: {type(tickets).__name__}")
+    sys.exit(2)
+
+ticket_ids = [t.get("ticket_id") for t in tickets if isinstance(t, dict)]
+errors = []
+
+if id1 not in ticket_ids:
+    errors.append(f"open ticket {id1!r} missing from default list")
+if id2 not in ticket_ids:
+    errors.append(f"open ticket {id2!r} missing from default list")
+if arch_id in ticket_ids:
+    errors.append(f"archived ticket {arch_id!r} present in default list (should be excluded)")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(3)
+
+print("OK")
+PYEOF
+) || true
+
+    if [ "$check_result" = "OK" ]; then
+        assert_eq "default list excludes archived ticket" "OK" "OK"
+    else
+        assert_eq "default list excludes archived ticket" "OK" "$check_result"
+    fi
+
+    assert_pass_if_clean "test_default_excludes_archived"
+}
+test_default_excludes_archived
+
+# ── Test 10: --include-archived flag returns all tickets including archived ────
+echo "Test 10: --include-archived flag returns all tickets including archived ones"
+test_include_archived_flag_returns_all_tickets() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_include_archived_flag_returns_all_tickets"
+        return
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp_dir")
+    local repo
+    clone_test_repo "$tmp_dir/repo"
+    repo="$tmp_dir/repo"
+    (cd "$repo" && bash "$TICKET_SCRIPT" init >/dev/null 2>/dev/null) || true
+
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create 2 open tickets via the ticket CLI
+    local id1 id2
+    id1=$(_create_ticket "$repo" task "Open ticket alpha")
+    id2=$(_create_ticket "$repo" task "Open ticket beta")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "both open tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_include_archived_flag_returns_all_tickets"
+        return
+    fi
+
+    # Create 1 archived ticket: write CREATE event then ARCHIVED event
+    local arch_id="arch-test02"
+    mkdir -p "$tracker_dir/$arch_id"
+    python3 - "$tracker_dir/$arch_id" <<'PYEOF'
+import json, time, sys
+base = sys.argv[1]
+ts = int(time.time())
+create_event = {
+    "timestamp": ts,
+    "uuid": "bbbb-arch-0001",
+    "event_type": "CREATE",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {
+        "ticket_type": "task",
+        "title": "Archived ticket for include test",
+        "status": "open",
+        "priority": 2,
+        "assignee": "test-author"
+    }
+}
+archive_event = {
+    "timestamp": ts + 1,
+    "uuid": "bbbb-arch-0002",
+    "event_type": "ARCHIVED",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {}
+}
+with open(f"{base}/0000000001-bbbb-CREATE.json", "w") as f:
+    json.dump(create_event, f)
+with open(f"{base}/0000000002-bbbb-ARCHIVED.json", "w") as f:
+    json.dump(archive_event, f)
+PYEOF
+    git -C "$tracker_dir" add "$arch_id/" 2>/dev/null
+    git -C "$tracker_dir" commit -q -m "test: add archived ticket for include test" 2>/dev/null || true
+
+    local list_output
+    local exit_code=0
+    # RED: --include-archived flag is not yet recognized; ticket-list.sh will error
+    list_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --include-archived 2>/dev/null) || exit_code=$?
+
+    assert_eq "--include-archived list exits 0" "0" "$exit_code"
+
+    # Assert: all 3 tickets present — 2 open + 1 archived
+    local check_result
+    check_result=$(python3 - "$list_output" "$id1" "$id2" "$arch_id" <<'PYEOF'
+import json, sys
+
+try:
+    tickets = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+id1, id2, arch_id = sys.argv[2], sys.argv[3], sys.argv[4]
+
+if not isinstance(tickets, list):
+    print(f"NOT_ARRAY: {type(tickets).__name__}")
+    sys.exit(2)
+
+ticket_ids = [t.get("ticket_id") for t in tickets if isinstance(t, dict)]
+errors = []
+
+if id1 not in ticket_ids:
+    errors.append(f"open ticket {id1!r} missing from --include-archived list")
+if id2 not in ticket_ids:
+    errors.append(f"open ticket {id2!r} missing from --include-archived list")
+if arch_id not in ticket_ids:
+    errors.append(f"archived ticket {arch_id!r} missing from --include-archived list (should be included)")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(3)
+
+# Also verify archived ticket has archived=true flag
+arch_ticket = next((t for t in tickets if isinstance(t, dict) and t.get("ticket_id") == arch_id), None)
+if arch_ticket and not arch_ticket.get("archived"):
+    errors.append(f"archived ticket {arch_id!r} missing archived=true flag")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(4)
+
+print("OK")
+PYEOF
+) || true
+
+    if [ "$check_result" = "OK" ]; then
+        assert_eq "--include-archived list contains all 3 tickets" "OK" "OK"
+    else
+        assert_eq "--include-archived list contains all 3 tickets" "OK" "$check_result"
+    fi
+
+    assert_pass_if_clean "test_include_archived_flag_returns_all_tickets"
+}
+test_include_archived_flag_returns_all_tickets
+
 print_summary
