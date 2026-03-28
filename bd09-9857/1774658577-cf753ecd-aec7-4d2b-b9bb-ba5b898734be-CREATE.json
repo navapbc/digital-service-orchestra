@@ -1,1 +1,0 @@
-{"timestamp": 1774658577, "uuid": "cf753ecd-aec7-4d2b-b9bb-ba5b898734be", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, ticket-graph.py performs one consolidated batch scan per invocation", "parent_id": "8a5b-e07b", "priority": 1, "assignee": "Joe Oakhart"}}
