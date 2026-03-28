@@ -128,7 +128,7 @@ Ticket system initialized.
 Create a new ticket.
 
 ```
-.claude/scripts/dso ticket create <ticket_type> <title> [parent_id]
+.claude/scripts/dso ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>]
 ```
 
 **Arguments:**
@@ -137,14 +137,16 @@ Create a new ticket.
 |---|---|---|
 | `ticket_type` | Yes | One of: `bug`, `epic`, `story`, `task` |
 | `title` | Yes | Non-empty title string (≤ 255 characters for Jira sync compatibility) |
-| `parent_id` | No | ID of an existing parent ticket |
+| `--parent` | No | ID of an existing parent ticket |
+| `--priority` | No | Priority 0-4 (0=critical, 4=backlog; default: 2) |
+| `--assignee` | No | Assignee name (default: git config user.name) |
 
 **Output:** Prints the generated ticket ID to stdout (e.g., `ab12-cd34`). No other output on success.
 
 **Behavior:**
 
 - Generates a collision-resistant 8-character ID (format: `xxxx-xxxx`) derived from a UUID4
-- Validates that `parent_id` exists and has a CREATE event before writing
+- Validates that `--parent` ticket exists and has a CREATE event before writing
 - Writes a `CREATE` event JSON file to `.tickets-tracker/<ticket_id>/`
 - Commits the event atomically to the tickets branch
 - The new ticket has status `open` by default
@@ -162,7 +164,7 @@ Create a new ticket.
 $ .claude/scripts/dso ticket create task "Add rate limiting to API"
 w21-a3f7
 
-$ .claude/scripts/dso ticket create story "As a user, I can reset my password" w21-a3f7
+$ .claude/scripts/dso ticket create story "As a user, I can reset my password" --parent w21-a3f7
 w21-b9c2
 ```
 

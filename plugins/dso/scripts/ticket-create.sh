@@ -2,10 +2,10 @@
 # plugins/dso/scripts/ticket-create.sh
 # Create a new ticket with a CREATE event committed to the tickets branch.
 #
-# Usage: ticket-create.sh <ticket_type> <title> [parent_id] [--priority <n>] [--assignee <name>]
+# Usage: ticket-create.sh <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>]
 #   ticket_type: one of bug, epic, story, task
 #   title: non-empty string
-#   parent_id: optional parent ticket ID (must exist in .tickets-tracker/)
+#   --parent: optional parent ticket ID (must exist in .tickets-tracker/)
 #   --priority: optional priority (0-4; 0=critical, 4=backlog; default: 2)
 #   --assignee: optional assignee name (defaults to git config user.name)
 #
@@ -21,10 +21,10 @@ TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket create <ticket_type> <title> [parent_id] [--priority <n>] [--assignee <name>]" >&2
+    echo "Usage: ticket create <ticket_type> <title> [--parent <id>] [--priority <n>] [--assignee <name>]" >&2
     echo "  ticket_type: bug | epic | story | task" >&2
     echo "  title: non-empty string" >&2
-    echo "  parent_id: optional parent ticket ID" >&2
+    echo "  --parent: optional parent ticket ID" >&2
     echo "  --priority: 0-4 (0=critical, 4=backlog; default: 2)" >&2
     echo "  --assignee: assignee name (default: git config user.name)" >&2
     exit 1
