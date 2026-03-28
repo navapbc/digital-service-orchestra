@@ -1,1 +1,0 @@
-{"timestamp": 1774247130, "uuid": "4f7cd085-0b70-4f7a-bc29-9ae9a9e246ba", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "LINK event writing was missing from _phase_migrate — added in dso-hjwc integration test task", "priority": 3, "assignee": "Joe Oakhart"}}
