@@ -1,0 +1,1 @@
+{"timestamp": 1774682146, "uuid": "95755f38-4b83-491e-b2d2-2b5b2536abaa", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Tests for value/effort scorer integration in brainstorm and roadmap", "parent_id": "0705-6fe2", "priority": 1, "assignee": "Joe Oakhart"}}
