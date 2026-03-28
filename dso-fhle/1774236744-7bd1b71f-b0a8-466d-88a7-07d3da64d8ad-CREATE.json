@@ -1,1 +1,0 @@
-{"timestamp": 1774236744, "uuid": "7bd1b71f-b0a8-466d-88a7-07d3da64d8ad", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "cutover AC verify-commands use inverted grep pattern", "priority": 4, "assignee": "Joe Oakhart"}}
