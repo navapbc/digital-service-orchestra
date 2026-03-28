@@ -191,4 +191,4 @@ plugins/dso/agents/red-test-evaluator.md: tests/agents/test-red-test-evaluator.s
 tests/lib/markdown_helpers.py:tests/docs/test_extract_section_deduplication.py
 plugins/dso/scripts/ticket-unblock.py: tests/scripts/test_ticket_unblock.py
 plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh
-plugins/dso/agents/doc-writer.md: tests/scripts/test-doc-writer-agent.sh [test_agent_file_exists]
+plugins/dso/agents/doc-writer.md: tests/scripts/test-doc-writer-agent.sh

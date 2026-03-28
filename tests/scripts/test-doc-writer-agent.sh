@@ -46,7 +46,7 @@ assert_pass_if_clean "test_agent_file_exists"
 # Contract: callers rely on the routing name and model tier to dispatch correctly.
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
-    frontmatter=$(awk '/^---/{c++; if(c==2) exit} c && FNR>200{exit}' "$AGENT_FILE")
+    frontmatter=$(awk '/^---/{c++; if(c==2) exit} c{print}' "$AGENT_FILE")
     if echo "$frontmatter" | grep -qE '^name:[[:space:]]*doc-writer[[:space:]]*$'; then
         actual_name="present"
     else
