@@ -1,0 +1,1 @@
+{"timestamp": 1774668080, "uuid": "a05c08f0-2fa2-46ba-ba96-1fbc99d4d75a", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Add tests for --description/-d flag on ticket create", "parent_id": "cd3c-2faa", "priority": 2, "assignee": "Joe Oakhart"}}
