@@ -1,1 +1,0 @@
-{"timestamp": 1774681992, "uuid": "16708fea-c4de-4505-be9f-4c6ea0005986", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Delete doc-writer-agent.md from repo root", "parent_id": "2f52-9b96", "priority": 4, "assignee": "Joe Oakhart"}}
