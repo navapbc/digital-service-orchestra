@@ -1,0 +1,1 @@
+{"timestamp": 1774667575, "uuid": "84cfd9a0-25d7-4d94-b1ae-c23105015248", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "Update project docs to reflect doc-writer sub-agent", "parent_id": "3b5e-75a4", "priority": 3, "assignee": "Joe Oakhart"}}
