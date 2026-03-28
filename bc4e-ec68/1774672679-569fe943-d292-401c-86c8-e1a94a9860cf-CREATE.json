@@ -1,0 +1,1 @@
+{"timestamp": 1774672679, "uuid": "569fe943-d292-401c-86c8-e1a94a9860cf", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, I can manage available templates via a registry config file", "parent_id": "d000-2598", "priority": 1, "assignee": "Joe Oakhart"}}
