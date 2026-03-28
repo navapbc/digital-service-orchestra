@@ -1,1 +1,0 @@
-{"timestamp": 1774668331, "uuid": "9db44367-66d2-4627-8a60-638a6e515d38", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "RED: Test ticket-graph.py single batch reduction", "parent_id": "bd09-9857", "priority": 2, "assignee": "Joe Oakhart"}}
