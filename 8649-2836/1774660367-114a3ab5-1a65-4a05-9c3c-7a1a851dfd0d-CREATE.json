@@ -1,1 +1,0 @@
-{"timestamp": 1774660367, "uuid": "114a3ab5-1a65-4a05-9c3c-7a1a851dfd0d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "GREEN: Wire ticket-transition.sh to use batch_close_operations", "parent_id": "ca17-acad", "priority": 2, "assignee": "Joe Oakhart"}}
