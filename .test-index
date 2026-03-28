@@ -67,7 +67,7 @@ plugins/dso/scripts/ticket-revert.sh:tests/scripts/test_revert_event.py
 plugins/dso/scripts/ticket-show.sh:tests/scripts/test-ticket-show.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
-plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh
+plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh [test_close_no_2n_spawns]
 plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/scripts/test-explore-dispatch-template.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
 plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
@@ -188,3 +188,4 @@ plugins/dso/skills/architect-foundation/SKILL.md:tests/hooks/test-sub-agent-guar
 plugins/dso/agents/red-test-writer.md: tests/agents/test-red-test-writer.sh
 plugins/dso/agents/red-test-evaluator.md: tests/agents/test-red-test-evaluator.sh
 tests/lib/markdown_helpers.py:tests/docs/test_extract_section_deduplication.py
+plugins/dso/scripts/ticket-unblock.py: tests/scripts/test_ticket_unblock.py [test_batch_close_finds_open_children]
