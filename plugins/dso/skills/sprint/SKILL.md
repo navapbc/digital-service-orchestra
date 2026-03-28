@@ -53,15 +53,15 @@ Flow: P1 (Init) → Preplanning Gate
   → [0 children/ambiguous] /dso:preplanning → P2
   → [children exist & clear] P2 (Task Analysis)
   P2 → [stories without impl tasks?] layer-stratify → parallel dispatch (≤3/layer) → STATUS:complete→tasks created | STATUS:blocked→ask user → Re-gather → P3
-  P2 → [all have impl tasks] P3 (Batch Planning)
+  P2 → [all have impl tasks] P3 (Batch Preparation)
   P3 → [dry-run] Output plan & stop
-  P3 → [execute] P4 (Pre-Batch) → P5 (Sub-Agent Launch) → P6 (Post-Batch)
-  P6 → [context >=70%] /compact → P3 (proactive, safe — all work committed)
-  P6 → [involuntary compaction detected] P9 (Graceful Shutdown)
-  P6 → [more ready tasks] P3
-  P6 → [all done] P7 (Validation)
-  P7 → [score=5] P9 (Completion)
-  P7 → [score<5] P8 (Remediation) → P3
+  P3 → [execute] P4 (Sub-Agent Launch) → P5 (Post-Batch)
+  P5 → [context >=70%] /compact → P3 (proactive, safe — all work committed)
+  P5 → [involuntary compaction detected] P8 (Graceful Shutdown)
+  P5 → [more ready tasks] P3
+  P5 → [all done] P6 (Validation)
+  P6 → [score=5] P8 (Completion)
+  P6 → [score<5] P7 (Remediation) → P3
 ```
 
 ---
@@ -72,7 +72,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 - `<epic-id>`: The ticket epic to execute
 - `--dry-run`: Output batch plan without executing any sub-agents
-- `--resume`: Resume interrupted epic (skip to Phase 3)
+- `--resume`: Resume interrupted epic (skip to Phase 3 Batch Preparation)
 
 ### If No Epic ID Provided
 
@@ -110,7 +110,7 @@ Flow: P1 (Init) → Preplanning Gate
 ### Validate Epic
 
 1. Run `.claude/scripts/dso ticket show <epic-id>` — confirm it is type `epic` and status is `open` or `in_progress`
-2. Run `.claude/scripts/dso ticket deps <epic-id>` — if 100% complete, skip to Phase 7 (validation)
+2. Run `.claude/scripts/dso ticket deps <epic-id>` — if 100% complete, skip to Phase 6 (validation)
 3. Mark epic in-progress: `.claude/scripts/dso ticket transition <epic-id> in_progress`
 4. Mark the **Select and validate epic** todo item `completed`.
 
@@ -303,7 +303,7 @@ For each ready task from `.claude/scripts/dso ticket list` (filtered by parent):
 | TRIVIAL | medium | Treat as COMPLEX (medium confidence = plan) |
 | COMPLEX | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 
-**Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase 5 can upgrade implementation task models:
+**Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase 4 can upgrade implementation task models:
 ```bash
 .claude/scripts/dso ticket comment <story-id> "COMPLEXITY_CLASSIFICATION: COMPLEX"
 ```
@@ -402,7 +402,7 @@ Proceed to task classification with the updated task list.
 
 ### Classify Tasks
 
-Classification is performed automatically by `sprint-next-batch.sh` in Phase 3. Each `TASK:` line in its output already includes `model`, `subagent`, and `class` fields — no separate classification step is needed here. Proceed directly to building the dependency graph below.
+Classification is performed automatically by `sprint-next-batch.sh` in Phase 3 (Batch Preparation). Each `TASK:` line in its output already includes `model`, `subagent`, and `class` fields — no separate classification step is needed here. Proceed directly to building the dependency graph below.
 
 ### Build Dependency Graph
 
@@ -420,9 +420,59 @@ If no ready tasks exist:
 
 ---
 
-## Phase 3: Batch Planning (/dso:sprint)
+## Phase 3: Batch Preparation (/dso:sprint)
 
-### Inject Prior Batch Discoveries (Batch 2+ only)
+### Step 1: Pre-Batch Checks
+
+Before launching each batch, run the shared pre-batch check script:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # standard
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks
+```
+
+The script outputs structured key-value pairs:
+- `MAX_AGENTS: 1 | 5` — use as `max_agents`
+- `SESSION_USAGE: normal | high`
+- `GIT_CLEAN: true | false` — if false, commit previous batch first
+- `DB_STATUS: running | stopped | skipped` — if stopped, ask user to start DB
+
+Clean the discovery directory:
+
+```bash
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
+```
+
+Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
+
+**Batch size limit**: Max 5 Task calls per message, each with `run_in_background: true`.
+
+When `max_agents=1`, re-run `sprint-next-batch.sh <epic-id> --limit=1` to get a
+single-task batch. Log: `"Session usage >90%, limiting to 1 sub-agent."`
+
+### Step 2: Claim Tasks
+
+For each task in the batch:
+```bash
+.claude/scripts/dso ticket transition <id> in_progress
+```
+
+### Step 3: Update from Main
+
+Pull the latest ticket state from main before launching sub-agents:
+
+```bash
+.claude/scripts/dso worktree-sync-from-main.sh
+```
+
+**Never run bare `git merge origin/main` in a worktree** — use the sync script which handles ticket branch syncing and merge automatically.
+
+If the script reports a non-ticket merge conflict, resolve it (prefer local for code files), commit, and re-run the script. If it fails entirely, log a warning and continue — stale ticket state is preferable to a blocked batch.
+
+### Step 4: Batch Composition
+
+#### Inject Prior Batch Discoveries (Batch 2+ only)
 
 For Batch 2+, collect discoveries for injection into sub-agent prompts via `{prior_batch_discoveries}` in `task-execution.md`:
 
@@ -435,7 +485,7 @@ PRIOR_BATCH_DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh --format=pr
 - **Graceful degradation**: If `collect-discoveries.sh --format=prompt` fails, log a warning
   and use `"None."` as the fallback value. Discovery injection failure must not block the sprint.
 
-### Compose Batch
+#### Compose Batch
 
 Run the deterministic batch selector:
 
@@ -443,7 +493,7 @@ Run the deterministic batch selector:
 .claude/scripts/dso sprint-next-batch.sh <epic-id> --limit=<max_agents>
 ```
 
-- **`max_agents`**: Use 5 initially. Phase 4's pre-check may truncate to 1 if session
+- **`max_agents`**: Determined by Step 1's pre-batch check. The pre-check may truncate to 1 if session
   usage is >90% — in that case re-run with `--limit=1` (or manually discard extras).
 - **Omit `--limit`**: Returns the full non-conflicting pool (useful for `--dry-run`).
 
@@ -493,61 +543,9 @@ If `--dry-run` was specified:
 
 ---
 
-## Phase 4: Pre-Batch Checks (/dso:sprint)
+## Phase 4: Sub-Agent Launch (/dso:sprint)
 
-Before launching each batch, run the shared pre-batch check script:
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # standard
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # if batch includes DB-dependent tasks
-```
-
-The script outputs structured key-value pairs:
-- `MAX_AGENTS: 1 | 5` — use as `max_agents`
-- `SESSION_USAGE: normal | high`
-- `GIT_CLEAN: true | false` — if false, commit previous batch first
-- `DB_STATUS: running | stopped | skipped` — if stopped, ask user to start DB
-
-### Clean Discovery Directory
-
-Before launching sub-agents, clean the discovery directory:
-
-```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
-```
-
-Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
-
-**Batch size limit**: Max 5 Task calls per message, each with `run_in_background: true`.
-
-When `max_agents=1`, re-run `sprint-next-batch.sh <epic-id> --limit=1` to get a
-single-task batch. Log: `"Session usage >90%, limiting to 1 sub-agent."`
-
-### Claim Tasks
-
-For each task in the batch:
-```bash
-.claude/scripts/dso ticket transition <id> in_progress
-```
-
-### Update from Main
-
-Pull the latest ticket state from main before launching sub-agents:
-
-```bash
-.claude/scripts/dso worktree-sync-from-main.sh
-```
-
-**Never run bare `git merge origin/main` in a worktree** — use the sync script which handles ticket branch syncing and merge automatically.
-
-If the script reports a non-ticket merge conflict, resolve it (prefer local for code files), commit, and re-run the script. If it fails entirely, log a warning and continue — stale ticket state is preferable to a blocked batch.
-
----
-
-## Phase 5: Sub-Agent Launch (/dso:sprint)
-
-Launch up to `max_agents` sub-agents (1 or 5, determined in Phase 4) via the Task tool. Each sub-agent gets a structured prompt:
+Launch up to `max_agents` sub-agents (1 or 5, determined in Phase 3 Step 1) via the Task tool. Each sub-agent gets a structured prompt:
 
 ### Display Batch Task List
 
@@ -565,7 +563,7 @@ Titles are parsed from the `TASK:` tab-separated lines produced by `sprint-next-
 
 Before dispatching sub-agents, create the blackboard file and build per-agent file ownership context:
 
-1. **Write the blackboard**: Pipe the batch JSON (from `sprint-next-batch.sh --json` in Phase 3) to `write-blackboard.sh`:
+1. **Write the blackboard**: Pipe the batch JSON (from `sprint-next-batch.sh --json` in Phase 3 Step 4) to `write-blackboard.sh`:
    ```bash
    echo "$BATCH_JSON" | .claude/scripts/dso write-blackboard.sh
    ```
@@ -607,7 +605,7 @@ For each task, launch a Task with the appropriate `subagent_type`.
 ### Subagent Type and Model Selection
 
 Use the `model` and `subagent` fields from the `TASK:` lines produced by
-`sprint-next-batch.sh` in Phase 3 — **no additional classify-task.sh call needed**.
+`sprint-next-batch.sh` in Phase 3 Step 4 — **no additional classify-task.sh call needed**.
 
 When launching each Task tool call, set:
 - `subagent_type` = the `subagent` field from the TASK line
@@ -662,7 +660,7 @@ When all three conditions hold, override `model` to `"opus"` and log:
 - Pass the full task context: task description, story context, and file impact table
 - Parse the leading `TEST_RESULT:` line from the output:
   - `TEST_RESULT:written` → Success. Proceed to TDD setup using `TEST_FILE` and `RED_ASSERTION` fields. Do NOT escalate.
-  - `TEST_RESULT:rejected` → Escalate to Tier 2. This is **not** a dispatch failure — do not route to Phase 6 Step 0.
+  - `TEST_RESULT:rejected` → Escalate to Tier 2. This is **not** a dispatch failure — do not route to Phase 5 Step 0.
   - Timeout / malformed / non-zero exit → Treat as `TEST_RESULT:rejected` with `REJECTION_REASON: ambiguous_spec`. Escalate to Tier 2.
 
 **Tier 2 — Dispatch `dso:red-test-evaluator` (opus)**:
@@ -693,7 +691,7 @@ See `prompts/red-task-escalation.md` for the complete escalation reference.
 
 ---
 
-## Phase 6: Post-Batch Processing (/dso:sprint)
+## Phase 5: Post-Batch Processing (/dso:sprint)
 
 After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Protocol from CLAUDE.md.
 
@@ -701,7 +699,7 @@ After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Pro
 
 Check whether any sub-agent Task call returned an **infrastructure-level dispatch failure** (no `STATUS:` line, no `FILES_MODIFIED:` line, error message references agent type/tool availability/internal errors).
 
-**RED test task exception**: If the failed task's `subagent` field was `dso:red-test-writer`, do NOT fall back to `general-purpose`. A `TEST_RESULT:rejected` response triggers the three-tier escalation protocol (Phase 5 RED Task Dispatch). Only true dispatch failures (no `TEST_RESULT:` line, no `STATUS:` line, tool-level error indicators) qualify for the recovery flow below.
+**RED test task exception**: If the failed task's `subagent` field was `dso:red-test-writer`, do NOT fall back to `general-purpose`. A `TEST_RESULT:rejected` response triggers the three-tier escalation protocol (Phase 4 RED Task Dispatch). Only true dispatch failures (no `TEST_RESULT:` line, no `STATUS:` line, tool-level error indicators) qualify for the recovery flow below.
 
 **For each sub-agent that returned a dispatch failure:**
 
@@ -764,14 +762,14 @@ After processing all sub-agents in the batch, if any tasks were created:
 
 ### Step 1c: Collect Agent Discoveries (/dso:sprint)
 
-Collect structured discovery files from sub-agent execution (propagated to next batch via `{prior_batch_discoveries}` in Phase 3).
+Collect structured discovery files from sub-agent execution (propagated to next batch via `{prior_batch_discoveries}` in Phase 3 Step 4).
 
 ```bash
 DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh 2>/dev/null) || DISCOVERIES="[]"
 ```
 
 - If `collect-discoveries.sh` succeeds, `DISCOVERIES` contains a JSON array of discovery objects
-- Store the result for use in Phase 3 when composing the next batch's sub-agent prompts
+- Store the result for use in Phase 3 Step 4 when composing the next batch's sub-agent prompts
 - **Graceful degradation**: If discovery collection fails (script error, malformed JSON), log a
   warning and continue with `DISCOVERIES="[]"`. Discovery collection failure must not block the
   sprint. The script itself handles per-file validation — malformed individual files are skipped
@@ -780,7 +778,7 @@ DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh 2>/dev/null) || DISCOVE
 ### Step 2: Acceptance Criteria Validation (/dso:sprint)
 
 **Batched shared criteria** (run ONCE per batch, not per-task):
-Universal criteria (test, lint, format) are already verified by Step 4
+Universal criteria (test, lint, format) are already verified by Phase 5 Step 4
 (validate-phase.sh post-batch). Do not re-run per task.
 
 **Per-task structural criteria**:
@@ -809,7 +807,7 @@ Print a completion summary. Each line must show the task ID, title, and pass/fai
 ✗ [dso-abc2] Other task (fail — reverted to open)
 ```
 
-Titles are retained from the pre-launch batch list printed in Phase 5 — no additional `.claude/scripts/dso ticket show` calls are needed.
+Titles are retained from the pre-launch batch list printed in Phase 4 — no additional `.claude/scripts/dso ticket show` calls are needed.
 
 ### Step 3: File Overlap Check (Safety Net) (/dso:sprint)
 
@@ -860,7 +858,7 @@ $PLUGIN_SCRIPTS/validate-phase.sh post-batch
 
 If validation fails, identify which sub-agent's code is broken and note it.
 
-#### Test Failure Sub-Agent Delegation (Phase 6 Step 4)
+#### Test Failure Sub-Agent Delegation (Phase 5 Step 4)
 
 When `validate-phase.sh post-batch` fails, dispatch a debugging sub-agent BEFORE reverting tasks to open. Follow `prompts/test-failure-dispatch-protocol.md` with these caller-specific fields:
 - `test_command`: the `validate-phase.sh post-batch` command that failed
@@ -968,7 +966,7 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the story ID (CLAUDE.md rule #26 — no inline verification substitute).
 - `overall_verdict: PASS` → proceed with closure
-- `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3
+- `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
 ```bash
@@ -1012,29 +1010,29 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?
    ```
    /compact
    ```
-5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase 3.** Do NOT go to Phase 9.
-6. **Agent-count after compact (`high` case)**: No special action needed — Phase 4's pre-check handles `MAX_AGENTS: 1` automatically.
+5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase 3.** Do NOT go to Phase 8.
+6. **Agent-count after compact (`high` case)**: No special action needed — Phase 3 Step 1's pre-check handles `MAX_AGENTS: 1` automatically.
 
 ---
 
 ### Step 13: Continuation Decision (/dso:sprint)
 
 ```
-Decision: Involuntary compaction detected? → Yes: P9 (Graceful Shutdown)
+Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
           → No: More ready tasks? → Yes: Return to P3
-                                  → No: P7 (Validation)
+                                  → No: P6 (Validation)
 ```
 
-**Voluntary vs involuntary compaction**: If `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` exists, delete it and continue to Phase 3. If no intent file exists, the compaction was involuntary — go to Phase 9.
+**Voluntary vs involuntary compaction**: If `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>` exists, delete it and continue to Phase 3. If no intent file exists, the compaction was involuntary — go to Phase 8.
 
-- If **involuntary** context compaction has occurred (no intent file) → Phase 9 (graceful shutdown)
+- If **involuntary** context compaction has occurred (no intent file) → Phase 8 (graceful shutdown)
 - If more ready tasks exist (`.claude/scripts/dso ticket list` filtered by parent) → return to Phase 3
-- If no more ready tasks and some tasks are still blocked → report blocking chain, Phase 9
-- If all tasks are closed → **Phase 7 is MANDATORY** — proceed immediately to Phase 7 (validation)
+- If no more ready tasks and some tasks are still blocked → report blocking chain, Phase 8
+- If all tasks are closed → **Phase 6 is MANDATORY** — proceed immediately to Phase 6 (validation)
 
 ---
 
-## Phase 7: Post-Epic Validation (/dso:sprint)
+## Phase 6: Post-Epic Validation (/dso:sprint)
 
 **Triggered when**: all child tasks are closed (or all remaining are failed/blocked).
 
@@ -1051,7 +1049,7 @@ Complete all remaining batch tasks, then create new tasks via `TaskCreate` for t
 [ ] Close out (close epic + /dso:end-session)
 ```
 
-Mark each item `in_progress` when starting and `completed` when done. If remediation triggers (score < 5), check off "Remediation" and return to Phase 3.
+Mark each item `in_progress` when starting and `completed` when done. If remediation triggers (score < 5), check off "Remediation" and return to Phase 3 (Batch Preparation).
 
 ### Step 0: Integration Test Gate (/dso:sprint)
 
@@ -1073,7 +1071,7 @@ Check if this epic modified integration-relevant code and verify the External AP
      - Poll status (max 15 min): `gh run list --workflow="External API Integration Tests" --limit 1 --json status,conclusion --jq '.[0]'`
    - If last run passed and is recent (<24h): Log "Integration tests: PASS (last run: {createdAt})"
    - If no integration-relevant changes: Log "No integration-relevant changes — skipping integration test gate"
-5. If integration tests fail after trigger: create a P1 bug issue and include in the Phase 7 report. Continue with /dso:validate-work (non-blocking but flagged).
+5. If integration tests fail after trigger: create a P1 bug issue and include in the Phase 6 report. Continue with /dso:validate-work (non-blocking but flagged).
 
 ### Step 0.5: CI Verification + E2E Tests (/dso:sprint)
 
@@ -1096,7 +1094,7 @@ If `CODE_FILES` is non-empty:
 | CI Result | Action |
 |-----------|--------|
 | `success` | Proceed to Step 0.5b |
-| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the CI run URL and failed job names. Follow the test-failure-dispatch protocol (`prompts/test-failure-dispatch-protocol.md`). Commit+push, restart Step 0.5a. If still failing after one attempt → Phase 9 (Graceful Shutdown). |
+| `failure` | Write the validation state file (see below), dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the CI run URL and failed job names. Follow the test-failure-dispatch protocol (`prompts/test-failure-dispatch-protocol.md`). Commit+push, restart Step 0.5a. If still failing after one attempt → Phase 8 (Graceful Shutdown). |
 | Not found after 30 min | Run `gh run list --workflow=CI --limit 10` to check if CI triggered. Report to user. |
 
 #### Validation State File (CI failure context for error-detective sub-agent)
@@ -1115,7 +1113,7 @@ cd $(git rev-parse --show-toplevel)/app && make test-e2e
 - **Pass** → proceed to Step 1
 - **Fail** → do NOT proceed. Dispatch a debugging sub-agent FIRST before creating bug issues.
 
-#### E2E Test Failure Sub-Agent Delegation (Phase 7 Step 0.5b)
+#### E2E Test Failure Sub-Agent Delegation (Phase 6 Step 0.5b)
 
 When E2E tests fail, follow `prompts/test-failure-dispatch-protocol.md` with these caller-specific fields:
 - `test_command`: `cd $(git rev-parse --show-toplevel)/app && make test-e2e`
@@ -1123,13 +1121,13 @@ When E2E tests fail, follow `prompts/test-failure-dispatch-protocol.md` with the
 - `task_id`: a tracking task ID for checkpoint notes
 - `context`: `sprint-e2e`
 
-On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as child of epic, return to Phase 3.
+On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as child of epic, return to Phase 3 (Batch Preparation).
 
 ### Step 0.75: Completion Verification (/dso:sprint)
 
 **MANDATORY**: Dispatch `subagent_type: "dso:completion-verifier"` (model: sonnet) with the epic ID (CLAUDE.md rule #26).
 - `overall_verdict: PASS` → proceed to Step 1
-- `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3
+- `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
 
 ### Step 1: Run /dso:validate-work (/dso:sprint)
@@ -1153,7 +1151,7 @@ scripts/validate.sh
 
 **Interpret the report:**
 - **All 5 domains PASS** → proceed to Step 2
-- **Any domain FAIL** → create remediation tasks and return to Phase 3
+- **Any domain FAIL** → create remediation tasks and return to Phase 3 (Batch Preparation)
 - **Staging test SKIPPED** (staging down) → proceed to Step 2 but note in the final report that staging was not verified
 
 ### Step 2: Determine Epic Type (/dso:sprint)
@@ -1184,12 +1182,12 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 ### Step 5: Parse Validation Output (/dso:sprint)
 
 Extract the SCORE from the validation agent's output:
-- **Score = 5** → Phase 9 (completion)
-- **Score < 5** → Phase 8 (remediation)
+- **Score = 5** → Phase 8 (completion)
+- **Score < 5** → Phase 7 (remediation)
 
 ---
 
-## Phase 8: Remediation Loop (/dso:sprint)
+## Phase 7: Remediation Loop (/dso:sprint)
 
 When validation score < 5:
 
@@ -1226,17 +1224,17 @@ Re-enter the batch planning loop with the new remediation tasks. These tasks wil
 ### Safety Bounds
 
 ```
-Remediation loop: Score<5 → Create fix tasks → P3 (Batch) → P5 (Execute) → P7 (Re-validate)
-  → [score=5] P9 (Complete)
+Remediation loop: Score<5 → Create fix tasks → P3 (Batch) → P4 (Execute) → P6 (Re-validate)
+  → [score=5] P8 (Complete)
   → [score<5] → Create fix tasks (loop)
-  → [context compaction] P9 (Shutdown)
+  → [context compaction] P8 (Shutdown)
 ```
 
 ---
 
-## Phase 9: Session Close (/dso:sprint)
+## Phase 8: Session Close (/dso:sprint)
 
-Phase 9 delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
+Phase 8 delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
 ### On Success (Score = 5)
 
@@ -1284,13 +1282,12 @@ Phase 9 delegates to `/dso:end-session`, which handles closing issues, committin
 | 1b | Preplanning gate | `.claude/scripts/dso ticket deps`, `/dso:preplanning` (if 0 children or ambiguous) |
 | 2 | Analyze tasks | `.claude/scripts/dso ticket deps`, `.claude/scripts/dso ticket list`, `.claude/scripts/dso ticket show` |
 | 2b | Implementation planning gate | `.claude/scripts/dso ticket deps <story>`, `/dso:implementation-plan` (if story has 0 impl tasks) |
-| 3 | Plan batches | Priority classification, batch sizing |
-| 4 | Pre-batch checks | Session usage check, counter files, git status, db-status |
-| 5 | Launch agents | Task tool with structured prompts |
-| 6 | Post-batch | persistence check, REVIEW-WORKFLOW.md, COMMIT-WORKFLOW.md, push, context check (→ `/compact` if >=70%), continuation decision |
-| 7 | Validate | CI verification (SHA-based), full E2E tests, `/dso:validate-work` (all domains), then epic-specific scoring |
-| 8 | Remediation | Create fix tasks, re-enter loop |
-| 9 | Session close | `/dso:end-session` (close issues, commit, merge, report) |
+| 3 | Batch preparation | Pre-flight checks, claim tasks, sync from main, batch composition |
+| 4 | Launch agents | Task tool with structured prompts |
+| 5 | Post-batch | persistence check, REVIEW-WORKFLOW.md, COMMIT-WORKFLOW.md, push, context check (→ `/compact` if >=70%), continuation decision |
+| 6 | Validate | CI verification (SHA-based), full E2E tests, `/dso:validate-work` (all domains), then epic-specific scoring |
+| 7 | Remediation | Create fix tasks, re-enter loop |
+| 8 | Session close | `/dso:end-session` (close issues, commit, merge, report) |
 
 ## Error Recovery
 
@@ -1300,7 +1297,7 @@ Phase 9 delegates to `/dso:end-session`, which handles closing issues, committin
 | All sub-agents fail | Log failures, graceful shutdown, do not retry in same session |
 | Validation agent fails to run | Skip validation, report to user, recommend manual review |
 | DB not running for E2E | Ask user to run `make db-start`, wait for confirmation |
-| CI fails at Phase 7 | Dispatch `error-debugging:error-detective` sub-agent (model: `sonnet`) to diagnose and fix per test-failure-dispatch protocol, commit+push, restart Phase 7 Step 0.5a; if still failing after one attempt, graceful shutdown |
+| CI fails at Phase 6 | Dispatch `error-debugging:error-detective` sub-agent (model: `sonnet`) to diagnose and fix per test-failure-dispatch protocol, commit+push, restart Phase 6 Step 0.5a; if still failing after one attempt, graceful shutdown |
 | Git push fails | Report error, suggest `git pull --rebase`, never force-push |
 | Ticket health < 5 after ops | Fix ticket issues before continuing (see `/dso:tickets-health`) |
 | Epic has 0 children | Preplanning gate triggers `/dso:preplanning` automatically |
