@@ -1,1 +1,0 @@
-{"timestamp": 1774681045, "uuid": "b5b73413-4c57-43d8-bccb-517dc27e25f8", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "Create doc-writer test fixture and run dogfooding test on epic dso-fldu", "parent_id": "cdfb-28b3", "priority": 2, "assignee": "Joe Oakhart"}}
