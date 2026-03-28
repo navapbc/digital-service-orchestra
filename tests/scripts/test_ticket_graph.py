@@ -716,3 +716,537 @@ def test_build_dep_graph_children_empty_when_no_children(
     assert result["children"] == [], (
         f"Expected empty children, got {result['children']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Archive exclusion — RED tests (feature not yet implemented)
+# ---------------------------------------------------------------------------
+
+
+def _write_archive_event(
+    tracker_dir: Path, ticket_id: str, timestamp: int = 3000
+) -> None:
+    """Write an ARCHIVED event to ticket_id's directory.
+
+    This marks the ticket as archived in the event-sourced state.
+    The ticket-reducer.py handles ARCHIVED events by setting state['archived'] = True.
+    """
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True, exist_ok=True)
+    archive_event = {
+        "event_type": "ARCHIVED",
+        "uuid": f"archive-{ticket_id}",
+        "timestamp": timestamp,
+        "author": "Test User",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "data": {},
+    }
+    with open(ticket_dir / f"{timestamp}-archive-{ticket_id}-ARCHIVED.json", "w") as f:
+        json.dump(archive_event, f)
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_compute_archive_eligible_regression(graph: ModuleType, tmp_path: Path) -> None:
+    """compute_archive_eligible must still see ALL tickets (including archived) — regression guard.
+
+    GREEN: This test passes today and must continue passing after archived exclusion
+    is implemented. Placed BEFORE the RED marker so regressions are caught, not tolerated.
+
+    Setup:
+        - ticket-already-archived: closed + ARCHIVED event (already archived)
+        - ticket-eligible: closed, no blockers, no dependents (should be eligible)
+        - ticket-open: open (seed for BFS — not eligible itself)
+
+    Expected:
+        compute_archive_eligible returns ticket-eligible (not ticket-already-archived,
+        since it's already archived).
+    """
+    import tempfile
+
+    tracker_dir = Path(tempfile.mkdtemp()) / "tracker"
+    tracker_dir.mkdir(parents=True)
+
+    try:
+        # ticket-already-archived: closed and already archived
+        _write_ticket(tracker_dir, "ticket-already-archived", status="closed")
+        _write_archive_event(tracker_dir, "ticket-already-archived")
+
+        # ticket-eligible: closed, not archived, no open deps — should be eligible
+        _write_ticket(tracker_dir, "ticket-eligible", status="closed")
+
+        # ticket-open: open, not linked to anything
+        _write_ticket(tracker_dir, "ticket-open", status="open")
+
+        eligible = graph.compute_archive_eligible(str(tracker_dir))
+
+        assert "ticket-eligible" in eligible, (
+            f"ticket-eligible should be archive-eligible; got {eligible}. "
+            "compute_archive_eligible must still scan all tickets including archived ones."
+        )
+
+        assert "ticket-already-archived" not in eligible, (
+            f"ticket-already-archived is already archived, must not be re-eligible; "
+            f"got {eligible}"
+        )
+
+        assert "ticket-open" not in eligible, (
+            f"ticket-open is not closed, must not be eligible; got {eligible}"
+        )
+    finally:
+        import shutil
+
+        shutil.rmtree(str(tracker_dir.parent), ignore_errors=True)
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_transitive_traversal_includes_archived_midchain(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """Transitive blocker traversal must NOT skip archived tickets mid-chain — regression guard.
+
+    GREEN: This test passes today and must continue passing after archived exclusion
+    is implemented. Placed BEFORE the RED marker so regressions are caught, not tolerated.
+
+    Setup:
+        - ticket-a: open, blocks ticket-b
+        - ticket-b: open, ARCHIVED, blocks ticket-c
+        - ticket-c: open (the ticket we query)
+
+    Expected: check_would_create_cycle('ticket-c', 'ticket-a', 'blocks', ...) == True
+    """
+    import tempfile
+
+    tracker_dir = Path(tempfile.mkdtemp()) / "tracker"
+    tracker_dir.mkdir(parents=True)
+
+    try:
+        _write_ticket(tracker_dir, "ticket-a", status="open")
+        _write_ticket(tracker_dir, "ticket-b", status="open")
+        _write_ticket(tracker_dir, "ticket-c", status="open")
+        _write_blocks_link(tracker_dir, "ticket-a", "ticket-b", timestamp=1500)
+        _write_blocks_link(tracker_dir, "ticket-b", "ticket-c", timestamp=1501)
+        _write_archive_event(tracker_dir, "ticket-b")
+
+        would_cycle = graph.check_would_create_cycle(
+            "ticket-c", "ticket-a", "blocks", str(tracker_dir)
+        )
+
+        assert would_cycle is True, (
+            "check_would_create_cycle must detect cycle through archived mid-chain ticket-b. "
+            "Archived exclusion must NOT prune nodes during transitive traversal. "
+            f"Got would_cycle={would_cycle!r} (expected True)."
+        )
+    finally:
+        import shutil
+
+        shutil.rmtree(str(tracker_dir.parent), ignore_errors=True)
+
+
+# ── RED MARKER BOUNDARY ──────────────────────────────────────────────────────
+# Tests below this line are expected to FAIL (RED) until archived exclusion is
+# implemented in ticket-graph.py. The .test-index RED marker points to the first
+# test below (test_build_dep_graph_excludes_archived_children).
+# Tests ABOVE this line are GREEN regression guards that must always pass.
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_build_dep_graph_excludes_archived_children(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """build_dep_graph must exclude archived tickets from the children list by default.
+
+    Setup:
+        - epic-001: open epic
+        - story-active: open, parent_id=epic-001 (not archived)
+        - story-archived: open, parent_id=epic-001, then ARCHIVED event written
+
+    Expected (default exclude_archived=True):
+        result['children'] contains only story-active, not story-archived.
+
+    This test is RED — archived exclusion is not yet implemented.
+    To make it GREEN: add exclude_archived parameter to build_dep_graph
+    (default True) and filter children by archived status.
+    """
+    import tempfile
+
+    tracker_dir = Path(tempfile.mkdtemp()) / "tracker"
+    tracker_dir.mkdir(parents=True)
+
+    try:
+        _write_ticket(tracker_dir, "epic-001", ticket_type="epic")
+        _write_ticket(
+            tracker_dir, "story-active", parent_id="epic-001", ticket_type="story"
+        )
+        _write_ticket(
+            tracker_dir, "story-archived", parent_id="epic-001", ticket_type="story"
+        )
+        _write_archive_event(tracker_dir, "story-archived")
+
+        result = graph.build_dep_graph("epic-001", str(tracker_dir))
+
+        assert "children" in result, "build_dep_graph result missing 'children' field"
+        assert "story-active" in result["children"], (
+            f"story-active should be in children; got {result['children']}"
+        )
+        assert "story-archived" not in result["children"], (
+            f"story-archived (archived) should NOT be in children by default; "
+            f"got {result['children']}. "
+            "Archived tickets must be excluded from children by default."
+        )
+    finally:
+        import shutil
+
+        shutil.rmtree(str(tracker_dir.parent), ignore_errors=True)
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_build_dep_graph_excludes_archived_blockers(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """build_dep_graph must exclude archived tickets from the blockers list by default.
+
+    Setup:
+        - ticket-active-blocker: open, blocks ticket-target
+        - ticket-archived-blocker: open, blocks ticket-target, then ARCHIVED event written
+        - ticket-target: open
+
+    Expected (default exclude_archived=True):
+        result['blockers'] contains only ticket-active-blocker,
+        not ticket-archived-blocker.
+
+    This test is RED — archived exclusion in blockers is not yet implemented.
+    """
+    import tempfile
+
+    tracker_dir = Path(tempfile.mkdtemp()) / "tracker"
+    tracker_dir.mkdir(parents=True)
+
+    try:
+        _write_ticket(tracker_dir, "ticket-active-blocker", status="open")
+        _write_ticket(tracker_dir, "ticket-archived-blocker", status="open")
+        _write_ticket(tracker_dir, "ticket-target", status="open")
+        _write_blocks_link(
+            tracker_dir, "ticket-active-blocker", "ticket-target", timestamp=1500
+        )
+        _write_blocks_link(
+            tracker_dir, "ticket-archived-blocker", "ticket-target", timestamp=1501
+        )
+        _write_archive_event(tracker_dir, "ticket-archived-blocker")
+
+        result = graph.build_dep_graph("ticket-target", str(tracker_dir))
+
+        assert "blockers" in result, "build_dep_graph result missing 'blockers' field"
+        assert "ticket-active-blocker" in result["blockers"], (
+            f"ticket-active-blocker should be in blockers; got {result['blockers']}"
+        )
+        assert "ticket-archived-blocker" not in result["blockers"], (
+            f"ticket-archived-blocker (archived) should NOT be in blockers by default; "
+            f"got {result['blockers']}. "
+            "Archived tickets must be excluded from blockers by default."
+        )
+    finally:
+        import shutil
+
+        shutil.rmtree(str(tracker_dir.parent), ignore_errors=True)
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_deps_cli_include_archived(tmp_path: Path) -> None:
+    """ticket-graph.py CLI with --include-archived returns full graph including archived.
+
+    Setup:
+        - ticket-parent: epic
+        - ticket-child-active: story, parent_id=ticket-parent (not archived)
+        - ticket-child-archived: story, parent_id=ticket-parent, ARCHIVED
+
+    Without --include-archived: children = [ticket-child-active] (archived excluded by default)
+    With --include-archived: children = [ticket-child-active, ticket-child-archived]
+
+    This test is RED — default archived exclusion is not yet implemented, so the
+    without-flag case incorrectly includes the archived child.
+    """
+    import subprocess
+    import tempfile
+
+    tracker_dir = Path(tempfile.mkdtemp()) / "tracker"
+    tracker_dir.mkdir(parents=True)
+
+    try:
+        _write_ticket(tracker_dir, "ticket-parent", ticket_type="epic")
+        _write_ticket(
+            tracker_dir,
+            "ticket-child-active",
+            parent_id="ticket-parent",
+            ticket_type="story",
+        )
+        _write_ticket(
+            tracker_dir,
+            "ticket-child-archived",
+            parent_id="ticket-parent",
+            ticket_type="story",
+        )
+        _write_archive_event(tracker_dir, "ticket-child-archived")
+
+        # First: verify default behavior excludes archived (RED — not yet implemented)
+        result_default = subprocess.run(
+            [
+                "python3",
+                str(SCRIPT_PATH),
+                "ticket-parent",
+                f"--tickets-dir={tracker_dir}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result_default.returncode == 0, (
+            f"CLI (no flag) exited with {result_default.returncode}; "
+            f"stderr={result_default.stderr!r}"
+        )
+        output_default = json.loads(result_default.stdout)
+        children_default = output_default.get("children", [])
+        assert "ticket-child-archived" not in children_default, (
+            f"Without --include-archived, archived child must be excluded by default; "
+            f"children={children_default}. "
+            "Default archived exclusion is not yet implemented."
+        )
+
+        # Second: verify --include-archived includes the archived child
+        result_with_flag = subprocess.run(
+            [
+                "python3",
+                str(SCRIPT_PATH),
+                "ticket-parent",
+                f"--tickets-dir={tracker_dir}",
+                "--include-archived",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result_with_flag.returncode == 0, (
+            f"CLI (--include-archived) exited with {result_with_flag.returncode}; "
+            f"stderr={result_with_flag.stderr!r}. "
+            "--include-archived flag must be recognized and return exit 0."
+        )
+
+        output_with_flag = json.loads(result_with_flag.stdout)
+        children_with_flag = output_with_flag.get("children", [])
+        assert "ticket-child-archived" in children_with_flag, (
+            f"With --include-archived, archived child must appear in result; "
+            f"children={children_with_flag}. "
+            "--include-archived flag is not yet implemented."
+        )
+        assert "ticket-child-active" in children_with_flag, (
+            f"With --include-archived, active child must still appear; "
+            f"children={children_with_flag}"
+        )
+    finally:
+        import shutil
+
+        shutil.rmtree(str(tracker_dir.parent), ignore_errors=True)
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_deps_archived_direct_target_error(tmp_path: Path) -> None:
+    """CLI: querying deps for an archived ticket directly exits 1 with a helpful message.
+
+    When a user runs `ticket-graph.py <archived-ticket-id> --tickets-dir=...`,
+    the ticket exists on disk but is archived. The CLI must:
+      - Exit with code 1
+      - Print a message to stderr suggesting --include-archived
+
+    This guards against silently returning an empty/stale graph for an archived ticket
+    when the user likely needs to use --include-archived.
+
+    This test is RED — the archived-ticket-direct-query guard is not yet implemented.
+    """
+    import subprocess
+    import tempfile
+
+    tracker_dir = Path(tempfile.mkdtemp()) / "tracker"
+    tracker_dir.mkdir(parents=True)
+
+    try:
+        # Create an archived ticket
+        _write_ticket(tracker_dir, "ticket-archived", status="closed")
+        _write_archive_event(tracker_dir, "ticket-archived")
+
+        result = subprocess.run(
+            [
+                "python3",
+                str(SCRIPT_PATH),
+                "ticket-archived",
+                f"--tickets-dir={tracker_dir}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 1, (
+            f"CLI must exit 1 when querying an archived ticket directly; "
+            f"got returncode={result.returncode}. "
+            "The archived-ticket guard is not yet implemented."
+        )
+        assert "--include-archived" in result.stderr, (
+            f"CLI stderr must suggest --include-archived when querying archived ticket; "
+            f"got stderr={result.stderr!r}. "
+            "The error message must guide users to the correct flag."
+        )
+    finally:
+        import shutil
+
+        shutil.rmtree(str(tracker_dir.parent), ignore_errors=True)
+
+
+# ── RED MARKER BOUNDARY ──────────────────────────────────────────────────────
+# Tests below this line are expected to FAIL (RED) until ticket-graph.py is
+# refactored to use a single reduce_all_tickets call for deps operations.
+# The .test-index RED marker points to the first test below:
+# test_build_dep_graph_single_batch_scan
+# Tests ABOVE this line are GREEN and must always pass.
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_build_dep_graph_single_batch_scan(graph: ModuleType, tmp_path: Path) -> None:
+    """build_dep_graph must use a single reduce_all_tickets call instead of per-ticket scans.
+
+    Setup:
+        - A tracker with 5 tickets: ticket-a (closed, blocks ticket-e), ticket-b,
+          ticket-c, ticket-d (all open), ticket-e (open, target ticket).
+
+    Expected: reduce_all_tickets is called exactly once during build_dep_graph.
+
+    Currently RED: build_dep_graph calls _reduce_ticket per-ticket via
+    _compute_dep_graph and _find_direct_blockers. It does not call reduce_all_tickets.
+    """
+    from unittest.mock import patch
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-a", status="closed")
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+    _write_ticket(tracker_dir, "ticket-c", status="open")
+    _write_ticket(tracker_dir, "ticket-d", status="open")
+    _write_ticket(tracker_dir, "ticket-e", status="open")
+    _write_blocks_link(tracker_dir, "ticket-a", "ticket-e")
+
+    # Capture the real reduce_all_tickets so the patch can delegate to it
+    real_reduce_all = graph._reducer.reduce_all_tickets
+
+    call_count = []
+
+    def counting_reduce_all(*args, **kwargs):  # type: ignore[no-untyped-def]
+        call_count.append(1)
+        return real_reduce_all(*args, **kwargs)
+
+    with patch.object(
+        graph._reducer, "reduce_all_tickets", side_effect=counting_reduce_all
+    ):
+        graph.build_dep_graph("ticket-e", str(tracker_dir))
+
+    assert len(call_count) == 1, (
+        f"Expected reduce_all_tickets to be called exactly once during build_dep_graph, "
+        f"but it was called {len(call_count)} time(s). "
+        "build_dep_graph must pre-load all ticket states via a single reduce_all_tickets "
+        "call instead of calling _reduce_ticket per-ticket in _find_direct_blockers and "
+        "_compute_dep_graph."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_find_direct_blockers_no_per_ticket_scan(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """_find_direct_blockers must not call _reduce_ticket directly — use pre-loaded state.
+
+    Setup:
+        - ticket-blocker: open, blocks ticket-target
+        - ticket-target: open
+
+    Pre-loaded state dict is passed in. _reduce_ticket must NOT be called.
+
+    Currently RED: _find_direct_blockers calls _reduce_ticket directly for each
+    ticket dir it scans. After refactor, it must accept a pre-loaded all_states
+    dict and use that instead.
+    """
+    from unittest.mock import patch
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-blocker", status="open")
+    _write_ticket(tracker_dir, "ticket-target", status="open")
+    _write_blocks_link(tracker_dir, "ticket-blocker", "ticket-target")
+
+    reduce_ticket_calls = []
+
+    def spy_reduce_ticket(*args, **kwargs):  # type: ignore[no-untyped-def]
+        reduce_ticket_calls.append(args)
+        return graph._reduce_ticket(*args, **kwargs)
+
+    with patch.object(graph, "_reduce_ticket", side_effect=spy_reduce_ticket):
+        # After refactor, _find_direct_blockers should accept all_states and not call _reduce_ticket
+        graph._find_direct_blockers("ticket-target", str(tracker_dir))
+
+    assert len(reduce_ticket_calls) == 0, (
+        f"Expected _reduce_ticket to be called 0 times in _find_direct_blockers "
+        f"(should use pre-loaded state), but it was called {len(reduce_ticket_calls)} time(s). "
+        "_find_direct_blockers must be refactored to accept a pre-loaded all_states dict "
+        "and look up ticket states from it instead of calling _reduce_ticket per ticket."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_compute_dep_graph_children_use_preloaded_state(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """_compute_dep_graph must not call _reduce_ticket for children discovery.
+
+    Setup:
+        - parent-epic: epic with 3 child stories
+        - story-a, story-b, story-c: open stories with parent_id=parent-epic
+
+    Expected: _reduce_ticket is NOT called during _compute_dep_graph. All state
+    lookups should use a pre-loaded all_states dict passed in from build_dep_graph.
+
+    Currently RED: _compute_dep_graph calls _reduce_ticket for each directory entry
+    to discover children. After refactor, it must use pre-loaded state.
+    """
+    from unittest.mock import patch
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "parent-epic", ticket_type="epic")
+    _write_ticket(tracker_dir, "story-a", parent_id="parent-epic", ticket_type="story")
+    _write_ticket(tracker_dir, "story-b", parent_id="parent-epic", ticket_type="story")
+    _write_ticket(tracker_dir, "story-c", parent_id="parent-epic", ticket_type="story")
+
+    reduce_ticket_calls = []
+
+    def spy_reduce_ticket(*args, **kwargs):  # type: ignore[no-untyped-def]
+        reduce_ticket_calls.append(args)
+        return graph._reduce_ticket(*args, **kwargs)
+
+    with patch.object(graph, "_reduce_ticket", side_effect=spy_reduce_ticket):
+        graph._compute_dep_graph("parent-epic", str(tracker_dir))
+
+    assert len(reduce_ticket_calls) == 0, (
+        f"Expected _reduce_ticket to be called 0 times in _compute_dep_graph "
+        f"(should use pre-loaded state for children discovery), "
+        f"but it was called {len(reduce_ticket_calls)} time(s). "
+        "_compute_dep_graph must be refactored to receive a pre-loaded all_states dict "
+        "and use it for both children discovery and blocker resolution instead of "
+        "calling _reduce_ticket per directory entry."
+    )

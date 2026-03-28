@@ -271,7 +271,10 @@ clusters = defaultdict(list)
 for o in orphans:
     created = o.get('created_at', o.get('created', ''))
     try:
-        ts = created[:19].replace('T', ' ')
+        if isinstance(created, int):
+            ts = str(datetime.fromtimestamp(created))[:19]
+        else:
+            ts = created[:19].replace('T', ' ')
         dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
         hour_key = dt.strftime('%Y-%m-%d %H:00')
         clusters[hour_key].append(o)

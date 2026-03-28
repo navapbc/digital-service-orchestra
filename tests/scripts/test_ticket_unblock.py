@@ -460,3 +460,369 @@ def test_depends_on_does_not_unblock_the_blocker(
         f"Expected 'ticket-b' to be newly unblocked after ticket-a closes, "
         f"got {result!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# RED tests: batch_close_operations and --batch-close CLI entry point
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_batch_close_finds_open_children(unblock: ModuleType) -> None:
+    """batch_close_operations with a parent having 2 open children returns both IDs.
+
+    Setup:
+        - parent: open
+        - child-1: open, parent_id=parent
+        - child-2: open, parent_id=parent
+
+    Expected: result['open_children'] contains 'child-1' and 'child-2'
+    """
+    import tempfile
+
+    tmp = tempfile.mkdtemp()
+    tracker_dir = Path(tmp)
+
+    # Write parent ticket
+    parent_dir = tracker_dir / "parent"
+    parent_dir.mkdir()
+    with open(parent_dir / "1000-create-parent-CREATE.json", "w") as f:
+        json.dump(
+            {
+                "event_type": "CREATE",
+                "uuid": "create-parent",
+                "timestamp": 1000,
+                "author": "Test User",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "data": {"ticket_type": "epic", "title": "Parent", "parent_id": None},
+            },
+            f,
+        )
+
+    # Write child-1 with parent_id=parent
+    child1_dir = tracker_dir / "child-1"
+    child1_dir.mkdir()
+    with open(child1_dir / "1000-create-child1-CREATE.json", "w") as f:
+        json.dump(
+            {
+                "event_type": "CREATE",
+                "uuid": "create-child-1",
+                "timestamp": 1000,
+                "author": "Test User",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "data": {
+                    "ticket_type": "task",
+                    "title": "Child 1",
+                    "parent_id": "parent",
+                },
+            },
+            f,
+        )
+
+    # Write child-2 with parent_id=parent
+    child2_dir = tracker_dir / "child-2"
+    child2_dir.mkdir()
+    with open(child2_dir / "1000-create-child2-CREATE.json", "w") as f:
+        json.dump(
+            {
+                "event_type": "CREATE",
+                "uuid": "create-child-2",
+                "timestamp": 1000,
+                "author": "Test User",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "data": {
+                    "ticket_type": "task",
+                    "title": "Child 2",
+                    "parent_id": "parent",
+                },
+            },
+            f,
+        )
+
+    result = unblock.batch_close_operations(
+        ticket_ids=["parent"],
+        tracker_dir=str(tracker_dir),
+    )
+
+    open_children = result.get("open_children", [])
+    assert "child-1" in open_children, (
+        f"Expected 'child-1' in open_children, got {open_children!r}"
+    )
+    assert "child-2" in open_children, (
+        f"Expected 'child-2' in open_children, got {open_children!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_batch_close_detects_unblocked(unblock: ModuleType) -> None:
+    """batch_close_operations: closing a blocker → dependent appears in unblocked list.
+
+    Setup:
+        - blocker: open (being closed)
+        - dependent: open, blocked by blocker
+
+    Expected: result['newly_unblocked'] contains 'dependent'
+    """
+    import tempfile
+
+    tmp = tempfile.mkdtemp()
+    tracker_dir = Path(tmp)
+
+    _write_ticket(tracker_dir, "blocker", status="open")
+    _write_ticket(tracker_dir, "dependent", status="open", deps=["blocker"])
+
+    result = unblock.batch_close_operations(
+        ticket_ids=["blocker"],
+        tracker_dir=str(tracker_dir),
+    )
+
+    newly_unblocked = result.get("newly_unblocked", [])
+    assert "dependent" in newly_unblocked, (
+        f"Expected 'dependent' in newly_unblocked after closing blocker, "
+        f"got {newly_unblocked!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_batch_close_no_false_unblocks(unblock: ModuleType) -> None:
+    """batch_close_operations: ticket with remaining open blockers NOT in unblocked list.
+
+    Setup:
+        - blocker-a: open (being closed)
+        - blocker-b: open (NOT being closed)
+        - dependent: open, blocked by both blocker-a and blocker-b
+
+    Expected: result['newly_unblocked'] does NOT contain 'dependent'
+    """
+    import tempfile
+
+    tmp = tempfile.mkdtemp()
+    tracker_dir = Path(tmp)
+
+    _write_ticket(tracker_dir, "blocker-a", status="open")
+    _write_ticket(tracker_dir, "blocker-b", status="open")
+    _write_ticket(
+        tracker_dir, "dependent", status="open", deps=["blocker-a", "blocker-b"]
+    )
+
+    result = unblock.batch_close_operations(
+        ticket_ids=["blocker-a"],
+        tracker_dir=str(tracker_dir),
+    )
+
+    newly_unblocked = result.get("newly_unblocked", [])
+    assert "dependent" not in newly_unblocked, (
+        f"'dependent' must not be unblocked (blocker-b still open), "
+        f"got {newly_unblocked!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_batch_close_excludes_archived(unblock: ModuleType) -> None:
+    """batch_close_operations: archived child ticket not returned in open_children.
+
+    Setup:
+        - parent: open
+        - child-open: open, parent_id=parent
+        - child-archived: open but ARCHIVED, parent_id=parent
+
+    Expected: result['open_children'] contains 'child-open' but NOT 'child-archived'
+    """
+    import tempfile
+
+    tmp = tempfile.mkdtemp()
+    tracker_dir = Path(tmp)
+
+    # Write parent
+    parent_dir = tracker_dir / "parent"
+    parent_dir.mkdir()
+    with open(parent_dir / "1000-create-parent-CREATE.json", "w") as f:
+        json.dump(
+            {
+                "event_type": "CREATE",
+                "uuid": "create-parent",
+                "timestamp": 1000,
+                "author": "Test User",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "data": {"ticket_type": "epic", "title": "Parent", "parent_id": None},
+            },
+            f,
+        )
+
+    # Write child-open with parent_id=parent
+    child_open_dir = tracker_dir / "child-open"
+    child_open_dir.mkdir()
+    with open(child_open_dir / "1000-create-childopen-CREATE.json", "w") as f:
+        json.dump(
+            {
+                "event_type": "CREATE",
+                "uuid": "create-child-open",
+                "timestamp": 1000,
+                "author": "Test User",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "data": {
+                    "ticket_type": "task",
+                    "title": "Child Open",
+                    "parent_id": "parent",
+                },
+            },
+            f,
+        )
+
+    # Write child-archived with parent_id=parent and ARCHIVED event
+    child_arch_dir = tracker_dir / "child-archived"
+    child_arch_dir.mkdir()
+    with open(child_arch_dir / "1000-create-childarch-CREATE.json", "w") as f:
+        json.dump(
+            {
+                "event_type": "CREATE",
+                "uuid": "create-child-archived",
+                "timestamp": 1000,
+                "author": "Test User",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "data": {
+                    "ticket_type": "task",
+                    "title": "Child Archived",
+                    "parent_id": "parent",
+                },
+            },
+            f,
+        )
+    with open(child_arch_dir / "2000-archived-childarch-ARCHIVED.json", "w") as f:
+        json.dump(
+            {
+                "event_type": "ARCHIVED",
+                "uuid": "archived-child-archived",
+                "timestamp": 2000,
+                "author": "Test User",
+                "env_id": "00000000-0000-4000-8000-000000000001",
+                "data": {},
+            },
+            f,
+        )
+
+    result = unblock.batch_close_operations(
+        ticket_ids=["parent"],
+        tracker_dir=str(tracker_dir),
+    )
+
+    open_children = result.get("open_children", [])
+    assert "child-open" in open_children, (
+        f"Expected 'child-open' in open_children, got {open_children!r}"
+    )
+    assert "child-archived" not in open_children, (
+        f"'child-archived' must not be in open_children (it is archived), "
+        f"got {open_children!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_batch_close_empty_tracker(unblock: ModuleType) -> None:
+    """batch_close_operations: empty/missing tracker returns empty lists, no error.
+
+    Expected: result['open_children'] == [] and result['newly_unblocked'] == []
+    """
+    import tempfile
+
+    tmp = tempfile.mkdtemp()
+    tracker_dir = Path(tmp) / "nonexistent"
+
+    result = unblock.batch_close_operations(
+        ticket_ids=["some-ticket"],
+        tracker_dir=str(tracker_dir),
+    )
+
+    assert result.get("open_children", []) == [], (
+        f"Expected empty open_children for missing tracker, "
+        f"got {result.get('open_children')!r}"
+    )
+    assert result.get("newly_unblocked", []) == [], (
+        f"Expected empty newly_unblocked for missing tracker, "
+        f"got {result.get('newly_unblocked')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_batch_close_cli_outputs_json(tmp_path: Path) -> None:
+    """--batch-close via subprocess produces valid JSON output.
+
+    Invokes ticket-unblock.py with --batch-close and a tracker_dir argument,
+    then asserts the stdout is parseable JSON with the expected top-level keys.
+    """
+    import subprocess
+    import tempfile
+
+    tmp = tempfile.mkdtemp()
+    tracker_dir = Path(tmp)
+
+    # Write a minimal ticket so the tracker is not empty
+    _write_ticket(tracker_dir, "ticket-x", status="open")
+
+    proc = subprocess.run(
+        [
+            "python3",
+            str(SCRIPT_PATH),
+            "--batch-close",
+            str(tracker_dir),
+            "ticket-x",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0, (
+        f"Expected exit 0 for --batch-close, got {proc.returncode}. "
+        f"stderr: {proc.stderr!r}"
+    )
+
+    try:
+        output = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(
+            f"--batch-close output is not valid JSON: {exc}\nstdout: {proc.stdout!r}"
+        )
+
+    assert "open_children" in output, (
+        f"Expected 'open_children' key in JSON output, got {output!r}"
+    )
+    assert "newly_unblocked" in output, (
+        f"Expected 'newly_unblocked' key in JSON output, got {output!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_batch_close_single_reduce_call(unblock: ModuleType) -> None:
+    """batch_close_operations calls reduce_all_tickets exactly once (batch traversal).
+
+    Uses unittest.mock to patch reduce_all_tickets and verify it is called
+    exactly once regardless of how many ticket_ids are passed.
+    """
+    import tempfile
+    import unittest.mock
+
+    tmp = tempfile.mkdtemp()
+    tracker_dir = Path(tmp)
+
+    _write_ticket(tracker_dir, "ticket-a", status="open")
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+
+    with unittest.mock.patch.object(
+        unblock._get_reducer(),
+        "reduce_all_tickets",
+        wraps=unblock._get_reducer().reduce_all_tickets,
+    ) as mock_reduce:
+        unblock.batch_close_operations(
+            ticket_ids=["ticket-a", "ticket-b"],
+            tracker_dir=str(tracker_dir),
+        )
+        assert mock_reduce.call_count == 1, (
+            f"Expected reduce_all_tickets to be called exactly once, "
+            f"got {mock_reduce.call_count} calls"
+        )

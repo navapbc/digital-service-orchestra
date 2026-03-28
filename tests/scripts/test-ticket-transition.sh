@@ -904,4 +904,142 @@ COMPEOF
 }
 test_close_succeeds_if_compact_fails
 
+# ── Test 17: close blocked by 2 open children (batch-close path) ──────────────
+echo "Test 17: close with 2 open children exits 1 and lists both children in error"
+test_close_with_open_children_blocked_via_batch() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a parent epic ticket
+    local parent_id
+    parent_id=$(_create_ticket "$repo" epic "Epic with two open children")
+
+    if [ -z "$parent_id" ]; then
+        assert_eq "parent epic ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_close_with_open_children_blocked_via_batch"
+        return
+    fi
+
+    # Create two child tickets under the parent
+    local child1_id child2_id
+    child1_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Open child one" --parent "$parent_id" 2>/dev/null) || true
+    child1_id=$(echo "$child1_id" | tail -1)
+    child2_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Open child two" --parent "$parent_id" 2>/dev/null) || true
+    child2_id=$(echo "$child2_id" | tail -1)
+
+    if [ -z "$child1_id" ] || [ -z "$child2_id" ]; then
+        assert_eq "both child tickets created under parent" "non-empty" "empty: child1='$child1_id' child2='$child2_id'"
+        assert_pass_if_clean "test_close_with_open_children_blocked_via_batch"
+        return
+    fi
+
+    # Attempt to close the parent while both children are still open — must exit non-zero
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero
+    assert_eq "batch-open-children: exits non-zero" "1" "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error output mentions both child IDs
+    if echo "$stderr_out" | grep -q "$child1_id"; then
+        assert_eq "batch-open-children: error lists child1" "has-child1" "has-child1"
+    else
+        assert_eq "batch-open-children: error lists child1" "has-child1" "missing: $stderr_out"
+    fi
+
+    if echo "$stderr_out" | grep -q "$child2_id"; then
+        assert_eq "batch-open-children: error lists child2" "has-child2" "has-child2"
+    else
+        assert_eq "batch-open-children: error lists child2" "has-child2" "missing: $stderr_out"
+    fi
+
+    # Assert: parent status unchanged (still open)
+    local compiled_status
+    compiled_status=$(_get_ticket_status "$repo" "$parent_id")
+    assert_eq "batch-open-children: parent status unchanged (still open)" "open" "$compiled_status"
+
+    assert_pass_if_clean "test_close_with_open_children_blocked_via_batch"
+}
+test_close_with_open_children_blocked_via_batch
+
+# ── Test 18: close unblocks dependent ticket (batch path) ─────────────────────
+echo "Test 18: close ticket A that blocks B → stdout contains UNBLOCKED line with B's ID"
+test_close_unblock_works_via_batch() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create ticket A (the one we will close)
+    local ticket_a
+    ticket_a=$(_create_ticket "$repo" task "Ticket A - blocks B")
+
+    # Create ticket B (blocked by A)
+    local ticket_b
+    ticket_b=$(_create_ticket "$repo" task "Ticket B - depends on A")
+
+    if [ -z "$ticket_a" ] || [ -z "$ticket_b" ]; then
+        assert_eq "unblock-batch: both tickets created" "non-empty" "empty: a='$ticket_a' b='$ticket_b'"
+        assert_pass_if_clean "test_close_unblock_works_via_batch"
+        return
+    fi
+
+    # Link: B depends_on A  (B is blocked by A)
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$ticket_b" "$ticket_a" depends_on 2>/dev/null) || true
+
+    # Close A; capture stdout
+    local stdout_out
+    local exit_code=0
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_a" open closed 2>/dev/null) || exit_code=$?
+
+    # Assert: transition exits 0
+    assert_eq "unblock-batch: transition exits 0" "0" "$exit_code"
+
+    # Assert: stdout contains UNBLOCKED with ticket_b's ID
+    if echo "$stdout_out" | grep -qE "UNBLOCKED.*$ticket_b|UNBLOCKED:.*$ticket_b"; then
+        assert_eq "unblock-batch: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "has-unblocked-B"
+    else
+        assert_eq "unblock-batch: stdout contains UNBLOCKED: <B>" "has-unblocked-B" "missing: $stdout_out"
+    fi
+
+    assert_pass_if_clean "test_close_unblock_works_via_batch"
+}
+test_close_unblock_works_via_batch
+
+# ── Test 19 (RED): ticket-transition.sh does NOT call ticket_find_open_children ─
+echo "Test 19 (RED): ticket_find_open_children is NOT called from ticket-transition.sh source"
+test_close_no_2n_spawns() {
+    _snapshot_fail
+
+    # Structural check: grep the source file itself for ticket_find_open_children.
+    # This test is RED because ticket-transition.sh currently calls ticket_find_open_children
+    # at Step 1b. The GREEN implementation should inline the child check into the batch
+    # close path (or use a different mechanism) rather than calling ticket_find_open_children.
+    local transition_src="$TICKET_TRANSITION_SCRIPT"
+
+    if [ ! -f "$transition_src" ]; then
+        assert_eq "test_close_no_2n_spawns: transition script exists" "exists" "missing"
+        assert_pass_if_clean "test_close_no_2n_spawns"
+        return
+    fi
+
+    # grep returns 0 if found, 1 if not found
+    local grep_exit=0
+    grep -q 'ticket_find_open_children' "$transition_src" 2>/dev/null || grep_exit=$?
+
+    # Assert: ticket_find_open_children is NOT in the source (grep should return non-zero)
+    # RED: it IS currently present → grep returns 0 → this assertion fails
+    if [ "$grep_exit" -ne 0 ]; then
+        assert_eq "no-2n-spawns: ticket_find_open_children not in transition source" "not-found" "not-found"
+    else
+        assert_eq "no-2n-spawns: ticket_find_open_children not in transition source" "not-found" "found-in-source"
+    fi
+
+    assert_pass_if_clean "test_close_no_2n_spawns"
+}
+test_close_no_2n_spawns
+
 print_summary

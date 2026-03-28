@@ -60,6 +60,7 @@ plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_chec
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh
 plugins/dso/scripts/project-detect.sh:tests/scripts/test-ci-generator-integration.sh,tests/scripts/test-project-detect.sh
 plugins/dso/scripts/ticket-bridge-status.sh:tests/scripts/test_bridge_status.py
+plugins/dso/scripts/ticket-graph.py:tests/scripts/test_ticket_graph.py
 plugins/dso/scripts/ticket-lib.sh:tests/scripts/test_revert_event.py,tests/scripts/test-ticket-lib.sh,tests/scripts/test-ticket-health-guards.sh
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test_bridge_alert_display.py
 plugins/dso/scripts/ticket-revert.sh:tests/scripts/test_revert_event.py
@@ -71,6 +72,7 @@ plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/sc
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
 plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
 plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh
+plugins/dso/scripts/validate-issues.sh:tests/scripts/test-validate-issues-timestamp.sh
 plugins/dso/scripts/validate-phase.sh:tests/test-validate-phase-portability.sh,tests/scripts/test-validate-phase-v2-removal.sh
 plugins/dso/scripts/validate.sh:tests/plugin/test-validate-work-portability.sh,tests/hooks/test-validate-review-output.sh,tests/hooks/test-validate-crash-detection.sh,tests/scripts/test-validate-test-batched-integration.sh,tests/scripts/test-validate-flock-timeout.sh,tests/scripts/test-validate-background.sh,tests/scripts/test-validate-skip-ci-flag.sh,tests/scripts/test-validate-issues.sh,tests/scripts/test-validate-config.sh,tests/scripts/test-validate-script-writes-integration.sh,tests/scripts/test-validate-config-driven.sh,tests/scripts/test-validate-state-lifecycle.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-validate-comment-accuracy.sh,tests/scripts/test-validate-e2e-missing-target.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py
@@ -186,3 +188,5 @@ plugins/dso/skills/architect-foundation/SKILL.md:tests/hooks/test-sub-agent-guar
 plugins/dso/agents/red-test-writer.md: tests/agents/test-red-test-writer.sh
 plugins/dso/agents/red-test-evaluator.md: tests/agents/test-red-test-evaluator.sh
 tests/lib/markdown_helpers.py:tests/docs/test_extract_section_deduplication.py
+plugins/dso/scripts/ticket-unblock.py: tests/scripts/test_ticket_unblock.py
+plugins/dso/scripts/ticket-benchmark.sh: tests/scripts/test-ticket-benchmark.sh

@@ -222,7 +222,7 @@ $ .claude/scripts/dso ticket show --format=llm w21-a3f7
 List all tickets.
 
 ```
-.claude/scripts/dso ticket list [--format=llm]
+.claude/scripts/dso ticket list [--format=llm] [--include-archived]
 ```
 
 **Arguments:**
@@ -230,6 +230,7 @@ List all tickets.
 | Argument | Required | Description |
 |---|---|---|
 | `--format=llm` | No | JSONL output — one minified ticket per line (see Output Formats section) |
+| `--include-archived` | No | Include archived tickets in output (default: archived tickets are excluded) |
 
 **Output:** Default: a JSON array of compiled ticket state objects. `--format=llm`: JSONL, one object per line.
 
@@ -237,6 +238,7 @@ List all tickets.
 
 - Runs the reducer on every ticket directory in `.tickets-tracker/`
 - Hidden directories (names starting with `.`) are skipped
+- Archived tickets are excluded by default; pass `--include-archived` to include them
 - Tickets that fail to reduce produce an error-state entry: `{"ticket_id": "...", "status": "error", "error": "reducer_failed"}`; these are included in the output array rather than causing an early exit
 - Aggregate unresolved bridge alert count is emitted to stderr if non-zero
 
@@ -437,7 +439,7 @@ $ .claude/scripts/dso ticket unlink w21-a3f7 w21-b9c2
 Show the dependency graph for a ticket.
 
 ```
-.claude/scripts/dso ticket deps <ticket_id> [--tickets-dir=<path>]
+.claude/scripts/dso ticket deps <ticket_id> [--tickets-dir=<path>] [--include-archived]
 ```
 
 **Arguments:**
@@ -446,6 +448,7 @@ Show the dependency graph for a ticket.
 |---|---|---|
 | `ticket_id` | Yes | The ticket whose dependency graph to show |
 | `--tickets-dir=<path>` | No | Override the tracker directory (defaults to `.tickets-tracker/`) |
+| `--include-archived` | No | Include archived tickets in the dep graph (default: archived tickets are excluded) |
 
 **Output:** JSON object with the following fields:
 
@@ -468,6 +471,8 @@ Show the dependency graph for a ticket.
 
 **Behavior:**
 
+- Archived tickets are excluded from the dep graph by default; pass `--include-archived` to include them
+- If the queried ticket itself is archived, the command exits with an error unless `--include-archived` is passed: `Error: ticket '<id>' is archived. Use --include-archived to include archived tickets.`
 - Uses a graph cache keyed by content hash of all ticket directories to avoid redundant reducer calls on repeated queries
 - Tombstone-aware: archived/tombstoned tickets count as closed for `ready_to_work` computation
 - Blockers include: tickets with a `depends_on` relation stored in this ticket's directory, and tickets with a `blocks` relation targeting this ticket stored in their own directory
@@ -477,12 +482,15 @@ Show the dependency graph for a ticket.
 | Code | Meaning |
 |---|---|
 | `0` | JSON dep graph printed to stdout |
-| `1` | Ticket not found |
+| `1` | Ticket not found or ticket is archived (without `--include-archived`) |
 
 **Example:**
 
 ```
 $ .claude/scripts/dso ticket deps w21-a3f7
+{"ticket_id":"w21-a3f7","deps":[{"target_id":"w21-b9c2","relation":"blocks"}],"blockers":[],"ready_to_work":true}
+
+$ .claude/scripts/dso ticket deps w21-a3f7 --include-archived
 {"ticket_id":"w21-a3f7","deps":[{"target_id":"w21-b9c2","relation":"blocks"}],"blockers":[],"ready_to_work":true}
 ```
 
@@ -702,6 +710,55 @@ Stale SYNCs: none found
 No issues found.
 
 $ .claude/scripts/dso ticket bridge-fsck --tickets-tracker=/path/to/tracker
+```
+
+---
+
+### `ticket-benchmark.sh`
+
+Benchmark the ticket list or close command against a seeded ticket system.
+
+```
+plugins/dso/scripts/ticket-benchmark.sh [-n <count>] [--threshold <seconds>] [--mode=list|close]
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `-n <count>` | No | Number of tickets to seed (default: `300`; `0` = use existing repo tickets) |
+| `--threshold <seconds>` | No | Max acceptable wall-clock time in seconds. Defaults: `3s` for n≤300, `10s` for n≤1000, `30s` for n>1000 (list mode); `10s` (close mode) |
+| `--mode=list\|close` | No | Benchmark mode (default: `list`). `list` measures `ticket list` wall-clock time. `close` seeds a mixed population and measures `ticket transition open→closed`. |
+
+**Behavior:**
+
+- When run without `-n` (or with `-n 0`) inside a repo with an initialized ticket system, benchmarks the existing tickets
+- Otherwise creates a temporary git repo, seeds N tickets, and benchmarks that
+- `close` mode seeds a mix of open, in-progress, and archived tickets, then measures a single `ticket transition open→closed` including all `batch_close_operations` work
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Elapsed time was below the threshold |
+| `1` | Elapsed time exceeded the threshold |
+| `2` | Invalid arguments |
+
+**Output:**
+
+```
+Elapsed: X.XXs for N tickets                                        (list mode)
+Elapsed: X.XXs for closing ticket with N non-archived tickets in tracker  (close mode)
+```
+
+**Example:**
+
+```
+$ plugins/dso/scripts/ticket-benchmark.sh --mode=list -n 300
+Elapsed: 1.23s for 300 tickets
+
+$ plugins/dso/scripts/ticket-benchmark.sh --mode=close -n 100
+Elapsed: 0.87s for closing ticket with 100 non-archived tickets in tracker
 ```
 
 ---

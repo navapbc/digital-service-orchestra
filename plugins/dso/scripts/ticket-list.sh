@@ -2,8 +2,9 @@
 # plugins/dso/scripts/ticket-list.sh
 # List all tickets by compiling each ticket directory via the reducer.
 #
-# Usage: ticket-list.sh [--format=<fmt>]
+# Usage: ticket-list.sh [--format=<fmt>] [--include-archived]
 #   Outputs a JSON array of compiled ticket states to stdout (default).
+#   --include-archived  Include archived tickets in the output (default: excluded).
 #   --format=llm  Outputs JSONL (one minified ticket per line) with shortened keys,
 #                 stripped nulls/empty lists, and no verbose timestamps
 #                 (created_at and env_id are omitted; comment timestamps omitted).
@@ -40,6 +41,7 @@ fi
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 format="default"
+include_archived=""
 for arg in "$@"; do
     case "$arg" in
         --format=llm)
@@ -48,6 +50,9 @@ for arg in "$@"; do
         --format=*)
             echo "Error: unsupported format '${arg#--format=}'. Supported: llm" >&2
             exit 1
+            ;;
+        --include-archived)
+            include_archived="true"
             ;;
         -*)
             echo "Error: unknown option '$arg'" >&2
@@ -65,7 +70,11 @@ fi
 # ── Batch-reduce all tickets ──────────────────────────────────────────────────
 batch_output=""
 batch_exit=0
-batch_output=$(python3 "$REDUCER" --batch --exclude-archived "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
+if [ -n "$include_archived" ]; then
+    batch_output=$(python3 "$REDUCER" --batch "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
+else
+    batch_output=$(python3 "$REDUCER" --batch --exclude-archived "$TRACKER_DIR" 2>/dev/null) || batch_exit=$?
+fi
 
 if [ "$batch_exit" -ne 0 ] && [ -z "$batch_output" ]; then
     echo "Error: batch reducer failed (exit $batch_exit) with no output" >&2
