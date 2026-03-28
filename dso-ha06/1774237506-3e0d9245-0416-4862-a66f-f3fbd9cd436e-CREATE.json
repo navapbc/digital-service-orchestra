@@ -1,1 +1,0 @@
-{"timestamp": 1774237506, "uuid": "3e0d9245-0416-4862-a66f-f3fbd9cd436e", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "test_cutover_rollback_committed_uses_revert is RED: git revert rollback not working for post-commit phase failure", "priority": 3, "assignee": "Joe Oakhart"}}
