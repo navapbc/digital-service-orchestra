@@ -1,1 +1,0 @@
-{"timestamp": 1774676424, "uuid": "ad43ddd2-b1e3-483f-baba-248045b7ab17", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Fix: Update SKILL.md BLOCKED output format docs for 6th blocker_ids field", "parent_id": "dso-fldu", "priority": 2, "assignee": "Joe Oakhart"}}
