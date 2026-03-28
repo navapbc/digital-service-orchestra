@@ -197,3 +197,7 @@ plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-scrutiny-pend
 CLAUDE.md: tests/skills/test-shared-subworkflow-docs.sh
 plugins/dso/agents/doc-writer.md: tests/scripts/test-doc-writer-agent.sh
 plugins/dso/skills/update-docs/SKILL.md: tests/hooks/test-sub-agent-guard.sh
+# overlay dispatch logic (task 9937-4de6 / story w22-25ui) — no single source file yet (implemented by task 67e2-2912)
+plugins/dso/scripts/overlay-dispatch.sh: tests/hooks/test-overlay-dispatch.sh [test_parallel_dispatch_from_classifier_signal]
+# overlay resolution loop integration (task ad04-e56f / story w22-agl5) — implemented by task db57-82d7
+plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resolution-integration.sh [test_critical_finding_blocks_commit]
