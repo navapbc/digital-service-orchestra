@@ -1,1 +1,0 @@
-{"timestamp": 1774290605, "uuid": "64bb1241-b6e6-425c-ba93-955b4642dae5", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "ticket-create.sh: update usage docs to reflect --parent flag syntax", "priority": 3, "assignee": "Joe Oakhart"}}
