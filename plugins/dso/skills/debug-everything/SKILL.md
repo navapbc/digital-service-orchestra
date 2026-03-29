@@ -41,7 +41,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 ```
 Phase 1 Step 1 (session lock + resume check)
-  → [open bugs exist? Yes: bug-fix mode (reads fix-bug SKILL.md inline at orchestrator level) → Phase 7 (Re-Diagnose)]
+  → [open bugs exist? Yes: bug-fix mode (reads fix-bug SKILL.md inline at orchestrator level) → Validation Mode (inner loop)]
   → [open bugs exist? No: Phase 1 (Diagnostic Scan) → Phase 2 (Triage sub-agent)]
 Phase 1 (Diagnostic + Clustering sub-agent) → Phase 2 (Triage sub-agent)
   → [dry-run: stop] or [execute: Phase 2.6 (Safeguard Analysis)]
@@ -51,6 +51,16 @@ Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
 Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
 Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/dso:end-session)] [FAIL: Phase 2]
 Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/dso:end-session)]
+
+Validation Loop (inner loop — within Bug-Fix Mode → Phase 8):
+Bug-Fix Mode → Validation Mode
+  → [new bugs found AND iteration < max_fix_validate_cycles?] → Bug-Fix Mode (next iteration)
+  → [no new bugs OR iteration >= max_fix_validate_cycles] → Phase 8 (Full Validation)
+
+NOTE: These are SEPARATE loops. The validation loop (inner) governs fix→validate cycles within a
+single tier's Bug-Fix Mode run, bounded by debug.max_fix_validate_cycles (default: 3, cap: 10).
+The outer loop (Phase 1→8) is bounded by the 5-cycle safety limit in Phase 8. They are independent
+and must NOT be conflated or allowed to nest multiplicatively.
 ```
 
 **Bug-Fix Mode note**: In bug-fix mode, `/dso:fix-bug` is invoked at orchestrator level — reads fix-bug/SKILL.md inline directly, NOT via Task tool dispatch — preserving Agent tool access for investigation sub-agents.
@@ -81,6 +91,19 @@ PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 STAGING_URL="${STAGING_URL:-http://nava-lockpick-doc-to-logic-env-stage.eba-m8tugimv.us-east-2.elasticbeanstalk.com}"
 EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 ```
+
+**Read validation loop config** — load `debug.max_fix_validate_cycles` from project config:
+
+```bash
+_raw_max_cycles=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.max_fix_validate_cycles 2>/dev/null || echo "")
+```
+
+Apply edge-case rules:
+- Empty or missing → default `MAX_FIX_VALIDATE_CYCLES=3`
+- Non-numeric → default `MAX_FIX_VALIDATE_CYCLES=3` with warning: `"WARNING: debug.max_fix_validate_cycles is not numeric ('$_raw_max_cycles') — defaulting to 3"`
+- Value `<= 0` → `MAX_FIX_VALIDATE_CYCLES=0` (skip validation loop entirely — proceed directly to Phase 8 after Bug-Fix Mode)
+- Value `> 10` → `MAX_FIX_VALIDATE_CYCLES=10` with warning: `"WARNING: debug.max_fix_validate_cycles ($raw_val) exceeds cap of 10 — capping at 10"`
+- Otherwise → `MAX_FIX_VALIDATE_CYCLES=$_raw_max_cycles`
 
 **Session lock** — prevents multiple `/dso:debug-everything` sessions from running concurrently:
 
@@ -314,7 +337,91 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
    Do NOT abort Bug-Fix Mode when a single ticket fails — process all remaining tickets.
 
-4. **After all bug tickets have been attempted**, proceed to **Phase 7 (Re-Diagnose)** to check for newly exposed failures or validation regressions caused by the fixes.
+4. **After all bug tickets have been attempted**, proceed to **Validation Mode** to check for newly exposed failures.
+
+---
+
+## Validation Mode (/dso:debug-everything)
+
+**Entry condition**: Entered after Bug-Fix Mode completes one full pass over all open bug tickets.
+
+**Purpose**: Detect failures newly exposed by bug fixes (regressions or previously hidden issues), create tickets for them, and loop back to Bug-Fix Mode — up to `MAX_FIX_VALIDATE_CYCLES` iterations.
+
+**Scope**: This is an INNER loop within the Bug-Fix Mode → Phase 8 flow. It is bounded by `debug.max_fix_validate_cycles` (configured at session start). The outer Phase 1→8 loop is separate and bounded by Phase 8's 5-cycle safety limit. These loops are independent and must NOT be conflated.
+
+### Step 1: Check Iteration Count
+
+Initialize on first entry: `VALIDATION_ITERATION=1`
+
+On each re-entry (looping from Bug-Fix Mode): `VALIDATION_ITERATION=$((VALIDATION_ITERATION + 1))`
+
+**Persist iteration count** as an epic ticket comment for resume continuity:
+
+```bash
+.claude/scripts/dso ticket comment <epic-id> "VALIDATION_LOOP_ITERATION: ${VALIDATION_ITERATION}/${MAX_FIX_VALIDATE_CYCLES}"
+```
+
+On resume (Step 1 resume check), parse existing `VALIDATION_LOOP_ITERATION:` comments to restore `VALIDATION_ITERATION` and `MAX_FIX_VALIDATE_CYCLES`.
+
+**If `MAX_FIX_VALIDATE_CYCLES <= 0`**: Skip validation loop entirely. Proceed directly to Phase 8.
+
+### Step 2: Run Diagnostic Scan After Bug-Fix
+
+Reuse the same diagnostic sub-agent pattern as Phase 1. Dispatch a diagnostic sub-agent to scan for newly exposed failures:
+
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/tier-transition-validation.md` and use its contents as the sub-agent prompt.
+
+**Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit`, `model="haiku"`
+
+**On scan failure** (sub-agent error, timeout, or corrupt output): Log warning: `"WARNING: Validation Mode diagnostic scan failed (iteration ${VALIDATION_ITERATION}/${MAX_FIX_VALIDATE_CYCLES}) — treating as failures remain"`. Decrement remaining iterations: `MAX_FIX_VALIDATE_CYCLES=$((MAX_FIX_VALIDATE_CYCLES - 1))`. Do NOT create tickets from partial or corrupt scan results. Proceed to Step 4.
+
+### Step 3: Create Tickets for Newly Discovered Failures
+
+For each new failure discovered in the diagnostic scan, create a bug ticket — but **deduplicate first**.
+
+**Deduplication** — before creating any new ticket, check for an existing open bug ticket covering the same failure:
+
+```bash
+.claude/scripts/dso ticket list --type=bug --status=open
+```
+
+Compare each discovered failure against:
+1. Tickets already created by Phase 7 regression detection
+2. Tickets from previous validation iterations (check `VALIDATION_LOOP_ITERATION:` comments to identify those iterations)
+3. Tickets from original Phase 2 triage
+
+If an open bug ticket already exists for a failure (by title similarity or matching error message), **skip ticket creation** — use the existing ticket. Only ONE ticket per unique failure across all iterations.
+
+For genuinely new failures (no matching open ticket exists), create a ticket:
+
+```bash
+.claude/scripts/dso ticket create bug "<failure-description>"
+```
+
+Collect newly created ticket IDs as `NEW_BUG_TICKETS`.
+
+### Step 4: Decide — Loop or Stop and Report
+
+**If `VALIDATION_ITERATION >= MAX_FIX_VALIDATE_CYCLES`**:
+
+Max fix-validate cycles reached. Do NOT loop back. Stop and report:
+
+```
+Max validation iterations (MAX_FIX_VALIDATE_CYCLES) reached — remaining issues reported as open tickets.
+Open bugs remaining: <list ticket IDs and titles>
+```
+
+Log: `"Max validation iterations (${MAX_FIX_VALIDATE_CYCLES}) reached — remaining issues reported as open tickets"`. Proceed to Phase 8.
+
+**If new bugs were found AND `VALIDATION_ITERATION < MAX_FIX_VALIDATE_CYCLES`**:
+
+New failures discovered. Loop back to Bug-Fix Mode with the newly created tickets:
+- Update `OPEN_BUG_COUNT` to include `NEW_BUG_TICKETS`
+- Return to Bug-Fix Mode (Step 2: process all open bug tickets by priority)
+
+**If no new bugs were found**:
+
+No new failures. The fix cycle is clean. Proceed to Phase 8.
 
 ---
 
