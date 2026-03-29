@@ -211,4 +211,4 @@ plugins/dso/scripts/overlay-dispatch.sh: tests/hooks/test-overlay-dispatch.sh
 plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resolution-integration.sh
 plugins/dso/scripts/gate-2d-dependency-check.sh: tests/scripts/test-gate-2d-dependency-check.sh
 plugins/dso/scripts/gate-2c-test-regression-check.py: tests/scripts/test_gate_2c_test_regression_check.py
-plugins/dso/scripts/gate-escalation-router.py: tests/scripts/test_gate_escalation_router.py [test_zero_signals]
+plugins/dso/scripts/gate-escalation-router.py: tests/scripts/test_gate_escalation_router.py
