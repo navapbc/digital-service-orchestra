@@ -1,0 +1,1 @@
+{"timestamp": 1774819828861705000, "uuid": "87ab20b3-d959-4d08-8a25-c04cdb92d6c7", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Epic complete: all 8 stories closed, all 6 success criteria verified by completion verifier. 107 tests pass across 10 test files. All 6 gate scripts smoke-test clean."}}
