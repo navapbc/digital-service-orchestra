@@ -77,6 +77,7 @@ plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/sc
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
 plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
 plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh
+plugins/dso/scripts/validate-gate-signal.py: tests/scripts/test_validate_gate_signal.py [test_valid_complete_signal]
 plugins/dso/scripts/validate-issues.sh:tests/scripts/test-validate-issues-timestamp.sh
 plugins/dso/scripts/validate-phase.sh:tests/test-validate-phase-portability.sh,tests/scripts/test-validate-phase-v2-removal.sh
 plugins/dso/scripts/validate.sh:tests/plugin/test-validate-work-portability.sh,tests/hooks/test-validate-review-output.sh,tests/hooks/test-validate-crash-detection.sh,tests/scripts/test-validate-test-batched-integration.sh,tests/scripts/test-validate-flock-timeout.sh,tests/scripts/test-validate-background.sh,tests/scripts/test-validate-skip-ci-flag.sh,tests/scripts/test-validate-issues.sh,tests/scripts/test-validate-config.sh,tests/scripts/test-validate-script-writes-integration.sh,tests/scripts/test-validate-config-driven.sh,tests/scripts/test-validate-state-lifecycle.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-validate-comment-accuracy.sh,tests/scripts/test-validate-e2e-missing-target.sh
