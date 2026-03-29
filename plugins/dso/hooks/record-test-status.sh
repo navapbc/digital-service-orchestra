@@ -533,7 +533,25 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
 
         if [[ "$all_in_red_zone" == true ]]; then
             # All failures are in the RED zone — tolerate them (partial progress is normal).
-            # Stale marker detection (all RED-zone tests pass) is handled by the exit_code==0 branch below.
+            # But first: check if the marker test itself is now passing (stale marker).
+            # When exit_code != 0 but the marker test passes, the RED boundary has been
+            # crossed — the marker is stale and must be removed.
+            mapfile -t _passing_tests < <(parse_passing_tests_from_output "$test_output_file")
+            _marker_is_passing=false
+            for _pt in "${_passing_tests[@]}"; do
+                if [[ "$_pt" == "$red_marker" ]]; then
+                    _marker_is_passing=true
+                    break
+                fi
+            done
+            if [[ "$_marker_is_passing" == true ]]; then
+                echo "STALE RED MARKER: ${test_file} (marker: ${red_marker}) — all RED-zone tests passed; remove the [${red_marker}] marker from .test-index" >&2
+                rm -f "$test_output_file"
+                if [[ "$STATUS" != "timeout" ]]; then
+                    STATUS="failed"
+                fi
+                continue
+            fi
             echo "INFO: RED zone failures tolerated for ${test_file} (marker: ${red_marker}, zone starts line ${red_zone_line})" >&2
             rm -f "$test_output_file"
             # Do NOT downgrade STATUS — this test is non-blocking
