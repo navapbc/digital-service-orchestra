@@ -267,8 +267,27 @@ run_test_suite() {
                 # check whether ALL failures are in the RED zone (at or after marker).
                 # If yes → TOLERATED (don't count as failure, exit 0 still possible).
                 # If no or unparseable → keep as FAIL (conservative fail-safe).
-                if [[ "$_RED_ZONE_ENABLED" = true ]] && [[ -n "${_RED_MARKER_MAP[$tpath]:-}" ]]; then
-                    local _marker="${_RED_MARKER_MAP[$tpath]}"
+                #
+                # Path matching: try exact match first (for absolute paths in index),
+                # then suffix match (for relative paths like "tests/hooks/test-foo.sh"
+                # in index vs absolute path in tpath). This handles both fixture tests
+                # (which store absolute paths) and real .test-index (relative paths).
+                local _red_marker_lookup=""
+                if [[ -n "${_RED_MARKER_MAP[$tpath]:-}" ]]; then
+                    _red_marker_lookup="${_RED_MARKER_MAP[$tpath]}"
+                else
+                    # Try suffix match: find a key in the map whose value matches
+                    # and whose key is a suffix of tpath (handles relative vs absolute)
+                    local _mk
+                    for _mk in "${!_RED_MARKER_MAP[@]}"; do
+                        if [[ -n "${_RED_MARKER_MAP[$_mk]}" ]] && [[ "$tpath" == *"$_mk" ]]; then
+                            _red_marker_lookup="${_RED_MARKER_MAP[$_mk]}"
+                            break
+                        fi
+                    done
+                fi
+                if [[ "$_RED_ZONE_ENABLED" = true ]] && [[ -n "$_red_marker_lookup" ]]; then
+                    local _marker="$_red_marker_lookup"
                     local _out_file="$results_dir/$tname.out"
 
                     # Get the line number of the RED marker in the test file

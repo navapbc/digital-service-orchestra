@@ -30,6 +30,13 @@ LIB_DIR="$SCRIPT_DIR/../lib"
 _RUN_HOOK_REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 export CLAUDE_PLUGIN_ROOT="$_RUN_HOOK_REPO_ROOT/plugins/dso"
 
+# Enable RED-zone tolerance — suite-engine reads SUITE_TEST_INDEX to tolerate
+# failures in functions at/after the RED marker defined in .test-index.
+# Only set if not already provided by the caller.
+if [[ -z "${SUITE_TEST_INDEX:-}" ]] && [[ -f "$_RUN_HOOK_REPO_ROOT/.test-index" ]]; then
+    export SUITE_TEST_INDEX="$_RUN_HOOK_REPO_ROOT/.test-index"
+fi
+
 # Increase per-test timeout — behavioral-equivalence-allowlist and similar
 # tests take ~13s standalone; under CPU contention in the parallel suite they
 # can exceed the suite-engine default of 30s (same fix as run-script-tests.sh
