@@ -205,3 +205,4 @@ plugins/dso/skills/update-docs/SKILL.md: tests/hooks/test-sub-agent-guard.sh
 plugins/dso/scripts/overlay-dispatch.sh: tests/hooks/test-overlay-dispatch.sh
 # overlay resolution loop integration (task ad04-e56f / story w22-agl5) — implemented by task db57-82d7
 plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resolution-integration.sh
+plugins/dso/scripts/run-skill-evals.sh: tests/scripts/test-run-skill-evals.sh [test_tier1_maps_changed_paths_to_skill_evals]
