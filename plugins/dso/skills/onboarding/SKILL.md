@@ -131,7 +131,103 @@ I've scanned the project and found:
 Does this look right, or is anything missing?
 ```
 
-Wait for the user to confirm or correct before continuing. Update the scratchpad with any corrections, then proceed to Phase 2 for areas still needing clarification.
+Wait for the user to confirm or correct before continuing. Update the scratchpad with any corrections.
+
+---
+
+## Phase 1.5: Template Selection Gate (Empty Project)
+
+**Condition:** Run this phase ONLY when `detect-stack.sh` returned `"unknown"` (no recognized framework was found). If the stack was detected as anything other than `"unknown"`, skip this phase entirely and proceed directly to Phase 2.
+
+**Goal:** Offer the user a curated set of starter templates so they can bootstrap from a known-good foundation instead of starting from scratch.
+
+### Step 1: Load the Template Registry
+
+Run `parse-template-registry.sh` to fetch available templates:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REGISTRY_OUTPUT=$(bash "$REPO_ROOT/plugins/dso/scripts/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)
+```
+
+**Fallback behavior**: If `$REGISTRY_OUTPUT` is empty (regardless of exit code), the template registry is missing or malformed. In that case:
+- Log a warning (do not display to user): append `"WARNING: template registry unavailable — skipping template gate"` to the scratchpad.
+- Skip Phase 1.5 silently and proceed directly to Phase 2 (existing manual flow).
+
+Do NOT surface registry errors to the user unless they ask why no templates were offered.
+
+### Step 2: Present Template Menu
+
+Parse `$REGISTRY_OUTPUT` (tab-separated: `name\trepo_url\tinstall_method\tframework_type\tdata_flags`) and present a numbered menu:
+
+```
+I didn't detect a recognized framework in this project. Would you like to start from a template?
+
+Available templates:
+  1. nextjs       — Next.js application (nava-platform)
+  2. flask        — Flask application (nava-platform)
+  3. rails        — Ruby on Rails application (nava-platform)
+  4. jekyll-uswds — Jekyll + USWDS site (git-clone)
+
+  0. No template — I'll configure this project manually
+
+Enter a number, or press Enter to skip:
+```
+
+Present each template on its own numbered line. Always include option `0` (or equivalent "no template" choice) so the user can decline without being forced to pick a template.
+
+### Step 3: Handle User Choice
+
+#### If the user selects a template (options 1–N):
+
+1. Store the template selection in the scratchpad:
+
+```bash
+SELECTED_TEMPLATE_NAME="<name>"          # e.g., "nextjs"
+SELECTED_TEMPLATE_REPO="<repo_url>"      # e.g., "https://github.com/navapbc/template-application-nextjs.git"
+SELECTED_TEMPLATE_INSTALL="<install_method>"  # "nava-platform" or "git-clone"
+SELECTED_TEMPLATE_FRAMEWORK="<framework_type>"  # e.g., "node-npm"
+SELECTED_TEMPLATE_DATA_FLAGS="<data_flags>"   # e.g., "app_name" (comma-separated, may be empty)
+
+echo "## Template Selection Result" >> "$SCRATCHPAD"
+echo "Selected: $SELECTED_TEMPLATE_NAME" >> "$SCRATCHPAD"
+echo "Repo: $SELECTED_TEMPLATE_REPO" >> "$SCRATCHPAD"
+echo "Install method: $SELECTED_TEMPLATE_INSTALL" >> "$SCRATCHPAD"
+echo "Framework type: $SELECTED_TEMPLATE_FRAMEWORK" >> "$SCRATCHPAD"
+echo "Required data flags: $SELECTED_TEMPLATE_DATA_FLAGS" >> "$SCRATCHPAD"
+```
+
+2. Route to the install path based on `install_method`:
+   - **`nava-platform`**: Notify the user that this template uses the nava-platform installer. Collect any required `required_data_flags` values (e.g., `app_name`) one at a time before proceeding.
+   - **`git-clone`**: Notify the user that this template will be cloned via `git clone <repo_url>`. No additional data flags are required for `git-clone` templates — proceed directly.
+
+3. After collecting required data, record the template selection result in the scratchpad under `## Template Selection Result` using the output contract below, then proceed to Phase 2 (the selected framework type fills in the stack area automatically — confirm with the user rather than asking from scratch).
+
+#### If the user declines (option 0 or empty input):
+
+Record in scratchpad:
+```bash
+echo "## Template Selection Result" >> "$SCRATCHPAD"
+echo "Declined — proceeding with manual configuration" >> "$SCRATCHPAD"
+```
+
+Proceed to Phase 2 (existing manual flow) unchanged. Do NOT reference templates again during Phase 2.
+
+### Output Contract: Template Selection Result
+
+When a template is selected, the selection result is recorded in the scratchpad under `## Template Selection Result`. This structure is the contract consumed by install path stories:
+
+```
+## Template Selection Result
+name: <string>               # Template name (e.g., "nextjs")
+install_method: <string>     # "nava-platform" or "git-clone"
+repo_url: <string>           # Full git URL of the template repo
+framework_type: <string>     # Framework type string (e.g., "node-npm", "python-poetry", "ruby-rails", "ruby-jekyll")
+required_data_flags: <csv>   # Comma-separated list of data flags collected (empty string if none)
+collected_data: <map>        # Key-value pairs for each required_data_flag (e.g., app_name=my-app)
+```
+
+This structure is append-only — downstream install path steps read it from the scratchpad to complete installation without re-prompting the user.
 
 ---
 
@@ -757,5 +853,6 @@ If the user says no or wants to continue manually, summarize what was learned an
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Auto-Detection | Pre-fill answers | Run project-detect.sh, initialize scratchpad temp file, summarize findings |
+| 1.5: Template Selection Gate | Offer starter templates (empty projects only) | Only when detect-stack returns "unknown"; load parse-template-registry.sh; numbered menu; handle select → store result + route to install path; handle decline → proceed to Phase 2 unchanged; missing registry → skip silently |
 | 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, confirmation-based (not rigid menus), skip confirmed areas |
 | 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write .claude/design-notes.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), infrastructure init (hook install with Husky/pre-commit framework/.git/hooks manager detection, git-common-dir for worktree support, ticket system orphan branch + .tickets-tracker/ + push verification + smoke test, generate-test-index.sh, CLAUDE.md with ticket commands, KNOWN-ISSUES template, CI trigger strategy), offer /dso:architect-foundation |
