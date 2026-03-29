@@ -13,7 +13,7 @@ This skill replaces `/dso:tdd-workflow` for bug fixes. For new feature developme
 <HARD-GATE>
 Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
 
-Do NOT investigate inline as a substitute for sub-agent dispatch. Reading code, grepping, running commands, or analyzing stack traces yourself does NOT satisfy Step 2. You MUST dispatch the investigation sub-agent described in Step 2 — your own analysis is not equivalent, even when the root cause appears obvious.
+Do NOT investigate inline as a substitute for sub-agent dispatch. Reading code, grepping, running commands, or analyzing stack traces yourself does NOT satisfy the Investigation Dispatch step. You MUST dispatch the investigation sub-agent described in the Investigation Dispatch step — your own analysis is not equivalent, even when the root cause appears obvious.
 </HARD-GATE>
 
 ## Config Resolution (reads project workflow-config.yaml)
@@ -68,7 +68,7 @@ Mechanical Fix Path:
 2. Read the error message and identify the exact file and line
 3. Apply the deterministic fix (add import, fix type, fix lint, fix syntax)
 4. Run `$TEST_CMD` and `$LINT_CMD` to validate
-5. If validation passes, proceed to Step 8 (Commit and Close)
+5. If validation passes, run Gate 2a (Reversal Check) then proceed to Step 8 (Commit and Close)
 6. If validation fails with a NEW error, reclassify — it may be behavioral
 
 ### Behavioral Errors
@@ -143,6 +143,59 @@ Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 3. If mechanical: follow the Mechanical Fix Path, then skip to Step 8
 4. If behavioral: apply the Scoring Rubric to determine investigation tier
 5. Record the classification and score in a ticket note: `ticket comment <BUG_TICKET_ID> "Classification: behavioral, Score: <N> (<tier>)"`
+
+### Step 1.5: Gate 1a — Intent Search (/dso:fix-bug)
+
+Before dispatching the investigation sub-agent, run the intent-search gate to determine whether the bug aligns with system intent.
+
+**Read budget config:**
+
+```bash
+INTENT_SEARCH_BUDGET=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.intent_search_budget)
+# Default: 20
+```
+
+**Dispatch intent-search agent:**
+
+```
+subagent_type: dso:intent-search
+inputs:
+  ticket_id: <BUG_TICKET_ID>
+  intent_search_budget: <INTENT_SEARCH_BUDGET>
+```
+
+The agent returns a gate signal conforming to the shared contract defined in `plugins/dso/docs/contracts/gate-signal-schema.md`.
+
+**Route based on gate signal outcome:**
+
+After the agent returns its signal, record the outcome string for use by Gate 2a:
+
+```bash
+# Set GATE_1A_RESULT to "intent-aligned", "intent-contradicting", or "ambiguous"
+# based on the gate signal outcome field returned by the intent-search agent.
+GATE_1A_RESULT="<outcome>"   # e.g., "intent-aligned"
+```
+
+- **intent-aligned** (`triggered: false`, `confidence: high` or `medium`) — The bug is consistent with system intent. Set `GATE_1A_RESULT="intent-aligned"`. Proceed directly to Step 2 (Investigation Sub-Agent Dispatch) without additional dialog.
+
+- **intent-contradicting** (`triggered: true`) — The bug report describes behavior that contradicts system intent (e.g., "working as designed", invalid usage, non-bug). Set `GATE_1A_RESULT="intent-contradicting"`. Auto-close:
+  1. Add evidence comment:
+     ```bash
+     ticket comment <BUG_TICKET_ID> "Intent-contradicting: <evidence summary from gate signal>"
+     ```
+  2. Close ticket with reason:
+     ```bash
+     ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: Intent-contradicting — <evidence source>"
+     ```
+  3. **Stop** — do not proceed to investigation.
+
+- **ambiguous** (`triggered: false`, `confidence: low`) — The intent signal is inconclusive. Set `GATE_1A_RESULT="ambiguous"`. Fall through to Gate 1b for further disambiguation before investigation.
+
+<!-- REVIEW-DEFENSE: Gate 1b is an intentional forward reference. It is defined in story 5260-e9ba (a separate story under epic a5f2-1811, currently blocked and scheduled for a future implementation batch). Until story 5260-e9ba lands, agents encountering an ambiguous outcome should treat "fall through to Gate 1b" as "proceed directly to Step 2 (Investigation Sub-Agent Dispatch)". The forward reference is preserved deliberately so that when Gate 1b is implemented it slots in without requiring a second SKILL.md edit. -->
+
+**Graceful degradation:** If the intent-search agent dispatch fails (timeout, nonzero exit, empty output, or unparseable JSON / malformed signal), treat the result as **ambiguous** (`GATE_1A_RESULT="ambiguous"`) and fall through to Gate 1b. Agent failure must never block a legitimate bug investigation. Log the failure via `ticket comment <BUG_TICKET_ID> "Gate 1a: agent failure — treating as ambiguous. Error: <error detail>"`.
+
+**Mechanical fix path**: Bugs routed through the Mechanical Fix Path bypass Step 1.5 entirely, so `GATE_1A_RESULT` will be unset when Gate 2a runs. Gate 2a handles this via the default guard shown in its bash snippet (`GATE_1A_RESULT=${GATE_1A_RESULT:-}`).
 
 ### Step 2: Investigation Sub-Agent Dispatch (/dso:fix-bug)
 
@@ -465,6 +518,81 @@ $FORMAT_CHECK_CMD   # No format regressions
 - All fixes attempted with results
 - All hypothesis test results
 - Recommendation for manual investigation
+
+### Gate 2a: Reversal Check (/dso:fix-bug)
+
+After verification passes (Step 7) and before committing (Step 8), run the reversal check gate to detect whether the proposed fix unintentionally undoes a recent committed change.
+
+**Dispatch**: Run `gate-2a-reversal-check.sh` with the affected file paths. If Gate 1a returned intent-aligned for this bug, pass the `--intent-aligned` flag to suppress reversal detection (the reversal is expected and intentional, so duplicate blocking is unnecessary).
+
+Before running, populate `AFFECTED_FILES` from the investigation results — these are the source files modified by the proposed fix (obtained from the investigation sub-agent RESULT report's `affected_files` field or from `git diff --name-only`):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+# Populate AFFECTED_FILES_ARR as a bash array from investigation RESULT report
+# (affected_files field) or from the working-tree diff:
+#   mapfile -t AFFECTED_FILES_ARR < <(git diff --name-only)
+# Each element must be a separate array entry so gate-2a-reversal-check.sh
+# receives per-file arguments (it uses FILES+=("$arg") for each positional arg).
+AFFECTED_FILES_ARR=( "<file1>" "<file2>" )   # replace with actual paths
+# Guard against unset GATE_1A_RESULT (e.g., mechanical fix path that bypassed Step 1.5)
+GATE_1A_RESULT=${GATE_1A_RESULT:-}
+# If Gate 1a returned intent-aligned, add --intent-aligned to suppress
+if [ "$GATE_1A_RESULT" = "intent-aligned" ]; then
+    GATE_2A_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2a-reversal-check.sh" --intent-aligned "${AFFECTED_FILES_ARR[@]}" 2>/dev/null)
+else
+    GATE_2A_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2a-reversal-check.sh" "${AFFECTED_FILES_ARR[@]}" 2>/dev/null)
+fi
+GATE_2A_EXIT=$?
+```
+
+**Parse the gate signal**: The script outputs a JSON object conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`. Parse the `triggered` and `signal_type` fields from stdout.
+
+**Reversal behavior**: The script compares the working-tree diff against recent commit history. If >50% of a recent commit's changed lines are inverted by the proposed fix, the gate fires (`triggered: true`, `signal_type: "primary"`). The gate also recognizes revert-of-revert patterns — when the commit being reversed is itself a revert (message matches `^Revert`, case-insensitive), the inversion is treated as an intentional re-application of the original change, and the gate does not fire.
+
+**On triggered:true**: Add a primary signal to the gate accumulator. The reversal detection is a blocking signal — present the evidence to the user and require confirmation that the reversal is intentional before proceeding to Step 8.
+
+**Error handling (graceful degradation)**: If `gate-2a-reversal-check.sh` exits nonzero, produces empty stdout, or outputs JSON that cannot be parsed, construct a fallback gate signal and log a warning:
+
+```json
+{"gate_id": "2a", "triggered": false, "signal_type": "primary", "evidence": "gate error: <reason>", "confidence": "low"}
+```
+
+This ensures `validate-gate-signal.py` receives a complete 5-field signal on error paths. The gate degrades to triggered:false so that gate errors do not block the fix workflow.
+
+### Gate 2b: Blast Radius Annotation (/dso:fix-bug)
+
+Gate 2b is a **modifier** gate — it appends a blast-radius annotation to the escalation dialog context but never adds a primary signal count. On error (nonzero exit, empty stdout, or JSON parse failure), skip the annotation silently. Gate 2b cannot block the fix workflow on its own.
+
+**When to run**: After Step 7 (Verify Fix) passes, run `gate-2b-blast-radius.sh` with the affected file path(s) and `--repo-root`:
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/gate-2b-blast-radius.sh" "<affected_file_path>" --repo-root "$(git rev-parse --show-toplevel)"
+```
+
+**Parsing the gate signal**: Parse the JSON emitted to stdout. The signal conforms to `gate-signal-schema.md`:
+- `gate_id`: `"2b"`
+- `signal_type`: always `"modifier"` — Gate 2b is a modifier only; it enriches context but never drives a block decision
+- `triggered`: `true` if the file has a convention match or fan-in > 0; `false` otherwise
+- `evidence`: human-readable annotation starting with `"Note:"`
+- `confidence`: `"high"` | `"medium"` | `"low"`
+
+**Behavior on `triggered: true`**: Append the `evidence` annotation to the escalation dialog context. This enrichment is only visible when another gate has already triggered a primary signal — Gate 2b provides supporting context, not a standalone block reason.
+
+**Behavior on `triggered: false`**: No action required. Nothing noteworthy was found.
+
+**Error handling**: On nonzero exit, empty stdout, or JSON parse failure, skip the annotation silently. Construct a full 5-field fallback signal with `triggered: false` and proceed without blocking:
+
+```json
+{"gate_id": "2b", "triggered": false, "signal_type": "modifier", "evidence": "gate error: <reason>", "confidence": "low"}
+```
+
+Do not surface gate errors to the user or halt the fix workflow.
+
+**ast-grep / grep fallback**: `gate-2b-blast-radius.sh` uses ast-grep for fan-in analysis when available. When ast-grep is not installed, the script automatically falls back to grep-based analysis so the gate remains functional across all environments.
+
+**Boundary with Centrality-Aware Test Gate**: Gate 2b runs at commit-time annotation (post-investigation), while the Centrality-Aware Test Gate operates at pre-commit time. They serve different phases and do not interact.
 
 ### Step 8: Commit and Close (/dso:fix-bug)
 
