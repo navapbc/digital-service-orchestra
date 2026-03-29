@@ -53,6 +53,8 @@ tests:
           the skill should gather more context first before jumping to solutions.
 
   - description: "Produces structured epic spec for a well-defined feature"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
     vars:
       prompt: |
         I need a CSV export feature. Here's what I know:

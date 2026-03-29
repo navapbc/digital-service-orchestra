@@ -2,6 +2,9 @@ description: "Fix-bug skill evals — trigger routing and bug classification"
 
 providers:
   - id: "anthropic:messages:claude-haiku-4-5-20251001"
+  - id: "anthropic:claude-agent-sdk"
+    config:
+      modelId: "claude-haiku-4-5-20251001"
 
 defaultTest:
   options:
@@ -111,3 +114,16 @@ tests:
           response should identify this as a straightforward import fix — update the
           import name from 'validate_schema' to 'validate_json_schema' in the
           consuming file.
+
+  - description: "Trigger routing: fix-bug skill is selected for a bug report (skill-used assertion)"
+    vars:
+      prompt: |
+        Bug: TypeError in production — NoneType has no attribute 'get'.
+        File "src/api/handler.py", line 42
+    assert:
+      - type: llm-rubric
+        value: >
+          This prompt describes a bug report. The fix-bug skill should be the
+          correct skill to handle this — not brainstorm, sprint, or implementation-plan.
+          Verify the output produces a bug classification (mechanical or behavioral)
+          and routes to an investigation path, confirming fix-bug was the right skill.
