@@ -1,1 +1,0 @@
-{"timestamp": 1774224175, "uuid": "885aa1c6-0cac-4023-a228-94d7200e0d96", "event_type": "CREATE", "data": {"ticket_type": "task", "title": "bug Test gate blocks merge commits due to stale diff hash from incoming-only changes", "priority": 2, "assignee": "Joe Oakhart"}}
