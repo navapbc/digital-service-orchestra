@@ -255,6 +255,20 @@ if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/MERGE_HEAD" ]]; then
     fi
 fi
 
+# --- Detect staged skill files (for Tier 1 eval invocation) ---
+# Collected here (before the "no associated tests" early exit) so that skill evals
+# run even when no unit tests are associated with the staged files.
+_SKILL_PATTERN="plugins/dso/skills/"
+_staged_skill_paths=""
+while IFS= read -r _sf; do
+    [[ -z "$_sf" ]] && continue
+    case "$_sf" in
+        *"${_SKILL_PATTERN}"*)
+            _staged_skill_paths="${_staged_skill_paths}${REPO_ROOT}/${_sf}"$'\n'
+            ;;
+    esac
+done <<< "$STAGED_FILES"
+
 # --- Discover associated test files ---
 ASSOCIATED_TESTS=()
 # Parallel array: RED marker for each entry in ASSOCIATED_TESTS (empty string = no marker)
@@ -350,10 +364,10 @@ for _tf in "${ASSOCIATED_TESTS[@]}"; do
     ASSOCIATED_TEST_MARKERS+=("${_TEST_MARKER_MAP[$_tf]:-}")
 done
 
-# --- No associated tests: exit cleanly (exempt) ---
-if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]]; then
-    # No associated tests found — exit cleanly without writing test-gate-status
-    # (the gate exempts files with no associated tests)
+# --- No associated tests and no staged skill files: exit cleanly (exempt) ---
+if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ -z "$_staged_skill_paths" ]]; then
+    # No associated tests and no skill evals to run — exit cleanly without writing
+    # test-gate-status (the gate exempts files with no associated tests)
     exit 0
 fi
 
@@ -602,6 +616,43 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
 done
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# --- Skill eval integration (Tier 1) ---
+# _staged_skill_paths was collected earlier (before the "no associated tests" early exit).
+# Invoke run-skill-evals.sh with absolute paths to staged skill files.
+# run-skill-evals.sh maps file paths to skill directories, deduplicates, and
+# runs promptfoo evals only if evals/promptfooconfig.yaml exists.
+# Non-zero exit = eval failure → downgrade STATUS to 'failed' (or preserve 'timeout').
+if [[ -n "$_staged_skill_paths" ]]; then
+    _RUN_EVALS_SCRIPT="${RECORD_TEST_STATUS_EVALS_RUNNER:-${HOOK_DIR}/../scripts/run-skill-evals.sh}"
+    # Skip evals when ANTHROPIC_API_KEY is not set (evals require API access),
+    # unless an explicit override runner is provided (RECORD_TEST_STATUS_EVALS_RUNNER)
+    # which allows tests to supply a mock runner without requiring API credentials.
+    if [[ -z "${ANTHROPIC_API_KEY:-}" ]] && [[ -z "${RECORD_TEST_STATUS_EVALS_RUNNER:-}" ]]; then
+        echo "NOTE: ANTHROPIC_API_KEY not set; skipping skill evals (evals require API access)." >&2
+    elif [[ -x "$_RUN_EVALS_SCRIPT" ]]; then
+        # Build argument list from newline-separated paths
+        _eval_args=()
+        while IFS= read -r _sp; do
+            [[ -z "$_sp" ]] && continue
+            _eval_args+=("$_sp")
+        done <<< "$_staged_skill_paths"
+
+        _eval_exit=0
+        bash "$_RUN_EVALS_SCRIPT" "${_eval_args[@]}" >&2 || _eval_exit=$?
+
+        if [[ $_eval_exit -eq 2 ]]; then
+            # npx/promptfoo not available — warn and skip (non-blocking)
+            echo "WARNING: run-skill-evals.sh exited 2 (npx/promptfoo not available); skipping skill evals." >&2
+        elif [[ $_eval_exit -ne 0 ]]; then
+            # Eval failures at commit time are non-blocking warnings (LLM grading is non-deterministic).
+            # The daily CI workflow (Tier 2) is the authoritative blocking gate for eval regressions.
+            echo "WARNING: Skill eval failed (exit ${_eval_exit}) — non-blocking at commit time. Daily CI will catch regressions." >&2
+        fi
+    else
+        echo "WARNING: run-skill-evals.sh not found or not executable at ${_RUN_EVALS_SCRIPT}; skipping skill evals." >&2
+    fi
+fi
 
 # --- Write test-gate-status ---
 STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"

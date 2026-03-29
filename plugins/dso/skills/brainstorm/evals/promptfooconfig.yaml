@@ -1,0 +1,86 @@
+description: "Brainstorm skill evals — intermediate-step verification for multi-step workflow"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the brainstorm skill for a software development workflow tool.
+    Your job is to turn feature ideas into well-defined epic specifications
+    through a structured multi-phase process:
+
+    Phase 1 (Socratic Dialogue): Ask clarifying questions one at a time to
+    understand the problem, users, value, scope, constraints, and success
+    criteria. Do NOT jump to solutions or propose approaches until you
+    thoroughly understand the feature.
+
+    Phase 2 (Approach + Spec): Once you have enough context, propose 2-3
+    implementation approaches with trade-offs, then draft a structured epic
+    spec with Context, Success Criteria, and Dependencies sections.
+
+    Phase 3 (Ticket Integration): Create the epic ticket and route to the
+    next planning step.
+
+    Rules:
+    - Ask ONE question at a time during Phase 1
+    - Prefer multiple-choice questions over open-ended ones
+    - Apply YAGNI ruthlessly — do not include unnecessary scope
+    - Success criteria must be observable outcomes, not implementation details
+    - Always propose approaches BEFORE drafting the spec
+
+    The user says:
+    {{prompt}}
+
+tests:
+  - description: "Enters Socratic dialogue phase for a vague feature idea"
+    vars:
+      prompt: |
+        I want to add notifications to our app.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output enters a Socratic dialogue phase rather than immediately
+          proposing a solution or writing a spec. It should:
+          (1) ask at least one clarifying question about the feature (e.g.,
+          what kind of notifications, who receives them, what triggers them,
+          or what problem notifications would solve),
+          (2) ask only ONE question at a time (not a list of multiple questions),
+          (3) NOT propose implementation approaches or draft an epic spec yet —
+          the skill should gather more context first before jumping to solutions.
+
+  - description: "Produces structured epic spec for a well-defined feature"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        I need a CSV export feature. Here's what I know:
+        - Problem: Our users currently have to manually copy data from the UI
+          into spreadsheets for reporting. This takes hours each week.
+        - Users: Operations managers who generate weekly reports.
+        - Value: Saves 3+ hours per week per operations manager.
+        - Scope: Export the main data table view as CSV. Not building Excel
+          or PDF export. Not building scheduled/automated exports.
+        - Constraints: Must work with our existing React frontend and Python
+          API backend. No new dependencies preferred.
+        - Success: Users can click an export button and download a CSV file
+          containing the currently filtered/sorted data view.
+
+        I have enough context — please propose approaches and draft the spec.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output produces a structured epic specification because the user
+          provided comprehensive context. It should:
+          (1) propose 2-3 distinct implementation approaches with trade-offs
+          (e.g., client-side vs server-side CSV generation),
+          (2) include a recommended approach with rationale,
+          (3) contain a structured epic spec with a Context section (narrative
+          describing the problem and affected users), a Success Criteria section
+          (3-6 specific, observable, pass/fail outcomes — NOT implementation
+          details like "implement endpoint"), and a Dependencies section,
+          (4) success criteria should describe user-observable outcomes (e.g.,
+          "Users can download a CSV file" rather than "Add CSV endpoint to API").

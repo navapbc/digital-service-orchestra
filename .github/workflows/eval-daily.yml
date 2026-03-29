@@ -1,0 +1,70 @@
+# Digital Service Orchestra — Daily Skill Evals
+# Runs eval-daily-runner.sh daily to execute the full eval suite via promptfoo.
+
+name: Daily Skill Evals
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: eval-daily
+  cancel-in-progress: false
+
+jobs:
+  evals:
+    name: Run daily skill evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main (scripts and plugin code)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: main
+
+      - name: Setup Node.js (for promptfoo)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Mount tickets branch as worktree
+        run: |
+          git fetch origin tickets --depth=1
+          # Remove the placeholder .tickets-tracker/ from main (if it exists)
+          rm -rf .tickets-tracker
+          git worktree add .tickets-tracker tickets
+
+      - name: Configure git user (main + worktree)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C .tickets-tracker config user.name "github-actions[bot]"
+          git -C .tickets-tracker config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run eval-daily-runner.sh
+        run: bash plugins/dso/scripts/eval-daily-runner.sh
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Push ticket branch changes
+        run: |
+          cd .tickets-tracker
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "chore: eval results $(date -u +%Y-%m-%d)"
+            git push origin tickets
+          else
+            echo "No ticket changes to push."
+          fi
+
+      - name: Job timing report
+        if: always()
+        run: echo "eval-daily completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
