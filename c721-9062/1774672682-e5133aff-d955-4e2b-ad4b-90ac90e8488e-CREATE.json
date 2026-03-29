@@ -1,1 +1,0 @@
-{"timestamp": 1774672682, "uuid": "e5133aff-d955-4e2b-ad4b-90ac90e8488e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a developer, a template-installed project passes validate.sh end-to-end", "parent_id": "d000-2598", "priority": 2, "assignee": "Joe Oakhart"}}
