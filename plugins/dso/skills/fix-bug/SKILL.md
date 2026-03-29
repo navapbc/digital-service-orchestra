@@ -595,9 +595,9 @@ This avoids re-running classification and investigation work that was already co
 
 ### Detection Methods
 
-**Primary — orchestrator signal**: The orchestrator sets `You are running as a sub-agent` in the dispatch prompt when launching `/dso:fix-bug` as a sub-agent. When this phrase is present in the prompt, the skill is confirmed to be running in sub-agent context.
+**Primary — Agent tool availability**: Before dispatching investigation sub-agents, check whether the Agent tool is available in the current context. If the Agent tool is not available, the skill is running as a sub-agent (dispatched via the Task tool) and must surface findings to the caller instead of escalating.
 
-**Fallback — Agent tool availability**: Before dispatching ADVANCED or ESCALATED investigation sub-agents, check whether the Agent tool is available in the current context. If the Agent tool is not available, the skill cannot launch nested sub-agents and must surface findings to the caller instead of escalating.
+**Fallback — orchestrator signal**: The orchestrator may also set `You are running as a sub-agent` in the dispatch prompt. When present, this confirms sub-agent context.
 
 ### Behavior in Sub-Agent Context
 
