@@ -399,7 +399,10 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
 4. **File overlap assessment via static analysis + NxN conflict matrix**:
 
    For each candidate issue in the batch:
-   a. Extract seed file paths from the issue description/triage report
+   a. Extract seed file paths from the issue description/triage report.
+      For fully-qualified Python names (e.g., `src.services.pipeline.process_document`),
+      strip the trailing function/class/method components and convert only the module portion
+      to a file path (e.g., `src/services/pipeline.py`). Verify the path exists before using it.
    b. Run `python3 "$PLUGIN_SCRIPTS/analyze-file-impact.py" --root $REPO_ROOT/app <seed-files>` to get
       `files_likely_modified` and `files_likely_read` for each candidate (timeout: 30s)
    c. **Graceful degradation**: If `analyze-file-impact.py` is missing, errors, or times out,

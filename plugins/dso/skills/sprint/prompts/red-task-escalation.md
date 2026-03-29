@@ -1,6 +1,6 @@
 # Three-Tier Escalation Protocol for RED Test Tasks
 
-Shared template consumed by `/dso:sprint` (Phase 5 RED task dispatch, task 79de-de6e) and `/dso:fix-bug` (Story 79a6-2094).
+Shared template consumed by `/dso:sprint` (Phase 4 RED task dispatch, task 79de-de6e) and `/dso:fix-bug` (Story 79a6-2094).
 Referenced from sprint SKILL.md via `prompts/red-task-escalation.md`.
 
 Reference contracts:
@@ -18,7 +18,7 @@ Parse the leading `TEST_RESULT:` line from the output:
 | Result | Action |
 |--------|--------|
 | `TEST_RESULT:written` | Success. Proceed to TDD setup using `TEST_FILE` and `RED_ASSERTION` fields. Do NOT escalate. |
-| `TEST_RESULT:rejected` | Escalate to Tier 2. `TEST_RESULT:rejected` is **not** an infrastructure failure — it triggers this escalation protocol, not dispatch failure recovery (Phase 6 Step 0). |
+| `TEST_RESULT:rejected` | Escalate to Tier 2. `TEST_RESULT:rejected` is **not** an infrastructure failure — it triggers this escalation protocol, not dispatch failure recovery (Phase 5 Step 0). |
 | Timeout / malformed / non-zero exit | Treat as `TEST_RESULT:rejected` with `REJECTION_REASON: ambiguous_spec` per the writer failure contract. Escalate to Tier 2. |
 
 ---
@@ -87,7 +87,7 @@ Tier 3: dso:red-test-writer (opus model override)
 
 ## Important Notes
 
-- `TEST_RESULT:rejected` is **NOT** an infrastructure failure. It is an expected output from `dso:red-test-writer` that triggers this escalation protocol. Do not route it to Phase 6 Step 0 (dispatch failure recovery).
+- `TEST_RESULT:rejected` is **NOT** an infrastructure failure. It is an expected output from `dso:red-test-writer` that triggers this escalation protocol. Do not route it to Phase 5 Step 0 (dispatch failure recovery).
 - The REVISE limit (max 1 per task) prevents infinite requeue loops. On the second REVISE for the same task, stop and escalate to the user with both REVISE payloads.
 - For `VERDICT:CONFIRM`, always record the `INFEASIBILITY_CATEGORY` and `JUSTIFICATION` in a ticket comment before closing the task so the decision is auditable.
 - This template is consumed by both `/dso:sprint` and `/dso:fix-bug`. Both orchestrators follow the same three tiers with the same verdict handling rules.

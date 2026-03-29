@@ -1,7 +1,7 @@
 # Test Failure Sub-Agent Dispatch Protocol
 
 Common protocol for dispatching debugging sub-agents when tests fail during sprint execution.
-Used by both Phase 6 (post-batch) and Phase 7 (E2E) test failure handlers.
+Used by both Phase 5 (post-batch) and Phase 6 (E2E) test failure handlers.
 
 ## Input Payload
 
@@ -17,7 +17,7 @@ Build per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/TEST-FAILURE-DISPATCH.md`:
 | `context` | Dispatch context string (caller provides) |
 | `attempt` | 1 on first try, increment on retry |
 | `parent_task_id` | The epic ID (for discovered-work tickets) |
-| `batch_task_ids` | IDs of all tasks in the current batch (Phase 6 only) |
+| `batch_task_ids` | IDs of all tasks in the current batch (Phase 5 only) |
 
 ## Model and Type Selection
 

@@ -46,7 +46,7 @@ source "$HOOK_DIR/lib/deps.sh"
 source "$HOOK_DIR/lib/fuzzy-match.sh"
 
 # Source RED zone helpers (get_red_zone_line_number, parse_failing_tests_from_output,
-# get_test_line_number, read_red_markers_by_test_file) from shared lib.
+# get_test_line_number, parse_passing_tests_from_output) from shared lib.
 source "$HOOK_DIR/lib/red-zone.sh"
 
 # ── .test-index parsing ──────────────────────────────────────────────────────
@@ -455,12 +455,16 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     exit_code=0
     test_output_file=$(mktemp /tmp/rts-output-XXXXXX)
     if [[ -n "${RECORD_TEST_STATUS_RUNNER:-}" ]]; then
-        # Use overridden runner (for testing)
-        "$RECORD_TEST_STATUS_RUNNER" "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?
+        # Use overridden runner (for testing) — split into array to support multi-word commands
+        _runner_cmd=()
+        read -ra _runner_cmd <<< "$RECORD_TEST_STATUS_RUNNER"
+        "${_runner_cmd[@]}" "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?
     elif [[ "$test_file" == *.sh ]]; then
         bash "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?
     elif [[ "$test_file" == *.py ]]; then
         PYTHONDONTWRITEBYTECODE=1 python3 -m pytest "$full_test_path" --tb=short -q -p no:cacheprovider --override-ini="cache_dir=/tmp/pytest-rts-cache" >"$test_output_file" 2>&1 || exit_code=$?
+    elif [[ "$test_file" == *.ts ]] || [[ "$test_file" == *.tsx ]]; then
+        npx --no-install jest "$full_test_path" --no-coverage >"$test_output_file" 2>&1 || exit_code=$?
     else
         # Unknown extension — try executing directly
         bash "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?
@@ -528,28 +532,8 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
         done
 
         if [[ "$all_in_red_zone" == true ]]; then
-            # All failures are in the RED zone — check for passing RED-zone tests
-            # before tolerating. A passing RED-zone test means the marker is stale.
-            mapfile -t passing_tests < <(parse_passing_tests_from_output "$test_output_file")
-            _has_stale_pass=false
-            for passing_test in "${passing_tests[@]}"; do
-                [[ -z "$passing_test" ]] && continue
-                _pass_line=$(get_test_line_number "$test_file" "$passing_test")
-                if [[ "$_pass_line" -ne -1 ]] && [[ "$_pass_line" -ge "$red_zone_line" ]]; then
-                    echo "STALE RED MARKER: ${test_file} — RED-zone test '${passing_test}' passed (line ${_pass_line}, RED zone starts line ${red_zone_line}); remove or update the [${red_marker}] marker" >&2
-                    _has_stale_pass=true
-                fi
-            done
-
-            if [[ "$_has_stale_pass" == true ]]; then
-                rm -f "$test_output_file"
-                if [[ "$STATUS" != "timeout" ]]; then
-                    STATUS="failed"
-                fi
-                continue
-            fi
-
-            # No stale passing tests — tolerate RED zone failures as normal
+            # All failures are in the RED zone — tolerate them (partial progress is normal).
+            # Stale marker detection (all RED-zone tests pass) is handled by the exit_code==0 branch below.
             echo "INFO: RED zone failures tolerated for ${test_file} (marker: ${red_marker}, zone starts line ${red_zone_line})" >&2
             rm -f "$test_output_file"
             # Do NOT downgrade STATUS — this test is non-blocking

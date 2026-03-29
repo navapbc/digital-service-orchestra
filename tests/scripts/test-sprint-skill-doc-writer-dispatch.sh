@@ -36,15 +36,15 @@ else
   run_test "Sprint SKILL.md contains 'Update project docs to reflect' pattern" "fail"
 fi
 
-# Test 3: Doc-writer dispatch section appears in Phase 5
-# Phase 5 starts at "## Phase 5" — verify the dso:doc-writer reference appears after it
-phase5_line=$(grep -n '## Phase 5:' "$SKILL_FILE" | head -1 | cut -d: -f1)
+# Test 3: Doc-writer dispatch section appears in Sub-Agent Launch phase (Phase 4)
+# Sub-Agent Launch is Phase 4 — verify the dso:doc-writer reference appears after it
+launch_phase_line=$(grep -n '## Phase 4:' "$SKILL_FILE" | head -1 | cut -d: -f1)
 doc_writer_line=$(grep -n 'dso:doc-writer' "$SKILL_FILE" | head -1 | cut -d: -f1)
 
-if [[ -n "$phase5_line" && -n "$doc_writer_line" && "$doc_writer_line" -gt "$phase5_line" ]]; then
-  run_test "doc-writer dispatch section appears in Phase 5 (after Phase 5 header)" "pass"
+if [[ -n "$launch_phase_line" && -n "$doc_writer_line" && "$doc_writer_line" -gt "$launch_phase_line" ]]; then
+  run_test "doc-writer dispatch section appears in Sub-Agent Launch phase (Phase 4)" "pass"
 else
-  run_test "doc-writer dispatch section appears in Phase 5 (after Phase 5 header)" "fail"
+  run_test "doc-writer dispatch section appears in Sub-Agent Launch phase (Phase 4)" "fail"
 fi
 
 # Test 4: Documentation Story Dispatch section header exists

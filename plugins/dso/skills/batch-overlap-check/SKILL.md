@@ -32,7 +32,11 @@ For each candidate task ID:
 1. Run `.claude/scripts/dso ticket show <id>` to read the full description
 2. Extract target files from the description:
    - **Explicit file paths** (e.g., `src/services/pipeline.py`)
-   - **Module paths from error traces** (e.g., `src.models.document` -> `src/models/document.py`)
+   - **Module paths from error traces** (e.g., `src.models.document` -> `src/models/document.py`).
+     For fully-qualified function or method names (e.g., `src.services.pipeline.process_document`),
+     strip the trailing function/class/method components — convert only the module portion to a file
+     path. Example: `src.services.pipeline.process_document` -> `src/services/pipeline.py`;
+     `src.services.pipeline.Parser.parse` -> `src/services/pipeline.py`.
    - **Implied test files** (fixing `src/X.py` implies `tests/unit/.../test_X.py`)
    - **Shared config/init files** (e.g., `__init__.py`, `conftest.py` -- only flag if
      the task description explicitly mentions modifying exports or fixtures)

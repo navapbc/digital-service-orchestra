@@ -385,7 +385,7 @@ Create a single git commit following the repository's commit message conventions
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
 
-After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase 4 Step 5 for auto-fix commits, or Phase 6 Step 6 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase 6 Step 10.5 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
+After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase 4 Step 5 for auto-fix commits, or Phase 6 Step 6 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase 5 Step 10 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
 
 ## After Commit: Merging to Main
 

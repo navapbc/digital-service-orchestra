@@ -105,6 +105,9 @@ _model_for_tier() {
         deep-verification)  echo "sonnet" ;;
         deep-hygiene)       echo "sonnet" ;;
         deep-arch)          echo "opus" ;;
+        security-red-team)  echo "opus" ;;
+        security-blue-team) echo "opus" ;;
+        performance)        echo "opus" ;;
         *)
             echo "ERROR: unknown tier: $1" >&2
             return 1
@@ -120,6 +123,9 @@ _description_for_tier() {
         deep-verification)  echo "Deep-tier verification specialist (Sonnet B): focused exclusively on verification — test presence, quality, edge case coverage, mock correctness." ;;
         deep-hygiene)       echo "Deep-tier hygiene/design specialist (Sonnet C): focused on hygiene, design, and maintainability." ;;
         deep-arch)          echo "Deep-tier architectural reviewer (Opus): synthesizes specialist findings, assesses systemic risk, produces unified verdict across all dimensions." ;;
+        security-red-team)  echo "Security red team reviewer (Opus): aggressive security detection without ticket context for AI-advantaged security concerns." ;;
+        security-blue-team) echo "Security blue team reviewer (Opus): context-aware triage of red team findings with dismiss/downgrade/sustain authority." ;;
+        performance)        echo "Performance reviewer (Opus): calibrated performance analysis with bright-line severity rules for scaling failures and resource exhaustion." ;;
         *)
             echo "ERROR: unknown tier: $1" >&2
             return 1

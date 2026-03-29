@@ -133,7 +133,7 @@ to the commit step. Do not assume the fix is clean -- validate.
 
 ### /dso:sprint (Sprint Workflow)
 
-**Phase 6 Step 4 (Post-batch validation failure)**:
+**Phase 5 Step 4 (Post-batch validation failure)**:
 When `validate-phase.sh post-batch` reports test failures:
 1. Attribute failure to specific sub-agent(s) using `git diff --name-only` per task
 2. For each failing task, build the input payload with `context=sprint-post-batch`
@@ -141,7 +141,7 @@ When `validate-phase.sh post-batch` reports test failures:
 4. Collect RESULT reports; re-validate after all agents complete
 5. If any remain FAIL after attempt exceeds `review.max_resolution_attempts` (default: 5), escalate to user
 
-**Phase 7 Step 0.5b (Post-E2E failure)**:
+**Phase 6 Step 0.5b (Post-E2E failure)**:
 When E2E tests fail after all batches complete:
 1. Capture E2E test output and identify failing test(s)
 2. Set `context=sprint-ci-failure` (E2E failures behave like CI-only issues)

@@ -94,8 +94,33 @@ exit 0
 CURL_STUB
     chmod +x "$stub_bin/curl"
 
+    if [[ -n "$no_docker" ]]; then
+        # Create shadow dirs that symlink everything EXCEPT docker from dirs that have it
+        local shadow_base="$TMPDIR_BASE/shadow-$$"
+        rm -rf "$shadow_base"
+        local filtered_path=""
+        local IFS=:
+        for _p in $PATH; do
+            if [[ -x "$_p/docker" ]]; then
+                local shadow_dir="$shadow_base/${_p//\//_}"
+                mkdir -p "$shadow_dir"
+                for f in "$_p"/*; do
+                    local fname
+                    fname="$(basename "$f")"
+                    [[ "$fname" == "docker" ]] && continue
+                    ln -sf "$f" "$shadow_dir/$fname" 2>/dev/null || true
+                done
+                filtered_path="${filtered_path:+$filtered_path:}$shadow_dir"
+            else
+                filtered_path="${filtered_path:+$filtered_path:}$_p"
+            fi
+        done
+    else
+        local filtered_path="$PATH"
+    fi
+
     (
-        export PATH="$stub_bin:$PATH"
+        export PATH="$stub_bin:$filtered_path"
         export WORKFLOW_CONFIG="$skeleton_dir/dso-config.conf"
         cd "$skeleton_dir"
         bash "$CANONICAL_SCRIPT" "$@"
