@@ -1,1 +1,0 @@
-{"timestamp": 1774754743356984000, "uuid": "d67af2c9-b2c4-448f-ad3c-01569bcdb3b2", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "All tasks complete: bdcd-a89b (RED test) + d71a-f206 (implementation). fix-bug context detection now uses Agent tool availability as primary method."}}
