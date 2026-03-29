@@ -632,6 +632,121 @@ On success (Step 5 reached), proceed to Phase 1.7: Post-Install Re-Detection (de
 
 ---
 
+## Phase 1.7: Post-Install Re-Detection and Phase 2 Skip
+
+**Trigger:** Run this phase ONLY after Phase 1.6a or Phase 1.6b completes successfully. If no template was installed (user declined in Phase 1.5 or installation failed and manual flow was selected), skip this phase entirely and proceed to Phase 2.
+
+**Goal:** Re-run auto-detection against the freshly scaffolded project, verify the detected framework matches the registry's `framework_type`, record detection results in the scratchpad, and skip Phase 2 entirely — proceeding directly to Phase 3 (DSO infrastructure setup) with configuration inferred from the registry metadata and detection output.
+
+### Step 1: Re-Run detect-stack.sh Against the Installed Project
+
+Now that template files are present in the project directory, re-run `detect-stack.sh` to detect the actual installed framework:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+POST_INSTALL_STACK=$(bash "$REPO_ROOT/.claude/scripts/dso detect-stack.sh" "$REPO_ROOT" 2>/dev/null || echo "unknown")
+```
+
+### Step 2: Verify Detected Stack Matches Registry Framework Type
+
+Read the `framework_type` recorded in the scratchpad's `## Template Selection Result` section (written by Phase 1.5):
+
+```bash
+REGISTRY_FRAMEWORK_TYPE=$(grep "^framework_type:" "$SCRATCHPAD" | sed 's/^framework_type:[[:space:]]*//')
+```
+
+Compare `POST_INSTALL_STACK` against `REGISTRY_FRAMEWORK_TYPE`:
+
+- **If they match** (e.g., `POST_INSTALL_STACK="node-npm"` and `REGISTRY_FRAMEWORK_TYPE="node-npm"`): proceed normally.
+- **If they differ** (mismatch): log a warning to the scratchpad but do NOT crash or abort:
+
+```bash
+echo "WARNING: post-install stack mismatch — detected='$POST_INSTALL_STACK' registry='$REGISTRY_FRAMEWORK_TYPE' (possible partial install?)" >> "$SCRATCHPAD"
+```
+
+Do NOT surface this warning to the user as an error — continue to Step 3 regardless. If `POST_INSTALL_STACK` is `"unknown"` after installation, this typically indicates an incomplete install; record it as a warning and use `REGISTRY_FRAMEWORK_TYPE` as the canonical value for Phase 3 configuration.
+
+### Step 3: Re-Run project-detect.sh to Pick Up Template Files
+
+Re-run `project-detect.sh` to pick up the `package.json`, `pyproject.toml`, CI workflows, and test directories introduced by the template:
+
+```bash
+POST_INSTALL_DETECT=$(bash "$REPO_ROOT/.claude/scripts/dso project-detect.sh" "$REPO_ROOT" 2>/dev/null || echo "")
+
+# Refresh file-level detection now that template files are present
+[ -f "$REPO_ROOT/package.json" ] && POST_INSTALL_PKG=$(cat "$REPO_ROOT/package.json" 2>/dev/null) || POST_INSTALL_PKG=""
+[ -f "$REPO_ROOT/pyproject.toml" ] && POST_INSTALL_PYPROJECT=$(cat "$REPO_ROOT/pyproject.toml" 2>/dev/null) || POST_INSTALL_PYPROJECT=""
+
+# Refresh CI workflow filenames
+POST_INSTALL_CI_WORKFLOWS=""
+if [ -d "$REPO_ROOT/.github/workflows" ]; then
+    POST_INSTALL_CI_WORKFLOWS=$(ls "$REPO_ROOT/.github/workflows"/*.yml "$REPO_ROOT/.github/workflows"/*.yaml 2>/dev/null | xargs -I{} basename {})
+fi
+
+# Refresh test directories
+POST_INSTALL_TEST_DIRS=""
+for candidate in tests test spec __tests__ src/__tests__; do
+    [ -d "$REPO_ROOT/$candidate" ] && POST_INSTALL_TEST_DIRS="$POST_INSTALL_TEST_DIRS $candidate"
+done
+POST_INSTALL_TEST_DIRS="${POST_INSTALL_TEST_DIRS# }"
+```
+
+### Step 4: Record Post-Install Detection Results in Scratchpad
+
+Append the re-detection results to the scratchpad under a dedicated section:
+
+```bash
+echo "## Post-Install Detection (Phase 1.7)" >> "$SCRATCHPAD"
+echo "post_install_stack: $POST_INSTALL_STACK" >> "$SCRATCHPAD"
+echo "post_install_detect_output: $POST_INSTALL_DETECT" >> "$SCRATCHPAD"
+echo "post_install_package_json: ${POST_INSTALL_PKG:+present}" >> "$SCRATCHPAD"
+echo "post_install_pyproject_toml: ${POST_INSTALL_PYPROJECT:+present}" >> "$SCRATCHPAD"
+echo "post_install_ci_workflows: ${POST_INSTALL_CI_WORKFLOWS:-none found}" >> "$SCRATCHPAD"
+echo "post_install_test_dirs: ${POST_INSTALL_TEST_DIRS:-none found}" >> "$SCRATCHPAD"
+```
+
+Update the working detection variables used by later phases to reflect the post-install state:
+
+```bash
+# Promote post-install values to primary detection variables for Phase 3 use
+STACK_OUT="$POST_INSTALL_STACK"
+DETECT_OUT="$POST_INSTALL_DETECT"
+CI_WORKFLOWS="${POST_INSTALL_CI_WORKFLOWS:-$CI_WORKFLOWS}"
+TEST_DIRS="${POST_INSTALL_TEST_DIRS:-$TEST_DIRS}"
+```
+
+### Step 5: Skip Phase 2 — Record Skip Note in Scratchpad
+
+Templates pre-answer the Socratic dialogue questions (stack, commands, architecture, CI, enforcement) via the registry metadata and installed project structure. Phase 2 is therefore redundant after a successful template installation.
+
+Append the skip note to the scratchpad:
+
+```bash
+echo "## Phase 2 Status" >> "$SCRATCHPAD"
+echo "Phase 2 skipped — template pre-configured" >> "$SCRATCHPAD"
+echo "Phase 3 config source: registry framework_type='$REGISTRY_FRAMEWORK_TYPE' + post-install detection output" >> "$SCRATCHPAD"
+```
+
+Do NOT ask the user any Socratic dialogue questions from Phase 2. Proceed directly to Phase 3.
+
+### Step 6: Proceed Directly to Phase 3
+
+Proceed directly to Phase 3 (DSO infrastructure setup) without entering Phase 2. Phase 3 configuration is inferred from:
+
+1. **Registry `framework_type`** — read from `REGISTRY_FRAMEWORK_TYPE` (from `## Template Selection Result` scratchpad section)
+2. **Post-install detection output** — `POST_INSTALL_STACK`, `POST_INSTALL_DETECT`, and refreshed file-level variables
+
+Phase 3 must use the post-install `STACK_OUT`, `DETECT_OUT`, `CI_WORKFLOWS`, and `TEST_DIRS` values (promoted in Step 4) for all configuration inference — not the original Phase 1 values, which were collected before template installation.
+
+Notify the user before entering Phase 3:
+
+```
+Template installation complete. Detected stack: [POST_INSTALL_STACK].
+Skipping project dialogue (template pre-configured) — proceeding directly to DSO infrastructure setup.
+```
+
+---
+
 ## Phase 2: Socratic Dialogue Loop (/dso:onboarding)
 
 **Goal:** Fill gaps in the 7 understanding areas through focused, conversational questions. Present detected configuration for confirmation rather than asking open-ended discovery questions.
@@ -1257,5 +1372,6 @@ If the user says no or wants to continue manually, summarize what was learned an
 | 1.5: Template Selection Gate | Offer starter templates (empty projects only) | Only when detect-stack returns "unknown"; load parse-template-registry.sh; numbered menu; handle select → store result + route to install path; handle decline → proceed to Phase 2 unchanged; missing registry → skip silently |
 | 1.6a: nava-platform Install | Install nava-platform templates | Probe uv/pipx, install CLI, verify, run app install with --data flags, timeout handling, error fallback to manual flow |
 | 1.6b: Jekyll Git Clone | Install Jekyll USWDS template | Clone via git, non-empty dir check, captive portal detection, error fallback to manual flow |
+| 1.7: Post-Install Re-Detection | Re-detect after template install; skip Phase 2 | Re-run detect-stack.sh + project-detect.sh; verify registry framework_type match (warn on mismatch, do not crash); record post-install detection in scratchpad; skip Phase 2 entirely ("Phase 2 skipped — template pre-configured"); proceed directly to Phase 3 using registry framework_type + detection output |
 | 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, confirmation-based (not rigid menus), skip confirmed areas |
 | 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write .claude/design-notes.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), infrastructure init (hook install with Husky/pre-commit framework/.git/hooks manager detection, git-common-dir for worktree support, ticket system orphan branch + .tickets-tracker/ + push verification + smoke test, generate-test-index.sh, CLAUDE.md with ticket commands, KNOWN-ISSUES template, CI trigger strategy), offer /dso:architect-foundation |
