@@ -1,1 +1,0 @@
-{"timestamp": 1774806673580046000, "uuid": "b8675b87-adc6-4272-80ed-29e69f8b4247", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: eval-daily.yml workflow created with cron schedule, Node.js setup, ANTHROPIC_API_KEY"}}
