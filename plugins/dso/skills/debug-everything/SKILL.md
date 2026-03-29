@@ -40,15 +40,33 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 ## Orchestration Flow
 
 ```
+Phase 1 Step 1 (session lock + resume check)
+  → [open bugs exist? Yes: bug-fix mode (reads fix-bug SKILL.md inline at orchestrator level) → Validation Mode (inner loop)]
+  → [open bugs exist? No: Phase 1 (Diagnostic Scan) → Phase 2 (Triage sub-agent)]
 Phase 1 (Diagnostic + Clustering sub-agent) → Phase 2 (Triage sub-agent)
   → [dry-run: stop] or [execute: Phase 2.6 (Safeguard Analysis)]
-Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: present proposals → user approval → Phase 3]
+Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: interactive → user approval → Phase 3 | non-interactive → auto-defer safeguard bugs → Phase 3]
 Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
-  → Phase 6 (Checkpoint) → [COMPLEX_ESCALATION from /dso:fix-bug: Phase 6 Step 3a re-dispatch] → [more in tier: Phase 5] [tier clear: Phase 7]
+  → Phase 6 (Checkpoint) → [COMPLEX_ESCALATION from /dso:fix-bug: Phase 6 Step 3a re-dispatch (interactive) | non-interactive → log ticket comment + defer] → [more in tier: Phase 5] [tier clear: Phase 7]
+  → Phase 6 Step 1a (file-overlap) → [conflict re-run fails: interactive → escalate user | non-interactive → defer + INTERACTIVITY_DEFERRED]
+  → Phase 6 Step 1b (oscillation-guard) → [OSCILLATION: interactive → escalate user | non-interactive → defer oscillation with both approaches recorded]
+Non-interactive mode: oscillation-guard escalation deferred; COMPLEX_ESCALATION logged as non-interactive ticket comment instead of user-blocking re-dispatch
 Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
 Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/dso:end-session)] [FAIL: Phase 2]
 Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/dso:end-session)]
+
+Validation Loop (inner loop — within Bug-Fix Mode → Phase 8):
+Bug-Fix Mode → Validation Mode
+  → [new bugs found AND iteration < max_fix_validate_cycles?] → Bug-Fix Mode (next iteration)
+  → [no new bugs OR iteration >= max_fix_validate_cycles] → Phase 8 (Full Validation)
+
+NOTE: These are SEPARATE loops. The validation loop (inner) governs fix→validate cycles within a
+single tier's Bug-Fix Mode run, bounded by debug.max_fix_validate_cycles (default: 3, cap: 10).
+The outer loop (Phase 1→8) is bounded by the 5-cycle safety limit in Phase 8. They are independent
+and must NOT be conflated or allowed to nest multiplicatively.
 ```
+
+**Bug-Fix Mode note**: In bug-fix mode, `/dso:fix-bug` is invoked at orchestrator level — reads fix-bug/SKILL.md inline directly, NOT via Task tool dispatch — preserving Agent tool access for investigation sub-agents.
 
 ---
 
@@ -77,6 +95,19 @@ STAGING_URL="${STAGING_URL:-http://nava-lockpick-doc-to-logic-env-stage.eba-m8tu
 EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 ```
 
+**Read validation loop config** — load `debug.max_fix_validate_cycles` from project config:
+
+```bash
+_raw_max_cycles=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.max_fix_validate_cycles 2>/dev/null || echo "")
+```
+
+Apply edge-case rules:
+- Empty or missing → default `MAX_FIX_VALIDATE_CYCLES=3`
+- Non-numeric → default `MAX_FIX_VALIDATE_CYCLES=3` with warning: `"WARNING: debug.max_fix_validate_cycles is not numeric ('$_raw_max_cycles') — defaulting to 3"`
+- Value `<= 0` → `MAX_FIX_VALIDATE_CYCLES=0` (skip validation loop entirely — proceed directly to Phase 8 after Bug-Fix Mode)
+- Value `> 10` → `MAX_FIX_VALIDATE_CYCLES=10` with warning: `"WARNING: debug.max_fix_validate_cycles ($raw_val) exceeds cap of 10 — capping at 10"`
+- Otherwise → `MAX_FIX_VALIDATE_CYCLES=$_raw_max_cycles`
+
 **Session lock** — prevents multiple `/dso:debug-everything` sessions from running concurrently:
 
 ```bash
@@ -97,6 +128,22 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
 
 This ensures a fresh start — no stale discoveries from a previous session. Cleanup failure is non-fatal; log a warning and continue.
 
+**Interactivity question** — ask whether the session can pause for user input:
+
+```
+AskUserQuestion: "Is this an interactive session? (yes/no — press Enter for yes)"
+```
+
+- **`yes` (or no answer / timeout / empty)**: `INTERACTIVE_SESSION=true` — default. Preserves current behavior where the skill pauses at gates for user approval.
+- **`no`**: `INTERACTIVE_SESSION=false` — non-interactive mode. At any gate that would normally pause for user input, the skill defers instead of blocking:
+  - Leave the bug open (do not attempt any fix requiring user input).
+  - Add a machine-parseable comment: `INTERACTIVITY_DEFERRED: <gate_name> | <context_summary>` where `gate_name` is one of: `safeguard_approval`, `complex_escalation`, `file_overlap`, `oscillation_guard`, `bug_accountability`. `context_summary` includes enough state (ticket IDs, error summaries, conflicting agent IDs) for the next interactive session to resume.
+  - Continue to the next bug or phase without blocking.
+
+**Non-interactive deferral — all deferral decisions are made at the orchestrator level.** `fix-bug` sub-agents do NOT need to honor `INTERACTIVE_SESSION` themselves. The orchestrator intercepts `COMPLEX_ESCALATION` reports and any other escalation signals before they reach the user, and defers them per the rules below.
+
+**Resume limitation (known)**: Phase 1 resume logic only scans `CHECKPOINT` lines in ticket comments — it does NOT scan `INTERACTIVITY_DEFERRED` lines. After a non-interactive session, you must manually run `.claude/scripts/dso ticket list --type=bug --status=open` and check for `INTERACTIVITY_DEFERRED` comments on open bugs to find items requiring follow-up in an interactive session.
+
 **Resume check** — find and reuse previous work:
 
 1. `.claude/scripts/dso ticket list` and grep for "Project Health Restoration"
@@ -108,6 +155,17 @@ This ensures a fresh start — no stale discoveries from a previous session. Cle
    - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial; re-dispatch with the checkpoint note as resume context
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early; revert to open: `.claude/scripts/dso ticket transition <id> open`
    - **No CHECKPOINT lines or malformed/ambiguous lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
+
+### Step 1.5: Detect Open Bug Tickets Entry Check (/dso:debug-everything)
+
+**Check for open bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
+
+```bash
+OPEN_BUG_COUNT=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+```
+
+- If `OPEN_BUG_COUNT > 0`: **Enter Bug-Fix Mode.** Skip Phase 1 diagnostic scan (Steps 0.5, 1a, 1b, 1c, 2) and Phase 2 triage entirely. Proceed to the **Bug-Fix Mode** section below.
+- If `OPEN_BUG_COUNT == 0`: Continue to Step 0.5 (normal diagnostic flow).
 
 ### Step 0.5: Context Budget Check (/dso:debug-everything)
 
@@ -258,6 +316,134 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 ---
 
+## Bug-Fix Mode (/dso:debug-everything)
+
+**Entry condition**: Open bug tickets detected in Step 1.5 (`OPEN_BUG_COUNT > 0`).
+
+**Rationale**: When open bug tickets already exist, the diagnostic scan (Phase 1) and triage sub-agent (Phase 2) are unnecessary — they exist to *discover* new issues. Bug-Fix Mode skips both and applies `/dso:fix-bug` directly to each known ticket.
+
+### What is skipped in Bug-Fix Mode
+
+- **Diagnostic scan skipped** (Phase 1 Steps 0.5, 1a, 1b, 1c, 2): No `validate.sh --ci`, no preflight checks, no diagnostic sub-agent, no clustering.
+- **Triage skipped** (Phase 2): No triage sub-agent dispatch, no new epic creation, no issue clustering.
+
+### Bug-Fix Mode Execution
+
+1. **List all open bug tickets**:
+
+   ```bash
+   .claude/scripts/dso ticket list --type=bug --status=open
+   ```
+
+   Collect all returned ticket IDs. Order by priority (P0 first, then P1, P2, P3, P4).
+
+2. **For each open bug ticket, invoke `/dso:fix-bug` at the orchestrator level**:
+
+   Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation (reads SKILL.md inline) preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED) which require the Agent tool themselves.
+
+   Pass the ticket ID as the bug to fix:
+
+   ```
+   Bug ticket: <ticket-id>
+   Title: <title from ticket show>
+   ```
+
+3. **Error handling**: If `/dso:fix-bug` fails for a ticket (unrecoverable error, repeated failure, or explicit escalation), write a CHECKPOINT note and continue to the next ticket:
+
+   ```bash
+   .claude/scripts/dso ticket comment <id> "CHECKPOINT: Bug-Fix Mode — fix-bug failed: <error>. Resume from: re-attempt fix."
+   ```
+
+   Do NOT abort Bug-Fix Mode when a single ticket fails — process all remaining tickets.
+
+4. **After all bug tickets have been attempted**, proceed to **Validation Mode** to check for newly exposed failures.
+
+---
+
+## Validation Mode (/dso:debug-everything)
+
+**Entry condition**: Entered after Bug-Fix Mode completes one full pass over all open bug tickets.
+
+**Purpose**: Detect failures newly exposed by bug fixes (regressions or previously hidden issues), create tickets for them, and loop back to Bug-Fix Mode — up to `MAX_FIX_VALIDATE_CYCLES` iterations.
+
+**Scope**: This is an INNER loop within the Bug-Fix Mode → Phase 8 flow. It is bounded by `debug.max_fix_validate_cycles` (configured at session start). The outer Phase 1→8 loop is separate and bounded by Phase 8's 5-cycle safety limit. These loops are independent and must NOT be conflated.
+
+### Step 1: Check Iteration Count
+
+Initialize on first entry: `VALIDATION_ITERATION=1`
+
+On each re-entry (looping from Bug-Fix Mode): `VALIDATION_ITERATION=$((VALIDATION_ITERATION + 1))`
+
+**Persist iteration count** as an epic ticket comment for resume continuity:
+
+```bash
+.claude/scripts/dso ticket comment <epic-id> "VALIDATION_LOOP_ITERATION: ${VALIDATION_ITERATION}/${MAX_FIX_VALIDATE_CYCLES}"
+```
+
+On resume (Step 1 resume check), parse existing `VALIDATION_LOOP_ITERATION:` comments to restore `VALIDATION_ITERATION` and `MAX_FIX_VALIDATE_CYCLES`.
+
+**If `MAX_FIX_VALIDATE_CYCLES <= 0`**: Skip validation loop entirely. Proceed directly to Phase 8.
+
+### Step 2: Run Diagnostic Scan After Bug-Fix
+
+Reuse the same diagnostic sub-agent pattern as Phase 1. Dispatch a diagnostic sub-agent to scan for newly exposed failures:
+
+Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/tier-transition-validation.md` and use its contents as the sub-agent prompt.
+
+**Subagent**: Resolve via `discover-agents.sh` routing category `test_fix_unit`, `model="haiku"`
+
+**On scan failure** (sub-agent error, timeout, or corrupt output): Log warning: `"WARNING: Validation Mode diagnostic scan failed (iteration ${VALIDATION_ITERATION}/${MAX_FIX_VALIDATE_CYCLES}) — treating as failures remain"`. Decrement remaining iterations: `MAX_FIX_VALIDATE_CYCLES=$((MAX_FIX_VALIDATE_CYCLES - 1))`. Do NOT create tickets from partial or corrupt scan results. Proceed to Step 4.
+
+### Step 3: Create Tickets for Newly Discovered Failures
+
+For each new failure discovered in the diagnostic scan, create a bug ticket — but **deduplicate first**.
+
+**Deduplication** — before creating any new ticket, check for an existing open bug ticket covering the same failure:
+
+```bash
+.claude/scripts/dso ticket list --type=bug --status=open
+```
+
+Compare each discovered failure against:
+1. Tickets already created by Phase 7 regression detection
+2. Tickets from previous validation iterations (check `VALIDATION_LOOP_ITERATION:` comments to identify those iterations)
+3. Tickets from original Phase 2 triage
+
+If an open bug ticket already exists for a failure (by title similarity or matching error message), **skip ticket creation** — use the existing ticket. Only ONE ticket per unique failure across all iterations.
+
+For genuinely new failures (no matching open ticket exists), create a ticket:
+
+```bash
+.claude/scripts/dso ticket create bug "<failure-description>"
+```
+
+Collect newly created ticket IDs as `NEW_BUG_TICKETS`.
+
+### Step 4: Decide — Loop or Stop and Report
+
+**If `VALIDATION_ITERATION >= MAX_FIX_VALIDATE_CYCLES`**:
+
+Max fix-validate cycles reached. Do NOT loop back. Stop and report:
+
+```
+Max validation iterations (MAX_FIX_VALIDATE_CYCLES) reached — remaining issues reported as open tickets.
+Open bugs remaining: <list ticket IDs and titles>
+```
+
+Log: `"Max validation iterations (${MAX_FIX_VALIDATE_CYCLES}) reached — remaining issues reported as open tickets"`. Proceed to Phase 8.
+
+**If new bugs were found AND `VALIDATION_ITERATION < MAX_FIX_VALIDATE_CYCLES`**:
+
+New failures discovered. Loop back to Bug-Fix Mode with the newly created tickets:
+- Update `OPEN_BUG_COUNT` to include `NEW_BUG_TICKETS`
+- Return to Bug-Fix Mode (Step 2: process all open bug tickets by priority)
+
+**If no new bugs were found**:
+
+No new failures. The fix cycle is clean. Proceed to Phase 8.
+
+---
+
 ## Phase 2: Triage & Issue Creation (/dso:debug-everything)
 
 Delegate ALL triage work to a sub-agent. The orchestrator passes the diagnostic report and receives back issue IDs.
@@ -320,7 +506,13 @@ The sub-agent returns: path to proposals file + summary (count + per-bug one-lin
 
 ### Step 3: Present Proposals to User (/dso:debug-everything)
 
-Read the proposals file from disk. Present each proposal to the user:
+**Non-interactive mode check**: If `INTERACTIVE_SESSION=false`, auto-defer ALL safeguard bugs. For each bug in `SAFEGUARD_BUGS`:
+```bash
+.claude/scripts/dso ticket comment <id> "INTERACTIVITY_DEFERRED: safeguard_approval | Non-interactive session. File: <path>. Proposed fix: <description>. Re-run in interactive session to approve."
+```
+Log: `"Non-interactive: deferring N safeguard bug(s)."` Skip to Phase 3 with `SAFEGUARD_BUGS` removed from the fix queue (they remain open).
+
+**Interactive mode**: Read the proposals file from disk. Present each proposal to the user:
 
 ```
 SAFEGUARD BUG PROPOSALS (require approval per CLAUDE.md rule 20)
@@ -637,7 +829,9 @@ Sub-agents may modify files beyond what their task description predicts. Check f
    - **Primary agent**: the one whose ticket issue is most directly about that file (highest priority or most file-specific)
    - **Secondary agents**: all others. Before reverting, capture each secondary agent's diff for the conflicting files. Then revert all at once: `git checkout -- <conflicting-files>`
    - Re-run secondary agents **one at a time in priority order** (not in parallel), each with original prompt plus a `### Conflict Resolution Context` block containing the captured diff and instruction to not overwrite the primary agent's changes. Commit each re-run before launching the next.
-   - After each re-run: if agent only touched non-conflicting files → success. If it overwrote the same files again → escalate to user, do not retry.
+   - After each re-run: if agent only touched non-conflicting files → success. If it overwrote the same files again:
+     - **Non-interactive mode** (`INTERACTIVE_SESSION=false`): Defer. For each secondary-agent ticket involved: `.claude/scripts/dso ticket comment <id> "INTERACTIVITY_DEFERRED: file_overlap | Agent re-overwrote conflicting files after re-run. Primary agent: <primary-agent-id>, conflicting files: <files>. Requires interactive session to resolve."` Revert secondary agent's changes: `git checkout -- <conflicting-files>`. Proceed to Step 1b.
+     - **Interactive mode**: Escalate to user, do not retry.
 4. No conflicts → proceed to Step 1b
 
 ### Step 1b: Critic Review (Complex Fixes Only) (/dso:debug-everything)
@@ -664,8 +858,9 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-revi
 
 **Oscillation guard**: Track critic outcomes per issue ID. On the 2nd CONCERN for
 the same issue, invoke `/dso:oscillation-check` (sub-agent, model="sonnet"  # Tier 2: must compare structural diffs across fix iterations to detect oscillation patterns) with
-context=critic. If it returns OSCILLATION, escalate to user with both fix
-approaches and both critic concerns. Do NOT retry.
+context=critic. If it returns OSCILLATION:
+- **Non-interactive mode** (`INTERACTIVE_SESSION=false`): Defer. Record both fix approaches and both critic concerns as a ticket comment: `.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: oscillation_guard | Oscillation detected after 2 CONCERN cycles. Approach 1: <summary-1>. Approach 2: <summary-2>. Critic concerns: <concern-1> / <concern-2>. Requires interactive session to choose approach."` Leave the bug open. Do NOT retry.
+- **Interactive mode**: Escalate to user with both fix approaches and both critic concerns. Do NOT retry.
 
 ### Step 2: Validate via Sub-Agent (/dso:debug-everything)
 
@@ -708,7 +903,13 @@ COMPLEX_ESCALATION: true
 - `investigation_findings`: summary of root cause candidates, confidence, and evidence from investigation
 - `escalation_reason`: why the fix is COMPLEX (e.g., cross-system refactor, multiple subsystems affected)
 
-**Re-dispatch at orchestrator level** (do NOT use a sub-agent for the re-dispatch — invoke `/dso:fix-bug` directly from the orchestrator):
+**Non-interactive mode** (`INTERACTIVE_SESSION=false`): When a `COMPLEX_ESCALATION` signal is found, log it as a ticket comment instead of blocking for re-dispatch. Do not invoke `/dso:fix-bug` at orchestrator level — defer the bug:
+```bash
+.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: complex_escalation | COMPLEX escalation from fix-bug sub-agent. escalation_reason: <escalation_reason>. investigation_findings: <investigation_findings>. Requires interactive session for orchestrator-level re-dispatch."
+```
+Add to `COMPLEX_BUGS` list for session summary. Continue to next bug.
+
+**Interactive mode (re-dispatch at orchestrator level)** — do NOT use a sub-agent for the re-dispatch — invoke `/dso:fix-bug` directly from the orchestrator:
 
 1. Add a note to the bug ticket with the investigation findings:
    ```bash
@@ -929,7 +1130,17 @@ Run:
 .claude/scripts/dso ticket list
 ```
 
-For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `.claude/scripts/dso ticket transition <id> open closed`. Present escalated bugs to the user.
+For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `.claude/scripts/dso ticket transition <id> open closed`.
+
+**Non-interactive mode** (`INTERACTIVE_SESSION=false`): For bugs classified as Escalated (including any previously deferred via COMPLEX_ESCALATION in non-interactive mode), do NOT present them to the user. Instead, add a deferral comment:
+```bash
+.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: bug_accountability | Classified as ESCALATED (requires user decision). <classification_reason>. Requires interactive session."
+```
+Include these bugs in the session summary report under a `DEFERRED (non-interactive)` section rather than `ESCALATED`.
+
+**Note**: In non-interactive mode, `COMPLEX_ESCALATION` reports from fix-bug sub-agents are also deferred — they are logged as ticket comments (Phase 6 Step 3a) and surface here as open bugs awaiting escalation. The non-interactive COMPLEX_ESCALATION log comment format is: `INTERACTIVITY_DEFERRED: complex_escalation | <reason>`.
+
+**Interactive mode**: Present escalated bugs to the user.
 
 **On Success** — report to user:
 - Open bug accountability table (above)

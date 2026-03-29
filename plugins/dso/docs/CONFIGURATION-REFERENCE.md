@@ -1,3 +1,7 @@
+---
+last_synced_commit: 4c57c6e8800576a045b6014065dcf5a266b43924
+---
+
 # Configuration Reference
 
 This document is the authoritative reference for all `dso-config.conf` keys and
@@ -708,6 +712,17 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | **Accepted values** | Semicolon-delimited glob patterns (e.g., `plugins/dso/skills/**;plugins/dso/hooks/**`) |
 | **Default** | Absent — classifier uses built-in heuristics only |
 | **Used by** | `plugins/dso/scripts/review-complexity-classifier.sh` |
+
+---
+
+### `debug.max_fix_validate_cycles`
+
+| | |
+|---|---|
+| **Description** | Maximum number of fix→validate cycles the `/dso:debug-everything` validation loop runs before stopping and reporting remaining open bugs. One cycle = Bug-Fix Mode pass over all open tickets followed by a Validation Mode diagnostic scan. When set to `0`, the validation loop is skipped entirely and execution proceeds directly to Phase 8 after Bug-Fix Mode. Values `> 10` are capped at `10` with a warning. Non-numeric values default to `3` with a warning. |
+| **Accepted values** | Non-negative integer (0–10; values above 10 are capped) |
+| **Default** | `3` |
+| **Used by** | `/dso:debug-everything` (Validation Mode inner loop) |
 
 ---
 
