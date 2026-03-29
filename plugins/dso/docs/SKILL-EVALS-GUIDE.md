@@ -192,3 +192,37 @@ To confirm the eval catches regressions, temporarily break the prompt (e.g., rem
 plugins/dso/scripts/run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md 2>&1 | grep -q "Running eval"
 echo "Path mapping works: exit $?"
 ```
+
+## Regression Detection
+
+Evals act as a behavioral specification for each skill. When a skill's prompt is changed (intentionally or accidentally), the eval suite detects whether the change breaks expected behavior.
+
+### How llm-rubric Assertions Catch Regressions
+
+`llm-rubric` assertions evaluate the skill's output against a natural-language rubric using a grader model. When a skill prompt is modified in a way that changes its output, the grader compares the new output against the rubric and fails the assertion if the output no longer satisfies it.
+
+Example regression scenario:
+1. A skill prompt is refactored to simplify wording.
+2. The refactored prompt omits a key instruction (e.g., "always report a Result field").
+3. The skill output no longer includes `Result:` in its response.
+4. The `llm-rubric` assertion — which checks for `Result: OSCILLATION` or `Result: CLEAR` — fails.
+5. The eval exits non-zero, blocking the change at the pre-commit gate or in CI.
+
+### Testing Both Positive and Negative Cases
+
+Eval configs should cover both sides of the skill's primary decision boundary:
+
+- **Positive case**: Input that should trigger the skill's main detection (e.g., an oscillation scenario). Asserts the skill *does* flag the condition.
+- **Negative case**: Input that should not trigger detection (e.g., a clear-progression scenario). Asserts the skill *does not* false-positive.
+
+Testing only positive cases misses regressions where a broken prompt flags everything (false positives). Testing only negative cases misses regressions where a broken prompt flags nothing (false negatives).
+
+### How Daily CI Catches Regressions Automatically
+
+The `eval-daily.yml` GitHub Actions workflow runs all evals on a schedule. When a regression is detected:
+
+1. The workflow exits non-zero.
+2. A P0 ticket is automatically created (via the CI failure hook) to track the regression.
+3. The ticket captures which skill eval failed and the CI run URL for context.
+
+This means regressions introduced by prompt drift, model behavior changes, or unreviewed edits are surfaced within 24 hours even if pre-commit gates were bypassed.
