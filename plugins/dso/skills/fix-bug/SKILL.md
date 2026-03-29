@@ -594,6 +594,37 @@ Do not surface gate errors to the user or halt the fix workflow.
 
 **Boundary with Centrality-Aware Test Gate**: Gate 2b runs at commit-time annotation (post-investigation), while the Centrality-Aware Test Gate operates at pre-commit time. They serve different phases and do not interact.
 
+### Gate 2d: Dependency Check (/dso:fix-bug)
+
+Gate 2d is a **primary** gate — it detects whether the proposed fix introduces new dependencies (imports or requires) that are not already declared in the project manifest or used elsewhere in the codebase. This gate runs post-investigation, after the fix is proposed.
+
+**When to run**: After Step 7 (Verify Fix) passes, run `gate-2d-dependency-check.sh` with the affected file path(s) and `--repo-root`:
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+GATE_2D_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2d-dependency-check.sh" "${AFFECTED_FILES_ARR[@]}" --repo-root "$(git rev-parse --show-toplevel)" 2>/dev/null)
+GATE_2D_EXIT=$?
+```
+
+**Parsing the gate signal**: Parse the JSON emitted to stdout. The signal conforms to `plugins/dso/docs/contracts/gate-signal-schema.md`:
+- `gate_id`: `"2d"`
+- `signal_type`: `"primary"` — Gate 2d is a primary signal; when triggered, it drives a routing decision
+- `triggered`: `true` if a new dependency/import is detected that is not in the manifest and not used elsewhere; `false` otherwise
+- `evidence`: human-readable explanation of what was detected (or why the gate did not fire)
+- `confidence`: `"high"` | `"medium"` | `"low"`
+
+**On triggered:true**: Add a primary signal to the gate accumulator. The dependency detection is a blocking signal — present the evidence to the user and require confirmation that the new dependency is intentional before proceeding to Step 8.
+
+**Existing pattern exemption**: Code that follows existing patterns in the codebase does not trigger Gate 2d. If the import/require is already used elsewhere in the codebase (even if not declared in the manifest), the gate treats it as a pre-existing dependency pattern and does not fire. This prevents false positives on established conventions — only genuinely novel dependencies trigger escalation.
+
+**Error handling (graceful degradation)**: If `gate-2d-dependency-check.sh` exits nonzero, produces empty stdout, or outputs JSON that cannot be parsed, construct a fallback gate signal and log a warning:
+
+```json
+{"gate_id": "2d", "triggered": false, "signal_type": "primary", "evidence": "gate error: <reason>", "confidence": "low"}
+```
+
+This ensures `validate-gate-signal.py` receives a complete 5-field signal on error paths. The gate degrades to triggered:false so that gate errors do not block the fix workflow.
+
 ### Step 8: Commit and Close (/dso:fix-bug)
 
 **When running as orchestrator (not a sub-agent)**:
