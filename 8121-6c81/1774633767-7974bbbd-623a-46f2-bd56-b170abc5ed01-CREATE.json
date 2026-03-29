@@ -1,1 +1,0 @@
-{"timestamp": 1774633767, "uuid": "7974bbbd-623a-46f2-bd56-b170abc5ed01", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a skill author, my skill evals run automatically when I commit skill changes", "parent_id": "7944-dcc5", "priority": 2, "assignee": "Joe Oakhart"}}
