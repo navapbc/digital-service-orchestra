@@ -63,7 +63,7 @@ parser_4_output=""
 parser_4_exit=0
 parser_4_output=$(bash "$SCRIPT" "$FIXTURE_4" 2>/dev/null) || parser_4_exit=$?
 assert_eq "test_parser_returns_all_templates: exit 0" "0" "$parser_4_exit"
-parser_4_lines=$(printf '%s' "$parser_4_output" | wc -l | tr -d ' ')
+parser_4_lines=$(printf '%s\n' "$parser_4_output" | grep -c '.')
 assert_eq "test_parser_returns_all_templates: 4 output lines" "4" "$parser_4_lines"
 
 # ── test_parser_outputs_correct_columns ───────────────────────────────────────
