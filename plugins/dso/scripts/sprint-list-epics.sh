@@ -183,11 +183,22 @@ except Exception:
 dep_status = {tid: entry.get('status', 'open') for tid, entry in index.items()}
 dep_parent = {tid: entry.get('parent', '') for tid, entry in index.items()}
 
+p0_bugs = []
 in_progress = []
 open_unblocked = []
 open_blocked = []
 
 for tid, entry in index.items():
+    # Collect open P0 bugs for top-of-output display
+    if entry.get('type') == 'bug':
+        status = entry.get('status', 'open')
+        priority = entry.get('priority')
+        if priority is None:
+            priority = 4
+        if status not in ('closed',) and priority == 0:
+            p0_bugs.append({'id': tid, 'title': entry.get('title', '')})
+        continue
+
     if entry.get('type') != 'epic':
         continue
     status = entry.get('status', 'open')
@@ -220,6 +231,14 @@ for tid, entry in index.items():
 in_progress.sort(key=lambda x: x['priority'])
 open_unblocked.sort(key=lambda x: x['priority'])
 open_blocked.sort(key=lambda x: x['priority'])
+
+# Display P0 bugs above the epic list (if any exist) -- must come BEFORE the
+# 'no open epics' early exit so P0 bugs are always visible.
+p0_bugs.sort(key=lambda x: x['id'])
+if p0_bugs:
+    print('P0 bugs requiring attention:')
+    for bug in p0_bugs:
+        print(f'  - [{bug[\"id\"]}] {bug[\"title\"]} (P0)')
 
 if not in_progress and not open_unblocked and not open_blocked:
     print('No open epics found.', file=sys.stderr)

@@ -933,6 +933,81 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 37: P0 bugs appear above the epic list when they exist ──────────────
+echo "Test 37: test_p0_bugs_appear_above_epics — P0 bug section is shown above epic list"
+test_p0_bugs_appear_above_epics() {
+    local TDIR37
+    TDIR37=$(mktemp -d)
+    trap 'rm -rf "$TDIR37"' RETURN
+
+    # Create a P0 bug and a regular epic
+    make_v3_ticket "$TDIR37" "bug-p0"  "bug"  "open" "0" "" "Critical P0 Bug"
+    make_v3_ticket "$TDIR37" "epic-x"  "epic" "open" "2" "" "Epic X"
+
+    local out37
+    out37=$(TICKETS_TRACKER_DIR="$TDIR37" bash "$SCRIPT" 2>/dev/null)
+
+    # P0 section header must appear
+    echo "$out37" | grep -q "P0 bugs requiring attention:" || return 1
+    # The P0 bug line must reference the bug ID, title, and "(P0)"
+    echo "$out37" | grep -q "bug-p0" || return 1
+    echo "$out37" | grep -q "Critical P0 Bug" || return 1
+    echo "$out37" | grep -q "(P0)" || return 1
+
+    # The P0 section must appear BEFORE the epic list (bug-p0 line before epic-x line)
+    local p0_line_num epic_line_num
+    p0_line_num=$(echo "$out37" | grep -n "bug-p0" | head -1 | cut -d: -f1)
+    epic_line_num=$(echo "$out37" | grep -n "epic-x" | head -1 | cut -d: -f1)
+    [ -n "$p0_line_num" ] && [ -n "$epic_line_num" ] || return 1
+    [ "$p0_line_num" -lt "$epic_line_num" ] || return 1
+}
+if test_p0_bugs_appear_above_epics; then
+    echo "  PASS: P0 bugs appear above epic list"
+    (( PASS++ ))
+else
+    echo "  FAIL: P0 bugs not shown above epic list" >&2
+    TDIR37_DBG=$(mktemp -d)
+    make_v3_ticket "$TDIR37_DBG" "bug-p0" "bug"  "open" "0" "" "Critical P0 Bug"
+    make_v3_ticket "$TDIR37_DBG" "epic-x" "epic" "open" "2" "" "Epic X"
+    actual_out37=$(TICKETS_TRACKER_DIR="$TDIR37_DBG" bash "$SCRIPT" 2>/dev/null || true)
+    echo "  Output:" >&2
+    echo "$actual_out37" >&2
+    rm -rf "$TDIR37_DBG"
+    (( FAIL++ ))
+fi
+
+# ── Test 38: No P0 section when no P0 bugs exist ──────────────────────────────
+echo "Test 38: test_no_p0_section_when_none_exist — P0 section absent when no P0 bugs"
+test_no_p0_section_when_none_exist() {
+    local TDIR38
+    TDIR38=$(mktemp -d)
+    trap 'rm -rf "$TDIR38"' RETURN
+
+    # Create a P1 bug (not P0) and a regular epic
+    make_v3_ticket "$TDIR38" "bug-p1"  "bug"  "open" "1" "" "Lower Priority Bug"
+    make_v3_ticket "$TDIR38" "epic-y"  "epic" "open" "2" "" "Epic Y"
+
+    local out38
+    out38=$(TICKETS_TRACKER_DIR="$TDIR38" bash "$SCRIPT" 2>/dev/null)
+
+    # P0 section must NOT appear
+    ! echo "$out38" | grep -q "P0 bugs requiring attention:"
+}
+if test_no_p0_section_when_none_exist; then
+    echo "  PASS: no P0 section when no P0 bugs exist"
+    (( PASS++ ))
+else
+    echo "  FAIL: P0 section appeared even though no P0 bugs exist" >&2
+    TDIR38_DBG=$(mktemp -d)
+    make_v3_ticket "$TDIR38_DBG" "bug-p1" "bug"  "open" "1" "" "Lower Priority Bug"
+    make_v3_ticket "$TDIR38_DBG" "epic-y" "epic" "open" "2" "" "Epic Y"
+    actual_out38=$(TICKETS_TRACKER_DIR="$TDIR38_DBG" bash "$SCRIPT" 2>/dev/null || true)
+    echo "  Output:" >&2
+    echo "$actual_out38" >&2
+    rm -rf "$TDIR38_DBG"
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

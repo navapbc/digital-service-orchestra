@@ -1,0 +1,108 @@
+description: "Oscillation check skill evals"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the oscillation-check skill. Analyze the following context for
+    oscillation patterns in iterative review loops. An oscillation occurs when
+    feedback in a later iteration would revert or undo changes made by a
+    previous iteration, creating a fix-revert-fix loop.
+
+    Respond with a structured report in this format:
+    OSCILLATION CHECK
+    =================
+    Context: {context}
+    Iteration: {iteration}
+    Files checked: {files}
+
+    Result: CLEAR | OSCILLATION
+
+    If OSCILLATION, include:
+    Conflicting iterations:
+      Previous: {summary}
+      Current: {summary}
+      Direction: REVERSAL
+    Recommendation: Stop loop. Present both positions to user.
+
+    Input:
+    {{prompt}}
+
+tests:
+  - description: "Detects oscillation in repeated file changes"
+    vars:
+      prompt: |
+        Context: review
+        Iteration: 3
+        Files targeted: src/utils/format.py, src/utils/validate.py
+
+        Previous iteration (iteration 2) diff for these files:
+        --- a/src/utils/format.py
+        +++ b/src/utils/format.py
+        @@ -10,7 +10,7 @@
+        -def format_output(data: dict) -> str:
+        -    return json.dumps(data)
+        +def format_output(data: dict) -> str:
+        +    return json.dumps(data, indent=2, sort_keys=True)
+
+        --- a/src/utils/validate.py
+        +++ b/src/utils/validate.py
+        @@ -5,5 +5,8 @@
+        -def validate(input):
+        +def validate(input: dict) -> bool:
+        +    if not isinstance(input, dict):
+        +        raise TypeError("Expected dict")
+
+        Current feedback (iteration 3) for these files:
+        - src/utils/format.py: "Remove the indent and sort_keys arguments from json.dumps for performance. Use plain json.dumps(data)."
+        - src/utils/validate.py: "The type check is too strict. Accept any mapping type, not just dict. Remove the TypeError raise."
+
+        The current feedback explicitly reverses the changes made in iteration 2:
+        format.py would go back to plain json.dumps, and validate.py would remove
+        the type guard that was just added.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly identifies an oscillation pattern. It should:
+          (1) report Result as OSCILLATION (not CLEAR),
+          (2) identify that the iteration 3 feedback would undo iteration 2 changes
+          in both format.py and validate.py,
+          (3) note the reversal direction, and
+          (4) recommend stopping the loop and presenting both positions to the user.
+
+  - description: "Returns CLEAR for non-oscillating changes"
+    vars:
+      prompt: |
+        Context: review
+        Iteration: 2
+        Files targeted: src/api/handler.py, tests/test_handler.py
+
+        Previous iteration (iteration 1) diff for these files:
+        --- a/src/api/handler.py
+        +++ b/src/api/handler.py
+        @@ -15,6 +15,9 @@
+        +    logger.info("Request received: %s", request.path)
+        +    if not request.headers.get("Authorization"):
+        +        return Response(status=401)
+
+        Current feedback (iteration 2) for these files:
+        - src/api/handler.py: "Add rate limiting to the handler. Insert a check for request frequency before the authorization check."
+        - tests/test_handler.py: "Add test cases for the new rate limiting behavior."
+
+        The current feedback builds on the previous changes. Iteration 1 added
+        logging and auth. Iteration 2 wants to add rate limiting -- a new concern
+        that does not undo or revert anything from iteration 1.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly identifies no oscillation. It should:
+          (1) report Result as CLEAR (not OSCILLATION),
+          (2) recognize that the iteration 2 feedback adds new functionality
+          (rate limiting) rather than reverting the iteration 1 changes
+          (logging and auth check), and
+          (3) not recommend stopping the loop.
