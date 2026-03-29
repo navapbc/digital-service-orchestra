@@ -1,1 +1,0 @@
-{"timestamp": 1774738602, "uuid": "ed744a42-1f6c-473b-8b8e-37b296c0eb98", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "CI: test-record-test-status-part4.sh stale red marker regression (pre-existing)", "parent_id": "", "description": "", "priority": 3, "assignee": "Joe Oakhart"}}
