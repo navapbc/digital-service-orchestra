@@ -1,0 +1,1 @@
+{"timestamp": 1774806466490101000, "uuid": "97ce2628-e6de-4f8f-9d1b-fda4f45db080", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: eval-daily-runner.sh implemented with PATH resolution and promptfoo-native failure parsing"}}
