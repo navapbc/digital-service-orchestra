@@ -40,6 +40,9 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 ## Orchestration Flow
 
 ```
+Phase 1 Step 1 (session lock + resume check)
+  → [open bugs exist? Yes: bug-fix mode (reads fix-bug SKILL.md inline at orchestrator level) → Phase 7 (Re-Diagnose)]
+  → [open bugs exist? No: Phase 1 (Diagnostic Scan) → Phase 2 (Triage sub-agent)]
 Phase 1 (Diagnostic + Clustering sub-agent) → Phase 2 (Triage sub-agent)
   → [dry-run: stop] or [execute: Phase 2.6 (Safeguard Analysis)]
 Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: present proposals → user approval → Phase 3]
@@ -49,6 +52,8 @@ Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
 Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/dso:end-session)] [FAIL: Phase 2]
 Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/dso:end-session)]
 ```
+
+**Bug-Fix Mode note**: In bug-fix mode, `/dso:fix-bug` is invoked at orchestrator level — reads fix-bug/SKILL.md inline directly, NOT via Task tool dispatch — preserving Agent tool access for investigation sub-agents.
 
 ---
 
@@ -108,6 +113,17 @@ This ensures a fresh start — no stale discoveries from a previous session. Cle
    - **CHECKPOINT 3/6 ✓ or 4/6 ✓** — partial; re-dispatch with the checkpoint note as resume context
    - **CHECKPOINT 1/6 ✓ or 2/6 ✓** — early; revert to open: `.claude/scripts/dso ticket transition <id> open`
    - **No CHECKPOINT lines or malformed/ambiguous lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
+
+### Step 1.5: Detect Open Bug Tickets Entry Check (/dso:debug-everything)
+
+**Check for open bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
+
+```bash
+OPEN_BUG_COUNT=$(.claude/scripts/dso ticket list --type=bug --status=open 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+```
+
+- If `OPEN_BUG_COUNT > 0`: **Enter Bug-Fix Mode.** Skip Phase 1 diagnostic scan (Steps 0.5, 1a, 1b, 1c, 2) and Phase 2 triage entirely. Proceed to the **Bug-Fix Mode** section below.
+- If `OPEN_BUG_COUNT == 0`: Continue to Step 0.5 (normal diagnostic flow).
 
 ### Step 0.5: Context Budget Check (/dso:debug-everything)
 
@@ -255,6 +271,50 @@ fi
 The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (category counts + top-3 clusters + open bug count). The full report is saved to `$(get_artifacts_dir)/debug-diag.md` on disk; do NOT receive the full report inline. Store the `DIAGNOSTIC_FILE` path for Phase 2.
 
 **Flow control**: If any inventory row has count > 0 OR open bugs exist, proceed to Phase 2. Only skip to Phase 9 if ALL validation categories pass AND zero open bugs.
+
+---
+
+## Bug-Fix Mode (/dso:debug-everything)
+
+**Entry condition**: Open bug tickets detected in Step 1.5 (`OPEN_BUG_COUNT > 0`).
+
+**Rationale**: When open bug tickets already exist, the diagnostic scan (Phase 1) and triage sub-agent (Phase 2) are unnecessary — they exist to *discover* new issues. Bug-Fix Mode skips both and applies `/dso:fix-bug` directly to each known ticket.
+
+### What is skipped in Bug-Fix Mode
+
+- **Diagnostic scan skipped** (Phase 1 Steps 0.5, 1a, 1b, 1c, 2): No `validate.sh --ci`, no preflight checks, no diagnostic sub-agent, no clustering.
+- **Triage skipped** (Phase 2): No triage sub-agent dispatch, no new epic creation, no issue clustering.
+
+### Bug-Fix Mode Execution
+
+1. **List all open bug tickets**:
+
+   ```bash
+   .claude/scripts/dso ticket list --type=bug --status=open
+   ```
+
+   Collect all returned ticket IDs. Order by priority (P0 first, then P1, P2, P3, P4).
+
+2. **For each open bug ticket, invoke `/dso:fix-bug` at the orchestrator level**:
+
+   Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation (reads SKILL.md inline) preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED) which require the Agent tool themselves.
+
+   Pass the ticket ID as the bug to fix:
+
+   ```
+   Bug ticket: <ticket-id>
+   Title: <title from ticket show>
+   ```
+
+3. **Error handling**: If `/dso:fix-bug` fails for a ticket (unrecoverable error, repeated failure, or explicit escalation), write a CHECKPOINT note and continue to the next ticket:
+
+   ```bash
+   .claude/scripts/dso ticket comment <id> "CHECKPOINT: Bug-Fix Mode — fix-bug failed: <error>. Resume from: re-attempt fix."
+   ```
+
+   Do NOT abort Bug-Fix Mode when a single ticket fails — process all remaining tickets.
+
+4. **After all bug tickets have been attempted**, proceed to **Phase 7 (Re-Diagnose)** to check for newly exposed failures or validation regressions caused by the fixes.
 
 ---
 
