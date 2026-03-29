@@ -1,0 +1,27 @@
+# Minimal copier.yml fixture for nava-platform NextJS template tests
+# Keys represent the questions copier asks during project generation.
+_questions:
+  project_name:
+    type: str
+    help: "Name of the project"
+    default: my-nextjs-app
+
+  project_description:
+    type: str
+    help: "Short description of the project"
+    default: ""
+
+  node_version:
+    type: str
+    help: "Node.js version to use"
+    default: "20"
+
+  use_typescript:
+    type: bool
+    help: "Use TypeScript?"
+    default: true
+
+  github_org:
+    type: str
+    help: "GitHub organization or username"
+    default: ""

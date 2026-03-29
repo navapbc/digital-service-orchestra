@@ -11,6 +11,8 @@ set -uo pipefail
 #   rust-cargo       — Cargo.toml (non-empty) found
 #   golang           — go.mod (non-empty) found
 #   node-npm         — package.json (valid JSON) found
+#   ruby-rails       — Gemfile (non-empty) AND config/routes.rb found
+#   ruby-jekyll      — Gemfile (non-empty) AND _config.yml found
 #   convention-based — Makefile with at least 2 of: test:, lint:, format: targets
 #   unknown          — none of the above markers found
 #
@@ -19,13 +21,17 @@ set -uo pipefail
 #   2. rust-cargo     (Cargo.toml)     — takes priority over golang
 #   3. golang         (go.mod)
 #   4. node-npm       (package.json)
-#   5. convention-based (Makefile with ≥2 standard targets)
-#   6. unknown
+#   5. ruby-rails     (Gemfile + config/routes.rb) — takes priority over ruby-jekyll
+#   6. ruby-jekyll    (Gemfile + _config.yml)
+#   7. convention-based (Makefile with ≥2 standard targets)
+#   8. unknown
 #
 # Multi-marker handling:
 #   Python (pyproject.toml) takes priority over Node (package.json) because many
 #   Python projects include package.json for frontend tooling.
 #   Rust (Cargo.toml) takes priority over Go (go.mod) as Cargo.toml is unambiguous.
+#   Ruby: Rails (config/routes.rb) takes priority over Jekyll (_config.yml) because
+#   config/routes.rb is a more specific Rails marker.
 #
 # Exit codes:
 #   0 — always (detection always succeeds, falling through to 'unknown')
@@ -85,7 +91,22 @@ if [[ -f "$PROJECT_DIR/package.json" ]]; then
     fi
 fi
 
-# 5. convention-based: Makefile with at least 2 of: test:, lint:, format: targets
+# 5-6. Ruby projects: Gemfile present AND non-empty, then check specific markers.
+#    Rails takes priority over Jekyll — config/routes.rb is a unique Rails marker.
+if [[ -f "$PROJECT_DIR/Gemfile" ]] && test -s "$PROJECT_DIR/Gemfile"; then
+    # 5. ruby-rails: config/routes.rb is the definitive Rails marker
+    if [[ -f "$PROJECT_DIR/config/routes.rb" ]]; then
+        echo "ruby-rails"
+        exit 0
+    fi
+    # 6. ruby-jekyll: _config.yml is the Jekyll marker
+    if [[ -f "$PROJECT_DIR/_config.yml" ]]; then
+        echo "ruby-jekyll"
+        exit 0
+    fi
+fi
+
+# 7. convention-based: Makefile with at least 2 of: test:, lint:, format: targets
 if [[ -f "$PROJECT_DIR/Makefile" ]]; then
     target_count=0
     if grep -q "^test:" "$PROJECT_DIR/Makefile"; then
@@ -103,6 +124,6 @@ if [[ -f "$PROJECT_DIR/Makefile" ]]; then
     fi
 fi
 
-# 6. unknown: no recognized markers found
+# 8. unknown: no recognized markers found
 echo "unknown"
 exit 0

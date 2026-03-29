@@ -1,0 +1,21 @@
+templates:
+  - name: nextjs
+    repo_url: https://github.com/navapbc/template-application-nextjs.git
+    install_method: nava-platform
+    framework_type: node-npm
+    required_data_flags: [app_name]
+  - name: flask
+    repo_url: https://github.com/navapbc/template-application-flask.git
+    install_method: nava-platform
+    framework_type: python-poetry
+    required_data_flags: [app_name]
+  - name: rails
+    repo_url: https://github.com/navapbc/template-application-rails.git
+    install_method: nava-platform
+    framework_type: ruby-rails
+    required_data_flags: [app_name]
+  - name: jekyll-uswds
+    repo_url: https://github.com/navapbc/template-application-jekyll.git
+    install_method: git-clone
+    framework_type: ruby-jekyll
+    required_data_flags: []

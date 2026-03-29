@@ -178,4 +178,74 @@ empty_cargo_output=$(bash "$SCRIPT" "$EMPTY_CARGO_DIR" 2>&1) || empty_cargo_exit
 assert_eq "test_detect_stack_empty_cargo_toml: exit 0" "0" "$empty_cargo_exit"
 assert_eq "test_detect_stack_empty_cargo_toml: empty Cargo.toml → unknown" "unknown" "$empty_cargo_output"
 
+# ── test_detect_stack_rails_project ──────────────────────────────────────────
+# A directory containing a non-empty Gemfile AND config/routes.rb must output
+# 'ruby-rails'. RED: detect-stack.sh does not yet handle Rails detection.
+RAILS_DIR="$TMPDIR_FIXTURE/rails_project"
+mkdir -p "$RAILS_DIR/config"
+printf 'source "https://rubygems.org"\ngem "rails"\n' > "$RAILS_DIR/Gemfile"
+printf '# Rails routes\n' > "$RAILS_DIR/config/routes.rb"
+
+rails_output=""
+rails_exit=0
+rails_output=$(bash "$SCRIPT" "$RAILS_DIR" 2>&1) || rails_exit=$?
+assert_eq "test_detect_stack_rails_project: exit 0" "0" "$rails_exit"
+assert_eq "test_detect_stack_rails_project: outputs ruby-rails" "ruby-rails" "$rails_output"
+
+# ── test_detect_stack_jekyll_project ─────────────────────────────────────────
+# A directory containing a non-empty Gemfile AND _config.yml must output
+# 'ruby-jekyll'. RED: detect-stack.sh does not yet handle Jekyll detection.
+JEKYLL_DIR="$TMPDIR_FIXTURE/jekyll_project"
+mkdir -p "$JEKYLL_DIR"
+printf 'source "https://rubygems.org"\ngem "jekyll"\n' > "$JEKYLL_DIR/Gemfile"
+printf 'title: My Site\n' > "$JEKYLL_DIR/_config.yml"
+
+jekyll_output=""
+jekyll_exit=0
+jekyll_output=$(bash "$SCRIPT" "$JEKYLL_DIR" 2>&1) || jekyll_exit=$?
+assert_eq "test_detect_stack_jekyll_project: exit 0" "0" "$jekyll_exit"
+assert_eq "test_detect_stack_jekyll_project: outputs ruby-jekyll" "ruby-jekyll" "$jekyll_output"
+
+# ── test_detect_stack_rails_jekyll_precedence ─────────────────────────────────
+# A directory containing Gemfile + config/routes.rb + _config.yml must output
+# 'ruby-rails' — the more specific Rails marker takes precedence over Jekyll.
+# RED: detect-stack.sh does not yet handle Rails/Jekyll detection.
+RAILS_JEKYLL_DIR="$TMPDIR_FIXTURE/rails_jekyll_project"
+mkdir -p "$RAILS_JEKYLL_DIR/config"
+printf 'source "https://rubygems.org"\ngem "rails"\n' > "$RAILS_JEKYLL_DIR/Gemfile"
+printf '# Rails routes\n' > "$RAILS_JEKYLL_DIR/config/routes.rb"
+printf 'title: My Site\n' > "$RAILS_JEKYLL_DIR/_config.yml"
+
+rails_jekyll_output=""
+rails_jekyll_exit=0
+rails_jekyll_output=$(bash "$SCRIPT" "$RAILS_JEKYLL_DIR" 2>&1) || rails_jekyll_exit=$?
+assert_eq "test_detect_stack_rails_jekyll_precedence: exit 0" "0" "$rails_jekyll_exit"
+assert_eq "test_detect_stack_rails_jekyll_precedence: ruby-rails takes priority over ruby-jekyll" "ruby-rails" "$rails_jekyll_output"
+
+# ── test_detect_stack_rails_no_gemfile ────────────────────────────────────────
+# config/routes.rb WITHOUT a Gemfile must output 'unknown' — Gemfile is the gate
+# for Ruby project detection. This test should PASS at RED (current behavior).
+RAILS_NO_GEMFILE_DIR="$TMPDIR_FIXTURE/rails_no_gemfile_project"
+mkdir -p "$RAILS_NO_GEMFILE_DIR/config"
+printf '# Rails routes\n' > "$RAILS_NO_GEMFILE_DIR/config/routes.rb"
+
+rails_no_gemfile_output=""
+rails_no_gemfile_exit=0
+rails_no_gemfile_output=$(bash "$SCRIPT" "$RAILS_NO_GEMFILE_DIR" 2>&1) || rails_no_gemfile_exit=$?
+assert_eq "test_detect_stack_rails_no_gemfile: exit 0" "0" "$rails_no_gemfile_exit"
+assert_eq "test_detect_stack_rails_no_gemfile: routes.rb without Gemfile → unknown" "unknown" "$rails_no_gemfile_output"
+
+# ── test_detect_stack_jekyll_no_gemfile ───────────────────────────────────────
+# _config.yml WITHOUT a Gemfile must output 'unknown' — Gemfile is the gate
+# for Ruby project detection. This test should PASS at RED (current behavior).
+JEKYLL_NO_GEMFILE_DIR="$TMPDIR_FIXTURE/jekyll_no_gemfile_project"
+mkdir -p "$JEKYLL_NO_GEMFILE_DIR"
+printf 'title: My Site\n' > "$JEKYLL_NO_GEMFILE_DIR/_config.yml"
+
+jekyll_no_gemfile_output=""
+jekyll_no_gemfile_exit=0
+jekyll_no_gemfile_output=$(bash "$SCRIPT" "$JEKYLL_NO_GEMFILE_DIR" 2>&1) || jekyll_no_gemfile_exit=$?
+assert_eq "test_detect_stack_jekyll_no_gemfile: exit 0" "0" "$jekyll_no_gemfile_exit"
+assert_eq "test_detect_stack_jekyll_no_gemfile: _config.yml without Gemfile → unknown" "unknown" "$jekyll_no_gemfile_output"
+
 print_summary
