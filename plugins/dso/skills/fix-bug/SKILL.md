@@ -714,6 +714,101 @@ GATE_2D_EXIT=$?
 
 This ensures `validate-gate-signal.py` receives a complete 5-field signal on error paths. The gate degrades to triggered:false so that gate errors do not block the fix workflow.
 
+### Escalation Routing (/dso:fix-bug)
+
+After all gate checks (Gates 1b, 2a, 2b, 2c, and 2d) have run, collect the resulting gate signals and route the fix workflow proportionally based on how many primary gates fired.
+
+**Collect gate signals into an array**:
+
+```bash
+# Build a JSON array of all gate signals collected during this session.
+# Signals come from: Gate 1b (feature-request check), Gate 2a (reversal check),
+# Gate 2b (blast radius — modifier), Gate 2c (test regression), Gate 2d (dependency check).
+# Each signal must conform to plugins/dso/docs/contracts/gate-signal-schema.md.
+#
+# Pass each gate output via stdin as newline-delimited JSON objects; Python reads them safely
+# without bash variable interpolation inside Python string literals.
+GATE_SIGNALS_JSON=$(printf '%s\n' \
+    "${GATE_1B_OUTPUT:-}" \
+    "${GATE_2A_OUTPUT:-}" \
+    "${GATE_2B_OUTPUT:-}" \
+    "${GATE_2C_OUTPUT:-}" \
+    "${GATE_2D_OUTPUT:-}" \
+  | python3 -c "
+import json, sys
+signals = []
+for line in sys.stdin:
+    line = line.strip()
+    if line:
+        try:
+            signals.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass  # skip empty or unparseable gate outputs
+print(json.dumps(signals))
+")
+```
+
+**Determine complexity flag**: If the complexity evaluator (Step 4.5) returned `COMPLEX`, pass `--complex` to the router.
+
+```bash
+COMPLEX_FLAG=""
+if [ "${FIX_COMPLEXITY:-}" = "COMPLEX" ]; then
+    COMPLEX_FLAG="--complex"
+fi
+```
+
+**Run `gate-escalation-router.py`**: Pass all collected gate signals as JSON stdin:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+ROUTING_OUTPUT=$(echo "$GATE_SIGNALS_JSON" | python3 "$REPO_ROOT/plugins/dso/scripts/gate-escalation-router.py" $COMPLEX_FLAG)
+ROUTE=$(echo "$ROUTING_OUTPUT" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('route','auto-fix'))" 2>/dev/null || echo "auto-fix")
+```
+
+**Error handling**: `gate-escalation-router.py` exits 0 always and routes malformed or empty JSON input to `route: "auto-fix"` (fail-open). If the router exits nonzero or its stdout is unparseable by the ROUTE extraction command above, default `ROUTE="auto-fix"` — consistent with the router's own fail-open contract. The `dialog` path is only triggered by the router when exactly 1 primary gate signal fires; it is not a fallback for infrastructure errors.
+
+**Routing table**:
+
+| Route | Condition | Action |
+|-------|-----------|--------|
+| `auto-fix` | 0 primary signals triggered (and not COMPLEX) | Proceed to Step 8 without any dialog |
+| `dialog` | Exactly 1 primary signal triggered | Prompt 1-2 inline questions with blast radius annotation from Gate 2b if available |
+| `escalate` | 2+ primary signals triggered, OR COMPLEX classification | Escalate to `/dso:brainstorm` with all gate evidence |
+
+**Route: `auto-fix`** — no primary gates fired. Proceed directly to Step 8 without pausing for user input.
+
+**Route: `dialog`** — one primary gate fired. Ask 1-2 focused inline questions (the exact questions are scoped to the fired gate's evidence). If Gate 2b blast radius annotation is available in `dialog_context.modifier_evidence`, include it in the question framing so the user understands the affected surface. After the dialog answers are recorded, proceed to Step 8.
+
+**Route: `escalate`** — 2 or more primary signals fired, or COMPLEX classification was returned. Do not proceed to Step 8. Instead:
+
+1. Record the escalation finding:
+   ```bash
+   ticket comment <BUG_TICKET_ID> "Escalation routing: route=escalate — $(echo $ROUTING_OUTPUT | python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); print(str(d.get(\"signal_count\",\"?\")) + \" primary signals, reason: \" + d.get(\"reason\",\"multi-signal escalation\"))')"
+   ```
+2. Invoke `/dso:brainstorm` with all gate evidence — this converts the fix into a tracked epic for proper planning and scoping.
+3. Stop — do NOT proceed to Step 8 in this session.
+
+**COMPLEX always escalates**: The `--complex` flag forces `route: "escalate"` regardless of primary signal count. Even 0 primary signals + COMPLEX classification results in epic escalation. This ensures that fix scopes evaluated as COMPLEX by the complexity evaluator (Step 4.5) always receive epic-level treatment.
+
+**Interactivity integration**: When fix-bug runs in non-interactive mode (set by `/dso:debug-everything`'s interactivity flag), the `dialog` path cannot block for user input. In non-interactive mode, defer the dialog as an `INTERACTIVITY_DEFERRED` ticket comment and proceed to Step 8 as if `auto-fix`:
+
+```bash
+if [ "${FIX_BUG_INTERACTIVE:-true}" = "false" ] && [ "$ROUTE" = "dialog" ]; then
+    ticket comment <BUG_TICKET_ID> "INTERACTIVITY_DEFERRED: 1 primary gate signal — dialog deferred (non-interactive mode). Gate evidence: $(echo $ROUTING_OUTPUT | python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); ctx=d.get(\"dialog_context\") or {}; print(ctx.get(\"signal\",{}).get(\"evidence\",\"no evidence\"))')"
+    ROUTE="auto-fix"
+fi
+```
+
+When `route: "escalate"` and non-interactive mode, defer the epic escalation as a comment and stop:
+
+```bash
+if [ "${FIX_BUG_INTERACTIVE:-true}" = "false" ] && [ "$ROUTE" = "escalate" ]; then
+    ticket comment <BUG_TICKET_ID> "INTERACTIVITY_DEFERRED: escalation to /dso:brainstorm deferred (non-interactive mode). Signal count: $(echo $ROUTING_OUTPUT | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get(\"signal_count\",\"?\"))'). All gate evidence attached to this ticket for follow-up."
+    # Stop — do not proceed to Step 8; escalation must be handled interactively.
+    exit 0
+fi
+```
+
 ### Step 8: Commit and Close (/dso:fix-bug)
 
 **When running as orchestrator (not a sub-agent)**:
