@@ -45,9 +45,12 @@ Phase 1 Step 1 (session lock + resume check)
   → [open bugs exist? No: Phase 1 (Diagnostic Scan) → Phase 2 (Triage sub-agent)]
 Phase 1 (Diagnostic + Clustering sub-agent) → Phase 2 (Triage sub-agent)
   → [dry-run: stop] or [execute: Phase 2.6 (Safeguard Analysis)]
-Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: present proposals → user approval → Phase 3]
+Phase 2.6 → [no safeguard bugs: Phase 3] [safeguard bugs: interactive → user approval → Phase 3 | non-interactive → auto-defer safeguard bugs → Phase 3]
 Phase 3 → Phase 4 (Auto-Fix, Tiers 0-1) → Phase 5 (Sub-Agent Batches)
-  → Phase 6 (Checkpoint) → [COMPLEX_ESCALATION from /dso:fix-bug: Phase 6 Step 3a re-dispatch] → [more in tier: Phase 5] [tier clear: Phase 7]
+  → Phase 6 (Checkpoint) → [COMPLEX_ESCALATION from /dso:fix-bug: Phase 6 Step 3a re-dispatch (interactive) | non-interactive → log ticket comment + defer] → [more in tier: Phase 5] [tier clear: Phase 7]
+  → Phase 6 Step 1a (file-overlap) → [conflict re-run fails: interactive → escalate user | non-interactive → defer + INTERACTIVITY_DEFERRED]
+  → Phase 6 Step 1b (oscillation-guard) → [OSCILLATION: interactive → escalate user | non-interactive → defer oscillation with both approaches recorded]
+Non-interactive mode: oscillation-guard escalation deferred; COMPLEX_ESCALATION logged as non-interactive ticket comment instead of user-blocking re-dispatch
 Phase 7 (Re-Diagnose) → [more tiers: Phase 3] [all done: Phase 8]
 Phase 8 (Full Validation sub-agent) → [ALL PASS: Phase 9 → Phase 10 (Merge/CI/Staging) → Phase 11 (/dso:end-session)] [FAIL: Phase 2]
 Graceful shutdown: Phase 5/6 session limit or compaction → Phase 9 → Phase 10 (Merge Checkpoint) → [context <70% AND open bugs: Phase 2] [context ≥70% OR no bugs: Phase 11 (/dso:end-session)]
@@ -124,6 +127,22 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
 ```
 
 This ensures a fresh start — no stale discoveries from a previous session. Cleanup failure is non-fatal; log a warning and continue.
+
+**Interactivity question** — ask whether the session can pause for user input:
+
+```
+AskUserQuestion: "Is this an interactive session? (yes/no — press Enter for yes)"
+```
+
+- **`yes` (or no answer / timeout / empty)**: `INTERACTIVE_SESSION=true` — default. Preserves current behavior where the skill pauses at gates for user approval.
+- **`no`**: `INTERACTIVE_SESSION=false` — non-interactive mode. At any gate that would normally pause for user input, the skill defers instead of blocking:
+  - Leave the bug open (do not attempt any fix requiring user input).
+  - Add a machine-parseable comment: `INTERACTIVITY_DEFERRED: <gate_name> | <context_summary>` where `gate_name` is one of: `safeguard_approval`, `complex_escalation`, `file_overlap`, `oscillation_guard`, `bug_accountability`. `context_summary` includes enough state (ticket IDs, error summaries, conflicting agent IDs) for the next interactive session to resume.
+  - Continue to the next bug or phase without blocking.
+
+**Non-interactive deferral — all deferral decisions are made at the orchestrator level.** `fix-bug` sub-agents do NOT need to honor `INTERACTIVE_SESSION` themselves. The orchestrator intercepts `COMPLEX_ESCALATION` reports and any other escalation signals before they reach the user, and defers them per the rules below.
+
+**Resume limitation (known)**: Phase 1 resume logic only scans `CHECKPOINT` lines in ticket comments — it does NOT scan `INTERACTIVITY_DEFERRED` lines. After a non-interactive session, you must manually run `.claude/scripts/dso ticket list --type=bug --status=open` and check for `INTERACTIVITY_DEFERRED` comments on open bugs to find items requiring follow-up in an interactive session.
 
 **Resume check** — find and reuse previous work:
 
@@ -487,7 +506,13 @@ The sub-agent returns: path to proposals file + summary (count + per-bug one-lin
 
 ### Step 3: Present Proposals to User (/dso:debug-everything)
 
-Read the proposals file from disk. Present each proposal to the user:
+**Non-interactive mode check**: If `INTERACTIVE_SESSION=false`, auto-defer ALL safeguard bugs. For each bug in `SAFEGUARD_BUGS`:
+```bash
+.claude/scripts/dso ticket comment <id> "INTERACTIVITY_DEFERRED: safeguard_approval | Non-interactive session. File: <path>. Proposed fix: <description>. Re-run in interactive session to approve."
+```
+Log: `"Non-interactive: deferring N safeguard bug(s)."` Skip to Phase 3 with `SAFEGUARD_BUGS` removed from the fix queue (they remain open).
+
+**Interactive mode**: Read the proposals file from disk. Present each proposal to the user:
 
 ```
 SAFEGUARD BUG PROPOSALS (require approval per CLAUDE.md rule 20)
@@ -804,7 +829,9 @@ Sub-agents may modify files beyond what their task description predicts. Check f
    - **Primary agent**: the one whose ticket issue is most directly about that file (highest priority or most file-specific)
    - **Secondary agents**: all others. Before reverting, capture each secondary agent's diff for the conflicting files. Then revert all at once: `git checkout -- <conflicting-files>`
    - Re-run secondary agents **one at a time in priority order** (not in parallel), each with original prompt plus a `### Conflict Resolution Context` block containing the captured diff and instruction to not overwrite the primary agent's changes. Commit each re-run before launching the next.
-   - After each re-run: if agent only touched non-conflicting files → success. If it overwrote the same files again → escalate to user, do not retry.
+   - After each re-run: if agent only touched non-conflicting files → success. If it overwrote the same files again:
+     - **Non-interactive mode** (`INTERACTIVE_SESSION=false`): Defer. For each secondary-agent ticket involved: `.claude/scripts/dso ticket comment <id> "INTERACTIVITY_DEFERRED: file_overlap | Agent re-overwrote conflicting files after re-run. Primary agent: <primary-agent-id>, conflicting files: <files>. Requires interactive session to resolve."` Revert secondary agent's changes: `git checkout -- <conflicting-files>`. Proceed to Step 1b.
+     - **Interactive mode**: Escalate to user, do not retry.
 4. No conflicts → proceed to Step 1b
 
 ### Step 1b: Critic Review (Complex Fixes Only) (/dso:debug-everything)
@@ -831,8 +858,9 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/critic-revi
 
 **Oscillation guard**: Track critic outcomes per issue ID. On the 2nd CONCERN for
 the same issue, invoke `/dso:oscillation-check` (sub-agent, model="sonnet"  # Tier 2: must compare structural diffs across fix iterations to detect oscillation patterns) with
-context=critic. If it returns OSCILLATION, escalate to user with both fix
-approaches and both critic concerns. Do NOT retry.
+context=critic. If it returns OSCILLATION:
+- **Non-interactive mode** (`INTERACTIVE_SESSION=false`): Defer. Record both fix approaches and both critic concerns as a ticket comment: `.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: oscillation_guard | Oscillation detected after 2 CONCERN cycles. Approach 1: <summary-1>. Approach 2: <summary-2>. Critic concerns: <concern-1> / <concern-2>. Requires interactive session to choose approach."` Leave the bug open. Do NOT retry.
+- **Interactive mode**: Escalate to user with both fix approaches and both critic concerns. Do NOT retry.
 
 ### Step 2: Validate via Sub-Agent (/dso:debug-everything)
 
@@ -875,7 +903,13 @@ COMPLEX_ESCALATION: true
 - `investigation_findings`: summary of root cause candidates, confidence, and evidence from investigation
 - `escalation_reason`: why the fix is COMPLEX (e.g., cross-system refactor, multiple subsystems affected)
 
-**Re-dispatch at orchestrator level** (do NOT use a sub-agent for the re-dispatch — invoke `/dso:fix-bug` directly from the orchestrator):
+**Non-interactive mode** (`INTERACTIVE_SESSION=false`): When a `COMPLEX_ESCALATION` signal is found, log it as a ticket comment instead of blocking for re-dispatch. Do not invoke `/dso:fix-bug` at orchestrator level — defer the bug:
+```bash
+.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: complex_escalation | COMPLEX escalation from fix-bug sub-agent. escalation_reason: <escalation_reason>. investigation_findings: <investigation_findings>. Requires interactive session for orchestrator-level re-dispatch."
+```
+Add to `COMPLEX_BUGS` list for session summary. Continue to next bug.
+
+**Interactive mode (re-dispatch at orchestrator level)** — do NOT use a sub-agent for the re-dispatch — invoke `/dso:fix-bug` directly from the orchestrator:
 
 1. Add a note to the bug ticket with the investigation findings:
    ```bash
@@ -1096,7 +1130,17 @@ Run:
 .claude/scripts/dso ticket list
 ```
 
-For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `.claude/scripts/dso ticket transition <id> open closed`. Present escalated bugs to the user.
+For every open bug, apply the three-outcome classification (Fixed / Escalated / Deferred) per the guide. Close fixed bugs with `.claude/scripts/dso ticket transition <id> open closed`.
+
+**Non-interactive mode** (`INTERACTIVE_SESSION=false`): For bugs classified as Escalated (including any previously deferred via COMPLEX_ESCALATION in non-interactive mode), do NOT present them to the user. Instead, add a deferral comment:
+```bash
+.claude/scripts/dso ticket comment <bug-id> "INTERACTIVITY_DEFERRED: bug_accountability | Classified as ESCALATED (requires user decision). <classification_reason>. Requires interactive session."
+```
+Include these bugs in the session summary report under a `DEFERRED (non-interactive)` section rather than `ESCALATED`.
+
+**Note**: In non-interactive mode, `COMPLEX_ESCALATION` reports from fix-bug sub-agents are also deferred — they are logged as ticket comments (Phase 6 Step 3a) and surface here as open bugs awaiting escalation. The non-interactive COMPLEX_ESCALATION log comment format is: `INTERACTIVITY_DEFERRED: complex_escalation | <reason>`.
+
+**Interactive mode**: Present escalated bugs to the user.
 
 **On Success** — report to user:
 - Open bug accountability table (above)
