@@ -87,9 +87,10 @@ parse_failing_tests_from_output() {
         | sed 's/^FAIL: //' \
         || true
 
-    # Pytest-style: "FAILED path/to/test.py::test_name"
-    grep -oE '^FAILED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*' "$output_file" \
-        | sed 's/^FAILED [^:]*:://' \
+    # Pytest-style: "FAILED path/to/test.py::test_name" or "FAILED path/to/test.py::ClassName::test_name"
+    # Extract the last ::segment to handle class-based tests
+    grep -oE '^FAILED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*(::[a-zA-Z_][a-zA-Z0-9_]*)?' "$output_file" \
+        | sed 's/^FAILED .*:://' \
         || true
 }
 
@@ -116,9 +117,10 @@ parse_passing_tests_from_output() {
         | sed 's/[[:space:]]*:[[:space:]]*PASS//' \
         || true
 
-    # Pytest-style: "PASSED path/to/test.py::test_name"
-    grep -oE '^PASSED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*' "$output_file" \
-        | sed 's/^PASSED [^:]*:://' \
+    # Pytest-style: "PASSED path/to/test.py::test_name" or "PASSED path/to/test.py::ClassName::test_name"
+    # Extract the last ::segment to handle class-based tests
+    grep -oE '^PASSED [^[:space:]]+::[a-zA-Z_][a-zA-Z0-9_]*(::[a-zA-Z_][a-zA-Z0-9_]*)?' "$output_file" \
+        | sed 's/^PASSED .*:://' \
         || true
 }
 
