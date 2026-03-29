@@ -726,6 +726,17 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 ---
 
+### `debug.intent_search_budget`
+
+| | |
+|---|---|
+| **Description** | Maximum number of tool calls the intent search sub-agent (Gate 1a) may use when scanning for bug intent signals in open tickets and recent commit history. Controls the bounded search budget for Gate 1a before it must emit a result. Non-numeric values default to `20` with a warning. |
+| **Accepted values** | Positive integer |
+| **Default** | `20` |
+| **Used by** | `/dso:debug-everything` (Gate 1a intent search sub-agent) |
+
+---
+
 ### `merge.visual_baseline_path`
 
 | | |
