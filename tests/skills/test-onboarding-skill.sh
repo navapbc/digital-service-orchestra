@@ -3,7 +3,7 @@
 # Tests that plugins/dso/skills/onboarding/SKILL.md has the correct structure
 # for the /dso:onboarding Socratic dialogue skill.
 #
-# Validates (30 named assertions):
+# Validates (33 named assertions):
 #   test_skill_file_exists: SKILL.md exists at the expected path
 #   test_frontmatter_valid: frontmatter has name=onboarding and user-invocable=true
 #   test_sub_agent_guard_present: Orchestrator Signal SUB-AGENT-GUARD block present
@@ -789,5 +789,50 @@ test_dso_setup_invocation() {
 }
 
 test_dso_setup_invocation
+
+# test_template_selection_gate: Phase 1.5 template gate section exists and references key components
+test_template_selection_gate() {
+    _snapshot_fail
+    local gate_found="missing"
+    if grep -q "Phase 1.5" "$SKILL_MD" 2>/dev/null && \
+       grep -q "parse-template-registry" "$SKILL_MD" 2>/dev/null && \
+       grep -q "Template Selection Result" "$SKILL_MD" 2>/dev/null; then
+        gate_found="found"
+    fi
+    assert_eq "test_template_selection_gate" "found" "$gate_found"
+    assert_pass_if_clean "test_template_selection_gate"
+}
+
+test_template_selection_gate
+
+# test_nava_platform_install_path: Phase 1.6a nava-platform install section exists
+test_nava_platform_install_path() {
+    _snapshot_fail
+    local path_found="missing"
+    if grep -q "Phase 1.6a" "$SKILL_MD" 2>/dev/null && \
+       grep -q "nava-platform" "$SKILL_MD" 2>/dev/null && \
+       grep -q "run_with_timeout" "$SKILL_MD" 2>/dev/null; then
+        path_found="found"
+    fi
+    assert_eq "test_nava_platform_install_path" "found" "$path_found"
+    assert_pass_if_clean "test_nava_platform_install_path"
+}
+
+test_nava_platform_install_path
+
+# test_jekyll_git_clone_path: Phase 1.6b git clone section exists with safety checks
+test_jekyll_git_clone_path() {
+    _snapshot_fail
+    local path_found="missing"
+    if grep -q "Phase 1.6b" "$SKILL_MD" 2>/dev/null && \
+       grep -q "git clone" "$SKILL_MD" 2>/dev/null && \
+       grep -qi "captive" "$SKILL_MD" 2>/dev/null; then
+        path_found="found"
+    fi
+    assert_eq "test_jekyll_git_clone_path" "found" "$path_found"
+    assert_pass_if_clean "test_jekyll_git_clone_path"
+}
+
+test_jekyll_git_clone_path
 
 print_summary

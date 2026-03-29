@@ -190,18 +190,25 @@ SELECTED_TEMPLATE_FRAMEWORK="<framework_type>"  # e.g., "node-npm"
 SELECTED_TEMPLATE_DATA_FLAGS="<data_flags>"   # e.g., "app_name" (comma-separated, may be empty)
 
 echo "## Template Selection Result" >> "$SCRATCHPAD"
-echo "Selected: $SELECTED_TEMPLATE_NAME" >> "$SCRATCHPAD"
-echo "Repo: $SELECTED_TEMPLATE_REPO" >> "$SCRATCHPAD"
-echo "Install method: $SELECTED_TEMPLATE_INSTALL" >> "$SCRATCHPAD"
-echo "Framework type: $SELECTED_TEMPLATE_FRAMEWORK" >> "$SCRATCHPAD"
-echo "Required data flags: $SELECTED_TEMPLATE_DATA_FLAGS" >> "$SCRATCHPAD"
+echo "name: $SELECTED_TEMPLATE_NAME" >> "$SCRATCHPAD"
+echo "repo_url: $SELECTED_TEMPLATE_REPO" >> "$SCRATCHPAD"
+echo "install_method: $SELECTED_TEMPLATE_INSTALL" >> "$SCRATCHPAD"
+echo "framework_type: $SELECTED_TEMPLATE_FRAMEWORK" >> "$SCRATCHPAD"
+echo "required_data_flags: $SELECTED_TEMPLATE_DATA_FLAGS" >> "$SCRATCHPAD"
 ```
 
 2. Route to the install path based on `install_method`:
-   - **`nava-platform`**: Notify the user that this template uses the nava-platform installer. Collect any required `required_data_flags` values (e.g., `app_name`) one at a time before proceeding.
-   - **`git-clone`**: Notify the user that this template will be cloned via `git clone <repo_url>`. No additional data flags are required for `git-clone` templates — proceed directly.
+   - **`nava-platform`**: Notify the user that this template uses the nava-platform installer. Collect any required `required_data_flags` values (e.g., `app_name`) one at a time before proceeding. After collection, write the collected values to the scratchpad:
+     ```bash
+     echo "collected_data: app_name=my-app, node_version=20" >> "$SCRATCHPAD"
+     ```
+     (comma-separated `key=value` pairs for each flag the user provided)
+   - **`git-clone`**: Notify the user that this template will be cloned via `git clone <repo_url>`. No additional data flags are required — write an empty collected_data line:
+     ```bash
+     echo "collected_data: " >> "$SCRATCHPAD"
+     ```
 
-3. After collecting required data, record the template selection result in the scratchpad under `## Template Selection Result` using the output contract below, then proceed to Phase 2 (the selected framework type fills in the stack area automatically — confirm with the user rather than asking from scratch).
+3. After collecting required data (or confirming none needed for git-clone), proceed to the install path. The scratchpad now has the complete `## Template Selection Result` section per the output contract below. The selected framework type fills in the stack area automatically — confirm with the user rather than asking from scratch.
 
 #### If the user declines (option 0 or empty input):
 
@@ -228,6 +235,400 @@ collected_data: <map>        # Key-value pairs for each required_data_flag (e.g.
 ```
 
 This structure is append-only — downstream install path steps read it from the scratchpad to complete installation without re-prompting the user.
+
+---
+
+## Phase 1.6a: nava-platform Template Installation
+
+**Trigger:** Run this phase ONLY when Phase 1.5 selected a template with `install_method: nava-platform`. If `install_method` is `git-clone` or no template was selected, skip this phase entirely and proceed directly to Phase 2.
+
+**Goal:** Install the nava-platform CLI (if not already present) and run `nava-platform app install` with the correct `--data` flags to scaffold the selected template into the current project directory.
+
+Read all inputs from the `## Template Selection Result` section of the scratchpad written by Phase 1.5. The scratchpad fields are plain text lines — read them as the LLM agent (not as bash variables). Extract:
+- `name`: template name (e.g., "nextjs")
+- `repo_url`: full git URL of the template repo
+- `required_data_flags`: comma-separated list of data flag keys (e.g., "app_name")
+- `collected_data`: comma-separated key=value pairs for each required data flag (e.g., "app_name=my-app, node_version=20")
+
+**Helper: `run_with_timeout`** — used throughout this phase for subprocess calls with timeout control:
+
+```bash
+# Timeout wrapper: runs a command with a maximum duration.
+# Uses GNU timeout if available, falls back to Python subprocess.
+run_with_timeout() {
+    local timeout_secs="$1"; shift
+    if command -v timeout &>/dev/null; then
+        timeout "$timeout_secs" "$@"
+    else
+        python3 -c "
+import subprocess, sys
+# sys.argv[0] is '-c' when invoked via python3 -c; actual args start at [1]
+timeout_secs = int(sys.argv[1])
+cmd = sys.argv[2:]
+try:
+    r = subprocess.run(cmd, timeout=timeout_secs)
+    sys.exit(r.returncode)
+except subprocess.TimeoutExpired:
+    sys.exit(124)
+" "$timeout_secs" "$@"
+    fi
+}
+```
+
+### Step 1: Probe for uv / pipx
+
+Before attempting any install, check whether the nava-platform CLI is already on PATH:
+
+```bash
+NAVA_CMD=""
+if command -v nava-platform &>/dev/null; then
+    NAVA_CMD="nava-platform"
+fi
+```
+
+If `nava-platform` is not already available, probe for an installer:
+
+```bash
+INSTALLER=""
+if command -v uv &>/dev/null; then
+    INSTALLER="uv"
+elif command -v pipx &>/dev/null; then
+    INSTALLER="pipx"
+fi
+```
+
+**If neither `uv` nor `pipx` is found and `nava-platform` is not on PATH**, print the following actionable message and abort the nava-platform install path:
+
+```
+nava-platform is not installed and neither 'uv' nor 'pipx' was found on PATH.
+
+To proceed with the [template_name] template, install one of the following:
+
+  uv (recommended):
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  pipx:
+    pip install pipx
+
+Then install nava-platform:
+    uv tool install git+https://github.com/navapbc/platform-cli
+  or
+    pipx install git+https://github.com/navapbc/platform-cli
+
+Alternatively, you can configure this project manually instead.
+```
+
+After printing the message, offer the user the manual flow fallback (see "On Failure" section below).
+
+### Step 2: Install nava-platform CLI
+
+Skip this step if `NAVA_CMD` is already set (CLI already on PATH).
+
+Install from GitHub using the detected installer. Apply a 120-second timeout to all subprocess calls (use `NAVA_TIMEOUT="${NAVA_TIMEOUT:-120}"`):
+
+```bash
+NAVA_GITHUB_REPO="navapbc/platform-cli"
+NAVA_TIMEOUT="${NAVA_TIMEOUT:-120}"
+
+if [[ "$INSTALLER" == "uv" ]]; then
+    # Install via uv tool
+    run_with_timeout "$NAVA_TIMEOUT" \
+        uv tool install "git+https://github.com/${NAVA_GITHUB_REPO}"
+
+    # Resolve the installed binary path
+    if command -v nava-platform &>/dev/null; then
+        NAVA_CMD="nava-platform"
+    else
+        NAVA_CMD="$(uv tool dir)/nava-platform/bin/nava-platform"
+    fi
+
+elif [[ "$INSTALLER" == "pipx" ]]; then
+    run_with_timeout "$NAVA_TIMEOUT" \
+        pipx install "git+https://github.com/${NAVA_GITHUB_REPO}"
+    NAVA_CMD="nava-platform"
+fi
+```
+
+On any install failure (non-zero exit or timeout), skip to "On Failure" below.
+
+### Step 3: Verify Installation (Smoke Test)
+
+Run `nava-platform --help` to confirm the binary works:
+
+```bash
+if ! run_with_timeout "$NAVA_TIMEOUT" "$NAVA_CMD" --help &>/dev/null; then
+    # Smoke test failed — installation may be broken
+    # → proceed to On Failure
+fi
+```
+
+A non-zero exit code or timeout here indicates a broken install. Skip to "On Failure" in that case.
+
+### Step 4: Log Installed Version
+
+Record the exact nava-platform version/commit before running the template install. This is best-effort — a timeout or error is non-fatal for the version log:
+
+```bash
+NAVA_VERSION=""
+_ver_exit=0
+NAVA_VERSION=$(run_with_timeout "$NAVA_TIMEOUT" "$NAVA_CMD" --version 2>&1) || _ver_exit=$?
+if [[ "$_ver_exit" -eq 124 ]]; then
+    NAVA_VERSION="(version check timed out)"
+elif [[ "$_ver_exit" -ne 0 ]]; then
+    NAVA_VERSION="(version check failed: exit ${_ver_exit})"
+fi
+
+echo "nava-platform version: $NAVA_VERSION" >&2
+
+# Append version to scratchpad
+echo "nava-platform version: $NAVA_VERSION" >> "$SCRATCHPAD"
+```
+
+### Step 5: Build --data Flags and Run Install
+
+Read the `required_data_flags` and `collected_data` from the `## Template Selection Result` scratchpad section. Build the `--data` flag list from the collected values and run `nava-platform app install`:
+
+```bash
+# Build --data flags from the collected_data in the scratchpad.
+# The scratchpad's ## Template Selection Result section has a line like:
+#   collected_data: app_name=my-app, node_version=20
+# Extract the value after "collected_data:" and split on commas.
+# Read the collected_data line from the scratchpad's ## Template Selection Result section.
+# The line format is: "collected_data: key1=val1, key2=val2"
+# Extract just the value part (after "collected_data: ").
+COLLECTED_LINE=$(grep "^collected_data:" "$SCRATCHPAD" | sed 's/^collected_data:[[:space:]]*//')
+DATA_FLAGS=()
+IFS=',' read -ra PAIRS <<< "$COLLECTED_LINE"
+for pair in "${PAIRS[@]}"; do
+    pair="${pair#"${pair%%[![:space:]]*}"}"  # trim leading whitespace
+    pair="${pair%"${pair##*[![:space:]]}"}"  # trim trailing whitespace
+    [[ -z "$pair" ]] && continue
+    DATA_FLAGS+=(--data "$pair")
+done
+
+# Run nava-platform app install with timeout
+INSTALL_EXIT=0
+run_with_timeout "$NAVA_TIMEOUT" "$NAVA_CMD" app install "${DATA_FLAGS[@]}" \
+    < /dev/null 2>&1 || INSTALL_EXIT=$?
+```
+
+**Timeout handling**: if the install exits with code 124 (timeout), treat it as a failure and proceed to "On Failure" with the message: "The nava-platform install timed out after ${NAVA_TIMEOUT}s."
+
+**On success (exit 0)**: append to scratchpad and proceed to Phase 1.7 (post-install re-detection):
+
+```bash
+echo "nava-platform install: SUCCESS  template=${SELECTED_TEMPLATE_NAME}  flags=${DATA_FLAGS[*]:-}" >> "$SCRATCHPAD"
+```
+
+Notify the user:
+
+```
+nava-platform app install completed successfully for template [template_name].
+Proceeding to verify the installed project structure...
+```
+
+### On Failure
+
+If any step above fails (CLI not found with no installer, install error, smoke test failure, or install timeout):
+
+1. Print a clear, specific error message describing what failed and why.
+2. Append the failure reason to the scratchpad:
+   ```bash
+   echo "nava-platform install: FAILED  reason=<description>" >> "$SCRATCHPAD"
+   ```
+3. Offer the user a choice:
+
+```
+The nava-platform install did not complete: [specific reason].
+
+Options:
+  1. Retry — fix the dependency issue described above, then continue
+  2. Manual flow — skip the template and configure this project manually
+
+How would you like to proceed?
+```
+
+If the user chooses manual flow, clear the template selection from the scratchpad (record `Template Installation: skipped — manual flow selected`) and proceed directly to Phase 2 as if no template was selected.
+
+### Proceed to Phase 1.7
+
+On success, proceed to Phase 1.7: Post-Install Re-Detection (defined in story da98-0163). Phase 1.7 re-runs `detect-stack.sh` on the freshly scaffolded project to confirm the framework type and fill in the stack area automatically before Phase 2 begins.
+
+---
+
+## Phase 1.6b: Jekyll USWDS Git Clone Installation
+
+**Trigger:** Run this phase ONLY when Phase 1.5 selected a template with `install_method: git-clone`. If `install_method` is `nava-platform` or no template was selected, skip this phase entirely and proceed directly to Phase 2.
+
+**Goal:** Clone the Jekyll USWDS template repository into the current project directory using `git clone`, with pre-flight safety checks and post-clone validation to detect captive portals or auth walls.
+
+Read all inputs from the `## Template Selection Result` section of the scratchpad written by Phase 1.5:
+
+```bash
+# Read template metadata from scratchpad (written by Phase 1.5)
+# Fields consumed here:
+#   name:      template name (e.g., "jekyll-uswds")
+#   repo_url:  full HTTPS git URL of the template repo (from registry — NOT hardcoded)
+```
+
+### Step 1: Read Clone URL from Scratchpad
+
+Extract `repo_url` from the `## Template Selection Result` scratchpad section written by Phase 1.5. Do NOT hardcode the URL — it must come from the registry-supplied value stored in the scratchpad.
+
+```bash
+# Example scratchpad values consumed by this phase:
+CLONE_URL="$SELECTED_TEMPLATE_REPO"   # e.g., "https://github.com/navapbc/template-application-jekyll.git"
+TEMPLATE_NAME="$SELECTED_TEMPLATE_NAME"  # e.g., "jekyll-uswds"
+```
+
+If `CLONE_URL` is empty or missing from the scratchpad, abort with:
+
+```
+Error: Clone URL is missing from the template selection scratchpad.
+Cannot proceed with git clone — please restart onboarding and reselect the template.
+```
+
+### Step 2: Pre-Flight Directory Check
+
+Before cloning, check whether the current working directory is non-empty (contains files or subdirectories beyond hidden files like `.git`):
+
+```bash
+# Count visible files/directories in CWD (excluding hidden)
+NON_HIDDEN_COUNT=$(find . -maxdepth 1 ! -name '.' ! -name '.*' | wc -l | tr -d ' ')
+```
+
+**If the directory is non-empty** (`NON_HIDDEN_COUNT > 0`), warn the user and offer a choice before proceeding:
+
+```
+Warning: The current directory is not empty (found $NON_HIDDEN_COUNT item(s)).
+
+Cloning into a non-empty directory may overwrite existing files.
+
+Options:
+  1. Proceed — clone anyway (existing files may be overwritten)
+  2. Abort — stop here so I can empty the directory first
+
+How would you like to proceed?
+```
+
+- If the user chooses **Abort**: record `Template Installation: aborted — non-empty directory` in the scratchpad and stop. Do NOT proceed to Phase 2. Wait for the user to take action.
+- If the user chooses **Proceed**: continue to Step 3.
+
+**If the directory is empty**: skip the warning and continue to Step 3 directly.
+
+### Step 3: Run git clone
+
+Clone the template repository into the current directory. Use `.` as the destination so files land directly in CWD (no subdirectory created):
+
+```bash
+CLONE_EXIT=0
+git clone "$CLONE_URL" . 2>&1 || CLONE_EXIT=$?
+```
+
+Check the exit code immediately after the clone command:
+
+- **Exit 0**: clone succeeded — proceed to Step 4 (post-clone validation).
+- **Non-zero exit**: clone failed — skip to "On Clone Failure" below.
+
+### Step 4: Post-Clone Validation (Captive Portal Detection)
+
+After a successful clone, verify that the cloned content is actually a git repository template and not an HTML redirect from a captive portal or auth wall. This can happen when the network intercepts HTTPS connections and returns an HTML page instead of a proper git response.
+
+**Detection approach**: A captive portal redirect produces a bare HTML file with no git history. A legitimate Jekyll USWDS template also contains `index.html` but will have a proper `.git` directory with multiple commits and Jekyll-specific files (`_config.yml`, `Gemfile`). Check for signs of a captive portal redirect — NOT just the presence of `index.html`:
+
+```bash
+CAPTIVE_DETECTED=false
+# A captive portal produces a shallow clone with a single HTML file and no Jekyll structure.
+# Check: if the repo has fewer than 3 tracked files AND index.html has a DOCTYPE, it's likely a redirect.
+TRACKED_COUNT=$(git ls-files | wc -l | tr -d ' ')
+if [[ "$TRACKED_COUNT" -lt 3 ]] && [[ -f "index.html" ]]; then
+    if head -5 index.html | grep -qi "<!DOCTYPE\|<html"; then
+        CAPTIVE_DETECTED=true
+    fi
+fi
+```
+
+**If captive portal is detected** (`CAPTIVE_DETECTED=true`):
+
+1. Remove the cloned content to restore a clean state:
+   ```bash
+   # Remove .git and all cloned files (handles filenames with spaces safely)
+   rm -rf .git
+   find . -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+   ```
+2. Append to scratchpad:
+   ```bash
+   echo "git-clone install: FAILED  reason=captive-portal-detected  url=$CLONE_URL" >> "$SCRATCHPAD"
+   ```
+3. Notify the user and skip to "On Clone Failure":
+
+```
+Clone validation failed: the cloned content appears to be an HTML page (captive portal or
+authentication wall detected), not the expected Jekyll template.
+
+This usually means your network is intercepting HTTPS connections. Common causes:
+  - Corporate proxy or VPN requiring authentication
+  - Guest Wi-Fi captive portal requiring login
+  - Firewall blocking GitHub
+
+Please connect to an unrestricted network and retry, or use the manual flow below.
+```
+
+**If captive portal is NOT detected**: clone validation passed — proceed to Step 5.
+
+### Step 5: Record Success and Proceed
+
+Append the install result to the scratchpad:
+
+```bash
+echo "git-clone install: SUCCESS  template=$TEMPLATE_NAME  url=$CLONE_URL" >> "$SCRATCHPAD"
+```
+
+Notify the user:
+
+```
+Successfully cloned [template_name] template from [repo_url].
+Proceeding to verify the installed project structure...
+```
+
+Then proceed to Phase 1.7: Post-Install Re-Detection.
+
+### On Clone Failure
+
+If `git clone` returned a non-zero exit code (and captive portal was not detected):
+
+1. Print a clear error message:
+
+```
+git clone failed for template [template_name].
+
+Clone URL: [repo_url]
+Exit code: [CLONE_EXIT]
+
+Common causes:
+  - No internet connection or GitHub is unreachable
+  - Authentication required for a private repository
+  - Insufficient disk space
+
+Options:
+  1. Retry — fix the issue described above, then continue
+  2. Manual flow — skip the template and configure this project manually
+
+How would you like to proceed?
+```
+
+2. Append the failure to the scratchpad:
+   ```bash
+   echo "git-clone install: FAILED  reason=clone-error-exit-${CLONE_EXIT}  url=$CLONE_URL" >> "$SCRATCHPAD"
+   ```
+
+3. If the user chooses **Retry**: re-run Step 3 from the top (re-read the clone URL from the scratchpad — do not re-prompt the user).
+
+4. If the user chooses **Manual flow**: record `Template Installation: skipped — manual flow selected` in the scratchpad and proceed directly to Phase 2 as if no template was selected.
+
+### Proceed to Phase 1.7
+
+On success (Step 5 reached), proceed to Phase 1.7: Post-Install Re-Detection (defined in story da98-0163). Phase 1.7 re-runs `detect-stack.sh` on the freshly cloned project to confirm the framework type and fill in the stack area automatically before Phase 2 begins.
 
 ---
 
@@ -854,5 +1255,7 @@ If the user says no or wants to continue manually, summarize what was learned an
 |-------|------|---------------|
 | 1: Auto-Detection | Pre-fill answers | Run project-detect.sh, initialize scratchpad temp file, summarize findings |
 | 1.5: Template Selection Gate | Offer starter templates (empty projects only) | Only when detect-stack returns "unknown"; load parse-template-registry.sh; numbered menu; handle select → store result + route to install path; handle decline → proceed to Phase 2 unchanged; missing registry → skip silently |
+| 1.6a: nava-platform Install | Install nava-platform templates | Probe uv/pipx, install CLI, verify, run app install with --data flags, timeout handling, error fallback to manual flow |
+| 1.6b: Jekyll Git Clone | Install Jekyll USWDS template | Clone via git, non-empty dir check, captive portal detection, error fallback to manual flow |
 | 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, confirmation-based (not rigid menus), skip confirmed areas |
 | 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write .claude/design-notes.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), infrastructure init (hook install with Husky/pre-commit framework/.git/hooks manager detection, git-common-dir for worktree support, ticket system orphan branch + .tickets-tracker/ + push verification + smoke test, generate-test-index.sh, CLAUDE.md with ticket commands, KNOWN-ISSUES template, CI trigger strategy), offer /dso:architect-foundation |
