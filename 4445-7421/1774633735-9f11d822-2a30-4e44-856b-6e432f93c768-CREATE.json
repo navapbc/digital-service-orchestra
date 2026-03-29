@@ -1,1 +1,0 @@
-{"timestamp": 1774633735, "uuid": "9f11d822-2a30-4e44-856b-6e432f93c768", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "story", "title": "As a skill author, I can run evals for a skill and see pass/fail results", "parent_id": "7944-dcc5", "priority": 2, "assignee": "Joe Oakhart"}}
