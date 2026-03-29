@@ -17,6 +17,7 @@
 # All 7 test files were run and verified passing with 0 failures before markers were removed.
 # This is a legitimate bulk GREEN promotion at user request, not a TDD protocol violation.
 
+plugins/dso/scripts/acli-integration.py: tests/scripts/test_acli_integration.py
 CLAUDE.md:tests/scripts/test-no-v2-refs-in-claude-md.sh,tests/scripts/test-claude-md-fix-bug-gates.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
 plugins/dso/scripts/detect-stack.sh:tests/scripts/test-detect-stack.sh
@@ -41,6 +42,7 @@ plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-sy
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
+plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/skills/test_review_workflow_model_escalation.py,tests/docs/test-reviewer-base-file-constraint.sh
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
@@ -173,7 +175,7 @@ plugins/dso/skills/design-wireframe/SKILL.md:tests/skills/test-skill-nesting-dep
 plugins/dso/scripts/jira-credential-helper.sh:tests/scripts/test-jira-credential-helper.sh
 plugins/dso/scripts/acli-version-resolver.sh:tests/scripts/test-acli-version-resolver.sh
 plugins/dso/scripts/gh-availability-check.sh:tests/scripts/test-gh-availability-check.sh
-plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh
+plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh
 plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
@@ -199,3 +201,7 @@ plugins/dso/skills/implementation-plan/SKILL.md: tests/skills/test-scrutiny-pend
 CLAUDE.md: tests/skills/test-shared-subworkflow-docs.sh
 plugins/dso/agents/doc-writer.md: tests/scripts/test-doc-writer-agent.sh
 plugins/dso/skills/update-docs/SKILL.md: tests/hooks/test-sub-agent-guard.sh
+# overlay dispatch logic (task 9937-4de6 / story w22-25ui) — no single source file yet (implemented by task 67e2-2912)
+plugins/dso/scripts/overlay-dispatch.sh: tests/hooks/test-overlay-dispatch.sh
+# overlay resolution loop integration (task ad04-e56f / story w22-agl5) — implemented by task db57-82d7
+plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resolution-integration.sh

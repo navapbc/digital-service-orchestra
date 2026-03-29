@@ -50,6 +50,8 @@ The emitter outputs a single JSON object on stdout. All fields are required.
 | `change_volume` | integer | Score for change-volume factor (0–3) |
 | `computed_total` | integer | Sum of all seven factor scores before floor rules are applied |
 | `selected_tier` | string | Final tier selection after floor rules; one of: `light`, `standard`, `deep` |
+| `security_overlay` | boolean | `true` if the diff touches security-sensitive paths or contains security-related imports/keywords; `false` otherwise. Used by overlay dispatch to trigger the security review overlay. |
+| `performance_overlay` | boolean | `true` if the diff touches performance-sensitive paths or contains performance-related keywords (SQL, async, pooling); `false` otherwise. Used by overlay dispatch to trigger the performance review overlay. |
 
 ### per_factor_scores
 
@@ -79,7 +81,9 @@ Floor rules applied by the classifier may raise `selected_tier` above the thresh
   "diff_lines": 1,
   "change_volume": 0,
   "computed_total": 5,
-  "selected_tier": "standard"
+  "selected_tier": "standard",
+  "security_overlay": false,
+  "performance_overlay": false
 }
 ```
 
@@ -108,4 +112,8 @@ then the parser **must** default to `standard` tier. The parser must not propaga
 
 ## Versioning
 
-This contract is unversioned. Breaking changes (field removal, type changes, enum value removal) require updating both the emitter and this document atomically in the same commit. Additive changes (new optional fields) are backward-compatible and do not require a version bump.
+This contract is unversioned. Breaking changes (field removal, type changes, enum value removal) require updating both the emitter and this document atomically in the same commit. Additive changes (new required fields that do not alter existing fields) are backward-compatible for parsers that ignore unknown keys, and do not require a version bump.
+
+### Change Log
+
+- **2026-03-28**: Added `security_overlay` and `performance_overlay` boolean fields (epic dso-5ooy). These are required fields (always present in output). Backward-compatible: existing parsers that do not read these fields are unaffected since they add new keys rather than modifying existing ones.

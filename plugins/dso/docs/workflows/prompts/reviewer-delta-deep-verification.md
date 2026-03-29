@@ -113,6 +113,15 @@ When the diff adds new tests for not-yet-implemented features:
   inter-service call), flag if there is no integration test or contract test exercising
   it end-to-end, even if unit tests exist
 
+## Overlay Classification
+
+Always evaluate these two items and include the results in your summary field text:
+
+- [ ] **security_overlay_warranted**: Does this diff touch authentication, authorization, cryptography, session management, trust boundaries, or sensitive data handling? Answer yes or no in the summary.
+- [ ] **performance_overlay_warranted**: Does this diff touch database queries, caching, connection pools, async/concurrent patterns, or batch processing? Answer yes or no in the summary.
+
+These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 3 top-level keys (scores, findings, summary).
+
 ---
 
 ## Output Constraint for Deep Verification

@@ -40,6 +40,28 @@ _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
 
 
 # ---------------------------------------------------------------------------
+# ADF helpers
+# ---------------------------------------------------------------------------
+
+
+def _text_to_adf(text: str) -> dict[str, Any]:
+    """Convert a plain text string to Atlassian Document Format (ADF).
+
+    Jira REST API v3 (used by ACLI Go v1.3+) requires the ``description``
+    field to be an ADF object, not a plain string.
+    """
+    paragraphs = []
+    for line in text.split("\n"):
+        if line:
+            paragraphs.append(
+                {"type": "paragraph", "content": [{"type": "text", "text": line}]}
+            )
+        else:
+            paragraphs.append({"type": "paragraph", "content": []})
+    return {"type": "doc", "version": 1, "content": paragraphs}
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
@@ -186,7 +208,7 @@ def _create_issue_from_json(
         },
     }
     if kwargs.get("description"):
-        payload["description"] = str(kwargs["description"])
+        payload["description"] = _text_to_adf(str(kwargs["description"]))
     if kwargs.get("assignee"):
         payload["assignee"] = str(kwargs["assignee"])
 
