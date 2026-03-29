@@ -17,6 +17,7 @@
 # All 7 test files were run and verified passing with 0 failures before markers were removed.
 # This is a legitimate bulk GREEN promotion at user request, not a TDD protocol violation.
 
+plugins/dso/scripts/acli-integration.py: tests/scripts/test_acli_integration.py
 CLAUDE.md:tests/scripts/test-no-v2-refs-in-claude-md.sh,tests/scripts/test-claude-md-fix-bug-gates.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
 plugins/dso/scripts/detect-stack.sh:tests/scripts/test-detect-stack.sh
