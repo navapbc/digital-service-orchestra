@@ -80,7 +80,7 @@ plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
 plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh
 plugins/dso/scripts/gate-2a-reversal-check.sh: tests/scripts/test-gate-2a-reversal-check.sh
 plugins/dso/scripts/validate-gate-signal.py: tests/scripts/test_validate_gate_signal.py
-plugins/dso/scripts/gate-1b-feature-request-check.py: tests/scripts/test_gate_1b_feature_request_check.py [test_doesnt_support]
+plugins/dso/scripts/gate-1b-feature-request-check.py: tests/scripts/test_gate_1b_feature_request_check.py
 plugins/dso/scripts/validate-issues.sh:tests/scripts/test-validate-issues-timestamp.sh
 plugins/dso/scripts/validate-phase.sh:tests/test-validate-phase-portability.sh,tests/scripts/test-validate-phase-v2-removal.sh
 plugins/dso/scripts/validate.sh:tests/plugin/test-validate-work-portability.sh,tests/hooks/test-validate-review-output.sh,tests/hooks/test-validate-crash-detection.sh,tests/scripts/test-validate-test-batched-integration.sh,tests/scripts/test-validate-flock-timeout.sh,tests/scripts/test-validate-background.sh,tests/scripts/test-validate-skip-ci-flag.sh,tests/scripts/test-validate-issues.sh,tests/scripts/test-validate-config.sh,tests/scripts/test-validate-script-writes-integration.sh,tests/scripts/test-validate-config-driven.sh,tests/scripts/test-validate-state-lifecycle.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-validate-comment-accuracy.sh,tests/scripts/test-validate-e2e-missing-target.sh
@@ -210,4 +210,4 @@ plugins/dso/scripts/overlay-dispatch.sh: tests/hooks/test-overlay-dispatch.sh
 # overlay resolution loop integration (task ad04-e56f / story w22-agl5) — implemented by task db57-82d7
 plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resolution-integration.sh
 plugins/dso/scripts/gate-2d-dependency-check.sh: tests/scripts/test-gate-2d-dependency-check.sh
-plugins/dso/scripts/gate-2c-test-regression-check.py: tests/scripts/test_gate_2c_test_regression_check.py [test_removes_assertion]
+plugins/dso/scripts/gate-2c-test-regression-check.py: tests/scripts/test_gate_2c_test_regression_check.py

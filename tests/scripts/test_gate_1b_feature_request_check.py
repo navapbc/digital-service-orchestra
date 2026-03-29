@@ -171,6 +171,34 @@ class TestGate1bFeatureRequestCheck:
 
     # ── Genuine bugs — triggered=false ────────────────────────────────────
 
+    def test_missing_data_after_save_is_not_feature_request(self) -> None:
+        """'Missing data after save' is a genuine bug — bare 'missing' must NOT trigger.
+
+        The broad bare '\\bmissing\\b' pattern was removed in favour of a qualified
+        pattern requiring a capability noun (support/option/ability/etc.).  This test
+        guards against regression: 'missing' alone in a bug context must not produce
+        a false-positive feature-request classification.
+        """
+        result = _run("Missing data after save")
+        assert result.returncode == 0, (
+            f"Expected exit 0, got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        assert _triggered(result) is False, (
+            f"Expected triggered=false for 'Missing data after save' (genuine bug).\n"
+            f"stdout: {result.stdout!r}"
+        )
+
+    def test_missing_rows_in_export_is_not_feature_request(self) -> None:
+        """'Missing rows in database export' is a genuine bug — no capability qualifier."""
+        result = _run("Missing rows in database export results")
+        assert result.returncode == 0, (
+            f"Expected exit 0, got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        assert _triggered(result) is False, (
+            f"Expected triggered=false for 'Missing rows in database export results' (genuine bug).\n"
+            f"stdout: {result.stdout!r}"
+        )
+
     def test_genuine_bug_crash(self) -> None:
         """'App crashes when clicking save' is a bug, not a feature request."""
         result = _run("App crashes when clicking save")
@@ -208,8 +236,12 @@ class TestGate1bFeatureRequestCheck:
     def test_domain_handle_false_positive(self) -> None:
         """'Payment handler doesn't handle refunds correctly' describes broken behavior.
 
-        The word 'handle' appears twice but the context is an existing capability
-        behaving incorrectly, not a missing feature. Should not trigger.
+        The domain-handle guard must fire here: title contains 'handler' (domain
+        component) and 'doesn't handle', while the description has a regression
+        indicator ('broken').  Crucially, this test verifies the guard itself —
+        not the combined regression check.  The title alone contains no regression
+        indicator, so if the guard were removed the gate would trigger (false
+        positive) despite the description confirming broken behavior.
         """
         result = _run(
             "Payment handler doesn't handle refunds correctly",
@@ -220,6 +252,33 @@ class TestGate1bFeatureRequestCheck:
         )
         assert _triggered(result) is False, (
             f"Expected triggered=false for domain 'handle' false positive.\n"
+            f"stdout: {result.stdout!r}"
+        )
+        # Verify it was the domain-handle guard that suppressed, not the combined
+        # regression check firing on title-only text.
+        evidence = _field(result, "evidence")
+        assert "domain handle" in evidence.lower(), (
+            f"Expected domain-handle guard evidence, got: {evidence!r}"
+        )
+
+    def test_domain_handle_guard_not_triggered_without_handler_in_title(self) -> None:
+        """'API doesn't handle refunds' with regression in description still triggers.
+
+        The domain-handle guard requires 'handler' in the title.  When the title
+        says 'API doesn't handle ...' (no 'handler' word) the guard does NOT fire,
+        and the combined text has no regression indicator in the title, so the
+        feature-request pattern triggers.
+        """
+        result = _run(
+            "API doesn't handle refunds",
+            description="The refund flow has been broken since the last deploy.",
+        )
+        assert result.returncode == 0, (
+            f"Expected exit 0, got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        # 'broken' in description is in combined text, so regression suppresses.
+        assert _triggered(result) is False, (
+            f"Expected triggered=false because 'broken' in combined text suppresses.\n"
             f"stdout: {result.stdout!r}"
         )
 
@@ -236,6 +295,45 @@ class TestGate1bFeatureRequestCheck:
         assert _triggered(result) is False, (
             f"Expected triggered=false when regression indicator ('anymore') suppresses.\n"
             f"stdout: {result.stdout!r}"
+        )
+
+    # ── Cross-paragraph / DOTALL false-positive resistance ────────────────
+
+    def test_cant_yet_does_not_span_paragraphs(self) -> None:
+        """'can't' and 'yet' in separate paragraphs must NOT trigger 'can't...yet'.
+
+        Patterns compiled with re.DOTALL would allow .* to match across newlines,
+        causing a spurious feature-request classification.  The gate must constrain
+        matching to a single line.
+        """
+        result = _run(
+            title="System can't handle the load.",
+            description="Performance is degraded.\n\nPlease report any issues yet to be diagnosed.",
+        )
+        assert result.returncode == 0, (
+            f"Expected exit 0, got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        # "can't" in title and "yet" later in description — must NOT match cross-line
+        assert _triggered(result) is False, (
+            f"Expected triggered=false: 'can\u2019t' and 'yet' are in separate paragraphs "
+            f"and should not be cross-matched.\nstdout: {result.stdout!r}"
+        )
+
+    def test_unable_to_any_does_not_span_paragraphs(self) -> None:
+        """'unable to' and 'any' in separate paragraphs must NOT trigger 'unable to...any'.
+
+        Verifies that the 'unable to.*any' pattern does not cross newlines.
+        """
+        result = _run(
+            title="Users are unable to complete checkout.",
+            description="Checkout fails with 500 error.\n\nPlease fix any issues found.",
+        )
+        assert result.returncode == 0, (
+            f"Expected exit 0, got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        assert _triggered(result) is False, (
+            f"Expected triggered=false: 'unable to' and 'any' are in different paragraphs "
+            f"and should not be cross-matched.\nstdout: {result.stdout!r}"
         )
 
     # ── Description-only match ─────────────────────────────────────────────
