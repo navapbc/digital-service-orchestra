@@ -83,6 +83,10 @@ while [ $# -gt 0 ]; do
             description="$2"
             shift 2
             ;;
+        -p)
+            priority="$2"
+            shift 2
+            ;;
         *)
             # Positional: treat as parent_id (backward-compatible)
             parent_id="$1"

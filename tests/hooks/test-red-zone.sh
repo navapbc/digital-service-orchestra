@@ -265,4 +265,86 @@ assert_eq "shared test retains non-empty marker" "marker_from_a" "${_markers13[t
 rm -rf "$_repo13"
 
 # ============================================================
+# read_red_markers_by_test_file — 20+ entries per line
+# ============================================================
+echo ""
+echo "=== read_red_markers_by_test_file: 20+ entries per line ==="
+
+# Test: 22 entries on one line, marker at middle position (entry 11)
+_repo14=$(make_temp_dir)
+_index14="$_repo14/.test-index"
+_line14="source/big.sh:"
+for _i in $(seq 1 10); do
+    _line14="${_line14} tests/test_big_${_i}.sh,"
+done
+_line14="${_line14} tests/test_big_11.sh [marker_at_11],"
+for _i in $(seq 12 22); do
+    _line14="${_line14} tests/test_big_${_i}.sh,"
+done
+_line14="${_line14%,}"
+printf '%s\n' "$_line14" > "$_index14"
+
+declare -A _markers14=()
+REPO_ROOT="$_repo14" read_red_markers_by_test_file _markers14
+assert_eq "22 entries: marker at position 11 is found" "marker_at_11" "${_markers14[tests/test_big_11.sh]:-}"
+assert_eq "22 entries: total entry count is 22" "22" "${#_markers14[@]}"
+assert_eq "22 entries: entry before marker has no marker" "" "${_markers14[tests/test_big_10.sh]:-}"
+assert_eq "22 entries: entry after marker has no marker" "" "${_markers14[tests/test_big_12.sh]:-}"
+rm -rf "$_repo14"
+
+# Test: 22 entries on one line, marker at LAST position (entry 22)
+_repo15=$(make_temp_dir)
+_index15="$_repo15/.test-index"
+_line15="source/big.sh:"
+for _i in $(seq 1 21); do
+    _line15="${_line15} tests/test_big_${_i}.sh,"
+done
+_line15="${_line15} tests/test_big_22.sh [marker_at_last]"
+printf '%s\n' "$_line15" > "$_index15"
+
+declare -A _markers15=()
+REPO_ROOT="$_repo15" read_red_markers_by_test_file _markers15
+assert_eq "22 entries: marker at last position is found" "marker_at_last" "${_markers15[tests/test_big_22.sh]:-}"
+assert_eq "22 entries (last marker): total count is 22" "22" "${#_markers15[@]}"
+rm -rf "$_repo15"
+
+# Test: 22 entries on one line, marker at FIRST position (entry 1)
+_repo16=$(make_temp_dir)
+_index16="$_repo16/.test-index"
+_line16="source/big.sh: tests/test_big_1.sh [marker_at_first]"
+for _i in $(seq 2 22); do
+    _line16="${_line16}, tests/test_big_${_i}.sh"
+done
+printf '%s\n' "$_line16" > "$_index16"
+
+declare -A _markers16=()
+REPO_ROOT="$_repo16" read_red_markers_by_test_file _markers16
+assert_eq "22 entries: marker at first position is found" "marker_at_first" "${_markers16[tests/test_big_1.sh]:-}"
+assert_eq "22 entries (first marker): total count is 22" "22" "${#_markers16[@]}"
+assert_eq "22 entries (first marker): entry 22 has no marker" "" "${_markers16[tests/test_big_22.sh]:-}"
+rm -rf "$_repo16"
+
+# Test: calling read_red_markers_by_test_file with 20+ entries must not
+# clobber a `parts` variable in the caller's scope.
+# Before the fix (adding `local parts` to the function), `parts` and `part`
+# would be set to the values from the LAST iteration inside the function.
+_repo17=$(make_temp_dir)
+_line17="source/big.sh:"
+for _i in $(seq 1 20); do
+    _line17="${_line17} tests/test_big_${_i}.sh,"
+done
+_line17="${_line17} tests/test_big_21.sh [no_clobber_marker]"
+printf '%s\n' "$_line17" > "$_repo17/.test-index"
+
+# Set caller-scoped parts and part before the call
+parts=("caller_part1" "caller_part2" "caller_part3")
+part="caller_part_value"
+declare -A _markers17=()
+REPO_ROOT="$_repo17" read_red_markers_by_test_file _markers17
+assert_eq "no clobber: marker still found after call" "no_clobber_marker" "${_markers17[tests/test_big_21.sh]:-}"
+assert_eq "no clobber: caller parts array not modified by function" "3" "${#parts[@]}"
+assert_eq "no clobber: caller part variable not modified by function" "caller_part_value" "$part"
+rm -rf "$_repo17"
+
+# ============================================================
 print_summary
