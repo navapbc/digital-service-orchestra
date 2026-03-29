@@ -1,0 +1,1 @@
+{"timestamp": 1774756201978309000, "uuid": "3e39b0c4-7ca0-4417-a237-84a5495d1fa8", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Bug-fix mode added to debug-everything SKILL.md \u2014 skips diagnostic/triage when open bugs exist, invokes fix-bug at orchestrator level."}}
