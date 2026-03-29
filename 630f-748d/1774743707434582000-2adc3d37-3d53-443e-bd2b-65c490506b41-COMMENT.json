@@ -1,1 +1,0 @@
-{"timestamp": 1774743707434582000, "uuid": "2adc3d37-3d53-443e-bd2b-65c490506b41", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: 5 RED tests added for Rails/Jekyll detection (3 RED, 2 pass edge cases)."}}
