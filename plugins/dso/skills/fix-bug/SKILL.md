@@ -176,6 +176,8 @@ After the agent returns its signal, record the outcome string for use by Gate 2a
 GATE_1A_RESULT="<outcome>"   # e.g., "intent-aligned"
 ```
 
+Gate 1a has three possible outcomes. The **ambiguous** outcome falls through to Gate 1b (feature-request language check via `gate-1b-feature-request-check.py`); the other two outcomes are decisive and skip Gate 1b entirely (see Step 1.7 below).
+
 - **intent-aligned** (`triggered: false`, `confidence: high` or `medium`) — The bug is consistent with system intent. Set `GATE_1A_RESULT="intent-aligned"`. Proceed directly to Step 2 (Investigation Sub-Agent Dispatch) without additional dialog.
 
 - **intent-contradicting** (`triggered: true`) — The bug report describes behavior that contradicts system intent (e.g., "working as designed", invalid usage, non-bug). Set `GATE_1A_RESULT="intent-contradicting"`. Auto-close:
@@ -191,11 +193,59 @@ GATE_1A_RESULT="<outcome>"   # e.g., "intent-aligned"
 
 - **ambiguous** (`triggered: false`, `confidence: low`) — The intent signal is inconclusive. Set `GATE_1A_RESULT="ambiguous"`. Fall through to Gate 1b for further disambiguation before investigation.
 
-<!-- REVIEW-DEFENSE: Gate 1b is an intentional forward reference. It is defined in story 5260-e9ba (a separate story under epic a5f2-1811, currently blocked and scheduled for a future implementation batch). Until story 5260-e9ba lands, agents encountering an ambiguous outcome should treat "fall through to Gate 1b" as "proceed directly to Step 2 (Investigation Sub-Agent Dispatch)". The forward reference is preserved deliberately so that when Gate 1b is implemented it slots in without requiring a second SKILL.md edit. -->
-
 **Graceful degradation:** If the intent-search agent dispatch fails (timeout, nonzero exit, empty output, or unparseable JSON / malformed signal), treat the result as **ambiguous** (`GATE_1A_RESULT="ambiguous"`) and fall through to Gate 1b. Agent failure must never block a legitimate bug investigation. Log the failure via `ticket comment <BUG_TICKET_ID> "Gate 1a: agent failure — treating as ambiguous. Error: <error detail>"`.
 
 **Mechanical fix path**: Bugs routed through the Mechanical Fix Path bypass Step 1.5 entirely, so `GATE_1A_RESULT` will be unset when Gate 2a runs. Gate 2a handles this via the default guard shown in its bash snippet (`GATE_1A_RESULT=${GATE_1A_RESULT:-}`).
+
+### Step 1.7: Gate 1b — Feature Request Check (/dso:fix-bug)
+
+Gate 1b is a **primary** gate that runs ONLY when Gate 1a returns **ambiguous**. It is skipped entirely for `intent-aligned` and `intent-contradicting` Gate 1a outcomes — those results are decisive and require no further disambiguation.
+
+**When to run**: Only when `GATE_1A_RESULT="ambiguous"`. Skip to Step 2 immediately if `GATE_1A_RESULT` is `intent-aligned` or `intent-contradicting`.
+
+**How to run**: Pass the bug ticket title and description as a JSON payload via stdin to `gate-1b-feature-request-check.py`:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+GATE_1B_PAYLOAD=$(python3 -c "
+import json, sys
+payload = {'title': sys.argv[1], 'description': sys.argv[2]}
+print(json.dumps(payload))
+" "<ticket title>" "<ticket description>")
+
+GATE_1B_OUTPUT=$(echo "$GATE_1B_PAYLOAD" | python3 "$REPO_ROOT/plugins/dso/scripts/gate-1b-feature-request-check.py")
+```
+
+The script exits 0 always and emits a single JSON gate signal to stdout conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`:
+
+```json
+{
+  "gate_id": "1b",
+  "signal_type": "primary",
+  "triggered": <bool>,
+  "evidence": "<string>",
+  "confidence": "high" | "medium" | "low"
+}
+```
+
+**Parsing the gate signal**: Parse the JSON output and route based on `triggered`:
+
+- **`triggered: true`** — Feature-request language detected. Gate 1b is a primary signal — record the evidence and escalate to the user for confirmation before continuing:
+  ```bash
+  ticket comment <BUG_TICKET_ID> "Gate 1b: feature-request language detected — <evidence from signal>"
+  ```
+  Present the evidence to the user and ask whether to close as a feature request or proceed to investigation.
+
+- **`triggered: false`** — No feature-request language detected. Proceed directly to Step 2 (Investigation Sub-Agent Dispatch).
+
+**Graceful degradation:** If `gate-1b-feature-request-check.py` exits nonzero, produces empty stdout, or yields unparseable JSON, treat the result as `triggered: false` and proceed to Step 2 without blocking. Construct the fallback signal explicitly:
+
+```bash
+# On failure, construct a non-blocking fallback signal
+GATE_1B_FALLBACK='{"gate_id":"1b","signal_type":"primary","triggered":false,"evidence":"Gate 1b script failure — defaulting to non-blocking","confidence":"low"}'
+```
+
+Gate 1b failure must never block a legitimate bug investigation.
 
 ### Step 2: Investigation Sub-Agent Dispatch (/dso:fix-bug)
 
@@ -593,6 +643,45 @@ Do not surface gate errors to the user or halt the fix workflow.
 **ast-grep / grep fallback**: `gate-2b-blast-radius.sh` uses ast-grep for fan-in analysis when available. When ast-grep is not installed, the script automatically falls back to grep-based analysis so the gate remains functional across all environments.
 
 **Boundary with Centrality-Aware Test Gate**: Gate 2b runs at commit-time annotation (post-investigation), while the Centrality-Aware Test Gate operates at pre-commit time. They serve different phases and do not interact.
+
+### Gate 2c: Test Regression Analysis (/dso:fix-bug)
+
+Gate 2c is a **primary** gate (signal_type `"primary"`) — it detects whether the proposed fix weakens, removes, or loosens existing test assertions. It delegates to `gate-2c-test-regression-check.py` which reads a unified diff from stdin. On error, the gate defaults to triggered:false (non-blocking). A specific-to-specific value swap (e.g., `assertEqual(x, 42)` to `assertEqual(x, 57)`) does not fire this gate — both values are specific literals, so assertion specificity is preserved. This gate runs post-investigation after the fix is implemented (Step 6) and verified (Step 7), before commit (Step 8).
+
+**When to run (Step 6.5)**: After Step 7 (Verify Fix) passes, pipe the working-tree diff of test files to the script via stdin. If Gate 1a returned `intent-aligned` for this bug, pass the `--intent-aligned` flag to suppress regression detection — when the fix corrects an assertion against documented intent, the test change is expected and intentional, so Gate 2c does not fire (epic SC3: 1a→2c suppression interaction).
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+TEST_DIR=$(bash "$PLUGIN_SCRIPTS/read-config.sh" test_gate.test_dirs)
+TEST_DIR=${TEST_DIR:-tests/}
+GATE_1A_RESULT=${GATE_1A_RESULT:-}
+GATE_2C_FLAGS=()
+if [ "$GATE_1A_RESULT" = "intent-aligned" ]; then
+    GATE_2C_FLAGS+=(--intent-aligned)
+fi
+GATE_2C_FLAGS+=(--test-dir "$TEST_DIR")
+GATE_2C_OUTPUT=$(git diff -- "$TEST_DIR" | python3 "$PLUGIN_SCRIPTS/gate-2c-test-regression-check.py" "${GATE_2C_FLAGS[@]}" 2>/dev/null)
+GATE_2C_EXIT=$?
+```
+
+**Parsing the gate signal**: Parse the JSON emitted to stdout per `plugins/dso/docs/contracts/gate-signal-schema.md`:
+- `gate_id`: `"2c"`
+- `signal_type`: `"primary"` — when triggered, it drives a routing decision
+- `triggered`: `true` if assertion removal, specificity reduction, or skip/xfail addition is detected; `false` otherwise
+- `evidence`: human-readable explanation of what was detected
+- `confidence`: `"high"` | `"medium"` | `"low"`
+
+**On triggered:true**: Add a primary signal to the gate accumulator. The test regression detection is an independent signal — any removal or broadening of assertions fires the gate regardless of other gate outcomes. Present the evidence to the user and require confirmation before proceeding to Step 8.
+
+**Specific-to-specific replacement exemption**: A fix that replaces one specific expected value with a different specific expected value does NOT trigger Gate 2c. For example, `assertEqual(result, 42)` changed to `assertEqual(result, 57)` is a specific-to-specific value swap — the assertion method is unchanged, both the old and new expected values are literals, and assertion specificity is preserved. Only specificity-reducing changes fire the gate: assertion removal, assertion count reduction, weakened matchers (e.g., `assertEqual` to `assertIsNotNone`), literal-to-variable replacement (e.g., `assertEqual(x, 42)` to `assertEqual(x, result)`), or skip/xfail additions.
+
+**Error handling (graceful degradation)**: If `gate-2c-test-regression-check.py` exits nonzero, produces empty stdout, or outputs JSON that cannot be parsed, construct a fallback gate signal with triggered:false and log a warning:
+
+```json
+{"gate_id": "2c", "triggered": false, "signal_type": "primary", "evidence": "gate error: <reason>", "confidence": "low"}
+```
+
+This ensures `validate-gate-signal.py` receives a complete 5-field signal on error paths. The gate degrades to triggered:false so that gate errors do not block the fix workflow.
 
 ### Gate 2d: Dependency Check (/dso:fix-bug)
 
