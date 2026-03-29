@@ -205,4 +205,48 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"cat /tmp/workflow-plugin-xxx
 EXIT_CODE=$(call_sentinel "$INPUT")
 assert_eq "test_test_exemptions_read_not_blocked" "0" "$EXIT_CODE"
 
+# ── Pattern k: .tickets-tracker/ protection ──────────────────────────────────
+
+# test_tickets_tracker_direct_rm_blocked
+# A rm command targeting .tickets-tracker/ must be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"rm -f /path/to/repo/.tickets-tracker/abc123/1234-CREATE.json"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_tickets_tracker_direct_rm_blocked" "2" "$EXIT_CODE"
+
+# test_tickets_tracker_index_lock_rm_blocked
+# Deleting the git worktree index.lock must be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"rm -f /path/to/repo/.git/worktrees/-tickets-tracker/index.lock"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_tickets_tracker_index_lock_rm_blocked" "2" "$EXIT_CODE"
+
+# test_tickets_tracker_redirect_write_blocked
+# A redirect write into .tickets-tracker/ must be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo event_data > /path/to/repo/.tickets-tracker/abc123/fake-CREATE.json"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_tickets_tracker_redirect_write_blocked" "2" "$EXIT_CODE"
+
+# test_tickets_tracker_ticket_create_sh_not_blocked
+# Commands running ticket-create.sh are authorized writers.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/scripts/ticket-create.sh bug \"title\" && cat .tickets-tracker/abc/123-CREATE.json"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_tickets_tracker_ticket_create_sh_not_blocked" "0" "$EXIT_CODE"
+
+# test_tickets_tracker_ticket_graph_py_not_blocked
+# Commands running ticket-graph.py are authorized writers.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"python3 plugins/dso/scripts/ticket-graph.py --link abc def relates_to && cat .tickets-tracker/abc/123-LINK.json"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_tickets_tracker_ticket_graph_py_not_blocked" "0" "$EXIT_CODE"
+
+# test_tickets_tracker_read_not_blocked
+# Read-only commands on .tickets-tracker/ must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cat .tickets-tracker/abc123/1234-CREATE.json"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_tickets_tracker_read_not_blocked" "0" "$EXIT_CODE"
+
+# test_tickets_tracker_find_not_blocked
+# find commands for .tickets-tracker/ must NOT be blocked.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"find .tickets-tracker/ -name \"*-CREATE.json\""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_tickets_tracker_find_not_blocked" "0" "$EXIT_CODE"
+
 print_summary

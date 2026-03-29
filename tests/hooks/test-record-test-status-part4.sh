@@ -957,4 +957,96 @@ rm -f "$MOCK_PASS_NE" "$MOCK_EVAL_RUNNER_NE"
 rm -rf "$TEST_REPO_NOEVAL" "$ARTIFACTS_NOEVAL"
 trap - EXIT
 
+# ============================================================
+# test_red_marker_parsed_with_20plus_test_files
+# When a single .test-index line maps ONE source file to 22+
+# comma-separated test files and one of them has a [marker],
+# the RED marker must be correctly detected and tolerated.
+#
+# This is a regression test for ea38-e0b4: "RED zone parsing
+# fails for .test-index entries with many test files".
+# The IFS=',' read -ra splitting and regex matching inside
+# read_test_index_for_source must correctly identify the marker
+# regardless of how many entries precede or follow it.
+# ============================================================
+echo ""
+echo "=== test_red_marker_parsed_with_20plus_test_files ==="
+_snapshot_fail
+
+TEST_REPO_MANY=$(create_test_repo)
+ARTIFACTS_MANY=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_MANY" "$ARTIFACTS_MANY"' EXIT
+
+mkdir -p "$TEST_REPO_MANY/source" "$TEST_REPO_MANY/tests"
+
+# Create source file
+cat > "$TEST_REPO_MANY/source/big.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "big source"
+SHEOF
+
+# Create 22 test files. Test 15 is in the RED zone (fails, has marker).
+# All others pass.
+for _mi in $(seq 1 22); do
+    if [[ $_mi -eq 15 ]]; then
+        cat > "$TEST_REPO_MANY/tests/test_big_${_mi}.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_green_before() { echo "test_green_before: PASS"; }
+test_many_red_marker() { echo "test_many_red_marker: FAIL"; exit 1; }
+test_green_before
+test_many_red_marker
+SHEOF
+    else
+        printf '#!/usr/bin/env bash\necho "test_pass_%d: PASS"\nexit 0\n' "$_mi" \
+            > "$TEST_REPO_MANY/tests/test_big_${_mi}.sh"
+    fi
+    chmod +x "$TEST_REPO_MANY/tests/test_big_${_mi}.sh"
+done
+
+# Build .test-index with 22 entries for source/big.sh, marker at position 15
+_idx_line="source/big.sh:"
+for _mi in $(seq 1 14); do
+    _idx_line="${_idx_line} tests/test_big_${_mi}.sh,"
+done
+_idx_line="${_idx_line} tests/test_big_15.sh [test_many_red_marker],"
+for _mi in $(seq 16 22); do
+    _idx_line="${_idx_line} tests/test_big_${_mi}.sh,"
+done
+_idx_line="${_idx_line%,}"
+printf '%s\n' "$_idx_line" > "$TEST_REPO_MANY/.test-index"
+
+git -C "$TEST_REPO_MANY" add -A
+git -C "$TEST_REPO_MANY" commit -m "setup many tests" --quiet 2>/dev/null
+
+# Stage a change to the source file
+echo "# changed" >> "$TEST_REPO_MANY/source/big.sh"
+git -C "$TEST_REPO_MANY" add source/big.sh
+
+EXIT_MANY=$(
+    cd "$TEST_REPO_MANY"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_MANY" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    TEST_GATE_TEST_DIRS_OVERRIDE="tests/" \
+    run_hook_exit
+)
+
+# test_big_15.sh fails but the RED marker [test_many_red_marker] must be
+# correctly parsed from the 22-entry .test-index line. All other tests pass.
+# Expected overall status: passed (RED zone failure tolerated).
+assert_eq "20plus_entries: exits 0 (RED zone tolerated)" "0" "$EXIT_MANY"
+
+if [[ -f "$ARTIFACTS_MANY/test-gate-status" ]]; then
+    STATUS_MANY=$(head -1 "$ARTIFACTS_MANY/test-gate-status")
+    assert_eq "20plus_entries: writes passed" "passed" "$STATUS_MANY"
+    TESTED_MANY=$(grep '^tested_files=' "$ARTIFACTS_MANY/test-gate-status" 2>/dev/null || echo "")
+    assert_contains "20plus_entries: test_big_15 appears in tested_files" "test_big_15" "$TESTED_MANY"
+else
+    assert_eq "20plus_entries: status file exists" "exists" "missing"
+fi
+
+rm -rf "$TEST_REPO_MANY" "$ARTIFACTS_MANY"
+trap - EXIT
+
+assert_pass_if_clean "test_red_marker_parsed_with_20plus_test_files"
+
 print_summary

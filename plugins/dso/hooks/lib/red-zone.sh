@@ -27,6 +27,9 @@
 # For Python: matches 'def marker_name' or 'def marker_name('
 # For Bash: matches 'marker_name()' or 'marker_name (' or '# marker_name' pattern
 # For plain text / other: matches any line containing the marker name
+# For Class::method format (pytest class-based tests): when marker_name contains '::',
+#   split on '::' to get class_name and method_name, then scan the file for the
+#   class definition first, and only match the method def within that class scope.
 # Returns the line number on stdout, or -1 if not found.
 # Emits WARNING to stderr if marker provided but not found.
 get_red_zone_line_number() {
@@ -40,8 +43,48 @@ get_red_zone_line_number() {
         return 0
     fi
 
-    local line_num=0
     local found_line=-1
+
+    # Handle Class::method format (pytest class-based test IDs)
+    if [[ "$marker_name" == *::* ]]; then
+        local class_name="${marker_name%%::*}"
+        local method_name="${marker_name#*::}"
+        # Word-boundary patterns for class and method
+        local pat_class="(^|[^a-zA-Z0-9_-])${class_name}([^a-zA-Z0-9_-]|\$)"
+        local pat_method="(^|[^a-zA-Z0-9_-])${method_name}([^a-zA-Z0-9_-]|\$)"
+        local line_num=0
+        local in_class=0
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            (( line_num++ )) || true
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            # Detect class definition: "class ClassName" or "class ClassName:"
+            if [[ $in_class -eq 0 ]] && [[ "$line" =~ $pat_class ]]; then
+                in_class=1
+                continue
+            fi
+            # Once inside the class, look for the method definition
+            if [[ $in_class -eq 1 ]]; then
+                # A new top-level class/def (no leading whitespace) signals we left the class
+                if [[ "$line" =~ ^[^[:space:]] ]] && [[ ! -z "$line" ]]; then
+                    # Allow "class " or "def " at top level — we've left the previous class
+                    in_class=0
+                    continue
+                fi
+                if [[ "$line" =~ $pat_method ]]; then
+                    found_line=$line_num
+                    break
+                fi
+            fi
+        done < "$full_path"
+
+        if [[ $found_line -eq -1 ]]; then
+            echo "WARNING: RED marker '${marker_name}' not found in test file: ${test_file}" >&2
+        fi
+        echo "$found_line"
+        return 0
+    fi
+
+    local line_num=0
     # Word-boundary pattern: marker_name not adjacent to other identifier chars [a-zA-Z0-9_-]
     # Hyphens are included so that searching for 'test-foo' does not match 'test-foo-bar',
     # and searching for 'test' does not accidentally match 'test-foo'.
@@ -195,6 +238,9 @@ read_red_markers_by_test_file() {
         local right="${line#*:}"
 
         # Parse each comma-separated test entry
+        # Declare parts and part as local to prevent clobbering caller variables
+        # when read_red_markers_by_test_file is called directly (not in a subshell).
+        local parts part
         IFS=',' read -ra parts <<< "$right"
         for part in "${parts[@]}"; do
             # Trim leading/trailing whitespace
