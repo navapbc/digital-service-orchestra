@@ -456,3 +456,105 @@ def test_create_issue_from_json_forwards_summary(acli: ModuleType) -> None:
     assert payload.get("summary") == "My summary", (
         f"Expected summary 'My summary' in JSON payload, got: {payload}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 13 (RED): _text_to_adf returns a valid ADF document structure
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_text_to_adf_returns_valid_adf_structure(acli: ModuleType) -> None:
+    """_text_to_adf(text) must return an ADF dict with type='doc', version=1,
+    and a paragraph content node containing the original text."""
+    assert hasattr(acli, "_text_to_adf"), (
+        "_text_to_adf function not found in acli-integration.py — "
+        "implement _text_to_adf to convert plain text to Atlassian Document Format"
+    )
+
+    result = acli._text_to_adf("Hello, Jira!")
+
+    assert isinstance(result, dict), (
+        f"_text_to_adf must return a dict (ADF object), got {type(result)}"
+    )
+    assert result.get("type") == "doc", (
+        f"ADF root must have type='doc', got type={result.get('type')!r}"
+    )
+    assert result.get("version") == 1, (
+        f"ADF root must have version=1, got version={result.get('version')!r}"
+    )
+    content = result.get("content")
+    assert isinstance(content, list) and len(content) >= 1, (
+        f"ADF root must have a non-empty 'content' list, got: {content!r}"
+    )
+    paragraph = content[0]
+    assert paragraph.get("type") == "paragraph", (
+        f"First content node must have type='paragraph', got: {paragraph.get('type')!r}"
+    )
+    inner_content = paragraph.get("content")
+    assert isinstance(inner_content, list) and len(inner_content) >= 1, (
+        f"Paragraph must have a non-empty 'content' list, got: {inner_content!r}"
+    )
+    text_node = inner_content[0]
+    assert text_node.get("type") == "text", (
+        f"First paragraph content node must have type='text', got: {text_node.get('type')!r}"
+    )
+    assert text_node.get("text") == "Hello, Jira!", (
+        f"Text node must preserve original string, got: {text_node.get('text')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 14 (RED): _create_issue_from_json sends description as ADF object
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_issue_from_json_sends_description_as_adf(acli: ModuleType) -> None:
+    """When description is provided, _create_issue_from_json must write an ADF
+    object (not a plain string) into the JSON payload's 'description' field."""
+    created_response = json.dumps({"key": "PROJ-77", "summary": "ADF test"})
+    verified_response = json.dumps(
+        {"key": "PROJ-77", "summary": "ADF test", "status": "To Do"}
+    )
+
+    captured_payloads: list[dict] = []
+
+    def capturing_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if "--from-json" in cmd:
+            idx = cmd.index("--from-json") + 1
+            json_path = cmd[idx]
+            with open(json_path) as f:
+                captured_payloads.append(json.load(f))
+            return MagicMock(returncode=0, stdout=created_response, stderr="")
+        return MagicMock(returncode=0, stdout=verified_response, stderr="")
+
+    with patch("subprocess.run", side_effect=capturing_run):
+        acli.create_issue(
+            project="PROJ",
+            issue_type="Task",
+            summary="ADF test",
+            priority=2,
+            description="Fix the outbound bridge",
+        )
+
+    assert len(captured_payloads) == 1, (
+        "Expected exactly one --from-json call when priority is set"
+    )
+    payload = captured_payloads[0]
+    assert "description" in payload, (
+        f"Expected 'description' key in JSON payload, got keys: {list(payload.keys())}"
+    )
+    description = payload["description"]
+    assert isinstance(description, dict), (
+        f"description in JSON payload must be an ADF dict (not a plain string), "
+        f"got {type(description).__name__!r}: {description!r}"
+    )
+    assert description.get("type") == "doc", (
+        f"description ADF object must have type='doc', got: {description.get('type')!r}"
+    )
+    assert description.get("version") == 1, (
+        f"description ADF object must have version=1, got: {description.get('version')!r}"
+    )
