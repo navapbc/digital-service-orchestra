@@ -1,1 +1,0 @@
-{"timestamp": 1774750311547231000, "uuid": "183aa887-0d5c-4e98-b7f9-8433397acb06", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "AC amendment: Add a dedup test \u2014 verify that when same failure appears in consecutive validation iterations, only ONE ticket is created per unique failure."}}
