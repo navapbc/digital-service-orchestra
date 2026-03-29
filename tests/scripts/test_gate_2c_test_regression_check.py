@@ -439,3 +439,160 @@ class TestGate2cTestRegressionCheck:
         assert data.get("triggered") is True, (
             f"Expected triggered=true when assertion removed even alongside additions; got: {data}"
         )
+
+    # ── Test 15a: --test-dir restricts files analyzed ─────────────────────
+    # Files outside the given --test-dir are ignored, even if they are test files.
+
+    def test_test_dir_filters_out_files_outside_dir(self, tmp_path: Path) -> None:
+        """--test-dir=tests/unit causes files in tests/integration/ to be ignored."""
+        before = [
+            "def test_ignored():",
+            "    assertEqual(result, 42)",
+        ]
+        after = [
+            "def test_ignored():",
+        ]
+        # test file in tests/integration/ — should NOT be analyzed
+        diff = _unified_diff("tests/integration/test_something.py", before, after)
+        result = _run(diff, extra_args=["--test-dir", "tests/unit"])
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        data = _parse_output(result)
+        assert data.get("triggered") is False, (
+            f"Expected triggered=false for file outside --test-dir; got: {data}"
+        )
+
+    def test_test_dir_includes_files_inside_dir(self, tmp_path: Path) -> None:
+        """--test-dir=tests/unit causes files inside tests/unit/ to be analyzed."""
+        before = [
+            "def test_included():",
+            "    assertEqual(result, 42)",
+            "    assertEqual(status, 'ok')",
+        ]
+        after = [
+            "def test_included():",
+            "    assertEqual(result, 42)",
+        ]
+        # test file in tests/unit/ — SHOULD be analyzed
+        diff = _unified_diff("tests/unit/test_something.py", before, after)
+        result = _run(diff, extra_args=["--test-dir", "tests/unit"])
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        data = _parse_output(result)
+        assert data.get("triggered") is True, (
+            f"Expected triggered=true for file inside --test-dir; got: {data}"
+        )
+
+    # ── Test 15b: nested function calls in assertions ─────────────────────
+    # Regression for: _extract_method_and_args used [^)]* which truncated at
+    # the first closing paren, losing the expected value in calls like
+    # assertEqual(foo(x), 42).
+
+    def test_nested_call_in_assertion_detected(self, tmp_path: Path) -> None:
+        """Removing assertEqual(foo(x), 42) triggers gate 2c (nested call arg)."""
+        before = [
+            "def test_nested():",
+            "    assertEqual(compute(x), 42)",
+        ]
+        after = [
+            "def test_nested():",
+        ]
+        diff = _unified_diff("tests/test_nested.py", before, after)
+        result = _run(diff)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        data = _parse_output(result)
+        assert data.get("triggered") is True, (
+            f"Expected triggered=true when assertEqual(foo(x), 42) removed; got: {data}"
+        )
+
+    def test_nested_call_benign_literal_swap_not_triggered(
+        self, tmp_path: Path
+    ) -> None:
+        """assertEqual(foo(x), 42) → assertEqual(foo(x), 57) does NOT trigger (benign swap)."""
+        before = [
+            "def test_nested_swap():",
+            "    assertEqual(compute(x), 42)",
+        ]
+        after = [
+            "def test_nested_swap():",
+            "    assertEqual(compute(x), 57)",
+        ]
+        diff = _unified_diff("tests/test_nested_swap.py", before, after)
+        result = _run(diff)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        data = _parse_output(result)
+        assert data.get("triggered") is False, (
+            f"Expected triggered=false for nested-arg literal swap 42→57; got: {data}"
+        )
+
+    def test_nested_call_literal_to_variable_triggered(self, tmp_path: Path) -> None:
+        """assertEqual(foo(x), 42) → assertEqual(foo(x), result) triggers gate 2c."""
+        before = [
+            "def test_nested_weaken():",
+            "    assertEqual(compute(x), 42)",
+        ]
+        after = [
+            "def test_nested_weaken():",
+            "    assertEqual(compute(x), expected)",
+        ]
+        diff = _unified_diff("tests/test_nested_weaken.py", before, after)
+        result = _run(diff)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        data = _parse_output(result)
+        assert data.get("triggered") is True, (
+            f"Expected triggered=true when literal replaced by variable in nested call; got: {data}"
+        )
+
+    # ── Test 15: cumulative specificity_reduced does not taint benign swaps ──
+
+    def test_specificity_reduced_not_cumulative_across_assertions(
+        self, tmp_path: Path
+    ) -> None:
+        """A benign literal swap after a specificity-reducing removal must NOT trigger
+        an extra unexplained_removal count.
+
+        Scenario:
+          - Assertion #1: assertEqual(x, 42) → assertIsNotNone(x)  [Case B: weakened]
+          - Assertion #2: assertEqual(y, 1) → assertEqual(y, 2)    [Case A: benign swap]
+
+        The second assertion is a benign specific-to-specific literal swap and must NOT
+        be counted as an unexplained removal even though specificity_reduced was set True
+        by the first assertion.
+
+        Expected: triggered=true (only because assertion #1 reduced specificity),
+        with unexplained_removals=1, NOT 2.
+        """
+        before = [
+            "def test_multi():",
+            "    assertEqual(x, 42)",
+            "    assertEqual(y, 1)",
+        ]
+        after = [
+            "def test_multi():",
+            "    assertIsNotNone(x)",
+            "    assertEqual(y, 2)",
+        ]
+        diff = _unified_diff("tests/test_multi.py", before, after)
+        result = _run(diff)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr: {result.stderr!r}"
+        )
+        data = _parse_output(result)
+        # Gate should trigger because of the weakened matcher
+        assert data.get("triggered") is True, (
+            f"Expected triggered=true for weakened matcher; got: {data}"
+        )
+        # The evidence should NOT mention 2 assertions removed — only 1 regression
+        evidence = data.get("evidence", "")
+        assert "2 assertion(s) removed" not in evidence, (
+            f"Cumulative specificity_reduced bug: benign literal swap incorrectly "
+            f"counted as regression removal. Evidence: {evidence!r}"
+        )
