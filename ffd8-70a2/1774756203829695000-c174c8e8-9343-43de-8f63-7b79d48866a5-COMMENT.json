@@ -1,1 +1,0 @@
-{"timestamp": 1774756203829695000, "uuid": "c174c8e8-9343-43de-8f63-7b79d48866a5", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "All tasks complete: 5825-fd17 (RED test) + 1c92-2de2 (implementation). Bug-fix mode now skips diagnostic/triage for open bugs."}}
