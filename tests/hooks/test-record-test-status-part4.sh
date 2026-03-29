@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # tests/hooks/test-record-test-status-part4.sh
-# Tests for hooks/record-test-status.sh — Part 4 of 4 (tests 26–33 + merge-commit test)
+# Tests for hooks/record-test-status.sh — Part 4 of 4 (tests 26–33 + merge-commit + eval tests)
 # Covers: stale_red_marker_regression, progress_file_written_after_pass,
 #   sigurg_trap_writes_partial_not_passed, status_initialized_before_trap_registration,
 #   resume_skips_completed_tests, red_marker_survives_overwrite_by_unmarked_entry,
 #   red_marker_found_via_global_scan,
 #   global_scan_no_false_positive_from_substring_match,
-#   merge_commit_filters_incoming_only
+#   merge_commit_filters_incoming_only,
+#   staged_skill_file_triggers_eval,
+#   non_skill_staged_file_does_not_trigger_eval
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -823,5 +825,136 @@ RUNNER
     assert_pass_if_clean "test_merge_commit_filters_incoming_only"
 }
 test_merge_commit_filters_incoming_only
+
+# ============================================================
+# test_staged_skill_file_triggers_eval
+# When a skill file under plugins/dso/skills/ is staged,
+# record-test-status.sh must invoke run-skill-evals.sh with
+# the absolute path to that file.
+# ============================================================
+echo ""
+echo "=== test_staged_skill_file_triggers_eval ==="
+
+TEST_REPO_EVAL=$(create_test_repo)
+ARTIFACTS_EVAL=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_EVAL" "$ARTIFACTS_EVAL"' EXIT
+
+# Create a staged skill file (not a source file with associated tests)
+mkdir -p "$TEST_REPO_EVAL/plugins/dso/skills/my-skill/evals"
+cat > "$TEST_REPO_EVAL/plugins/dso/skills/my-skill/SKILL.md" << 'SKILLEOF'
+# My Skill
+SKILLEOF
+git -C "$TEST_REPO_EVAL" add -A
+git -C "$TEST_REPO_EVAL" commit -m "add skill" --quiet 2>/dev/null
+
+# Modify the skill file to create a staged diff
+echo "# updated" >> "$TEST_REPO_EVAL/plugins/dso/skills/my-skill/SKILL.md"
+git -C "$TEST_REPO_EVAL" add -A
+
+# Create a mock run-skill-evals.sh that records its invocations
+EVAL_LOG="$ARTIFACTS_EVAL/eval-invocations.log"
+MOCK_EVAL_RUNNER=$(mktemp "${TMPDIR:-/tmp}/mock-eval-runner-XXXXXX")
+chmod +x "$MOCK_EVAL_RUNNER"
+cat > "$MOCK_EVAL_RUNNER" << EVALEOF
+#!/usr/bin/env bash
+echo "\$*" >> "${EVAL_LOG}"
+exit 0
+EVALEOF
+
+# Also need a mock runner for any tests that might be discovered (none expected here)
+MOCK_PASS_EVAL=$(mktemp "${TMPDIR:-/tmp}/mock-pass-eval-XXXXXX")
+chmod +x "$MOCK_PASS_EVAL"
+cat > "$MOCK_PASS_EVAL" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+
+(
+    cd "$TEST_REPO_EVAL"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_EVAL" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_EVAL" \
+    RECORD_TEST_STATUS_EVALS_RUNNER="$MOCK_EVAL_RUNNER" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+if [[ -f "$EVAL_LOG" ]]; then
+    assert_contains "test_staged_skill_file_triggers_eval: run-skill-evals.sh invoked with skill path" \
+        "plugins/dso/skills/my-skill/SKILL.md" \
+        "$(cat "$EVAL_LOG")"
+else
+    assert_eq "test_staged_skill_file_triggers_eval: eval invocation log exists" "exists" "missing"
+fi
+
+rm -f "$MOCK_PASS_EVAL" "$MOCK_EVAL_RUNNER"
+rm -rf "$TEST_REPO_EVAL" "$ARTIFACTS_EVAL"
+trap - EXIT
+
+# ============================================================
+# test_non_skill_staged_file_does_not_trigger_eval
+# When only non-skill files are staged, run-skill-evals.sh
+# must NOT be invoked.
+# ============================================================
+echo ""
+echo "=== test_non_skill_staged_file_does_not_trigger_eval ==="
+
+TEST_REPO_NOEVAL=$(create_test_repo)
+ARTIFACTS_NOEVAL=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_NOEVAL" "$ARTIFACTS_NOEVAL"' EXIT
+
+# Create a regular (non-skill) source file with a passing test
+mkdir -p "$TEST_REPO_NOEVAL/scripts" "$TEST_REPO_NOEVAL/tests"
+cat > "$TEST_REPO_NOEVAL/scripts/helper.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "helper"
+SHEOF
+chmod +x "$TEST_REPO_NOEVAL/scripts/helper.sh"
+cat > "$TEST_REPO_NOEVAL/tests/test-helper.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "test_helper_ok: PASS"
+exit 0
+SHEOF
+chmod +x "$TEST_REPO_NOEVAL/tests/test-helper.sh"
+git -C "$TEST_REPO_NOEVAL" add -A
+git -C "$TEST_REPO_NOEVAL" commit -m "add helper" --quiet 2>/dev/null
+
+# Stage a change to the non-skill file
+echo "# changed" >> "$TEST_REPO_NOEVAL/scripts/helper.sh"
+git -C "$TEST_REPO_NOEVAL" add -A
+
+# Create a mock run-skill-evals.sh that records its invocations
+EVAL_LOG_NE="$ARTIFACTS_NOEVAL/eval-invocations.log"
+MOCK_EVAL_RUNNER_NE=$(mktemp "${TMPDIR:-/tmp}/mock-eval-runner-ne-XXXXXX")
+chmod +x "$MOCK_EVAL_RUNNER_NE"
+cat > "$MOCK_EVAL_RUNNER_NE" << EVALEOF
+#!/usr/bin/env bash
+echo "\$*" >> "${EVAL_LOG_NE}"
+exit 0
+EVALEOF
+
+MOCK_PASS_NE=$(mktemp "${TMPDIR:-/tmp}/mock-pass-ne-XXXXXX")
+chmod +x "$MOCK_PASS_NE"
+cat > "$MOCK_PASS_NE" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+
+(
+    cd "$TEST_REPO_NOEVAL"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOEVAL" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_NE" \
+    RECORD_TEST_STATUS_EVALS_RUNNER="$MOCK_EVAL_RUNNER_NE" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+# The eval log must NOT exist — run-skill-evals.sh should not have been called
+if [[ -f "$EVAL_LOG_NE" ]]; then
+    assert_eq "test_non_skill_staged_file_does_not_trigger_eval: eval log must not exist" "absent" "present"
+else
+    assert_eq "test_non_skill_staged_file_does_not_trigger_eval: eval log absent (no eval run)" "absent" "absent"
+fi
+
+rm -f "$MOCK_PASS_NE" "$MOCK_EVAL_RUNNER_NE"
+rm -rf "$TEST_REPO_NOEVAL" "$ARTIFACTS_NOEVAL"
+trap - EXIT
 
 print_summary

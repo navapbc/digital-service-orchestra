@@ -1,6 +1,6 @@
 {
   "private": true,
   "devDependencies": {
-    "promptfoo": "0.2.2"
+    "promptfoo": "0.121.3"
   }
 }

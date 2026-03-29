@@ -206,3 +206,4 @@ plugins/dso/scripts/overlay-dispatch.sh: tests/hooks/test-overlay-dispatch.sh
 # overlay resolution loop integration (task ad04-e56f / story w22-agl5) — implemented by task db57-82d7
 plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resolution-integration.sh
 plugins/dso/scripts/run-skill-evals.sh: tests/scripts/test-run-skill-evals.sh
+plugins/dso/scripts/eval-daily-runner.sh: tests/scripts/test-eval-daily-runner.sh [test_no_ticket_on_success]

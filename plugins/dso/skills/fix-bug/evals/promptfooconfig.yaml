@@ -1,0 +1,113 @@
+description: "Fix-bug skill evals — trigger routing and bug classification"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the fix-bug skill. Given a bug report, you must:
+    1. Classify the error type as either "mechanical" or "behavioral".
+       Mechanical errors: import errors, type annotation issues, lint violations, config syntax errors.
+       Behavioral errors: everything else (test failures, runtime errors, logic bugs, race conditions, etc.).
+    2. If behavioral, score the bug on three dimensions (severity 0-2, complexity 0-2, environment 0-2)
+       plus bonus modifiers (cascading failure +2, prior fix attempts +2).
+    3. Route to the correct investigation tier based on total score:
+       - Score < 3: BASIC investigation
+       - Score 3-5: INTERMEDIATE investigation
+       - Score >= 6: ADVANCED investigation
+
+    Respond with a structured classification report:
+    CLASSIFICATION
+    ==============
+    Error type: mechanical | behavioral
+    If mechanical: Fix path (import/type/lint/config)
+    If behavioral:
+      Severity: <score> — <rationale>
+      Complexity: <score> — <rationale>
+      Environment: <score> — <rationale>
+      Bonus modifiers: <list or none>
+      Total score: <N>
+      Investigation tier: BASIC | INTERMEDIATE | ADVANCED
+
+    Bug report:
+    {{prompt}}
+
+tests:
+  - description: "Classifies test failure as behavioral and routes to correct investigation tier"
+    vars:
+      prompt: |
+        Bug: Unit test test_user_login in tests/test_auth.py fails with AssertionError.
+
+        Error output:
+        FAILED tests/test_auth.py::test_user_login - AssertionError: assert 401 == 200
+
+        Stack trace:
+        tests/test_auth.py:45: in test_user_login
+            assert response.status_code == 200
+        src/auth/handler.py:78: in login
+            token = generate_token(user)
+        src/auth/tokens.py:23: in generate_token
+            raise ValueError("Missing secret key")
+
+        The test was passing until commit abc1234 which refactored the token module.
+        This is a local dev failure, single file root cause, medium severity (login is broken).
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly classifies this as a behavioral error (not mechanical),
+          because it is a test failure caused by a logic/configuration issue — not a
+          simple import, type annotation, lint, or config syntax error. The output
+          should assign an investigation tier (BASIC or INTERMEDIATE) with a total
+          score reflecting: moderate severity (login broken but not data loss),
+          simple-to-moderate complexity (traceable stack trace, likely single root cause),
+          and local environment (dev reproducible). The tier should NOT be ADVANCED.
+
+  - description: "Classifies runtime error as behavioral and routes appropriately"
+    vars:
+      prompt: |
+        Bug: Production 500 errors on /api/v2/reports endpoint.
+
+        Error from logs:
+        TypeError: cannot unpack non-sequence NoneType
+          File "src/api/reports.py", line 112, in generate_report
+            header, body = fetch_report_data(report_id)
+          File "src/services/report_service.py", line 45, in fetch_report_data
+            return db.query(Report).filter_by(id=report_id).first()
+
+        The endpoint works for most report IDs but fails for reports created before
+        the v2 migration. This was reported by users in production. Multiple services
+        depend on this endpoint. No prior fix attempts.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly classifies this as a behavioral error (not mechanical).
+          The output should assign a higher investigation tier (INTERMEDIATE or ADVANCED)
+          reflecting: high severity (production 500 errors affecting users), moderate-to-high
+          complexity (data-dependent bug involving migration history, affects multiple
+          services), and production environment. The total score should be at least 3,
+          routing to INTERMEDIATE or ADVANCED investigation — NOT BASIC.
+
+  - description: "Classifies import error as mechanical and routes to mechanical fix path"
+    vars:
+      prompt: |
+        Bug: ImportError when running tests.
+
+        Error output:
+        ImportError: cannot import name 'validate_schema' from 'src.utils.validators'
+        (src/utils/validators.py)
+
+        The function was renamed to 'validate_json_schema' in a recent refactor but
+        one import statement in src/api/middleware.py was missed.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly classifies this as a mechanical error (specifically an
+          import error), NOT a behavioral error. It should route to the mechanical fix
+          path rather than scoring dimensions and assigning an investigation tier. The
+          response should identify this as a straightforward import fix — update the
+          import name from 'validate_schema' to 'validate_json_schema' in the
+          consuming file.
