@@ -99,6 +99,13 @@ while IFS= read -r line; do
         fi
         # Extract plugin name from agent identifier (plugin-name:agent-name)
         agent_plugin="${agent%%:*}"
+        # dso: agents are local plugin agents resolved via plugins/dso/agents/<name>.md;
+        # they are always available and do not require an enabledPlugins entry.
+        if [[ "$agent_plugin" == "dso" ]]; then
+            resolved="$agent"
+            reason="available"
+            break
+        fi
         if [[ -n "${plugin_available[$agent_plugin]+_}" ]]; then
             resolved="$agent"
             reason="available"

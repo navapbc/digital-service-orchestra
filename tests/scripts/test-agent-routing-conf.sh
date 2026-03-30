@@ -52,8 +52,8 @@ assert_eq "test_routing_conf_format_valid: all data lines match format" "valid" 
 assert_pass_if_clean "test_routing_conf_format_valid"
 
 # ── test_all_expected_categories_present ─────────────────────────────────────
-# All 7 categories must be defined.
-EXPECTED_CATEGORIES=(test_fix_unit test_fix_e_to_e test_write mechanical_fix complex_debug code_simplify security_audit)
+# All 8 categories must be defined.
+EXPECTED_CATEGORIES=(test_fix_unit test_fix_e_to_e test_write mechanical_fix complex_debug code_simplify security_audit llm_behavioral)
 _snapshot_fail
 for cat in "${EXPECTED_CATEGORIES[@]}"; do
     if [[ -f "$CONF_FILE" ]] && grep -qE "^${cat}=" "$CONF_FILE"; then
@@ -104,6 +104,48 @@ for term in "format" "category" "preference chain" "fallback"; do
     assert_eq "test_header_documents_interface_contract: term '$term' in header" "present" "$actual_term"
 done
 assert_pass_if_clean "test_header_documents_interface_contract"
+
+# ── test_llm_behavioral_routes_to_bot_psychologist ───────────────────────────
+# discover-agents.sh must resolve llm_behavioral to a chain containing dso:bot-psychologist
+_snapshot_fail
+_tmp_routing_dir="$(mktemp -d)"
+trap 'rm -rf "$_tmp_routing_dir"' EXIT
+_tmp_routing_conf="$_tmp_routing_dir/agent-routing.conf"
+
+if [[ -f "$CONF_FILE" ]]; then
+    cp "$CONF_FILE" "$_tmp_routing_conf"
+else
+    # If conf doesn't exist yet, create a minimal stand-in so discover-agents.sh
+    # can at least run — the category-presence test above will already have failed.
+    printf "# stub\n" > "$_tmp_routing_conf"
+fi
+
+_discover_script="$PLUGIN_ROOT/plugins/dso/scripts/discover-agents.sh"
+_tmp_settings="$_tmp_routing_dir/settings.json"
+printf '{"enabledPlugins":{}}' > "$_tmp_settings"
+
+_routing_output=""
+if [[ -x "$_discover_script" ]]; then
+    _routing_output="$(bash "$_discover_script" \
+        --settings "$_tmp_settings" \
+        --routing "$_tmp_routing_conf" 2>/dev/null)" || true
+fi
+
+# Extract the resolved agent for llm_behavioral
+_resolved_agent=""
+if [[ -n "$_routing_output" ]]; then
+    _resolved_agent="$(printf '%s\n' "$_routing_output" \
+        | grep '^llm_behavioral=' | cut -d= -f2)" || true
+fi
+
+if printf '%s\n' "$_resolved_agent" | grep -q 'dso:bot-psychologist'; then
+    actual_llm_routing="routes_to_bot_psychologist"
+else
+    actual_llm_routing="missing_or_wrong: '$_resolved_agent'"
+fi
+assert_eq "test_llm_behavioral_routes_to_bot_psychologist: resolved agent contains dso:bot-psychologist" \
+    "routes_to_bot_psychologist" "$actual_llm_routing"
+assert_pass_if_clean "test_llm_behavioral_routes_to_bot_psychologist"
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 print_summary

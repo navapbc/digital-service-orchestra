@@ -170,7 +170,7 @@ stderr_output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tm
 
 # Count lines matching the format pattern
 match_count=$(echo "$stderr_output" | grep -cE '\[agent-dispatch\] category=.*routed=.*reason=(available|fallback)') || true
-assert_eq "test_stderr_logging_format: 7 log lines" "7" "$match_count"
+assert_eq "test_stderr_logging_format: 8 log lines" "8" "$match_count"
 assert_pass_if_clean "test_stderr_logging_format"
 rm -rf "$tmpdir"
 

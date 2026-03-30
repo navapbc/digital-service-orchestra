@@ -13,6 +13,8 @@ This skill replaces `/dso:tdd-workflow` for bug fixes. For new feature developme
 <HARD-GATE>
 Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
 
+Do NOT modify skill files, agent files, or prompt templates for llm-behavioral bugs until investigation is complete. LLM-behavioral bugs follow the same investigation discipline as code bugs — the HARD-GATE applies equally to skill file changes, agent file changes, and prompt template edits. Do not edit any .md file in skills/, agents/, or prompts/ directories before completing Steps 1–5.
+
 Do NOT investigate inline as a substitute for sub-agent dispatch. Reading code, grepping, running commands, or analyzing stack traces yourself does NOT satisfy the Investigation Dispatch step. You MUST dispatch the investigation sub-agent described in the Investigation Dispatch step — your own analysis is not equivalent, even when the root cause appears obvious.
 </HARD-GATE>
 
@@ -73,7 +75,38 @@ Mechanical Fix Path:
 
 ### Behavioral Errors
 
-All errors that are NOT mechanical are behavioral. These require investigation and proceed to Step 1 (Score and Classify).
+All errors that are NOT mechanical or LLM-behavioral are behavioral. These require investigation and proceed to Step 1 (Score and Classify).
+
+### LLM-Behavioral Errors
+
+LLM-Behavioral Errors are a distinct classification for bugs where the defect is in how an LLM agent behaves — not in executable code. These bugs are identified using **dual-signal detection**: both signals must be present together to classify a bug as llm-behavioral (preventing over-classification of unrelated markdown changes).
+
+**Dual-signal detection**:
+1. **Ticket content signal** — the bug description references LLM output quality, prompt regression, agent guidance gaps, model behavior drift, skill misinterpretation, or agent skips/misinterprets/drifts from expected behavior
+2. **File type signal** — the affected file is a skill file (`.md` in `skills/`), an agent file (`.md` in `agents/`), or a prompt template (`.md` in `prompts/`)
+
+Both signals must be present. A markdown file change with no behavioral ticket signal is NOT llm-behavioral. A behavioral complaint with no skill/agent/prompt file involvement is NOT llm-behavioral (route as behavioral instead).
+
+**LLM-Behavioral Fix Path**:
+
+LLM-behavioral bugs follow a combined investigation+fix path (SC5 — HARD-GATE amendment applies). The investigation produces a diagnosis of what behavioral gap or prompt regression is causing the issue, and the fix is a targeted change to the skill, agent, or prompt template.
+
+<!-- REVIEW-DEFENSE: This SUB-AGENT-GUARD serves a different purpose than the llm-behavioral fix path dispatch instruction that follows it. The guard handles the case where fix-bug itself is running as a sub-agent (e.g., dispatched by debug-everything or sprint) — in that context, the Agent tool is unavailable and nested dispatch is prohibited. The dispatch instruction that follows is for when fix-bug runs as the orchestrator (Agent tool available). These two contexts are complementary: when fix-bug is the orchestrator, dispatch bot-psychologist as a sub-agent; when fix-bug is itself a sub-agent, fall back to inline guidance. The inline fallback acknowledges that iterative experiment loops requiring user input cannot complete in non-interactive sub-agent contexts — it degrades to partial investigation and surfaces findings for the calling orchestrator to escalate. -->
+<SUB-AGENT-GUARD>
+Agent tool availability check: if the Agent tool is unavailable, use the inline fallback below instead of dispatching a sub-agent.
+
+**If the Agent tool is available** (orchestrator context): dispatch `dso:bot-psychologist` sub-agent:
+
+```
+Read: plugins/dso/agents/bot-psychologist.md
+Dispatch: subagent_type: dso:bot-psychologist
+Input: bug description, affected skill/agent/prompt file path, ticket content, behavioral symptoms observed
+```
+
+**If the Agent tool is unavailable** (sub-agent context — inline investigation fallback): Read `plugins/dso/agents/bot-psychologist.md` as a REFERENCE only — use it for the llm-behavioral taxonomy definitions and probe definitions. Do NOT attempt to follow bot-psychologist's own investigation steps (bot-psychologist contains its own SUB-AGENT-GUARD that blocks all diagnosis steps in nested contexts). Instead, perform the investigation directly using fix-bug's own Step 2/3 investigation framework, applying the llm-behavioral taxonomy from bot-psychologist.md. Specifically: identify the behavioral gap type (prompt regression, guidance gap, behavioral drift, etc.) using the taxonomy, then run static analysis on the affected skill/agent/prompt file (grep for relevant patterns, read the file, identify the defect). Skip any steps requiring user-provided experimental results — record them as `INTERACTIVITY_DEFERRED` in the investigation RESULT and surface them for the calling orchestrator to escalate to the user. This fallback ensures LLM-behavioral investigation degrades gracefully when nested dispatch is prohibited, while clearly signaling which investigation steps could not complete.
+</SUB-AGENT-GUARD>
+
+**Step 5 / Step 5.5 exemption**: LLM-behavioral bugs are exempt from the standard RED unit test requirement (see Step 5.5 for details). The behavioral nature of these bugs means a traditional executable RED test cannot always be written before the fix. Instead, use eval-based verification or behavioral assertion verification as the confirmation mechanism.
 
 ## Scoring Rubric (Behavioral Bugs Only)
 
@@ -139,10 +172,11 @@ Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 ### Step 1: Score and Classify (/dso:fix-bug)
 
 1. Read the bug description, error messages, and stack traces
-2. Classify: **mechanical** or **behavioral** (see Error Type Classification above)
+2. Classify: **mechanical**, **behavioral**, or **llm-behavioral** (see Error Type Classification above)
 3. If mechanical: follow the Mechanical Fix Path, then skip to Step 8
-4. If behavioral: apply the Scoring Rubric to determine investigation tier
-5. Record the classification and score in a ticket note: `ticket comment <BUG_TICKET_ID> "Classification: behavioral, Score: <N> (<tier>)"`
+4. If llm-behavioral (dual-signal detected — ticket references LLM behavior AND affected file is in `skills/`, `agents/`, or `prompts/`): record the classification: `ticket comment <BUG_TICKET_ID> "Classification: llm-behavioral"`, then dispatch `dso:bot-psychologist` via the LLM-Behavioral Fix Path (see above), then skip to Step 8
+5. If behavioral: apply the Scoring Rubric to determine investigation tier
+6. Record the classification and score in a ticket note: `ticket comment <BUG_TICKET_ID> "Classification: behavioral, Score: <N> (<tier>)"`
 
 ### Step 1.5: Gate 1a — Intent Search (/dso:fix-bug)
 
@@ -543,6 +577,8 @@ Before dispatching any fix implementation (Step 6), verify that a RED test exist
 3. **Do not proceed to Step 6 if the RED test has not been confirmed failing.** Any code modification (Edit, Write, sub-agent fix dispatch) is blocked until the RED test is confirmed failing in a test run output you have observed in this session.
 
 **Gate failure action**: If no RED test can be confirmed failing, do NOT skip to fix implementation. Return to Step 5 and address why the RED test cannot be confirmed.
+
+**LLM-behavioral bug exemption**: This gate is relaxed for llm-behavioral bugs. LLM behavioral bugs (prompt regressions, agent guidance gaps, skill misinterpretation) cannot always have a traditional executable RED unit test written before the fix — the behavioral regression lives in natural language instructions, not in executable code paths. For llm-behavioral bugs, the RED unit test requirement is replaced with eval-based verification: define an eval assertion that would fail with the current skill/agent/prompt content and pass after the fix. If no eval framework is available, document the behavioral assertion in the ticket as the verification criterion before proceeding to fix implementation.
 
 ### Step 6: Fix Implementation (/dso:fix-bug)
 

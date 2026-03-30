@@ -66,6 +66,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 |-------|-------|---------------|
 | `dso:complexity-evaluator` | haiku | `/dso:sprint`, `/dso:brainstorm`; read inline by `/dso:fix-bug` |
 | `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
+| `dso:bot-psychologist` | sonnet | `/dso:fix-bug` llm-behavioral path (dispatched or read inline when sub-agent) |
 | `dso:doc-writer` | sonnet | `/dso:sprint` (doc stories), `/dso:update-docs` |
 | `dso:intent-search` | sonnet | `/dso:fix-bug` Step 1.5 (Gate 1a — pre-investigation intent search) |
 | `dso:feasibility-reviewer` | sonnet | `/dso:brainstorm` (conditional, on integration signals) |
