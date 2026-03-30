@@ -31,4 +31,4 @@ Write this file before dispatching the `error-debugging:error-detective` sub-age
 }
 ```
 
-Populate `localCheckResults` from the post-batch validation output across all batches. Categories that passed locally are unlikely to be the CI failure cause. Write using Bash (inline JSON). Overwritten if Phase 7 is re-entered.
+Populate `localCheckResults` from the post-batch validation output across all batches. Categories that passed locally are unlikely to be the CI failure cause. Write using Bash (inline JSON). Overwritten if Phase 6 is re-entered.

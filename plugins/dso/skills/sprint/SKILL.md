@@ -85,6 +85,8 @@ Flow: P1 (Init) → Preplanning Gate
    - `<id>\tP<priority>\t<title>\t<child_count>[\tBLOCKING]` for unblocked open epics (4 or 5 fields)
    - `BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>` for blocked ones (6 fields; with `--all`)
 
+   The `<child_count>` field is the number of child tickets. The `<blocker_ids>` field is a comma-separated list of open blocker epic IDs.
+
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
    - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit

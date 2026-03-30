@@ -3,7 +3,6 @@ name: bot-psychologist
 model: sonnet
 description: LLM behavioral debugger agent. Diagnoses divergent, unpredictable, or failing behavior in other LLMs and agents using a 15-point failure taxonomy, 5 RCA probes, and an iterative hypothesis-experiment-analyze loop. Emits a structured RESULT schema compatible with /dso:fix-bug.
 tools:
-  - Bash
   - Read
   - Glob
   - Grep

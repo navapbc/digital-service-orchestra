@@ -15,7 +15,7 @@ Do NOT modify any code, write any fix, or make any file changes until Steps 1–
 
 Do NOT modify skill files, agent files, or prompt templates for llm-behavioral bugs until investigation is complete. LLM-behavioral bugs follow the same investigation discipline as code bugs — the HARD-GATE applies equally to skill file changes, agent file changes, and prompt template edits. Do not edit any .md file in skills/, agents/, or prompts/ directories before completing Steps 1–5.
 
-Do NOT investigate inline as a substitute for sub-agent dispatch. Reading code, grepping, running commands, or analyzing stack traces yourself does NOT satisfy the Investigation Dispatch step. You MUST dispatch the investigation sub-agent described in the Investigation Dispatch step — your own analysis is not equivalent, even when the root cause appears obvious.
+Do NOT investigate inline as a substitute for sub-agent dispatch. Reading code, grepping, running commands, or analyzing stack traces yourself does NOT satisfy Step 2. You MUST dispatch the investigation sub-agent described in Step 2 — your own analysis is not equivalent, even when the root cause appears obvious.
 </HARD-GATE>
 
 ## Config Resolution (reads project workflow-config.yaml)
@@ -247,7 +247,7 @@ payload = {'title': sys.argv[1], 'description': sys.argv[2]}
 print(json.dumps(payload))
 " "<ticket title>" "<ticket description>")
 
-GATE_1B_OUTPUT=$(echo "$GATE_1B_PAYLOAD" | python3 "$REPO_ROOT/plugins/dso/scripts/gate-1b-feature-request-check.py")
+GATE_1B_OUTPUT=$(echo "$GATE_1B_PAYLOAD" | python3 "$PLUGIN_SCRIPTS/gate-1b-feature-request-check.py")
 ```
 
 The script exits 0 always and emits a single JSON gate signal to stdout conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`:
@@ -797,7 +797,7 @@ fi
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-ROUTING_OUTPUT=$(echo "$GATE_SIGNALS_JSON" | python3 "$REPO_ROOT/plugins/dso/scripts/gate-escalation-router.py" $COMPLEX_FLAG)
+ROUTING_OUTPUT=$(echo "$GATE_SIGNALS_JSON" | python3 "$PLUGIN_SCRIPTS/gate-escalation-router.py" $COMPLEX_FLAG)
 ROUTE=$(echo "$ROUTING_OUTPUT" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('route','auto-fix'))" 2>/dev/null || echo "auto-fix")
 ```
 
