@@ -1,1 +1,0 @@
-{"timestamp": 1774838973457661000, "uuid": "00465fde-9f4e-4039-a127-d898f4df3ac7", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Created RED test for KNOWN-ISSUES template at tests/scripts/test-known-issues-template.sh"}}
