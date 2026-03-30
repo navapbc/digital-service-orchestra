@@ -24,6 +24,13 @@ LIB_DIR="$SCRIPT_DIR/../lib"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
 
+# Enable RED-zone tolerance — suite-engine reads SUITE_TEST_INDEX to tolerate
+# failures in functions at/after the RED marker defined in .test-index.
+# Only set if not already provided by the caller.
+if [[ -z "${SUITE_TEST_INDEX:-}" ]] && [[ -f "$REPO_ROOT/.test-index" ]]; then
+    export SUITE_TEST_INDEX="$REPO_ROOT/.test-index"
+fi
+
 # Bump timeout for heavyweight tests (e.g., test-sync-roundtrip.sh: 941 lines)
 # dso-dcau: increased from 60→120 to prevent CPU-contention timeouts under
 # full parallel suite execution (145+ concurrent processes). test-isolation-check.sh

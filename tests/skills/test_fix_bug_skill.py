@@ -13,6 +13,14 @@ TDD spec for task dso-k0yk (RED task):
   9. Discovery file protocol reference
   10. Hypothesis testing phase reference
   11. TDD workflow config pattern (read-config.sh)
+
+TDD spec for task 5727-a272 (RED task):
+- plugins/dso/skills/fix-bug/SKILL.md must contain LLM-behavioral path support:
+  1. LLM-behavioral classification identified by dual signals (ticket content + file type)
+  2. HARD-GATE block amended to cover LLM-behavioral bugs
+  3. Step 5 / Step 5.5 RED-test-before-fix exemption for LLM-behavioral bugs
+  4. SKILL.md dispatches bot-psychologist agent; plugins/dso/agents/bot-psychologist.md exists
+  5. SUB-AGENT-GUARD block using Agent tool availability check with inline-read fallback
 """
 
 import pathlib
@@ -933,3 +941,272 @@ class TestRedBeforeFixGate:
             "The gate must be positioned between those two steps to enforce TDD discipline. "
             "This is a RED test — the gate is not yet positioned correctly."
         )
+
+
+# ---------------------------------------------------------------------------
+# LLM-Behavioral Path Tests (task 5727-a272)
+# ---------------------------------------------------------------------------
+
+BOT_PSYCHOLOGIST_AGENT_FILE = (
+    REPO_ROOT / "plugins" / "dso" / "agents" / "bot-psychologist.md"
+)
+
+
+def test_fix_bug_skill_llm_behavioral_classification() -> None:
+    """SKILL.md must classify LLM-behavioral bugs using dual signals: ticket content AND file type.
+
+    An LLM-behavioral bug is identified by two independent signals present together:
+    (1) the bug description references LLM output, prompts, or model behavior, and
+    (2) the affected file type is a skill (.md in skills/), agent (.md in agents/),
+    or prompt template.
+
+    This dual-signal requirement prevents over-classification of unrelated markdown
+    changes as LLM-behavioral. The classification must appear in a dedicated
+    LLM-Behavioral Errors section (analogous to the existing Mechanical Errors section).
+    """
+    content = _read_skill()
+    # The classification must appear under a dedicated section — not just incidentally
+    # in other parts of the file. Look for a section header naming the category.
+    has_llm_behavioral_section = any(
+        phrase in content
+        for phrase in (
+            "LLM-Behavioral Errors",
+            "LLM-behavioral Errors",
+            "LLM-Behavioral errors",
+            "### LLM-Behavioral",
+            "## LLM-Behavioral",
+            "LLM-Behavioral Bug",
+            "llm-behavioral bug",
+        )
+    )
+    assert has_llm_behavioral_section, (
+        "Expected SKILL.md to contain a dedicated LLM-Behavioral Errors section "
+        "(e.g., 'LLM-Behavioral Errors', '### LLM-Behavioral', 'LLM-Behavioral Bug') "
+        "that classifies this bug category using dual signals. This section is analogous "
+        "to the existing 'Mechanical Errors' section. "
+        "This is a RED test — SKILL.md does not yet have an LLM-behavioral classification section."
+    )
+    # Both signals must be described within the classification text
+    # Find the section and look for dual-signal language in context
+    section_pos = -1
+    for phrase in (
+        "LLM-Behavioral Errors",
+        "LLM-behavioral Errors",
+        "LLM-Behavioral errors",
+        "### LLM-Behavioral",
+        "LLM-Behavioral Bug",
+    ):
+        pos = content.find(phrase)
+        if pos != -1:
+            section_pos = pos
+            break
+    section_text = content[section_pos : section_pos + 800].lower()
+    has_dual_signal = any(
+        phrase in section_text
+        for phrase in (
+            "dual signal",
+            "dual-signal",
+            "two signal",
+            "both signal",
+            "ticket content",
+            "file type",
+        )
+    )
+    assert has_dual_signal, (
+        "Expected the LLM-behavioral classification section in SKILL.md to reference "
+        "the dual-signal detection approach (e.g., 'dual signal', 'dual-signal', "
+        "'ticket content', 'file type'). Both a ticket-content signal AND a file-type signal "
+        "must be described. "
+        "This is a RED test — the section does not yet describe dual-signal classification."
+    )
+
+
+def test_fix_bug_skill_hard_gate_llm_behavioral() -> None:
+    """The HARD-GATE block must be amended to cover LLM-behavioral bugs.
+
+    The existing HARD-GATE prohibits code modification before Steps 1-5. For LLM-behavioral
+    bugs, the HARD-GATE must also prohibit modifying skill files, agent files, or prompt
+    templates before investigation completes — the same investigation discipline applies.
+    """
+    content = _read_skill()
+    hard_gate_start = content.find("<HARD-GATE>")
+    assert hard_gate_start != -1, (
+        "Expected fix-bug SKILL.md to contain a '<HARD-GATE>' block. "
+        "The HARD-GATE block must exist before it can be tested for LLM-behavioral coverage."
+    )
+    hard_gate_end = content.find("</HARD-GATE>", hard_gate_start)
+    if hard_gate_end == -1:
+        # Fall back to searching a wide window
+        hard_gate_end = hard_gate_start + 1200
+    gate_text = content[hard_gate_start:hard_gate_end].lower()
+    has_llm_behavioral_coverage = any(
+        phrase in gate_text
+        for phrase in (
+            "llm-behavioral",
+            "llm behavioral",
+            "skill file",
+            "agent file",
+            "prompt template",
+            "model behavior",
+        )
+    )
+    assert has_llm_behavioral_coverage, (
+        "Expected the HARD-GATE block in fix-bug SKILL.md to be amended to cover "
+        "LLM-behavioral bugs (e.g., 'LLM-behavioral', 'skill file', 'agent file', "
+        "'prompt template'). The HARD-GATE must prohibit modifying skill/agent/prompt files "
+        "before investigation completes, just as it prohibits code changes. "
+        "This is a RED test — the HARD-GATE does not yet contain LLM-behavioral language."
+    )
+
+
+def test_fix_bug_skill_step5_llm_behavioral_exemption() -> None:
+    """Step 5 and Step 5.5 must define an explicit exemption for LLM-behavioral bugs.
+
+    LLM-behavioral bugs (prompt regressions, agent guidance gaps) cannot always have
+    a traditional RED unit test written before the fix. SKILL.md must acknowledge this
+    exemption explicitly: when the bug is classified as LLM-behavioral, the RED test
+    requirement in Step 5 and the RED-before-fix gate in Step 5.5 are relaxed or replaced
+    with an alternative verification approach (e.g., eval-based verification).
+
+    The exemption must be LLM-behavioral-specific — not a general eval reference that
+    happens to exist elsewhere in the file.
+    """
+    content = _read_skill()
+    # Find Step 5.5 section — the RED-before-fix gate where the exemption belongs
+    step55_pos = content.find("### Step 5.5:")
+    assert step55_pos != -1, (
+        "Could not find '### Step 5.5:' in SKILL.md. "
+        "Step 5.5 must exist before its LLM-behavioral exemption can be tested."
+    )
+    # Find Step 6 as upper boundary
+    step6_pos = content.find("### Step 6:")
+    assert step6_pos != -1, "Could not find '### Step 6:' in SKILL.md."
+    # Extract text in Step 5.5 section only (between Step 5.5 and Step 6)
+    step55_text = content[step55_pos:step6_pos].lower()
+    # Must reference LLM-behavioral specifically in the exemption section
+    has_llm_behavioral_exemption = any(
+        phrase in step55_text
+        for phrase in (
+            "llm-behavioral",
+            "llm behavioral",
+        )
+    )
+    assert has_llm_behavioral_exemption, (
+        "Expected Step 5.5 (RED-before-fix gate) in fix-bug SKILL.md to contain an explicit "
+        "exemption for LLM-behavioral bugs (referencing 'LLM-behavioral' or 'LLM behavioral'). "
+        "When a bug is LLM-behavioral, the RED-before-fix gate must be relaxed or replaced "
+        "with an alternative verification approach. The exemption must appear in the Step 5.5 "
+        "section itself. "
+        "This is a RED test — Step 5.5 does not yet contain an LLM-behavioral exemption."
+    )
+
+
+def test_fix_bug_skill_bot_psychologist_dispatch() -> None:
+    """SKILL.md must reference dispatching the bot-psychologist agent for LLM-behavioral bugs,
+    AND plugins/dso/agents/bot-psychologist.md must exist.
+
+    The bot-psychologist agent is the specialist for LLM-behavioral investigation. SKILL.md
+    must route LLM-behavioral bugs to this agent. The agent file must exist at the canonical
+    path so it can be read directly (or inline when the Agent tool is unavailable).
+
+    Per task spec: must assert SKILL.md dispatches bot-psychologist by reading
+    plugins/dso/agents/bot-psychologist.md directly (or inline when Agent tool unavailable),
+    NOT via discover-agents.sh.
+    """
+    content = _read_skill()
+    # Assert SKILL.md references bot-psychologist dispatch
+    has_bot_psychologist_ref = any(
+        phrase in content
+        for phrase in (
+            "bot-psychologist",
+            "bot_psychologist",
+        )
+    )
+    assert has_bot_psychologist_ref, (
+        "Expected fix-bug SKILL.md to contain a reference to 'bot-psychologist' as "
+        "the investigation agent dispatched for LLM-behavioral bugs. "
+        "This is a RED test — SKILL.md does not yet reference the bot-psychologist agent."
+    )
+    # Assert that the dispatch uses direct file read (not discover-agents.sh)
+    has_direct_read_pattern = any(
+        phrase in content
+        for phrase in (
+            "bot-psychologist.md",
+            "Read: plugins/dso/agents/bot-psychologist",
+            "agents/bot-psychologist",
+        )
+    )
+    assert has_direct_read_pattern, (
+        "Expected fix-bug SKILL.md to dispatch bot-psychologist by reading "
+        "'plugins/dso/agents/bot-psychologist.md' directly (or inline when the Agent "
+        "tool is unavailable), NOT via discover-agents.sh. The dispatch pattern must "
+        "reference the agent file path directly (e.g., 'agents/bot-psychologist.md'). "
+        "This is a RED test — SKILL.md does not yet use direct-read dispatch for bot-psychologist."
+    )
+    # Assert the agent file exists at the canonical path
+    assert BOT_PSYCHOLOGIST_AGENT_FILE.exists(), (
+        f"Expected the bot-psychologist agent file to exist at {BOT_PSYCHOLOGIST_AGENT_FILE}. "
+        "The file must be created before SKILL.md can dispatch to it. "
+        "This is a RED test — the agent file does not yet exist."
+    )
+
+
+def test_fix_bug_skill_llm_behavioral_subagent_guard() -> None:
+    """SKILL.md must contain a SUB-AGENT-GUARD block using Agent tool availability check
+    with inline-read fallback for LLM-behavioral investigation.
+
+    The sub-agent guard pattern detects whether the skill is running as a sub-agent
+    (by checking if the Agent tool is available). When the Agent tool is unavailable,
+    the skill must fall back to reading bot-psychologist.md inline rather than dispatching
+    a sub-agent. This ensures LLM-behavioral investigation degrades gracefully in sub-agent
+    contexts where nested dispatch is prohibited.
+    """
+    content = _read_skill()
+    has_sub_agent_guard = any(
+        phrase in content
+        for phrase in (
+            "SUB-AGENT-GUARD",
+            "<SUB-AGENT-GUARD>",
+        )
+    )
+    assert has_sub_agent_guard, (
+        "Expected fix-bug SKILL.md to contain a '<SUB-AGENT-GUARD>' block for the "
+        "LLM-behavioral investigation path. The guard detects sub-agent context via "
+        "Agent tool availability check and enables inline-read fallback. "
+        "This is a RED test — SKILL.md does not yet contain a SUB-AGENT-GUARD block."
+    )
+    # The guard must reference Agent tool availability as the detection mechanism
+    guard_start = content.find("SUB-AGENT-GUARD")
+    guard_context = content[guard_start : guard_start + 600].lower()
+    has_agent_tool_check = any(
+        phrase in guard_context
+        for phrase in (
+            "agent tool",
+            "agent tool availability",
+            "agent tool is available",
+            "agent tool unavailable",
+        )
+    )
+    assert has_agent_tool_check, (
+        "Expected the SUB-AGENT-GUARD block in fix-bug SKILL.md to reference the "
+        "Agent tool availability check as the primary sub-agent detection method "
+        "(e.g., 'Agent tool', 'Agent tool availability'). "
+        "This is a RED test — the guard block does not yet use Agent tool detection."
+    )
+    # The guard must reference inline-read fallback
+    has_inline_fallback = any(
+        phrase in guard_context
+        for phrase in (
+            "inline",
+            "read inline",
+            "inline read",
+            "fallback",
+        )
+    )
+    assert has_inline_fallback, (
+        "Expected the SUB-AGENT-GUARD block in fix-bug SKILL.md to define an inline-read "
+        "fallback for when the Agent tool is unavailable (e.g., 'inline', 'read inline', "
+        "'fallback'). When dispatching bot-psychologist is not possible, the skill must "
+        "read the agent file inline instead. "
+        "This is a RED test — the guard block does not yet specify the inline-read fallback."
+    )
