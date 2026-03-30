@@ -654,6 +654,69 @@ print(str(v).lower() if isinstance(v,bool) else str(v))
     teardown_temp_dir
 }
 
+test_classifier_is_merge_commit_false_when_head_has_two_parents() {
+    # Bug d03a-b1f6: After worktree sync merges, HEAD has 2 parents.
+    # The classifier's parent-count check falsely returns is_merge_commit=true
+    # for non-merge staged diffs. Only MERGE_HEAD should matter.
+    setup_temp_dir
+
+    # Create a temp git repo with a merge commit as HEAD (2 parents, no MERGE_HEAD)
+    local merge_repo="$TEST_TMPDIR/merge-repo"
+    mkdir -p "$merge_repo"
+    git -C "$merge_repo" init -q
+    git -C "$merge_repo" config user.email "test@test.com"
+    git -C "$merge_repo" config user.name "Test"
+    echo "base" > "$merge_repo/base.txt"
+    git -C "$merge_repo" add base.txt
+    git -C "$merge_repo" commit -q -m "base commit"
+    git -C "$merge_repo" checkout -q -b feature
+    echo "feature" > "$merge_repo/feature.txt"
+    git -C "$merge_repo" add feature.txt
+    git -C "$merge_repo" commit -q -m "feature commit"
+    git -C "$merge_repo" checkout -q main 2>/dev/null || git -C "$merge_repo" checkout -q master
+    git -C "$merge_repo" merge -q --no-ff feature -m "merge feature"
+
+    # Verify HEAD has 2 parents (the merge)
+    local parent_count
+    parent_count=$(git -C "$merge_repo" log -1 --pretty=%P HEAD | wc -w | tr -d '[:space:]')
+    assert_eq "merge repo HEAD has 2 parents" "2" "$parent_count"
+
+    # Verify no MERGE_HEAD (merge is already committed)
+    local merge_head_exists="false"
+    if [[ -f "$merge_repo/.git/MERGE_HEAD" ]]; then
+        merge_head_exists="true"
+    fi
+    assert_eq "no MERGE_HEAD after committed merge" "false" "$merge_head_exists"
+
+    # Run classifier from inside the merge repo with a normal diff
+    local diff_file="$TEST_TMPDIR/test.diff"
+    cat > "$diff_file" <<'DIFFEOF'
+diff --git a/src/foo.py b/src/foo.py
+index 0000000..1111111 100644
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,3 +1,5 @@
++print('hello')
+DIFFEOF
+
+    local classifier_output=""
+    local classifier_exit=0
+    classifier_output=$(cd "$merge_repo" && bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || classifier_exit=$?
+
+    local is_merge="true"
+    if [[ "$classifier_exit" -eq 0 ]] && python3 -c "import json; json.loads('''$classifier_output''')" 2>/dev/null; then
+        is_merge=$(python3 -c "
+import json,sys
+d=json.loads(sys.argv[1])
+v=d.get('is_merge_commit',True)
+print(str(v).lower() if isinstance(v,bool) else str(v))
+" "$classifier_output" 2>/dev/null || echo "true")
+    fi
+    # This SHOULD be false: we're staging a normal diff, just HEAD happens to be a merge
+    assert_eq "is_merge_commit=false when HEAD has 2 parents but no MERGE_HEAD" "false" "$is_merge"
+    teardown_temp_dir
+}
+
 test_classifier_is_merge_commit_size_action_none() {
     # When MOCK_MERGE_HEAD=1, size_action = "none" even with 600+ lines
     setup_temp_dir
@@ -697,6 +760,7 @@ test_classifier_size_action_reject_at_600  # RED: size_action field not yet impl
 test_classifier_size_action_none_for_test_only_diff  # RED: size_action bypass not yet implemented
 test_classifier_size_action_none_for_generated_files  # RED: size_action bypass not yet implemented
 test_classifier_is_merge_commit_false_default  # RED: is_merge_commit field not yet implemented
+test_classifier_is_merge_commit_false_when_head_has_two_parents  # RED: parent-count falsely detects merge
 test_classifier_is_merge_commit_size_action_none  # RED: merge commit bypass not yet implemented
 test_classifier_output_includes_new_fields  # RED: new fields not yet in output schema
 

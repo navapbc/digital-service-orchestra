@@ -1,5 +1,6 @@
 """Tests for file impact section detection in issue-quality-check.sh and enrich-file-impact.sh."""
 
+import json
 import os
 import subprocess
 
@@ -114,18 +115,28 @@ class TestIssueQualityCheckFileImpact:
         self, tmp_path: object
     ) -> None:
         """A ticket with a file impact section should pass quality gate even without AC."""
-        content = (
-            "---\n"
-            "id: w21-mai8\n"
-            "status: open\n"
-            "type: task\n"
-            "---\n"
-            "# Test ticket with file impact\n\n"
-            "## Description\n"
-            "A task with files to modify.\n\n"
-            "### Files to modify\n"
-            "- `src/agents/foo.py` — update logic\n"
-            "- `tests/unit/test_foo.py` — add tests\n"
+
+        content = json.dumps(
+            {
+                "ticket_id": "w21-mai8",
+                "ticket_type": "task",
+                "title": "Test ticket with file impact",
+                "status": "open",
+                "description": "",
+                "comments": [
+                    {
+                        "body": (
+                            "## Description\n"
+                            "A task with files to modify.\n\n"
+                            "### Files to modify\n"
+                            "- `src/agents/foo.py` — update logic\n"
+                            "- `tests/unit/test_foo.py` — add tests\n"
+                        ),
+                        "author": "test",
+                    }
+                ],
+                "deps": [],
+            }
         )
         ticket_cmd = self._make_ticket_cmd(tmp_path, "w21-mai8", content)
         # We test the awk pattern extraction indirectly by checking the script output
@@ -157,21 +168,31 @@ class TestIssueQualityCheckStoryType:
     ) -> None:
         """A story ticket with prose done-definitions (no AC block) should exit 0 with
         no WARNING text — prose done-definitions are correct-by-design for stories."""
-        content = (
-            "---\n"
-            "id: dso-story1\n"
-            "status: open\n"
-            "type: story\n"
-            "priority: 2\n"
-            "---\n"
-            "# As a user, I want a feature so that I can do things\n\n"
-            "As an engineer, I want the system to work correctly so that users are happy.\n\n"
-            "## Done Definition\n\n"
-            "- The feature must be implemented and verified\n"
-            "- Integration tests should confirm the expected behavior\n"
-            "- Documentation is updated to reflect the change\n"
-            "- Code review must be completed before merge\n"
-            "- CI must pass on the final commit\n"
+
+        content = json.dumps(
+            {
+                "ticket_id": "dso-story1",
+                "ticket_type": "story",
+                "title": "As a user, I want a feature so that I can do things",
+                "status": "open",
+                "description": "",
+                "comments": [
+                    {
+                        "body": (
+                            "As an engineer, I want the system to work correctly "
+                            "so that users are happy.\n\n"
+                            "## Done Definition\n\n"
+                            "- The feature must be implemented and verified\n"
+                            "- Integration tests should confirm the expected behavior\n"
+                            "- Documentation is updated to reflect the change\n"
+                            "- Code review must be completed before merge\n"
+                            "- CI must pass on the final commit\n"
+                        ),
+                        "author": "test",
+                    }
+                ],
+                "deps": [],
+            }
         )
         ticket_cmd = self._make_ticket_cmd(tmp_path, "dso-story1", content)
         result = subprocess.run(
@@ -201,20 +222,28 @@ class TestIssueQualityCheckStoryType:
     ) -> None:
         """A task ticket with only prose (no AC block, no file impact) should exit 0
         but emit a WARNING — existing legacy behavior must be preserved for tasks."""
-        content = (
-            "---\n"
-            "id: dso-task1\n"
-            "status: open\n"
-            "type: task\n"
-            "priority: 2\n"
-            "---\n"
-            "# Implement the foo feature\n\n"
-            "## Description\n\n"
-            "This task must implement the feature correctly.\n"
-            "It should handle edge cases and verify behavior.\n"
-            "The implementation must be tested thoroughly.\n"
-            "Ensure backward compatibility is maintained.\n"
-            "Code must follow project conventions.\n"
+
+        content = json.dumps(
+            {
+                "ticket_id": "dso-task1",
+                "ticket_type": "task",
+                "title": "Implement the foo feature",
+                "status": "open",
+                "description": "",
+                "comments": [
+                    {
+                        "body": (
+                            "This task must implement the feature correctly.\n"
+                            "It should handle edge cases and verify behavior.\n"
+                            "The implementation must be tested thoroughly.\n"
+                            "Ensure backward compatibility is maintained.\n"
+                            "Code must follow project conventions.\n"
+                        ),
+                        "author": "test",
+                    }
+                ],
+                "deps": [],
+            }
         )
         ticket_cmd = self._make_ticket_cmd(tmp_path, "dso-task1", content)
         result = subprocess.run(
@@ -234,6 +263,109 @@ class TestIssueQualityCheckStoryType:
         assert "WARNING" in combined or "legacy" in result.stdout.lower(), (
             f"Expected WARNING or 'legacy' for task missing AC block.\n"
             f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
+        )
+
+
+class TestIssueQualityCheckV3JsonOutput:
+    """Test that issue-quality-check.sh correctly parses v3 JSON ticket show output.
+
+    Bug 741d-ae9a: The script assumes YAML frontmatter from ticket show, but v3
+    outputs JSON. These tests verify correct parsing of the actual JSON format.
+    """
+
+    SCRIPT_PATH = os.path.join(
+        WORKTREE_ROOT, "plugins", "dso", "scripts", "issue-quality-check.sh"
+    )
+
+    def _make_ticket_cmd(self, tmp_path: object, ticket_id: str, content: str) -> str:
+        return make_ticket_cmd(tmp_path, ticket_id, content)
+
+    def test_json_output_extracts_ticket_type(self, tmp_path: object) -> None:
+        """v3 ticket show outputs JSON with ticket_type field. Script must extract it."""
+
+        content = json.dumps(
+            {
+                "ticket_id": "json-test1",
+                "ticket_type": "story",
+                "title": "As a user, I want a feature",
+                "status": "open",
+                "description": "",
+                "comments": [
+                    {
+                        "body": (
+                            "As an engineer I want this to work.\n"
+                            "The feature must handle edge cases.\n"
+                            "It should be tested thoroughly.\n"
+                            "Documentation must be updated.\n"
+                            "Code review is required.\n"
+                        ),
+                        "author": "test",
+                    }
+                ],
+                "deps": [],
+            }
+        )
+        ticket_cmd = self._make_ticket_cmd(tmp_path, "json-test1", content)
+        result = subprocess.run(
+            [self.SCRIPT_PATH, "json-test1"],
+            capture_output=True,
+            text=True,
+            cwd=WORKTREE_ROOT,
+            env={**os.environ, "TICKET_CMD": ticket_cmd},
+        )
+        # Script should detect ticket_type=story and use story branch
+        assert result.returncode == 0, (
+            f"Expected pass for story with sufficient prose.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "story" in result.stdout.lower(), (
+            f"Expected 'story' in output (v3 JSON ticket_type=story).\n"
+            f"Got: {result.stdout!r}"
+        )
+
+    def test_json_output_extracts_description_from_comments(
+        self, tmp_path: object
+    ) -> None:
+        """v3 ticket show has description in comments[].body. Script must extract it."""
+
+        content = json.dumps(
+            {
+                "ticket_id": "json-test2",
+                "ticket_type": "task",
+                "title": "Implement the feature",
+                "status": "open",
+                "description": "",
+                "comments": [
+                    {
+                        "body": (
+                            "## Description\n\n"
+                            "This task must implement src/foo.py correctly.\n"
+                            "It should handle tests/test_foo.py edge cases.\n"
+                            "The implementation must verify behavior.\n"
+                            "Ensure backward compatibility is maintained.\n"
+                            "Code must follow project conventions.\n"
+                        ),
+                        "author": "test",
+                    }
+                ],
+                "deps": [],
+            }
+        )
+        ticket_cmd = self._make_ticket_cmd(tmp_path, "json-test2", content)
+        result = subprocess.run(
+            [self.SCRIPT_PATH, "json-test2"],
+            capture_output=True,
+            text=True,
+            cwd=WORKTREE_ROOT,
+            env={**os.environ, "TICKET_CMD": ticket_cmd},
+        )
+        # Script should find 5+ lines and keywords in comment body
+        assert result.returncode == 0, (
+            f"Expected pass for task with sufficient description in comments.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "pass" in result.stdout.lower(), (
+            f"Expected QUALITY: pass in output.\nGot: {result.stdout!r}"
         )
 
 

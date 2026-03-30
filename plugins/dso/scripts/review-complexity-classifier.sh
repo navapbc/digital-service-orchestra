@@ -451,14 +451,6 @@ _is_merge_commit() {
         return 0
     fi
 
-    # Check parent count of HEAD commit (handles post-merge case)
-    local parent_count
-    parent_count=$(git log -1 --pretty=%P 2>/dev/null | wc -w | tr -d '[:space:]') || parent_count=0
-    parent_count=${parent_count:-0}
-    if [[ "$parent_count" -ge 2 ]] 2>/dev/null; then
-        return 0
-    fi
-
     return 1
 }
 

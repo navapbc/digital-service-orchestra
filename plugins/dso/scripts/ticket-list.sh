@@ -2,7 +2,7 @@
 # plugins/dso/scripts/ticket-list.sh
 # List all tickets by compiling each ticket directory via the reducer.
 #
-# Usage: ticket-list.sh [--format=<fmt>] [--include-archived]
+# Usage: ticket-list.sh [--format=<fmt>] [--include-archived] [--type=<type>] [--status=<status>]
 #   Outputs a JSON array of compiled ticket states to stdout (default).
 #   --include-archived  Include archived tickets in the output (default: excluded).
 #   --format=llm  Outputs JSONL (one minified ticket per line) with shortened keys,
@@ -42,6 +42,8 @@ fi
 # ── Parse arguments ──────────────────────────────────────────────────────────
 format="default"
 include_archived=""
+filter_type=""
+filter_status=""
 for arg in "$@"; do
     case "$arg" in
         --format=llm)
@@ -53,6 +55,20 @@ for arg in "$@"; do
             ;;
         --include-archived)
             include_archived="true"
+            ;;
+        --type=*)
+            filter_type="${arg#--type=}"
+            ;;
+        --status=*)
+            filter_status="${arg#--status=}"
+            ;;
+        --help|-h)
+            echo "Usage: ticket-list.sh [--format=llm] [--include-archived] [--type=<type>] [--status=<status>]" >&2
+            echo "  --format=llm       Output JSONL with shortened keys" >&2
+            echo "  --include-archived  Include archived tickets" >&2
+            echo "  --type=<type>      Filter by ticket type (bug, epic, story, task)" >&2
+            echo "  --status=<status>  Filter by status (open, in_progress, closed)" >&2
+            exit 0
             ;;
         -*)
             echo "Error: unknown option '$arg'" >&2
@@ -87,7 +103,18 @@ if [ "$format" = "llm" ]; then
     # and no verbose timestamps (created_at, env_id, and comment timestamps omitted).
     # Convert JSON array to newline-delimited JSON objects, then pipe through LLM formatter.
     echo "$batch_output" \
-        | python3 -c "import json,sys; [print(json.dumps(t)) for t in json.loads(sys.stdin.read())]" \
+        | _LIST_TYPE_FILTER="$filter_type" _LIST_STATUS_FILTER="$filter_status" python3 -c "
+import json, sys, os
+results = json.loads(sys.stdin.read())
+type_filter = os.environ.get('_LIST_TYPE_FILTER', '')
+status_filter = os.environ.get('_LIST_STATUS_FILTER', '')
+if type_filter:
+    results = [t for t in results if t.get('ticket_type') == type_filter]
+if status_filter:
+    results = [t for t in results if t.get('status') == status_filter]
+for t in results:
+    print(json.dumps(t))
+" \
         | _TICKET_LLM_FMT="$SCRIPT_DIR/ticket-llm-format.py" python3 -c "
 import json, sys, importlib.util, pathlib, os
 
@@ -116,10 +143,16 @@ for line in sys.stdin:
 else
     # Default: JSON array — batch output is already a JSON array; emit directly.
     # Also emit a passive aggregate health warning to stderr when unresolved bridge alerts exist.
-    python3 -c "
-import json, sys
+    _LIST_TYPE_FILTER="$filter_type" _LIST_STATUS_FILTER="$filter_status" python3 -c "
+import json, sys, os
 
 results = json.loads(sys.stdin.read())
+type_filter = os.environ.get('_LIST_TYPE_FILTER', '')
+status_filter = os.environ.get('_LIST_STATUS_FILTER', '')
+if type_filter:
+    results = [t for t in results if t.get('ticket_type') == type_filter]
+if status_filter:
+    results = [t for t in results if t.get('status') == status_filter]
 print(json.dumps(results, ensure_ascii=False))
 
 alerted_count = sum(
