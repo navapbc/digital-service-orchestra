@@ -1,10 +1,10 @@
 # Known Issues and Incident Log
 
-> **Search tips**: Use Ctrl+F with keywords like "CI", "path", "timeout", "hook", "config", "deploy", "test", "flaky"
+> **Search Tips**: Use Ctrl+F with keywords like "CI", "path", "timeout", "hook", "config", "deploy", "test", "flaky"
 
 > **When to read this file**: Reference when debugging unexpected behavior or understanding why certain rules exist in your project configuration.
 
-> **Workflow**: ALWAYS search this file before debugging (`grep -i "keyword" path/to/KNOWN-ISSUES.md`). After solving a new issue, add it here using the incident format below. If 3+ similar incidents accumulate, propose a rule in your project configuration.
+> **Workflow**: ALWAYS search this file before debugging (`grep -i "keyword" .claude/docs/KNOWN-ISSUES.md`). After solving a new issue, add it here using the incident format below. If 3+ similar incidents accumulate, propose a rule in your project configuration.
 
 > **Archive**: Resolved/historical incidents can be moved to a `KNOWN-ISSUES-ARCHIVE.md` file. Search there if a pattern recurs.
 
@@ -50,6 +50,7 @@
 - **Keywords**: path, relative, absolute, subprocess, working directory
 - **Symptom**: Script fails with "file not found" when invoked from a different directory
 - **Root cause**: Script used a relative path that only worked from the project root
+- **Detection**: Run the script from a subdirectory and observe if paths resolve correctly
 - **Fix**: Convert to absolute paths using the project root (e.g., `$(git rev-parse --show-toplevel)/path/to/file`)
 - **Rule added**: Always use absolute paths in scripts and subprocess calls
 
@@ -80,7 +81,7 @@ To adapt this template for your project:
 4. **Update the Quick Reference** table whenever you add a new incident.
 5. **Set a threshold for rule promotion** — the default is 3 similar incidents before proposing a project-wide rule.
 6. **Create an archive file** (`KNOWN-ISSUES-ARCHIVE.md`) for resolved incidents that are no longer actively relevant but may contain useful historical context.
-7. **Customize search tips** in the header to reflect keywords common in your project.
+7. **Customize search tips** in the header to reflect keywords common in your project (e.g., hook, config, deploy, flaky).
 
 ### Incident Entry Format
 

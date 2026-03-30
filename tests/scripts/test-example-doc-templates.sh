@@ -15,32 +15,44 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 TEMPLATES="$PLUGIN_ROOT/templates"
 
-# --- KNOWN-ISSUES.example.md ---
+# --- KNOWN-ISSUES.example.md has been removed (superseded by plugins/dso/docs/templates/KNOWN-ISSUES.md) ---
 
-ki_file="$TEMPLATES/KNOWN-ISSUES.example.md"
+old_ki_file="$TEMPLATES/KNOWN-ISSUES.example.md"
 
-if [[ -f "$ki_file" ]]; then
-    assert_eq "known_issues_exists" "exists" "exists"
+if [[ ! -f "$old_ki_file" ]]; then
+    assert_eq "old_known_issues_example_removed" "removed" "removed"
 else
-    assert_eq "known_issues_exists" "exists" "missing"
+    assert_eq "old_known_issues_example_removed" "removed" "still_exists"
 fi
 
-if grep -q 'Index by Category' "$ki_file" 2>/dev/null; then
-    assert_eq "known_issues_has_index_by_category" "found" "found"
+# --- New canonical template exists at plugins/dso/docs/templates/KNOWN-ISSUES.md ---
+
+new_ki_file="$PLUGIN_ROOT/plugins/dso/docs/templates/KNOWN-ISSUES.md"
+
+if [[ -f "$new_ki_file" ]]; then
+    assert_eq "new_known_issues_template_exists" "exists" "exists"
 else
-    assert_eq "known_issues_has_index_by_category" "found" "missing"
+    assert_eq "new_known_issues_template_exists" "exists" "missing"
 fi
 
-if grep -q 'Quick Reference' "$ki_file" 2>/dev/null; then
-    assert_eq "known_issues_has_quick_reference" "found" "found"
+# --- dso-setup.sh references new template path ---
+
+setup_script="$PLUGIN_ROOT/plugins/dso/scripts/dso-setup.sh"
+
+if grep -q 'plugins/dso/docs/templates/KNOWN-ISSUES.md' "$setup_script" 2>/dev/null; then
+    assert_eq "dso_setup_references_new_template" "found" "found"
 else
-    assert_eq "known_issues_has_quick_reference" "found" "missing"
+    assert_eq "dso_setup_references_new_template" "found" "missing"
 fi
 
-if grep -qi 'adapt\|customize\|your project\|placeholder' "$ki_file" 2>/dev/null; then
-    assert_eq "known_issues_has_adaptation_guidance" "found" "found"
+# --- CLAUDE.md contains pointer to KNOWN-ISSUES.md ---
+
+claude_md="$REPO_ROOT/CLAUDE.md"
+
+if grep -q 'See .claude/docs/KNOWN-ISSUES.md' "$claude_md" 2>/dev/null; then
+    assert_eq "claude_md_has_known_issues_pointer" "found" "found"
 else
-    assert_eq "known_issues_has_adaptation_guidance" "found" "missing"
+    assert_eq "claude_md_has_known_issues_pointer" "found" "missing"
 fi
 
 # --- DOCUMENTATION-GUIDE.example.md ---
@@ -75,7 +87,7 @@ fi
 
 lockpick_terms='PipelineLLMClientFactory\|PostPipelineProcessor\|RegoGenerationAgent\|lockpick\|Lockpick'
 
-for file in "$ki_file" "$dg_file"; do
+for file in "$new_ki_file" "$dg_file"; do
     basename_file="$(basename "$file")"
     if [[ ! -f "$file" ]]; then
         assert_eq "no_lockpick_terms_${basename_file}" "clean" "file_missing"

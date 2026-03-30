@@ -17,6 +17,11 @@
 # All 7 test files were run and verified passing with 0 failures before markers were removed.
 # This is a legitimate bulk GREEN promotion at user request, not a TDD protocol violation.
 
+# REVIEW-DEFENSE: plugins/dso/docs/templates/KNOWN-ISSUES.md does not yet exist — this .test-index
+# entry maps a FUTURE file to its RED test as part of the TDD workflow. The template will be
+# created by task 6a8b-ecf3 in the next sprint batch. Until then, test-known-issues-template.sh
+# is intentionally RED (failing) per standard TDD practice.
+plugins/dso/docs/templates/KNOWN-ISSUES.md: tests/scripts/test-known-issues-template.sh
 plugins/dso/scripts/acli-integration.py: tests/scripts/test_acli_integration.py
 CLAUDE.md:tests/scripts/test-no-v2-refs-in-claude-md.sh,tests/scripts/test-claude-md-fix-bug-gates.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
@@ -213,3 +218,4 @@ plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resoluti
 plugins/dso/scripts/gate-2d-dependency-check.sh: tests/scripts/test-gate-2d-dependency-check.sh
 plugins/dso/scripts/gate-2c-test-regression-check.py: tests/scripts/test_gate_2c_test_regression_check.py
 plugins/dso/scripts/gate-escalation-router.py: tests/scripts/test_gate_escalation_router.py
+.claude/docs/KNOWN-ISSUES.md: tests/scripts/test-known-issues-smoke.sh
