@@ -310,7 +310,12 @@ def update_issue(
         "--json",
     ]
     for field, value in kwargs.items():
-        cmd.extend([f"--{field}", str(value)])
+        if field == "description":
+            # Convert description to ADF (same as create_issue) — Jira REST API
+            # v3 requires ADF format for description fields.
+            cmd.extend([f"--{field}", json.dumps(_text_to_adf(str(value)))])
+        else:
+            cmd.extend([f"--{field}", str(value)])
 
     result = _run_acli(cmd, acli_cmd=acli_cmd)
     return json.loads(result.stdout)

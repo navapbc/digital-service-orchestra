@@ -19,7 +19,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 ## Mindset
 
-- **You own everything.** You did not create these bugs, but they are your responsibility now. There is no "out of scope."
+- **You own everything.** You did not create these bugs, but they are your responsibility now. There is no "out of scope." You are responsible for investigating and resolving all pre-existing failures using the fix-bug skill — "pre-existing" is not a reason to skip a bug; it is a reason to fix it.
 - **Diagnose before treating.** Run all diagnostics first. Understand the full landscape of failures before fixing anything.
 - **TDD is selective, not reflexive.** Behavioral bugs get a failing test BEFORE the fix. Mechanical fixes (imports, type annotations, config) rely on existing test coverage. See [TDD Enforcement](#tdd-enforcement).
 - **Never skip tests.** Disabling, skipping, or deleting tests is never acceptable.
@@ -320,7 +320,7 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 **Entry condition**: Open bug tickets detected in Step 1.5 (`OPEN_BUG_COUNT > 0`).
 
-**Rationale**: When open bug tickets already exist, the diagnostic scan (Phase 1) and triage sub-agent (Phase 2) are unnecessary — they exist to *discover* new issues. Bug-Fix Mode skips both and applies `/dso:fix-bug` directly to each known ticket.
+**Rationale**: When open bug tickets already exist, the diagnostic scan (Phase 1) and triage sub-agent (Phase 2) are unnecessary — they exist to *discover* new issues. Bug-Fix Mode skips both and applies `/dso:fix-bug` directly to each known ticket. **All bugs are in scope — including pre-existing ones.** "Pre-existing" means the bug existed before this session; it does not mean the bug should be skipped or deferred. Every open bug ticket must be investigated and resolved via `/dso:fix-bug`.
 
 ### What is skipped in Bug-Fix Mode
 

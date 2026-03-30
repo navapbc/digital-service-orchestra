@@ -179,5 +179,37 @@ hook_review_bypass_sentinel() {
         fi
     fi
 
+    # --- Pattern k: Direct writes/deletions to .tickets-tracker/ internals ---
+    # Block commands that modify .tickets-tracker/ files directly (echo/cat/tee/printf
+    # with redirect, cp/mv, rm) but allow read-only commands and authorized writers
+    # (ticket CLI scripts: ticket*.sh, ticket-*.py).
+    # Also protects .git/worktrees/-tickets-tracker/ (git worktree metadata).
+    if [[ "$COMMAND" == *".tickets-tracker/"* ]] || [[ "$COMMAND" == *"worktrees/-tickets-tracker/"* ]]; then
+        # Exemption: ticket CLI scripts are authorized writers
+        if [[ "$COMMAND" == *"ticket-"*".sh"* ]] || [[ "$COMMAND" == *"ticket-"*".py"* ]] || \
+           [[ "$COMMAND" == *"ticket init"* ]] || [[ "$COMMAND" == *"ticket-init"* ]] || \
+           [[ "$COMMAND" == *"ticket-lib"* ]]; then
+            return 0
+        fi
+        # Exemption: git operations within ticket scripts (git -C .tickets-tracker/ ...)
+        if [[ "$COMMAND" =~ git[[:space:]]+-C[[:space:]]+[^[:space:]]*\.tickets-tracker ]]; then
+            return 0
+        fi
+        # Exemption: read-only commands (cat, head, tail, ls, find, grep without redirect)
+        if [[ "$COMMAND" =~ ^[[:space:]]*(cat|head|tail|ls|find|grep|wc|stat)[[:space:]] ]] && \
+           [[ ! "$COMMAND" =~ \> ]]; then
+            return 0
+        fi
+        # Check for write/delete patterns
+        if [[ "$COMMAND" =~ \>[[:space:]]*[^[:space:]]*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
+           [[ "$COMMAND" =~ (tee)[[:space:]]*[^[:space:]]*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
+           [[ "$COMMAND" =~ (cp|mv)[[:space:]].*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
+           [[ "$COMMAND" =~ (echo|printf)[[:space:]].*\>.*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]] || \
+           [[ "$COMMAND" =~ rm[[:space:]].*(\.tickets-tracker/|worktrees/-tickets-tracker/) ]]; then
+            echo "BLOCKED [bypass-sentinel]: direct modification of .tickets-tracker/ detected. Use ticket CLI commands (ticket create, ticket comment, etc.) instead." >&2
+            trap - ERR; return 2
+        fi
+    fi
+
     return 0
 }

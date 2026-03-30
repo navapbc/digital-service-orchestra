@@ -87,6 +87,8 @@ read_test_index_for_source() {
         fi
 
         # Split right side on commas and emit each non-empty test path (with optional [marker])
+        # Declare parts and part as local to prevent clobbering caller variables.
+        local parts part
         IFS=',' read -ra parts <<< "$right"
         for part in "${parts[@]}"; do
             # Trim leading/trailing whitespace
@@ -144,6 +146,8 @@ find_global_red_marker_for_test() {
         # Split on first colon: left = source, right = comma-separated tests
         local right="${line#*:}"
 
+        # Declare parts and part as local to prevent clobbering caller variables.
+        local parts part
         IFS=',' read -ra parts <<< "$right"
         for part in "${parts[@]}"; do
             # Trim whitespace

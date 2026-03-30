@@ -235,6 +235,28 @@ class TestAcliClientUpdateFieldExtraction:
             f"ACLI edit command should include --description. Got: {edit_cmd}"
         )
 
+    def test_acli_update_description_uses_adf_format(
+        self, acli_mod: Any, acli_capture: Any
+    ) -> None:
+        """AcliClient.update_issue() description must be sent as ADF JSON, not plain text."""
+        import json
+
+        client, captured_cmds, fake_run_acli = acli_capture
+
+        with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
+            client.update_issue("TEST-1", description="Test ADF conversion")
+
+        assert len(captured_cmds) >= 1
+        edit_cmd = captured_cmds[0]
+        desc_idx = edit_cmd.index("--description")
+        desc_value = edit_cmd[desc_idx + 1]
+        parsed = json.loads(desc_value)
+        assert parsed.get("type") == "doc", (
+            f"Description should be ADF format with type='doc'. Got: {desc_value[:100]}"
+        )
+        assert parsed.get("version") == 1, "ADF version should be 1"
+        assert "content" in parsed, "ADF should have content field"
+
     def test_acli_update_sends_assignee(self, acli_mod: Any, acli_capture: Any) -> None:
         """AcliClient.update_issue() should support sending assignee updates."""
         client, captured_cmds, fake_run_acli = acli_capture

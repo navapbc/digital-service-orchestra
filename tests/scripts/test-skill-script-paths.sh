@@ -34,8 +34,9 @@ SCAN_DIRS=(
     "$DSO_PLUGIN_DIR/docs"
     "$DSO_PLUGIN_DIR/agents"
 )
-# Exclude known installation/migration docs where hardcoded paths are intentional
-EXCLUDE_PATTERNS="MIGRATION-TO-PLUGIN.md|INSTALL.md"
+# Exclude known installation/migration docs and developer reference docs where
+# hardcoded paths are intentional (commands meant to be run from the plugin repo root).
+EXCLUDE_PATTERNS="MIGRATION-TO-PLUGIN.md|INSTALL.md|SKILL-EVALS-GUIDE.md|overlay-calibration-baselines.md"
 
 # ── Helper: scan dirs for a grep pattern, excluding known exceptions ─────────
 _scan_for_bad_pattern() {
