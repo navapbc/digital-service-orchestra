@@ -1,0 +1,88 @@
+{
+  "epic_id": "dso-gkct",
+  "findings": [
+    {
+      "type": "add_consideration",
+      "target_story_id": "story-1",
+      "title": "Proposal generation must integrate into existing SKILL.md step flow without breaking sprint dispatch",
+      "description": "implementation-plan is invoked by /dso:sprint via Skill tool. Sprint's impl-plan-dispatch.md references 'Steps 1-6'. Proposal generation must not break this.",
+      "rationale": "Sprint parses STATUS output protocol from implementation-plan. New steps could break step numbering references.",
+      "taxonomy_category": "consumer_impact",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "story-2",
+      "title": "CLAUDE.md agent table must be updated with new agent entry",
+      "description": "CLAUDE.md has Named-agent dispatch table listing every agent. Story 2 mentions agent-routing.conf but not CLAUDE.md table.",
+      "rationale": "CLAUDE.md table is read by all skills/orchestrators. Named agents go in CLAUDE.md table, not necessarily agent-routing.conf (which is for task-category routing).",
+      "taxonomy_category": "conflicting_assumptions",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "add_consideration",
+      "target_story_id": "story-1",
+      "title": "Sprint invocation bypasses interactive proposal presentation",
+      "description": "When implementation-plan is invoked from sprint, proposal selection must be non-interactive. Sprint does not handle user-facing proposal steps. Decision-maker handles selection autonomously in sprint context.",
+      "rationale": "Sprint invocations would hang waiting for user input if proposals are presented interactively.",
+      "taxonomy_category": "conflicting_assumptions",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "add_dependency",
+      "target_story_id": "story-3",
+      "title": "Resolution loop state file naming convention",
+      "description": "Use /tmp/approach-resolution-<story-id>.json for cycle count. Verify no collision with existing /tmp files. Define TTL and cleanup.",
+      "rationale": "implementation-plan already writes /tmp/preplanning-context files. Needs coordinated naming.",
+      "taxonomy_category": "implicit_shared_state",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "story-5",
+      "title": "Docs story must update sprint dispatch prompt if step numbering changes",
+      "description": "impl-plan-dispatch.md references Steps 1-6 explicitly. If proposal step shifts numbering, dispatch prompt must be updated.",
+      "rationale": "Sprint sub-agents would execute wrong steps with stale dispatch prompt.",
+      "taxonomy_category": "consumer_impact",
+      "disposition": "accept",
+      "rejection_rationale": null
+    },
+    {
+      "type": "new_story",
+      "target_story_id": null,
+      "title": "Update test-sub-agent-guard.sh and existing implementation-plan tests for new agent dispatch",
+      "description": "6+ test files directly test implementation-plan behavior. Proposal generation and agent dispatch may break grep-based assertions and step-count assumptions.",
+      "rationale": "Structural changes to SKILL.md could break existing test suites that weren't updated.",
+      "taxonomy_category": "consumer_impact",
+      "disposition": "accept",
+      "rejection_rationale": null
+    }
+  ],
+  "rejected": [
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "story-2",
+      "title": "Agent definition must follow existing agent file conventions in plugins/dso/agents/",
+      "description": "All 19 existing agents are .md files in plugins/dso/agents/. discover-agents.sh depends on this convention.",
+      "rationale": "Agent placed elsewhere would not be discoverable.",
+      "taxonomy_category": "conflicting_assumptions",
+      "disposition": "reject",
+      "rejection_rationale": "Single-story internal scope concern. Story 2's done definition (creating the agent) implicitly includes making it discoverable. File placement is an implementation-level detail within Story 2's own scope, not a cross-story gap. This is implementation-plan-level, not preplanning-level."
+    },
+    {
+      "type": "add_consideration",
+      "target_story_id": "story-2",
+      "title": "Agent dispatch requires SUB-AGENT-GUARD awareness",
+      "description": "implementation-plan has SUB-AGENT-GUARD. New agent dispatch must work in same execution context as existing Step 6 gap analysis dispatch.",
+      "rationale": "Adding another Agent tool dependency is compatible with existing guard but should be verified.",
+      "taxonomy_category": "dependency_gap",
+      "disposition": "reject",
+      "rejection_rationale": "Not actionable. The finding itself concludes compatibility ('is compatible with existing guard'). The only suggested remediation is 'should be verified,' which is speculative and not a concrete change. No specific modification to any story is warranted based on this finding."
+    }
+  ],
+  "artifact_path": ".claude/artifacts/adversarial-review-dso-gkct.json"
+}
