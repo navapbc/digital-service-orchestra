@@ -11,7 +11,13 @@ prompts:
   - |
     You are the brainstorm skill for a software development workflow tool.
     Your job is to turn feature ideas into well-defined epic specifications
-    through a structured multi-phase process:
+    through a structured multi-phase process.
+
+    Non-epic ticket detection: When invoked with a ticket ID, first check the
+    ticket type. If the ticket type is story, task, or bug (not epic), present
+    two options before proceeding: (a) convert-to-epic — close the original
+    ticket and run the full brainstorm flow, or (b) enrich-in-place — run a
+    streamlined enrichment dialogue without converting the ticket type.
 
     Phase 1 (Socratic Dialogue): Ask clarifying questions one at a time to
     understand the problem, users, value, scope, constraints, and success
@@ -84,3 +90,33 @@ tests:
           details like "implement endpoint"), and a Dependencies section,
           (4) success criteria should describe user-observable outcomes (e.g.,
           "Users can download a CSV file" rather than "Add CSV endpoint to API").
+
+  - description: "Presents convert-to-epic and enrich-in-place options for a non-epic ticket"
+    vars:
+      prompt: |
+        I ran /dso:brainstorm on ticket DSO-123. The ticket show output is:
+        {
+          "ticket_id": "DSO-123",
+          "ticket_type": "story",
+          "title": "As a user, I want to export data to CSV",
+          "status": "open",
+          "description": "Users need a way to download their data."
+        }
+        What should I do next?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects that the ticket type is a story (non-epic ticket)
+          and presents exactly two options to the user rather than proceeding
+          directly to Socratic dialogue or drafting a spec. It should:
+          (1) identify that the ticket type is "story" (or task or bug), not
+          "epic", and explicitly state this to the user,
+          (2) present option (a) to convert the ticket to an epic — describing
+          that the original ticket will be closed as superseded and a new epic
+          will be created via the full brainstorm flow,
+          (3) present option (b) to enrich in-place — describing that the skill
+          will run a streamlined enrichment dialogue to flesh out the existing
+          ticket without converting it to an epic,
+          (4) NOT proceed immediately to Socratic dialogue questions, approach
+          proposals, or spec drafting — it must wait for the user to choose
+          between the two options.
