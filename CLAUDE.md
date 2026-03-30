@@ -203,14 +203,6 @@ Orchestrator-level rules (apply to `/dso:sprint` and `/dso:debug-everything`, no
 
 ## Common Fixes
 
-| Problem | Fix |
-|---------|-----|
-| CI shows "queued" | Wait - don't close task yet |
-| CI fails | Dispatch `error-debugging:error-detective` agent with CI URL + failed jobs to diagnose, then `/dso:debug-everything` to fix |
-| Scripts not found | Use absolute paths from repo root |
-| Path not found | Run `pwd` first, adjust paths |
-| "No such file" errors | Run `pwd`, verify location, use absolute paths |
-| Worktree: "Command not found" | `cd app && rm -rf .venv && poetry env use /opt/homebrew/opt/python@3.13/bin/python3.13 && poetry install` |
-| Isolation check fails | Add `# isolation-ok: <reason>` comment to suppress false positive, or fix the violation |
+See .claude/docs/KNOWN-ISSUES.md for common operational fixes and workarounds.
 
 **Before debugging**: Search the consuming project's `KNOWN-ISSUES.md` first (if available). After solving: add to it (3+ similar incidents → propose CLAUDE.md rule).

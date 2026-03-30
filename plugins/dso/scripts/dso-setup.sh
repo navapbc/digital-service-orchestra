@@ -197,7 +197,7 @@ supplement_template_file \
 supplement_template_file \
     "$TARGET_REPO/.claude/docs/KNOWN-ISSUES.md" \
     '<!-- DSO:KNOWN-ISSUES-HEADER -->' \
-    "$DIST_ROOT/templates/KNOWN-ISSUES.example.md" \
+    "$DIST_ROOT/plugins/dso/docs/templates/KNOWN-ISSUES.md" \
     "KNOWN-ISSUES.md"
 
 # ── merge_precommit_hooks: merge DSO hooks into existing .pre-commit-config.yaml ──
