@@ -65,7 +65,7 @@ plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/gh-identity-resolver.sh:tests/scripts/test-gh-identity-resolver.sh
 plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-config-paths.sh
-plugins/dso/scripts/check-acceptance-criteria.sh:tests/scripts/test_issue_quality_check_file_impact.py
+plugins/dso/scripts/check-acceptance-criteria.sh: tests/scripts/test-check-acceptance-criteria.sh
 plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test_issue_quality_check_file_impact.py,tests/scripts/test-enrich-file-impact-v2-removal.sh
 plugins/dso/scripts/issue-batch.sh:tests/scripts/test-utility-scripts-v2-removal.sh
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test_issue_quality_check_file_impact.py

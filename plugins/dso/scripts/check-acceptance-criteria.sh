@@ -23,11 +23,28 @@ if [ -z "$output" ]; then
     exit 1
 fi
 
+# Extract text from v3 JSON ticket output: combine title, description, and
+# all comment bodies into a single markdown text block for awk parsing.
+text=$(echo "$output" | python3 -c "
+import json, sys
+t = json.load(sys.stdin)
+parts = []
+if t.get('title'):
+    parts.append(t['title'])
+if t.get('description'):
+    parts.append(t['description'])
+for c in t.get('comments', []):
+    body = c.get('body', '')
+    if body:
+        parts.append(body)
+print('\n'.join(parts))
+" 2>/dev/null || echo "")
+
 # Count checklist items in the ## Acceptance Criteria section using awk.
-# Matches the "## Acceptance Criteria" heading from tk markdown body.
+# Matches the "## Acceptance Criteria" heading from the extracted text.
 # Terminates on the next ## heading.
 # Blank lines within the block are allowed (does NOT terminate on blank lines).
-ac_count=$(echo "$output" | awk '
+ac_count=$(echo "$text" | awk '
   tolower($0) ~ /^## acceptance criteria/ { found=1; next }
   found && /^## / { exit }
   found && /^- \[/ { count++ }
