@@ -1,0 +1,1 @@
+{"timestamp": 1774838969588482000, "uuid": "e6270404-dfe6-45ec-a2c7-704568e5d408", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: Created .claude/docs/KNOWN-ISSUES.md with 10 incident entries and smoke test"}}
