@@ -1,1 +1,0 @@
-{"timestamp": 1774890220893445000, "uuid": "9d6e2900-3bf9-405a-82e3-5db9c28c4b04", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: mechanical. Adding llm_behavioral=dso:bot-psychologist assertions to existing test cases + dedicated dso: short-circuit test."}}
