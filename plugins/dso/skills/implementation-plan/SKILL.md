@@ -706,6 +706,16 @@ After processing findings (or skipping/failing), update the summary output to in
 | Gaps found | `Gap Analysis: {N} findings — {X} new tasks created, {Y} AC amendments` |
 | Sub-agent failed | `Gap Analysis: Failed (non-blocking) — <error summary>` |
 
+### Return Control to Sprint Orchestrator
+
+**When invoked from `/dso:sprint` (via Skill tool)**: After updating the summary, emit the STATUS line immediately as the final output:
+
+```
+STATUS:complete TASKS:<comma-separated-task-ids> STORY:<story-or-epic-id>
+```
+
+Do not wait for user input. This line is the signal that returns control to the sprint orchestrator.
+
 ---
 
 ## Quick Reference

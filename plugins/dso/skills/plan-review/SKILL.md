@@ -1,6 +1,6 @@
 ---
 name: plan-review
-description: Sub-agent review of plans and designs before user approval. Invoke before presenting any plan or design to the user, or before calling ExitPlanMode.
+description: Orchestrator-level skill that reviews plans and designs before user approval by dispatching a code-architect sub-agent. Invoke before presenting any plan or design to the user, or before calling ExitPlanMode. Do NOT dispatch this skill itself as a sub-agent — it requires the Agent tool and will refuse sub-agent invocation.
 ---
 
 <SUB-AGENT-GUARD>
@@ -13,7 +13,7 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 
 # Plan Review
 
-Lightweight sub-agent review that catches issues in plans and designs before the user sees them.
+Orchestrator-level skill that dispatches a `feature-dev:code-architect` sub-agent to review plans and designs before the user sees them. This skill runs at the orchestrator level — it is NOT itself dispatched as a sub-agent (the SUB-AGENT-GUARD above enforces this).
 
 ## When to Invoke
 

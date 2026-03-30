@@ -360,6 +360,7 @@ d. For each skill result, **parse STATUS:**
      - If no children → retry the skill invocation once (same parameters)
      - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
+   - **Important**: Do NOT display the raw `STATUS:blocked QUESTIONS:<json>` line to the user. This is an internal machine signal. Capture it silently, parse the JSON, then present only the formatted question list (see below) to the user.
    - **Parse the QUESTIONS field**: Extract the JSON array from the `STATUS:blocked` line. If parsing fails (malformed JSON) or the array is empty (`[]`), treat as a sub-agent failure:
      - Revert the story to open: `.claude/scripts/dso ticket transition <story-id> open`
      - Log: `"ERROR: /dso:implementation-plan returned STATUS:blocked with no parseable questions for story <story-id> — story reverted to open"`
@@ -1208,7 +1209,7 @@ If it returns CLEAR: proceed to create tasks normally.
 For each item in the validation agent's FAIL/REMEDIATION output:
 
 ```bash
-.claude/scripts/dso ticket create "Fix: {issue description}" -t bug -p 1 --parent=<epic-id>
+.claude/scripts/dso ticket create bug "Fix: {issue description}" -p 1 --parent=<epic-id>
 ```
 
 ### Step 2: Validate Ticket Health (/dso:sprint)

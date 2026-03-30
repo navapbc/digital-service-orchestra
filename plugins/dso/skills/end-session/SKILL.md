@@ -118,7 +118,7 @@ Scan titles for a match to the failure. A ticket already exists if a close title
 **Auto-Create Bug Tickets**: For each failure that does **not** have an existing bug ticket, create one:
 
 ```bash
-.claude/scripts/dso ticket create "<descriptive title>" -t bug -p <priority>
+.claude/scripts/dso ticket create bug "<descriptive title>" -p <priority>
 ```
 
 Where `<priority>` is assigned based on actual severity:
@@ -152,7 +152,7 @@ Focus on reusable knowledge. Exclude: workflow phases run, git operations perfor
 
 ### 2.85. Create Bug Tickets from Learnings (pre-commit)
 
-Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Create a bug ticket (`.claude/scripts/dso ticket create "<title>" -t bug -p <priority>`) for any learning that describes:
+Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask: "Should this be a bug ticket?" Create a bug ticket (`.claude/scripts/dso ticket create bug "<title>" -p <priority>`) for any learning that describes:
 - A defect, regression, or broken behavior that hasn't been fixed yet
 - A footgun or edge case that will bite users/developers again if not addressed
 - A workaround that was applied instead of a proper fix
@@ -185,7 +185,7 @@ sweep_validation_failures
 1. Read baseline dir from config: `BASELINE_DIR=$(".claude/scripts/dso read-config.sh" visual.baseline_directory 2>/dev/null || true)` — if empty, skip this step (no visual config). Otherwise run `git diff main -- "$BASELINE_DIR" --stat` — if empty, skip this step.
 2. Run `.claude/scripts/dso verify-baseline-intent.sh`
 3. **Exit 0** → proceed, report the intended baseline changes in the session summary.
-4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `.claude/scripts/dso ticket create "Visual regression: <details>" -t bug -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
+4. **Exit 2** → baseline changes with no design manifests. Debug using `/dso:playwright-debug` (Playwright MCP authorized). If regression confirmed: `.claude/scripts/dso ticket create bug "Visual regression: <details>" -p 1`, run `validate-issues.sh --quick`, STOP, ask user. If changes are expected (manifest was forgotten), ask user to run `/dso:design-wireframe` or create manifest retroactively.
 
 ### 4. Sync Tickets and Merge to Main
 

@@ -246,7 +246,7 @@ hook_commit_failure_tracker() {
     echo "" >&2
     echo "Issues should have been auto-created by check-validation-failures.sh." >&2
     echo "Search: $_SEARCH_CMD '<check> failure' $TICKETS_DIR" >&2
-    echo "Create manually if needed: ticket create \"Fix <check> failure\" -t bug -p 1" >&2
+    echo "Create manually if needed: ticket create bug \"Fix <check> failure\" -p 1" >&2
     echo "" >&2
 
     # Never block

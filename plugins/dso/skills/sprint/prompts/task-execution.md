@@ -20,9 +20,9 @@ Ticket ID: {id}
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 6/6: Done ✓"`
 8. **Discovered work**: If you find bugs or defects outside your task scope (unhandled edge cases, anti-patterns, regressions), create a bug ticket:
    ```bash
-   .claude/scripts/dso ticket create "<descriptive title>" -t bug -p 3 --parent=<parent-id>
+   .claude/scripts/dso ticket create bug "<descriptive title>" --priority 3 --parent=<parent-id>
    ```
-   Get your parent ID from the `.claude/scripts/dso ticket show {id}` output (PARENT field). Use `-t bug` for discovered defects and anti-patterns so they are correctly classified for triage. Do NOT create tasks for work that IS your task. Only create tasks for genuinely out-of-scope discoveries. If `.claude/scripts/dso ticket create` fails, note the error and continue — task creation is non-fatal.
+   Get your parent ID from the `.claude/scripts/dso ticket show {id}` output (PARENT field). Use `bug` as the ticket type for discovered defects and anti-patterns so they are correctly classified for triage. Do NOT create tasks for work that IS your task. Only create tasks for genuinely out-of-scope discoveries. If `.claude/scripts/dso ticket create` fails, note the error and continue — task creation is non-fatal.
 8a. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -58,7 +58,7 @@ Ticket ID: {id}
 Read and follow `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format). Key points:
 - DO write checkpoint notes after each substep: `.claude/scripts/dso ticket comment {id} "CHECKPOINT N/6: ..."`
 - Do NOT: git commit, git push, .claude/scripts/dso ticket transition, .claude/scripts/dso ticket link, slash-commands, nested Task calls
-- You MAY run: .claude/scripts/dso ticket create -t bug --parent=<parent-id> (for discovered bugs/defects only)
+- You MAY run: .claude/scripts/dso ticket create bug "<title>" --parent=<parent-id> (for discovered bugs/defects only)
 - Your task ends at step 9 (Report output) — the orchestrator handles commits and issue lifecycle
 
 ### Prohibited Fix Patterns

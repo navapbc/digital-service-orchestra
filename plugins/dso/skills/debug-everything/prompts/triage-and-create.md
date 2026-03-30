@@ -31,10 +31,10 @@ For each cluster or standalone error without an existing ticket issue:
 
 ```bash
 # For clusters: title describes root cause, not individual symptoms
-.claude/scripts/dso ticket create "Fix: <root cause description> (N related errors)" -t bug -p <priority>
+.claude/scripts/dso ticket create bug "Fix: <root cause description> (N related errors)" -p <priority>
 
 # For standalone errors:
-.claude/scripts/dso ticket create "Fix: <specific failure description>" -t bug -p <priority>
+.claude/scripts/dso ticket create bug "Fix: <specific failure description>" -p <priority>
 ```
 
 Update each new issue with its full error details:

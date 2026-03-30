@@ -47,13 +47,14 @@ def test_step_2_85_heading_exists() -> None:
 
 
 def test_step_2_85_contains_bug_ticket_creation() -> None:
-    """Step 2.85 must contain a 'tk create' instruction for bug tickets (-t bug)."""
+    """Step 2.85 must contain a bug ticket creation instruction."""
     content = SKILL_MD.read_text()
     # Extract the Step 2.85 section (from 2.85 heading to next heading)
     section = _extract_section(content, r"###\s+2\.85\.", r"###\s+[23]\.")
     assert section, "Step 2.85 section not found in SKILL.md."
-    assert re.search(r"tk create.*-t bug|-t bug", section), (
-        "Step 2.85 does not contain bug ticket creation instruction ('tk create' with '-t bug'). "
+    assert re.search(r"ticket create bug|tk create.*-t bug|-t bug", section), (
+        "Step 2.85 does not contain bug ticket creation instruction. "
+        "Accepted forms: 'ticket create bug' (positional) or 'tk create ... -t bug'. "
         "Bug tickets from learnings must be created in Step 2.85."
     )
 

@@ -139,7 +139,7 @@ Create a ticket epic with remediation tasks based on user-confirmed scope.
 
 ### Steps
 
-1. **Create epic**: `.claude/scripts/dso ticket create "Retro: {YYYY-MM-DD} - {key-findings-summary}" -t epic` with description documenting assessment date, health score, top 3 findings, and target outcome.
+1. **Create epic**: `.claude/scripts/dso ticket create epic "Retro: {YYYY-MM-DD} - {key-findings-summary}"` with description documenting assessment date, health score, top 3 findings, and target outcome.
 
 2. **Create child tasks**: For each finding in scope, create a task with appropriate type/priority. Each task description must include: Issue (what), Location (file paths), Acceptance Criteria (checkboxes), and Context (why it matters).
 

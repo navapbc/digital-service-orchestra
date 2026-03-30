@@ -117,10 +117,10 @@ When 3 or more tasks are blocked by the same task, consider extracting an interf
 .claude/scripts/dso ticket show <blocking-task-id>
 
 # If >3 tasks blocked, create interface contract
-.claude/scripts/dso ticket create "Define interface contract for <feature>" -t task -p 1
+.claude/scripts/dso ticket create task "Define interface contract for <feature>" -p 1
 
 # Then add implementations as separate tasks that depend on the interface
-.claude/scripts/dso ticket create "Implement ConcreteA" -t task -p 2
+.claude/scripts/dso ticket create task "Implement ConcreteA" -p 2
 .claude/scripts/dso ticket link <impl-task-id> <interface-task-id> depends_on
 ```
 
