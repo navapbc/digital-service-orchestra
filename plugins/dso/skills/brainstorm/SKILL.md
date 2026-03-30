@@ -28,11 +28,55 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 ```
 /dso:brainstorm                    # Start with a blank slate — describe the feature interactively
 /dso:brainstorm <epic-id>          # Enrich an existing underdefined epic
+/dso:brainstorm <ticket-id>        # Works with any ticket type (epic, story, task, bug)
 ```
 
-When invoked without an epic ID, open with: *"What feature or capability are you trying to build?"* and proceed to Phase 1.
+When invoked without a ticket ID, open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
 
-When invoked with an epic ID, load the epic first (`.claude/scripts/dso ticket show <epic-id>`), summarize what's already defined, then enter Phase 1 to fill gaps.
+When invoked with a ticket ID, check the ticket type first (see the gate section below).
+
+---
+
+## Type Detection Gate
+
+**Run this gate for every invocation that includes a `<ticket-id>` argument.**
+
+Run `.claude/scripts/dso ticket show <ticket-id>` and read the `ticket_type` field.
+
+### Step 1: Check the ticket type
+
+```bash
+.claude/scripts/dso ticket show <ticket-id>
+```
+
+Read the `ticket_type` field from the output.
+
+### Step 2: Route based on ticket type
+
+**If `ticket_type` is `epic`:** Load the epic, summarize what's already defined, then proceed to Phase 1 unchanged. The epic dialogue and output behavior is semantically unchanged — this gate is a pre-flight type check only.
+
+**If `ticket_type` is not epic** (i.e., `story`, `task`, or `bug`): Present the following two options to the user:
+
+```
+This ticket is a <story|task|bug>, not an epic. How would you like to proceed?
+
+(a) Convert to epic — close the original ticket as superseded and run the full brainstorm flow
+    to create a new, well-defined epic from the ideas in this ticket.
+
+(b) Enrich in-place — run a streamlined enrichment dialogue to flesh out this ticket's
+    description, success criteria, and approach without converting it to an epic.
+```
+
+**Option (a) — Convert to epic:**
+1. Note the original ticket ID and content.
+2. Close the original ticket: `.claude/scripts/dso ticket transition <id> <current-status> closed --reason="Superseded: converting to epic via /dso:brainstorm"`
+3. Proceed to Phase 1 with the original ticket's content as seeding context. The full brainstorm flow creates a new epic.
+
+**Option (b) — Enrich in-place:**
+1. Load the ticket content and summarize what's already defined.
+2. Run a streamlined enrichment dialogue: ask targeted questions about missing success criteria, approach, and dependencies (one question at a time, same as Phase 1 rules).
+3. Update the ticket description with enriched content: `.claude/scripts/dso ticket comment <id> "Enriched via /dso:brainstorm: <summary>"`
+4. Skip Phase 3 (ticket creation) — the ticket already exists.
 
 ---
 
