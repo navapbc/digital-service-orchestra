@@ -120,3 +120,76 @@ tests:
           (4) NOT proceed immediately to Socratic dialogue questions, approach
           proposals, or spec drafting — it must wait for the user to choose
           between the two options.
+
+  - description: "Runs full brainstorm flow and marks original ticket superseded when user selects convert-to-epic"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        I ran /dso:brainstorm on ticket DSO-456. The ticket show output is:
+        {
+          "ticket_id": "DSO-456",
+          "ticket_type": "task",
+          "title": "Add OAuth2 login support",
+          "status": "open",
+          "description": "We need OAuth2 so users can log in with Google or GitHub."
+        }
+        I want to choose option (a): convert to epic.
+    assert:
+      - type: llm-rubric
+        value: >
+          The user selected the convert-to-epic option for a non-epic ticket
+          (task type). The output should proceed with the full brainstorm flow
+          rather than enriching the existing ticket in place. It should:
+          (1) acknowledge the convert-to-epic selection and state that the
+          original ticket (DSO-456) will be closed as superseded once the new
+          epic is created,
+          (2) begin Phase 1 Socratic dialogue by asking at least one clarifying
+          question about the OAuth2 login feature — one question at a time, NOT
+          a list of questions — to gather context before proposing approaches
+          (e.g., which providers to support, who the affected users are, what
+          problem this solves, or what success looks like),
+          (3) NOT enrich the existing task ticket in place — it must treat this
+          as the start of a full epic brainstorm with Socratic dialogue leading
+          to approaches and an epic spec,
+          (4) use language indicating the original ticket will be closed or
+          marked as superseded (e.g., "close DSO-456 as superseded", "original
+          ticket will be superseded by the new epic").
+
+  - description: "Runs streamlined dialogue and updates ticket in-place when user selects enrich-in-place"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        I ran /dso:brainstorm on ticket DSO-789. The ticket show output is:
+        {
+          "ticket_id": "DSO-789",
+          "ticket_type": "task",
+          "title": "Add rate limiting to the API",
+          "status": "open",
+          "description": "We need rate limiting so the API isn't abused."
+        }
+        I want to choose option (b): enrich in-place.
+    assert:
+      - type: llm-rubric
+        value: >
+          The user selected the enrich-in-place option for a non-epic ticket
+          (task type). The output should run a streamlined enrichment dialogue
+          rather than the full epic brainstorm flow. It should:
+          (1) acknowledge the enrich-in-place selection and confirm that the
+          existing ticket (DSO-789) will be updated with structured content
+          rather than converted to a new epic,
+          (2) run a streamlined dialogue — asking targeted clarifying questions
+          to gather just enough context to enrich the ticket (e.g., what
+          triggers rate limiting, what limits to set, what happens when limits
+          are exceeded) — without entering the full multi-phase Socratic
+          dialogue of the epic brainstorm flow,
+          (3) produce or indicate it will produce structured ticket updates
+          including at least two of: acceptance criteria (specific,
+          observable pass/fail conditions), an approach summary (brief
+          description of how to implement the change), or relevant file
+          paths / components affected,
+          (4) NOT close the original ticket, NOT create a new epic ticket,
+          and NOT proceed through Phase 2 approach proposals and full epic
+          spec drafting — the enrich-in-place path is a lightweight update
+          to the existing ticket only.
