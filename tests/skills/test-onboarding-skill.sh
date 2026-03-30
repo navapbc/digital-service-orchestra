@@ -3,7 +3,7 @@
 # Tests that plugins/dso/skills/onboarding/SKILL.md has the correct structure
 # for the /dso:onboarding Socratic dialogue skill.
 #
-# Validates (33 named assertions):
+# Validates (41 named assertions):
 #   test_skill_file_exists: SKILL.md exists at the expected path
 #   test_frontmatter_valid: frontmatter has name=onboarding and user-invocable=true
 #   test_sub_agent_guard_present: Orchestrator Signal SUB-AGENT-GUARD block present
@@ -834,5 +834,211 @@ test_jekyll_git_clone_path() {
 }
 
 test_jekyll_git_clone_path
+
+# ── RED CI config key / workflow tests (7330-bf69) ───────────────────────────
+
+# test_ci_config_key_coverage: SKILL.md must reference all 4 CI config keys:
+# ci.fast_gate_job, ci.fast_fail_job, ci.test_ceil_job, ci.integration_workflow
+test_ci_config_key_coverage() {
+    _snapshot_fail
+    local keys_found keys_missing key
+    keys_found=0
+    keys_missing=""
+    local required_keys=("ci.fast_gate_job" "ci.fast_fail_job" "ci.test_ceil_job" "ci.integration_workflow")
+    for key in "${required_keys[@]}"; do
+        if grep -qF "$key" "$SKILL_MD" 2>/dev/null; then
+            (( keys_found++ ))
+        else
+            keys_missing="$keys_missing $key"
+        fi
+    done
+    if [[ "$keys_found" -eq 4 ]]; then
+        assert_eq "test_ci_config_key_coverage" "found" "found"
+    else
+        assert_eq "test_ci_config_key_coverage" "all 4 CI config keys" "$keys_found keys found (missing:$keys_missing)"
+    fi
+    assert_pass_if_clean "test_ci_config_key_coverage"
+}
+
+# test_ci_workflow_confidence_gating: SKILL.md must reference ci_workflow_confidence-gated logic —
+# must reference ci_workflow_confidence AND contain numbered selection for low-confidence/multiple workflows
+test_ci_workflow_confidence_gating() {
+    _snapshot_fail
+    local has_confidence has_selection result
+    has_confidence="no"
+    has_selection="no"
+    if grep -q "ci_workflow_confidence" "$SKILL_MD" 2>/dev/null; then
+        has_confidence="yes"
+    fi
+    if grep -qiE "numbered selection|multiple.*workflow|low.*confidence|confidence.*low" "$SKILL_MD" 2>/dev/null; then
+        has_selection="yes"
+    fi
+    if [[ "$has_confidence" == "yes" && "$has_selection" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_ci_workflow_confidence_gating" "found" "$result"
+    assert_pass_if_clean "test_ci_workflow_confidence_gating"
+}
+
+test_ci_config_key_coverage
+test_ci_workflow_confidence_gating
+
+# ── RED merge.ci_workflow_name auto-migration tests (e9a7-39cd) ──────────────
+
+# test_ci_workflow_name_deprecation_migration: SKILL.md must contain auto-migration logic from
+# merge.ci_workflow_name to ci.workflow_name, with a conditional skip when ci.workflow_name exists
+test_ci_workflow_name_deprecation_migration() {
+    _snapshot_fail
+    local has_old_key has_new_key has_skip result
+    has_old_key="no"
+    has_new_key="no"
+    has_skip="no"
+    if grep -q "merge.ci_workflow_name" "$SKILL_MD" 2>/dev/null; then
+        has_old_key="yes"
+    fi
+    if grep -q "ci.workflow_name" "$SKILL_MD" 2>/dev/null; then
+        has_new_key="yes"
+    fi
+    if grep -qiE "skip.*if.*ci\.workflow_name|ci\.workflow_name.*already|already.*exists" "$SKILL_MD" 2>/dev/null; then
+        has_skip="yes"
+    fi
+    if [[ "$has_old_key" == "yes" && "$has_new_key" == "yes" && "$has_skip" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_ci_workflow_name_deprecation_migration" "found" "$result"
+    assert_pass_if_clean "test_ci_workflow_name_deprecation_migration"
+}
+
+test_ci_workflow_name_deprecation_migration
+
+# ── RED key name mismatch tests (89aa-3b1f) ──────────────────────────────────
+
+# test_key_name_jira_project: SKILL.md must reference "jira.project" but NOT "jira.project_key"
+test_key_name_jira_project() {
+    _snapshot_fail
+    local has_correct has_incorrect result
+    has_correct="no"
+    has_incorrect="no"
+    if grep -q "jira.project" "$SKILL_MD" 2>/dev/null; then
+        has_correct="yes"
+    fi
+    if grep -q "jira.project_key" "$SKILL_MD" 2>/dev/null; then
+        has_incorrect="yes"
+    fi
+    if [[ "$has_correct" == "yes" && "$has_incorrect" == "no" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_key_name_jira_project" "found" "$result"
+    assert_pass_if_clean "test_key_name_jira_project"
+}
+
+# test_key_name_design_system_name: SKILL.md must reference "design.system_name" but NOT
+# bare "design.system" without the _name suffix
+test_key_name_design_system_name() {
+    _snapshot_fail
+    local has_correct has_incorrect result
+    has_correct="no"
+    has_incorrect="no"
+    if grep -q "design.system_name" "$SKILL_MD" 2>/dev/null; then
+        has_correct="yes"
+    fi
+    if grep "design\.system" "$SKILL_MD" 2>/dev/null | grep -v "design\.system_name" | grep -q "design\.system"; then
+        has_incorrect="yes"
+    fi
+    if [[ "$has_correct" == "yes" && "$has_incorrect" == "no" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_key_name_design_system_name" "found" "$result"
+    assert_pass_if_clean "test_key_name_design_system_name"
+}
+
+# test_design_tokens_path_audit: design.tokens_path must either exist in validate-config.sh KNOWN_KEYS
+# OR must NOT be referenced in SKILL.md config table
+test_design_tokens_path_audit() {
+    _snapshot_fail
+    local validate_config_sh tokens_in_known_keys tokens_in_skill result
+    validate_config_sh="$PLUGIN_ROOT/plugins/dso/scripts/validate-config.sh"
+    tokens_in_known_keys="no"
+    tokens_in_skill="no"
+    if grep -q "design.tokens_path" "$validate_config_sh" 2>/dev/null; then
+        tokens_in_known_keys="yes"
+    fi
+    if grep -q "design.tokens_path" "$SKILL_MD" 2>/dev/null; then
+        tokens_in_skill="yes"
+    fi
+    # Pass if: tokens_path is in KNOWN_KEYS (legitimate) OR not referenced in SKILL.md (no mismatch)
+    if [[ "$tokens_in_known_keys" == "yes" || "$tokens_in_skill" == "no" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_design_tokens_path_audit" "found" "$result"
+    assert_pass_if_clean "test_design_tokens_path_audit"
+}
+
+test_key_name_jira_project
+test_key_name_design_system_name
+test_design_tokens_path_audit
+
+# ── RED version.file_path and stack config tests (2e7c-d060) ─────────────────
+
+# test_version_file_path_config: SKILL.md must reference version.file_path AND version_files
+# (the project-detect.sh output key), with numbered selection when multiple version files exist
+test_version_file_path_config() {
+    _snapshot_fail
+    local has_config_key has_detect_key has_selection result
+    has_config_key="no"
+    has_detect_key="no"
+    has_selection="no"
+    if grep -q "version.file_path" "$SKILL_MD" 2>/dev/null; then
+        has_config_key="yes"
+    fi
+    if grep -q "version_files" "$SKILL_MD" 2>/dev/null; then
+        has_detect_key="yes"
+    fi
+    if grep -qiE "numbered selection|multiple.*version|version.*multiple|select.*version" "$SKILL_MD" 2>/dev/null; then
+        has_selection="yes"
+    fi
+    if [[ "$has_config_key" == "yes" && "$has_detect_key" == "yes" && "$has_selection" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_version_file_path_config" "found" "$result"
+    assert_pass_if_clean "test_version_file_path_config"
+}
+
+# test_stack_config_key: SKILL.md must reference "stack" as a config key populated
+# from detect-stack.sh output
+test_stack_config_key() {
+    _snapshot_fail
+    local has_stack_key has_detect_stack result
+    has_stack_key="no"
+    has_detect_stack="no"
+    if grep -qE "\bstack\b" "$SKILL_MD" 2>/dev/null; then
+        has_stack_key="yes"
+    fi
+    if grep -q "detect-stack.sh" "$SKILL_MD" 2>/dev/null; then
+        has_detect_stack="yes"
+    fi
+    if [[ "$has_stack_key" == "yes" && "$has_detect_stack" == "yes" ]]; then
+        result="found"
+    else
+        result="missing"
+    fi
+    assert_eq "test_stack_config_key" "found" "$result"
+    assert_pass_if_clean "test_stack_config_key"
+}
+
+test_version_file_path_config
+test_stack_config_key
 
 print_summary

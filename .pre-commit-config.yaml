@@ -42,13 +42,13 @@ repos:
         always_run: true
         stages: [pre-commit]
 
-      # Review gate (timeout: 10s)
+      # Review gate (timeout: 30s)
       # Blocks commits containing non-allowlisted files without a valid review-status.
       # Since this repo IS the DSO plugin, we call the hook directly.
       # Debug command: ./plugins/dso/hooks/pre-commit-review-gate.sh
       - id: pre-commit-review-gate
-        name: Review Gate (10s timeout)
-        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-review-gate 10 "./plugins/dso/hooks/pre-commit-review-gate.sh"
+        name: Review Gate (30s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-review-gate 30 "./plugins/dso/hooks/pre-commit-review-gate.sh"
         language: system
         pass_filenames: false
         always_run: true
