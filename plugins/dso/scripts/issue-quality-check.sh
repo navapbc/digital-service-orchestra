@@ -36,36 +36,43 @@ if [ -z "$output" ]; then
     exit 1
 fi
 
-# Extract ticket type from YAML frontmatter (defaults to "task" if missing).
-ticket_type=$(echo "$output" | awk '/^---$/{fm++; next} fm==1 && /^type:/{print; exit}' | sed 's/^type:[[:space:]]*//')
-ticket_type="${ticket_type:-task}"
+# Extract fields from v3 JSON ticket show output.
+ticket_type=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ticket_type','task'))" 2>/dev/null || echo "task")
 
-# Extract description (markdown body after YAML frontmatter, across ALL sections).
-# tk show outputs YAML frontmatter between --- delimiters, then markdown body with ## headings.
-# Previously this stopped at the first ## heading, undercounting structured tickets.
-description=$(echo "$output" | awk '
-  /^---$/ { fm++; next }
-  fm < 2 { next }
-  /^#+ / { next }
-  { print }
-')
+# Combine title, description, and all comment bodies as the quality text.
+description=$(echo "$output" | python3 -c "
+import json, sys
+t = json.load(sys.stdin)
+parts = []
+if t.get('title'):
+    parts.append(t['title'])
+if t.get('description'):
+    parts.append(t['description'])
+for c in t.get('comments', []):
+    body = c.get('body', '')
+    if body:
+        parts.append(body)
+print('\n'.join(parts))
+" 2>/dev/null || echo "")
 
 # Count description lines (non-empty)
 line_count=$(echo "$description" | grep -c '[^ ]' 2>/dev/null || echo "0")
+line_count=$(echo "$line_count" | tr -d '[:space:]')
 
 # Count acceptance criteria indicators
 keyword_count=0
 # File path patterns (src/, tests/, app/)
-# Note: tr -d '\n' strips trailing newline from grep -c output that breaks $((...)) arithmetic
-keyword_count=$((keyword_count + $(echo "$description" | grep -c -E '(src/|tests/|app/|\.py|\.ts|\.js|\.html)' 2>/dev/null | tr -d '\n' || echo "0")))
+_kw_files=$(echo "$description" | grep -c -E '(src/|tests/|app/|\.py|\.ts|\.js|\.html)' 2>/dev/null || echo "0")
+_kw_files=$(echo "$_kw_files" | tr -d '[:space:]')
+keyword_count=$(( keyword_count + _kw_files ))
 # Criteria keywords
-keyword_count=$((keyword_count + $(echo "$description" | grep -c -iE '(must|should|given|when|then|acceptance|criteria|expect|verify|ensure)' 2>/dev/null | tr -d '\n' || echo "0")))
+_kw_criteria=$(echo "$description" | grep -c -iE '(must|should|given|when|then|acceptance|criteria|expect|verify|ensure)' 2>/dev/null || echo "0")
+_kw_criteria=$(echo "$_kw_criteria" | tr -d '[:space:]')
+keyword_count=$(( keyword_count + _kw_criteria ))
 
 # Count acceptance criteria items in ## Acceptance Criteria section.
-# Matches the "## Acceptance Criteria" heading from tk markdown body.
-# Note: This awk logic is intentionally duplicated in check-acceptance-criteria.sh
-# for independence (each script calls tk show separately). Keep both in sync.
-ac_items=$(echo "$output" | awk '
+# $description includes headings from comment bodies.
+ac_items=$(echo "$description" | awk '
   tolower($0) ~ /^## acceptance criteria/ { found=1; next }
   found && /^## / { exit }
   found && /^- \[/ { count++ }
@@ -74,8 +81,7 @@ ac_items=$(echo "$output" | awk '
 ac_items="${ac_items:-0}"
 
 # Count file impact items in ## File Impact or ### Files to modify section.
-# Matches lines containing file path patterns (src/, tests/, app/, .py, .ts, .js, .html).
-file_impact_items=$(echo "$output" | awk '
+file_impact_items=$(echo "$description" | awk '
   tolower($0) ~ /^## file impact/ || tolower($0) ~ /^### files to modify/ { found=1; next }
   found && /^## / { exit }
   found && /^### / && tolower($0) !~ /^### files to/ { exit }
