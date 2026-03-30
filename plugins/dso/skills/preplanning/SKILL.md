@@ -658,6 +658,26 @@ Display a summary table:
 | xxx-127 | As a user... | P2 | pending | - | Enhancement of xxx-126 | Epic criterion 1 |
 | xxx-128 | As a dev... | P1 | pending | - | - | Epic criterion 2 |
 
+Then, below the table, display each story's full description so the user can review scope, done definitions, and considerations before approving:
+
+```
+### xxx-126: As a user, I can upload a document and see its classification
+
+**What**: [description]
+**Why**: [rationale]
+**Scope**: IN: [...] | OUT: [...]
+
+**Done Definitions**:
+- When this story is complete, [outcome 1]
+  ← Satisfies: "[epic criterion]"
+
+**Considerations**:
+- [Area] concern
+
+---
+[repeat for each story]
+```
+
 ### Step 4: Validate Dependencies (/dso:preplanning)
 
 After creating all stories and dependencies:
