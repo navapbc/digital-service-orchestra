@@ -119,7 +119,9 @@ plugins/dso/skills/fix-bug/prompts/escalated-investigation-agent-2.md:tests/skil
 plugins/dso/skills/fix-bug/prompts/escalated-investigation-agent-3.md:tests/skills/test_escalated_investigation_agent_3_prompt.py
 plugins/dso/skills/fix-bug/prompts/escalated-investigation-agent-4.md:tests/skills/test_escalated_investigation_agent_4_prompt.py
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation.md:tests/skills/test_intermediate_investigation_prompt.py
-plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_skill.py [test_fix_bug_skill_llm_behavioral_classification]
+plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_skill.py
+plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_gate_1a.py [test_gate_1a_position]
+plugins/dso/skills/fix-bug/SKILL.md:tests/skills/test_fix_bug_gate_1b.py [test_gate_1b_pre_investigation]
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation-fallback.md:tests/skills/test_fix_bug_skill.py
 plugins/dso/skills/fix-bug/prompts/basic-investigation.md:tests/skills/test_basic_investigation_prompt.py
 plugins/dso/skills/fix-bug/prompts/intermediate-investigation.md:tests/skills/test_intermediate_investigation_prompt.py
