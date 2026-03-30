@@ -1,0 +1,1 @@
+{"timestamp": 1774844097300716000, "uuid": "8dfafa71-ac5e-4297-9979-6382c677763b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Fixed: RED tests for bot-psychologist agent definition (38 structural assertions)"}}
