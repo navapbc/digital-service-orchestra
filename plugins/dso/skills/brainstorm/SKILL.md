@@ -28,11 +28,128 @@ Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write 
 ```
 /dso:brainstorm                    # Start with a blank slate — describe the feature interactively
 /dso:brainstorm <epic-id>          # Enrich an existing underdefined epic
+/dso:brainstorm <ticket-id>        # Works with any ticket type (epic, story, task, bug)
 ```
 
-When invoked without an epic ID, open with: *"What feature or capability are you trying to build?"* and proceed to Phase 1.
+When invoked without a ticket ID, open with: *"What feature or capability are you trying to build?"* and start the Socratic dialogue.
 
-When invoked with an epic ID, load the epic first (`.claude/scripts/dso ticket show <epic-id>`), summarize what's already defined, then enter Phase 1 to fill gaps.
+When invoked with a ticket ID, check the ticket type first (see the gate section below).
+
+---
+
+## Type Detection Gate
+
+**Run this gate for every invocation that includes a `<ticket-id>` argument.**
+
+Run `.claude/scripts/dso ticket show <ticket-id>` and read the `ticket_type` field.
+
+### Step 1: Check the ticket type
+
+```bash
+.claude/scripts/dso ticket show <ticket-id>
+```
+
+Read the `ticket_type` field from the output.
+
+### Step 2: Route based on ticket type
+
+**If `ticket_type` is `epic`:** Load the epic, summarize what's already defined, then proceed to Phase 1 unchanged. The epic dialogue and output behavior is semantically unchanged — this gate is a pre-flight type check only.
+
+**If `ticket_type` is not epic** (i.e., `story`, `task`, or `bug`): Present the following two options to the user:
+
+```
+This ticket is a <story|task|bug>, not an epic. How would you like to proceed?
+
+(a) Convert to epic — close the original ticket as superseded and run the full brainstorm flow
+    to create a new, well-defined epic from the ideas in this ticket.
+
+(b) Enrich in-place — run a streamlined enrichment dialogue to flesh out this ticket's
+    description, success criteria, and approach without converting it to an epic.
+```
+
+**Option (a) — Convert to epic:**
+Proceed to the Convert-to-Epic Path section below.
+
+**Option (b) — Enrich in-place:**
+Proceed to the Enrich-in-Place Path section below.
+
+---
+
+## Convert-to-Epic Path
+
+Use this path when the user selects **Option (a)** from the Type Detection Gate — converting a non-epic ticket into a new, well-defined epic via the full brainstorm flow.
+
+**Summary of this path:** (1) Record the original ticket ID and content for traceability. (2) Proceed to Phase 1 immediately with the original content as seeding context — the full brainstorm flow creates a new epic. (3) ONLY AFTER the new epic is successfully created: use `ticket transition ... closed --reason="Escalated to user: superseded by epic <new-epic-id>"` to close the original ticket. (4) Use `ticket edit` (or a comment) on the new epic to reference the original ticket ID for traceability. Bug tickets require `--reason="Escalated to user: superseded by epic <new-epic-id>"`. Tickets with open children: re-parent children to the new epic or close them before closing the original.
+
+**Step 1 — Note the original ticket.** Run `.claude/scripts/dso ticket show <original-ticket-id>` and capture the original ticket ID, title, description, and any comments. This content seeds Phase 1.
+
+**Step 2 — Proceed to Phase 1 with seeding context.** Begin Phase 1 (Context + Socratic Dialogue) immediately, using the original ticket's content as seeding context. Do NOT close the original ticket yet.
+
+**Step 3 — Complete the full brainstorm flow.** Run Phases 1, 2, and 3 in full. Phase 3 creates the new epic. The new epic is "successfully created" when Phase 3 Step 1 (`.claude/scripts/dso ticket create epic ...`) completes without error and returns a new epic ID.
+
+**Step 4 — Close the original ticket (ONLY AFTER new epic is successfully created).** Only after the new epic has been successfully created, close the original:
+
+```bash
+# All ticket types (story, task, bug):
+.claude/scripts/dso ticket transition <original-ticket-id> <current-status> closed \
+  --reason="Escalated to user: superseded by epic <new-epic-id>"
+```
+
+The `--reason` flag is required. Bug tickets must use the `Escalated to user:` prefix — omitting it causes a silent failure.
+
+**Step 5 — Add traceability reference to the new epic.** After closing the original ticket, reference the original ticket ID in the new epic description for traceability:
+
+```bash
+.claude/scripts/dso ticket comment <new-epic-id> \
+  "Converted from original ticket <original-ticket-id> (reference original ticket ID for traceability)."
+```
+
+**Edge case — tickets with open children.** If the original ticket has open child tickets, handle them before closing the original: re-parent open children to the new epic (`.claude/scripts/dso ticket link <child-id> <new-epic-id> depends_on`), or close irrelevant children with `--reason="Escalated to user: superseded by epic <new-epic-id>"`. Only after all open children are resolved, proceed with Step 4.
+
+---
+
+## Enrich-in-Place Path
+
+Use this path when the user selects **Option (b)** from the Type Detection Gate — enriching an existing non-epic ticket with structured acceptance criteria, approach, and file paths without converting it to an epic.
+
+**Ticket type is preserved throughout this path — do not convert, close, or recreate the original ticket. The original type remains unchanged.**
+
+**Step 1 — Load ticket content.** Run `.claude/scripts/dso ticket show <ticket-id>` and read the existing description, title, and type. Summarize what is already defined so the enrichment dialogue is targeted, not redundant.
+
+**Step 2 — Streamlined Socratic dialogue.** Ask **1-3 targeted questions** to clarify intent — this is NOT the full Phase 1 multi-area probe. Use one question at a time (same rule as Phase 1). Focus only on gaps that prevent writing structured acceptance criteria or a clear approach. Good targets: "What does done look like?", "Which file or module is the entry point?", "Are there edge cases that matter?". Stop asking once you can draft meaningful acceptance criteria and an approach summary.
+
+**Step 3 — Update the ticket description.** Update the existing ticket's description field using `ticket edit --description` — do not post a comment. Replace the description with enriched content including: structured acceptance criteria (Given/When/Then format or bullet checklist), an approach summary (1-2 sentences on how to implement this), and relevant file paths (use Glob/Grep to resolve any module or directory references from the ticket to actual repo paths; include only paths that exist).
+
+**Step 4 — Present and stop.** Present the updated ticket content to the user and stop. Do not route to downstream skills.
+
+**Explicitly skip the following** (these apply to the full brainstorm → epic flow only, not the enrich-in-place path):
+
+- Skip fidelity review (Step 2.5/3 gap analysis and reviewer agents)
+- Skip scenario analysis (Step 2.75 red/blue team review)
+- Skip web research phase (Step 2.6)
+- Skip ticket creation (Phase 3) — the ticket already exists; no new ticket is needed
+- Skip complexity evaluation (Phase 3 Step 4a)
+- Skip routing to downstream skills — do not invoke `/dso:preplanning` or `/dso:implementation-plan`
+
+Example `ticket edit --description` command structure (replace placeholder values):
+
+```
+.claude/scripts/dso ticket edit <id> --description="
+Summary: [Original or refined one-sentence summary of the ticket]
+
+Acceptance Criteria:
+- Given [context], when [action], then [outcome]
+- [ ] [Verifiable condition 1]
+- [ ] [Verifiable condition 2]
+
+Approach Summary:
+[1-2 sentences on how to implement this — the concrete mechanism, not just the goal]
+
+Relevant Files:
+- path/to/relevant/file.py
+- path/to/another/module.sh
+"
+```
 
 ---
 
