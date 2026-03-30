@@ -78,6 +78,7 @@ assert_contains "test_all_plugins_installed: mechanical_fix" "mechanical_fix=deb
 assert_contains "test_all_plugins_installed: complex_debug" "complex_debug=error-debugging:error-detective" "$output"
 assert_contains "test_all_plugins_installed: code_simplify" "code_simplify=code-simplifier:code-simplifier" "$output"
 assert_contains "test_all_plugins_installed: security_audit" "security_audit=backend-api-security:backend-security-coder" "$output"
+assert_contains "test_all_plugins_installed: llm_behavioral" "llm_behavioral=dso:bot-psychologist" "$output"
 assert_pass_if_clean "test_all_plugins_installed"
 rm -rf "$tmpdir"
 
@@ -97,6 +98,8 @@ assert_contains "test_no_plugins_installed: mechanical_fix" "mechanical_fix=gene
 assert_contains "test_no_plugins_installed: complex_debug" "complex_debug=general-purpose" "$output"
 assert_contains "test_no_plugins_installed: code_simplify" "code_simplify=general-purpose" "$output"
 assert_contains "test_no_plugins_installed: security_audit" "security_audit=general-purpose" "$output"
+# dso: agents always resolve regardless of installed plugins (short-circuit path)
+assert_contains "test_no_plugins_installed: llm_behavioral (dso: short-circuit)" "llm_behavioral=dso:bot-psychologist" "$output"
 assert_pass_if_clean "test_no_plugins_installed"
 rm -rf "$tmpdir"
 
@@ -113,6 +116,8 @@ output=$(bash "$SCRIPT" --settings "$tmpdir/nonexistent.json" --routing "$tmpdir
 assert_eq "test_missing_settings_json: exit code 0" "0" "$exit_code"
 assert_contains "test_missing_settings_json: test_fix_unit" "test_fix_unit=general-purpose" "$output"
 assert_contains "test_missing_settings_json: security_audit" "security_audit=general-purpose" "$output"
+# dso: agents resolve even without settings.json
+assert_contains "test_missing_settings_json: llm_behavioral (dso: short-circuit)" "llm_behavioral=dso:bot-psychologist" "$output"
 assert_pass_if_clean "test_missing_settings_json"
 rm -rf "$tmpdir"
 
@@ -156,6 +161,8 @@ assert_contains "test_partial_plugins: complex_debug" "complex_debug=error-debug
 assert_contains "test_partial_plugins: code_simplify" "code_simplify=general-purpose" "$output"
 # backend-api-security NOT available -> fallback
 assert_contains "test_partial_plugins: security_audit" "security_audit=general-purpose" "$output"
+# dso: agents resolve via short-circuit even with partial plugin installs
+assert_contains "test_partial_plugins: llm_behavioral (dso: short-circuit)" "llm_behavioral=dso:bot-psychologist" "$output"
 assert_pass_if_clean "test_partial_plugins"
 rm -rf "$tmpdir"
 
@@ -218,6 +225,33 @@ _write_settings "$tmpdir" "unit-testing@claude-code-workflows"
 output2=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true
 assert_contains "test_auto_detect_new_plugin: after install preferred" "test_fix_unit=unit-testing:debugger" "$output2"
 assert_pass_if_clean "test_auto_detect_new_plugin"
+rm -rf "$tmpdir"
+
+# ── test_dso_short_circuit_always_resolves ───────────────────────────────────
+# dso: prefixed agents bypass plugin availability check and always resolve.
+# This verifies the short-circuit path at discover-agents.sh line ~104.
+_snapshot_fail
+tmpdir="$(_setup_env)"
+_CLEANUP_DIRS+=("$tmpdir")
+_write_settings "$tmpdir"  # no plugins at all
+
+output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>/dev/null) || true
+stderr_output=$(bash "$SCRIPT" --settings "$tmpdir/settings.json" --routing "$tmpdir/agent-routing.conf" 2>&1 >/dev/null) || true
+
+# dso:bot-psychologist must resolve even with zero plugins installed
+assert_contains "test_dso_short_circuit_always_resolves: resolves to dso:bot-psychologist" \
+    "llm_behavioral=dso:bot-psychologist" "$output"
+# Must NOT fall through to general-purpose
+if echo "$output" | grep -q "llm_behavioral=general-purpose"; then
+    actual_no_fallback="fell-through"
+else
+    actual_no_fallback="short-circuited"
+fi
+assert_eq "test_dso_short_circuit_always_resolves: not general-purpose" "short-circuited" "$actual_no_fallback"
+# Stderr should show reason=available (not fallback)
+assert_contains "test_dso_short_circuit_always_resolves: reason=available" \
+    "category=llm_behavioral routed=dso:bot-psychologist reason=available" "$stderr_output"
+assert_pass_if_clean "test_dso_short_circuit_always_resolves"
 rm -rf "$tmpdir"
 
 # ── test_missing_routing_conf_exits_1 ────────────────────────────────────────

@@ -859,4 +859,365 @@ PYEOF
 }
 test_include_archived_flag_returns_all_tickets
 
+# ── Test 11: --type=bug filter returns only bug-type tickets ─────────────────
+echo "Test 11: --type=bug filter returns only bug-type tickets"
+test_type_filter_returns_only_matching_type() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_type_filter_returns_only_matching_type"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create one bug ticket and one task ticket
+    local bug_id task_id
+    bug_id=$(_create_ticket "$repo" bug "A bug ticket")
+    task_id=$(_create_ticket "$repo" task "A task ticket")
+
+    if [ -z "$bug_id" ] || [ -z "$task_id" ]; then
+        assert_eq "both tickets created for type filter test" "non-empty" "empty"
+        assert_pass_if_clean "test_type_filter_returns_only_matching_type"
+        return
+    fi
+
+    # RED: --type= flag is not recognized; ticket-list.sh will print an error and exit 1
+    local list_output
+    local exit_code=0
+    list_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --type=bug 2>/dev/null) || exit_code=$?
+
+    assert_eq "--type=bug exits 0" "0" "$exit_code"
+
+    local check_result
+    check_result=$(python3 - "$list_output" "$bug_id" "$task_id" <<'PYEOF'
+import json, sys
+
+try:
+    tickets = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+bug_id = sys.argv[2]
+task_id = sys.argv[3]
+
+if not isinstance(tickets, list):
+    print(f"NOT_ARRAY: {type(tickets).__name__}")
+    sys.exit(2)
+
+ticket_ids = [t.get("ticket_id") for t in tickets if isinstance(t, dict)]
+errors = []
+
+if bug_id not in ticket_ids:
+    errors.append(f"bug ticket {bug_id!r} missing from --type=bug output")
+if task_id in ticket_ids:
+    errors.append(f"task ticket {task_id!r} present in --type=bug output (should be excluded)")
+
+# Every returned ticket must have ticket_type == 'bug'
+for t in tickets:
+    if isinstance(t, dict) and t.get("ticket_type") != "bug":
+        errors.append(f"non-bug ticket in output: ticket_id={t.get('ticket_id')!r} type={t.get('ticket_type')!r}")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(3)
+
+print("OK")
+PYEOF
+) || true
+
+    if [ "$check_result" = "OK" ]; then
+        assert_eq "--type=bug output contains only bug tickets" "OK" "OK"
+    else
+        assert_eq "--type=bug output contains only bug tickets" "OK" "$check_result"
+    fi
+
+    assert_pass_if_clean "test_type_filter_returns_only_matching_type"
+}
+test_type_filter_returns_only_matching_type
+
+# ── Test 12: --status=open filter returns only open tickets ──────────────────
+echo "Test 12: --status=open filter returns only open tickets"
+test_status_filter_returns_only_matching_status() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_status_filter_returns_only_matching_status"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create one open ticket via the CLI (default status is open)
+    local open_id
+    open_id=$(_create_ticket "$repo" task "An open ticket")
+
+    if [ -z "$open_id" ]; then
+        assert_eq "open ticket created for status filter test" "non-empty" "empty"
+        assert_pass_if_clean "test_status_filter_returns_only_matching_status"
+        return
+    fi
+
+    # Manually create a closed ticket by writing CREATE + STATUS events
+    local closed_id="closed-tkt1"
+    mkdir -p "$tracker_dir/$closed_id"
+    python3 - "$tracker_dir/$closed_id" <<'PYEOF'
+import json, time, sys
+base = sys.argv[1]
+ts = int(time.time())
+create_event = {
+    "timestamp": ts,
+    "uuid": "cccc-stat-0001",
+    "event_type": "CREATE",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {
+        "ticket_type": "task",
+        "title": "A closed ticket",
+        "status": "open",
+        "priority": 2,
+        "assignee": "test-author"
+    }
+}
+status_event = {
+    "timestamp": ts + 1,
+    "uuid": "cccc-stat-0002",
+    "event_type": "STATUS",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {"status": "closed"}
+}
+with open(f"{base}/0000000001-cccc-CREATE.json", "w") as f:
+    json.dump(create_event, f)
+with open(f"{base}/0000000002-cccc-STATUS.json", "w") as f:
+    json.dump(status_event, f)
+PYEOF
+    git -C "$tracker_dir" add "$closed_id/" 2>/dev/null
+    git -C "$tracker_dir" commit -q -m "test: add closed ticket for status filter test" 2>/dev/null || true
+
+    # RED: --status= flag is not recognized; ticket-list.sh will print an error and exit 1
+    local list_output
+    local exit_code=0
+    list_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --status=open 2>/dev/null) || exit_code=$?
+
+    assert_eq "--status=open exits 0" "0" "$exit_code"
+
+    local check_result
+    check_result=$(python3 - "$list_output" "$open_id" "$closed_id" <<'PYEOF'
+import json, sys
+
+try:
+    tickets = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+open_id = sys.argv[2]
+closed_id = sys.argv[3]
+
+if not isinstance(tickets, list):
+    print(f"NOT_ARRAY: {type(tickets).__name__}")
+    sys.exit(2)
+
+ticket_ids = [t.get("ticket_id") for t in tickets if isinstance(t, dict)]
+errors = []
+
+if open_id not in ticket_ids:
+    errors.append(f"open ticket {open_id!r} missing from --status=open output")
+if closed_id in ticket_ids:
+    errors.append(f"closed ticket {closed_id!r} present in --status=open output (should be excluded)")
+
+# Every returned ticket must have status == 'open'
+for t in tickets:
+    if isinstance(t, dict) and t.get("status") != "open":
+        errors.append(f"non-open ticket in output: ticket_id={t.get('ticket_id')!r} status={t.get('status')!r}")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(3)
+
+print("OK")
+PYEOF
+) || true
+
+    if [ "$check_result" = "OK" ]; then
+        assert_eq "--status=open output contains only open tickets" "OK" "OK"
+    else
+        assert_eq "--status=open output contains only open tickets" "OK" "$check_result"
+    fi
+
+    assert_pass_if_clean "test_status_filter_returns_only_matching_status"
+}
+test_status_filter_returns_only_matching_status
+
+# ── Test 13: --type=bug --status=open combined filter ────────────────────────
+echo "Test 13: --type=bug --status=open combined filter returns only open bug tickets"
+test_combined_type_and_status_filter() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_combined_type_and_status_filter"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create an open bug ticket via the CLI
+    local open_bug_id
+    open_bug_id=$(_create_ticket "$repo" bug "Open bug ticket")
+
+    # Create an open task ticket (should be excluded by --type=bug)
+    local open_task_id
+    open_task_id=$(_create_ticket "$repo" task "Open task ticket")
+
+    if [ -z "$open_bug_id" ] || [ -z "$open_task_id" ]; then
+        assert_eq "tickets created for combined filter test" "non-empty" "empty"
+        assert_pass_if_clean "test_combined_type_and_status_filter"
+        return
+    fi
+
+    # Manually create a closed bug ticket (should be excluded by --status=open)
+    local closed_bug_id="closed-bug1"
+    mkdir -p "$tracker_dir/$closed_bug_id"
+    python3 - "$tracker_dir/$closed_bug_id" <<'PYEOF'
+import json, time, sys
+base = sys.argv[1]
+ts = int(time.time())
+create_event = {
+    "timestamp": ts,
+    "uuid": "dddd-comb-0001",
+    "event_type": "CREATE",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {
+        "ticket_type": "bug",
+        "title": "A closed bug ticket",
+        "status": "open",
+        "priority": 1,
+        "assignee": "test-author"
+    }
+}
+status_event = {
+    "timestamp": ts + 1,
+    "uuid": "dddd-comb-0002",
+    "event_type": "STATUS",
+    "env_id": "test-env",
+    "author": "test-author",
+    "data": {"status": "closed"}
+}
+with open(f"{base}/0000000001-dddd-CREATE.json", "w") as f:
+    json.dump(create_event, f)
+with open(f"{base}/0000000002-dddd-STATUS.json", "w") as f:
+    json.dump(status_event, f)
+PYEOF
+    git -C "$tracker_dir" add "$closed_bug_id/" 2>/dev/null
+    git -C "$tracker_dir" commit -q -m "test: add closed bug for combined filter test" 2>/dev/null || true
+
+    # RED: neither --type= nor --status= is recognized; ticket-list.sh will exit 1
+    local list_output
+    local exit_code=0
+    list_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --type=bug --status=open 2>/dev/null) || exit_code=$?
+
+    assert_eq "--type=bug --status=open exits 0" "0" "$exit_code"
+
+    local check_result
+    check_result=$(python3 - "$list_output" "$open_bug_id" "$open_task_id" "$closed_bug_id" <<'PYEOF'
+import json, sys
+
+try:
+    tickets = json.loads(sys.argv[1])
+except Exception as e:
+    print(f"PARSE_ERROR:{e}")
+    sys.exit(1)
+
+open_bug_id = sys.argv[2]
+open_task_id = sys.argv[3]
+closed_bug_id = sys.argv[4]
+
+if not isinstance(tickets, list):
+    print(f"NOT_ARRAY: {type(tickets).__name__}")
+    sys.exit(2)
+
+ticket_ids = [t.get("ticket_id") for t in tickets if isinstance(t, dict)]
+errors = []
+
+if open_bug_id not in ticket_ids:
+    errors.append(f"open bug {open_bug_id!r} missing from combined filter output")
+if open_task_id in ticket_ids:
+    errors.append(f"open task {open_task_id!r} present in --type=bug output (should be excluded)")
+if closed_bug_id in ticket_ids:
+    errors.append(f"closed bug {closed_bug_id!r} present in --status=open output (should be excluded)")
+
+# Every returned ticket must be bug type AND open status
+for t in tickets:
+    if not isinstance(t, dict):
+        continue
+    if t.get("ticket_type") != "bug":
+        errors.append(f"non-bug ticket in output: ticket_id={t.get('ticket_id')!r} type={t.get('ticket_type')!r}")
+    if t.get("status") != "open":
+        errors.append(f"non-open ticket in output: ticket_id={t.get('ticket_id')!r} status={t.get('status')!r}")
+
+if errors:
+    print("ERRORS:" + "; ".join(errors))
+    sys.exit(3)
+
+print("OK")
+PYEOF
+) || true
+
+    if [ "$check_result" = "OK" ]; then
+        assert_eq "combined filter output contains only open bug tickets" "OK" "OK"
+    else
+        assert_eq "combined filter output contains only open bug tickets" "OK" "$check_result"
+    fi
+
+    assert_pass_if_clean "test_combined_type_and_status_filter"
+}
+test_combined_type_and_status_filter
+
+# ── Test 14: --help prints usage info and exits 0 ────────────────────────────
+echo "Test 14: --help prints usage info and exits 0"
+test_help_flag_prints_usage_and_exits_0() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LIST_SCRIPT" ]; then
+        assert_eq "ticket-list.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_help_flag_prints_usage_and_exits_0"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # RED: --help is not recognized; ticket-list.sh will print an error and exit 1
+    local help_output
+    local exit_code=0
+    help_output=$(cd "$repo" && bash "$TICKET_SCRIPT" list --help 2>&1) || exit_code=$?
+
+    assert_eq "--help exits 0" "0" "$exit_code"
+
+    # Assert: output contains usage information (case-insensitive match on "usage" or "options")
+    local lower_output
+    lower_output=$(printf '%s' "$help_output" | tr '[:upper:]' '[:lower:]')
+    local usage_found="no"
+    case "$lower_output" in
+        *"usage"*|*"options"*|*"--type"*|*"--status"*)
+            usage_found="yes"
+            ;;
+    esac
+    assert_eq "--help output contains usage information" "yes" "$usage_found"
+
+    assert_pass_if_clean "test_help_flag_prints_usage_and_exits_0"
+}
+test_help_flag_prints_usage_and_exits_0
+
 print_summary
