@@ -1,0 +1,1 @@
+{"timestamp": 1774841626150715000, "uuid": "283028d0-b775-44b2-b59b-1cf174c7709c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Done definition update: When this story is complete, staging-environment-test.md prompt uses CLI command names (not MCP tool names like browser_run_code) throughout."}}
