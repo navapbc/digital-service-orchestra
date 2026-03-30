@@ -1,1 +1,0 @@
-{"timestamp": 1774718556, "uuid": "e025ddbe-3303-4a16-9e28-b71f48eb791f", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "CI workflow on main is failing pre-existing", "parent_id": "", "description": "", "priority": 3, "assignee": "Joe Oakhart"}}
