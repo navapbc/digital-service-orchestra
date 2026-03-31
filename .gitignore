@@ -1,2 +1,4 @@
 .cache.json
 .graph-cache.json
+.env-id
+.state-cache
