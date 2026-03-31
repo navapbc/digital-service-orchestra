@@ -179,6 +179,8 @@ fi
 
 Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OVERRIDE` is set (size upgrade case), Step 4 dispatch uses `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT`. Do not override the classifier's tier selection.
 
+**TIER IMMUTABILITY**: Once `REVIEW_TIER` is set by the classifier output in Step 3, it is immutable for the lifetime of this review pass. You MUST NOT re-run the classifier, select a different tier, or interpret the re-review escalation table (REVIEW_PASS_NUM) as permission to move to a lighter tier. The re-review escalation table governs upward escalation only. Any rationalization for downgrading — including "stale diff," "false positives," "user preference context," or "sprint batch context" — is prohibited. Tier direction is one-way: light → standard → deep. Never standard → light or deep → standard.
+
 **Deep tier + upgrade — no rationalization exemptions**: When `REVIEW_TIER=deep` and `SIZE_ACTION=upgrade`, you MUST dispatch the full deep tier (3 parallel sonnet agents + opus arch synthesis) with the opus model override. Do not substitute a lighter tier, a standard-tier agent, or a general-purpose agent due to perceived overhead, time constraints, or commit urgency. The deep tier exists precisely for high-blast-radius changes — "overhead" objections do not override the classifier.
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
