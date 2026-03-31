@@ -535,7 +535,7 @@ Task tool:
    | `REVIEW_PASS_NUM` (after increment) | Re-review Agent | Rationale |
    |---|---|---|
    | 2 | `REVIEW_AGENT` from Step 3 (unchanged for standard/deep); light → upgrade to `dso:code-reviewer-standard` | Light-tier haiku lacks context for REVIEW-DEFENSE; upgrade to sonnet |
-   | 3+ | Upgrade: light/standard → `dso:code-reviewer-deep-arch` (opus), deep → run the **full deep-multi-reviewer path** (3 parallel `dso:code-reviewer-deep-*` sonnet agents + `dso:code-reviewer-deep-arch` opus synthesis) — NOT `dso:code-reviewer-deep-arch` alone | Escalate to maximum-coverage review for deep tier; opus synthesis without sonnet findings is incomplete |
+   | 3+ | Upgrade: light/standard/deep → run the **full deep-multi-reviewer path** (3 parallel `dso:code-reviewer-deep-*` sonnet agents + `dso:code-reviewer-deep-arch` opus synthesis) — NOT `dso:code-reviewer-deep-arch` alone | Escalate to maximum-coverage review; opus synthesis without sonnet findings is incomplete |
 
    ```bash
    # Re-review model escalation logic
@@ -543,14 +543,9 @@ Task tool:
    RE_REVIEW_AGENT="$REVIEW_AGENT"
    RE_REVIEW_DEEP_FULL=false
    if [[ "$REVIEW_PASS_NUM" -ge 3 ]]; then
-       if [[ "$REVIEW_TIER" == "deep" ]]; then
-           # Deep tier at pass 3+: re-run full deep-multi-reviewer path
-           # (3 parallel sonnet agents + opus synthesis) — NOT deep-arch alone
-           RE_REVIEW_DEEP_FULL=true
-       else
-           # Light/standard at pass 3+: upgrade to opus arch reviewer
-           RE_REVIEW_AGENT="dso:code-reviewer-deep-arch"
-       fi
+       # All tiers at pass 3+: run full deep-multi-reviewer path
+       # (3 parallel sonnet agents + opus synthesis) — NOT deep-arch alone
+       RE_REVIEW_DEEP_FULL=true
    elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "light" ]]; then
        RE_REVIEW_AGENT="dso:code-reviewer-standard"
    fi
@@ -597,14 +592,14 @@ Task tool:
    - If OSCILLATION detected: escalate immediately. Do NOT dispatch another resolution sub-agent.
    - If CLEAR: dispatch the next resolution sub-agent.
 
-   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). Escalate to user when attempts exceed this value — but only after the tier-upgrade re-review dispatch (PASS_NUM 3+ model escalation) has been attempted. Do NOT escalate to user while a higher-tier reviewer is still available and untried.
+   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First, check whether a tier upgrade is available: if the current reviewer is light or standard tier, you MUST upgrade to the deep tier (3 parallel sonnet specialists + opus architectural synthesis) before any user escalation. Only after the deep tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried.
 
    ```bash
    MAX_ATTEMPTS=$("$REPO_ROOT/.claude/scripts/dso" read-config.sh review.max_resolution_attempts)
    MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
    ```
 
-6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): before escalating to user, verify that the tier-upgrade model escalation at PASS_NUM 3+ has been applied (i.e., light/standard upgraded to `dso:code-reviewer-deep-arch`, or deep tier ran the full multi-reviewer path). User escalation is the **last resort**, after tier upgrades are exhausted. Only then: escalate to user.
+6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): before escalating to user, verify that the full deep-multi-reviewer path at PASS_NUM 3+ has been attempted (3 parallel sonnet specialists + opus arch synthesis — for ALL tiers, not just deep). User escalation is the **last resort**, after the full deep tier review has been exhausted. Only then: escalate to user.
 
 **Escalation message format** (when sub-agent returns FAIL or ESCALATE, or re-review fails twice):
 

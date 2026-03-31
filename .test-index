@@ -51,7 +51,7 @@ plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
 plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh
 plugins/dso/docs/workflows/prompts/reviewer-base.md:tests/docs/test-reviewer-base-file-constraint.sh
-plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/skills/test_review_workflow_model_escalation.py,tests/docs/test-reviewer-base-file-constraint.sh
+plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/skills/test_review_workflow_model_escalation.py,tests/docs/test-reviewer-base-file-constraint.sh,tests/workflows/test-review-escalation-tier-gate.sh
 plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
