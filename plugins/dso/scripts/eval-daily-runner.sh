@@ -46,7 +46,7 @@ _dso_cmd() {
     else
         # Fall back to repo-relative path
         local repo_root
-        repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+        repo_root="$(git rev-parse --show-toplevel)"
         "$repo_root/.claude/scripts/dso" "$@"
     fi
 }
