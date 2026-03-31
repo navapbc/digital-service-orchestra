@@ -37,7 +37,7 @@ A test is BEHAVIORAL (accepted) if it:
 
 The 6 observable surfaces for bash scripts: exit code, stdout, stderr, filesystem side effects, git state changes, environment side effects.
 
-**Narrow exception**: Architectural contract verification (e.g., "skill file contains SUB-AGENT-GUARD block") is acceptable when testing a design contract, not implementation logic. The test must still be meaningful after a complete rewrite of the script's internals.
+**Narrow exception**: Architectural contract verification is acceptable ONLY for infrastructure contracts (e.g., "pre-commit hook config includes expected hook ID", "Makefile target exists"). This exception does not apply to skill files, agent definitions, or prompt templates — content-presence checks on files in `skills/`, `agents/`, or `prompts/` are never acceptable because these files affect LLM behavior, and grep-based assertions on them are change-detector tests by definition. The test must still be meaningful after a complete rewrite of the script's internals.
 
 ---
 
