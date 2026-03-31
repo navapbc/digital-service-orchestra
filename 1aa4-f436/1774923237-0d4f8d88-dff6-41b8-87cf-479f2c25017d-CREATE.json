@@ -1,1 +1,0 @@
-{"timestamp": 1774923237, "uuid": "0d4f8d88-dff6-41b8-87cf-479f2c25017d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "task", "title": "[LOCK] debug-everything", "parent_id": "", "description": "", "priority": 2, "assignee": "Joe Oakhart"}}
