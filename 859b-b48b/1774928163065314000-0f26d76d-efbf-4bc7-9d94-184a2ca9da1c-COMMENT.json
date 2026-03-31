@@ -1,0 +1,1 @@
+{"timestamp": 1774928163065314000, "uuid": "0f26d76d-efbf-4bc7-9d94-184a2ca9da1c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: llm-behavioral. Dual-signal: ticket describes agent disobedience (bypassing /fix-bug) + fix involves strengthening skill workflow guidance."}}
