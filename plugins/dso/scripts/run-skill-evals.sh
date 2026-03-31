@@ -23,8 +23,7 @@
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PLUGIN_ROOT="$(git rev-parse --show-toplevel)"
 DSO_SKILLS_ROOT="${DSO_SKILLS_ROOT:-$PLUGIN_ROOT/plugins/dso/skills}"
 
 # ── Usage ────────────────────────────────────────────────────────────────────
