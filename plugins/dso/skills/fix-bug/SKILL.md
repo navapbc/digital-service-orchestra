@@ -59,11 +59,13 @@ Before scoring, classify the error:
 
 Mechanical errors have an obvious, deterministic fix that requires no investigation. These skip the scoring rubric and route directly to the **Mechanical Fix Path** (read the error, apply the fix, validate).
 
+**Exclusion — files in `skills/`, `agents/`, or `prompts/` directories must not be classified as mechanical.** Changes to skill files, agent definitions, or prompt templates affect LLM behavior and guidance — even when the fix appears to be "obvious text replacement." These files must be routed through the LLM-behavioral or behavioral classification path, never mechanical. An agent that can see "what text is wrong" in a skill file is not performing a mechanical fix — it is making a judgment about how to change agent behavior, which requires investigation.
+
 Types of mechanical errors:
 - **import error** — missing or incorrect import statement
 - **type annotation** — incorrect or missing type hint
 - **lint violation** — ruff, mypy, or similar linter failure with a clear fix
-- **config syntax** — malformed YAML, TOML, JSON, or conf file
+- **config syntax** — malformed YAML, TOML, JSON, or conf file (not `.md` files in `skills/`, `agents/`, or `prompts/`)
 
 Mechanical Fix Path:
 1. Complete Step 0.5 (Ticket Lifecycle Setup) — ensure a bug ticket exists and is in-progress
