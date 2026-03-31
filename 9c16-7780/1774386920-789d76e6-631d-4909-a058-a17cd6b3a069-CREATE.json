@@ -1,1 +1,0 @@
-{"timestamp": 1774386920, "uuid": "789d76e6-631d-4909-a058-a17cd6b3a069", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "TDD RED phase produces change-detector tests instead of behavioral assertions", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
