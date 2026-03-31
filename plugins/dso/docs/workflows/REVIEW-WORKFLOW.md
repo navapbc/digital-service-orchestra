@@ -535,20 +535,27 @@ Task tool:
    | `REVIEW_PASS_NUM` (after increment) | Re-review Agent | Rationale |
    |---|---|---|
    | 2 | `REVIEW_AGENT` from Step 3 (unchanged for standard/deep); light → upgrade to `dso:code-reviewer-standard` | Light-tier haiku lacks context for REVIEW-DEFENSE; upgrade to sonnet |
-   | 3+ | Upgrade: light/standard → `dso:code-reviewer-deep-arch` (opus), deep → unchanged | Escalate to opus for maximum context processing |
+   | 3+ | Upgrade: light/standard/deep → run the **full deep-multi-reviewer path** (3 parallel `dso:code-reviewer-deep-*` sonnet agents + `dso:code-reviewer-deep-arch` opus synthesis) — NOT `dso:code-reviewer-deep-arch` alone | Escalate to maximum-coverage review; opus synthesis without sonnet findings is incomplete |
 
    ```bash
    # Re-review model escalation logic
    ((REVIEW_PASS_NUM++))
    RE_REVIEW_AGENT="$REVIEW_AGENT"
-   if [[ "$REVIEW_PASS_NUM" -ge 3 ]] && [[ "$REVIEW_TIER" != "deep" ]]; then
-       RE_REVIEW_AGENT="dso:code-reviewer-deep-arch"
+   RE_REVIEW_DEEP_FULL=false
+   if [[ "$REVIEW_PASS_NUM" -ge 3 ]]; then
+       # All tiers at pass 3+: run full deep-multi-reviewer path
+       # (3 parallel sonnet agents + opus synthesis) — NOT deep-arch alone
+       RE_REVIEW_DEEP_FULL=true
    elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "light" ]]; then
        RE_REVIEW_AGENT="dso:code-reviewer-standard"
    fi
+   # When RE_REVIEW_DEEP_FULL=true, dispatch the full Step 4 Deep Tier
+   # sequence (3 parallel sonnet + opus synthesis) instead of a single agent.
    ```
 
-   Dispatch the re-review sub-agent using `RE_REVIEW_AGENT`:
+   Dispatch the re-review:
+   - **If `RE_REVIEW_DEEP_FULL=true`**: Run the full Step 4 Deep Tier sequence (3 parallel sonnet agents writing to slot files, then opus arch synthesis). Do NOT dispatch `dso:code-reviewer-deep-arch` alone.
+   - **Otherwise**: Dispatch a single re-review sub-agent using `RE_REVIEW_AGENT`:
    ```
    Task tool:
      subagent_type: "{RE_REVIEW_AGENT}"
@@ -585,14 +592,14 @@ Task tool:
    - If OSCILLATION detected: escalate immediately. Do NOT dispatch another resolution sub-agent.
    - If CLEAR: dispatch the next resolution sub-agent.
 
-   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). Escalate to user when attempts exceed this value.
+   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First, check whether a tier upgrade is available: if the current reviewer is light or standard tier, you MUST upgrade to the deep tier (3 parallel sonnet specialists + opus architectural synthesis) before any user escalation. Only after the deep tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried.
 
    ```bash
    MAX_ATTEMPTS=$("$REPO_ROOT/.claude/scripts/dso" read-config.sh review.max_resolution_attempts)
    MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
    ```
 
-6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): escalate to user.
+6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): before escalating to user, verify that the full deep-multi-reviewer path at PASS_NUM 3+ has been attempted (3 parallel sonnet specialists + opus arch synthesis — for ALL tiers, not just deep). User escalation is the **last resort**, after the full deep tier review has been exhausted. Only then: escalate to user.
 
 **Escalation message format** (when sub-agent returns FAIL or ESCALATE, or re-review fails twice):
 
@@ -667,6 +674,6 @@ Compare the overall CI failure rate for the 30 commits following deployment agai
 
 When any signal above crosses its threshold, follow this protocol:
 
-1. **Create a P1 bug ticket**: `.claude/scripts/dso ticket create --type task --priority 1 "Classifier miscalibration: <signal description>"` — record the specific signal, threshold crossed, and the affected commit range.
+1. **Create a P1 bug ticket**: `.claude/scripts/dso ticket create bug "Classifier miscalibration: <signal description>" --priority 1` — record the specific signal, threshold crossed, and the affected commit range.
 2. **Adjust the classifier**: modify floor rules or scoring weights in `plugins/dso/scripts/review-complexity-classifier.sh` to correct the miscalibration.
 3. **Re-validate**: re-run the classifier against the same 30-commit sample that triggered the breach and confirm the signal is no longer breaching its threshold before closing the ticket.

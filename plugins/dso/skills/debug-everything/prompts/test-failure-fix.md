@@ -123,11 +123,11 @@ $(get_artifacts_dir)/agent-result-{task_id}.md
 
 Read `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules. Key constraints:
 - Do NOT: `git commit`, `git push`, `.claude/scripts/dso ticket transition`, `.claude/scripts/dso ticket link`
-- You MAY run: `.claude/scripts/dso ticket create --parent={parent_task_id}` for discovered work outside your fix scope
+- You MAY run: `.claude/scripts/dso ticket create bug "<title>" --parent={parent_task_id}` for discovered work outside your fix scope
 - Do NOT skip, disable, or delete any tests
 - Do NOT add `# type: ignore`, `# noqa`, `@pytest.mark.skip`, or any suppression comments
 - Do NOT modify files outside the scope of this fix
-- If you discover additional unrelated bugs, create a ticket task and include the ID in TASKS_CREATED
+- If you discover additional unrelated bugs, create a bug ticket and include the ID in TASKS_CREATED
 
 ### File Ownership Boundaries
 

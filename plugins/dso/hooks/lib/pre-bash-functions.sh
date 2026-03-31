@@ -246,7 +246,7 @@ hook_commit_failure_tracker() {
     echo "" >&2
     echo "Issues should have been auto-created by check-validation-failures.sh." >&2
     echo "Search: $_SEARCH_CMD '<check> failure' $TICKETS_DIR" >&2
-    echo "Create manually if needed: ticket create \"Fix <check> failure\" -t bug -p 1" >&2
+    echo "Create manually if needed: ticket create bug \"Fix <check> failure\" -p 1" >&2
     echo "" >&2
 
     # Never block
@@ -756,13 +756,46 @@ hook_tickets_tracker_bash_guard() {
         return 0
     fi
 
+    # Secondary filter: allow commands where .tickets-tracker/ appears only in
+    # string/read context, not as an actual write target.
+    #
+    # Use parameter expansion (not extglob) for whitespace trimming.
+    local _CMD_TRIMMED="$COMMAND"
+    while [[ "$_CMD_TRIMMED" == " "* || "$_CMD_TRIMMED" == $'\t'* ]]; do
+        _CMD_TRIMMED="${_CMD_TRIMMED#?}"
+    done
+    local _CMD_FIRST="${_CMD_TRIMMED%%[[:space:]]*}"
+
+    # Write-redirect check FIRST: if the command contains a redirect (> or >>)
+    # targeting a .tickets-tracker/ path, it's a write operation — skip all
+    # allow filters and fall through to the allowlist/block logic below.
+    if [[ "$COMMAND" != *">"*".tickets-tracker/"* ]]; then
+        # No redirect targeting .tickets-tracker/ — safe to apply allow filters.
+
+        # Read-only command prefixes (grep, cat, ls, head, tail, find, wc): allow.
+        case "$_CMD_FIRST" in
+            grep|cat|ls|head|tail|find|wc)
+                return 0
+                ;;
+        esac
+
+        # Heredoc marker (<<) with no write redirect: content mention only.
+        if [[ "$COMMAND" == *"<<"* ]]; then
+            return 0
+        fi
+
+        # echo/printf without a write redirect: string output only.
+        if [[ "$_CMD_FIRST" == "echo" || "$_CMD_FIRST" == "printf" ]]; then
+            return 0
+        fi
+    fi
+
     # Allowlist: ticket CLI patterns — sanctioned write path.
     # Three invocation forms:
     #   1. "ticket <subcommand> ..." — bare ticket dispatcher
     #   2. ".claude/scripts/dso ticket <subcommand> ..." — via DSO shim
     #   3. "bash .claude/scripts/dso ticket <subcommand> ..." — shim via bash
-    local _TRIMMED
-    _TRIMMED="${COMMAND##*([[:space:]])}"   # trim leading whitespace
+    local _TRIMMED="$_CMD_TRIMMED"   # reuse already-trimmed value
     local _FIRST_TOKEN="${_TRIMMED%%[[:space:]]*}"
     # Form 1: bare "ticket" command
     if [[ "$_FIRST_TOKEN" == "ticket" ]]; then

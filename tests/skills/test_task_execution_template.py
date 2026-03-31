@@ -65,18 +65,22 @@ class TestTaskExecutionDiscoveredBugType:
     """
 
     def test_discovered_work_uses_bug_type_not_task(self) -> None:
-        """The ticket create example in the Discovered work section must use '-t bug'.
+        """The ticket create example in the Discovered work section must use bug type.
 
         The old template used '-t task' for all discovered work, causing orphan
-        bug tickets to be misclassified. Sub-agents must use '-t bug' when
-        creating tickets for discovered defects or anti-patterns.
+        bug tickets to be misclassified. Sub-agents must use 'bug' as the ticket
+        type when creating tickets for discovered defects or anti-patterns.
+        Accepted forms: positional 'ticket create bug' or flag '-t bug' / '--type bug'.
         """
         content = _read_template()
-        assert "-t bug" in content or "--type bug" in content, (
-            "task-execution.md must instruct sub-agents to use '-t bug' when "
-            "creating tickets for discovered bugs. Found no '-t bug' or "
-            "'--type bug' in the template. The 'Discovered work' section "
-            "currently uses '-t task', which misclassifies bug tickets."
+        assert (
+            "ticket create bug" in content
+            or "-t bug" in content
+            or "--type bug" in content
+        ), (
+            "task-execution.md must instruct sub-agents to create bug-typed tickets "
+            "for discovered bugs. Found no 'ticket create bug', '-t bug', or "
+            "'--type bug' in the template."
         )
 
     def test_discovered_work_does_not_use_task_type_for_bugs(self) -> None:

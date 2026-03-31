@@ -1210,3 +1210,62 @@ def test_fix_bug_skill_llm_behavioral_subagent_guard() -> None:
         "read the agent file inline instead. "
         "This is a RED test — the guard block does not yet specify the inline-read fallback."
     )
+
+
+def test_fix_bug_skill_mechanical_excludes_skill_agent_prompt_files() -> None:
+    """SKILL.md must explicitly prohibit mechanical classification for files in skills/, agents/, or prompts/.
+
+    Bug f1ed-d7c8: agents misclassify LLM-behavioral bugs as mechanical by
+    rationalizing skill/prompt changes as 'obvious text fixes'. The mechanical
+    definition must include an explicit exclusion for files in these directories
+    so the agent cannot exit the classification at the mechanical check before
+    reaching the dual-signal llm-behavioral detection.
+    """
+    content = _read_skill()
+    # The mechanical errors section must contain language that explicitly
+    # excludes or prohibits mechanical classification when the affected file
+    # is in skills/, agents/, or prompts/ directories.
+    mechanical_section_start = content.find("### Mechanical Errors")
+    if mechanical_section_start == -1:
+        mechanical_section_start = content.find("Mechanical errors")
+    assert mechanical_section_start != -1, (
+        "Expected SKILL.md to contain a 'Mechanical Errors' section."
+    )
+    # Find the next section to bound the search
+    next_section = content.find("###", mechanical_section_start + 10)
+    if next_section == -1:
+        next_section = len(content)
+    mechanical_text = content[mechanical_section_start:next_section].lower()
+
+    has_exclusion = any(
+        phrase in mechanical_text
+        for phrase in (
+            "skills/",
+            "agents/",
+            "prompts/",
+            "skill file",
+            "agent file",
+            "prompt file",
+            "prompt template",
+        )
+    ) and any(
+        phrase in mechanical_text
+        for phrase in (
+            "not mechanical",
+            "never mechanical",
+            "cannot be mechanical",
+            "prohibit",
+            "exclude",
+            "disqualif",
+            "must not be classified as mechanical",
+        )
+    )
+    assert has_exclusion, (
+        "Expected the Mechanical Errors section in SKILL.md to explicitly exclude "
+        "files in skills/, agents/, or prompts/ directories from mechanical "
+        "classification. The section must mention these directories AND include "
+        "prohibition language (e.g., 'not mechanical', 'cannot be mechanical', "
+        "'must not be classified as mechanical'). Without this exclusion, agents "
+        "rationalize skill/prompt changes as 'obvious text fixes' and bypass "
+        "LLM-behavioral investigation (bug f1ed-d7c8)."
+    )

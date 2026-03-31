@@ -85,6 +85,8 @@ Flow: P1 (Init) → Preplanning Gate
    - `<id>\tP<priority>\t<title>\t<child_count>[\tBLOCKING]` for unblocked open epics (4 or 5 fields)
    - `BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>` for blocked ones (6 fields; with `--all`)
 
+   The `<child_count>` field is the number of child tickets. The `<blocker_ids>` field is a comma-separated list of open blocker epic IDs.
+
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
    - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit
@@ -358,6 +360,7 @@ d. For each skill result, **parse STATUS:**
      - If no children → retry the skill invocation once (same parameters)
      - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
+   - **Important**: Do NOT display the raw `STATUS:blocked QUESTIONS:<json>` line to the user. This is an internal machine signal. Capture it silently, parse the JSON, then present only the formatted question list (see below) to the user.
    - **Parse the QUESTIONS field**: Extract the JSON array from the `STATUS:blocked` line. If parsing fails (malformed JSON) or the array is empty (`[]`), treat as a sub-agent failure:
      - Revert the story to open: `.claude/scripts/dso ticket transition <story-id> open`
      - Log: `"ERROR: /dso:implementation-plan returned STATUS:blocked with no parseable questions for story <story-id> — story reverted to open"`
@@ -911,7 +914,7 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 - **No Critical or Important issues** (all scores >= 4) → proceed to Step 8
 - **Critical or Important issues found** → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback.
 - **Minor issues only** → proceed (note them in ticket but don't block)
-- **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before escalating. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after escalation, report to user and proceed to commit.
+- **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, report to user and proceed to commit.
 
 ### Step 8: Update Ticket Notes (/dso:sprint)
 
@@ -1206,7 +1209,7 @@ If it returns CLEAR: proceed to create tasks normally.
 For each item in the validation agent's FAIL/REMEDIATION output:
 
 ```bash
-.claude/scripts/dso ticket create "Fix: {issue description}" -t bug -p 1 --parent=<epic-id>
+.claude/scripts/dso ticket create bug "Fix: {issue description}" -p 1 --parent=<epic-id>
 ```
 
 ### Step 2: Validate Ticket Health (/dso:sprint)

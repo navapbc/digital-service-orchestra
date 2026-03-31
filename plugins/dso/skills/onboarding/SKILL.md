@@ -147,7 +147,8 @@ Run `parse-template-registry.sh` to fetch available templates:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-REGISTRY_OUTPUT=$(bash "$REPO_ROOT/plugins/dso/scripts/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+REGISTRY_OUTPUT=$(bash "$PLUGIN_SCRIPTS/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)
 ```
 
 **Fallback behavior**: If `$REGISTRY_OUTPUT` is empty (regardless of exit code), the template registry is missing or malformed. In that case:
@@ -1188,7 +1189,8 @@ After writing `.claude/dso-config.conf`, set up the supporting infrastructure fo
 Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on:
 
 ```bash
-bash "$REPO_ROOT/plugins/dso/scripts/dso-setup.sh" "$REPO_ROOT" "$REPO_ROOT/plugins/dso"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"
 ```
 
 This is idempotent — safe to re-run on projects that already have the shim installed.
@@ -1274,8 +1276,9 @@ fi
 If test directories were detected during Phase 1 auto-detection, run `generate-test-index.sh` to build the initial `.test-index` file mapping source files to test files:
 
 ```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 if [[ -n "$TEST_DIRS" ]]; then
-    bash "$REPO_ROOT/plugins/dso/scripts/generate-test-index.sh" "$REPO_ROOT" 2>/dev/null && \
+    bash "$PLUGIN_SCRIPTS/generate-test-index.sh" "$REPO_ROOT" 2>/dev/null && \
         echo "Test index generated." || \
         echo "NOTE: generate-test-index.sh unavailable — create .test-index manually if needed."
 fi

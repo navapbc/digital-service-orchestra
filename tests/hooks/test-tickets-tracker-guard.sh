@@ -168,4 +168,29 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":""}}'
 EXIT_CODE=$(run_bash_guard "$INPUT")
 assert_eq_verbose "test_bash_guard_empty_command_allows" "0" "$EXIT_CODE"
 
+# --- test_bash_echo_tickets_tracker_string_allows ---
+# echo with .tickets-tracker/ as string content (no redirect) must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo \".tickets-tracker/ is the event log\""}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_echo_tickets_tracker_string_allows" "0" "$EXIT_CODE"
+
+# --- test_bash_heredoc_tickets_tracker_allows ---
+# Heredoc containing .tickets-tracker/ in content must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cat <<'\''EOF'\''\n.tickets-tracker/ docs\nEOF"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_heredoc_tickets_tracker_allows" "0" "$EXIT_CODE"
+
+# --- test_bash_grep_tickets_tracker_allows ---
+# grep command reading from .tickets-tracker/ must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"grep pattern .tickets-tracker/events/"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_grep_tickets_tracker_allows" "0" "$EXIT_CODE"
+
+# --- test_bash_heredoc_with_redirect_blocks ---
+# Heredoc with redirect targeting .tickets-tracker/ must be blocked (exit 2).
+# This catches the case where << is present but a redirect also targets the path.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cat << EOF > /repo/.tickets-tracker/event.json\ncontent\nEOF"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_heredoc_with_redirect_blocks" "2" "$EXIT_CODE"
+
 print_summary

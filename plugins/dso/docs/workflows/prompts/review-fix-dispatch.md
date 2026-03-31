@@ -86,7 +86,7 @@ For EACH finding, assign ONE action:
 |--------|------|------------|
 | **Fix** | Finding is correct and fixable. Prefer Fix for structural findings (types, tests, error handling). | Fix the code, write/update tests as needed. |
 | **Defend** | Finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). NEVER for minor findings. | Add a `# REVIEW-DEFENSE: <explanation>` comment near the flagged code. Must reference verifiable artifacts (code, tests, ADRs). |
-| **Defer** | Finding is pre-existing, out of scope, or minor severity. | Create a ticket: `.claude/scripts/dso ticket create "Fix: <finding>" -t bug -p <P>`. Then note it in FINDINGS_ADDRESSED. |
+| **Defer** | Finding is pre-existing, out of scope, or minor severity. | Create a ticket: `.claude/scripts/dso ticket create bug "Fix: <finding>" -p <P>`. Then note it in FINDINGS_ADDRESSED. |
 
 If ALL findings are Deferred, return immediately:
 ```

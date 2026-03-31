@@ -277,5 +277,44 @@ echo "--- test_rejection_reason_enum_defined ---"
 test_rejection_reason_enum_defined
 echo ""
 
+# ============================================================
+# test_narrow_exception_excludes_skill_agent_prompt_files
+# Bug 9c16-7780: The "Narrow exception" for architectural
+# contract verification must NOT apply to skill (.md in
+# skills/), agent (.md in agents/), or prompt (.md in
+# prompts/) files. These files affect LLM behavior and
+# grep-based assertions on them are change-detector tests.
+# ============================================================
+test_narrow_exception_excludes_skill_agent_prompt_files() {
+    _snapshot_fail
+    if [[ ! -f "$AGENT_FILE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: agent file not found: %s\n" "$AGENT_FILE" >&2
+        assert_pass_if_clean "test_narrow_exception_excludes_skill_agent_prompt_files"
+        return
+    fi
+    # The narrow exception text must explicitly exclude skill/agent/prompt files
+    local _has_exclusion=0
+    # The narrow exception must contain explicit exclusion language for
+    # skill/agent/prompt files — NOT just mention them as examples of
+    # what the exception covers. Look for prohibition language paired
+    # with these file categories.
+    local _section
+    _section=$(sed -n '/[Nn]arrow exception/,/^---$/p' "$AGENT_FILE" 2>/dev/null)
+    # Must contain language like "does not apply to skill files" or
+    # "does not cover files in skills/" — an actual prohibition, not
+    # just mentioning "skill file" as a positive example.
+    if echo "$_section" | grep -qiE '(does not (apply|cover|extend)|not acceptable|must not|never applies).*(skill|agent|prompt)' ||
+       echo "$_section" | grep -qiE '(skill|agent|prompt).*(does not (apply|cover)|not acceptable|excluded|never)'; then
+        _has_exclusion=1
+    fi
+    assert_eq "narrow exception excludes skill/agent/prompt files (bug 9c16-7780)" "1" "$_has_exclusion"
+    assert_pass_if_clean "test_narrow_exception_excludes_skill_agent_prompt_files"
+}
+
+echo "--- test_narrow_exception_excludes_skill_agent_prompt_files ---"
+test_narrow_exception_excludes_skill_agent_prompt_files
+echo ""
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
