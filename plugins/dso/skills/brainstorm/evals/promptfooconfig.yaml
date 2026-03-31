@@ -156,6 +156,44 @@ tests:
           marked as superseded (e.g., "close DSO-456 as superseded", "original
           ticket will be superseded by the new epic").
 
+  - description: "Presents understanding summary and gap questions for inferred content when context is mostly sufficient"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        I want to add a dark mode toggle to our web app. Here's what I know:
+        - Problem: Users working late at night find the current light-only interface
+          causes eye strain.
+        - Users: Individual contributors who frequently use the app after hours.
+        - Value: Reduces eye strain and improves the experience for evening users.
+        - Scope: A theme toggle in the top nav bar that persists across sessions.
+        - Constraints: We use a React frontend with CSS variables for theming.
+
+        I think that's enough context — can you summarize what you understand
+        before we move forward?
+    assert:
+      - type: llm-rubric
+        value: >
+          The user provided mostly sufficient context and explicitly asked for a
+          summary before proceeding. The output should present a structured
+          understanding summary and then ask gap-closing questions for inferred
+          content. It should:
+          (1) present a structured understanding summary in brief bullet form
+          covering all four areas: the problem (eye strain from light interface),
+          the users (individual contributors working after hours), the scope
+          (theme toggle in top nav bar with session persistence), and the success
+          criteria or outcome (reduced eye strain / improved after-hours experience),
+          (2) ask for user confirmation that the summary is correct before
+          proceeding — e.g., "Does this capture it correctly, or is anything
+          missing?" — and NOT immediately jump to gap questions or Phase 2,
+          (3) NOT yet propose implementation approaches, draft an epic spec, or
+          advance to Phase 2 — the understanding summary step must complete and
+          receive confirmation first,
+          (4) NOT present gap questions in the same response as the
+          understanding summary — the summary must be confirmed first before
+          gap analysis begins. It may indicate that gap questions will follow
+          after confirmation, but must not present the actual gap questions yet.
+
   - description: "Runs streamlined dialogue and updates ticket in-place when user selects enrich-in-place"
     options:
       provider: "anthropic:messages:claude-sonnet-4-6-20260320"
