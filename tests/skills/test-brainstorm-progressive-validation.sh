@@ -235,7 +235,7 @@ _option_line=$(grep -n "(a)\|(b)\|(c)\|(d)\|option a\|option b" "$SKILL_MD" 2>/d
 
 if [ -n "$_summary_line" ] && [ -n "$_option_line" ]; then
   if [ "$_summary_line" -lt "$_option_line" ]; then
-    pass "Annotation summary line appears before the option list (line $SECTION_LINE < $OPTION_LINE)"
+    pass "Annotation summary line appears before the option list (line $_summary_line < $_option_line)"
   else
     fail "Annotation summary line must appear before option list (line $_summary_line >= $_option_line)"
   fi
