@@ -14,7 +14,7 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 
 # Brainstorm: Feature to Epic
 
-Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation.
+Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation. The approval gate includes a provenance annotation summary line showing how many criteria are confirmed vs. inferred before presenting options.
 
 <HARD-GATE>
 Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
@@ -53,7 +53,7 @@ Read the `ticket_type` field from the output.
 
 ### Step 2: Route based on ticket type
 
-**If `ticket_type` is `epic`:** Load the epic, summarize what's already defined, then proceed to Phase 1 unchanged. The epic dialogue and output behavior is semantically unchanged — this gate is a pre-flight type check only.
+**If `ticket_type` is `epic`:** Load the epic, summarize what's already defined, then proceed to Phase 1 unchanged. The epic dialogue and output behavior is semantically unchanged — this check is a pre-flight type check only.
 
 **If `ticket_type` is not epic** (i.e., `story`, `task`, or `bug`): Present the following two options to the user:
 
@@ -191,9 +191,43 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 
 ### Phase 1 Gate
 
-When you have enough to propose approaches, ask: *"I think I have enough to propose some approaches. Does anything else matter before we dig into options?"*
+When you have enough to propose approaches, transition to Phase 2 via this 3-step sequence. The gate covers: (1) a structured **Understanding Summary** covering problem, users, scope, and success that waits for user confirmation; (2) an **Intent Gap Analysis** asking up to 3 targeted questions about inferred or assumed content; and (3) proceeding to Phase 2.
 
-Do NOT proceed to Phase 2 until the user confirms or adds more context.
+**Step 1 — Understanding Summary**: Produce a structured summary of what you understand so far and wait for user confirmation before proceeding to the gap analysis.
+
+Present the summary as a brief bulletin:
+
+```
+Before we move to approaches, here's my understanding:
+
+- **Problem**: [what specific problem this solves]
+- **Users**: [who is affected — user type, role, or persona]
+- **Scope**: [what's in scope; what's explicitly out of scope]
+- **Success**: [how the user will know this worked — observable outcome]
+
+Does this capture it correctly, or is anything missing?
+```
+
+Wait for confirmation before proceeding. This confirmation step is separate from the gap analysis that follows — always proceed to the gap analysis after confirmation.
+
+**Step 2 — Intent Gap Analysis**: After the user confirms the understanding summary, self-reflect on inferred or assumed content — items you filled in that the user did not explicitly state. Ask at most 3 targeted questions about the highest-priority gaps. Exclude already-confirmed content (anything the user explicitly stated or confirmed in Step 1 above) from gap questions.
+
+Format:
+```
+A few quick questions before I propose approaches:
+
+1. [Targeted gap question 1]
+2. [Targeted gap question 2 — omit if none]
+3. [Targeted gap question 3 — omit if none]
+
+(You can skip these and proceed — just say "proceed" to continue)
+```
+
+**Bounded gap loop**: Ask at most 3 questions. If the user wants to continue refining after the initial set, they can opt-in by asking for more questions or clarifying further. Do not loop indefinitely.
+
+**Step 3 — Proceed to Phase 2**: After receiving answers (or if the user opts to skip), proceed to Phase 2. Do NOT present the understanding summary and gap analysis in a collapsed single question — they are separate steps.
+
+Do NOT proceed to Phase 2 until the user confirms the understanding summary or explicitly skips the gap analysis.
 
 ---
 
@@ -252,6 +286,17 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 - Describe the problem they face today (without this feature)
 - Avoid jargon without explanation
 
+### Provenance Tracking
+
+As you draft the epic spec, classify the origin of each success criterion and key context claim using one of four provenance categories:
+
+- **explicit** — stated directly by the user in their own words
+- **confirmed-via-gap-question** — inferred by you, then confirmed by the user during gap analysis (Phase 1 Gate Step 2)
+- **inferred** — derived by you from context without explicit user confirmation
+- **researched** — sourced from web research or external reference material (Step 2.6)
+
+Track provenance internally — you will use these categories in Step 4 to annotate the rendered spec.
+
 ### Steps 2.5, 2.6, 2.75, and Step 3: Epic Scrutiny Pipeline
 
 Read and execute the shared epic scrutiny pipeline from `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec (Context + Success Criteria + Approach) as input, and supply the required pipeline parameters:
@@ -267,6 +312,18 @@ Present the validated spec to the user using **AskUserQuestion** with 4 options.
 - **If web research already ran this session**: label (c) as "Re-run web research phase"
 - **If scenario analysis (Step 2.75) has NOT yet run this session**: label (b) as "Perform red/blue team review cycle"
 - **If scenario analysis already ran this session**: label (b) as "Re-run red/blue team review cycle"
+
+**Provenance annotation rendering**: Before presenting success criteria, render each criterion with a bold/normal annotation based on its provenance:
+- **inferred** or **researched** criteria → render in **bold** (visually prominent — these require user review)
+- **explicit** or **confirmed-via-gap-question** criteria → render in normal text (user already confirmed these)
+
+Immediately before the option list, include an annotation summary line in this format:
+```
+N of M criteria confirmed; K inferred requiring review
+```
+where N = count of explicit + confirmed-via-gap-question criteria, M = total criteria count, K = count of inferred + researched criteria. This provenance summary line appears before the (a)/(b)/(c)/(d) options.
+
+Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap analysis (Phase 1 Gate Step 2) — they are always presented as separate steps.
 
 ```
 === Epic Spec Ready for Review ===
@@ -323,6 +380,8 @@ Log format to append under the heading `### Planning Intelligence Log`:
 ## Phase 3: Ticket Integration (/dso:brainstorm)
 
 **Goal**: Create the epic in the ticket system and hand off to the next step.
+
+**Clean-text instruction**: Strip all provenance markers and bold emphasis before writing the ticket description. Provenance annotations are used only during the approval-gate review phase — the final ticket description must be written as clean plain text with no markup from the provenance tracking step.
 
 ### Step 1: Create the Epic
 
@@ -445,6 +504,6 @@ Skill tool:
 
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
-| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop |
-| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
+| 1: Context + Dialogue | Understand the feature | Load PRD/DESIGN_NOTES, one question at a time, "Tell me more" loop; Phase 1 Gate: Understanding Summary (problem/users/scope/success structured bullets, wait for confirmation) → Intent Gap Analysis (self-reflect on inferred content, up to 3 targeted questions, exclude confirmed content, opt-in continuation) → proceed to Phase 2 |
+| 2: Approach + Spec | Define how and what | Propose 2-3 options, draft spec; Provenance Tracking (4 categories: explicit, confirmed-via-gap-question, inferred, researched); Step 2.5 gap analysis (artifact contradiction + technical self-review); Step 2.6 web research (bright-line triggers: external integration, unfamiliar dependency, security/auth, novel pattern, performance, migration — or user request); Step 2.75 scenario analysis (red team + blue team sonnet sub-agents; always runs when ≥5 SCs or integration signal, reduced/cap 3 when 3-4 SCs, skip when ≤2 SCs; targets epic-level spec gaps — distinct from preplanning adversarial review which targets cross-story gaps); run 3-reviewer fidelity check (+ conditional feasibility reviewer for integration epics); Step 4 approval gate (annotation summary line before options: "N of M criteria confirmed; K inferred requiring review"; inferred/researched → bold, explicit/confirmed → normal; 4-option AskUserQuestion: approve/scenario re-run/web research re-run/discuss; labels reflect initial-run vs re-run; planning-intelligence log appended on approve) |
 | 3: Ticket Integration | Create the epic, classify complexity, route to next skill | `.claude/scripts/dso ticket create epic "<title>" -d "..."`, set deps, validate health, dispatch `dso:complexity-evaluator` agent (haiku, tier_schema=SIMPLE), output classification line + invoke Skill tool in same response: TRIVIAL/MODERATE+High → `/dso:implementation-plan`, MODERATE+Medium → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning` |
