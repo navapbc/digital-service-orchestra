@@ -1,1 +1,0 @@
-{"timestamp": 1774452783, "uuid": "0173d992-9b33-46c1-8acc-311cfe6ccf4c", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "ACLI does not support editing priority on existing Jira issues (workitem edit)", "parent_id": "", "priority": 2, "assignee": "Joe Oakhart"}}
