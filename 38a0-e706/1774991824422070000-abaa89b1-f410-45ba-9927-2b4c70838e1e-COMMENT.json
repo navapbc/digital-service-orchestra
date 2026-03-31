@@ -1,0 +1,1 @@
+{"timestamp": 1774991824422070000, "uuid": "abaa89b1-f410-45ba-9927-2b4c70838e1e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 3 (INTERMEDIATE). severity=2 (blocks commits), complexity=1 (multiple subsystems), environment=0 (local)."}}
