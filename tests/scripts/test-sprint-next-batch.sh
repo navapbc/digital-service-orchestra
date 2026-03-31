@@ -1035,6 +1035,133 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test: plugins/ prose paths trigger file-overlap conflict detection ────────
+# RED test (bug 559d-b900): extract_files() hardcodes dir_roots = {src, test,
+# "app", ".claude"} — "plugins" is absent. Two tasks whose bodies reference the
+# SAME plugins/ path in prose (not backtick-wrapped) should produce
+# skipped_overlap=1. Currently FAILS because the plugins/ path is invisible
+# to the overlap detector and both tasks are dispatched (skipped_overlap=0).
+echo "Test: test_plugins_dir_conflict_detection — prose plugins/ path references trigger overlap deferral"
+test_plugins_dir_conflict_detection() {
+    local _tp_fake_repo
+    _tp_fake_repo=$(mktemp -d)
+    _CLEANUP_DIRS+=("$_tp_fake_repo")
+    git init -q -b main "$_tp_fake_repo"
+    mkdir -p "$_tp_fake_repo/scripts"
+
+    # v3: create event-sourced tracker directory structure
+    mkdir -p "$_tp_fake_repo/.tickets-tracker/tp-epic"
+    mkdir -p "$_tp_fake_repo/.tickets-tracker/tp-task-a"
+    mkdir -p "$_tp_fake_repo/.tickets-tracker/tp-task-b"
+
+    # Epic CREATE event
+    python3 -c "
+import json
+with open('$_tp_fake_repo/.tickets-tracker/tp-epic/0001-CREATE.json', 'w') as f:
+    json.dump({'timestamp': 2000, 'uuid': 'v1', 'event_type': 'CREATE',
+               'env_id': 'test', 'author': 'test',
+               'data': {'ticket_type': 'epic', 'title': 'Plugins dir conflict epic',
+                        'parent_id': '', 'priority': 1}}, f)
+"
+
+    # Task A: prose reference (no backticks) to plugins/dso/scripts/sprint-next-batch.sh
+    python3 -c "
+import json
+with open('$_tp_fake_repo/.tickets-tracker/tp-task-a/0001-CREATE.json', 'w') as f:
+    json.dump({'timestamp': 2001, 'uuid': 'v2', 'event_type': 'CREATE',
+               'env_id': 'test', 'author': 'test',
+               'data': {'ticket_type': 'task', 'title': 'Task A',
+                        'parent_id': 'tp-epic', 'priority': 2}}, f)
+with open('$_tp_fake_repo/.tickets-tracker/tp-task-a/0002-COMMENT.json', 'w') as f:
+    json.dump({'timestamp': 2002, 'uuid': 'v3', 'event_type': 'COMMENT',
+               'env_id': 'test', 'author': 'test',
+               'data': {'body': 'Update plugins/dso/scripts/sprint-next-batch.sh to add feature A'}}, f)
+"
+
+    # Task B: same prose reference — should conflict with Task A
+    python3 -c "
+import json
+with open('$_tp_fake_repo/.tickets-tracker/tp-task-b/0001-CREATE.json', 'w') as f:
+    json.dump({'timestamp': 2003, 'uuid': 'v4', 'event_type': 'CREATE',
+               'env_id': 'test', 'author': 'test',
+               'data': {'ticket_type': 'task', 'title': 'Task B',
+                        'parent_id': 'tp-epic', 'priority': 2}}, f)
+with open('$_tp_fake_repo/.tickets-tracker/tp-task-b/0002-COMMENT.json', 'w') as f:
+    json.dump({'timestamp': 2004, 'uuid': 'v5', 'event_type': 'COMMENT',
+               'env_id': 'test', 'author': 'test',
+               'data': {'body': 'Modify plugins/dso/scripts/sprint-next-batch.sh to add feature B'}}, f)
+"
+
+    cat > "$_tp_fake_repo/scripts/ticket" << 'TP_TICKET'
+#!/usr/bin/env bash
+SUBCMD="${1:-}"; shift || true; TICKET_ID="${1:-}"
+case "$SUBCMD" in
+    show)
+        if [[ "$TICKET_ID" == "tp-epic" ]]; then
+            echo '{"ticket_id":"tp-epic","status":"open","ticket_type":"epic","priority":1,"title":"Plugins dir conflict epic","parent_id":null,"comments":[],"deps":[]}'
+        else
+            echo '{"status":"error","error":"not found","ticket_id":"'"$TICKET_ID"'"}'; exit 1
+        fi; exit 0 ;;
+    list)
+        echo '[{"ticket_id":"tp-task-a","status":"open","ticket_type":"task","priority":2,"title":"Task A","parent_id":"tp-epic","deps":[]},{"ticket_id":"tp-task-b","status":"open","ticket_type":"task","priority":2,"title":"Task B","parent_id":"tp-epic","deps":[]}]'
+        exit 0 ;;
+    *) exit 0 ;;
+esac
+TP_TICKET
+    chmod +x "$_tp_fake_repo/scripts/ticket"
+
+    cat > "$_tp_fake_repo/scripts/classify-task.py" << 'TP_SCORER'
+import json, sys
+tasks = json.loads(sys.stdin.read())
+out = [{"id": t.get("id",""), "priority": 2, "class": "independent",
+        "subagent": "general-purpose", "model": "sonnet",
+        "complexity": "low", "reason": "stub"} for t in tasks]
+print(json.dumps(out))
+TP_SCORER
+
+    cat > "$_tp_fake_repo/scripts/read-config.sh" << 'TP_CFG'
+#!/usr/bin/env bash
+KEY="${1:-}"; if [[ "$KEY" == "--list" ]]; then KEY="${2:-}"; fi
+case "$KEY" in
+    paths.src_dir) echo -n "src" ;;
+    paths.test_dir) echo -n "tests" ;;
+    paths.test_unit_dir) echo -n "tests/unit" ;;
+    interpreter.python_venv) echo -n "" ;;
+    *) echo -n "" ;;
+esac
+TP_CFG
+    chmod +x "$_tp_fake_repo/scripts/read-config.sh"
+    printf '' > "$_tp_fake_repo/dso-config.conf"
+    cp "$PLUGIN_SCRIPT" "$_tp_fake_repo/scripts/sprint-next-batch.sh"
+    chmod +x "$_tp_fake_repo/scripts/sprint-next-batch.sh"
+    cp "$DSO_PLUGIN_DIR/scripts/ticket-reducer.py" "$_tp_fake_repo/scripts/ticket-reducer.py"
+
+    local tp_exit=0
+    local tp_output
+    tp_output=$(
+        cd "$_tp_fake_repo" && \
+        TICKETS_TRACKER_DIR="$_tp_fake_repo/.tickets-tracker" \
+        CLAUDE_PLUGIN_ROOT="$_tp_fake_repo" \
+        TICKET_CMD="$_tp_fake_repo/scripts/ticket" \
+        bash "$_tp_fake_repo/scripts/sprint-next-batch.sh" "tp-epic" --json 2>/dev/null
+    ) || tp_exit=$?
+
+    local tp_batch_size tp_skipped
+    tp_batch_size=$(echo "$tp_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('batch_size',0))" 2>/dev/null || echo "-1")
+    tp_skipped=$(echo "$tp_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_overlap',[])))" 2>/dev/null || echo "-1")
+
+    # Both tasks reference the same plugins/ path in prose — overlap detector must
+    # catch it: batch_size=1 (one task wins), skipped_overlap=1 (one deferred).
+    [ "$tp_exit" -eq 0 ] && [ "$tp_batch_size" -eq 1 ] && [ "$tp_skipped" -eq 1 ]
+}
+if test_plugins_dir_conflict_detection; then
+    echo "  PASS: plugins/ prose path references detected as file-overlap conflict (batch=1, skipped_overlap=1)"
+    (( PASS++ ))
+else
+    echo "  FAIL: plugins/ prose path references NOT detected — extract_files() missing 'plugins' in dir_roots (bug 559d-b900)" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

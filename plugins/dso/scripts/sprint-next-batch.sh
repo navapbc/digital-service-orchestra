@@ -379,7 +379,7 @@ def extract_files(text):
         files.add(m.group(1).lstrip("./"))
 
     # Build directory-rooted path regex from config values + fixed dirs
-    dir_roots = {cfg_src_dir, cfg_test_dir, "app", ".claude"}
+    dir_roots = {cfg_src_dir, cfg_test_dir, "app", ".claude", "plugins"}
     # Also add bare test_dir variants (e.g. "test" if test_dir is "tests")
     if cfg_test_dir.endswith("s"):
         dir_roots.add(cfg_test_dir[:-1])
