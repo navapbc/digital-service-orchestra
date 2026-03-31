@@ -1,0 +1,1 @@
+{"timestamp": 1774923567615387000, "uuid": "7c109857-e200-4c76-aec3-b3a84c83d3ab", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 3 (INTERMEDIATE). Severity: 2 (functional), Complexity: 1 (multiple files, non-obvious), Environment: 0 (local)."}}
