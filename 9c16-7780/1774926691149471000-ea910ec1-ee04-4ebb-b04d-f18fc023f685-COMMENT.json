@@ -1,0 +1,1 @@
+{"timestamp": 1774926691149471000, "uuid": "ea910ec1-ee04-4ebb-b04d-f18fc023f685", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: llm-behavioral. Dual-signal: ticket describes red-test-writer agent behavior + affected file is agents/red-test-writer.md."}}
