@@ -1,1 +1,0 @@
-{"timestamp": 1775079564, "uuid": "1fdb41cf-e0d0-4608-9e7b-14bf6248431e", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"ticket_type": "bug", "title": "Legacy CLAUDE_PLUGIN_ROOT/scripts/ reference in REVIEW-WORKFLOW.md", "parent_id": "", "description": "", "priority": 2, "assignee": "Joe Oakhart"}}
