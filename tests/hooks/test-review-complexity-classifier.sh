@@ -24,6 +24,16 @@ setup_temp_dir() {
     TEST_TMPDIR="$(mktemp -d)"
     export ARTIFACTS_DIR="$TEST_TMPDIR/artifacts"
     mkdir -p "$ARTIFACTS_DIR"
+    # Create an isolated git repo so the classifier's _is_merge_commit reads
+    # from this repo (no MERGE_HEAD) rather than the real worktree's git state.
+    # Without this, tests fail when run during a merge (MERGE_HEAD leaks).
+    git -C "$TEST_TMPDIR" init -q -b main 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.email "test@test" 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.name "test" 2>/dev/null
+    touch "$TEST_TMPDIR/.gitkeep"
+    git -C "$TEST_TMPDIR" add -A 2>/dev/null
+    git -C "$TEST_TMPDIR" commit -q -m "init" 2>/dev/null
+    export TEST_GIT_DIR="$TEST_TMPDIR/.git"
 }
 
 teardown_temp_dir() {
@@ -55,7 +65,13 @@ run_classifier() {
     CLASSIFIER_OUTPUT=""
     CLASSIFIER_EXIT=0
     if [[ -x "$CLASSIFIER" ]]; then
-        CLASSIFIER_OUTPUT=$(bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+        # Use CLASSIFIER_GIT_DIR to isolate _is_merge_commit from the real
+        # worktree's MERGE_HEAD. The classifier checks this env var before
+        # git rev-parse --git-dir. Without isolation, tests fail when run
+        # during a merge (MERGE_HEAD leaks into _is_merge_commit).
+        # Each test gets its own temp git repo (from setup_temp_dir) with
+        # no MERGE_HEAD, ensuring parallel test runs don't interfere.
+        CLASSIFIER_OUTPUT=$(CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
     else
         # Classifier doesn't exist — simulate failure for RED tests
         CLASSIFIER_EXIT=127
@@ -1277,5 +1293,37 @@ test_performance_overlay_true_for_async_await_in_diff # RED: performance_overlay
 test_performance_overlay_true_for_pool_path           # RED: performance_overlay hardcoded false
 test_performance_overlay_false_for_non_performance_path  # GREEN: hardcoded false matches expected false
 test_performance_overlay_field_present_in_output_schema  # GREEN: field already present in schema
+
+# ============================================================
+# Rebase commit detection (RED — task 1bf5-9563)
+# ============================================================
+# _is_merge_commit() only checks MERGE_HEAD / MOCK_MERGE_HEAD.
+# It does not yet check REBASE_HEAD / MOCK_REBASE_HEAD.
+# These tests are RED until _is_merge_commit() is updated.
+
+test_classifier_detects_rebase_commit() {
+    # When MOCK_REBASE_HEAD=1 is set, the classifier must emit is_merge_commit=true.
+    # This is RED: _is_merge_commit() does not yet check MOCK_REBASE_HEAD, so
+    # is_merge_commit will be false, causing this assertion to fail.
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/utils/helpers.py" "+def noop(): pass")
+
+    local is_merge
+    is_merge=$(MOCK_REBASE_HEAD=1 bash "$CLASSIFIER" < "$diff_file" 2>/dev/null \
+        | python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read())
+v=d.get('is_merge_commit', False)
+print(str(v).lower() if isinstance(v,bool) else str(v))
+" 2>/dev/null || echo "false")
+
+    assert_eq "rebase commit (MOCK_REBASE_HEAD=1) sets is_merge_commit=true" "true" "$is_merge"
+    teardown_temp_dir
+}
+
+# Rebase detection (RED — task 1bf5-9563)
+# _is_merge_commit() ignores MOCK_REBASE_HEAD — is_merge_commit is false instead of true.
+test_classifier_detects_rebase_commit  # RED: MOCK_REBASE_HEAD not yet checked in _is_merge_commit()
 
 print_summary
