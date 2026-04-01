@@ -477,7 +477,88 @@ _is_test_exempted() {
 }
 
 # ── Prune stale .test-index entries before association checks ─────────────────
+# Must run BEFORE the fast-path check to prevent stale entries from accumulating.
 prune_test_index
+
+# ── Fast-path: skip per-file work when test-gate-status is already valid ──────
+# When test-gate-status exists with "passed" and the diff hash matches the current
+# staged content, there is no need to perform per-file fuzzy matching. Exit 0
+# immediately. This avoids 0.3–0.5s per-file fuzzy match cost on large repos.
+#
+# Hash computation strategy: compute-diff-hash.sh is slow (sourcing config-paths.sh
+# causes 7+ subprocess read-config.sh calls; commit-walk loop adds overhead).
+# The fast-path mirrors the hash algorithm inline:
+#   1. Load the allowlist (same source of truth as compute-diff-hash.sh, pure bash)
+#   2. Build exclude pathspecs (same logic, no subprocess)
+#   3. Run git diff HEAD with the same pathspecs and pipe through hash_stdin
+# This produces the same hash as compute-diff-hash.sh in the common case (no
+# checkpoint commits). The checkpoint-detection path uses a different diff base;
+# if that's active, the inline hash won't match the stored hash and the fast-path
+# falls through to full enforcement — safe degradation, correct result.
+#
+# SECURITY: This fast-path is an optimization only — it cannot weaken the gate.
+# A valid status requires both (a) status=="passed" AND (b) diff_hash match,
+# which means tests were run against exactly the current staged content.
+# Falling through on any mismatch preserves full enforcement.
+_fp_artifacts_dir=$(get_artifacts_dir)
+_fp_status_file="$_fp_artifacts_dir/test-gate-status"
+if [[ -f "$_fp_status_file" ]]; then
+    _fp_status_line=$(head -1 "$_fp_status_file" 2>/dev/null || echo "")
+    if [[ "$_fp_status_line" == "passed" ]]; then
+        _fp_recorded_hash=$(grep '^diff_hash=' "$_fp_status_file" 2>/dev/null | head -1 | cut -d= -f2-)
+        if [[ -n "$_fp_recorded_hash" ]]; then
+            # Build exclude pathspecs inline (same as compute-diff-hash.sh, but no subprocess).
+            # Reuse $_AL_PATTERNS computed during the allowlist filtering block above (if available)
+            # to avoid re-reading and re-processing the allowlist file.
+            # Inline _allowlist_to_pathspecs logic to avoid subshell overhead — each :!<pattern>
+            # pathspec is appended directly to the array.
+            _fp_exclude_pathspecs=()
+            _fp_al_src="${_AL_PATTERNS:-}"
+            if [[ -z "$_fp_al_src" ]] && [[ -f "$_ALLOWLIST_FILE" ]] && \
+               declare -f _load_allowlist_patterns &>/dev/null; then
+                _fp_al_src=$(_load_allowlist_patterns "$_ALLOWLIST_FILE" 2>/dev/null || true)
+            fi
+            if [[ -n "$_fp_al_src" ]]; then
+                while IFS= read -r _fp_pat; do
+                    [[ -z "$_fp_pat" ]] && continue
+                    _fp_exclude_pathspecs+=(":!${_fp_pat}")
+                done <<< "$_fp_al_src"
+            fi
+            # Compute hash inline: git diff HEAD with the same exclusions as compute-diff-hash.sh.
+            # hash_stdin is sourced from deps.sh above.
+            if [[ ${#_fp_exclude_pathspecs[@]} -gt 0 ]]; then
+                _fp_current_hash=$(git diff HEAD -- "${_fp_exclude_pathspecs[@]}" 2>/dev/null | hash_stdin || echo "")
+            else
+                _fp_current_hash=$(git diff HEAD -- 2>/dev/null | hash_stdin || echo "")
+            fi
+            if [[ -n "$_fp_current_hash" && "$_fp_recorded_hash" == "$_fp_current_hash" ]]; then
+                # Status is valid and hashes match — verify tested_files is present before skipping.
+                # Verify tested_files is present — ensures status was written by record-test-status.sh
+                # (which always records the full union of associated tests), not hand-crafted.
+                _fp_tested_files=$(grep '^tested_files=' "$_fp_status_file" 2>/dev/null | head -1 | cut -d= -f2-)
+                if [[ -z "$_fp_tested_files" ]]; then
+                    # Missing tested_files: status file may be incomplete. Fall through to full check.
+                    :
+                else
+                    # Check if any staged file has .test-index entries — if so, the full union
+                    # coverage check (lines 610+) must run to verify all index-mapped tests are
+                    # covered in tested_files. Fast-path cannot skip that validation.
+                    _fp_has_index=false
+                    for _fp_staged in "${STAGED_FILES[@]}"; do
+                        if [[ -n "$(parse_test_index "$_fp_staged" 2>/dev/null)" ]]; then
+                            _fp_has_index=true
+                            break
+                        fi
+                    done
+                    if [[ "$_fp_has_index" == false ]]; then
+                        exit 0
+                    fi
+                    # Has .test-index entries — fall through to full enforcement for union check.
+                fi
+            fi
+        fi
+    fi
+fi
 
 # ── Check if any staged file has an associated test ───────────────────────────
 NEEDS_TEST_GATE=false

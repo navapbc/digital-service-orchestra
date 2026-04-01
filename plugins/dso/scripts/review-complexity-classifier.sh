@@ -415,6 +415,19 @@ _has_exception_broadening() {
     return 1
 }
 
+_has_config_file() {
+    local file
+    for file in "${SCORING_FILES[@]}"; do
+        # Match .claude/*.conf, .claude/settings.json, or */dso-config.conf anywhere
+        if [[ "$file" =~ ^\.claude/[^/]+\.conf$ ]] || \
+           [[ "$file" =~ ^\.claude/settings\.json$ ]] || \
+           [[ "$file" =~ (^|/)dso-config\.conf$ ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ============================================================
 # Diff size threshold: raw line count (excludes tests + generated)
 # ============================================================
@@ -450,8 +463,11 @@ _is_merge_commit() {
     fi
 
     # Check .git/MERGE_HEAD file
+    # CLASSIFIER_GIT_DIR: test isolation seam — when set, use this git dir instead
+    # of the real one. Tests set this to a temp repo's .git dir so _is_merge_commit
+    # doesn't leak MERGE_HEAD from the real worktree during merge operations.
     local git_dir
-    git_dir=$(git rev-parse --git-dir 2>/dev/null || echo "")
+    git_dir="${CLASSIFIER_GIT_DIR:-$(git rev-parse --git-dir 2>/dev/null || echo "")}"
     if [[ -n "$git_dir" && -s "$git_dir/MERGE_HEAD" ]]; then
         return 0
     fi
@@ -566,6 +582,11 @@ fi
 
 if _has_exception_broadening && (( COMPUTED_TOTAL < 3 )); then
     COMPUTED_TOTAL=3
+fi
+
+if _has_config_file; then
+    CONFIG_FILE_FLOOR=3
+    [[ $COMPUTED_TOTAL -lt $CONFIG_FILE_FLOOR ]] && COMPUTED_TOTAL=$CONFIG_FILE_FLOOR
 fi
 
 # ============================================================

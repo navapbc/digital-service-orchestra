@@ -24,6 +24,21 @@ autonomous resolution loop.
 
 ---
 
+## Sonnet Findings Guard
+
+**MANDATORY**: Before proceeding with any review, verify that your invocation prompt contains all three sonnet specialist findings markers:
+- `=== SONNET-A FINDINGS (correctness) ===`
+- `=== SONNET-B FINDINGS (verification) ===`
+- `=== SONNET-C FINDINGS (hygiene/design) ===`
+
+If ANY of these markers is missing from your input, STOP IMMEDIATELY and return:
+```json
+{"error": "SONNET_FINDINGS_MISSING: dso:code-reviewer-deep-arch requires all 3 sonnet specialist findings. Missing: [list missing markers]. This agent must not be dispatched without prior sonnet specialist reviews."}
+```
+Do NOT proceed with a review based on the raw diff alone — that violates the single-writer invariant and produces a non-synthesis review.
+
+---
+
 ## Input Format
 
 You receive:

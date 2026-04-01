@@ -340,8 +340,21 @@ declare -A _TEST_MARKER_MAP=()
 while IFS= read -r src_file; do
     [[ -z "$src_file" ]] && continue
 
-    # Skip if src_file is itself a test file
+    # If src_file is itself a test file, add it directly to ASSOCIATED_TESTS
+    # (the test must pass before it can be committed) and skip fuzzy matching.
     if fuzzy_is_test_file "$src_file"; then
+        _test_self="$src_file"
+        _test_self_path="$REPO_ROOT/$_test_self"
+        if [[ -f "$_test_self_path" ]]; then
+            if [[ "$_test_self" == *.sh ]] && [[ ! -x "$_test_self_path" ]]; then
+                echo "WARNING: skipping non-executable shell test: $_test_self" >&2
+            else
+                ASSOCIATED_TESTS+=("$_test_self")
+                if [[ -z "${_TEST_MARKER_MAP[$_test_self]+set}" ]]; then
+                    _TEST_MARKER_MAP["$_test_self"]=""
+                fi
+            fi
+        fi
         continue
     fi
 

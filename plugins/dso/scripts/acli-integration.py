@@ -38,6 +38,16 @@ _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
     4: "Lowest",
 }
 
+# Local status string → Jira workflow state name.
+# status.capitalize() produces "In_progress" for snake_case inputs; this mapping
+# ensures correct Jira state names are used in ACLI transition commands.
+_LOCAL_STATUS_TO_JIRA: dict[str, str] = {
+    "open": "To Do",
+    "in_progress": "In Progress",
+    "closed": "Done",
+    "blocked": "Blocked",
+}
+
 
 # ---------------------------------------------------------------------------
 # ADF helpers
@@ -258,7 +268,7 @@ def transition_issue(
         "--key",
         jira_key,
         "--status",
-        status.capitalize(),
+        _LOCAL_STATUS_TO_JIRA.get(status, status.replace("_", " ").title()),
         "--json",
     ]
     result = _run_acli(cmd, acli_cmd=acli_cmd)

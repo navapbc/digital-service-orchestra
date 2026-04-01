@@ -339,6 +339,13 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 2. **For each open bug ticket, invoke `/dso:fix-bug` at the orchestrator level**:
 
+   **PER-TICKET GATE (enforce at the start of EVERY ticket iteration, not just the first):**
+   Before processing each ticket, explicitly verify:
+   - Has the investigation sub-agent (dso:bot-psychologist for llm-behavioral, or BASIC/INTERMEDIATE/ADVANCED for behavioral) been dispatched independently for THIS ticket? Reusing investigation findings from a prior ticket in this session is PROHIBITED — even when the bugs appear related. Each ticket requires its own independent sub-agent dispatch.
+   - Have fix-bug Steps 1–5 been completed for THIS ticket specifically? Completion of Steps 1–5 for a previous ticket does NOT satisfy the requirement for the current ticket.
+   - The fix-bug HARD-GATE ("Do NOT investigate inline", "Do NOT modify code until Steps 1–5 are complete") applies with full force on every iteration — ticket 1 and ticket 23 equally.
+   Violation of this gate — including pre-writing fixes in sub-agent prompts, performing investigation at orchestrator level, or reusing prior ticket findings as a substitute for independent dispatch — must be treated as a process failure, not an efficiency optimization.
+
    Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation (reads SKILL.md inline) preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED) which require the Agent tool themselves.
 
    Pass the ticket ID as the bug to fix:

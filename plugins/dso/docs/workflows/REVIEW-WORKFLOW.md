@@ -163,6 +163,9 @@ if [[ "$IS_MERGE" != "true" ]] && [[ "$REVIEW_PASS_NUM" -le 1 ]]; then
     if [[ "$SIZE_ACTION" == "upgrade" ]]; then
         # Upgrade: size_action=upgrade triggers a model_override — use opus reviewer
         REVIEW_AGENT_OVERRIDE="dso:code-reviewer-deep-arch"  # model_override: opus
+        # WARNING: deep-arch requires sonnet findings — Step 4 MUST use the full
+        # Deep Tier dispatch (3 parallel sonnet agents → opus synthesis), NOT
+        # a direct dispatch of deep-arch alone. See Step 4 Deep Tier section.
         echo "SIZE_UPGRADE: diff has ${DIFF_SIZE_LINES} scorable lines — upgrading to opus reviewer at ${REVIEW_TIER} tier scope"
     fi
 

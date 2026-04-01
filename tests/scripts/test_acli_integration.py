@@ -558,3 +558,112 @@ def test_create_issue_from_json_sends_description_as_adf(acli: ModuleType) -> No
     assert description.get("version") == 1, (
         f"description ADF object must have version=1, got: {description.get('version')!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 15 (RED): transition_issue passes Jira-formatted status names to ACLI
+#
+# BUG dfcd-4266: status.capitalize() produces "In_progress" not "In Progress".
+# After the fix (_LOCAL_STATUS_TO_JIRA mapping), all three statuses must map
+# to the correct Jira workflow state names.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_transition_issue_maps_in_progress_to_jira_name(acli: ModuleType) -> None:
+    """transition_issue("in_progress") must pass "In Progress" to ACLI, not "In_progress".
+
+    The current code uses status.capitalize() which produces "In_progress" for
+    snake_case inputs. The fix must add a _LOCAL_STATUS_TO_JIRA mapping dict so
+    that "in_progress" -> "In Progress".
+    """
+    transition_response = '{"key": "PROJ-1", "status": "In Progress"}'
+    mock_proc = MagicMock(returncode=0, stdout=transition_response, stderr="")
+
+    with patch("subprocess.run", return_value=mock_proc) as mock_run:
+        acli.transition_issue(jira_key="PROJ-1", status="in_progress")
+
+    assert mock_run.called, "subprocess.run must be called by transition_issue"
+    cmd = mock_run.call_args[0][0]
+
+    # Find the value passed after the --status flag in the ACLI command
+    status_value = None
+    for i, arg in enumerate(cmd):
+        if arg == "--status" and i + 1 < len(cmd):
+            status_value = cmd[i + 1]
+            break
+
+    assert status_value is not None, (
+        f"Expected --status flag in ACLI command, got: {cmd}"
+    )
+    assert status_value == "In Progress", (
+        f"transition_issue('in_progress') must pass 'In Progress' to ACLI, "
+        f"but got {status_value!r}. "
+        f"This fails because status.capitalize() produces 'In_progress' — "
+        f"fix by adding a _LOCAL_STATUS_TO_JIRA mapping dict."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_transition_issue_maps_open_to_jira_name(acli: ModuleType) -> None:
+    """transition_issue("open") must pass "To Do" to ACLI, not "Open".
+
+    Local status "open" corresponds to Jira workflow state "To Do".
+    """
+    transition_response = '{"key": "PROJ-2", "status": "To Do"}'
+    mock_proc = MagicMock(returncode=0, stdout=transition_response, stderr="")
+
+    with patch("subprocess.run", return_value=mock_proc) as mock_run:
+        acli.transition_issue(jira_key="PROJ-2", status="open")
+
+    assert mock_run.called, "subprocess.run must be called by transition_issue"
+    cmd = mock_run.call_args[0][0]
+
+    status_value = None
+    for i, arg in enumerate(cmd):
+        if arg == "--status" and i + 1 < len(cmd):
+            status_value = cmd[i + 1]
+            break
+
+    assert status_value is not None, (
+        f"Expected --status flag in ACLI command, got: {cmd}"
+    )
+    assert status_value == "To Do", (
+        f"transition_issue('open') must pass 'To Do' to ACLI, "
+        f"but got {status_value!r}. "
+        f"Fix by adding 'open' -> 'To Do' to the _LOCAL_STATUS_TO_JIRA mapping."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_transition_issue_maps_closed_to_jira_name(acli: ModuleType) -> None:
+    """transition_issue("closed") must pass "Done" to ACLI, not "Closed".
+
+    Local status "closed" corresponds to Jira workflow state "Done".
+    """
+    transition_response = '{"key": "PROJ-3", "status": "Done"}'
+    mock_proc = MagicMock(returncode=0, stdout=transition_response, stderr="")
+
+    with patch("subprocess.run", return_value=mock_proc) as mock_run:
+        acli.transition_issue(jira_key="PROJ-3", status="closed")
+
+    assert mock_run.called, "subprocess.run must be called by transition_issue"
+    cmd = mock_run.call_args[0][0]
+
+    status_value = None
+    for i, arg in enumerate(cmd):
+        if arg == "--status" and i + 1 < len(cmd):
+            status_value = cmd[i + 1]
+            break
+
+    assert status_value is not None, (
+        f"Expected --status flag in ACLI command, got: {cmd}"
+    )
+    assert status_value == "Done", (
+        f"transition_issue('closed') must pass 'Done' to ACLI, "
+        f"but got {status_value!r}. "
+        f"Fix by adding 'closed' -> 'Done' to the _LOCAL_STATUS_TO_JIRA mapping."
+    )

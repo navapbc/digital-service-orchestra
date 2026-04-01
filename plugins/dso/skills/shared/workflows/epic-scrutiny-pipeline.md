@@ -174,7 +174,7 @@ If either sub-agent fails to return valid JSON, log: "Scenario analysis sub-agen
 Run the epic spec through three reviewers **in parallel** using the Task tool. For each reviewer:
 
 1. Read the reviewer prompt from `plugins/dso/skills/shared/docs/reviewers/` (relative to the repo root)
-2. Pass: the epic title, Context section, Success Criteria, and (for Scope reviewer) titles of other open epics
+2. Pass: the epic title, Context section, Success Criteria, Scenario Analysis section (from Step 3, if present), and (for Scope reviewer) titles of other open epics
 3. Instruct the reviewer to return JSON per the `REVIEW-SCHEMA.md` in the review-protocol skill
 
 | Reviewer | Prompt File | Perspective | Dimensions |
@@ -186,12 +186,14 @@ Run the epic spec through three reviewers **in parallel** using the Task tool. F
 
 ### Feasibility Review Trigger
 
-The feasibility reviewer is dispatched only when the epic spec involves external integrations. Scan the epic spec for integration signal keywords:
+The feasibility reviewer is dispatched when the epic spec involves external integrations OR first-time usage of internal platform features. Scan the epic spec for integration signal keywords:
 
 - Third-party CLI tools, external APIs/services, CI/CD workflow changes, infrastructure provisioning, data format migrations, authentication/credential flows
 
-1. **Keyword scan**: Scan the epic spec (Context + Success Criteria + Approach) for integration signal keywords using case-insensitive matching. Match on semantic intent, not exact substrings — "calls an external REST API" matches "external APIs/services" even without the exact phrase. If any integration signal is present, dispatch the feasibility reviewer.
-2. **Skip**: If no integration signals found, skip the feasibility reviewer. Log: "No external integration signals — skipping feasibility review."
+Trigger: epic references external integrations (third-party APIs, CI/CD, infrastructure) OR first-time usage of internal platform features (hook types not present in any settings.json, tool types not used in any agent definition, framework features not yet exercised in the codebase).
+
+1. **Keyword scan**: Scan the epic spec (Context + Success Criteria + Approach) for integration signal keywords using case-insensitive matching. Match on semantic intent, not exact substrings — "calls an external REST API" matches "external APIs/services" even without the exact phrase. Also check for first-time internal platform feature usage by comparing referenced hook types, tool types, and framework features against existing usages in the codebase. If any integration signal or first-time internal feature usage is present, dispatch the feasibility reviewer.
+2. **Skip**: If no integration signals and no first-time internal platform features found, skip the feasibility reviewer. Log: "No external integration or first-time internal platform feature signals — skipping feasibility review."
 
 **Note**: The complexity evaluator's `feasibility_review_recommended` field provides the same signal during preplanning (Phase 2.25 Integration Research) where it is available from the sprint classification. In brainstorm, the keyword scan is the primary trigger since the complexity evaluator has not yet run.
 

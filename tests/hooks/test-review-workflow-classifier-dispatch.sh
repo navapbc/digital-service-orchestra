@@ -22,6 +22,16 @@ setup_temp_dir() {
     TEST_TMPDIR="$(mktemp -d)"
     export ARTIFACTS_DIR="$TEST_TMPDIR/artifacts"
     mkdir -p "$ARTIFACTS_DIR"
+    # Create an isolated git repo so the classifier's _is_merge_commit reads
+    # from this repo (no MERGE_HEAD) rather than the real worktree's git state.
+    # Without this, tests fail when run during a merge (MERGE_HEAD leaks).
+    git -C "$TEST_TMPDIR" init -q -b main 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.email "test@test" 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.name "test" 2>/dev/null
+    touch "$TEST_TMPDIR/.gitkeep"
+    git -C "$TEST_TMPDIR" add -A 2>/dev/null
+    git -C "$TEST_TMPDIR" commit -q -m "init" 2>/dev/null
+    export TEST_GIT_DIR="$TEST_TMPDIR/.git"
 }
 
 teardown_temp_dir() {
@@ -53,7 +63,12 @@ run_classifier() {
     CLASSIFIER_OUTPUT=""
     CLASSIFIER_EXIT=0
     if [[ -x "$CLASSIFIER" ]]; then
-        CLASSIFIER_OUTPUT=$(bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+        # Pin REPO_ROOT so the classifier doesn't depend on `git rev-parse`,
+        # which can fail intermittently under parallel load (index.lock contention).
+        # Use CLASSIFIER_GIT_DIR to isolate _is_merge_commit from the real
+        # worktree's MERGE_HEAD — each test gets its own temp git repo from
+        # setup_temp_dir, ensuring parallel runs don't interfere.
+        CLASSIFIER_OUTPUT=$(REPO_ROOT="$REPO_ROOT" CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
     else
         CLASSIFIER_EXIT=127
     fi
