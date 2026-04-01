@@ -489,6 +489,7 @@ fi
 STATUS="passed"
 HAD_TIMEOUT=false
 TESTED_FILES_LIST=""
+FAILED_TESTS_LIST=""
 
 # SIGURG trap: write partial status before the tool kills us, so the next
 # invocation can resume rather than restart.
@@ -683,6 +684,12 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     # Apply severity hierarchy: timeout > failed > passed (never downgrade severity)
     if [[ $exit_code -ne 0 ]] && [[ "$STATUS" != "timeout" ]]; then
         STATUS="failed"
+        # Track which test files caused the failure for diagnostic clarity
+        if [[ -n "$FAILED_TESTS_LIST" ]]; then
+            FAILED_TESTS_LIST="${FAILED_TESTS_LIST},${test_file}"
+        else
+            FAILED_TESTS_LIST="${test_file}"
+        fi
     fi
 
     # Record progress: append passed test to progress file for resume support.
@@ -733,14 +740,46 @@ fi
 
 # --- Write test-gate-status ---
 STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
+
+# When called with --source-file, merge tested_files with existing status file
+# to support per-file invocations without losing prior results.
+if [[ -n "$SOURCE_FILE" ]] && [[ -f "$STATUS_FILE" ]]; then
+    _existing_tested=$(grep '^tested_files=' "$STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    _existing_status=$(head -1 "$STATUS_FILE" 2>/dev/null || echo "")
+    if [[ -n "$_existing_tested" ]]; then
+        # Merge: append new tested_files, deduplicate
+        _merged=$(printf '%s\n' "$_existing_tested" "$TESTED_FILES_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
+        TESTED_FILES_LIST="$_merged"
+    fi
+    # Merge failed_tests list
+    _existing_failed=$(grep '^failed_tests=' "$STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    if [[ -n "$_existing_failed" ]] && [[ -n "$FAILED_TESTS_LIST" ]]; then
+        FAILED_TESTS_LIST=$(printf '%s\n' "$_existing_failed" "$FAILED_TESTS_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
+    elif [[ -n "$_existing_failed" ]]; then
+        FAILED_TESTS_LIST="$_existing_failed"
+    fi
+    # Enforce severity hierarchy: timeout > failed > passed (never downgrade severity)
+    # Compare both existing and current, keep the more severe.
+    if [[ "$_existing_status" == "timeout" ]] || [[ "$STATUS" == "timeout" ]]; then
+        STATUS="timeout"
+    elif [[ "$_existing_status" == "failed" ]] || [[ "$STATUS" == "failed" ]]; then
+        STATUS="failed"
+    fi
+fi
+
 cat > "$STATUS_FILE" <<EOF
 ${STATUS}
 diff_hash=${DIFF_HASH}
 timestamp=${TIMESTAMP}
 tested_files=${TESTED_FILES_LIST}
+failed_tests=${FAILED_TESTS_LIST}
 EOF
 
-echo "Test status recorded: ${STATUS} (diff_hash=${DIFF_HASH:0:12}..., tested=${TESTED_FILES_LIST})" >&2
+if [[ -n "$FAILED_TESTS_LIST" ]]; then
+    echo "Test status recorded: ${STATUS} — failed tests: ${FAILED_TESTS_LIST} (diff_hash=${DIFF_HASH:0:12}..., tested=${TESTED_FILES_LIST})" >&2
+else
+    echo "Test status recorded: ${STATUS} (diff_hash=${DIFF_HASH:0:12}..., tested=${TESTED_FILES_LIST})" >&2
+fi
 
 # Clean up progress file — all tests ran to completion (no SIGURG kill)
 rm -f "$_PROGRESS_FILE"

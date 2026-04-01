@@ -381,8 +381,6 @@ else
     _state_write_phase() { return 0; }
     _state_mark_complete() { return 0; }
     _PHASE_TEST_DIR=$(mktemp -d)
-    # Create a mock worktree-sync-from-main.sh so the source check passes
-    echo '# mock' > "$_PHASE_TEST_DIR/worktree-sync-from-main.sh"
     REPO_ROOT="$_PHASE_TEST_DIR"
     _SCRIPT_DIR="$_PHASE_TEST_DIR"
     VISUAL_BASELINE_PATH=""
