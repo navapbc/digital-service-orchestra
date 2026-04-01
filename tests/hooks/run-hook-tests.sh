@@ -8,7 +8,7 @@
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Environment (passed through to suite-engine):
-#   TEST_TIMEOUT=120             Per-test timeout in seconds (default: 120)
+#   TEST_TIMEOUT=45              Per-test timeout in seconds (default: 45)
 #   MAX_PARALLEL=8               Max concurrent tests (default: 8)
 #   MAX_CONSECUTIVE_FAILS=5      Abort after N consecutive failures (default: 5)
 
@@ -37,11 +37,11 @@ if [[ -z "${SUITE_TEST_INDEX:-}" ]] && [[ -f "$_RUN_HOOK_REPO_ROOT/.test-index" 
     export SUITE_TEST_INDEX="$_RUN_HOOK_REPO_ROOT/.test-index"
 fi
 
-# Increase per-test timeout — behavioral-equivalence-allowlist and similar
-# tests take ~13s standalone; under CPU contention in the parallel suite they
-# can exceed the suite-engine default of 30s (same fix as run-script-tests.sh
-# applied for dso-dcau isolation timeouts).
-: "${TEST_TIMEOUT:=120}"
+# Per-test timeout — most tests finish in <5s. The slot-refill scheduler
+# (suite-engine.sh) reduces CPU contention vs the old batch-wait approach,
+# so the 120s budget is no longer needed. 45s covers the slowest tests
+# (~5s) with ample margin for loaded hosts.
+: "${TEST_TIMEOUT:=45}"
 export TEST_TIMEOUT
 
 # Source the suite engine

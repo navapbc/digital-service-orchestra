@@ -55,7 +55,9 @@ run_classifier() {
     CLASSIFIER_OUTPUT=""
     CLASSIFIER_EXIT=0
     if [[ -x "$CLASSIFIER" ]]; then
-        CLASSIFIER_OUTPUT=$(bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+        # Pin REPO_ROOT so the classifier doesn't depend on `git rev-parse`,
+        # which can fail intermittently under parallel load (index.lock contention).
+        CLASSIFIER_OUTPUT=$(REPO_ROOT="$REPO_ROOT" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
     else
         # Classifier doesn't exist — simulate failure for RED tests
         CLASSIFIER_EXIT=127

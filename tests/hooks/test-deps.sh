@@ -95,10 +95,11 @@ assert_eq "bash: spaces in command" "cd /path/with spaces && ls -la" "$(parse_js
 # Note: the bash fallback does NOT perform JSON unescape (\\ -> \), so the
 # raw \\ is returned. This is acceptable — Claude Code hook values don't
 # contain JSON escape sequences in practice.
-printf '{"tool_name":"Bash","tool_input":{"command":"echo \\\\"}}' > /tmp/test_deps_escape.txt
-INPUT5=$(cat /tmp/test_deps_escape.txt)
+_deps_escape_file=$(mktemp "${TMPDIR:-/tmp}/test_deps_escape-XXXXXX")
+printf '{"tool_name":"Bash","tool_input":{"command":"echo \\\\"}}' > "$_deps_escape_file"
+INPUT5=$(cat "$_deps_escape_file")
 RESULT5=$(parse_json_field "$INPUT5" '.tool_input.command')
-rm -f /tmp/test_deps_escape.txt
+rm -f "$_deps_escape_file"
 # The key assertion: parsing completes without consuming past the closing quote
 # (i.e., we don't get "echo \\"}}" or similar garbage)
 assert_eq "bash: double-backslash terminates correctly" 'echo \\' "$RESULT5"

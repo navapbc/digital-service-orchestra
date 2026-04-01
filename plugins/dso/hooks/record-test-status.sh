@@ -536,7 +536,11 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     elif [[ "$test_file" == *.sh ]]; then
         bash "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?
     elif [[ "$test_file" == *.py ]]; then
-        PYTHONDONTWRITEBYTECODE=1 python3 -m pytest "$full_test_path" --tb=short -q -p no:cacheprovider --override-ini="cache_dir=/tmp/pytest-rts-cache" >"$test_output_file" 2>&1 || exit_code=$?
+        # Use a per-invocation cache dir to avoid races when multiple
+        # record-test-status processes run in parallel (e.g., concurrent worktrees).
+        _rts_pytest_cache=$(mktemp -d "${TMPDIR:-/tmp}/pytest-rts-cache-XXXXXX")
+        PYTHONDONTWRITEBYTECODE=1 python3 -m pytest "$full_test_path" --tb=short -q -p no:cacheprovider --override-ini="cache_dir=$_rts_pytest_cache" >"$test_output_file" 2>&1 || exit_code=$?
+        rm -rf "$_rts_pytest_cache" 2>/dev/null || true
     elif [[ "$test_file" == *.ts ]] || [[ "$test_file" == *.tsx ]]; then
         npx --no-install jest "$full_test_path" --no-coverage >"$test_output_file" 2>&1 || exit_code=$?
     else

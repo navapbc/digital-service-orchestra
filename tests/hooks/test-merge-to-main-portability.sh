@@ -18,6 +18,16 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
+# Ensure CLAUDE_PLUGIN_ROOT is set (run-hook-tests.sh exports this, but
+# standalone runs may not have it).
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+
+# Disable commit signing for test repos — global gpgsign=true causes failures
+# when the signing server is unavailable.
+export GIT_CONFIG_COUNT="${GIT_CONFIG_COUNT:-1}"
+export GIT_CONFIG_KEY_0="${GIT_CONFIG_KEY_0:-commit.gpgsign}"
+export GIT_CONFIG_VALUE_0="${GIT_CONFIG_VALUE_0:-false}"
+
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Temp dir cleanup on exit

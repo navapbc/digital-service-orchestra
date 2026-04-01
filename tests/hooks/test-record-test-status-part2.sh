@@ -691,7 +691,10 @@ TEST_REPO_RB1=$(create_test_repo)
 ARTIFACTS_RB1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
 trap 'rm -rf "$TEST_REPO_RB1" "$ARTIFACTS_RB1"' EXIT
 
-# Set up: create two branches — main (onto) has a source file the worktree
+# Capture the default branch name (may be 'main' or 'master' depending on git config)
+_RB1_DEFAULT_BRANCH=$(git -C "$TEST_REPO_RB1" rev-parse --abbrev-ref HEAD 2>/dev/null)
+
+# Set up: create two branches — default (onto) has a source file the worktree
 # branch does NOT have.
 mkdir -p "$TEST_REPO_RB1/src" "$TEST_REPO_RB1/tests"
 
@@ -703,16 +706,15 @@ PYEOF
 git -C "$TEST_REPO_RB1" add -A
 git -C "$TEST_REPO_RB1" commit -m "initial: shared base" --quiet 2>/dev/null
 
-# Create worktree branch (diverges from main here)
+# Create worktree branch (diverges from default here)
 git -C "$TEST_REPO_RB1" checkout -q -b worktree-branch 2>/dev/null
 echo "# worktree change" >> "$TEST_REPO_RB1/src/shared_base.py"
 git -C "$TEST_REPO_RB1" add -A
 git -C "$TEST_REPO_RB1" commit -m "worktree: change shared_base" --quiet 2>/dev/null
 
-# Switch to main and add an incoming-only file (fuzzy-matchable so it would trigger
-# test enforcement if not filtered)
-git -C "$TEST_REPO_RB1" checkout -q main 2>/dev/null || \
-    git -C "$TEST_REPO_RB1" checkout -q "$(git -C "$TEST_REPO_RB1" log --format='%H' --all | tail -1)" 2>/dev/null || true
+# Switch to the default branch and add an incoming-only file (fuzzy-matchable
+# so it would trigger test enforcement if not filtered)
+git -C "$TEST_REPO_RB1" checkout -q "$_RB1_DEFAULT_BRANCH" 2>/dev/null
 
 # Add onto-only file with a fuzzy-matchable test (so if not filtered, a test is found)
 cat > "$TEST_REPO_RB1/src/onto_module.py" << 'PYEOF'
