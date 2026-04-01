@@ -1300,18 +1300,23 @@ test_gate_prune_git_add_failure_exits_nonzero() {
 
     # Inject a git wrapper that fails on `add .test-index`. The chmod 555 approach
     # doesn't work when running as root (root bypasses directory permissions).
+    # Resolve the real git path before modifying PATH so the wrapper can pass
+    # through non-.test-index commands to the actual git binary.
+    local _real_git_path
+    _real_git_path=$(command -v git)
+
     local _fake_git_dir
     _fake_git_dir=$(mktemp -d)
-    cat > "$_fake_git_dir/git" << 'FAKEGIT'
+    cat > "$_fake_git_dir/git" << FAKEGIT
 #!/bin/bash
 # Fail when staging .test-index; pass through all other git commands.
-for _a in "$@"; do
-    if [[ "$_a" == ".test-index" ]]; then
+for _a in "\$@"; do
+    if [[ "\$_a" == ".test-index" ]]; then
         echo "fatal: unable to create index.lock: Permission denied" >&2
         exit 128
     fi
 done
-exec /usr/bin/git "$@"
+exec "$_real_git_path" "\$@"
 FAKEGIT
     chmod +x "$_fake_git_dir/git"
 

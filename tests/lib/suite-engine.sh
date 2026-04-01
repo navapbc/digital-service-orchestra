@@ -155,7 +155,7 @@ _run_single_test() {
 
     # Create per-test TMPDIR for isolation
     local test_tmpdir
-    test_tmpdir=$(mktemp -d "/tmp/suite-test-${test_name}-XXXXXX")
+    test_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/suite-test-${test_name}-XXXXXX")
 
     local exit_code=0
 
@@ -248,8 +248,6 @@ run_test_suite() {
     declare -A _pid_to_name=()
     declare -A _pid_to_index=()
     declare -A _pid_to_path=()
-    local completed_order=0
-
     # _process_completed_test: read results for a finished test and report
     _process_completed_test() {
         local pid="$1"
@@ -278,8 +276,6 @@ run_test_suite() {
         file_pass=$(echo "$counts_line" | awk '{print $1}')
         file_fail=$(echo "$counts_line" | awk '{print $2}')
 
-        # Progress output — use completion order for display
-        (( completed_order++ ))
         local display_idx=$(( tidx + 1 ))
         local is_tolerated=false
         if [ "$is_timeout" = true ]; then
@@ -384,6 +380,14 @@ run_test_suite() {
         fi
     }
 
+    # Feature-detect `wait -n -p` (bash 5.1+). If unavailable, fall back to
+    # `wait -n` (bash 4.3+) which blocks until any child exits but doesn't
+    # report which PID finished — we then scan with kill -0.
+    local _has_wait_n_p=false
+    if (sleep 0 & _tp=$!; wait -n -p _tv "$_tp" 2>/dev/null; [[ "$_tv" == "$_tp" ]]); then
+        _has_wait_n_p=true
+    fi
+
     while [ "$index" -lt "$total" ] || [ ${#_pid_to_name[@]} -gt 0 ]; do
         # Fill slots up to MAX_PARALLEL
         while [ "$index" -lt "$total" ] && [ ${#_pid_to_name[@]} -lt "$MAX_PARALLEL" ]; do
@@ -408,21 +412,17 @@ run_test_suite() {
         fi
 
         # Wait for ANY single test to finish (slot-refill), then process it.
-        # `wait -n -p _done_pid` returns the exit status and sets _done_pid
-        # to the PID that finished. Available in bash 4.3+ (wait -n) and
-        # bash 5.1+ (wait -n -p). Fall back to polling for older bash.
-        local _done_pid=""
-        if wait -n -p _done_pid "${!_pid_to_name[@]}" 2>/dev/null; then
-            true  # test exited 0
+        if [ "$_has_wait_n_p" = true ]; then
+            # bash 5.1+: `wait -n -p` blocks until a child exits and reports its PID.
+            local _done_pid=""
+            wait -n -p _done_pid "${!_pid_to_name[@]}" 2>/dev/null || true
+            if [ -n "$_done_pid" ] && [ -n "${_pid_to_name[$_done_pid]:-}" ]; then
+                _process_completed_test "$_done_pid"
+            fi
         else
-            true  # test exited non-zero or wait -n -p not supported
-        fi
-
-        if [ -n "$_done_pid" ] && [ -n "${_pid_to_name[$_done_pid]:-}" ]; then
-            _process_completed_test "$_done_pid"
-        else
-            # Fallback for bash <5.1 (no -p flag): find which PID finished
-            # by checking each in-flight PID with kill -0.
+            # bash 4.3+: `wait -n` blocks until any child exits but doesn't
+            # report which PID. After it returns, scan with kill -0 to find it.
+            wait -n "${!_pid_to_name[@]}" 2>/dev/null || true
             for _check_pid in "${!_pid_to_name[@]}"; do
                 if ! kill -0 "$_check_pid" 2>/dev/null; then
                     wait "$_check_pid" 2>/dev/null || true

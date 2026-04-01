@@ -239,10 +239,16 @@ else
     cat "$_EVALS_OUT"
     cat "$_PYTHON_OUT"
 
-    HOOKS_EXIT=$(cat "$_HOOKS_EXIT_FILE")
-    SCRIPTS_EXIT=$(cat "$_SCRIPTS_EXIT_FILE")
-    EVALS_EXIT=$(cat "$_EVALS_EXIT_FILE")
-    PYTHON_EXIT=$(cat "$_PYTHON_EXIT_FILE")
+    # Default to exit 1 if the exit file is missing/empty (e.g., suite killed by signal
+    # before it could write the exit code).
+    HOOKS_EXIT=$(cat "$_HOOKS_EXIT_FILE" 2>/dev/null)
+    SCRIPTS_EXIT=$(cat "$_SCRIPTS_EXIT_FILE" 2>/dev/null)
+    EVALS_EXIT=$(cat "$_EVALS_EXIT_FILE" 2>/dev/null)
+    PYTHON_EXIT=$(cat "$_PYTHON_EXIT_FILE" 2>/dev/null)
+    : "${HOOKS_EXIT:=1}"
+    : "${SCRIPTS_EXIT:=1}"
+    : "${EVALS_EXIT:=1}"
+    : "${PYTHON_EXIT:=1}"
     rm -f "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" \
           "$_EVALS_OUT" "$_EVALS_EXIT_FILE" "$_PYTHON_OUT" "$_PYTHON_EXIT_FILE"
 fi
