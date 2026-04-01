@@ -343,7 +343,7 @@ get_timeout_cmd() {
 #   1. REPO_ROOT (if already set in environment)
 #   2. PROJECT_ROOT (test isolation override)
 #   3. git rev-parse --show-toplevel
-#   4. CLAUDE_PLUGIN_ROOT/../.. (if set — plugin is at plugins/dso/)
+#   4. CLAUDE_PLUGIN_ROOT/../.. (only in local dev — validated by .git or .claude presence)
 #
 # Usage:
 #   REPO_ROOT=$(resolve_repo_root)
@@ -372,9 +372,16 @@ resolve_repo_root() {
         root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
     fi
 
-    # 4. CLAUDE_PLUGIN_ROOT-based (plugin is at plugins/dso/)
+    # 4. CLAUDE_PLUGIN_ROOT-based (plugin is at plugins/dso/ in local dev).
+    # Only use this when the derived path looks like a real repo root
+    # (has .claude/ or .git/). In the plugin cache scenario, CLAUDE_PLUGIN_ROOT
+    # points to ~/.claude/plugins/dso/ and ../../ is not the user's project.
     if [[ -z "$root" && -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "$CLAUDE_PLUGIN_ROOT" ]]; then
-        root=$(cd "$CLAUDE_PLUGIN_ROOT" && cd ../.. && pwd 2>/dev/null || echo "")
+        local _candidate
+        _candidate=$(cd "$CLAUDE_PLUGIN_ROOT" && cd ../.. && pwd 2>/dev/null || echo "")
+        if [[ -n "$_candidate" && ( -d "$_candidate/.git" || -f "$_candidate/.git" ) ]]; then
+            root="$_candidate"
+        fi
     fi
 
     _RESOLVED_REPO_ROOT="$root"
