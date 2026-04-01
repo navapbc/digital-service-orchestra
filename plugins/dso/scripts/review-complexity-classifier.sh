@@ -23,8 +23,12 @@ for _arg in "$@"; do
     esac
 done
 
-# Resolve REPO_ROOT
+# Resolve REPO_ROOT — try git first, fall back to SCRIPT_DIR-relative path.
+# Under heavy parallel load, `git rev-parse` can fail due to index.lock contention.
 REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+if [[ -z "$REPO_ROOT" && -f "$SCRIPT_DIR/../../../.claude/dso-config.conf" ]]; then
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+fi
 
 # Source deps.sh for get_artifacts_dir, _load_allowlist_patterns, _allowlist_to_grep_regex
 DEPS_PATH=""
@@ -84,7 +88,17 @@ elif [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/scripts/read-config.sh" ]]
 fi
 
 if [[ -n "$READ_CONFIG" ]]; then
-    RAW_PATTERNS=$("$READ_CONFIG" review.behavioral_patterns 2>/dev/null || echo "")
+    # Pass the config file path explicitly so read-config.sh doesn't need to
+    # resolve it via `git rev-parse` (which can fail under parallel load).
+    _CONFIG_FILE="${WORKFLOW_CONFIG_FILE:-}"
+    if [[ -z "$_CONFIG_FILE" && -n "$REPO_ROOT" && -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
+        _CONFIG_FILE="$REPO_ROOT/.claude/dso-config.conf"
+    fi
+    if [[ -n "$_CONFIG_FILE" ]]; then
+        RAW_PATTERNS=$("$READ_CONFIG" "$_CONFIG_FILE" review.behavioral_patterns 2>/dev/null || echo "")
+    else
+        RAW_PATTERNS=$("$READ_CONFIG" review.behavioral_patterns 2>/dev/null || echo "")
+    fi
     if [[ -n "$RAW_PATTERNS" ]]; then
         IFS=';' read -ra BEHAVIORAL_PATTERNS <<< "$RAW_PATTERNS"
     fi
