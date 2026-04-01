@@ -961,18 +961,15 @@ Do NOT merge to main here.
 .claude/scripts/dso write-blackboard.sh --clean
 ```
 
-**After completion, continue with Step 11 below.** Do not stop here.
+<HARD-GATE>
+Do NOT proceed to Step 11 until Step 10a (completion-verifier dispatch) has completed and returned an overall_verdict. The orchestrator is biased toward confirming its own work — CLAUDE.md rule 24 exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
 
-**MANDATORY STOP**: Before proceeding to Step 11, you MUST complete Step 10a (completion-verifier dispatch). Step 10a is NOT optional — CLAUDE.md rule 24 prohibits skipping it. Execute Step 10a now, then continue to Step 11.
+Do NOT rationalize skipping Step 10a. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
 
-> **CONTROL FLOW WARNING**: After the commit workflow and `git push -u origin HEAD` complete, continue
-> IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/dso:commit` Skill tool
-> here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that
-> may not return control. If you find yourself waiting for user input after pushing, you are
-> experiencing a known control-flow regression (observed 2026-03-18). Type "continue"
-> mentally and proceed directly to Step 11.
+Do NOT use the `/dso:commit` Skill tool here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that may not return control.
+</HARD-GATE>
 
-> **CONTINUE:** After `git push -u origin HEAD` and blackboard cleanup are done, proceed to Step 10a then Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
+After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **Step 10a** then Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
 
 ### Step 10a: Close Completed Tasks (/dso:sprint)
 
@@ -1042,13 +1039,19 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 - If **involuntary** context compaction has occurred (no intent file) → Phase 8 (graceful shutdown)
 - If more ready tasks exist (`.claude/scripts/dso ticket list` filtered by parent) → return to Phase 3
 - If no more ready tasks and some tasks are still blocked → report blocking chain, Phase 8
-- If all tasks are closed → **Phase 6 is MANDATORY** — proceed immediately to Phase 6 (validation)
+- If all tasks are closed → **Phase 6 is MANDATORY** — proceed to Phase 6 (validation). Phase 6 has a HARD-GATE requiring completion-verifier dispatch (Step 0.75) before any other Phase 6 step executes. Do NOT skip the Phase 6 HARD-GATE.
 
 ---
 
 ## Phase 6: Post-Epic Validation (/dso:sprint)
 
 **Triggered when**: all child tasks are closed (or all remaining are failed/blocked).
+
+<HARD-GATE>
+Do NOT execute any Phase 6 step until Step 0.75 (completion-verifier dispatch) has completed and returned an overall_verdict for the epic. Do NOT skip Step 0.75 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md rule 24: the verifier exists because the orchestrator is biased toward confirming its own work.
+
+Do NOT proceed to Step 1 (/dso:validate-work) or Phase 8 (Session Close) without the completion-verifier result. Phase 6 steps must execute in order: Step 0.75 → Step 1 → Step 2 → Step 3 → Step 4 → Step 5.
+</HARD-GATE>
 
 ### Initialize Post-Loop Progress Checklist
 
