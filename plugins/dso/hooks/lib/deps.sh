@@ -14,7 +14,7 @@
 #   try_find_python <version>   — search for Python matching <version> (e.g., "3.13")
 #   get_artifacts_dir           — returns portable /tmp/workflow-plugin-<hash>/ state dir (with one-time migration from old lockpick path)
 #   get_timeout_cmd             — returns 'gtimeout' (macOS coreutils) or 'timeout' (Linux), empty if neither
-#   resolve_repo_root           — cached REPO_ROOT resolution with fallback chain
+#   resolve_repo_root           — cached REPO_ROOT resolution (REPO_ROOT → PROJECT_ROOT → CLAUDE_PROJECT_DIR → git → CLAUDE_PLUGIN_ROOT)
 #   resolve_plugin_root         — cached CLAUDE_PLUGIN_ROOT resolution
 #   resolve_config_file         — cached config file path resolution
 
@@ -340,14 +340,16 @@ get_timeout_cmd() {
 # Result is cached in _RESOLVED_REPO_ROOT after first call.
 #
 # Fallback chain:
-#   1. REPO_ROOT (if already set in environment)
+#   1. REPO_ROOT (if already set by caller)
 #   2. PROJECT_ROOT (test isolation override)
-#   3. git rev-parse --show-toplevel
-#   4. CLAUDE_PLUGIN_ROOT/../.. (only in local dev — validated by .git or .claude presence)
+#   3. CLAUDE_PROJECT_DIR (official Claude Code env var — set at runtime)
+#   4. git rev-parse --show-toplevel
+#   5. CLAUDE_PLUGIN_ROOT/../.. (only in local dev — validated by .git presence)
+#
+# Works in: normal repos, git worktrees, plugin cache installs, CI.
 #
 # Usage:
 #   REPO_ROOT=$(resolve_repo_root)
-#   # or: source deps.sh; resolve_repo_root sets _RESOLVED_REPO_ROOT
 resolve_repo_root() {
     # Return cached value if available
     if [[ -n "${_RESOLVED_REPO_ROOT:-}" ]]; then
@@ -357,7 +359,7 @@ resolve_repo_root() {
 
     local root=""
 
-    # 1. Explicit REPO_ROOT
+    # 1. Explicit REPO_ROOT (caller override)
     if [[ -n "${REPO_ROOT:-}" ]]; then
         root="$REPO_ROOT"
     fi
@@ -367,15 +369,21 @@ resolve_repo_root() {
         root="$PROJECT_ROOT"
     fi
 
-    # 3. git rev-parse
+    # 3. CLAUDE_PROJECT_DIR (official Claude Code env var — works even outside git repos
+    #    and in plugin cache scenarios where git rev-parse can't find the project)
+    if [[ -z "$root" && -n "${CLAUDE_PROJECT_DIR:-}" && -d "${CLAUDE_PROJECT_DIR}" ]]; then
+        root="$CLAUDE_PROJECT_DIR"
+    fi
+
+    # 4. git rev-parse (works in normal repos and worktrees)
     if [[ -z "$root" ]]; then
         root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
     fi
 
-    # 4. CLAUDE_PLUGIN_ROOT-based (plugin is at plugins/dso/ in local dev).
-    # Only use this when the derived path looks like a real repo root
-    # (has .claude/ or .git/). In the plugin cache scenario, CLAUDE_PLUGIN_ROOT
-    # points to ~/.claude/plugins/dso/ and ../../ is not the user's project.
+    # 5. CLAUDE_PLUGIN_ROOT-based (plugin is at plugins/dso/ in local dev).
+    # Only use when the derived path has .git (dir or file), confirming it's
+    # a real repo root. In plugin cache (~/.claude/plugins/dso/), ../../ would
+    # resolve to a non-repo path — the .git check prevents that.
     if [[ -z "$root" && -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "$CLAUDE_PLUGIN_ROOT" ]]; then
         local _candidate
         _candidate=$(cd "$CLAUDE_PLUGIN_ROOT" && cd ../.. && pwd 2>/dev/null || echo "")
