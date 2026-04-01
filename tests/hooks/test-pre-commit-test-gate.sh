@@ -1271,16 +1271,12 @@ IDX
 # or git reports an error), the hook must exit non-zero so the
 # user is alerted rather than silently proceeding with a
 # mismatched disk/staged state.
-# RED: Current hook emits a warning to stderr and continues —
-# it does NOT exit non-zero on git add failure.
 # ============================================================
 test_gate_prune_git_add_failure_exits_nonzero() {
     if [[ ! -f "$GATE_HOOK" ]]; then
         assert_eq "test_gate_prune_git_add_failure_exits_nonzero: hook not found (RED)" "missing" "missing"
         return
     fi
-    # Skip if MERGE_HEAD guard is not yet implemented — we need a repo we can
-    # manipulate. This test requires prune_test_index to be present.
     if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
         assert_eq "test_gate_prune_git_add_failure_exits_nonzero: prune_test_index not yet implemented (RED)" "missing" "missing"
         return
@@ -1294,7 +1290,6 @@ test_gate_prune_git_add_failure_exits_nonzero() {
     # The mapped test file intentionally does NOT exist on disk → prune will fire.
     mkdir -p "$_repo/lib"
     echo 'def work(): pass' > "$_repo/lib/work.py"
-    # write a .test-index with a stale (non-existent) test path
     printf 'lib/work.py: tests/test_work_nonexistent.py\n' > "$_repo/.test-index"
     git -C "$_repo" add -A
     git -C "$_repo" commit -q -m "add work"
@@ -1303,23 +1298,34 @@ test_gate_prune_git_add_failure_exits_nonzero() {
     echo '# modified' >> "$_repo/lib/work.py"
     git -C "$_repo" add "$_repo/lib/work.py"
 
-    # Make the .git directory read-only so that `git add .test-index` fails.
-    # git add needs to create an index.lock file inside .git/ — a read-only
-    # .git directory prevents this, causing git add to exit non-zero.
-    chmod 555 "$_repo/.git"
+    # Inject a git wrapper that fails on `add .test-index`. The chmod 555 approach
+    # doesn't work when running as root (root bypasses directory permissions).
+    local _fake_git_dir
+    _fake_git_dir=$(mktemp -d)
+    cat > "$_fake_git_dir/git" << 'FAKEGIT'
+#!/bin/bash
+# Fail when staging .test-index; pass through all other git commands.
+for _a in "$@"; do
+    if [[ "$_a" == ".test-index" ]]; then
+        echo "fatal: unable to create index.lock: Permission denied" >&2
+        exit 128
+    fi
+done
+exec /usr/bin/git "$@"
+FAKEGIT
+    chmod +x "$_fake_git_dir/git"
 
     local exit_code=0
     (
         cd "$_repo"
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+        export PATH="$_fake_git_dir:$PATH"
         bash "$GATE_HOOK" 2>/dev/null
     ) || exit_code=$?
 
-    # Restore permissions so cleanup can proceed
-    chmod 755 "$_repo/.git"
+    rm -rf "$_fake_git_dir"
 
-    # RED: Current hook exits 0 (warning only). After fix, hook exits non-zero.
     assert_ne "test_gate_prune_git_add_failure_exits_nonzero: hook exits non-zero on git add failure" \
         "0" "$exit_code"
 }
