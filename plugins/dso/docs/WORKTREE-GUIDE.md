@@ -307,9 +307,8 @@ Migration head conflicts are automatically detected by:
 
 3. **Merge from main frequently**: Pull the latest migrations from `main` before creating new ones:
    ```bash
-   "$(git rev-parse --show-toplevel)/.claude/scripts/dso" worktree-sync-from-main.sh
+   git fetch origin main && git merge origin/main --no-edit
    ```
-   Never run bare `git merge origin/main` — the sync script handles any index and worktree state management correctly.
 
 ### Resolution
 
@@ -547,15 +546,15 @@ git pull
 
 The v3 ticket system stores ticket events on a dedicated orphan git branch (`tickets`) mounted as `.tickets-tracker/`. All mutations are appended as JSON event files and the compiled state is produced on-demand by the Python reducer. Ticket state is shared across worktrees through normal git push/fetch on the `tickets` branch — there is no separate sync infrastructure.
 
-### Syncing Tickets in Worktrees
+### Syncing Code in Worktrees
 
-Use `worktree-sync-from-main.sh` to pull the latest ticket state from main:
+Pull the latest main into the worktree branch before launching sub-agent batches:
 
 ```bash
-"$(git rev-parse --show-toplevel)/.claude/scripts/dso" worktree-sync-from-main.sh
+git fetch origin main && git merge origin/main --no-edit
 ```
 
-This merges main into the worktree branch. Run it before launching sub-agent batches to ensure ticket state is current.
+Ticket branch syncing happens automatically during `merge-to-main.sh` at end-of-sprint.
 
 ### Structured Note Format
 

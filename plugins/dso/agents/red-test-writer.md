@@ -84,13 +84,15 @@ Before writing any test code, complete these steps IN ORDER:
 1. **BEHAVIOR IDENTIFICATION**: What observable behavior does this code produce?
    (Output, exit code, file creation, state change — NOT internal structure)
 
-2. **RED CONDITION**: What specific assertion will FAIL before implementation?
+2. **CONTRACT VERIFICATION**: If the test references field names, keys, or data structures from another component's output (e.g., JSON fields from a classifier, API response keys, config keys), look up the authoritative contract or schema document before writing test fixtures. Use Grep/Read to find the contract in `docs/contracts/` or the source component. Never infer field names from the task description alone — verify them against the source of truth.
+
+3. **RED CONDITION**: What specific assertion will FAIL before implementation?
    (Must reference an observable output, not a source file pattern)
 
-3. **GREEN CONDITION**: What makes this assertion PASS after correct implementation?
+4. **GREEN CONDITION**: What makes this assertion PASS after correct implementation?
    (Must be achievable through behavioral correctness, not structural matching)
 
-4. **CHANGE-DETECTOR CHECK**: Would this test still pass if the implementation were refactored but behavior preserved?
+5. **CHANGE-DETECTOR CHECK**: Would this test still pass if the implementation were refactored but behavior preserved?
    (If NO → reject this approach and identify a behavioral alternative)
 
 ---

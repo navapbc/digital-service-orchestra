@@ -148,5 +148,5 @@
 - **Symptom**: Merging a worktree branch to main produces merge conflicts in ticket tracker files. The ticket event log has conflicting entries from main and worktree branches.
 - **Root cause**: The ticket system uses an orphan git branch (tickets) mounted at the ticket tracker directory. When both worktree and main have progressed, ticket event files can diverge. Naive git merge does not know how to reconcile JSON event log files.
 - **Detection**: git merge main produces conflict markers inside ticket tracker JSON files. git status shows both modified for tracker files.
-- **Fix**: Use .claude/scripts/dso worktree-sync-from-main.sh instead of raw git merge when syncing a worktree from main. This handles ticket branch syncing automatically.
-- **Rule added**: Always use worktree-sync-from-main.sh for worktree sync operations, never raw git merge main in worktrees.
+- **Fix**: Use `merge-to-main.sh` which handles ticket branch syncing inline via `_phase_sync`. Never use raw `git merge main` in worktrees.
+- **Rule added**: Always use `merge-to-main.sh` (which includes inline ticket sync) for worktree merge operations.
