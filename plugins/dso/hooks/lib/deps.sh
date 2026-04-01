@@ -14,6 +14,9 @@
 #   try_find_python <version>   — search for Python matching <version> (e.g., "3.13")
 #   get_artifacts_dir           — returns portable /tmp/workflow-plugin-<hash>/ state dir (with one-time migration from old lockpick path)
 #   get_timeout_cmd             — returns 'gtimeout' (macOS coreutils) or 'timeout' (Linux), empty if neither
+#   resolve_repo_root           — cached REPO_ROOT resolution with fallback chain
+#   resolve_plugin_root         — cached CLAUDE_PLUGIN_ROOT resolution
+#   resolve_config_file         — cached config file path resolution
 
 # Guard: only load once
 [[ "${_DEPS_LOADED:-}" == "1" ]] && return 0
@@ -330,6 +333,127 @@ get_timeout_cmd() {
     else
         return 1
     fi
+}
+
+# --- resolve_repo_root ---
+# Resolves the repository root directory using a reliable fallback chain.
+# Result is cached in _RESOLVED_REPO_ROOT after first call.
+#
+# Fallback chain:
+#   1. REPO_ROOT (if already set in environment)
+#   2. PROJECT_ROOT (test isolation override)
+#   3. git rev-parse --show-toplevel
+#   4. CLAUDE_PLUGIN_ROOT/../.. (if set — plugin is at plugins/dso/)
+#
+# Usage:
+#   REPO_ROOT=$(resolve_repo_root)
+#   # or: source deps.sh; resolve_repo_root sets _RESOLVED_REPO_ROOT
+resolve_repo_root() {
+    # Return cached value if available
+    if [[ -n "${_RESOLVED_REPO_ROOT:-}" ]]; then
+        echo "$_RESOLVED_REPO_ROOT"
+        return 0
+    fi
+
+    local root=""
+
+    # 1. Explicit REPO_ROOT
+    if [[ -n "${REPO_ROOT:-}" ]]; then
+        root="$REPO_ROOT"
+    fi
+
+    # 2. PROJECT_ROOT (test isolation)
+    if [[ -z "$root" && -n "${PROJECT_ROOT:-}" ]]; then
+        root="$PROJECT_ROOT"
+    fi
+
+    # 3. git rev-parse
+    if [[ -z "$root" ]]; then
+        root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    fi
+
+    # 4. CLAUDE_PLUGIN_ROOT-based (plugin is at plugins/dso/)
+    if [[ -z "$root" && -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "$CLAUDE_PLUGIN_ROOT" ]]; then
+        root=$(cd "$CLAUDE_PLUGIN_ROOT" && cd ../.. && pwd 2>/dev/null || echo "")
+    fi
+
+    _RESOLVED_REPO_ROOT="$root"
+    echo "$root"
+}
+
+# --- resolve_plugin_root ---
+# Resolves the DSO plugin root directory (plugins/dso/).
+# Result is cached in _RESOLVED_PLUGIN_ROOT after first call.
+#
+# Fallback chain:
+#   1. CLAUDE_PLUGIN_ROOT (if set and contains plugin.json or hooks/)
+#   2. REPO_ROOT/plugins/dso (if REPO_ROOT known)
+#
+# Usage:
+#   PLUGIN_ROOT=$(resolve_plugin_root)
+resolve_plugin_root() {
+    if [[ -n "${_RESOLVED_PLUGIN_ROOT:-}" ]]; then
+        echo "$_RESOLVED_PLUGIN_ROOT"
+        return 0
+    fi
+
+    local root=""
+
+    # 1. CLAUDE_PLUGIN_ROOT if valid
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "$CLAUDE_PLUGIN_ROOT/hooks" ]]; then
+        root="$CLAUDE_PLUGIN_ROOT"
+    fi
+
+    # 2. Derive from repo root
+    if [[ -z "$root" ]]; then
+        local repo_root
+        repo_root=$(resolve_repo_root)
+        if [[ -n "$repo_root" && -d "$repo_root/plugins/dso/hooks" ]]; then
+            root="$repo_root/plugins/dso"
+        fi
+    fi
+
+    _RESOLVED_PLUGIN_ROOT="$root"
+    echo "$root"
+}
+
+# --- resolve_config_file ---
+# Resolves the path to .claude/dso-config.conf.
+# Result is cached in _RESOLVED_CONFIG_FILE after first call.
+#
+# Fallback chain:
+#   1. WORKFLOW_CONFIG_FILE (test/override)
+#   2. REPO_ROOT/.claude/dso-config.conf
+#
+# Returns empty string and exit 0 if no config file found (graceful degradation).
+#
+# Usage:
+#   CONFIG_FILE=$(resolve_config_file)
+#   [[ -n "$CONFIG_FILE" ]] && source read-config.sh "$CONFIG_FILE" key
+resolve_config_file() {
+    if [[ -n "${_RESOLVED_CONFIG_FILE:-}" ]]; then
+        echo "$_RESOLVED_CONFIG_FILE"
+        return 0
+    fi
+
+    local config=""
+
+    # 1. Explicit override
+    if [[ -n "${WORKFLOW_CONFIG_FILE:-}" && -f "${WORKFLOW_CONFIG_FILE}" ]]; then
+        config="$WORKFLOW_CONFIG_FILE"
+    fi
+
+    # 2. Standard location relative to repo root
+    if [[ -z "$config" ]]; then
+        local repo_root
+        repo_root=$(resolve_repo_root)
+        if [[ -n "$repo_root" && -f "$repo_root/.claude/dso-config.conf" ]]; then
+            config="$repo_root/.claude/dso-config.conf"
+        fi
+    fi
+
+    _RESOLVED_CONFIG_FILE="$config"
+    echo "$config"
 }
 
 # --- parse_json_object ---

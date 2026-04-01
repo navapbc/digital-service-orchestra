@@ -40,6 +40,51 @@ trap _cleanup EXIT
 : "${MAX_CONSECUTIVE_FAILS:=5}"
 : "${SUITE_LABEL:=Tests}"
 
+# --- Repo file protection ---
+# Snapshot critical repo files before tests run. After each test, verify they
+# haven't been modified. This catches tests that accidentally leak git operations
+# or file writes into the real working tree (e.g., via a failed git checkout that
+# falls through to the real repo).
+_SE_REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+declare -A _PROTECTED_FILE_HASHES=()
+
+_snapshot_protected_files() {
+    _PROTECTED_FILE_HASHES=()
+    [[ -z "$_SE_REPO_ROOT" ]] && return
+    local _pf
+    for _pf in \
+        "$_SE_REPO_ROOT/.claude/dso-config.conf" \
+        "$_SE_REPO_ROOT/.test-index" \
+    ; do
+        if [[ -f "$_pf" ]]; then
+            _PROTECTED_FILE_HASHES["$_pf"]=$(md5sum "$_pf" 2>/dev/null | cut -d' ' -f1 || echo "")
+        fi
+    done
+}
+
+# Verify protected files are unchanged. Returns 1 and restores files if tampering detected.
+_verify_protected_files() {
+    local _test_name="${1:-unknown}"
+    [[ -z "$_SE_REPO_ROOT" ]] && return 0
+    [[ ${#_PROTECTED_FILE_HASHES[@]} -eq 0 ]] && return 0
+    local _tampered=false
+    local _pf
+    for _pf in "${!_PROTECTED_FILE_HASHES[@]}"; do
+        local _expected="${_PROTECTED_FILE_HASHES[$_pf]}"
+        local _actual=""
+        if [[ -f "$_pf" ]]; then
+            _actual=$(md5sum "$_pf" 2>/dev/null | cut -d' ' -f1 || echo "")
+        fi
+        if [[ "$_actual" != "$_expected" ]]; then
+            _tampered=true
+            echo "REPO PROTECTION: $_test_name modified $_pf — restoring from git" >&2
+            git -C "$_SE_REPO_ROOT" checkout -- "$_pf" 2>/dev/null || true
+        fi
+    done
+    [[ "$_tampered" == "true" ]] && return 1
+    return 0
+}
+
 # --- RED zone tolerance (optional, enabled when SUITE_TEST_INDEX is set) ---
 # Source red-zone.sh for parse_failing_tests_from_output helper
 _RED_ZONE_ENABLED=false
@@ -202,6 +247,15 @@ _run_single_test() {
         fi
     fi
 
+    # --- Repo file protection check ---
+    # Verify critical repo files weren't modified by the test.
+    if ! _verify_protected_files "$test_name"; then
+        echo "REPO PROTECTION VIOLATION in $test_name: critical repo files were modified" \
+            >> "$results_dir/$test_name.out"
+        exit_code=1
+        echo "$exit_code" > "$results_dir/$test_name.exit"
+    fi
+
     # Clean up per-test TMPDIR
     rm -rf "$test_tmpdir" 2>/dev/null || true
 
@@ -236,6 +290,9 @@ run_test_suite() {
     local results_dir
     results_dir=$(mktemp -d)
     _CLEANUP_DIRS+=("$results_dir")
+
+    # Snapshot critical repo files before any tests run
+    _snapshot_protected_files
 
     # --- Parallel execution (slot-refill via wait -n) ---
     # Instead of launching a batch of MAX_PARALLEL tests and waiting for ALL to
