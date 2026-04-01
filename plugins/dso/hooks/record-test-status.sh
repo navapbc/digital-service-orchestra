@@ -340,8 +340,21 @@ declare -A _TEST_MARKER_MAP=()
 while IFS= read -r src_file; do
     [[ -z "$src_file" ]] && continue
 
-    # Skip if src_file is itself a test file
+    # If src_file is itself a test file, add it directly to ASSOCIATED_TESTS
+    # (the test must pass before it can be committed) and skip fuzzy matching.
     if fuzzy_is_test_file "$src_file"; then
+        _test_self="$src_file"
+        _test_self_path="$REPO_ROOT/$_test_self"
+        if [[ -f "$_test_self_path" ]]; then
+            if [[ "$_test_self" == *.sh ]] && [[ ! -x "$_test_self_path" ]]; then
+                echo "WARNING: skipping non-executable shell test: $_test_self" >&2
+            else
+                ASSOCIATED_TESTS+=("$_test_self")
+                if [[ -z "${_TEST_MARKER_MAP[$_test_self]+set}" ]]; then
+                    _TEST_MARKER_MAP["$_test_self"]=""
+                fi
+            fi
+        fi
         continue
     fi
 
@@ -536,7 +549,11 @@ for test_file in "${ASSOCIATED_TESTS[@]}"; do
     elif [[ "$test_file" == *.sh ]]; then
         bash "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?
     elif [[ "$test_file" == *.py ]]; then
-        PYTHONDONTWRITEBYTECODE=1 python3 -m pytest "$full_test_path" --tb=short -q -p no:cacheprovider --override-ini="cache_dir=/tmp/pytest-rts-cache" >"$test_output_file" 2>&1 || exit_code=$?
+        # Use a per-invocation cache dir to avoid races when multiple
+        # record-test-status processes run in parallel (e.g., concurrent worktrees).
+        _rts_pytest_cache=$(mktemp -d "${TMPDIR:-/tmp}/pytest-rts-cache-XXXXXX")
+        PYTHONDONTWRITEBYTECODE=1 python3 -m pytest "$full_test_path" --tb=short -q -p no:cacheprovider --override-ini="cache_dir=$_rts_pytest_cache" >"$test_output_file" 2>&1 || exit_code=$?
+        rm -rf "$_rts_pytest_cache" 2>/dev/null || true
     elif [[ "$test_file" == *.ts ]] || [[ "$test_file" == *.tsx ]]; then
         npx --no-install jest "$full_test_path" --no-coverage >"$test_output_file" 2>&1 || exit_code=$?
     else

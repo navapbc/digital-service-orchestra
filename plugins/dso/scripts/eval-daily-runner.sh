@@ -96,13 +96,10 @@ ticket_list_output="$(_dso_cmd ticket list 2>/dev/null || true)"
 
 # Parse JSON array looking for: type=bug, priority=0, status=open, title prefix "EVAL REGRESSION:"
 # The list returns a JSON array; use python3 for robust parsing
-existing_id="$(python3 - <<'PYEOF'
+existing_id="$(DSO_MOCK_TICKET_LIST="$ticket_list_output" python3 - <<'PYEOF'
 import sys, json, os
 
 raw = os.environ.get("DSO_MOCK_TICKET_LIST", "")
-if not raw:
-    # Read from stdin (passed via process substitution below)
-    raw = sys.stdin.read().strip()
 
 if not raw:
     sys.exit(0)
@@ -127,7 +124,6 @@ for t in tickets:
         print(ticket_id)
         sys.exit(0)
 PYEOF
-<<< "$ticket_list_output"
 )"
 
 # ── Create or comment ──────────────────────────────────────────────────────────

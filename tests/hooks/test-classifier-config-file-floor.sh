@@ -43,6 +43,15 @@ _make_tmpdir() {
     local d
     d="$(mktemp -d)"
     _TEST_TMPDIRS+=("$d")
+    # Create an isolated git repo so the classifier's _is_merge_commit reads
+    # from this repo (no MERGE_HEAD) rather than the real worktree's git state.
+    # Without this, tests fail when run during a merge (MERGE_HEAD leaks).
+    git -C "$d" init -q -b main 2>/dev/null
+    git -C "$d" config user.email "test@test" 2>/dev/null
+    git -C "$d" config user.name "test" 2>/dev/null
+    touch "$d/.gitkeep"
+    git -C "$d" add -A 2>/dev/null
+    git -C "$d" commit -q -m "init" 2>/dev/null
     echo "$d"
 }
 
@@ -67,12 +76,16 @@ DIFFEOF
 
 # Run the classifier on a diff file and return the selected_tier value.
 # Sets global CLASSIFIER_TIER and CLASSIFIER_EXIT.
+# The diff file must reside in a tmpdir created by _make_tmpdir so that
+# CLASSIFIER_GIT_DIR is derived from the isolated git repo in that tmpdir.
 _run_classifier_get_tier() {
     local diff_file="$1"
+    local test_git_dir
+    test_git_dir="$(dirname "$diff_file")/.git"
     CLASSIFIER_TIER=""
     CLASSIFIER_EXIT=0
     local output
-    output=$(REPO_ROOT="$REPO_ROOT" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+    output=$(REPO_ROOT="$REPO_ROOT" CLASSIFIER_GIT_DIR="$test_git_dir" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
     if [[ "$CLASSIFIER_EXIT" -eq 0 && -n "$output" ]]; then
         CLASSIFIER_TIER=$(python3 -c "
 import json, sys
@@ -172,8 +185,10 @@ test_computed_total_at_least_three_for_config_diff() {
     local diff_file
     diff_file=$(_make_diff_fixture "$tmpdir" ".claude/dso-config.conf" "format.python=ruff")
 
+    local test_git_dir
+    test_git_dir="$tmpdir/.git"
     local output exit_code=0
-    output=$(REPO_ROOT="$REPO_ROOT" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
+    output=$(REPO_ROOT="$REPO_ROOT" CLASSIFIER_GIT_DIR="$test_git_dir" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
 
     assert_eq "classifier exits 0" "0" "$exit_code"
 

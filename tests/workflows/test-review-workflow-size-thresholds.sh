@@ -16,6 +16,29 @@ WORKFLOW_FILE="$REPO_ROOT/plugins/dso/docs/workflows/REVIEW-WORKFLOW.md"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
+# ============================================================
+# Test isolation helpers
+# ============================================================
+
+# setup_temp_dir — creates an isolated git repo in a temp dir and exports
+# TEST_GIT_DIR so the classifier's _is_merge_commit reads from it rather
+# than the real worktree's git state.  Without this, tests fail when run
+# during a merge operation because MERGE_HEAD leaks from the real repo.
+setup_temp_dir() {
+    TEST_TMPDIR="$(mktemp -d)"
+    git -C "$TEST_TMPDIR" init -q -b main 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.email "test@test" 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.name "test" 2>/dev/null
+    touch "$TEST_TMPDIR/.gitkeep"
+    git -C "$TEST_TMPDIR" add -A 2>/dev/null
+    git -C "$TEST_TMPDIR" commit -q -m "init" 2>/dev/null
+    export TEST_GIT_DIR="$TEST_TMPDIR/.git"
+}
+
+teardown_temp_dir() {
+    [[ -n "${TEST_TMPDIR:-}" ]] && rm -rf "$TEST_TMPDIR"
+}
+
 echo "=== test-review-workflow-size-thresholds.sh ==="
 echo ""
 
@@ -290,7 +313,7 @@ test_integration_merge_commit_bypass_end_to_end() {
 
     local diff_input classifier_json is_merge_actual size_action_actual
     diff_input=$(_generate_diff_lines 600)
-    classifier_json=$(echo "$diff_input" | MOCK_MERGE_HEAD=1 "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | MOCK_MERGE_HEAD=1 CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
     # Verify classifier produced valid JSON with is_merge_commit=true
     is_merge_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "PARSE_ERROR")
@@ -320,7 +343,7 @@ test_integration_upgrade_path_end_to_end() {
 
     local diff_input classifier_json size_action_actual
     diff_input=$(_generate_diff_lines 300)
-    classifier_json=$(echo "$diff_input" | "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
     # Verify classifier produced valid JSON with size_action=upgrade
     size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
@@ -345,7 +368,7 @@ test_integration_reject_path_end_to_end() {
 
     local diff_input classifier_json size_action_actual
     diff_input=$(_generate_diff_lines 600)
-    classifier_json=$(echo "$diff_input" | "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
     # Verify classifier produced valid JSON with size_action=reject
     size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
@@ -375,10 +398,12 @@ test_workflow_step3_merge_commit_bypass
 echo ""
 test_workflow_step3_no_change_when_size_action_none
 echo ""
+setup_temp_dir
 test_integration_merge_commit_bypass_end_to_end
 echo ""
 test_integration_upgrade_path_end_to_end
 echo ""
 test_integration_reject_path_end_to_end
 echo ""
+teardown_temp_dir
 print_summary

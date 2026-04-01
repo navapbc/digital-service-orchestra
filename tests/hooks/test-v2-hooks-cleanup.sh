@@ -22,6 +22,37 @@ SCRIPTS_DIR="$REPO_ROOT/plugins/dso/scripts"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
+# ── Isolation helpers ─────────────────────────────────────────────────────────
+# Create an isolated git repo in a temp dir and export TEST_GIT_DIR so that any
+# invocation of review-complexity-classifier.sh in this suite reads MERGE_HEAD
+# from the temp repo (which has none) rather than the real worktree's git state.
+# Usage: pass CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" when
+# running the classifier binary.
+TEST_TMPDIR=""
+TEST_GIT_DIR=""
+
+setup_temp_dir() {
+    TEST_TMPDIR="$(mktemp -d)"
+    # Create a minimal git repo with one commit so HEAD exists and MERGE_HEAD does not.
+    git -C "$TEST_TMPDIR" init -q -b main 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.email "test@test" 2>/dev/null
+    git -C "$TEST_TMPDIR" config user.name "test" 2>/dev/null
+    touch "$TEST_TMPDIR/.gitkeep"
+    git -C "$TEST_TMPDIR" add -A 2>/dev/null
+    git -C "$TEST_TMPDIR" commit -q -m "init" 2>/dev/null
+    export TEST_GIT_DIR="$TEST_TMPDIR/.git"
+}
+
+teardown_temp_dir() {
+    [[ -n "${TEST_TMPDIR:-}" ]] && rm -rf "$TEST_TMPDIR"
+    TEST_TMPDIR=""
+    TEST_GIT_DIR=""
+}
+
+trap teardown_temp_dir EXIT
+
+setup_temp_dir
+
 echo "=== test-v2-hooks-cleanup.sh ==="
 echo ""
 
