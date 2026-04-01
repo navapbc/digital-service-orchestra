@@ -175,6 +175,73 @@ if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]]; then
     fi
 fi
 
+# ── Rebase commit: filter out incoming-only files ─────────────────────────────
+# When REBASE_HEAD exists (e.g., mid `git rebase`), staged files may include
+# changes from the onto branch that were already reviewed and merged there.
+# These incoming-only files should not require re-verification.
+#
+# Algorithm:
+#   1. Read onto SHA from rebase-merge/onto or rebase-apply/onto
+#   2. Read orig-head from rebase-merge/orig-head or rebase-apply/orig-head;
+#      fall back to HEAD if the file is absent (tests simulate this case)
+#   3. Compute merge base between orig-head and onto
+#   4. Get files changed on the worktree branch: merge-base..orig-head
+#   5. Filter STAGED_FILES to only include files that the worktree branch touched
+#   6. Files in staged but NOT in worktree-branch changes are incoming-only → exempt
+#
+# Fail-safe: if onto file missing, orig-head unreadable, or merge-base fails,
+# fall through to normal enforcement with the full staged file list.
+if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/REBASE_HEAD" ]]; then
+    _git_dir=$(git rev-parse --git-dir 2>/dev/null || echo "")
+    if [[ -n "$_git_dir" ]]; then
+        # Read onto SHA from rebase state directory
+        _rebase_onto=""
+        if [[ -f "$_git_dir/rebase-merge/onto" ]]; then
+            _rebase_onto=$(cat "$_git_dir/rebase-merge/onto" 2>/dev/null | head -1 || echo "")
+        elif [[ -f "$_git_dir/rebase-apply/onto" ]]; then
+            _rebase_onto=$(cat "$_git_dir/rebase-apply/onto" 2>/dev/null | head -1 || echo "")
+        fi
+
+        if [[ -n "$_rebase_onto" ]]; then
+            # Read orig-head from rebase state directory; fall back to HEAD
+            _rebase_orig_head=""
+            if [[ -f "$_git_dir/rebase-merge/orig-head" ]]; then
+                _rebase_orig_head=$(cat "$_git_dir/rebase-merge/orig-head" 2>/dev/null | head -1 || echo "")
+            elif [[ -f "$_git_dir/rebase-apply/orig-head" ]]; then
+                _rebase_orig_head=$(cat "$_git_dir/rebase-apply/orig-head" 2>/dev/null | head -1 || echo "")
+            fi
+            # Fall back to HEAD if orig-head state file is absent
+            if [[ -z "$_rebase_orig_head" ]]; then
+                _rebase_orig_head=$(git rev-parse HEAD 2>/dev/null || echo "")
+            fi
+
+            if [[ -n "$_rebase_orig_head" ]]; then
+                _rebase_merge_base=$(git merge-base "$_rebase_orig_head" "$_rebase_onto" 2>/dev/null || echo "")
+                if [[ -n "$_rebase_merge_base" ]]; then
+                    # Get files changed on the worktree branch (merge-base..orig-head)
+                    _rebase_worktree_changed=$(git diff --name-only "$_rebase_merge_base" "$_rebase_orig_head" 2>/dev/null || echo "")
+
+                    # Filter staged files: keep only those that the worktree branch changed
+                    _rebase_filtered_staged=()
+                    for _rsf in "${STAGED_FILES[@]}"; do
+                        if echo "$_rebase_worktree_changed" | grep -qxF "$_rsf" 2>/dev/null; then
+                            _rebase_filtered_staged+=("$_rsf")
+                        fi
+                    done
+
+                    # Replace STAGED_FILES with filtered list
+                    STAGED_FILES=("${_rebase_filtered_staged[@]+"${_rebase_filtered_staged[@]}"}")
+
+                    # If all staged files were incoming-only, nothing to check
+                    if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
+                        exit 0
+                    fi
+                fi
+            fi
+        fi
+    fi
+fi
+
 # ── Read test directories from config ─────────────────────────────────────────
 # Supports TEST_GATE_TEST_DIRS_OVERRIDE for testing, falls back to dso-config.conf,
 # then defaults to "tests/"
@@ -247,12 +314,10 @@ parse_test_index() {
 prune_test_index() {
     local index_file="${REPO_ROOT:-.}/.test-index"
 
-    # Skip pruning during merge commits — auto-staging .test-index during a merge
-    # can interfere with the merge state. The pre-commit-review-gate guards MERGE_HEAD
-    # natively; this guard mirrors that behavior for the test gate.
-    if [[ -f "${REPO_ROOT:-.}/.git/MERGE_HEAD" ]]; then
-        return 0
-    fi
+    # Skip pruning during merge or rebase — auto-staging .test-index during a
+    # merge/rebase can corrupt the git state. REBASE_HEAD mirrors the MERGE_HEAD guard.
+    if [[ -f "${REPO_ROOT:-.}/.git/MERGE_HEAD" ]]; then return 0; fi
+    if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/REBASE_HEAD" ]]; then return 0; fi
 
     # No .test-index → nothing to prune
     if [[ ! -f "$index_file" ]]; then

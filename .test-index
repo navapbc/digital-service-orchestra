@@ -56,7 +56,7 @@ plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.s
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh
-plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh
+plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh,tests/hooks/test-compute-diff-hash.sh [test_hash_rebase_excludes_incoming_only]
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
@@ -173,7 +173,7 @@ plugins/dso/agents/code-reviewer-deep-hygiene.md:tests/agents/test-reviewer-dime
 plugins/dso/agents/code-reviewer-deep-verification.md:tests/agents/test-reviewer-dimension-names.sh
 plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh
-plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh [test_gate_rebase_filters_incoming_only_files],tests/hooks/test-mechanical-amend-bypass.sh
+plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_bidirectional_tdd.py
 tests/hooks/test-deps.sh:tests/scripts/test-v2-clean-guard.sh
