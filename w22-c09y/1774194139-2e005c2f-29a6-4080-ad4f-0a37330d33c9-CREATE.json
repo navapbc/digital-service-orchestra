@@ -1,1 +1,0 @@
-{"timestamp": 1774194139, "uuid": "2e005c2f-29a6-4080-ad4f-0a37330d33c9", "event_type": "CREATE", "data": {"ticket_type": "bug", "title": "Bug: fix-bug never triggers COMPLEX_ESCALATION — all bugs resolved by solo sub-agents without multi-agent planning", "priority": 2, "assignee": "Joe Oakhart"}}
