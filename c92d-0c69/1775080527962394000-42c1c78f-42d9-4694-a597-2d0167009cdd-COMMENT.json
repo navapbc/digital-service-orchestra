@@ -1,1 +1,0 @@
-{"timestamp": 1775080527962394000, "uuid": "42c1c78f-42d9-4694-a597-2d0167009cdd", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 1 (BASIC). Test asserts script is removed but script still exists."}}
