@@ -1,21 +1,21 @@
-"""Tests for CI auto-detection wizard section in the project-setup SKILL.md.
+"""Tests for CI auto-detection wizard section in the onboarding SKILL.md.
 
-TDD spec for task dso-bwtp:
-- plugins/dso/skills/project-setup/SKILL.md Step 3 must contain:
+Verifies that plugins/dso/skills/onboarding/SKILL.md (the successor to
+project-setup) contains:
   1. A CI configuration sub-section that reads detection output from project-detect.sh
   2. Reference to ci_workflow_names (from project-detect.sh output schema)
-  3. Prompts for ci.workflow_name, ci.fast_gate_job, ci.fast_fail_job,
+  3. Config keys: ci.workflow_name, ci.fast_gate_job, ci.fast_fail_job,
      ci.test_ceil_job, ci.integration_workflow
   4. A deprecation notice for merge.ci_workflow_name
   5. Reference to .github/workflows/ as the detection source
 
-All tests are expected to FAIL until dso-bwtp adds the CI sub-section to SKILL.md.
+All CI keys are present in onboarding/SKILL.md (added in Phase 3 config generation).
 """
 
 import pathlib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-SKILL_FILE = REPO_ROOT / "plugins" / "dso" / "skills" / "project-setup" / "SKILL.md"
+SKILL_FILE = REPO_ROOT / "plugins" / "dso" / "skills" / "onboarding" / "SKILL.md"
 
 
 def _read_skill() -> str:
