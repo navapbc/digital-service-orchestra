@@ -27,7 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_SCRIPTS="$SCRIPT_DIR"
 TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
-REPO_ROOT=$(resolve_repo_root)
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
 if [ -z "$REPO_ROOT" ]; then
     echo "ERROR: Not in a git repository"
     exit 2

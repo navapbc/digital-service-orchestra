@@ -65,7 +65,7 @@ if [[ ${#FAILED_CATEGORIES[@]} -eq 0 ]]; then
 fi
 
 # Determine artifacts dir for log file references
-REPO_ROOT=$(resolve_repo_root)
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 ARTIFACTS_DIR=$(get_artifacts_dir)
 VALIDATION_STATE_FILE="$ARTIFACTS_DIR/status"
 LOGFILE=$(grep '^logfile=' "$VALIDATION_STATE_FILE" 2>/dev/null | head -1 | cut -d= -f2-)

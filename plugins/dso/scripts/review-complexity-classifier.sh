@@ -23,22 +23,18 @@ for _arg in "$@"; do
     esac
 done
 
-# Source deps.sh for shared utilities (resolve_repo_root, get_artifacts_dir, etc.)
-# CLAUDE_PLUGIN_ROOT is the canonical way to find plugin files (no ../ paths).
+# Resolve REPO_ROOT
+REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+
+# Source deps.sh for get_artifacts_dir, _load_allowlist_patterns, _allowlist_to_grep_regex
 DEPS_PATH=""
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh" ]]; then
+if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/hooks/lib/deps.sh" ]]; then
+    DEPS_PATH="$REPO_ROOT/plugins/dso/hooks/lib/deps.sh"
+elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh" ]]; then
     DEPS_PATH="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
 fi
 if [[ -n "$DEPS_PATH" ]]; then
     source "$DEPS_PATH"
-fi
-
-# Resolve REPO_ROOT via centralized function (handles git failure, CLAUDE_PLUGIN_ROOT fallback)
-if [[ -n "${DEPS_PATH:-}" ]]; then
-    REPO_ROOT=$(resolve_repo_root)
-else
-    # deps.sh not found — inline fallback (resolve_repo_root unavailable)
-    REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}" # inline fallback
 fi
 
 # --- Read diff from stdin ---
@@ -88,20 +84,7 @@ elif [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/scripts/read-config.sh" ]]
 fi
 
 if [[ -n "$READ_CONFIG" ]]; then
-    # Resolve config file via centralized function (avoids git rev-parse in read-config.sh)
-    _CONFIG_FILE=""
-    if type resolve_config_file &>/dev/null; then
-        _CONFIG_FILE=$(resolve_config_file)
-    elif [[ -n "${WORKFLOW_CONFIG_FILE:-}" && -f "${WORKFLOW_CONFIG_FILE}" ]]; then
-        _CONFIG_FILE="$WORKFLOW_CONFIG_FILE"
-    elif [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
-        _CONFIG_FILE="$REPO_ROOT/.claude/dso-config.conf"
-    fi
-    if [[ -n "$_CONFIG_FILE" ]]; then
-        RAW_PATTERNS=$("$READ_CONFIG" "$_CONFIG_FILE" review.behavioral_patterns 2>/dev/null || echo "")
-    else
-        RAW_PATTERNS=$("$READ_CONFIG" review.behavioral_patterns 2>/dev/null || echo "")
-    fi
+    RAW_PATTERNS=$("$READ_CONFIG" review.behavioral_patterns 2>/dev/null || echo "")
     if [[ -n "$RAW_PATTERNS" ]]; then
         IFS=';' read -ra BEHAVIORAL_PATTERNS <<< "$RAW_PATTERNS"
     fi

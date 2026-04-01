@@ -23,7 +23,7 @@ source "$SCRIPT_DIR/lib/config-paths.sh"
 # Anchor all git pathspec exclusions and file operations to the repo root,
 # regardless of the caller's CWD. Without this, pathspecs like ':!app/.tickets-tracker/'
 # resolve relative to CWD, producing different hashes when called from app/.
-cd "$(resolve_repo_root)"
+cd "$(git rev-parse --show-toplevel)"
 
 # --- Checkpoint-aware diff base detection ---
 # After a pre-compaction auto-save, HEAD points to the checkpoint commit.

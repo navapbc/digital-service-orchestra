@@ -67,43 +67,4 @@ fi
 
 assert_eq "test_repo_root_no_relative_derivation" "clean" "$actual2"
 
-# ── test_deps_users_use_resolve_repo_root ──────────────────────────────────
-# Scripts that source deps.sh should use resolve_repo_root() instead of
-# inline git rev-parse --show-toplevel for REPO_ROOT resolution.
-# Exceptions:
-#   - Lines inside a fallback block (e.g., "# deps.sh not found — inline fallback")
-#   - Lines inside nested bash -c subshells (can't call sourced functions)
-#   - Non-REPO_ROOT usages of git rev-parse (e.g., --verify, --git-dir)
-#
-# This guard prevents regression: once a script is migrated to resolve_repo_root(),
-# new inline git rev-parse calls should not be added.
-
-_resolve_violations=""
-_resolve_actual="clean"
-
-# Find files that source deps.sh
-while IFS= read -r _deps_file; do
-    # Check for git rev-parse --show-toplevel in this file
-    _inline_calls=$(grep -n 'git rev-parse --show-toplevel' "$_deps_file" 2>/dev/null \
-        | grep -v '^\([^:]*:[0-9]*:\)\s*#' \
-        | grep -v 'inline fallback' \
-        | grep -v 'bash -c' \
-        || true)
-    if [[ -n "$_inline_calls" ]]; then
-        _resolve_violations="${_resolve_violations}${_deps_file}:
-${_inline_calls}
-"
-    fi
-done < <(grep -rl 'deps\.sh' "$PLUGIN_SCRIPTS_DIR"/*.sh "$DSO_PLUGIN_DIR"/hooks/*.sh 2>/dev/null)
-
-if [[ -n "$_resolve_violations" ]]; then
-    _vcount=$(echo "$_resolve_violations" | grep -c 'git rev-parse' || echo 0)
-    _resolve_actual="found_${_vcount}_inline_git_rev_parse_calls"
-    echo "resolve_repo_root() migration violations:" >&2
-    echo "$_resolve_violations" >&2
-    echo "These files source deps.sh — use resolve_repo_root() instead of git rev-parse --show-toplevel" >&2
-fi
-
-assert_eq "test_deps_users_use_resolve_repo_root" "clean" "$_resolve_actual"
-
 print_summary

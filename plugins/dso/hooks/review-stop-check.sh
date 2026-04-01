@@ -25,7 +25,7 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/lib/deps.sh"
 
 # Determine repo root
-REPO_ROOT=$(resolve_repo_root)
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [[ -z "$REPO_ROOT" ]]; then
     exit 0
 fi

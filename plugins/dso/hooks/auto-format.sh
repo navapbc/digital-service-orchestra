@@ -44,8 +44,7 @@ if [[ ! -f "$FILE_PATH" ]]; then
     _HOOK_HAS_OUTPUT=1; exit 0
 fi
 
-REPO_ROOT=$(resolve_repo_root)
-[[ -z "$REPO_ROOT" ]] && { _HOOK_HAS_OUTPUT=1; exit 0; }
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { _HOOK_HAS_OUTPUT=1; exit 0; }
 APP_DIR="$REPO_ROOT/app"
 
 # ── Read config (when CLAUDE_PLUGIN_ROOT is set) ────────────────────────────

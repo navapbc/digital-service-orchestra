@@ -101,7 +101,7 @@ if [[ ! -t 0 ]]; then
 fi
 
 # Determine worktree name and artifacts directory
-REPO_ROOT=$(resolve_repo_root)
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [[ -z "$REPO_ROOT" ]]; then
     echo "ERROR: not in a git repository" >&2
     exit 1

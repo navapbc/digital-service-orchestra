@@ -100,7 +100,7 @@ if [[ "${DSO_MECHANICAL_AMEND:-}" == "1" ]]; then
 fi
 
 # ── Determine repo root ────────────────────────────────────────────────────────
-REPO_ROOT=$(resolve_repo_root)
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 
 # ── Filter out allowlisted (non-reviewable) files ─────────────────────────────
 # Uses the same allowlist and shared functions as the review gate to skip files
