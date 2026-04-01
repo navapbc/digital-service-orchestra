@@ -152,4 +152,66 @@ fi
 assert_eq "test_ci_workflow_name_present" "found" "$has_ci_workflow_name"
 assert_pass_if_clean "test_ci_workflow_name_present"
 
+# test_sc1_ci_fast_gate_job_present: ci.fast_gate_job must appear in SKILL.md (SC1)
+_snapshot_fail
+if grep -q "ci\.fast_gate_job" "$SKILL_MD" 2>/dev/null; then
+    has_ci_fast_gate_job="found"
+else
+    has_ci_fast_gate_job="missing"
+fi
+assert_eq "test_sc1_ci_fast_gate_job_present" "found" "$has_ci_fast_gate_job"
+assert_pass_if_clean "test_sc1_ci_fast_gate_job_present"
+
+# test_sc1_ci_fast_fail_job_present: ci.fast_fail_job must appear in SKILL.md (SC1)
+_snapshot_fail
+if grep -q "ci\.fast_fail_job" "$SKILL_MD" 2>/dev/null; then
+    has_ci_fast_fail_job="found"
+else
+    has_ci_fast_fail_job="missing"
+fi
+assert_eq "test_sc1_ci_fast_fail_job_present" "found" "$has_ci_fast_fail_job"
+assert_pass_if_clean "test_sc1_ci_fast_fail_job_present"
+
+# test_sc1_ci_test_ceil_job_present: ci.test_ceil_job must appear in SKILL.md (SC1)
+_snapshot_fail
+if grep -q "ci\.test_ceil_job" "$SKILL_MD" 2>/dev/null; then
+    has_ci_test_ceil_job="found"
+else
+    has_ci_test_ceil_job="missing"
+fi
+assert_eq "test_sc1_ci_test_ceil_job_present" "found" "$has_ci_test_ceil_job"
+assert_pass_if_clean "test_sc1_ci_test_ceil_job_present"
+
+# test_sc1_ci_integration_workflow_present: ci.integration_workflow must appear in SKILL.md (SC1)
+_snapshot_fail
+if grep -q "ci\.integration_workflow" "$SKILL_MD" 2>/dev/null; then
+    has_ci_integration_workflow="found"
+else
+    has_ci_integration_workflow="missing"
+fi
+assert_eq "test_sc1_ci_integration_workflow_present" "found" "$has_ci_integration_workflow"
+assert_pass_if_clean "test_sc1_ci_integration_workflow_present"
+
+# test_sc5_jira_project_key_absent: jira.project_key must NOT appear in SKILL.md (SC5)
+# Regression guard: the correct key is jira.project, not jira.project_key
+_snapshot_fail
+if grep -q "jira\.project_key" "$SKILL_MD" 2>/dev/null; then
+    has_jira_project_key="found"
+else
+    has_jira_project_key="absent"
+fi
+assert_eq "test_sc5_jira_project_key_absent" "absent" "$has_jira_project_key"
+assert_pass_if_clean "test_sc5_jira_project_key_absent"
+
+# test_sc5_design_system_name_not_bare: design.system without _name suffix must NOT
+# appear as a standalone config key (SC5). Correct key is design.system_name.
+_snapshot_fail
+if grep -E "design\.system[^_]" "$SKILL_MD" 2>/dev/null | grep -qv "^#"; then
+    has_bare_design_system="found"
+else
+    has_bare_design_system="absent"
+fi
+assert_eq "test_sc5_design_system_name_not_bare" "absent" "$has_bare_design_system"
+assert_pass_if_clean "test_sc5_design_system_name_not_bare"
+
 print_summary

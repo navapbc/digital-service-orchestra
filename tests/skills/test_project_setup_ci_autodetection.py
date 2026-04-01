@@ -137,3 +137,71 @@ def test_skill_prompts_for_ci_integration_workflow() -> None:
         "Expected SKILL.md to prompt for 'ci.integration_workflow'. "
         "This is a RED test — SKILL.md does not yet reference this key."
     )
+
+
+# ── Test SC3: Deprecation notice exists with migration guidance ───────────────
+
+
+def test_sc3_merge_ci_workflow_name_deprecation_notice() -> None:
+    """SKILL.md must include a deprecation notice block for merge.ci_workflow_name (SC3).
+
+    The notice must contain both the deprecated key name and guidance indicating
+    that it is deprecated and should be migrated to ci.workflow_name.
+    """
+    content = _read_skill()
+    assert "merge.ci_workflow_name" in content, (
+        "Expected SKILL.md to contain 'merge.ci_workflow_name' (the deprecated key). "
+        "SC3 requires a deprecation notice for this key."
+    )
+    assert (
+        "deprecated" in content or "deprecation" in content or "migrate" in content
+    ), (
+        "Expected SKILL.md to contain a deprecation notice or migration guidance "
+        "alongside merge.ci_workflow_name. SC3 requires this notice."
+    )
+    # Both should co-occur: confirm the deprecated key is mentioned in context
+    # with the migration guidance (not just in passing)
+    assert "ci.workflow_name" in content, (
+        "Expected SKILL.md to reference 'ci.workflow_name' as the replacement key "
+        "for the deprecated merge.ci_workflow_name. SC3 requires the migration target."
+    )
+
+
+# ── Test SC5: Negative assertions — wrong key names must NOT appear ───────────
+
+
+def test_sc5_jira_project_key_absent() -> None:
+    """SKILL.md must NOT contain 'jira.project_key' (SC5 negative assertion).
+
+    The correct config key is 'jira.project', not 'jira.project_key'.
+    This is a regression guard.
+    """
+    content = _read_skill()
+    assert "jira.project_key" not in content, (
+        "SKILL.md must NOT contain 'jira.project_key'. "
+        "The correct key is 'jira.project'. "
+        "SC5 regression guard: found the wrong key name."
+    )
+
+
+def test_sc5_design_system_bare_key_absent() -> None:
+    """SKILL.md must NOT contain 'design.system' as a bare key without '_name' (SC5 negative).
+
+    The correct config key is 'design.system_name', not 'design.system'.
+    Matches 'design.system' followed by a non-underscore character.
+    """
+    import re
+
+    content = _read_skill()
+    # Exclude comment lines (starting with #) from the check
+    non_comment_lines = [
+        line for line in content.splitlines() if not line.lstrip().startswith("#")
+    ]
+    bare_occurrences = [
+        line for line in non_comment_lines if re.search(r"design\.system[^_]", line)
+    ]
+    assert not bare_occurrences, (
+        "SKILL.md must NOT contain 'design.system' as a bare key (without '_name' suffix). "
+        f"SC5 regression guard: found {len(bare_occurrences)} occurrence(s): "
+        + "\n".join(bare_occurrences[:3])
+    )

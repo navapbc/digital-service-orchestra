@@ -139,4 +139,15 @@ fi
 assert_eq "test_deprecated_key_migration" "found" "$has_deprecated_migration"
 assert_pass_if_clean "test_deprecated_key_migration"
 
+# test_sc4_version_file_path_numbered_selection: when multiple version files are
+# detected, SKILL.md must present a numbered selection dialogue (SC4)
+_snapshot_fail
+if grep -qiE "version_files.*2 or more|multiple version files|numbered selection.*version|version.*numbered selection" "$SKILL_MD" 2>/dev/null; then
+    has_version_numbered_selection="found"
+else
+    has_version_numbered_selection="missing"
+fi
+assert_eq "test_sc4_version_file_path_numbered_selection" "found" "$has_version_numbered_selection"
+assert_pass_if_clean "test_sc4_version_file_path_numbered_selection"
+
 print_summary
