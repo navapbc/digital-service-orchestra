@@ -232,6 +232,68 @@ if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]]; then
     fi
 fi
 
+# ── Rebase commit: filter out onto-branch-only files (REBASE_HEAD) ───────────
+# When REBASE_HEAD exists (mid-rebase state), staged files may include changes
+# from the onto branch (e.g., main) that the worktree branch never touched.
+# These onto-branch-only files should not require re-review.
+#
+# Algorithm:
+#   1. Read onto SHA from rebase-merge/onto (or rebase-apply/onto)
+#   2. Read orig-head SHA from rebase-merge/orig-head (or rebase-apply/orig-head)
+#      (NOT .git/ORIG_HEAD — that is overwritten by other git operations)
+#   3. Compute merge base between onto and orig-head
+#   4. Get files changed on the worktree branch: merge-base..orig-head
+#   5. Filter STAGED_FILES to only include files that the worktree branch touched
+#   6. Files in staged but NOT in worktree-branch changes are onto-only → exempt
+#
+# Fail-safe: if onto/orig-head/merge-base is missing or computation fails,
+# fall through to normal review enforcement with the full staged file list.
+if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/REBASE_HEAD" ]]; then
+    _git_dir=$(git rev-parse --git-dir 2>/dev/null)
+    # Find the onto and orig-head files (rebase-merge takes priority over rebase-apply)
+    _rebase_onto_file=""
+    _rebase_orig_head_file=""
+    if [[ -f "$_git_dir/rebase-merge/onto" ]]; then
+        _rebase_onto_file="$_git_dir/rebase-merge/onto"
+        _rebase_orig_head_file="$_git_dir/rebase-merge/orig-head"
+    elif [[ -f "$_git_dir/rebase-apply/onto" ]]; then
+        _rebase_onto_file="$_git_dir/rebase-apply/onto"
+        _rebase_orig_head_file="$_git_dir/rebase-apply/orig-head"
+    fi
+
+    if [[ -n "$_rebase_onto_file" && -f "$_rebase_onto_file" && -n "$_rebase_orig_head_file" && -f "$_rebase_orig_head_file" ]]; then
+        _rebase_onto_sha=$(cat "$_rebase_onto_file" 2>/dev/null | head -1)
+        _rebase_orig_head_sha=$(cat "$_rebase_orig_head_file" 2>/dev/null | head -1)
+
+        if [[ -n "$_rebase_onto_sha" && -n "$_rebase_orig_head_sha" ]]; then
+            _rebase_merge_base=$(git merge-base "$_rebase_onto_sha" "$_rebase_orig_head_sha" 2>/dev/null || echo "")
+
+            if [[ -n "$_rebase_merge_base" ]]; then
+                # Get files changed on the worktree branch (merge-base..orig-head)
+                _rebase_worktree_changed=$(git diff --name-only "$_rebase_merge_base" "$_rebase_orig_head_sha" 2>/dev/null || echo "")
+
+                # Filter staged files: keep only those that the worktree branch changed
+                _rebase_filtered_staged=()
+                for _rsf in "${STAGED_FILES[@]}"; do
+                    if echo "$_rebase_worktree_changed" | grep -qxF "$_rsf" 2>/dev/null; then
+                        _rebase_filtered_staged+=("$_rsf")
+                    fi
+                done
+
+                # Replace STAGED_FILES with filtered list
+                STAGED_FILES=("${_rebase_filtered_staged[@]+"${_rebase_filtered_staged[@]}"}")
+
+                # If all staged files were onto-branch-only, nothing to check
+                if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
+                    log_decision "pass"
+                    exit 0
+                fi
+            fi
+        fi
+    fi
+    # If onto/orig-head/merge-base missing → fail-open: fall through with full STAGED_FILES
+fi
+
 # ── Load allowlist patterns ──────────────────────────────────────────────────
 # Uses _load_allowlist_patterns from deps.sh (same shared allowlist as
 # compute-diff-hash.sh and skip-review-check.sh — single source of truth).

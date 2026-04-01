@@ -259,6 +259,62 @@ if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/MERGE_HEAD" ]]; then
     fi
 fi
 
+# --- Rebase commit: filter out incoming-only files ---
+# Mirrors the logic in pre-commit-test-gate.sh lines 179-243.
+# When REBASE_HEAD exists (mid `git rebase`), staged files may include changes from
+# the onto branch that were already reviewed. Only test files the worktree branch
+# actually changed to avoid blocking on pre-existing failures from the onto branch.
+#
+# Fail-safe: if onto file is missing, orig-head unreadable, or merge-base fails,
+# fall through to normal enforcement with the full staged file list.
+if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/REBASE_HEAD" ]]; then
+    echo "REBASE_HEAD detected: filtering staged files to worktree-branch changes only" >&2
+    _rebase_onto=""
+    if [[ -f "$_GIT_DIR/rebase-merge/onto" ]]; then
+        _rebase_onto=$(head -1 "$_GIT_DIR/rebase-merge/onto" 2>/dev/null || echo "")
+    elif [[ -f "$_GIT_DIR/rebase-apply/onto" ]]; then
+        _rebase_onto=$(head -1 "$_GIT_DIR/rebase-apply/onto" 2>/dev/null || echo "")
+    fi
+
+    if [[ -n "$_rebase_onto" ]]; then
+        # Read orig-head from rebase state directory; fall back to HEAD
+        _rebase_orig_head=""
+        if [[ -f "$_GIT_DIR/rebase-merge/orig-head" ]]; then
+            _rebase_orig_head=$(head -1 "$_GIT_DIR/rebase-merge/orig-head" 2>/dev/null || echo "")
+        elif [[ -f "$_GIT_DIR/rebase-apply/orig-head" ]]; then
+            _rebase_orig_head=$(head -1 "$_GIT_DIR/rebase-apply/orig-head" 2>/dev/null || echo "")
+        fi
+        # Fall back to HEAD if orig-head state file is absent
+        if [[ -z "$_rebase_orig_head" ]]; then
+            _rebase_orig_head=$(git rev-parse HEAD 2>/dev/null || echo "")
+        fi
+
+        if [[ -n "$_rebase_orig_head" ]]; then
+            _rebase_merge_base=$(git merge-base "$_rebase_orig_head" "$_rebase_onto" 2>/dev/null || echo "")
+            if [[ -n "$_rebase_merge_base" ]]; then
+                # Get files changed on the worktree branch (merge-base..orig-head)
+                _rebase_worktree_changed=$(git diff --name-only "$_rebase_merge_base" "$_rebase_orig_head" 2>/dev/null || echo "")
+
+                # Filter staged files: keep only those that the worktree branch changed
+                _rebase_filtered=""
+                if [[ -n "$_rebase_worktree_changed" ]]; then
+                    while IFS= read -r _rsf; do
+                        [[ -z "$_rsf" ]] && continue
+                        if echo "$_rebase_worktree_changed" | grep -qxF "$_rsf" 2>/dev/null; then
+                            _rebase_filtered="${_rebase_filtered}${_rsf}"$'\n'
+                        fi
+                    done <<< "$STAGED_FILES"
+                fi
+                # Empty _rebase_worktree_changed or no matches → all files are incoming-only
+                STAGED_FILES="${_rebase_filtered%$'\n'}"
+                if [[ -z "$STAGED_FILES" ]]; then
+                    exit 0
+                fi
+            fi
+        fi
+    fi
+fi
+
 # --- Detect staged skill files (for Tier 1 eval invocation) ---
 # Collected here (before the "no associated tests" early exit) so that skill evals
 # run even when no unit tests are associated with the staged files.
