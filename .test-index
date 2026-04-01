@@ -56,7 +56,7 @@ plugins/dso/hooks/dispatchers/pre-bash.sh:tests/hooks/test-pre-bash-dispatcher.s
 plugins/dso/hooks/dispatchers/pre-edit.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/dispatchers/pre-write.sh:tests/hooks/test-pre-edit-write-dispatcher.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-commit-tracker.sh
-plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh,tests/hooks/test-compute-diff-hash.sh [test_hash_rebase_excludes_incoming_only]
+plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-tickets-tracker.sh,tests/hooks/test-compute-diff-hash.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
@@ -82,7 +82,7 @@ plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh
 plugins/dso/scripts/ticket-transition.sh:tests/scripts/test-ticket-transition.sh
 plugins/dso/scripts/agent-profiles/prompts/explore-structured-output.md:tests/scripts/test-explore-dispatch-template.sh
 plugins/dso/scripts/runners/bash-runner.sh:tests/scripts/test-test-batched.sh
-plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh
+plugins/dso/scripts/capture-review-diff.sh:tests/hooks/test-merge-aware-diff.sh [test_capture_diff_rebase_scopes_to_worktree]
 plugins/dso/scripts/agent-batch-lifecycle.sh:tests/scripts/test-validate-phase-v2-removal.sh
 plugins/dso/scripts/gate-2a-reversal-check.sh: tests/scripts/test-gate-2a-reversal-check.sh
 plugins/dso/scripts/validate-gate-signal.py: tests/scripts/test_validate_gate_signal.py
@@ -172,7 +172,7 @@ plugins/dso/agents/code-reviewer-deep-correctness.md:tests/agents/test-reviewer-
 plugins/dso/agents/code-reviewer-deep-hygiene.md:tests/agents/test-reviewer-dimension-names.sh
 plugins/dso/agents/code-reviewer-deep-verification.md:tests/agents/test-reviewer-dimension-names.sh
 plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/hooks/test-mechanical-amend-bypass.sh
-plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh
+plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-mechanical-amend-bypass.sh,tests/hooks/test-pre-commit-review-gate.sh [test_review_gate_rebase_filters_incoming_only]
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-pre-commit-test-gate.sh,tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-mechanical-amend-bypass.sh
 plugins/dso/skills/implementation-plan/SKILL.md:tests/skills/test_implementation_plan_bidirectional_tdd.py
@@ -189,7 +189,7 @@ plugins/dso/skills/design-wireframe/SKILL.md:tests/skills/test-skill-nesting-dep
 plugins/dso/scripts/jira-credential-helper.sh:tests/scripts/test-jira-credential-helper.sh
 plugins/dso/scripts/acli-version-resolver.sh:tests/scripts/test-acli-version-resolver.sh
 plugins/dso/scripts/gh-availability-check.sh:tests/scripts/test-gh-availability-check.sh
-plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh
+plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-v2-hooks-cleanup.sh,tests/hooks/test-review-complexity-classifier.sh [test_classifier_detects_rebase_commit]
 plugins/dso/scripts/skip-review-check.sh:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/claude-safe:tests/hooks/test-v2-hooks-cleanup.sh
 plugins/dso/scripts/retro-gather.sh:tests/hooks/test-v2-hooks-cleanup.sh
@@ -223,4 +223,5 @@ plugins/dso/hooks/resolve-overlay-findings.sh: tests/hooks/test-overlay-resoluti
 plugins/dso/scripts/gate-2d-dependency-check.sh: tests/scripts/test-gate-2d-dependency-check.sh
 plugins/dso/scripts/gate-2c-test-regression-check.py: tests/scripts/test_gate_2c_test_regression_check.py
 plugins/dso/scripts/gate-escalation-router.py: tests/scripts/test_gate_escalation_router.py
+plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-part2.sh [test_record_status_rebase_filters_incoming_only]
 .claude/docs/KNOWN-ISSUES.md: tests/scripts/test-known-issues-smoke.sh

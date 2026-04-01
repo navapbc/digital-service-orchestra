@@ -190,6 +190,54 @@ if [[ -f "$_GIT_DIR/MERGE_HEAD" ]]; then
             git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
         } | hash_stdin
     fi
+elif [[ -f "$_GIT_DIR/REBASE_HEAD" ]]; then
+    # Rebase-aware: when REBASE_HEAD exists, scope the diff to only files changed
+    # on the worktree branch (merge-base..orig-head), excluding incoming-only files
+    # from the onto branch. Mirrors the MERGE_HEAD filtering above.
+    # Read onto and orig-head from rebase state dirs (rebase-merge takes precedence
+    # over rebase-apply; do NOT use ORIG_HEAD ref which is per-repo, not per-worktree).
+    # Use git rev-parse --git-dir for per-worktree path resolution.
+    _rebase_git_dir=$(git rev-parse --git-dir 2>/dev/null)
+    _rebase_onto=""
+    _rebase_orig_head=""
+    if [[ -f "$_rebase_git_dir/rebase-merge/onto" ]]; then
+        _rebase_onto=$(cat "$_rebase_git_dir/rebase-merge/onto" 2>/dev/null || echo "")
+        _rebase_orig_head=$(cat "$_rebase_git_dir/rebase-merge/orig-head" 2>/dev/null || echo "")
+    elif [[ -f "$_rebase_git_dir/rebase-apply/onto" ]]; then
+        _rebase_onto=$(cat "$_rebase_git_dir/rebase-apply/onto" 2>/dev/null || echo "")
+        _rebase_orig_head=$(cat "$_rebase_git_dir/rebase-apply/orig-head" 2>/dev/null || echo "")
+    fi
+
+    if [[ -n "$_rebase_onto" && -n "$_rebase_orig_head" ]]; then
+        _rebase_merge_base=$(git merge-base "$_rebase_orig_head" "$_rebase_onto" 2>/dev/null || echo "")
+        if [[ -n "$_rebase_merge_base" ]]; then
+            # Only hash changes from the worktree branch (merge-base..orig-head + working tree)
+            # This excludes incoming-only files from the onto branch.
+            _rebase_worktree_files=$(git diff --name-only "$_rebase_merge_base" "$_rebase_orig_head" 2>/dev/null || echo "")
+            if [[ -n "$_rebase_worktree_files" ]]; then
+                _rebase_file_pathspecs=()
+                while IFS= read -r _f; do
+                    [[ -n "$_f" ]] && _rebase_file_pathspecs+=("$_f")
+                done <<< "$_rebase_worktree_files"
+                {
+                    git diff "$DIFF_BASE" -- "${_rebase_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+                } | hash_stdin
+            else
+                # No worktree-branch changes — hash an empty diff
+                echo "" | hash_stdin
+            fi
+        else
+            # merge-base failed — fall through to default behavior
+            {
+                git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+            } | hash_stdin
+        fi
+    else
+        # onto or orig-head missing — fail-open, fall through to default behavior
+        {
+            git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+        } | hash_stdin
+    fi
 else
     {
         git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true

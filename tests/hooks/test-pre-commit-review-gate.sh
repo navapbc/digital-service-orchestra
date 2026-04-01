@@ -645,6 +645,246 @@ test_fake_merge_head_does_not_bypass_review() {
     rm -f "$_repo/.git/MERGE_HEAD"
 }
 
+# ============================================================
+# test_review_gate_rebase_filters_incoming_only
+#
+# During a rebase (REBASE_HEAD + rebase-merge/onto + rebase-merge/orig-head
+# present), files that only changed on the onto branch (incoming-only) should
+# be filtered from review enforcement. The hook should exit 0.
+#
+# Setup:
+#   1. Create a worktree branch from main with one commit
+#   2. On main, add a non-allowlisted .py file (onto-branch-only change)
+#   3. Simulate mid-rebase state: write .git/REBASE_HEAD, .git/rebase-merge/onto,
+#      and .git/rebase-merge/orig-head (NOT .git/ORIG_HEAD)
+#   4. Stage the onto-branch-only .py file
+#
+# Expected: exit 0 (incoming-only file filtered, nothing to review)
+#
+# RED: No REBASE_HEAD handling exists in pre-commit-review-gate.sh.
+# Without filtering, the hook sees a staged non-allowlisted .py file with no
+# review-status and blocks (exit 1). This test fails until the feature lands.
+# ============================================================
+test_review_gate_rebase_filters_incoming_only() {
+    local _repo _artifacts
+    _repo=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_repo")
+    _artifacts=$(make_artifacts_dir)
+
+    # Initialize repo with an initial commit on main
+    git -C "$_repo" init -q
+    git -C "$_repo" config user.email "test@test.com"
+    git -C "$_repo" config user.name "Test"
+    git -C "$_repo" config commit.gpgsign false
+
+    echo "initial" > "$_repo/README.md"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "initial commit"
+
+    local _main_branch
+    _main_branch=$(git -C "$_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+    # Create a worktree branch with a divergent commit (no .py changes here)
+    git -C "$_repo" checkout -q -b worktree-branch
+    echo "worktree change" >> "$_repo/README.md"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "worktree commit"
+
+    local _orig_head_sha
+    _orig_head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+
+    # Switch back to main and add a non-allowlisted .py file (onto-branch-only)
+    git -C "$_repo" checkout -q "$_main_branch"
+    echo "def rebase_incoming(): pass" > "$_repo/rebase_incoming.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add rebase_incoming.py on main (onto branch)"
+
+    local _onto_sha
+    _onto_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+
+    # Switch to worktree branch and simulate mid-rebase state
+    git -C "$_repo" checkout -q worktree-branch
+
+    mkdir -p "$_repo/.git/rebase-merge"
+    echo "$_onto_sha" > "$_repo/.git/rebase-merge/onto"
+    echo "$_orig_head_sha" > "$_repo/.git/rebase-merge/orig-head"
+    echo "$_orig_head_sha" > "$_repo/.git/REBASE_HEAD"
+
+    # Stage the onto-branch-only .py file (incoming-only during rebase)
+    git -C "$_repo" checkout -q "$_onto_sha" -- rebase_incoming.py 2>/dev/null || true
+    git -C "$_repo" add rebase_incoming.py 2>/dev/null || true
+
+    if [[ ! -f "$_repo/.git/REBASE_HEAD" ]]; then
+        assert_eq "test_review_gate_rebase_filters_incoming_only: REBASE_HEAD created" \
+            "present" "absent"
+        return
+    fi
+
+    # RED assertion: REBASE_HEAD filtering logic is absent from the hook.
+    # When this fires, the test records a RED failure explaining the gap.
+    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$HOOK" 2>/dev/null; then
+        assert_eq "test_review_gate_rebase_filters_incoming_only: rebase filtering absent (RED)" \
+            "rebase_filtering_present" "rebase_filtering_absent"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
+    assert_eq "test_review_gate_rebase_filters_incoming_only: hook exits 0 for incoming-only file" \
+        "0" "$exit_code"
+}
+
+# ============================================================
+# test_review_gate_rebase_keeps_worktree_files
+#
+# During a rebase, a file that was also modified on the worktree branch
+# must NOT be filtered. The hook should enforce review normally (exit non-zero)
+# when the staged file also appears in the worktree-branch diff.
+#
+# Setup:
+#   1. Create a file on initial commit (shared_rebase_rv.py)
+#   2. Worktree branch modifies it; onto branch also modifies it
+#   3. Simulate rebase state; stage the version from the onto branch
+#
+# Expected: exit non-zero (file is in worktree diff — not incoming-only)
+#
+# RED: Without REBASE_HEAD handling, the hook already sees this staged
+# non-allowlisted file and blocks (exit 1) — but for the wrong reason
+# (no REBASE_HEAD detection at all). This test remains RED until the
+# feature is implemented, at which point it guards correct behavior.
+# ============================================================
+test_review_gate_rebase_keeps_worktree_files() {
+    local _repo _artifacts
+    _repo=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_repo")
+    _artifacts=$(make_artifacts_dir)
+
+    git -C "$_repo" init -q
+    git -C "$_repo" config user.email "test@test.com"
+    git -C "$_repo" config user.name "Test"
+    git -C "$_repo" config commit.gpgsign false
+
+    # Initial commit with a shared source file
+    echo "def shared_rebase_rv(): return 1" > "$_repo/shared_rebase_rv.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "initial commit"
+
+    local _main_branch
+    _main_branch=$(git -C "$_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+    # Worktree branch modifies the shared file
+    git -C "$_repo" checkout -q -b worktree-branch
+    echo "# worktree change" >> "$_repo/shared_rebase_rv.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "worktree modifies shared_rebase_rv.py"
+
+    local _orig_head_sha
+    _orig_head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+
+    # Onto branch (main) also modifies the shared file
+    git -C "$_repo" checkout -q "$_main_branch"
+    echo "# onto change" >> "$_repo/shared_rebase_rv.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "main also modifies shared_rebase_rv.py"
+
+    local _onto_sha
+    _onto_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+
+    # Switch to worktree branch and simulate mid-rebase state
+    git -C "$_repo" checkout -q worktree-branch
+
+    mkdir -p "$_repo/.git/rebase-merge"
+    echo "$_onto_sha" > "$_repo/.git/rebase-merge/onto"
+    echo "$_orig_head_sha" > "$_repo/.git/rebase-merge/orig-head"
+    echo "$_orig_head_sha" > "$_repo/.git/REBASE_HEAD"
+
+    # Stage the shared file (modified on both branches — not incoming-only)
+    git -C "$_repo" checkout -q "$_onto_sha" -- shared_rebase_rv.py 2>/dev/null || true
+    git -C "$_repo" add shared_rebase_rv.py 2>/dev/null || true
+
+    if [[ ! -f "$_repo/.git/REBASE_HEAD" ]]; then
+        assert_eq "test_review_gate_rebase_keeps_worktree_files: REBASE_HEAD created" \
+            "present" "absent"
+        return
+    fi
+
+    # RED assertion: REBASE_HEAD filtering logic is absent from the hook.
+    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$HOOK" 2>/dev/null; then
+        assert_eq "test_review_gate_rebase_keeps_worktree_files: rebase filtering absent (RED)" \
+            "rebase_filtering_present" "rebase_filtering_absent"
+        return
+    fi
+
+    # Once rebase filtering is implemented, gate must still block for the
+    # worktree-modified file (no review-status exists for it)
+    local exit_code
+    exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
+    assert_ne "test_review_gate_rebase_keeps_worktree_files: hook blocks for worktree-modified file during rebase" \
+        "0" "$exit_code"
+}
+
+# ============================================================
+# test_review_gate_rebase_failsafe_missing_onto
+#
+# When REBASE_HEAD is present but rebase-merge/onto is absent
+# (incomplete or unusual rebase state), the hook must fall through
+# to normal review enforcement rather than silently allowing the commit.
+#
+# Setup:
+#   1. Stage a non-allowlisted .py file
+#   2. Write .git/REBASE_HEAD but omit .git/rebase-merge/onto entirely
+#
+# Expected: exit non-zero (fallback to normal enforcement; no review → blocked)
+#
+# RED: No REBASE_HEAD handling exists in pre-commit-review-gate.sh.
+# This test asserts that once handling is added, the failsafe path holds.
+# ============================================================
+test_review_gate_rebase_failsafe_missing_onto() {
+    local _repo _artifacts
+    _repo=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_repo")
+    _artifacts=$(make_artifacts_dir)
+
+    git -C "$_repo" init -q
+    git -C "$_repo" config user.email "test@test.com"
+    git -C "$_repo" config user.name "Test"
+    git -C "$_repo" config commit.gpgsign false
+
+    echo "initial" > "$_repo/README.md"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "initial commit"
+
+    # Stage a non-allowlisted Python file (no review-status exists)
+    echo "def failsafe_test(): pass" > "$_repo/failsafe_rebase_rv.py"
+    git -C "$_repo" add failsafe_rebase_rv.py
+
+    # Write REBASE_HEAD but deliberately omit rebase-merge/onto
+    echo "$(git -C "$_repo" rev-parse HEAD 2>/dev/null)" > "$_repo/.git/REBASE_HEAD"
+    # Intentionally do NOT create .git/rebase-merge/ or .git/rebase-merge/onto
+
+    if [[ ! -f "$HOOK" ]]; then
+        assert_eq "test_review_gate_rebase_failsafe_missing_onto: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # RED assertion: REBASE_HEAD filtering logic is absent from the hook.
+    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$HOOK" 2>/dev/null; then
+        assert_eq "test_review_gate_rebase_failsafe_missing_onto: rebase filtering absent (RED)" \
+            "rebase_filtering_present" "rebase_filtering_absent"
+        rm -f "$_repo/.git/REBASE_HEAD"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_hook_in_repo "$_repo" "$_artifacts")
+
+    rm -f "$_repo/.git/REBASE_HEAD"
+
+    # Fallback must block: missing onto → no filtering → normal enforcement → blocked
+    assert_ne "test_review_gate_rebase_failsafe_missing_onto: hook blocks when onto missing (failsafe)" \
+        "0" "$exit_code"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlisted_only_commit_passes
 test_tickets_only_commit_passes
@@ -660,5 +900,8 @@ test_cross_worktree_merge_commit_passes
 test_merge_head_with_non_allowlisted_and_valid_review_passes
 test_merge_commit_with_incoming_non_allowlisted_passes
 test_fake_merge_head_does_not_bypass_review
+test_review_gate_rebase_filters_incoming_only
+test_review_gate_rebase_keeps_worktree_files
+test_review_gate_rebase_failsafe_missing_onto
 
 print_summary
