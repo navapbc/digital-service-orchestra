@@ -89,7 +89,7 @@ fi
 # (SCRIPT_DIR is set unconditionally below; define REPO_ROOT here for .git check)
 if [ -z "$BRANCH" ]; then
     _autodetect_script_dir="$(cd "$(dirname "$0")" && pwd)"
-    REPO_ROOT="$(cd "$_autodetect_script_dir/.." && git rev-parse --show-toplevel 2>/dev/null || echo "$_autodetect_script_dir/..")"
+    REPO_ROOT=$(resolve_repo_root)
     if [ -f "$REPO_ROOT/.git" ]; then
         # .git is a file → this is a worktree
         BRANCH="main"
@@ -205,7 +205,7 @@ _ci_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"
 # Prints the path on success; empty string if none found.
 _find_python_with_yaml() {
     local repo_root
-    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    repo_root=$(resolve_repo_root)
     local candidate
     for candidate in \
         "${CLAUDE_PLUGIN_PYTHON:-}" \
@@ -264,7 +264,7 @@ parse_phase_ceilings() {
     local script_dir
     script_dir="$(cd "$(dirname "$0")" && pwd)"
     local _ci_repo_root
-    _ci_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    _ci_repo_root=$(resolve_repo_root)
     local candidate="${_ci_repo_root:+$_ci_repo_root/.github/workflows/ci.yml}"
     if [[ -n "$candidate" && -f "$candidate" ]]; then
         yaml="$(cd "$(dirname "$candidate")" && pwd)/$(basename "$candidate")"
@@ -307,7 +307,8 @@ check_regression() {
 
     # Find baseline file
     local worktree_name
-    worktree_name=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "default")")
+    worktree_name=$(basename "$(resolve_repo_root)" 2>/dev/null)
+    : "${worktree_name:=default}"
     local baseline_file="/tmp/lockpick-test-artifacts-${worktree_name}/ci-baseline"
 
     if [ ! -f "$baseline_file" ]; then

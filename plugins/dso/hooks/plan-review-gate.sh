@@ -26,7 +26,7 @@ if [[ "$TOOL_NAME" != "ExitPlanMode" ]]; then
 fi
 
 # Determine worktree and state file location
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+REPO_ROOT=$(resolve_repo_root)
 if [[ -z "$REPO_ROOT" ]]; then
     exit 0
 fi

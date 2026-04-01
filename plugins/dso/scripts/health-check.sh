@@ -39,7 +39,7 @@ done
 
 # ── Resolve key directories ───────────────────────────────────────────────────
 ARTIFACTS_DIR=$(get_artifacts_dir)
-REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+REPO_ROOT=$(resolve_repo_root)
 
 # ── Helper: get file modification time in epoch seconds ──────────────────────
 _file_mtime() {

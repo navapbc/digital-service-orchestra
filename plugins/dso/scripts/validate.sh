@@ -86,7 +86,7 @@ CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 
 # Use the caller's git toplevel as REPO_ROOT so that worktrees are tested
 # against their own working tree, not the main repo's.
-CALLER_GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+CALLER_GIT_ROOT=$(resolve_repo_root)
 if [ -n "$CALLER_GIT_ROOT" ]; then
     REPO_ROOT="$CALLER_GIT_ROOT"
 else

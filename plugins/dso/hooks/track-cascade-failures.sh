@@ -54,7 +54,7 @@ if [[ "$IS_TEST_CMD" != "true" ]]; then
 fi
 
 # --- Resolve worktree-scoped state directory ---
-WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+WORKTREE_ROOT=$(resolve_repo_root)
 if [[ -z "$WORKTREE_ROOT" ]]; then
     exit 0
 fi

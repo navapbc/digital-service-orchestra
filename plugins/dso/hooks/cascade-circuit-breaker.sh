@@ -41,7 +41,7 @@ fi
 FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path') || exit 0
 
 # --- Resolve worktree-scoped state directory (needed before /tmp/* check) ---
-WORKTREE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+WORKTREE_ROOT=$(resolve_repo_root)
 
 # Allow non-code edits (config, docs).
 # Split into two case blocks because $HOME expansion does not work

@@ -116,7 +116,7 @@ if [[ ${#NON_ALLOWLISTED_FILES[@]} -eq 0 ]]; then
 fi
 
 # ── Resolve tracker directory ─────────────────────────────────────────────────
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+REPO_ROOT=$(resolve_repo_root)
 TRACKER_DIR="${TICKET_TRACKER_OVERRIDE:-${REPO_ROOT}/.tickets-tracker}"
 
 # Graceful degradation: if tracker is not mounted, warn and fail open

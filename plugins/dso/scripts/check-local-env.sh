@@ -37,7 +37,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 [[ ! -f "${CLAUDE_PLUGIN_ROOT}/plugin.json" ]] && CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.."
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
-REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+REPO_ROOT=$(resolve_repo_root)
 
 # Source config-paths.sh for CFG_PYTHON_VENV
 _env_config_paths="${CLAUDE_PLUGIN_ROOT}/hooks/lib/config-paths.sh"

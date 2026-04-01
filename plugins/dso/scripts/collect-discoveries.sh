@@ -35,7 +35,7 @@ set -euo pipefail
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
+REPO_ROOT=$(resolve_repo_root)
 
 # Source deps.sh for get_artifacts_dir
 # Defensive plugin-root resolution: CLAUDE_PLUGIN_ROOT may point to the main repo

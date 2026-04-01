@@ -37,8 +37,8 @@ fi
 if [[ -n "${DEPS_PATH:-}" ]]; then
     REPO_ROOT=$(resolve_repo_root)
 else
-    # deps.sh not found — inline fallback
-    REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
+    # deps.sh not found — inline fallback (resolve_repo_root unavailable)
+    REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}" # inline fallback
 fi
 
 # --- Read diff from stdin ---

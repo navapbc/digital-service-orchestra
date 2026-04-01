@@ -15,7 +15,7 @@ set -euo pipefail
 
 set -euo pipefail
 
-REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo ".")}"
+REPO_ROOT=$(resolve_repo_root)
 
 # Parse arguments
 LOG_FILE=""

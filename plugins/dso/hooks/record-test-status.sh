@@ -198,7 +198,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Determine repo root
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+REPO_ROOT=$(resolve_repo_root)
 if [[ -z "$REPO_ROOT" ]]; then
     echo "ERROR: not in a git repository" >&2
     exit 1
