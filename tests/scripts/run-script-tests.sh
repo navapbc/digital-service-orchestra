@@ -8,7 +8,7 @@
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
 # Environment (passed through to suite-engine):
-#   TEST_TIMEOUT=30              Per-test timeout in seconds (default: 30)
+#   TEST_TIMEOUT=60              Per-test timeout in seconds (default: 60)
 #   MAX_PARALLEL=8               Max concurrent tests (default: 8)
 #   MAX_CONSECUTIVE_FAILS=5      Abort after N consecutive failures (default: 5)
 
@@ -31,12 +31,11 @@ if [[ -z "${SUITE_TEST_INDEX:-}" ]] && [[ -f "$REPO_ROOT/.test-index" ]]; then
     export SUITE_TEST_INDEX="$REPO_ROOT/.test-index"
 fi
 
-# Bump timeout for heavyweight tests (e.g., test-sync-roundtrip.sh: 941 lines)
-# dso-dcau: increased from 60→120 to prevent CPU-contention timeouts under
-# full parallel suite execution (145+ concurrent processes). test-isolation-check.sh
-# and test-isolation-rule-no-direct-os-environ.sh pass in <10s individually but
-# exceeded the 60s budget when the host is under heavy parallel load.
-: "${TEST_TIMEOUT:=120}"
+# Per-test timeout — most tests finish in <5s. The slot-refill scheduler
+# (suite-engine.sh) reduces CPU contention vs the old batch-wait approach,
+# so the 120s budget is no longer needed. 60s covers the slowest tests
+# (~16s for test-gate-2b-blast-radius.sh) with margin for loaded hosts.
+: "${TEST_TIMEOUT:=60}"
 
 # Source the suite engine
 source "$LIB_DIR/suite-engine.sh"

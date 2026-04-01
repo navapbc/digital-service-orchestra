@@ -196,191 +196,209 @@ run_test_suite() {
     results_dir=$(mktemp -d)
     _CLEANUP_DIRS+=("$results_dir")
 
-    # --- Parallel execution ---
+    # --- Parallel execution (slot-refill via wait -n) ---
+    # Instead of launching a batch of MAX_PARALLEL tests and waiting for ALL to
+    # finish before launching the next batch, we use `wait -n` to detect when
+    # ANY single test finishes, immediately refilling that slot. This eliminates
+    # idle slots when one test in a batch is slower than the others, reducing
+    # both wall time and CPU contention spikes.
     local index=0
-    local running_pids=()
-    local running_names=()
-    local running_indices=()
-    local running_paths=()
+    # Maps: PID → test metadata for in-flight tests
+    declare -A _pid_to_name=()
+    declare -A _pid_to_index=()
+    declare -A _pid_to_path=()
+    local completed_order=0
 
-    while [ "$index" -lt "$total" ] || [ ${#running_pids[@]} -gt 0 ]; do
-        # Launch new tests up to MAX_PARALLEL
-        while [ "$index" -lt "$total" ] && [ ${#running_pids[@]} -lt "$MAX_PARALLEL" ]; do
+    # _process_completed_test: read results for a finished test and report
+    _process_completed_test() {
+        local pid="$1"
+        local tname="${_pid_to_name[$pid]}"
+        local tidx="${_pid_to_index[$pid]}"
+        local tpath="${_pid_to_path[$pid]}"
+        unset "_pid_to_name[$pid]" "_pid_to_index[$pid]" "_pid_to_path[$pid]"
+
+        # Read results
+        local exit_code=0
+        if [ -f "$results_dir/$tname.exit" ]; then
+            exit_code=$(cat "$results_dir/$tname.exit")
+        fi
+
+        local counts_line="0 0"
+        local is_timeout=false
+        if [ -f "$results_dir/$tname.counts" ]; then
+            counts_line=$(cat "$results_dir/$tname.counts")
+            if echo "$counts_line" | grep -q "timeout"; then
+                is_timeout=true
+                counts_line="0 0"
+            fi
+        fi
+
+        local file_pass file_fail
+        file_pass=$(echo "$counts_line" | awk '{print $1}')
+        file_fail=$(echo "$counts_line" | awk '{print $2}')
+
+        # Progress output — use completion order for display
+        (( completed_order++ ))
+        local display_idx=$(( tidx + 1 ))
+        local is_tolerated=false
+        if [ "$is_timeout" = true ]; then
+            printf "[%d/%d] %s ... TIMEOUT (exceeded %ss)\n" "$display_idx" "$total" "$tname" "$TEST_TIMEOUT"
+            (( file_fail++ ))
+        elif [ "$exit_code" -ne 0 ]; then
+            if [ "$file_pass" -eq 0 ] && [ "$file_fail" -eq 0 ]; then
+                (( file_fail++ ))
+            fi
+
+            # --- RED zone tolerance check ---
+            local _red_marker_lookup=""
+            if [[ -n "${_RED_MARKER_MAP[$tpath]:-}" ]]; then
+                _red_marker_lookup="${_RED_MARKER_MAP[$tpath]}"
+            else
+                local _mk
+                for _mk in "${!_RED_MARKER_MAP[@]}"; do
+                    if [[ -n "${_RED_MARKER_MAP[$_mk]}" ]] && [[ "$tpath" == *"$_mk" ]]; then
+                        _red_marker_lookup="${_RED_MARKER_MAP[$_mk]}"
+                        break
+                    fi
+                done
+            fi
+            if [[ "$_RED_ZONE_ENABLED" = true ]] && [[ -n "$_red_marker_lookup" ]]; then
+                local _marker="$_red_marker_lookup"
+                local _out_file="$results_dir/$tname.out"
+
+                local _marker_line=-1
+                if [[ -f "$tpath" ]]; then
+                    local _lnum=0
+                    local _mpat="(^|[^a-zA-Z0-9_-])${_marker}([^a-zA-Z0-9_-]|\$)"
+                    while IFS= read -r _ml || [[ -n "$_ml" ]]; do
+                        (( _lnum++ )) || true
+                        [[ "$_ml" =~ ^[[:space:]]*# ]] && continue
+                        if [[ "$_ml" =~ $_mpat ]]; then
+                            _marker_line=$_lnum
+                            break
+                        fi
+                    done < "$tpath"
+                fi
+
+                if [[ "$_marker_line" -gt 0 ]]; then
+                    local _failing_tests
+                    _failing_tests=$(parse_failing_tests_from_output "$_out_file" 2>/dev/null || true)
+
+                    if [[ -n "$_failing_tests" ]]; then
+                        local _all_in_zone=true
+                        while IFS= read -r _ft; do
+                            [[ -z "$_ft" ]] && continue
+                            local _ft_line=-1
+                            local _flnum=0
+                            local _ftpat="(^|[^a-zA-Z0-9_-])${_ft}([^a-zA-Z0-9_-]|\$)"
+                            while IFS= read -r _fl || [[ -n "$_fl" ]]; do
+                                (( _flnum++ )) || true
+                                [[ "$_fl" =~ ^[[:space:]]*# ]] && continue
+                                if [[ "$_fl" =~ $_ftpat ]]; then
+                                    _ft_line=$_flnum
+                                    break
+                                fi
+                            done < "$tpath"
+                            if [[ "$_ft_line" -lt "$_marker_line" ]]; then
+                                _all_in_zone=false
+                                break
+                            fi
+                        done <<< "$_failing_tests"
+
+                        if [[ "$_all_in_zone" = true ]]; then
+                            is_tolerated=true
+                        fi
+                    fi
+                fi
+            fi
+
+            if [[ "$is_tolerated" = true ]]; then
+                printf "[%d/%d] %s ... TOLERATED (%d pass, %d red-zone)\n" \
+                    "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
+                SUITE_TOTAL_TOLERATED=$(( SUITE_TOTAL_TOLERATED + file_fail ))
+                file_fail=0
+            else
+                printf "[%d/%d] %s ... FAIL (%d pass, %d fail)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
+            fi
+        else
+            printf "[%d/%d] %s ... PASS (%d pass, %d fail)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
+        fi
+
+        SUITE_TOTAL_PASS=$(( SUITE_TOTAL_PASS + file_pass ))
+        SUITE_TOTAL_FAIL=$(( SUITE_TOTAL_FAIL + file_fail ))
+
+        # Track consecutive failures for fail-fast
+        if [ "$is_timeout" = true ]; then
+            failed_tests+=("$tname")
+            (( consecutive_fails++ ))
+        elif [ "$exit_code" -ne 0 ] && [ "$is_tolerated" = false ]; then
+            failed_tests+=("$tname")
+            (( consecutive_fails++ ))
+        elif [ "$exit_code" -eq 0 ] || [ "$is_tolerated" = true ]; then
+            consecutive_fails=0
+        fi
+
+        if [ "$consecutive_fails" -ge "$MAX_CONSECUTIVE_FAILS" ]; then
+            aborted=true
+        fi
+    }
+
+    while [ "$index" -lt "$total" ] || [ ${#_pid_to_name[@]} -gt 0 ]; do
+        # Fill slots up to MAX_PARALLEL
+        while [ "$index" -lt "$total" ] && [ ${#_pid_to_name[@]} -lt "$MAX_PARALLEL" ]; do
             if [ "$aborted" = true ]; then
                 break
             fi
             local test_file="${test_files[$index]}"
             _run_single_test "$test_file" "$results_dir" &
-            running_pids+=($!)
-            running_names+=("$(basename "$test_file")")
-            running_indices+=($index)
-            running_paths+=("$test_file")
+            local _new_pid=$!
+            _pid_to_name[$_new_pid]="$(basename "$test_file")"
+            _pid_to_index[$_new_pid]=$index
+            _pid_to_path[$_new_pid]="$test_file"
             (( index++ ))
         done
 
-        if [ ${#running_pids[@]} -eq 0 ]; then
+        if [ ${#_pid_to_name[@]} -eq 0 ]; then
             break
         fi
-
-        # Wait for all current batch to complete
-        for i in "${!running_pids[@]}"; do
-            wait "${running_pids[$i]}" 2>/dev/null || true
-            local tname="${running_names[$i]}"
-            local tidx="${running_indices[$i]}"
-            local tpath="${running_paths[$i]}"
-
-            # Read results
-            local exit_code=0
-            if [ -f "$results_dir/$tname.exit" ]; then
-                exit_code=$(cat "$results_dir/$tname.exit")
-            fi
-
-            local counts_line="0 0"
-            local is_timeout=false
-            if [ -f "$results_dir/$tname.counts" ]; then
-                counts_line=$(cat "$results_dir/$tname.counts")
-                if echo "$counts_line" | grep -q "timeout"; then
-                    is_timeout=true
-                    counts_line="0 0"
-                fi
-            fi
-
-            local file_pass file_fail
-            file_pass=$(echo "$counts_line" | awk '{print $1}')
-            file_fail=$(echo "$counts_line" | awk '{print $2}')
-
-            # Progress output
-            local display_idx=$(( tidx + 1 ))
-            local is_tolerated=false
-            if [ "$is_timeout" = true ]; then
-                printf "[%d/%d] %s ... TIMEOUT (exceeded %ss)\n" "$display_idx" "$total" "$tname" "$TEST_TIMEOUT"
-                # Count timeout as 1 failure
-                (( file_fail++ ))
-            elif [ "$exit_code" -ne 0 ]; then
-                # If no counts parsed but exit non-zero, count as 1 fail
-                if [ "$file_pass" -eq 0 ] && [ "$file_fail" -eq 0 ]; then
-                    (( file_fail++ ))
-                fi
-
-                # --- RED zone tolerance check ---
-                # If SUITE_TEST_INDEX is set and this test file has a RED marker,
-                # check whether ALL failures are in the RED zone (at or after marker).
-                # If yes → TOLERATED (don't count as failure, exit 0 still possible).
-                # If no or unparseable → keep as FAIL (conservative fail-safe).
-                #
-                # Path matching: try exact match first (for absolute paths in index),
-                # then suffix match (for relative paths like "tests/hooks/test-foo.sh"
-                # in index vs absolute path in tpath). This handles both fixture tests
-                # (which store absolute paths) and real .test-index (relative paths).
-                local _red_marker_lookup=""
-                if [[ -n "${_RED_MARKER_MAP[$tpath]:-}" ]]; then
-                    _red_marker_lookup="${_RED_MARKER_MAP[$tpath]}"
-                else
-                    # Try suffix match: find a key in the map whose value matches
-                    # and whose key is a suffix of tpath (handles relative vs absolute)
-                    local _mk
-                    for _mk in "${!_RED_MARKER_MAP[@]}"; do
-                        if [[ -n "${_RED_MARKER_MAP[$_mk]}" ]] && [[ "$tpath" == *"$_mk" ]]; then
-                            _red_marker_lookup="${_RED_MARKER_MAP[$_mk]}"
-                            break
-                        fi
-                    done
-                fi
-                if [[ "$_RED_ZONE_ENABLED" = true ]] && [[ -n "$_red_marker_lookup" ]]; then
-                    local _marker="$_red_marker_lookup"
-                    local _out_file="$results_dir/$tname.out"
-
-                    # Get the line number of the RED marker in the test file
-                    local _marker_line=-1
-                    if [[ -f "$tpath" ]]; then
-                        local _lnum=0
-                        local _mpat="(^|[^a-zA-Z0-9_-])${_marker}([^a-zA-Z0-9_-]|\$)"
-                        while IFS= read -r _ml || [[ -n "$_ml" ]]; do
-                            (( _lnum++ )) || true
-                            [[ "$_ml" =~ ^[[:space:]]*# ]] && continue
-                            if [[ "$_ml" =~ $_mpat ]]; then
-                                _marker_line=$_lnum
-                                break
-                            fi
-                        done < "$tpath"
-                    fi
-
-                    if [[ "$_marker_line" -gt 0 ]]; then
-                        # Parse failing test names from output
-                        local _failing_tests
-                        _failing_tests=$(parse_failing_tests_from_output "$_out_file" 2>/dev/null || true)
-
-                        if [[ -n "$_failing_tests" ]]; then
-                            # Check each failing test's line number >= marker line
-                            local _all_in_zone=true
-                            while IFS= read -r _ft; do
-                                [[ -z "$_ft" ]] && continue
-                                local _ft_line=-1
-                                local _flnum=0
-                                local _ftpat="(^|[^a-zA-Z0-9_-])${_ft}([^a-zA-Z0-9_-]|\$)"
-                                while IFS= read -r _fl || [[ -n "$_fl" ]]; do
-                                    (( _flnum++ )) || true
-                                    [[ "$_fl" =~ ^[[:space:]]*# ]] && continue
-                                    if [[ "$_fl" =~ $_ftpat ]]; then
-                                        _ft_line=$_flnum
-                                        break
-                                    fi
-                                done < "$tpath"
-                                if [[ "$_ft_line" -lt "$_marker_line" ]]; then
-                                    _all_in_zone=false
-                                    break
-                                fi
-                            done <<< "$_failing_tests"
-
-                            if [[ "$_all_in_zone" = true ]]; then
-                                is_tolerated=true
-                            fi
-                        fi
-                        # If _failing_tests is empty (unparseable) → _all_in_zone stays
-                        # false implicitly because we never set is_tolerated=true
-                    fi
-                fi
-
-                if [[ "$is_tolerated" = true ]]; then
-                    printf "[%d/%d] %s ... TOLERATED (%d pass, %d red-zone)\n" \
-                        "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
-                    SUITE_TOTAL_TOLERATED=$(( SUITE_TOTAL_TOLERATED + file_fail ))
-                    file_fail=0
-                else
-                    printf "[%d/%d] %s ... FAIL (%d pass, %d fail)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
-                fi
-            else
-                printf "[%d/%d] %s ... PASS (%d pass, %d fail)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
-            fi
-
-            SUITE_TOTAL_PASS=$(( SUITE_TOTAL_PASS + file_pass ))
-            SUITE_TOTAL_FAIL=$(( SUITE_TOTAL_FAIL + file_fail ))
-
-            # Track consecutive failures for fail-fast
-            if [ "$is_timeout" = true ]; then
-                failed_tests+=("$tname")
-                (( consecutive_fails++ ))
-            elif [ "$exit_code" -ne 0 ] && [ "$is_tolerated" = false ]; then
-                failed_tests+=("$tname")
-                (( consecutive_fails++ ))
-            elif [ "$exit_code" -eq 0 ] || [ "$is_tolerated" = true ]; then
-                consecutive_fails=0
-            fi
-
-            if [ "$consecutive_fails" -ge "$MAX_CONSECUTIVE_FAILS" ]; then
-                aborted=true
-            fi
-        done
-
-        running_pids=()
-        running_names=()
-        running_indices=()
-        running_paths=()
 
         if [ "$aborted" = true ]; then
             break
         fi
+
+        # Wait for ANY single test to finish (slot-refill), then process it.
+        # `wait -n -p _done_pid` returns the exit status and sets _done_pid
+        # to the PID that finished. Available in bash 4.3+ (wait -n) and
+        # bash 5.1+ (wait -n -p). Fall back to polling for older bash.
+        local _done_pid=""
+        if wait -n -p _done_pid "${!_pid_to_name[@]}" 2>/dev/null; then
+            true  # test exited 0
+        else
+            true  # test exited non-zero or wait -n -p not supported
+        fi
+
+        if [ -n "$_done_pid" ] && [ -n "${_pid_to_name[$_done_pid]:-}" ]; then
+            _process_completed_test "$_done_pid"
+        else
+            # Fallback for bash <5.1 (no -p flag): find which PID finished
+            # by checking each in-flight PID with kill -0.
+            for _check_pid in "${!_pid_to_name[@]}"; do
+                if ! kill -0 "$_check_pid" 2>/dev/null; then
+                    wait "$_check_pid" 2>/dev/null || true
+                    _process_completed_test "$_check_pid"
+                    break  # process one at a time, then refill
+                fi
+            done
+        fi
     done
+
+    # Wait for any still-running tests to finish before cleaning up results_dir.
+    # On abort, background _run_single_test processes may still be writing.
+    if [ ${#_pid_to_name[@]} -gt 0 ]; then
+        for _remaining_pid in "${!_pid_to_name[@]}"; do
+            wait "$_remaining_pid" 2>/dev/null || true
+        done
+    fi
 
     if [ "$aborted" = true ]; then
         local skipped=$(( total - index ))

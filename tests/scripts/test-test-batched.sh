@@ -556,7 +556,7 @@ INT_GEN_STATE="$TMPDIR_INT_GEN/state.json"
 # First run: timeout=1 with a slow command → test gets killed → "interrupted" saved
 int_gen_first_out=""
 int_gen_first_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
-    bash "$SCRIPT" --timeout=1 "sleep 30" 2>&1) || true
+    bash "$SCRIPT" --timeout=1 "sleep 3" 2>&1) || true
 
 # Verify first run emits Structured Action-Required Block
 assert_contains "test_interrupted_generic_test_reruns_on_resume: first run emits NEXT:" \
@@ -577,15 +577,15 @@ assert_eq "test_interrupted_generic_test_reruns_on_resume: state records interru
 
 # Second run: resume from the state file.
 # The interrupted test must be RE-RUN (not skipped) — it should appear in output.
-# With ample timeout (60s > sleep 30), the test passes and exit must be 0.
+# With ample timeout (10s > sleep 3), the test passes and exit must be 0.
 int_gen_resume_exit=0
 int_gen_resume_out=""
 int_gen_resume_out=$(TEST_BATCHED_STATE_FILE="$INT_GEN_STATE" \
-    bash "$SCRIPT" --timeout=60 "sleep 30" 2>&1) \
+    bash "$SCRIPT" --timeout=10 "sleep 3" 2>&1) \
     || int_gen_resume_exit=$?
 
 assert_contains "test_interrupted_generic_test_reruns_on_resume: resume re-runs the test" \
-    "Running: sleep 30" "$int_gen_resume_out"
+    "Running: sleep 3" "$int_gen_resume_out"
 assert_eq "test_interrupted_generic_test_reruns_on_resume: resume exits 0 when retry passes" \
     "0" "$int_gen_resume_exit"
 rm -rf "$TMPDIR_INT_GEN"

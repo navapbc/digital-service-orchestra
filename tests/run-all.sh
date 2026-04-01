@@ -2,10 +2,11 @@
 # tests/run-all.sh
 # Top-level regression runner: orchestrates all plugin test suites.
 #
-# Runs (hooks and scripts concurrently, evals after both complete):
-#   1. tests/hooks/run-hook-tests.sh  \  concurrent
-#   2. tests/scripts/run-script-tests.sh  /
-#   3. tests/evals/run-evals.sh
+# Runs all four suites concurrently (sequential fallback via SERIAL_SUITES=1):
+#   1. tests/hooks/run-hook-tests.sh     \
+#   2. tests/scripts/run-script-tests.sh  |  concurrent
+#   3. tests/evals/run-evals.sh           |
+#   4. tests/skills/run-python-tests.sh  /
 #
 # Produces a combined PASS/FAIL summary across all suites.
 # Exits 0 only if ALL suites exit 0; exits 1 otherwise.
@@ -172,9 +173,9 @@ HOOKS_EXIT=0
 SCRIPTS_EXIT=0
 PYTHON_EXIT=0
 
-# --- Run hooks and scripts suites ---
-# SERIAL_SUITES=1 runs hooks then scripts sequentially (lower peak memory for CI).
-# Default: concurrent execution with output captured to temp files.
+# --- Run all four suites ---
+# SERIAL_SUITES=1 runs all suites sequentially (lower peak memory for CI).
+# Default: all four suites run concurrently with output captured to temp files.
 if [ "${SERIAL_SUITES:-0}" = "1" ]; then
     # --- Sequential mode (CI-friendly) ---
     echo ""
@@ -188,50 +189,63 @@ if [ "${SERIAL_SUITES:-0}" = "1" ]; then
     echo "Suite: Script Tests"
     echo "========================================"
     _run_with_timeout "$SUITE_TIMEOUT" bash "$SCRIPTS_RUNNER" </dev/null || SCRIPTS_EXIT=$?
+
+    echo ""
+    echo "========================================"
+    echo "Suite: Evals"
+    echo "========================================"
+    _run_with_timeout "$SUITE_TIMEOUT" bash "$EVALS_RUNNER" </dev/null || EVALS_EXIT=$?
+
+    echo ""
+    echo "========================================"
+    echo "Suite: Python Skill/Doc Tests"
+    echo "========================================"
+    _run_with_timeout "$SUITE_TIMEOUT" bash "$PYTHON_RUNNER" </dev/null || PYTHON_EXIT=$?
 else
-    # --- Concurrent mode (local dev) ---
+    # --- Concurrent mode (all four suites in parallel) ---
     _HOOKS_OUT=$(mktemp)
     _HOOKS_EXIT_FILE=$(mktemp)
     _SCRIPTS_OUT=$(mktemp)
     _SCRIPTS_EXIT_FILE=$(mktemp)
+    _EVALS_OUT=$(mktemp)
+    _EVALS_EXIT_FILE=$(mktemp)
+    _PYTHON_OUT=$(mktemp)
+    _PYTHON_EXIT_FILE=$(mktemp)
 
     run_suite_to_file "Hook Tests" "$HOOKS_RUNNER" "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" &
     _HOOKS_PID=$!
     run_suite_to_file "Script Tests" "$SCRIPTS_RUNNER" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" &
     _SCRIPTS_PID=$!
+    run_suite_to_file "Evals" "$EVALS_RUNNER" "$_EVALS_OUT" "$_EVALS_EXIT_FILE" &
+    _EVALS_PID=$!
+    run_suite_to_file "Python Skill/Doc Tests" "$PYTHON_RUNNER" "$_PYTHON_OUT" "$_PYTHON_EXIT_FILE" &
+    _PYTHON_PID=$!
 
     # Propagate signals to background suite runners so they don't orphan when
     # the parent is killed (by CI timeout, cancel-in-progress, or the 720s wrapper).
-    _kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" 2>/dev/null || true; }
+    _kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" "$_EVALS_PID" "$_PYTHON_PID" 2>/dev/null || true; }
     trap '_kill_suites' TERM INT
 
     wait "$_HOOKS_PID"
     wait "$_SCRIPTS_PID"
+    wait "$_EVALS_PID"
+    wait "$_PYTHON_PID"
 
     trap - TERM INT
 
     # Print captured output sequentially for readable logs
     cat "$_HOOKS_OUT"
     cat "$_SCRIPTS_OUT"
+    cat "$_EVALS_OUT"
+    cat "$_PYTHON_OUT"
 
     HOOKS_EXIT=$(cat "$_HOOKS_EXIT_FILE")
     SCRIPTS_EXIT=$(cat "$_SCRIPTS_EXIT_FILE")
-    rm -f "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE"
+    EVALS_EXIT=$(cat "$_EVALS_EXIT_FILE")
+    PYTHON_EXIT=$(cat "$_PYTHON_EXIT_FILE")
+    rm -f "$_HOOKS_OUT" "$_HOOKS_EXIT_FILE" "$_SCRIPTS_OUT" "$_SCRIPTS_EXIT_FILE" \
+          "$_EVALS_OUT" "$_EVALS_EXIT_FILE" "$_PYTHON_OUT" "$_PYTHON_EXIT_FILE"
 fi
-
-# --- Run evals suite after parallel suites complete ---
-echo ""
-echo "========================================"
-echo "Suite: Evals"
-echo "========================================"
-_run_with_timeout "$SUITE_TIMEOUT" bash "$EVALS_RUNNER" </dev/null || EVALS_EXIT=$?
-
-# --- Run Python skill/doc tests (pytest) ---
-echo ""
-echo "========================================"
-echo "Suite: Python Skill/Doc Tests"
-echo "========================================"
-_run_with_timeout "$SUITE_TIMEOUT" bash "$PYTHON_RUNNER" </dev/null || PYTHON_EXIT=$?
 
 # --- Combined summary ---
 echo ""
