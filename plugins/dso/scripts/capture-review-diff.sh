@@ -64,6 +64,34 @@ if [[ -f "$_GIT_DIR/MERGE_HEAD" ]]; then
     fi
 fi
 
+# --- Rebase-aware: scope diff to worktree-branch files only ---
+# When REBASE_HEAD exists, restrict the diff to files changed on the worktree
+# branch (onto..HEAD), excluding pre-onto history.
+# Mirrors the MERGE_HEAD block above. Fail-open on missing/corrupt state files.
+if [[ ${#_MERGE_FILE_PATHSPECS[@]} -eq 0 && -f "$_GIT_DIR/REBASE_HEAD" ]]; then
+    _rebase_onto=""
+    # Read onto from rebase-merge/onto or rebase-apply/onto
+    if [[ -f "$_GIT_DIR/rebase-merge/onto" ]]; then
+        _rebase_onto=$(cat "$_GIT_DIR/rebase-merge/onto" 2>/dev/null || echo "")
+    elif [[ -f "$_GIT_DIR/rebase-apply/onto" ]]; then
+        _rebase_onto=$(cat "$_GIT_DIR/rebase-apply/onto" 2>/dev/null || echo "")
+    fi
+    # Only proceed if we have a valid onto ref; fail-open otherwise
+    if [[ -n "$_rebase_onto" ]]; then
+        _rebase_onto_resolved=$(git rev-parse "$_rebase_onto" 2>/dev/null || echo "")
+        if [[ -n "$_rebase_onto_resolved" ]]; then
+            _merge_base=$(git merge-base HEAD "$_rebase_onto_resolved" 2>/dev/null || echo "")
+            if [[ -z "$_merge_base" ]]; then
+                # Fallback: use onto directly as the base
+                _merge_base="$_rebase_onto_resolved"
+            fi
+            while IFS= read -r _f; do
+                [[ -n "$_f" ]] && _MERGE_FILE_PATHSPECS+=("$_f")
+            done <<< "$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")"
+        fi
+    fi
+fi
+
 # --- Check for untracked files that would be invisible to diff ---
 # Untracked files are not seen by `git diff --staged` or `git diff`, so
 # they produce an empty diff and cause hash mismatches at the review gate.

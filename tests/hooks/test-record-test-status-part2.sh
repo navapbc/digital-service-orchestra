@@ -672,5 +672,190 @@ if (( ! _PYTEST_AVAILABLE )); then
     rm -f "$_MOCK_PASS_RUNNER" "$_MOCK_FAIL_RUNNER" 2>/dev/null || true
 fi
 
+# ============================================================
+# test_record_status_rebase_filters_incoming_only
+# During a rebase (REBASE_HEAD + rebase-merge/onto present),
+# staged files that exist ONLY on the onto branch (incoming-only)
+# should be filtered out. When all staged files are incoming-only,
+# the hook should exit 0 without attempting to run tests.
+#
+# RED: No REBASE_HEAD handling in record-test-status.sh. The hook
+# processes all staged files regardless, runs the mock test
+# (which fails), and exits 1. After implementation, incoming-only
+# files are filtered and the hook exits 0 immediately.
+# ============================================================
+echo ""
+echo "=== test_record_status_rebase_filters_incoming_only ==="
+
+TEST_REPO_RB1=$(create_test_repo)
+ARTIFACTS_RB1=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_RB1" "$ARTIFACTS_RB1"' EXIT
+
+# Set up: create two branches — main (onto) has a source file the worktree
+# branch does NOT have.
+mkdir -p "$TEST_REPO_RB1/src" "$TEST_REPO_RB1/tests"
+
+# Commit an initial state (pre-diverge) — both branches share this
+cat > "$TEST_REPO_RB1/src/shared_base.py" << 'PYEOF'
+def shared():
+    return "shared"
+PYEOF
+git -C "$TEST_REPO_RB1" add -A
+git -C "$TEST_REPO_RB1" commit -m "initial: shared base" --quiet 2>/dev/null
+
+# Create worktree branch (diverges from main here)
+git -C "$TEST_REPO_RB1" checkout -q -b worktree-branch 2>/dev/null
+echo "# worktree change" >> "$TEST_REPO_RB1/src/shared_base.py"
+git -C "$TEST_REPO_RB1" add -A
+git -C "$TEST_REPO_RB1" commit -m "worktree: change shared_base" --quiet 2>/dev/null
+
+# Switch to main and add an incoming-only file (fuzzy-matchable so it would trigger
+# test enforcement if not filtered)
+git -C "$TEST_REPO_RB1" checkout -q main 2>/dev/null || \
+    git -C "$TEST_REPO_RB1" checkout -q "$(git -C "$TEST_REPO_RB1" log --format='%H' --all | tail -1)" 2>/dev/null || true
+
+# Add onto-only file with a fuzzy-matchable test (so if not filtered, a test is found)
+cat > "$TEST_REPO_RB1/src/onto_module.py" << 'PYEOF'
+def onto():
+    return "onto"
+PYEOF
+cat > "$TEST_REPO_RB1/tests/test_onto_module.py" << 'PYEOF'
+def test_onto():
+    assert True
+PYEOF
+git -C "$TEST_REPO_RB1" add -A
+
+git -C "$TEST_REPO_RB1" commit -m "onto: add onto_module (incoming-only)" --quiet 2>/dev/null
+_ONTO_SHA_RB1=$(git -C "$TEST_REPO_RB1" rev-parse HEAD 2>/dev/null)
+
+# Return to worktree branch and simulate mid-rebase state:
+# REBASE_HEAD = HEAD (commit being replayed), rebase-merge/onto = onto tip
+git -C "$TEST_REPO_RB1" checkout -q worktree-branch 2>/dev/null
+
+mkdir -p "$TEST_REPO_RB1/.git/rebase-merge"
+echo "$(git -C "$TEST_REPO_RB1" rev-parse HEAD 2>/dev/null)" > \
+    "$TEST_REPO_RB1/.git/REBASE_HEAD"
+echo "$_ONTO_SHA_RB1" > "$TEST_REPO_RB1/.git/rebase-merge/onto"
+# Write orig-head to rebase-merge/orig-head (NOT .git/ORIG_HEAD per ticket spec)
+echo "$(git -C "$TEST_REPO_RB1" rev-parse HEAD 2>/dev/null)" > \
+    "$TEST_REPO_RB1/.git/rebase-merge/orig-head"
+
+# Stage the onto-only files as if they arrived during rebase
+git -C "$TEST_REPO_RB1" checkout -q "$_ONTO_SHA_RB1" -- \
+    src/onto_module.py tests/test_onto_module.py 2>/dev/null || true
+git -C "$TEST_REPO_RB1" add src/onto_module.py tests/test_onto_module.py 2>/dev/null || true
+
+# Use a mock runner that ALWAYS FAILS — pre-implementation, the hook will find
+# test_onto_module.py via fuzzy match, run this mock, and exit 1.
+# After implementation, onto_module.py is filtered (incoming-only), no test runs,
+# exit 0.
+MOCK_RB1_FAIL=$(mktemp "${TMPDIR:-/tmp}/mock-rb1-fail-XXXXXX")
+chmod +x "$MOCK_RB1_FAIL"
+cat > "$MOCK_RB1_FAIL" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "FAILED (incoming-only file should have been filtered)"
+exit 1
+MOCKEOF
+
+EXIT_CODE_RB1=$(
+    cd "$TEST_REPO_RB1"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RB1" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RB1_FAIL" \
+    run_hook_exit
+)
+
+# EXPECTED (after implementation): incoming-only file filtered → hook exits 0 immediately.
+# RED phase: no REBASE_HEAD handling → hook runs mock test (which fails) → exits 1.
+assert_eq "test_record_status_rebase_filters_incoming_only: exits 0 for incoming-only files" \
+    "0" "$EXIT_CODE_RB1"
+
+rm -f "$MOCK_RB1_FAIL"
+rm -rf "$TEST_REPO_RB1" "$ARTIFACTS_RB1"
+trap - EXIT
+
+# ============================================================
+# test_record_status_rebase_failsafe
+# When REBASE_HEAD is present but rebase-merge/onto is absent
+# (e.g., rebase started with an alternative setup or interrupted
+# before onto was written), the hook should fall back to normal
+# evaluation and emit an observable message about REBASE_HEAD
+# detection without the onto file.
+#
+# RED: No REBASE_HEAD handling exists — hook processes all staged
+# files silently without any REBASE_HEAD detection message.
+# After implementation, hook emits a fallback message on stderr.
+# ============================================================
+echo ""
+echo "=== test_record_status_rebase_failsafe ==="
+
+TEST_REPO_RB2=$(create_test_repo)
+ARTIFACTS_RB2=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_RB2" "$ARTIFACTS_RB2"' EXIT
+
+# Create a source file and staged change
+mkdir -p "$TEST_REPO_RB2/src" "$TEST_REPO_RB2/tests"
+cat > "$TEST_REPO_RB2/src/fallback.py" << 'PYEOF'
+def fallback():
+    return "fallback"
+PYEOF
+cat > "$TEST_REPO_RB2/tests/test_fallback.py" << 'PYEOF'
+def test_fallback():
+    assert True
+PYEOF
+git -C "$TEST_REPO_RB2" add -A
+git -C "$TEST_REPO_RB2" commit -m "add fallback module" --quiet 2>/dev/null
+
+echo "# changed" >> "$TEST_REPO_RB2/src/fallback.py"
+git -C "$TEST_REPO_RB2" add -A
+
+# Simulate REBASE_HEAD present but NO rebase-merge/onto
+# (onto file deliberately absent — failsafe scenario)
+echo "$(git -C "$TEST_REPO_RB2" rev-parse HEAD 2>/dev/null)" > \
+    "$TEST_REPO_RB2/.git/REBASE_HEAD"
+# Write orig-head to rebase-merge/orig-head (NOT .git/ORIG_HEAD per ticket spec)
+mkdir -p "$TEST_REPO_RB2/.git/rebase-merge"
+echo "$(git -C "$TEST_REPO_RB2" rev-parse HEAD 2>/dev/null)" > \
+    "$TEST_REPO_RB2/.git/rebase-merge/orig-head"
+# Deliberately do NOT write rebase-merge/onto
+
+MOCK_RB2_PASS=$(mktemp "${TMPDIR:-/tmp}/mock-rb2-pass-XXXXXX")
+chmod +x "$MOCK_RB2_PASS"
+cat > "$MOCK_RB2_PASS" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "PASSED (fallback test)"
+exit 0
+MOCKEOF
+
+# Capture combined output (stdout + stderr) to check for REBASE_HEAD detection message
+OUTPUT_RB2=$(
+    cd "$TEST_REPO_RB2"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RB2" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RB2_PASS" \
+    bash "$HOOK" 2>&1 || true
+)
+EXIT_CODE_RB2=$(
+    cd "$TEST_REPO_RB2"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_RB2" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RB2_PASS" \
+    run_hook_exit
+)
+
+# EXPECTED (after implementation): hook detects REBASE_HEAD, reads onto (absent),
+# falls back to normal evaluation. Emits a detectable message referencing REBASE_HEAD.
+# RED phase: no REBASE_HEAD handling → silent processing, no REBASE_HEAD mention in output.
+assert_contains "test_record_status_rebase_failsafe: output mentions REBASE_HEAD detection" \
+    "REBASE_HEAD" "$OUTPUT_RB2"
+
+# Fallback to normal evaluation means the hook should still exit 0 (test passes via mock)
+assert_eq "test_record_status_rebase_failsafe: exits 0 (fallback processes normally)" \
+    "0" "$EXIT_CODE_RB2"
+
+rm -f "$MOCK_RB2_PASS"
+rm -rf "$TEST_REPO_RB2" "$ARTIFACTS_RB2"
+trap - EXIT
+
 
 print_summary

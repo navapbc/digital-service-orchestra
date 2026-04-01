@@ -173,4 +173,126 @@ _TI_ALLOWLIST_MATCH=$(grep '\.test-index' "$DSO_PLUGIN_DIR/hooks/lib/review-gate
 assert_eq "review-gate-allowlist.conf contains .test-index pattern" "true" \
     "$( [[ $_TI_ALLOWLIST_MATCH -ge 1 ]] && echo true || echo false )"
 
+# ============================================================
+# test_hash_rebase_excludes_incoming_only
+# When REBASE_HEAD state exists (.git/REBASE_HEAD, .git/rebase-merge/onto,
+# .git/rebase-merge/orig-head), staging a file that was only changed on the
+# onto branch (incoming-only) must NOT change the diff hash.
+# RED: compute-diff-hash.sh has no REBASE_HEAD handling; incoming-only files
+# will affect the hash, causing the two hash values to differ.
+# ============================================================
+echo "--- test_hash_rebase_excludes_incoming_only ---"
+
+_TMPDIR_REBASE=$(mktemp -d)
+trap 'rm -rf "$_TMPDIR_REBASE"' EXIT
+
+(
+    cd "$_TMPDIR_REBASE"
+    git init -q -b main
+    git config user.email "test@test.com"
+    git config user.name "Test"
+
+    # Commit 1 — common ancestor
+    echo "shared" > shared.py
+    git add shared.py
+    git commit -q -m "common ancestor"
+    _COMMON=$(git rev-parse HEAD)
+
+    # Commit 2 — onto branch tip: adds an incoming-only file
+    echo "onto-only content" > incoming-only.py
+    git add incoming-only.py
+    git commit -q -m "onto: add incoming-only.py"
+    _ONTO=$(git rev-parse HEAD)
+
+    # Simulate feature branch: go back to common ancestor, add feature file
+    git checkout -q -b feature "$_COMMON"
+    echo "feature work" > feature.py
+    git add feature.py
+    git commit -q -m "feature: add feature.py"
+    _ORIG_HEAD=$(git rev-parse HEAD)
+
+    # Simulate REBASE_HEAD state (as if 'git rebase main' is in progress):
+    #   REBASE_HEAD  = the onto tip (main HEAD)
+    #   rebase-merge/onto = onto SHA
+    #   rebase-merge/orig-head = original HEAD before rebase started
+    echo "$_ONTO" > .git/REBASE_HEAD
+    mkdir -p .git/rebase-merge
+    echo "$_ONTO" > .git/rebase-merge/onto
+    echo "$_ORIG_HEAD" > .git/rebase-merge/orig-head
+
+    # Baseline hash: only feature.py staged (our own change, orig-head..HEAD)
+    _H1=$(bash "$HOOK" 2>/dev/null)
+
+    # Now stage incoming-only.py — a file only changed on the onto branch.
+    # A correct REBASE_HEAD implementation should exclude it from the hash.
+    echo "onto-only content" > incoming-only.py
+    git add incoming-only.py
+    _H2=$(bash "$HOOK" 2>/dev/null)
+
+    if [[ "$_H1" == "$_H2" ]]; then
+        echo "PASS: test_hash_rebase_excludes_incoming_only"
+        exit 0
+    else
+        echo "FAIL: test_hash_rebase_excludes_incoming_only"
+        echo "  H1 (without incoming-only staged): $_H1"
+        echo "  H2 (with incoming-only staged):    $_H2"
+        echo "  incoming-only.py changed the hash — REBASE_HEAD exclusion not yet implemented"
+        exit 1
+    fi
+)
+_REBASE_EXCL_EXIT=$?
+assert_eq "test_hash_rebase_excludes_incoming_only" "0" "$_REBASE_EXCL_EXIT"
+
+# ============================================================
+# test_hash_rebase_failsafe_missing_onto
+# When REBASE_HEAD exists but .git/rebase-merge/onto is absent, the script
+# must fall through to default hash behavior: exit 0 and produce a non-empty hash.
+# RED: once REBASE_HEAD handling is added, a missing onto file could cause the
+# script to crash or produce empty output. This test guards against that regression.
+# ============================================================
+echo "--- test_hash_rebase_failsafe_missing_onto ---"
+
+_TMPDIR_FAILSAFE=$(mktemp -d)
+trap 'rm -rf "$_TMPDIR_FAILSAFE"' EXIT
+
+(
+    cd "$_TMPDIR_FAILSAFE"
+    git init -q -b main
+    git config user.email "test@test.com"
+    git config user.name "Test"
+
+    # Initial commit
+    echo "init" > init.py
+    git add init.py
+    git commit -q -m "init"
+    _HEAD_SHA=$(git rev-parse HEAD)
+
+    # Write REBASE_HEAD and orig-head but intentionally omit onto file
+    echo "$_HEAD_SHA" > .git/REBASE_HEAD
+    mkdir -p .git/rebase-merge
+    echo "$_HEAD_SHA" > .git/rebase-merge/orig-head
+    # NOTE: .git/rebase-merge/onto is intentionally NOT written
+
+    # Stage a change
+    echo "modified" >> init.py
+    git add init.py
+
+    # Script must exit 0 and produce a non-empty hash (fallthrough to default behavior)
+    _FAILSAFE_EXIT=0
+    _FAILSAFE_HASH=$(bash "$HOOK" 2>/dev/null) || _FAILSAFE_EXIT=$?
+
+    if [[ "$_FAILSAFE_EXIT" -ne 0 ]]; then
+        echo "FAIL: test_hash_rebase_failsafe_missing_onto — script exited non-zero: $_FAILSAFE_EXIT"
+        exit 1
+    fi
+    if [[ -z "$_FAILSAFE_HASH" ]]; then
+        echo "FAIL: test_hash_rebase_failsafe_missing_onto — hash was empty"
+        exit 1
+    fi
+    echo "PASS: test_hash_rebase_failsafe_missing_onto (exit 0, hash: $_FAILSAFE_HASH)"
+    exit 0
+)
+_FAILSAFE_EXIT_OUTER=$?
+assert_eq "test_hash_rebase_failsafe_missing_onto" "0" "$_FAILSAFE_EXIT_OUTER"
+
 print_summary

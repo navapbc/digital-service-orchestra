@@ -1278,4 +1278,36 @@ test_performance_overlay_true_for_pool_path           # RED: performance_overlay
 test_performance_overlay_false_for_non_performance_path  # GREEN: hardcoded false matches expected false
 test_performance_overlay_field_present_in_output_schema  # GREEN: field already present in schema
 
+# ============================================================
+# Rebase commit detection (RED — task 1bf5-9563)
+# ============================================================
+# _is_merge_commit() only checks MERGE_HEAD / MOCK_MERGE_HEAD.
+# It does not yet check REBASE_HEAD / MOCK_REBASE_HEAD.
+# These tests are RED until _is_merge_commit() is updated.
+
+test_classifier_detects_rebase_commit() {
+    # When MOCK_REBASE_HEAD=1 is set, the classifier must emit is_merge_commit=true.
+    # This is RED: _is_merge_commit() does not yet check MOCK_REBASE_HEAD, so
+    # is_merge_commit will be false, causing this assertion to fail.
+    setup_temp_dir
+    local diff_file
+    diff_file=$(create_diff_fixture "src/utils/helpers.py" "+def noop(): pass")
+
+    local is_merge
+    is_merge=$(MOCK_REBASE_HEAD=1 bash "$CLASSIFIER" < "$diff_file" 2>/dev/null \
+        | python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read())
+v=d.get('is_merge_commit', False)
+print(str(v).lower() if isinstance(v,bool) else str(v))
+" 2>/dev/null || echo "false")
+
+    assert_eq "rebase commit (MOCK_REBASE_HEAD=1) sets is_merge_commit=true" "true" "$is_merge"
+    teardown_temp_dir
+}
+
+# Rebase detection (RED — task 1bf5-9563)
+# _is_merge_commit() ignores MOCK_REBASE_HEAD — is_merge_commit is false instead of true.
+test_classifier_detects_rebase_commit  # RED: MOCK_REBASE_HEAD not yet checked in _is_merge_commit()
+
 print_summary

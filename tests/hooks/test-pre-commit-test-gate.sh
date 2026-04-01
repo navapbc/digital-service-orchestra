@@ -6,7 +6,7 @@
 # test-gate-status is missing, stale (hash mismatch), or not 'passed' for
 # staged source files that have associated tests.
 #
-# Test cases (36):
+# Test cases (40):
 #   1. test_gate_blocked_missing_status — exits non-zero when test-status file absent
 #   2. test_gate_blocked_hash_mismatch — exits non-zero when diff_hash does not match
 #   3. test_gate_blocked_not_passed — exits non-zero when status is not 'passed'
@@ -43,6 +43,10 @@
 #  34. test_gate_merge_failsafe_on_bad_merge_head — RED: exits non-zero (normal enforcement) when MERGE_HEAD is corrupt
 #  35. test_gate_non_merge_commit_unchanged — RED: exits non-zero for normal commit without MERGE_HEAD (regression guard)
 #  36. test_gate_merge_10_file_incoming_only_single_commit — acceptance: exits 0 for 12 incoming-only files in single merge pass
+#  37. test_gate_rebase_filters_incoming_only_files — RED: exits 0 when only onto-branch files are staged during rebase
+#  38. test_gate_rebase_keeps_worktree_branch_files — RED: exits non-zero for files also modified on worktree branch during rebase
+#  39. test_gate_rebase_failsafe_on_missing_onto — RED: falls through to normal enforcement when rebase-merge/onto is absent
+#  40. test_gate_rebase_prune_skipped_during_rebase — RED: prune_test_index is skipped when REBASE_HEAD is present
 #
 # All tests use isolated temp git repos to avoid polluting the real repository.
 
@@ -2091,6 +2095,332 @@ test_gate_merge_10_file_incoming_only_single_commit() {
         "0" "$exit_code"
 }
 
+# ============================================================
+# TEST 37: test_gate_rebase_filters_incoming_only_files
+# During a rebase (REBASE_HEAD + rebase-merge/onto present), files
+# changed only on the onto branch (the rebase target) and NOT on
+# the worktree branch should be filtered out — they require no
+# test-gate-status because they were already reviewed on the target.
+#
+# Setup:
+#   1. Create main branch with initial commit
+#   2. Create worktree branch off main (divergent commit)
+#   3. Switch to main, add 3 new source files, commit
+#   4. Simulate rebase state: write .git/REBASE_HEAD + .git/rebase-merge/onto
+#      pointing at main's tip; stage the incoming files
+#   5. Assert gate exits 0 (incoming-only files filtered out)
+#
+# RED: Current gate has no rebase-aware filtering — it will
+# evaluate all staged files and block (exit != 0) because no
+# test-gate-status exists for the incoming files.
+# ============================================================
+test_gate_rebase_filters_incoming_only_files() {
+    local _repo _artifacts
+    _repo=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_repo")
+    _artifacts=$(make_artifacts_dir)
+
+    # Initialize repo and create initial commit
+    git -C "$_repo" init -q -b main 2>/dev/null || git -C "$_repo" init -q
+    git -C "$_repo" config user.email "test@test.com"
+    git -C "$_repo" config user.name "Test"
+    git -C "$_repo" config commit.gpgsign false
+
+    echo "initial" > "$_repo/README.md"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "initial commit"
+
+    local _main_branch
+    _main_branch=$(git -C "$_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+    # Create worktree branch with a divergent commit
+    git -C "$_repo" checkout -q -b worktree-branch
+    echo "worktree change" >> "$_repo/README.md"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "worktree commit"
+
+    # Switch back to main and add 3 new source files (onto-branch-only changes)
+    git -C "$_repo" checkout -q "$_main_branch"
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def rebase_alpha(): pass' > "$_repo/src/rebase_alpha.py"
+    echo 'def rebase_beta(): pass' > "$_repo/src/rebase_beta.py"
+    echo 'def rebase_gamma(): pass' > "$_repo/src/rebase_gamma.py"
+    # test_rebase_alpha.py fuzzy-matches src/rebase_alpha.py — gate would require status
+    echo 'def test_rebase_alpha(): assert True' > "$_repo/tests/test_rebase_alpha.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add rebase_alpha beta gamma on main (onto branch)"
+
+    local _onto_sha
+    _onto_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+
+    # Switch to worktree branch to simulate rebase state
+    git -C "$_repo" checkout -q worktree-branch
+
+    # Simulate mid-rebase state: REBASE_HEAD holds the commit being replayed;
+    # rebase-merge/onto holds the tip of the onto branch.
+    # Stage the onto-branch files as if they were brought in during rebase.
+    mkdir -p "$_repo/.git/rebase-merge"
+    echo "$_onto_sha" > "$_repo/.git/rebase-merge/onto"
+    echo "$(git -C "$_repo" rev-parse HEAD 2>/dev/null)" > "$_repo/.git/REBASE_HEAD"
+
+    # Stage the onto-branch-only files
+    git -C "$_repo" checkout -q "$_onto_sha" -- src/rebase_alpha.py src/rebase_beta.py \
+        src/rebase_gamma.py tests/test_rebase_alpha.py 2>/dev/null || true
+    git -C "$_repo" add src/rebase_alpha.py src/rebase_beta.py src/rebase_gamma.py \
+        tests/test_rebase_alpha.py 2>/dev/null || true
+
+    # Verify REBASE_HEAD is present
+    if [[ ! -f "$_repo/.git/REBASE_HEAD" ]]; then
+        assert_eq "test_gate_rebase_filters_incoming_only_files: REBASE_HEAD created" \
+            "present" "absent"
+        return
+    fi
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_rebase_filters_incoming_only_files: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # RED: Verify that rebase-aware staged-file filtering logic is NOT yet implemented.
+    # Detection: check for REBASE_HEAD handling in the hook (rebase-merge/onto read or REBASE_HEAD check).
+    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$GATE_HOOK" 2>/dev/null; then
+        # No REBASE_HEAD/rebase-merge logic found — RED phase. Assert failure.
+        assert_eq "test_gate_rebase_filters_incoming_only_files: rebase filtering logic absent (RED)" \
+            "rebase_filtering_present" "rebase_filtering_absent"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+
+    # Gate should EXIT 0: onto-branch-only files should be filtered
+    assert_eq "test_gate_rebase_filters_incoming_only_files: gate exits 0 for incoming-only rebase files" \
+        "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 38: test_gate_rebase_keeps_worktree_branch_files
+# During a rebase, files changed on BOTH the worktree branch
+# AND the onto branch must still be enforced. The gate should
+# block (exit != 0) when no test-gate-status exists for a file
+# that was also modified on the worktree branch.
+#
+# RED: Current gate has no rebase filtering — all staged files
+# are evaluated identically. This test asserts the filtering
+# feature is absent (RED) and, once implemented, guards that
+# worktree files remain enforced.
+# ============================================================
+test_gate_rebase_keeps_worktree_branch_files() {
+    local _repo _artifacts
+    _repo=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_repo")
+    _artifacts=$(make_artifacts_dir)
+
+    # Initialize repo
+    git -C "$_repo" init -q
+    git -C "$_repo" config user.email "test@test.com"
+    git -C "$_repo" config user.name "Test"
+    git -C "$_repo" config commit.gpgsign false
+
+    # Initial commit with a shared source file
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def shared_rebase(): return 1' > "$_repo/src/shared_rebase.py"
+    echo 'def test_shared_rebase(): assert True' > "$_repo/tests/test_shared_rebase.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "initial commit"
+
+    local _main_branch
+    _main_branch=$(git -C "$_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+    # Create worktree branch and modify shared_rebase.py (creates divergence)
+    git -C "$_repo" checkout -q -b worktree-branch
+    echo '# worktree rebase change' >> "$_repo/src/shared_rebase.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "worktree modifies shared_rebase.py"
+
+    # Switch back to main and also modify shared_rebase.py (onto-branch change)
+    git -C "$_repo" checkout -q "$_main_branch"
+    echo '# main (onto) change' >> "$_repo/src/shared_rebase.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "main also modifies shared_rebase.py"
+
+    local _onto_sha
+    _onto_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
+
+    # Switch to worktree branch and simulate rebase state
+    git -C "$_repo" checkout -q worktree-branch
+
+    mkdir -p "$_repo/.git/rebase-merge"
+    echo "$_onto_sha" > "$_repo/.git/rebase-merge/onto"
+    echo "$(git -C "$_repo" rev-parse HEAD 2>/dev/null)" > "$_repo/.git/REBASE_HEAD"
+
+    # Stage the shared file (modified on both branches)
+    git -C "$_repo" checkout -q "$_onto_sha" -- src/shared_rebase.py 2>/dev/null || true
+    git -C "$_repo" add src/shared_rebase.py 2>/dev/null || true
+
+    if [[ ! -f "$_repo/.git/REBASE_HEAD" ]]; then
+        assert_eq "test_gate_rebase_keeps_worktree_branch_files: REBASE_HEAD created" \
+            "present" "absent"
+        return
+    fi
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_rebase_keeps_worktree_branch_files: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # RED: Verify that rebase-aware staged-file filtering logic is NOT yet implemented.
+    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$GATE_HOOK" 2>/dev/null; then
+        # No REBASE_HEAD/rebase-merge logic found — RED phase. Assert failure.
+        assert_eq "test_gate_rebase_keeps_worktree_branch_files: rebase filtering logic absent (RED)" \
+            "rebase_filtering_present" "rebase_filtering_absent"
+        return
+    fi
+
+    # Once rebase filtering is implemented, gate should still block for worktree-modified file
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+    assert_ne "test_gate_rebase_keeps_worktree_branch_files: gate blocks for worktree-modified file during rebase" \
+        "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 39: test_gate_rebase_failsafe_on_missing_onto
+# When REBASE_HEAD is present but rebase-merge/onto is absent
+# (incomplete or unusual rebase state), the hook should fall
+# through to normal enforcement rather than attempting
+# rebase-aware filtering. The gate must block (exit != 0)
+# when no test-gate-status exists.
+#
+# RED: Current gate has no REBASE_HEAD handling — the failsafe
+# only matters once rebase filtering is added. This test asserts
+# the feature is absent (RED phase).
+# ============================================================
+test_gate_rebase_failsafe_on_missing_onto() {
+    local _repo _artifacts
+    _repo=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_repo")
+    _artifacts=$(make_artifacts_dir)
+
+    # Initialize repo
+    git -C "$_repo" init -q
+    git -C "$_repo" config user.email "test@test.com"
+    git -C "$_repo" config user.name "Test"
+    git -C "$_repo" config commit.gpgsign false
+
+    # Initial commit with a source file that has an associated test
+    mkdir -p "$_repo/src" "$_repo/tests"
+    echo 'def rebase_work(): pass' > "$_repo/src/rebase_work.py"
+    echo 'def test_rebase_work(): assert True' > "$_repo/tests/test_rebase_work.py"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "initial commit"
+
+    # Stage a change to src/rebase_work.py
+    echo '# rebase changed' >> "$_repo/src/rebase_work.py"
+    git -C "$_repo" add "$_repo/src/rebase_work.py"
+
+    # Write REBASE_HEAD but deliberately omit rebase-merge/onto
+    # (simulate an incomplete/unusual rebase state — no rebase-merge dir)
+    echo "$(git -C "$_repo" rev-parse HEAD 2>/dev/null)" > "$_repo/.git/REBASE_HEAD"
+    # Intentionally do NOT create .git/rebase-merge/ or .git/rebase-merge/onto
+
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_rebase_failsafe_on_missing_onto: hook not found (RED)" "missing" "missing"
+        return
+    fi
+
+    # RED: Verify rebase-aware filtering logic is NOT yet implemented.
+    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$GATE_HOOK" 2>/dev/null; then
+        # No REBASE_HEAD/rebase-merge logic found — RED phase
+        assert_eq "test_gate_rebase_failsafe_on_missing_onto: rebase filtering logic absent (RED)" \
+            "rebase_filtering_present" "rebase_filtering_absent"
+        # Clean up REBASE_HEAD so other tests are not affected
+        rm -f "$_repo/.git/REBASE_HEAD"
+        return
+    fi
+
+    local exit_code
+    exit_code=$(run_gate_hook "$_repo" "$_artifacts")
+
+    # Clean up REBASE_HEAD
+    rm -f "$_repo/.git/REBASE_HEAD"
+
+    # Gate must fall back to normal enforcement (exit != 0) — missing onto file
+    # should not cause fail-open; it should fall through to standard blocking.
+    assert_ne "test_gate_rebase_failsafe_on_missing_onto: gate blocks on missing onto (fallback to normal enforcement)" \
+        "0" "$exit_code"
+}
+
+# ============================================================
+# TEST 40: test_gate_rebase_prune_skipped_during_rebase
+# When REBASE_HEAD is present (i.e., we are mid-rebase), the
+# prune_test_index function must return early without
+# modifying or staging .test-index. Auto-staging during a
+# rebase can corrupt the rebase state.
+# RED: Current hook's prune_test_index has no REBASE_HEAD guard —
+# only MERGE_HEAD is checked. The prune will run and potentially
+# modify .test-index during a rebase.
+# ============================================================
+test_gate_rebase_prune_skipped_during_rebase() {
+    if [[ ! -f "$GATE_HOOK" ]]; then
+        assert_eq "test_gate_rebase_prune_skipped_during_rebase: hook not found (RED)" "missing" "missing"
+        return
+    fi
+    if ! grep -q 'prune_test_index' "$GATE_HOOK" 2>/dev/null; then
+        assert_eq "test_gate_rebase_prune_skipped_during_rebase: prune_test_index not yet implemented (RED)" "missing" "missing"
+        return
+    fi
+
+    local _repo _artifacts
+    _repo=$(make_test_repo)
+    _artifacts=$(make_artifacts_dir)
+
+    # Set up a .test-index with a stale entry so prune_test_index would normally
+    # modify and re-stage the file.
+    mkdir -p "$_repo/lib"
+    echo 'def rebase_merge_work(): pass' > "$_repo/lib/rebase_merge_work.py"
+    printf 'lib/rebase_merge_work.py: tests/test_rebase_merge_work_nonexistent.py\n' > "$_repo/.test-index"
+    git -C "$_repo" add -A
+    git -C "$_repo" commit -q -m "add rebase_merge_work"
+
+    # Stage a change to make STAGED_FILES non-empty
+    echo '# rebase change' >> "$_repo/lib/rebase_merge_work.py"
+    git -C "$_repo" add "$_repo/lib/rebase_merge_work.py"
+
+    # Simulate a mid-rebase state by writing REBASE_HEAD and rebase-merge/onto
+    # (both are required for a genuine rebase state)
+    mkdir -p "$_repo/.git/rebase-merge"
+    echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" > "$_repo/.git/REBASE_HEAD"
+    echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" > "$_repo/.git/rebase-merge/onto"
+
+    # Record the original .test-index content
+    local original_index_content
+    original_index_content=$(cat "$_repo/.test-index")
+
+    # Run the hook (ignoring exit code — gate will block due to missing test-gate-status,
+    # but we only care about whether .test-index was modified)
+    (
+        cd "$_repo"
+        export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
+        export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
+        bash "$GATE_HOOK" 2>/dev/null
+    ) || true
+
+    # Clean up rebase state
+    rm -f "$_repo/.git/REBASE_HEAD"
+    rm -f "$_repo/.git/rebase-merge/onto"
+    rmdir "$_repo/.git/rebase-merge" 2>/dev/null || true
+
+    # Verify that .test-index was NOT modified (prune was skipped)
+    local after_index_content
+    after_index_content=$(cat "$_repo/.test-index" 2>/dev/null || echo "FILE_MISSING")
+
+    # GREEN: .test-index should be unchanged (prune was skipped due to REBASE_HEAD guard)
+    # RED: prune runs and modifies the file because no REBASE_HEAD guard exists yet
+    assert_eq "test_gate_rebase_prune_skipped_during_rebase: .test-index unchanged during rebase" \
+        "$original_index_content" "$after_index_content"
+}
+
 # ── Helper: run a test function and print PASS/FAIL per-function result ───────
 # Enables AC verify commands that grep for 'PASS.*<test_name>' in output.
 run_test() {
@@ -2141,5 +2471,9 @@ run_test test_gate_merge_keeps_worktree_branch_files
 run_test test_gate_merge_failsafe_on_bad_merge_head
 run_test test_gate_non_merge_commit_unchanged
 run_test test_gate_merge_10_file_incoming_only_single_commit
+run_test test_gate_rebase_filters_incoming_only_files
+run_test test_gate_rebase_keeps_worktree_branch_files
+run_test test_gate_rebase_failsafe_on_missing_onto
+run_test test_gate_rebase_prune_skipped_during_rebase
 
 print_summary

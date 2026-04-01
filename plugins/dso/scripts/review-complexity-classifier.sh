@@ -444,10 +444,20 @@ _is_merge_commit() {
         return 0
     fi
 
+    # TEST ONLY: MOCK_REBASE_HEAD env var for test isolation — do not use in production
+    if [[ "${MOCK_REBASE_HEAD:-}" == "1" ]]; then
+        return 0
+    fi
+
     # Check .git/MERGE_HEAD file
     local git_dir
     git_dir=$(git rev-parse --git-dir 2>/dev/null || echo "")
     if [[ -n "$git_dir" && -s "$git_dir/MERGE_HEAD" ]]; then
+        return 0
+    fi
+
+    # Check .git/REBASE_HEAD file (interactive or non-interactive rebase in progress)
+    if [[ -n "$git_dir" && -f "$git_dir/REBASE_HEAD" ]]; then
         return 0
     fi
 
