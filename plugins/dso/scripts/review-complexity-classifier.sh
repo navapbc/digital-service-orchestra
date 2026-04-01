@@ -23,11 +23,13 @@ for _arg in "$@"; do
     esac
 done
 
-# Resolve REPO_ROOT — try git first, fall back to SCRIPT_DIR-relative path.
+# Resolve REPO_ROOT — try git first, fall back to CLAUDE_PLUGIN_ROOT.
 # Under heavy parallel load, `git rev-parse` can fail due to index.lock contention.
 REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
-if [[ -z "$REPO_ROOT" && -f "$SCRIPT_DIR/../../../.claude/dso-config.conf" ]]; then
-    REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+if [[ -z "$REPO_ROOT" && -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    # CLAUDE_PLUGIN_ROOT points to plugins/dso/ — repo root is two levels up.
+    # Use cd+pwd to produce an absolute path (no ../ relative derivation).
+    REPO_ROOT="$(cd "$CLAUDE_PLUGIN_ROOT" && cd ../.. && pwd)"
 fi
 
 # Source deps.sh for get_artifacts_dir, _load_allowlist_patterns, _allowlist_to_grep_regex
