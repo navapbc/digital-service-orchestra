@@ -377,7 +377,8 @@ If both are `False` and no tier reviewer signal is present (see Serial Path belo
 If either `SECURITY_OVERLAY` or `PERFORMANCE_OVERLAY` is `True`, the classifier flagged the overlay at classification time. Source `plugins/dso/scripts/overlay-dispatch.sh` and call `overlay_dispatch_mode` to determine whether the overlay agents were already launched in parallel alongside the tier reviewer:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/scripts/overlay-dispatch.sh"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+source "$PLUGIN_SCRIPTS/overlay-dispatch.sh"
 # Write classifier output to temp file for overlay-dispatch.sh consumption
 echo "$CLASSIFIER_OUTPUT" > "$ARTIFACTS_DIR/classifier-overlay-input.json"
 # reviewer-summary.txt is written by the tier reviewer sub-agent in Step 4
