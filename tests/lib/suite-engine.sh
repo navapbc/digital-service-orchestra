@@ -142,10 +142,20 @@ _parse_test_counts() {
 # --- Run a single test file with timeout ---
 # Usage: _run_single_test <test_path> <results_dir>
 # Writes to <results_dir>/<basename>.{out,exit,counts}
+#
+# Isolation: each test gets its own TMPDIR so all mktemp calls inside the
+# test are automatically scoped to a per-test directory. This prevents
+# parallel tests from colliding on shared /tmp paths. After the test
+# finishes, SUITE_ISOLATION_CHECK=1 (opt-in) scans for files written to
+# well-known shared paths that indicate broken isolation.
 _run_single_test() {
     local test_path="$1" results_dir="$2"
     local test_name
     test_name=$(basename "$test_path")
+
+    # Create per-test TMPDIR for isolation
+    local test_tmpdir
+    test_tmpdir=$(mktemp -d "/tmp/suite-test-${test_name}-XXXXXX")
 
     local exit_code=0
 
@@ -157,12 +167,43 @@ _run_single_test() {
     # read the file afterward regardless of orphan process state.
     if [ -n "$_TIMEOUT_CMD" ]; then
         "$_TIMEOUT_CMD" --signal=TERM --kill-after=5 "$TEST_TIMEOUT" \
+            env TMPDIR="$test_tmpdir" \
             bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || exit_code=$?
     else
-        bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || exit_code=$?
+        TMPDIR="$test_tmpdir" \
+            bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || exit_code=$?
     fi
 
     echo "$exit_code" > "$results_dir/$test_name.exit"
+
+    # --- Isolation check (opt-in via SUITE_ISOLATION_CHECK=1) ---
+    # Detect if the test wrote to well-known shared paths that should be
+    # per-test isolated. This catches regressions where a new test uses a
+    # fixed /tmp path instead of mktemp. Violations override the exit code
+    # to ensure the test is reported as FAIL.
+    if [ "${SUITE_ISOLATION_CHECK:-0}" = "1" ]; then
+        local _isolation_violations=""
+        for _shared_path in \
+            "/tmp/pytest-rts-cache" \
+            "/tmp/test_deps_escape.txt" \
+            "/tmp/rts-output-fixed" \
+        ; do
+            if [ -e "$_shared_path" ]; then
+                _isolation_violations="${_isolation_violations}${_shared_path} "
+                rm -rf "$_shared_path" 2>/dev/null || true
+            fi
+        done
+        if [ -n "$_isolation_violations" ]; then
+            echo "ISOLATION VIOLATION in $test_name: shared paths written: $_isolation_violations" \
+                >> "$results_dir/$test_name.out"
+            # Force failure so the violation is visible in suite output
+            exit_code=1
+            echo "$exit_code" > "$results_dir/$test_name.exit"
+        fi
+    fi
+
+    # Clean up per-test TMPDIR
+    rm -rf "$test_tmpdir" 2>/dev/null || true
 
     # Parse counts
     if [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
