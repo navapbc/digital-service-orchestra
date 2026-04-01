@@ -360,6 +360,11 @@ d. For each skill result, **parse STATUS:**
      - If no children → retry the skill invocation once (same parameters)
      - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
+   - **Parsing STATUS:blocked**: When `/dso:implementation-plan` returns `STATUS:blocked QUESTIONS:[...]`, parse the JSON array and present each question in human-readable format:
+     1. Separate questions by kind: "blocking" (must be answered before proceeding) vs "defaultable" (have a default, can be skipped)
+     2. Number each question
+     3. Present blocking questions first, then defaultable questions with their defaults shown
+     Do NOT display the raw `STATUS:blocked` line to the user.
    - **Important**: Do NOT display the raw `STATUS:blocked QUESTIONS:<json>` line to the user. This is an internal machine signal. Capture it silently, parse the JSON, then present only the formatted question list (see below) to the user.
    - **Parse the QUESTIONS field**: Extract the JSON array from the `STATUS:blocked` line. If parsing fails (malformed JSON) or the array is empty (`[]`), treat as a sub-agent failure:
      - Revert the story to open: `.claude/scripts/dso ticket transition <story-id> open`
@@ -937,6 +942,12 @@ For tasks that failed:
 
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 
+**HARD-GATE — reject signal**: When the review complexity classifier emits `SIZE_ACTION=reject` (diff exceeds 600 lines), you MUST NOT override this signal. You have exactly two options:
+1. Split the batch: identify independent subsets of changes, commit them separately, and review each subset
+2. Escalate to user: present the reject signal and ask how to proceed
+
+Any rationalization for overriding reject ("these changes are related", "splitting would break functionality", "this is a single logical change") is prohibited. The reject threshold exists because reviewers cannot effectively review diffs above this size.
+
 Push the worktree branch:
 
 ```bash
@@ -952,6 +963,8 @@ Do NOT merge to main here.
 
 **After completion, continue with Step 11 below.** Do not stop here.
 
+**MANDATORY STOP**: Before proceeding to Step 11, you MUST complete Step 10a (completion-verifier dispatch). Step 10a is NOT optional — CLAUDE.md rule 24 prohibits skipping it. Execute Step 10a now, then continue to Step 11.
+
 > **CONTROL FLOW WARNING**: After the commit workflow and `git push -u origin HEAD` complete, continue
 > IMMEDIATELY with Step 11 (Context Compaction Check). Do NOT use the `/dso:commit` Skill tool
 > here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that
@@ -959,7 +972,7 @@ Do NOT merge to main here.
 > experiencing a known control-flow regression (observed 2026-03-18). Type "continue"
 > mentally and proceed directly to Step 11.
 
-> **CONTINUE:** After `git push -u origin HEAD` and blackboard cleanup are done, proceed to Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
+> **CONTINUE:** After `git push -u origin HEAD` and blackboard cleanup are done, proceed to Step 10a then Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
 
 ### Step 10a: Close Completed Tasks (/dso:sprint)
 

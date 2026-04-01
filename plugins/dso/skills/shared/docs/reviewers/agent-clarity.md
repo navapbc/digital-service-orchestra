@@ -23,6 +23,8 @@ testability, and self-contained clarity at the feature level.
 | self_contained | A planner can decompose the spec into stories without asking clarifying questions: the epic title, context narrative, and success criteria together fully describe the deliverable without requiring prior knowledge of the project | The epic title or context relies on undefined jargon, acronyms, or references to undocumented systems; a planner would need to ask clarifying questions before beginning story decomposition |
 | success_measurable | Every success criterion describes a specific, observable outcome verifiable at the feature level: each criterion states what changes for the user or system in a way that can be confirmed pass/fail (e.g., "User can upload a PDF and receive extracted rules within 30 seconds" rather than "Upload works") | One or more success criteria use subjective language ("improved", "better", "sufficient"), describe effort rather than outcomes ("implement the service", "write the code"), or contain vague outcomes that cannot be confirmed without additional interpretation |
 
+**Post-delivery validation is valid**: Success criteria that describe validation mechanisms running after epic delivery (e.g., dogfooding sessions, post-delivery audits, monitoring dashboards, user feedback collection) are valid and should score 4+ if the mechanism is concrete and has a defined trigger. Do NOT require all success criteria to be verifiable within the closing session — some outcomes are only observable over time.
+
 ## Input Sections
 
 You will receive:

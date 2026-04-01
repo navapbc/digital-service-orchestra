@@ -97,11 +97,13 @@ if [ -x "$READ_CONFIG" ]; then
     CFG_SRC_DIR=$("$READ_CONFIG" paths.src_dir "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
     CFG_TEST_DIR=$("$READ_CONFIG" paths.test_dir "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
     CFG_TEST_UNIT_DIR=$("$READ_CONFIG" paths.test_unit_dir "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
+    CFG_EXTRA_DIR_ROOTS=$("$READ_CONFIG" paths.extra_dir_roots "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null || true)
 fi
 # Defaults for when config is unavailable
 CFG_SRC_DIR="${CFG_SRC_DIR:-src}"
 CFG_TEST_DIR="${CFG_TEST_DIR:-tests}"
 CFG_TEST_UNIT_DIR="${CFG_TEST_UNIT_DIR:-tests/unit}"
+CFG_EXTRA_DIR_ROOTS="${CFG_EXTRA_DIR_ROOTS:-}"
 
 # --- Argument parsing ---
 
@@ -278,6 +280,7 @@ SPRINT_REPO_ROOT="$REPO_ROOT" \
 SPRINT_CFG_SRC_DIR="$CFG_SRC_DIR" \
 SPRINT_CFG_TEST_DIR="$CFG_TEST_DIR" \
 SPRINT_CFG_TEST_UNIT_DIR="$CFG_TEST_UNIT_DIR" \
+SPRINT_CFG_EXTRA_DIR_ROOTS="$CFG_EXTRA_DIR_ROOTS" \
 SPRINT_TRACKER_DIR="$TRACKER_DIR" \
 SPRINT_REDUCER="$REDUCER" \
 python3 - <<'PYEOF'
@@ -298,6 +301,7 @@ repo_root       = os.environ.get("SPRINT_REPO_ROOT", "")
 cfg_src_dir     = os.environ.get("SPRINT_CFG_SRC_DIR", "src")
 cfg_test_dir    = os.environ.get("SPRINT_CFG_TEST_DIR", "tests")
 cfg_test_unit_dir = os.environ.get("SPRINT_CFG_TEST_UNIT_DIR", "tests/unit")
+cfg_extra_dir_roots = os.environ.get("SPRINT_CFG_EXTRA_DIR_ROOTS", "")
 tracker_dir     = os.environ.get("SPRINT_TRACKER_DIR", "")
 reducer_path    = os.environ.get("SPRINT_REDUCER", "")
 
@@ -380,6 +384,11 @@ def extract_files(text):
 
     # Build directory-rooted path regex from config values + fixed dirs
     dir_roots = {cfg_src_dir, cfg_test_dir, "app", ".claude", "plugins"}
+    if cfg_extra_dir_roots:
+        for extra in cfg_extra_dir_roots.split(","):
+            extra = extra.strip()
+            if extra:
+                dir_roots.add(extra)
     # Also add bare test_dir variants (e.g. "test" if test_dir is "tests")
     if cfg_test_dir.endswith("s"):
         dir_roots.add(cfg_test_dir[:-1])

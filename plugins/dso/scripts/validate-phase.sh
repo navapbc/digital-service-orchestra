@@ -58,9 +58,14 @@ CONFIG_FILE="$REPO_ROOT/.claude/dso-config.conf"
 
 _cfg() {
     local key="$1"
+    local default="${2:-}"
     local val
     val=$("$READ_CONFIG" "$key" "$CONFIG_FILE" 2>/dev/null || true)
-    echo "$val"
+    if [ -z "$val" ] && [ -n "$default" ]; then
+        echo "$default"
+    else
+        echo "$val"
+    fi
 }
 
 _cfg_required() {
@@ -79,7 +84,7 @@ CMD_FORMAT=$(_cfg_required "commands.format")
 CMD_FORMAT_CHECK=$(_cfg_required "commands.format_check")
 CMD_LINT=$(_cfg_required "commands.lint")
 CMD_LINT_FIX=$(_cfg "commands.lint_fix")  # optional: only used in phase_auto_fix
-CMD_TEST_UNIT=$(_cfg_required "commands.test_unit")
+CMD_TEST_UNIT=$(_cfg "commands.test_unit" "make test-unit-only")
 CMD_VALIDATE=$(_cfg_required "commands.validate")
 
 # test-batched.sh integration (mirrors validate.sh pattern for time-bounded execution).

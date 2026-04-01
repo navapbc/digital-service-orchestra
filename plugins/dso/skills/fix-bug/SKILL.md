@@ -59,7 +59,7 @@ Before scoring, classify the error:
 
 Mechanical errors have an obvious, deterministic fix that requires no investigation. These skip the scoring rubric and route directly to the **Mechanical Fix Path** (read the error, apply the fix, validate).
 
-**Exclusion — files in `skills/`, `agents/`, or `prompts/` directories must not be classified as mechanical.** Changes to skill files, agent definitions, or prompt templates affect LLM behavior and guidance — even when the fix appears to be "obvious text replacement." These files must be routed through the LLM-behavioral or behavioral classification path, never mechanical. An agent that can see "what text is wrong" in a skill file is not performing a mechanical fix — it is making a judgment about how to change agent behavior, which requires investigation.
+**Exclusion — files matching `fix_bug.llm_behavioral_dirs` config patterns (default: `skills/`, `agents/`, `prompts/`) must not be classified as mechanical.** The default patterns cover the standard DSO plugin structure. Host projects with LLM-behavioral files in different directories should configure `fix_bug.llm_behavioral_dirs` in `.claude/dso-config.conf` (comma-separated list of directory prefixes). Changes to skill files, agent definitions, or prompt templates affect LLM behavior and guidance — even when the fix appears to be "obvious text replacement." These files must be routed through the LLM-behavioral or behavioral classification path, never mechanical. An agent that can see "what text is wrong" in a skill file is not performing a mechanical fix — it is making a judgment about how to change agent behavior, which requires investigation.
 
 Types of mechanical errors:
 - **import error** — missing or incorrect import statement
@@ -461,7 +461,11 @@ Before proceeding to fix approval or fix implementation, validate the `hypothesi
 
 2. **Check for at least one confirmed verdict**: If all `hypothesis_tests` entries have `verdict: disproved` or `verdict: inconclusive` (no `verdict: confirmed` entry exists), escalate to the next investigation tier. All hypotheses being disproved means the true root cause has not been identified — proceeding to fix implementation would be speculative.
 
-3. **Proceed only with confirmed evidence**: If at least one `hypothesis_tests` entry has `verdict: confirmed`, the root cause is sufficiently validated. Proceed to Step 4 (Fix Approval).
+3. **Proceed only with confirmed evidence**: If at least one `hypothesis_tests` entry has `verdict: confirmed`, the root cause is sufficiently validated. Proceed to check 4 below.
+
+4. **Check hypothesis-root-cause consistency**: The confirmed hypothesis must explain the ROOT_CAUSE identified in the investigation RESULT. If the confirmed hypothesis tests a different aspect than the ROOT_CAUSE (e.g., hypothesis confirms a config value exists but ROOT_CAUSE claims a code logic error), the gate fails — the investigation has confirmed a tangential fact, not the root cause. Escalate to the next investigation tier.
+
+Only when check 4 passes — the confirmed hypothesis directly explains the ROOT_CAUSE — proceed to Step 4 (Fix Approval).
 
 **Escalation on gate failure**: When the gate rejects the investigation result (missing/empty `hypothesis_tests`, or all disproved), escalate following the standard escalation path (BASIC → INTERMEDIATE → ADVANCED → ESCALATED → User). Include the gate failure reason and all investigation findings in the escalation context so the next tier can build on prior work.
 
@@ -479,8 +483,8 @@ Record the gate failure in the discovery file and as a ticket comment before esc
 
 Determine whether the fix can be auto-approved or requires user input:
 
-- **Auto-approve** if: there is exactly one proposed fix, OR one fix is high confidence + low risk + does not degrade functionality
-- **User approval required** if: multiple competing fixes with comparable confidence/risk, OR all fixes degrade functionality, OR confidence is medium or below
+- **Auto-approve** if: there is exactly one proposed fix, AND the fix is high confidence + low risk + does not degrade functionality, AND the fix does not modify safeguard files (per CLAUDE.md rule 18: `skills/**`, `hooks/**`, `docs/workflows/**`, `scripts/**`, `CLAUDE.md`)
+- **User approval required** if: the fix modifies safeguard files, OR multiple competing fixes with comparable confidence/risk, OR all fixes degrade functionality, OR confidence is medium or below
 
 When presenting fixes for user approval, display:
 - Each proposed fix with description, risk level, and whether it degrades functionality
@@ -501,6 +505,14 @@ Input: approved fix description, files affected, estimated change scope
 **Note**: fix-bug reads the complexity-evaluator agent definition inline (rather than dispatching a sub-agent) to avoid nested dispatch — fix-bug often runs as a sub-agent of debug-everything, and dispatching a sub-agent from within a sub-agent risks Critical Rule 23 failures. The agent definition file contains the same five-dimension rubric and classification rules.
 
 **TRIVIAL or MODERATE fix**: proceed to Step 5 (RED Test).
+
+**COMPLEX classification triggers** (any one is sufficient):
+- Fix requires changes to 5+ files across 3+ distinct subsystems (directories)
+- Fix requires modifying both a skill/agent definition AND its corresponding script/hook
+- Investigation identified 3+ interacting root causes that cannot be addressed independently
+- Prior fix attempt failed and the failure analysis indicates the fix scope was too narrow
+
+When ANY trigger fires, classify as COMPLEX — do not rationalize ("these are small changes", "they're all related") to avoid escalation. The triggers exist because past sessions showed agents resolving complex bugs with incomplete fixes that caused regressions.
 
 **COMPLEX fix**: the fix scope is too large for a single bug fix track. The behavior depends on execution context:
 

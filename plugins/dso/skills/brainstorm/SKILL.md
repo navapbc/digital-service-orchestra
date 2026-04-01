@@ -170,6 +170,8 @@ cat "$REPO_ROOT/.claude/design-notes.md" 2>/dev/null
 
 If a PRD or .claude/design-notes.md exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
 
+**Investigate before asking**: Before presenting any question to the user, check whether the answer is discoverable by reading the codebase (existing skills, ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, module structure). Only ask the user questions whose answers cannot be found in the repo. Questions about design approach, user experience preferences, or business priorities are appropriate for the user; questions about existing implementations, available tools, or project structure are not.
+
 ### Step 2: The "Tell Me More" Loop
 
 Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encourage depth. After each answer, either ask a follow-up or move to the next area.
@@ -340,6 +342,9 @@ Log format to append under the heading `### Planning Intelligence Log`:
 
 ## Approach
 [1-2 sentences on the chosen approach from Phase 2]
+
+## Scenario Analysis
+{scenario analysis content from scrutiny pipeline, if generated}
 DESCRIPTION
 )"
 ```

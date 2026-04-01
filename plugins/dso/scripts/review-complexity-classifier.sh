@@ -415,6 +415,19 @@ _has_exception_broadening() {
     return 1
 }
 
+_has_config_file() {
+    local file
+    for file in "${SCORING_FILES[@]}"; do
+        # Match .claude/*.conf, .claude/settings.json, or */dso-config.conf anywhere
+        if [[ "$file" =~ ^\.claude/[^/]+\.conf$ ]] || \
+           [[ "$file" =~ ^\.claude/settings\.json$ ]] || \
+           [[ "$file" =~ (^|/)dso-config\.conf$ ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ============================================================
 # Diff size threshold: raw line count (excludes tests + generated)
 # ============================================================
@@ -556,6 +569,11 @@ fi
 
 if _has_exception_broadening && (( COMPUTED_TOTAL < 3 )); then
     COMPUTED_TOTAL=3
+fi
+
+if _has_config_file; then
+    CONFIG_FILE_FLOOR=3
+    [[ $COMPUTED_TOTAL -lt $CONFIG_FILE_FLOOR ]] && COMPUTED_TOTAL=$CONFIG_FILE_FLOOR
 fi
 
 # ============================================================

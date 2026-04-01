@@ -1,6 +1,6 @@
 ---
 name: plan-review
-description: Orchestrator-level skill that reviews plans and designs before user approval by dispatching a code-architect sub-agent. Invoke before presenting any plan or design to the user, or before calling ExitPlanMode. Do NOT dispatch this skill itself as a sub-agent — it requires the Agent tool and will refuse sub-agent invocation.
+description: Orchestrator-level skill that reviews plans and designs before user approval by dispatching a dso:plan-review sub-agent. Invoke before presenting any plan or design to the user, or before calling ExitPlanMode. Do NOT dispatch this skill itself as a sub-agent — it requires the Agent tool and will refuse sub-agent invocation.
 ---
 
 <SUB-AGENT-GUARD>
@@ -13,7 +13,7 @@ Do NOT proceed with any skill logic if the Agent tool is unavailable.
 
 # Plan Review
 
-Orchestrator-level skill that dispatches a `feature-dev:code-architect` sub-agent to review plans and designs before the user sees them. This skill runs at the orchestrator level — it is NOT itself dispatched as a sub-agent (the SUB-AGENT-GUARD above enforces this).
+Orchestrator-level skill that dispatches a `dso:plan-review` sub-agent to review plans and designs before the user sees them. This skill runs at the orchestrator level — it is NOT itself dispatched as a sub-agent (the SUB-AGENT-GUARD above enforces this).
 
 ## When to Invoke
 
@@ -45,9 +45,9 @@ Launch a **single sub-agent** with the plan content and review rubric.
 
 Launch with:
 ```
-subagent_type: "feature-dev:code-architect"
+subagent_type: "dso:plan-review"
 model: opus (design) or sonnet (implementation_plan)
-# code-architect specializes in analyzing existing codebase patterns and
+# dso:plan-review specializes in analyzing existing codebase patterns and
 # conventions — directly serves the Feasibility and Codebase Alignment
 # dimensions. The prompt's YAGNI and Completeness rubrics extend coverage
 # beyond the agent's default focus on architecture.

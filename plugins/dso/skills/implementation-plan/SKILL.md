@@ -439,6 +439,16 @@ Add this `.test-index` entry requirement as an acceptance criterion and note in 
 
 **Common Mistake**: Naming a test after what it tests (behavior) rather than what file it tests (source). Always check that the source filename's normalized form is a substring of the normalized test filename.
 
+### Wireframe Design Decision
+
+When the story involves UI changes:
+1. **Design wireframes inline (Recommended)** — create wireframes as part of implementation planning
+2. **Defer wireframes** — skip wireframe design for this story (only appropriate when visual design is not part of the story's scope)
+
+If wireframes are being created inline, include a wireframe task before implementation tasks and run `/dso:design-wireframe <story-id>` to produce the Design Manifest (spatial layout tree, SVG wireframe, design token overlay). Implementation tasks that touch UI components should depend on the wireframe task.
+
+If deferring, document the rationale in the plan (e.g., "Visual design is out of scope for this story — wireframes will be produced in a dedicated design story").
+
 ### E2E Testing Requirement
 
 If the story introduces or modifies user-facing behavior, API endpoints, or cross-component flows, include a dedicated E2E test task:
@@ -653,6 +663,8 @@ Report:
 
 **When invoked from `/dso:sprint` (via Skill tool)**: Do NOT stop. Continue immediately to Step 6 (Gap Analysis) and then output the STATUS protocol (see Output Protocol below).
 
+**CRITICAL**: When invoked from `/dso:sprint` via the Skill tool, you MUST emit your STATUS line and stop. Do NOT wait for user input after emitting `STATUS:complete` or `STATUS:blocked`.
+
 ---
 
 ## Step 6: Gap Analysis (/dso:implementation-plan)
@@ -772,3 +784,5 @@ Each question object must have two fields:
 - `"blocking"`: genuinely cannot draft tasks without this answer
 - `"defaultable"`: safe assumption exists; include the assumption explicitly
 - Never include questions clearly answerable from the codebase or parent epic
+
+**Termination directive**: After emitting a STATUS line, STOP IMMEDIATELY. Do not wait for user input. Do not ask follow-up questions. Do not present options. The STATUS line is your final output — the calling orchestrator (e.g., `/dso:sprint`) will read it and decide next steps. Any text after the STATUS line delays control flow return to the orchestrator.
