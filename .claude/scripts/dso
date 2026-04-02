@@ -26,6 +26,10 @@ if [ -z "$DSO_ROOT" ]; then
     REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT=""
     if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/.claude/dso-config.conf" ]; then
         DSO_ROOT="$(grep '^dso\.plugin_root=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)"
+        # Resolve relative paths against REPO_ROOT (d145-1b1e)
+        if [ -n "$DSO_ROOT" ] && [ "${DSO_ROOT#/}" = "$DSO_ROOT" ]; then
+            DSO_ROOT="$REPO_ROOT/$DSO_ROOT"
+        fi
     fi
 fi
 

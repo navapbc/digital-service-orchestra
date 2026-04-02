@@ -1,6 +1,6 @@
 # Claude Code Project Configuration
 
-**Repo root**: `/Users/joeoakhart/digital-service-orchestra` — all script paths below are relative to this.
+**Repo root**: Use `REPO_ROOT=$(git rev-parse --show-toplevel)` — all script paths below are relative to the repo root.
 
 ## Working Directory & Paths
 
