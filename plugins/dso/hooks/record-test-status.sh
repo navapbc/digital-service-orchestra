@@ -467,6 +467,17 @@ PARTIAL
 }
 trap '_write_partial_status' URG
 
+# Isolate test subprocesses from real MERGE_HEAD/REBASE_HEAD state.
+# Without this, test scripts that source merge-state.sh detect the live
+# merge/rebase state instead of running in a clean context.
+if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
+    _rts_isolation_dir=$(mktemp -d /tmp/rts-git-isolation-XXXXXX)
+    git init -q "$_rts_isolation_dir" 2>/dev/null
+    export _MERGE_STATE_GIT_DIR="$_rts_isolation_dir/.git"
+    _rts_cleanup_isolation() { rm -rf "$_rts_isolation_dir" 2>/dev/null; }
+    trap '_rts_cleanup_isolation' EXIT
+fi
+
 _test_idx=0
 for test_file in "${ASSOCIATED_TESTS[@]}"; do
     red_marker="${ASSOCIATED_TEST_MARKERS[$_test_idx]:-}"

@@ -1469,7 +1469,7 @@ After `/dso:architect-foundation` completes (or is skipped), offer additional on
 
 **Artifact detection**: Before prompting, check whether the target artifacts already exist:
 - Check for `ARCH_ENFORCEMENT.md` — produced by `/dso:dev-onboarding`
-- Check for `.claude/docs/DESIGN_NOTES.md` (or `DESIGN_NOTES.md` at repo root) — produced by `/dso:design-onboarding`
+- Check for `.claude/design-notes.md` (or `design-notes.md` at repo root) — produced by `/dso:design-onboarding`
 
 If both artifacts already exist, skip this step entirely — the onboarding integration is already complete and no additional steps are needed.
 
@@ -1480,9 +1480,9 @@ I can run additional onboarding skills to set up your project:
 
 1) Run both /dso:dev-onboarding and /dso:design-onboarding
    - /dso:dev-onboarding produces a codebase guide and ARCH_ENFORCEMENT.md with architecture enforcement rules
-   - /dso:design-onboarding generates DESIGN_NOTES.md with design system documentation and visual language
+   - /dso:design-onboarding generates .claude/design-notes.md with design system documentation and visual language
 2) Run only /dso:dev-onboarding (creates ARCH_ENFORCEMENT.md)
-3) Run only /dso:design-onboarding (creates DESIGN_NOTES.md)
+3) Run only /dso:design-onboarding (creates .claude/design-notes.md)
 4) Skip — setup is complete, no additional steps
 
 Which would you like?

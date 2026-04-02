@@ -93,9 +93,14 @@ class TestToLlmKeyMapping:
 
 class TestToLlmOmissions:
     def test_none_values_omitted(self, mod):
+        result = mod.to_llm({"title": "x", "assignee": None})
+        assert "asn" not in result
+        assert "assignee" not in result
+
+    def test_parent_id_always_emitted(self, mod):
         result = mod.to_llm({"title": "x", "parent_id": None})
-        assert "pid" not in result
-        assert "parent_id" not in result
+        assert "pid" in result
+        assert result["pid"] is None
 
     def test_empty_list_omitted(self, mod):
         result = mod.to_llm({"title": "x", "comments": [], "deps": []})
@@ -133,7 +138,7 @@ class TestToLlmOmissions:
         assert result["ttl"] == "As a user, I can do things"
         assert result["st"] == "open"
         assert result["au"] == "alice"
-        assert "pid" not in result
+        assert result["pid"] is None
         assert "created_at" not in result
         assert "env_id" not in result
         assert "cm" not in result

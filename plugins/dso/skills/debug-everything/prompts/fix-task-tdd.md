@@ -48,7 +48,7 @@ Refer to CLAUDE.md (already in your context) for architecture, patterns, and con
    # Show only the tail — full output is in $RESULT_FILE
    tail -5 "$RESULT_FILE"
    ```
-   - If `TEST_EXIT != 0`: revert any changes that broke tests (`git checkout -- <files>`), then report FAIL below.
+   - If `TEST_EXIT != 0`: revert any source code changes that broke tests (`git checkout -- <files>`) — do NOT revert `.test-index` (marker edits are intentional metadata changes), then report FAIL below.
 7. **Write discovery file** (best-effort): If during execution you encountered bugs, missing dependencies, API changes, or convention violations outside your fix scope, write a discovery file so the orchestrator can propagate findings to the next batch:
    ```bash
    REPO_ROOT=$(git rev-parse --show-toplevel)

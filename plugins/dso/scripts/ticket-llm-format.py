@@ -39,6 +39,9 @@ KEY_MAP = {
 # Fields omitted from LLM format (verbose timestamps / system metadata)
 OMIT_KEYS = {"created_at", "env_id"}
 
+# Fields always emitted even when value is None (needed for hierarchy queries)
+ALWAYS_EMIT = {"parent_id"}
+
 # Comment: keep only body and author (omit timestamp — not useful for LLM)
 COMMENT_KEY_MAP = {
     "body": "b",
@@ -81,7 +84,7 @@ def to_llm(state):
     for k, v in state.items():
         if k in OMIT_KEYS:
             continue
-        if v is None:
+        if v is None and k not in ALWAYS_EMIT:
             continue
         if isinstance(v, list) and len(v) == 0:
             continue
