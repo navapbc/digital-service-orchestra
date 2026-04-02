@@ -457,6 +457,8 @@ test_shim_self_detects_via_sentinel() {
     git -C "$fake_repo" add plugins/dso/.claude-plugin/plugin.json
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 
+    # Resolve symlinks so expected path matches git rev-parse --show-toplevel output (macOS /private)
+    fake_repo="$(cd "$fake_repo" && pwd -P)"
     local expected_dso_root="$fake_repo/plugins/dso"
 
     # Source the shim in --lib mode from a clean environment (no CLAUDE_PLUGIN_ROOT,
@@ -549,6 +551,8 @@ test_shim_sentinel_exports_claude_plugin_root() {
     git -C "$fake_repo" add plugins/dso/.claude-plugin/plugin.json
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 
+    # Resolve symlinks so expected path matches git rev-parse --show-toplevel output (macOS /private)
+    fake_repo="$(cd "$fake_repo" && pwd -P)"
     local expected_value="$fake_repo/plugins/dso"
 
     # Source the shim in --lib mode from a clean environment.
