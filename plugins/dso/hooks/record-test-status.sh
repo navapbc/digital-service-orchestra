@@ -227,19 +227,19 @@ if [[ -z "$STAGED_FILES" ]]; then
     exit 0
 fi
 
-# --- Merge commit: filter to worktree-only files ---
-# Mirrors the logic in pre-commit-test-gate.sh lines 124-167.
-# During a merge, staged files include incoming changes from the merge target
-# that were already tested on that branch. Only test files that the worktree
-# branch actually changed to avoid blocking on pre-existing failures from main.
+# --- Merge commit: scope to worktree-only files (9ea7-27a6) ---
+# During a merge, staged files include incoming changes from the merge target.
+# Scope to files the worktree branch actually changed, plus any conflict
+# resolutions. Tests and review gates must still run — never skip them.
 _GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
 if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/MERGE_HEAD" ]]; then
-    _merge_head_sha=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null || echo "")
-    if [[ -n "$_merge_head_sha" ]]; then
+    _raw_merge_head=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null || echo "")
+    _merge_head_sha=""
+    [[ -n "$_raw_merge_head" ]] && _merge_head_sha=$(git rev-parse "$_raw_merge_head" 2>/dev/null || echo "")
+    _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+    if [[ -n "$_merge_head_sha" && "$_merge_head_sha" != "$_head_sha" ]]; then
         _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
-        _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
-        _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
-        if [[ -n "$_merge_base" && -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
+        if [[ -n "$_merge_base" ]]; then
             _worktree_changed=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
             _filtered=""
             if [[ -n "$_worktree_changed" ]]; then
@@ -250,11 +250,12 @@ if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/MERGE_HEAD" ]]; then
                     fi
                 done <<< "$STAGED_FILES"
             fi
-            # Empty _worktree_changed or no matches → all files are incoming-only
             STAGED_FILES="${_filtered%$'\n'}"
             if [[ -z "$STAGED_FILES" ]]; then
+                echo "Merge commit: all staged files are incoming-only — no worktree tests needed" >&2
                 exit 0
             fi
+            echo "Merge commit: scoped to ${STAGED_FILES//$'\n'/, } (worktree-changed files only)" >&2
         fi
     fi
 fi

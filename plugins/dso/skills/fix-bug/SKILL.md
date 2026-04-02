@@ -275,7 +275,12 @@ The script exits 0 always and emits a single JSON gate signal to stdout conformi
   ```bash
   ticket comment <BUG_TICKET_ID> "Gate 1b: feature-request language detected — <evidence from signal>"
   ```
-  Present the evidence to the user and ask whether to close as a feature request or proceed to investigation.
+  Present the evidence to the user with three options:
+  1. **Close as feature request** — close the bug ticket with `--reason="Fixed: Intent-contradicting — feature request, not bug"`. Only close if the user explicitly authorizes closure.
+  2. **Convert to epic** — invoke `/dso:brainstorm` on the ticket to create a proper feature epic. The brainstorm skill handles convert-to-epic flow.
+  3. **Proceed with investigation** — treat as a genuine bug and continue to Step 2.
+  
+  Do NOT close the ticket autonomously — feature request closure requires explicit user authorization. Do NOT implement the feature as a bug fix (8204-97b0).
 
 - **`triggered: false`** — No feature-request language detected. Proceed directly to Step 2 (Investigation Sub-Agent Dispatch).
 
