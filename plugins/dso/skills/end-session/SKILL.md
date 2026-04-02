@@ -129,7 +129,7 @@ Search existing bug tickets to avoid duplicates:
 .claude/scripts/dso ticket list --type=bug
 ```
 
-Scan titles for a match to the failure. A ticket already exists if a close title match is found.
+Scan titles for a match to the failure. A ticket already exists **only if a specific ticket ID can be cited**. Do NOT rationalize that a ticket "likely exists" — if you cannot name a ticket ID, no match was found and a new ticket must be created.
 
 **Auto-Create Bug Tickets**: For each failure that does **not** have an existing bug ticket, create one:
 
@@ -172,6 +172,8 @@ Review the `LEARNINGS_FROM_2_8` list stored in Step 2.8. For each learning, ask:
 - A defect, regression, or broken behavior that hasn't been fixed yet
 - A footgun or edge case that will bite users/developers again if not addressed
 - A workaround that was applied instead of a proper fix
+
+**Calibration anchor**: If the conversation log shows that the agent (or user) spent non-trivial time debugging, hit an unexpected error, or applied a workaround, that learning qualifies under criterion 2 or 3 above — do NOT evaluate it as a neutral observation. Do NOT skip a learning that caused real debugging cost just because it has since been understood.
 
 Do NOT create tickets for neutral observations, design decisions, or already-fixed issues.
 
