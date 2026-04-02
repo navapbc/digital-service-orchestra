@@ -226,13 +226,15 @@ $ .claude/scripts/dso ticket show --format=llm w21-a3f7
 List all tickets.
 
 ```
-.claude/scripts/dso ticket list [--format=llm] [--include-archived]
+.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--format=llm] [--include-archived]
 ```
 
 **Arguments:**
 
 | Argument | Required | Description |
 |---|---|---|
+| `--type=<type>` | No | Filter by ticket type: `epic`, `story`, `task`, `bug` |
+| `--status=<status>` | No | Filter by status: `open`, `in_progress`, `closed`, `blocked` |
 | `--format=llm` | No | JSONL output — one minified ticket per line (see Output Formats section) |
 | `--include-archived` | No | Include archived tickets in output (default: archived tickets are excluded) |
 
@@ -258,6 +260,9 @@ List all tickets.
 ```
 $ .claude/scripts/dso ticket list
 [{"ticket_id":"w21-a3f7","ticket_type":"task","title":"Add rate limiting to API","status":"open",...}]
+
+$ .claude/scripts/dso ticket list --type=bug --status=open
+[{"ticket_id":"w21-c4d8","ticket_type":"bug","title":"Login fails on Safari","status":"open",...}]
 
 $ .claude/scripts/dso ticket list --format=llm
 {"id":"w21-a3f7","t":"task","ttl":"Add rate limiting to API","st":"open","au":"Alice"}

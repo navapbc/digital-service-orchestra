@@ -72,6 +72,17 @@ if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
     fi
 fi
 
+# --- Guard: merge in progress with no worktree-only files ---
+# When merge-base was computed successfully but the worktree branch has no
+# changed files (all staged files came from main), produce an empty diff.
+# Without this, the fallback to `git diff --staged` captures ALL merge files.
+if (ms_is_merge_in_progress || ms_is_rebase_in_progress) && \
+   [[ -n "$_merge_base" ]] && [[ ${#_MERGE_FILE_PATHSPECS[@]} -eq 0 ]]; then
+    touch "$DIFF_FILE"
+    echo "" > "${DIFF_FILE%.diff}.stat"
+    exit 0
+fi
+
 # --- Check for untracked files that would be invisible to diff ---
 # Untracked files are not seen by `git diff --staged` or `git diff`, so
 # they produce an empty diff and cause hash mismatches at the review gate.

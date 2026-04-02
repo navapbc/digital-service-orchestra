@@ -204,8 +204,18 @@ fi
 if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
     _worktree_files=$(ms_get_worktree_only_files 2>/dev/null || true)
 
+    # Check if merge-base was computed successfully (non-fail-open).
+    _merge_base_check=$(ms_get_merge_base 2>/dev/null || echo "")
+
+    # If merge-base was computed and worktree has no changed files, all staged
+    # files are incoming-only → nothing to review, allow commit.
+    if [[ -n "$_merge_base_check" ]] && [[ -z "$_worktree_files" ]]; then
+        log_decision "pass"
+        exit 0
+    fi
+
     # If ms_get_worktree_only_files returned non-empty output, filter staged files.
-    # If it returned empty (fail-open not triggered), fall through with full list.
+    # If it returned empty AND merge-base failed (fail-open), fall through with full list.
     if [[ -n "$_worktree_files" ]]; then
         _filtered_staged=()
         for _msf in "${STAGED_FILES[@]+"${STAGED_FILES[@]}"}"; do

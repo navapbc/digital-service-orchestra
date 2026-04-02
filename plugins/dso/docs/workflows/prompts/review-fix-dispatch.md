@@ -122,7 +122,7 @@ rm -f "$TEST_LOG"
 ```
 
 - **Format failures only**: run `make format`, re-stage, continue within this attempt.
-- **Lint/type/test failures** (`TEST_EXIT != 0`): revert changed files (`git checkout -- <files>`), report:
+- **Lint/type/test failures** (`TEST_EXIT != 0`): revert source code changes (`git checkout -- <files>`) — do NOT revert `.test-index`, report:
 
 ```
 RESOLUTION_RESULT: FAIL

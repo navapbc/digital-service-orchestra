@@ -18,6 +18,14 @@ Close out an ephemeral worktree session: close issues, commit, merge to main, pu
 
 All steps run from the worktree directory — no `cd` needed.
 
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `--bump <type>` | Forward version bump type (`minor`, `patch`, `major`) to `merge-to-main.sh --bump <type>`. When provided by the caller (e.g., `/dso:sprint` passes `--bump minor`), forward it to the merge script in Step 4. |
+
+Parse arguments at skill activation. If `--bump <type>` is present, store `BUMP_ARG="--bump <type>"` for use in Step 4. If absent, `BUMP_ARG=""`.
+
 ## Steps
 
 ### 1. Verify Worktree Context
@@ -220,7 +228,7 @@ git log main..$BRANCH --oneline
 **If unmerged commits exist**: run the merge script. It handles .claude/scripts/dso ticket sync, merge, and push internally. Do NOT prompt for confirmation — proceed directly.
 
 ```bash
-.claude/scripts/dso merge-to-main.sh
+.claude/scripts/dso merge-to-main.sh ${BUMP_ARG:-}
 ```
 
 If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files):
