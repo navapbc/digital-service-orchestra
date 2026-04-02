@@ -1,1 +1,0 @@
-{"timestamp": 1775147514, "uuid": "12920da9-7aab-436d-8777-951e20403724", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Empty body test ticket", "parent_id": "", "description": "", "priority": 2, "assignee": "Test"}}
