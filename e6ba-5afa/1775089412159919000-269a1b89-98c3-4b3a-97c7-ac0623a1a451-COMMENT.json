@@ -1,1 +1,0 @@
-{"timestamp": 1775089412159919000, "uuid": "269a1b89-98c3-4b3a-97c7-ac0623a1a451", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Bot-psychologist RESULT: FAIL/ESCALATE dispatch table says escalate to user with no pointer to tier-upgrade gate. Fix: Add tier-upgrade check to dispatch entries."}}
