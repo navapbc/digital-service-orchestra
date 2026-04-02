@@ -72,7 +72,7 @@ All gate scripts emit a JSON object conforming to `plugins/dso/docs/contracts/ga
 
 - Gate 1a introduces sub-agent dispatch latency before investigation begins. The `debug.intent_search_budget` config key caps this at 20 tool calls by default.
 - Gate 2a and Gate 2c add post-investigation steps that extend the fix-bug cycle time on flagged bugs.
-- The blast-radius analysis (Gate 2b) requires ast-grep for highest accuracy; environments without ast-grep fall back to grep-based counting with reduced precision.
+- The blast-radius analysis (Gate 2b) requires ast-grep (`sg` binary) for highest accuracy; environments without ast-grep fall back to grep-based counting with reduced precision. Note: `gate-2b-blast-radius.sh` currently checks `command -v ast-grep` (the package name) rather than `command -v sg` (the CLI binary); both resolve to the same tool when installed via the standard package. New integrations should use `sg` per the convention in CLAUDE.md.
 
 ### Neutral
 

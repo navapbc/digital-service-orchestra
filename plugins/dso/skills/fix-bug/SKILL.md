@@ -326,7 +326,7 @@ else
 fi
 ```
 
-Include the discovered callers, importers, and source-chain dependencies as additional context in the investigation sub-agent prompt. This structural pre-loading step complements the `gate-2b-blast-radius.sh` ast-grep usage — both use the same guard pattern (`command -v`), though Gate 2b checks `ast-grep` while this step checks `sg` (the short alias); see CLAUDE.md story afb1-89e6 tracking naming alignment. Gate 2b runs post-investigation; this step runs pre-dispatch.
+Include the discovered callers, importers, and source-chain dependencies as additional context in the investigation sub-agent prompt. This structural pre-loading step complements the `gate-2b-blast-radius.sh` blast-radius analysis — both use the same `command -v` guard pattern. Note: `gate-2b-blast-radius.sh` checks `command -v ast-grep` (the package name) while new integrations use `command -v sg` (the CLI binary name); see CLAUDE.md "Structural Code Search (ast-grep)" for the canonical naming convention. Gate 2b runs post-investigation; this step runs pre-dispatch.
 
 #### BASIC Investigation (score < 3)
 
@@ -733,7 +733,7 @@ bash "$PLUGIN_SCRIPTS/gate-2b-blast-radius.sh" "<affected_file_path>" --repo-roo
 
 Do not surface gate errors to the user or halt the fix workflow.
 
-**ast-grep / grep fallback**: `gate-2b-blast-radius.sh` uses ast-grep for fan-in analysis when available. When ast-grep is not installed, the script automatically falls back to grep-based analysis so the gate remains functional across all environments.
+**ast-grep / grep fallback**: `gate-2b-blast-radius.sh` uses ast-grep (the `sg` tool, checked via `command -v ast-grep` in the script) for fan-in analysis when available. When ast-grep is not installed, the script automatically falls back to grep-based analysis so the gate remains functional across all environments.
 
 **Boundary with Centrality-Aware Test Gate**: Gate 2b runs at commit-time annotation (post-investigation), while the Centrality-Aware Test Gate operates at pre-commit time. They serve different phases and do not interact.
 
