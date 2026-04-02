@@ -15,6 +15,14 @@ repos:
         stages: [pre-commit]
         files: \.sh$
 
+      - id: portability-check
+        name: Portability Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh portability-check 5 "plugins/dso/scripts/check-portability.sh"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: format-and-lint
         name: Format + Lint - Ruff (15s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh format-and-lint 15 "ruff check plugins/dso/scripts/*.py tests/**/*.py && ruff format --check plugins/dso/scripts/*.py tests/**/*.py"
