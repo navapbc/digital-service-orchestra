@@ -1,1 +1,0 @@
-{"timestamp": 1775164439548606000, "uuid": "438fbd96-fcb4-4764-88e5-9f7537299875", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: eval config authored with llm-rubric assertions, 0 TODOs"}}
