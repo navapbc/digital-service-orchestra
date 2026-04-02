@@ -150,3 +150,4 @@
 - **Detection**: git merge main produces conflict markers inside ticket tracker JSON files. git status shows both modified for tracker files.
 - **Fix**: Use `merge-to-main.sh` which handles ticket branch syncing inline via `_phase_sync`. Never use raw `git merge main` in worktrees.
 - **Rule added**: Always use `merge-to-main.sh` (which includes inline ticket sync) for worktree merge operations.
+
