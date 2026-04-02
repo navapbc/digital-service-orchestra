@@ -1,1 +1,0 @@
-{"timestamp": 1775150904703836000, "uuid": "3a81ff36-ed35-48b3-b2da-1ad30eb59ff4", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: ast-grep guidance added with canonical guard/fallback pattern and tests"}}
