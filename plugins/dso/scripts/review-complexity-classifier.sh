@@ -605,6 +605,12 @@ fi
 # ============================================================
 DIFF_SIZE_LINES=$(_diff_size_lines_raw)
 IS_MERGE=$(_is_merge_commit && echo "true" || echo "false")
+
+# Merge-commit floor: merges always receive at least standard tier (57ed-e776).
+# Haiku's reduced context cannot reliably analyze cross-branch integration risks.
+if [[ "$IS_MERGE" == "true" ]] && [[ "$SELECTED_TIER" == "light" ]]; then
+    SELECTED_TIER="standard"
+fi
 SIZE_ACTION=$(_compute_size_action "$DIFF_SIZE_LINES" "$IS_MERGE")
 SECURITY_OVERLAY=$(_compute_security_overlay)
 PERFORMANCE_OVERLAY=$(_compute_performance_overlay)
