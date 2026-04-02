@@ -139,4 +139,35 @@ fi
 assert_eq "test_ticket_system_init" "found" "$has_ticket_init"
 assert_pass_if_clean "test_ticket_system_init"
 
+# test_ast_grep_recommended: onboarding must reference ast-grep as a recommended
+# optional tool with installation instructions for macOS (brew) and Linux (cargo)
+_snapshot_fail
+if grep -q "ast-grep" "$SKILL_MD" 2>/dev/null; then
+    has_ast_grep="found"
+else
+    has_ast_grep="missing"
+fi
+assert_eq "test_ast_grep_recommended" "found" "$has_ast_grep"
+assert_pass_if_clean "test_ast_grep_recommended"
+
+# test_ast_grep_macos_install: onboarding must include macOS install command for ast-grep
+_snapshot_fail
+if grep -qE "brew install ast-grep" "$SKILL_MD" 2>/dev/null; then
+    has_ast_grep_brew="found"
+else
+    has_ast_grep_brew="missing"
+fi
+assert_eq "test_ast_grep_macos_install" "found" "$has_ast_grep_brew"
+assert_pass_if_clean "test_ast_grep_macos_install"
+
+# test_ast_grep_linux_install: onboarding must include Linux install command for ast-grep
+_snapshot_fail
+if grep -qE "cargo install ast-grep" "$SKILL_MD" 2>/dev/null; then
+    has_ast_grep_cargo="found"
+else
+    has_ast_grep_cargo="missing"
+fi
+assert_eq "test_ast_grep_linux_install" "found" "$has_ast_grep_cargo"
+assert_pass_if_clean "test_ast_grep_linux_install"
+
 print_summary

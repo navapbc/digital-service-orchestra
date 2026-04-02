@@ -151,3 +151,44 @@ def test_gap_analysis_flags_missing_artifacts_before_review() -> None:
         "from success criteria. The skill must detect and surface omissions before the "
         "fidelity review. This is a RED test — the flagging logic does not yet exist."
     )
+
+
+# --- TDD spec for story 0bd2-a8d1: ast-grep guidance in Technical Self-Review ---
+
+
+def test_technical_self_review_contains_ast_grep_guard() -> None:
+    """Phase 2 Step 2.5 Technical Self-Review must include the command -v sg guard.
+
+    When sg is available, the agent should use structural pattern matching to discover
+    existing code patterns. The canonical guard prevents errors on systems without sg.
+    """
+    content = _read_skill()
+    assert "command -v sg" in content, (
+        "Expected brainstorm SKILL.md Phase 2 Step 2.5 to contain 'command -v sg' "
+        "availability guard for ast-grep. The canonical guard pattern from CLAUDE.md "
+        "must be present so agents check for sg before invoking it."
+    )
+
+
+def test_technical_self_review_contains_grep_fallback() -> None:
+    """Phase 2 Step 2.5 Technical Self-Review must provide a Grep fallback when sg is unavailable.
+
+    Systems without ast-grep installed must not error out — a Grep-based fallback
+    must be specified so pattern discovery always succeeds regardless of environment.
+    """
+    content = _read_skill()
+    assert any(
+        phrase in content
+        for phrase in [
+            "Fall back to Grep",
+            "fall back to Grep",
+            "fallback to Grep",
+            "Grep tool",
+            "grep -r",
+            "Grep fallback",
+        ]
+    ), (
+        "Expected brainstorm SKILL.md Phase 2 Step 2.5 to include a Grep fallback "
+        "instruction when sg is unavailable. Graceful degradation is required so "
+        "agents on systems without ast-grep can still perform pattern discovery."
+    )

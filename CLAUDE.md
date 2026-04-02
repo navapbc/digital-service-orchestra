@@ -236,7 +236,7 @@ sg --pattern 'source $PATH' --lang bash .
 sg --pattern '. $PATH' --lang bash .
 ```
 
-**Note**: The existing `gate-2b-blast-radius.sh` uses the older `ast-grep` binary name (`command -v ast-grep`). New integrations should use `sg`. The docs update story (afb1-89e6) will align the existing reference.
+**Note**: The existing `gate-2b-blast-radius.sh` uses `command -v ast-grep` (the package name) rather than `command -v sg`. Both resolve to the same binary when installed via the standard package. New integrations should use `sg`.
 
 ## Common Fixes
 

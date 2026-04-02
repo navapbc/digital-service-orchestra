@@ -1402,6 +1402,25 @@ if [[ -f "$KNOWN_ISSUES_SRC" ]] && [[ ! -f "$KNOWN_ISSUES_DEST" ]]; then
 fi
 ```
 
+#### Optional Tools
+
+After completing required infrastructure setup, recommend optional tools that enhance the DSO workflow. These tools are not required — all workflows fall back to standard alternatives when unavailable.
+
+Present the following as a brief, non-blocking note (do not prompt for input — just inform):
+
+```
+Optional recommended tool:
+
+  ast-grep (sg) — structural code search for cross-file dependency discovery
+  Install (macOS):  brew install ast-grep
+  Install (Linux):  cargo install ast-grep --locked
+
+  When ast-grep is available, dependency discovery uses structural search for
+  more precise results. All workflows fall back to grep when it is unavailable.
+```
+
+Do NOT block onboarding progress on tool installation — present the suggestion and continue immediately.
+
 #### CI Trigger Strategy
 
 Ask the user about the CI trigger strategy — do NOT assume a PR-based workflow:
