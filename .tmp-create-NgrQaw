@@ -1,1 +1,0 @@
-{"timestamp": 1775088844, "uuid": "76691054-ffd8-41e9-8ee3-3b42a5f8ed8d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "E2E deps target ticket", "parent_id": "", "description": "", "priority": 2, "assignee": "Test"}}
