@@ -1054,4 +1054,422 @@ assert_contains \
 
 assert_pass_if_clean "test_empty_config_pattern_falls_back"
 
+# ============================================================
+# test_centrality_cached_per_diff_hash
+#
+# When the hook runs twice with the same staged files (same diff
+# hash), the second run should use a cached centrality score.
+# Observable: a cache file exists under
+# $ARTIFACTS_DIR/centrality-cache-${DIFF_HASH}/ after the first run.
+# When staged files change (different diff hash), the old cache
+# directory is absent for the new hash.
+#
+# RED condition: no caching is implemented; the cache directory
+# never appears. The assertion that it exists fails.
+# ============================================================
+echo ""
+echo "=== test_centrality_cached_per_diff_hash ==="
+_snapshot_fail
+
+REPO_CACHE=$(create_test_repo)
+ARTIFACTS_CACHE=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-cache-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_CACHE")
+
+mkdir -p "$REPO_CACHE/src" "$REPO_CACHE/tests"
+cat > "$REPO_CACHE/src/cache_module.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "cache module"
+SHEOF
+chmod +x "$REPO_CACHE/src/cache_module.sh"
+
+cat > "$REPO_CACHE/tests/test-cache-module.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "associated test passed"
+exit 0
+SHEOF
+chmod +x "$REPO_CACHE/tests/test-cache-module.sh"
+
+mkdir -p "$REPO_CACHE/.claude"
+printf 'test_gate.test_dirs=tests/\n' > "$REPO_CACHE/.claude/dso-config.conf"
+
+git -C "$REPO_CACHE" add -A
+git -C "$REPO_CACHE" commit -m "add cache_module" --quiet 2>/dev/null
+
+echo "# changed" >> "$REPO_CACHE/src/cache_module.sh"
+git -C "$REPO_CACHE" add -A
+
+MOCK_PASS_CACHE=$(create_mock_pass_runner)
+
+# First run
+(
+    cd "$REPO_CACHE"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CACHE" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CACHE" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+# After first run: a centrality cache directory should exist for the current diff hash.
+# The diff hash is captured from test-gate-status (computed by the hook itself).
+DIFF_HASH_CACHE=""
+if [[ -f "$ARTIFACTS_CACHE/test-gate-status" ]]; then
+    DIFF_HASH_CACHE=$(grep '^diff_hash=' "$ARTIFACTS_CACHE/test-gate-status" | head -1 | cut -d= -f2-)
+fi
+
+CACHE_DIR_EXISTS="no"
+if [[ -n "$DIFF_HASH_CACHE" ]] && [[ -d "$ARTIFACTS_CACHE/centrality-cache-${DIFF_HASH_CACHE}" ]]; then
+    CACHE_DIR_EXISTS="yes"
+fi
+
+assert_eq \
+    "test_centrality_cached_per_diff_hash: cache directory exists after first run" \
+    "yes" \
+    "$CACHE_DIR_EXISTS"
+
+# Now change staged files to produce a different diff hash.
+echo "# second change" >> "$REPO_CACHE/src/cache_module.sh"
+git -C "$REPO_CACHE" add -A
+
+# Second run (different hash)
+(
+    cd "$REPO_CACHE"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CACHE" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CACHE" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+# The new hash should differ from the old one; old cache should be absent.
+DIFF_HASH_CACHE2=""
+if [[ -f "$ARTIFACTS_CACHE/test-gate-status" ]]; then
+    DIFF_HASH_CACHE2=$(grep '^diff_hash=' "$ARTIFACTS_CACHE/test-gate-status" | head -1 | cut -d= -f2-)
+fi
+
+OLD_CACHE_ABSENT="yes"
+if [[ -n "$DIFF_HASH_CACHE" ]] && [[ -d "$ARTIFACTS_CACHE/centrality-cache-${DIFF_HASH_CACHE}" ]]; then
+    OLD_CACHE_ABSENT="no"
+fi
+
+assert_eq \
+    "test_centrality_cached_per_diff_hash: old cache directory absent after hash change" \
+    "yes" \
+    "$OLD_CACHE_ABSENT"
+
+assert_pass_if_clean "test_centrality_cached_per_diff_hash"
+
+# ============================================================
+# test_file_count_threshold_skips_centrality
+#
+# When more than test_gate.file_count_threshold (default 50) files
+# are staged, the hook skips per-file centrality computation and
+# runs the full test suite directly.
+#
+# Observable: $ARTIFACTS_DIR/centrality-log.jsonl contains a
+# decision entry with "skipped_file_count".
+#
+# RED condition: no file count threshold logic is implemented;
+# centrality-log.jsonl does not exist or lacks "skipped_file_count".
+# ============================================================
+echo ""
+echo "=== test_file_count_threshold_skips_centrality ==="
+_snapshot_fail
+
+REPO_BIG=$(create_test_repo)
+ARTIFACTS_BIG=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-bigset-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_BIG")
+
+mkdir -p "$REPO_BIG/src" "$REPO_BIG/tests"
+
+# Create the associated test
+cat > "$REPO_BIG/tests/test-big-module.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "big module test passed"
+exit 0
+SHEOF
+chmod +x "$REPO_BIG/tests/test-big-module.sh"
+
+# Full-suite sentinel (only run when full suite is triggered)
+cat > "$REPO_BIG/tests/test-big-sentinel.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "big sentinel passed"
+exit 0
+SHEOF
+chmod +x "$REPO_BIG/tests/test-big-sentinel.sh"
+
+mkdir -p "$REPO_BIG/.claude"
+printf 'test_gate.test_dirs=tests/\n' > "$REPO_BIG/.claude/dso-config.conf"
+
+git -C "$REPO_BIG" add -A
+git -C "$REPO_BIG" commit -m "initial" --quiet 2>/dev/null
+
+# Stage 51 source files (exceeds default threshold of 50)
+mkdir -p "$REPO_BIG/src"
+for i in $(seq 1 51); do
+    printf '#!/usr/bin/env bash\necho "file %s"\n' "$i" > "$REPO_BIG/src/file_${i}.sh"
+done
+git -C "$REPO_BIG" add -A
+
+MOCK_PASS_BIG=$(create_mock_pass_runner)
+
+(
+    cd "$REPO_BIG"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_BIG" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_BIG" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+# centrality-log.jsonl must exist and contain "skipped_file_count"
+CENTRALITY_LOG_BIG="$ARTIFACTS_BIG/centrality-log.jsonl"
+LOG_CONTENT_BIG=""
+if [[ -f "$CENTRALITY_LOG_BIG" ]]; then
+    LOG_CONTENT_BIG=$(cat "$CENTRALITY_LOG_BIG")
+fi
+
+assert_contains \
+    "test_file_count_threshold_skips_centrality: centrality-log.jsonl contains skipped_file_count decision" \
+    "skipped_file_count" \
+    "$LOG_CONTENT_BIG"
+
+# Full suite must have run (sentinel in tested_files)
+TESTED_LINE_BIG=""
+if [[ -f "$ARTIFACTS_BIG/test-gate-status" ]]; then
+    TESTED_LINE_BIG=$(grep '^tested_files=' "$ARTIFACTS_BIG/test-gate-status" | head -1 | cut -d= -f2-)
+fi
+
+assert_contains \
+    "test_file_count_threshold_skips_centrality: full suite runs (sentinel in tested_files)" \
+    "test-big-sentinel.sh" \
+    "$TESTED_LINE_BIG"
+
+assert_pass_if_clean "test_file_count_threshold_skips_centrality"
+
+# ============================================================
+# test_file_count_threshold_configurable
+#
+# test_gate.file_count_threshold is configurable. When set to 5:
+#   - 6 staged files: centrality is skipped (full suite triggered)
+#   - 4 staged files: centrality is computed normally
+#
+# Observable (above threshold): centrality-log.jsonl contains
+# "skipped_file_count". (below threshold): centrality-log.jsonl
+# does NOT contain "skipped_file_count" (or file is absent).
+#
+# RED condition: threshold config key is not read; both sub-cases
+# fail because the threshold is always 50 (hardcoded default).
+# ============================================================
+echo ""
+echo "=== test_file_count_threshold_configurable ==="
+_snapshot_fail
+
+# Sub-case A: 6 files staged, threshold=5 → skip centrality
+REPO_THRESH_A=$(create_test_repo)
+ARTIFACTS_THRESH_A=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-thresh-a-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_THRESH_A")
+
+mkdir -p "$REPO_THRESH_A/src" "$REPO_THRESH_A/tests"
+cat > "$REPO_THRESH_A/tests/test-thresh-sentinel.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "thresh sentinel passed"
+exit 0
+SHEOF
+chmod +x "$REPO_THRESH_A/tests/test-thresh-sentinel.sh"
+
+mkdir -p "$REPO_THRESH_A/.claude"
+printf 'test_gate.test_dirs=tests/\ntest_gate.file_count_threshold=5\n' > "$REPO_THRESH_A/.claude/dso-config.conf"
+
+git -C "$REPO_THRESH_A" add -A
+git -C "$REPO_THRESH_A" commit -m "initial" --quiet 2>/dev/null
+
+# Stage 6 files (above threshold of 5)
+mkdir -p "$REPO_THRESH_A/src"
+for i in $(seq 1 6); do
+    printf '#!/usr/bin/env bash\necho "file %s"\n' "$i" > "$REPO_THRESH_A/src/tfile_${i}.sh"
+done
+git -C "$REPO_THRESH_A" add -A
+
+MOCK_PASS_THRESH=$(create_mock_pass_runner)
+
+(
+    cd "$REPO_THRESH_A"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_THRESH_A" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_THRESH" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+LOG_THRESH_A="$ARTIFACTS_THRESH_A/centrality-log.jsonl"
+LOG_CONTENT_THRESH_A=""
+if [[ -f "$LOG_THRESH_A" ]]; then
+    LOG_CONTENT_THRESH_A=$(cat "$LOG_THRESH_A")
+fi
+
+assert_contains \
+    "test_file_count_threshold_configurable: 6 files with threshold=5 logs skipped_file_count" \
+    "skipped_file_count" \
+    "$LOG_CONTENT_THRESH_A"
+
+# Sub-case B: 4 files staged, threshold=5 → centrality computed (no skip)
+REPO_THRESH_B=$(create_test_repo)
+ARTIFACTS_THRESH_B=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-thresh-b-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_THRESH_B")
+
+mkdir -p "$REPO_THRESH_B/src" "$REPO_THRESH_B/tests"
+cat > "$REPO_THRESH_B/tests/test-thresh-b-sentinel.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "thresh b sentinel passed"
+exit 0
+SHEOF
+chmod +x "$REPO_THRESH_B/tests/test-thresh-b-sentinel.sh"
+
+mkdir -p "$REPO_THRESH_B/.claude"
+printf 'test_gate.test_dirs=tests/\ntest_gate.file_count_threshold=5\n' > "$REPO_THRESH_B/.claude/dso-config.conf"
+
+git -C "$REPO_THRESH_B" add -A
+git -C "$REPO_THRESH_B" commit -m "initial" --quiet 2>/dev/null
+
+# Stage 4 files (below threshold of 5)
+mkdir -p "$REPO_THRESH_B/src"
+for i in $(seq 1 4); do
+    printf '#!/usr/bin/env bash\necho "file %s"\n' "$i" > "$REPO_THRESH_B/src/bfile_${i}.sh"
+done
+git -C "$REPO_THRESH_B" add -A
+
+MOCK_PASS_THRESH_B=$(create_mock_pass_runner)
+
+(
+    cd "$REPO_THRESH_B"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_THRESH_B" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_THRESH_B" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+LOG_THRESH_B="$ARTIFACTS_THRESH_B/centrality-log.jsonl"
+LOG_CONTENT_THRESH_B=""
+if [[ -f "$LOG_THRESH_B" ]]; then
+    LOG_CONTENT_THRESH_B=$(cat "$LOG_THRESH_B")
+fi
+
+# With 4 files (below threshold), centrality is computed normally — no skip logged
+if [[ "$LOG_CONTENT_THRESH_B" == *"skipped_file_count"* ]]; then
+    (( ++FAIL ))
+    printf "FAIL: test_file_count_threshold_configurable: 4 files with threshold=5 should NOT log skipped_file_count\n  actual log: %s\n" "$LOG_CONTENT_THRESH_B" >&2
+else
+    (( ++PASS ))
+fi
+
+assert_pass_if_clean "test_file_count_threshold_configurable"
+
+# ============================================================
+# test_centrality_cache_cleanup_on_hash_change
+#
+# When a cache entry exists for diff hash H1 and the staged files
+# change (new diff hash H2), the hook must remove cache entries
+# for H1 and create them for H2.
+#
+# Observable: after running with H2, $ARTIFACTS_DIR/centrality-cache-H1/
+# directory no longer exists, and centrality-cache-H2/ does exist.
+#
+# RED condition: no cache cleanup logic exists; the old H1 directory
+# persists after the H2 run.
+# ============================================================
+echo ""
+echo "=== test_centrality_cache_cleanup_on_hash_change ==="
+_snapshot_fail
+
+REPO_CLEAN=$(create_test_repo)
+ARTIFACTS_CLEAN=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-clean-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_CLEAN")
+
+mkdir -p "$REPO_CLEAN/src" "$REPO_CLEAN/tests"
+cat > "$REPO_CLEAN/src/cleanup_module.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "cleanup module"
+SHEOF
+chmod +x "$REPO_CLEAN/src/cleanup_module.sh"
+
+cat > "$REPO_CLEAN/tests/test-cleanup-module.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "associated test passed"
+exit 0
+SHEOF
+chmod +x "$REPO_CLEAN/tests/test-cleanup-module.sh"
+
+mkdir -p "$REPO_CLEAN/.claude"
+printf 'test_gate.test_dirs=tests/\n' > "$REPO_CLEAN/.claude/dso-config.conf"
+
+git -C "$REPO_CLEAN" add -A
+git -C "$REPO_CLEAN" commit -m "add cleanup_module" --quiet 2>/dev/null
+
+# First staged change → diff hash H1
+echo "# first change" >> "$REPO_CLEAN/src/cleanup_module.sh"
+git -C "$REPO_CLEAN" add -A
+
+MOCK_PASS_CLEAN=$(create_mock_pass_runner)
+
+# First run → creates cache for H1
+(
+    cd "$REPO_CLEAN"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CLEAN" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CLEAN" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+HASH_H1=""
+if [[ -f "$ARTIFACTS_CLEAN/test-gate-status" ]]; then
+    HASH_H1=$(grep '^diff_hash=' "$ARTIFACTS_CLEAN/test-gate-status" | head -1 | cut -d= -f2-)
+fi
+
+# Manually create the H1 cache dir (simulates it persisting from first run)
+# so the test doesn't depend on caching being implemented to set up state.
+if [[ -n "$HASH_H1" ]]; then
+    mkdir -p "$ARTIFACTS_CLEAN/centrality-cache-${HASH_H1}"
+    printf '{"file":"src/cleanup_module.sh","score":0,"hash":"%s"}\n' "$HASH_H1" \
+        > "$ARTIFACTS_CLEAN/centrality-cache-${HASH_H1}/cleanup_module.sh.json"
+fi
+
+# Second staged change → produces diff hash H2 (different from H1)
+echo "# second change" >> "$REPO_CLEAN/src/cleanup_module.sh"
+git -C "$REPO_CLEAN" add -A
+
+# Second run → should clean up H1 cache and create H2 cache
+(
+    cd "$REPO_CLEAN"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CLEAN" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CLEAN" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+HASH_H2=""
+if [[ -f "$ARTIFACTS_CLEAN/test-gate-status" ]]; then
+    HASH_H2=$(grep '^diff_hash=' "$ARTIFACTS_CLEAN/test-gate-status" | head -1 | cut -d= -f2-)
+fi
+
+# Old H1 cache directory must no longer exist
+H1_CACHE_GONE="yes"
+if [[ -n "$HASH_H1" ]] && [[ -d "$ARTIFACTS_CLEAN/centrality-cache-${HASH_H1}" ]]; then
+    H1_CACHE_GONE="no"
+fi
+
+assert_eq \
+    "test_centrality_cache_cleanup_on_hash_change: old H1 cache directory removed after H2 run" \
+    "yes" \
+    "$H1_CACHE_GONE"
+
+# New H2 cache directory must exist
+H2_CACHE_EXISTS="no"
+if [[ -n "$HASH_H2" ]] && [[ -d "$ARTIFACTS_CLEAN/centrality-cache-${HASH_H2}" ]]; then
+    H2_CACHE_EXISTS="yes"
+fi
+
+assert_eq \
+    "test_centrality_cache_cleanup_on_hash_change: new H2 cache directory created after H2 run" \
+    "yes" \
+    "$H2_CACHE_EXISTS"
+
+assert_pass_if_clean "test_centrality_cache_cleanup_on_hash_change"
+
 print_summary

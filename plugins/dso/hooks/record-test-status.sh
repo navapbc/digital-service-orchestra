@@ -198,22 +198,70 @@ count_centrality() {
     basename="$(basename "$filepath")"
     local module_name="${basename%.*}"
 
-    # Use grep-based fan-in counting: count files that import/source the target.
-    # This is more reliable across languages than ast-grep pattern matching,
-    # which requires language-specific AST patterns and fails on hyphenated names.
-    # Patterns matched: Python import/from, bash source.
-    #
     # Escape regex metacharacters in module_name to prevent injection (Bug 5 fix).
     local escaped_module_name
     escaped_module_name=$(printf '%s' "$module_name" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
 
+    # Hardcoded default patterns (fallback when no config patterns are present).
+    # Patterns matched: Python import/from, bash source.
+    local _hardcoded_pattern
+    _hardcoded_pattern="(import[[:space:]]+${escaped_module_name}|from[[:space:]]+${escaped_module_name}[[:space:]]|source[[:space:]]+(.*/)?(${escaped_module_name}))"
+
+    # Read test_gate.import_pattern.* keys from config.
+    # Each key value may contain literal "$MODULE" which gets replaced with the escaped module name.
+    local _config_file="${repo_root}/.claude/dso-config.conf"
+    local _combined_pattern=""
+    local _has_valid_config_pattern=false
+
+    if [[ -f "$_config_file" ]]; then
+        while IFS= read -r _cfg_line || [[ -n "$_cfg_line" ]]; do
+            # Extract key and value
+            local _cfg_key _cfg_val
+            _cfg_key="${_cfg_line%%=*}"
+            _cfg_val="${_cfg_line#*=}"
+
+            # Skip entries with empty values
+            [[ -z "$_cfg_val" ]] && continue
+
+            # Replace literal $MODULE with the escaped module name
+            local _resolved_pattern
+            _resolved_pattern="${_cfg_val//\$MODULE/${escaped_module_name}}"
+
+            # Validate pattern: use grep -E on empty string — exit 0 (match) or 1 (no match)
+            # are both valid; any other exit code means the pattern itself is invalid.
+            local _grep_rc=0
+            echo '' | grep -E "$_resolved_pattern" /dev/null 2>/dev/null || _grep_rc=$?
+            if [[ "$_grep_rc" -ne 0 && "$_grep_rc" -ne 1 ]]; then
+                echo "WARNING: invalid import pattern '${_cfg_key}': ${_resolved_pattern} — skipping" >&2
+                continue
+            fi
+
+            # Append valid pattern to combined pattern
+            if [[ -z "$_combined_pattern" ]]; then
+                _combined_pattern="$_resolved_pattern"
+            else
+                _combined_pattern="${_combined_pattern}|${_resolved_pattern}"
+            fi
+            _has_valid_config_pattern=true
+        done < <(grep '^test_gate\.import_pattern\.' "$_config_file" 2>/dev/null || true)
+    fi
+
+    # When no valid config patterns exist, fall back to hardcoded default patterns
+    local _grep_pattern
+    if [[ "$_has_valid_config_pattern" == "true" ]]; then
+        _grep_pattern="$_combined_pattern"
+    else
+        # fallback to hardcoded default patterns
+        _grep_pattern="$_hardcoded_pattern"
+    fi
+
     local count
     count=$(grep -rlE \
-        "(import[[:space:]]+${escaped_module_name}|from[[:space:]]+${escaped_module_name}[[:space:]]|source[[:space:]]+(.*/)?(${escaped_module_name}))" \
+        "$_grep_pattern" \
         "$repo_root" \
         --include='*.py' --include='*.sh' --include='*.bash' \
         --include='*.js' --include='*.ts' --include='*.tsx' \
-        --include='*.rb' 2>/dev/null \
+        --include='*.rb' --include='*.java' 2>/dev/null \
         | grep -vcF "$repo_root/$filepath" 2>/dev/null) || count=0
     # Ensure single integer — grep pipelines can produce multi-line output
     # when one stage fails (e.g., "0\n0" from BSD grep exit-1 + || fallback).
