@@ -12,12 +12,12 @@ set -uo pipefail
 #   - `git rev-parse --git-dir` without a corresponding `git init` in the file
 #   - Direct reads of `.git/MERGE_HEAD` or `.git/REBASE_HEAD` without isolation
 #   - Running scripts that call `_is_merge_commit` (e.g., the classifier)
-#     without passing CLASSIFIER_GIT_DIR
+#     without passing _MERGE_STATE_GIT_DIR (or legacy CLASSIFIER_GIT_DIR)
 #
 # Allowed patterns (not flagged):
 #   - Files that create their own git repo: `git init`, `make_test_repo`,
 #     `setup_test_repo`, `git -C "$tmpdir" init`
-#   - Files that pass CLASSIFIER_GIT_DIR or TEST_GIT_DIR to isolate
+#   - Files that pass _MERGE_STATE_GIT_DIR, CLASSIFIER_GIT_DIR, or TEST_GIT_DIR to isolate
 #   - Lines with `# isolation-ok:` suppression comment
 #
 # Rule contract:
@@ -46,7 +46,7 @@ if grep -qE 'git init|git -C .* init|make_test_repo|setup_test_repo' "$file" 2>/
 fi
 
 # Check if the file passes isolation env vars to the classifier
-if grep -qE 'CLASSIFIER_GIT_DIR|TEST_GIT_DIR' "$file" 2>/dev/null; then
+if grep -qE 'CLASSIFIER_GIT_DIR|TEST_GIT_DIR|_MERGE_STATE_GIT_DIR' "$file" 2>/dev/null; then
     has_isolation=true
 fi
 
@@ -78,9 +78,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         fi
     fi
 
-    # Flag running the classifier without CLASSIFIER_GIT_DIR
-    if [[ "$line" == *"review-complexity-classifier"* ]] && [[ "$line" != *"CLASSIFIER_GIT_DIR"* ]]; then
-        echo "$file:$line_num:no-real-git-state:runs classifier without CLASSIFIER_GIT_DIR — classifier will read real MERGE_HEAD during merges"
+    # Flag running the classifier without isolation env var
+    if [[ "$line" == *"review-complexity-classifier"* ]] && [[ "$line" != *"CLASSIFIER_GIT_DIR"* ]] && [[ "$line" != *"_MERGE_STATE_GIT_DIR"* ]]; then
+        echo "$file:$line_num:no-real-git-state:runs classifier without _MERGE_STATE_GIT_DIR (or CLASSIFIER_GIT_DIR) — classifier will read real MERGE_HEAD during merges"
     fi
 done < "$file"
 

@@ -77,7 +77,7 @@ DIFFEOF
 # Run the classifier on a diff file and return the selected_tier value.
 # Sets global CLASSIFIER_TIER and CLASSIFIER_EXIT.
 # The diff file must reside in a tmpdir created by _make_tmpdir so that
-# CLASSIFIER_GIT_DIR is derived from the isolated git repo in that tmpdir.
+# _MERGE_STATE_GIT_DIR is derived from the isolated git repo in that tmpdir.
 _run_classifier_get_tier() {
     local diff_file="$1"
     local test_git_dir
@@ -85,7 +85,7 @@ _run_classifier_get_tier() {
     CLASSIFIER_TIER=""
     CLASSIFIER_EXIT=0
     local output
-    output=$(REPO_ROOT="$REPO_ROOT" CLASSIFIER_GIT_DIR="$test_git_dir" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+    output=$(REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="$test_git_dir" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
     if [[ "$CLASSIFIER_EXIT" -eq 0 && -n "$output" ]]; then
         CLASSIFIER_TIER=$(python3 -c "
 import json, sys
@@ -188,7 +188,7 @@ test_computed_total_at_least_three_for_config_diff() {
     local test_git_dir
     test_git_dir="$tmpdir/.git"
     local output exit_code=0
-    output=$(REPO_ROOT="$REPO_ROOT" CLASSIFIER_GIT_DIR="$test_git_dir" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
+    output=$(REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="$test_git_dir" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || exit_code=$?
 
     assert_eq "classifier exits 0" "0" "$exit_code"
 

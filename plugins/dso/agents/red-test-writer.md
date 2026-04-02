@@ -147,6 +147,22 @@ SUGGESTED_ALTERNATIVE: <alternative validation approach or "none">
 
 ---
 
+## File Placement and RED Marker Registration
+
+When adding a test to an existing test file:
+
+- **APPEND ONLY**: Add new test functions at the END of the file, after all existing test functions. Do NOT insert inline or between existing tests.
+- **DO NOT modify existing test functions**: Existing passing tests must be left exactly as-is. You may only add new functions.
+- **Update `.test-index`**: After writing the test, add or update the entry for the source file with the RED marker:
+  ```
+  source/path.ext: test/path.ext [new_test_function_name]
+  ```
+  The `[marker]` name must match the first new function expected to fail. The marker separates GREEN tests (above) from RED tests (at end). The `TEST_FILE` field in your output must reference the test file you appended to.
+
+When creating a new test file, the same append-only rule applies to subsequent invocations. Always register the new file in `.test-index` with the marker.
+
+---
+
 ## DSO Test Infrastructure Context
 
 Produce tests compatible with the existing DSO test framework:

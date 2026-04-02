@@ -29,7 +29,7 @@ Analyzes git merge or rebase conflicts, classifies them by complexity, auto-reso
 ## Prerequisites
 
 Before this skill can act, one of these must be true:
-- A merge is in progress with unresolved conflicts (`git diff --name-only --diff-filter=U` returns files)
+- A merge is in progress with unresolved conflicts (`ms_get_conflicted_files` returns files)
 - A branch name was provided as argument (skill will attempt the merge)
 
 ## Steps
@@ -38,6 +38,7 @@ Before this skill can act, one of these must be true:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh"
 ```
 
 **If a branch argument was provided** and no merge is in progress:
@@ -45,15 +46,17 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 git merge --no-ff <branch> -m "Merge <branch>" --quiet 2>&1
 ```
 
-Check for conflicted files:
+Check for conflicted files using the shared library:
 ```bash
-CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null)
+CONFLICTED=$(ms_get_conflicted_files)
 ```
 
 If `$CONFLICTED` is empty, check whether a merge is still in progress with all conflicts pre-resolved:
 
 ```bash
-MERGE_IN_PROGRESS=$(test -f "$(git rev-parse --git-dir)/MERGE_HEAD" && echo "yes" || echo "no")
+# Uses ms_is_merge_in_progress from plugins/dso/hooks/lib/merge-state.sh
+# Returns 0 (true) when MERGE_HEAD exists and != HEAD
+if ms_is_merge_in_progress; then MERGE_IN_PROGRESS="yes"; else MERGE_IN_PROGRESS="no"; fi
 ```
 
 - If `$MERGE_IN_PROGRESS` is `yes` and no unresolved conflicts remain: report "Merge in progress with all conflicts pre-resolved — run `git commit` to finalize the merge." and exit. Do NOT report "no conflicts detected" — the merge needs committing, not aborting.

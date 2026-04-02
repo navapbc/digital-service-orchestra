@@ -385,12 +385,10 @@ _wait_for_lock() {
 
 # --- Abort stale rebase helper ---
 # Checks for leftover rebase state and aborts it before retrying a pull.
-# If REBASE_HEAD exists in the git dir, a prior rebase was interrupted.
+# Delegates detection to ms_is_rebase_in_progress (merge-state.sh library).
 # No-op if no rebase state is present.
 _abort_stale_rebase() {
-    local _git_dir
-    _git_dir=$(git rev-parse --git-dir 2>/dev/null) || return 0
-    if [[ -f "$_git_dir/REBASE_HEAD" ]]; then
+    if type ms_is_rebase_in_progress >/dev/null 2>&1 && ms_is_rebase_in_progress; then
         git rebase --abort 2>/dev/null || true
         echo "INFO: Aborted stale rebase state before retry."
     fi
@@ -602,7 +600,10 @@ _auto_resolve_archive_conflicts() {
 
 # --- Clean up stale git state (rebase/merge) on entry ---
 # Usage: _cleanup_stale_git_state <repo_path>
-# Aborts any leftover REBASE_HEAD or MERGE_HEAD state from a prior interrupted run.
+# Aborts any leftover rebase or merge state from a prior interrupted run.
+# Delegates detection to ms_is_rebase_in_progress / ms_is_merge_in_progress
+# (merge-state.sh library). File removal (corrupted state fallback) still uses
+# the resolved git-dir path directly.
 # Safe to call on any repo — no-op if no stale state is present.
 _cleanup_stale_git_state() {
     local repo_path="$1"
@@ -613,17 +614,28 @@ _cleanup_stale_git_state() {
         _git_dir="$repo_path/$_git_dir"
     fi
 
-    if [[ -f "$_git_dir/REBASE_HEAD" ]]; then
+    # Override git dir for the library so it operates on the target repo_path
+    local _saved_ms_git_dir="${_MERGE_STATE_GIT_DIR:-}"
+    _MERGE_STATE_GIT_DIR="$_git_dir"
+
+    if type ms_is_rebase_in_progress >/dev/null 2>&1 && ms_is_rebase_in_progress; then
         git -C "$repo_path" rebase --abort 2>/dev/null || git -C "$repo_path" reset --merge 2>/dev/null || true
         # If git commands didn't clear it (e.g., corrupted state), remove directly
         rm -f "$_git_dir/REBASE_HEAD" 2>/dev/null || true
         echo "INFO: Cleaned up stale rebase state in $repo_path"
     fi
 
-    if [[ -f "$_git_dir/MERGE_HEAD" ]]; then
+    if type ms_is_merge_in_progress >/dev/null 2>&1 && ms_is_merge_in_progress; then
         git -C "$repo_path" merge --abort 2>/dev/null || git -C "$repo_path" reset --merge 2>/dev/null || true
         rm -f "$_git_dir/MERGE_HEAD" 2>/dev/null || true
         echo "INFO: Cleaned up stale merge state in $repo_path"
+    fi
+
+    # Restore _MERGE_STATE_GIT_DIR
+    if [[ -n "$_saved_ms_git_dir" ]]; then
+        _MERGE_STATE_GIT_DIR="$_saved_ms_git_dir"
+    else
+        unset _MERGE_STATE_GIT_DIR
     fi
 
     return 0
@@ -719,7 +731,11 @@ _squash_rebase_recovery() {
 
     # Rebase failed — check which files conflict
     local _CONFLICTED_FILES
-    _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+    if type ms_get_conflicted_files >/dev/null 2>&1; then
+        _CONFLICTED_FILES=$(ms_get_conflicted_files)
+    else
+        _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+    fi
 
     if [[ -z "$_CONFLICTED_FILES" ]]; then
         # No conflicts detected — unknown rebase failure
@@ -739,6 +755,12 @@ _squash_rebase_recovery() {
 _HOOK_LIB="$CLAUDE_PLUGIN_ROOT/hooks/lib/deps.sh"
 if [[ -f "$_HOOK_LIB" ]]; then
     source "$_HOOK_LIB"
+fi
+
+# --- Load hooks/lib/merge-state.sh for shared MERGE_HEAD/REBASE_HEAD detection ---
+# shellcheck source=plugins/dso/hooks/lib/merge-state.sh
+if [[ -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh" ]]; then
+    source "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh"
 fi
 
 # --- Fallback: define retry_with_backoff inline if deps.sh was not found ---

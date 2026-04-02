@@ -30,53 +30,60 @@ _CONFIG_PATHS_LOADED=1
 _CONFIG_PATHS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _READ_CONFIG="$(cd "$_CONFIG_PATHS_DIR/../.." && pwd)/scripts/read-config.sh"
 
-# Helper: read a config key with a default fallback
-# Config resolution is fully delegated to read-config.sh (WORKFLOW_CONFIG_FILE or git root .claude/dso-config.conf)
-_cfg_read() {
-    local key="$1"
-    local default="$2"
-    local val
-    val=$("$_READ_CONFIG" "$key" 2>/dev/null) || true
-    if [[ -n "$val" ]]; then
-        echo "$val"
-    else
-        echo "$default"
-    fi
-}
+# --- Batch-read all config values in a single subprocess invocation ---
+#
+# Previously this file called _cfg_read/_cfg_read_list 6 times, each spawning a
+# separate read-config.sh subprocess (which itself runs `git rev-parse`).  On cold
+# disk that cost ~0.5–2.5 s per compute-diff-hash.sh invocation.
+#
+# Optimization: one `--batch` call reads every scalar key at once; one `--list`
+# call handles the multi-value format.source_dirs key.  Total: 2 subprocesses.
+#
+# Batch output format (eval-safe, single-quoted values):
+#   PATHS_APP_DIR='...'
+#   PATHS_SRC_DIR='...'
+#   PATHS_TEST_DIR='...'
+#   INTERPRETER_PYTHON_VENV='...'
+#   MERGE_VISUAL_BASELINE_PATH='...'
+#   (FORMAT_SOURCE_DIRS is a list key — handled separately below)
+#
+# When no config file is found, --batch exits 0 with empty output; all variables
+# remain unset and the defaults below apply.
 
-# Helper: read a list config key with a default fallback (newline-separated)
-_cfg_read_list() {
-    local key="$1"
-    local default="$2"
-    local val
-    val=$("$_READ_CONFIG" --list "$key" 2>/dev/null) || true
-    if [[ -n "$val" ]]; then
-        echo "$val"
-    else
-        echo "$default"
-    fi
-}
+_cfg_batch_raw=$("$_READ_CONFIG" --batch 2>/dev/null) || true
+if [[ -n "$_cfg_batch_raw" ]]; then
+    # eval is safe: read-config.sh --batch single-quotes every value and only
+    # emits UPPER_CASE_WITH_UNDERSCORES='..' lines (no shell metacharacters).
+    eval "$_cfg_batch_raw" 2>/dev/null || true
+fi
 
 # --- Read config values with defaults ---
 
 export CFG_APP_DIR
-CFG_APP_DIR=$(_cfg_read "paths.app_dir" "app")
+CFG_APP_DIR="${PATHS_APP_DIR:-app}"
 
 export CFG_PYTHON_VENV
-CFG_PYTHON_VENV=$(_cfg_read "interpreter.python_venv" "app/.venv/bin/python3")
+CFG_PYTHON_VENV="${INTERPRETER_PYTHON_VENV:-app/.venv/bin/python3}"
 
+# format.source_dirs is a multi-value (list) key — batch mode only captures the
+# last occurrence.  Use a single --list subprocess to get all values newline-joined.
 export CFG_FORMAT_SOURCE_DIRS
-CFG_FORMAT_SOURCE_DIRS=$(_cfg_read_list "format.source_dirs" "app/src
-app/tests")
+_cfg_format_dirs=$("$_READ_CONFIG" --list "format.source_dirs" 2>/dev/null) || true
+CFG_FORMAT_SOURCE_DIRS="${_cfg_format_dirs:-app/src
+app/tests}"
+unset _cfg_format_dirs
 
 export CFG_VISUAL_BASELINE_PATH
-CFG_VISUAL_BASELINE_PATH=$(_cfg_read "merge.visual_baseline_path" "")
+CFG_VISUAL_BASELINE_PATH="${MERGE_VISUAL_BASELINE_PATH:-}"
 
 export CFG_SRC_DIR
-CFG_SRC_DIR=$(_cfg_read "paths.src_dir" "src")
+CFG_SRC_DIR="${PATHS_SRC_DIR:-src}"
 
 export CFG_TEST_DIR
-CFG_TEST_DIR=$(_cfg_read "paths.test_dir" "tests")
+CFG_TEST_DIR="${PATHS_TEST_DIR:-tests}"
+
+# Clean up batch-populated intermediates so they do not leak into the environment
+unset PATHS_APP_DIR PATHS_SRC_DIR PATHS_TEST_DIR INTERPRETER_PYTHON_VENV MERGE_VISUAL_BASELINE_PATH FORMAT_SOURCE_DIRS _cfg_batch_raw
 
 # Derived: unit snapshot path uses both CFG_APP_DIR and CFG_TEST_DIR
 export CFG_UNIT_SNAPSHOT_PATH

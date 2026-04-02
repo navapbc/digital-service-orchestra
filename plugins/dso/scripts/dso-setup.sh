@@ -439,6 +439,33 @@ else
     fi
 fi
 
+# ── Verify hooks/lib installation (required by pre-commit framework hooks) ────
+# Consumer hooks source merge-state.sh via HOOK_DIR-relative paths
+# (plugins/dso/hooks/lib/). Scripts source via BASH_SOURCE-relative ../hooks/lib/.
+# merge-to-main.sh sources via CLAUDE_PLUGIN_ROOT. Verify the library is present
+# in the DSO plugin so host projects using the pre-commit framework can source it.
+# Resolve from BASH_SOURCE[0] (script-relative) so this works regardless of
+# whether PLUGIN_ROOT is the plugin dir or the repo root.
+# Use bash parameter expansion instead of dirname to avoid requiring dirname
+# in restricted PATH environments (test isolation, minimal CI containers).
+_DSO_SCRIPT_PATH="${BASH_SOURCE[0]}"
+_DSO_SCRIPT_DIR="${_DSO_SCRIPT_PATH%/*}"
+[[ "$_DSO_SCRIPT_DIR" == "$_DSO_SCRIPT_PATH" ]] && _DSO_SCRIPT_DIR="."
+_HOOKS_LIB_DIR="$_DSO_SCRIPT_DIR/../hooks/lib"
+_MERGE_STATE_LIB="$_HOOKS_LIB_DIR/merge-state.sh"
+if [[ -z "$DRYRUN" ]]; then
+    if [[ ! -f "$_MERGE_STATE_LIB" ]]; then
+        echo "ERROR: merge-state.sh not found at $_MERGE_STATE_LIB — hooks/lib installation may be incomplete" >&2
+        exit 1
+    fi
+else
+    if [[ -f "$_MERGE_STATE_LIB" ]]; then
+        echo "[dryrun] hooks/lib/merge-state.sh present at $_MERGE_STATE_LIB — OK"
+    else
+        echo "[dryrun] WARNING: merge-state.sh not found at $_MERGE_STATE_LIB" >&2
+    fi
+fi
+
 # ── Register pre-commit hooks (must come AFTER config copy) ───────────────────
 if [[ -z "$DRYRUN" ]]; then
     if command -v pre-commit >/dev/null 2>&1 && [ -f "$TARGET_PRECOMMIT" ]; then

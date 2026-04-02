@@ -29,6 +29,7 @@ setup_temp_dir() {
     git -C "$TEST_TMPDIR" init -q -b main 2>/dev/null
     git -C "$TEST_TMPDIR" config user.email "test@test" 2>/dev/null
     git -C "$TEST_TMPDIR" config user.name "test" 2>/dev/null
+    git -C "$TEST_TMPDIR" config core.hooksPath /dev/null 2>/dev/null
     touch "$TEST_TMPDIR/.gitkeep"
     git -C "$TEST_TMPDIR" add -A 2>/dev/null
     git -C "$TEST_TMPDIR" commit -q -m "init" 2>/dev/null
@@ -37,6 +38,23 @@ setup_temp_dir() {
 
 teardown_temp_dir() {
     [[ -n "${TEST_TMPDIR:-}" ]] && rm -rf "$TEST_TMPDIR"
+}
+
+# Create a temp git dir with a fake MERGE_HEAD file for merge-state isolation.
+# Returns the .git dir path on stdout.
+make_merge_head_git_dir() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    git -C "$tmpdir" init -q -b main 2>/dev/null
+    git -C "$tmpdir" config user.email "test@test" 2>/dev/null
+    git -C "$tmpdir" config user.name "test" 2>/dev/null
+    git -C "$tmpdir" config core.hooksPath /dev/null 2>/dev/null
+    touch "$tmpdir/.gitkeep"
+    git -C "$tmpdir" add -A 2>/dev/null
+    git -C "$tmpdir" commit -q -m "init" 2>/dev/null
+    # Write a fake MERGE_HEAD that does NOT equal HEAD (to pass the MERGE_HEAD==HEAD guard)
+    echo "0000000000000000000000000000000000000001" > "$tmpdir/.git/MERGE_HEAD"
+    echo "$tmpdir/.git"
 }
 
 echo "=== test-review-workflow-size-thresholds.sh ==="
@@ -311,9 +329,11 @@ test_integration_merge_commit_bypass_end_to_end() {
     # does NOT set STEP3B_REVIEW_RESULT to rejected.
     _snapshot_fail
 
-    local diff_input classifier_json is_merge_actual size_action_actual
+    local diff_input classifier_json is_merge_actual size_action_actual merge_git_dir
     diff_input=$(_generate_diff_lines 600)
-    classifier_json=$(echo "$diff_input" | MOCK_MERGE_HEAD=1 CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    merge_git_dir=$(make_merge_head_git_dir)
+    classifier_json=$(echo "$diff_input" | _MERGE_STATE_GIT_DIR="$merge_git_dir" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    rm -rf "$(dirname "$merge_git_dir")" 2>/dev/null || true
 
     # Verify classifier produced valid JSON with is_merge_commit=true
     is_merge_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "PARSE_ERROR")
@@ -343,7 +363,7 @@ test_integration_upgrade_path_end_to_end() {
 
     local diff_input classifier_json size_action_actual
     diff_input=$(_generate_diff_lines 300)
-    classifier_json=$(echo "$diff_input" | CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
     # Verify classifier produced valid JSON with size_action=upgrade
     size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")
@@ -368,7 +388,7 @@ test_integration_reject_path_end_to_end() {
 
     local diff_input classifier_json size_action_actual
     diff_input=$(_generate_diff_lines 600)
-    classifier_json=$(echo "$diff_input" | CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
+    classifier_json=$(echo "$diff_input" | _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" REPO_ROOT="$REPO_ROOT" "$REPO_ROOT/plugins/dso/scripts/review-complexity-classifier.sh")
 
     # Verify classifier produced valid JSON with size_action=reject
     size_action_actual=$(echo "$classifier_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("size_action","MISSING"))' 2>/dev/null || echo "PARSE_ERROR")

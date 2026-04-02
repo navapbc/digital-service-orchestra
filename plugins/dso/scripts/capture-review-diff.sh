@@ -25,6 +25,9 @@ shift 2
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# shellcheck source=../hooks/lib/merge-state.sh
+source "$SCRIPT_DIR/../hooks/lib/merge-state.sh"
+
 # --- Build exclusion list ---
 # REVIEW-DEFENSE: hardcoded default matches the v3 ticket system path; config-driven
 # ticket directory support (reading tickets.directory from dso-config.conf) is tracked
@@ -42,53 +45,30 @@ for ex in "$@"; do
     EXCLUDES+=("$ex")
 done
 
-# --- Merge-aware: scope diff to worktree-branch files only (1ded-89e6) ---
-# When MERGE_HEAD exists, restrict the diff to files changed on the worktree
-# branch (merge-base..HEAD), excluding incoming-only files from the merge source.
-# This matches pre-commit-review-gate.sh's MERGE_HEAD filtering.
+# --- Merge-aware / Rebase-aware: scope diff to worktree-branch files only ---
+# Uses shared library (merge-state.sh) to detect merge/rebase state and return
+# only files changed on the worktree branch (HEAD-anchored).
+# ms_get_worktree_only_files_from_head: diff merge-base..HEAD (HEAD-anchored variant
+# required here; other consumers use orig-head-anchored ms_get_worktree_only_files).
+#
+# REVIEW-DEFENSE: _merge_base and _MERGE_FILE_PATHSPECS are computed via separate
+# library calls. If ms_get_merge_base fails (returns empty) we must also discard the
+# pathspecs — otherwise git diff "" -- <pathspecs> uses HEAD as the base while
+# applying merge-filtered pathspecs, producing a contradictory diff that excludes
+# incoming-only files but uses the wrong base commit. The guard below keeps both
+# values in sync: if _merge_base is empty, _MERGE_FILE_PATHSPECS is cleared so the
+# script falls back to the standard staged/unstaged diff path.
 _MERGE_FILE_PATHSPECS=()
-_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
-if [[ -f "$_GIT_DIR/MERGE_HEAD" ]]; then
-    _merge_head_sha=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null)
-    _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
-    _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
-    # Guard: MERGE_HEAD must resolve to a real commit different from HEAD.
-    # If MERGE_HEAD == HEAD (fake/self-referencing), skip merge-mode to prevent bypass.
-    if [[ -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
-        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
-        if [[ -n "$_merge_base" ]]; then
-            while IFS= read -r _f; do
-                [[ -n "$_f" ]] && _MERGE_FILE_PATHSPECS+=("$_f")
-            done <<< "$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")"
-        fi
-    fi
-fi
-
-# --- Rebase-aware: scope diff to worktree-branch files only ---
-# When REBASE_HEAD exists, restrict the diff to files changed on the worktree
-# branch (onto..HEAD), excluding pre-onto history.
-# Mirrors the MERGE_HEAD block above. Fail-open on missing/corrupt state files.
-if [[ ${#_MERGE_FILE_PATHSPECS[@]} -eq 0 && -f "$_GIT_DIR/REBASE_HEAD" ]]; then
-    _rebase_onto=""
-    # Read onto from rebase-merge/onto or rebase-apply/onto
-    if [[ -f "$_GIT_DIR/rebase-merge/onto" ]]; then
-        _rebase_onto=$(cat "$_GIT_DIR/rebase-merge/onto" 2>/dev/null || echo "")
-    elif [[ -f "$_GIT_DIR/rebase-apply/onto" ]]; then
-        _rebase_onto=$(cat "$_GIT_DIR/rebase-apply/onto" 2>/dev/null || echo "")
-    fi
-    # Only proceed if we have a valid onto ref; fail-open otherwise
-    if [[ -n "$_rebase_onto" ]]; then
-        _rebase_onto_resolved=$(git rev-parse "$_rebase_onto" 2>/dev/null || echo "")
-        if [[ -n "$_rebase_onto_resolved" ]]; then
-            _merge_base=$(git merge-base HEAD "$_rebase_onto_resolved" 2>/dev/null || echo "")
-            if [[ -z "$_merge_base" ]]; then
-                # Fallback: use onto directly as the base
-                _merge_base="$_rebase_onto_resolved"
-            fi
-            while IFS= read -r _f; do
-                [[ -n "$_f" ]] && _MERGE_FILE_PATHSPECS+=("$_f")
-            done <<< "$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")"
-        fi
+_merge_base=""
+if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
+    _merge_base=$(ms_get_merge_base 2>/dev/null || echo "")
+    while IFS= read -r _f; do
+        [[ -n "$_f" ]] && _MERGE_FILE_PATHSPECS+=("$_f")
+    done <<< "$(ms_get_worktree_only_files_from_head 2>/dev/null || echo "")"
+    # Guard: if merge-base computation failed, discard pathspecs too so both
+    # fail together and the script falls through to the normal diff path.
+    if [[ -z "$_merge_base" ]]; then
+        _MERGE_FILE_PATHSPECS=()
     fi
 fi
 
