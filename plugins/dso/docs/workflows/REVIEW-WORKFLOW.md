@@ -522,8 +522,8 @@ Task tool:
 | `RESOLUTION_RESULT` | Action |
 |---------------------|--------|
 | `FIXES_APPLIED` | Fixes passed local validation. Orchestrator dispatches re-review sub-agent (see below). |
-| `FAIL` | Use `REMAINING_CRITICAL` and `ESCALATION_REASON` from sub-agent output to escalate to user. Do NOT re-read `reviewer-findings.json` into orchestrator context. |
-| `ESCALATE` | Present `ESCALATION_REASON` to user in the escalation format below. |
+| `FAIL` | **Before escalating to user**: check whether a tier upgrade is available (e6ba-5afa). If current tier is light, upgrade to standard. If standard, upgrade to deep (3 sonnet + opus arch). Only escalate to user after the highest available tier has been exhausted. Use `REMAINING_CRITICAL` and `ESCALATION_REASON` for escalation context. |
+| `ESCALATE` | **Before presenting to user**: same tier-upgrade check as FAIL. Only present `ESCALATION_REASON` to user after all reviewer tiers have been attempted. |
 
 **When `RESOLUTION_RESULT: FIXES_APPLIED`** — orchestrator dispatches re-review sub-agent:
 
