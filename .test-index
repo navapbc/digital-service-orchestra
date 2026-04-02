@@ -227,6 +227,7 @@ plugins/dso/scripts/gate-2c-test-regression-check.py: tests/scripts/test_gate_2c
 plugins/dso/scripts/gate-escalation-router.py: tests/scripts/test_gate_escalation_router.py
 plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-accumulative.sh
 plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-part4.sh
+plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-centrality.sh
 .claude/docs/KNOWN-ISSUES.md: tests/scripts/test-known-issues-smoke.sh
 plugins/dso/skills/resolve-conflicts/SKILL.md: tests/skills/test_resolve_conflicts_ticket_diff_required.py [test_user_confirmation_required_for_ticket_md_conflicts]
 plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-agent-separation.sh
