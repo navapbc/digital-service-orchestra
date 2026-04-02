@@ -114,11 +114,16 @@ Input: bug description, affected skill/agent/prompt file path, ticket content, b
 
 Score the bug across these dimensions to determine investigation depth:
 
+**Note on intermittent/flaky dimension scope**: This rubric applies to behavioral bugs only (mechanical and llm-behavioral bugs skip to Step 8). However, the **intermittent/flaky** dimension is relevant to mechanical bugs as well — a mechanical test can fail intermittently due to race conditions or timing issues. If you are on the mechanical path and observe non-deterministic failure behavior, factor that into your investigation depth judgment even though the formal scoring rubric is not applied.
+
 | Dimension | Score 0 | Score 1 | Score 2 |
 |-----------|---------|---------|---------|
 | **severity** | Low — cosmetic, minor UX | Medium/moderate — functional degradation | High/critical — data loss, security, outage |
 | **complexity** | Simple/trivial — single file, obvious cause | Moderate/medium — multiple files, non-obvious | Complex — cross-system, race conditions, emergent |
 | **environment** | Local — reproducible in dev | CI failure — reproducible in CI only | Production/staging — observed in deployed env |
+| **intermittent/flaky** | Deterministic — passes consistently across 3 consecutive runs | Suspected non-determinism — CI intermittent, env-specific, or <100% reproduction | Directly observed failure-then-pass on identical runs |
+
+The **intermittent/flaky** dimension is additive to the total score — it contributes directly to the sum alongside the other three dimensions. Tier thresholds are unchanged (< 3 = BASIC, 3-5 = INTERMEDIATE, >= 6 = ADVANCED).
 
 ### Bonus Modifiers
 
@@ -596,8 +601,18 @@ Before dispatching any fix implementation (Step 6), verify that a RED test exist
 
 ### Step 6: Fix Implementation (/dso:fix-bug)
 
+**HARD-GATE**: Before dispatching the fix sub-agent, the orchestrator MUST have a `root_cause_report` produced by the investigation sub-agent Task tool call (Step 3 / Step 3-LLM-behavioral). The orchestrating agent may not produce the `root_cause_report` itself — it must come from the prior investigation sub-agent's RESULT output. If no `root_cause_report` is present, do NOT proceed to fix dispatch; return to the appropriate investigation step.
+
+**Exemptions**:
+- **mechanical bugs exempt**: Mechanical fix path (syntax errors, import errors, lint violations, config syntax) bypasses the investigation sub-agent entirely. The orchestrator proceeds directly to fix dispatch without requiring a `root_cause_report` from a sub-agent Task call.
+- **bot-psychologist path exempt**: When the llm-behavioral classification routes through the `dso:bot-psychologist` agent (Step 3-LLM-behavioral), the bot-psychologist produces its own structured output. The `root_cause_report` requirement from the standard investigation path does not apply; the bot-psychologist's RESULT serves as the equivalent structured input for the fix sub-agent.
+
+**Classification boundary** (behavioral vs. mechanical):
+- *behavioral*: prompt regressions, agent guidance gaps, skill misinterpretation, incorrect model decisions, LLM output drift — requires investigation sub-agent or bot-psychologist
+- *mechanical*: import errors, syntax errors, lint violations, config parse errors, missing files — deterministic root cause, no investigation sub-agent required
+
 Launch a sub-agent to implement the approved fix:
-- The sub-agent receives the full investigation RESULT (root cause, confidence, approved fix)
+- The sub-agent receives the full investigation RESULT (root cause, confidence, approved fix) as `root_cause_report`
 - Change ONLY what is necessary — no refactoring, no scope creep
 - One logical change at a time
 
@@ -858,6 +873,8 @@ if [ "${FIX_BUG_INTERACTIVE:-true}" = "false" ] && [ "$ROUTE" = "escalate" ]; th
     exit 0
 fi
 ```
+
+<!-- REVIEW-DEFENSE: anti-pattern prompt templates are pre-staged for Layer 2 (task e502-1ae6) which adds Step 7.5 to wire them; orphaned-by-design until that batch. -->
 
 ### Step 8: Commit and Close (/dso:fix-bug)
 

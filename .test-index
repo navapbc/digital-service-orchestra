@@ -226,8 +226,8 @@ plugins/dso/scripts/gate-escalation-router.py: tests/scripts/test_gate_escalatio
 plugins/dso/hooks/record-test-status.sh: tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-accumulative.sh
 .claude/docs/KNOWN-ISSUES.md: tests/scripts/test-known-issues-smoke.sh
 plugins/dso/skills/resolve-conflicts/SKILL.md: tests/skills/test_resolve_conflicts_ticket_diff_required.py [test_user_confirmation_required_for_ticket_md_conflicts]
-plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-agent-separation.sh [test_step6_requires_root_cause_report]
-plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-anti-pattern-step.sh [test_step_7_5_exists]
-plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-flaky-scoring.sh [test_flaky_dimension_in_rubric]
-plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh [test_scan_prompt_exists]
-plugins/dso/skills/fix-bug/prompts/anti-pattern-fix-batch.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh [test_fix_batch_prompt_exists]
+plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-agent-separation.sh
+plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-anti-pattern-step.sh [test_batch_dispatch]
+plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-flaky-scoring.sh
+plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh
+plugins/dso/skills/fix-bug/prompts/anti-pattern-fix-batch.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh
