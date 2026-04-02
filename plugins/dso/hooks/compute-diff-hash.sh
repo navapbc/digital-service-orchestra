@@ -13,9 +13,33 @@
 
 set -euo pipefail
 
+# --- Per-commit hash cache (1849-145d, 3bd1-6c02) ---
+# During a single pre-commit run, multiple hooks call compute-diff-hash.sh.
+# Cache the result keyed on repo path + git index mtime so repeated calls are instant.
+_GIT_DIR_EARLY=$(git rev-parse --git-dir 2>/dev/null || echo ".git")
+_REPO_ID=$(git rev-parse --show-toplevel 2>/dev/null | shasum -a 256 | cut -c1-12)
+_INDEX_MTIME=$(stat -f '%m' "$_GIT_DIR_EARLY/index" 2>/dev/null || stat -c '%Y' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
+_CACHE_DIR="${TMPDIR:-/tmp}/compute-diff-hash-cache-${_REPO_ID}"
+mkdir -p "$_CACHE_DIR" 2>/dev/null || true
+_CACHE_KEY="${_CACHE_DIR}/hash-${_INDEX_MTIME}"
+if [ -f "$_CACHE_KEY" ]; then
+    cat "$_CACHE_KEY"
+    exit 0
+fi
+
 # Source shared dependency library for hash_stdin and get_artifacts_dir
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/deps.sh"
+
+# Save original hash_stdin, then override to also write result to cache
+_cdh_hash_stdin_inner() { shasum -a 256 | cut -d' ' -f1; }
+hash_stdin() {
+    local _result
+    _result=$(_cdh_hash_stdin_inner)
+    rm -f "${_CACHE_DIR}"/hash-* 2>/dev/null || true
+    echo "$_result" > "$_CACHE_KEY" 2>/dev/null || true
+    echo "$_result"
+}
 
 # Source config-driven path resolver (provides CFG_VISUAL_BASELINE_PATH, CFG_UNIT_SNAPSHOT_PATH, etc.)
 source "$SCRIPT_DIR/lib/config-paths.sh"
