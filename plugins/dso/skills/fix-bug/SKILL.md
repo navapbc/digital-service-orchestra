@@ -493,8 +493,8 @@ Record the gate failure in the discovery file and as a ticket comment before esc
 
 Determine whether the fix can be auto-approved or requires user input:
 
-- **Auto-approve** if: there is exactly one proposed fix, AND the fix is high confidence + low risk + does not degrade functionality, AND the fix does not modify safeguard files (per CLAUDE.md rule 18: `skills/**`, `hooks/**`, `docs/workflows/**`, `scripts/**`, `CLAUDE.md`)
-- **User approval required** if: the fix modifies safeguard files, OR multiple competing fixes with comparable confidence/risk, OR all fixes degrade functionality, OR confidence is medium or below
+- **Auto-approve** if: there is exactly one proposed fix, AND the fix is high confidence + low risk + does not degrade functionality, AND the fix does not modify safeguard files (per CLAUDE.md rule 18: `skills/**`, `hooks/**`, `docs/workflows/**`, `scripts/**`, `CLAUDE.md`), AND the fix does not reduce the enforcement scope of any safety gate (test gate, review gate, or validation gate) under any code path, AND the fix does not introduce capabilities, configuration options, or environment variables that were absent from the system before the bug was reported
+- **User approval required** if: the fix modifies safeguard files, OR the fix introduces new capabilities not described in the original bug report — i.e., adds code paths, CLI flags, environment variables, or configuration keys that did not exist before (feature creep — escalate to user; do NOT invoke `/dso:brainstorm` from sub-agent context), OR the fix reduces the enforcement scope of any safety gate under any code path (including conditional bypasses such as merge-commit or rebase exemptions), OR multiple competing fixes with comparable confidence/risk, OR all fixes degrade functionality, OR confidence is medium or below
 
 When presenting fixes for user approval, display:
 - Each proposed fix with description, risk level, and whether it degrades functionality

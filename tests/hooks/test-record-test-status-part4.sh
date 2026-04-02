@@ -438,10 +438,16 @@ git -C "$TEST_REPO_RESUME" commit -m "add gamma" --quiet 2>/dev/null
 echo "# changed" >> "$TEST_REPO_RESUME/src/gamma.sh"
 git -C "$TEST_REPO_RESUME" add -A
 
-# Compute the diff hash for this repo so we can pre-populate the progress file
+# Compute the diff hash and .test-index hash for this repo so we can pre-populate the progress file
 DIFF_HASH_RESUME=$(cd "$TEST_REPO_RESUME" && bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null || echo "deadbeef")
 HASH_PREFIX="${DIFF_HASH_RESUME:0:16}"
-PROGRESS_FILE_RESUME="$ARTIFACTS_RESUME/test-gate-progress-${HASH_PREFIX}"
+_TI_FILE="$TEST_REPO_RESUME/.test-index"
+if [[ -f "$_TI_FILE" ]]; then
+    _TI_HASH=$(shasum -a 256 "$_TI_FILE" 2>/dev/null | cut -d' ' -f1 || echo "noindex")
+else
+    _TI_HASH="noindex"
+fi
+PROGRESS_FILE_RESUME="$ARTIFACTS_RESUME/test-gate-progress-${HASH_PREFIX}-${_TI_HASH:0:8}"
 
 # Pre-populate the progress file as if tests/test-gamma.sh already passed
 echo "tests/test-gamma.sh" > "$PROGRESS_FILE_RESUME"
@@ -1048,5 +1054,127 @@ rm -rf "$TEST_REPO_MANY" "$ARTIFACTS_MANY"
 trap - EXIT
 
 assert_pass_if_clean "test_red_marker_parsed_with_20plus_test_files"
+
+# ============================================================
+# test_progress_cache_invalidated_on_test_index_change
+# When .test-index is edited (RED marker removed) between two
+# hook invocations, a pre-existing progress file keyed by
+# DIFF_HASH must NOT be reused — the test must be re-executed.
+#
+# Bug: progress file key is test-gate-progress-${DIFF_HASH:0:16},
+# which is unchanged when only .test-index is edited (not the
+# staged source file). The fix must incorporate .test-index
+# content into the key so edits invalidate the cache.
+#
+# The progress file is only consulted on resume after SIGURG
+# interruption. This test simulates a SIGURG-interrupted first run
+# by manually pre-populating the progress file at the hash-derived
+# key, then editing .test-index, then running the hook.
+#
+# Before fix: hook finds the pre-populated progress file → skips
+#   the test → mock runner NOT invoked → INVOKE_LOG absent → FAIL.
+# After fix:  .test-index content changes the key → no matching
+#   progress file → test re-runs → mock runner invoked → PASS.
+# ============================================================
+echo ""
+echo "=== test_progress_cache_invalidated_on_test_index_change ==="
+_snapshot_fail
+
+TEST_REPO_CACHE=$(create_test_repo)
+ARTIFACTS_CACHE=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-artifacts-XXXXXX")
+trap 'rm -rf "$TEST_REPO_CACHE" "$ARTIFACTS_CACHE"' EXIT
+
+# Create source file with a passing test
+mkdir -p "$TEST_REPO_CACHE/scripts" "$TEST_REPO_CACHE/tests"
+cat > "$TEST_REPO_CACHE/scripts/worker.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "worker"
+SHEOF
+chmod +x "$TEST_REPO_CACHE/scripts/worker.sh"
+
+cat > "$TEST_REPO_CACHE/tests/test-worker.sh" << 'SHEOF'
+#!/usr/bin/env bash
+test_worker_green() { echo "test_worker_green: PASS"; }
+test_worker_red_pending() { echo "test_worker_red_pending: FAIL"; exit 1; }
+test_worker_green
+test_worker_red_pending
+SHEOF
+chmod +x "$TEST_REPO_CACHE/tests/test-worker.sh"
+
+# Initial .test-index WITH a RED marker (the marker is present before editing)
+cat > "$TEST_REPO_CACHE/.test-index" << 'IDXEOF'
+scripts/worker.sh: tests/test-worker.sh [test_worker_red_pending]
+IDXEOF
+
+git -C "$TEST_REPO_CACHE" add -A
+git -C "$TEST_REPO_CACHE" commit -m "initial with red marker" --quiet 2>/dev/null
+
+# Stage a change to the source file — this fixes DIFF_HASH for both runs
+echo "# changed" >> "$TEST_REPO_CACHE/scripts/worker.sh"
+git -C "$TEST_REPO_CACHE" add scripts/worker.sh
+
+# Compute DIFF_HASH as the hook would — with .test-index unchanged at this point
+DIFF_HASH_CACHE=$(
+    cd "$TEST_REPO_CACHE"
+    bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null
+)
+
+# Simulate a SIGURG-interrupted previous run: pre-populate the progress file
+# with the test filename, as if tests/test-worker.sh passed in a prior invocation.
+# This is the exact state that triggers the bug on the next hook invocation.
+_STALE_PROGRESS_FILE="$ARTIFACTS_CACHE/test-gate-progress-${DIFF_HASH_CACHE:0:16}"
+echo "tests/test-worker.sh" > "$_STALE_PROGRESS_FILE"
+
+# Now edit .test-index to REMOVE the RED marker (simulates developer completing
+# the feature and removing the TDD boundary marker). DIFF_HASH is unchanged
+# because only the staged source file matters for the diff hash.
+cat > "$TEST_REPO_CACHE/.test-index" << 'IDXEOF'
+scripts/worker.sh: tests/test-worker.sh
+IDXEOF
+# .test-index is not re-staged — the staged diff (and thus DIFF_HASH) is unchanged.
+
+# Counting mock runner: records each invocation in a log file.
+# The test (test-worker.sh) now has no RED marker, so the hook expects exit 0.
+# We make the mock exit 0 to give the correct behavior after fix.
+INVOKE_LOG="$ARTIFACTS_CACHE/invoke-count.log"
+MOCK_RUN=$(mktemp "${TMPDIR:-/tmp}/mock-cache-run-XXXXXX")
+chmod +x "$MOCK_RUN"
+cat > "$MOCK_RUN" << MOCKEOF
+#!/usr/bin/env bash
+echo "invoked" >> "${INVOKE_LOG}"
+echo "test_worker_green: PASS"
+echo "test_worker_red_pending: PASS"
+exit 0
+MOCKEOF
+
+# Run the hook. With the stale progress file present and DIFF_HASH unchanged:
+# BUG  (before fix): hook reads _STALE_PROGRESS_FILE → test is in _COMPLETED_TESTS
+#   → skipped with "already passed" message → mock NOT invoked → exit 0
+# FIXED (after fix): progress key incorporates .test-index hash → different key
+#   → stale file not found → test re-runs → mock IS invoked → exit 0
+EXIT_CACHE=$(
+    cd "$TEST_REPO_CACHE"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CACHE" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_RUN" \
+    run_hook_exit
+)
+assert_eq "cache_invalidation: hook exits 0" "0" "$EXIT_CACHE"
+rm -f "$MOCK_RUN"
+
+# Critical assertion: mock runner MUST have been invoked.
+# Before fix: stale cache reused → mock skipped → INVOKE_LOG absent → FAIL.
+# After fix:  .test-index change invalidates cache → mock runs → PASS.
+if [[ -f "$INVOKE_LOG" ]]; then
+    INVOKE_COUNT=$(wc -l < "$INVOKE_LOG" | tr -d ' ')
+    assert_eq "cache_invalidation: test re-executed after .test-index change (not skipped from stale cache)" "1" "$INVOKE_COUNT"
+else
+    assert_eq "cache_invalidation: mock runner was invoked (stale progress cache not reused)" "invoked" "not_invoked"
+fi
+
+rm -rf "$TEST_REPO_CACHE" "$ARTIFACTS_CACHE"
+trap - EXIT
+
+assert_pass_if_clean "test_progress_cache_invalidated_on_test_index_change"
 
 print_summary

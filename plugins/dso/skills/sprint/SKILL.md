@@ -978,6 +978,10 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 - `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
 
+<HARD-GATE>
+Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
+</HARD-GATE>
+
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
 .claude/scripts/dso ticket transition <id> open closed
@@ -1145,6 +1149,10 @@ On `FAIL` after attempt 2: create a P1 bug issue for each failing test, set as c
 - `overall_verdict: FAIL` → create bug tasks from `remediation_tasks_created`, return to Phase 3 (Batch Preparation)
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 1.
 
+<HARD-GATE>
+Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase 3 path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 1.
+</HARD-GATE>
+
 ### Step 1: Run /dso:validate-work (/dso:sprint)
 
 Before invoking `/dso:validate-work`, gather the changed files:
@@ -1252,6 +1260,8 @@ Remediation loop: Score<5 → Create fix tasks → P3 (Batch) → P4 (Execute) �
 Phase 8 delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
 ### On Success (Score = 5)
+
+**Pre-condition**: Phase 6 Step 0.75 must have returned `overall_verdict: PASS` during this session. If the completion-verifier returned FAIL at any point and no remediation batch was executed after the FAIL (i.e., the FAIL was not addressed via Phase 3 re-entry), do NOT proceed with epic closure — return to Phase 3 to address the FAIL findings first.
 
 1. **Verify all changes are merged before closing the epic** (399f-abad):
    ```bash
