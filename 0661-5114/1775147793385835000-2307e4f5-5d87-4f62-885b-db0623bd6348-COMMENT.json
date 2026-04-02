@@ -1,1 +1,0 @@
-{"timestamp": 1775147793385835000, "uuid": "2307e4f5-5d87-4f62-885b-db0623bd6348", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Added ast-grep installation instructions to README.md and structural code search section with canonical guard pattern and example patterns to CLAUDE.md"}}
