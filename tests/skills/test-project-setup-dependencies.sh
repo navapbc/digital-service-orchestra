@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # tests/skills/test-project-setup-dependencies.sh
-# Tests that plugins/dso/skills/project-setup/SKILL.md Step 3 uses individual
-# per-dependency prompts with functionality explanations, and skips already-
-# installed dependencies.
+# Tests that plugins/dso/skills/onboarding/SKILL.md (the successor to
+# project-setup) handles dependency and tool installation correctly:
+# acli version resolution, pre-commit hook installation with manager
+# detection (Husky / pre-commit framework / bare .git/hooks), and
+# Jira credential handling.
 #
 # Validates:
-#   - Each optional dependency (acli, PyYAML, pre-commit) has its own
-#     AskUserQuestion prompt in SKILL.md
-#   - Already-installed dependencies are skipped (detection-based skip language)
-#   - Each prompt explains what functionality is unavailable without the dep
-#   - The old bundled "show install instructions?" question is NOT present
+#   - SKILL.md exists at skills/onboarding/SKILL.md
+#   - acli (Claude CLI) is referenced with version resolution
+#   - pre-commit hook installation is documented
+#   - git hook manager detection (Husky, pre-commit framework, bare hooks)
+#   - Jira integration guidance: project key in config, credentials as env vars
+#   - JIRA_URL environment variable mentioned (Jira bridge)
+#   - Onboarding does NOT use the old bundled "install instructions?" question
+#   - Hook installation uses idempotency checks (no duplicate appends)
 #
 # Usage: bash tests/skills/test-project-setup-dependencies.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -19,13 +24,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
-SKILL_MD="$DSO_PLUGIN_DIR/skills/project-setup/SKILL.md"
+SKILL_MD="$DSO_PLUGIN_DIR/skills/onboarding/SKILL.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-project-setup-dependencies.sh ==="
 
-# test_skill_md_exists: SKILL.md must exist
+# test_skill_md_exists: SKILL.md must exist at onboarding path
 _snapshot_fail
 if [[ -f "$SKILL_MD" ]]; then
     skill_exists="exists"
@@ -35,83 +40,74 @@ fi
 assert_eq "test_skill_md_exists" "exists" "$skill_exists"
 assert_pass_if_clean "test_skill_md_exists"
 
-# test_acli_individual_prompt: acli must have its own AskUserQuestion prompt
+# test_acli_version_resolution: onboarding must reference acli and version resolution
+# (acli-version-resolver.sh or commands.acli_version config key)
 _snapshot_fail
-if grep -qiE "AskUserQuestion.*acli|acli.*AskUserQuestion" "$SKILL_MD" 2>/dev/null; then
-    has_acli_prompt="found"
+if grep -qiE "acli.*version|acli_version|acli-version-resolver" "$SKILL_MD" 2>/dev/null; then
+    has_acli_version="found"
 else
-    has_acli_prompt="missing"
+    has_acli_version="missing"
 fi
-assert_eq "test_acli_individual_prompt" "found" "$has_acli_prompt"
-assert_pass_if_clean "test_acli_individual_prompt"
+assert_eq "test_acli_version_resolution" "found" "$has_acli_version"
+assert_pass_if_clean "test_acli_version_resolution"
 
-# test_pyyaml_individual_prompt: PyYAML must have its own AskUserQuestion prompt
+# test_precommit_hook_installation: onboarding must document pre-commit hook
+# installation (pre-commit-test-gate.sh and pre-commit-review-gate.sh)
 _snapshot_fail
-if grep -qiE "AskUserQuestion.*PyYAML|PyYAML.*AskUserQuestion|AskUserQuestion.*pyyaml|pyyaml.*AskUserQuestion" "$SKILL_MD" 2>/dev/null; then
-    has_pyyaml_prompt="found"
+if grep -qiE "pre-commit-test-gate|pre-commit-review-gate" "$SKILL_MD" 2>/dev/null; then
+    has_hook_install="found"
 else
-    has_pyyaml_prompt="missing"
+    has_hook_install="missing"
 fi
-assert_eq "test_pyyaml_individual_prompt" "found" "$has_pyyaml_prompt"
-assert_pass_if_clean "test_pyyaml_individual_prompt"
+assert_eq "test_precommit_hook_installation" "found" "$has_hook_install"
+assert_pass_if_clean "test_precommit_hook_installation"
 
-# test_precommit_individual_prompt: pre-commit must have its own AskUserQuestion prompt
+# test_hook_manager_detection: onboarding must detect and handle multiple git hook
+# managers (Husky, pre-commit framework, bare .git/hooks/)
 _snapshot_fail
-if grep -qiE "AskUserQuestion.*pre-commit|pre-commit.*AskUserQuestion" "$SKILL_MD" 2>/dev/null; then
-    has_precommit_prompt="found"
+if grep -qiE "Husky|husky|pre-commit framework|\.husky/" "$SKILL_MD" 2>/dev/null; then
+    has_hook_manager_detection="found"
 else
-    has_precommit_prompt="missing"
+    has_hook_manager_detection="missing"
 fi
-assert_eq "test_precommit_individual_prompt" "found" "$has_precommit_prompt"
-assert_pass_if_clean "test_precommit_individual_prompt"
+assert_eq "test_hook_manager_detection" "found" "$has_hook_manager_detection"
+assert_pass_if_clean "test_hook_manager_detection"
 
-# test_skip_already_installed: SKILL.md must contain language indicating already-installed
-# deps are skipped (detection-based)
+# test_jira_credentials_as_env_vars: Jira credentials (JIRA_URL, JIRA_USER,
+# JIRA_API_TOKEN) must stay as environment variables, not written to config
 _snapshot_fail
-if grep -qiE "already.*installed|skip.*installed|detected.*installed|if.*installed.*skip|not.*prompt.*installed" "$SKILL_MD" 2>/dev/null; then
-    has_skip_installed="found"
+if grep -q "JIRA_URL" "$SKILL_MD" 2>/dev/null; then
+    has_jira_url_env="found"
 else
-    has_skip_installed="missing"
+    has_jira_url_env="missing"
 fi
-assert_eq "test_skip_already_installed" "found" "$has_skip_installed"
-assert_pass_if_clean "test_skip_already_installed"
+assert_eq "test_jira_credentials_as_env_vars" "found" "$has_jira_url_env"
+assert_pass_if_clean "test_jira_credentials_as_env_vars"
 
-# test_functionality_explanation_acli: acli prompt must explain what functionality
-# is unavailable without it (Jira integration)
+# test_jira_project_key_in_config: jira.project (the project key) must be written
+# to dso-config.conf when the user provides a Jira project key
 _snapshot_fail
-if grep -qiE "Jira.*integration|Jira.*within Claude|acli.*enables|acli.*required for|acli.*provides|without.*acli|acli.*without" "$SKILL_MD" 2>/dev/null; then
-    has_acli_explanation="found"
+if grep -q "jira\.project" "$SKILL_MD" 2>/dev/null; then
+    has_jira_project="found"
 else
-    has_acli_explanation="missing"
+    has_jira_project="missing"
 fi
-assert_eq "test_functionality_explanation_acli" "found" "$has_acli_explanation"
-assert_pass_if_clean "test_functionality_explanation_acli"
+assert_eq "test_jira_project_key_in_config" "found" "$has_jira_project"
+assert_pass_if_clean "test_jira_project_key_in_config"
 
-# test_functionality_explanation_pyyaml: PyYAML prompt must explain what functionality
-# is unavailable without it (legacy YAML config support)
+# test_idempotent_hook_install: hook installation must check for existing entries
+# before appending (no duplicate DSO hook calls on re-run)
 _snapshot_fail
-if grep -qiE "legacy YAML|YAML.*config|pyyaml.*enables|pyyaml.*required|without.*pyyaml|pyyaml.*without" "$SKILL_MD" 2>/dev/null; then
-    has_pyyaml_explanation="found"
+if grep -q "grep-qF\|grep -qF\|Idempotency\|idempotent\|already exists before" "$SKILL_MD" 2>/dev/null; then
+    has_idempotency="found"
 else
-    has_pyyaml_explanation="missing"
+    has_idempotency="missing"
 fi
-assert_eq "test_functionality_explanation_pyyaml" "found" "$has_pyyaml_explanation"
-assert_pass_if_clean "test_functionality_explanation_pyyaml"
-
-# test_functionality_explanation_precommit: pre-commit prompt must explain what
-# functionality is unavailable without it (git hook management)
-_snapshot_fail
-if grep -qiE "git hook|hook.*management|pre-commit.*enables|pre-commit.*required|without.*pre-commit|pre-commit.*without" "$SKILL_MD" 2>/dev/null; then
-    has_precommit_explanation="found"
-else
-    has_precommit_explanation="missing"
-fi
-assert_eq "test_functionality_explanation_precommit" "found" "$has_precommit_explanation"
-assert_pass_if_clean "test_functionality_explanation_precommit"
+assert_eq "test_idempotent_hook_install" "found" "$has_idempotency"
+assert_pass_if_clean "test_idempotent_hook_install"
 
 # test_no_bundled_install_question: the old bundled "Would you like install
-# instructions for these optional tools?" question must be removed in favor of
-# individual per-dependency prompts
+# instructions for these optional tools?" question must NOT appear in onboarding
 _snapshot_fail
 if grep -q "Would you like install instructions for these optional tools" "$SKILL_MD" 2>/dev/null; then
     has_bundled_question="found"
@@ -121,30 +117,26 @@ fi
 assert_eq "test_no_bundled_install_question" "removed" "$has_bundled_question"
 assert_pass_if_clean "test_no_bundled_install_question"
 
-# test_acli_jira_skip_condition: acli prompt should be skipped if user declined
-# Jira integration (ticket consideration from dso-6dp5)
+# test_git_common_dir_for_worktrees: hook installation must use git-common-dir
+# to support worktrees and submodules (where .git may be a file, not a directory)
 _snapshot_fail
-if grep -qiE "skip.*acli.*Jira|acli.*skip.*Jira|Jira.*declined.*acli|no.*Jira.*skip.*acli|if.*Jira.*acli|acli.*if.*Jira" "$SKILL_MD" 2>/dev/null; then
-    has_jira_skip="found"
+if grep -q "git-common-dir\|git.*common.*dir\|--git-common-dir" "$SKILL_MD" 2>/dev/null; then
+    has_git_common_dir="found"
 else
-    has_jira_skip="missing"
+    has_git_common_dir="missing"
 fi
-assert_eq "test_acli_jira_skip_condition" "found" "$has_jira_skip"
-assert_pass_if_clean "test_acli_jira_skip_condition"
+assert_eq "test_git_common_dir_for_worktrees" "found" "$has_git_common_dir"
+assert_pass_if_clean "test_git_common_dir_for_worktrees"
 
-# test_at_least_3_dependency_prompts: must have individual prompts for all 3 deps
-# (acli, PyYAML, pre-commit) — verify at least 3 AskUserQuestion calls in the
-# optional dependencies section
+# test_ticket_system_init: onboarding must initialize the ticket system
+# (orphan branch, .tickets-tracker/)
 _snapshot_fail
-# Count AskUserQuestion occurrences in the optional dependencies section
-# We check total count — existing tests for commands use >=5, so dep prompts should add >= 3 more
-total_ask=$(grep -c "AskUserQuestion" "$SKILL_MD" 2>/dev/null) || total_ask=0
-if [[ "$total_ask" -ge 3 ]]; then
-    has_enough_dep_prompts="yes"
+if grep -qiE "ticket.*system|\.tickets-tracker|tickets.*branch|orphan.*branch" "$SKILL_MD" 2>/dev/null; then
+    has_ticket_init="found"
 else
-    has_enough_dep_prompts="no"
+    has_ticket_init="missing"
 fi
-assert_eq "test_at_least_3_dependency_prompts" "yes" "$has_enough_dep_prompts"
-assert_pass_if_clean "test_at_least_3_dependency_prompts"
+assert_eq "test_ticket_system_init" "found" "$has_ticket_init"
+assert_pass_if_clean "test_ticket_system_init"
 
 print_summary

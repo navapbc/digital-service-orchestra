@@ -165,7 +165,19 @@ test_both_artifacts_skip_entirely() {
     assert_pass_if_clean "test_both_artifacts_skip_entirely"
 }
 
-# Run all 8 assertion functions
+# test_sc2_numbered_ci_workflow_selection (SC2): SKILL.md must contain numbered
+# selection dialogue when multiple CI workflows are detected
+test_sc2_numbered_ci_workflow_selection() {
+    _snapshot_fail
+    local has_numbered_ci_selection="missing"
+    if grep -qiE "numbered selection dialogue|numbered.*workflow|multiple.*workflow.*select|ci_workflow_confidence" "$SKILL_MD" 2>/dev/null; then
+        has_numbered_ci_selection="found"
+    fi
+    assert_eq "test_sc2_numbered_ci_workflow_selection" "found" "$has_numbered_ci_selection"
+    assert_pass_if_clean "test_sc2_numbered_ci_workflow_selection"
+}
+
+# Run all assertion functions
 test_step7_exists
 test_descriptive_labels
 test_four_option_prompt
@@ -174,5 +186,6 @@ test_invocation_order
 test_skip_ends_setup
 test_artifact_detection
 test_both_artifacts_skip_entirely
+test_sc2_numbered_ci_workflow_selection
 
 print_summary

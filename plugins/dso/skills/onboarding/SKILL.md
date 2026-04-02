@@ -874,7 +874,7 @@ Does this project use Jira for issue tracking? If so, what's the Jira project ke
 Note: credentials (JIRA_URL, JIRA_USER, JIRA_API_TOKEN) stay as environment variables — only the project key goes in config.
 ```
 
-If the user provides a Jira project key, write `jira.project_key=<KEY>` to `.claude/dso-config.conf`. The Jira Bridge connects DSO to Jira via the `JIRA_URL` environment variable.
+If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/dso-config.conf`. The Jira Bridge connects DSO to Jira via the `JIRA_URL` environment variable.
 
 ### Phase 2 Gate
 
@@ -1044,6 +1044,25 @@ fi
 
 If an existing dso-config.conf is found, merge the new keys into it rather than overwriting. Only add keys that are not already present. Existing config values take precedence — do not overwrite them unless the user explicitly confirms the new value.
 
+#### Deprecated Key Auto-Migration: merge.ci_workflow_name → ci.workflow_name
+
+After reading the existing config, check for the deprecated `merge.ci_workflow_name` key and auto-migrate it to `ci.workflow_name`. This migration is non-blocking — no user prompt is required.
+
+```
+Migration logic (run silently during config merge):
+1. If merge.ci_workflow_name is present in the existing config:
+   a. If ci.workflow_name already exists: skip migration, log that merge.ci_workflow_name
+      can be manually removed (it is now superseded by ci.workflow_name).
+   b. If ci.workflow_name does NOT already exist: auto-write the value from
+      merge.ci_workflow_name into ci.workflow_name, then log a deprecation notice:
+      "Note: merge.ci_workflow_name is deprecated — its value has been automatically
+      migrated to ci.workflow_name. You may remove merge.ci_workflow_name from your
+      dso-config.conf."
+2. If merge.ci_workflow_name is not present: no action needed.
+```
+
+This deprecation migration ensures existing projects continue to work without manual config edits when upgrading to the `ci.workflow_name` key introduced in a later DSO version.
+
 #### Required Config Keys
 
 Generate all of the following config keys (flat `KEY=VALUE` format). For each key that cannot be auto-detected, apply the fallback behavior described below.
@@ -1100,19 +1119,91 @@ Use the workflow filenames discovered in Phase 1 (`$CI_WORKFLOWS`) to confirm th
 ci.workflow_name=<filename confirmed from .github/workflows/ scan>
 ```
 
+**CI job and integration workflow keys** (populated from `project-detect.sh` `ci_workflow_names` output):
+
+```
+ci.fast_gate_job=<job name for fast gate — e.g., lint-and-unit>
+ci.fast_fail_job=<job name for fast-fail gate — e.g., fast-fail>
+ci.test_ceil_job=<job name for test ceiling — e.g., test-all>
+ci.integration_workflow=<integration workflow filename from ci_workflow_names>
+```
+
+> **Key distinction**: `ci.workflow_name` is the primary CI workflow used by `merge-to-main.sh` for `gh workflow run` (CI trigger recovery). `ci.integration_workflow` identifies the integration test workflow for `/dso:sprint` Phase 6 verification. They may reference the same file or different ones.
+
+Populate these keys from the `ci_workflow_names` (comma-separated) and `ci_workflow_confidence` (high|low) output of `project-detect.sh`.
+
+#### Confidence-Gated CI Workflow Selection
+
+After running `project-detect.sh`, inspect `ci_workflow_confidence` and `ci_workflow_names`:
+
+**When `ci_workflow_confidence=high` AND `ci_workflow_names` contains exactly one entry:**
+- Skip the CI clarification question entirely — use the single detected workflow filename as `ci.integration_workflow` without asking.
+
+**When `ci_workflow_confidence=low` OR `ci_workflow_names` contains 2+ comma-separated entries (multiple workflows detected):**
+- Present a numbered selection dialogue so the user can identify which workflow maps to which purpose:
+
+```
+I detected the following CI workflow files:
+  1. ci.yml
+  2. ci-slow.yml
+  3. deploy.yml
+
+Multiple workflows found (or low confidence in detection). Please identify:
+  - Which workflow is your fast-gate (lint + unit tests on PR)?
+  - Which is your integration workflow (full test suite)?
+
+Enter the numbers or type filenames directly.
+```
+
+Use the user's response to populate `ci.integration_workflow` and the CI job keys. If the user cannot answer immediately, omit the key with an explanatory comment per the fallback behavior below.
+
 **Additional categories to populate**:
 
 | Category | Keys to set | Source |
 |----------|-------------|--------|
 | `format` | `format.line_length`, `format.indent` | Enforcement answers |
-| `ci` | `ci.workflow_name` | Confirmed from workflow filenames |
+| `ci` | `ci.workflow_name`, `ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`, `ci.integration_workflow` | Confirmed from workflow filenames + `ci_workflow_names` detection (`ci.workflow_name` replaces deprecated `merge.ci_workflow_name`; see auto-migration above) |
 | `commands` | `commands.test`, `commands.lint`, `commands.format` | Commands area answers |
-| `jira` | `jira.project_key` (if Jira integration desired) | User-stated |
-| `design` | `design.system`, `design.tokens_path` | Design area answers |
+| `jira` | `jira.project` (if Jira integration desired) | User-stated |
+| `design` | `design.system_name`, `design.component_library` | Design area answers |
 | `tickets` | `tickets.prefix` | Derived from project name (see below) |
-| `merge` | `merge.ci_workflow_name` | CI area answers |
-| `version` | `version.file_path` | Detected or user-stated |
+| `version` | `version.file_path` | Detected from `version_files` output or user-stated |
+| `stack` | `stack` | Detected from `detect-stack.sh` output |
 | `test` | `test.suite.<name>.command`, `test.suite.<name>.speed_class` | Commands + detection |
+
+#### version.file_path — Detection from version_files
+
+Populate `version.file_path` from the `version_files` key emitted by `project-detect.sh`. The `version_files` output is a comma-separated list of file paths relative to the project root.
+
+**When `version_files` contains exactly one path**: write that path directly to `version.file_path`:
+```
+version.file_path=package.json
+```
+
+**When `version_files` contains 2 or more paths**: present a numbered selection dialogue so the user can choose the canonical version file:
+```
+I found multiple version files in this project:
+  1. package.json
+  2. pyproject.toml
+
+Which file is the single source of truth for the project version? [1/2]
+```
+Write only the selected repo-root-relative path to `version.file_path`.
+
+**When `version_files` is empty or absent**: omit `version.file_path` from the config and add an explanatory comment:
+```
+# version.file_path — not detected; set to the file that carries your project version
+# Example: version.file_path=package.json
+```
+
+#### stack — Detection from detect-stack.sh
+
+Populate the `stack` config key from the `$STACK_OUT` variable detected in Phase 1 (via `detect-stack.sh`). This value is already available in the scratchpad:
+```
+stack=<value from STACK_OUT — e.g., python, node, ruby-rails, unknown>
+```
+
+If `STACK_OUT` is `"unknown"`, write `stack=unknown` and note that the user can update it after framework installation or manual configuration.
 
 #### Fallback Behavior for Undetected Config
 
@@ -1329,7 +1420,7 @@ Record the CI trigger strategy in `dso-config.conf` under `ci.workflow_name` and
 
 ---
 
-### Step 3: Offer /dso:architect-foundation
+## Step 6: Offer /dso:architect-foundation (/dso:onboarding)
 
 After writing `.claude/project-understanding.md`, offer the next step:
 
@@ -1349,7 +1440,40 @@ Skill tool:
   skill: "dso:architect-foundation"
 ```
 
-If the user says no or wants to continue manually, summarize what was learned and close the session.
+If the user says no or wants to continue manually, proceed to Step 7.
+
+---
+
+## Step 7: Onboarding Integration Offer (/dso:onboarding)
+
+After `/dso:architect-foundation` completes (or is skipped), offer additional onboarding skills that produce durable project artifacts.
+
+**Artifact detection**: Before prompting, check whether the target artifacts already exist:
+- Check for `ARCH_ENFORCEMENT.md` — produced by `/dso:dev-onboarding`
+- Check for `.claude/docs/DESIGN_NOTES.md` (or `DESIGN_NOTES.md` at repo root) — produced by `/dso:design-onboarding`
+
+If both artifacts already exist, skip this step entirely — the onboarding integration is already complete and no additional steps are needed.
+
+**When both skills are available** (neither artifact exists), present an AskUserQuestion with 4 options:
+
+```
+I can run additional onboarding skills to set up your project:
+
+1) Run both /dso:dev-onboarding and /dso:design-onboarding
+   - /dso:dev-onboarding produces a codebase guide and ARCH_ENFORCEMENT.md with architecture enforcement rules
+   - /dso:design-onboarding generates DESIGN_NOTES.md with design system documentation and visual language
+2) Run only /dso:dev-onboarding (creates ARCH_ENFORCEMENT.md)
+3) Run only /dso:design-onboarding (creates DESIGN_NOTES.md)
+4) Skip — setup is complete, no additional steps
+
+Which would you like?
+```
+
+**When only one skill is available** (one artifact already exists), present a yes/no prompt for the remaining skill.
+
+**Invocation order**: When running both skills, invoke `/dso:dev-onboarding` first, then `/dso:design-onboarding`. Dev-onboarding sets up the architecture enforcement context that design-onboarding can reference.
+
+**If the user selects skip**: Setup is complete. No additional steps are needed. Summarize what was learned and close the session.
 
 ---
 
