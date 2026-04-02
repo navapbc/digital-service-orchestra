@@ -1,1 +1,0 @@
-{"timestamp": 1775143601972179000, "uuid": "083c51e4-731f-4d6e-b723-2f50d3b04860", "event_type": "EDIT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"fields": {"title": "Automatic version bumps not running since 1.0.0 release"}}}
