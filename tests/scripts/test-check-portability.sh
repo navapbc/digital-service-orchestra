@@ -4,8 +4,8 @@
 # detects hardcoded home-directory paths (/Users/<name>/ and /home/<name>/).
 #
 # Tests:
-#  1. test_detects_macos_hardcoded_path  — /Users/testuser/... → exit non-zero
-#  2. test_detects_linux_hardcoded_path  — /home/testuser/...  → exit non-zero
+#  1. test_detects_macos_hardcoded_path  — /Users/testuser/... → exit non-zero  # portability-ok
+#  2. test_detects_linux_hardcoded_path  — /home/testuser/...  → exit non-zero  # portability-ok
 #  3. test_passes_clean_file             — /usr/bin, /etc only → exit 0
 #  4. test_portability_ok_suppression    — path # portability-ok → exit 0
 #  5. test_multiple_files_mixed          — one clean, one dirty → exit non-zero, dirty file reported
@@ -43,14 +43,14 @@ _make_tmpdir() {
 }
 
 # ── test_detects_macos_hardcoded_path ─────────────────────────────────────────
-# A file containing /Users/testuser/some/path must cause the script to exit
+# A file containing /Users/testuser/some/path must cause the script to exit  # portability-ok
 # non-zero and report the violating file in its output.
 test_detects_macos_hardcoded_path() {
     _snapshot_fail
     local _dir _file _exit _out
     _dir=$(_make_tmpdir)
     _file="$_dir/macos_path.sh"
-    printf '#!/usr/bin/env bash\nCONFIG_DIR=/Users/testuser/some/path/config\n' > "$_file"
+    printf '#!/usr/bin/env bash\nCONFIG_DIR=/Users/testuser/some/path/config\n' > "$_file"  # portability-ok
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?
     assert_ne "test_detects_macos_hardcoded_path: exit non-zero" "0" "$_exit"
@@ -59,14 +59,14 @@ test_detects_macos_hardcoded_path() {
 }
 
 # ── test_detects_linux_hardcoded_path ─────────────────────────────────────────
-# A file containing /home/testuser/some/path must cause the script to exit
+# A file containing /home/testuser/some/path must cause the script to exit  # portability-ok
 # non-zero and report the violating file in its output.
 test_detects_linux_hardcoded_path() {
     _snapshot_fail
     local _dir _file _exit _out
     _dir=$(_make_tmpdir)
     _file="$_dir/linux_path.sh"
-    printf '#!/usr/bin/env bash\nDATA_DIR=/home/testuser/data\n' > "$_file"
+    printf '#!/usr/bin/env bash\nDATA_DIR=/home/testuser/data\n' > "$_file"  # portability-ok
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?
     assert_ne "test_detects_linux_hardcoded_path: exit non-zero" "0" "$_exit"
@@ -113,7 +113,7 @@ test_multiple_files_mixed() {
     _clean_file="$_dir/clean.sh"
     _dirty_file="$_dir/dirty.sh"
     printf '#!/usr/bin/env bash\necho hello\n' > "$_clean_file"
-    printf '#!/usr/bin/env bash\nSRC=/home/devuser/project/src\n' > "$_dirty_file"
+    printf '#!/usr/bin/env bash\nSRC=/home/devuser/project/src\n' > "$_dirty_file"  # portability-ok
     _exit=0
     _out=$(bash "$SCRIPT" "$_clean_file" "$_dirty_file" 2>&1) || _exit=$?
     assert_ne "test_multiple_files_mixed: exit non-zero" "0" "$_exit"
