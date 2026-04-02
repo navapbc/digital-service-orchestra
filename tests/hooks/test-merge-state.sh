@@ -12,7 +12,7 @@
 # MERGE_HEAD/REBASE_HEAD files written directly into temp .git/.
 # Tests use _MERGE_STATE_GIT_DIR env var override.
 #
-# Note: per AC amendment, total test count is 12 (10 original + 2 for ms_get_merge_base).
+# Note: per AC amendment, total test count is 13 (10 original + 2 for ms_get_merge_base + 1 for from_head guard).
 #
 # Tests:
 #  1. test_is_merge_in_progress_detects_merge_head
@@ -22,11 +22,12 @@
 #  5. test_get_worktree_only_files_filters_incoming_during_merge
 #  6. test_get_worktree_only_files_filters_during_rebase
 #  7. test_merge_head_equals_head_guard_skips_filtering
-#  8. test_fallback_on_missing_merge_base_orig_head
-#  9. test_fallback_on_missing_merge_base_head
-# 10. test_get_worktree_only_files_from_head_during_rebase
-# 11. test_get_merge_base_during_merge
-# 12. test_get_merge_base_during_rebase
+#  8. test_merge_head_equals_head_guard_from_head_skips_filtering
+#  9. test_fallback_on_missing_merge_base_orig_head
+# 10. test_fallback_on_missing_merge_base_head
+# 11. test_get_worktree_only_files_from_head_during_rebase
+# 12. test_get_merge_base_during_merge
+# 13. test_get_merge_base_during_rebase
 #
 # Usage: bash tests/hooks/test-merge-state.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -67,7 +68,8 @@ if [[ ! -f "$MERGE_STATE_LIB" ]]; then
         test_fallback_on_missing_merge_base_head \
         test_get_worktree_only_files_from_head_during_rebase \
         test_get_merge_base_during_merge \
-        test_get_merge_base_during_rebase; do
+        test_get_merge_base_during_rebase \
+        test_merge_head_equals_head_guard_from_head_skips_filtering; do
         echo "FAIL: $_test_name"
         (( ++FAIL ))
     done
@@ -169,7 +171,7 @@ _make_rebase_repo() {
 
     # Simulate REBASE_HEAD state
     local git_dir
-    git_dir=$(git rev-parse --git-dir)
+    git_dir=$(git rev-parse --absolute-git-dir)
     echo "$orig_head_sha" > "$git_dir/REBASE_HEAD"
     mkdir -p "$git_dir/rebase-merge"
     echo "$onto_sha" > "$git_dir/rebase-merge/onto"
@@ -203,7 +205,7 @@ _make_rebase_apply_repo() {
 
     # Simulate rebase-apply state (older style)
     local git_dir
-    git_dir=$(git rev-parse --git-dir)
+    git_dir=$(git rev-parse --absolute-git-dir)
     echo "$orig_head_sha" > "$git_dir/REBASE_HEAD"
     mkdir -p "$git_dir/rebase-apply"
     echo "$(git rev-parse HEAD~1)" > "$git_dir/rebase-apply/onto"
@@ -220,7 +222,7 @@ test_is_merge_in_progress_detects_merge_head() {
     _snapshot_fail
     local merge_repo merge_git_dir result
     merge_repo=$(cd /tmp && _make_merge_repo)
-    merge_git_dir=$(git -C "$merge_repo" rev-parse --git-dir 2>/dev/null)
+    merge_git_dir=$(git -C "$merge_repo" rev-parse --absolute-git-dir 2>/dev/null)
 
     assert_eq "setup: MERGE_HEAD file exists in merge repo" \
         "1" "$(test -f "$merge_git_dir/MERGE_HEAD" && echo 1 || echo 0)"
@@ -236,7 +238,7 @@ test_is_merge_in_progress_returns_false_when_no_merge() {
     _snapshot_fail
     local clean_repo clean_git_dir result
     clean_repo=$(_make_repo)
-    clean_git_dir=$(git -C "$clean_repo" rev-parse --git-dir 2>/dev/null)
+    clean_git_dir=$(git -C "$clean_repo" rev-parse --absolute-git-dir 2>/dev/null)
 
     assert_eq "setup: no MERGE_HEAD in clean repo" \
         "0" "$(test -f "$clean_git_dir/MERGE_HEAD" && echo 1 || echo 0)"
@@ -253,7 +255,7 @@ test_is_rebase_in_progress_detects_rebase_head() {
     local rebase_output rebase_repo rebase_git_dir result
     rebase_output=$(cd /tmp && _make_rebase_repo)
     rebase_repo=$(echo "$rebase_output" | head -1)
-    rebase_git_dir=$(git -C "$rebase_repo" rev-parse --git-dir 2>/dev/null)
+    rebase_git_dir=$(git -C "$rebase_repo" rev-parse --absolute-git-dir 2>/dev/null)
 
     assert_eq "setup: REBASE_HEAD file exists in rebase repo" \
         "1" "$(test -f "$rebase_git_dir/REBASE_HEAD" && echo 1 || echo 0)"
@@ -269,7 +271,7 @@ test_is_rebase_in_progress_detects_rebase_apply() {
     _snapshot_fail
     local apply_repo apply_git_dir result
     apply_repo=$(cd /tmp && _make_rebase_apply_repo)
-    apply_git_dir=$(git -C "$apply_repo" rev-parse --git-dir 2>/dev/null)
+    apply_git_dir=$(git -C "$apply_repo" rev-parse --absolute-git-dir 2>/dev/null)
 
     assert_eq "setup: rebase-apply dir exists" \
         "1" "$(test -d "$apply_git_dir/rebase-apply" && echo 1 || echo 0)"
@@ -324,7 +326,7 @@ test_merge_head_equals_head_guard_skips_filtering() {
     _snapshot_fail
     local guard_repo guard_git_dir guard_head guard_result guard_files guard_has_file
     guard_repo=$(_make_repo)
-    guard_git_dir=$(git -C "$guard_repo" rev-parse --git-dir 2>/dev/null)
+    guard_git_dir=$(git -C "$guard_repo" rev-parse --absolute-git-dir 2>/dev/null)
     guard_head=$(git -C "$guard_repo" rev-parse HEAD)
 
     # Fake MERGE_HEAD that equals HEAD (bypass attempt simulation)
@@ -346,11 +348,37 @@ test_merge_head_equals_head_guard_skips_filtering() {
     assert_pass_if_clean "test_merge_head_equals_head_guard_skips_filtering"
 }
 
+test_merge_head_equals_head_guard_from_head_skips_filtering() {
+    _snapshot_fail
+    local guard_repo guard_git_dir guard_head guard_result guard_files guard_has_file
+    guard_repo=$(_make_repo)
+    guard_git_dir=$(git -C "$guard_repo" rev-parse --absolute-git-dir 2>/dev/null)
+    guard_head=$(git -C "$guard_repo" rev-parse HEAD)
+
+    # Fake MERGE_HEAD that equals HEAD (bypass attempt simulation)
+    echo "$guard_head" > "$guard_git_dir/MERGE_HEAD"
+
+    echo "new content" > "$guard_repo/new-file-from-head.txt"
+    git -C "$guard_repo" add new-file-from-head.txt 2>/dev/null
+
+    guard_result=0
+    guard_files=$(cd "$guard_repo" && _MERGE_STATE_GIT_DIR="$guard_git_dir" ms_get_worktree_only_files_from_head 2>/dev/null) || guard_result=$?
+
+    assert_eq "test_merge_head_equals_head_guard_from_head_skips_filtering: function does not crash" \
+        "0" "$guard_result"
+
+    guard_has_file=0
+    echo "$guard_files" | grep -q "new-file-from-head.txt" && guard_has_file=1
+    assert_eq "test_merge_head_equals_head_guard_from_head_skips_filtering: fail-open returns staged file" \
+        "1" "$guard_has_file"
+    assert_pass_if_clean "test_merge_head_equals_head_guard_from_head_skips_filtering"
+}
+
 test_fallback_on_missing_merge_base_orig_head() {
     _snapshot_fail
     local fallback_repo fallback_git_dir fallback_result fallback_files fallback_has_staged
     fallback_repo=$(_make_repo)
-    fallback_git_dir=$(git -C "$fallback_repo" rev-parse --git-dir 2>/dev/null)
+    fallback_git_dir=$(git -C "$fallback_repo" rev-parse --absolute-git-dir 2>/dev/null)
 
     # Invalid (non-existent) SHA causes merge-base to fail
     echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" > "$fallback_git_dir/MERGE_HEAD"
@@ -380,7 +408,7 @@ test_fallback_on_missing_merge_base_head() {
     git -C "$hf_repo" add second.txt 2>/dev/null
     git -C "$hf_repo" commit -m "second" --quiet
 
-    hf_git_dir=$(git -C "$hf_repo" rev-parse --git-dir 2>/dev/null)
+    hf_git_dir=$(git -C "$hf_repo" rev-parse --absolute-git-dir 2>/dev/null)
     hf_head=$(git -C "$hf_repo" rev-parse HEAD)
 
     # REBASE_HEAD with no rebase-merge/onto file (corrupt/incomplete state)
@@ -416,7 +444,7 @@ test_get_worktree_only_files_from_head_during_rebase() {
     git commit -m "feature: add worktree-second.txt" --quiet
 
     # Update orig-head to include this new commit
-    rebase_git_dir=$(git rev-parse --git-dir)
+    rebase_git_dir=$(git rev-parse --absolute-git-dir)
     git rev-parse HEAD > "$rebase_git_dir/rebase-merge/orig-head"
 
     range_files=$(ms_get_worktree_only_files 2>/dev/null || echo "FAILED")
@@ -443,7 +471,7 @@ test_get_merge_base_during_merge() {
     local mb_merge_repo mb_merge_head_sha expected_base actual_base
     mb_merge_repo=$(cd /tmp && _make_merge_repo)
 
-    mb_merge_head_sha=$(cat "$(git -C "$mb_merge_repo" rev-parse --git-dir)/MERGE_HEAD" 2>/dev/null | head -1)
+    mb_merge_head_sha=$(cat "$(git -C "$mb_merge_repo" rev-parse --absolute-git-dir)/MERGE_HEAD" 2>/dev/null | head -1)
     expected_base=$(git -C "$mb_merge_repo" merge-base HEAD "$mb_merge_head_sha" 2>/dev/null || echo "")
 
     actual_base=$(cd "$mb_merge_repo" && ms_get_merge_base 2>/dev/null || echo "")
@@ -462,7 +490,7 @@ test_get_merge_base_during_rebase() {
     rebase_repo=$(echo "$rebase_output" | head -1)
     rebase_onto=$(echo "$rebase_output" | tail -1)
 
-    rb_git_dir=$(git -C "$rebase_repo" rev-parse --git-dir 2>/dev/null)
+    rb_git_dir=$(git -C "$rebase_repo" rev-parse --absolute-git-dir 2>/dev/null)
     rb_orig_head=$(cat "$rb_git_dir/rebase-merge/orig-head" 2>/dev/null | head -1)
     expected_base=$(git -C "$rebase_repo" merge-base "$rebase_onto" "$rb_orig_head" 2>/dev/null || echo "")
 
@@ -492,6 +520,8 @@ echo ""
 test_get_worktree_only_files_filters_during_rebase
 echo ""
 test_merge_head_equals_head_guard_skips_filtering
+echo ""
+test_merge_head_equals_head_guard_from_head_skips_filtering
 echo ""
 test_fallback_on_missing_merge_base_orig_head
 echo ""
