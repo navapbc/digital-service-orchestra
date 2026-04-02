@@ -340,10 +340,15 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 2. **For each open bug ticket, invoke `/dso:fix-bug` at the orchestrator level**:
 
    **PER-TICKET GATE (enforce at the start of EVERY ticket iteration, not just the first):**
-   Before processing each ticket, explicitly verify:
+   Before processing each ticket, explicitly verify AND emit the verification token:
    - Has the investigation sub-agent (dso:bot-psychologist for llm-behavioral, or BASIC/INTERMEDIATE/ADVANCED for behavioral) been dispatched independently for THIS ticket? Reusing investigation findings from a prior ticket in this session is PROHIBITED — even when the bugs appear related. Each ticket requires its own independent sub-agent dispatch.
    - Have fix-bug Steps 1–5 been completed for THIS ticket specifically? Completion of Steps 1–5 for a previous ticket does NOT satisfy the requirement for the current ticket.
    - The fix-bug HARD-GATE ("Do NOT investigate inline", "Do NOT modify code until Steps 1–5 are complete") applies with full force on every iteration — ticket 1 and ticket 23 equally.
+
+   **Emit this token before any Edit/Write call for this ticket** (ba41-8503):
+   `HARD-GATE: CLEARED for ticket <id> — classification: <type>, investigation: <agent-id>, hypothesis: <confirmed/disproved>`
+   If you cannot fill in all three fields, you have NOT completed Steps 1–5.
+
    Violation of this gate — including pre-writing fixes in sub-agent prompts, performing investigation at orchestrator level, or reusing prior ticket findings as a substitute for independent dispatch — must be treated as a process failure, not an efficiency optimization.
 
    Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation (reads SKILL.md inline) preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED) which require the Agent tool themselves.
@@ -994,10 +999,13 @@ If `collect-discoveries.sh` fails, log a warning and proceed without discovery p
 
 ### Step 8: Continuation Decision (/dso:debug-everything)
 
-- If context compaction occurred → Phase 9 (graceful shutdown)
-- If session usage >90% → Phase 9 (graceful shutdown)
+**Default is CONTINUE, not shutdown.** Only shut down on a concrete, verifiable signal — never on a "felt sense" of context fullness (a54a-95fc).
+
+- If you received a **literal context-compaction event banner** from Claude Code during this session → Phase 9 (graceful shutdown). A compaction banner is an unmistakable system message — if you are unsure whether you saw one, you did NOT see one.
 - If more failures remain in this tier → Phase 5 (next batch)
 - If tier is clear → Phase 7 (re-diagnose)
+
+Do NOT shut down based on an internal estimate of session context usage. There is no way to self-measure context fill. If no compaction event occurred, keep fixing bugs.
 
 ---
 

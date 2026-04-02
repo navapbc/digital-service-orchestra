@@ -40,11 +40,27 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
    ```
    If none, skip this step.
 
-2. For each in-progress epic, check whether all children are closed:
+2. For each in-progress epic, check whether all children are closed (3a6a-b291: enumerate children via parent_id, NOT `ticket deps` which shows dependency relations):
    ```bash
-   .claude/scripts/dso ticket deps <epic-id>
+   .claude/scripts/dso ticket list 2>/dev/null | python3 -c "
+   import json, sys
+   tickets = json.loads(sys.stdin.read())
+   epic_id = '<epic-id>'  # Replace with actual epic ID from step 1
+   children = [t for t in tickets if t.get('parent_id') == epic_id]
+   open_children = [t for t in children if t.get('status') != 'closed']
+   if not children:
+       print('NO_CHILDREN')
+   elif open_children:
+       print(f'OPEN_CHILDREN:{len(open_children)}')
+       for c in open_children:
+           print(f'  {c[\"ticket_id\"]} [{c.get(\"status\")}] {c.get(\"title\",\"\")[:60]}')
+   else:
+       print('ALL_CLOSED')
+   "
    ```
-   Parse the output: if **every** child line shows `[closed]` (and at least one child exists), the epic is a candidate.
+   - `ALL_CLOSED` (and at least one child): the epic is a candidate.
+   - `OPEN_CHILDREN`: the epic is NOT a candidate — do NOT close it.
+   - `NO_CHILDREN`: skip (no children to verify).
 
 3. For each candidate, verify the work is related to this session by checking whether any commit on this worktree branch references the epic or its children:
    ```bash
@@ -63,7 +79,7 @@ When `/dso:sprint` is interrupted by context compaction or a control-flow issue,
 
 4. For each session-related candidate, close it:
    ```bash
-   .claude/scripts/dso ticket transition <epic-id> --reason="Epic complete: all children closed (safety-net close by /dso:end-session)"
+   .claude/scripts/dso ticket transition <epic-id> in_progress closed --reason="Epic complete: all children closed (safety-net close by /dso:end-session)"
    ```
    Report: `"Closed orphaned epic <epic-id>: <title> (all children were already closed)."`
 
