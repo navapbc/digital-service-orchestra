@@ -1,1 +1,0 @@
-{"timestamp": 1775113155001247000, "uuid": "9538292e-58cd-44fe-975c-5b2f905811c8", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 4/6: REBASE_HEAD inline detection replaced with ms_is_rebase_in_progress (unified block), source path resolves correctly via SCRIPT_DIR relative traversal \u2713"}}
