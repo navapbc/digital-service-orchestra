@@ -148,7 +148,24 @@ fi
 assert_eq "test_current_timeout_not_downgraded: timeout wins over failed" "timeout" "$STATUS"
 assert_pass_if_clean "test_current_timeout_not_downgraded"
 
-rm -rf "$ARTIFACTS"
+# ── test_merge_head_empty_file_safe ────────────────────────────────────────
+# When MERGE_HEAD exists but is empty (corrupt state), the guard must not crash.
+echo ""
+echo "--- Empty MERGE_HEAD file does not crash ---"
+
+_snapshot_fail
+_MERGE_DIR=$(mktemp -d)
+touch "$_MERGE_DIR/MERGE_HEAD"  # empty file
+
+_raw_merge_head=$(head -1 "$_MERGE_DIR/MERGE_HEAD" 2>/dev/null || echo "")
+_merge_head_sha=""
+[[ -n "$_raw_merge_head" ]] && _merge_head_sha=$(git rev-parse "$_raw_merge_head" 2>/dev/null || echo "")
+
+assert_eq "test_merge_head_empty: raw is empty" "" "$_raw_merge_head"
+assert_eq "test_merge_head_empty: sha is empty" "" "$_merge_head_sha"
+assert_pass_if_clean "test_merge_head_empty_file_safe"
+
+rm -rf "$ARTIFACTS" "$_MERGE_DIR"
 trap - EXIT
 
 print_summary
