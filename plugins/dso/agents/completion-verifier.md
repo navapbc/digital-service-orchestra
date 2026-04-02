@@ -85,7 +85,7 @@ Do NOT use a hardcoded list of consumers. Instead, discover them via codebase se
 
 ```bash
 # Find scripts/skills that reference the modified component
-grep -rl "<component-name>" plugins/dso/skills/ plugins/dso/scripts/ plugins/dso/hooks/ .claude/scripts/ 2>/dev/null
+grep -rl "<component-name>" plugins/dso/skills/ plugins/dso/scripts/ plugins/dso/hooks/ .claude/scripts/ 2>/dev/null  # shim-exempt: grep search path, not script invocation
 ```
 
 For each discovered consumer, determine whether it is affected by the change (by reading its source), and if so, define a verification command.

@@ -12,7 +12,7 @@
 
 ## Emitter
 
-`plugins/dso/scripts/bridge-outbound.py`
+`plugins/dso/scripts/bridge-outbound.py` # shim-exempt: internal implementation path reference
 
 The outbound bridge emits a SYNC event payload when a local ticket change is ready to be pushed to
 Jira. Each SYNC event carries enough information for the inbound bridge to correlate the local

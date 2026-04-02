@@ -61,7 +61,7 @@ plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-ticket
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh,tests/hooks/test-compute-diff-hash-tickets-tracker.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
-plugins/dso/scripts/check-shim-refs.sh: tests/scripts/test-check-shim-refs-detection.sh [test_exit_nonzero_on_direct_path], tests/scripts/test-check-shim-refs.sh [test_exit_nonzero_on_literal_path]
+plugins/dso/scripts/check-shim-refs.sh: tests/scripts/test-check-shim-refs-detection.sh, tests/scripts/test-check-shim-refs.sh
 plugins/dso/scripts/ci-generator.sh:tests/scripts/test-ci-generator.sh,tests/scripts/test-ci-generator-integration.sh
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh

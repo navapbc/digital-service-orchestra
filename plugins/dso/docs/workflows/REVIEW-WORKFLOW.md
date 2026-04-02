@@ -381,11 +381,11 @@ If both are `False` and no tier reviewer signal is present (see Serial Path belo
 
 ### 2. Parallel Path (deterministic classifier signal)
 
-If either `SECURITY_OVERLAY` or `PERFORMANCE_OVERLAY` is `True`, the classifier flagged the overlay at classification time. Source `plugins/dso/scripts/overlay-dispatch.sh` and call `overlay_dispatch_mode` to determine whether the overlay agents were already launched in parallel alongside the tier reviewer:
+If either `SECURITY_OVERLAY` or `PERFORMANCE_OVERLAY` is `True`, the classifier flagged the overlay at classification time. Source `plugins/dso/scripts/overlay-dispatch.sh` and call `overlay_dispatch_mode` to determine whether the overlay agents were already launched in parallel alongside the tier reviewer: # shim-exempt: internal library source, not a user-invocable command
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-source "$PLUGIN_SCRIPTS/overlay-dispatch.sh"
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts" # shim-exempt: internal source path for overlay-dispatch.sh library
+source "$PLUGIN_SCRIPTS/overlay-dispatch.sh" # shim-exempt: internal library source
 # Write classifier output to temp file for overlay-dispatch.sh consumption
 echo "$CLASSIFIER_OUTPUT" > "$ARTIFACTS_DIR/classifier-overlay-input.json"
 # reviewer-summary.txt is written by the tier reviewer sub-agent in Step 4
@@ -423,7 +423,7 @@ Pass only the `--findings-json` arguments for overlays that actually ran.
 
 ### 5. Graceful Degradation
 
-Use `overlay_dispatch_with_fallback` (from `plugins/dso/scripts/overlay-dispatch.sh`) to ensure overlay agent failures do not block commits. If an overlay agent times out or returns malformed output, the fallback logs a warning and continues with tier-only findings. The commit proceeds without overlay coverage, and a warning is emitted so the gap is visible.
+Use `overlay_dispatch_with_fallback` (from `plugins/dso/scripts/overlay-dispatch.sh`) to ensure overlay agent failures do not block commits. # shim-exempt: internal library reference — If an overlay agent times out or returns malformed output, the fallback logs a warning and continues with tier-only findings. The commit proceeds without overlay coverage, and a warning is emitted so the gap is visible.
 
 ---
 
@@ -670,7 +670,7 @@ Track the rate at which Light-tier reviews surface `critical` or `important` fin
 
 **Response**:
 1. Identify the pattern shared by the triggering commits (file types, change categories, or scoring features).
-2. Add a matching floor rule to `plugins/dso/scripts/review-complexity-classifier.sh`.
+2. Add a matching floor rule to `plugins/dso/scripts/review-complexity-classifier.sh`. # shim-exempt: safeguard file, direct path required for developer modification instructions
 3. Re-validate: re-run the classifier against the 30-commit sample and confirm the affected commits now route to Standard or Deep.
 
 ### CI Failure Rate by Tier
@@ -690,5 +690,5 @@ Compare the overall CI failure rate for the 30 commits following deployment agai
 When any signal above crosses its threshold, follow this protocol:
 
 1. **Create a P1 bug ticket**: `.claude/scripts/dso ticket create bug "Classifier miscalibration: <signal description>" --priority 1` — record the specific signal, threshold crossed, and the affected commit range.
-2. **Adjust the classifier**: modify floor rules or scoring weights in `plugins/dso/scripts/review-complexity-classifier.sh` to correct the miscalibration.
+2. **Adjust the classifier**: modify floor rules or scoring weights in `plugins/dso/scripts/review-complexity-classifier.sh` to correct the miscalibration. # shim-exempt: safeguard file, direct path required for developer modification instructions
 3. **Re-validate**: re-run the classifier against the same 30-commit sample that triggered the breach and confirm the signal is no longer breaching its threshold before closing the ticket.

@@ -196,5 +196,5 @@ performance patterns are classified as **minor**. No findings are classified as
 ## How to Refresh
 
 ```bash
-bash plugins/dso/scripts/run-overlay-retrospective.sh --limit 20
+.claude/scripts/dso run-overlay-retrospective.sh --limit 20
 ```

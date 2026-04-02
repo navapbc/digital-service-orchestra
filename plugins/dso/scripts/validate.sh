@@ -826,6 +826,7 @@ fi
 # Each name must match the first argument passed to run_check or check_*.
 LAUNCHED_CHECKS="syntax format ruff mypy tests migrate skill-refs hook-drift"
 [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS script-writes"
+[ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS shim-refs"
 # REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
@@ -845,6 +846,9 @@ if [ -n "$SCRIPT_WRITE_SCAN_DIR" ]; then
     (cd "$REPO_ROOT" && run_check "script-writes" "$TIMEOUT_SYNTAX" python3 "$PLUGIN_SCRIPTS/check-script-writes.py" --scan-dir="$SCRIPT_WRITE_SCAN_DIR") &
 fi
 (cd "$REPO_ROOT" && run_check "skill-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-skill-refs.sh") &
+if [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ]; then
+    (cd "$REPO_ROOT" && run_check "shim-refs" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-shim-refs.sh") &
+fi
 check_hook_drift &
 if [ $CHECK_CI -eq 1 ]; then
     check_ci &
@@ -977,6 +981,7 @@ if [ "$VERBOSE" = "0" ]; then
     report_check "tests" "tests" "$TIMEOUT_TESTS"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && report_check "script-writes" "script-writes" "$TIMEOUT_SYNTAX" "python3 $PLUGIN_SCRIPTS/check-script-writes.py --scan-dir=$SCRIPT_WRITE_SCAN_DIR"
     report_check "skill-refs" "skill-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-skill-refs.sh"
+    [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && report_check "shim-refs" "shim-refs" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-shim-refs.sh"
     report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' examples/pre-commit-config.example.yaml)"
 else
     tally_check "syntax" "syntax"
@@ -986,6 +991,7 @@ else
     tally_check "tests" "tests"
     [ -n "$SCRIPT_WRITE_SCAN_DIR" ] && tally_check "script-writes" "script-writes"
     tally_check "skill-refs" "skill-refs"
+    [ -f "$PLUGIN_SCRIPTS/check-shim-refs.sh" ] && tally_check "shim-refs" "shim-refs"
     tally_check "hook-drift" "hook-drift"
 fi
 

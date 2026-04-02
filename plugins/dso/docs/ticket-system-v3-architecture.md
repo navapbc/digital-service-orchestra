@@ -65,7 +65,7 @@ The sort key for event files is a three-tuple `(timestamp_segment, event_type_or
 ### CLI Invocation
 
 ```bash
-python3 plugins/dso/scripts/ticket-reducer.py <ticket_dir_path>
+python3 plugins/dso/scripts/ticket-reducer.py <ticket_dir_path> # shim-exempt: direct python invocation of internal script, not a shim-wrapped command
 ```
 
 Prints the compiled ticket state as a single-line JSON object to stdout. Exits non-zero for corrupt or ghost tickets.
@@ -74,10 +74,10 @@ Examples:
 
 ```bash
 # Compile a specific ticket
-python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2
+python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 # shim-exempt: direct python invocation of internal script
 
 # Pipe to jq for pretty-printing
-python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 | jq .
+python3 plugins/dso/scripts/ticket-reducer.py .tickets-tracker/dso-9aq2 | jq . # shim-exempt: direct python invocation of internal script
 ```
 
 ### Public Module Interface: `reduce_ticket()`
@@ -90,7 +90,7 @@ import importlib, importlib.util, pathlib
 # Load module (hyphenated filename requires importlib)
 spec = importlib.util.spec_from_file_location(
     "ticket_reducer",
-    pathlib.Path("plugins/dso/scripts/ticket-reducer.py"),
+    pathlib.Path("plugins/dso/scripts/ticket-reducer.py"),  # shim-exempt: Python importlib path to internal module
 )
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
@@ -204,7 +204,7 @@ Because the symlink resolves to the same physical directory, all worktrees share
 Run once per repository clone:
 
 ```bash
-plugins/dso/scripts/ticket-init.sh
+.claude/scripts/dso ticket-init.sh
 ```
 
 For a secondary worktree, run the same command from inside the worktree. `ticket-init.sh` detects that `.git` is a file (worktree marker) and creates the symlink instead of mounting a new worktree.
@@ -240,11 +240,11 @@ The `--format=llm` flag on `.claude/scripts/dso ticket show` and `.claude/script
 
 The LLM format applies three transformations:
 
-1. **Key shortening**: Long field names are mapped to abbreviated equivalents (e.g., `ticket_id` → `id`, `ticket_type` → `t`, `title` → `ttl`). See `plugins/dso/scripts/ticket-llm-format.py` for the full key map.
+1. **Key shortening**: Long field names are mapped to abbreviated equivalents (e.g., `ticket_id` → `id`, `ticket_type` → `t`, `title` → `ttl`). See `plugins/dso/scripts/ticket-llm-format.py` for the full key map. # shim-exempt: internal implementation path reference
 2. **Null and empty-list stripping**: Fields with `null` values or empty lists are omitted entirely. A ticket with no dependencies produces no `deps` key in LLM output.
 3. **Timestamp omission**: `created_at` and `env_id` are omitted (`OMIT_KEYS` in `ticket-llm-format.py`). Comment timestamps are also omitted — agents care about comment content, not when it was written.
 
-The formatting logic is centralized in `plugins/dso/scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`.
+The formatting logic is centralized in `plugins/dso/scripts/ticket-llm-format.py` (`to_llm()` function) and shared by both `ticket-show.sh` and `ticket-list.sh`. # shim-exempt: internal implementation path reference
 
 `.claude/scripts/dso ticket list --format=llm` outputs JSON Lines (one minified JSON object per line) rather than a JSON array, so agents can stream and filter with standard Unix tools without loading the full array into memory.
 
