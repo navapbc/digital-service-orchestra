@@ -614,7 +614,7 @@ Task tool:
    MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
    ```
 
-6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): before escalating to user, verify that the full deep-multi-reviewer path at PASS_NUM 3+ has been attempted (3 parallel sonnet specialists + opus arch synthesis — for ALL tiers, not just deep). User escalation is the **last resort**, after the full deep tier review has been exhausted. Only then: escalate to user.
+6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): **DO NOT commit with a failing review.** A failing review is never a reason to bypass the review gate — the pre-commit hook will block it regardless, and attempting it wastes context. Instead: before escalating to user, verify that the full deep-multi-reviewer path at PASS_NUM 3+ has been attempted (3 parallel sonnet specialists + opus arch synthesis — for ALL tiers, not just deep). User escalation is the **last resort**, after the full deep tier review has been exhausted. Only then: escalate to user.
 
 **Escalation message format** (when sub-agent returns FAIL or ESCALATE, or re-review fails twice):
 

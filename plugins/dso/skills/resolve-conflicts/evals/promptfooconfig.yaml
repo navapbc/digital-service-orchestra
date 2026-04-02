@@ -1,0 +1,196 @@
+description: "resolve-conflicts skill evals — conflict classification, resolution strategy, and confidence-gated automation"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the resolve-conflicts skill for a software development workflow tool.
+    Your job is to analyze git merge/rebase conflicts, classify them by complexity,
+    auto-resolve trivial cases, and present non-trivial resolutions for human approval.
+
+    Conflict classification:
+    - TRIVIAL: Non-overlapping additions, import ordering, whitespace-only differences,
+      append-only files (e.g., .tickets-tracker/ JSON events). Safe to auto-resolve.
+    - SEMANTIC: Both sides modified the same logic block with coherent intent that
+      can be merged. Requires human approval before applying.
+    - AMBIGUOUS: Conflicting logic with unclear intent. Both options must be presented;
+      user must choose. Cannot be auto-resolved.
+
+    Resolution strategy:
+    - For TRIVIAL conflicts: auto-resolve, stage, and complete the merge without
+      asking the user. Report what was done after completion.
+    - For SEMANTIC conflicts: propose the merged resolution as a diff and wait for
+      human approval before applying.
+    - For AMBIGUOUS conflicts: show both options and require the user to choose.
+    - .tickets-tracker/ JSON event files are always auto-resolved by accepting ours
+      (they are append-only event logs, safe to take ours unconditionally).
+    - If more than 10 files are conflicted, report this and tell the user to rebase
+      incrementally instead of attempting agent-assisted resolution.
+
+    Confidence scoring:
+    - HIGH: Resolution is unambiguous; safe to auto-apply (TRIVIAL cases).
+    - MEDIUM: Intent is clear but merging requires human validation (SEMANTIC cases).
+    - LOW: Intent is unclear; must escalate to user (AMBIGUOUS cases).
+
+    Output format for non-trivial conflicts:
+    Always produce a summary table showing: File | Type | Confidence | Strategy
+    Then present per-file detail for each SEMANTIC or AMBIGUOUS file.
+
+    The user says:
+    {{prompt}}
+
+tests:
+  - description: "Classifies trivial (non-overlapping) conflict as TRIVIAL and auto-resolves it"
+    vars:
+      prompt: |
+        I have a merge conflict in a single file: src/utils/helpers.py
+
+        The conflict markers show:
+        <<<<<<< HEAD
+        import os
+        import sys
+        import json
+        =======
+        import os
+        import sys
+        import logging
+        >>>>>>> feature/add-logging
+
+        Both sides added a new import below `import sys`. There is no other
+        change in the file. What is the conflict type, confidence score, and
+        how should this be resolved?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output classifies and resolves a trivial import-ordering conflict.
+          It should:
+          (1) classify the conflict as TRIVIAL — both sides added a non-overlapping
+          import (json vs logging) below the same anchor line with no logical
+          conflict between them,
+          (2) assign HIGH confidence to the resolution,
+          (3) propose or state it will auto-resolve by merging both imports
+          (e.g., the resolved file includes `import json` AND `import logging`),
+          (4) NOT require human approval or ask the user to choose — TRIVIAL
+          conflicts must be resolved automatically without prompting,
+          (5) describe the resolution strategy as merging both additions (not
+          choosing one side over the other).
+
+  - description: "Classifies semantic conflict and presents proposed resolution for human approval"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        I have a merge conflict in src/config/settings.py
+
+        The conflict markers show:
+        <<<<<<< HEAD
+        def get_timeout():
+            """Return request timeout in seconds."""
+            return int(os.environ.get("REQUEST_TIMEOUT", 30))
+        =======
+        def get_timeout():
+            """Return request timeout in seconds."""
+            base = int(os.environ.get("REQUEST_TIMEOUT", 30))
+            return base * 2 if os.environ.get("SLOW_MODE") else base
+        >>>>>>> feature/slow-mode
+
+        The branch-side commit message is: "feat: add SLOW_MODE env var for
+        throttled environments". The main-side commit message is: "fix: make
+        timeout configurable via env var".
+
+        What is the conflict type, confidence score, and how should this be resolved?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output classifies a semantic conflict where both sides modified the
+          same function with coherent but different intents (making timeout
+          configurable vs adding SLOW_MODE multiplier). It should:
+          (1) classify the conflict as SEMANTIC — both sides have clear intent
+          (configurable timeout from main; SLOW_MODE multiplier from branch),
+          and the two changes can be combined into a coherent merged result,
+          (2) assign MEDIUM confidence — the intent is clear but the merge
+          requires human validation before applying,
+          (3) propose a concrete merged resolution (e.g., a version that reads
+          the env var for the base timeout AND applies the SLOW_MODE multiplier
+          from the branch),
+          (4) present the proposed resolution as a diff or code block showing
+          what the merged function would look like,
+          (5) explicitly state it is waiting for human approval before applying
+          the change — it must NOT auto-apply SEMANTIC resolutions.
+
+  - description: "Escalates ambiguous conflict to user with both options and requires choice"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        I have a merge conflict in src/api/auth.py
+
+        The conflict markers show:
+        <<<<<<< HEAD
+        def authenticate(token: str) -> bool:
+            """Validate token against the local secret store."""
+            return token == SECRET_STORE.get("api_key")
+        =======
+        def authenticate(token: str) -> bool:
+            """Validate token via the remote auth service."""
+            response = auth_service.verify(token)
+            return response.get("valid", False)
+        >>>>>>> feature/remote-auth
+
+        The branch commit message is: "feat: switch auth to remote auth service".
+        The main commit message is: "refactor: clean up local token validation".
+
+        Both sides rewrote the entire authenticate() function with incompatible
+        approaches. What is the conflict type, confidence score, and how should
+        this be resolved?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output classifies an ambiguous conflict where both sides replaced
+          the same function with fundamentally incompatible approaches (local
+          secret store vs remote auth service). It should:
+          (1) classify the conflict as AMBIGUOUS — the two implementations
+          represent a genuine architectural decision (local vs remote auth)
+          that cannot be automatically merged; only one approach can be correct,
+          (2) assign LOW confidence — the intent conflict is irreconcilable
+          without human input on which authentication approach to keep,
+          (3) present BOTH options clearly to the user, showing what each
+          side's version does (local validation vs remote service call) so
+          the user can make an informed decision,
+          (4) explicitly require the user to choose between the two options
+          before proceeding — it must NOT propose a merged version or auto-apply
+          either side,
+          (5) NOT attempt to synthesize the two approaches into a combined
+          implementation, since this is a mutually exclusive architectural choice.
+
+  - description: "Auto-resolves .tickets-tracker/ conflicts without user input"
+    vars:
+      prompt: |
+        My merge has conflicts only in .tickets-tracker/ files:
+        - .tickets-tracker/events/abc123-created.json
+        - .tickets-tracker/events/def456-status-changed.json
+
+        These are ticket event log files from two parallel sessions. There are
+        no conflicts in any source code files. How should these be resolved?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly handles .tickets-tracker/ JSON event file conflicts
+          as a special auto-resolve case. It should:
+          (1) identify that ALL conflicted files are under .tickets-tracker/ and
+          that no code conflicts are present,
+          (2) state that .tickets-tracker/ JSON event files are append-only event
+          logs and are safe to auto-resolve by accepting our version (git checkout
+          --ours),
+          (3) indicate it will or has auto-resolved both files without requiring
+          user input or approval,
+          (4) NOT classify these as TRIVIAL/SEMANTIC/AMBIGUOUS using the standard
+          conflict classification rubric — they are a special category with their
+          own unconditional auto-resolve rule,
+          (5) describe completing the merge after staging the auto-resolved files,
+          without presenting a summary table or asking for confirmation.

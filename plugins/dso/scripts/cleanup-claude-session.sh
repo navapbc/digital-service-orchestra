@@ -251,6 +251,46 @@ else
     log "  No Claude task directories found"
 fi
 
+# 3b. Clean up stale agent JSONL files (backing files for task output symlinks)
+# The *.output files in step 3 are symlinks to ~/.claude/projects/*/subagents/agent-*.jsonl.
+# Step 3 deletes the symlinks but not the backing files, which grow unbounded.
+log ""
+log "Checking for stale agent JSONL files..."
+JSONL_CLEANED=0
+CLAUDE_PROJECTS_DIR="$HOME/.claude/projects"
+if [ -d "$CLAUDE_PROJECTS_DIR" ]; then
+    # Find agent JSONL files older than 2 hours (scoped to subagents/ dirs)
+    STALE_JSONL=$(find "$CLAUDE_PROJECTS_DIR" -path "*/subagents/agent-*.jsonl" -mmin +120 2>/dev/null || true)
+    if [ -n "$STALE_JSONL" ]; then
+        JSONL_CLEANED=$(echo "$STALE_JSONL" | wc -l | tr -d ' ')
+        if [ $DRY_RUN -eq 0 ]; then
+            echo "$STALE_JSONL" | xargs rm -f 2>/dev/null || true
+        fi
+    fi
+    # Also find oversized JSONL files (>500MB) that weren't already deleted (not stale)
+    LARGE_JSONL=$(find "$CLAUDE_PROJECTS_DIR" -path "*/subagents/agent-*.jsonl" -size +500M -not -mmin +120 2>/dev/null || true)
+    if [ -n "$LARGE_JSONL" ]; then
+        LARGE_COUNT=$(echo "$LARGE_JSONL" | wc -l | tr -d ' ')
+        JSONL_CLEANED=$((JSONL_CLEANED + LARGE_COUNT))
+        if [ $DRY_RUN -eq 0 ]; then
+            echo "$LARGE_JSONL" | xargs rm -f 2>/dev/null || true
+        else
+            log_action "  WARNING: Found $LARGE_COUNT agent JSONL file(s) >500MB"
+        fi
+    fi
+    if [ $JSONL_CLEANED -gt 0 ]; then
+        if [ $DRY_RUN -eq 1 ]; then
+            log_action "  Would remove $JSONL_CLEANED stale/oversized agent JSONL file(s)"
+        else
+            log_action "  Removed $JSONL_CLEANED stale/oversized agent JSONL file(s)"
+        fi
+    else
+        log "  No stale agent JSONL files found"
+    fi
+else
+    log "  No Claude projects directory found"
+fi
+
 # 4. Clean up any hung Docker processes related to tests (report only)
 # Skipped when session.artifact_prefix is absent from .claude/dso-config.conf
 log ""

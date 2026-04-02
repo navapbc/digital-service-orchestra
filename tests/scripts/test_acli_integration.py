@@ -667,3 +667,208 @@ def test_transition_issue_maps_closed_to_jira_name(acli: ModuleType) -> None:
         f"but got {status_value!r}. "
         f"Fix by adding 'closed' -> 'Done' to the _LOCAL_STATUS_TO_JIRA mapping."
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 16: create_issue retries without assignee on permission error
+#
+# BUG 7812-8682: When ACLI returns "cannot be assigned issues" for the
+# assignee field, the entire create_issue call crashes instead of retrying
+# without the assignee.  The fix must catch this specific error and retry
+# the creation with the assignee field removed from the payload.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_issue_retries_without_assignee_on_permission_error(
+    acli: ModuleType,
+) -> None:
+    """create_issue must retry without assignee when ACLI reports
+    'cannot be assigned issues', and the second attempt must succeed."""
+    created_response = json.dumps({"key": "PROJ-42", "summary": "Retry test"})
+    verified_response = json.dumps(
+        {"key": "PROJ-42", "summary": "Retry test", "status": "To Do"}
+    )
+
+    captured_payloads: list[dict] = []
+
+    def capturing_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if "--from-json" in cmd:
+            idx = cmd.index("--from-json") + 1
+            json_path = cmd[idx]
+            with open(json_path) as f:
+                payload = json.load(f)
+            captured_payloads.append(payload)
+
+            # Any attempt with assignee present: fail with permission error
+            if payload.get("assignee"):
+                raise subprocess.CalledProcessError(
+                    1,
+                    cmd,
+                    output="",
+                    stderr="✗ Error: User '712020:fake-id' cannot be assigned issues.",
+                )
+            # Attempt without assignee: succeed
+            return MagicMock(returncode=0, stdout=created_response, stderr="")
+        # get_issue verification call
+        return MagicMock(returncode=0, stdout=verified_response, stderr="")
+
+    with (
+        patch("subprocess.run", side_effect=capturing_run),
+        patch("time.sleep"),  # skip _run_acli retry delays
+    ):
+        result = acli.create_issue(
+            project="PROJ",
+            issue_type="Task",
+            summary="Retry test",
+            priority=2,
+            assignee="some-user",
+        )
+
+    assert result is not None, "create_issue must return a result after retry"
+    assert result.get("key") == "PROJ-42"
+
+    # Deduplicate payloads (since _run_acli retries with the same payload)
+    unique_payloads: list[dict] = []
+    for p in captured_payloads:
+        if not unique_payloads or p != unique_payloads[-1]:
+            unique_payloads.append(p)
+
+    # Must have at least two distinct payload shapes
+    assert len(unique_payloads) >= 2, (
+        f"Expected at least 2 distinct --from-json payloads (with then without assignee), "
+        f"got {len(unique_payloads)}. "
+        f"Fix _create_issue_from_json to catch 'cannot be assigned' errors and "
+        f"retry without the assignee field."
+    )
+
+    # Second distinct payload must NOT contain assignee
+    retry_payload = unique_payloads[1]
+    assert "assignee" not in retry_payload, (
+        f"Retry payload must not contain 'assignee', but got: {retry_payload}. "
+        f"Fix _create_issue_from_json to remove assignee from the payload on retry."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 17: create_issue (non-JSON path) retries without assignee on permission error
+#
+# Tests the code path where create_issue is called WITH an assignee but WITHOUT
+# priority (so the non-JSON ACLI command path is taken, not --from-json).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_issue_no_priority_retries_without_assignee_on_permission_error(
+    acli: ModuleType,
+) -> None:
+    """create_issue without priority must retry without assignee when ACLI
+    reports 'cannot be assigned issues', and the second attempt must succeed."""
+    created_response = json.dumps({"key": "PROJ-50", "summary": "No-priority retry"})
+    verified_response = json.dumps(
+        {"key": "PROJ-50", "summary": "No-priority retry", "status": "To Do"}
+    )
+
+    create_cmds: list[list[str]] = []
+
+    def mock_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        # Detect verify-after-create call (get_issue uses "get" action)
+        if "create" not in cmd:
+            return MagicMock(returncode=0, stdout=verified_response, stderr="")
+
+        create_cmds.append(list(cmd))
+
+        # Any create attempt with --assignee → fail with permission error
+        if "--assignee" in cmd:
+            raise subprocess.CalledProcessError(
+                1,
+                cmd,
+                output="",
+                stderr="✗ Error: User 'abc123' cannot be assigned issues.",
+            )
+
+        # Retry without assignee → succeed
+        return MagicMock(returncode=0, stdout=created_response, stderr="")
+
+    with (
+        patch("subprocess.run", side_effect=mock_run),
+        patch("time.sleep"),  # skip _run_acli retry delays
+    ):
+        result = acli.create_issue(
+            project="PROJ",
+            issue_type="Task",
+            summary="No-priority retry",
+            assignee="abc123",
+            # No priority — takes the non-JSON path
+        )
+
+    assert result is not None, "create_issue must return a result after retry"
+    assert result.get("key") == "PROJ-50", (
+        f"Expected key 'PROJ-50', got: {result.get('key')}"
+    )
+
+    # Must have at least one create with assignee and one without
+    with_assignee = [c for c in create_cmds if "--assignee" in c]
+    without_assignee = [c for c in create_cmds if "--assignee" not in c]
+    assert len(with_assignee) >= 1, (
+        f"Expected at least one create attempt with --assignee, got commands: {create_cmds}"
+    )
+    assert len(without_assignee) >= 1, (
+        f"Expected at least one retry without --assignee, got commands: {create_cmds}. "
+        f"Ensure the non-JSON path retries without assignee on permission error."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 18: create_issue raises RuntimeError when retry-without-assignee also fails
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_issue_raises_when_retry_without_assignee_also_fails(
+    acli: ModuleType,
+) -> None:
+    """When both the initial create (with assignee) AND the retry (without
+    assignee) fail with 'cannot be assigned', create_issue must raise
+    RuntimeError rather than silently returning None."""
+
+    captured_payloads: list[dict] = []
+
+    def always_fail_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if "--from-json" in cmd:
+            idx = cmd.index("--from-json") + 1
+            json_path = cmd[idx]
+            with open(json_path) as f:
+                payload = json.load(f)
+            captured_payloads.append(payload)
+            # Both attempts fail with the permission error
+            raise subprocess.CalledProcessError(
+                1,
+                cmd,
+                output="",
+                stderr="✗ Error: User 'fake-id' cannot be assigned issues.",
+            )
+        # get_issue call — should never be reached
+        return MagicMock(returncode=0, stdout="{}", stderr="")
+
+    with (
+        patch("subprocess.run", side_effect=always_fail_run),
+        patch("time.sleep"),
+        pytest.raises(RuntimeError, match="retry without assignee"),
+    ):
+        acli.create_issue(
+            project="PROJ",
+            issue_type="Task",
+            summary="Double fail",
+            priority=2,
+            assignee="some-user",
+        )
+
+    # Should have attempted with assignee, then without
+    assert len(captured_payloads) >= 2, (
+        f"Expected at least 2 payloads (with then without assignee), "
+        f"got {len(captured_payloads)}"
+    )

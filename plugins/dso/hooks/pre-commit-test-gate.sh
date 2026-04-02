@@ -602,6 +602,16 @@ if [[ "$TEST_STATUS_LINE" != "passed" ]]; then
         echo "  plugins/dso/scripts/test-batched.sh --timeout=50 \"<test cmd>\"" >&2
         echo "" >&2
     fi
+    FAILED_TESTS=$(grep '^failed_tests=' "$TEST_GATE_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    if [[ -n "$FAILED_TESTS" ]]; then
+        echo "  Required tests (failing): ${FAILED_TESTS}" >&2
+        echo "" >&2
+    fi
+    TESTED_FILES=$(grep '^tested_files=' "$TEST_GATE_STATUS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    if [[ -n "$TESTED_FILES" ]]; then
+        echo "  Tests run: ${TESTED_FILES}" >&2
+        echo "" >&2
+    fi
     exit 1
 fi
 

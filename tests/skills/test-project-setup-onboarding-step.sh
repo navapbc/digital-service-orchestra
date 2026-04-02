@@ -136,7 +136,7 @@ test_artifact_detection() {
     step7_content=$(awk '/^## Step 7/,/^## Step [89]|^## Error/' "$SKILL_MD" 2>/dev/null)
     has_design_notes="no"
     has_arch_enforcement="no"
-    if echo "$step7_content" | grep -q "DESIGN_NOTES.md"; then
+    if echo "$step7_content" | grep -qE "DESIGN_NOTES\.md|design-notes\.md"; then
         has_design_notes="yes"
     fi
     if echo "$step7_content" | grep -q "ARCH_ENFORCEMENT.md"; then

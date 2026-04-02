@@ -51,6 +51,28 @@ if [ ! -d "$TRACKER_DIR" ] && [ -z "${TICKETS_TRACKER_DIR:-}" ] && [ -f "$SCRIPT
 fi
 
 # ---------------------------------------------------------------------------
+# Fetch latest ticket data from remote (throttled to avoid redundant fetches).
+# Uses the same 5-minute throttle as the ticket dispatcher's _ensure_initialized.
+# ---------------------------------------------------------------------------
+if [ -d "$TRACKER_DIR/.git" ] || [ -f "$TRACKER_DIR/.git" ]; then
+    _resolved_tracker=$(cd "$TRACKER_DIR" && pwd -P 2>/dev/null || echo "$TRACKER_DIR")
+    _sync_hash=$(echo -n "$_resolved_tracker" | md5sum 2>/dev/null | cut -d' ' -f1 || md5 -q -s "$_resolved_tracker" 2>/dev/null || echo "fallback")
+    _sync_marker="/tmp/.ticket-sync-${_sync_hash}"
+    _needs_fetch=true
+    if [ -f "$_sync_marker" ]; then
+        _marker_age=$(( $(date +%s) - $(stat -f %m "$_sync_marker" 2>/dev/null || stat -c %Y "$_sync_marker" 2>/dev/null || echo 0) ))
+        if [ "$_marker_age" -lt 300 ]; then
+            _needs_fetch=false
+        fi
+    fi
+    if [ "$_needs_fetch" = true ]; then
+        git -C "$TRACKER_DIR" fetch origin tickets 2>/dev/null && \
+        git -C "$TRACKER_DIR" pull --rebase origin tickets 2>/dev/null || true
+        touch "$_sync_marker" 2>/dev/null || true
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Retry configuration for worktree startup race conditions.
 # When the tracker dir has entries but the reducer returns an empty index,
 # retry after a short wait. This handles the case where the tracker symlink

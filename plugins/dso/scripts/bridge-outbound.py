@@ -677,8 +677,13 @@ def process_events(
 
     # Default git diff output: run git diff
     if git_diff_output is None:
+        # Run git diff inside the tickets tracker worktree (orphan branch),
+        # not the main repo. The tracker is a separate git worktree on the
+        # 'tickets' branch; running diff on main's HEAD would always return
+        # empty because ticket events are never committed to main.
+        tracker_str = str(tickets_path)
         result = subprocess.run(
-            ["git", "diff", "HEAD~1", "HEAD", "--name-only", "--", ".tickets-tracker/"],
+            ["git", "-C", tracker_str, "diff", "HEAD~1", "HEAD", "--name-only"],
             capture_output=True,
             text=True,
             check=False,
@@ -689,13 +694,20 @@ def process_events(
             tracker_dir = tickets_path
             if tracker_dir.is_dir():
                 git_diff_output = "\n".join(
-                    str(p.relative_to(tracker_dir.parent))
+                    # Prefix with .tickets-tracker/ so parse_git_diff_events
+                    # regex still matches the expected path structure.
+                    f".tickets-tracker/{p.relative_to(tracker_dir)}"
                     for p in tracker_dir.rglob("*.json")
                 )
             else:
                 git_diff_output = ""
         else:
-            git_diff_output = result.stdout
+            # Prefix paths with .tickets-tracker/ for parse_git_diff_events
+            git_diff_output = "\n".join(
+                f".tickets-tracker/{line}"
+                for line in result.stdout.strip().split("\n")
+                if line.strip()
+            )
 
     # Default bridge_env_id: read from .tickets-tracker/.env-id
     if bridge_env_id is None:

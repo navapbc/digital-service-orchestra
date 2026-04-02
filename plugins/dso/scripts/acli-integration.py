@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Any
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 _DEFAULT_ACLI_CMD: list[str] = ["acli"]
 _MAX_ATTEMPTS: int = 3  # initial + 2 retries
 _AUTH_FAILURE_CODE: int = 401
+_ASSIGNEE_PERMISSION_ERROR: str = "cannot be assigned"
 
 # Local priority integer (0-4) → Jira priority name.
 # Mirrors the mapping in bridge-outbound.py.
@@ -90,7 +92,8 @@ def _run_acli(
 
     Retries up to 2 times (3 total attempts) on CalledProcessError,
     with backoff delays of 2s and 4s. Auth failures (exit code 401)
-    abort immediately without retrying.
+    and deterministic permission errors ("cannot be assigned") abort
+    immediately without retrying.
 
     Raises CalledProcessError if all attempts are exhausted.
     """
@@ -114,6 +117,10 @@ def _run_acli(
             # Fast-abort on auth failure
             if exc.returncode == _AUTH_FAILURE_CODE:
                 raise
+            # Fast-abort on deterministic permission errors — retrying is pointless.
+            # Callers print a contextual warning; no stderr print here to avoid duplication.
+            if exc.stderr and _ASSIGNEE_PERMISSION_ERROR in exc.stderr:
+                raise
             # If more retries remain, sleep with exponential backoff
             if attempt < _MAX_ATTEMPTS - 1:
                 delay = 2 ** (attempt + 1)  # 2s, 4s
@@ -122,8 +129,6 @@ def _run_acli(
     # All attempts exhausted — include stderr in the error message for debugging
     assert last_error is not None
     if last_error.stderr:
-        import sys
-
         print(f"ACLI stderr: {last_error.stderr.strip()}", file=sys.stderr)
     raise last_error
 
@@ -131,6 +136,30 @@ def _run_acli(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def _verify_created_issue(
+    stdout: str,
+    *,
+    acli_cmd: list[str] | None = None,
+) -> dict[str, Any]:
+    """Parse ACLI create output, verify the issue exists, and return it.
+
+    Shared by both the JSON and non-JSON create paths to avoid duplicating
+    the post-create verification logic.
+    """
+    created = json.loads(stdout)
+    jira_key = created.get("key", "")
+    if not jira_key:
+        msg = f"ACLI create returned no key: {created}"
+        raise RuntimeError(msg)
+
+    verified = get_issue(jira_key=jira_key, acli_cmd=acli_cmd)
+    if not verified:
+        msg = f"Verify-after-create failed: issue {jira_key} not found"
+        raise RuntimeError(msg)
+
+    return verified
 
 
 def create_issue(
@@ -155,6 +184,46 @@ def create_issue(
             project, issue_type, summary, priority, acli_cmd=acli_cmd, **kwargs
         )
 
+    result = _create_issue_no_json(
+        project, issue_type, summary, acli_cmd=acli_cmd, **kwargs
+    )
+    # REVIEW-DEFENSE: The "cannot be assigned" error only occurs when an assignee
+    # field is present in the ACLI command. _create_issue_no_json returns None only
+    # on that specific permission error. When no assignee kwarg is provided, the
+    # --assignee flag is never sent, so this error cannot occur and result will
+    # always be a CompletedProcess (or an exception is raised). Therefore, no
+    # separate "result is None without assignee" branch is needed.
+    if result is None and kwargs.get("assignee"):
+        print(
+            "Warning: assignee cannot be assigned — retrying without assignee",
+            file=sys.stderr,
+        )
+        no_assignee_kwargs = {k: v for k, v in kwargs.items() if k != "assignee"}
+        result = _create_issue_no_json(
+            project, issue_type, summary, acli_cmd=acli_cmd, **no_assignee_kwargs
+        )
+        if result is None:
+            msg = "ACLI create failed on retry without assignee"
+            raise RuntimeError(msg)
+
+    assert result is not None  # Guaranteed: either we have a result or raised above
+    return _verify_created_issue(result.stdout, acli_cmd=acli_cmd)
+
+
+def _create_issue_no_json(
+    project: str,
+    issue_type: str,
+    summary: str,
+    *,
+    acli_cmd: list[str] | None = None,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess[str] | None:
+    """Build and run the non-JSON ACLI create command, returning the result.
+
+    Returns ``None`` if ACLI fails with a "cannot be assigned" permission
+    error so the caller can retry without the assignee field — matching
+    the same None-on-permission-error contract as ``_create_from_json_payload``.
+    """
     cmd = [
         "jira",
         "workitem",
@@ -170,20 +239,53 @@ def create_issue(
     for field in ("description", "assignee"):
         if field in kwargs and kwargs[field] is not None:
             cmd.extend([f"--{field}", str(kwargs[field])])
-    result = _run_acli(cmd, acli_cmd=acli_cmd)
-    created = json.loads(result.stdout)
+    try:
+        return _run_acli(cmd, acli_cmd=acli_cmd)
+    except subprocess.CalledProcessError as exc:
+        if exc.stderr and _ASSIGNEE_PERMISSION_ERROR in exc.stderr:
+            return None
+        raise
 
-    jira_key = created.get("key", "")
-    if not jira_key:
-        msg = f"ACLI create returned no key: {created}"
-        raise RuntimeError(msg)
 
-    verified = get_issue(jira_key=jira_key, acli_cmd=acli_cmd)
-    if not verified:
-        msg = f"Verify-after-create failed: issue {jira_key} not found"
-        raise RuntimeError(msg)
+def _create_from_json_payload(
+    payload: dict[str, Any],
+    *,
+    acli_cmd: list[str] | None = None,
+) -> subprocess.CompletedProcess[str] | None:
+    """Write *payload* to a temp file, run ACLI ``--from-json``, and return the result.
 
-    return verified
+    Returns ``None`` if ACLI fails with a "cannot be assigned" permission
+    error so the caller can retry without the assignee field.
+    """
+    fd, json_path = tempfile.mkstemp(suffix=".json", prefix="acli-create-")
+    try:
+        # REVIEW-DEFENSE: Exception control flow in the fd_owned guard is correct.
+        # os.fdopen transfers ownership of fd to the file object. After fdopen
+        # succeeds (fd_owned=True), the context manager's __exit__ closes fd —
+        # so os.close(fd) is correctly skipped. If fdopen itself fails
+        # (fd_owned=False), we must close fd manually. If json.dump raises after
+        # fdopen succeeded, the exception propagates through the inner except
+        # (which skips os.close because fd_owned=True), then through the outer
+        # try — the finally block runs os.unlink correctly. The outer except
+        # only catches CalledProcessError (from _run_acli), so json.dump
+        # exceptions propagate to the caller as-is.
+        fd_owned = False
+        try:
+            with os.fdopen(fd, "w") as f:
+                fd_owned = True  # fd is now owned by the file object
+                json.dump(payload, f)
+        except Exception:
+            if not fd_owned:
+                os.close(fd)
+            raise
+        cmd = ["jira", "workitem", "create", "--from-json", json_path, "--json"]
+        return _run_acli(cmd, acli_cmd=acli_cmd)
+    except subprocess.CalledProcessError as exc:
+        if exc.stderr and _ASSIGNEE_PERMISSION_ERROR in exc.stderr:
+            return None
+        raise
+    finally:
+        os.unlink(json_path)
 
 
 def _create_issue_from_json(
@@ -222,32 +324,28 @@ def _create_issue_from_json(
     if kwargs.get("assignee"):
         payload["assignee"] = str(kwargs["assignee"])
 
-    fd, json_path = tempfile.mkstemp(suffix=".json", prefix="acli-create-")
-    try:
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(payload, f)
-        except Exception:
-            # os.fdopen may raise before it takes ownership of fd; close it explicitly.
-            os.close(fd)
-            raise
-        cmd = ["jira", "workitem", "create", "--from-json", json_path, "--json"]
-        result = _run_acli(cmd, acli_cmd=acli_cmd)
-    finally:
-        os.unlink(json_path)
+    result = _create_from_json_payload(payload, acli_cmd=acli_cmd)
 
-    created = json.loads(result.stdout)
-    jira_key = created.get("key", "")
-    if not jira_key:
-        msg = f"ACLI create returned no key: {created}"
-        raise RuntimeError(msg)
+    # If the assignee field caused a permission error, retry without it.
+    # REVIEW-DEFENSE: _create_from_json_payload returns None only on
+    # _ASSIGNEE_PERMISSION_ERROR, which requires an assignee in the payload.
+    # When no assignee is present, the error cannot occur, so we only need
+    # the "assignee in payload" branch — no separate elif for result is None
+    # without assignee.
+    if result is None and "assignee" in payload:
+        print(
+            f"Warning: assignee '{payload['assignee']}' cannot be assigned — "
+            f"retrying without assignee",
+            file=sys.stderr,
+        )
+        del payload["assignee"]
+        result = _create_from_json_payload(payload, acli_cmd=acli_cmd)
+        if result is None:
+            msg = "ACLI create failed on retry without assignee"
+            raise RuntimeError(msg)
 
-    verified = get_issue(jira_key=jira_key, acli_cmd=acli_cmd)
-    if not verified:
-        msg = f"Verify-after-create failed: issue {jira_key} not found"
-        raise RuntimeError(msg)
-
-    return verified
+    assert result is not None  # Guaranteed: either we have a result or raised above
+    return _verify_created_issue(result.stdout, acli_cmd=acli_cmd)
 
 
 def transition_issue(
