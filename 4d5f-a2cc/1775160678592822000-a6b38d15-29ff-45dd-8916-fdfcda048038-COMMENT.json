@@ -1,0 +1,1 @@
+{"timestamp": 1775160678592822000, "uuid": "a6b38d15-29ff-45dd-8916-fdfcda048038", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: RED tests written for centrality scoring \u2014 14 behavioral tests covering high/low centrality, graceful degradation, status format, failure/timeout paths, commands.test path"}}
