@@ -1,1 +1,0 @@
-{"timestamp": 1775143546398318000, "uuid": "b7d4bf35-478f-4508-9683-1a8dc718fc7b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: 5 core wrapper commands created with detection logic"}}
