@@ -101,13 +101,13 @@ This means:
 - Only the main repo contains the actual `.git/` database; worktrees contain a pointer file
 
 ```
-/Users/joeoakhart/lockpick-doc-to-logic/       ← main repo
+/Users/joeoakhart/lockpick-doc-to-logic/       ← main repo  # portability-ok
   .git/              <-- actual git database lives here
     objects/
     refs/
     ...
 
-/Users/joeoakhart/lockpick-doc-to-logic-worktrees/  ← worktree parent (outside repo, derived from repo name)
+/Users/joeoakhart/lockpick-doc-to-logic-worktrees/  ← worktree parent (outside repo, derived from repo name)  # portability-ok
   feature-auth/
     .git             <-- file (not directory) pointing to main repo's .git/worktrees/feature-auth/
 ```
@@ -500,7 +500,7 @@ poetry install
 ### 3. Start Working
 
 ```bash
-cd /Users/joeoakhart/lockpick-doc-to-logic-worktrees/feature-auth
+cd /Users/joeoakhart/lockpick-doc-to-logic-worktrees/feature-auth  # portability-ok
 claude
 ```
 

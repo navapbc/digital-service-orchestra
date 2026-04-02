@@ -1,0 +1,36 @@
+# Digital Service Orchestra — Portability Smoke Test
+# Validates that the dso shim's sentinel self-detection works in a fresh Ubuntu environment.
+# No CLAUDE_PLUGIN_ROOT env var is set — relies entirely on sentinel self-detection (SC7).
+
+name: Portability Smoke Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  portability-smoke:
+    name: Portability Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout (full clone)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up ticket system
+        run: |
+          set -euo pipefail
+          git fetch origin tickets
+          git worktree add .tickets-tracker tickets
+
+      - name: Run dso ticket list
+        run: |
+          set -euo pipefail
+          .claude/scripts/dso ticket list
