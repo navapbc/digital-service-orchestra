@@ -1,1 +1,0 @@
-{"timestamp": 1775107455771227000, "uuid": "3eb3a720-f1b7-41e1-b9a9-58f88cbc42be", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Investigation error: ticket list DOES support --type/--status flags. Original command was correct. No fix needed."}}
