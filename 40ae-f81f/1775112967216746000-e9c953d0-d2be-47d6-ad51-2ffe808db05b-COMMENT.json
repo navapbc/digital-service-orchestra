@@ -1,1 +1,0 @@
-{"timestamp": 1775112967216746000, "uuid": "e9c953d0-d2be-47d6-ad51-2ffe808db05b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: pre-commit-test-gate.sh migrated to shared merge-state.sh library. 46/46 tests pass."}}
