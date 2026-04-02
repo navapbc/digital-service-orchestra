@@ -432,11 +432,210 @@ test_shim_no_fallback_to_workflow_config_conf() {
     fi
 }
 
+# ── test_shim_self_detects_via_sentinel ──────────────────────────────────────
+# RED phase (6d45-c859): When no CLAUDE_PLUGIN_ROOT env var is set and no
+# .claude/dso-config.conf is present, but plugins/dso/.claude-plugin/plugin.json
+# exists in the git repo, the shim must resolve DSO_ROOT to REPO_ROOT/plugins/dso.
+#
+# RED: The current shim has no sentinel step. DSO_ROOT will be UNSET (the shim
+# exits non-zero or leaves DSO_ROOT empty). This test fails until the sentinel
+# step is added to the shim.
+test_shim_self_detects_via_sentinel() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_shim_self_detects_via_sentinel (shim exists)" \
+            "exists" "missing"
+        return
+    fi
+
+    # Create a fake git repo with plugins/dso/.claude-plugin/plugin.json present.
+    # No CLAUDE_PLUGIN_ROOT env var, no .claude/dso-config.conf.
+    local fake_repo="$TMPDIR_BASE/fake-sentinel-detect"
+    mkdir -p "$fake_repo/plugins/dso/.claude-plugin"
+    git -C "$fake_repo" init -q
+    printf '{"name":"dso","version":"1.0.0"}\n' \
+        > "$fake_repo/plugins/dso/.claude-plugin/plugin.json"
+    git -C "$fake_repo" add plugins/dso/.claude-plugin/plugin.json
+    git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
+
+    local expected_dso_root="$fake_repo/plugins/dso"
+
+    # Source the shim in --lib mode from a clean environment (no CLAUDE_PLUGIN_ROOT,
+    # no dso-config.conf). The shim must detect the sentinel and set DSO_ROOT.
+    local actual_dso_root
+    actual_dso_root=$(
+        env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+            bash --noprofile --norc -c "
+                set -uo pipefail
+                cd '$fake_repo'
+                . '$SHIM' --lib 2>/dev/null
+                printf '%s' \"\${DSO_ROOT:-UNSET}\"
+            "
+    ) || true
+
+    # RED: DSO_ROOT will be UNSET because the shim has no sentinel step yet.
+    assert_eq "test_shim_self_detects_via_sentinel (DSO_ROOT equals sentinel path)" \
+        "$expected_dso_root" "$actual_dso_root"
+}
+
+# ── test_shim_sentinel_requires_plugin_json ───────────────────────────────────
+# RED phase (6d45-c859): The sentinel fallback must NOT activate when
+# plugins/dso/ exists but plugins/dso/.claude-plugin/plugin.json is absent.
+# The shim must exit non-zero or leave DSO_ROOT unset in this case.
+#
+# RED: The current shim has no sentinel step at all, so DSO_ROOT is always
+# UNSET when neither env var nor config is present. After the sentinel step is
+# added, this test ensures it requires the plugin.json file specifically.
+test_shim_sentinel_requires_plugin_json() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_shim_sentinel_requires_plugin_json (shim exists)" \
+            "exists" "missing"
+        return
+    fi
+
+    # Create a fake git repo with plugins/dso/ present but NO plugin.json.
+    local fake_repo="$TMPDIR_BASE/fake-sentinel-no-json"
+    mkdir -p "$fake_repo/plugins/dso"
+    git -C "$fake_repo" init -q
+    # Add a placeholder file so the directory is tracked but plugin.json is absent.
+    touch "$fake_repo/plugins/dso/.gitkeep"
+    git -C "$fake_repo" add plugins/dso/.gitkeep
+    git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
+
+    # Source the shim in --lib mode. Without plugin.json the sentinel must not fire.
+    local actual_dso_root
+    local actual_exit=0
+    actual_dso_root=$(
+        env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+            bash --noprofile --norc -c "
+                set -uo pipefail
+                cd '$fake_repo'
+                . '$SHIM' --lib 2>/dev/null
+                printf '%s' \"\${DSO_ROOT:-UNSET}\"
+            "
+    ) || actual_exit=$?
+
+    # After implementation: DSO_ROOT must be UNSET (or shim exits non-zero) because
+    # the sentinel file plugins/dso/.claude-plugin/plugin.json is absent.
+    if [[ "$actual_exit" -ne 0 ]]; then
+        # Shim exited non-zero — sentinel correctly did not resolve. Pass.
+        assert_eq "test_shim_sentinel_requires_plugin_json (no plugin.json → exit non-zero)" \
+            "non-zero" "non-zero"
+    else
+        assert_eq "test_shim_sentinel_requires_plugin_json (no plugin.json → DSO_ROOT unset)" \
+            "UNSET" "$actual_dso_root"
+    fi
+}
+
+# ── test_shim_sentinel_exports_claude_plugin_root ─────────────────────────────
+# RED phase (6d45-c859): When the sentinel resolves DSO_ROOT, the shim must
+# also export CLAUDE_PLUGIN_ROOT = DSO_ROOT so downstream scripts can rely on it.
+#
+# RED: No sentinel step exists yet; CLAUDE_PLUGIN_ROOT remains unset. This test
+# fails until the sentinel step is added and the existing CLAUDE_PLUGIN_ROOT
+# export guard is reached with the sentinel-resolved DSO_ROOT value.
+test_shim_sentinel_exports_claude_plugin_root() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_shim_sentinel_exports_claude_plugin_root (shim exists)" \
+            "exists" "missing"
+        return
+    fi
+
+    # Create a fake git repo with the sentinel present. No env var, no config.
+    local fake_repo="$TMPDIR_BASE/fake-sentinel-export"
+    mkdir -p "$fake_repo/plugins/dso/.claude-plugin"
+    git -C "$fake_repo" init -q
+    printf '{"name":"dso","version":"1.0.0"}\n' \
+        > "$fake_repo/plugins/dso/.claude-plugin/plugin.json"
+    git -C "$fake_repo" add plugins/dso/.claude-plugin/plugin.json
+    git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
+
+    local expected_value="$fake_repo/plugins/dso"
+
+    # Source the shim in --lib mode from a clean environment.
+    # Assert CLAUDE_PLUGIN_ROOT is exported and equals the expected sentinel path.
+    local actual_plugin_root
+    actual_plugin_root=$(
+        env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+            bash --noprofile --norc -c "
+                set -uo pipefail
+                cd '$fake_repo'
+                . '$SHIM' --lib 2>/dev/null
+                printf '%s' \"\${CLAUDE_PLUGIN_ROOT:-UNSET}\"
+            "
+    ) || true
+
+    # RED: CLAUDE_PLUGIN_ROOT will be UNSET because the shim has no sentinel step.
+    assert_eq "test_shim_sentinel_exports_claude_plugin_root (CLAUDE_PLUGIN_ROOT equals sentinel path)" \
+        "$expected_value" "$actual_plugin_root"
+}
+
+# ── test_discover_agents_resolves_routing_via_sentinel ────────────────────────
+# RED phase (6d45-c859): End-to-end test: after the shim resolves DSO_ROOT via
+# the sentinel, discover-agents.sh (which reads CLAUDE_PLUGIN_ROOT for its
+# default routing path) must exit 0 when a minimal agent-routing.conf is present.
+#
+# RED: No sentinel step exists; CLAUDE_PLUGIN_ROOT is unset; discover-agents.sh
+# exits 1 (missing routing conf). This test fails until the sentinel step lands.
+test_discover_agents_resolves_routing_via_sentinel() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_discover_agents_resolves_routing_via_sentinel (shim exists)" \
+            "exists" "missing"
+        return
+    fi
+
+    local discover_script="$PLUGIN_ROOT/plugins/dso/scripts/discover-agents.sh"
+    if [[ ! -f "$discover_script" ]]; then
+        assert_eq "test_discover_agents_resolves_routing_via_sentinel (discover-agents.sh exists)" \
+            "exists" "missing"
+        return
+    fi
+
+    # Create a fake git repo with:
+    #   - sentinel: plugins/dso/.claude-plugin/plugin.json
+    #   - minimal routing conf: plugins/dso/config/agent-routing.conf
+    # No CLAUDE_PLUGIN_ROOT, no .claude/dso-config.conf.
+    local fake_repo="$TMPDIR_BASE/fake-sentinel-discover"
+    mkdir -p "$fake_repo/plugins/dso/.claude-plugin"
+    mkdir -p "$fake_repo/plugins/dso/config"
+    git -C "$fake_repo" init -q
+    printf '{"name":"dso","version":"1.0.0"}\n' \
+        > "$fake_repo/plugins/dso/.claude-plugin/plugin.json"
+    # Minimal agent-routing.conf: one category entry so discover-agents.sh runs cleanly.
+    printf 'general-purpose=general-purpose\n' \
+        > "$fake_repo/plugins/dso/config/agent-routing.conf"
+    git -C "$fake_repo" add plugins/
+    git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
+
+    # Source the shim (to get CLAUDE_PLUGIN_ROOT set via sentinel), then run
+    # discover-agents.sh with the sentinel-resolved routing conf path.
+    local actual_exit=1
+    env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+        bash --noprofile --norc -c "
+            set -uo pipefail
+            cd '$fake_repo'
+            . '$SHIM' --lib 2>/dev/null
+            # discover-agents.sh uses \${CLAUDE_PLUGIN_ROOT:-}/config/agent-routing.conf
+            # by default. With sentinel resolving CLAUDE_PLUGIN_ROOT, the path should
+            # point to the fake repo's routing conf.
+            '$discover_script' --routing \"\${CLAUDE_PLUGIN_ROOT:-}/config/agent-routing.conf\" \
+                --settings /dev/null 2>/dev/null
+        " && actual_exit=0 || true
+
+    # RED: discover-agents.sh exits non-zero because CLAUDE_PLUGIN_ROOT is unset
+    # (no sentinel step), so the routing conf path is empty and the file is not found.
+    assert_eq "test_discover_agents_resolves_routing_via_sentinel (exit 0 after sentinel resolution)" \
+        "0" "$actual_exit"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_shim_preserves_claude_plugin_root_when_preset
 test_shim_does_not_clobber_preset_with_config_value
 test_shim_unconditional_reexport_detection
 test_shim_reads_plugin_root_from_dot_claude_dso_config
 test_shim_no_fallback_to_workflow_config_conf
+test_shim_self_detects_via_sentinel
+test_shim_sentinel_requires_plugin_json
+test_shim_sentinel_exports_claude_plugin_root
+test_discover_agents_resolves_routing_via_sentinel
 
 print_summary
