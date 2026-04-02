@@ -1,1 +1,0 @@
-{"timestamp": 1775114302737818000, "uuid": "0f27cd79-9586-4d09-ad3c-4cc3b5daa66f", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 5/6: Tests verified \u2014 bash tests/scripts/test-dso-setup.sh: PASSED 64 FAILED 0 (exit 0) \u2713; grep -q 'merge-state.sh' plugins/dso/scripts/dso-setup.sh \u2713"}}
