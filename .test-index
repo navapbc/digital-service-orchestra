@@ -238,3 +238,6 @@ plugins/dso/skills/fix-bug/prompts/anti-pattern-fix-batch.md:tests/scripts/test-
 .claude/commands/sprint.md: tests/scripts/test-wrapper-parity.sh
 plugins/dso/scripts/check-portability.sh: tests/scripts/test-check-portability.sh
 plugins/dso/hooks/lib/merge-state.sh: tests/hooks/test-merge-state.sh, tests/hooks/test-merge-state-golden-path.sh
+plugins/dso/skills/shared/prompts/prior-art-search.md: tests/scripts/test-prior-art-search-structure.sh
+plugins/dso/skills/fix-bug/SKILL.md: tests/scripts/test-prior-art-search-consumers.sh
+plugins/dso/skills/shared/evals/promptfooconfig.yaml: tests/scripts/test-prior-art-search-eval.sh
