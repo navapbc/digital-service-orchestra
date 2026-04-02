@@ -1,1 +1,0 @@
-{"timestamp": 1775089621627251000, "uuid": "ffc08c51-ea7b-4333-a91e-5f6374a59186", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "AC amendment (gap analysis): Also add tests/hooks/test-classifier-config-file-floor.sh to cleanup scope \u2014 uses CLASSIFIER_GIT_DIR which becomes no-op after T8."}}
