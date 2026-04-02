@@ -1,0 +1,1 @@
+{"timestamp": 1775146113, "uuid": "ef69f701-7dd1-4863-8a7a-8810255d5537", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Blocker ticket (open)", "parent_id": "", "description": "", "priority": 2, "assignee": "Test"}}
