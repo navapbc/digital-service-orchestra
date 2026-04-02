@@ -1,1 +1,0 @@
-{"timestamp": 1775160688727696000, "uuid": "8452da86-03cc-4f92-9927-67cac0b1819c", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Centrality-aware test gate \u2014 record-test-status.sh computes fan-in scores, triggers full suite when threshold exceeded, graceful degradation, 14 tests"}}
