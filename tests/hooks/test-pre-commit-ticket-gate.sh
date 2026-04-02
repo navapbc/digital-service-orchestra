@@ -311,10 +311,12 @@ test_merge_commit_exempt() {
     # Commit message with no ticket ID — would block if MERGE_HEAD exemption didn't apply
     _msg_file=$(make_commit_msg_file "Merge branch 'main' into feature-branch")
 
-    # Write MERGE_HEAD to simulate an in-progress merge
-    local _head_sha
-    _head_sha=$(git -C "$_repo" rev-parse HEAD 2>/dev/null)
-    echo "$_head_sha" > "$_repo/.git/MERGE_HEAD"
+    # Write MERGE_HEAD to simulate an in-progress merge.
+    # Use a fake SHA that differs from HEAD so ms_is_merge_in_progress does not
+    # reject it via the MERGE_HEAD==HEAD self-referencing guard. An unresolvable
+    # SHA triggers the fail-open path in ms_is_merge_in_progress (returns 0 =
+    # merge in progress), which is the correct behavior for this exemption test.
+    echo "0000000000000000000000000000000000000001" > "$_repo/.git/MERGE_HEAD"
 
     stage_source_file "$_repo"
 

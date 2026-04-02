@@ -37,6 +37,17 @@ if [[ -n "$DEPS_PATH" ]]; then
     source "$DEPS_PATH"
 fi
 
+# Source merge-state.sh for ms_is_merge_in_progress and ms_is_rebase_in_progress
+# _MERGE_STATE_GIT_DIR env var is the test isolation seam (replaces legacy MOCK_MERGE_HEAD,
+# MOCK_REBASE_HEAD, and CLASSIFIER_GIT_DIR overrides).
+if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh" ]]; then
+    source "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh"
+elif [[ -f "$SCRIPT_DIR/../hooks/lib/merge-state.sh" ]]; then
+    source "$SCRIPT_DIR/../hooks/lib/merge-state.sh"
+elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh" ]]; then
+    source "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh"
+fi
+
 # --- Read diff from stdin ---
 DIFF_CONTENT="$(cat)"
 if [[ -z "$DIFF_CONTENT" ]]; then
@@ -452,27 +463,22 @@ _diff_size_lines_raw() {
 # Merge commit detection
 # ============================================================
 _is_merge_commit() {
-    # TEST ONLY: MOCK_MERGE_HEAD env var for test isolation — do not use in production
-    if [[ "${MOCK_MERGE_HEAD:-}" == "1" ]]; then
-        return 0
+    # Delegate to merge-state.sh library functions when available.
+    # _MERGE_STATE_GIT_DIR env var is the test isolation seam — tests set it to
+    # a temp repo's .git dir so detection does not leak from the real worktree.
+    if declare -f ms_is_merge_in_progress &>/dev/null; then
+        ms_is_merge_in_progress && return 0
+    fi
+    if declare -f ms_is_rebase_in_progress &>/dev/null; then
+        ms_is_rebase_in_progress && return 0
     fi
 
-    # TEST ONLY: MOCK_REBASE_HEAD env var for test isolation — do not use in production
-    if [[ "${MOCK_REBASE_HEAD:-}" == "1" ]]; then
-        return 0
-    fi
-
-    # Check .git/MERGE_HEAD file
-    # CLASSIFIER_GIT_DIR: test isolation seam — when set, use this git dir instead
-    # of the real one. Tests set this to a temp repo's .git dir so _is_merge_commit
-    # doesn't leak MERGE_HEAD from the real worktree during merge operations.
+    # Fallback: direct git-dir checks when merge-state.sh is not available.
     local git_dir
-    git_dir="${CLASSIFIER_GIT_DIR:-$(git rev-parse --git-dir 2>/dev/null || echo "")}"
+    git_dir="${_MERGE_STATE_GIT_DIR:-$(git rev-parse --git-dir 2>/dev/null || echo "")}"
     if [[ -n "$git_dir" && -s "$git_dir/MERGE_HEAD" ]]; then
         return 0
     fi
-
-    # Check .git/REBASE_HEAD file (interactive or non-interactive rebase in progress)
     if [[ -n "$git_dir" && -f "$git_dir/REBASE_HEAD" ]]; then
         return 0
     fi

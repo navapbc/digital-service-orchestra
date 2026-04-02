@@ -46,6 +46,9 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source shared dependency library (provides _load_allowlist_patterns, _allowlist_to_grep_regex, get_artifacts_dir)
 source "$HOOK_DIR/lib/deps.sh"
 
+# Source shared merge/rebase state library (provides ms_is_merge_in_progress, etc.)
+source "$HOOK_DIR/lib/merge-state.sh"
+
 # ── Read commit message ──────────────────────────────────────────────────────
 # Supports COMMIT_MSG_FILE_OVERRIDE for test injection; falls back to $1 (git standard).
 _COMMIT_MSG_FILE="${COMMIT_MSG_FILE_OVERRIDE:-${1:-}}"
@@ -56,8 +59,10 @@ fi
 COMMIT_MSG=$(cat "$_COMMIT_MSG_FILE" 2>/dev/null || echo "")
 
 # ── Merge commit exemption ────────────────────────────────────────────────────
-# When MERGE_HEAD exists (in-progress merge), exit 0 unconditionally.
-if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]]; then
+# When a merge is in progress (MERGE_HEAD exists and is not self-referencing),
+# exit 0 unconditionally. Uses ms_is_merge_in_progress from merge-state.sh
+# which includes the MERGE_HEAD==HEAD guard to prevent bypass via fake MERGE_HEAD.
+if ms_is_merge_in_progress; then
     exit 0
 fi
 

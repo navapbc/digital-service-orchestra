@@ -45,6 +45,41 @@ teardown_temp_dir() {
     [[ -n "${TEST_TMPDIR:-}" ]] && rm -rf "$TEST_TMPDIR"
 }
 
+# Create a temp git dir with a fake MERGE_HEAD file for merge-state isolation.
+# Returns the .git dir path on stdout.
+# Usage: local git_dir; git_dir=$(make_merge_head_git_dir)
+make_merge_head_git_dir() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    git -C "$tmpdir" init -q -b main 2>/dev/null
+    git -C "$tmpdir" config user.email "test@test" 2>/dev/null
+    git -C "$tmpdir" config user.name "test" 2>/dev/null
+    git -C "$tmpdir" config core.hooksPath /dev/null 2>/dev/null
+    touch "$tmpdir/.gitkeep"
+    git -C "$tmpdir" add -A 2>/dev/null
+    git -C "$tmpdir" commit -q -m "init" 2>/dev/null
+    # Write a fake MERGE_HEAD that does NOT equal HEAD (to pass the MERGE_HEAD==HEAD guard)
+    # Use a SHA that looks valid but is not the current HEAD
+    echo "0000000000000000000000000000000000000001" > "$tmpdir/.git/MERGE_HEAD"
+    echo "$tmpdir/.git"
+}
+
+# Create a temp git dir with a fake REBASE_HEAD file for rebase-state isolation.
+# Returns the .git dir path on stdout.
+make_rebase_head_git_dir() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    git -C "$tmpdir" init -q -b main 2>/dev/null
+    git -C "$tmpdir" config user.email "test@test" 2>/dev/null
+    git -C "$tmpdir" config user.name "test" 2>/dev/null
+    git -C "$tmpdir" config core.hooksPath /dev/null 2>/dev/null
+    touch "$tmpdir/.gitkeep"
+    git -C "$tmpdir" add -A 2>/dev/null
+    git -C "$tmpdir" commit -q -m "init" 2>/dev/null
+    echo "0000000000000000000000000000000000000001" > "$tmpdir/.git/REBASE_HEAD"
+    echo "$tmpdir/.git"
+}
+
 # Create a minimal git diff fixture in TEST_TMPDIR
 # Usage: create_diff_fixture "filename" "diff_content"
 create_diff_fixture() {
@@ -75,7 +110,7 @@ run_classifier() {
         # Use CLASSIFIER_GIT_DIR to isolate _is_merge_commit from the real
         # worktree's MERGE_HEAD — each test gets its own temp git repo from
         # setup_temp_dir, ensuring parallel runs don't interfere.
-        CLASSIFIER_OUTPUT=$(REPO_ROOT="$REPO_ROOT" CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+        CLASSIFIER_OUTPUT=$(REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
     else
         # Classifier doesn't exist — simulate failure for RED tests
         CLASSIFIER_EXIT=127
@@ -659,11 +694,10 @@ test_classifier_size_action_none_for_generated_files() {
 }
 
 test_classifier_is_merge_commit_false_default() {
-    # Normal diff (no MOCK_MERGE_HEAD) → is_merge_commit = false
+    # Normal diff (no merge/rebase state) → is_merge_commit = false
     setup_temp_dir
     local diff_file
     diff_file=$(create_diff_fixture "src/foo.py" "+print('hello')")
-    unset MOCK_MERGE_HEAD 2>/dev/null || true
     run_classifier "$diff_file"
 
     local is_merge="true"
@@ -675,7 +709,7 @@ v=d.get('is_merge_commit',True)
 print(str(v).lower() if isinstance(v,bool) else str(v))
 " "$CLASSIFIER_OUTPUT" 2>/dev/null || echo "true")
     fi
-    assert_eq "normal diff has is_merge_commit=false" "false" "$is_merge"
+    assert_eq "normal diff (no merge/rebase state) has is_merge_commit=false" "false" "$is_merge"
     teardown_temp_dir
 }
 
@@ -744,17 +778,20 @@ print(str(v).lower() if isinstance(v,bool) else str(v))
 }
 
 test_classifier_is_merge_commit_size_action_none() {
-    # When MOCK_MERGE_HEAD=1, size_action = "none" even with 600+ lines
+    # When merge is in progress (_MERGE_STATE_GIT_DIR pointing to repo with MERGE_HEAD),
+    # size_action = "none" even with 600+ lines
     setup_temp_dir
-    local diff_file
+    local diff_file merge_git_dir
     diff_file=$(create_n_line_diff 600 "src/foo.py")
-    MOCK_MERGE_HEAD=1 run_classifier "$diff_file"
+    merge_git_dir=$(make_merge_head_git_dir)
+    TEST_GIT_DIR="$merge_git_dir" run_classifier "$diff_file"
 
     local size_action=""
     if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
         size_action=$(json_field "size_action" "$CLASSIFIER_OUTPUT")
     fi
-    assert_eq "merge commit (MOCK_MERGE_HEAD=1) with 600 lines has size_action=none" "none" "$size_action"
+    assert_eq "merge commit (_MERGE_STATE_GIT_DIR with MERGE_HEAD) with 600 lines has size_action=none" "none" "$size_action"
+    rm -rf "$(dirname "$merge_git_dir")" 2>/dev/null || true
     teardown_temp_dir
 }
 
@@ -798,10 +835,11 @@ test_classifier_merge_commit_floor_upgrades_light_to_standard() {
     # A merge commit with a low-scoring diff (would normally be light tier)
     # must be upgraded to at least standard tier.
     setup_temp_dir
-    local diff_file
+    local diff_file merge_git_dir
     # Single-line diff in a non-critical file = light tier normally
     diff_file=$(create_diff_fixture "README.md" "+minor edit")
-    MOCK_MERGE_HEAD=1 run_classifier "$diff_file"
+    merge_git_dir=$(make_merge_head_git_dir)
+    TEST_GIT_DIR="$merge_git_dir" run_classifier "$diff_file"
 
     local tier=""
     if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
@@ -809,6 +847,7 @@ test_classifier_merge_commit_floor_upgrades_light_to_standard() {
     fi
     # Merge commits must NEVER be light — floor is standard
     assert_ne "merge commit floor: tier is not light" "light" "$tier"
+    rm -rf "$(dirname "$merge_git_dir")" 2>/dev/null || true
     teardown_temp_dir
 }
 
@@ -1329,22 +1368,21 @@ test_performance_overlay_false_for_non_performance_path  # GREEN: hardcoded fals
 test_performance_overlay_field_present_in_output_schema  # GREEN: field already present in schema
 
 # ============================================================
-# Rebase commit detection (RED — task 1bf5-9563)
+# Rebase commit detection (task 1bf5-9563)
 # ============================================================
-# _is_merge_commit() only checks MERGE_HEAD / MOCK_MERGE_HEAD.
-# It does not yet check REBASE_HEAD / MOCK_REBASE_HEAD.
-# These tests are RED until _is_merge_commit() is updated.
+# _is_merge_commit() now delegates to ms_is_rebase_in_progress() from merge-state.sh.
+# Test isolation uses _MERGE_STATE_GIT_DIR pointing to a temp git dir with REBASE_HEAD.
 
 test_classifier_detects_rebase_commit() {
-    # When MOCK_REBASE_HEAD=1 is set, the classifier must emit is_merge_commit=true.
-    # This is RED: _is_merge_commit() does not yet check MOCK_REBASE_HEAD, so
-    # is_merge_commit will be false, causing this assertion to fail.
+    # When _MERGE_STATE_GIT_DIR points to a repo with REBASE_HEAD, the classifier
+    # must emit is_merge_commit=true.
     setup_temp_dir
-    local diff_file
+    local diff_file rebase_git_dir
     diff_file=$(create_diff_fixture "src/utils/helpers.py" "+def noop(): pass")
+    rebase_git_dir=$(make_rebase_head_git_dir)
 
     local is_merge
-    is_merge=$(MOCK_REBASE_HEAD=1 bash "$CLASSIFIER" < "$diff_file" 2>/dev/null \
+    is_merge=$(_MERGE_STATE_GIT_DIR="$rebase_git_dir" REPO_ROOT="$REPO_ROOT" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null \
         | python3 -c "
 import json,sys
 d=json.loads(sys.stdin.read())
@@ -1352,12 +1390,12 @@ v=d.get('is_merge_commit', False)
 print(str(v).lower() if isinstance(v,bool) else str(v))
 " 2>/dev/null || echo "false")
 
-    assert_eq "rebase commit (MOCK_REBASE_HEAD=1) sets is_merge_commit=true" "true" "$is_merge"
+    assert_eq "rebase commit (_MERGE_STATE_GIT_DIR with REBASE_HEAD) sets is_merge_commit=true" "true" "$is_merge"
+    rm -rf "$(dirname "$rebase_git_dir")" 2>/dev/null || true
     teardown_temp_dir
 }
 
-# Rebase detection (RED — task 1bf5-9563)
-# _is_merge_commit() ignores MOCK_REBASE_HEAD — is_merge_commit is false instead of true.
-test_classifier_detects_rebase_commit  # RED: MOCK_REBASE_HEAD not yet checked in _is_merge_commit()
+# Rebase detection — now GREEN with merge-state.sh delegation
+test_classifier_detects_rebase_commit  # GREEN: _is_merge_commit() delegates to ms_is_rebase_in_progress()
 
 print_summary
