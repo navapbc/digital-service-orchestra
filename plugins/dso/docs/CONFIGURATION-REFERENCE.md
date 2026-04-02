@@ -1,5 +1,5 @@
 ---
-last_synced_commit: 4c57c6e8800576a045b6014065dcf5a266b43924
+last_synced_commit: cae021ba4ae077a7a0a8b5d2fced728204bdb610
 ---
 
 # Configuration Reference
@@ -47,10 +47,10 @@ Schema: `docs/workflow-config-schema.json`
 
 | | |
 |---|---|
-| **Description** | Explicitly declares the project stack. When absent, `.claude/scripts/dso detect-stack.sh` auto-detects from marker files: `pyproject.toml` → `python-poetry`; `package.json` → `node-npm`; `Cargo.toml` → `rust-cargo`; `go.mod` → `golang`; `Makefile` → `convention-based`. |
-| **Accepted values** | `python-poetry`, `node-npm`, `rust-cargo`, `golang`, `convention-based` |
+| **Description** | Explicitly declares the project stack. When absent, `.claude/scripts/dso detect-stack.sh` auto-detects from marker files: `pyproject.toml` → `python-poetry`; `package.json` → `node-npm`; `Cargo.toml` → `rust-cargo`; `go.mod` → `golang`; `Gemfile` + `config/routes.rb` → `ruby-rails`; `Gemfile` + `_config.yml` → `ruby-jekyll`; `Makefile` → `convention-based`. Written automatically by `/dso:onboarding` Phase 3 Step 2b using the `$STACK_OUT` value from `detect-stack.sh`. |
+| **Accepted values** | `python-poetry`, `node-npm`, `rust-cargo`, `golang`, `ruby-rails`, `ruby-jekyll`, `convention-based`, `unknown` |
 | **Default** | Auto-detected |
-| **Used by** | `.claude/scripts/dso detect-stack.sh`, all skills that resolve commands |
+| **Used by** | `.claude/scripts/dso detect-stack.sh`, all skills that resolve commands, `/dso:onboarding` (Phase 3 config generation) |
 
 ---
 
@@ -135,7 +135,7 @@ Schema: `docs/workflow-config-schema.json`
 
 | | |
 |---|---|
-| **Description** | Display name of the fast-gate CI job. Checked first on any failure for early exit. Must match the `name:` field in your CI workflow file exactly. |
+| **Description** | Display name of the fast-gate CI job. Checked first on any failure for early exit. Must match the `name:` field in your CI workflow file exactly. Written by `/dso:onboarding` Phase 3 Step 2b using `project-detect.sh` `ci_workflow_names` output. |
 | **Accepted values** | String matching the CI job name |
 | **Default** | `Fast Gate` |
 | **Used by** | `.claude/scripts/dso ci-status.sh` |
@@ -146,7 +146,7 @@ Schema: `docs/workflow-config-schema.json`
 
 | | |
 |---|---|
-| **Description** | Display name of the job whose `timeout-minutes` defines the end of the fast-fail polling phase. Must match the `name:` field in your CI workflow file exactly. |
+| **Description** | Display name of the job whose `timeout-minutes` defines the end of the fast-fail polling phase. Must match the `name:` field in your CI workflow file exactly. Written by `/dso:onboarding` Phase 3 Step 2b using `project-detect.sh` `ci_workflow_names` output. |
 | **Accepted values** | String matching the CI job name |
 | **Default** | Same as `ci.fast_gate_job` |
 | **Used by** | `.claude/scripts/dso ci-status.sh` |
@@ -157,7 +157,7 @@ Schema: `docs/workflow-config-schema.json`
 
 | | |
 |---|---|
-| **Description** | Display name of the job whose `timeout-minutes` defines the end of the test polling phase. Must match the `name:` field in your CI workflow file exactly. |
+| **Description** | Display name of the job whose `timeout-minutes` defines the end of the test polling phase. Must match the `name:` field in your CI workflow file exactly. Written by `/dso:onboarding` Phase 3 Step 2b using `project-detect.sh` `ci_workflow_names` output. |
 | **Accepted values** | String matching the CI job name |
 | **Default** | `Unit Tests` |
 | **Used by** | `.claude/scripts/dso ci-status.sh` |
@@ -202,10 +202,10 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 | | |
 |---|---|
-| **Description** | GitHub Actions workflow name for integration test status checks. Used to poll the integration workflow separately from the main CI workflow. When absent, integration workflow status checks are skipped. |
+| **Description** | GitHub Actions workflow filename for integration test status checks. Used to poll the integration workflow separately from the main CI workflow. When absent, integration workflow status checks are skipped. Distinct from `ci.workflow_name`: `ci.workflow_name` is the primary CI workflow for `merge-to-main.sh` trigger recovery; `ci.integration_workflow` is the integration test workflow polled by `/dso:sprint` Phase 6 and `ci-status.sh`. They may reference the same file or different ones. Written by `/dso:onboarding` Phase 3 Step 2b using a confidence-gated selection: when `project-detect.sh` returns `ci_workflow_confidence=high` with a single detected workflow, the value is written automatically; when confidence is low or multiple workflows are detected, the user is shown a numbered selection dialogue to identify which workflow serves which purpose. |
 | **Accepted values** | Exact workflow name string (e.g., `Integration Tests`) |
 | **Default** | Absent — integration checks skipped |
-| **Used by** | `.claude/scripts/dso ci-status.sh`, validate-work skill |
+| **Used by** | `.claude/scripts/dso ci-status.sh`, validate-work skill, `/dso:onboarding` (Phase 3 config generation) |
 
 ---
 
@@ -914,10 +914,10 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 
 | | |
 |---|---|
-| **Description** | Path to the file that holds this project's semver string, relative to repo root. When absent, `.claude/scripts/dso bump-version.sh` skips version bumping entirely. Supported formats: `.json` → reads/writes the `version` key; `.toml` → reads/writes the `version` field; plaintext/no extension → single semver line (entire file content). |
+| **Description** | Path to the file that holds this project's semver string, relative to repo root. When absent, `.claude/scripts/dso bump-version.sh` skips version bumping entirely. Supported formats: `.json` → reads/writes the `version` key; `.toml` → reads/writes the `version` field; plaintext/no extension → single semver line (entire file content). Written by `/dso:onboarding` Phase 3 Step 2b using `project-detect.sh` `version_files` output: when one file is detected, the path is written automatically; when two or more are detected, the user is shown a numbered selection dialogue to choose the canonical version file; when none are detected, the key is omitted with an explanatory comment. |
 | **Accepted values** | Relative file path |
 | **Default** | Absent — version bumping skipped |
-| **Used by** | `.claude/scripts/dso bump-version.sh` |
+| **Used by** | `.claude/scripts/dso bump-version.sh`, `/dso:onboarding` (Phase 3 config generation) |
 
 ---
 
