@@ -233,7 +233,9 @@ test_is_merge_in_progress_detects_merge_head() {
         "1" "$(test -f "$merge_git_dir/MERGE_HEAD" && echo 1 || echo 0)"
 
     result=0
-    _MERGE_STATE_GIT_DIR="$merge_git_dir" ms_is_merge_in_progress || result=$?
+    # cd into the temp repo so git rev-parse HEAD (inside ms_is_merge_in_progress)
+    # resolves against the correct repo — not the ambient worktree HEAD.
+    (cd "$merge_repo" && _MERGE_STATE_GIT_DIR="$merge_git_dir" ms_is_merge_in_progress) || result=$?
     assert_eq "test_is_merge_in_progress_detects_merge_head: returns 0 when MERGE_HEAD present" \
         "0" "$result"
     assert_pass_if_clean "test_is_merge_in_progress_detects_merge_head"
@@ -249,7 +251,9 @@ test_is_merge_in_progress_returns_false_when_no_merge() {
         "0" "$(test -f "$clean_git_dir/MERGE_HEAD" && echo 1 || echo 0)"
 
     result=0
-    _MERGE_STATE_GIT_DIR="$clean_git_dir" ms_is_merge_in_progress && result=0 || result=$?
+    # cd into the temp repo so git rev-parse HEAD (inside ms_is_merge_in_progress)
+    # resolves against the correct repo — not the ambient worktree HEAD.
+    (cd "$clean_repo" && _MERGE_STATE_GIT_DIR="$clean_git_dir" ms_is_merge_in_progress) && result=0 || result=$?
     assert_ne "test_is_merge_in_progress_returns_false_when_no_merge: returns non-zero when no MERGE_HEAD" \
         "0" "$result"
     assert_pass_if_clean "test_is_merge_in_progress_returns_false_when_no_merge"
