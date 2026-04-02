@@ -17,6 +17,7 @@ set -uo pipefail
 #  11. Prunable git worktrees
 #  12. (removed — Python tool cache cleanup is tech-stack specific)
 #  13. Playwright MCP state and worktree .tmp/ dirs
+#  15. Orphan temp files from workflow scripts (>24h old)
 #
 # NOT cleaned by this script (handled by /dso:retro triage phase):
 #   - ~/.claude/hook-error-log.jsonl (must be triaged into bugs first)
@@ -106,6 +107,7 @@ WORKTREES_PRUNED=0
 PLAYWRIGHT_CLEANED=0
 TMP_DIRS_CLEANED=0
 STATE_FILES_CLEANED=0
+ORPHAN_TEMPS_CLEANED=0
 
 # gc_stale_state_files
 # Removes state files older than 24 hours from /tmp/workflow-plugin-*/
@@ -545,8 +547,122 @@ else
     fi
 fi
 
+# 15. Clean orphan temp files from workflow scripts (>24h old)
+log ""
+log "Checking for orphan workflow temp files (>24h old)..."
+
+# Cleanup log: record what we remove for future prevention analysis
+CLEANUP_LOG_DIR="${HOME}/.claude/cleanup-logs"
+mkdir -p "$CLEANUP_LOG_DIR" 2>/dev/null || true
+CLEANUP_LOG="${CLEANUP_LOG_DIR}/cleanup-$(date +%Y%m%d-%H%M%S).log"
+
+_log_and_remove() {
+    local path="$1"
+    local category="$2"
+    local mtime_epoch
+    mtime_epoch=$(stat -f '%m' "$path" 2>/dev/null || echo "unknown")
+    echo "$(date -Iseconds) REMOVE category=$category path=$path mtime_epoch=$mtime_epoch" >> "$CLEANUP_LOG" 2>/dev/null || true
+    ORPHAN_TEMPS_CLEANED=$((ORPHAN_TEMPS_CLEANED + 1))
+    if [ $DRY_RUN -eq 1 ]; then
+        log_action "  Would remove [$category] $path"
+    else
+        rm -rf "$path" 2>/dev/null || true
+    fi
+}
+
+# Single find call: collect all stale workflow temp files/dirs (>24h old) in one pass.
+# -L follows /tmp -> /private/tmp symlink on macOS; -maxdepth 1 keeps this fast.
+_ORPHAN_CANDIDATES=$(find -L /tmp -maxdepth 1 -mmin +1440 \( \
+    -name "merge-to-main-state-*.json" \
+    -o -name "merge-to-main-lock-*" \
+    -o -name "merge-state-init-marker-*" \
+    -o -name "test-batched-state*.json" \
+    -o -name "test-batched-exit-*" \
+    -o -name "test-batched-bash-*" \
+    -o -name "test-batched-pytest-*" \
+    -o -name "test-batched-node-*" \
+    -o -name "lw-smoke-*" \
+    -o -name "hook-timing.log" \
+    -o -name "claude-hook-syntax-err.*" \
+    -o -name "rts-output-*" \
+    -o -name "file-overlap.*" \
+    -o -name "validate-*.out" \
+    -o -name "validate-*.exit" \
+    -o -name ".validate-phase-ts" \
+    -o -name "validate-phase-test-state.json" \
+    -o -name "ticket-compact-sync-err.*" \
+    -o -name ".ticket-sync-*" \
+    -o -name "dso-blackboard-*" \
+    -o -name "workflow-nohup-pids" \
+    -o -name "workflow-plugin-migration-*.lock" \
+\) 2>/dev/null || true)
+
+# Category map for log classification (prefix-based)
+_classify_orphan() {
+    local name
+    name=$(basename "$1")
+    case "$name" in
+        merge-to-main-state-*)         echo "merge-state" ;;
+        merge-to-main-lock-*)          echo "merge-lock" ;;
+        merge-state-init-marker-*)     echo "merge-init-marker" ;;
+        test-batched-state*)           echo "test-batched-state" ;;
+        test-batched-exit-*)           echo "test-batched-exit" ;;
+        test-batched-bash-*|test-batched-pytest-*|test-batched-node-*) echo "test-batched-runner" ;;
+        lw-smoke-*)                    echo "smoke-test" ;;
+        hook-timing.log)               echo "hook-timing" ;;
+        claude-hook-syntax-err.*)      echo "hook-syntax-err" ;;
+        rts-output-*)                  echo "rts-output" ;;
+        file-overlap.*)                echo "file-overlap" ;;
+        validate-*.out|validate-*.exit) echo "validate-bg" ;;
+        .validate-phase-ts)            echo "validate-phase-ts" ;;
+        validate-phase-test-state.json) echo "validate-phase-state" ;;
+        ticket-compact-sync-err.*)     echo "ticket-compact-sync" ;;
+        .ticket-sync-*)                echo "ticket-sync-marker" ;;
+        dso-blackboard-*)              echo "blackboard" ;;
+        workflow-nohup-pids)           echo "nohup-pid-dir" ;;
+        workflow-plugin-migration-*.lock) echo "plugin-migration-lock" ;;
+        *)                             echo "unknown" ;;
+    esac
+}
+
+if [ -n "$_ORPHAN_CANDIDATES" ]; then
+    while IFS= read -r _candidate; do
+        [ -e "$_candidate" ] || continue
+        _log_and_remove "$_candidate" "$(_classify_orphan "$_candidate")"
+    done <<< "$_ORPHAN_CANDIDATES"
+fi
+
+# Also clean stale entries inside nohup PID registry (if it survived the above)
+if [ -d /tmp/workflow-nohup-pids ]; then
+    _STALE_NOHUP=$(find -L /tmp/workflow-nohup-pids -maxdepth 1 -name "*.entry" -mmin +1440 2>/dev/null || true)
+    if [ -n "$_STALE_NOHUP" ]; then
+        while IFS= read -r _entry; do
+            [ -f "$_entry" ] || continue
+            _log_and_remove "$_entry" "nohup-pid-entry"
+        done <<< "$_STALE_NOHUP"
+    fi
+    # Remove dir if now empty
+    if [ -d /tmp/workflow-nohup-pids ]; then
+        _remaining=$(find /tmp/workflow-nohup-pids -maxdepth 1 -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$_remaining" -eq 0 ]; then
+            _log_and_remove /tmp/workflow-nohup-pids "nohup-pid-dir-empty"
+        fi
+    fi
+fi
+
+if [ $ORPHAN_TEMPS_CLEANED -gt 0 ]; then
+    if [ $DRY_RUN -eq 1 ]; then
+        log_action "  Would remove $ORPHAN_TEMPS_CLEANED orphan temp file(s)/dir(s) — see $CLEANUP_LOG"
+    else
+        log_action "  Removed $ORPHAN_TEMPS_CLEANED orphan temp file(s)/dir(s) — logged to $CLEANUP_LOG"
+    fi
+else
+    log "  No orphan workflow temp files found"
+    rm -f "$CLEANUP_LOG" 2>/dev/null || true  # Don't leave empty log files
+fi
+
 # Summary
-TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED + STATE_FILES_CLEANED))
+TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED + STATE_FILES_CLEANED + ORPHAN_TEMPS_CLEANED))
 
 if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
     # Summary-only mode: single line when clean, brief list when not
@@ -560,6 +676,7 @@ if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
         [ $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) -gt 0 ] && echo "  Dead worktree state removed: $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
         [ "$DEBUG_LOGS_CLEANED" -gt 0 ] && echo "  Debug logs removed: $DEBUG_LOGS_CLEANED"
         [ "$WORKTREES_PRUNED" -gt 0 ] && echo "  Worktrees pruned: $WORKTREES_PRUNED"
+        [ "$ORPHAN_TEMPS_CLEANED" -gt 0 ] && echo "  Orphan temp files removed: $ORPHAN_TEMPS_CLEANED"
         [ "$TIMEOUT_ENTRIES" -gt 0 ] && echo "  Timeout events found: $TIMEOUT_ENTRIES (use /dso:retro to triage)"
     fi
 else
@@ -575,6 +692,7 @@ else
     log "  Dead worktree state:      $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
     log "  Debug logs removed:       $DEBUG_LOGS_CLEANED"
     log "  Worktrees pruned:         $WORKTREES_PRUNED"
+    log "  Orphan temp files:        $ORPHAN_TEMPS_CLEANED"
     log "  Timeout events found:     $TIMEOUT_ENTRIES (not reset — use /dso:retro to triage)"
     log "========================"
     if [ $TOTAL_CLEANED -eq 0 ]; then
