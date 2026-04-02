@@ -1,1 +1,0 @@
-{"timestamp": 1775161824773723000, "uuid": "d412f24e-c525-42c5-a988-969ea8cd3b68", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: generate-skill-eval.sh implemented \u2014 29/29 tests GREEN, fence-aware parsing, YAML escaping, atomic writes"}}
