@@ -1,0 +1,1 @@
+{"timestamp": 1775095020, "uuid": "bd6e5357-f6e8-4909-a60b-a2e589d8d489", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "epic", "title": "Benchmark epic 2", "parent_id": "", "description": "", "priority": 2, "assignee": "Test"}}
