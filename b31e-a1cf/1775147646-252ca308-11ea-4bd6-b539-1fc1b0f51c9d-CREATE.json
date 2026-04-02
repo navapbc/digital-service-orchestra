@@ -1,0 +1,1 @@
+{"timestamp": 1775147646, "uuid": "252ca308-11ea-4bd6-b539-1fc1b0f51c9d", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Target close benchmark task", "parent_id": "", "description": "", "priority": 2, "assignee": "Test"}}
