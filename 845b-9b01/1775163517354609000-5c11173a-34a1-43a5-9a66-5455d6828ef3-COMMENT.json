@@ -1,1 +1,0 @@
-{"timestamp": 1775163517354609000, "uuid": "5c11173a-34a1-43a5-9a66-5455d6828ef3", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6: Done \u2713 \u2014 Files: tests/hooks/test-eval-todo-guard.sh. Tests: 7 behavioral RED tests (PASSED: 2, FAILED: 8)."}}
