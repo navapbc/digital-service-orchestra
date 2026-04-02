@@ -1,1 +1,0 @@
-{"timestamp": 1775152638456238000, "uuid": "524319ba-0055-4642-8994-ef81144e9e11", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: behavioral, Score: 2 (BASIC). Note: description uses feature-request language ('should follow a similar pattern', 'lack sub-agent resolution loop')."}}
