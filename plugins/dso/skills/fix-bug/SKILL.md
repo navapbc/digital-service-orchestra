@@ -305,6 +305,29 @@ Dispatch investigation sub-agents based on the tier determined in Step 1. All su
 
 Sub-agents must run existing tests immediately to establish a concrete failure baseline before analyzing code.
 
+#### Structural Dependency Discovery (pre-loading — before sub-agent dispatch)
+
+Before dispatching the investigation sub-agent, use structural search to pre-load callers, importers, and source-chain dependencies of the affected file(s). This discovers the bug's blast radius and gives the investigation sub-agent concrete scope rather than requiring it to re-discover callsites from scratch.
+
+Use `sg` (ast-grep) for syntax-aware structural matching when available — it distinguishes real code references from comments and string literals. Fall back to Grep when `sg` is not installed:
+
+```bash
+# Discover callers and importers of the affected module
+if command -v sg >/dev/null 2>&1; then
+    # Structural search: find files that import or call the affected module
+    sg --pattern 'import $MODULE' --lang python <repo_root>
+    sg --pattern 'from $MODULE import $_' --lang python <repo_root>
+    # For bash/shell scripts, find files that source the affected script
+    sg --pattern 'source $PATH' --lang bash <repo_root>
+else
+    # Fall back to Grep tool or grep command
+    grep -r 'import <module_name>' <repo_root>
+    grep -r 'from <module_name>' <repo_root>
+fi
+```
+
+Include the discovered callers, importers, and source-chain dependencies as additional context in the investigation sub-agent prompt. This structural pre-loading step complements the `gate-2b-blast-radius.sh` ast-grep usage — both use the same guard pattern (`command -v`), though Gate 2b checks `ast-grep` while this step checks `sg` (the short alias); see CLAUDE.md story afb1-89e6 tracking naming alignment. Gate 2b runs post-investigation; this step runs pre-dispatch.
+
 #### BASIC Investigation (score < 3)
 
 Launch a single **sonnet** sub-agent using the prompt template at `prompts/basic-investigation.md`.
