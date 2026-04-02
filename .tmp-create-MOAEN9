@@ -1,0 +1,1 @@
+{"timestamp": 1775094773, "uuid": "1889c7d2-1070-44a7-b17f-b416ef0faeb7", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Ticket to archive", "parent_id": "", "description": "", "priority": 2, "assignee": "Test"}}
