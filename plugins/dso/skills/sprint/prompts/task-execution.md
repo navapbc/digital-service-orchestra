@@ -10,6 +10,7 @@ Ticket ID: {id}
 4. Write unit tests in the appropriate `tests/unit/` subdirectory **before implementing**
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 3/6: Tests written ✓"` (if no tests required: `"CHECKPOINT 3/6: Tests written (none required) ✓"`)
 5. Implement the task following existing conventions
+   - **Prior-art check**: Before writing new code, consult `plugins/dso/skills/shared/prompts/prior-art-search.md` for existing patterns (exempt: single-file logic fixes, formatting changes)
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 4/6: Implementation complete ✓"`
 6. Run `make format-check && make lint && make test-unit-only` from app/
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation passed ✓"` (or `"CHECKPOINT 5/6: Validation failed — <error summary>"` on failure)
