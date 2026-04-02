@@ -31,6 +31,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/deps.sh"
 
+# Source shared merge/rebase state library
+source "$SCRIPT_DIR/lib/merge-state.sh"
+
 # Save original hash_stdin, then override to also write result to cache
 _cdh_hash_stdin_inner() { shasum -a 256 | cut -d' ' -f1; }
 hash_stdin() {
@@ -172,92 +175,56 @@ fi
 # they appear in `git diff HEAD` and are included in the hash at both review and
 # pre-commit time (dso-g8cz: staging-invariant for new files).
 #
-# Merge-aware: when MERGE_HEAD exists, scope the diff to only files changed on
-# the worktree branch (merge-base..HEAD), excluding incoming-only files from the
-# merge source. This matches the pre-commit review gate's MERGE_HEAD filtering
+# Merge/rebase-aware: when MERGE_HEAD or REBASE_HEAD exists, scope the diff to
+# only files changed on the worktree branch, excluding incoming-only files.
+# Detection and file-list computation delegated to shared merge-state.sh library.
+# This matches the pre-commit review gate's MERGE_HEAD/REBASE_HEAD filtering
 # (1ded-89e6) so the hash is consistent between review and commit time.
-_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
-if [[ -f "$_GIT_DIR/MERGE_HEAD" ]]; then
-    _merge_head_sha=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null)
-    _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
-    _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
-    # Guard: MERGE_HEAD must resolve to a real commit different from HEAD.
-    # If MERGE_HEAD == HEAD (fake/self-referencing), skip merge-mode to prevent bypass.
-    # In a real merge, MERGE_HEAD points to the incoming branch tip (different from HEAD).
-    if [[ -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
-        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
-        if [[ -n "$_merge_base" ]]; then
-            # Only hash changes from the worktree branch (merge-base..HEAD + working tree)
-            # This excludes incoming-only files from the merge source.
-            _worktree_files=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
-            if [[ -n "$_worktree_files" ]]; then
-                _file_pathspecs=()
-                while IFS= read -r _f; do
-                    [[ -n "$_f" ]] && _file_pathspecs+=("$_f")
-                done <<< "$_worktree_files"
-                {
-                    git diff "$DIFF_BASE" -- "${_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
-                } | hash_stdin
-            else
-                # No worktree-branch changes — hash an empty diff
-                echo "" | hash_stdin
-            fi
-        else
-            # merge-base failed — fall through to default behavior
+if ms_is_merge_in_progress; then
+    # Merge state: compute worktree-branch files and merge base via library.
+    # ms_get_worktree_only_files returns diff --name-only merge-base..HEAD.
+    # ms_get_merge_base returns the merge-base SHA for use in the hash pipeline.
+    _worktree_files=$(ms_get_worktree_only_files 2>/dev/null || echo "")
+    _merge_base=$(ms_get_merge_base 2>/dev/null || echo "")
+    if [[ -n "$_merge_base" ]]; then
+        if [[ -n "$_worktree_files" ]]; then
+            _file_pathspecs=()
+            while IFS= read -r _f; do
+                [[ -n "$_f" ]] && _file_pathspecs+=("$_f")
+            done <<< "$_worktree_files"
             {
-                git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+                git diff "$DIFF_BASE" -- "${_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
             } | hash_stdin
+        else
+            # No worktree-branch changes — hash an empty diff
+            echo "" | hash_stdin
         fi
     else
-        # MERGE_HEAD == HEAD or unresolvable — skip merge-mode, use default behavior
+        # merge-base failed — fall through to default behavior
         {
             git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
         } | hash_stdin
     fi
-elif [[ -f "$_GIT_DIR/REBASE_HEAD" ]]; then
-    # Rebase-aware: when REBASE_HEAD exists, scope the diff to only files changed
-    # on the worktree branch (merge-base..orig-head), excluding incoming-only files
-    # from the onto branch. Mirrors the MERGE_HEAD filtering above.
-    # Read onto and orig-head from rebase state dirs (rebase-merge takes precedence
-    # over rebase-apply; do NOT use ORIG_HEAD ref which is per-repo, not per-worktree).
-    # Use git rev-parse --git-dir for per-worktree path resolution.
-    _rebase_git_dir=$(git rev-parse --git-dir 2>/dev/null)
-    _rebase_onto=""
-    _rebase_orig_head=""
-    if [[ -f "$_rebase_git_dir/rebase-merge/onto" ]]; then
-        _rebase_onto=$(cat "$_rebase_git_dir/rebase-merge/onto" 2>/dev/null || echo "")
-        _rebase_orig_head=$(cat "$_rebase_git_dir/rebase-merge/orig-head" 2>/dev/null || echo "")
-    elif [[ -f "$_rebase_git_dir/rebase-apply/onto" ]]; then
-        _rebase_onto=$(cat "$_rebase_git_dir/rebase-apply/onto" 2>/dev/null || echo "")
-        _rebase_orig_head=$(cat "$_rebase_git_dir/rebase-apply/orig-head" 2>/dev/null || echo "")
-    fi
-
-    if [[ -n "$_rebase_onto" && -n "$_rebase_orig_head" ]]; then
-        _rebase_merge_base=$(git merge-base "$_rebase_orig_head" "$_rebase_onto" 2>/dev/null || echo "")
-        if [[ -n "$_rebase_merge_base" ]]; then
-            # Only hash changes from the worktree branch (merge-base..orig-head + working tree)
-            # This excludes incoming-only files from the onto branch.
-            _rebase_worktree_files=$(git diff --name-only "$_rebase_merge_base" "$_rebase_orig_head" 2>/dev/null || echo "")
-            if [[ -n "$_rebase_worktree_files" ]]; then
-                _rebase_file_pathspecs=()
-                while IFS= read -r _f; do
-                    [[ -n "$_f" ]] && _rebase_file_pathspecs+=("$_f")
-                done <<< "$_rebase_worktree_files"
-                {
-                    git diff "$DIFF_BASE" -- "${_rebase_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
-                } | hash_stdin
-            else
-                # No worktree-branch changes — hash an empty diff
-                echo "" | hash_stdin
-            fi
-        else
-            # merge-base failed — fall through to default behavior
+elif ms_is_rebase_in_progress; then
+    # Rebase state: compute worktree-branch files (merge-base..orig-head) and
+    # merge base via library. Mirrors the MERGE_HEAD filtering above.
+    _rebase_worktree_files=$(ms_get_worktree_only_files 2>/dev/null || echo "")
+    _rebase_merge_base=$(ms_get_merge_base 2>/dev/null || echo "")
+    if [[ -n "$_rebase_merge_base" ]]; then
+        if [[ -n "$_rebase_worktree_files" ]]; then
+            _rebase_file_pathspecs=()
+            while IFS= read -r _f; do
+                [[ -n "$_f" ]] && _rebase_file_pathspecs+=("$_f")
+            done <<< "$_rebase_worktree_files"
             {
-                git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
+                git diff "$DIFF_BASE" -- "${_rebase_file_pathspecs[@]}" "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
             } | hash_stdin
+        else
+            # No worktree-branch changes — hash an empty diff
+            echo "" | hash_stdin
         fi
     else
-        # onto or orig-head missing — fail-open, fall through to default behavior
+        # merge-base failed — fall through to default behavior
         {
             git diff "$DIFF_BASE" -- "${EXCLUDE_PATHSPECS[@]}" 2>/dev/null || true
         } | hash_stdin

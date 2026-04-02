@@ -66,6 +66,10 @@ source "$HOOK_DIR/lib/deps.sh"
 # Source fuzzy match library (provides fuzzy_find_associated_tests, fuzzy_is_test_file)
 source "$HOOK_DIR/lib/fuzzy-match.sh"
 
+# Source shared merge-state library (provides ms_is_merge_in_progress, ms_is_rebase_in_progress,
+# ms_get_worktree_only_files, ms_filter_to_worktree_only)
+source "$HOOK_DIR/lib/merge-state.sh"
+
 # ── Determine path to compute-diff-hash.sh ───────────────────────────────────
 # Supports COMPUTE_DIFF_HASH_OVERRIDE env var for test injection.
 # REVIEW-DEFENSE: COMPUTE_DIFF_HASH_OVERRIDE is a test-only seam, not a production bypass vector.
@@ -130,116 +134,77 @@ if [[ -f "$_ALLOWLIST_FILE" ]] && declare -f _load_allowlist_patterns &>/dev/nul
     fi
 fi
 
-# ── Merge commit: filter out incoming-only files ───────────────────────────────
-# When MERGE_HEAD exists (e.g., `git merge --no-commit origin/main`), staged
-# files include changes from the incoming branch that were already reviewed
-# and merged on main. These incoming-only files should not require re-verification.
-#
-# Algorithm:
-#   1. Compute merge base between HEAD and MERGE_HEAD
-#   2. Get files changed on the worktree branch: merge-base..HEAD
-#   3. Filter STAGED_FILES to only include files that the worktree branch touched
-#   4. Files in staged but NOT in worktree-branch changes are incoming-only → exempt
-#
-# Fail-safe: if merge-base computation fails (e.g., fake MERGE_HEAD), fall
-# through to normal enforcement with the full staged file list.
-if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/MERGE_HEAD" ]]; then
-    _merge_head_sha=$(cat "$(git rev-parse --git-dir)/MERGE_HEAD" 2>/dev/null | head -1)
-    if [[ -n "$_merge_head_sha" ]]; then
-        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
-        _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
-        _merge_head_resolved=$(git rev-parse "$_merge_head_sha" 2>/dev/null || echo "")
-        # Guard: MERGE_HEAD must resolve to a real commit different from HEAD.
-        # If MERGE_HEAD == HEAD (fake/self-referencing), skip filtering to prevent bypass.
-        # In a real merge, MERGE_HEAD points to the incoming branch tip (different from HEAD).
-        if [[ -n "$_merge_base" && -n "$_merge_head_resolved" && "$_merge_head_resolved" != "$_head_sha" ]]; then
-            # Get files changed on the worktree branch (merge-base..HEAD)
-            _worktree_changed=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
-
-            # Filter staged files: keep only those that the worktree branch changed
-            _filtered_staged=()
-            for _sf in "${STAGED_FILES[@]}"; do
-                if echo "$_worktree_changed" | grep -qxF "$_sf" 2>/dev/null; then
-                    _filtered_staged+=("$_sf")
-                fi
-            done
-
-            # Replace STAGED_FILES with filtered list
-            STAGED_FILES=("${_filtered_staged[@]+"${_filtered_staged[@]}"}")
-
-            # If all staged files were incoming-only, nothing to check
-            if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
-                exit 0
-            fi
-        fi
-    fi
-fi
-
-# ── Rebase commit: filter out incoming-only files ─────────────────────────────
-# When REBASE_HEAD exists (e.g., mid `git rebase`), staged files may include
-# changes from the onto branch that were already reviewed and merged there.
+# ── Merge / rebase commit: filter out incoming-only files ────────────────────
+# When MERGE_HEAD or REBASE_HEAD exists, staged files may include changes from
+# the incoming / onto branch that were already reviewed and merged there.
 # These incoming-only files should not require re-verification.
 #
-# Algorithm:
-#   1. Read onto SHA from rebase-merge/onto or rebase-apply/onto
-#   2. Read orig-head from rebase-merge/orig-head or rebase-apply/orig-head;
-#      fall back to HEAD if the file is absent (tests simulate this case)
-#   3. Compute merge base between orig-head and onto
-#   4. Get files changed on the worktree branch: merge-base..orig-head
-#   5. Filter STAGED_FILES to only include files that the worktree branch touched
-#   6. Files in staged but NOT in worktree-branch changes are incoming-only → exempt
+# Uses the shared merge-state.sh library for detection and worktree-file computation:
+#   ms_is_merge_in_progress   — true when MERGE_HEAD exists (and != HEAD)
+#   ms_is_rebase_in_progress  — true when REBASE_HEAD or rebase-{merge,apply}/ exists
+#   ms_get_worktree_only_files — worktree-only files (orig-head-anchored for rebase);
+#                                fail-open with staged files when orig-head is absent
 #
-# Fail-safe: if onto file missing, orig-head unreadable, or merge-base fails,
-# fall through to normal enforcement with the full staged file list.
-if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/REBASE_HEAD" ]]; then
-    _git_dir=$(git rev-parse --git-dir 2>/dev/null || echo "")
-    if [[ -n "$_git_dir" ]]; then
-        # Read onto SHA from rebase state directory
-        _rebase_onto=""
-        if [[ -f "$_git_dir/rebase-merge/onto" ]]; then
-            _rebase_onto=$(cat "$_git_dir/rebase-merge/onto" 2>/dev/null | head -1 || echo "")
-        elif [[ -f "$_git_dir/rebase-apply/onto" ]]; then
-            _rebase_onto=$(cat "$_git_dir/rebase-apply/onto" 2>/dev/null | head -1 || echo "")
-        fi
+# Rebase orig-head fallback: ms_get_worktree_only_files does not fall back to HEAD
+# when orig-head is absent. This hook adds a HEAD-anchored fallback for that case:
+# when rebase state is active and orig-head is missing, compute merge-base(HEAD, onto)
+# and use diff(merge-base..HEAD) to identify worktree-only files.
+#
+# Note: ms_filter_to_worktree_only is NOT used here because it fails open on
+# empty intersection (a valid state when all staged files are incoming-only).
+# We compute the worktree-only file set and filter STAGED_FILES inline.
+if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
+    _worktree_only=$(ms_get_worktree_only_files 2>/dev/null || echo "")
 
-        if [[ -n "$_rebase_onto" ]]; then
-            # Read orig-head from rebase state directory; fall back to HEAD
-            _rebase_orig_head=""
-            if [[ -f "$_git_dir/rebase-merge/orig-head" ]]; then
-                _rebase_orig_head=$(cat "$_git_dir/rebase-merge/orig-head" 2>/dev/null | head -1 || echo "")
-            elif [[ -f "$_git_dir/rebase-apply/orig-head" ]]; then
-                _rebase_orig_head=$(cat "$_git_dir/rebase-apply/orig-head" 2>/dev/null | head -1 || echo "")
+    # Rebase orig-head fallback: ms_get_worktree_only_files falls open (returns
+    # staged files) when rebase-merge/orig-head is absent. Add a HEAD-anchored
+    # fallback: read onto SHA directly, compute merge-base(HEAD, onto), diff to HEAD.
+    if ms_is_rebase_in_progress && ! ms_is_merge_in_progress; then
+        _ms_git_dir=$(ms_get_git_dir 2>/dev/null || echo "")
+        if [[ -n "$_ms_git_dir" ]]; then
+            _ms_rb_onto=""
+            if [[ -f "$_ms_git_dir/rebase-merge/onto" ]]; then
+                _ms_rb_onto=$(cat "$_ms_git_dir/rebase-merge/onto" 2>/dev/null | head -1 || echo "")
+            elif [[ -f "$_ms_git_dir/rebase-apply/onto" ]]; then
+                _ms_rb_onto=$(cat "$_ms_git_dir/rebase-apply/onto" 2>/dev/null | head -1 || echo "")
             fi
-            # Fall back to HEAD if orig-head state file is absent
-            if [[ -z "$_rebase_orig_head" ]]; then
-                _rebase_orig_head=$(git rev-parse HEAD 2>/dev/null || echo "")
+            # Check if orig-head is absent (library would have fallen open)
+            _ms_orig_head_absent=true
+            if [[ -f "$_ms_git_dir/rebase-merge/orig-head" ]] || [[ -f "$_ms_git_dir/rebase-apply/orig-head" ]]; then
+                _ms_orig_head_absent=false
             fi
-
-            if [[ -n "$_rebase_orig_head" ]]; then
-                _rebase_merge_base=$(git merge-base "$_rebase_orig_head" "$_rebase_onto" 2>/dev/null || echo "")
-                if [[ -n "$_rebase_merge_base" ]]; then
-                    # Get files changed on the worktree branch (merge-base..orig-head)
-                    _rebase_worktree_changed=$(git diff --name-only "$_rebase_merge_base" "$_rebase_orig_head" 2>/dev/null || echo "")
-
-                    # Filter staged files: keep only those that the worktree branch changed
-                    _rebase_filtered_staged=()
-                    for _rsf in "${STAGED_FILES[@]}"; do
-                        if echo "$_rebase_worktree_changed" | grep -qxF "$_rsf" 2>/dev/null; then
-                            _rebase_filtered_staged+=("$_rsf")
-                        fi
-                    done
-
-                    # Replace STAGED_FILES with filtered list
-                    STAGED_FILES=("${_rebase_filtered_staged[@]+"${_rebase_filtered_staged[@]}"}")
-
-                    # If all staged files were incoming-only, nothing to check
-                    if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
-                        exit 0
+            # Apply fallback: use HEAD in place of orig-head when orig-head file is absent
+            if [[ "$_ms_orig_head_absent" == true && -n "$_ms_rb_onto" ]]; then
+                _ms_fallback_orig=$(git rev-parse HEAD 2>/dev/null || echo "")
+                if [[ -n "$_ms_fallback_orig" ]]; then
+                    _ms_fallback_base=$(git merge-base "$_ms_fallback_orig" "$_ms_rb_onto" 2>/dev/null || echo "")
+                    if [[ -n "$_ms_fallback_base" ]]; then
+                        _worktree_only=$(git diff --name-only "$_ms_fallback_base" HEAD 2>/dev/null || echo "")
                     fi
                 fi
             fi
         fi
     fi
+
+    if [[ -n "$_worktree_only" ]]; then
+        # Filter: keep only staged files that the worktree branch also changed
+        _ms_filtered_staged=()
+        for _ms_sf in "${STAGED_FILES[@]}"; do
+            if echo "$_worktree_only" | grep -qxF "$_ms_sf" 2>/dev/null; then
+                _ms_filtered_staged+=("$_ms_sf")
+            fi
+        done
+
+        # Replace STAGED_FILES with the worktree-only filtered list.
+        STAGED_FILES=("${_ms_filtered_staged[@]+"${_ms_filtered_staged[@]}"}")
+
+        # If all staged files were incoming-only, nothing to check
+        if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
+            exit 0
+        fi
+    fi
+    # Fail-safe: if worktree-only computation failed (empty result), fall through to
+    # normal enforcement with the full staged file list.
 fi
 
 # ── Read test directories from config ─────────────────────────────────────────
@@ -315,9 +280,8 @@ prune_test_index() {
     local index_file="${REPO_ROOT:-.}/.test-index"
 
     # Skip pruning during merge or rebase — auto-staging .test-index during a
-    # merge/rebase can corrupt the git state. REBASE_HEAD mirrors the MERGE_HEAD guard.
-    if [[ -f "${REPO_ROOT:-.}/.git/MERGE_HEAD" ]]; then return 0; fi
-    if [[ -f "$(git rev-parse --git-dir 2>/dev/null)/REBASE_HEAD" ]]; then return 0; fi
+    # merge/rebase can corrupt the git state.
+    if ms_is_merge_in_progress || ms_is_rebase_in_progress; then return 0; fi
 
     # No .test-index → nothing to prune
     if [[ ! -f "$index_file" ]]; then

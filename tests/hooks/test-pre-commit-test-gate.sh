@@ -1863,11 +1863,10 @@ test_gate_merge_keeps_worktree_branch_files() {
         return
     fi
 
-    # RED: Verify that merge-aware staged-file filtering logic is NOT yet implemented.
-    # The prune_test_index function has a MERGE_HEAD guard, but the staged-file filtering
-    # feature (filtering incoming-only files from STAGED_FILES) is separate and not yet added.
-    # We detect it by checking for the merge-base computation that filtering requires.
-    if ! grep -q 'git merge-base\|merge-base.*HEAD\|_incoming_files\|_merge_base' "$GATE_HOOK" 2>/dev/null; then
+    # GREEN: Verify that merge-aware staged-file filtering logic IS implemented.
+    # Accepts both inline merge-base computation and shared library delegation
+    # (ms_is_merge_in_progress, ms_get_worktree_only_files, source.*merge-state.sh).
+    if ! grep -q 'git merge-base\|merge-base.*HEAD\|_incoming_files\|_merge_base\|ms_is_merge_in_progress\|ms_get_worktree_only_files\|source.*merge-state' "$GATE_HOOK" 2>/dev/null; then
         # No merge-base/incoming-filter logic found — this is RED phase. Assert failure.
         assert_eq "test_gate_merge_keeps_worktree_branch_files: merge filtering logic absent (RED)" \
             "merge_filtering_present" "merge_filtering_absent"
@@ -1928,11 +1927,10 @@ test_gate_merge_failsafe_on_bad_merge_head() {
         return
     fi
 
-    # RED: Verify merge-aware staged-file filtering logic is NOT yet implemented.
-    # The failsafe only matters once merge-base filtering is added. Without it,
-    # this test asserts that the feature is absent (RED).
-    if ! grep -q 'git merge-base\|merge-base.*HEAD\|_incoming_files\|_merge_base' "$GATE_HOOK" 2>/dev/null; then
-        # No merge-base/incoming-filter logic found — RED phase
+    # GREEN: Verify merge-aware staged-file filtering logic IS implemented.
+    # Accepts both inline merge-base computation and shared library delegation.
+    if ! grep -q 'git merge-base\|merge-base.*HEAD\|_incoming_files\|_merge_base\|ms_is_merge_in_progress\|ms_get_worktree_only_files\|source.*merge-state' "$GATE_HOOK" 2>/dev/null; then
+        # No merge filtering logic found — RED phase
         assert_eq "test_gate_merge_failsafe_on_bad_merge_head: merge filtering logic absent (RED)" \
             "merge_filtering_present" "merge_filtering_absent"
         # Clean up MERGE_HEAD so other tests are not affected
@@ -2192,10 +2190,11 @@ test_gate_rebase_filters_incoming_only_files() {
         return
     fi
 
-    # RED: Verify that rebase-aware staged-file filtering logic is NOT yet implemented.
-    # Detection: check for REBASE_HEAD handling in the hook (rebase-merge/onto read or REBASE_HEAD check).
-    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$GATE_HOOK" 2>/dev/null; then
-        # No REBASE_HEAD/rebase-merge logic found — RED phase. Assert failure.
+    # GREEN: Verify that rebase-aware staged-file filtering logic IS implemented.
+    # Accepts both inline REBASE_HEAD handling and shared library delegation
+    # (ms_is_rebase_in_progress, ms_get_worktree_only_files, source.*merge-state.sh).
+    if ! grep -q 'REBASE_HEAD\|rebase-merge\|ms_is_rebase_in_progress\|ms_get_worktree_only_files\|source.*merge-state' "$GATE_HOOK" 2>/dev/null; then
+        # No rebase filtering logic found — RED phase. Assert failure.
         assert_eq "test_gate_rebase_filters_incoming_only_files: rebase filtering logic absent (RED)" \
             "rebase_filtering_present" "rebase_filtering_absent"
         return
@@ -2280,9 +2279,10 @@ test_gate_rebase_keeps_worktree_branch_files() {
         return
     fi
 
-    # RED: Verify that rebase-aware staged-file filtering logic is NOT yet implemented.
-    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$GATE_HOOK" 2>/dev/null; then
-        # No REBASE_HEAD/rebase-merge logic found — RED phase. Assert failure.
+    # GREEN: Verify that rebase-aware staged-file filtering logic IS implemented.
+    # Accepts both inline REBASE_HEAD handling and shared library delegation.
+    if ! grep -q 'REBASE_HEAD\|rebase-merge\|ms_is_rebase_in_progress\|ms_get_worktree_only_files\|source.*merge-state' "$GATE_HOOK" 2>/dev/null; then
+        # No rebase filtering logic found — RED phase. Assert failure.
         assert_eq "test_gate_rebase_keeps_worktree_branch_files: rebase filtering logic absent (RED)" \
             "rebase_filtering_present" "rebase_filtering_absent"
         return
@@ -2340,9 +2340,10 @@ test_gate_rebase_failsafe_on_missing_onto() {
         return
     fi
 
-    # RED: Verify rebase-aware filtering logic is NOT yet implemented.
-    if ! grep -q 'REBASE_HEAD\|rebase-merge' "$GATE_HOOK" 2>/dev/null; then
-        # No REBASE_HEAD/rebase-merge logic found — RED phase
+    # GREEN: Verify rebase-aware filtering logic IS implemented.
+    # Accepts both inline REBASE_HEAD handling and shared library delegation.
+    if ! grep -q 'REBASE_HEAD\|rebase-merge\|ms_is_rebase_in_progress\|ms_get_worktree_only_files\|source.*merge-state' "$GATE_HOOK" 2>/dev/null; then
+        # No rebase filtering logic found — RED phase
         assert_eq "test_gate_rebase_failsafe_on_missing_onto: rebase filtering logic absent (RED)" \
             "rebase_filtering_present" "rebase_filtering_absent"
         # Clean up REBASE_HEAD so other tests are not affected

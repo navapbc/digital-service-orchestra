@@ -65,10 +65,10 @@ run_classifier() {
     if [[ -x "$CLASSIFIER" ]]; then
         # Pin REPO_ROOT so the classifier doesn't depend on `git rev-parse`,
         # which can fail intermittently under parallel load (index.lock contention).
-        # Use CLASSIFIER_GIT_DIR to isolate _is_merge_commit from the real
+        # Use _MERGE_STATE_GIT_DIR to isolate merge-state reads from the real
         # worktree's MERGE_HEAD — each test gets its own temp git repo from
         # setup_temp_dir, ensuring parallel runs don't interfere.
-        CLASSIFIER_OUTPUT=$(REPO_ROOT="$REPO_ROOT" CLASSIFIER_GIT_DIR="${TEST_GIT_DIR:-}" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
+        CLASSIFIER_OUTPUT=$(REPO_ROOT="$REPO_ROOT" _MERGE_STATE_GIT_DIR="${TEST_GIT_DIR:-}" bash "$CLASSIFIER" < "$diff_file" 2>/dev/null) || CLASSIFIER_EXIT=$?
     else
         CLASSIFIER_EXIT=127
     fi
