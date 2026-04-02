@@ -1253,16 +1253,21 @@ Phase 8 delegates to `/dso:end-session`, which handles closing issues, committin
 
 ### On Success (Score = 5)
 
-1. Close the epic:
+1. **Verify all changes are merged before closing the epic** (399f-abad):
    ```bash
-   .claude/scripts/dso ticket comment <epic-id> "Epic complete: all tasks closed, validation score 5/5"
-   .claude/scripts/dso ticket transition <epic-id> open closed
+   git merge-base --is-ancestor HEAD main
    ```
-2. Set sprint context for `/dso:end-session` report:
+   If this exits non-zero, do NOT close the epic — changes have not been merged to main. Run `merge-to-main.sh` first and resolve any conflicts before proceeding. Only close the epic after `merge-base --is-ancestor` exits 0.
+2. Close the epic:
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "Epic complete: all tasks closed, validation score 5/5, branch merged to main"
+   .claude/scripts/dso ticket transition <epic-id> in_progress closed
+   ```
+3. Set sprint context for `/dso:end-session` report:
    - Epic ID and title
    - Total tasks completed this session
    - Validation score: 5/5
-3. Invoke `/dso:end-session` with `--bump minor`:
+4. Invoke `/dso:end-session` with `--bump minor`:
    ```
    /dso:end-session --bump minor
    ```
