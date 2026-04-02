@@ -1269,3 +1269,100 @@ def test_fix_bug_skill_mechanical_excludes_skill_agent_prompt_files() -> None:
         "rationalize skill/prompt changes as 'obvious text fixes' and bypass "
         "LLM-behavioral investigation (bug f1ed-d7c8)."
     )
+
+
+# REVIEW-DEFENSE: File size (1375 lines) pre-dates this change — file was 1268 lines before
+# ast-grep tests were added. Splitting is tracked separately.
+class TestStep2AstGrepInvestigationPreLoading:
+    """Tests asserting fix-bug SKILL.md Step 2 contains ast-grep guidance for
+    investigation pre-loading with a command -v sg guard and Grep fallback.
+
+    TDD spec for task baa2-2dd1:
+    - plugins/dso/skills/fix-bug/SKILL.md Step 2 must:
+      1. Contain 'command -v sg' guard before using sg for investigation pre-loading
+      2. Contain a Grep fallback when sg is unavailable
+      3. Describe using sg for caller/importer/source-chain discovery
+      4. Be consistent with the existing Gate 2b ast-grep reference (line ~713)
+    """
+
+    def test_step2_contains_command_v_sg_guard(self) -> None:
+        """Step 2 of SKILL.md must contain a 'command -v sg' availability guard."""
+        content = _read_skill()
+        assert "command -v sg" in content, (
+            "Expected fix-bug SKILL.md to contain 'command -v sg' to guard ast-grep "
+            "usage in Step 2 (Investigation). The guard ensures agents check for sg "
+            "availability before using structural search, enabling graceful degradation "
+            "on systems without ast-grep installed."
+        )
+
+    def test_step2_contains_grep_fallback_when_sg_unavailable(self) -> None:
+        """SKILL.md must describe a Grep fallback when sg is not available."""
+        content = _read_skill()
+        # The fallback instruction should appear near the sg guard
+        sg_guard_pos = content.find("command -v sg")
+        assert sg_guard_pos != -1, "command -v sg guard not found (prerequisite check)"
+        # Look for fallback language within 600 chars of the guard
+        guard_context = content[sg_guard_pos : sg_guard_pos + 600]
+        has_fallback = any(
+            phrase in guard_context
+            for phrase in (
+                "Grep",
+                "grep",
+                "fallback",
+                "fall back",
+                "else",
+            )
+        )
+        assert has_fallback, (
+            "Expected fix-bug SKILL.md to describe a Grep fallback near the 'command -v sg' "
+            "guard in Step 2. When sg is unavailable, agents must fall back to the Grep tool "
+            "or grep command to preserve investigation functionality on systems without ast-grep."
+        )
+
+    def test_step2_ast_grep_guidance_describes_dependency_discovery(self) -> None:
+        """SKILL.md must describe using sg for caller/importer/dependency discovery."""
+        content = _read_skill()
+        # Find the context where sg guard appears
+        sg_guard_pos = content.find("command -v sg")
+        assert sg_guard_pos != -1, "command -v sg guard not found (prerequisite check)"
+        # Look for caller/importer/dependency language near the sg guidance (within 800 chars)
+        # Search both before and after the guard marker
+        surrounding_context = content[
+            max(0, sg_guard_pos - 400) : sg_guard_pos + 800
+        ].lower()
+        has_discovery_language = any(
+            phrase in surrounding_context
+            for phrase in (
+                "caller",
+                "importer",
+                "source-chain",
+                "source chain",
+                "dependency",
+                "dependencies",
+                "who calls",
+                "who imports",
+            )
+        )
+        assert has_discovery_language, (
+            "Expected fix-bug SKILL.md ast-grep guidance to describe using sg for "
+            "discovering callers, importers, or source-chain dependencies of the buggy "
+            "code. Structural search improves investigation accuracy by finding actual "
+            "code references rather than string matches."
+        )
+
+    def test_step2_ast_grep_guidance_is_in_step2_section(self) -> None:
+        """The ast-grep guidance must appear within the Step 2 section."""
+        content = _read_skill()
+        step2_pos = content.find("### Step 2:")
+        assert step2_pos != -1, "Step 2 section not found"
+        step3_pos = content.find("### Step 3:", step2_pos + 1)
+        assert step3_pos != -1, "Step 3 section not found"
+        sg_guard_pos = content.find("command -v sg")
+        assert sg_guard_pos != -1, "command -v sg guard not found (prerequisite check)"
+        in_step2 = step2_pos < sg_guard_pos < step3_pos
+        assert in_step2, (
+            "Expected the 'command -v sg' ast-grep guidance to appear within the "
+            "Step 2 (Investigation) section of fix-bug SKILL.md — not elsewhere in "
+            "the file. The guidance must be co-located with investigation pre-loading "
+            "instructions so agents encounter it at the right point in the workflow."
+        )

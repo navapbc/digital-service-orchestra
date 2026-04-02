@@ -305,6 +305,29 @@ Dispatch investigation sub-agents based on the tier determined in Step 1. All su
 
 Sub-agents must run existing tests immediately to establish a concrete failure baseline before analyzing code.
 
+#### Structural Dependency Discovery (pre-loading — before sub-agent dispatch)
+
+Before dispatching the investigation sub-agent, use structural search to pre-load callers, importers, and source-chain dependencies of the affected file(s). This discovers the bug's blast radius and gives the investigation sub-agent concrete scope rather than requiring it to re-discover callsites from scratch.
+
+Use `sg` (ast-grep) for syntax-aware structural matching when available — it distinguishes real code references from comments and string literals. Fall back to Grep when `sg` is not installed:
+
+```bash
+# Discover callers and importers of the affected module
+if command -v sg >/dev/null 2>&1; then
+    # Structural search: find files that import or call the affected module
+    sg --pattern 'import $MODULE' --lang python <repo_root>
+    sg --pattern 'from $MODULE import $_' --lang python <repo_root>
+    # For bash/shell scripts, find files that source the affected script
+    sg --pattern 'source $PATH' --lang bash <repo_root>
+else
+    # Fall back to Grep tool or grep command
+    grep -r 'import <module_name>' <repo_root>
+    grep -r 'from <module_name>' <repo_root>
+fi
+```
+
+Include the discovered callers, importers, and source-chain dependencies as additional context in the investigation sub-agent prompt. This structural pre-loading step complements the `gate-2b-blast-radius.sh` blast-radius analysis — both use the same `command -v` guard pattern. Note: `gate-2b-blast-radius.sh` checks `command -v ast-grep` (the package name) while new integrations use `command -v sg` (the CLI binary name); see CLAUDE.md "Structural Code Search (ast-grep)" for the canonical naming convention. Gate 2b runs post-investigation; this step runs pre-dispatch.
+
 #### BASIC Investigation (score < 3)
 
 Launch a single **sonnet** sub-agent using the prompt template at `prompts/basic-investigation.md`.
@@ -710,7 +733,7 @@ bash "$PLUGIN_SCRIPTS/gate-2b-blast-radius.sh" "<affected_file_path>" --repo-roo
 
 Do not surface gate errors to the user or halt the fix workflow.
 
-**ast-grep / grep fallback**: `gate-2b-blast-radius.sh` uses ast-grep for fan-in analysis when available. When ast-grep is not installed, the script automatically falls back to grep-based analysis so the gate remains functional across all environments.
+**ast-grep / grep fallback**: `gate-2b-blast-radius.sh` uses ast-grep (the `sg` tool, checked via `command -v ast-grep` in the script) for fan-in analysis when available. When ast-grep is not installed, the script automatically falls back to grep-based analysis so the gate remains functional across all environments.
 
 **Boundary with Centrality-Aware Test Gate**: Gate 2b runs at commit-time annotation (post-investigation), while the Centrality-Aware Test Gate operates at pre-commit time. They serve different phases and do not interact.
 

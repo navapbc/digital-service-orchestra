@@ -306,6 +306,29 @@ Read and execute the shared epic scrutiny pipeline from `plugins/dso/skills/shar
 - `{caller_name}` = `brainstorm`
 - `{caller_prompts_dir}` = `$REPO_ROOT/plugins/dso/skills/brainstorm/prompts`
 
+#### Step 2.5 Supplement: ast-grep Pattern Discovery for Technical Self-Review
+
+During Part B (Technical Approach Self-Review) of the scrutiny pipeline's Step 1, use `sg` (ast-grep) for structural pattern matching when discovering existing codebase patterns that bear on technical feasibility. Structural search finds real code references rather than string matches, improving the accuracy of feasibility assessments.
+
+Before invoking `sg`, check availability with the canonical guard:
+
+```bash
+if command -v sg >/dev/null 2>&1; then
+    # Use sg for structural pattern search
+    sg --pattern '<pattern>' --lang <lang> /path/to/search
+else
+    # Fall back to Grep tool or grep command
+    grep -r '<pattern>' /path/to/search
+fi
+```
+
+**When to apply during Technical Self-Review**:
+- When validating whether the proposed approach conflicts with existing patterns (e.g., find all callers of a function that would need to change)
+- When checking whether an assumed dependency is already imported or sourced across files
+- When tracing bidirectional data flow to detect potential sync loops or race conditions
+
+Graceful degradation: if `sg` is not installed, use the Grep tool (preferred in Claude Code) or `grep -r` as an equivalent fallback. Do not block the review if neither produces results — log the pattern attempted and continue.
+
 ### Step 4: Approval Gate
 
 Present the validated spec to the user using **AskUserQuestion** with 4 options. Label options (b) and (c) based on whether the corresponding phase already ran in this session:

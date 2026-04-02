@@ -304,6 +304,21 @@ Before drafting tasks, enumerate all files affected by the story. This produces 
 
 1. **List affected source files** — Use Glob and Grep to identify every file the story touches. Start from the story's entry points and trace through all layers.
 
+   **Prefer `sg` (ast-grep) for cross-file dependency discovery** — use it to find callers, importers, and source-chain dependencies with syntax-aware structural matching. Guard against unavailability:
+
+   ```bash
+   if command -v sg >/dev/null 2>&1; then
+       # Structural search — distinguishes real code references from comments/strings
+       sg --pattern 'import $MODULE' --lang python .
+       sg --pattern 'from $MODULE import $_' --lang python .
+   else
+       # Fall back to Grep tool or grep command
+       grep -r 'import <module>' .
+   fi
+   ```
+
+   When `sg` is unavailable, fall back to the Grep tool (or `grep -r`) without error — all environments remain functional.
+
 2. **Find associated tests for each source file** — For each source file, locate its test counterpart using one of two methods:
    - **Fuzzy match** (preferred): source the fuzzy-match library and call `fuzzy_find_associated_tests`:
      ```bash

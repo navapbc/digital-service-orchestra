@@ -536,6 +536,31 @@ Use `--json` for machine-readable output with full detail including file lists.
 If `BATCH_SIZE: 0`, run `.claude/scripts/dso ticket list` to surface the blocking
 chain, report to the user, and exit.
 
+#### Dependency-Aware Overlap Analysis (optional, when sg is available)
+
+After running `sprint-next-batch.sh`, use ast-grep (`sg`) for structural dependency
+analysis on batch candidates to surface cross-file import relationships that string
+search would miss. This supplements — but does not replace — the script's built-in
+file-overlap detection.
+
+```bash
+if command -v sg >/dev/null 2>&1; then
+    # Structural search: find files that import a batch candidate (Python example)
+    sg --pattern 'from $MODULE import $_' --lang python .
+    sg --pattern 'import $MODULE' --lang python .
+    # For bash: find scripts that source a batch candidate
+    sg --pattern 'source $PATH' --lang bash .
+else
+    # Fall back to grep for module-specific import/source patterns
+    grep -rn "import $MODULE\|from $MODULE\|source.*$MODULE" --include='*.py' --include='*.sh' .
+fi
+```
+
+Use the results to identify hidden dependencies between batch candidates. If two
+candidates share a cross-file dependency not reflected in their `file_list`, add a
+dependency link (`.claude/scripts/dso ticket link <src> <tgt> depends_on`) before
+finalizing the batch to avoid parallel conflicts.
+
 ### Dry-Run Mode
 
 If `--dry-run` was specified:
