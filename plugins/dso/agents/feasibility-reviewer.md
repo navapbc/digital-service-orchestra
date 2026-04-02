@@ -188,4 +188,6 @@ After the JSON block, include a **Technical Feasibility** section with:
 - Do NOT fabricate evidence — if you cannot find a working example, record what you searched and mark the signal as unverified.
 - Do NOT skip the WebSearch and github.com search steps — claims about tool capabilities require verification, not assumption.
 - Do NOT mark a signal as verified based on general knowledge alone — a WebSearch must be performed and its results recorded.
+- Do NOT cite specific GitHub issue numbers, repository URLs, or CLI command examples unless they appeared verbatim in a WebSearch result you received in this session. If you recall a URL from training, treat that recall as unverified and perform a WebSearch to confirm it before citing it.
+- When recording evidence, quote the exact URL or text snippet returned by the search tool. If no URL was returned, write "No URL returned by search" rather than constructing one.
 - When a critical capability gap exists (any unverified or contradicted core requirement), you MUST flag the epic as high-risk and include a concrete spike task recommendation.

@@ -223,7 +223,13 @@ git log main..$BRANCH --oneline
 .claude/scripts/dso merge-to-main.sh
 ```
 
-If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files): invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution. If resolution succeeds, continue to Step 5. If the script reports a non-conflict ERROR: relay the error message to the user and stop.
+If the script reports ERROR with `CONFLICT_DATA:` prefix (merge conflicts in non-ticket files):
+1. Before invoking resolution, capture the current working tree state: run `git status --short` and report to the user: "Merge conflict detected. Current working tree state captured — do not stop the session until Step 4.75 confirms is_clean."
+2. Invoke `/dso:resolve-conflicts` to attempt agent-assisted resolution.
+3. If resolution succeeds: continue to Step 5.
+4. If resolution is abandoned (merge aborted): run `git status --short` immediately and report ALL dirty files to the user before proceeding. Do NOT continue to Step 4.75 silently — the user must confirm their work is intact.
+
+If the script reports a non-conflict ERROR: relay the error message to the user and stop.
 
 > **CRITICAL**: When resolving merge conflicts that involve `.tickets-tracker/` event files, do NOT use `git merge -X ours` — this would silently discard incoming ticket events from main and corrupt the event log. Instead, resolve `.tickets-tracker/` conflicts per-file using `git checkout --ours` on each conflicted JSON event file individually (they are append-only and safe to accept ours per-file). `/dso:resolve-conflicts` handles this automatically.
 
