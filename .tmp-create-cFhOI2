@@ -1,1 +1,0 @@
-{"timestamp": 1775088827, "uuid": "37cd9ae8-0a59-4237-9bc0-abf77b22c968", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "task", "title": "Bridge observability test ticket", "parent_id": "", "description": "", "priority": 2, "assignee": "Test"}}
