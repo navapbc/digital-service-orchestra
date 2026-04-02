@@ -335,7 +335,7 @@ The merge migration is a standard Alembic file with multiple `down_revision` val
 
 ### `claude-safe` Wrapper (Recommended)
 
-> **Script location**: canonical source is at `plugins/dso/scripts/claude-safe`.
+> **Script location**: canonical source is at `plugins/dso/scripts/claude-safe`. # shim-exempt: internal implementation path, not a user-invocable shim command
 
 Use `.claude/scripts/dso claude-safe` instead of `claude` to get automatic worktree isolation:
 
@@ -358,7 +358,7 @@ alias claude-safe="CLAUDE_PLUGIN_ROOT=$DSO_ROOT $DSO_ROOT/scripts/claude-safe"
 
 # Option 2: Symlink to PATH (also requires CLAUDE_PLUGIN_ROOT in your environment)
 export CLAUDE_PLUGIN_ROOT=/path/to/digital-service-orchestra/plugins/dso
-ln -s "$CLAUDE_PLUGIN_ROOT/scripts/claude-safe" ~/.local/bin/claude-safe
+ln -s "$CLAUDE_PLUGIN_ROOT/scripts/claude-safe" ~/.local/bin/claude-safe # shim-exempt: bootstrap symlink setup, pre-shim installation
 ```
 
 Replace `/path/to/digital-service-orchestra` with the absolute path where you cloned the DSO repo.
@@ -568,7 +568,7 @@ At the end of a worktree session, use `merge-to-main.sh` (not raw `git merge`) t
 
 ```bash
 # Standard usage (runs all phases sequentially)
-${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh
+.claude/scripts/dso merge-to-main.sh
 ```
 
 ### Phased Workflow
@@ -591,7 +591,7 @@ If `merge-to-main.sh` is interrupted mid-run (e.g., by a SIGURG timeout), the sc
 
 ```bash
 # Resume after interruption — reads state file and skips completed phases
-${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --resume
+.claude/scripts/dso merge-to-main.sh --resume
 ```
 
 **State file**: `/tmp/merge-to-main-state-<branch>.json` — records completed phases. Expires after 4 hours (stale state files are removed on next run).
@@ -603,7 +603,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --resume
 To resume from the last incomplete phase after a partial failure:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main.sh --resume
+.claude/scripts/dso merge-to-main.sh --resume
 ```
 
 The script records completed phases in a state file and resumes from the first incomplete one.

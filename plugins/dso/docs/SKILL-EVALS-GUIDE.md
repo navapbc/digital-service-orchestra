@@ -97,9 +97,9 @@ Use `generate-skill-eval.sh` to scaffold a `promptfooconfig.yaml` for a skill th
 ### Usage
 
 ```bash
-bash plugins/dso/scripts/generate-skill-eval.sh <skill-name>
+.claude/scripts/dso generate-skill-eval.sh <skill-name>
 # With a custom skills root (for testing):
-bash plugins/dso/scripts/generate-skill-eval.sh --skills-root /tmp/skills <skill-name>
+.claude/scripts/dso generate-skill-eval.sh --skills-root /tmp/skills <skill-name>
 ```
 
 ### What It Produces
@@ -126,7 +126,7 @@ Replace every `TODO` before committing. The commit guard will block the commit i
 **Step 1 — Run the generator:**
 
 ```bash
-bash plugins/dso/scripts/generate-skill-eval.sh fix-bug
+.claude/scripts/dso generate-skill-eval.sh fix-bug
 # Output: Generated evals/promptfooconfig.yaml for skill 'fix-bug'
 ```
 
@@ -201,12 +201,12 @@ Resolve all listed issues, re-stage the file, and commit again.
 
 ### run-skill-evals.sh
 
-The orchestrator script at `plugins/dso/scripts/run-skill-evals.sh` has two modes:
+The orchestrator script at `plugins/dso/scripts/run-skill-evals.sh` has two modes: # shim-exempt: internal implementation path reference
 
 **Tier 1 -- Changed-path mapping** (CI / pre-commit):
 
 ```bash
-plugins/dso/scripts/run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md
+.claude/scripts/dso run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md
 ```
 
 Maps each changed file path to its parent skill directory, finds `evals/promptfooconfig.yaml`, and runs it. Multiple paths can be passed; skills are deduplicated.
@@ -214,7 +214,7 @@ Maps each changed file path to its parent skill directory, finds `evals/promptfo
 **Tier 2 -- Run all evals**:
 
 ```bash
-plugins/dso/scripts/run-skill-evals.sh --all
+.claude/scripts/dso run-skill-evals.sh --all
 ```
 
 Discovers every `evals/promptfooconfig.yaml` under the skills root and runs them all.
@@ -266,7 +266,7 @@ Step-by-step procedure to verify an eval config works and can detect regressions
 ```bash
 # Should exit 0 with no output (validation only, no run)
 # The script validates before running -- a quick way to check is:
-bash plugins/dso/scripts/run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md 2>&1 | head -5
+.claude/scripts/dso run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md 2>&1 | head -5
 ```
 
 If the config is malformed, you will see: `ERROR: Invalid config ... missing required fields`.
@@ -275,10 +275,10 @@ If the config is malformed, you will see: `ERROR: Invalid config ... missing req
 
 ```bash
 # Tier 1: run evals for a specific skill
-plugins/dso/scripts/run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md
+.claude/scripts/dso run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md
 
 # Or Tier 2: run all evals
-plugins/dso/scripts/run-skill-evals.sh --all
+.claude/scripts/dso run-skill-evals.sh --all
 ```
 
 ### Step 3: Verify pass/fail behavior
@@ -296,7 +296,7 @@ To confirm the eval catches regressions, temporarily break the prompt (e.g., rem
 
 ```bash
 # Verify the script discovers the eval when given a skill file path
-plugins/dso/scripts/run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md 2>&1 | grep -q "Running eval"
+.claude/scripts/dso run-skill-evals.sh plugins/dso/skills/oscillation-check/SKILL.md 2>&1 | grep -q "Running eval"
 echo "Path mapping works: exit $?"
 ```
 
