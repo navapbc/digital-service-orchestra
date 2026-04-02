@@ -1,1 +1,0 @@
-{"timestamp": 1775153398176015000, "uuid": "63f68a68-4fe2-4c6f-988d-0ede223bcc4a", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: RED test for consumer references created, 4 test functions, proximity-aware Step 6 assertion"}}
