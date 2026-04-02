@@ -1,0 +1,1 @@
+{"timestamp": 1775154152161035000, "uuid": "15975e3f-e1ee-42bd-a308-18b15ec95748", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: replaced 3 DESIGN_NOTES.md references in plugins/dso/skills/onboarding/SKILL.md with .claude/design-notes.md. Test test-design-notes-migration.sh passes (3/3)."}}
