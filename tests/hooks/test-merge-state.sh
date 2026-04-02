@@ -12,7 +12,8 @@
 # MERGE_HEAD/REBASE_HEAD files written directly into temp .git/.
 # Tests use _MERGE_STATE_GIT_DIR env var override.
 #
-# Note: per AC amendment, total test count is 13 (10 original + 2 for ms_get_merge_base + 1 for from_head guard).
+# Note: per AC amendment, total test count is 15 (10 original + 2 for ms_get_merge_base + 1 for from_head guard
+#       + 2 for ms_filter_to_worktree_only all-incoming-only coverage).
 #
 # Tests:
 #  1. test_is_merge_in_progress_detects_merge_head
@@ -28,6 +29,8 @@
 # 11. test_get_worktree_only_files_from_head_during_rebase
 # 12. test_get_merge_base_during_merge
 # 13. test_get_merge_base_during_rebase
+# 14. test_filter_to_worktree_only_all_incoming_returns_empty_intersection
+# 15. test_filter_to_worktree_only_partial_intersection
 #
 # Usage: bash tests/hooks/test-merge-state.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -69,7 +72,9 @@ if [[ ! -f "$MERGE_STATE_LIB" ]]; then
         test_get_worktree_only_files_from_head_during_rebase \
         test_get_merge_base_during_merge \
         test_get_merge_base_during_rebase \
-        test_merge_head_equals_head_guard_from_head_skips_filtering; do
+        test_merge_head_equals_head_guard_from_head_skips_filtering \
+        test_filter_to_worktree_only_all_incoming_returns_empty_intersection \
+        test_filter_to_worktree_only_partial_intersection; do
         echo "FAIL: $_test_name"
         (( ++FAIL ))
     done
@@ -504,6 +509,73 @@ test_get_merge_base_during_rebase() {
 }
 
 # =============================================================================
+# Test 14: ms_filter_to_worktree_only — all staged files are incoming-only
+# =============================================================================
+# Verifies that when worktree_files is non-empty but NONE of the staged files
+# match (all-incoming-only case), ms_filter_to_worktree_only returns the
+# original input list (fail-open). This documents the known fail-open behavior
+# and confirms that callers (record-test-status.sh) must NOT rely on an empty
+# return value to detect all-incoming-only — they must use ms_get_worktree_only_files
+# directly and filter inline to correctly exit 0 in this case.
+test_filter_to_worktree_only_all_incoming_returns_empty_intersection() {
+    _snapshot_fail
+    local merge_repo merge_git_dir result filtered has_incoming has_worktree
+    merge_repo=$(cd /tmp && _make_merge_repo)
+    merge_git_dir=$(git -C "$merge_repo" rev-parse --absolute-git-dir 2>/dev/null)
+
+    # Staged files list contains only the incoming file (not on the worktree branch)
+    local staged_input="incoming.txt"
+
+    filtered=$(cd "$merge_repo" && \
+        _MERGE_STATE_GIT_DIR="$merge_git_dir" ms_filter_to_worktree_only "$staged_input" \
+        2>/dev/null) || true
+
+    # When filtering produces zero matches, fail-open returns the ORIGINAL input.
+    # This documents the intentional fail-open behavior of ms_filter_to_worktree_only.
+    has_incoming=0
+    echo "$filtered" | grep -q "incoming.txt" && has_incoming=1
+    assert_eq \
+        "test_filter_to_worktree_only_all_incoming_returns_empty_intersection: fail-open returns original list when no intersection" \
+        "1" "$has_incoming"
+
+    assert_pass_if_clean "test_filter_to_worktree_only_all_incoming_returns_empty_intersection"
+}
+
+# =============================================================================
+# Test 15: ms_filter_to_worktree_only — partial intersection
+# =============================================================================
+# Verifies that when some staged files are on the worktree branch and some are
+# incoming-only, only the worktree-branch files are returned.
+test_filter_to_worktree_only_partial_intersection() {
+    _snapshot_fail
+    local merge_repo merge_git_dir filtered has_incoming has_worktree
+    merge_repo=$(cd /tmp && _make_merge_repo)
+    merge_git_dir=$(git -C "$merge_repo" rev-parse --absolute-git-dir 2>/dev/null)
+
+    # Staged files list contains both a worktree file and an incoming-only file
+    local staged_input
+    staged_input="$(printf 'worktree.txt\nincoming.txt')"
+
+    filtered=$(cd "$merge_repo" && \
+        _MERGE_STATE_GIT_DIR="$merge_git_dir" ms_filter_to_worktree_only "$staged_input" \
+        2>/dev/null) || true
+
+    has_worktree=0
+    echo "$filtered" | grep -q "worktree.txt" && has_worktree=1
+    assert_eq \
+        "test_filter_to_worktree_only_partial_intersection: worktree.txt retained" \
+        "1" "$has_worktree"
+
+    has_incoming=0
+    echo "$filtered" | grep -q "incoming.txt" && has_incoming=1
+    assert_eq \
+        "test_filter_to_worktree_only_partial_intersection: incoming.txt excluded" \
+        "0" "$has_incoming"
+
+    assert_pass_if_clean "test_filter_to_worktree_only_partial_intersection"
+}
+
+# =============================================================================
 # Run all tests
 # =============================================================================
 echo ""
@@ -532,6 +604,10 @@ echo ""
 test_get_merge_base_during_merge
 echo ""
 test_get_merge_base_during_rebase
+echo ""
+test_filter_to_worktree_only_all_incoming_returns_empty_intersection
+echo ""
+test_filter_to_worktree_only_partial_intersection
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

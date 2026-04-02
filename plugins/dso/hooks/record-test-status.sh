@@ -49,6 +49,9 @@ source "$HOOK_DIR/lib/fuzzy-match.sh"
 # get_test_line_number, parse_passing_tests_from_output) from shared lib.
 source "$HOOK_DIR/lib/red-zone.sh"
 
+# Source merge/rebase state library (provides ms_filter_to_worktree_only, etc.)
+source "$HOOK_DIR/lib/merge-state.sh"
+
 # ── .test-index parsing ──────────────────────────────────────────────────────
 # Reads $REPO_ROOT/.test-index and returns test paths mapped to a given source file.
 # Format per line: 'source/path.ext: test/path1.ext [marker], test/path2.ext'
@@ -227,93 +230,37 @@ if [[ -z "$STAGED_FILES" ]]; then
     exit 0
 fi
 
-# --- Merge commit: scope to worktree-only files (9ea7-27a6) ---
-# During a merge, staged files include incoming changes from the merge target.
-# Scope to files the worktree branch actually changed, plus any conflict
-# resolutions. Tests and review gates must still run — never skip them.
-_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
-if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/MERGE_HEAD" ]]; then
-    _raw_merge_head=$(head -1 "$_GIT_DIR/MERGE_HEAD" 2>/dev/null || echo "")
-    _merge_head_sha=""
-    [[ -n "$_raw_merge_head" ]] && _merge_head_sha=$(git rev-parse "$_raw_merge_head" 2>/dev/null || echo "")
-    _head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
-    if [[ -n "$_merge_head_sha" && "$_merge_head_sha" != "$_head_sha" ]]; then
-        _merge_base=$(git merge-base HEAD "$_merge_head_sha" 2>/dev/null || echo "")
-        if [[ -n "$_merge_base" ]]; then
-            _worktree_changed=$(git diff --name-only "$_merge_base" HEAD 2>/dev/null || echo "")
-            _filtered=""
-            if [[ -n "$_worktree_changed" ]]; then
-                while IFS= read -r _sf; do
-                    [[ -z "$_sf" ]] && continue
-                    if echo "$_worktree_changed" | grep -qxF "$_sf" 2>/dev/null; then
-                        _filtered="${_filtered}${_sf}"$'\n'
-                    fi
-                done <<< "$STAGED_FILES"
-            fi
-            STAGED_FILES="${_filtered%$'\n'}"
-            if [[ -z "$STAGED_FILES" ]]; then
-                echo "Merge commit: all staged files are incoming-only — no worktree tests needed" >&2
-                exit 0
-            fi
-            echo "Merge commit: scoped to ${STAGED_FILES//$'\n'/, } (worktree-changed files only)" >&2
-        fi
-    fi
-fi
-
-# --- Rebase commit: filter out incoming-only files ---
-# Mirrors the logic in pre-commit-test-gate.sh lines 179-243.
-# When REBASE_HEAD exists (mid `git rebase`), staged files may include changes from
-# the onto branch that were already reviewed. Only test files the worktree branch
-# actually changed to avoid blocking on pre-existing failures from the onto branch.
+# --- Merge/Rebase commit: scope to worktree-only files ---
+# During a merge or rebase, staged files may include incoming changes from the
+# merge/rebase target that were already reviewed on main. Scope to files the
+# worktree branch actually changed. Uses shared merge-state.sh library.
 #
-# Fail-safe: if onto file is missing, orig-head unreadable, or merge-base fails,
+# Note: ms_filter_to_worktree_only is NOT used here because it fails open on
+# empty intersection (a valid state when all staged files are incoming-only).
+# We compute the worktree-only file set and filter STAGED_FILES inline, so
+# an empty result correctly exits 0 instead of falling through with all files.
+# Fail-safe: if ms_get_worktree_only_files returns empty (merge-base failed),
 # fall through to normal enforcement with the full staged file list.
-if [[ -n "$_GIT_DIR" && -f "$_GIT_DIR/REBASE_HEAD" ]]; then
-    echo "REBASE_HEAD detected: filtering staged files to worktree-branch changes only" >&2
-    _rebase_onto=""
-    if [[ -f "$_GIT_DIR/rebase-merge/onto" ]]; then
-        _rebase_onto=$(head -1 "$_GIT_DIR/rebase-merge/onto" 2>/dev/null || echo "")
-    elif [[ -f "$_GIT_DIR/rebase-apply/onto" ]]; then
-        _rebase_onto=$(head -1 "$_GIT_DIR/rebase-apply/onto" 2>/dev/null || echo "")
-    fi
-
-    if [[ -n "$_rebase_onto" ]]; then
-        # Read orig-head from rebase state directory; fall back to HEAD
-        _rebase_orig_head=""
-        if [[ -f "$_GIT_DIR/rebase-merge/orig-head" ]]; then
-            _rebase_orig_head=$(head -1 "$_GIT_DIR/rebase-merge/orig-head" 2>/dev/null || echo "")
-        elif [[ -f "$_GIT_DIR/rebase-apply/orig-head" ]]; then
-            _rebase_orig_head=$(head -1 "$_GIT_DIR/rebase-apply/orig-head" 2>/dev/null || echo "")
-        fi
-        # Fall back to HEAD if orig-head state file is absent
-        if [[ -z "$_rebase_orig_head" ]]; then
-            _rebase_orig_head=$(git rev-parse HEAD 2>/dev/null || echo "")
-        fi
-
-        if [[ -n "$_rebase_orig_head" ]]; then
-            _rebase_merge_base=$(git merge-base "$_rebase_orig_head" "$_rebase_onto" 2>/dev/null || echo "")
-            if [[ -n "$_rebase_merge_base" ]]; then
-                # Get files changed on the worktree branch (merge-base..orig-head)
-                _rebase_worktree_changed=$(git diff --name-only "$_rebase_merge_base" "$_rebase_orig_head" 2>/dev/null || echo "")
-
-                # Filter staged files: keep only those that the worktree branch changed
-                _rebase_filtered=""
-                if [[ -n "$_rebase_worktree_changed" ]]; then
-                    while IFS= read -r _rsf; do
-                        [[ -z "$_rsf" ]] && continue
-                        if echo "$_rebase_worktree_changed" | grep -qxF "$_rsf" 2>/dev/null; then
-                            _rebase_filtered="${_rebase_filtered}${_rsf}"$'\n'
-                        fi
-                    done <<< "$STAGED_FILES"
-                fi
-                # Empty _rebase_worktree_changed or no matches → all files are incoming-only
-                STAGED_FILES="${_rebase_filtered%$'\n'}"
-                if [[ -z "$STAGED_FILES" ]]; then
-                    exit 0
-                fi
+if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
+    _worktree_only_files=$(ms_get_worktree_only_files 2>/dev/null || echo "")
+    if [[ -n "$_worktree_only_files" ]]; then
+        # Filter: keep only staged files that the worktree branch also changed
+        _filtered_staged=""
+        while IFS= read -r _rts_sf; do
+            [[ -z "$_rts_sf" ]] && continue
+            if echo "$_worktree_only_files" | grep -qxF "$_rts_sf" 2>/dev/null; then
+                _filtered_staged+="$_rts_sf"$'\n'
             fi
+        done <<< "$STAGED_FILES"
+
+        if [[ -z "$_filtered_staged" ]]; then
+            echo "Merge/rebase commit: all staged files are incoming-only — no worktree tests needed" >&2
+            exit 0
         fi
+        STAGED_FILES="$_filtered_staged"
     fi
+    # Fail-safe: if worktree-only computation failed (empty _worktree_only_files),
+    # fall through to normal enforcement with the full staged file list.
 fi
 
 # --- Detect staged skill files (for Tier 1 eval invocation) ---

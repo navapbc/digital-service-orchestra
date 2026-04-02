@@ -845,11 +845,12 @@ EXIT_CODE_RB2=$(
     run_hook_exit
 )
 
-# EXPECTED (after implementation): hook detects REBASE_HEAD, reads onto (absent),
-# falls back to normal evaluation. Emits a detectable message referencing REBASE_HEAD.
-# RED phase: no REBASE_HEAD handling → silent processing, no REBASE_HEAD mention in output.
-assert_contains "test_record_status_rebase_failsafe: output mentions REBASE_HEAD detection" \
-    "REBASE_HEAD" "$OUTPUT_RB2"
+# EXPECTED (after migration to merge-state.sh): hook detects rebase state via shared library,
+# library fail-opens when onto is absent, hook proceeds to normal evaluation.
+# Post-migration: detection is silent (handled by ms_is_rebase_in_progress internally),
+# so we verify behavioral correctness via exit code and test-gate-status file instead of output.
+assert_eq "test_record_status_rebase_failsafe: test-gate-status file created" \
+    "1" "$(test -f "$ARTIFACTS_RB2/test-gate-status" && echo 1 || echo 0)"
 
 # Fallback to normal evaluation means the hook should still exit 0 (test passes via mock)
 assert_eq "test_record_status_rebase_failsafe: exits 0 (fallback processes normally)" \
