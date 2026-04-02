@@ -874,7 +874,86 @@ if [ "${FIX_BUG_INTERACTIVE:-true}" = "false" ] && [ "$ROUTE" = "escalate" ]; th
 fi
 ```
 
-<!-- REVIEW-DEFENSE: anti-pattern prompt templates are pre-staged for Layer 2 (task e502-1ae6) which adds Step 7.5 to wire them; orphaned-by-design until that batch. -->
+<!-- REVIEW-DEFENSE: anti-pattern prompt templates are pre-staged for Layer 2 (task e502-1ae6) which adds Step 7.5 to wire them; wired in this batch. -->
+
+### Step 7.5: Anti-Pattern Scan (/dso:fix-bug)
+
+After the fix is verified GREEN (Step 7) and all Gate 2 checks pass, scan the codebase for other occurrences of the confirmed root cause pattern. This step prevents the same class of bug from lurking in other files.
+
+**Pre-condition**: All RED tests must be GREEN before proceeding. Do not begin the anti-pattern scan until Step 7 verification passes — GREEN before commit is required.
+
+**When to run**: After Gate routing resolves to `auto-fix` or `dialog` (not `escalate`). When route is `escalate`, skip this step — the scope has been handed off to `/dso:brainstorm`.
+
+#### 7.5.1 — Dispatch Scan Sub-Agent
+
+Dispatch `prompts/anti-pattern-scan.md` as a sub-agent with the confirmed root cause pattern, reference file, and pattern description from the investigation results:
+
+```
+sub-agent: prompts/anti-pattern-scan.md
+inputs:
+  root_cause_pattern: <confirmed root cause pattern from investigation>
+  reference_file:     <the source file that was fixed>
+  pattern_description: <one-sentence description of the anti-pattern>
+```
+
+Wait for the `SCAN_RESULT` output before proceeding.
+
+#### 7.5.2 — Handle Empty Scan Result
+
+If the scan returns `total_confirmed: 0` (zero confirmed candidates), record the empty scan result and proceed immediately to Step 8 — no candidates to fix, no sub-agents to dispatch:
+
+```bash
+ticket comment <BUG_TICKET_ID> "Anti-pattern scan: no candidates found (zero confirmed occurrences outside the fixed file). Proceeding to commit."
+```
+
+Skip the remaining sub-steps and proceed to Step 8.
+
+#### 7.5.3 — Group Candidates by File
+
+Parse the `SCAN_RESULT` candidates list. Group confirmed candidates by file — multiple occurrences in the same file are handled by a single fix sub-agent (same-file grouping as defined in `prompts/anti-pattern-fix-batch.md`).
+
+Build the dispatch list:
+
+```
+dispatch_list:
+  - agent: prompts/anti-pattern-fix-batch.md
+    assigned_files: [file1.py, file2.py]   # same-file grouping
+  - agent: prompts/anti-pattern-fix-batch.md
+    assigned_files: [file3.py]
+  ...
+```
+
+#### 7.5.4 — Dispatch Fix Sub-Agents in Batches of 5
+
+Dispatch fix sub-agents in batches of at most 5 concurrent agents (CLAUDE.md rule: never create more than 5 sub-agents at a time). Each agent receives:
+
+- `pattern_summary` — from the SCAN_RESULT
+- `root_cause` — from the investigation
+- `reference_fix` — the fix applied to the original bug
+- `assigned_files` — its assigned file(s)
+- `occurrences` — the confirmed occurrences for its assigned files
+
+**Commit between batches**: After each batch of fix sub-agents completes, commit the results following `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md` (including review) before dispatching the next batch. This prevents lost work if a subsequent batch fails (CLAUDE.md rule: never launch a new sub-agent batch without committing the previous batch's results).
+
+```
+for each batch of up to 5 fix agents:
+  1. Dispatch agents concurrently
+  2. Collect BATCH_RESULT from each agent
+  3. Commit between batches following COMMIT-WORKFLOW.md
+  4. Proceed to next batch
+```
+
+If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "<title>" --parent=<EPIC_ID>`) and proceed to the next batch — do not block the entire scan on a single failing batch.
+
+#### 7.5.5 — Observation Tracking (Dogfooding)
+
+Record the scan outcome in the bug ticket for dogfooding purposes. After at least 5 sessions of fix-bug execution, the observations accumulated across sessions provide data for refining the anti-pattern detection heuristics.
+
+```bash
+ticket comment <BUG_TICKET_ID> "Anti-pattern scan complete: <total_confirmed> confirmed candidates, <N_fixed> fixed across <N_batches> batches. Observation: <one sentence on what the scan found or why it was clean>."
+```
+
+This observation record feeds dogfooding analysis — tracking which patterns recur across sessions helps identify systemic issues in the codebase.
 
 ### Step 8: Commit and Close (/dso:fix-bug)
 
