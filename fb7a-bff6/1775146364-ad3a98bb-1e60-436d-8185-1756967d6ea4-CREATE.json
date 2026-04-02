@@ -1,0 +1,1 @@
+{"timestamp": 1775146364, "uuid": "ad3a98bb-1e60-436d-8185-1756967d6ea4", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "Fix: hoist deferred sys imports in acli-integration.py to module-level", "parent_id": "", "description": "", "priority": 4, "assignee": "Test"}}
