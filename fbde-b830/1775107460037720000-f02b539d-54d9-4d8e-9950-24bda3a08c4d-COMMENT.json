@@ -1,0 +1,1 @@
+{"timestamp": 1775107460037720000, "uuid": "f02b539d-54d9-4d8e-9950-24bda3a08c4d", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Investigation error: ticket list DOES support --type/--status flags (ticket-list.sh lines 59-70). Root cause is not missing flags but missing documentation in ticket-cli-reference.md."}}
