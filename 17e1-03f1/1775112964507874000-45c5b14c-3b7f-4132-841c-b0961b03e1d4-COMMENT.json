@@ -1,0 +1,1 @@
+{"timestamp": 1775112964507874000, "uuid": "45c5b14c-3b7f-4132-841c-b0961b03e1d4", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: pre-commit-review-gate.sh migrated to shared merge-state.sh library. ~93 lines of inline detection replaced."}}
