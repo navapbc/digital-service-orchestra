@@ -187,7 +187,7 @@ When `ticket-reducer.py` processes a ticket directory:
 - **Event files present but no parseable CREATE**: same as above — `status='error'`, `error='no_valid_create_event'`.
 - **Corrupt CREATE event** (parseable JSON but missing required `ticket_type` or `title`): returns error-state dict with `status='fsck_needed'` and `error='corrupt_create_event'`.
 
-All error-state dicts have exactly three keys: `{status, error, ticket_id}`.
+All error-state dicts include the full standard schema fields (`ticket_type`, `title`, `author`, etc.) with sentinel defaults (`None` or empty) so consumers never crash on missing keys. The `status` field is `"error"` or `"fsck_needed"`, and the `error` field describes the specific failure. Error-state tickets are excluded from `ticket list` default output unless explicitly requested via `--status=error` or `--status=fsck_needed`.
 
 ### Command-level (write path)
 
