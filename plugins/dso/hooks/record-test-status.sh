@@ -179,6 +179,50 @@ find_global_red_marker_for_test() {
     done < "$index_file"
 }
 
+# ── Centrality scoring ───────────────────────────────────────────────────────
+# REVIEW-DEFENSE: grep is used here for file-level fan-in counting, consistent with
+# the project pattern in gate-2b-blast-radius.sh count_fan_in() (line 226). The
+# CLAUDE.md directive to prefer built-in tools over Bash grep applies to *Claude Code
+# tool calls*, not to shell script logic. grep -rlE is the standard tool for recursive
+# file content matching in bash — no Python subprocess is warranted for a simple count.
+#
+# count_centrality: Counts files that directly reference the target file using
+# grep pattern matching. Returns count on stdout (0 when no references found).
+# Args: $1 = source file path (relative to repo root), $2 = repo root
+# Returns: count on stdout (always a single integer, 0 on no matches)
+count_centrality() {
+    local filepath="$1"
+    local repo_root="$2"
+
+    local basename
+    basename="$(basename "$filepath")"
+    local module_name="${basename%.*}"
+
+    # Use grep-based fan-in counting: count files that import/source the target.
+    # This is more reliable across languages than ast-grep pattern matching,
+    # which requires language-specific AST patterns and fails on hyphenated names.
+    # Patterns matched: Python import/from, bash source.
+    #
+    # Escape regex metacharacters in module_name to prevent injection (Bug 5 fix).
+    local escaped_module_name
+    escaped_module_name=$(printf '%s' "$module_name" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
+
+    local count
+    count=$(grep -rlE \
+        "(import[[:space:]]+${escaped_module_name}|from[[:space:]]+${escaped_module_name}[[:space:]]|source[[:space:]]+(.*/)?(${escaped_module_name}))" \
+        "$repo_root" \
+        --include='*.py' --include='*.sh' --include='*.bash' \
+        --include='*.js' --include='*.ts' --include='*.tsx' \
+        --include='*.rb' 2>/dev/null \
+        | grep -vcF "$repo_root/$filepath" 2>/dev/null) || count=0
+    # Ensure single integer — grep pipelines can produce multi-line output
+    # when one stage fails (e.g., "0\n0" from BSD grep exit-1 + || fallback).
+    count=$(echo "$count" | tail -1 | tr -d '[:space:]')
+    [[ "$count" =~ ^[0-9]+$ ]] || count=0
+
+    echo "$count"
+}
+
 # Parse arguments
 SOURCE_FILE=""
 while [[ $# -gt 0 ]]; do
@@ -217,6 +261,13 @@ else
     _TEST_DIRS=$(grep '^test_gate\.test_dirs=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
     _TEST_DIRS="${_TEST_DIRS:-tests/}"
 fi
+
+# Read centrality threshold configuration (default: 8)
+_CENTRALITY_THRESHOLD=$(grep '^test_gate\.centrality_threshold=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
+_CENTRALITY_THRESHOLD="${_CENTRALITY_THRESHOLD:-8}"
+
+# Read full test suite command from config (commands.test)
+_FULL_SUITE_CMD=$(grep '^commands\.test=' "${REPO_ROOT}/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2- || true)
 
 # --- Discover staged source files ---
 if [[ -n "$SOURCE_FILE" ]]; then
@@ -385,8 +436,36 @@ for _tf in "${ASSOCIATED_TESTS[@]}"; do
     ASSOCIATED_TEST_MARKERS+=("${_TEST_MARKER_MAP[$_tf]:-}")
 done
 
+# --- Centrality scoring: determine if full suite is needed ---
+# Uses grep-based fan-in counting (no external tools required).
+# When ast-grep (sg) is not installed, emits a diagnostic note but still
+# performs centrality scoring via grep (the primary counting method).
+FULL_SUITE=false
+_max_centrality=0
+if ! command -v sg >/dev/null 2>&1; then
+    echo "NOTE: ast-grep (sg) not installed — centrality scoring uses grep-based fan-in counting" >&2
+fi
+
+while IFS= read -r _csf; do
+    [[ -z "$_csf" ]] && continue
+    # Skip test files — centrality is only meaningful for source files
+    if fuzzy_is_test_file "$_csf"; then
+        continue
+    fi
+    _centrality=$(count_centrality "$_csf" "$REPO_ROOT" 2>/dev/null)
+    _centrality="${_centrality:-0}"
+    if [[ "$_centrality" -gt "$_max_centrality" ]] 2>/dev/null; then
+        _max_centrality="$_centrality"
+    fi
+done <<< "$STAGED_FILES"
+
+if [[ "$_max_centrality" -gt "$_CENTRALITY_THRESHOLD" ]] 2>/dev/null; then
+    FULL_SUITE=true
+    echo "Centrality score ${_max_centrality} exceeds threshold ${_CENTRALITY_THRESHOLD} — running full test suite" >&2
+fi
+
 # --- No associated tests and no staged skill files: exit cleanly (exempt) ---
-if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ -z "$_staged_skill_paths" ]]; then
+if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ -z "$_staged_skill_paths" ]] && [[ "$FULL_SUITE" != "true" ]]; then
     # No associated tests and no skill evals to run — exit cleanly without writing
     # test-gate-status (the gate exempts files with no associated tests)
     exit 0
@@ -466,6 +545,140 @@ tested_files=${TESTED_FILES_LIST}
 PARTIAL
 }
 trap '_write_partial_status' URG
+
+# --- Full suite execution path (centrality-triggered) ---
+if [[ "$FULL_SUITE" == true ]]; then
+    # Resume support: skip full suite if already completed for this diff hash
+    _FULL_SUITE_PROGRESS_KEY="FULL_SUITE_COMPLETE"
+    if [[ -n "${_COMPLETED_TESTS[$_FULL_SUITE_PROGRESS_KEY]:-}" ]]; then
+        # Verify the status file still exists (could have been deleted between runs)
+        _existing_status_file="$ARTIFACTS_DIR/test-gate-status"
+        if [[ -f "$_existing_status_file" ]]; then
+            _existing_hash=$(grep '^diff_hash=' "$_existing_status_file" 2>/dev/null | head -1 | cut -d= -f2 || echo "")
+            if [[ "$_existing_hash" == "$DIFF_HASH" ]]; then
+                echo "Resuming: full suite already passed — skipping." >&2
+                exit 0
+            fi
+        fi
+        # Status file missing or stale — fall through to re-run full suite
+        echo "WARNING: progress file says full suite complete but status file missing/stale — re-running." >&2
+    fi
+fi
+
+if [[ "$FULL_SUITE" == true ]]; then
+    # Discover all test files in the configured test directories (single scan, reused below)
+    _discovered_test_files=()
+    _all_test_files=""
+    IFS=':' read -ra _td_arr <<< "$_TEST_DIRS"
+    for _td in "${_td_arr[@]}"; do
+        _td="${_td%/}"
+        if [[ -d "$REPO_ROOT/$_td" ]]; then
+            while IFS= read -r _tf; do
+                [[ -z "$_tf" ]] && continue
+                _discovered_test_files+=("$_tf")
+                _rel="${_tf#$REPO_ROOT/}"
+                if [[ -n "$_all_test_files" ]]; then
+                    _all_test_files="${_all_test_files},${_rel}"
+                else
+                    _all_test_files="$_rel"
+                fi
+            done < <(find "$REPO_ROOT/$_td" -type f \( -name "test-*.sh" -o -name "test_*.sh" -o -name "test_*.py" -o -name "*.test.js" -o -name "*.test.ts" \) 2>/dev/null | sort)
+        fi
+    done
+
+    # Bug 2 fix: guard against empty test dirs — if no test files discovered,
+    # fall through to associated-tests behavior instead of false-positive "passed".
+    if [[ ${#_discovered_test_files[@]} -eq 0 ]]; then
+        echo "WARNING: full suite triggered but no test files found in configured dirs — falling back to associated tests" >&2
+        FULL_SUITE=false
+    fi
+
+    _full_exit=0
+
+    if [[ "$FULL_SUITE" != true ]]; then
+        : # Fall through — FULL_SUITE was disabled by empty-test-dir guard above
+    elif [[ -n "${RECORD_TEST_STATUS_RUNNER:-}" ]]; then
+        # Use overridden runner (for testing) — reuse discovered file list
+        TESTED_FILES_LIST="$_all_test_files"
+        _runner_cmd=()
+        read -ra _runner_cmd <<< "$RECORD_TEST_STATUS_RUNNER"
+        # REVIEW-DEFENSE: First-failure-wins is intentional. The full-suite path
+        # uses _full_exit to decide passed/failed/timeout (3 branches at line 626).
+        # Exit 144 (SIGURG timeout) must take precedence over non-zero (test failure)
+        # since the status file distinguishes "timeout" from "failed". Capturing only
+        # the first non-zero exit ensures 144 is not overwritten by a later exit 1.
+        # The per-file associated-tests path (line 700+) uses the same first-failure
+        # pattern via its own exit_code variable.
+        for _tf in "${_discovered_test_files[@]}"; do
+            _tf_exit=0
+            "${_runner_cmd[@]}" "$_tf" >/dev/null 2>&1 || _tf_exit=$?
+            if [[ $_tf_exit -ne 0 ]] && [[ $_full_exit -eq 0 ]]; then
+                _full_exit=$_tf_exit
+            fi
+        done
+    elif [[ -n "$_FULL_SUITE_CMD" ]]; then
+        # REVIEW-DEFENSE: TESTED_FILES_LIST is set BEFORE the suite runs so the
+        # SIGURG trap (_write_partial_status) can report which files were targeted.
+        # The trap writes status "partial" (not "passed"), so the pre-commit gate
+        # never accepts this as a valid pass — it indicates an interrupted full-suite
+        # run. Setting it after would leave TESTED_FILES_LIST empty on SIGURG, losing
+        # observability about what was being tested when the kill occurred.
+        TESTED_FILES_LIST="$_all_test_files"
+        # Split config command into array (same pattern as RECORD_TEST_STATUS_RUNNER)
+        _suite_cmd=()
+        read -ra _suite_cmd <<< "$_FULL_SUITE_CMD"
+        "${_suite_cmd[@]}" >/dev/null 2>&1 || _full_exit=$?
+    else
+        echo "WARNING: commands.test not configured — running associated tests only" >&2
+        FULL_SUITE=false
+    fi
+
+    if [[ "$FULL_SUITE" == true ]]; then
+        if [[ $_full_exit -eq 144 ]]; then
+            STATUS="timeout"
+        elif [[ $_full_exit -ne 0 ]]; then
+            STATUS="failed"
+        else
+            STATUS="passed"
+        fi
+
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+        # Write test-gate-status in standard format
+        # REVIEW-DEFENSE: failed_tests is intentionally empty for full-suite runs.
+        # The full suite runs as a single commands.test invocation — individual
+        # failing test file names are not available (unlike the per-file path which
+        # tracks each test_file independently). The pre-commit gate reads only the
+        # first line (passed/failed/timeout) and diff_hash; failed_tests is informational.
+        STATUS_FILE="$ARTIFACTS_DIR/test-gate-status"
+        cat > "$STATUS_FILE" <<EOF
+${STATUS}
+diff_hash=${DIFF_HASH}
+timestamp=${TIMESTAMP}
+tested_files=${TESTED_FILES_LIST}
+failed_tests=
+EOF
+
+        echo "Test status recorded: ${STATUS} (full suite, diff_hash=${DIFF_HASH:0:12}..., tested=${TESTED_FILES_LIST})" >&2
+
+        # Record full-suite completion in progress file for SIGURG resume support.
+        # On success, write the key so a subsequent resume skips the full suite.
+        # The progress file is cleaned up at the end of the script on normal exit.
+        if [[ "$STATUS" == "passed" ]]; then
+            echo "$_FULL_SUITE_PROGRESS_KEY" >> "$_PROGRESS_FILE"
+        fi
+
+        trap - URG
+
+        # Clean up progress file on normal completion (same as associated-tests path)
+        rm -f "$_PROGRESS_FILE" 2>/dev/null
+
+        if [[ "$STATUS" == "failed" ]] || [[ "$STATUS" == "timeout" ]]; then
+            exit 1
+        fi
+        exit 0
+    fi
+fi
 
 _test_idx=0
 for test_file in "${ASSOCIATED_TESTS[@]}"; do
