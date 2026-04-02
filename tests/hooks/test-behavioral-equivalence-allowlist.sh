@@ -60,6 +60,24 @@ echo "init" > README.md
 git add README.md
 git commit -q -m "init"
 
+# --- Speed optimisation: reduce per-call subprocess overhead ---
+# Set WORKFLOW_CONFIG_FILE to an empty file so config-paths.sh reads it
+# directly without spawning a `git rev-parse` to locate dso-config.conf.
+# This shaves ~0.5 s off every compute-diff-hash.sh invocation.
+export WORKFLOW_CONFIG_FILE="$TMPDIR_TEST/.test-config"
+touch "$WORKFLOW_CONFIG_FILE"
+
+# Set WORKFLOW_PLUGIN_ARTIFACTS_DIR to a throw-away dir so get_artifacts_dir
+# skips the per-repo hash computation and old-path migration scan.
+export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST/.artifacts"
+mkdir -p "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"
+
+# --- Compute the baseline hash once for the clean repo state ---
+# hash_before is always the same for a clean git repo (empty staged diff).
+# Pre-computing it avoids one compute-diff-hash.sh invocation per test,
+# halving the total number of subprocesses spawned by this test suite.
+BASELINE_HASH=$(bash "$COMPUTE_DIFF_HASH" 2>/dev/null)
+
 # --- Helper: check if skip-review-check classifies a file as non-reviewable ---
 # Returns 0 if non-reviewable (skip review), 1 if reviewable (needs review)
 skip_review_classifies_non_reviewable() {
@@ -68,17 +86,34 @@ skip_review_classifies_non_reviewable() {
     return $?
 }
 
+# Shared temp dir for compute-diff-hash cache isolation.
+# compute-diff-hash.sh uses "${TMPDIR:-/tmp}/compute-diff-hash-cache-<repo-id>"
+# as its per-invocation disk cache, keyed on the git index mtime (seconds).
+# When multiple tests run in under a second each, consecutive index operations
+# can share the same mtime, causing stale cache hits (e.g., the hash computed
+# after staging file N is returned again when file N+1 is staged in the next
+# test).  Setting TMPDIR to a call-unique directory for each invocation gives
+# each call its own (empty) cache namespace, preventing collisions entirely.
+_CDH_CACHE_ROOT="$TMPDIR_TEST/.cdh-caches"
+mkdir -p "$_CDH_CACHE_ROOT"
+_CDH_CALL_IDX=0
+
 # --- Helper: check if compute-diff-hash excludes a file ---
 # Creates the file, stages it, computes hash with and without it.
 # If hashes are equal, the file is excluded (non-reviewable). Returns 0.
 # If hashes differ, the file is included (reviewable). Returns 1.
+#
+# Performance: uses a pre-computed BASELINE_HASH for hash_before to avoid
+# one subprocess invocation per call.  WORKFLOW_CONFIG_FILE and
+# WORKFLOW_PLUGIN_ARTIFACTS_DIR are exported above to speed up each
+# compute-diff-hash.sh invocation.
 compute_diff_hash_excludes_file() {
     local filepath="$1"
     local content="${2:-test content}"
 
-    # Get baseline hash (clean state)
-    local hash_before
-    hash_before=$(bash "$COMPUTE_DIFF_HASH" 2>/dev/null)
+    # Use the pre-computed baseline (clean-repo hash) instead of re-invoking
+    # compute-diff-hash.sh a second time per file.
+    local hash_before="$BASELINE_HASH"
 
     # Create and stage the file — compute-diff-hash only considers staged/tracked
     # changes (untracked files are excluded per dso-fqxu)
@@ -88,9 +123,15 @@ compute_diff_hash_excludes_file() {
     echo "$content" > "$filepath"
     git add "$filepath"
 
-    # Get hash with the file staged
+    # Get hash with the file staged.
+    # Use a call-unique TMPDIR so compute-diff-hash.sh gets a fresh (empty)
+    # cache namespace, preventing stale hits when consecutive index changes
+    # happen within the same second (same mtime → same cache key).
+    _CDH_CALL_IDX=$(( _CDH_CALL_IDX + 1 ))
+    local _cdh_tmp="$_CDH_CACHE_ROOT/$_CDH_CALL_IDX"
+    mkdir -p "$_cdh_tmp"
     local hash_after
-    hash_after=$(bash "$COMPUTE_DIFF_HASH" 2>/dev/null)
+    hash_after=$(TMPDIR="$_cdh_tmp" bash "$COMPUTE_DIFF_HASH" 2>/dev/null)
 
     # Clean up: unstage and remove file
     git reset -q HEAD -- "$filepath" 2>/dev/null || true

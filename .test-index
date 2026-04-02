@@ -232,4 +232,4 @@ plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-anti-pattern-step
 plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-flaky-scoring.sh
 plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh
 plugins/dso/skills/fix-bug/prompts/anti-pattern-fix-batch.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh
-plugins/dso/hooks/lib/merge-state.sh: tests/hooks/test-merge-state.sh
+plugins/dso/hooks/lib/merge-state.sh: tests/hooks/test-merge-state.sh, tests/hooks/test-merge-state-golden-path.sh
