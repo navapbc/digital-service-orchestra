@@ -567,6 +567,8 @@ investigation_findings: <summary of root cause candidates, confidence, and evide
 escalation_reason: <why the fix is COMPLEX — e.g., cross-system refactor, multiple subsystems affected>
 ```
 
+Note for the re-dispatched agent (not actionable in the current dispatch): when the fix track resumes, the implementation agent must consult `plugins/dso/skills/shared/prompts/prior-art-search.md` before writing any fix code — see the prior-art instruction in Fix Implementation.
+
 3. Stop — do NOT proceed to Step 5 or Step 6. The orchestrator receives this report and decides how to proceed (e.g., re-dispatch `/dso:fix-bug` at orchestrator level with full authority, or invoke `/dso:brainstorm` to create an epic).
 
 ### Step 5: RED Test (/dso:fix-bug)
@@ -628,6 +630,8 @@ Before dispatching any fix implementation (Step 6), verify that a RED test exist
 **LLM-behavioral bug exemption**: This gate is relaxed for llm-behavioral bugs. LLM behavioral bugs (prompt regressions, agent guidance gaps, skill misinterpretation) cannot always have a traditional executable RED unit test written before the fix — the behavioral regression lives in natural language instructions, not in executable code paths. For llm-behavioral bugs, the RED unit test requirement is replaced with eval-based verification: define an eval assertion that would fail with the current skill/agent/prompt content and pass after the fix. If no eval framework is available, document the behavioral assertion in the ticket as the verification criterion before proceeding to fix implementation.
 
 ### Step 6: Fix Implementation (/dso:fix-bug)
+
+**Prior-Art Search**: Before dispatching the fix sub-agent, consult the shared prior-art search framework at `plugins/dso/skills/shared/prompts/prior-art-search.md`. This ensures the fix approach does not duplicate an existing pattern, introduce an inconsistent abstraction, or miss a reuse opportunity. Apply the Routine Exclusions section of that framework — single-file logic fixes that correct a clear bug without introducing new abstractions are exempt. For fixes that add new helpers, patterns, or abstractions, run at least Tier 1–2 of the tiered search protocol before dispatching the fix sub-agent.
 
 **HARD-GATE**: Before dispatching the fix sub-agent, the orchestrator MUST have a `root_cause_report` produced by the investigation sub-agent Task tool call (Step 3 / Step 3-LLM-behavioral). The orchestrating agent may not produce the `root_cause_report` itself — it must come from the prior investigation sub-agent's RESULT output. If no `root_cause_report` is present, do NOT proceed to fix dispatch; return to the appropriate investigation step.
 
