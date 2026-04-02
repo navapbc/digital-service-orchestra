@@ -1,1 +1,0 @@
-{"timestamp": 1775152798280886000, "uuid": "7d48804e-9873-40de-9ba1-659636fb276b", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Already fixed: all sys imports in acli-integration.py are at module level (lines 11-20). ruff check passes. No deferred imports found."}}
