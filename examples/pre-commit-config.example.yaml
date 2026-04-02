@@ -153,6 +153,29 @@ repos:
         stages: [pre-commit]
         files: \.sh$
 
+      # Portability check (timeout: 5s)
+      # Detects hardcoded home-directory paths that break portability across machines.
+      # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/scripts/check-portability.sh"
+      - id: portability-check
+        name: Portability Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh portability-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-portability.sh\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      # Shim refs check (timeout: 5s)
+      # Detects direct plugin path references in plugins/dso/ that should use
+      # the .claude/scripts/dso shim instead.
+      # Debug command: DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && "$DSO_ROOT/scripts/check-shim-refs.sh"
+      - id: shim-refs-check
+        name: Shim Refs Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh shim-refs-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-shim-refs.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/
+
       # Assertion density check
       # Debug command: python scripts/check_assertion_density.py app/tests/ --min-density 1.0
       - id: check-assertion-density

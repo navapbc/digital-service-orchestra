@@ -207,6 +207,55 @@ test_scope_filtering_out_of_scope() {
     assert_pass_if_clean "test_scope_filtering_out_of_scope"
 }
 
+# ── test_validate_runs_shim_refs_check ────────────────────────────────────────
+# Wiring check (SC3): validate.sh source must contain a call to check-shim-refs.sh
+# as part of the --ci pipeline. This is a static contract test.
+#
+# Strategy: read validate.sh source and assert it references "check-shim-refs"
+# (the check name that appears in run_check / report_check calls). This test
+# passes only once validate.sh is updated to include the shim-refs check.
+#
+# This test FAILS (RED) until validate.sh is updated to include the shim-refs
+# wiring in its --ci pipeline.
+test_validate_runs_shim_refs_check() {
+    _snapshot_fail
+    local _validate_sh _has_ref
+    _validate_sh="$PLUGIN_ROOT/plugins/dso/scripts/validate.sh"
+
+    # Static check: validate.sh must contain the string "check-shim-refs"
+    # in an actual run_check or report_check invocation — not just a comment
+    if grep -qE '(run_check|report_check|tally_check).*shim-refs' "$_validate_sh" 2>/dev/null; then
+        _has_ref="yes"
+    else
+        _has_ref="no"
+    fi
+    assert_eq "test_validate_runs_shim_refs_check: validate.sh wires check-shim-refs" "yes" "$_has_ref"
+    assert_pass_if_clean "test_validate_runs_shim_refs_check"
+}
+
+# ── test_precommit_blocks_shim_violation ──────────────────────────────────────
+# Pre-commit wiring check (SC4): .pre-commit-config.yaml must contain an entry
+# that invokes check-shim-refs.sh as a pre-commit hook. This is a static
+# contract test — it verifies the hook is wired into the pre-commit pipeline.
+#
+# This test FAILS (RED) until .pre-commit-config.yaml is updated to wire
+# check-shim-refs.sh as a pre-commit hook for plugins/dso/ files.
+test_precommit_blocks_shim_violation() {
+    _snapshot_fail
+    local _precommit_config _has_entry
+    _precommit_config="$PLUGIN_ROOT/.pre-commit-config.yaml"
+
+    # Static check: .pre-commit-config.yaml must contain a reference to
+    # check-shim-refs.sh as a pre-commit hook entry
+    if grep -q 'check-shim-refs' "$_precommit_config" 2>/dev/null; then
+        _has_entry="yes"
+    else
+        _has_entry="no"
+    fi
+    assert_eq "test_precommit_blocks_shim_violation: .pre-commit-config.yaml wires check-shim-refs" "yes" "$_has_entry"
+    assert_pass_if_clean "test_precommit_blocks_shim_violation"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_exit_nonzero_on_literal_path
 test_exit_nonzero_on_variable_path
@@ -217,5 +266,7 @@ test_shim_exempt_comment_suppresses
 test_exit_zero_on_clean_file
 test_multi_pattern_detection
 test_scope_filtering_out_of_scope
+test_validate_runs_shim_refs_check
+test_precommit_blocks_shim_violation
 
 print_summary
