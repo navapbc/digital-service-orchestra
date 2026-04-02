@@ -1,0 +1,163 @@
+description: "implementation-plan skill evals — atomic TDD-driven task decomposition"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the implementation-plan skill for a software development workflow tool.
+    Your job is to decompose user stories into atomic, TDD-driven implementation tasks
+    with correct dependencies, acceptance criteria, and architectural review when needed.
+
+    Key behaviors:
+    - TDD First: Every task that adds or modifies behavioral content must have a preceding
+      RED test task as a declared dependency before any implementation task.
+    - Atomic stability: Each task must leave the codebase in a deployable, green state.
+      Tasks must never require being committed together.
+    - Acceptance criteria: Every task must include specific acceptance criteria with
+      Verify: commands that return exit 0 on pass.
+    - Sequential ordering: Data model → API/Service → UI/Frontend → Cleanup.
+    - Ambiguity scan: Before planning, surface blocking ambiguities and defaultable assumptions.
+    - Cross-cutting escalation: Force architectural review when ≥3 layers touched or
+      ≥5 interfaces/classes need updates.
+    - Scrutiny gate: Halt immediately if the epic has a scrutiny:pending tag.
+
+    The user says:
+    {{prompt}}
+
+tests:
+  - description: "Decomposes a well-defined story into TDD-driven tasks with RED test dependencies"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story: "As an operations manager, I want to filter the data table by date range
+        so that I can focus on records relevant to a specific reporting period."
+
+        Context:
+        - The app has a React frontend that fetches from a Python Flask API.
+        - The existing GET /api/records endpoint accepts no filter params.
+        - There is an existing test file: tests/test_records_api.py
+        - The source file is: src/api/records.py
+        - No new database fields are needed — the records table already has a
+          created_at timestamp column.
+        - Success criteria: Users can filter the records table by date range using
+          start_date and end_date query params. Invalid date formats return a 400
+          error with a descriptive message.
+
+        Do not ask for more clarification — proceed directly to drafting the plan.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output produces an implementation plan for the date range filter story
+          that follows TDD-driven task decomposition. It should:
+          (1) include at least one RED test task that modifies or extends the existing
+          test file (tests/test_records_api.py) to assert the new filter behavior —
+          this task must be declared as a dependency of the implementation task, and
+          the plan must make clear the test must fail (RED) before the implementation runs,
+          (2) include an implementation task for the API layer (src/api/records.py)
+          that depends on the RED test task,
+          (3) include acceptance criteria for each task with at least one Verify: command
+          that can be run to confirm the criterion passes,
+          (4) present tasks in a logical sequential order — the RED test task appears
+          before the implementation task in the dependency chain,
+          (5) NOT combine the RED test writing and the implementation into a single task —
+          they must be separate atomic tasks with an explicit dependency between them.
+
+  - description: "Escalates to architectural review when cross-cutting threshold is met"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story: "As a user, I want all data writes to be audited so that we have a
+        complete record of who changed what and when."
+
+        Context:
+        - The app uses Flask routes, a service layer, SQLAlchemy models, and a PostgreSQL DB.
+        - Auditing requires changes to: the route layer (capture user identity),
+          the service layer (pass audit context), the SQLAlchemy models (add audit fields),
+          a new AuditLog model and migration, and a new AuditService class.
+        - That means 5 distinct files/classes need updates or creation.
+        - No existing audit pattern exists — this is a new architectural pattern.
+
+        Do not ask for clarification — proceed to analysis.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output recognizes this story as a cross-cutting change requiring
+          architectural review before task drafting. It should:
+          (1) identify that the change touches multiple architectural layers (route →
+          service → model → DB migration) — at least 3 layers — and/or that 5 or more
+          interfaces/classes require updates or creation,
+          (2) mark the change as CROSS-CUTTING and indicate that Step 2 (Architectural
+          Review) is required before drafting implementation tasks,
+          (3) annotate the review subject with the cross-cutting signal (e.g.,
+          "Architectural Pattern: Audit Logging [CROSS-CUTTING — N layers / M interfaces]"),
+          (4) NOT skip directly to task drafting without first performing the architectural
+          review step — the plan must not produce a task list that bypasses the cross-cutting
+          escalation rule.
+
+  - description: "Halts with scrutiny gate message when epic has scrutiny:pending tag"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story ID: story-abc123
+        Story: "As a user, I want OAuth2 login so I can sign in with Google."
+
+        When you run `dso ticket show` on the parent epic (epic-xyz789), the output
+        includes:
+        {
+          "ticket_id": "epic-xyz789",
+          "type": "epic",
+          "title": "Add OAuth2 Authentication",
+          "status": "open",
+          "tags": ["scrutiny:pending"]
+        }
+
+        Proceed with the implementation plan.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output halts immediately because the parent epic has a scrutiny:pending tag
+          and does NOT produce any implementation plan or task list. It should:
+          (1) identify that the epic (epic-xyz789) has the scrutiny:pending tag,
+          (2) output a halt message telling the user to run /dso:brainstorm on the epic
+          first to complete the scrutiny pipeline before retrying /dso:implementation-plan,
+          (3) NOT produce any tasks, task drafts, dependency graphs, or planning artifacts —
+          the halt must be complete with no partial plan output,
+          (4) the halt message must reference the specific action required: running
+          /dso:brainstorm on the epic to clear the scrutiny:pending tag.
+
+  - description: "Surfaces blocking ambiguities and defaultable assumptions before planning"
+    vars:
+      prompt: |
+        Please create an implementation plan for this user story:
+
+        Story: "As a user, I want to improve performance so the app is faster."
+
+        No additional context is available.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output performs an ambiguity scan and surfaces blocking questions rather
+          than proceeding directly to task drafting on an underspecified story. It should:
+          (1) identify at least two concrete ambiguities that block planning — for example:
+          which specific part of the app is slow, what the measurable performance target
+          is, what user action or workflow is affected, or what "faster" means in
+          observable terms,
+          (2) batch the ambiguity questions into a single message rather than asking
+          one at a time across multiple turns,
+          (3) separate blocking ambiguities ("cannot plan without this") from defaultable
+          assumptions ("I will assume X unless you say otherwise") if both types are present,
+          (4) NOT produce a task list or implementation plan — planning must be blocked
+          until the ambiguities are resolved, since a plan built on assumptions about
+          an underspecified story would be worse than no plan.

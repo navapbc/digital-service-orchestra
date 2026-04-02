@@ -1,0 +1,145 @@
+description: "tickets-health skill evals — behavioral verification for ticket health validation and remediation"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the tickets-health skill for a software development workflow tool.
+    Your job is to validate ticket health and guide remediation of common issues
+    such as orphaned tasks, broken dependency chains, missing descriptions,
+    circular dependencies, and empty epics.
+
+    Score interpretation:
+    - Score 5 (Excellent): Proceed with work
+    - Score 4 (Good): Fix if convenient
+    - Score 3 (Fair): MUST fix before continuing
+    - Score 2 (Poor): STOP — significant issues
+    - Score 1 (Critical): IMMEDIATE action required
+
+    When score < 5:
+    - Review reported issues
+    - Ask the user for clarification before making significant changes to task
+      descriptions, epic assignments, or dependency structures
+    - Prefer clarification over assumptions when the epic assignment is ambiguous,
+      dependency direction is unclear, or a task description conflicts with epic goals
+    - After fixing issues, re-run validate-issues.sh to confirm score improves
+
+    Common issues and remediation:
+    - Orphaned prefixed tasks: tasks with a prefix (MC-, V-, A-, etc.) but no parent epic
+    - Tasks listed as epic dependencies instead of children
+    - Empty epics: do NOT close — run /dso:preplanning to decompose
+    - Circular dependencies: identify the cycle, break it, document with a comment
+    - Interface tasks without documentation: add a comment with file path and key methods
+    - High-impact blockers (3+ tasks blocked): suggest extracting an interface contract
+
+    The user says:
+    {{prompt}}
+
+tests:
+  - description: "Identifies orphaned tasks and requests clarification before re-parenting"
+    vars:
+      prompt: |
+        The validate-issues script returned the following health report:
+
+        Score: 2 (Poor)
+
+        Issues found:
+        - Task MC-1a2b (title: "Implement checkout flow", status: pending) has
+          prefix "MC-" indicating it belongs to the Marketplace epic, but has
+          no parent epic assigned.
+        - Task V-3c4d (title: "Add vendor onboarding wizard", status: pending)
+          has prefix "V-" but also has no parent epic assigned.
+
+        Current open epics:
+        - epic-5e6f: "Marketplace launch" (status: open)
+        - epic-7g8h: "Vendor portal" (status: open)
+
+        What should I do?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly identifies both tasks as orphaned (missing parent
+          epic assignment) and responds appropriately. It should:
+          (1) recognize that MC-1a2b likely belongs to epic-5e6f ("Marketplace
+          launch") based on the "MC-" prefix pattern, and V-3c4d likely belongs
+          to epic-7g8h ("Vendor portal") based on the "V-" prefix,
+          (2) ask the user to confirm the epic assignments before making changes —
+          it must NOT autonomously re-parent the tasks without user confirmation,
+          since the mapping could be ambiguous,
+          (3) provide the correct remediation command (e.g., using
+          `.claude/scripts/dso ticket comment` to record the parent epic
+          association) once assignments are confirmed,
+          (4) indicate that validate-issues.sh should be re-run after fixing
+          to verify the score improves.
+
+  - description: "Detects circular dependency and breaks the cycle without closing tickets"
+    vars:
+      prompt: |
+        The validate-issues script returned this health report:
+
+        Score: 1 (Critical)
+
+        Issues found:
+        - Circular dependency detected:
+            task-aa11 ("Build authentication service") blocks task-bb22
+            task-bb22 ("Build user profile service") blocks task-cc33
+            task-cc33 ("Build session management") blocks task-aa11
+
+        All three tasks are status: pending.
+
+        How should I fix this?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly handles a circular dependency chain and provides
+          actionable remediation guidance. It should:
+          (1) confirm the score of 1 (Critical) requires immediate action and
+          explain that the circular dependency prevents any of the three tasks
+          from ever becoming unblocked,
+          (2) identify that the cycle must be broken by removing at least one
+          dependency link — and suggest which link is most likely to be the
+          incorrect one (e.g., the last link cc33 → aa11 is often the spurious
+          one in a pipeline-like chain),
+          (3) provide the command to remove the problematic dependency link
+          (using `.claude/scripts/dso ticket unlink` or equivalent) and add a
+          comment documenting the decision,
+          (4) NOT suggest closing any of the three tasks as a resolution — the
+          tasks themselves are valid; only the dependency relationship is wrong,
+          (5) recommend re-running validate-issues.sh after the fix to confirm
+          the cycle is resolved and the score improves.
+
+  - description: "Handles empty epic correctly — does not close it, routes to preplanning"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        The validate-issues script returned the following report:
+
+        Score: 3 (Fair)
+
+        Issues found:
+        - Epic epic-9z8y ("API rate limiting feature") has no child tasks and
+          no open dependencies. The epic status is open.
+
+        Should I close this epic since it has no children?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly declines to close the empty epic and instead routes
+          to the appropriate remediation step. It should:
+          (1) explicitly state that empty epics must NOT be closed autonomously —
+          epics represent planned work that still needs to be decomposed, not
+          completed or abandoned work,
+          (2) recommend running /dso:preplanning on epic-9z8y to decompose it
+          into user stories and tasks, providing the exact invocation
+          (e.g., "/dso:preplanning epic-9z8y"),
+          (3) state that the epic should only be closed if the user explicitly
+          confirms it is obsolete — which the user has not done in this prompt,
+          (4) explain the distinction: a score of 3 (Fair) means the issue must
+          be fixed before continuing, and decomposing the epic via preplanning
+          is the correct fix rather than closing it.
