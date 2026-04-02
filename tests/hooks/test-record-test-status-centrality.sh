@@ -679,4 +679,379 @@ assert_eq \
 
 assert_pass_if_clean "test_full_suite_cmd_path"
 
+# ============================================================
+# test_config_pattern_used_for_centrality
+#
+# When test_gate.import_pattern.bash is configured with a custom
+# pattern (e.g., "require $MODULE") and 9+ files use that pattern,
+# the hook should count them as importers and trigger the full suite.
+#
+# RED condition: count_centrality() ignores config patterns and uses
+# only hardcoded patterns. Files using "require module_name" are NOT
+# matched by hardcoded patterns, so centrality = 0, full suite is
+# NOT triggered. After implementation the configured pattern is used,
+# centrality = 9, full suite IS triggered.
+#
+# Observable: tested_files in test-gate-status contains the full-suite
+# sentinel test (only present when full suite runs).
+# ============================================================
+echo ""
+echo "=== test_config_pattern_used_for_centrality ==="
+_snapshot_fail
+
+REPO_CFG=$(create_test_repo)
+ARTIFACTS_CFG=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-cfg-pattern-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_CFG")
+
+mkdir -p "$REPO_CFG/src" "$REPO_CFG/tests"
+cat > "$REPO_CFG/src/auth_helper.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "auth helper"
+SHEOF
+chmod +x "$REPO_CFG/src/auth_helper.sh"
+
+cat > "$REPO_CFG/tests/test-auth-helper.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "associated test passed"
+exit 0
+SHEOF
+chmod +x "$REPO_CFG/tests/test-auth-helper.sh"
+
+cat > "$REPO_CFG/tests/test-full-suite-cfg-sentinel.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "full suite sentinel"
+exit 0
+SHEOF
+chmod +x "$REPO_CFG/tests/test-full-suite-cfg-sentinel.sh"
+
+# Configure a CUSTOM bash import pattern that the hardcoded defaults do NOT match.
+# "require auth_helper" is NOT matched by the hardcoded grep pattern:
+#   (import\s+auth_helper|from\s+auth_helper\s|source\s+(.*/)?auth_helper)
+mkdir -p "$REPO_CFG/.claude"
+cat > "$REPO_CFG/.claude/dso-config.conf" << 'CONF'
+test_gate.test_dirs=tests/
+test_gate.import_pattern.bash=require $MODULE
+CONF
+
+git -C "$REPO_CFG" add -A
+git -C "$REPO_CFG" commit -m "add auth_helper" --quiet 2>/dev/null
+
+# Create 9 files using "require auth_helper" — NOT matched by hardcoded patterns
+mkdir -p "$REPO_CFG/src/consumers"
+for i in $(seq 1 9); do
+    cat > "$REPO_CFG/src/consumers/consumer_${i}.sh" << SHEOF
+#!/usr/bin/env bash
+require auth_helper
+SHEOF
+done
+git -C "$REPO_CFG" add -A
+git -C "$REPO_CFG" commit -m "add require-style consumers" --quiet 2>/dev/null
+
+# Stage a change to the source module
+echo "# changed" >> "$REPO_CFG/src/auth_helper.sh"
+git -C "$REPO_CFG" add -A
+
+MOCK_PASS_CFG=$(create_mock_pass_runner)
+
+(
+    cd "$REPO_CFG"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_CFG" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_CFG" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+STATUS_FILE_CFG="$ARTIFACTS_CFG/test-gate-status"
+TESTED_LINE_CFG=""
+if [[ -f "$STATUS_FILE_CFG" ]]; then
+    TESTED_LINE_CFG=$(grep '^tested_files=' "$STATUS_FILE_CFG" | head -1 | cut -d= -f2-)
+fi
+
+# After implementation, configured "require $MODULE" pattern matches 9 consumers,
+# centrality > 8, full suite is triggered. Full-suite sentinel appears in tested_files.
+# Currently (RED): hardcoded patterns don't match "require auth_helper", centrality=0,
+# full suite is NOT triggered, sentinel is absent — this assertion FAILS.
+assert_contains \
+    "test_config_pattern_used_for_centrality: full-suite sentinel in tested_files when custom pattern matches 9 files" \
+    "test-full-suite-cfg-sentinel.sh" \
+    "$TESTED_LINE_CFG"
+
+assert_pass_if_clean "test_config_pattern_used_for_centrality"
+
+# ============================================================
+# test_missing_config_patterns_falls_back_to_defaults
+#
+# When NO test_gate.import_pattern.* keys are present in config,
+# the existing hardcoded grep patterns must still count centrality
+# correctly (regression guard for fallback behavior).
+#
+# Observable: with 9+ files using standard "source module_name" and
+# no config import_pattern keys, centrality > 8 triggers the full
+# suite. tested_files contains the full-suite sentinel.
+# ============================================================
+echo ""
+echo "=== test_missing_config_patterns_falls_back_to_defaults ==="
+_snapshot_fail
+
+REPO_NOKEY=$(create_test_repo)
+ARTIFACTS_NOKEY=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-nokey-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_NOKEY")
+
+mkdir -p "$REPO_NOKEY/src" "$REPO_NOKEY/tests"
+cat > "$REPO_NOKEY/src/shared_lib.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "shared library"
+SHEOF
+chmod +x "$REPO_NOKEY/src/shared_lib.sh"
+
+cat > "$REPO_NOKEY/tests/test-shared-lib.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "associated test passed"
+exit 0
+SHEOF
+chmod +x "$REPO_NOKEY/tests/test-shared-lib.sh"
+
+cat > "$REPO_NOKEY/tests/test-full-suite-nokey-sentinel.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "full suite sentinel"
+exit 0
+SHEOF
+chmod +x "$REPO_NOKEY/tests/test-full-suite-nokey-sentinel.sh"
+
+# Config has NO test_gate.import_pattern.* keys — only test dirs
+mkdir -p "$REPO_NOKEY/.claude"
+cat > "$REPO_NOKEY/.claude/dso-config.conf" << 'CONF'
+test_gate.test_dirs=tests/
+CONF
+
+git -C "$REPO_NOKEY" add -A
+git -C "$REPO_NOKEY" commit -m "add shared_lib" --quiet 2>/dev/null
+
+# Create 9 files using the hardcoded "source module_name" pattern
+create_importing_files "$REPO_NOKEY" "shared_lib" 9
+
+# Re-stage the source change
+echo "# changed" >> "$REPO_NOKEY/src/shared_lib.sh"
+git -C "$REPO_NOKEY" add -A
+
+MOCK_PASS_NOKEY=$(create_mock_pass_runner)
+
+(
+    cd "$REPO_NOKEY"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_NOKEY" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_NOKEY" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+STATUS_FILE_NOKEY="$ARTIFACTS_NOKEY/test-gate-status"
+TESTED_LINE_NOKEY=""
+if [[ -f "$STATUS_FILE_NOKEY" ]]; then
+    TESTED_LINE_NOKEY=$(grep '^tested_files=' "$STATUS_FILE_NOKEY" | head -1 | cut -d= -f2-)
+fi
+
+# Hardcoded "source shared_lib" pattern must still fire (fallback behavior).
+# Full-suite sentinel appears in tested_files when centrality > 8.
+assert_contains \
+    "test_missing_config_patterns_falls_back_to_defaults: full-suite sentinel in tested_files via hardcoded fallback" \
+    "test-full-suite-nokey-sentinel.sh" \
+    "$TESTED_LINE_NOKEY"
+
+assert_pass_if_clean "test_missing_config_patterns_falls_back_to_defaults"
+
+# ============================================================
+# test_cross_language_isolation
+#
+# When test_gate.import_pattern.python is configured, centrality
+# scoring for a Python module counts Python importers.
+# Files using a TypeScript-style "import { Foo } from 'module'"
+# syntax that the hardcoded pattern does NOT match are used to
+# demonstrate that the configured Python pattern is what drives
+# centrality, not the file language of the staged file.
+#
+# Design: configure only test_gate.import_pattern.python=import $MODULE
+# Stage a Python source file. Create 9+ Python files using
+# "import data_processor" (standard Python import). Verify full suite.
+#
+# RED condition: count_centrality() ignores config patterns entirely
+# and uses its own hardcoded combined pattern. Since the hardcoded
+# pattern already matches "import data_processor", this test will
+# PASS today via the hardcoded path — BUT it will fail RED only if
+# we stage a file whose centrality depends EXCLUSIVELY on the
+# configured Python pattern for a non-default file extension.
+#
+# To create a true RED: configure ONLY a Ruby pattern for .rb files.
+# Stage a .sh file that has 9+ Ruby files importing it via "require".
+# Hardcoded patterns don't scan for Ruby-style "require 'module'".
+# After implementation, the Ruby pattern fires for the .rb importers.
+#
+# Observable: tested_files contains full-suite sentinel when
+# configured Ruby pattern recognizes 9+ Ruby importers.
+# ============================================================
+echo ""
+echo "=== test_cross_language_isolation ==="
+_snapshot_fail
+
+REPO_XLANG=$(create_test_repo)
+ARTIFACTS_XLANG=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-xlang-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_XLANG")
+
+mkdir -p "$REPO_XLANG/src" "$REPO_XLANG/tests" "$REPO_XLANG/src/ruby_consumers"
+cat > "$REPO_XLANG/src/payment_core.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "payment core"
+SHEOF
+chmod +x "$REPO_XLANG/src/payment_core.sh"
+
+cat > "$REPO_XLANG/tests/test-payment-core.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "associated test passed"
+exit 0
+SHEOF
+chmod +x "$REPO_XLANG/tests/test-payment-core.sh"
+
+cat > "$REPO_XLANG/tests/test-full-suite-xlang-sentinel.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "full suite sentinel"
+exit 0
+SHEOF
+chmod +x "$REPO_XLANG/tests/test-full-suite-xlang-sentinel.sh"
+
+# Configure a Ruby-language import pattern ONLY — no bash/python pattern configured.
+# The hardcoded pattern does NOT include Ruby "require 'module'" syntax.
+mkdir -p "$REPO_XLANG/.claude"
+cat > "$REPO_XLANG/.claude/dso-config.conf" << 'CONF'
+test_gate.test_dirs=tests/
+test_gate.import_pattern.ruby=require '$MODULE'
+CONF
+
+git -C "$REPO_XLANG" add -A
+git -C "$REPO_XLANG" commit -m "add payment_core" --quiet 2>/dev/null
+
+# Create 9 Ruby files using "require 'payment_core'" — NOT matched by hardcoded patterns.
+# Hardcoded pattern: (import\s+payment_core|from\s+payment_core\s|source\s+(.*/)?payment_core)
+# with --include='*.rb'. Ruby "require 'payment_core'" does NOT match this pattern.
+for i in $(seq 1 9); do
+    cat > "$REPO_XLANG/src/ruby_consumers/consumer_${i}.rb" << SHEOF
+require 'payment_core'
+SHEOF
+done
+git -C "$REPO_XLANG" add -A
+git -C "$REPO_XLANG" commit -m "add ruby consumers" --quiet 2>/dev/null
+
+# Stage the bash source file
+echo "# changed" >> "$REPO_XLANG/src/payment_core.sh"
+git -C "$REPO_XLANG" add -A
+
+MOCK_PASS_XLANG=$(create_mock_pass_runner)
+
+(
+    cd "$REPO_XLANG"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_XLANG" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_XLANG" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+STATUS_FILE_XLANG="$ARTIFACTS_XLANG/test-gate-status"
+TESTED_LINE_XLANG=""
+if [[ -f "$STATUS_FILE_XLANG" ]]; then
+    TESTED_LINE_XLANG=$(grep '^tested_files=' "$STATUS_FILE_XLANG" | head -1 | cut -d= -f2-)
+fi
+
+# After implementation: configured Ruby pattern "require '$MODULE'" matches 9 Ruby files,
+# centrality = 9 > 8, full suite triggered, sentinel appears in tested_files.
+# Currently (RED): hardcoded pattern doesn't match Ruby "require 'payment_core'",
+# centrality = 0, full suite NOT triggered, sentinel absent — assertion FAILS.
+assert_contains \
+    "test_cross_language_isolation: full-suite sentinel in tested_files when configured Ruby pattern matches 9 importers" \
+    "test-full-suite-xlang-sentinel.sh" \
+    "$TESTED_LINE_XLANG"
+
+assert_pass_if_clean "test_cross_language_isolation"
+
+# ============================================================
+# test_empty_config_pattern_falls_back
+#
+# When test_gate.import_pattern.bash is set to an empty value,
+# the hook must fall back to hardcoded default patterns rather
+# than using the empty pattern (which would match nothing).
+#
+# Observable: with 9+ files using standard "source module_name"
+# and an empty bash import_pattern configured, centrality still
+# reaches > 8 and the full suite is triggered.
+# tested_files contains the full-suite sentinel.
+# ============================================================
+echo ""
+echo "=== test_empty_config_pattern_falls_back ==="
+_snapshot_fail
+
+REPO_EMPTY=$(create_test_repo)
+ARTIFACTS_EMPTY=$(mktemp -d "${TMPDIR:-/tmp}/test-rts-empty-XXXXXX")
+_TEST_TMPDIRS+=("$ARTIFACTS_EMPTY")
+
+mkdir -p "$REPO_EMPTY/src" "$REPO_EMPTY/tests"
+cat > "$REPO_EMPTY/src/cache_layer.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "cache layer"
+SHEOF
+chmod +x "$REPO_EMPTY/src/cache_layer.sh"
+
+cat > "$REPO_EMPTY/tests/test-cache-layer.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "associated test passed"
+exit 0
+SHEOF
+chmod +x "$REPO_EMPTY/tests/test-cache-layer.sh"
+
+cat > "$REPO_EMPTY/tests/test-full-suite-empty-sentinel.sh" << 'SHEOF'
+#!/usr/bin/env bash
+echo "full suite sentinel"
+exit 0
+SHEOF
+chmod +x "$REPO_EMPTY/tests/test-full-suite-empty-sentinel.sh"
+
+# Configure test_gate.import_pattern.bash with an EMPTY value.
+# After implementation, the hook must detect empty and fall back to hardcoded defaults.
+mkdir -p "$REPO_EMPTY/.claude"
+cat > "$REPO_EMPTY/.claude/dso-config.conf" << 'CONF'
+test_gate.test_dirs=tests/
+test_gate.import_pattern.bash=
+CONF
+
+git -C "$REPO_EMPTY" add -A
+git -C "$REPO_EMPTY" commit -m "add cache_layer" --quiet 2>/dev/null
+
+# Create 9 files using standard "source cache_layer" — matched by hardcoded patterns
+create_importing_files "$REPO_EMPTY" "cache_layer" 9
+
+# Re-stage the source change
+echo "# changed" >> "$REPO_EMPTY/src/cache_layer.sh"
+git -C "$REPO_EMPTY" add -A
+
+MOCK_PASS_EMPTY=$(create_mock_pass_runner)
+
+(
+    cd "$REPO_EMPTY"
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$ARTIFACTS_EMPTY" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    RECORD_TEST_STATUS_RUNNER="$MOCK_PASS_EMPTY" \
+    bash "$HOOK" 2>/dev/null || true
+)
+
+STATUS_FILE_EMPTY="$ARTIFACTS_EMPTY/test-gate-status"
+TESTED_LINE_EMPTY=""
+if [[ -f "$STATUS_FILE_EMPTY" ]]; then
+    TESTED_LINE_EMPTY=$(grep '^tested_files=' "$STATUS_FILE_EMPTY" | head -1 | cut -d= -f2-)
+fi
+
+# Fallback to hardcoded patterns must fire: centrality = 9 > 8,
+# full suite is triggered, sentinel appears in tested_files.
+assert_contains \
+    "test_empty_config_pattern_falls_back: full-suite sentinel in tested_files when empty pattern falls back to hardcoded defaults" \
+    "test-full-suite-empty-sentinel.sh" \
+    "$TESTED_LINE_EMPTY"
+
+assert_pass_if_clean "test_empty_config_pattern_falls_back"
+
 print_summary
