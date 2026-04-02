@@ -234,4 +234,4 @@ plugins/dso/skills/fix-bug/SKILL.md:tests/scripts/test-fix-bug-flaky-scoring.sh
 plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh
 plugins/dso/skills/fix-bug/prompts/anti-pattern-fix-batch.md:tests/scripts/test-fix-bug-anti-pattern-prompts.sh
 .claude/commands/sprint.md: tests/scripts/test-wrapper-detection.sh
-plugins/dso/scripts/check-portability.sh: tests/scripts/test-check-portability.sh [test_detects_macos_hardcoded_path]
+plugins/dso/scripts/check-portability.sh: tests/scripts/test-check-portability.sh

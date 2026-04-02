@@ -89,10 +89,37 @@ test_detection_falls_back_when_no_binary() {
     assert_eq "test_detection_falls_back_when_no_binary" "LOCAL_FALLBACK" "$result"
 }
 
+# ── test_wrapper_references_correct_skill ────────────────────────────────────
+# Each .claude/commands/<skill>.md must reference /dso:<skill> by name.
+# This confirms the wrapper file routes to the correct skill.
+test_wrapper_references_correct_skill() {
+    local commands_dir="$PLUGIN_ROOT/.claude/commands"
+    local skills=(brainstorm sprint fix-bug debug-everything preplanning)
+    local all_pass=1
+
+    for skill in "${skills[@]}"; do
+        local wrapper="$commands_dir/${skill}.md"
+        if [[ ! -f "$wrapper" ]]; then
+            (( ++FAIL ))
+            printf "FAIL: test_wrapper_references_correct_skill\n  missing wrapper: %s\n" "$wrapper" >&2
+            all_pass=0
+            continue
+        fi
+        if grep -q "dso:${skill}" "$wrapper"; then
+            (( ++PASS ))
+        else
+            (( ++FAIL ))
+            printf "FAIL: test_wrapper_references_correct_skill\n  %s does not reference dso:%s\n" "$wrapper" "$skill" >&2
+            all_pass=0
+        fi
+    done
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_detection_finds_installed_plugin
 test_detection_falls_back_when_no_plugin
 test_detection_falls_back_on_command_failure
 test_detection_falls_back_when_no_binary
+test_wrapper_references_correct_skill
 
 print_summary
