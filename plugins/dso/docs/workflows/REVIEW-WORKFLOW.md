@@ -140,6 +140,8 @@ echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 
 **Classifier failure invariant**: When the classifier exits non-zero or produces invalid JSON, `REVIEW_TIER` MUST be `standard` and `REVIEW_AGENT` MUST be `dso:code-reviewer-standard`. Do not downgrade to light tier. Do not rationalize that a small diff warrants a lighter review — a classifier failure means the diff could not be scored, not that it is simple. This invariant is mandatory regardless of perceived diff size, file types, or change scope.
 
+**Merge-commit floor**: When `is_merge_commit` is `true` in the classifier output and `selected_tier` is `light`, treat the tier as `standard`. Merge commits consolidate work across branches; the light checklist (single-pass, haiku) cannot reliably analyze cross-branch integration risks. The classifier enforces this floor internally, but if you encounter a merge with `selected_tier: light` in the output (e.g., from a cached classifier version), apply this upgrade before dispatching.
+
 ### Step 3b: Size-Based Branching (post-classifier)
 
 After tier selection, extract size fields from the classifier output and apply size-based routing. The `size_action` field determines whether the review proceeds normally, upgrades to opus, or is rejected. See `plugins/dso/docs/contracts/classifier-size-output.md` for the full contract.
@@ -155,6 +157,9 @@ DIFF_SIZE_LINES=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=jso
 # Size limits apply ONLY to pass 1. The Autonomous Resolution Loop caller must set
 # REVIEW_PASS_NUM before invoking this workflow for re-review passes.
 REVIEW_PASS_NUM="${REVIEW_PASS_NUM:-1}"
+# TIER LOCK: REVIEW_TIER is set once (above) and carried into all re-review passes.
+# The classifier MUST NOT be re-run for re-review passes (REVIEW_PASS_NUM >= 2).
+# Re-review passes use the REVIEW_TIER/REVIEW_AGENT from the initial Step 3 classification.
 
 # Merge commits bypass size limits entirely (contract: is_merge_commit always checked first)
 # re-review passes (REVIEW_PASS_NUM >= 2) bypass size limits (re-review exemption rule)
@@ -201,6 +206,8 @@ Dispatch the named review agent selected by the classifier in Step 3. The named 
 | `light` | `dso:code-reviewer-light` | haiku |
 | `standard` | `dso:code-reviewer-standard` | sonnet |
 | `deep` | 3 parallel sonnet agents (see Deep Tier below) | sonnet |
+
+**Model is non-negotiable**: The `model:` field in each named agent's definition is authoritative. Do NOT override it at dispatch time (e.g., dispatching `dso:code-reviewer-light` with `model: sonnet`). If Sonnet capability is needed, the correct action is to increase the tier — re-run the classifier or manually escalate to `dso:code-reviewer-standard`. Pairing a lighter checklist with a heavier model defeats the tier system without improving review quality.
 
 ### Per-Review Context (prompt content)
 
@@ -558,6 +565,8 @@ Task tool:
    # When RE_REVIEW_DEEP_FULL=true, dispatch the full Step 4 Deep Tier
    # sequence (3 parallel sonnet + opus synthesis) instead of a single agent.
    ```
+
+   **Do NOT re-run the classifier** for re-review passes — the diff shrank after fixes, which would produce a lower score and potentially route back to `light`. `REVIEW_TIER` is locked to its Step 3 value for the lifetime of this review session. The `RE_REVIEW_AGENT` escalation table above is the only permitted source of tier changes in re-review passes.
 
    Dispatch the re-review:
    - **If `RE_REVIEW_DEEP_FULL=true`**: Run the full Step 4 Deep Tier sequence (3 parallel sonnet agents writing to slot files, then opus arch synthesis). Do NOT dispatch `dso:code-reviewer-deep-arch` alone.

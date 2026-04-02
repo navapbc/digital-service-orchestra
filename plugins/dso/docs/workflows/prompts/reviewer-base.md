@@ -36,6 +36,11 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
   will be blocked before merge regardless of reviewer findings. Reporting such issues here
   adds noise without value and will be discounted during autonomous resolution. Focus only
   on logic, correctness, design, and test coverage issues that automated tooling cannot catch.
+- Do NOT run tests, lint checks, format checks, or type checkers (e.g., `make test`,
+  `pytest`, `make lint-ruff`, `make lint-mypy`, `ruff check`, `mypy`). These deterministic
+  checks run in REVIEW-WORKFLOW.md Step 1 before this agent is dispatched. Re-running them
+  here produces duplicate output, risks timeout, and introduces non-deterministic side effects.
+  Your scope is non-deterministic analysis of the diff only.
 
 ---
 

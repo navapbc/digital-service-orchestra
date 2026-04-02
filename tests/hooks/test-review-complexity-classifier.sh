@@ -791,6 +791,30 @@ test_classifier_is_merge_commit_size_action_none  # RED: merge commit bypass not
 test_classifier_output_includes_new_fields  # RED: new fields not yet in output schema
 
 # ============================================================
+# Merge-commit floor tests (57ed-e776)
+# ============================================================
+
+test_classifier_merge_commit_floor_upgrades_light_to_standard() {
+    # A merge commit with a low-scoring diff (would normally be light tier)
+    # must be upgraded to at least standard tier.
+    setup_temp_dir
+    local diff_file
+    # Single-line diff in a non-critical file = light tier normally
+    diff_file=$(create_diff_fixture "README.md" "+minor edit")
+    MOCK_MERGE_HEAD=1 run_classifier "$diff_file"
+
+    local tier=""
+    if [[ "$CLASSIFIER_EXIT" -eq 0 ]] && is_valid_json "$CLASSIFIER_OUTPUT"; then
+        tier=$(json_field "selected_tier" "$CLASSIFIER_OUTPUT")
+    fi
+    # Merge commits must NEVER be light — floor is standard
+    assert_ne "merge commit floor: tier is not light" "light" "$tier"
+    teardown_temp_dir
+}
+
+test_classifier_merge_commit_floor_upgrades_light_to_standard
+
+# ============================================================
 # Telemetry tests (RED — w21-0kt1)
 # ============================================================
 
