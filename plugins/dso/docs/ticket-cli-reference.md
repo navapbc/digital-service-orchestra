@@ -718,55 +718,6 @@ $ .claude/scripts/dso ticket bridge-fsck --tickets-tracker=/path/to/tracker
 
 ---
 
-### `ticket-benchmark.sh`
-
-Benchmark the ticket list or close command against a seeded ticket system.
-
-```
-plugins/dso/scripts/ticket-benchmark.sh [-n <count>] [--threshold <seconds>] [--mode=list|close]
-```
-
-**Arguments:**
-
-| Argument | Required | Description |
-|---|---|---|
-| `-n <count>` | No | Number of tickets to seed (default: `300`; `0` = use existing repo tickets) |
-| `--threshold <seconds>` | No | Max acceptable wall-clock time in seconds. Defaults: `3s` for n≤300, `10s` for n≤1000, `30s` for n>1000 (list mode); `10s` (close mode) |
-| `--mode=list\|close` | No | Benchmark mode (default: `list`). `list` measures `ticket list` wall-clock time. `close` seeds a mixed population and measures `ticket transition open→closed`. |
-
-**Behavior:**
-
-- When run without `-n` (or with `-n 0`) inside a repo with an initialized ticket system, benchmarks the existing tickets
-- Otherwise creates a temporary git repo, seeds N tickets, and benchmarks that
-- `close` mode seeds a mix of open, in-progress, and archived tickets, then measures a single `ticket transition open→closed` including all `batch_close_operations` work
-
-**Exit codes:**
-
-| Code | Meaning |
-|---|---|
-| `0` | Elapsed time was below the threshold |
-| `1` | Elapsed time exceeded the threshold |
-| `2` | Invalid arguments |
-
-**Output:**
-
-```
-Elapsed: X.XXs for N tickets                                        (list mode)
-Elapsed: X.XXs for closing ticket with N non-archived tickets in tracker  (close mode)
-```
-
-**Example:**
-
-```
-$ plugins/dso/scripts/ticket-benchmark.sh --mode=list -n 300
-Elapsed: 1.23s for 300 tickets
-
-$ plugins/dso/scripts/ticket-benchmark.sh --mode=close -n 100
-Elapsed: 0.87s for closing ticket with 100 non-archived tickets in tracker
-```
-
----
-
 ## Environment Variables
 
 | Variable | Used by | Description |
