@@ -1,0 +1,211 @@
+description: "preplanning skill evals — intermediate-step verification for multi-step workflow"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the preplanning skill for a software development workflow tool.
+    Your job is to decompose a ticket epic into prioritized user stories with
+    measurable done definitions that bridge the epic's vision to task-level
+    acceptance criteria, using a Senior Technical Product Manager (Google-style)
+    approach.
+
+    Scrutiny Gate: Before proceeding, check if the epic has a scrutiny:pending tag.
+    If present, HALT immediately and output: "This epic has not been through scrutiny
+    review. Run /dso:brainstorm <epic-id> first to complete the scrutiny pipeline,
+    then retry /dso:preplanning."
+
+    Phase 1 — Context Reconciliation & Discovery:
+    Load the epic, audit existing children (reuse/modify/delete), and present a
+    reconciliation plan before creating new stories.
+
+    Phase 2 — Risk & Scope Scan:
+    Flag cross-cutting concerns across Security, Performance, Accessibility,
+    Testing, Reliability, and Maintainability. Identify split candidates where
+    the walking skeleton and ideal implementation diverge significantly.
+
+    Phase 3 — Walking Skeleton & Vertical Slicing:
+    Identify the minimum end-to-end path that proves the concept. Ensure stories
+    follow INVEST principles and are vertical slices (full stack delivering user
+    value), not horizontal technical layers. Apply Foundation/Enhancement splitting
+    for stories where the minimum functional goal differs significantly from the
+    ideal experience.
+
+    Phase 4 — Verification & Traceability:
+    Each story must have: a title in "As a [persona], [goal]" format; a description
+    with What/Why/Scope; done definitions that are observable outcomes (what a user
+    sees or does), measurable (can be decomposed into tasks), and traceable (linked
+    to an epic criterion via "← Satisfies: ..."); and considerations from the risk
+    scan.
+
+    Done Definition Rules:
+    - GOOD: "When this story is complete, a user can upload a document and see its
+      classification within 30 seconds ← Satisfies: 'Users can classify documents'"
+    - BAD: "The upload endpoint returns a 202 with a job ID" (implementation detail)
+    - BAD: "Classification results stored in the job_results JSON column" (internal)
+
+    The user says:
+    {{prompt}}
+
+tests:
+  - description: "Produces prioritized user stories with observable done definitions from a well-defined epic"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Epic: dso-abc1
+        Title: CSV Export for Operations Reporting
+        Description: Operations managers need to export the main data table view
+        as CSV for weekly reporting. Currently they copy data manually, taking
+        hours each week. Scope: export the currently filtered/sorted view only.
+        Not building Excel/PDF or scheduled exports.
+
+        Success Criteria:
+        1. Operations managers can download a CSV file of the current data view
+        2. Exported data reflects any active filters and sort order
+        3. Export works for data sets up to 10,000 rows without timeout
+
+        No existing child tickets. Please produce the story map.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output produces a set of user stories that decompose the CSV export
+          epic into implementable units. It should:
+          (1) produce at least 2 user stories in "As a [persona], [goal]" title
+          format (e.g., "As an operations manager, I can download a CSV file of
+          the current data view"),
+          (2) each story must include Done Definitions written as observable
+          outcomes — describing what a user sees or does, NOT implementation
+          details like "add a CSV endpoint" or "return a 202 status code",
+          (3) each done definition must trace upward to an epic success criterion
+          using the "← Satisfies: ..." format or equivalent language indicating
+          which epic criterion the story satisfies,
+          (4) at least one story should address the walking skeleton — the minimum
+          end-to-end path that proves the concept works — and it should be
+          identified as higher priority than enhancement stories,
+          (5) stories should be vertical slices (each delivers user-visible value
+          end-to-end) rather than horizontal technical layers like "build the API
+          endpoint" or "add the database table".
+
+  - description: "Applies Foundation/Enhancement split for a story with diverging walking skeleton and ideal implementation"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Epic: dso-def2
+        Title: Document Review Interface
+        Description: Compliance officers need to review extracted rules before
+        export. They should be able to approve or reject individual rules and
+        see summary counts of pending reviews.
+
+        Success Criteria:
+        1. A user can mark individual rules as approved or rejected
+        2. Review state persists across sessions
+        3. Users can see a summary count of pending/approved/rejected rules
+
+        During Phase 2 risk scan you flagged the following split candidate:
+        "Story: User reviews extracted rules — significant UI work where design
+        may propose an ambitious overhaul (custom review interface with inline
+        editing, bulk actions, keyboard shortcuts) vs minimum functional goal
+        (approve/reject using existing table component)."
+
+        Please evaluate whether to split this story and produce the updated
+        story map.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output evaluates whether the flagged split candidate should be split
+          into Foundation and Enhancement stories. It should:
+          (1) determine that a Foundation/Enhancement split IS appropriate for this
+          story, because the Foundation (approve/reject with existing table
+          component) delivers user value independently and the Enhancement (custom
+          interface with bulk actions) represents a meaningful scope increase,
+          (2) produce a Foundation story focused on the minimum functional goal —
+          a user can approve or reject individual rules using existing UI components
+          — with its own observable done definitions,
+          (3) produce an Enhancement story for the ideal experience — advanced UI
+          with features like bulk actions or keyboard shortcuts — with its own done
+          definitions, and note that the Enhancement depends on the Foundation,
+          (4) assign higher priority to the Foundation story than the Enhancement
+          story (e.g., Foundation priority 1 and Enhancement priority 2, or
+          equivalent explicit ordering),
+          (5) NOT split stories where the Foundation alone would not deliver user
+          value, or where the scope difference is marginal — the decision to split
+          must be justified in terms of independent value delivery.
+
+  - description: "Halts and blocks preplanning for epics tagged with scrutiny:pending"
+    vars:
+      prompt: |
+        I ran /dso:preplanning on epic dso-ghi3. The ticket show output is:
+        {
+          "ticket_id": "dso-ghi3",
+          "ticket_type": "epic",
+          "title": "Notification System",
+          "status": "open",
+          "tags": ["scrutiny:pending"],
+          "description": "Send email and in-app notifications when documents
+          are processed."
+        }
+        Please begin story decomposition.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output detects the scrutiny:pending tag and HALTS immediately rather
+          than proceeding to story decomposition. It should:
+          (1) identify that the epic has the "scrutiny:pending" tag in its tags
+          field,
+          (2) output a clear halt message directing the user to run /dso:brainstorm
+          on the epic first to complete the scrutiny pipeline — the message should
+          reference the epic ID and explain that preplanning is blocked,
+          (3) NOT produce any planning output, user stories, done definitions, or
+          reconciliation plans — it must stop entirely after the halt message,
+          (4) NOT proceed to any preplanning phases (Phase 1, 2, 3, or 4) — the
+          scrutiny gate is a hard blocker, not a warning.
+
+  - description: "Produces a risk register flagging cross-cutting concerns across the story set"
+    options:
+      provider: "anthropic:messages:claude-sonnet-4-6-20260320"
+    vars:
+      prompt: |
+        Epic: dso-jkl4
+        Title: OAuth2 Login Integration
+        Description: Users should be able to log in with Google or GitHub via
+        OAuth2. The system must handle token refresh, session persistence, and
+        graceful degradation when the OAuth provider is unavailable.
+
+        Drafted stories:
+        1. "As a user, I can log in with my Google account" — connects to Google
+           OAuth2, redirects to callback URL, creates a session.
+        2. "As a user, I can log in with my GitHub account" — same flow for GitHub.
+        3. "As a user, my session persists for 30 days without re-authenticating"
+           — token refresh and session storage.
+        4. "As an admin, I can see which OAuth provider each user authenticated
+           with" — new admin report page showing auth provider per user.
+
+        Please run the Phase 2 Risk & Scope Scan and produce the Risk Register.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output runs the Phase 2 Risk & Scope Scan across the four stories and
+          produces a Risk Register with cross-cutting concerns. It should:
+          (1) produce a Risk Register table (or equivalent structured list) with
+          at least 3 one-line concern flags, each referencing the affected story
+          IDs and covering at least 2 distinct concern areas from: Security,
+          Performance, Accessibility, Testing, Reliability, Maintainability,
+          (2) flag Security concerns relevant to OAuth2 — for example, auth
+          boundaries, token storage, or credential exposure — and reference the
+          specific stories affected (e.g., stories 1-3),
+          (3) flag Reliability concerns for external OAuth provider dependency
+          — for example, graceful degradation when Google or GitHub is unavailable
+          — and reference the relevant stories,
+          (4) flag Testing concerns for the new OAuth integration — for example,
+          the need for a mock-compatible OAuth interface to enable unit testing
+          without live provider calls,
+          (5) NOT include implementation-level instructions (e.g., "add a try/catch
+          block") — concerns are context flags for /dso:implementation-plan to
+          incorporate, not solution prescriptions.

@@ -90,6 +90,113 @@ Other useful assertion types (from promptfoo):
 
 Every eval config should have at least 2 test cases covering the primary decision boundary of the skill (e.g., positive detection vs. negative/clear result).
 
+## Generating a Starter Eval Config
+
+Use `generate-skill-eval.sh` to scaffold a `promptfooconfig.yaml` for a skill that does not yet have one.
+
+### Usage
+
+```bash
+bash plugins/dso/scripts/generate-skill-eval.sh <skill-name>
+# With a custom skills root (for testing):
+bash plugins/dso/scripts/generate-skill-eval.sh --skills-root /tmp/skills <skill-name>
+```
+
+### What It Produces
+
+The generator creates `plugins/dso/skills/<skill-name>/evals/promptfooconfig.yaml` with:
+
+- The correct `description`, `providers`, and `defaultTest.options.provider` fields pre-filled (Haiku for both)
+- A `prompts` block containing the skill name and a short description extracted from `SKILL.md`
+- Two skeleton test cases with `TODO` markers in `description`, `vars.prompt`, and `assert[].value`
+
+The generator will exit with an error if:
+- The skill directory does not exist under the skills root
+- An `evals/promptfooconfig.yaml` already exists for that skill (it will not overwrite)
+- `SKILL.md` contains no parseable description (no frontmatter `description:` field and no H2 heading)
+
+### TODO Convention
+
+`TODO` markers appear only in **assertion values** (`assert[].value`) and input **vars** — never in structural positions such as `providers`, `tests`, or `defaultTest`. This convention allows the commit guard (see below) to distinguish an unfilled scaffold from a deliberate partial config.
+
+Replace every `TODO` before committing. The commit guard will block the commit if any `TODO` remains.
+
+### Worked Example: generate, fill in, commit
+
+**Step 1 — Run the generator:**
+
+```bash
+bash plugins/dso/scripts/generate-skill-eval.sh fix-bug
+# Output: Generated evals/promptfooconfig.yaml for skill 'fix-bug'
+```
+
+**Step 2 — Replace TODO markers with real rubric assertions.**
+
+Open `plugins/dso/skills/fix-bug/evals/promptfooconfig.yaml` and replace each `TODO` block. For example:
+
+Before:
+```yaml
+  - description: "TODO: Verify fix-bug handles basic input correctly"
+    vars:
+      prompt: |
+        TODO: Replace with a representative input for the fix-bug skill
+    assert:
+      - type: llm-rubric
+        value: >
+          TODO: Replace with evaluation criteria derived from the skill
+```
+
+After:
+```yaml
+  - description: "Verify fix-bug classifies a NullPointerException as a mechanical bug"
+    vars:
+      prompt: |
+        The test suite reports: AttributeError: 'NoneType' object has no attribute 'run'
+        Classify this bug and propose an investigation path.
+    assert:
+      - type: llm-rubric
+        value: >
+          The output should classify the bug as mechanical (not behavioral),
+          identify the null/None reference as the root cause category,
+          and propose direct code inspection as the first investigation step.
+```
+
+**Step 3 — Commit (guard passes because no TODOs remain):**
+
+```bash
+git add plugins/dso/skills/fix-bug/evals/promptfooconfig.yaml
+# Use /dso:commit — the eval guard runs during the pre-commit hook
+```
+
+## Eval Config Commit Guard
+
+The eval config commit guard runs automatically as part of the pre-commit hook (`record-test-status.sh`) whenever a `*/evals/promptfooconfig.yaml` file is staged. It performs a static scan — no API calls, no `npx` required.
+
+### What the Guard Checks
+
+The guard blocks a commit if any staged eval config has:
+
+1. **TODO markers** — any occurrence of the string `TODO` anywhere in the file
+2. **Empty tests list** — `tests: []` or a `tests:` key with no list items
+3. **No `llm-rubric` assertion** — at least one `type: llm-rubric` entry must be present
+
+### When It Runs
+
+The guard runs on every commit that stages a file matching `*/evals/promptfooconfig.yaml`. It does not run for commits that do not touch eval configs.
+
+### Error Output
+
+When the guard blocks a commit, it prints which file failed and which checks it failed:
+
+```
+EVAL CONFIG GUARD: staged eval config(s) are incomplete — commit blocked.
+ERROR: Incomplete eval config: plugins/dso/skills/fix-bug/evals/promptfooconfig.yaml
+  - contains TODO marker(s)
+Fix the issues above before committing.
+```
+
+Resolve all listed issues, re-stage the file, and commit again.
+
 ## Running Evals
 
 ### run-skill-evals.sh
