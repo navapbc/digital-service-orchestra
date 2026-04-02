@@ -1,1 +1,0 @@
-{"timestamp": 1775089131271280000, "uuid": "80943f85-456f-4926-b59c-9486e43d2d54", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Joe Oakhart", "data": {"body": "Classification: behavioral, Score: 2 (BASIC). record-test-status.sh doesn't handle MERGE_HEAD state."}}
