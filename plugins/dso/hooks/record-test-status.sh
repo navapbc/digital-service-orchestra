@@ -263,6 +263,80 @@ if ms_is_merge_in_progress || ms_is_rebase_in_progress; then
     # fall through to normal enforcement with the full staged file list.
 fi
 
+# --- Eval config TODO guard (static scan, no API calls) ---
+# Scans staged */evals/promptfooconfig.yaml files for completeness before
+# allowing a commit. Blocks on: TODO markers, empty tests list, missing
+# llm-rubric assertion. Pure text scan — no npx, no API key required.
+_eval_guard_errors=""
+while IFS= read -r _eg_file; do
+    [[ -z "$_eg_file" ]] && continue
+    # Only scan files matching the eval config pattern
+    case "$_eg_file" in
+        */evals/promptfooconfig.yaml) ;;
+        *) continue ;;
+    esac
+
+    _eg_full="${REPO_ROOT}/${_eg_file}"
+    [[ -f "$_eg_full" ]] || continue
+    _eg_content=$(cat "$_eg_full")
+
+    _eg_file_errors=""
+
+    # Check 1: TODO markers anywhere in the file
+    if echo "$_eg_content" | grep -q 'TODO'; then
+        _eg_file_errors="${_eg_file_errors}  - contains TODO marker(s)"$'\n'
+    fi
+
+    # Check 2: empty tests list (tests: [] or tests: with no entries)
+    # Detect "tests: []" or "tests:" followed only by whitespace/comments/end-of-file
+    # with no subsequent list items (lines starting with "  -").
+    # Strategy: extract the tests block and check for at least one "- " entry.
+    _eg_has_test_entry=false
+    _eg_in_tests=false
+    while IFS= read -r _eg_line; do
+        if [[ "$_eg_line" =~ ^tests:[[:space:]]*\[\] ]]; then
+            # Inline empty list
+            break
+        fi
+        if [[ "$_eg_line" =~ ^tests: ]]; then
+            _eg_in_tests=true
+            continue
+        fi
+        if [[ "$_eg_in_tests" == true ]]; then
+            # A top-level key (no leading spaces) ends the tests block
+            if [[ "$_eg_line" =~ ^[^[:space:]] ]] && [[ -n "$_eg_line" ]]; then
+                _eg_in_tests=false
+                break
+            fi
+            # A list item under tests
+            if [[ "$_eg_line" =~ ^[[:space:]]+-[[:space:]] ]]; then
+                _eg_has_test_entry=true
+                break
+            fi
+        fi
+    done <<< "$_eg_content"
+
+    if [[ "$_eg_has_test_entry" == false ]]; then
+        _eg_file_errors="${_eg_file_errors}  - tests: list is empty (no test cases)"$'\n'
+    fi
+
+    # Check 3: at least one llm-rubric assertion type
+    if ! echo "$_eg_content" | grep -q 'type:[[:space:]]*llm-rubric'; then
+        _eg_file_errors="${_eg_file_errors}  - no 'type: llm-rubric' assertion found"$'\n'
+    fi
+
+    if [[ -n "$_eg_file_errors" ]]; then
+        _eval_guard_errors="${_eval_guard_errors}ERROR: Incomplete eval config: ${_eg_file}"$'\n'"${_eg_file_errors}"
+    fi
+done <<< "$STAGED_FILES"
+
+if [[ -n "$_eval_guard_errors" ]]; then
+    echo "EVAL CONFIG GUARD: staged eval config(s) are incomplete — commit blocked." >&2
+    echo "$_eval_guard_errors" >&2
+    echo "Fix the issues above before committing." >&2
+    exit 1
+fi
+
 # --- Detect staged skill files (for Tier 1 eval invocation) ---
 # Collected here (before the "no associated tests" early exit) so that skill evals
 # run even when no unit tests are associated with the staged files.

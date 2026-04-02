@@ -53,18 +53,29 @@ create_eval_test_repo() {
 # Helper: run the hook in a given repo dir, capturing combined output and exit code.
 # Usage: run_guard <repo_dir> <artifacts_dir>
 # Prints combined stdout+stderr to stdout; sets global _LAST_EXIT_CODE.
+#
+# NOTE: run_guard is called via command substitution (_OUTPUT=$(run_guard ...)),
+# which runs in a subshell. To propagate _LAST_EXIT_CODE to the parent shell,
+# we write the exit code to a temp file and read it back after the call.
 _LAST_EXIT_CODE=0
+_GUARD_EXIT_CODE_FILE=$(mktemp "${TMPDIR:-/tmp}/guard-exit-code-XXXXXX")
+trap 'rm -f "$_GUARD_EXIT_CODE_FILE"' EXIT
 run_guard() {
     local repo_dir="$1"
     local artifacts_dir="$2"
-    _LAST_EXIT_CODE=0
+    local _exit=0
     (
         cd "$repo_dir"
         WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         RECORD_TEST_STATUS_EVALS_RUNNER="$_MOCK_NOOP_RUNNER" \
         bash "$HOOK" 2>&1
-    ) || _LAST_EXIT_CODE=$?
+    ) || _exit=$?
+    echo "$_exit" > "$_GUARD_EXIT_CODE_FILE"
+}
+# Reads _LAST_EXIT_CODE from the temp file written by the most recent run_guard call.
+_sync_last_exit() {
+    _LAST_EXIT_CODE=$(cat "$_GUARD_EXIT_CODE_FILE" 2>/dev/null || echo "0")
 }
 
 # ============================================================
@@ -99,6 +110,7 @@ echo "# changed" >> "$_REPO_TODO/plugins/dso/skills/my-skill/evals/promptfooconf
 git -C "$_REPO_TODO" add -A
 
 _OUTPUT_TODO=$(run_guard "$_REPO_TODO" "$_ART_TODO")
+_sync_last_exit
 
 # Guard must exit non-zero when TODO is present
 assert_ne "todo_marker_blocks: exits non-zero" "0" "$_LAST_EXIT_CODE"
@@ -136,6 +148,7 @@ echo "# changed" >> "$_REPO_EMPTY/plugins/dso/skills/another-skill/evals/promptf
 git -C "$_REPO_EMPTY" add -A
 
 _OUTPUT_EMPTY=$(run_guard "$_REPO_EMPTY" "$_ART_EMPTY")
+_sync_last_exit
 
 assert_ne "empty_tests_blocks: exits non-zero" "0" "$_LAST_EXIT_CODE"
 
@@ -175,6 +188,7 @@ echo "# changed" >> "$_REPO_NORUBRIC/plugins/dso/skills/third-skill/evals/prompt
 git -C "$_REPO_NORUBRIC" add -A
 
 _OUTPUT_NORUBRIC=$(run_guard "$_REPO_NORUBRIC" "$_ART_NORUBRIC")
+_sync_last_exit
 
 assert_ne "no_llm_rubric_blocks: exits non-zero" "0" "$_LAST_EXIT_CODE"
 
@@ -215,6 +229,7 @@ echo "# changed" >> "$_REPO_VALID/plugins/dso/skills/valid-skill/evals/promptfoo
 git -C "$_REPO_VALID" add -A
 
 _OUTPUT_VALID=$(run_guard "$_REPO_VALID" "$_ART_VALID")
+_sync_last_exit
 
 # A valid config must not produce a guard-rejection message (exit 0, no TODO/rubric errors).
 assert_eq "valid_config_passes: exits 0 (guard does not block valid config)" "0" "$_LAST_EXIT_CODE"
@@ -251,6 +266,7 @@ echo "# changed" >> "$_REPO_NONEVALS/config/some-config.yaml"
 git -C "$_REPO_NONEVALS" add -A
 
 _OUTPUT_NONEVALS=$(run_guard "$_REPO_NONEVALS" "$_ART_NONEVALS")
+_sync_last_exit
 
 # Non-eval YAML with TODO must not trigger the guard; hook exits 0 (no associated tests)
 assert_eq "non_eval_files_ignored: exits 0 for non-eval staged YAML" "0" "$_LAST_EXIT_CODE"
@@ -355,6 +371,7 @@ echo "# changed beta" >> "$_REPO_MULTI/plugins/dso/skills/skill-beta/evals/promp
 git -C "$_REPO_MULTI" add -A
 
 _OUTPUT_MULTI=$(run_guard "$_REPO_MULTI" "$_ART_MULTI")
+_sync_last_exit
 
 # Guard must exit non-zero
 assert_ne "multiple_files_reported: exits non-zero" "0" "$_LAST_EXIT_CODE"
