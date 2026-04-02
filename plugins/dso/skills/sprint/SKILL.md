@@ -468,15 +468,13 @@ For each task in the batch:
 
 ### Step 3: Update from Main
 
-Pull the latest ticket state from main before launching sub-agents:
+Pull the latest code from main before launching sub-agents:
 
 ```bash
-.claude/scripts/dso worktree-sync-from-main.sh
+git fetch origin main && git merge origin/main --no-edit
 ```
 
-**Never run bare `git merge origin/main` in a worktree** — use the sync script which handles ticket branch syncing and merge automatically.
-
-If the script reports a non-ticket merge conflict, resolve it (prefer local for code files), commit, and re-run the script. If it fails entirely, log a warning and continue — stale ticket state is preferable to a blocked batch.
+This syncs the worktree branch with the latest main. Ticket branch syncing happens automatically during `merge-to-main.sh` at end-of-sprint (not during mid-sprint sync).
 
 ### Step 4: Batch Composition
 

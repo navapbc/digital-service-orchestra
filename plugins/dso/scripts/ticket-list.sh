@@ -108,6 +108,9 @@ import json, sys, os
 results = json.loads(sys.stdin.read())
 type_filter = os.environ.get('_LIST_TYPE_FILTER', '')
 status_filter = os.environ.get('_LIST_STATUS_FILTER', '')
+# Exclude error/fsck_needed tickets unless explicitly requested via --status (d145-e1a9)
+if status_filter not in ('error', 'fsck_needed'):
+    results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
 if type_filter:
     results = [t for t in results if t.get('ticket_type') == type_filter]
 if status_filter:
@@ -149,6 +152,9 @@ import json, sys, os
 results = json.loads(sys.stdin.read())
 type_filter = os.environ.get('_LIST_TYPE_FILTER', '')
 status_filter = os.environ.get('_LIST_STATUS_FILTER', '')
+# Exclude error/fsck_needed tickets unless explicitly requested via --status (d145-e1a9)
+if status_filter not in ('error', 'fsck_needed'):
+    results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
 if type_filter:
     results = [t for t in results if t.get('ticket_type') == type_filter]
 if status_filter:

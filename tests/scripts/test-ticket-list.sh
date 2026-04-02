@@ -267,7 +267,7 @@ test_ticket_list_ghost_ticket_in_output() {
     # Assert: exits 0 (ghost tickets should not crash the list command)
     assert_eq "list exits 0 even with ghost ticket" "0" "$exit_code"
 
-    # Assert: output contains the ghost ticket with error status
+    # Assert: ghost ticket with error status is EXCLUDED from default list output (d145-e1a9)
     local ghost_check
     ghost_check=$(python3 - "$list_output" "$ghost_id" <<'PYEOF'
 import json, sys
@@ -286,22 +286,18 @@ if not isinstance(tickets, list):
 
 ghost = next((t for t in tickets if isinstance(t, dict) and t.get("ticket_id") == ghost_id), None)
 if ghost is None:
-    print(f"GHOST_NOT_IN_LIST:{ghost_id}")
-    sys.exit(3)
+    print("OK")  # Ghost ticket correctly excluded from default output
+    sys.exit(0)
 
-status = ghost.get("status", "")
-if status not in ("error", "fsck_needed"):
-    print(f"GHOST_STATUS_WRONG:expected error/fsck_needed, got {status!r}")
-    sys.exit(4)
-
-print("OK")
+print(f"GHOST_STILL_IN_LIST:{ghost_id} status={ghost.get('status','?')}")
+sys.exit(3)
 PYEOF
 ) || true
 
     if [ "$ghost_check" = "OK" ]; then
-        assert_eq "ghost ticket in list with error status" "OK" "OK"
+        assert_eq "ghost ticket excluded from default list" "OK" "OK"
     else
-        assert_eq "ghost ticket in list with error status" "OK" "$ghost_check"
+        assert_eq "ghost ticket excluded from default list" "OK" "$ghost_check"
     fi
 
     assert_pass_if_clean "test_ticket_list_ghost_ticket_in_output"
@@ -351,7 +347,7 @@ with open('$tracker_dir/$corrupt_id/0000000001-aaaa-CREATE.json', 'w') as f:
     # Assert: exits 0 (corrupt tickets must not crash list)
     assert_eq "list exits 0 with corrupt CREATE ticket" "0" "$exit_code"
 
-    # Assert: corrupt ticket appears with status='fsck_needed'
+    # Assert: corrupt ticket with fsck_needed status is EXCLUDED from default list output (d145-e1a9)
     local corrupt_check
     corrupt_check=$(python3 - "$list_output" "$corrupt_id" <<'PYEOF'
 import json, sys
@@ -370,22 +366,18 @@ if not isinstance(tickets, list):
 
 ticket = next((t for t in tickets if isinstance(t, dict) and t.get("ticket_id") == corrupt_id), None)
 if ticket is None:
-    print(f"CORRUPT_TICKET_NOT_IN_LIST:{corrupt_id}")
-    sys.exit(3)
+    print("OK")  # Corrupt ticket correctly excluded from default output
+    sys.exit(0)
 
-status = ticket.get("status", "")
-if status != "fsck_needed":
-    print(f"WRONG_STATUS:expected fsck_needed, got {status!r}")
-    sys.exit(4)
-
-print("OK")
+print(f"CORRUPT_TICKET_STILL_IN_LIST:{corrupt_id} status={ticket.get('status','?')}")
+sys.exit(3)
 PYEOF
 ) || true
 
     if [ "$corrupt_check" = "OK" ]; then
-        assert_eq "corrupt ticket appears with fsck_needed status" "OK" "OK"
+        assert_eq "corrupt ticket excluded from default list" "OK" "OK"
     else
-        assert_eq "corrupt ticket appears with fsck_needed status" "OK" "$corrupt_check"
+        assert_eq "corrupt ticket excluded from default list" "OK" "$corrupt_check"
     fi
 
     assert_pass_if_clean "test_ticket_list_corrupt_create_event"

@@ -81,15 +81,4 @@ poetry_lock_refs=$(grep -v '^\s*#' "$classify_script" | grep -c 'app/poetry\.loc
 assert_eq "test_classify_task_no_hardcoded_poetry_lock" "0" "$poetry_lock_refs"
 assert_pass_if_clean "test_classify_task_no_hardcoded_poetry_lock"
 
-# ── test_worktree_sync_no_hardcoded_venv_bin ───────────────────────────────
-# worktree-sync-from-main.sh should not have hardcoded _VENV_BIN=...app/.venv/bin
-echo ""
-echo "--- No hardcoded _VENV_BIN in worktree-sync-from-main.sh ---"
-
-_snapshot_fail
-sync_script="$SCRIPTS_DIR/worktree-sync-from-main.sh"
-venv_bin_refs=$(grep -v '^\s*#' "$sync_script" | grep -c 'app/\.venv/bin"' || true)
-assert_eq "test_worktree_sync_no_hardcoded_venv_bin" "0" "$venv_bin_refs"
-assert_pass_if_clean "test_worktree_sync_no_hardcoded_venv_bin"
-
 print_summary

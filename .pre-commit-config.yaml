@@ -31,12 +31,14 @@ repos:
         types: [python]
         stages: [pre-commit]
 
-      # Test gate (timeout: 10s)
+      # Test gate (timeout: 30s)
       # Blocks commits when staged source files have associated tests that haven't passed.
       # Runs BEFORE the review gate so developers fix test failures first.
+      # Timeout raised from 10s to 30s: compute-diff-hash.sh takes ~8s, leaving
+      # insufficient time for the test gate logic within the original 10s budget.
       - id: pre-commit-test-gate
-        name: Test Gate (10s timeout)
-        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-test-gate 10 "./plugins/dso/hooks/pre-commit-test-gate.sh"
+        name: Test Gate (30s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-test-gate 30 "./plugins/dso/hooks/pre-commit-test-gate.sh"
         language: system
         pass_filenames: false
         always_run: true

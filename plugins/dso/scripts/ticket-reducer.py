@@ -25,6 +25,33 @@ import sys
 from typing import Protocol, runtime_checkable
 
 
+def _make_error_dict(ticket_id: str, status: str, error: str) -> dict:
+    """Build an error-state dict with all standard schema fields (d145-e1a9).
+
+    Ensures consumers iterating ticket_type/title never crash on missing keys,
+    regardless of which error path produced the dict.
+    """
+    return {
+        "ticket_id": ticket_id,
+        "ticket_type": None,
+        "title": f"[{status}] {error} for {ticket_id}",
+        "status": status,
+        "error": error,
+        "author": None,
+        "created_at": None,
+        "env_id": None,
+        "parent_id": None,
+        "priority": None,
+        "assignee": None,
+        "description": "",
+        "tags": [],
+        "comments": [],
+        "deps": [],
+        "bridge_alerts": [],
+        "reverts": [],
+    }
+
+
 @runtime_checkable
 class ReducerStrategy(Protocol):
     """Protocol for pluggable ticket event merge strategies."""
@@ -312,11 +339,9 @@ def reduce_ticket(
         if event_type == "CREATE":
             # Corrupt CREATE detection: missing required fields
             if not data.get("ticket_type") or not data.get("title"):
-                fsck_result = {
-                    "status": "fsck_needed",
-                    "error": "corrupt_create_event",
-                    "ticket_id": ticket_id,
-                }
+                fsck_result = _make_error_dict(
+                    ticket_id, "fsck_needed", "corrupt_create_event"
+                )
                 try:
                     cache_tmp = cache_path + ".tmp"
                     with open(cache_tmp, "w", encoding="utf-8") as tf:
@@ -452,11 +477,9 @@ def reduce_ticket(
     if state["ticket_type"] is None:
         # Ghost ticket prevention: dir has event files but none parsed
         if valid_event_count == 0 and len(event_files) > 0:
-            result: dict | None = {
-                "status": "error",
-                "error": "no_valid_create_event",
-                "ticket_id": ticket_id,
-            }
+            result: dict | None = _make_error_dict(
+                ticket_id, "error", "no_valid_create_event"
+            )
         else:
             result = None
     else:
@@ -512,14 +535,8 @@ def reduce_all_tickets(
         state = reduce_ticket(entry_path)
 
         if state is None:
-            # Fallback: no CREATE event — mirror ticket-list.sh ghost handling
-            results.append(
-                {
-                    "ticket_id": entry,
-                    "status": "error",
-                    "error": "reducer_failed",
-                }
-            )
+            # Fallback: no CREATE event — use standard error dict (d145-e1a9).
+            results.append(_make_error_dict(entry, "error", "reducer_failed"))
         else:
             results.append(state)
 
