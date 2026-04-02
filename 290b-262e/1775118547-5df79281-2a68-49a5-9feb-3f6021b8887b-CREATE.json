@@ -1,0 +1,1 @@
+{"timestamp": 1775118547, "uuid": "5df79281-2a68-49a5-9feb-3f6021b8887b", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "check-local-env.sh spawns 4 separate read-config.sh subprocesses for config keys at startup", "parent_id": "5ee9-143e", "description": "", "priority": 3, "assignee": "Test"}}
