@@ -450,6 +450,17 @@ fi
 # alter the untracked file list and produce a different hash.
 DIFF_HASH=$("$HOOK_DIR/compute-diff-hash.sh")
 
+# --- Incorporate .test-index content into cache key (dc5a-7663) ---
+# .test-index is excluded from DIFF_HASH via the allowlist, so edits to it
+# (e.g., RED marker removal) don't change DIFF_HASH. Salt the progress key
+# with a short hash of .test-index content so cache is invalidated on edits.
+_TEST_INDEX_FILE="$REPO_ROOT/.test-index"
+if [[ -f "$_TEST_INDEX_FILE" ]]; then
+    _TEST_INDEX_HASH=$(shasum -a 256 "$_TEST_INDEX_FILE" 2>/dev/null | cut -d' ' -f1 || echo "noindex")
+else
+    _TEST_INDEX_HASH="noindex"
+fi
+
 # --- Guard: clear stale status when code changed since last recorded test run ---
 # If an existing 'passed' status was recorded for a DIFFERENT hash, clear it so
 # the test loop below re-runs tests against the current code (dso-6x8o).
@@ -471,7 +482,7 @@ fi
 # --- Resumable test progress ---
 # Track which tests have passed in a progress file keyed by diff hash.
 # On re-invocation (after SIGURG kills us at 73s), skip already-passed tests.
-_PROGRESS_FILE="$ARTIFACTS_DIR/test-gate-progress-${DIFF_HASH:0:16}"
+_PROGRESS_FILE="$ARTIFACTS_DIR/test-gate-progress-${DIFF_HASH:0:16}-${_TEST_INDEX_HASH:0:8}"
 declare -A _COMPLETED_TESTS=()
 if [[ -f "$_PROGRESS_FILE" ]]; then
     while IFS= read -r _done_test; do
