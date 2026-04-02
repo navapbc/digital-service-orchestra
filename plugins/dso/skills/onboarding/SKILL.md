@@ -1420,7 +1420,7 @@ Record the CI trigger strategy in `dso-config.conf` under `ci.workflow_name` and
 
 ---
 
-### Step 3: Offer /dso:architect-foundation
+## Step 6: Offer /dso:architect-foundation (/dso:onboarding)
 
 After writing `.claude/project-understanding.md`, offer the next step:
 
@@ -1440,7 +1440,40 @@ Skill tool:
   skill: "dso:architect-foundation"
 ```
 
-If the user says no or wants to continue manually, summarize what was learned and close the session.
+If the user says no or wants to continue manually, proceed to Step 7.
+
+---
+
+## Step 7: Onboarding Integration Offer (/dso:onboarding)
+
+After `/dso:architect-foundation` completes (or is skipped), offer additional onboarding skills that produce durable project artifacts.
+
+**Artifact detection**: Before prompting, check whether the target artifacts already exist:
+- Check for `ARCH_ENFORCEMENT.md` — produced by `/dso:dev-onboarding`
+- Check for `.claude/docs/DESIGN_NOTES.md` (or `DESIGN_NOTES.md` at repo root) — produced by `/dso:design-onboarding`
+
+If both artifacts already exist, skip this step entirely — the onboarding integration is already complete and no additional steps are needed.
+
+**When both skills are available** (neither artifact exists), present an AskUserQuestion with 4 options:
+
+```
+I can run additional onboarding skills to set up your project:
+
+1) Run both /dso:dev-onboarding and /dso:design-onboarding
+   - /dso:dev-onboarding produces a codebase guide and ARCH_ENFORCEMENT.md with architecture enforcement rules
+   - /dso:design-onboarding generates DESIGN_NOTES.md with design system documentation and visual language
+2) Run only /dso:dev-onboarding (creates ARCH_ENFORCEMENT.md)
+3) Run only /dso:design-onboarding (creates DESIGN_NOTES.md)
+4) Skip — setup is complete, no additional steps
+
+Which would you like?
+```
+
+**When only one skill is available** (one artifact already exists), present a yes/no prompt for the remaining skill.
+
+**Invocation order**: When running both skills, invoke `/dso:dev-onboarding` first, then `/dso:design-onboarding`. Dev-onboarding sets up the architecture enforcement context that design-onboarding can reference.
+
+**If the user selects skip**: Setup is complete. No additional steps are needed. Summarize what was learned and close the session.
 
 ---
 
