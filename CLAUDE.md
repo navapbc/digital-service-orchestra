@@ -204,6 +204,40 @@ Orchestrator-level rules (apply to `/dso:sprint` and `/dso:debug-everything`, no
 **After reading a workflow file**: If already read earlier in this conversation (and not compacted since), use the version in context.
 **Use built-in Grep and Read tools — not Bash equivalents**: Bash `grep`/`cat` only when piping to other commands or in scripts.
 
+## Structural Code Search (ast-grep)
+
+**Prefer `sg` (ast-grep) over text grep for cross-file dependency discovery.** The `sg` command provides syntax-aware structural pattern matching across 170+ languages, distinguishing real code references from comments and string literals. Use it when exploring callers, importers, and source-chain dependencies.
+
+**Installation** (optional — all workflows fall back to Grep when unavailable):
+- macOS: `brew install ast-grep`
+- Linux: `cargo install ast-grep --locked`
+
+**Binary name**: The package is called `ast-grep`; the CLI binary is `sg`. Always check availability with `command -v sg`.
+
+**Guard and fallback pattern** (canonical — copy this pattern in all skill/script integrations):
+```bash
+if command -v sg >/dev/null 2>&1; then
+    # Use sg for structural search
+    sg --pattern '<pattern>' --lang <lang> /path/to/search
+else
+    # Fall back to Grep tool or grep command
+    grep -r '<pattern>' /path/to/search
+fi
+```
+
+**Example patterns**:
+```bash
+# Find all Python files that import a specific module
+sg --pattern 'import $MODULE' --lang python .
+sg --pattern 'from $MODULE import $_' --lang python .
+
+# Find all bash files that source a specific script
+sg --pattern 'source $PATH' --lang bash .
+sg --pattern '. $PATH' --lang bash .
+```
+
+**Note**: The existing `gate-2b-blast-radius.sh` uses the older `ast-grep` binary name (`command -v ast-grep`). New integrations should use `sg`. The docs update story (afb1-89e6) will align the existing reference.
+
 ## Common Fixes
 
 See .claude/docs/KNOWN-ISSUES.md for common operational fixes and workarounds.
