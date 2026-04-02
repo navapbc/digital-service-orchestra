@@ -27,10 +27,10 @@ Load the project's command values via `read-config.sh` (located at `.claude/scri
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 
-VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)
-FORMAT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format)
-TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
-LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
+VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)  # shim-exempt: internal orchestration script
+FORMAT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format)  # shim-exempt: internal orchestration script
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
+LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
 ```
 
 Resolution order used by `read-config.sh`:

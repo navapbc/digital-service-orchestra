@@ -34,7 +34,7 @@ Before reviewing, you MUST have:
 1. The project's design notes document in your context. Resolve the path from config:
    ```bash
    PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-   DESIGN_NOTES_PATH=$(bash "$PLUGIN_SCRIPTS/read-config.sh" design.design_notes_path)
+   DESIGN_NOTES_PATH=$(bash "$PLUGIN_SCRIPTS/read-config.sh" design.design_notes_path)  # shim-exempt: internal orchestration script
    ```
    Read the file at `$DESIGN_NOTES_PATH` (defaults to `.claude/design-notes.md` if not configured). If it does not exist, tell the user to run `/dso:design-onboarding` first.
 2. A description or code of the *Proposed Design* to review. If none is provided, check `git diff` for UI-related changes.

@@ -24,9 +24,9 @@ At activation, load project commands via read-config.sh before executing any ste
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
-LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
-FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
+LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
+FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)  # shim-exempt: internal orchestration script
 ```
 
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
@@ -192,7 +192,7 @@ Before dispatching the investigation sub-agent, run the intent-search gate to de
 **Read budget config:**
 
 ```bash
-INTENT_SEARCH_BUDGET=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.intent_search_budget)
+INTENT_SEARCH_BUDGET=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.intent_search_budget)  # shim-exempt: internal orchestration script
 # Default: 20
 ```
 
@@ -254,7 +254,7 @@ payload = {'title': sys.argv[1], 'description': sys.argv[2]}
 print(json.dumps(payload))
 " "<ticket title>" "<ticket description>")
 
-GATE_1B_OUTPUT=$(echo "$GATE_1B_PAYLOAD" | python3 "$PLUGIN_SCRIPTS/gate-1b-feature-request-check.py")
+GATE_1B_OUTPUT=$(echo "$GATE_1B_PAYLOAD" | python3 "$PLUGIN_SCRIPTS/gate-1b-feature-request-check.py")  # shim-exempt: internal orchestration script
 ```
 
 The script exits 0 always and emits a single JSON gate signal to stdout conforming to `plugins/dso/docs/contracts/gate-signal-schema.md`:
@@ -686,9 +686,9 @@ AFFECTED_FILES_ARR=( "<file1>" "<file2>" )   # replace with actual paths
 GATE_1A_RESULT=${GATE_1A_RESULT:-}
 # If Gate 1a returned intent-aligned, add --intent-aligned to suppress
 if [ "$GATE_1A_RESULT" = "intent-aligned" ]; then
-    GATE_2A_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2a-reversal-check.sh" --intent-aligned "${AFFECTED_FILES_ARR[@]}" 2>/dev/null)
+    GATE_2A_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2a-reversal-check.sh" --intent-aligned "${AFFECTED_FILES_ARR[@]}" 2>/dev/null)  # shim-exempt: internal orchestration script
 else
-    GATE_2A_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2a-reversal-check.sh" "${AFFECTED_FILES_ARR[@]}" 2>/dev/null)
+    GATE_2A_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2a-reversal-check.sh" "${AFFECTED_FILES_ARR[@]}" 2>/dev/null)  # shim-exempt: internal orchestration script
 fi
 GATE_2A_EXIT=$?
 ```
@@ -715,7 +715,7 @@ Gate 2b is a **modifier** gate — it appends a blast-radius annotation to the e
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-bash "$PLUGIN_SCRIPTS/gate-2b-blast-radius.sh" "<affected_file_path>" --repo-root "$(git rev-parse --show-toplevel)"
+bash "$PLUGIN_SCRIPTS/gate-2b-blast-radius.sh" "<affected_file_path>" --repo-root "$(git rev-parse --show-toplevel)"  # shim-exempt: internal orchestration script
 ```
 
 **Parsing the gate signal**: Parse the JSON emitted to stdout. The signal conforms to `gate-signal-schema.md`:
@@ -749,7 +749,7 @@ Gate 2c is a **primary** gate (signal_type `"primary"`) — it detects whether t
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-TEST_DIR=$(bash "$PLUGIN_SCRIPTS/read-config.sh" test_gate.test_dirs)
+TEST_DIR=$(bash "$PLUGIN_SCRIPTS/read-config.sh" test_gate.test_dirs)  # shim-exempt: internal orchestration script
 TEST_DIR=${TEST_DIR:-tests/}
 GATE_1A_RESULT=${GATE_1A_RESULT:-}
 GATE_2C_FLAGS=()
@@ -757,7 +757,7 @@ if [ "$GATE_1A_RESULT" = "intent-aligned" ]; then
     GATE_2C_FLAGS+=(--intent-aligned)
 fi
 GATE_2C_FLAGS+=(--test-dir "$TEST_DIR")
-GATE_2C_OUTPUT=$(git diff -- "$TEST_DIR" | python3 "$PLUGIN_SCRIPTS/gate-2c-test-regression-check.py" "${GATE_2C_FLAGS[@]}" 2>/dev/null)
+GATE_2C_OUTPUT=$(git diff -- "$TEST_DIR" | python3 "$PLUGIN_SCRIPTS/gate-2c-test-regression-check.py" "${GATE_2C_FLAGS[@]}" 2>/dev/null)  # shim-exempt: internal orchestration script
 GATE_2C_EXIT=$?
 ```
 
@@ -788,7 +788,7 @@ Gate 2d is a **primary** gate — it detects whether the proposed fix introduces
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-GATE_2D_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2d-dependency-check.sh" "${AFFECTED_FILES_ARR[@]}" --repo-root "$(git rev-parse --show-toplevel)" 2>/dev/null)
+GATE_2D_OUTPUT=$(bash "$PLUGIN_SCRIPTS/gate-2d-dependency-check.sh" "${AFFECTED_FILES_ARR[@]}" --repo-root "$(git rev-parse --show-toplevel)" 2>/dev/null)  # shim-exempt: internal orchestration script
 GATE_2D_EXIT=$?
 ```
 
@@ -858,7 +858,7 @@ fi
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-ROUTING_OUTPUT=$(echo "$GATE_SIGNALS_JSON" | python3 "$PLUGIN_SCRIPTS/gate-escalation-router.py" $COMPLEX_FLAG)
+ROUTING_OUTPUT=$(echo "$GATE_SIGNALS_JSON" | python3 "$PLUGIN_SCRIPTS/gate-escalation-router.py" $COMPLEX_FLAG)  # shim-exempt: internal orchestration script
 ROUTE=$(echo "$ROUTING_OUTPUT" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('route','auto-fix'))" 2>/dev/null || echo "auto-fix")
 ```
 

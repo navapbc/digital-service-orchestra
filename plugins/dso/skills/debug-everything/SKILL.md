@@ -98,7 +98,7 @@ EB_STAGING_ENV="${EB_STAGING_ENVIRONMENT:-nava-lockpick-doc-to-logic-env-stage}"
 **Read validation loop config** — load `debug.max_fix_validate_cycles` from project config:
 
 ```bash
-_raw_max_cycles=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.max_fix_validate_cycles 2>/dev/null || echo "")
+_raw_max_cycles=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.max_fix_validate_cycles 2>/dev/null || echo "")  # shim-exempt: internal orchestration script
 ```
 
 Apply edge-case rules:
@@ -111,7 +111,7 @@ Apply edge-case rules:
 **Session lock** — prevents multiple `/dso:debug-everything` sessions from running concurrently:
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-acquire "debug-everything"  # shim-exempt: internal orchestration script
 ```
 
 The script outputs `LOCK_ID: <id>` on success, `LOCK_BLOCKED: <id>` with `LOCK_WORKTREE: <path>` if another session holds the lock, or `LOCK_STALE: <id>` if a stale lock was reclaimed before acquiring.
@@ -123,7 +123,7 @@ The script outputs `LOCK_ID: <id>` on success, `LOCK_BLOCKED: <id>` with `LOCK_W
 **Discovery cleanup** — remove stale discoveries from any previous session:
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: internal orchestration script
 ```
 
 This ensures a fresh start — no stale discoveries from a previous session. Cleanup failure is non-fatal; log a warning and continue.
@@ -217,7 +217,7 @@ Pass these to the diagnostic sub-agent in Step 2.
 Before launching diagnostics, verify that Docker Desktop and the database are running. The diagnostic sub-agent runs E2E tests which require both.
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh preflight --start-db
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh preflight --start-db  # shim-exempt: internal orchestration script
 ```
 
 The script outputs structured key-value pairs:
@@ -607,7 +607,7 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
       For fully-qualified Python names (e.g., `src.services.pipeline.process_document`),
       strip the trailing function/class/method components and convert only the module portion
       to a file path (e.g., `src/services/pipeline.py`). Verify the path exists before using it.
-   b. Run `python3 "$PLUGIN_SCRIPTS/analyze-file-impact.py" --root $REPO_ROOT/app <seed-files>` to get
+   b. Run `python3 "$PLUGIN_SCRIPTS/analyze-file-impact.py" --root $REPO_ROOT/app <seed-files>` to get  # shim-exempt: internal orchestration script
       `files_likely_modified` and `files_likely_read` for each candidate (timeout: 30s)
    c. **Graceful degradation**: If `analyze-file-impact.py` is missing, errors, or times out,
       fall back to text-based file extraction from issue descriptions (existing behavior).
@@ -621,13 +621,13 @@ Within each tier, group independent fixes into batches of up to 5 sub-agents:
    - **Read-read overlap** (`files_likely_read` intersections) is allowed — only write-write
      conflicts trigger deferral
    - Log the conflict matrix to stderr for observability, using the same format as
-     `$PLUGIN_SCRIPTS/sprint-next-batch.sh`:
+     `$PLUGIN_SCRIPTS/sprint-next-batch.sh`:  # shim-exempt: internal orchestration script
      ```
      CONFLICT_MATRIX: <issue-A> x <issue-B> -> overlap on <file> (deferred: <issue-B>)
      ```
 
    This deterministic, zero-LLM-cost approach replaces the previous sub-agent dispatch for
-   overlap checking. See `$PLUGIN_SCRIPTS/sprint-next-batch.sh` lines 545-583 for the
+   overlap checking. See `$PLUGIN_SCRIPTS/sprint-next-batch.sh` lines 545-583 for the  # shim-exempt: internal orchestration script
    reference greedy selection algorithm with file-overlap detection.
 
 ---
@@ -661,8 +661,8 @@ For remaining failures (Tiers 2-7), launch sub-agent batches.
 Before EVERY batch, run the shared pre-batch check script:
 
 ```bash
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # --db for tiers 4-5
-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # no --db for tiers 0-3, 6-7
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check --db  # --db for tiers 4-5  # shim-exempt: internal orchestration script
+$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh pre-check       # no --db for tiers 0-3, 6-7  # shim-exempt: internal orchestration script
 ```
 
 The script outputs structured key-value pairs:
@@ -768,7 +768,7 @@ Environment: <CI failure | staging | local — from triage report>
 
 ### Subagent Type Selection
 
-Resolve `subagent_type` via `discover-agents.sh` using the routing category from `agent-routing.conf`. Run `$PLUGIN_SCRIPTS/discover-agents.sh` and use the resolved agent for each category.
+Resolve `subagent_type` via `discover-agents.sh` using the routing category from `agent-routing.conf`. Run `$PLUGIN_SCRIPTS/discover-agents.sh` and use the resolved agent for each category.  # shim-exempt: internal orchestration script
 
 | Fix Category | Routing Category | `model` | Why This Routing |
 |-------------|-----------------|---------|------------------|
@@ -832,7 +832,7 @@ Sub-agents may modify files beyond what their task description predicts. Check f
 1. Collect modified files for each sub-agent (from Task result or `git diff --name-only`)
 2. Run overlap detection:
    ```bash
-   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh file-overlap \  # shim-exempt: internal orchestration script
      --agent=<task-id-1>:<file1>,<file2> \
      --agent=<task-id-2>:<file3>,<file4>
    ```
@@ -965,7 +965,7 @@ Remaining in tier: {count}"
 Before committing, run the semantic conflict check on the combined diff:
 
 ```bash
-git diff | python3 "$PLUGIN_SCRIPTS/semantic-conflict-check.py"
+git diff | python3 "$PLUGIN_SCRIPTS/semantic-conflict-check.py"  # shim-exempt: internal orchestration script
 ```
 
 Parse the JSON output:
@@ -1064,8 +1064,8 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
 
 1. Clean up discoveries and release the session lock:
    ```bash
-   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
-   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "All diagnostics passing, all bugs resolved"
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: internal orchestration script
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "All diagnostics passing, all bugs resolved"  # shim-exempt: internal orchestration script
    .claude/scripts/dso ticket comment <epic-id> "Health restored."
    .claude/scripts/dso ticket transition <epic-id> open closed
    ```
@@ -1076,8 +1076,8 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
 
 1. Clean up discoveries and release the session lock:
    ```bash
-   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries
-   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "Graceful shutdown — work remains"
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: internal orchestration script
+   $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "Graceful shutdown — work remains"  # shim-exempt: internal orchestration script
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
 2. Do NOT launch new sub-agents

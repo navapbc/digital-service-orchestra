@@ -8,7 +8,7 @@ Run auto-fixers, validate, and report what changed.
 2. Run the auto-fix validation phase:
    ```bash
    PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-   $PLUGIN_SCRIPTS/validate-phase.sh auto-fix
+   $PLUGIN_SCRIPTS/validate-phase.sh auto-fix  # shim-exempt: internal orchestration script
    ```
 3. The script outputs a structured report. Relay it verbatim.
 

@@ -184,7 +184,7 @@ Before building enforcement from scratch, audit what the plugin already provides
 ls "${CLAUDE_PLUGIN_ROOT}/hooks/"*.sh 2>/dev/null
 
 # Discover available scripts (validation, CI, stack detection)
-ls "${CLAUDE_PLUGIN_ROOT}/scripts/"*.sh 2>/dev/null
+ls "${CLAUDE_PLUGIN_ROOT}/scripts/"*.sh 2>/dev/null  # shim-exempt: internal orchestration script
 
 # Discover available skills (workflow enforcement)
 ls "${CLAUDE_PLUGIN_ROOT}/skills/"*/SKILL.md 2>/dev/null

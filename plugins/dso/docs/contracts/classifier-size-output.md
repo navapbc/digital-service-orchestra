@@ -21,7 +21,7 @@ This contract must be agreed upon before either side is implemented to prevent i
 
 ## Emitter
 
-`plugins/dso/scripts/review-complexity-classifier.sh`
+`plugins/dso/scripts/review-complexity-classifier.sh` # shim-exempt: internal implementation path reference
 
 The emitter counts added lines in non-test, non-generated source files from the staged diff, compares the count against threshold bands, and includes the resulting fields in the same JSON object it already emits for tier selection (see `classifier-tier-output.md`). The size fields are appended to that object; the emitter exits 0 on success or non-zero on failure.
 

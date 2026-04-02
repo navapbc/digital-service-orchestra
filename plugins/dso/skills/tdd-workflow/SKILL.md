@@ -17,9 +17,9 @@ At activation, load project commands via read-config.sh before executing any ste
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)
-LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)
-FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)
+TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
+LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
+FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)  # shim-exempt: internal orchestration script
 ```
 
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.

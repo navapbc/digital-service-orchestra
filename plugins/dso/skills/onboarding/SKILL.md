@@ -148,7 +148,7 @@ Run `parse-template-registry.sh` to fetch available templates:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-REGISTRY_OUTPUT=$(bash "$PLUGIN_SCRIPTS/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)
+REGISTRY_OUTPUT=$(bash "$PLUGIN_SCRIPTS/parse-template-registry.sh" 2>/tmp/template-registry-warn.txt)  # shim-exempt: internal orchestration script
 ```
 
 **Fallback behavior**: If `$REGISTRY_OUTPUT` is empty (regardless of exit code), the template registry is missing or malformed. In that case:
@@ -1281,7 +1281,7 @@ Before any other infrastructure steps, install the `.claude/scripts/dso` shim th
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"
+bash "$PLUGIN_SCRIPTS/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install — shim does not yet exist
 ```
 
 This is idempotent — safe to re-run on projects that already have the shim installed.
@@ -1369,7 +1369,7 @@ If test directories were detected during Phase 1 auto-detection, run `generate-t
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
 if [[ -n "$TEST_DIRS" ]]; then
-    bash "$PLUGIN_SCRIPTS/generate-test-index.sh" "$REPO_ROOT" 2>/dev/null && \
+    bash "$PLUGIN_SCRIPTS/generate-test-index.sh" "$REPO_ROOT" 2>/dev/null && \  # shim-exempt: internal orchestration script
         echo "Test index generated." || \
         echo "NOTE: generate-test-index.sh unavailable — create .test-index manually if needed."
 fi

@@ -26,7 +26,7 @@ Before applying the checklist, identify the primary file type(s) in this diff an
 the corresponding additional sub-criteria below. Multiple file types may apply to a single
 diff — apply all relevant sections.
 
-### Bash Scripts (`plugins/dso/hooks/`, `plugins/dso/scripts/`, `tests/`)
+### Bash Scripts (`plugins/dso/hooks/`, `plugins/dso/scripts/`, `tests/`) # shim-exempt: file path pattern for code review file-type classification, not an invocation
 
 **correctness** sub-criteria:
 - [ ] Variables referenced inside conditionals and command arguments are double-quoted:

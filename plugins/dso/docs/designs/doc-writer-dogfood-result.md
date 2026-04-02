@@ -7,7 +7,7 @@
 
 ## Diff Source
 - **Commits**: `0149fffa^..83ffd6ad`
-- **Files changed**: `plugins/dso/scripts/sprint-list-epics.sh`, `plugins/dso/skills/sprint/SKILL.md`
+- **Files changed**: `plugins/dso/scripts/sprint-list-epics.sh`, `plugins/dso/skills/sprint/SKILL.md` # shim-exempt: historical file path list in dogfood test fixture metadata
 - **Fixture**: `tests/fixtures/doc-writer/sample-diff.patch` (367 lines)
 
 ## Decision Engine Gate Evaluation
