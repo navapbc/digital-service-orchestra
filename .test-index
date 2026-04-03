@@ -22,10 +22,7 @@
 # created by task 6a8b-ecf3 in the next sprint batch. Until then, test-known-issues-template.sh
 # is intentionally RED (failing) per standard TDD practice.
 plugins/dso/docs/templates/KNOWN-ISSUES.md: tests/scripts/test-known-issues-template.sh
-# RED: test-playwright-cli-validation.sh — fixtures (tests/fixtures/playwright/) and wrapper
-# logic (spike-env/chromium-revision-check.sh) do not yet exist. Tests are intentionally RED
-# per TDD practice. GREEN promotion blocked until fixtures and wrapper are created (task b909-9fe9).
-tests/fixtures/playwright: tests/scripts/test-playwright-cli-validation.sh [test_playwright_cli_installed]
+tests/fixtures/playwright: tests/scripts/test-playwright-cli-validation.sh
 plugins/dso/scripts/acli-integration.py: tests/scripts/test_acli_integration.py
 CLAUDE.md:tests/scripts/test-no-v2-refs-in-claude-md.sh,tests/scripts/test-claude-md-fix-bug-gates.sh,tests/scripts/test-claude-md-rule18-task-auth.sh
 plugins/dso/scripts/blast-radius-score.py:tests/scripts/test-blast-radius-score.sh
@@ -251,17 +248,10 @@ plugins/dso/skills/shared/prompts/prior-art-search.md: tests/scripts/test-prior-
 plugins/dso/skills/fix-bug/SKILL.md: tests/scripts/test-prior-art-search-consumers.sh
 plugins/dso/skills/shared/evals/promptfooconfig.yaml: tests/scripts/test-prior-art-search-eval.sh
 plugins/dso/scripts/skill-trace-analyze.py: tests/scripts/test-skill-trace-analyze.sh
-plugins/dso/skills/debug-everything/SKILL.md: tests/skills/test-cli-lifecycle-migration.sh [test_debug_everything_no_mcp_dispatch]
-plugins/dso/skills/end-session/SKILL.md: tests/skills/test-cli-lifecycle-migration.sh [test_debug_everything_no_mcp_dispatch]
-plugins/dso/scripts/cleanup-claude-session.sh: tests/skills/test-cli-lifecycle-migration.sh [test_debug_everything_no_mcp_dispatch]
-# RED: test-playwright-cli-guide.sh — PLAYWRIGHT-MCP-GUIDE.md still exists and PLAYWRIGHT-CLI-GUIDE.md
-# does not exist. Tests are intentionally RED per TDD practice. GREEN promotion blocked until
-# MCP guide is removed and CLI guide is created with required sections (task 5d38-1895).
-plugins/dso/docs/PLAYWRIGHT-MCP-GUIDE.md: tests/skills/test-playwright-cli-guide.sh [test_mcp_guide_removed,test_cross_references_updated]
-plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md: tests/skills/test-playwright-cli-guide.sh [test_cli_guide_exists,test_cli_guide_sections]
-# RED: test-playwright-doc-refs.sh — CLAUDE.md, CONFIGURATION-REFERENCE.md, and INSTALL.md do not
-# yet reference @playwright/cli as the active browser automation interface. Tests are intentionally
-# RED per TDD practice. GREEN promotion blocked until docs are updated with CLI patterns (story 413f-d504).
-CLAUDE.md: tests/docs/test-playwright-doc-refs.sh [test_claude_md_no_mcp_refs]
-plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/docs/test-playwright-doc-refs.sh [test_config_ref_no_mcp]
-plugins/dso/docs/INSTALL.md: tests/docs/test-playwright-doc-refs.sh [test_install_md_updated]
+plugins/dso/skills/debug-everything/SKILL.md: tests/skills/test-cli-lifecycle-migration.sh
+plugins/dso/skills/end-session/SKILL.md: tests/skills/test-cli-lifecycle-migration.sh
+plugins/dso/scripts/cleanup-claude-session.sh: tests/skills/test-cli-lifecycle-migration.sh
+plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md: tests/skills/test-playwright-cli-guide.sh
+CLAUDE.md: tests/docs/test-playwright-doc-refs.sh
+plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/docs/test-playwright-doc-refs.sh
+plugins/dso/docs/INSTALL.md: tests/docs/test-playwright-doc-refs.sh
