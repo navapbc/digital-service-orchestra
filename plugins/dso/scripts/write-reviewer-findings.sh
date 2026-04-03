@@ -68,6 +68,21 @@ if [ ! -s "$PENDING_FILE" ]; then
     exit 2
 fi
 
+# Normalize 'dimensions' → 'scores' key if the LLM used the wrong top-level key name.
+# The light reviewer (haiku) sometimes writes "dimensions" instead of "scores" due to
+# positional bias in the agent prompt — the concept word "dimensions" competes with the
+# JSON key name "scores". This normalization makes the pipeline robust to that deviation.
+python3 -c "
+import json, sys
+with open(sys.argv[1], 'r') as f:
+    data = json.load(f)
+if 'dimensions' in data and 'scores' not in data:
+    print('WARNING: Normalizing top-level key \"dimensions\" to \"scores\"', file=sys.stderr)
+    data['scores'] = data.pop('dimensions')
+    with open(sys.argv[1], 'w') as f:
+        json.dump(data, f, indent=2)
+" "$PENDING_FILE" 2>&1 || true  # normalization failure is non-fatal
+
 # Validate schema BEFORE writing to canonical location.
 # If validation fails, pending file is removed and the sub-agent cannot obtain a hash.
 if ! "$SCRIPT_DIR/validate-review-output.sh" code-review-dispatch "$PENDING_FILE" >&2; then

@@ -163,6 +163,46 @@ rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 new_hash_output=$(echo "$NEW_DIM_JSON" | "$SCRIPT" 2>/dev/null) && new_exit_code=0 || new_exit_code=$?
 assert_eq "test_write_new_dimension_names_accepted" "0" "$new_exit_code"
 
+# test_dimensions_key_normalized_to_scores
+# Piping JSON with 'dimensions' top-level key (instead of 'scores') should succeed
+# after normalization — the script should rename 'dimensions' to 'scores' before validation.
+DIMENSIONS_KEY_JSON='{
+  "dimensions": {
+    "hygiene": 5,
+    "design": "N/A",
+    "maintainability": 4,
+    "correctness": 5,
+    "verification": 5
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "description": "Test finding with dimensions key",
+      "file": "test.py"
+    }
+  ],
+  "summary": "Test that dimensions key gets normalized to scores."
+}'
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+dim_hash_output=$(echo "$DIMENSIONS_KEY_JSON" | "$SCRIPT" 2>/dev/null) && dim_exit_code=0 || dim_exit_code=$?
+assert_eq "test_dimensions_key_normalized_exit_code" "0" "$dim_exit_code"
+
+# After normalization, the written file should contain 'scores' key, not 'dimensions'
+if [[ -f "$ARTIFACTS_DIR/reviewer-findings.json" ]]; then
+    if python3 -c "import json; d=json.load(open('$ARTIFACTS_DIR/reviewer-findings.json')); assert 'scores' in d and 'dimensions' not in d" 2>/dev/null; then
+        actual="scores_key"
+    else
+        actual="wrong_key"
+    fi
+else
+    actual="no_file"
+fi
+assert_eq "test_dimensions_key_normalized_to_scores" "scores_key" "$actual"
+
+# Clean up
+rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
+
 # test_write_old_dimension_names_rejected
 # Piping JSON with OLD dimension names should exit 1 (validator rejects them).
 OLD_DIM_JSON='{
