@@ -256,3 +256,5 @@ CLAUDE.md: tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/INSTALL.md: tests/docs/test-playwright-doc-refs.sh
 tests/scripts/test-merge-recovery-integration.sh: tests/scripts/test-merge-recovery-isolation.sh
+plugins/dso/scripts/ticket-create.sh:tests/scripts/test-ticket-create.sh [test_tags_flag_creates_ticket_with_tags]
+plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py [test_create_event_with_tags]
