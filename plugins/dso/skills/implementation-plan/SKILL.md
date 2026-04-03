@@ -273,14 +273,25 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
 ### Directives
 
 * **TDD First:** Every task must specify a concrete failing test to write first.
-* **Stability:** Each task must leave the codebase in a deployable, green state.
-  Tasks must never require being committed together — each task is an independent
-  atomic unit that can be committed, pushed, and deployed on its own. If a task
-  would leave the codebase broken without another task also being committed, the
-  tasks must be restructured (merged or reordered) until each is independently green.
-  A task that deploys an inert feature (e.g., a guard that reads files no one writes yet)
-  is acceptable — inert is not broken. The key test: after committing only this task,
-  do all tests pass and is the system deployable?
+* **3-Gate Granularity:** Every task must pass all three gates. Gates are conjunctive —
+  Gate 3 only mandates splitting when the split would not violate Gate 1 or Gate 2.
+    * **Gate 1 — Testable Behavior:** The task must produce testable behavior —
+      grepping a source file to verify the existence of code is not a valid test.
+      A valid test executes the code under test and asserts on its output, exit code,
+      or side effects. (See the Behavioral Test Requirement section for the full
+      validity rubric.)
+    * **Gate 2 — Codebase Green:** The task must leave the codebase in a deployable,
+      green state. After committing only this task, all tests pass and the system is
+      deployable. Tasks must never require being committed together — each is an
+      independent atomic unit. A task that deploys an inert feature (e.g., a guard
+      that reads files no one writes yet) is acceptable — inert is not broken.
+    * **Gate 3 — Maximum Granularity:** It must not be possible to split the task into
+      smaller tasks that each independently meet Gate 1 and Gate 2. If two changes
+      within a task each produce independently verifiable behavior and each leaves the
+      codebase green on its own, they must be separate tasks. Bundling is acceptable
+      only when splitting would violate Gate 1 (neither half produces testable behavior
+      alone) or Gate 2 (splitting would leave an intermediate broken state — e.g., a
+      rename across import sites).
 * **Acceptance Criteria:** Every task must include acceptance criteria passed via `-d/--description`
   at creation time, composed from the template library
   (`${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
@@ -761,7 +772,7 @@ Do not wait for user input. This line is the signal that returns control to the 
 | Mistake | Fix |
 |---------|-----|
 | Planning on assumptions | Run the ambiguity scan; ask before drafting |
-| Tasks too large (multi-concern) | Split until each task has one testable outcome |
+| Tasks too large (multi-concern) | Apply the 3-gate test: Gate 1 (testable behavior), Gate 2 (codebase green), Gate 3 (cannot split further while meeting gates 1 and 2). If two changes each produce independently verifiable behavior, they must be separate tasks |
 | Missing backward compatibility | Add migration/bridge step before breaking changes |
 | E2E tests forgotten | Always evaluate; document rationale if skipped |
 | No ADR for new patterns | Step 2 approval = ADR needed. Include doc task. |
