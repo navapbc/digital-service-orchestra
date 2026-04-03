@@ -259,3 +259,9 @@ plugins/dso/scripts/cleanup-claude-session.sh: tests/skills/test-cli-lifecycle-m
 # MCP guide is removed and CLI guide is created with required sections (task 5d38-1895).
 plugins/dso/docs/PLAYWRIGHT-MCP-GUIDE.md: tests/skills/test-playwright-cli-guide.sh [test_mcp_guide_removed,test_cross_references_updated]
 plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md: tests/skills/test-playwright-cli-guide.sh [test_cli_guide_exists,test_cli_guide_sections]
+# RED: test-playwright-doc-refs.sh — CLAUDE.md, CONFIGURATION-REFERENCE.md, and INSTALL.md do not
+# yet reference @playwright/cli as the active browser automation interface. Tests are intentionally
+# RED per TDD practice. GREEN promotion blocked until docs are updated with CLI patterns (story 413f-d504).
+CLAUDE.md: tests/docs/test-playwright-doc-refs.sh [test_claude_md_no_mcp_refs]
+plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/docs/test-playwright-doc-refs.sh [test_config_ref_no_mcp]
+plugins/dso/docs/INSTALL.md: tests/docs/test-playwright-doc-refs.sh [test_install_md_updated]
