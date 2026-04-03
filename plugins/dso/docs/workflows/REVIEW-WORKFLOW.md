@@ -547,7 +547,7 @@ Task tool:
 
    | `REVIEW_PASS_NUM` (after increment) | Re-review Agent | Rationale |
    |---|---|---|
-   | 2 | `REVIEW_AGENT` from Step 3 (unchanged for standard/deep); light → upgrade to `dso:code-reviewer-standard` | Light-tier haiku lacks context for REVIEW-DEFENSE; upgrade to sonnet |
+   | 2 | `REVIEW_AGENT` from Step 3 (unchanged for standard); deep → full deep-multi-reviewer pipeline; light → upgrade to `dso:code-reviewer-standard` | Deep tier always requires 3 sonnet + opus sequence; light-tier haiku lacks context for REVIEW-DEFENSE |
    | 3+ | Upgrade: light/standard/deep → run the **full deep-multi-reviewer path** (3 parallel `dso:code-reviewer-deep-*` sonnet agents + `dso:code-reviewer-deep-arch` opus synthesis) — NOT `dso:code-reviewer-deep-arch` alone | Escalate to maximum-coverage review; opus synthesis without sonnet findings is incomplete |
 
    ```bash
@@ -558,6 +558,10 @@ Task tool:
    if [[ "$REVIEW_PASS_NUM" -ge 3 ]]; then
        # All tiers at pass 3+: run full deep-multi-reviewer path
        # (3 parallel sonnet agents + opus synthesis) — NOT deep-arch alone
+       RE_REVIEW_DEEP_FULL=true
+   elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "deep" ]]; then
+       # Deep tier always requires full pipeline — opus arch without fresh
+       # sonnet findings produces incomplete reviews (bug d7e6-216a)
        RE_REVIEW_DEEP_FULL=true
    elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "light" ]]; then
        RE_REVIEW_AGENT="dso:code-reviewer-standard"

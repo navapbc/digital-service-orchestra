@@ -632,6 +632,10 @@ If `--dry-run` was specified:
 
 ## Phase 4: Sub-Agent Launch (/dso:sprint)
 
+<HARD-GATE>
+Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
+</HARD-GATE>
+
 Launch up to `max_agents` sub-agents (1 or 5, determined in Phase 3 Step 1) via the Task tool. Each sub-agent gets a structured prompt:
 
 ### Display Batch Task List
