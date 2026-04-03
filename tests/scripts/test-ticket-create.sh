@@ -742,4 +742,111 @@ else:
 }
 test_ticket_create_show_includes_description_after_create_with_d
 
+# ── Test 15 (RED): --tags flag creates ticket with tags in CREATE event ────────
+echo "Test 15 (RED): ticket create --tags writes tags array to CREATE event data"
+test_tags_flag_creates_ticket_with_tags() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "test-tags" --tags CLI_user 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for --tags test" "non-empty" "empty"
+        return
+    fi
+
+    # Use ticket show to verify tags appear in compiled state
+    local show_output
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    if [ -z "$show_output" ]; then
+        assert_eq "ticket show returns output for --tags test" "non-empty" "empty"
+        return
+    fi
+
+    # Assert: tags array in compiled state contains "CLI_user"
+    local tags_check
+    tags_check=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    tags = data.get('tags', 'MISSING')
+    if tags == 'MISSING':
+        print('MISSING: tags field absent')
+    elif 'CLI_user' in tags:
+        print('OK')
+    else:
+        print(f'MISMATCH: expected CLI_user in tags, got {tags!r}')
+except Exception as e:
+    print(f'PARSE_ERROR:{e}')
+" "$show_output" 2>/dev/null) || true
+
+    if [ "$tags_check" = "OK" ]; then
+        assert_eq "tags array contains CLI_user after --tags flag" "OK" "OK"
+    else
+        assert_eq "tags array contains CLI_user after --tags flag" "OK" "$tags_check"
+    fi
+}
+test_tags_flag_creates_ticket_with_tags
+
+# ── Test 16: no --tags flag creates ticket with empty tags array ───────────────
+echo "Test 16: ticket create without --tags creates ticket with empty tags array"
+test_no_tags_flag_creates_empty_tags() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create bug "test-no-tags" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for no-tags test" "non-empty" "empty"
+        return
+    fi
+
+    local show_output
+    show_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null) || true
+
+    if [ -z "$show_output" ]; then
+        assert_eq "ticket show returns output for no-tags test" "non-empty" "empty"
+        return
+    fi
+
+    # Assert: tags array is empty [] when no --tags flag given
+    local tags_check
+    tags_check=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    tags = data.get('tags', 'MISSING')
+    if tags == 'MISSING':
+        print('MISSING: tags field absent')
+    elif tags == []:
+        print('OK')
+    else:
+        print(f'MISMATCH: expected [], got {tags!r}')
+except Exception as e:
+    print(f'PARSE_ERROR:{e}')
+" "$show_output" 2>/dev/null) || true
+
+    if [ "$tags_check" = "OK" ]; then
+        assert_eq "tags array is empty [] when no --tags flag" "OK" "OK"
+    else
+        assert_eq "tags array is empty [] when no --tags flag" "OK" "$tags_check"
+    fi
+}
+test_no_tags_flag_creates_empty_tags
+
 print_summary

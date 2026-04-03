@@ -29,6 +29,18 @@ DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
+# Cleanup trap: remove temp dirs and ensure core.hooksPath is never left
+# pointing to a stale test directory (bug e899-77d0).
+_cleanup_test_dirs() {
+    # Unset core.hooksPath if it points to a temp dir (safety net)
+    local current_hooks
+    current_hooks=$(git config core.hooksPath 2>/dev/null || true)
+    if [[ "$current_hooks" == /tmp/* ]] || [[ "$current_hooks" == /var/folders/* ]]; then
+        git config --unset core.hooksPath 2>/dev/null || true
+    fi
+}
+trap _cleanup_test_dirs EXIT
+
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-merge-recovery-integration.sh ==="
@@ -228,11 +240,8 @@ _install_merge_failure_hook "$_T1_HOOKS"
 _T1_STATE="$_TEST_BASE/state-t1.json"
 
 # Pull the feature branch into main_repo's ref list so merge can find it
-(
-    cd "$_MAIN_REPO"
-    git fetch "$_WORKTREE" "test-recovery-trigger:test-recovery-trigger" --quiet 2>/dev/null
-    git config core.hooksPath "$_T1_HOOKS"
-)
+git -C "$_MAIN_REPO" fetch "$_WORKTREE" "test-recovery-trigger:test-recovery-trigger" --quiet 2>/dev/null
+git -C "$_MAIN_REPO" config core.hooksPath "$_T1_HOOKS"
 
 _T1_RC=0
 _T1_OUTPUT=$(_run_phase_merge \
@@ -300,11 +309,8 @@ chmod +x "$_T2_HOOKS/pre-merge-commit"
 
 _T2_STATE="$_TEST_BASE/state-t2.json"
 
-(
-    cd "$_MAIN_REPO"
-    git fetch "$_WORKTREE" "test-retry-success:test-retry-success" --quiet 2>/dev/null
-    git config core.hooksPath "$_T2_HOOKS"
-)
+git -C "$_MAIN_REPO" fetch "$_WORKTREE" "test-retry-success:test-retry-success" --quiet 2>/dev/null
+git -C "$_MAIN_REPO" config core.hooksPath "$_T2_HOOKS"
 
 _T2_RC=0
 _T2_OUTPUT=$(_run_phase_merge \
@@ -409,11 +415,8 @@ with open('$_T4_STATE', 'w') as f:
 "
 
 # Add a conflicting file to origin/main so that rebase will conflict
-(
-    cd "$_MAIN_REPO"
-    git fetch "$_WORKTREE" "test-unresolvable:test-unresolvable" --quiet 2>/dev/null
-    git config core.hooksPath "$_T4_HOOKS"
-)
+git -C "$_MAIN_REPO" fetch "$_WORKTREE" "test-unresolvable:test-unresolvable" --quiet 2>/dev/null
+git -C "$_MAIN_REPO" config core.hooksPath "$_T4_HOOKS"
 
 # Create a second clone to push diverging changes to origin
 _WORK2="$_TEST_BASE/work2"
@@ -491,11 +494,8 @@ with open('$_T5_STATE', 'w') as f:
     json.dump(d, f)
 "
 
-(
-    cd "$_MAIN_REPO"
-    git fetch "$_WORKTREE" "test-output-clean:test-output-clean" --quiet 2>/dev/null
-    git config core.hooksPath "$_T5_HOOKS"
-)
+git -C "$_MAIN_REPO" fetch "$_WORKTREE" "test-output-clean:test-output-clean" --quiet 2>/dev/null
+git -C "$_MAIN_REPO" config core.hooksPath "$_T5_HOOKS"
 
 _T5_RC=0
 _T5_OUTPUT=$(_run_phase_merge \
