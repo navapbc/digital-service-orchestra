@@ -23,7 +23,6 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
-VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)  # shim-exempt: internal orchestration script
 VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)  # shim-exempt: internal orchestration script
 E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)  # shim-exempt: internal orchestration script
 ```
@@ -33,7 +32,6 @@ Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test-unit-only` in post-batch and remediation validation
 - `LINT_CMD` — replaces `make lint` in validation steps
-- `VALIDATE_CMD` — replaces `scripts/validate.sh --ci` call in Phase 1
 - `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
 - `E2E_CMD` — replaces `make test-e2e` in post-batch checks
 
@@ -78,7 +76,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 1. Run the epic discovery script:
    ```bash
-   .claude/scripts/dso sprint-list-epics.sh --all
+   .claude/scripts/dso sprint-list-epics.sh --all --min-children=1
    ```
    This outputs tab-separated lines in three categories:
    - `<id>\tP*\t<title>\t<child_count>[\tBLOCKING]` for in-progress epics (4 or 5 fields; `P*` replaces priority)
@@ -90,7 +88,19 @@ Flow: P1 (Init) → Preplanning Gate
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
    - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit
-2. Parse the output and print a numbered list. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**:
+
+   After running, also run the same command **without** `--min-children=1` to count how many epics were hidden:
+   ```bash
+   .claude/scripts/dso sprint-list-epics.sh --all
+   ```
+   Calculate `hidden_count = total_unfiltered_count - filtered_count` (count only non-BLOCKED lines from each run).
+
+   **If no eligible epics remain** after applying `--min-children=1` (i.e., the filtered output is empty or exit code 1/2):
+   - Report: "No epics with children are ready to execute."
+   - If there are 0-child epics that were filtered out, show: "There are N epics with no children yet. Run `/dso:brainstorm` on one to decompose it into stories before executing."
+   - Exit.
+
+2. Parse the output and print a numbered list. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
    ```
    In-progress epics:
 
@@ -105,7 +115,10 @@ Flow: P1 (Init) → Preplanning Gate
 
    Blocked epics (not selectable):
      - [P2] <title> (<epic-id>) — 2 children — blocked by: <blocker-id-1>, <blocker-id-2>
+
+   (N epics with zero children are hidden. Run `/dso:brainstorm` on one to create stories.)
    ```
+   Omit the hidden-epics note when `hidden_count == 0`.
 3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
 
@@ -147,30 +160,6 @@ Flow: P1 (Init) → Preplanning Gate
    - **No CHECKPOINT lines or malformed CHECKPOINT lines** — revert to open: `.claude/scripts/dso ticket transition <id> open`
 4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
 5. Proceed to Phase 3
-
-### Run Validation Gate
-
-Before running `validate.sh --ci`, check if a validation state file already exists for this worktree session. If it does, reuse it rather than re-running validation.
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-STATE_FILE="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}/status"
-
-if [ -f "$STATE_FILE" ]; then
-  echo "Validation state file found at $STATE_FILE — reusing existing result."
-  cat "$STATE_FILE"
-else
-  .claude/scripts/dso validate.sh --ci
-fi
-```
-
-**Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
-
-**If validation fails**:
-- **Single bug/test failure**: Invoke `/dso:fix-bug` with the failing test output — it classifies the bug, selects the appropriate investigation path, and fixes it with TDD discipline.
-- **Multiple failures or unclear root cause**: Dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the validation output to diagnose and fix the specific failing categories. Do NOT invoke `/dso:debug-everything` — it is a separate workflow that resolves all project bugs, not just sprint-scoped failures.
-- Do NOT proceed to the Preplanning Gate until validation passes.
 
 ### Preplanning Gate
 
