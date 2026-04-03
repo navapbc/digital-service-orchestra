@@ -146,7 +146,7 @@ test_fan_in_grep_fallback() {
     # Temporarily shadow ast-grep with a non-existent path so the script
     # takes the grep fallback path
     local output exit_code=0
-    output=$(PATH="/nonexistent_bin_dir:$PATH" bash "$GATE_SCRIPT" "$proj/src/helper_utils.py" "$proj" 2>/dev/null) || exit_code=$?
+    output=$(GATE_2B_SKIP_AST_GREP=1 bash "$GATE_SCRIPT" "$proj/src/helper_utils.py" "$proj" 2>/dev/null) || exit_code=$?
 
     assert_eq "test_fan_in_grep_fallback: exits 0" "0" "$exit_code"
 
@@ -202,6 +202,39 @@ print('yes' if re.search(r'imported by [0-9]+', evidence) else 'no')
     assert_eq "test_fan_in_with_ast_grep: evidence contains 'imported by N'" "yes" "$has_count"
 
     assert_pass_if_clean "test_fan_in_with_ast_grep"
+}
+
+# ── test_fan_in_dotted_imports_union ──────────────────────────────────────────
+# When ast-grep is available, dotted imports (from src.mod import ...) are
+# counted via grep and unioned with ast-grep results for accurate fan-in.
+test_fan_in_dotted_imports_union() {
+    _snapshot_fail
+
+    if ! command -v ast-grep >/dev/null 2>&1; then
+        echo "test_fan_in_dotted_imports_union ... SKIP (ast-grep not installed)"
+        assert_pass_if_clean "test_fan_in_dotted_imports_union"
+        return
+    fi
+
+    local proj
+    proj="$(_make_project)"
+    mkdir -p "$proj/src" "$proj/consumers"
+
+    echo "def helper(): pass" > "$proj/src/utils.py"
+    # 2 files use dotted imports (only grep catches these)
+    echo "from src.utils import helper" > "$proj/consumers/a.py"
+    echo "import src.utils" > "$proj/consumers/b.py"
+
+    local output exit_code=0
+    output=$(bash "$GATE_SCRIPT" "$proj/src/utils.py" "$proj" 2>/dev/null) || exit_code=$?
+
+    assert_eq "test_fan_in_dotted_imports_union: exits 0" "0" "$exit_code"
+
+    local evidence
+    evidence="$(_json_field "$output" evidence)"
+    assert_contains "test_fan_in_dotted_imports_union: evidence mentions 'imported by 2'" "imported by 2" "$evidence"
+
+    assert_pass_if_clean "test_fan_in_dotted_imports_union"
 }
 
 # ── test_modifier_signal_type ─────────────────────────────────────────────────
@@ -379,6 +412,7 @@ test_convention_ci_config
 test_convention_entry_point
 test_fan_in_grep_fallback
 test_fan_in_with_ast_grep
+test_fan_in_dotted_imports_union
 test_modifier_signal_type
 test_emits_gate_signal_json
 test_no_fan_in_no_convention

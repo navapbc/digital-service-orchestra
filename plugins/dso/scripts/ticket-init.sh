@@ -39,6 +39,18 @@ _ensure_env_id() {
 if [ -d "$TRACKER_DIR" ] && [ -f "$TRACKER_DIR/.git" ]; then
     # Verify it's actually a valid worktree
     if git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+        # Detect and abort stale rebase state on the tickets branch.
+        # pull --rebase can leave REBASE_HEAD if a conflict occurs and the
+        # error is swallowed by || true. This breaks all subsequent ticket
+        # operations with "error: Committing is not possible because you
+        # have unmerged files".
+        _tickets_git_dir=$(git -C "$TRACKER_DIR" rev-parse --git-dir 2>/dev/null)
+        if [ -n "$_tickets_git_dir" ] && [ -f "$_tickets_git_dir/REBASE_HEAD" ]; then
+            if [[ "$_silent" == false ]]; then
+                echo "WARNING: Aborting stale rebase on tickets branch"
+            fi
+            git -C "$TRACKER_DIR" rebase --abort 2>/dev/null || true
+        fi
         _ensure_env_id "$TRACKER_DIR"
         if [[ "$_silent" == false ]]; then
             echo "Ticket system already initialized."

@@ -55,6 +55,12 @@ Ticket ID: {id}
    TASKS_CREATED: ticket-042, ticket-043 (or "none", or "error: <reason>")
    DISCOVERIES_WRITTEN: yes|no|error
 
+### Escalation Policy
+
+{escalation_policy}
+
+This governs when you must stop and ask versus proceed with your best judgment.
+
 ### Rules
 Read and follow `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` for full sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format). Key points:
 - DO write checkpoint notes after each substep: `.claude/scripts/dso ticket comment {id} "CHECKPOINT N/6: ..."`

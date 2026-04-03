@@ -153,7 +153,7 @@ count_fan_in() {
     # Strip common extensions to get the module name
     local module_name="${basename%.*}"
 
-    if command -v ast-grep >/dev/null 2>&1; then
+    if [[ -z "${GATE_2B_SKIP_AST_GREP:-}" ]] && command -v ast-grep >/dev/null 2>&1; then
         _count_fan_in_ast_grep "$filepath" "$repo_root" "$module_name"
     else
         _count_fan_in_grep "$filepath" "$repo_root" "$module_name"
@@ -165,14 +165,13 @@ _count_fan_in_ast_grep() {
     local repo_root="$2"
     local module_name="$3"
 
-    # Count files that import the module by name using ast-grep
-    # We look for any file (excluding the target itself) that matches import patterns
-    local count=0
-    local tmpfile
-    tmpfile="$(mktemp)"
+    # Collect all importing files into a single deduplicated set using Python.
+    # Three sources: ast-grep `import $MODULE`, ast-grep `from $MODULE import`,
+    # and grep for dotted imports that ast-grep's simple patterns miss.
+    local all_files_tmpfile
+    all_files_tmpfile="$(mktemp)"
 
-    # Use ast-grep to find Python import patterns for the module
-    # Pattern: `import $MODULE` or `from $MODULE import ...` or `from ... import $MODULE`
+    # Source 1: ast-grep `import $module_name`
     ast-grep --lang python \
         --pattern "import $module_name" \
         --json \
@@ -180,21 +179,14 @@ _count_fan_in_ast_grep() {
 import json, sys
 try:
     data = json.load(sys.stdin)
-    files = set()
     for match in data:
         f = match.get('file', match.get('path', ''))
-        if f and f != sys.argv[1]:
-            files.add(f)
-    print(len(files))
+        if f: print(f)
 except Exception:
-    print(0)
-" "$filepath" > "$tmpfile" 2>/dev/null || echo "0" > "$tmpfile"
+    pass
+" >> "$all_files_tmpfile" 2>/dev/null
 
-    local ast_count
-    ast_count="$(cat "$tmpfile" 2>/dev/null || echo 0)"
-
-    # Also try from ... import pattern
-    local from_count=0
+    # Source 2: ast-grep `from $module_name import ...`
     ast-grep --lang python \
         --pattern "from $module_name import \$_" \
         --json \
@@ -202,25 +194,26 @@ except Exception:
 import json, sys
 try:
     data = json.load(sys.stdin)
-    files = set()
     for match in data:
         f = match.get('file', match.get('path', ''))
-        if f and f != sys.argv[1]:
-            files.add(f)
-    print(len(files))
+        if f: print(f)
 except Exception:
-    print(0)
-" "$filepath" > "$tmpfile" 2>/dev/null || echo "0" > "$tmpfile"
-    from_count="$(cat "$tmpfile" 2>/dev/null || echo 0)"
+    pass
+" >> "$all_files_tmpfile" 2>/dev/null
 
-    rm -f "$tmpfile"
+    # Source 3: grep for dotted imports (e.g., `import src.module_name`,
+    # `from src.module_name import func`) that ast-grep's patterns miss
+    grep -rl --include='*.py' \
+        -e "import [a-zA-Z_][a-zA-Z0-9_.]*\.$module_name" \
+        -e "from [a-zA-Z_][a-zA-Z0-9_.]*\.$module_name import" \
+        "$repo_root" 2>/dev/null >> "$all_files_tmpfile"
 
-    # Take the max (files may match both patterns)
-    if [[ "$from_count" -gt "$ast_count" ]]; then
-        echo "$from_count"
-    else
-        echo "$ast_count"
-    fi
+    # Deduplicate, exclude the target file, count unique importing files
+    local union_count
+    union_count=$(sort -u "$all_files_tmpfile" | grep -vF "$filepath" | wc -l | tr -d ' ')
+    rm -f "$all_files_tmpfile"
+
+    echo "${union_count:-0}"
 }
 
 _count_fan_in_grep() {

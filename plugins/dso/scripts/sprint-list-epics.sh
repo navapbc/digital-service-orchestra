@@ -68,14 +68,19 @@ if [ -d "$TRACKER_DIR/.git" ] || [ -f "$TRACKER_DIR/.git" ]; then
     _sync_marker="/tmp/.ticket-sync-${_sync_hash}"
     _needs_fetch=true
     if [ -f "$_sync_marker" ]; then
-        _marker_age=$(( $(date +%s) - $(stat -f %m "$_sync_marker" 2>/dev/null || stat -c %Y "$_sync_marker" 2>/dev/null || echo 0) ))
+        if [[ "$(uname)" == "Darwin" ]]; then
+            _marker_mtime=$(stat -f %m "$_sync_marker" 2>/dev/null || echo 0)
+        else
+            _marker_mtime=$(stat -c %Y "$_sync_marker" 2>/dev/null || echo 0)
+        fi
+        _marker_age=$(( $(date +%s) - _marker_mtime ))
         if [ "$_marker_age" -lt 300 ]; then
             _needs_fetch=false
         fi
     fi
     if [ "$_needs_fetch" = true ]; then
         git -C "$TRACKER_DIR" fetch origin tickets 2>/dev/null && \
-        git -C "$TRACKER_DIR" pull --rebase origin tickets 2>/dev/null || true
+        git -C "$TRACKER_DIR" reset --hard origin/tickets 2>/dev/null || true
         touch "$_sync_marker" 2>/dev/null || true
     fi
 fi

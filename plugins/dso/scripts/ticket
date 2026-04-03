@@ -70,7 +70,7 @@ _ensure_initialized() {
         if [[ "$marker_age" -ge 300 ]]; then
             if git -C "$tracker_dir" fetch origin tickets --quiet 2>/dev/null; then
                 if git -C "$tracker_dir" rev-parse --verify origin/tickets &>/dev/null; then
-                    git -C "$tracker_dir" pull --rebase origin tickets --quiet 2>/dev/null || true
+                    git -C "$tracker_dir" reset --hard origin/tickets --quiet 2>/dev/null || true
                 fi
             fi
             echo "$now" > "$sync_marker"
