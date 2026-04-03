@@ -1,1 +1,0 @@
-{"timestamp": 1775183338744795000, "uuid": "b71c598b-3b09-4644-b6f3-3090d3959da5", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6: Done \u2014 Files: tests/scripts/test-sprint-list-epics.sh. Tests: 4 fail RED as expected."}}
