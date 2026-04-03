@@ -1,1 +1,0 @@
-{"timestamp": 1775230350579352000, "uuid": "a924d6bb-455a-4bdf-8154-d0943e4c2f67", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Investigation: SKILL_EXIT/SKILL_ENTER breadcrumb blocks do not exist in the current codebase (0 matches). Bug is stale."}}
