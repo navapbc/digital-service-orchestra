@@ -1,1 +1,0 @@
-{"timestamp": 1775196397891440000, "uuid": "7a86b49d-fca8-4a1d-b5ad-20a0ad231ed3", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: RED test suite created, all tests fail against current MCP patterns"}}
