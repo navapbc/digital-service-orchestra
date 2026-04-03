@@ -14,6 +14,21 @@ This skill requires the Agent tool to dispatch sub-agents. Before proceeding, ch
 Do NOT proceed with any skill logic if the Agent tool is unavailable.
 </SUB-AGENT-GUARD>
 
+## SKILL_ENTER Breadcrumb
+
+At the very start of execution (immediately after passing the SUB-AGENT-GUARD check), emit the SKILL_ENTER breadcrumb:
+
+```bash
+_DSO_TRACE_SESSION_ID="${DSO_TRACE_SESSION_ID:-$(date +%s%N 2>/dev/null || date +%s)}"
+_DSO_TRACE_SKILL_FILE="${CLAUDE_PLUGIN_ROOT}/skills/preplanning/SKILL.md"
+_DSO_TRACE_FILE_SIZE=$(wc -c < "${_DSO_TRACE_SKILL_FILE}" 2>/dev/null || echo "null")
+_DSO_TRACE_DEPTH="${DSO_TRACE_NESTING_DEPTH:-1}"
+_DSO_TRACE_START_MS=$(date +%s%3N 2>/dev/null || echo "null")
+_DSO_TRACE_SESSION_ORDINAL="${DSO_TRACE_SESSION_ORDINAL:-1}"
+_DSO_TRACE_CUMULATIVE_BYTES="${DSO_TRACE_CUMULATIVE_BYTES:-null}"
+echo "{\"type\":\"SKILL_ENTER\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)\",\"skill_name\":\"preplanning\",\"nesting_depth\":${_DSO_TRACE_DEPTH},\"skill_file_size\":${_DSO_TRACE_FILE_SIZE},\"tool_call_count\":null,\"elapsed_ms\":null,\"session_ordinal\":${_DSO_TRACE_SESSION_ORDINAL},\"cumulative_bytes\":${_DSO_TRACE_CUMULATIVE_BYTES},\"termination_directive\":null,\"user_interaction_count\":0}" >> "/tmp/dso-skill-trace-${_DSO_TRACE_SESSION_ID}.log" || true
+```
+
 # Pre-Planning: High-Fidelity Story Mapping
 
 Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, and decompose a ticket Epic into prioritized User Stories with measurable Done Definitions that bridge the epic's vision to task-level acceptance criteria.
@@ -919,3 +934,18 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 - **Done Definitions**:
   - When complete, a user can see a confidence percentage and sub-categories for each classification ← Satisfies: "Users can understand why a document was classified a certain way"
 - **Depends on**: Story 1
+
+---
+
+## SKILL_EXIT Breadcrumb
+
+Before emitting final output or STATUS, emit the SKILL_EXIT breadcrumb:
+
+```bash
+_DSO_TRACE_END_MS=$(date +%s%3N 2>/dev/null || echo "null")
+_DSO_TRACE_ELAPSED="null"
+if [ "${_DSO_TRACE_START_MS}" != "null" ] && [ "${_DSO_TRACE_END_MS}" != "null" ]; then
+  _DSO_TRACE_ELAPSED=$(( _DSO_TRACE_END_MS - _DSO_TRACE_START_MS ))
+fi
+echo "{\"type\":\"SKILL_EXIT\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)\",\"skill_name\":\"preplanning\",\"nesting_depth\":${_DSO_TRACE_DEPTH:-1},\"skill_file_size\":${_DSO_TRACE_FILE_SIZE:-null},\"tool_call_count\":null,\"elapsed_ms\":${_DSO_TRACE_ELAPSED},\"session_ordinal\":${_DSO_TRACE_SESSION_ORDINAL:-1},\"cumulative_bytes\":${_DSO_TRACE_CUMULATIVE_BYTES:-null},\"termination_directive\":false,\"user_interaction_count\":0}" >> "/tmp/dso-skill-trace-${_DSO_TRACE_SESSION_ID}.log" || true
+```
