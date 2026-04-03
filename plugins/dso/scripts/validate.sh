@@ -643,14 +643,24 @@ check_hook_drift() {
         return 0
     fi
 
-    # Extract hook IDs from the DSO plugin's own config (only DSO-specific hooks)
-    # DSO hooks are those whose entry references plugins/dso/ paths
+    # Extract hook IDs from both configs and compare.
+    # Hooks listed in .hook-drift-allowlist (one ID per line, # comments ok) are
+    # intentionally absent from examples/ and excluded from drift comparison.
     local own_hooks example_hooks missing="" missing_count=0
+    local allowlist_file="$REPO_ROOT/.hook-drift-allowlist"
+    local allowlist=""
+    if [ -f "$allowlist_file" ]; then
+        allowlist=$(grep -v '^\s*#' "$allowlist_file" | grep -v '^\s*$' | tr -d ' ' | sort)
+    fi
     own_hooks=$(grep -E '^\s+- id:' "$own_config" | sed 's/.*- id: *//' | tr -d ' ' | sort)
     example_hooks=$(grep -E '^\s+- id:' "$example_config" | sed 's/.*- id: *//' | tr -d ' ' | sort)
 
     while IFS= read -r hook_id; do
         [ -z "$hook_id" ] && continue
+        # Skip hooks in the allowlist (intentionally absent from examples/)
+        if [ -n "$allowlist" ] && echo "$allowlist" | grep -qx "$hook_id"; then
+            continue
+        fi
         if ! echo "$example_hooks" | grep -qx "$hook_id"; then
             missing="${missing:+$missing, }$hook_id"
             missing_count=$((missing_count + 1))

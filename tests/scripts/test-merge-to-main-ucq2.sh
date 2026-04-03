@@ -18,6 +18,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/merge-state.sh"
 
 # =============================================================================
 # Test 1: _check_push_needed function exists in merge-to-main.sh
@@ -65,8 +66,8 @@ assert_ne "test_abort_stale_rebase_exists_as_function" "0" "$HAS_ABORT_FUNC"
 # The function should check for a stale rebase state file.
 # =============================================================================
 ABORT_FUNC_BODY=$(sed -n '/_abort_stale_rebase()/,/^}/p' "$MERGE_SCRIPT")
-HAS_REBASE_HEAD=$(echo "$ABORT_FUNC_BODY" | grep -c 'REBASE_HEAD' || true)
-assert_ne "test_abort_stale_rebase_checks_rebase_head" "0" "$HAS_REBASE_HEAD"
+HAS_REBASE_CHECK=$(echo "$ABORT_FUNC_BODY" | grep -cE 'REBASE_HEAD|ms_is_rebase_in_progress' || true)
+assert_ne "test_abort_stale_rebase_checks_rebase_head" "0" "$HAS_REBASE_CHECK"
 
 # =============================================================================
 # Test 8: Pull section uses ancestor check before attempting merge

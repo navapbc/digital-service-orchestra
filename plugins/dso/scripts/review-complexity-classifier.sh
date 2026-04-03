@@ -42,8 +42,8 @@ fi
 # MOCK_REBASE_HEAD, and CLASSIFIER_GIT_DIR overrides).
 if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh" ]]; then
     source "$REPO_ROOT/plugins/dso/hooks/lib/merge-state.sh"
-elif [[ -f "$SCRIPT_DIR/../hooks/lib/merge-state.sh" ]]; then
-    source "$SCRIPT_DIR/../hooks/lib/merge-state.sh"
+elif [[ -f "$(cd "$SCRIPT_DIR/.." && pwd)/hooks/lib/merge-state.sh" ]]; then
+    source "$(cd "$SCRIPT_DIR/.." && pwd)/hooks/lib/merge-state.sh"
 elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh" ]]; then
     source "$CLAUDE_PLUGIN_ROOT/hooks/lib/merge-state.sh"
 fi
