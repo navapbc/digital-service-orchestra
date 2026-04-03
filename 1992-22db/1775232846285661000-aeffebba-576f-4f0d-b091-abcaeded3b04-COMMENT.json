@@ -1,0 +1,1 @@
+{"timestamp": 1775232846285661000, "uuid": "aeffebba-576f-4f0d-b091-abcaeded3b04", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Classification: llm-behavioral (dual-signal: ticket describes review agent behavior + affected files are skill/workflow .md files)"}}
