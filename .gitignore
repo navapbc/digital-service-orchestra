@@ -19,6 +19,9 @@ env/
 # Node
 node_modules/
 
+# Spike environment (project-local npm installs, not tracked)
+spike-env/
+
 
 # macOS
 .DS_Store
