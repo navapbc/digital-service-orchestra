@@ -1,1 +1,0 @@
-{"timestamp": 1775209285494935000, "uuid": "935fa83f-1192-4cec-8222-091ef86eb148", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: Migrated from MCP/sync_api to @playwright/cli"}}
