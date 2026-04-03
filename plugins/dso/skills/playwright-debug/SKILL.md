@@ -461,11 +461,11 @@ echo "$rc_output"
 
 For CLI command patterns and session management, see the spike report at `plugins/dso/docs/designs/playwright-cli-spike-report.md`.
 
-If the legacy MCP guide exists, it may contain additional browser interaction patterns and sandbox restrictions:
+For additional browser interaction patterns and sandbox restrictions, see the CLI guide:
 
 ```bash
-if [[ -f "${CLAUDE_PLUGIN_ROOT:-plugins/dso}/docs/PLAYWRIGHT-MCP-GUIDE.md" ]]; then # shim-exempt: conditional reference check
-  echo "Legacy MCP guide available for reference: ${CLAUDE_PLUGIN_ROOT}/docs/PLAYWRIGHT-MCP-GUIDE.md"
+if [[ -f "${CLAUDE_PLUGIN_ROOT:-plugins/dso}/docs/PLAYWRIGHT-CLI-GUIDE.md" ]]; then # shim-exempt: conditional reference check
+  echo "CLI guide available for reference: ${CLAUDE_PLUGIN_ROOT}/docs/PLAYWRIGHT-CLI-GUIDE.md"
 fi
 ```
 
