@@ -1,1 +1,0 @@
-{"timestamp": 1775230979968320000, "uuid": "cfe9af0d-7a1e-40b3-ba83-bbe321802e0f", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: file already formatted \u2014 verified ruff format --check tests/scripts/test_acli_integration.py returns '1 file already formatted'. Fix was applied in a prior session."}}
