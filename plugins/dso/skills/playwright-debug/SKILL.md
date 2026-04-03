@@ -1,15 +1,59 @@
 ---
 name: playwright-debug
-description: Use when debugging a UI or browser-visible bug. Enforces a 3-tier hypothesis-first process that minimizes Playwright MCP token usage by exhausting static code analysis and targeted JS evidence before escalating to full browser interaction.
+description: Use when debugging a UI or browser-visible bug. Enforces a 3-tier hypothesis-first process that minimizes @playwright/cli token usage by exhausting static code analysis and targeted JS evidence before escalating to full browser interaction.
 user-invocable: true
-allowed-tools: Read, Grep, Glob, Bash, browser_run_code, browser_snapshot, browser_navigate, browser_click, browser_hover, browser_take_screenshot, browser_console_messages, browser_wait_for
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Playwright Debug: 3-Tier Hypothesis-First Process
 
-Structured browser debugging that reduces Playwright MCP token usage by 4x by generating hypotheses from code before opening a browser.
+Structured browser debugging that reduces @playwright/cli token usage by 4x by generating hypotheses from code before opening a browser.
 
-> **Token cost reference**: Full MCP session ~114k tokens. Targeted `browser_run_code` call ~8-12k tokens. Code-only analysis ~2-4k tokens. Resolve at the cheapest tier possible.
+> **Token cost reference**: Full CLI session ~114k tokens. Targeted `@playwright/cli run-code` call ~8-12k tokens. Code-only analysis ~2-4k tokens. Resolve at the cheapest tier possible.
+
+## Pre-flight: @playwright/cli Availability Check
+
+Before starting any browser debugging, verify the CLI binary is available:
+
+```bash
+# Resolve the direct binary path (avoid npx stdout pollution)
+PW_CLI="$(npm root)/.bin/playwright"
+if [[ ! -x "$PW_CLI" ]]; then
+  PW_CLI="$(command -v playwright 2>/dev/null || true)"
+fi
+
+if [[ -z "$PW_CLI" || ! -x "$PW_CLI" ]]; then
+  echo "ERROR: @playwright/cli binary not found. Install with: npm install @playwright/cli"
+  echo "Cannot proceed with browser debugging."
+  exit 1
+fi
+
+# Verify version
+"$PW_CLI" --version
+```
+
+If the binary is not available, do NOT proceed with Tier 2 or Tier 3. Remain in Tier 1 (code analysis only) and report the missing dependency.
+
+## Session Management
+
+Use a unique session name incorporating the worktree identifier to avoid collisions across concurrent worktrees:
+
+```bash
+WORKTREE_ID="$(basename "$(git rev-parse --show-toplevel)")"
+SESSION_NAME="pw-debug-${WORKTREE_ID}"
+```
+
+All CLI commands below use `-s=$SESSION_NAME` for session persistence. Open the session once before Tier 2:
+
+```bash
+"$PW_CLI" open -s="$SESSION_NAME"
+```
+
+Close when done:
+
+```bash
+"$PW_CLI" close -s="$SESSION_NAME"
+```
 
 ## When to Use
 
@@ -37,7 +81,7 @@ If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## When NOT to Use (Project-Sp
 If visual regression baselines exist, run your project's visual regression test command first. This is a deterministic visual comparison against snapshots in `<project snapshot directory>`.
 
 - **Pass**: No browser debugging needed — baselines confirm UI matches expectations.
-- **Fail**: The diff output identifies which pages/elements changed. Use the failed elements as your Tier 2 targets (skip Tier 1 hypothesis generation — the diff IS the hypothesis). Start at Tier 2 with a single `browser_run_code` call checking visibility, position, and computed styles of the flagged elements.
+- **Fail**: The diff output identifies which pages/elements changed. Use the failed elements as your Tier 2 targets (skip Tier 1 hypothesis generation — the diff IS the hypothesis). Start at Tier 2 with a single `@playwright/cli run-code` call checking visibility, position, and computed styles of the flagged elements.
 - **No baselines**: Skip this gate and start at Tier 1 as normal.
 
 If called from `/dso:sprint` post-batch: on visual verification failure, the orchestrator reverts the task to open. Save screenshots to `.claude/screenshots/` (gitignored).
@@ -51,15 +95,15 @@ Tier 1 (Code Analysis) → Generate hypotheses from source code, templates, CSS,
   → [hypothesis explains bug conclusively] → Fix directly, no browser needed
   → [hypothesis needs confirmation] → Tier 2
 
-Tier 2 (Targeted Evidence) → browser_run_code (batched JS) + scoped browser_snapshot
+Tier 2 (Targeted Evidence) → @playwright/cli run-code (batched JS) + scoped snapshot
   → [evidence confirms hypothesis] → Fix directly
-  → [evidence is inconclusive after ≤3 browser_run_code calls] → Tier 3
+  → [evidence is inconclusive after ≤3 run-code calls] → Tier 3
 
-Tier 3 (Full MCP Interaction) → browser_navigate, browser_click, browser_hover, browser_take_screenshot
+Tier 3 (Full CLI Interaction) → goto, click, hover, screenshot via @playwright/cli
   → Fix based on observed behavior
 ```
 
-**Never jump tiers.** Always complete Tier 1 before touching the browser. Always complete Tier 2 before using full MCP interaction.
+**Never jump tiers.** Always complete Tier 1 before touching the browser. Always complete Tier 2 before using full CLI interaction.
 
 ---
 
@@ -158,41 +202,48 @@ H3: A JS error on page load prevents the initialization code from running, so th
 
 ## Tier 2: Targeted Evidence Collection
 
-**Tools**: `browser_run_code` (batched JS), `browser_snapshot` (scoped)
+**Tools**: `@playwright/cli run-code` (batched JS), `@playwright/cli snapshot` (scoped), `@playwright/cli console`
 
-**Goal**: Collect the minimum evidence needed to confirm or refute the top hypotheses. Budget: **at most 3 `browser_run_code` calls** before deciding to fix or escalate to Tier 3.
+**Goal**: Collect the minimum evidence needed to confirm or refute the top hypotheses. Budget: **at most 3 `run-code` calls** before deciding to fix or escalate to Tier 3.
 
 ### Batching principle
 
-Each `browser_run_code` call should test multiple hypotheses simultaneously. Do NOT make one call per hypothesis.
+Each `run-code` call should test multiple hypotheses simultaneously. Do NOT make one call per hypothesis.
 
 **Anti-pattern (multiple separate calls, high token cost):**
-```javascript
-// Call 1 — tests only one thing
-async (page) => document.querySelector('#primary-action') !== null
+```bash
+# Call 1 — tests only one thing
+"$PW_CLI" run-code -s="$SESSION_NAME" 'async (page) => document.querySelector("#primary-action") !== null'
 
-// Call 2 — tests only one thing
-async (page) => getComputedStyle(document.querySelector('#primary-action')).display
+# Call 2 — tests only one thing
+"$PW_CLI" run-code -s="$SESSION_NAME" 'async (page) => getComputedStyle(document.querySelector("#primary-action")).display'
 
-// Call 3 — tests only one thing
-async (page) => document.querySelector('form[data-action]') !== null
+# Call 3 — tests only one thing
+"$PW_CLI" run-code -s="$SESSION_NAME" 'async (page) => document.querySelector("form[data-action]") !== null'
 ```
 
 **Preferred pattern (1 batched call, ~10k tokens):**
-```javascript
-async (page) => {
-  const btn = document.querySelector('#primary-action');
-  const form = document.querySelector('form[data-action]');
+```bash
+rc_output=$("$PW_CLI" run-code -s="$SESSION_NAME" 'async (page) => {
+  const btn = document.querySelector("#primary-action");
+  const form = document.querySelector("form[data-action]");
   return {
     btnExists: btn !== null,
-    btnDisplay: btn ? getComputedStyle(btn).display : 'element missing',
-    btnHidden: btn ? btn.classList.contains('hidden') : null,
+    btnDisplay: btn ? getComputedStyle(btn).display : "element missing",
+    btnHidden: btn ? btn.classList.contains("hidden") : null,
     formExists: form !== null,
-    formAction: form ? form.getAttribute('data-action') : null,
-    itemCount: document.querySelectorAll('[data-item-id]').length,
+    formAction: form ? form.getAttribute("data-action") : null,
+    itemCount: document.querySelectorAll("[data-item-id]").length,
     pageTitle: document.title,
   };
-}
+}')
+
+# Output validation guard — verify non-empty CLI output before proceeding
+if [[ -z "$rc_output" ]]; then
+  echo "ERROR: @playwright/cli run-code returned empty output — session may be disconnected"
+  # Re-open session and retry once before escalating
+fi
+echo "$rc_output"
 ```
 
 <!-- PROJECT-SPECIFIC: Load Tier 2 evidence examples from reference file if configured -->
@@ -207,16 +258,22 @@ If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Tier 2 Evidence Examples` s
 
 Use the batched pattern shown above directly. Replace `#primary-action`, `form[data-action]`, and `[data-item-id]` with your project's actual element selectors — the structure and multi-hypothesis batching principle remain the same regardless of framework.
 
-### Scoped `browser_snapshot` usage
+### Scoped `@playwright/cli snapshot` usage
 
-Use `browser_snapshot` only when you need DOM structure, not computed state. Pass a CSS selector scope to avoid dumping the entire page:
+Use `snapshot` only when you need DOM structure, not computed state. Pass a CSS selector scope to avoid dumping the entire page:
 
-```
+```bash
 # Full-page snapshot: ~30k tokens
-browser_snapshot()
+snap_output=$("$PW_CLI" snapshot -s="$SESSION_NAME")
 
 # Scoped to a container: ~2-3k tokens
-browser_snapshot(selector=".main-content")
+snap_output=$("$PW_CLI" snapshot -s="$SESSION_NAME" ".main-content")
+
+# Output validation guard — verify non-empty CLI output
+if [[ -z "$snap_output" ]]; then
+  echo "ERROR: @playwright/cli snapshot returned empty output"
+fi
+echo "$snap_output"
 ```
 
 Use scoped snapshots to check element hierarchy, ARIA roles, or ref IDs needed for Tier 3 clicks.
@@ -225,49 +282,73 @@ Use scoped snapshots to check element hierarchy, ARIA roles, or ref IDs needed f
 
 After navigating, always check for JS errors before forming conclusions:
 
-```
-browser_console_messages(level: "error")
+```bash
+console_output=$("$PW_CLI" console -s="$SESSION_NAME")
+
+# Output validation guard — verify non-empty CLI output
+if [[ -z "$console_output" ]]; then
+  echo "WARNING: @playwright/cli console returned empty output — no messages captured"
+fi
+echo "$console_output" | grep -i "error" || echo "No console errors found"
 ```
 
 A JS exception can silently disable event handlers and is missed by DOM inspection alone.
 
 ### Escalation criteria from Tier 2
 
-- **Fix and stop** if a `browser_run_code` result confirms a hypothesis that has a clear code fix
-- **Escalate to Tier 3** if after 3 `browser_run_code` calls the evidence is still inconclusive — this means the bug requires interactive behavior (hover state, animation, multi-step form submission, race condition visible only during interaction)
-- **Never spend more than 3 `browser_run_code` calls at Tier 2** — escalate rather than loop
+- **Fix and stop** if a `run-code` result confirms a hypothesis that has a clear code fix
+- **Escalate to Tier 3** if after 3 `run-code` calls the evidence is still inconclusive — this means the bug requires interactive behavior (hover state, animation, multi-step form submission, race condition visible only during interaction)
+- **Never spend more than 3 `run-code` calls at Tier 2** — escalate rather than loop
 
 ---
 
-## Tier 3: Full MCP Interaction
+## Tier 3: Full CLI Interaction
 
 **Authorized when**: Tier 2 evidence is inconclusive after the 3-call budget, OR the bug is interactive by nature (drag-and-drop, hover tooltip, multi-step wizard, timing-sensitive).
 
-**Tools**: `browser_navigate`, `browser_click`, `browser_hover`, `browser_take_screenshot`, `browser_wait_for`, `browser_console_messages`
+**Tools**: `@playwright/cli goto`, `@playwright/cli click`, `@playwright/cli hover`, `@playwright/cli screenshot`, `@playwright/cli run-code` (for waitFor* patterns), `@playwright/cli console`
 
 ### Sequence
 
 1. **Navigate** to the page under test:
-   ```
-   browser_navigate(url: "<your-app-url>/page-to-debug")
+   ```bash
+   nav_output=$("$PW_CLI" goto -s="$SESSION_NAME" "<your-app-url>/page-to-debug")
+   # Output validation guard
+   if [[ -z "$nav_output" ]]; then
+     echo "ERROR: @playwright/cli goto returned empty output"
+   fi
    ```
 
 2. **Check console errors immediately** after navigation:
-   ```
-   browser_console_messages(level: "error")
+   ```bash
+   console_output=$("$PW_CLI" console -s="$SESSION_NAME")
+   if [[ -z "$console_output" ]]; then
+     echo "WARNING: @playwright/cli console returned empty output"
+   fi
+   echo "$console_output" | grep -i "error" || echo "No console errors found"
    ```
 
-3. **Reproduce the bug** interactively — follow the user's reported steps exactly
+3. **Reproduce the bug** interactively — follow the user's reported steps exactly using CLI commands:
+   ```bash
+   # Click an element
+   "$PW_CLI" click -s="$SESSION_NAME" "#submit-button"
+
+   # Hover over an element
+   "$PW_CLI" hover -s="$SESSION_NAME" ".tooltip-trigger"
+   ```
 
 4. **Capture evidence** at the point of failure:
-   ```
-   browser_take_screenshot(filename: ".claude/screenshots/playwright-debug-<timestamp>.png")
+   ```bash
+   "$PW_CLI" screenshot -s="$SESSION_NAME" --filename=".claude/screenshots/playwright-debug-$(date +%s).png"
    ```
    Save screenshots to `.claude/screenshots/` (gitignored). Never save to `/tmp/` or repo root.
 
 5. **Inspect DOM at failure point** with a scoped snapshot:
-   ```
-   browser_snapshot(selector="<narrowest relevant container>")
+   ```bash
+   snap_output=$("$PW_CLI" snapshot -s="$SESSION_NAME" "<narrowest relevant container>")
+   if [[ -z "$snap_output" ]]; then
+     echo "ERROR: @playwright/cli snapshot returned empty output"
+   fi
    ```
 
 <!-- PROJECT-SPECIFIC: Load framework-specific Tier 3 constraints from reference file if configured -->
@@ -288,17 +369,25 @@ If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Staging Configuration` sect
 
 **Generic fallback for timeouts (when no reference file configured):**
 
-If the target environment runs async processing or slow operations, use `browser_wait_for` with an appropriate timeout:
+If the target environment runs async processing or slow operations, use `@playwright/cli run-code` with `page.waitFor*` methods:
 
-```
-browser_wait_for(text: "<expected completion text>", time: 30)
+```bash
+wait_output=$("$PW_CLI" run-code -s="$SESSION_NAME" 'async (page) => {
+  await page.waitForSelector("text=<expected completion text>", { timeout: 30000 });
+  return "wait-complete";
+}')
+
+# Output validation guard
+if [[ -z "$wait_output" ]]; then
+  echo "ERROR: @playwright/cli run-code waitFor returned empty output"
+fi
 ```
 
 The default 5s timeout may be insufficient for operations involving network calls, background processing, or heavy computation.
 
 ### Screenshot rule
 
-`browser_take_screenshot` is for final visual confirmation only — not for intermediate inspection. Use `browser_snapshot` (text, tokenized) for all intermediate DOM inspection. A screenshot at the wrong time during a long Tier 3 session contributes ~5-8k tokens of image data.
+`@playwright/cli screenshot` is for final visual confirmation only — not for intermediate inspection. Use `@playwright/cli snapshot` (text, tokenized) for all intermediate DOM inspection. A screenshot at the wrong time during a long Tier 3 session contributes ~5-8k tokens of image data.
 
 ---
 
@@ -307,18 +396,18 @@ The default 5s timeout may be insufficient for operations involving network call
 | Action | Approximate token cost | When to use |
 |---|---|---|
 | Tier 1: Read/Grep/Glob | ~2-4k | Always start here |
-| `browser_run_code` (batched) | ~8-12k | Tier 2 only, max 3 calls |
-| `browser_snapshot` (scoped) | ~2-5k | Tier 2/3 for DOM structure |
-| `browser_snapshot` (full page) | ~25-35k | Avoid — use scoped instead |
-| `browser_navigate` | ~3-5k | Tier 3 |
-| `browser_click` / `browser_hover` | ~3-5k each | Tier 3 only |
-| `browser_take_screenshot` | ~5-8k (image) | Tier 3 final confirmation only |
+| `@playwright/cli run-code` (batched) | ~8-12k | Tier 2 only, max 3 calls |
+| `@playwright/cli snapshot` (scoped) | ~2-5k | Tier 2/3 for DOM structure |
+| `@playwright/cli snapshot` (full page) | ~25-35k | Avoid — use scoped instead |
+| `@playwright/cli goto` | ~3-5k | Tier 3 |
+| `@playwright/cli click` / `hover` | ~3-5k each | Tier 3 only |
+| `@playwright/cli screenshot` | ~5-8k (image) | Tier 3 final confirmation only |
 
 **Session total by tier:**
 - Tier 1 only: ~4k
 - Tier 1 + Tier 2: ~20-30k
 - Tier 1 + Tier 2 + Tier 3: ~50-70k
-- Full MCP without discipline: ~114k
+- Full CLI session without discipline: ~114k
 
 ---
 
@@ -344,18 +433,24 @@ If `PLAYWRIGHT_DEBUG_REF` is non-empty, read the `## Worked Example` section fro
 **Tier 1 verdict**: H1 is conclusively traceable from code. No browser needed — fix the test user's status or the conditional logic.
 
 **If H1 were inconclusive, Tier 2 would be:**
-```javascript
-async (page) => {
-  const btn = document.querySelector('[type="submit"]');
-  const form = document.querySelector('form');
+```bash
+rc_output=$("$PW_CLI" run-code -s="$SESSION_NAME" 'async (page) => {
+  const btn = document.querySelector("[type=\"submit\"]");
+  const form = document.querySelector("form");
   return {
     btnExists: btn !== null,
-    btnDisplay: btn ? getComputedStyle(btn).display : 'element missing',
+    btnDisplay: btn ? getComputedStyle(btn).display : "element missing",
     btnDisabled: btn ? btn.disabled : null,
     formExists: form !== null,
-    userStatusBadge: document.querySelector('[data-user-status]')?.textContent ?? null,
+    userStatusBadge: document.querySelector("[data-user-status]")?.textContent ?? null,
   };
-}
+}')
+
+# Output validation guard
+if [[ -z "$rc_output" ]]; then
+  echo "ERROR: @playwright/cli run-code returned empty output"
+fi
+echo "$rc_output"
 ```
 
 **Tier 2 verdict**: If `btnExists: false`, H1 confirmed — fix the conditional. If `btnExists: true, btnDisplay: "none"`, H2 confirmed — fix the CSS. If both are present and enabled, escalate to Tier 3 to check JS event handler binding.
@@ -364,7 +459,15 @@ async (page) => {
 
 ## Reference
 
-For browser interaction patterns, sandbox restrictions, and timeout guidance, see `${CLAUDE_PLUGIN_ROOT}/docs/PLAYWRIGHT-MCP-GUIDE.md`.
+For CLI command patterns and session management, see the spike report at `plugins/dso/docs/designs/playwright-cli-spike-report.md`.
+
+If the legacy MCP guide exists, it may contain additional browser interaction patterns and sandbox restrictions:
+
+```bash
+if [[ -f "${CLAUDE_PLUGIN_ROOT:-plugins/dso}/docs/PLAYWRIGHT-MCP-GUIDE.md" ]]; then # shim-exempt: conditional reference check
+  echo "Legacy MCP guide available for reference: ${CLAUDE_PLUGIN_ROOT}/docs/PLAYWRIGHT-MCP-GUIDE.md"
+fi
+```
 
 ---
 
@@ -373,20 +476,23 @@ For browser interaction patterns, sandbox restrictions, and timeout guidance, se
 ```
 Start: What is the symptom?
   ↓
+Pre-flight: Verify @playwright/cli binary is available
+  ↓
 Tier 1: Read templates, routes, CSS, JS — write hypotheses
   ↓
 Can you conclusively explain the bug from code alone?
   → YES: Fix it. Done.
   → NO: Tier 2
 
-Tier 2: One batched browser_run_code (test all hypotheses at once)
+Tier 2: One batched @playwright/cli run-code (test all hypotheses at once)
   ↓
 Does the evidence confirm a hypothesis?
   → YES: Fix it. Done.
   → NO: Another call (max 3 total)
   → Still inconclusive after 3 calls: Tier 3
 
-Tier 3: Navigate → reproduce → screenshot at failure point → snapshot scoped DOM
+Tier 3: goto → reproduce → screenshot at failure point → snapshot scoped DOM
   ↓
 Fix based on observed behavior.
+Close session: $PW_CLI close -s="$SESSION_NAME"
 ```

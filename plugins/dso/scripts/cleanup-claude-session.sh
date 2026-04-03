@@ -16,7 +16,7 @@ set -uo pipefail
 #  10. Claude debug logs older than 7 days
 #  11. Prunable git worktrees
 #  12. (removed — Python tool cache cleanup is tech-stack specific)
-#  13. Playwright MCP state and worktree .tmp/ dirs
+#  13. Playwright CLI state and worktree .tmp/ dirs
 #
 # NOT cleaned by this script (handled by /dso:retro triage phase):
 #   - ~/.claude/hook-error-log.jsonl (must be triaged into bugs first)
@@ -482,14 +482,18 @@ fi
 
 # ── 12. (removed — Python tool cache cleanup is tech-stack specific) ────────
 
-# 13. Clean Playwright MCP state and .tmp/ dirs
+# 13. Clean Playwright CLI state and .tmp/ dirs
+# Also detects and removes orphaned Playwright CLI browser processes and stale sessions.
 log ""
-log "Checking for Playwright MCP state and .tmp/ dirs..."
+log "Checking for Playwright CLI state and .tmp/ dirs..."
 
-if [ -d "$REPO_ROOT/.playwright-mcp" ]; then
+# Configurable stale session threshold in minutes (default: 120 minutes)
+PLAYWRIGHT_CLI_SESSION_MAX_AGE="${PLAYWRIGHT_CLI_SESSION_MAX_AGE:-120}"
+
+if [ -d "$REPO_ROOT/.playwright-cli" ]; then
     PLAYWRIGHT_CLEANED=1
     if [ $DRY_RUN -eq 0 ]; then
-        rm -rf "$REPO_ROOT/.playwright-mcp"
+        rm -rf "$REPO_ROOT/.playwright-cli"
     fi
 fi
 
@@ -506,14 +510,52 @@ fi
 
 if [ $PLAYWRIGHT_CLEANED -gt 0 ] || [ $TMP_DIRS_CLEANED -gt 0 ]; then
     if [ $DRY_RUN -eq 1 ]; then
-        [ $PLAYWRIGHT_CLEANED -gt 0 ] && log_action "  Would remove .playwright-mcp/ state"
+        [ $PLAYWRIGHT_CLEANED -gt 0 ] && log_action "  Would remove .playwright-cli/ state"
         [ $TMP_DIRS_CLEANED -gt 0 ] && log_action "  Would clean .tmp/ contents ($TMP_CONTENTS files)"
     else
-        [ $PLAYWRIGHT_CLEANED -gt 0 ] && log_action "  Removed .playwright-mcp/ state"
+        [ $PLAYWRIGHT_CLEANED -gt 0 ] && log_action "  Removed .playwright-cli/ state"
         [ $TMP_DIRS_CLEANED -gt 0 ] && log_action "  Cleaned .tmp/ contents"
     fi
 else
     log "  No Playwright/tmp state found"
+fi
+
+# Detect orphaned Playwright CLI browser processes (Chromium spawned by @playwright/cli sub-agents)
+log ""
+log "Checking for orphaned Playwright CLI browser processes..."
+PLAYWRIGHT_CLI_PROCS=$(pgrep -u "$(id -u)" -f "playwright.*cli.*chromium\|chromium.*playwright.*cli\|\.playwright-cli.*chrome\|ms-playwright.*chromium" 2>/dev/null || true)
+if [ -n "$PLAYWRIGHT_CLI_PROCS" ]; then
+    CLI_PROC_COUNT=$(echo "$PLAYWRIGHT_CLI_PROCS" | wc -l | tr -d ' ')
+    if [ $DRY_RUN -eq 1 ]; then
+        log_action "  Would kill $CLI_PROC_COUNT orphaned Playwright CLI browser process(es)"
+        log_action "  PIDs: $(echo "$PLAYWRIGHT_CLI_PROCS" | tr '\n' ' ')"
+    else
+        echo "$PLAYWRIGHT_CLI_PROCS" | xargs kill 2>/dev/null || true
+        log_action "  Killed $CLI_PROC_COUNT orphaned Playwright CLI browser process(es)"
+    fi
+else
+    log "  No orphaned Playwright CLI browser processes found"
+fi
+
+# Detect stale Playwright CLI sessions older than threshold
+log ""
+log "Checking for stale Playwright CLI sessions (older than ${PLAYWRIGHT_CLI_SESSION_MAX_AGE}m)..."
+STALE_CLI_SESSIONS_FOUND=0
+if [ -d "$HOME/.playwright-cli" ]; then
+    STALE_CLI_SESSIONS=$(find "$HOME/.playwright-cli" -maxdepth 2 -type d -mmin "+${PLAYWRIGHT_CLI_SESSION_MAX_AGE}" 2>/dev/null || true)
+    if [ -n "$STALE_CLI_SESSIONS" ]; then
+        STALE_CLI_SESSIONS_FOUND=$(echo "$STALE_CLI_SESSIONS" | wc -l | tr -d ' ')
+        if [ $DRY_RUN -eq 1 ]; then
+            log_action "  Would remove $STALE_CLI_SESSIONS_FOUND stale Playwright CLI session dir(s) (>${PLAYWRIGHT_CLI_SESSION_MAX_AGE}m old)"
+        else
+            while IFS= read -r dir; do rm -rf "$dir" 2>/dev/null; done <<< "$STALE_CLI_SESSIONS" || true
+            log_action "  Removed $STALE_CLI_SESSIONS_FOUND stale Playwright CLI session dir(s)"
+        fi
+    else
+        log "  No stale Playwright CLI sessions found"
+    fi
+else
+    log "  No Playwright CLI session directory found"
 fi
 
 # 14. GC stale workflow plugin state files (>24h old)

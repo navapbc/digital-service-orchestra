@@ -236,7 +236,7 @@ Pass `VISUAL_REGRESSION=fail` with the diff details.
 running the visual baseline workflow to generate them.
 
 > **Note**: The staging-environment-test.md prompt uses a tiered approach
-> (deterministic pre-checks, `browser_run_code` batching, API-driven checks where
+> (deterministic pre-checks, `@playwright/cli run-code` batching, API-driven checks where
 > possible). See `/dso:playwright-debug` for the 3-tier process it follows.
 
 ### Step 3: Launch Batch 2 (1 sub-agent, gated) (/dso:validate-work)
