@@ -121,3 +121,13 @@ These items MUST appear in your summary field text (e.g., "security_overlay_warr
   unless they represent a concrete correctness or maintainability risk.
 - Aim for 0–5 findings. More than 5 findings is a signal that this diff may need a higher
   review tier.
+
+---
+
+## Final Output Reminder
+
+Your JSON output MUST use these exact top-level key names:
+```json
+{ "scores": {...}, "findings": [...], "summary": "..." }
+```
+The key is **"scores"** — NOT "dimensions", NOT "ratings", NOT any other name. The validator rejects anything else.
