@@ -37,6 +37,33 @@ Resolved commands used in this skill:
 
 **Supports dryrun mode.** Use `/dso:dryrun /dso:implementation-plan` to preview without changes.
 
+## Observability: SKILL_ENTER Breadcrumb
+
+Immediately after config resolution above, emit the SKILL_ENTER trace breadcrumb:
+
+```bash
+_DSO_TRACE_SESSION_ID="${DSO_TRACE_SESSION_ID:-$(date +%s%N 2>/dev/null || date +%s)}"
+_DSO_TRACE_LOG="/tmp/dso-skill-trace-${_DSO_TRACE_SESSION_ID}.log"
+_DSO_SKILL_ENTER_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+_DSO_SKILL_FILE_SIZE=$(wc -c < "${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/SKILL.md" 2>/dev/null || echo "null")
+_DSO_NESTING_DEPTH="${DSO_TRACE_NESTING_DEPTH:-1}"
+_DSO_SESSION_ORDINAL="${DSO_TRACE_SESSION_ORDINAL:-1}"
+_DSO_TOOL_CALL_COUNT="${DSO_TRACE_TOOL_CALL_COUNT:-null}"
+_DSO_CUMULATIVE_BYTES="${DSO_TRACE_CUMULATIVE_BYTES:-null}"
+echo "{\"type\":\"SKILL_ENTER\",\"timestamp\":\"${_DSO_SKILL_ENTER_TS}\",\"skill_name\":\"implementation-plan\",\"nesting_depth\":${_DSO_NESTING_DEPTH},\"session_ordinal\":${_DSO_SESSION_ORDINAL},\"tool_call_count\":${_DSO_TOOL_CALL_COUNT},\"skill_file_size\":${_DSO_SKILL_FILE_SIZE},\"elapsed_ms\":null,\"cumulative_bytes\":${_DSO_CUMULATIVE_BYTES},\"termination_directive\":null,\"user_interaction_count\":0}" >> "${_DSO_TRACE_LOG}" || true
+```
+
+Field notes:
+- `skill_name`: hardcoded `"implementation-plan"`
+- `nesting_depth`: read from `DSO_TRACE_NESTING_DEPTH` env var (set by parent via `DSO_TRACE_NESTING_DEPTH=<N>` in invocation args); defaults to `1` if absent
+- `skill_file_size`: byte count of this SKILL.md via `wc -c`, resolved through `CLAUDE_PLUGIN_ROOT`; `null` on error
+- `tool_call_count`: read from `DSO_TRACE_TOOL_CALL_COUNT` env var (approximate, best-effort); `null` if absent
+- `session_ordinal`: read from `DSO_TRACE_SESSION_ORDINAL` env var (best-effort, resets on compaction); defaults to `1`
+- `cumulative_bytes`: read from `DSO_TRACE_CUMULATIVE_BYTES` env var (running total maintained by session context); `null` if absent
+- `elapsed_ms`: always `null` at SKILL_ENTER (not yet known)
+- `termination_directive`: always `null` at SKILL_ENTER
+- `user_interaction_count`: `0` at SKILL_ENTER (no interactions yet)
+
 ## Usage
 
 ```
@@ -785,6 +812,41 @@ Do not wait for user input. This line is the signal that returns control to the 
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
 | Tasks requiring co-commit | Every task must be independently committable and green. If Task B is broken without Task A in the same commit, merge them or reorder so each stands alone. Inert (does nothing yet) is fine; broken is not. |
 | Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in acceptance criteria — the test gate will produce a false negative without it. |
+
+## Observability: SKILL_EXIT Breadcrumb
+
+Before emitting any STATUS line (whether `STATUS:complete` or `STATUS:blocked`), emit the SKILL_EXIT trace breadcrumb:
+
+```bash
+_DSO_SKILL_EXIT_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+_DSO_EXIT_TOOL_CALL_COUNT="${DSO_TRACE_TOOL_CALL_COUNT:-null}"
+_DSO_EXIT_USER_INTERACTION_COUNT="${DSO_TRACE_USER_INTERACTION_COUNT:-0}"
+_DSO_SKILL_FILE_SIZE_EXIT=$(wc -c < "${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/SKILL.md" 2>/dev/null || echo "null")
+_DSO_CUMULATIVE_BYTES_EXIT="${DSO_TRACE_CUMULATIVE_BYTES:-null}"
+# Compute elapsed_ms from SKILL_ENTER timestamp if available; otherwise null
+if [ -n "${_DSO_SKILL_ENTER_TS}" ] && [ "${_DSO_SKILL_ENTER_TS}" != "unknown" ]; then
+    _DSO_ENTER_EPOCH=$(date -d "${_DSO_SKILL_ENTER_TS}" +%s 2>/dev/null || python3 -c "import datetime; print(int(datetime.datetime.strptime('${_DSO_SKILL_ENTER_TS}', '%Y-%m-%dT%H:%M:%SZ').timestamp()))" 2>/dev/null || echo "")
+    _DSO_EXIT_EPOCH=$(date -u +%s 2>/dev/null || echo "")
+    if [ -n "${_DSO_ENTER_EPOCH}" ] && [ -n "${_DSO_EXIT_EPOCH}" ]; then
+        _DSO_ELAPSED_MS=$(( (_DSO_EXIT_EPOCH - _DSO_ENTER_EPOCH) * 1000 ))
+    else
+        _DSO_ELAPSED_MS="null"
+    fi
+else
+    _DSO_ELAPSED_MS="null"
+fi
+# Detect termination directive: scan STATUS line of output for termination signals
+_DSO_TERMINATION_DIRECTIVE="false"
+echo "{\"type\":\"SKILL_EXIT\",\"timestamp\":\"${_DSO_SKILL_EXIT_TS}\",\"skill_name\":\"implementation-plan\",\"nesting_depth\":${_DSO_NESTING_DEPTH},\"session_ordinal\":${_DSO_SESSION_ORDINAL},\"tool_call_count\":${_DSO_EXIT_TOOL_CALL_COUNT},\"skill_file_size\":${_DSO_SKILL_FILE_SIZE_EXIT},\"elapsed_ms\":${_DSO_ELAPSED_MS},\"cumulative_bytes\":${_DSO_CUMULATIVE_BYTES_EXIT},\"termination_directive\":${_DSO_TERMINATION_DIRECTIVE},\"user_interaction_count\":${_DSO_EXIT_USER_INTERACTION_COUNT}}" >> "${_DSO_TRACE_LOG}" || true
+```
+
+Field notes:
+- `elapsed_ms`: computed as `(exit_epoch - enter_epoch) * 1000`; falls back to `null` if either timestamp is unavailable
+- `termination_directive`: `false` by default (implementation-plan does not emit STOP directives); set to `true` if the STATUS line being emitted contains a termination signal scanned from skill output
+- `user_interaction_count`: read from `DSO_TRACE_USER_INTERACTION_COUNT` env var (best-effort count of user interactions during execution); defaults to `0`
+- All other fields mirror SKILL_ENTER values for correlation
+
+---
 
 ## Output Protocol (when invoked from /dso:sprint)
 

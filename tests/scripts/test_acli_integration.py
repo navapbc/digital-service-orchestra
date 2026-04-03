@@ -872,3 +872,29 @@ def test_create_issue_raises_when_retry_without_assignee_also_fails(
         f"Expected at least 2 payloads (with then without assignee), "
         f"got {len(captured_payloads)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 19: AcliClient.create_issue raises ValueError on empty title
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_create_issue_rejects_empty_title(acli: ModuleType) -> None:
+    """AcliClient.create_issue must raise ValueError when ticket_data has
+    an empty or whitespace-only title, rather than passing an empty --summary
+    to ACLI which causes CalledProcessError."""
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    for empty_title in ["", "   ", None]:
+        ticket_data = {"ticket_type": "task", "title": empty_title}
+        if empty_title is None:
+            ticket_data = {"ticket_type": "task"}  # missing title key
+        with pytest.raises(ValueError, match="(?i)summary.*empty|title.*empty|empty.*title"):
+            client.create_issue(ticket_data)
