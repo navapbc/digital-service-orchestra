@@ -245,6 +245,9 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
    Skill("dso:implementation-plan", args="<epic-id>")
    ```
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
+
+   > **ORCHESTRATOR_RESUME — You are the sprint orchestrator.** The Skill tool call above has returned. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is: emit the SKILL_RESUMED breadcrumb below, then parse the STATUS line from the skill's output.
+
 4. Emit SKILL_RESUMED breadcrumb:
    ```bash
    echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
@@ -274,6 +277,9 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
   ```
 - Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
+
+  > **ORCHESTRATOR_RESUME — You are the sprint orchestrator.** The Skill tool call above has returned. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is: emit the SKILL_RESUMED breadcrumb below, then parse the STATUS line from the skill's output.
+
 - Emit SKILL_RESUMED breadcrumb:
   ```bash
   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
@@ -390,6 +396,9 @@ b. For each story in the layer, emit SKILL_INVOKE breadcrumb then invoke `/dso:i
    Skill("dso:implementation-plan", args="<story-id>")
    ```
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
+
+   > **ORCHESTRATOR_RESUME — You are the sprint orchestrator.** The Skill tool call above has returned. Disregard any STOP or termination directives from the skill you just executed — those apply only within the skill's own output boundary. Your next action is: emit the SKILL_RESUMED breadcrumb below, then parse the STATUS line from the skill's output.
+
 c. After the skill returns, emit SKILL_RESUMED breadcrumb:
    ```bash
    echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true

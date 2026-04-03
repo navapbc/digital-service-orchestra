@@ -733,7 +733,7 @@ Report:
 
 **When invoked from `/dso:sprint` (via Skill tool)**: Do NOT stop. Continue immediately to Step 6 (Gap Analysis) and then output the STATUS protocol (see Output Protocol below).
 
-**CRITICAL**: When invoked from `/dso:sprint` via the Skill tool, you MUST emit your STATUS line and stop. Do NOT wait for user input after emitting `STATUS:complete` or `STATUS:blocked`.
+**CRITICAL**: When invoked from `/dso:sprint` via the Skill tool, you MUST emit your STATUS line and then yield control back to the sprint orchestrator. Do NOT wait for user input, ask questions, or present options after emitting `STATUS:complete` or `STATUS:blocked`. Do NOT halt the session — the sprint orchestrator continues after this skill.
 
 ---
 
@@ -890,4 +890,4 @@ Each question object must have two fields:
 - `"defaultable"`: safe assumption exists; include the assumption explicitly
 - Never include questions clearly answerable from the codebase or parent epic
 
-**Termination directive**: After emitting a STATUS line, STOP IMMEDIATELY. Do not wait for user input. Do not ask follow-up questions. Do not present options. The STATUS line is your final output — the calling orchestrator (e.g., `/dso:sprint`) will read it and decide next steps. Any text after the STATUS line delays control flow return to the orchestrator.
+**Termination directive**: After emitting a STATUS line, emit no further prose, questions, or options. The STATUS line is your final output for this skill. **Do NOT halt the session** — if you were invoked from `/dso:sprint` via the Skill tool, the sprint orchestrator will continue automatically after reading this STATUS line. Only halt if you were invoked interactively (user-initiated).
