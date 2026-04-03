@@ -254,3 +254,8 @@ plugins/dso/scripts/skill-trace-analyze.py: tests/scripts/test-skill-trace-analy
 plugins/dso/skills/debug-everything/SKILL.md: tests/skills/test-cli-lifecycle-migration.sh [test_debug_everything_no_mcp_dispatch]
 plugins/dso/skills/end-session/SKILL.md: tests/skills/test-cli-lifecycle-migration.sh [test_debug_everything_no_mcp_dispatch]
 plugins/dso/scripts/cleanup-claude-session.sh: tests/skills/test-cli-lifecycle-migration.sh [test_debug_everything_no_mcp_dispatch]
+# RED: test-playwright-cli-guide.sh — PLAYWRIGHT-MCP-GUIDE.md still exists and PLAYWRIGHT-CLI-GUIDE.md
+# does not exist. Tests are intentionally RED per TDD practice. GREEN promotion blocked until
+# MCP guide is removed and CLI guide is created with required sections (task 5d38-1895).
+plugins/dso/docs/PLAYWRIGHT-MCP-GUIDE.md: tests/skills/test-playwright-cli-guide.sh [test_mcp_guide_removed,test_cross_references_updated]
+plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md: tests/skills/test-playwright-cli-guide.sh [test_cli_guide_exists,test_cli_guide_sections]
