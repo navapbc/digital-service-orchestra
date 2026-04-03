@@ -1008,6 +1008,153 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test 39: --min-children=1 excludes epics with 0 children ─────────────────
+echo "Test 39: test_min_children_filters_zero_child_epics — --min-children=1 excludes epics with 0 children"
+test_min_children_filters_zero_child_epics() {
+    local TDIR39
+    TDIR39=$(mktemp -d)
+    trap 'rm -rf "$TDIR39"' RETURN
+    # epic-has-children: open, has 1 child story
+    # epic-no-children: open, 0 children
+    make_v3_ticket "$TDIR39" "epic-has-children" "epic"  "open" "2" "" "Epic With Children"
+    make_v3_ticket "$TDIR39" "epic-no-children"  "epic"  "open" "2" "" "Epic Without Children"
+    make_v3_ticket "$TDIR39" "story-ch1"         "story" "open" "2" "" "Story Ch1" "epic-has-children"
+
+    local out39
+    out39=$(TICKETS_TRACKER_DIR="$TDIR39" bash "$SCRIPT" --min-children=1 2>/dev/null)
+    # epic-has-children (1 child) must appear
+    echo "$out39" | grep -q "epic-has-children" || return 1
+    # epic-no-children (0 children) must NOT appear
+    ! echo "$out39" | grep -q "epic-no-children" || return 1
+}
+if test_min_children_filters_zero_child_epics; then
+    echo "  PASS: --min-children=1 excludes epics with 0 children"
+    (( PASS++ ))
+else
+    echo "  test_min_children_filters_zero_child_epics: FAIL — --min-children=1 did not filter out 0-child epics" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 40: --max-children=0 shows only 0-child epics ───────────────────────
+echo "Test 40: test_max_children_zero_shows_only_zero_child — --max-children=0 shows only epics with 0 children"
+test_max_children_zero_shows_only_zero_child() {
+    local TDIR40
+    TDIR40=$(mktemp -d)
+    trap 'rm -rf "$TDIR40"' RETURN
+    # epic-with-child: open, has 1 child
+    # epic-empty: open, no children
+    make_v3_ticket "$TDIR40" "epic-with-child" "epic"  "open" "2" "" "Epic With Child"
+    make_v3_ticket "$TDIR40" "epic-empty"      "epic"  "open" "2" "" "Epic Empty"
+    make_v3_ticket "$TDIR40" "story-mc1"       "story" "open" "2" "" "Story MC1" "epic-with-child"
+
+    local out40
+    out40=$(TICKETS_TRACKER_DIR="$TDIR40" bash "$SCRIPT" --max-children=0 2>/dev/null)
+    # epic-empty (0 children) must appear
+    echo "$out40" | grep -q "epic-empty" || return 1
+    # epic-with-child (1 child) must NOT appear
+    ! echo "$out40" | grep -q "epic-with-child" || return 1
+}
+if test_max_children_zero_shows_only_zero_child; then
+    echo "  PASS: --max-children=0 shows only epics with 0 children"
+    (( PASS++ ))
+else
+    echo "  test_max_children_zero_shows_only_zero_child: FAIL — --max-children=0 did not restrict output to 0-child epics" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 41: --max-children=0 is treated as set (not unset) ──────────────────
+echo "Test 41: test_max_children_zero_set_check — 0 is not treated as unset for --max-children"
+test_max_children_zero_set_check() {
+    local TDIR41
+    TDIR41=$(mktemp -d)
+    trap 'rm -rf "$TDIR41"' RETURN
+    # 3 epics: 0, 1, and 2 children respectively
+    make_v3_ticket "$TDIR41" "epic-zero-ch"  "epic"  "open" "1" "" "Epic Zero Children"
+    make_v3_ticket "$TDIR41" "epic-one-ch"   "epic"  "open" "2" "" "Epic One Child"
+    make_v3_ticket "$TDIR41" "epic-two-ch"   "epic"  "open" "3" "" "Epic Two Children"
+    make_v3_ticket "$TDIR41" "story-one"     "story" "open" "2" "" "Story One"  "epic-one-ch"
+    make_v3_ticket "$TDIR41" "story-two-a"   "story" "open" "2" "" "Story TwoA" "epic-two-ch"
+    make_v3_ticket "$TDIR41" "story-two-b"   "story" "open" "2" "" "Story TwoB" "epic-two-ch"
+
+    local out41
+    out41=$(TICKETS_TRACKER_DIR="$TDIR41" bash "$SCRIPT" --max-children=0 2>/dev/null)
+    # Only epic-zero-ch (0 children) must appear; the others must be excluded.
+    # If 0 is mishandled as unset, all epics will appear — this test catches that bug.
+    echo "$out41" | grep -q "epic-zero-ch"  || return 1
+    ! echo "$out41" | grep -q "epic-one-ch"  || return 1
+    ! echo "$out41" | grep -q "epic-two-ch"  || return 1
+}
+if test_max_children_zero_set_check; then
+    echo "  PASS: --max-children=0 correctly treats 0 as a set value (not unset)"
+    (( PASS++ ))
+else
+    echo "  FAIL: --max-children=0 treated 0 as unset — epics with children appeared in output" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 42: no --min-children/--max-children flags = existing behavior unchanged ─
+echo "Test 42: test_min_children_backward_compat — no child-count flags leaves existing behavior unchanged"
+test_min_children_backward_compat() {
+    local TDIR42
+    TDIR42=$(mktemp -d)
+    trap 'rm -rf "$TDIR42"' RETURN
+    # 3 epics with 0, 1, and 2 children; without filters ALL should appear
+    make_v3_ticket "$TDIR42" "epic-bc-zero" "epic"  "open" "1" "" "Backward Compat Zero"
+    make_v3_ticket "$TDIR42" "epic-bc-one"  "epic"  "open" "2" "" "Backward Compat One"
+    make_v3_ticket "$TDIR42" "epic-bc-two"  "epic"  "open" "3" "" "Backward Compat Two"
+    make_v3_ticket "$TDIR42" "story-bc1"    "story" "open" "2" "" "Story BC1" "epic-bc-one"
+    make_v3_ticket "$TDIR42" "story-bc2a"   "story" "open" "2" "" "Story BC2a" "epic-bc-two"
+    make_v3_ticket "$TDIR42" "story-bc2b"   "story" "open" "2" "" "Story BC2b" "epic-bc-two"
+
+    local out42
+    out42=$(TICKETS_TRACKER_DIR="$TDIR42" bash "$SCRIPT" 2>/dev/null)
+    # All 3 epics must appear (no child-count filtering when flags are absent)
+    echo "$out42" | grep -q "epic-bc-zero" || return 1
+    echo "$out42" | grep -q "epic-bc-one"  || return 1
+    echo "$out42" | grep -q "epic-bc-two"  || return 1
+}
+if test_min_children_backward_compat; then
+    echo "  PASS: existing behavior preserved when no child-count flags are used"
+    (( PASS++ ))
+else
+    echo "  FAIL: child-count filtering interfered with no-flag (backward-compat) behavior" >&2
+    (( FAIL++ ))
+fi
+
+# ── Test 43: --all + --min-children work together ────────────────────────────
+echo "Test 43: test_flags_combined_with_all — --all and --min-children work together"
+test_flags_combined_with_all() {
+    local TDIR43
+    TDIR43=$(mktemp -d)
+    trap 'rm -rf "$TDIR43"' RETURN
+    # epic-all-ch: open, has 1 child (should appear with --all --min-children=1)
+    # epic-all-noch: open, no children (filtered by --min-children=1)
+    # epic-all-blocked: open, blocked by task-blk, has 1 child (should appear as BLOCKED
+    #                   with --all, and pass --min-children=1 filter)
+    make_v3_ticket "$TDIR43" "epic-all-ch"      "epic"  "open" "1" ""        "Epic All With Child"
+    make_v3_ticket "$TDIR43" "epic-all-noch"    "epic"  "open" "2" ""        "Epic All No Child"
+    make_v3_ticket "$TDIR43" "epic-all-blocked" "epic"  "open" "3" "task-blk" "Epic All Blocked With Child"
+    make_v3_ticket "$TDIR43" "task-blk"         "task"  "open" "2" ""        "Task Blocker"
+    make_v3_ticket "$TDIR43" "story-all1"       "story" "open" "2" ""        "Story All1" "epic-all-ch"
+    make_v3_ticket "$TDIR43" "story-all2"       "story" "open" "2" ""        "Story All2" "epic-all-blocked"
+
+    local out43
+    out43=$(TICKETS_TRACKER_DIR="$TDIR43" bash "$SCRIPT" --all --min-children=1 2>/dev/null)
+    # epic-all-ch (1 child, unblocked) must appear
+    echo "$out43" | grep -q "epic-all-ch" || return 1
+    # epic-all-noch (0 children) must NOT appear
+    ! echo "$out43" | grep -q "epic-all-noch" || return 1
+    # epic-all-blocked (1 child, blocked) must appear as BLOCKED (--all includes blocked epics)
+    echo "$out43" | grep -qE "BLOCKED.*epic-all-blocked" || return 1
+}
+if test_flags_combined_with_all; then
+    echo "  PASS: --all and --min-children=1 work correctly together"
+    (( PASS++ ))
+else
+    echo "  FAIL: --all and --min-children=1 combination did not produce expected output" >&2
+    (( FAIL++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
