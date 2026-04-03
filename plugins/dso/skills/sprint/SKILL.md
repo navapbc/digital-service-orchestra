@@ -204,6 +204,9 @@ If **more than half** of the children are ambiguous, trigger preplanning for the
 
 <!-- REVIEW-DEFENSE: The SKILL_INVOKE/SKILL_RESUMED breadcrumb snippets are intentionally repeated at each call site rather than extracted to a shared helper. sprint/SKILL.md is a Markdown instruction file, not executable code — Claude reads and follows its instructions sequentially, and there is no shell function or macro mechanism available. Each breadcrumb must be self-contained at its call site so the agent can emit it inline without requiring a prior setup step. Extracting to a "canonical block" would break the instruction model. Any schema change (new field, rename) requires updating all call sites; this is an accepted trade-off for instruction-file clarity. -->
 
+> **CONTROL_LOSS detection note (applies to every SKILL_INVOKE/SKILL_RESUMED pair in this file):**
+> At each call site below, a `SKILL_INVOKE` breadcrumb is emitted immediately before the Skill tool call, and a `SKILL_RESUMED` breadcrumb is emitted immediately after. If the Skill tool call does not return control to the orchestrator (e.g., the skill terminates the session or control is otherwise lost), the `SKILL_RESUMED` breadcrumb will never execute. `CONTROL_LOSS` is **not** a breadcrumb type and is never emitted actively — it is a derived event detected passively by the analysis script (`skill-trace-analyze.py`) when it finds a `SKILL_INVOKE` record with no matching `SKILL_RESUMED` for the same `session_ordinal` + `skill_name`. No additional action is required by the orchestrator; the absence of `SKILL_RESUMED` is itself the signal.
+
 If any trigger condition is met:
 1. Log: `"Epic has ambiguous tasks — running /dso:preplanning to decompose before execution."`
 2. Emit SKILL_INVOKE breadcrumb:
