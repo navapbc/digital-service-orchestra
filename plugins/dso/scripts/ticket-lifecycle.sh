@@ -55,8 +55,14 @@ if git -C "$base_path" remote get-url origin >/dev/null 2>&1; then
 fi
 
 if [ "$_has_remote" = true ]; then
-    git -C "$base_path" fetch origin tickets 2>/dev/null && \
-    git -C "$base_path" reset --hard origin/tickets 2>/dev/null || true
+    if git -C "$base_path" fetch origin tickets 2>/dev/null; then
+        # Guard: skip destructive reset when local-only commits exist
+        # that haven't been pushed to origin (46ee-7d1c, mirrors eb00-efd0 fix).
+        _local_ahead=$(git -C "$base_path" log --oneline origin/tickets..tickets 2>/dev/null) || true
+        if [ -z "$_local_ahead" ]; then
+            git -C "$base_path" reset --hard origin/tickets 2>/dev/null || true
+        fi
+    fi
 fi
 
 # ── Step 2: Bulk compact ────────────────────────────────────────────────────
