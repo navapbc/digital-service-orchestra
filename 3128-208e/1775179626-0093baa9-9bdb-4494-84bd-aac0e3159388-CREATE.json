@@ -1,0 +1,1 @@
+{"timestamp": 1775179626, "uuid": "0093baa9-9bdb-4494-84bd-aac0e3159388", "event_type": "CREATE", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"ticket_type": "bug", "title": "Fix: preplanning SKILL_EXIT breadcrumb uses unguarded variables if SKILL_ENTER block is skipped", "parent_id": "", "description": "", "priority": 4, "assignee": "Test"}}
