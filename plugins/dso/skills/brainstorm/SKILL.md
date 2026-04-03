@@ -284,6 +284,7 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 **Success criteria rules:**
 - 3-6 criteria per epic
 - Each must be verifiable pass/fail
+- Each must be verifiable within the sprint session — the pass/fail verdict must be renderable before the sprint closes. Adding observability tooling (dashboards, metrics instrumentation) is valid sprint work; deferring the measurement itself to post-deployment is not
 - Describe outcomes, not implementation ("Users can download results as CSV" not "Implement CSV export endpoint")
 - At least one criterion should hint at a validation signal — how you'll know the capability is actually being used
 

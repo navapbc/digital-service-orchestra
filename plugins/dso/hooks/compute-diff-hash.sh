@@ -18,7 +18,11 @@ set -euo pipefail
 # Cache the result keyed on repo path + git index mtime so repeated calls are instant.
 _GIT_DIR_EARLY=$(git rev-parse --git-dir 2>/dev/null || echo ".git")
 _REPO_ID=$(git rev-parse --show-toplevel 2>/dev/null | shasum -a 256 | cut -c1-12)
-_INDEX_MTIME=$(stat -f '%m' "$_GIT_DIR_EARLY/index" 2>/dev/null || stat -c '%Y' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
+if [[ "$(uname)" == "Darwin" ]]; then
+    _INDEX_MTIME=$(stat -f '%m' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
+else
+    _INDEX_MTIME=$(stat -c '%Y' "$_GIT_DIR_EARLY/index" 2>/dev/null || echo "0")
+fi
 _CACHE_DIR="${TMPDIR:-/tmp}/compute-diff-hash-cache-${_REPO_ID}"
 mkdir -p "$_CACHE_DIR" 2>/dev/null || true
 _CACHE_KEY="${_CACHE_DIR}/hash-${_INDEX_MTIME}"
