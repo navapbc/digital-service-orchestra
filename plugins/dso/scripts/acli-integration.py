@@ -538,7 +538,12 @@ class AcliClient:
         """
         project = self.jira_project
         issue_type = ticket_data.get("ticket_type", "Task").capitalize()
-        summary = ticket_data.get("title", "")
+        summary = (ticket_data.get("title") or "").strip()
+        if not summary:
+            raise ValueError(
+                f"Cannot create Jira issue: title/summary is empty "
+                f"(ticket_data keys: {list(ticket_data.keys())})"
+            )
         optional_fields: dict[str, Any] = {}
         if ticket_data.get("description"):
             optional_fields["description"] = ticket_data["description"]

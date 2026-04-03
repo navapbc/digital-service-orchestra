@@ -25,7 +25,7 @@ run_test() {
         (( FAIL++ ))
         return
     fi
-    if [ -n "$expected_pattern" ] && ! echo "$output" | grep -qE "$expected_pattern"; then
+    if [ -n "$expected_pattern" ] && ! { echo "$output" | grep -cE "$expected_pattern" >/dev/null 2>&1; }; then
         echo "  FAIL: $test_name (output missing pattern '$expected_pattern')" >&2
         echo "  Output was: $output" >&2
         (( FAIL++ ))

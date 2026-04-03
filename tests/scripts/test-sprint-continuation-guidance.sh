@@ -24,7 +24,8 @@ echo "=== test-sprint-continuation-guidance.sh ==="
 # Step 10 section must contain a > **CONTINUE:** callout
 _snapshot_fail
 continue_match=0
-awk '/### Step 10: /,/### Step 11:/' "$SKILL_FILE" | grep -q '> \*\*CONTINUE:\*\*' 2>/dev/null && continue_match=1
+continue_match=$(awk '/### Step 10: /,/### Step 11:/' "$SKILL_FILE" | grep -c '> \*\*CONTINUE:\*\*' 2>/dev/null) || continue_match=0
+[[ $continue_match -gt 0 ]] && continue_match=1
 assert_eq "test_continue_callout_exists: CONTINUE callout in Step 10" "1" "$continue_match"
 assert_pass_if_clean "test_continue_callout_exists"
 
@@ -32,7 +33,8 @@ assert_pass_if_clean "test_continue_callout_exists"
 # Step 13's Phase 7 routing bullet must contain MANDATORY
 _snapshot_fail
 mandatory_match=0
-awk '/### Step 13/,/## Phase 7/' "$SKILL_FILE" | grep -q 'MANDATORY' 2>/dev/null && mandatory_match=1
+mandatory_match=$(awk '/### Step 13/,/## Phase 7/' "$SKILL_FILE" | grep -c 'MANDATORY' 2>/dev/null) || mandatory_match=0
+[[ $mandatory_match -gt 0 ]] && mandatory_match=1
 assert_eq "test_mandatory_directive_exists: MANDATORY in Step 13 Phase 7 routing" "1" "$mandatory_match"
 assert_pass_if_clean "test_mandatory_directive_exists"
 
@@ -40,7 +42,8 @@ assert_pass_if_clean "test_mandatory_directive_exists"
 # A ### Step 10a heading must exist between ### Step 10: and ### Step 11:
 _snapshot_fail
 step10a_match=0
-awk '/### Step 10: /,/### Step 11:/' "$SKILL_FILE" | grep -q '### Step 10a' 2>/dev/null && step10a_match=1
+step10a_match=$(awk '/### Step 10: /,/### Step 11:/' "$SKILL_FILE" | grep -c '### Step 10a' 2>/dev/null) || step10a_match=0
+[[ $step10a_match -gt 0 ]] && step10a_match=1
 assert_eq "test_step_10a_exists: Step 10a heading between Step 10 and Step 11" "1" "$step10a_match"
 assert_pass_if_clean "test_step_10a_exists"
 

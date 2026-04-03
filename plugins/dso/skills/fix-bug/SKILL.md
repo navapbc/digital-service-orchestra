@@ -1003,6 +1003,37 @@ ticket comment <BUG_TICKET_ID> "Anti-pattern scan complete: <total_confirmed> co
 
 This observation record feeds dogfooding analysis — tracking which patterns recur across sessions helps identify systemic issues in the codebase.
 
+### Step 7.6: Test Index Check (/dso:fix-bug)
+
+After the fix is verified GREEN and before committing, check whether the source file(s) modified by the fix have entries in `.test-index`. This prevents future regression detection gaps where the test gate cannot associate a source file with its test.
+
+**When to run**: After Step 7.5 (Anti-Pattern Scan) completes or is skipped. Skip this step if no RED test was written in Step 5 (i.e., an existing test already covered the bug).
+
+**Check logic**:
+
+1. For each source file modified by the fix, check whether it has an entry in `.test-index`:
+   ```bash
+   REPO_ROOT=$(git rev-parse --show-toplevel)
+   TEST_INDEX="$REPO_ROOT/.test-index"
+   if [ -f "$TEST_INDEX" ]; then
+       for src_file in <modified_source_files>; do
+           if ! grep -q "^${src_file}:" "$TEST_INDEX" 2>/dev/null; then
+               echo "MISSING: $src_file has no .test-index entry"
+           fi
+       done
+   fi
+   ```
+
+2. **If an entry is missing AND a RED test was written in Step 5**: check whether the test file name is fuzzy-matchable to the source file (i.e., the normalized source basename is a substring of the normalized test basename). If fuzzy matching would find the test, no `.test-index` entry is needed — the test gate will discover it automatically.
+
+3. **If an entry is missing AND the test name is NOT fuzzy-matchable**: add a `.test-index` entry mapping the source file to its test file:
+   ```
+   source/path.ext: test/path.ext
+   ```
+   This ensures the test gate enforces the source-test association on future commits.
+
+4. **If `.test-index` does not exist**: skip this step. The project may not use `.test-index`-based test discovery.
+
 ### Step 8: Commit and Close (/dso:fix-bug)
 
 **When running as orchestrator (not a sub-agent)**:
