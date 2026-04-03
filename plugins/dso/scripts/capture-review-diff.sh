@@ -26,7 +26,8 @@ shift 2
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=../hooks/lib/merge-state.sh
-source "$SCRIPT_DIR/../hooks/lib/merge-state.sh"
+_DSO_PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$_DSO_PLUGIN_DIR/hooks/lib/merge-state.sh"
 
 # --- Build exclusion list ---
 # REVIEW-DEFENSE: hardcoded default matches the v3 ticket system path; config-driven

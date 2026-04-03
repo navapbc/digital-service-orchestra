@@ -39,8 +39,8 @@ KEY_MAP = {
 # Fields omitted from LLM format (verbose timestamps / system metadata)
 OMIT_KEYS = {"created_at", "env_id"}
 
-# Fields always emitted even when value is None (needed for hierarchy queries)
-ALWAYS_EMIT = {"parent_id"}
+# Fields always emitted even when value is None
+ALWAYS_EMIT: set[str] = set()
 
 # Comment: keep only body and author (omit timestamp — not useful for LLM)
 COMMENT_KEY_MAP = {

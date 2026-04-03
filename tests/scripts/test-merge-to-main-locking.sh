@@ -25,6 +25,7 @@ DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
+source "$DSO_PLUGIN_DIR/hooks/lib/merge-state.sh"
 
 MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main.sh"
 

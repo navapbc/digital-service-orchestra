@@ -1,0 +1,6 @@
+# Hooks in .pre-commit-config.yaml intentionally absent from examples/
+# These are project-specific hooks that only apply to the DSO plugin repo itself,
+# not to host projects that install the plugin.
+
+# Portability check blocks hardcoded absolute paths — only relevant to this repo
+portability-check

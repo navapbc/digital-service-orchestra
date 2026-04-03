@@ -451,7 +451,8 @@ fi
 _DSO_SCRIPT_PATH="${BASH_SOURCE[0]}"
 _DSO_SCRIPT_DIR="${_DSO_SCRIPT_PATH%/*}"
 [[ "$_DSO_SCRIPT_DIR" == "$_DSO_SCRIPT_PATH" ]] && _DSO_SCRIPT_DIR="."
-_HOOKS_LIB_DIR="$_DSO_SCRIPT_DIR/../hooks/lib"
+_DSO_PLUGIN_DIR="$(cd "$_DSO_SCRIPT_DIR/.." && pwd)"
+_HOOKS_LIB_DIR="$_DSO_PLUGIN_DIR/hooks/lib"
 _MERGE_STATE_LIB="$_HOOKS_LIB_DIR/merge-state.sh"
 if [[ -z "$DRYRUN" ]]; then
     if [[ ! -f "$_MERGE_STATE_LIB" ]]; then
