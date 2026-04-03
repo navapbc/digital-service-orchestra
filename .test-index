@@ -255,3 +255,4 @@ plugins/dso/docs/PLAYWRIGHT-CLI-GUIDE.md: tests/skills/test-playwright-cli-guide
 CLAUDE.md: tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/CONFIGURATION-REFERENCE.md: tests/docs/test-playwright-doc-refs.sh
 plugins/dso/docs/INSTALL.md: tests/docs/test-playwright-doc-refs.sh
+plugins/dso/skills/tdd-workflow/SKILL.md: tests/scripts/test-tdd-workflow-removal.sh [test_no_tdd_workflow_references]
