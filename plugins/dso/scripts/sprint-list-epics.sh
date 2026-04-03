@@ -23,7 +23,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 show_all=false
-[[ "${1:-}" == "--all" ]] && show_all=true
+# min_children and max_children are intentionally unset by default (use ${var+x} set-check)
+for _arg in "$@"; do
+    case "$_arg" in
+        --all) show_all=true ;;
+        --min-children=*) min_children="${_arg#--min-children=}" ;;
+        --max-children=*) max_children="${_arg#--max-children=}" ;;
+    esac
+done
+unset _arg
 
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 REDUCER="$SCRIPT_DIR/ticket-reducer.py"
@@ -184,10 +192,21 @@ child_counts_json=$(echo "$index_and_counts" | python3 -c "import json,sys; prin
 # ---------------------------------------------------------------------------
 # Single Python pass: read index once, classify epics, emit output.
 # ---------------------------------------------------------------------------
-SPRINT_SHOW_ALL="$show_all" SPRINT_INDEX_JSON="$SPRINT_INDEX_JSON" SPRINT_CHILD_COUNTS="$child_counts_json" python3 -c "
+SPRINT_SHOW_ALL="$show_all" \
+SPRINT_INDEX_JSON="$SPRINT_INDEX_JSON" \
+SPRINT_CHILD_COUNTS="$child_counts_json" \
+SPRINT_MIN_CHILDREN="${min_children:-}" \
+SPRINT_MAX_CHILDREN="${max_children:-}" \
+SPRINT_MIN_CHILDREN_SET="${min_children+1}" \
+SPRINT_MAX_CHILDREN_SET="${max_children+1}" \
+python3 -c "
 import json, os, sys
 
 show_all = os.environ.get('SPRINT_SHOW_ALL') == 'true'
+
+# Child-count filters — use _SET sentinel to distinguish \"0\" from \"unset\"
+min_children = int(os.environ['SPRINT_MIN_CHILDREN']) if os.environ.get('SPRINT_MIN_CHILDREN_SET') == '1' else None
+max_children = int(os.environ['SPRINT_MAX_CHILDREN']) if os.environ.get('SPRINT_MAX_CHILDREN_SET') == '1' else None
 
 # Load index from env var (built by v3 path above)
 try:
@@ -253,6 +272,20 @@ for tid, entry in index.items():
 in_progress.sort(key=lambda x: x['priority'])
 open_unblocked.sort(key=lambda x: x['priority'])
 open_blocked.sort(key=lambda x: x['priority'])
+
+# Apply child-count filters (after classification, before output)
+def _passes_child_filter(e):
+    c = e['children']
+    if min_children is not None and c < min_children:
+        return False
+    if max_children is not None and c > max_children:
+        return False
+    return True
+
+if min_children is not None or max_children is not None:
+    in_progress    = [e for e in in_progress    if _passes_child_filter(e)]
+    open_unblocked = [e for e in open_unblocked if _passes_child_filter(e)]
+    open_blocked   = [e for e in open_blocked   if _passes_child_filter(e)]
 
 # Display P0 bugs above the epic list (if any exist) -- must come BEFORE the
 # 'no open epics' early exit so P0 bugs are always visible.
