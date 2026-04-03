@@ -2269,3 +2269,78 @@ def test_reduce_ticket_trailing_slash_produces_correct_ticket_id(
     assert state["ticket_id"] == "tkt-slash", (
         f"Expected ticket_id='tkt-slash', got {state['ticket_id']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test (RED): CREATE event with tags field populates state.tags
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_event_with_tags(tmp_path: Path, reducer: ModuleType) -> None:
+    """Given a CREATE event with tags in data, reducer must populate state['tags'].
+
+    RED: ticket-reducer.py currently ignores tags in CREATE events.
+    This test will FAIL until the reducer is updated to read tags from event data.
+    """
+    ticket_dir = tmp_path / "tkt-tags"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "bug",
+            "title": "Tags test",
+            "parent_id": "",
+            "tags": ["CLI_user"],
+        },
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket must return a dict for a CREATE event"
+    assert "tags" in state, (
+        "state must include a 'tags' field when CREATE event has tags data"
+    )
+    assert state["tags"] == ["CLI_user"], (
+        f"Expected tags=['CLI_user'], got {state.get('tags')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test: CREATE event without tags field initializes state.tags to empty list
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_create_event_without_tags(tmp_path: Path, reducer: ModuleType) -> None:
+    """Given a CREATE event without a tags field, reducer must initialize state['tags'] to [].
+
+    GREEN: the reducer already initializes tags to [] for tickets without tags.
+    This test verifies backward compatibility.
+    """
+    ticket_dir = tmp_path / "tkt-no-tags"
+    ticket_dir.mkdir()
+
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID,
+        event_type="CREATE",
+        data={
+            "ticket_type": "task",
+            "title": "No tags test",
+            "parent_id": "",
+        },
+    )
+
+    state = reducer.reduce_ticket(ticket_dir)
+
+    assert state is not None, "reduce_ticket must return a dict for a CREATE event"
+    assert "tags" in state, "state must include a 'tags' field (default empty list)"
+    assert state["tags"] == [], f"Expected tags=[], got {state.get('tags')!r}"
