@@ -141,6 +141,7 @@ Based on gathered evidence, classify into one of three terminal outcomes:
 4. No evidence found after exhausting budget → **ambiguous**
 5. Mixed signals (some justify, some don't) → **ambiguous**
 6. Clear absence of justification with behavior matching a broken invariant → **intent-aligned**
+7. No implementation found for the reported capability (feature was never built) → **ambiguous** — absence of implementation is not evidence of deliberate design; do NOT classify as `intent-contradicting`. The feature-request check (Gate 1b) handles this case via user escalation.
 
 ## Output Schema
 

@@ -231,12 +231,13 @@ test_ghost_prevention_e2e() {
     # Step 12: ticket list → ghost-xyz appears with error status (not crash)
     local list_exit=0
     local list_out
-    list_out=$(cd "$repo" && bash "$TICKET_SCRIPT" list 2>/dev/null) || list_exit=$?
+    list_out=$(cd "$repo" && bash "$TICKET_SCRIPT" list --status=error 2>/dev/null) || list_exit=$?
     # list should still exit 0 even with a ghost ticket
     assert_eq "ghost: list exits 0 despite ghost ticket" "0" "$list_exit"
 
     # Ghost with no event files: reducer returns None → list falls back to error state
     # The fallback path in ticket-list.sh produces: {"ticket_id": "ghost-xyz", "status": "error", ...}
+    # Note: error-state tickets are filtered from default list; use --status=error to see them.
     local ghost_status
     ghost_status=$(_list_status_for "$list_out" "$ghost_id")
     assert_eq "ghost: ghost-xyz appears with status=error in list" "error" "$ghost_status"
@@ -336,7 +337,7 @@ print(json.dumps(event))
     # Step 1: ticket list → corrupt-abc appears with status='fsck_needed', exits 0
     local list_exit=0
     local list_out
-    list_out=$(cd "$repo" && bash "$TICKET_SCRIPT" list 2>/dev/null) || list_exit=$?
+    list_out=$(cd "$repo" && bash "$TICKET_SCRIPT" list --status=fsck_needed 2>/dev/null) || list_exit=$?
     assert_eq "fsck: list exits 0 despite corrupt CREATE" "0" "$list_exit"
 
     local corrupt_status

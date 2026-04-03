@@ -221,16 +221,32 @@ Gate 1a has three possible outcomes. The **ambiguous** outcome falls through to 
 
 - **intent-aligned** (`triggered: false`, `confidence: high` or `medium`) — The bug is consistent with system intent. Set `GATE_1A_RESULT="intent-aligned"`. Proceed directly to Step 2 (Investigation Sub-Agent Dispatch) without additional dialog.
 
-- **intent-contradicting** (`triggered: true`) — The bug report describes behavior that contradicts system intent (e.g., "working as designed", invalid usage, non-bug). Set `GATE_1A_RESULT="intent-contradicting"`. Auto-close:
+- **intent-contradicting** (`triggered: true`) — The bug report describes behavior that contradicts system intent. Set `GATE_1A_RESULT="intent-contradicting"`. Before closing, inspect the `evidence` field to distinguish two sub-cases:
+
+  **Sub-case A: Working as designed** — Evidence cites an explicit design document, ADR, commit message, or code comment that *justifies* the current behavior (i.e., the feature exists and was deliberately built this way). Auto-close:
   1. Add evidence comment:
      ```bash
-     ticket comment <BUG_TICKET_ID> "Intent-contradicting: <evidence summary from gate signal>"
+     ticket comment <BUG_TICKET_ID> "Intent-contradicting (working as designed): <evidence summary from gate signal>"
      ```
   2. Close ticket with reason:
      ```bash
      ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: Intent-contradicting — <evidence source>"
      ```
   3. **Stop** — do not proceed to investigation.
+
+  **Sub-case B: Feature never implemented** — Evidence indicates the capability was never built (no implementation found, no design doc, no commit). Do NOT auto-close. Escalate to user:
+  1. Add evidence comment:
+     ```bash
+     ticket comment <BUG_TICKET_ID> "Gate 1a: intent-contradicting (feature not implemented) — <evidence summary from gate signal>"
+     ```
+  2. Present the evidence to the user with three options:
+     1. **Close as feature request** — close the bug ticket with `--reason="Fixed: Intent-contradicting — feature not implemented, not a bug"`. Only close if the user explicitly authorizes closure.
+     2. **Convert to epic** — invoke `/dso:brainstorm` on the ticket to create a proper feature epic.
+     3. **Proceed with investigation** — treat as a genuine bug and continue to Step 2.
+  3. Do NOT close the ticket autonomously. Do NOT implement the feature as a bug fix (per constraint 8204-97b0).
+  4. **Stop** — do not proceed to investigation until the user responds.
+
+  **Disambiguation rule**: If the evidence is ambiguous about which sub-case applies, treat as Sub-case B and escalate. Fail toward user dialog when intent cannot be confirmed from explicit artifacts.
 
 - **ambiguous** (`triggered: false`, `confidence: low`) — The intent signal is inconclusive. Set `GATE_1A_RESULT="ambiguous"`. Fall through to Gate 1b for further disambiguation before investigation.
 

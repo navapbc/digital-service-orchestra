@@ -942,7 +942,7 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 - **No Critical or Important issues** (all scores >= 4) → proceed to Step 8
 - **Critical or Important issues found** → Enter Autonomous Resolution Loop per REVIEW-WORKFLOW.md. No inline fixes by orchestrator. Failed tasks: revert to open, add issue details, re-run with reviewer feedback.
 - **Minor issues only** → proceed (note them in ticket but don't block)
-- **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, report to user and proceed to commit.
+- **Autonomous resolution**: Up to `review.max_resolution_attempts` (default: 5) fix/defend attempts before tier escalation (light → standard → deep). When attempts are exhausted, upgrade to the next tier before escalating to user — the deep tier (3 sonnet + opus synthesis) must be tried before user escalation. Resolution sub-agent applies fixes, then orchestrator dispatches separate re-review sub-agent (no nesting). If issues persist after deep tier, escalate to the user — do NOT commit or initiate graceful shutdown. The review loop continues until the review passes OR the user explicitly approves proceeding.
 
 ### Step 8: Update Ticket Notes (/dso:sprint)
 
@@ -993,6 +993,8 @@ Do NOT use the `/dso:commit` Skill tool here — read and execute COMMIT-WORKFLO
 </HARD-GATE>
 
 After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **Step 10a** then Step 11 then Step 13. Do NOT close the epic or invoke `/dso:end-session` here.
+
+> **CONTINUE:** After commit and push, proceed immediately to Step 10a. Do NOT stop, wait for user input, or initiate graceful shutdown here.
 
 ### Step 10a: Close Completed Tasks (/dso:sprint)
 
