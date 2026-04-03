@@ -1,1 +1,0 @@
-{"timestamp": 1775183159240172000, "uuid": "4210aa66-a145-4afa-8262-27d1bdb6ae5e", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "CHECKPOINT 6/6: Done \u2713 \u2014 .claude/scripts/dso skill-trace-analyze --help exits 0 and shows usage correctly"}}
