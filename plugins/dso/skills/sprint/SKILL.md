@@ -23,7 +23,6 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
-VALIDATE_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.validate)  # shim-exempt: internal orchestration script
 VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)  # shim-exempt: internal orchestration script
 E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)  # shim-exempt: internal orchestration script
 ```
@@ -33,7 +32,6 @@ Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
 Resolved commands used in this skill:
 - `TEST_CMD` — replaces `make test-unit-only` in post-batch and remediation validation
 - `LINT_CMD` — replaces `make lint` in validation steps
-- `VALIDATE_CMD` — replaces `scripts/validate.sh --ci` call in Phase 1
 - `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
 - `E2E_CMD` — replaces `make test-e2e` in post-batch checks
 
@@ -78,7 +76,7 @@ Flow: P1 (Init) → Preplanning Gate
 
 1. Run the epic discovery script:
    ```bash
-   .claude/scripts/dso sprint-list-epics.sh --all
+   .claude/scripts/dso sprint-list-epics.sh --all --min-children=1
    ```
    This outputs tab-separated lines in three categories:
    - `<id>\tP*\t<title>\t<child_count>[\tBLOCKING]` for in-progress epics (4 or 5 fields; `P*` replaces priority)
@@ -90,7 +88,19 @@ Flow: P1 (Init) → Preplanning Gate
    Exit codes:
    - Exit code 1 → no open epics exist, report and exit
    - Exit code 2 → all open epics are blocked; display the BLOCKED-prefixed lines from stdout as context, then exit
-2. Parse the output and print a numbered list. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**:
+
+   After running, also run the same command **without** `--min-children=1` to count how many epics were hidden:
+   ```bash
+   .claude/scripts/dso sprint-list-epics.sh --all
+   ```
+   Calculate `hidden_count = total_unfiltered_count - filtered_count` (count only non-BLOCKED lines from each run).
+
+   **If no eligible epics remain** after applying `--min-children=1` (i.e., the filtered output is empty or exit code 1/2):
+   - Report: "No epics with children are ready to execute."
+   - If there are 0-child epics that were filtered out, show: "There are N epics with no children yet. Run `/dso:brainstorm` on one to decompose it into stories before executing."
+   - Exit.
+
+2. Parse the output and print a numbered list. Number in-progress (`P*`) epics first, then unblocked. Blocked epics are informational only (not selectable). Render `BLOCKING` epics in **bold**. Below the list, if `hidden_count > 0`, append a note:
    ```
    In-progress epics:
 
@@ -105,7 +115,10 @@ Flow: P1 (Init) → Preplanning Gate
 
    Blocked epics (not selectable):
      - [P2] <title> (<epic-id>) — 2 children — blocked by: <blocker-id-1>, <blocker-id-2>
+
+   (N epics with zero children are hidden. Run `/dso:brainstorm` on one to create stories.)
    ```
+   Omit the hidden-epics note when `hidden_count == 0`.
 3. Ask the user: "Enter the number or epic ID to execute:" and wait for their text input
 4. Map the user's response (number or epic ID) back to the corresponding epic and proceed
 
@@ -148,30 +161,6 @@ Flow: P1 (Init) → Preplanning Gate
 4. Fallback rule: if CHECKPOINT lines are present but ambiguous (missing ✓, duplicate numbers, non-sequential), treat as malformed → revert to open
 5. Proceed to Phase 3
 
-### Run Validation Gate
-
-Before running `validate.sh --ci`, check if a validation state file already exists for this worktree session. If it does, reuse it rather than re-running validation.
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-WORKTREE_NAME=$(basename "$REPO_ROOT")
-STATE_FILE="/tmp/lockpick-test-artifacts-${WORKTREE_NAME}/status"
-
-if [ -f "$STATE_FILE" ]; then
-  echo "Validation state file found at $STATE_FILE — reusing existing result."
-  cat "$STATE_FILE"
-else
-  .claude/scripts/dso validate.sh --ci
-fi
-```
-
-**Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
-
-**If validation fails**:
-- **Single bug/test failure**: Invoke `/dso:fix-bug` with the failing test output — it classifies the bug, selects the appropriate investigation path, and fixes it with TDD discipline.
-- **Multiple failures or unclear root cause**: Dispatch an `error-debugging:error-detective` sub-agent (model: `sonnet`) with the validation output to diagnose and fix the specific failing categories. Do NOT invoke `/dso:debug-everything` — it is a separate workflow that resolves all project bugs, not just sprint-scoped failures.
-- Do NOT proceed to the Preplanning Gate until validation passes.
-
 ### Preplanning Gate
 
 #### Step 1: Check for Existing Children (/dso:sprint)
@@ -202,10 +191,23 @@ Count the number of child tasks returned.
 
 If **more than half** of the children are ambiguous, trigger preplanning for the entire epic.
 
+<!-- REVIEW-DEFENSE: The SKILL_INVOKE/SKILL_RESUMED breadcrumb snippets are intentionally repeated at each call site rather than extracted to a shared helper. sprint/SKILL.md is a Markdown instruction file, not executable code — Claude reads and follows its instructions sequentially, and there is no shell function or macro mechanism available. Each breadcrumb must be self-contained at its call site so the agent can emit it inline without requiring a prior setup step. Extracting to a "canonical block" would break the instruction model. Any schema change (new field, rename) requires updating all call sites; this is an accepted trade-off for instruction-file clarity. -->
+
+> **CONTROL_LOSS detection note (applies to every SKILL_INVOKE/SKILL_RESUMED pair in this file):**
+> At each call site below, a `SKILL_INVOKE` breadcrumb is emitted immediately before the Skill tool call, and a `SKILL_RESUMED` breadcrumb is emitted immediately after. If the Skill tool call does not return control to the orchestrator (e.g., the skill terminates the session or control is otherwise lost), the `SKILL_RESUMED` breadcrumb will never execute. `CONTROL_LOSS` is **not** a breadcrumb type and is never emitted actively — it is a derived event detected passively by the analysis script (`skill-trace-analyze.py`) when it finds a `SKILL_INVOKE` record with no matching `SKILL_RESUMED` for the same `session_ordinal` + `skill_name`. No additional action is required by the orchestrator; the absence of `SKILL_RESUMED` is itself the signal.
+
 If any trigger condition is met:
 1. Log: `"Epic has ambiguous tasks — running /dso:preplanning to decompose before execution."`
-2. Invoke `/dso:preplanning <epic-id>` (full mode)
-3. After preplanning completes, continue to Phase 2
+2. Emit SKILL_INVOKE breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+3. Invoke `/dso:preplanning <epic-id>` (full mode)
+4. Emit SKILL_RESUMED breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+5. After preplanning completes, continue to Phase 2
 
 If no trigger condition is met, proceed directly to Phase 2.
 
@@ -234,39 +236,79 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 #### Step 3a: Direct Implementation Planning (SIMPLE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as SIMPLE — running /dso:implementation-plan directly on epic."`
-2. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
+2. Emit SKILL_INVOKE breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+3. Invoke `/dso:implementation-plan` via Skill tool with the epic ID as the argument:
    ```
    Skill("dso:implementation-plan", args="<epic-id>")
    ```
    The skill handles epic type detection and runs inline (no sub-agent dispatch needed).
-3. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
-4. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
-5. Continue to Phase 2
+4. Emit SKILL_RESUMED breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+5. Parse the skill's output using the same STATUS protocol as Phase 2's Implementation Planning Gate
+6. Set `epic_routing = "SIMPLE"` — this flag tells Phase 2 to skip the Implementation Planning Gate
+7. Continue to Phase 2
 
 #### Step 3b: Lightweight Preplanning (MODERATE epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as MODERATE — running /dso:preplanning --lightweight for scope clarification."`
-2. Invoke `/dso:preplanning <epic-id> --lightweight`
-3. Parse the result:
+2. Emit SKILL_INVOKE breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+3. Invoke `/dso:preplanning <epic-id> --lightweight`
+4. Emit SKILL_RESUMED breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+5. Parse the result:
 
 **On `ENRICHED`:**
 - Log: `"Lightweight preplanning complete — epic enriched with done definitions. Running /dso:implementation-plan on epic."`
+- Emit SKILL_INVOKE breadcrumb:
+  ```bash
+  echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+  ```
 - Invoke `/dso:implementation-plan` via Skill tool (same as Step 3a, step 2)
+- Emit SKILL_RESUMED breadcrumb:
+  ```bash
+  echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+  ```
 - Set `epic_routing = "MODERATE"`
 - Continue to Phase 2
 
 **On `ESCALATED`:**
 - Log: `"Lightweight preplanning escalated to full mode — reason: <reason>. Running full /dso:preplanning."`
+- Emit SKILL_INVOKE breadcrumb:
+  ```bash
+  echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+  ```
 - Invoke `/dso:preplanning <epic-id>` (full mode, no --lightweight flag)
+- Emit SKILL_RESUMED breadcrumb:
+  ```bash
+  echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+  ```
 - Set `epic_routing = "COMPLEX"`
 - Continue to Phase 2
 
 #### Step 3c: Full Preplanning (COMPLEX epics) (/dso:sprint)
 
 1. Log: `"Epic <id> classified as COMPLEX — running /dso:preplanning for full story decomposition."`
-2. Invoke `/dso:preplanning <epic-id>`
-3. After preplanning completes, set `epic_routing = "COMPLEX"`
-4. Continue to Phase 2
+2. Emit SKILL_INVOKE breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+3. Invoke `/dso:preplanning <epic-id>`
+4. Emit SKILL_RESUMED breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"preplanning","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+5. After preplanning completes, set `epic_routing = "COMPLEX"`
+6. Continue to Phase 2
 
 ---
 
@@ -340,12 +382,19 @@ Process stories in layer order — Layer 0 first, then Layer 1, etc. Within each
 **For each layer (in order Layer 0, Layer 1, ...):**
 
 a. Filter to stories in this layer that need decomposition
-b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool:
+b. For each story in the layer, emit SKILL_INVOKE breadcrumb then invoke `/dso:implementation-plan` via Skill tool:
+   ```bash
+   echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
    ```
    Skill("dso:implementation-plan", args="<story-id>")
    ```
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
-c. Wait for the skill invocation to return before processing the next story in the layer
+c. After the skill returns, emit SKILL_RESUMED breadcrumb:
+   ```bash
+   echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+   ```
+   Wait for the skill invocation to return before processing the next story in the layer
 d. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
      - Extract the comma-separated task IDs from the `TASKS` field
@@ -357,7 +406,14 @@ d. For each skill result, **parse STATUS:**
    - **Fallback — if no STATUS line in skill output:**
      - Run `.claude/scripts/dso ticket deps <story-id>` to check whether tasks were created
      - If children exist → treat as success; log a warning: `"WARNING: skill returned no STATUS line for story <id>, but .claude/scripts/dso ticket deps shows tasks — continuing"`; proceed to post-dispatch validation
-     - If no children → retry the skill invocation once (same parameters)
+     - If no children → emit SKILL_INVOKE breadcrumb and retry the skill invocation once (same parameters):
+       ```bash
+       echo '{"type":"SKILL_INVOKE","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+       ```
+       After retry returns, emit SKILL_RESUMED breadcrumb:
+       ```bash
+       echo '{"type":"SKILL_RESUMED","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","skill_name":"implementation-plan","nesting_depth":'"${DSO_TRACE_NESTING_DEPTH:-1}"',"session_ordinal":null,"tool_call_count":null,"skill_file_size":null,"elapsed_ms":null,"cumulative_bytes":null,"termination_directive":null,"user_interaction_count":0}' >> /tmp/dso-skill-trace-${DSO_TRACE_SESSION_ID:-$$}.log || true
+       ```
      - If retry also produces no children → revert story to open (`.claude/scripts/dso ticket transition <story-id> open`); log: `"ERROR: /dso:implementation-plan failed for story <id> after retry — story reverted to open"`; skip to next story
 d-collect. **Collect and present blocked-layer stories** — after the full layer batch completes, for each story with `STATUS:blocked`:
    - **Parsing STATUS:blocked**: When `/dso:implementation-plan` returns `STATUS:blocked QUESTIONS:[...]`, parse the JSON array and present each question in human-readable format:

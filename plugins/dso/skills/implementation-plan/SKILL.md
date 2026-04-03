@@ -37,6 +37,33 @@ Resolved commands used in this skill:
 
 **Supports dryrun mode.** Use `/dso:dryrun /dso:implementation-plan` to preview without changes.
 
+## Observability: SKILL_ENTER Breadcrumb
+
+Immediately after config resolution above, emit the SKILL_ENTER trace breadcrumb:
+
+```bash
+_DSO_TRACE_SESSION_ID="${DSO_TRACE_SESSION_ID:-$(date +%s%N 2>/dev/null || date +%s)}"
+_DSO_TRACE_LOG="/tmp/dso-skill-trace-${_DSO_TRACE_SESSION_ID}.log"
+_DSO_SKILL_ENTER_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+_DSO_SKILL_FILE_SIZE=$(wc -c < "${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/SKILL.md" 2>/dev/null || echo "null")
+_DSO_NESTING_DEPTH="${DSO_TRACE_NESTING_DEPTH:-1}"
+_DSO_SESSION_ORDINAL="${DSO_TRACE_SESSION_ORDINAL:-1}"
+_DSO_TOOL_CALL_COUNT="${DSO_TRACE_TOOL_CALL_COUNT:-null}"
+_DSO_CUMULATIVE_BYTES="${DSO_TRACE_CUMULATIVE_BYTES:-null}"
+echo "{\"type\":\"SKILL_ENTER\",\"timestamp\":\"${_DSO_SKILL_ENTER_TS}\",\"skill_name\":\"implementation-plan\",\"nesting_depth\":${_DSO_NESTING_DEPTH},\"session_ordinal\":${_DSO_SESSION_ORDINAL},\"tool_call_count\":${_DSO_TOOL_CALL_COUNT},\"skill_file_size\":${_DSO_SKILL_FILE_SIZE},\"elapsed_ms\":null,\"cumulative_bytes\":${_DSO_CUMULATIVE_BYTES},\"termination_directive\":null,\"user_interaction_count\":0}" >> "${_DSO_TRACE_LOG}" || true
+```
+
+Field notes:
+- `skill_name`: hardcoded `"implementation-plan"`
+- `nesting_depth`: read from `DSO_TRACE_NESTING_DEPTH` env var (set by parent via `DSO_TRACE_NESTING_DEPTH=<N>` in invocation args); defaults to `1` if absent
+- `skill_file_size`: byte count of this SKILL.md via `wc -c`, resolved through `CLAUDE_PLUGIN_ROOT`; `null` on error
+- `tool_call_count`: read from `DSO_TRACE_TOOL_CALL_COUNT` env var (approximate, best-effort); `null` if absent
+- `session_ordinal`: read from `DSO_TRACE_SESSION_ORDINAL` env var (best-effort, resets on compaction); defaults to `1`
+- `cumulative_bytes`: read from `DSO_TRACE_CUMULATIVE_BYTES` env var (running total maintained by session context); `null` if absent
+- `elapsed_ms`: always `null` at SKILL_ENTER (not yet known)
+- `termination_directive`: always `null` at SKILL_ENTER
+- `user_interaction_count`: `0` at SKILL_ENTER (no interactions yet)
+
 ## Usage
 
 ```
@@ -273,14 +300,25 @@ Draft tasks that **collectively fulfill all success criteria** of the User Story
 ### Directives
 
 * **TDD First:** Every task must specify a concrete failing test to write first.
-* **Stability:** Each task must leave the codebase in a deployable, green state.
-  Tasks must never require being committed together — each task is an independent
-  atomic unit that can be committed, pushed, and deployed on its own. If a task
-  would leave the codebase broken without another task also being committed, the
-  tasks must be restructured (merged or reordered) until each is independently green.
-  A task that deploys an inert feature (e.g., a guard that reads files no one writes yet)
-  is acceptable — inert is not broken. The key test: after committing only this task,
-  do all tests pass and is the system deployable?
+* **3-Gate Granularity:** Every task must pass all three gates. Gates are conjunctive —
+  Gate 3 only mandates splitting when the split would not violate Gate 1 or Gate 2.
+    * **Gate 1 — Testable Behavior:** The task must produce testable behavior —
+      grepping a source file to verify the existence of code is not a valid test.
+      A valid test executes the code under test and asserts on its output, exit code,
+      or side effects. (See the Behavioral Test Requirement section for the full
+      validity rubric.)
+    * **Gate 2 — Codebase Green:** The task must leave the codebase in a deployable,
+      green state. After committing only this task, all tests pass and the system is
+      deployable. Tasks must never require being committed together — each is an
+      independent atomic unit. A task that deploys an inert feature (e.g., a guard
+      that reads files no one writes yet) is acceptable — inert is not broken.
+    * **Gate 3 — Maximum Granularity:** It must not be possible to split the task into
+      smaller tasks that each independently meet Gate 1 and Gate 2. If two changes
+      within a task each produce independently verifiable behavior and each leaves the
+      codebase green on its own, they must be separate tasks. Bundling is acceptable
+      only when splitting would violate Gate 1 (neither half produces testable behavior
+      alone) or Gate 2 (splitting would leave an intermediate broken state — e.g., a
+      rename across import sites).
 * **Acceptance Criteria:** Every task must include acceptance criteria passed via `-d/--description`
   at creation time, composed from the template library
   (`${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md`).
@@ -778,7 +816,7 @@ Do not wait for user input. This line is the signal that returns control to the 
 | Mistake | Fix |
 |---------|-----|
 | Planning on assumptions | Run the ambiguity scan; ask before drafting |
-| Tasks too large (multi-concern) | Split until each task has one testable outcome |
+| Tasks too large (multi-concern) | Apply the 3-gate test: Gate 1 (testable behavior), Gate 2 (codebase green), Gate 3 (cannot split further while meeting gates 1 and 2). If two changes each produce independently verifiable behavior, they must be separate tasks |
 | Missing backward compatibility | Add migration/bridge step before breaking changes |
 | E2E tests forgotten | Always evaluate; document rationale if skipped |
 | No ADR for new patterns | Step 2 approval = ADR needed. Include doc task. |
@@ -791,6 +829,41 @@ Do not wait for user input. This line is the signal that returns control to the 
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
 | Tasks requiring co-commit | Every task must be independently committable and green. If Task B is broken without Task A in the same commit, merge them or reorder so each stands alone. Inert (does nothing yet) is fine; broken is not. |
 | Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in acceptance criteria — the test gate will produce a false negative without it. |
+
+## Observability: SKILL_EXIT Breadcrumb
+
+Before emitting any STATUS line (whether `STATUS:complete` or `STATUS:blocked`), emit the SKILL_EXIT trace breadcrumb:
+
+```bash
+_DSO_SKILL_EXIT_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+_DSO_EXIT_TOOL_CALL_COUNT="${DSO_TRACE_TOOL_CALL_COUNT:-null}"
+_DSO_EXIT_USER_INTERACTION_COUNT="${DSO_TRACE_USER_INTERACTION_COUNT:-0}"
+_DSO_SKILL_FILE_SIZE_EXIT=$(wc -c < "${CLAUDE_PLUGIN_ROOT}/skills/implementation-plan/SKILL.md" 2>/dev/null || echo "null")
+_DSO_CUMULATIVE_BYTES_EXIT="${DSO_TRACE_CUMULATIVE_BYTES:-null}"
+# Compute elapsed_ms from SKILL_ENTER timestamp if available; otherwise null
+if [ -n "${_DSO_SKILL_ENTER_TS}" ] && [ "${_DSO_SKILL_ENTER_TS}" != "unknown" ]; then
+    _DSO_ENTER_EPOCH=$(date -d "${_DSO_SKILL_ENTER_TS}" +%s 2>/dev/null || python3 -c "import datetime; print(int(datetime.datetime.strptime('${_DSO_SKILL_ENTER_TS}', '%Y-%m-%dT%H:%M:%SZ').timestamp()))" 2>/dev/null || echo "")
+    _DSO_EXIT_EPOCH=$(date -u +%s 2>/dev/null || echo "")
+    if [ -n "${_DSO_ENTER_EPOCH}" ] && [ -n "${_DSO_EXIT_EPOCH}" ]; then
+        _DSO_ELAPSED_MS=$(( (_DSO_EXIT_EPOCH - _DSO_ENTER_EPOCH) * 1000 ))
+    else
+        _DSO_ELAPSED_MS="null"
+    fi
+else
+    _DSO_ELAPSED_MS="null"
+fi
+# Detect termination directive: scan STATUS line of output for termination signals
+_DSO_TERMINATION_DIRECTIVE="false"
+echo "{\"type\":\"SKILL_EXIT\",\"timestamp\":\"${_DSO_SKILL_EXIT_TS}\",\"skill_name\":\"implementation-plan\",\"nesting_depth\":${_DSO_NESTING_DEPTH},\"session_ordinal\":${_DSO_SESSION_ORDINAL},\"tool_call_count\":${_DSO_EXIT_TOOL_CALL_COUNT},\"skill_file_size\":${_DSO_SKILL_FILE_SIZE_EXIT},\"elapsed_ms\":${_DSO_ELAPSED_MS},\"cumulative_bytes\":${_DSO_CUMULATIVE_BYTES_EXIT},\"termination_directive\":${_DSO_TERMINATION_DIRECTIVE},\"user_interaction_count\":${_DSO_EXIT_USER_INTERACTION_COUNT}}" >> "${_DSO_TRACE_LOG}" || true
+```
+
+Field notes:
+- `elapsed_ms`: computed as `(exit_epoch - enter_epoch) * 1000`; falls back to `null` if either timestamp is unavailable
+- `termination_directive`: `false` by default (implementation-plan does not emit STOP directives); set to `true` if the STATUS line being emitted contains a termination signal scanned from skill output
+- `user_interaction_count`: read from `DSO_TRACE_USER_INTERACTION_COUNT` env var (best-effort count of user interactions during execution); defaults to `0`
+- All other fields mirror SKILL_ENTER values for correlation
+
+---
 
 ## Output Protocol (when invoked from /dso:sprint)
 

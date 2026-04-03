@@ -85,6 +85,7 @@ Config keys (`dso-config.conf`): `ci.workflow_name`, `merge.message_exclusion_pa
 **Worktree lifecycle** (`claude-safe`): After Claude exits, `_offer_worktree_cleanup` auto-removes the worktree if: (1) branch is ancestor of main (`is_merged`), AND (2) `git status --porcelain` is empty (`is_clean`). No special filtering — `.tickets-tracker/` files block removal like any other dirty file. `/dso:end` ensures the worktree meets these criteria by: generating technical learnings (Step 2.8) and creating bug tickets (Step 2.85) before commit/merge, and verifying `is_merged` + `is_clean` (Step 4.75) before session summary.
 
 **File placement**: Design documents go in `plugins/dso/docs/designs/` — not bare `designs/` at repo root (review-gate blocks it).
+**Browser automation**: Use `@playwright/cli` (`npx @playwright/cli test`) as the browser automation interface for E2E and visual regression tests. Install via `npm install --save-dev @playwright/cli`.
 
 ## Critical Rules
 

@@ -123,12 +123,13 @@ git rev-parse --short HEAD 2>/dev/null
 If git is not available, **stop**. Inform the user that git is required for
 cache invalidation and the skill cannot proceed.
 
-**Playwright:**
+**Playwright CLI (`@playwright/cli`):**
 ```
-python -c "from playwright.sync_api import sync_playwright; print('available')" 2>/dev/null
+command -v npx >/dev/null 2>&1 && npx @playwright/cli --version 2>/dev/null
 ```
-Note whether Playwright is available. If not, warn that route crawling will be
-skipped and the cache will be static-analysis-only.
+Note whether the `@playwright/cli` binary is available. If the command exits
+non-zero or is not found, warn that route crawling will be skipped and the cache
+will be static-analysis-only.
 
 **Running application:** If Phase 0 passed, the app is confirmed healthy on its
 port. Use the port from `.claude/scripts/dso check-local-env.sh` output or the `APP_PORT` env var
@@ -422,89 +423,79 @@ or equivalent) + any included partial templates.
 
 ### Step 8: Playwright route crawl (conditional) (/dso:ui-discover)
 
-**If Playwright is available AND the app is running:**
+**If `@playwright/cli` is available AND the app is running:**
 
-Write a temporary crawl script to `/tmp/ui-discover-crawl.py`:
+Use the `@playwright/cli` to crawl each route via discrete CLI commands. The
+CLI uses named sessions (`-s=<name>`) to persist browser state across separate
+Bash invocations.
 
-```python
-# The script should:
-# 1. Import sync_playwright from playwright.sync_api
-# 2. Read the route list from .ui-discovery-cache/global/route-map.json
-# 3. Launch headless Chromium
-# 4. For each route:
-#    a. Navigate to appUrl + route path (30s timeout)
-#    b. Wait for network idle (page.wait_for_load_state("networkidle"))
-#    c. Take a full-page screenshot -> .ui-discovery-cache/screenshots/<slug>.png
-#    d. Extract 3-level DOM summary: tags, classes, IDs, ARIA roles,
-#       data attributes, text content (truncated to 100 chars)
-#    e. Collect component-like elements (elements with data-component attrs
-#       or class name patterns matching macro/component names)
-# 5. Output JSON results to stdout
+**Open a session:**
+```bash
+npx @playwright/cli open -s=ui-discover
 ```
 
-Example script structure:
-```python
-import json
-import sys
-from playwright.sync_api import sync_playwright
+**For each route** in `.ui-discovery-cache/global/route-map.json`:
 
-def slugify(path):
-    return path.strip("/").replace("/", "-") or "index"
+1. **Slugify** the route path: strip leading `/`, replace `/` with `-`, default
+   to `index` for the root path `/`.
 
-def crawl_routes(app_url, routes, output_dir):
-    results = {}
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        for route in routes:
-            slug = slugify(route["path"])
-            url = app_url.rstrip("/") + route["path"]
-            try:
-                page.goto(url, timeout=30000)
-                page.wait_for_load_state("networkidle", timeout=30000)
-                screenshot_path = f"{output_dir}/screenshots/{slug}.png"
-                page.screenshot(path=screenshot_path, full_page=True)
-                dom_summary = page.evaluate("""() => {
-                    function summarize(el, depth) {
-                        if (depth > 3) return null;
-                        return {
-                            tag: el.tagName,
-                            id: el.id || null,
-                            classes: Array.from(el.classList).slice(0, 5),
-                            role: el.getAttribute('aria-role') || el.getAttribute('role') || null,
-                            text: (el.textContent || '').trim().slice(0, 100),
-                            children: Array.from(el.children).map(c => summarize(c, depth + 1)).filter(Boolean)
-                        };
-                    }
-                    return summarize(document.body, 0);
-                }""")
-                results[route["path"]] = {
-                    "crawled": True,
-                    "screenshot": screenshot_path,
-                    "dom": dom_summary
-                }
-            except Exception as e:
-                results[route["path"]] = {"crawled": False, "error": str(e)}
-        browser.close()
-    return results
+2. **Navigate** to the route URL:
+   ```bash
+   npx @playwright/cli goto -s=ui-discover "${APP_URL}${route_path}"
+   ```
 
-if __name__ == "__main__":
-    with open(".ui-discovery-cache/global/route-map.json") as f:
-        route_map = json.load(f)
-    app_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:5000"
-    results = crawl_routes(app_url, route_map.get("routes", []), ".ui-discovery-cache")
-    print(json.dumps(results, indent=2))
-```
+3. **Wait for network idle** using `run-code`:
+   ```bash
+   npx @playwright/cli run-code -s=ui-discover "async (page) => {
+     await page.waitForLoadState('networkidle', { timeout: 30000 });
+     return 'idle';
+   }"
+   ```
+
+4. **Take a screenshot**:
+   ```bash
+   npx @playwright/cli screenshot -s=ui-discover \
+     --filename=".ui-discovery-cache/screenshots/${slug}.png"
+   ```
+
+5. **Extract 3-level DOM summary** via `run-code`:
+   ```bash
+   npx @playwright/cli run-code -s=ui-discover "async (page) => {
+     function summarize(el, depth) {
+       if (depth > 3) return null;
+       return {
+         tag: el.tagName,
+         id: el.id || null,
+         classes: Array.from(el.classList).slice(0, 5),
+         role: el.getAttribute('aria-role') || el.getAttribute('role') || null,
+         text: (el.textContent || '').trim().slice(0, 100),
+         children: Array.from(el.children).map(c => summarize(c, depth + 1)).filter(Boolean)
+       };
+     }
+     return JSON.stringify(summarize(document.body, 0));
+   }"
+   ```
+
+6. **Collect component-like elements** (elements with `data-component` attrs or
+   class name patterns matching macro/component names) via `run-code`.
+
+7. **Record the result**: parse the JSON output from `run-code` and store it
+   under the route path key with `crawled: true`, `screenshot` path, and `dom`
+   summary. On failure (non-zero exit), record `crawled: false` with the error
+   message.
 
 For parameterized routes (containing URL parameters in any format — `<param>`,
 `:param`, `[param]`, etc.), generate reasonable test values: use `1` for
 integer parameters, `test` for string parameters. If a parameterized route
 fails to load, warn and skip — mark `playwrightCrawled: false` for that route.
 
-Run: `python /tmp/ui-discover-crawl.py <APP_URL>`
-
 Handle route navigation timeouts individually — log a warning for the timed-out
 route and continue with remaining routes.
+
+**Close the session:**
+```bash
+npx @playwright/cli close -s=ui-discover
+```
 
 **If Playwright is unavailable or the app is not running:**
 

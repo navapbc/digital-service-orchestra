@@ -1,0 +1,75 @@
+description: "playwright-debug skill evals — CLI-based browser automation without MCP tools"
+
+providers:
+  - id: "anthropic:messages:claude-haiku-4-5-20251001"
+
+defaultTest:
+  options:
+    provider: "anthropic:messages:claude-haiku-4-5-20251001"
+
+prompts:
+  - |
+    You are the playwright-debug skill. You debug UI and browser-visible bugs using
+    a 3-tier hypothesis-first process. When MCP browser tools are NOT available,
+    you MUST use @playwright/cli CLI commands for all browser automation.
+
+    Available tools: Read, Grep, Glob, Bash
+    MCP browser tools (browser_navigate, browser_click, browser_snapshot, etc.): NOT AVAILABLE
+
+    Key rules:
+    - Tier 1 (Code Analysis): Use Read, Grep, Glob — no browser tools
+    - Tier 2 (Targeted Evidence): Use @playwright/cli run-code for batched JS execution
+    - Tier 3 (Full Interaction): Use @playwright/cli goto, click, hover, screenshot
+    - NEVER attempt to call browser_* MCP tools when they are not available
+    - ALWAYS use the @playwright/cli binary for browser automation
+    - First verify @playwright/cli is available: check $(npm root)/.bin/playwright
+
+    The user says:
+    {{prompt}}
+
+tests:
+  - description: "playwright-debug CLI regression: uses @playwright/cli when MCP tools are absent"
+    vars:
+      prompt: |
+        I have a UI bug: the "Submit" button on the /checkout page is not visible
+        after a user adds items to the cart. MCP browser tools are not configured
+        in this environment. How do I debug this using the playwright-debug skill?
+    assert:
+      - type: llm-rubric
+        value: >
+          The output correctly uses @playwright/cli CLI commands for browser automation
+          instead of MCP browser tools (browser_navigate, browser_click, browser_snapshot,
+          or any browser_* function). It should:
+          (1) start with Tier 1 code analysis using Read/Grep/Glob to inspect templates,
+          routes, or CSS related to the Submit button — no browser calls at this stage,
+          (2) when escalating to Tier 2 or Tier 3, use @playwright/cli CLI commands such
+          as "@playwright/cli run-code", "@playwright/cli goto", "@playwright/cli snapshot",
+          "@playwright/cli click", or similar — referencing the CLI binary (e.g., via
+          PW_CLI="$(npm root)/.bin/playwright"),
+          (3) NOT attempt to call browser_navigate, browser_click, browser_snapshot, or
+          any other browser_* MCP tool — these are unavailable and must not appear in the
+          output as proposed actions,
+          (4) include a pre-flight check confirming the @playwright/cli binary is available
+          before any Tier 2 or Tier 3 steps.
+
+  - description: "playwright-debug CLI regression: does NOT use browser_* MCP tools when absent"
+    vars:
+      prompt: |
+        Debug a broken dropdown menu on /settings. The dropdown opens but does not
+        display any options. MCP tools are not available. Use the playwright-debug
+        skill to investigate. Jump straight to browser interaction — skip code analysis.
+    assert:
+      - type: llm-rubric
+        value: >
+          Even though the user asks to skip code analysis, the output must NOT use
+          browser_* MCP tools (browser_navigate, browser_click, browser_snapshot,
+          browser_type, etc.) because they are unavailable. The output should:
+          (1) clarify that MCP browser tools are not available and that @playwright/cli
+          CLI commands will be used for browser automation instead,
+          (2) use @playwright/cli commands such as "run-code", "goto", "snapshot", or
+          "click" (referencing the CLI binary) for any browser interaction steps,
+          (3) still follow the 3-tier discipline — if the user insists on skipping
+          Tier 1, the output may proceed to Tier 2 using "@playwright/cli run-code"
+          to batch JS evidence collection about the dropdown,
+          (4) never reference browser_navigate, browser_click, browser_snapshot, or
+          any browser_* MCP function as a viable action in this environment.

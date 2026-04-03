@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Session Persistence Test</title>
+</head>
+<body>
+  <button id="set-state-btn">Set State</button>
+  <div id="state-indicator" data-state="inactive"></div>
+  <script>
+    document.getElementById('set-state-btn').addEventListener('click', function () {
+      document.getElementById('state-indicator').setAttribute('data-state', 'active');
+    });
+  </script>
+</body>
+</html>

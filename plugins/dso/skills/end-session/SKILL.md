@@ -319,8 +319,17 @@ If any condition fails:
 
 Remove stale config-cache files from the workflow artifacts directory. These accumulate over sessions (one per unique config path hash) and cause I/O overhead in hooks that scan the directory.
 
+Also remove the `.playwright-cli/` state directory from the worktree root if present (session files created by `@playwright/cli` sub-agents during this session):
+
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# Clean up Playwright CLI state directory
+if [ -d "$REPO_ROOT/.playwright-cli" ]; then
+    rm -rf "$REPO_ROOT/.playwright-cli"
+    echo "Removed .playwright-cli/ state directory"
+fi
+
 source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR=$(get_artifacts_dir)
 CACHE_COUNT=$(find "$ARTIFACTS_DIR" -name 'config-cache-*' -type f 2>/dev/null | wc -l | tr -d ' ')

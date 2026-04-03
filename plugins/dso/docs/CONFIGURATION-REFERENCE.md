@@ -280,7 +280,7 @@ When `ci.workflow_name` is set, `merge.ci_workflow_name` is silently ignored. Wh
 | | |
 |---|---|
 | **Description** | End-to-end test command. Typically slower, may require external services. |
-| **Accepted values** | Any shell command string (e.g., `make test-e2e`, `playwright test`) |
+| **Accepted values** | Any shell command string (e.g., `make test-e2e`, `npx @playwright/cli test`) |
 | **Default** | Absent — E2E tests skipped when not set |
 | **Used by** | `.claude/scripts/dso validate.sh`, validate-work skill |
 

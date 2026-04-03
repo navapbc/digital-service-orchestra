@@ -1,8 +1,8 @@
 # Staging Environment Test
 
-Validate the staging environment using a tiered approach that minimizes Playwright MCP
-token usage. Follow the `/dso:playwright-debug` 3-tier process: deterministic checks first,
-targeted `browser_run_code` second, full MCP only as last resort.
+Validate the staging environment using a tiered approach that minimizes token usage.
+Follow the `/dso:playwright-debug` 3-tier process: deterministic checks first,
+targeted `@playwright/cli run-code` second, full CLI only as last resort.
 
 Do NOT create bugs or fix issues — only report findings.
 
@@ -11,6 +11,27 @@ Do NOT create bugs or fix issues — only report findings.
 <!-- staging.test: {STAGING_TEST} -->
 <!-- staging.routes: {STAGING_ROUTES} -->
 <!-- staging.health_path: {STAGING_HEALTH_PATH} -->
+
+---
+
+## PRE-FLIGHT CHECK
+
+Before running any browser-based checks, verify `@playwright/cli` is available:
+
+```bash
+# Pre-flight: confirm CLI is installed and accessible
+if ! npx @playwright/cli --version 2>/dev/null; then
+  echo "PRE-FLIGHT FAIL: @playwright/cli not found. Install with: npm install @playwright/cli"
+  echo "Falling back to curl-only checks."
+  PLAYWRIGHT_AVAILABLE=false
+else
+  echo "PRE-FLIGHT PASS: $(npx @playwright/cli --version)"
+  PLAYWRIGHT_AVAILABLE=true
+fi
+```
+
+If `PLAYWRIGHT_AVAILABLE=false`, skip all Tier 2 browser checks and report them as
+`SKIPPED (cli-not-installed)`. Continue with Tier 0 and Tier 1 (curl-based) checks.
 
 ---
 
@@ -109,7 +130,7 @@ Log your decision: `"Change scope evaluated: TEST_MODE={FULL_BROWSER|API_ONLY}. 
 
 ---
 
-## TIER 0 — Deterministic Pre-Checks (no MCP needed)
+## TIER 0 — Deterministic Pre-Checks (no CLI needed)
 
 Run local deterministic tests before any live environment interaction:
 
@@ -150,31 +171,40 @@ In `API_ONLY` mode, include in the summary:
 
 ---
 
-## TIER 2 — Playwright Browser Checks (FULL_BROWSER mode only)
+## TIER 2 — @playwright/cli Browser Checks (FULL_BROWSER mode only)
 
-Only run Tier 2 when `TEST_MODE=FULL_BROWSER` and Playwright MCP tools are available.
+Only run Tier 2 when `TEST_MODE=FULL_BROWSER` and `PLAYWRIGHT_AVAILABLE=true` (pre-flight passed).
 
-First, verify Playwright MCP tools are available by calling `browser_snapshot`.
-If Playwright MCP is not reachable, fall back to curl-based checks (see FALLBACK section below).
+If `PLAYWRIGHT_AVAILABLE=false`, skip all Tier 2 phases and report them as `SKIPPED (cli-not-installed)`.
+
+Use a named session scoped to the current worktree for isolation:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+WORKTREE_ID=$(basename "$REPO_ROOT")
+SESSION_NAME="staging-test-${WORKTREE_ID}"
+```
 
 **Phase 1 — Infrastructure Health** (prefer API-driven):
-- Use curl: `curl -sf {STAGING_URL}{STAGING_HEALTH_PATH}` — if 200, PASS without MCP.
-- Only use `browser_navigate` + `browser_console_messages` if curl is not reachable.
-- Check browser console messages for JS errors (one call).
-- Report: PASS/FAIL
+- Use curl: `curl -sf {STAGING_URL}{STAGING_HEALTH_PATH}` — if 200, PASS without CLI.
+- Only open a browser session if curl is not reachable.
 
 **Phase 2 — Browser Console Error Detection**:
 
-```javascript
-// batched browser_run_code call
+Open a named session, navigate to staging, collect console messages, then close:
+
+```bash
+# Open session
+npx @playwright/cli open -s="$SESSION_NAME"
+
+# Navigate and collect console errors via run-code
+npx @playwright/cli run-code -s="$SESSION_NAME" "
 async (page) => {
   await page.goto('{STAGING_URL}');
-  // Collect any console errors
   const errors = [];
   page.on('console', msg => {
     if (msg.type() === 'error') errors.push(msg.text());
   });
-  // Wait briefly for page load
   await page.waitForLoadState('networkidle').catch(() => {});
   return {
     pageLoaded: true,
@@ -182,57 +212,74 @@ async (page) => {
     hasConsoleErrors: errors.length > 0,
   };
 }
+"
 ```
 
-Report: PASS if no console errors, WARN if console errors detected (list them).
+**Output validation**: The `run-code` subcommand exits 0 on success, non-zero on error.
+Parse the JSON return value from stdout. Report PASS if `hasConsoleErrors: false`, WARN if
+`hasConsoleErrors: true` (list errors).
+
+```bash
+# Collect console output for parsing
+npx @playwright/cli console -s="$SESSION_NAME"
+```
 
 **Phase 3 — Route Coverage** (spot-check configured routes via browser):
 
-Iterate over `staging.routes` and check each in a batched `browser_run_code` call:
-
-```javascript
+```bash
+npx @playwright/cli run-code -s="$SESSION_NAME" "
 async (page) => {
   const baseUrl = '{STAGING_URL}';
   const routes = '{STAGING_ROUTES}'.split(',').map(r => r.trim());
   const results = {};
   for (const route of routes) {
-    const resp = await page.request.get(`${baseUrl}${route}`);
+    const resp = await page.request.get(\`\${baseUrl}\${route}\`);
     results[route] = resp.status();
   }
   return results;
 }
+"
 ```
 
-Report each route: PASS (2xx/3xx) or FAIL (5xx or error).
+**Output validation**: Exit code 0 = success. Parse route status codes from JSON stdout.
+Report each route PASS (2xx/3xx) or FAIL (5xx or error).
+
+**Cleanup — close the session when done**:
+
+```bash
+npx @playwright/cli close -s="$SESSION_NAME"
+```
 
 ---
 
 ## RESILIENCE
 
-If Playwright cannot reach staging (navigation timeout, connection refused):
+If `@playwright/cli` cannot reach staging (navigation timeout, connection refused):
 - Report: STAGING_UNREACHABLE with the specific error.
 - Include: "Staging site unreachable. Check environment health manually. Deployment may still be in progress."
+- Close the session before exiting: `npx @playwright/cli close -s="$SESSION_NAME"`
 - Do NOT retry navigation.
-- Do NOT take a screenshot of the error state (saves tokens).
 
 If a staging bug is observed (unexpected error, broken UI, wrong data):
-- Take a Playwright screenshot ONLY for specific bug evidence: `browser_take_screenshot`
-  (filename: `.claude/screenshots/<bug-name>.png`)
+- Take a screenshot for specific bug evidence:
+  ```bash
+  npx @playwright/cli screenshot -s="$SESSION_NAME" --filename=".claude/screenshots/<bug-name>.png"
+  ```
 - Include the screenshot filename in the report as evidence.
 - Report the specific error pattern.
 
 If test results are inconclusive (intermittent timeouts, partial page loads):
-- Report as INCONCLUSIVE (not FAIL) with the `browser_run_code` result as evidence.
+- Report as INCONCLUSIVE (not FAIL) with the `run-code` result as evidence.
 - Do NOT take a screenshot.
 - Include: "Results inconclusive — staging may still be deploying or under load. Wait 5 minutes and re-run, or investigate manually."
 
-## FALLBACK (if Playwright MCP not reachable)
+## FALLBACK (if @playwright/cli not available)
 
 Use curl commands:
 - `curl -sf {STAGING_URL}{STAGING_HEALTH_PATH}` — health check
 - For each route in `staging.routes`: `curl -sf {STAGING_URL}<route>` — route check
 
-Report what can be verified via API only; mark browser-only checks as SKIPPED.
+Report what can be verified via API only; mark browser-only checks as `SKIPPED (cli-not-installed)`.
 
 ---
 
@@ -243,6 +290,7 @@ Return a structured summary:
 ```
 - Test dispatch mode: Script / Prompt / Unrecognized extension fallback / Generic tiered
 - Test mode: FULL_BROWSER / API_ONLY (with reason)
+- Pre-flight: PASS / FAIL / SKIPPED
 - Tier 0 (health + route scan): PASS/FAIL/WARN
 - Tier 1 (API route checks): PASS/FAIL/SKIPPED
 - Tier 2 Phase 1 (infrastructure health): PASS/FAIL/SKIPPED
@@ -252,7 +300,12 @@ Return a structured summary:
   - WARN if TEST_MODE=API_ONLY (browser not tested)
   - WARN if console errors detected but no hard failures
   - FAIL if any Tier 0 health check failed or any Tier 2 phase FAIL
+  - FAIL if @playwright/cli exit code non-zero in a required phase
 ```
+
+Exit code interpretation:
+- Exit 0 from `npx @playwright/cli run-code` = command executed successfully
+- Non-zero exit = CLI error or browser automation failure (mark phase FAIL)
 
 Do NOT create issues. Do NOT fix problems. Read-only verification only.
 
