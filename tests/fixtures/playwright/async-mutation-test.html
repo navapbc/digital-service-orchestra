@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Async Mutation Test</title>
+</head>
+<body>
+  <p id="status">Loading...</p>
+  <script>
+    // Append an element with [data-ready] attribute after 2 seconds
+    setTimeout(function () {
+      var el = document.createElement('div');
+      el.setAttribute('data-ready', 'true');
+      el.id = 'ready-indicator';
+      el.textContent = 'Ready';
+      document.body.appendChild(el);
+      document.getElementById('status').textContent = 'Done';
+    }, 2000);
+  </script>
+</body>
+</html>
