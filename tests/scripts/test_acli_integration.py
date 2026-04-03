@@ -896,5 +896,7 @@ def test_acli_client_create_issue_rejects_empty_title(acli: ModuleType) -> None:
         ticket_data = {"ticket_type": "task", "title": empty_title}
         if empty_title is None:
             ticket_data = {"ticket_type": "task"}  # missing title key
-        with pytest.raises(ValueError, match="(?i)summary.*empty|title.*empty|empty.*title"):
+        with pytest.raises(
+            ValueError, match="(?i)summary.*empty|title.*empty|empty.*title"
+        ):
             client.create_issue(ticket_data)
