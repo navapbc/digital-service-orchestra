@@ -210,7 +210,6 @@ Plugin Enforcement Inventory:
 | auto-format.sh | PostToolUse hook | Already wired | Configure commands.format |
 | review-gate.sh | PreToolUse hook | Already wired | None |
 | validate.sh | Script | Available | Set commands.validate in dso-config.conf |
-| /dso:tdd-workflow | Skill | Available | Reference in CLAUDE.md |
 | ... | ... | ... | ... |
 ```
 
