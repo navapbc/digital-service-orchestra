@@ -1,0 +1,1 @@
+{"timestamp": 1775230554909062000, "uuid": "b1267921-7148-4043-8891-5b44cf390199", "event_type": "COMMENT", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "data": {"body": "Fixed: tdd-workflow skill directory and all 16 references removed. RED test passes GREEN (0 references)."}}
