@@ -339,6 +339,10 @@ def process_outbound(
             if event_data:
                 ticket_data = event_data.get("data", {})
 
+            # Guard: ensure title is non-empty before creating in Jira
+            if not (ticket_data.get("title") or "").strip():
+                ticket_data["title"] = f"[{ticket_id}]"
+
             # Create issue in Jira
             result = acli_client.create_issue(ticket_data)
             jira_key = result.get("key", "")
